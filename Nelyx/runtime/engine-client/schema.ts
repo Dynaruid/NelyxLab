@@ -685,6 +685,7 @@ export const protocol = {
     'expandPreferredWidth': 4096,
     'paintChild': 8192,
     'inlineScale': 16384,
+    'inputPadding': 32768,
   },
   'layoutFields': {
     'enabled': 0,
@@ -788,6 +789,9 @@ export const protocol = {
     'multiline': 2,
     'password': 4,
     'disabled': 8,
+  },
+  'textFlags': {
+    'styleOnly': 1,
   },
   'semanticsRoles': {
     'none': 0,
@@ -1051,5 +1055,5 @@ export const protocol = {
     'color': 27,
     'luminosity': 28,
   },
-  'schema': 2844160510,
+  'schema': 4042167114,
 } as const;

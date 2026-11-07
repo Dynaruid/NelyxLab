@@ -71,7 +71,16 @@ export function originalParagraphInput(
           : !allowProviderFamilies && !families.has(family),
       )
     )
-      return unsupported('App-text-font-family');
+      return unsupported(
+        'App-text-font-family:' +
+          names
+            .filter((family) =>
+              providerFamilies
+                ? !providerFamilies.has(family)
+                : !allowProviderFamilies && !families.has(family),
+            )
+            .join(','),
+      );
     return names;
   };
   const resolved = (style: TextRunStyle, start: number, end: number): ParagraphRun => {

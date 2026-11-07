@@ -74,7 +74,7 @@ try {
         )
       : {};
     if (values.engine === 'v2') {
-      if (values.target && !['web', 'windows'].includes(values.target))
+      if (values.target && !['web', 'windows', 'android'].includes(values.target))
         throw Error('Engine v2 has no ' + values.target + ' host');
       console.log(
         JSON.stringify(
@@ -144,11 +144,25 @@ try {
   };
   if (values.engine === 'v2') {
     const v2Allowed = {
-      doctor: [],
-      prepare: ['output'],
-      build: ['output'],
-      run: ['package', ...(target === 'web' ? ['host', 'port'] : [])],
-      dev: ['output', ...(target === 'web' ? ['host', 'port'] : [])],
+      doctor: target === 'android' ? ['android-sdk'] : [],
+      prepare: ['output', ...(target === 'android' ? ['android-sdk', 'architecture'] : [])],
+      build: ['output', ...(target === 'android' ? ['android-sdk', 'architecture'] : [])],
+      run: [
+        'package',
+        ...(target === 'web'
+          ? ['host', 'port']
+          : target === 'android'
+            ? ['android-sdk', 'device']
+            : []),
+      ],
+      dev: [
+        'output',
+        ...(target === 'web'
+          ? ['host', 'port']
+          : target === 'android'
+            ? ['android-sdk', 'device', 'architecture']
+            : []),
+      ],
       pack: ['package', 'output'],
     };
     for (const key of Object.keys(values))
@@ -170,6 +184,9 @@ try {
       host: values.host,
       port: values.port === undefined ? undefined : Number(values.port),
       arguments: nativeArguments,
+      architecture: values.architecture,
+      androidSdk: values['android-sdk'],
+      device: values.device,
     });
     console.log(JSON.stringify(result, null, 2));
     if (operation === 'run' || operation === 'dev') process.exitCode = result.exitCode;

@@ -2,7 +2,7 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 2844160510u;
+inline constexpr uint32_t schema = 4042167114u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
@@ -706,6 +706,7 @@ inline constexpr uint32_t preferredSize = 2048u;
 inline constexpr uint32_t expandPreferredWidth = 4096u;
 inline constexpr uint32_t paintChild = 8192u;
 inline constexpr uint32_t inlineScale = 16384u;
+inline constexpr uint32_t inputPadding = 32768u;
 }
 namespace layoutFields {
 inline constexpr uint32_t enabled = 0u;
@@ -809,6 +810,9 @@ inline constexpr uint32_t readOnly = 1u;
 inline constexpr uint32_t multiline = 2u;
 inline constexpr uint32_t password = 4u;
 inline constexpr uint32_t disabled = 8u;
+}
+namespace textFlags {
+inline constexpr uint32_t styleOnly = 1u;
 }
 namespace semanticsRoles {
 inline constexpr uint32_t none = 0u;

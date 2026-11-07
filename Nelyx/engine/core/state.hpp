@@ -86,6 +86,7 @@ struct Input {
   std::shared_ptr<const Frame> snapshot;
   bool appApproved = false;
 };
+struct PointerHit {Handle node;std::optional<Affine> inverse;};
 struct Stream {
   std::array<std::shared_ptr<const Frame>,wire::limits::publicationSnapshots> capturedPublications{};
   uint64_t captureCursor=0;
@@ -344,6 +345,7 @@ struct View {
   bool appDecision(Input&);
   void gestureReply(Reader);
   Handle pointerTarget(double,double,const Frame* snapshot=nullptr) const;
+  PointerHit pointerHit(double,double,const Frame*,Handle within={},uint32_t depth=0) const;
   Handle interactionTarget(double,double) const;
   void failPreparation(uint64_t id, uint32_t reason);
   uint32_t enqueue(Input packet);

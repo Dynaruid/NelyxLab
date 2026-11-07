@@ -108,7 +108,10 @@
     "@nelyx/metro": "0.10.0",
     "@nelyx/sdk": "0.20.0",
     "@nelyx/static-aot": "0.1.0",
-    "esbuild": "0.25.12"
+    "esbuild": "0.25.12",
+    "hermes-compiler": "0.14.1",
+    "@babel/core": "7.28.5",
+    "@babel/plugin-transform-classes": "7.29.7"
   },
   "engines": {
     "node": ">=24.3.0 <25"

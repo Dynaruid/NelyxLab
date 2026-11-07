@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import test, { before, after } from 'node:test';
+import './original-editing.test.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';

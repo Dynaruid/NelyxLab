@@ -59,6 +59,7 @@ export function engineV2Scene(bytes: Uint8Array, firstInput?: (sample: RawInputS
   class TestbedState extends State {
     updates = 0;
     readonly controls = { material: 0, cupertino: 0, slider: 0, gestures: 0, raw: 0 };
+    readonly values = { material: false, cupertino: false, slider: 0.25 };
     increment() {
       this.setState(() => ++this.updates);
     }
@@ -158,25 +159,49 @@ export function engineV2Scene(bytes: Uint8Array, firstInput?: (sample: RawInputS
             },
             { key: lazy, ...props(590, 366, 282, 142) },
           ),
-          new Checkbox(false, () => ++this.controls.material, {
-            ...props(590, 280, 28, 28),
-            semantics: {
-              role: 'checkbox',
-              label: 'Material selection',
-              flags: p.semanticsFlags.focusable,
-              actions: p.semanticsActions.focus | p.semanticsActions.activate,
+          new Checkbox(
+            this.values.material,
+            (value) =>
+              this.setState(() => {
+                this.values.material = value;
+                ++this.controls.material;
+              }),
+            {
+              ...props(590, 280, 28, 28),
+              semantics: {
+                role: 'checkbox',
+                label: 'Material selection',
+                flags: p.semanticsFlags.focusable,
+                actions: p.semanticsActions.focus | p.semanticsActions.activate,
+              },
             },
-          }),
-          new CupertinoSwitch(false, () => ++this.controls.cupertino, {
-            ...props(630, 280, 51, 31),
-            semantics: {
-              role: 'checkbox',
-              label: 'Cupertino selection',
-              flags: p.semanticsFlags.focusable,
-              actions: p.semanticsActions.focus | p.semanticsActions.activate,
+          ),
+          new CupertinoSwitch(
+            this.values.cupertino,
+            (value) =>
+              this.setState(() => {
+                this.values.cupertino = value;
+                ++this.controls.cupertino;
+              }),
+            {
+              ...props(630, 280, 51, 31),
+              semantics: {
+                role: 'checkbox',
+                label: 'Cupertino selection',
+                flags: p.semanticsFlags.focusable,
+                actions: p.semanticsActions.focus | p.semanticsActions.activate,
+              },
             },
-          }),
-          new Slider(0.25, () => ++this.controls.slider, { ...props(694, 280, 172, 32) }),
+          ),
+          new Slider(
+            this.values.slider,
+            (value) =>
+              this.setState(() => {
+                this.values.slider = value;
+                ++this.controls.slider;
+              }),
+            { ...props(694, 280, 172, 32) },
+          ),
           text(
             590,
             519,

@@ -56,7 +56,7 @@ export function engineV2ImportRoute(name) {
 }
 /** Candidate App imports require the explicit original-elements SDK entry in the bundle. */
 export function engineV2OriginalAppRoute(name) {
-  return /^@nelyx\/(?:core\/(framework\/(widgets|rendering|painting|animation|gestures|scheduler|semantics)\/[^/]+|ui\/[^/]+|services\/(mouse-cursor|keyboard-key|font-loader)|hosting\/resources)|(?:material|cupertino)\/[^/]+)$/.test(
+  return /^@nelyx\/(?:core\/(framework\/(widgets|rendering|painting|animation|gestures|scheduler|semantics)\/[^/]+|ui\/[^/]+|services\/(mouse-cursor|keyboard-key|font-loader|input-formatters)|hosting\/(resources|interaction))|(?:material|cupertino)\/[^/]+)$/.test(
     name,
   )
     ? name
@@ -67,7 +67,7 @@ export function isEngineV2OriginalAppImplementation(relative) {
   return (
     /^(foundation\/|math\/|ui\/|services\/|framework\/)/.test(relative) ||
     /^runtime\/(owner-transaction|dependency-scope|depth-queue)\.js$/.test(relative) ||
-    /^hosting\/(section-lifetime|editor-style|input-geometry|resources|images|flex-layout|text-fonts|text-layout-budget)\.js$/.test(
+    /^hosting\/(section-lifetime|editor-style|input-geometry|resources|images|flex-layout|text-fonts|text-layout-budget|interaction|editing-configuration)\.js$/.test(
       relative,
     )
   );

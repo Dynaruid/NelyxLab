@@ -28,10 +28,14 @@ export function nativePaintOutset(
     entry.kind === 'circle' ||
     entry.kind === 'ripple' ||
     (entry.kind === 'highlight' && entry.circular);
+  const stroke =
+    entry.kind === 'border' && entry.shape.strokeWidth === 0 && entry.shape.strokeColor >>> 24
+      ? 1 / Math.max(0.125, scale)
+      : entry.shape.strokeWidth;
   const padding =
     (entry.kind === 'path'
       ? 2 * entry.shape.strokeWidth
-      : (entry.shape.strokeWidth * (1 + Math.abs(entry.shape.strokeAlign))) / 2) +
+      : (stroke * (1 + Math.abs(entry.shape.strokeAlign))) / 2) +
     (entry.kind === 'shadow'
       ? 4 * (entry.blurSigma ?? 0)
       : entry.kind === 'elevationShadow'
@@ -217,7 +221,7 @@ export function paintNative(
             path.delete();
           }
         } else if (entry.kind === 'border') {
-          if (entry.shape.strokeWidth > 0 && entry.shape.strokeColor >>> 24) {
+          if (entry.shape.strokeColor >>> 24) {
             paint.setColor(color(ck, entry.shape.strokeColor));
             paint.setStyle(ck.PaintStyle.Stroke);
             paint.setStrokeWidth(entry.shape.strokeWidth);

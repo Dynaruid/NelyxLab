@@ -166,7 +166,9 @@ for (const hostKind of ['windows-hwnd', 'windows-app-sdk']) {
         assert.equal(value.controls, 3);
         assert.equal(value.keyboardGraphemes, true);
         assert.ok(value.rectangles > 0);
-        const work = await host.waitStats((s) => s.nativeCommands === app.commands + 1);
+        const work = await host.waitStats(
+          (s) => s.nativeCommands > app.commands && s.nativeCommands === s.appAcknowledgedCommands,
+        );
         assert.ok(work.editingWork > 0 && work.semanticsWork > 0 && work.queryWork > 0);
         assert.ok(work.gestureWork > 0 && work.controlWork >= 3);
         assert.ok(app.lazy.built > 0 && app.lazy.peakItems <= 24 && app.lazy.itemCount === 2000);
@@ -312,8 +314,19 @@ for (const hostKind of ['windows-hwnd', 'windows-app-sdk']) {
       const prior = await host.stats();
       host.send('update');
       await host.until((line) => line === 'V2_SCENE_PUBLISHED 2');
+      const updatedApp = JSON.parse(
+        (
+          await host.until(
+            (line) => line.startsWith('V2_APP ') && line.includes('"kind":"app-updated"'),
+          )
+        ).slice(7),
+      );
       const updated = await host.stats();
-      assert.equal(updated.nativeCommands, app.commands + 1);
+      assert.ok(updatedApp.commands > 0);
+      assertCppExecution({ ...updatedApp, commands: updatedApp.execution.acknowledgedCommands });
+      assert.equal(updated.nativeCommands, app.commands + updatedApp.commands);
+      assert.equal(String(updated.nativeCommands), updatedApp.engineWork);
+      assert.equal(updated.appAcknowledgedCommands, updated.nativeCommands);
       assert.equal(updated.scrollOffset, prior.scrollOffset);
       assert.ok(updated.reusedPictures - prior.reusedPictures >= 90);
       assert.ok(updated.reusedParagraphs - prior.reusedParagraphs >= 30);
@@ -678,12 +691,18 @@ for (const channel of ['chromium', 'chrome', 'msedge']) {
               window.__v2.surface.diagnostics['render-stats'].state.activeDocument === 2n &&
               window.__v2.appEvents.some((e) => e.kind === 'app-updated'),
           );
-          assert.equal(
-            await page.evaluate(
-              () => window.__v2.appEvents.find((e) => e.kind === 'app-updated').engineWork,
-            ),
-            String(state.app.commands + 1),
+          const updatedApp = await page.evaluate(() =>
+            window.__v2.appEvents.find((e) => e.kind === 'app-updated'),
           );
+          // The editor's first style-only configuration can accompany this update.
+          // Match the SDK delta and C++ total from the same acknowledged receipt.
+          assert.ok(updatedApp.commands > 0);
+          assertCppExecution({
+            ...updatedApp,
+            commands: updatedApp.execution.acknowledgedCommands,
+          });
+          assert.equal(updatedApp.engineWork, String(state.app.commands + updatedApp.commands));
+          assert.equal(updatedApp.engineWork, String(updatedApp.execution.acknowledgedCommands));
           assert.equal(
             await page.evaluate(
               () => window.__v2.surface.diagnostics['render-stats'].scrollOffsets[0],
@@ -715,7 +734,7 @@ for (const channel of ['chromium', 'chrome', 'msedge']) {
                 reused: reusedContent.reusedPictures - priorContent.reusedPictures,
                 paragraphLayouts: reusedContent.paragraphLayouts - priorContent.paragraphLayouts,
                 imageDecodes: reusedContent.images - priorContent.images,
-                nativeCommands: 1,
+                nativeCommands: updatedApp.commands,
               }),
           );
           const beforeResize = await page.evaluate(() => {
@@ -1207,6 +1226,15 @@ for (const channel of ['chromium', 'chrome', 'msedge']) {
             };
           });
           assert.ok(BigInt(nativeControl.gestures) > 0n && BigInt(nativeControl.controls) >= 3n);
+          // Observe this input leg before lazy-list transactions can evict the
+          // bounded App event tail. This is execution evidence, not a history log.
+          assert.ok(
+            await page.evaluate(() =>
+              window.__v2.appEvents.some(
+                (event) => event.kind === 'raw-input' && BigInt(event.publication) > 0n,
+              ),
+            ),
+          );
           await page.evaluate(async () => {
             const s = window.__v2.surface;
             for (let i = 0; i < 6; ++i) {
@@ -1237,13 +1265,6 @@ for (const channel of ['chromium', 'chrome', 'msedge']) {
             (await page.evaluate(
               () => window.__v2.surface.diagnostics['render-stats'].state.nodeCount,
             )) < 220,
-          );
-          assert.ok(
-            await page.evaluate(() =>
-              window.__v2.appEvents.some(
-                (event) => event.kind === 'raw-input' && BigInt(event.publication) > 0n,
-              ),
-            ),
           );
           await page.evaluate(() => window.__v2.surface.setMemoryPressure(true));
           await page.waitForFunction(

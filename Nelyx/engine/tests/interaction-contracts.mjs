@@ -111,6 +111,272 @@ export function interactionContracts({ using, timeout, h }) {
   };
   for (const profile of ['native', 'single-worker', 'threaded']) {
     test(
+      `${profile}: editable paragraph configuration survives authoritative edits and owns published geometry`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          await f.start([c.create(h(2), 'box')]);
+          assert.equal(
+            (
+              await f.commit([
+                c.create(h(1), 'editable'),
+                c.text(h(1), 'seed', 20, 0xff172033),
+                c.layout(h(1), { paragraphSizing: true, clipOverflow: true }),
+                c.constraints(
+                  h(1),
+                  { kind: 'finite', min: 180, max: 180 },
+                  { kind: 'finite', min: 48, max: 48 },
+                ),
+                c.editor(h(1)),
+                c.paragraphOptions(h(1), {
+                  fontFamily: 'NelyxDefault',
+                  fontWeight: 700,
+                  letterSpacing: 1.5,
+                  wrap: false,
+                }),
+                c.paragraphFont(h(1)),
+              ])
+            ).status,
+            p.statuses.accepted,
+          );
+          await pump(f);
+          const frame = await f.present();
+          let node = (await f.send(p.opcodes.layoutSnapshot)).nodes.find((n) => n.node.slot === 1);
+          assert.equal(node.paragraph.fontWeight, 700);
+          assert.equal(node.paragraph.letterSpacing, 1.5);
+          assert.equal(node.width, 180);
+          assert.equal(node.height, 48);
+          assert.equal(node.content.y, 14);
+          const focus = await f.send(p.opcodes.focus, focusBody(h(1), frame.submission));
+          const edit = await f.send(
+            p.opcodes.edit,
+            editBody(h(1), {
+              kind: 'update',
+              revision: 1n,
+              session: focus.focus.session,
+              publication: frame.submission,
+              text: 'changed 한글😀',
+              base: 12,
+              extent: 12,
+            }),
+          );
+          assert.equal(edit.status, p.statuses.ok);
+          await pump(f);
+          await f.present();
+          node = (await f.send(p.opcodes.layoutSnapshot)).nodes.find((n) => n.node.slot === 1);
+          assert.equal(node.paragraph.fontWeight, 700);
+          assert.equal(node.editing.text, 'changed 한글😀');
+          assert.equal(node.textGeometry.revision, node.editing.revision);
+          const revision = node.editing.revision;
+          assert.equal(
+            (await f.commit([c.text(h(1), '', 24, 0xff123456, { styleOnly: true })])).status,
+            p.statuses.accepted,
+          );
+          await pump(f);
+          const changedFrame = await f.present();
+          node = (await f.send(p.opcodes.layoutSnapshot)).nodes.find((n) => n.node.slot === 1);
+          assert.equal(node.editing.text, 'changed 한글😀');
+          assert.equal(node.editing.revision, revision);
+          assert.equal(node.fontSize, 24);
+          const long = 'changed 한글😀'.repeat(5);
+          assert.equal(
+            (
+              await f.send(
+                p.opcodes.edit,
+                editBody(h(1), {
+                  kind: 'update',
+                  revision,
+                  session: focus.focus.session,
+                  publication: changedFrame.submission,
+                  text: long,
+                  base: long.length,
+                  extent: long.length,
+                }),
+              )
+            ).status,
+            p.statuses.ok,
+          );
+          await pump(f);
+          await f.present();
+          node = (await f.send(p.opcodes.layoutSnapshot)).nodes.find((n) => n.node.slot === 1);
+          assert.ok(node.content.x < 0);
+          assert.ok(node.textGeometry.caret.x + node.textGeometry.caret.width <= 180);
+          assert.ok(node.textGeometry.caret.y >= 0);
+          assert.equal(
+            (await f.commit([c.text(h(1), 'forged', 24, 0xff000000, { styleOnly: true })])).status,
+            p.statuses.invalidValue,
+          );
+          assert.equal(
+            (
+              await f.commit([
+                c.paragraphOptions(h(1), {
+                  runs: [
+                    {
+                      start: 0,
+                      end: long.length,
+                      fontSize: 20,
+                      color: 0xff000000,
+                      fontWeight: 400,
+                      fontStyle: 'normal',
+                      fontFamilies: ['NelyxDefault'],
+                      locale: 'en',
+                      height: null,
+                      letterSpacing: 0,
+                      wordSpacing: 0,
+                      halfLeading: false,
+                      decoration: 0,
+                      decorationStyle: 'solid',
+                      decorationThickness: 1,
+                    },
+                  ],
+                }),
+              ])
+            ).status,
+            p.statuses.invalidValue,
+            'Text-dependent rich runs cannot outlive an editable mutation',
+          );
+        }),
+    );
+    test(
+      `${profile}: minimum button targets retain child layout and forward padding hits with captured center coordinates`,
+      { timeout },
+      () =>
+        using(profile, async (f) => {
+          const layout = { inputPadding: true, enforceBounds: true, alignment: { x: 0, y: 0 } };
+          await f.start([
+            c.create(h(1), 'box'),
+            c.properties(h(1), { x: 10, y: 10 }),
+            c.constraints(h(1), { kind: 'unbounded', min: 48 }, { kind: 'unbounded', min: 48 }),
+            c.layout(h(1), layout),
+            c.eventPolicy(h(1), p.eventPolicies.canonicalHitTest),
+            c.create(h(2), 'box'),
+            c.properties(h(2), { width: 20, height: 12 }),
+            c.layout(h(2)),
+            c.attach(h(2), h(1)),
+            c.eventPolicy(
+              h(2),
+              p.eventPolicies.canonicalHitTest |
+                p.eventPolicies.hitTestSelf |
+                p.eventPolicies.canonicalGestures,
+            ),
+            c.gesture(h(2), p.gestures.tap),
+          ]);
+          const snapshot = await f.send(p.opcodes.layoutSnapshot),
+            outer = snapshot.nodes.find((n) => n.node.slot === 1),
+            child = snapshot.nodes.find((n) => n.node.slot === 2);
+          assert.deepEqual(
+            [outer.width, outer.height, child.width, child.height, child.x, child.y],
+            [48, 48, 20, 12, 14, 18],
+          );
+          assert.equal((await query(f, h(1), 'minWidth', 301n)).value, 48);
+          const dry = await query(
+            f,
+            h(1),
+            'dry',
+            302n,
+            { kind: 'finite', min: 0, max: 32 },
+            { kind: 'finite', min: 0, max: 32 },
+          );
+          assert.deepEqual([dry.width, dry.height], [32, 32]);
+          const taps = async (x, y) => {
+            await f.send(p.opcodes.pollInteractionEvents);
+            for (const [phase, buttons] of [
+              ['begin', 1],
+              ['end', 0],
+            ]) {
+              await f.input(phase, 0, { pointer: true, kind: 'touch', buttons, x, y });
+              await f.tick();
+            }
+            return (await f.send(p.opcodes.pollInteractionEvents)).events.filter(
+              (e) => e.kind === p.events.gesture && e.status === p.gestureKinds.tap,
+            );
+          };
+          let events = await taps(11, 11);
+          assert.equal(events.length, 1);
+          assert.equal(events[0].node.slot, 2);
+          assert.deepEqual([events[0].gesture.localX, events[0].gesture.localY], [10, 6]);
+          events = await taps(26, 31);
+          assert.equal(events.length, 1);
+          assert.deepEqual([events[0].gesture.localX, events[0].gesture.localY], [2, 3]);
+          assert.equal((await taps(9, 9)).length, 0);
+          await f.input('begin', 0, { pointer: true, kind: 'touch', buttons: 1, x: 11, y: 11 });
+          await f.tick();
+          const old = (await f.inspect()).publication;
+          await f.commit([c.layout(h(1), { enforceBounds: true, alignment: { x: 0, y: 0 } })]);
+          await f.ready();
+          await f.present();
+          await f.input('end', 0, {
+            pointer: true,
+            kind: 'touch',
+            buttons: 0,
+            x: 11,
+            y: 11,
+            publication: old,
+          });
+          await f.tick();
+          const terminal = (await f.send(p.opcodes.pollInteractionEvents)).events.filter(
+            (e) => e.kind === p.events.gesture && e.status === p.gestureKinds.tap,
+          );
+          assert.equal(
+            terminal.length,
+            1,
+            'An admitted capture finishes with its collected transform',
+          );
+          assert.deepEqual([terminal[0].gesture.localX, terminal[0].gesture.localY], [10, 6]);
+          assert.equal((await taps(11, 11)).length, 0, 'A new contact uses the changed hit policy');
+        }),
+    );
+    test(
+      `${profile}: a controlled data Widget reapplies a refused value through an acknowledged native transaction`,
+      { timeout },
+      () =>
+        using(profile, async (f, transport) => {
+          const client = await EngineClient.connect(transport),
+            view = await client.openView(1),
+            changes = [];
+          const host = new WidgetHost(view, { pollEvents: false });
+          await f.resize(300, 200);
+          await host.mount(
+            new Box([], {
+              properties: { width: 100, height: 40 },
+              control: { kind: 'toggle', value: 0 },
+              semantics: {
+                role: 'checkbox',
+                label: 'controlled refusal',
+                flags: p.semanticsFlags.focusable,
+                actions: p.semanticsActions.activate,
+              },
+              onValue: (value) => changes.push(value),
+            }),
+          );
+          await pump(f);
+          await f.present();
+          const before = await view.request(p.opcodes.semanticsSnapshot),
+            node = before.nodes.find((n) => n.semantics?.label === 'controlled refusal');
+          assert.equal(
+            (
+              await view.request(
+                p.opcodes.semanticsAction,
+                semanticActionBody(node.node, before.publication, 'activate'),
+              )
+            ).status,
+            p.statuses.ok,
+          );
+          await host.pollEvents();
+          await host.flush();
+          await pump(f);
+          await f.present();
+          const after = await view.request(p.opcodes.semanticsSnapshot),
+            control = after.nodes.find((n) => n.semantics?.label === 'controlled refusal');
+          assert.deepEqual(changes, [1]);
+          assert.equal(control.control.value, 0);
+          assert.equal(control.control.revision, 1n);
+          assert.equal(after.transactionWork, BigInt(host.counters.commands));
+          await host.close();
+          await client.close();
+        }),
+    );
+    test(
       `${profile}: focus reveals nested viewports on both axes and user scrolling is not pinned`,
       { timeout },
       () =>

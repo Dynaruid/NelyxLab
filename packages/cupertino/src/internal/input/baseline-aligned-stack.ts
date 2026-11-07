@@ -5,7 +5,7 @@ import { MultiChildRenderObjectWidget } from '@nelyx/core/framework/widgets/fram
 import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { KeyedSubtree } from '@nelyx/core/framework/widgets/basic';
 import { ValueKey } from '@nelyx/core/foundation/key';
-import { RenderBox } from '@nelyx/core/framework/rendering/object';
+import { RenderBox, registerNativeRenderMetadata } from '@nelyx/core/framework/rendering/object';
 import type { RenderObject, TextBaseline } from '@nelyx/core/framework/rendering/object';
 import type { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import type { Size } from '@nelyx/core/ui/geometry';
@@ -44,6 +44,13 @@ export class BaselineAlignedStack extends MultiChildRenderObjectWidget {
   }
 }
 class RenderBaselineAlignedStack extends RenderBox {
+  static {
+    registerNativeRenderMetadata(RenderBaselineAlignedStack.prototype, (source) => {
+      if (source.hasPlaceholder)
+        throw Error('Native Cupertino placeholder baseline layout is not implemented');
+      return { kind: 'singleChild' };
+    });
+  }
   constructor(
     private hasPlaceholder: boolean,
     private configuration: BaselineStackConfiguration,

@@ -194,6 +194,9 @@ try {
       // Explicit declaration extensions also resolve in NodeNext ESM mode.
       // Never fall back to the previously published Core during this build.
       paths: {
+        '@nelyx/core/internal/framework/widgets/text-input': [
+          path.join(staged, 'framework/widgets/text-input.d.ts'),
+        ],
         '@nelyx/core/internal/framework/widgets/native-radio-semantics': [
           path.join(staged, 'framework/widgets/native-radio-semantics.d.ts'),
         ],

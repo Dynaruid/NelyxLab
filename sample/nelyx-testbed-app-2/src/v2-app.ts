@@ -72,6 +72,7 @@ async function start(
     ),
     widgets = new WidgetHost(view, {
       onError: (error) => notify({ kind: 'app-error', message: String(error) }),
+      onExecution: (execution) => notify({ kind: 'app-execution', execution }),
     });
   await widgets.mount(scene.root);
   // Cold Web font/provider startup can span multiple bounded activation waits.

@@ -93,7 +93,7 @@ void View::canonicalPointer(const Input& packetInput,Stream& stream) {
     emit(wire::gestureKinds::tapDown,stream.startX,stream.startY);}};
   stream.sampleAt=packetInput.time;
   if(packetInput.phase==wire::phases::begin){
-    for(const auto& item:packetInput.snapshot->items)if(item.node==stream.target){const auto inverse=item.world.inverse();if(inverse){stream.pointerInverse=*inverse;stream.pointerInverseValid=true;}break;}
+    if(!stream.pointerInverseValid)for(const auto& item:packetInput.snapshot->items)if(item.node==stream.target){const auto inverse=item.world.inverse();if(inverse){stream.pointerInverse=*inverse;stream.pointerInverseValid=true;}break;}
     stream.at=packetInput.time;
     if(lastTap&&lastTap!=stream.target)finishCanonicalTap(true);
     if(lastTap==stream.target&&(lastTapDetails.flags&wire::gestureDetailFlags::valid))stream.tapCanceled=true;

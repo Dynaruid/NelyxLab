@@ -18,7 +18,7 @@ import { ObjectKey } from '@nelyx/core/foundation/key';
 import { Offset } from '@nelyx/core/ui/offset';
 import type { KeyEvent } from '@nelyx/core/ui/input';
 import { OriginalNativeNode } from './original-native-node.ts';
-import type { OriginalNativeRender } from './original-native-node.ts';
+import { OriginalNativeRender } from './original-native-node.ts';
 import type { EngineEvent, EngineResponse, NodeHandle } from './codec.ts';
 import type { EngineViewClient } from './client.ts';
 import { EngineError } from './client.ts';
@@ -32,6 +32,7 @@ type Binding = {
 };
 type Pending =
   | { kind: 'focus'; binding: Binding; focused: boolean; peer?: NodeHandle }
+  | { kind: 'editorFocus'; apply: () => void }
   | { kind: 'key'; event: EngineEvent };
 const specialKeys: Readonly<Record<number, readonly [string, string]>> = {
   8: ['Backspace', 'Backspace'],
@@ -123,7 +124,7 @@ export class OriginalFocusBridge {
   private queue: Pending[] = [];
   private publication: EngineResponse | undefined;
   private state: EngineResponse | undefined;
-  private request: { version: number; binding: Binding | null } | undefined;
+  private request: { version: number; binding: Binding | null; session: bigint } | undefined;
   private version = 0;
   private syncing = false;
   private pumping = false;
@@ -172,6 +173,9 @@ export class OriginalFocusBridge {
   focus(binding: Binding, focused: boolean, peer?: NodeHandle): void {
     this.enqueue({ kind: 'focus', binding, focused, ...(peer ? { peer } : {}) });
   }
+  editingFocus(apply: () => void): void {
+    this.enqueue({ kind: 'editorFocus', apply });
+  }
   private enqueue(value: Pending): void {
     if (this.closed) return;
     if (this.queue.length >= p.limits.interactionEvents)
@@ -215,7 +219,7 @@ export class OriginalFocusBridge {
   }
   private requestFocus(binding: Binding | null): void {
     if (this.closed || this.syncing || (binding && !binding.active)) return;
-    this.request = { version: ++this.version, binding };
+    this.request = { version: ++this.version, binding, session: this.state?.focus?.session ?? 0n };
     void Promise.resolve()
       .then(() => this.pump())
       .catch(this.error);
@@ -225,8 +229,12 @@ export class OriginalFocusBridge {
     const request = this.request,
       frame = this.publication!,
       state = this.state!,
-      target = request.binding?.render ? this.handle(request.binding.render) : null;
+      target = request.binding?.render ? this.focusTarget(request.binding.render) : null;
     if (request.binding && !target) return;
+    if ((state.focus?.session ?? 0n) !== request.session) {
+      this.request = undefined;
+      return;
+    }
     this.pumping = true;
     try {
       await this.view.focus(target, frame.publication, state.focus?.session ?? 0n, true);
@@ -241,6 +249,18 @@ export class OriginalFocusBridge {
     } finally {
       this.pumping = false;
     }
+  }
+  private focusTarget(root: OriginalNativeRender): NodeHandle | null {
+    const editors: OriginalNativeRender[] = [];
+    const visit = (render: import('@nelyx/core/framework/rendering/object').RenderObject): void => {
+      if (render !== root && render instanceof OriginalNativeRender && render.options.nativeFocus)
+        return;
+      if (render instanceof OriginalNativeRender && render.editable) editors.push(render);
+      for (const child of render.children) visit(child);
+    };
+    visit(root);
+    // Source Focus retains its lifecycle, while the actual Core editor owns IME focus.
+    return this.handle(editors.length === 1 ? editors[0]! : root);
   }
   finishPoll = (): void => {
     if (this.closed) return;
@@ -276,6 +296,14 @@ export class OriginalFocusBridge {
             if (value.peer) this.notifyPeer(value.peer);
           } else if (value.binding.node.hasPrimaryFocus)
             this.owner.focus.focus(this.owner.focus.rootScope);
+        } finally {
+          this.syncing = false;
+        }
+      } else if (value.kind === 'editorFocus') {
+        this.syncing = true;
+        try {
+          value.apply();
+          this.owner.focus.applyFocusChangesIfNeeded();
         } finally {
           this.syncing = false;
         }

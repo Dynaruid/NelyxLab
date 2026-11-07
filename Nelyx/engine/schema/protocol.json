@@ -683,7 +683,8 @@
     "preferredSize": 2048,
     "expandPreferredWidth": 4096,
     "paintChild": 8192,
-    "inlineScale": 16384
+    "inlineScale": 16384,
+    "inputPadding": 32768
   },
   "layoutFields": {
     "enabled": 0,
@@ -788,6 +789,7 @@
     "password": 4,
     "disabled": 8
   },
+  "textFlags": {"styleOnly":1},
   "semanticsRoles": {
     "none": 0,
     "group": 1,

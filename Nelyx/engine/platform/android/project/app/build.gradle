@@ -1,0 +1,34 @@
+plugins { id 'com.android.application' }
+def supplied = providers.gradleProperty('nelyxSupply').get()
+def bundled = providers.gradleProperty('nelyxBundle').get()
+def selectedAbi = providers.gradleProperty('nelyxAbi').orElse('arm64-v8a').get()
+def outputRoot = providers.gradleProperty('nelyxBuild').get()
+layout.buildDirectory.set(file(outputRoot))
+android {
+    namespace 'dev.nelyx.engine'
+    compileSdk 36
+    buildToolsVersion '36.0.0'
+    ndkVersion '27.1.12297006'
+    defaultConfig {
+        applicationId providers.gradleProperty('nelyxApplicationId').orElse('dev.nelyx.engine').get()
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '2.0'
+        ndk { abiFilters selectedAbi }
+        testInstrumentationRunner 'dev.nelyx.engine.AndroidHostTests'
+        manifestPlaceholders = [nelyxCleartext:providers.gradleProperty('nelyxDevelopment').orElse('false').get()]
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    sourceSets {
+        main {
+            java.srcDir '../../../../../sdk/native/android/shared'
+            jniLibs.srcDir "${supplied}/jni"
+            assets.srcDir bundled
+        }
+    }
+    buildTypes { release { signingConfig signingConfigs.debug; minifyEnabled false; debuggable providers.gradleProperty('nelyxDevelopment').orElse('false').get().toBoolean() } }
+    testBuildType 'release'
+    packaging { jniLibs { useLegacyPackaging false } }
+    lint { abortOnError true }
+}

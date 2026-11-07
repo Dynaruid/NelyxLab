@@ -11,6 +11,11 @@ import { protocol as p } from '@nelyx/core/v2';
 import { engineV2ImportRoute, engineV2OriginalAppRoute } from './engine-v2-data-api.mjs';
 import { inspectEngineV2Graph } from './engine-v2-graph.mjs';
 import { applicationAssetKey, writeAssetManifests } from './engine-v2-assets.mjs';
+import {
+  buildEngineV2AndroidApk,
+  doctorEngineV2Android,
+  runEngineV2Android,
+} from './engine-v2-android.mjs';
 const hash = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 const inside = (root, file) => {
@@ -71,7 +76,10 @@ export function verifyEngineV2Supply(directory, target, windowsHost) {
   if (
     !(target === 'windows'
       ? manifest.profiles?.[engineV2WindowsHost(windowsHost).profile]
-      : manifest.profiles?.threaded && manifest.profiles?.['single-worker'])
+      : target === 'android'
+        ? manifest.profiles?.android?.host === 'android-standalone' &&
+          manifest.profiles.android.reactNative === false
+        : manifest.profiles?.threaded && manifest.profiles?.['single-worker'])
   )
     throw Error('Requested engine v2 host capability is missing');
   if (!/^[a-f0-9]{64}$/.test(manifest.sourceSha256) || !Array.isArray(manifest.files))
@@ -94,6 +102,33 @@ export function verifyEngineV2Supply(directory, target, windowsHost) {
     )
       throw Error('Requested engine v2 host runtime/identity is missing: ' + selected.host);
   }
+  if (target === 'android') {
+    const abis = manifest.profiles.android.abis;
+    if (
+      !Array.isArray(abis) ||
+      !abis.length ||
+      new Set(abis).size !== abis.length ||
+      abis.some((abi) => !['arm64-v8a', 'x86_64'].includes(abi))
+    )
+      throw Error('Invalid Android supply ABI set');
+    for (const abi of abis)
+      for (const name of [
+        'libnelyx_engine_android.so',
+        'libhermesvm.so',
+        'libjsi.so',
+        'libfbjni.so',
+        'libwebgpu_dawn.so',
+        'libc++_shared.so',
+      ])
+        if (!seen.has(`jni/${abi}/${name}`))
+          throw Error('Android native capability is missing: ' + abi + '/' + name);
+    for (const name of [
+      'project/app/src/main/java/dev/nelyx/engine/NativeHost.java',
+      'project/gradle/wrapper/gradle-wrapper.jar',
+      'project/app/src/main/AndroidManifest.xml',
+    ])
+      if (!seen.has(name)) throw Error('Android host project identity is missing: ' + name);
+  }
   return { root, manifest };
 }
 function config(app) {
@@ -106,7 +141,7 @@ export async function buildEngineV2Application(options) {
   const app = fs.realpathSync(options.app),
     settings = config(app),
     target = options.target;
-  if (!['windows', 'web'].includes(target))
+  if (!['windows', 'web', 'android'].includes(target))
     throw Error('Engine v2 has no supplied ' + target + ' host');
   const supply = verifyEngineV2Supply(
     path.resolve(app, options.engineInputs ?? settings.supply ?? '__missing_engine_supply__'),
@@ -152,7 +187,8 @@ export async function buildEngineV2Application(options) {
       bundle: true,
       format: 'iife',
       platform: 'browser',
-      target: 'es2022',
+      target: target === 'android' ? 'es2015' : 'es2022',
+      ...(target === 'android' ? { supported: { bigint: true } } : {}),
       metafile: true,
       logLevel: 'silent',
       plugins: [
@@ -222,6 +258,12 @@ export async function buildEngineV2Application(options) {
                     fs.existsSync(args.importer) &&
                     fs.realpathSync(args.importer) ===
                       fs.realpathSync(path.join(path.dirname(core), 'original-controls.js'))
+                  ) &&
+                  !(
+                    args.path === '@nelyx/core/internal/framework/widgets/text-input' &&
+                    fs.existsSync(args.importer) &&
+                    fs.realpathSync(args.importer) ===
+                      fs.realpathSync(path.join(path.dirname(core), 'original-editing.js'))
                   ) &&
                   !(
                     [
@@ -325,6 +367,19 @@ export async function buildEngineV2Application(options) {
       path.join(staged, 'index.html'),
       '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nelyx v2</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden}canvas{width:100%;height:100%;display:block}#error{position:fixed;bottom:0;color:#b00020;background:white}</style></head><body><canvas></canvas><output id="error"></output><script src="application/main.js"></script></body></html>',
     );
+    const android =
+      target === 'android'
+        ? buildEngineV2AndroidApk({
+            app,
+            supply,
+            staged,
+            settings,
+            architecture: options.architecture,
+            androidSdk: options.androidSdk,
+            instrumentation: options.androidTests === true,
+            development: options.development === true,
+          })
+        : undefined;
     const files = [];
     const visit = (directory) => {
       for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -342,6 +397,7 @@ export async function buildEngineV2Application(options) {
       schema: 'nelyx.app.v2.bundle/1',
       engine: 'v2',
       target,
+      ...(android ? { android } : {}),
       ...(target === 'windows'
         ? { windowsHost: engineV2WindowsHost(settings.windowsHost).host }
         : {}),
@@ -405,6 +461,21 @@ export function verifyEngineV2Application(directory, target, engineInputs) {
   for (const file of manifest.files)
     if (hash(input(root, file.path)) !== file.sha256)
       throw Error('Application bundle identity mismatch: ' + file.path);
+  if (target === 'android') {
+    const selected = manifest.android,
+      names = new Set(manifest.files.map((file) => file.path));
+    if (
+      !selected ||
+      !supply.manifest.profiles.android.abis.includes(selected.architecture) ||
+      !/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){2,}$/.test(selected.applicationId) ||
+      selected.activity !== 'dev.nelyx.engine.MainActivity' ||
+      selected.profile !==
+        (selected.architecture === 'x86_64' ? 'emulator-vulkan' : 'hardware-vulkan') ||
+      !names.has('application/app.hbc') ||
+      !names.has('android/application.apk')
+    )
+      throw Error('Android application identity/ABI/runtime is missing or differs');
+  }
   return { root, manifest, supply };
 }
 export function createEngineV2Server(bundleOrReader, { development } = {}) {
@@ -502,7 +573,7 @@ export function createEngineV2Server(bundleOrReader, { development } = {}) {
   });
 }
 export async function engineV2Operation(operation, options) {
-  if (!['web', 'windows'].includes(options.target))
+  if (!['web', 'windows', 'android'].includes(options.target))
     throw Error('Engine v2 has no ' + options.target + ' host');
   if (operation === 'build' || operation === 'prepare') return buildEngineV2Application(options);
   const app = path.resolve(options.app);
@@ -517,6 +588,9 @@ export async function engineV2Operation(operation, options) {
     return {
       engine: 'v2',
       target: options.target,
+      ...(options.target === 'android'
+        ? { android: doctorEngineV2Android(supply, options).pins }
+        : {}),
       ...(options.target === 'windows'
         ? { windowsHost: engineV2WindowsHost(settings.windowsHost).host }
         : {}),
@@ -533,6 +607,7 @@ export async function engineV2Operation(operation, options) {
     options.engineInputs && path.resolve(app, options.engineInputs),
   );
   if (operation === 'run') {
+    if (options.target === 'android') return runEngineV2Android(bundle, options);
     if (options.target === 'windows')
       return await new Promise((resolve, reject) => {
         const child = spawn(
@@ -669,6 +744,9 @@ export function createEngineV2Project(
           'run:web': 'nelyx run --engine v2 --target web',
           'build:windows': 'nelyx build --engine v2 --target windows',
           'run:windows': 'nelyx run --engine v2 --target windows',
+          'build:android': 'nelyx build --engine v2 --target android',
+          'run:android': 'nelyx run --engine v2 --target android',
+          'dev:android': 'nelyx dev --engine v2 --target android',
         },
       },
       null,

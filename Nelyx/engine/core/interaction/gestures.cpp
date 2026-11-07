@@ -59,14 +59,25 @@ void View::gesture(Handle node,uint32_t kind,uint64_t sequence,double x,double y
   interaction(event);
 }
 Handle View::pointerTarget(double x,double y,const Frame* snapshot) const {
+  return pointerHit(x,y,snapshot).node;
+}
+PointerHit View::pointerHit(double x,double y,const Frame* snapshot,Handle within,uint32_t depth) const {
   const auto* frame=snapshot?snapshot:published.get();
-  if(!frame)return {};
+  if(!frame||depth>wire::limits::depth)return {};
   const auto& d=*frame->scene->document;
   Handle translucent;
   for(auto it=frame->items.rbegin();it!=frame->items.rend();++it){
     const auto& n=d.get(it->node);
+    if(within){auto parent=n.id;while(parent&&parent!=within)parent=d.get(parent).parent;if(!parent)continue;}
     if(!frame->allows(n.id))continue;
     if((it->opacity<=0&&!(n.policy&wire::eventPolicies::canonicalHitTest))||!frame->hit(*it,x,y))continue;
+    if(n.layout.constraintFlags&wire::layoutConstraintFlags::inputPadding){
+      const auto& children=d.children[n.id.slot];
+      if(children.size()==1){const auto child=children.front();const auto item=std::find_if(frame->items.begin(),frame->items.end(),[&](const auto& value){return value.node==child;});
+        if(item!=frame->items.end()){const auto& size=d.get(child).properties;const auto center=item->world.map({size.width/2,size.height/2});auto hit=pointerHit(center.x,center.y,frame,child,depth+1);
+          if(hit.node){if(!hit.inverse){const auto local=frame->local(hit.node,center.x,center.y);if(!local)continue;hit.inverse=Affine{0,0,0,0,local->x,local->y};}return hit;}}}
+      continue;
+    }
     const bool canonical=n.policy&wire::eventPolicies::canonicalHitTest;
     const bool self=!canonical||(n.policy&wire::eventPolicies::hitTestSelf);
     for(const Node* node=&n;node;node=node->parent?&d.get(node->parent):nullptr) {
@@ -74,12 +85,13 @@ Handle View::pointerTarget(double x,double y,const Frame* snapshot) const {
         (node->semantics&&(node->semantics->actions&wire::semanticsActions::activate))) {
         if(node->policy&wire::eventPolicies::translucent){if(!translucent)translucent=node->id;break;}
         if(!(node->policy&wire::eventPolicies::canonicalHitTest)||(node->policy&wire::eventPolicies::hitTestSelf)||self)
-          return translucent?translucent:node->id;
+          return {translucent?translucent:node->id,{}};
       }
+      if(within&&node->id==within)break;
     }
-    if(canonical&&self)return translucent;
+    if(canonical&&self)return {translucent,{}};
   }
-  return translucent;
+  return {translucent,{}};
 }
 void View::controlValue(Handle h,double value,bool second) {
   if(!active||!document->contains(h)||!active->document->contains(h))return;
@@ -115,11 +127,12 @@ void View::pointer(Input p) {
     ++consumed;consumedThrough=p.sequence;return;
   }
   if(p.phase==wire::phases::begin){
-    const auto h=pointerTarget(p.x,p.y,p.snapshot.get());
+    const auto hit=pointerHit(p.x,p.y,p.snapshot.get());const auto h=hit.node;
     if(!h||!document->contains(h)||!active->document->contains(h)||document->get(h).control.disabled||
        (document->get(h).semantics&&(document->get(h).semantics->flags&(wire::semanticsFlags::hidden|wire::semanticsFlags::disabled)))){++canceled;return;}
     if(s.active)cancelStream(p.stream,wire::statuses::canceled);
     s={};s.active=true;s.pointer=true;s.target=h;s.source=p.source;s.x=s.startX=p.x;s.y=s.startY=p.y;s.at=time;
+    if(hit.inverse){s.pointerInverse=*hit.inverse;s.pointerInverseValid=true;}
     for(const auto& snapshot:publications)if(snapshot&&snapshot->scene==p.snapshot->scene)
       s.capturedPublications[s.captureCursor++%wire::limits::publicationSnapshots]=snapshot;
     if(std::none_of(s.capturedPublications.begin(),s.capturedPublications.end(),[&](const auto& snapshot){return snapshot==p.snapshot;}))

@@ -595,13 +595,17 @@ test(
   () =>
     fixture(async ({ audit, write }) => {
       write('numbers.d.ts', 'export declare function add(a: Window, b: number): number;');
-      const result = await audit({ targets: ['windows', 'web'] });
-      const [windows, web] = result.targetInputs;
+      const result = await audit({ targets: ['windows', 'web', 'android'] });
+      const [windows, web, android] = result.targetInputs;
       assert.equal(windows.inputValid, false);
       assert.ok(
         windows.errors.some((error) => error.code === 'TS2304' && error.message.includes('Window')),
       );
       assert.equal(web.inputValid, true, JSON.stringify(web.errors));
+      assert.equal(android.inputValid, false);
+      assert.ok(
+        android.errors.some((error) => error.code === 'TS2304' && error.message.includes('Window')),
+      );
       assert.equal(
         result.inputValid,
         false,
@@ -633,6 +637,22 @@ test(
       false,
     );
     assert.equal(engineV2ApiTarget('@nelyx/sdk/providers/web.json', 'web').applicable, true);
+    assert.equal(
+      engineV2ApiTarget('@nelyx/sdk/platforms/android/application', 'android').applicable,
+      true,
+    );
+    assert.equal(
+      engineV2ApiTarget('@nelyx/sdk/providers/android.json', 'android').applicable,
+      true,
+    );
+    assert.equal(
+      engineV2ApiTarget('@nelyx/sdk/backends/native-hermes/services', 'android').applicable,
+      true,
+    );
+    assert.equal(
+      engineV2ApiTarget('@nelyx/sdk/backends/browser/services', 'android').applicable,
+      false,
+    );
     assert.equal(
       engineV2ApiTarget('@nelyx/sdk/platforms/android/application', 'windows').applicable,
       false,

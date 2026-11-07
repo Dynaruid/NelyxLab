@@ -42,7 +42,24 @@ npx --no-install nelyx run --engine v2 --target web --port 8192
 
 Windows는 App dispose를 최대 3초 기다리고 App owner에 250 ms 종료 유예를 줍니다. 평가한 JavaScript가 계속 실행되면 Hermes async break를 요청하고 owner를 join한 뒤 실패 session으로 drain합니다. JavaScript loop를 중단하는 경로이며 native/GPU consumer가 보유한 자원을 바로 해제하는 허가는 아닙니다.
 
-기본 출력은 `dist/v2-web` 또는 `dist/v2-windows`입니다. `--target windows`는 선택한 자체 Hermes/Skia host를 사용합니다. `doctor`는 공급 검증, `prepare`는 App bundle 빌드를 수행합니다. `pack --engine v2 --target web`은 검증한 engine 공급을 포함한 `dist/v2-web-package`를 만듭니다. `run --engine v2 --target web --package dist/v2-web-package`로 이 package를 실행합니다. 서버의 `/isolated/`는 자동 threaded 선택, `/plain/`은 기능이 동작하는 single-worker profile입니다. Android·Apple·Linux v2 host는 아직 공급하지 않습니다.
+기본 출력은 `dist/v2-web`·`dist/v2-windows`·`dist/v2-android`입니다. `--target windows`는 선택한 자체 Hermes/Skia host를 사용합니다. `doctor`는 공급 검증, `prepare`는 App bundle 빌드를 수행합니다. `pack --engine v2 --target web`은 검증한 engine 공급을 포함한 `dist/v2-web-package`를 만듭니다. `run --engine v2 --target web --package dist/v2-web-package`로 이 package를 실행합니다. 서버의 `/isolated/`는 자동 threaded 선택, `/plain/`은 기능이 동작하는 single-worker profile입니다. Apple·Linux v2 host는 아직 공급하지 않습니다.
+
+Android는 일반 Activity/JNI·Hermes·Skia Graphite/Dawn/Vulkan host를 사용합니다. `JAVA_HOME`으로 HotSpot JDK 21을 선택하고 Android SDK 36/build-tools 36.0.0을 준비합니다. 공급 프로젝트는 Gradle 8.14.3/AGP 8.13.1을 고정합니다. 저장소 루트의 `npm.cmd run build:engine-v2:android`로 Android engine 공급과 Core·SDK·두 디자인 패키지를 함께 빌드합니다. 최소 Android는 API 26이며 arm64-v8a는 hardware Vulkan, x86_64는 명시적 emulator profile입니다.
+
+```sh
+npx --no-install nelyx doctor --engine v2 --target android --engine-inputs <dist-android>
+npx --no-install nelyx build --engine v2 --target android --engine-inputs <dist-android> --architecture x86_64
+npx --no-install nelyx run --engine v2 --target android --device emulator-5554
+npx --no-install nelyx dev --engine v2 --target android --engine-inputs <dist-android> --architecture x86_64 --device emulator-5554
+npx --no-install nelyx pack --engine v2 --target android
+npx --no-install nelyx run --engine v2 --target android --package dist/v2-android-package --device emulator-5554
+```
+
+실기기 빌드는 `--architecture arm64-v8a`를 선택합니다. 현재 APK는 개발용 debug key로 서명합니다. Run은 설치·로드한 source identity·C++/SDK 작업 수 일치·첫 GPU frame을 확인합니다. Android는 실행 중 복구 가능한 GPU/context/surface 손실에서 이전 App·Content·Render를 회수한 뒤 새 session으로 시작합니다. State는 초기화되며 Activity당 자동 복구는 2회로 제한합니다. 시작 실패·치명적 오류·dispose/drain 실패는 종료 오류로 표시합니다. [Android 샘플](../../sample/nelyx-engine-v2-android)과 [현재 검증 범위](../../work9-4.md#현재-android-구현과-실행)에 입력·접근성·수명과 emulator 증거를 설명했습니다. 전체 원래 API/catalog·제품 서명과 물리/성능 수락은 미완료입니다.
+
+Android `dev`도 같은 generation 교체 계약을 사용합니다. 새 APK를 먼저 준비하고 이전 설치본의 상관 ticket·native owner를 확인하여 App dispose·worker/GPU drain·ledger 0 이후 설치합니다. 단순 force-stop은 정상 종료 증거로 인정하지 않습니다. 개발 profile만 debuggable 종료 control과 로컬 HTTP를 허용하며 일반 build의 manifest에서는 끕니다. 저장소 샘플은 `npm.cmd run dev:engine-v2:android -- --device=emulator-5554`로 실행합니다.
+
+Original Android 샘플은 `ThemeData({ splashFactory: InkRipple.splashFactory })`를 명시합니다. Android 기본 InkSparkle의 native shader와 전체 디자인 catalog는 아직 연결하지 않았습니다. 검증한 편집 범위는 Material `decoration: null` TextField와 기본 단일행 CupertinoTextField이며 전체 옵션 호환을 뜻하지 않습니다.
 
 `npx --no-install nelyx dev --engine v2 --target web --engine-inputs <current-engine-dist>`는 시작 시점부터 App 소스·설정·자산을 감시합니다. `--target windows`와 선택한 `windowsHost`, 사용자 지정 `--output`도 지원합니다. 새 bundle의 준비 실패는 기존 앱을 유지합니다. 준비가 성공하면 이전 App·provider·worker 또는 Windows VM/창을 drain한 뒤 새 session으로 교체합니다. App State는 초기화되며 상태 보존 hot reload는 제공하지 않습니다. 교체 중 dispose·owner 종료 실패는 해당 개발 실행을 실패로 끝냅니다.
 
@@ -212,7 +229,9 @@ export async function assetByteLength(key: string): Promise<number> {
 }
 ```
 
-`NetworkAssetBundle`은 base URL 문자열에 상대 key·query·fragment와 절대 HTTP(S) key를 해석합니다. 매번 새로 요청하며 HTTP stack의 cache만 따릅니다. HTTP 200만 성공입니다. Native는 비동기 WinHTTP의 gzip/deflate·OS proxy/TLS·redirect 5회·IO timeout 30초, Web은 fetch stream과 browser CORS·TLS·redirect 정책을 사용합니다. 공통 App 소유자가 시작 중·실행 중 IO를 취소합니다.
+`NetworkAssetBundle`은 base URL 문자열에 상대 key·query·fragment와 절대 HTTP(S) key를 해석합니다. 매번 새로 요청하며 HTTP stack의 cache만 따릅니다. HTTP 200만 성공입니다. Windows는 비동기 WinHTTP의 gzip/deflate·OS proxy/TLS·redirect 5회·IO timeout 30초, Web은 fetch stream과 browser CORS·TLS·redirect 정책을 사용합니다. 공통 App 소유자가 시작 중·실행 중 IO를 취소합니다.
+
+Standalone Android는 별도 native IO worker에서 Android HttpURLConnection을 사용합니다. UTF-8·space를 포함한 URL, query/fragment·redirect 5회·교차 origin credential 제거와 같은 corpus를 적용하며 connect/read timeout은 3초/2초입니다. 종료는 취소 flag를 전달하고 현재 bounded IO가 끝나 실제 connection/stream과 callback owner가 회수될 때까지 credit을 보유합니다. UI에서 network worker를 join하지 않습니다. Emulator의 로컬 HTTP는 개발 profile에서만 허용합니다.
 
 HTTP 시작 전에 요청당 metadata·callback/전송 복사용 512 KiB를 admit하고 공통 IO 대기는 32개로 제한합니다. 길이가 있으면 읽기 전에 저장 공간을 확보하며 길이 미상·압축 stream은 할당 전에 `3 * capacity + 65536` bytes의 credit을 늘린 뒤 실제 전달 길이로 줄입니다. 누적 data 32 MiB와 App quota도 적용합니다. Raw caller bytes는 realm credit을 유지하고 `loadBuffer`는 불변 캡처 후 내부 staging을 반환합니다. Native 요청 credit은 마지막 close callback과 빌린 JSI 복사가 끝날 때까지 유지합니다. Browser/OS network buffering은 측정하는 소유 메모리 밖입니다. Data·Original App 선언 모두 Native ES2022에서 DOM ambient type을 요구하지 않으며 Web surface 인자는 정확한 browser 타입을 유지합니다.
 

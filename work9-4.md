@@ -1,12 +1,14 @@
 # work9-4 — 4부: Android·Linux 호스트
 
-작성: **2026-11-05 KST** · 재검토: **2026-11-06 KST** · 상태: **DEFERRED / 2차·Windows/Web W9-13 기술 완료 후 착수 / 구현 미착수·notVerified**
+작성: **2026-11-05 KST** · 갱신: **2026-11-07 KST** · 상태: **Android IN_PROGRESS / API·복구·개발 reload 구현 PARTIAL · Linux DEFERRED**
 
 [전체 목차](work9.md) · [이전: 3부](work9-3.md) · [후속: 5부 iOS·macOS](work9-5.md)
 
 **범위:** 원문 §11.4·§5. Android standalone host·OS 입력/접근성·RN 코드 분리와 Linux GTK4/DMA-BUF·IM/AT-SPI·공급을 다룬다. 기존 절 번호와 단계 ID를 유지한다.
 
 **개발 순서:** Windows/Web 1차 → **4부 Android·Linux 2차** → 후속 5부 iOS·macOS 3차다. 4부의 W9-12-B(Android)·W9-03은 Windows/Web의 **W9-13 기술 완료** 후 착수하며, iOS/macOS 구현·Apple toolchain·공급을 기다리지 않는다. [완료·차수 전환 기준](work9-3.md#125-차수-전환과-완료-판정)
+
+**2026-11-07 사용자 지정:** Android 부분 구현과 emulator 사용, 필요한 공통 영역 수정에 이어 전체 API·자동 복구·개발 reload 구성을 요청하여 Android를 먼저 진행했다. 위 기본 순서의 Android 착수 시점만 변경하며 Windows/Web W9-13 완료나 Linux·Apple 착수를 뜻하지 않는다.
 
 **공통 계약과 완료 조건:** [2부 §11.2의 mirror/ACK·입력 수명](work9-2.md#112-중립-adapter와-상태-계약), [§11.6의 M0–M4](work9-2.md#116-도입-순서와-의존성-gate), [§11.7의 공통 corpus](work9-2.md#117-공통-입력수명-검증-corpus)를 Android에 적용한다. Android와 Linux 각각의 W9-05–11 corpus·[W9-13/14](work9-3.md#123-단계별-범위와-완료-조건)를 연결하고 API·host·공급 통합을 마친 뒤 5부에 착수한다. 물리 입력·성능 수락은 대상별로 남긴다.
 
@@ -18,7 +20,7 @@
 
 ### 11.4 Android — 기존 Nelyx OS 코드를 먼저 분리
 
-**2차 W9-12-B(Android) / DEFERRED.** 아래 추출과 RN 의존성 제거는 Windows/Web 1차 완료 후 Linux와 같은 4부에서 수행한다. iOS·macOS 구현이나 Apple 공급을 이 단계의 완료 조건으로 요구하지 않는다.
+**2차 W9-12-B(Android) / IN_PROGRESS · PARTIAL.** 사용자 지정에 따라 standalone 경로와 아래 API·복구·개발 구성을 구현했다. 전체 원래 API 호환성과 제품 수락은 계속 별도 gate이며 iOS·macOS 구현이나 Apple 공급을 이 단계의 완료 조건으로 요구하지 않는다.
 
 1. `NelyxInputConnectionView`의 OS buffer/IME·keyboard·geometry·close 처리를 추출한다. RN Context/map/event/ViewManager를 일반 Android Context·고정 native 값 타입·v2 input port/JNI로 교체한다. 기존 v1 RN wrapper는 같은 중립 helper를 사용할 수 있도록 공급 경계를 정하며 현재 v1 경로를 먼저 삭제하지 않는다.
 2. Commit/composing/selection/batch/delete와 hardware key를 Core 입력으로 연결한다. UTF-16 길이·`deleteSurroundingTextInCodePoints`의 code-point 수·grapheme 삭제를 구별하고 `newCursorPosition`, nested batch, 오래된 connection과 조합 종료 중 App 변경을 검사한다.
@@ -31,6 +33,67 @@ Surface/ANativeWindow와 JNI reference는 획득·전달·해제 owner와 세대
 초기 대상은 arm64-v8a 최소 scene·입력·InputConnection·접근성·공급/drain이다. Emulator와 실기기·IME별 자동/물리 결과는 각각 기록하며 전체 Testbed·디자인 제품 수락과 구분한다.
 
 2차 착수 시 Android 최저 OS·min/compile/target SDK·NDK/JDK/Gradle·Hermes/Skia의 ABI·필수 native library를 고정한다. RN 없는 일반 앱의 create/build/run/doctor/pack·설치 실패/성공·실행 identity를 W9-12-B/13에 연결한다. 최소 port의 성공 뒤에도 전체 원래 API·TypeScript 디자인·복구 corpus를 마쳐야 Android W9-13 기술 완료다. 실제 설치 앱에서 두 디자인 패키지의 theme/State·controlled callback·변경 거부/취소·dispose와 C++ 작업을 함께 확인한다. InputConnection carrier·접근성 virtual node는 OS 연결이며 기본 디자인 컴포넌트의 구현을 대신하지 않는다.
+
+### 현재 Android 구현과 실행
+
+구현 위치는 [Android host](Nelyx/engine/platform/android/host.cpp), [Render provider](Nelyx/engine/platform/android/renderer.hpp), [일반 Android 프로젝트](Nelyx/engine/platform/android/project/app/build.gradle), [중립 InputConnection buffer](Nelyx/sdk/native/android/shared/dev/nelyx/input/NelyxInputBuffer.java), [CLI](Nelyx/sdk/tooling/cli/src/engine-v2-android.mjs)다. 기존 Windows의 Skia·paragraph/image·App text 서비스를 [공통 provider](Nelyx/engine/platform/common/skia_provider.hpp)로 추출했으며 기존 v1 RN host는 유지한다. RN 입력 wrapper와 standalone 입력 buffer는 같은 UTF-16 validator를 사용한다. 전체 RN IME 구현을 추출·재검증한 것으로 확대하지 않는다.
+
+| 영역 | 구현 범위 |
+| --- | --- |
+| Runtime/owner | 일반 Activity/TextureView·JNI registry와 UI/App(Hermes)/Content/Render 네 owner. RN Activity/Context/ReactHost/UIManager·RN scheduler 없이 실행. JSI는 독립 library이며 React runtime은 링크하지 않음 |
+| GPU/surface | 고정한 Android Skia 공급에 맞는 Graphite/Dawn/Vulkan. ANativeWindow 획득/해제와 SurfaceTexture retire를 분리하고 키보드/resize에는 같은 native surface를 재설정. Render에서 GPU 완료를 기다리며 UI join 없음. 성능 수락은 별도 |
+| 입력/mirror | Core ACK 기반 buffer·UTF-16 경계·code-point/grapheme 삭제·Hangul composing/commit·nested batch·newCursorPosition·stale connection/close. 게시된 Skia caret/hit와 baseline을 사용하며 CursorAnchorInfo/selection을 같은 revision으로 갱신 |
+| 접근성 | Core generation을 virtual ID에 연결. tree/bounds·focus·hover·click·range·text/selection·password masking. OS action은 같은 살아 있는 node에 대해 stale NACK일 때만 최신 publication을 재조회하며 중복 실행하지 않음 |
+| Clock/수명 | Choreographer monotonic clock·hide/resume·Activity recreation/new native generation·오래된 JNI edit 거부. App dispose → native worker/GPU drain → close 결과를 비동기로 회수. 종료 요약은 메모리 내 최근 8개로 제한 |
+| 공급/CLI | RN 없는 create/build/doctor/run/pack. SHA-256/ABI/native library·APK identity 검사, HBC96 compile, 설치본 source identity·C++/SDK 작업 수·첫 GPU frame 확인. 현재 공급/출력만 유지 |
+| 공통 수정 | controlled callback이 값을 거부해도 native 값을 재적용. 원본 Material padded button의 최소 크기는 자식 layout에 전파하지 않고 여백 hit를 자식 중앙으로 전달. 이미 수락한 capture는 수집한 좌표 변환으로 종료하며 새 contact는 바뀐 hit 규칙을 사용 |
+| Original 편집기 | 원래 EditableTextState·TextEditingController·formatters·undo·focus·callback을 유지하고 C++ 편집 document/paragraph에 연결. Material decoration 없는 TextField·기본 CupertinoTextField. Style-only 갱신은 편집 text/revision을 덮어쓰지 않음. Caret·selection·hit·가로 reveal은 Content geometry를 사용. 같은 revision의 선행 native 관측/뒤늦은 programmatic ACK와 더 오래된 ACK를 구별 |
+| Android 공개 서비스 | 같은 원래 API로 root/NetworkAssetBundle·AssetManifest·FontLoader·TextPainter layout/hit/range/line 질의·ImmutableBuffer·ImageDescriptor/PNG/GIF codec/readback을 실행. Android system sans-serif의 실제 font face를 Roboto catalog로 사용하고 byte/face 수·credit을 제한 |
+| 자동 복구 | 실제 Dawn device loss와 Graphite context/surface 손실을 복구 가능 오류로 분리. 이전 App dispose·worker/GPU drain·ledger 0 뒤 새 native session/State로 교체. Activity당 2회 제한; 시작·치명적 오류·회수 실패는 종료 오류 |
+| 개발 reload | RN/Metro 없는 `dev --engine v2 --target android`. 새 APK 준비 실패는 기존 PID/세대를 유지. 성공하면 debuggable Activity control의 PID·native owner·ticket을 대조하고 이전 세대 drain 뒤 설치. 지연된 중복 file notification과 `.nelyx` cache 변경은 추가 reload를 만들지 않음 |
+
+공급은 [suppliers.json](Nelyx/engine/platform/android/suppliers.json)에 고정한다. min SDK **26**, compile/target **36**, NDK **27.1.12297006**, build-tools **36.0.0**, HotSpot JDK **21**, Gradle **8.14.3**, AGP **8.13.1**, Hermes/compiler **0.14.1·HBC96**, Skia **154.1.0**, Dawn **dawn-chrome-m154a**, ABI **arm64-v8a/x86_64**다. 각 ABI는 engine/JSI/Hermes/fbjni/Dawn/libc++ **6 library**를 함께 공급하며 ELF LOAD alignment는 **16 KiB**다. 클래스는 Babel로 내린 후 고정한 Hermes 옵션으로 bytecode를 만든다. 이 APK는 개발용 debug key로 서명한다. 배포용 signing/store qualification은 완료하지 않았다.
+
+Windows PowerShell에서 emulator를 시작한 뒤 저장소 루트에서 실행한다. 로컬 GraalVM JDK의 Android jlink 실패 때문에 이 환경은 Temurin 21을 선택한다. `JAVA_HOME`은 설치한 HotSpot JDK 21 경로로 맞춘다.
+
+```powershell
+$env:JAVA_HOME='C:/Program Files/Eclipse Adoptium/jdk-21.0.11.10-hotspot'
+$env:Path="$env:JAVA_HOME/bin;$env:Path"
+npm.cmd run build:engine-v2:android
+npm.cmd run run:engine-v2:android -- --device=emulator-5554
+npm.cmd run dev:engine-v2:android -- --device=emulator-5554
+npm.cmd run test:engine-v2:android
+```
+
+일반 실행 명령은 현재 source/공급과 ABI를 확인하고 필요하면 Core/SDK/디자인 패키지와 두 Android ABI를 갱신한다. 현재 engine 공급은 `Nelyx/engine/dist-android`, 샘플 APK는 `sample/nelyx-engine-v2-android/dist/v2-android/android/application.apk`다. CLI의 `--target android --architecture x86_64`는 명시적 emulator Vulkan profile이며 일반 arm64-v8a profile은 hardware Vulkan을 요구한다. 일반 프로젝트 명령은 [SDK 사용 안내](Nelyx/sdk/README.ko.md#일반-v2-프로젝트)를 따른다.
+
+**검증 기록 — 2026-11-07 KST:** 현재 source/Windows·Web/Android 공급 identity는 **`19de18b7…` / ABI 2·schema 4042167114 / App service 12**로 일치한다. Windows/Web 공급 **349파일**, Android **43파일**이며 두 Android ABI의 Skia/Dawn library hash와 필수 6 library의 16 KiB LOAD alignment를 빌드에서 검사한다. Emulator는 **Pixel_5 / Android 13(API 33) / x86_64 / host GPU(Dawn-Vulkan)**이며 arm64-v8a는 cross-build다.
+
+| 검사 | 결과 |
+| --- | --- |
+| Android 일반 공급/설치 | arm64-v8a·x86_64 빌드 PASS. 일반 `run:engine-v2:android -- --device=emulator-5554`로 실제 APK 설치·동일 source 로드·C++ **466명령 = SDK 466**, fallback **0**·첫 GPU frame을 확인 |
+| Data Widget 설치 앱 | **56조건 PASS**. 네 native owner·Material/Cupertino State와 controlled 수락/거부·실제 OS InputConnection·nested batch·Hangul 조합·UTF-16/code-point/grapheme·newCursorPosition·실제 터치 caret/키보드 resize·stale connection·password·UiAutomation·Activity 재생성/늦은 JNI 거부·실제 Dawn loss와 복구 뒤 입력 |
+| 원본 Widget 설치 앱 | **22조건 PASS**. 원래 TypeScript theme/State·padded 버튼 여백의 실제 탭·controlled 수락/거부·AnimationController/Opacity·TextField 입력 거부 후 correction ACK·emoji/한글 조합·controller 교체/refocus·실제 Dawn loss와 새 State·종료. 명시한 InkRipple theme를 사용. C++ **1407명령 = SDK 1407**, fallback **0** |
+| Android 공개 API corpus | 설치한 Original 앱에서 실제 자산 **20읽기**·네트워크 **14읽기**·동적 글꼴·TextPainter 질의·raw RGBA/BGRA·PNG/GIF **10 decode/animated 4 frame**과 readback 실행. C++ **32명령 = SDK 32**, fallback **0**. Header/body 대기 IO 두 개를 취소하고 App dispose·worker 종료·ledger **0** 확인 |
+| 자동 복구/회수 | Data·Original 각각 실제 Dawn device를 잃게 한 뒤 이전 owner의 **status=0 / reservedBytes=0 / memoryTotal=0 / workersJoined=true / appDisposed=true / recoverable=true / failed=true**를 확인하고 새 native generation/State·GPU frame으로 복구. 정상 종료는 `failed=false`. Ledger/worker 종료 증거이며 Java heap/RSS 0이나 모든 loss/vendor 조합을 뜻하지 않음 |
+| Android 개발 reload | 첫 APK 실행 → 문법 오류에서 기존 PID/세대 유지 → 수정된 소스의 새 APK 준비 → 이전 세대 drain → 새 PID/세대 실행 → close drain PASS. Source 중복 알림·`.nelyx` cache 변경은 추가 세대를 만들지 않음. Dispose를 거부하면 exit **1**, 기존 세대 번호 유지·새 APK 실행 거부·임시 candidate 삭제. 전체 Android Node suite **4/4 PASS** |
+| 일반 CLI | 독립 package의 공급 포함·설치/첫 frame, 손상 HBC/공급·누락 capability·ABI 중복/RN profile 거부와 RN 없는 create graph PASS |
+| 공통 C++/Widget/픽셀 | **430/430 PASS**, Native·single-worker·threaded와 편집 ACK/focus 순서 회귀 포함. Style-only 보존·가로 caret reveal·최소 터치 영역/여백 capture·controlled refusal 확인. 실제 CanvasKit 그림/텍스트/clip·hairline/none border 픽셀 **11/11 PASS** |
+| Windows/Web host | **17/17 PASS**. 두 Windows host의 TSF/UIA 실제 편집·pointer/control·회수, Chromium/Chrome/Edge의 두 profile·pressure·실제 탭 visibility. 첫 갱신의 editable style-only 명령을 포함해 같은 ACK의 실제 C++ 총계와 SDK 증가분을 대조. Bounded App event 증거는 해당 입력 구간에서 검사 |
+| Windows/Web 개발 회귀 | **7/7 PASS**. 시작 중 source 변경·Web 두 profile의 정상 교체/준비 실패·시작 중 close/늦은 build 차단·dispose 실패·superseded candidate 미게시·두 Windows VM/host의 drain 후 교체 |
+| 공유 App 서비스/도구 | App text/image/network/bootstrap/font **16/16**, 일반 runner/설치 compiler·archive/pack **20/20**, API audit 회귀 **21/21**, 기존 RN Android source/lifetime/pointer **5/5** PASS. v1 RN 설치/IME 두 harness는 별도 emulator serial/설치 준비 gate에서 종료했으며 이번 v1 설치 runtime 검증으로 세지 않음 |
+| 입력 geometry/정적 검사 | geometry **2/2**, retained/활성화 실패 **7/7** PASS. 전체 workspace type check·두 Android sample의 strict type check·lint·변경 JS/TS format·`git diff --check` PASS |
+| 화면 확인 | 일반 실행 APK의 한국어·password masking·두 디자인 버튼/스위치 표시를 직접 확인. ADB swipe 두 번 후 실제 마지막 **Android scroll item 12**가 표시됨을 확인. 스크린샷·검증 로그·시험용 package/앱 임시 폴더를 정리했으며 시험 emulator도 정상 종료. 아래 출력 파일 2개의 정리만 남음 |
+
+Emulator 성공을 arm64 실기기·IME별 물리 조작·TalkBack 제품 수락·display/scanout·성능으로 판정하지 않는다. 최소 OS 26의 runtime·제품 signing/고지·전체 공급 조합 qualification도 별도다.
+
+**정리 잔여:** 자동 승인 검토가 `Remove-Item` 정리 명령을 `blocked by policy`로 거절하여 `.nelyx/android-v2/emulator-current.out`·`emulator-current.err` 두 출력 파일이 남았다. Emulator는 `computer-use` 스킬의 정상 창 닫기로 종료했으며 실행 중인 검증 기기는 없다. 이전 출력 사본이나 검증 archive를 추가하지 않았다.
+
+**전체 API 구성과 판정:** [전체 감사 도구](Nelyx/engine/tools/api-audit.mjs)의 기본 target에 Android를 포함했다. 원래 **4 package/834 subpath**의 고정 분모와 현재 **848 module/4,630 export occurrence**를 유지한다. Android 적용 **811 module/4,489 occurrence**, OS별 비적용 **37/141**이며 적용 여부가 승인 allowlist를 뜻하지 않는다. TypeScript **7.0.2**, NodeNext·ES2022·`types: []`·DOM 없음·`skipLibCheck: false`의 전체 Android 선언 검사는 **inputValid=true / error=0**다. Windows/Web도 각 전체 선언 검사는 통과한다.
+
+전체 API의 원래 surface 대조는 **inputValid=false / compatible=false / originalSurfaceChanged 18건**이다. 전체 상태는 `missing=4028`, canonical data reuse의 behavior 미검증 **452**, `signatureChanged=127`, 부분 behavior **7**, behavior 검증 **1**, asset 미검증 **15**다. 기존 Source 코드나 strict import 성공만으로 runtime 호환을 승인하지 않는다. `npm.cmd run audit:engine-v2:api`는 현재 strict 미통과(exit 1)이며 이 gate를 숨기거나 원래 분모를 줄이지 않았다.
+
+**남은 gate / 다음 작업:** W9-12-B/13의 전체 원래 API·서명/structural 차이와 Original 전체 디자인 catalog를 계속 구현·검증해야 한다. 이번 편집기 범위는 Material `decoration: null`·Cupertino 기본 단일행이며 샘플 Theme는 지원하는 `InkRipple.splashFactory`를 명시한다. Android 기본 InkSparkle의 native shader는 미연결이며 기본 theme 전체 호환으로 승인하지 않는다. Selection handle/toolbar·Source 동기 editing geometry·custom/multiline layout·전체 keyboard/autofill/platform/messenger service와 OS font 변경 알림도 미완료다. Decoder/IO corpus가 모든 Image/Canvas 장면의 GPU 복구를 입증하지도 않는다. 실제 arm64 기기의 IME/vendor·TalkBack·메모리/입력/resize 성능과 display/scanout은 W9-14에서 별도로 확인한다. 전체 API `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`와 Android W9-13 **PARTIAL**을 유지한다. Linux·iOS·macOS는 **DEFERRED**다.
 
 ## 5. Linux — GTK4 호스트
 
@@ -60,4 +123,4 @@ GTK widget은 surface/texture 게시·입력·접근성 host를 담당한다. Ma
 
 `GtkGLArea`는 OpenGL framebuffer를 GTK에 통합하는 별도 방식이다. 현재 Graphite/Vulkan renderer를 그 안에 바로 연결할 수 있다고 가정하지 않는다. DMA-BUF prototype이 실패하면 실패한 capability·환경을 기록하고 Linux gate를 미완료로 유지한다. GL provider 추가는 owner·Skia 공급·기능 동등성을 다시 설계하는 명시적 대안이다. [GtkGLArea 계약](https://docs.gtk.org/gtk4/class.GLArea.html)
 
-Android/Linux W9-13은 TypeScript 디자인/자산과 공통 native engine/provider/host 공급의 분리를 확인한다. 두 디자인 패키지 아래에 native Widget source/target·engine binary를 추가하지 않고, 기존 capability 안의 theme/스타일 변경이 TypeScript 패키지/adapter 갱신으로 반영되는지 검사한다. 명시적 platform view는 W9-11의 별도 계약을 따른다. 이번 경계 수정은 계획만 갱신하며 구현 **DEFERRED / notVerified**와 차수 전환 조건을 유지한다.
+Android/Linux W9-13은 TypeScript 디자인/자산과 공통 native engine/provider/host 공급의 분리를 확인한다. 두 디자인 패키지 아래에 native Widget source/target·engine binary를 추가하지 않고, 기존 capability 안의 theme/스타일 변경이 TypeScript 패키지/adapter 갱신으로 반영되는지 검사한다. 명시적 platform view는 W9-11의 별도 계약을 따른다. 현재 Android는 위 구현 **PARTIAL**, Linux는 **DEFERRED / notVerified**이며 전체 W9-13과 제품 수락 조건을 유지한다.

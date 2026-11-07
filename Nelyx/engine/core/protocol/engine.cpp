@@ -832,7 +832,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   response.u64(b + wire::stateFields::reservedBytes, s.ledger->bytes); response.u64(b + wire::stateFields::resourceBytes, s.ledger->resourceBytes);
   response.u64(b + wire::stateFields::nodeBlocks, s.ledger->nodes); response.u32(b + wire::stateFields::eventCount, uint32_t(events.size()));
   const auto memory=s.ledger->snapshot();
-  for(const auto [offset,value]:{std::pair{wire::stateFields::memoryTotal,memory.total},
+  for(const auto& [offset,value]:{std::pair{wire::stateFields::memoryTotal,memory.total},
     {wire::stateFields::memoryPeak,memory.peak},{wire::stateFields::memoryCpu,memory.cpu},
     {wire::stateFields::memoryGpu,memory.gpu},{wire::stateFields::memoryStaging,memory.staging},
     {wire::stateFields::engineHeap,memory.engineHeap},{wire::stateFields::providerHeap,memory.providerHeap},

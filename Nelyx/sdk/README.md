@@ -42,7 +42,24 @@ Repeated close requests share one result. App, Widget, transport and browser sur
 
 Windows waits up to three seconds for App disposal and gives the App owner 250 ms to exit. If evaluated JavaScript keeps running, the host requests a Hermes async break, joins the owner and drains the engine as a failed session. This interrupts JavaScript loops; it does not authorize freeing resources still held by a native/GPU consumer.
 
-Build output defaults to `dist/v2-web` or `dist/v2-windows`. Use `--target windows` for the selected standalone Hermes/Skia host. `doctor` verifies the selected supplier; `prepare` builds the App bundle. `pack --engine v2 --target web` creates `dist/v2-web-package`, including the verified engine supplier. `run --engine v2 --target web --package dist/v2-web-package` runs that portable package. The server exposes `/isolated/` for automatic threaded selection and `/plain/` for the functional single-worker profile. Android, Apple and Linux v2 hosts are not supplied.
+Build output defaults to `dist/v2-web`, `dist/v2-windows` or `dist/v2-android`. Use `--target windows` for the selected standalone Hermes/Skia host. `doctor` verifies the selected supplier; `prepare` builds the App bundle. `pack --engine v2 --target web` creates `dist/v2-web-package`, including the verified engine supplier. `run --engine v2 --target web --package dist/v2-web-package` runs that portable package. The server exposes `/isolated/` for automatic threaded selection and `/plain/` for the functional single-worker profile. Apple and Linux v2 hosts are not supplied.
+
+Android uses a standalone Activity/JNI host with Hermes and Skia Graphite/Dawn/Vulkan. Select HotSpot JDK 21 in `JAVA_HOME` and install Android SDK 36/build-tools 36.0.0; the supplied project pins Gradle 8.14.3/AGP 8.13.1. Use an Android engine supplier built with `npm.cmd run build:engine-v2:android` at this repository root. That command also rebuilds Core, SDK and both design packages. Minimum Android is API 26; arm64-v8a selects hardware Vulkan and x86_64 selects the explicit emulator profile.
+
+```sh
+npx --no-install nelyx doctor --engine v2 --target android --engine-inputs <dist-android>
+npx --no-install nelyx build --engine v2 --target android --engine-inputs <dist-android> --architecture x86_64
+npx --no-install nelyx run --engine v2 --target android --device emulator-5554
+npx --no-install nelyx dev --engine v2 --target android --engine-inputs <dist-android> --architecture x86_64 --device emulator-5554
+npx --no-install nelyx pack --engine v2 --target android
+npx --no-install nelyx run --engine v2 --target android --package dist/v2-android-package --device emulator-5554
+```
+
+For a device build, select `--architecture arm64-v8a`. The current APK is signed with a development debug key. Run verifies installation, the loaded source identity, matching native/SDK work and the first GPU frame. Recoverable GPU/context/surface loss drains the old App, Content and Render owners before starting a new session. State resets; automatic recovery is limited to two attempts per Activity. Startup, fatal and disposal/drain failures show a terminal error. The [Android sample](../../sample/nelyx-engine-v2-android) and [current qualification](../../work9-4.md#현재-android-구현과-실행) cover input, accessibility, lifetime and emulator evidence. Full original API/catalog, production signing and physical/performance acceptance remain incomplete.
+
+Android `dev` follows the same generation replacement contract. It prepares the new APK, correlates the installed process/native owner and close ticket, and installs only after App disposal, worker/GPU drain and a zero ledger. A force-stop does not establish a graceful drain. Only the development profile enables the debuggable close control and local HTTP; ordinary builds disable both in their manifest. Run the repository sample with `npm.cmd run dev:engine-v2:android -- --device=emulator-5554`.
+
+The Original Android sample explicitly selects `ThemeData({ splashFactory: InkRipple.splashFactory })`. The default Android InkSparkle native shader and full design catalog remain unconnected. Qualified editing covers Material TextField with `decoration: null` and the default single-line CupertinoTextField, with broader options still unqualified.
 
 `npx --no-install nelyx dev --engine v2 --target web --engine-inputs <current-engine-dist>` watches App source, configuration and assets from startup. It also supports `--target windows`, the selected `windowsHost`, and a custom `--output`. A preparation failure keeps the current application running. Successful preparation drains the previous App, providers and workers, or the Windows VM/window, before starting a new session. App State resets; this does not preserve state across reloads. Disposal or owner shutdown failure terminates the development run with a failure result.
 
@@ -212,7 +229,9 @@ export async function assetByteLength(key: string): Promise<number> {
 }
 ```
 
-`NetworkAssetBundle` takes a base URL string and resolves relative keys, queries, fragments and absolute HTTP(S) keys. Each load fetches again; only the platform HTTP stack can cache. Only HTTP 200 succeeds. Native uses asynchronous WinHTTP with gzip/deflate, the OS proxy/TLS policy, five redirects and 30-second IO timeouts. Web uses fetch streaming and the browser CORS, TLS and redirect policies. The shared App owner cancels both startup and runtime IO.
+`NetworkAssetBundle` takes a base URL string and resolves relative keys, queries, fragments and absolute HTTP(S) keys. Each load fetches again; only the platform HTTP stack can cache. Only HTTP 200 succeeds. Windows uses asynchronous WinHTTP with gzip/deflate, the OS proxy/TLS policy, five redirects and 30-second IO timeouts. Web uses fetch streaming and the browser CORS, TLS and redirect policies. The shared App owner cancels both startup and runtime IO.
+
+Standalone Android uses Android HttpURLConnection on a separate native IO worker. Its corpus covers UTF-8 and spaces in URLs, queries/fragments, five redirects and cross-origin credential removal. Connect/read timeouts are 3/2 seconds. Closing sets a cancellation flag and retains credit until bounded IO finishes and the actual connection/stream and callback owner retire. UI never joins the network worker. Local emulator HTTP is enabled only in the development profile.
 
 Before starting HTTP, each request admits 512 KiB for owned metadata and callback/transport copies. The shared IO limit is 32. Declared lengths admit storage before reading; unknown or compressed streams grow their `3 * capacity + 65536` byte credit before allocating, and trim to the exact delivered length. The 32 MiB cumulative data limit and App quota still apply. Raw caller bytes keep realm credit; `loadBuffer` returns internal staging after immutable capture. Native retains request credit through its last close callback and borrowed JSI copy. Browser/OS network buffering is outside measured owned memory. Both Data and Original App declarations support Native ES2022 without DOM ambient types; browser surface arguments keep their exact Web types.
 

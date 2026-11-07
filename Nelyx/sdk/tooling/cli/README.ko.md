@@ -24,7 +24,7 @@ npm --prefix MyApp/web/runner run dev
 
 ## 자체 v2 엔진
 
-C++ v2 엔진의 일반 앱은 `nelyx create MyApp --engine v2 --packages <archive-directory>`로 만들고 `MyApp/`에서 설치합니다. [SDK 일반 v2 프로젝트 안내](../../README.ko.md#일반-v2-프로젝트)에 entry/자산·검증한 engine 공급·Web/Windows build/run/dev·독립 package 사용을 설명했습니다. 이 경로는 `nelyx.v2.json`과 `dist/v2-<target>`을 사용합니다.
+C++ v2 엔진의 일반 앱은 `nelyx create MyApp --engine v2 --packages <archive-directory>`로 만들고 `MyApp/`에서 설치합니다. [SDK 일반 v2 프로젝트 안내](../../README.ko.md#일반-v2-프로젝트)에 entry/자산·검증한 engine 공급·Web/Windows/Android build/run/dev·doctor/pack·독립 package 사용을 설명했습니다. 이 경로는 `nelyx.v2.json`과 `dist/v2-<target>`을 사용합니다. Android는 HotSpot JDK 21·고정한 SDK 36과 `--architecture arm64-v8a|x86_64`를 사용합니다. `dev --engine v2 --target android --architecture x86_64 --device emulator-5554`는 새 APK 준비 → 이전 App/worker/GPU drain → 설치/새 session 순서로 교체하며 State는 초기화합니다. 현재 APK는 개발용 debug key로 서명합니다.
 
 ## 공급과 설치
 

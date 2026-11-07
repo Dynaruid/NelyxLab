@@ -3,12 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import {
   buildEngineV2Application,
   verifyEngineV2Application,
   createEngineV2Server,
   engineV2WindowsHost,
 } from './engine-v2-runner.mjs';
+import { runEngineV2Android, stopEngineV2Android } from './engine-v2-android.mjs';
 
 const within = (root, file) =>
   file === root ||
@@ -18,6 +20,7 @@ const within = (root, file) =>
 
 /** A reload replaces the complete host/session. It does not preserve application State. */
 export async function createEngineV2Development(options) {
+  options = { ...options, development: true };
   const app = fs.realpathSync(options.app);
   const directory = path.resolve(app, options.output ?? `dist/v2-${options.target}`),
     parent = path.dirname(directory);
@@ -30,16 +33,70 @@ export async function createEngineV2Development(options) {
     receiveError = (error) => {
       startupFailure = error;
     };
+  // Android's Gradle/adb adapter blocks this event loop. A second notification
+  // for already-built bytes may arrive after publication; compare current
+  // inputs so it cannot create a second generation or a cache reload loop.
+  const fingerprint = () => {
+    const hash = createHash('sha256');
+    const visit = (folder) => {
+      for (const entry of fs
+        .readdirSync(folder, { withFileTypes: true })
+        .sort((a, b) => a.name.localeCompare(b.name))) {
+        const file = path.join(folder, entry.name);
+        if (
+          ['.git', '.nelyx', 'node_modules'].includes(entry.name) ||
+          within(directory, file) ||
+          (within(parent, file) &&
+            path.relative(parent, file).split(path.sep)[0].startsWith('.engine-v2-')) ||
+          (bundle && within(bundle.supply.root, file))
+        )
+          continue;
+        if (entry.isSymbolicLink()) continue;
+        if (entry.isDirectory()) {
+          try {
+            visit(file);
+          } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+          }
+        } else if (entry.isFile()) {
+          let bytes;
+          try {
+            bytes = fs.readFileSync(file);
+          } catch (error) {
+            if (error.code === 'ENOENT') continue;
+            throw error;
+          }
+          hash.update(JSON.stringify([path.relative(app, file), bytes.length]));
+          hash.update(bytes);
+        }
+      }
+    };
+    visit(app);
+    return hash.digest('hex');
+  };
+  let observed = fingerprint();
+  const sourceChanged = () => {
+    let current;
+    try {
+      current = fingerprint();
+    } catch (error) {
+      receiveError(error);
+      return;
+    }
+    if (current === observed) return;
+    observed = current;
+    receiveChange();
+  };
   const watcher = fs.watch(app, { recursive: true }, (_event, filename) => {
     if (!filename) {
-      receiveChange();
+      sourceChanged();
       return;
     }
     const name = String(filename),
       file = path.resolve(app, name);
     if (
       !within(app, file) ||
-      name.split(/[\\/]/).some((part) => ['.git', 'node_modules'].includes(part)) ||
+      name.split(/[\\/]/).some((part) => ['.git', '.nelyx', 'node_modules'].includes(part)) ||
       within(directory, file) ||
       within(file, directory) ||
       (within(parent, file) &&
@@ -47,7 +104,7 @@ export async function createEngineV2Development(options) {
       (bundle && within(bundle.supply.root, file))
     )
       return;
-    receiveChange();
+    sourceChanged();
   });
   watcher.on('error', (error) => receiveError(error));
   try {
@@ -56,7 +113,10 @@ export async function createEngineV2Development(options) {
       const revision = requested;
       const initial = await buildEngineV2Application({
         ...options,
-        canPublish: () => !startupFailure && requested === revision,
+        canPublish: () => {
+          sourceChanged();
+          return !startupFailure && requested === revision;
+        },
       });
       if (initial.obsolete) continue;
       completed = revision;
@@ -140,6 +200,12 @@ export async function createEngineV2Development(options) {
     }
   };
   const startNative = async () => {
+    if (options.target === 'android') {
+      const running = runEngineV2Android(bundle, options);
+      native = { android: running };
+      emit('native-ready', running);
+      return;
+    }
     const child = spawn(
       path.join(bundle.supply.root, engineV2WindowsHost(bundle.manifest.windowsHost).executable),
       [bundle.supply.root, '--app', bundle.root, ...(options.arguments ?? [])],
@@ -218,6 +284,11 @@ export async function createEngineV2Development(options) {
     if (!native) return;
     const record = native;
     native = undefined;
+    if (record.android) {
+      const drained = stopEngineV2Android(bundle, options, record.android);
+      emit('native-drained', drained);
+      return;
+    }
     record.stopping = true;
     if (record.child.exitCode === null) record.child.stdin.write('close\n');
     let forced = false;
@@ -311,7 +382,10 @@ export async function createEngineV2Development(options) {
         const next = await buildEngineV2Application({
           ...options,
           output: candidate,
-          canPublish: () => !closing && revision === requested,
+          canPublish: () => {
+            sourceChanged();
+            return !closing && revision === requested;
+          },
         });
         completed = revision;
         if (next.obsolete || closing || revision !== requested) continue;
@@ -321,7 +395,7 @@ export async function createEngineV2Development(options) {
           options.engineInputs && path.resolve(app, options.engineInputs),
         );
         phase = 'replacing';
-        if (options.target === 'windows') await stopNative();
+        if (options.target !== 'web') await stopNative();
         else await drainWeb();
         if (closing) break;
         removeOwned(previous);
@@ -333,7 +407,7 @@ export async function createEngineV2Development(options) {
           fs.renameSync(previous, directory);
           throw error;
         }
-        if (options.target === 'windows') {
+        if (options.target !== 'web') {
           removeOwned(previous);
           previousBundle = undefined;
         }
@@ -344,7 +418,7 @@ export async function createEngineV2Development(options) {
         );
         ++generation;
         lastError = null;
-        if (options.target === 'windows') await startNative();
+        if (options.target !== 'web') await startNative();
         phase = 'open';
         emit('published', { revision });
       } catch (error) {

@@ -115,12 +115,9 @@ class NelyxInputConnectionView(private val reactContext: ThemedReactContext): Vi
     override fun isOpaque(): Boolean=false
     private fun ui(){check(Looper.myLooper()==Looper.getMainLooper()){"Input connections require their owning UI thread"}}
     private fun valid(text: CharSequence,anchor: Int,focus: Int) {
-        require(text.length<=textLimit&&anchor in 0..text.length&&focus in 0..text.length){"Input buffer budget or selection"}
-        var at=0
-        while(at<text.length){val unit=text[at];require(unit!='\u0000'){"Input buffer contains NUL"};if(Character.isHighSurrogate(unit)){require(at+1<text.length&&Character.isLowSurrogate(text[at+1])){"Input buffer has an unpaired surrogate"};at+=2}else{require(!Character.isLowSurrogate(unit)){"Input buffer has an unpaired surrogate"};at++}}
-        validOffset(text,anchor);validOffset(text,focus)
+        dev.nelyx.input.NelyxInputRules.validate(text,anchor,focus,textLimit)
     }
-    private fun validOffset(text: CharSequence,index: Int){require(index in 0..text.length);require(index==0||index==text.length||!Character.isHighSurrogate(text[index-1])||!Character.isLowSurrogate(text[index])){"Input offset splits a surrogate"}}
+    private fun validOffset(text: CharSequence,index: Int){require(dev.nelyx.input.NelyxInputRules.boundary(text,index)){"Input offset splits a surrogate"}}
     internal fun readValue(): InputConnectionValue {
         ui();return InputConnectionValue(buffer.toString(),Selection.getSelectionStart(buffer),Selection.getSelectionEnd(buffer),BaseInputConnection.getComposingSpanStart(buffer),BaseInputConnection.getComposingSpanEnd(buffer),revision)
     }

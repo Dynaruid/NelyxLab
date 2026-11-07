@@ -52,8 +52,102 @@ import { engineRoot, timeout, sourceIdentity } from '../tools/build.mjs';
 import { wasmFactory } from './transports.mjs';
 import { exchange, sessionOwner } from '../platform/web/common.ts';
 import { ProviderBudget } from '../platform/web/memory.ts';
+import { paintNative, nativePaintOutset } from '../render/canvaskit-web/graphics.ts';
+import { originalControlConfiguration } from '../../runtime/engine-client/original-controls.ts';
+import { RenderDecoratedBox } from '@nelyx/core/framework/rendering/boxes';
+import { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
+import { Border } from '@nelyx/core/framework/painting/box-border';
+import { BorderSide } from '@nelyx/core/framework/painting/borders';
+import { RoundedRectangleBorder } from '@nelyx/core/framework/painting/rounded-rectangle-border';
+import { nativeShape } from '@nelyx/core/framework/rendering/object';
 const require = createRequire(import.meta.url),
   { js: canvasKitJS, wasm: canvasKitWasm } = canvasKitTestSupply();
+test(
+  'Original uniform decoration borders preserve hairline pixels and omit BorderSide.none',
+  { timeout },
+  async () => {
+    const ck = await require(canvasKitJS)({ wasmBinary: fs.readFileSync(canvasKitWasm) });
+    for (const scale of [1, 2]) {
+      const surface = ck.MakeSurface(128, 96),
+        paint = new ck.Paint();
+      assert.ok(surface);
+      try {
+        paint.setAntiAlias(true);
+        for (const side of [
+          new BorderSide({ width: 0 }),
+          new BorderSide({ width: 2 }),
+          BorderSide.none,
+        ]) {
+          const source = new RenderDecoratedBox(
+            new BoxDecoration({
+              border: Border.fromBorderSide(side),
+              borderRadius: BorderRadius.circular(5),
+            }),
+          );
+          let entries;
+          try {
+            entries =
+              originalControlConfiguration(source, (reason) => {
+                throw Error(reason);
+              }).paint ?? [];
+          } finally {
+            source.dispose();
+          }
+          const canvas = surface.getCanvas();
+          canvas.clear(ck.WHITE);
+          canvas.save();
+          canvas.translate(8, 8);
+          canvas.scale(scale, scale);
+          const nativePaint = entries.map((entry) => ({
+            ...entry,
+            width: 48,
+            height: 32,
+            reference: { slot: 0, generation: 0 },
+            cx: 24,
+            cy: 16,
+            resolvedRadius: 0,
+            transform: [1, 0, 0, 1, 0, 0],
+            points: [],
+          }));
+          paintNative(ck, canvas, { width: 48, height: 32, nativePaint }, paint, scale);
+          canvas.restore();
+          surface.flush();
+          const image = surface.makeImageSnapshot();
+          try {
+            const pixels = image.readPixels(0, 0, {
+              width: 128,
+              height: 96,
+              colorType: ck.ColorType.RGBA_8888,
+              alphaType: ck.AlphaType.Premul,
+              colorSpace: ck.ColorSpace.SRGB,
+            });
+            const red = (x, y) => pixels[(y * 128 + x) * 4];
+            assert.equal(
+              red(8 + 24 * scale, 8 + 8 * scale),
+              255,
+              'A border leaves its interior empty',
+            );
+            assert.equal(red(8, 8), 255, 'Rounded corner geometry survives');
+            const edge = Math.min(red(8 + 24 * scale, 7), red(8 + 24 * scale, 8));
+            if (side.style === 'solid') {
+              assert.ok(edge < 250, `Visible ${side.width}px border at scale ${scale}`);
+              if (side.width === 0) assert.ok(nativePaintOutset(nativePaint[0], 48, 32, scale) > 0);
+            } else assert.equal(edge, 255, 'BorderSide.none never becomes a hairline');
+          } finally {
+            image.delete();
+          }
+        }
+        assert.equal(
+          nativeShape(new RoundedRectangleBorder({ side: BorderSide.none }), null).strokeColor,
+          0,
+        );
+      } finally {
+        paint.delete();
+        surface.delete();
+      }
+    }
+  },
+);
 class HyphenText extends Text {
   constructor(value, options) {
     const { hyphens, ...rest } = options;

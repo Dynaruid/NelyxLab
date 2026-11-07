@@ -60,12 +60,17 @@ export function layoutContracts({ using, timeout, h }) {
             [{ expandEmpty: true }, p.statuses.capabilityMissing],
             [{ clipOverflow: true }, p.statuses.capabilityMissing],
             [{ paragraphSizing: true }, p.statuses.capabilityMissing],
+            [{ inputPadding: true }, p.statuses.capabilityMissing],
+            [
+              { inputPadding: true, enforceBounds: true, alignment: { x: 1, y: 0 } },
+              p.statuses.capabilityMissing,
+            ],
           ])
             assert.equal((await f.commit([c.layout(h(1), options)])).status, status);
           const unknown = c.layout(h(1), {});
           new DataView(unknown.buffer, unknown.byteOffset, unknown.byteLength).setUint32(
             16 + p.layoutFields.constraintFlags,
-            32768,
+            65536,
             true,
           );
           assert.equal((await f.commit([unknown])).status, p.statuses.invalidValue);

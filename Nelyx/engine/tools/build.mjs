@@ -186,6 +186,8 @@ export function sourceIdentity() {
     '../sdk/src/runtime/engine-v2.ts',
     '../sdk/src/runtime/engine-v2-app.ts',
     '../sdk/tooling/cli/src/engine-v2-runner.mjs',
+    '../sdk/tooling/cli/src/engine-v2-android.mjs',
+    '../sdk/tooling/cli/templates/nelyx-app/android/gradle/wrapper/gradle-wrapper.jar',
     '../sdk/tooling/cli/src/engine-v2-development.mjs',
     '../sdk/tooling/cli/src/engine-v2-data-api.mjs',
     '../sdk/tooling/cli/src/engine-v2-assets.mjs',
@@ -206,9 +208,10 @@ export function sourceIdentity() {
     '../skia/packages/web/native-manifest.json',
     '../skia/eng/prepare-web-runtime.mjs',
     '../skia/eng/source-build/canvaskit.lock.json',
+    '../skia/vendor/artifacts.lock.json',
     '../skia/eng/source-build/canvaskit-paragraph.patch',
     '../skia/eng/source-build/canvaskit-picture.cpp',
-    ...['windows', 'windows-hermes'].flatMap((dir) =>
+    ...['windows', 'windows-hermes', 'android'].flatMap((dir) =>
       tree(path.resolve(engineRoot, '../sdk/native', dir)).map(
         (file) => '../sdk/native/' + dir + '/' + file,
       ),

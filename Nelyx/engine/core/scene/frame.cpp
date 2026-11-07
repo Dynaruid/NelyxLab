@@ -9,6 +9,7 @@ bool sameInputNode(const Node& a,const Node& b) {
     if(bool(ap)!=bool(bp)||(ap&&!sameNativePaintHit(*ap,*bp)))return false;
     if(a.parent!=b.parent||a.paintOwner!=b.paintOwner||a.inlineHidden!=b.inlineHidden||a.kind!=b.kind||((a.policy^b.policy)&(120u|wire::eventPolicies::roundedHitTest))||a.properties.width!=b.properties.width||
       a.properties.height!=b.properties.height||a.properties.flags!=b.properties.flags||
+      ((a.layout.constraintFlags^b.layout.constraintFlags)&wire::layoutConstraintFlags::inputPadding)||
       ((a.kind==wire::kinds::clip||a.kind==wire::kinds::path)&&
         (a.radius!=b.radius||a.graphics.path!=b.graphics.path||a.clipStyle!=b.clipStyle))||
       ((a.policy&wire::eventPolicies::roundedHitTest)&&a.radius!=b.radius))return false;

@@ -1,6 +1,6 @@
 # work9 — Windows·Web 우선 엔진 v2 구현과 호스트 전환
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-07 KST** · 상태: **IN_PROGRESS / 사용자 요청 재개 / Windows·Web 1차 PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-07 KST** · 상태: **IN_PROGRESS / Windows·Web PARTIAL · 사용자 지정 Android API·복구·reload PARTIAL**
 
 [work8 종료 요약](history/26/11/04/work8-summary.md) · [종료 시 API·검증 기록](history/26/11/05/work8-2a-summary.md#현재-구현-현황) · [Flutter 엔진 비교](history/26/11/05/work8-2a-summary.md#flutter-엔진-c-비교)
 
@@ -13,16 +13,18 @@
 | [1부 — 범위·기준선·Windows 호스트·공통 경계](work9-1.md) | §1–4·§7: 우선 범위·work8 기준점·Windows App SDK·RNW 선별 재사용·최소 embedder                                                       | Windows/Web 1차 기반                                |
 | [2부 — 공개 API·렌더링·입력·Web](work9-2.md)             | §8–11의 공통·Web 계약: API 호환·Widget/디자인·graphics/text·frame·입력·Web 두 profile·OS 코드 재사용. Android/iOS 상세 구현은 4·5부 | Windows/Web 1차 기능                                |
 | [3부 — 구현 순서·통합 검증·공급](work9-3.md)             | §12–14: 실행 묶음·W9 단계/체크리스트·API/host/물리·성능 gate·공급/정리                                                              | Windows/Web 1차 통합·판정                           |
-| [4부 — Android·Linux 호스트](work9-4.md)                 | §11.4·§5: Android standalone·InputConnection/접근성·RN 분리, GTK4/DMA-BUF·IM/AT-SPI·배포                                            | **2차 / Windows/Web 1차 완료 후 / DEFERRED**        |
+| [4부 — Android·Linux 호스트](work9-4.md)                 | §11.4·§5: Android standalone·InputConnection/접근성·RN 분리, GTK4/DMA-BUF·IM/AT-SPI·배포                                            | **Android 사용자 지정 착수 / PARTIAL · Linux DEFERRED** |
 | [후속 5부 — iOS·macOS 호스트](work9-5.md)                | §11.5·§6: UIKit/UITextInput·AppKit/Metal·접근성·Apple 공급                                                                          | **3차 / Android/Linux 2차 통합 완료 후 / DEFERRED** |
 
-**개발 순서는 Windows/Web(threaded·single-worker) 1차 → Android/Linux 2차(4부) → iOS/macOS 3차(후속 5부)다.** 현재 구현 대상은 Windows/Web이며 Android/Linux는 1차 완료 후, iOS/macOS는 Android/Linux의 API·host·공급 통합 완료 후 착수한다. 후속 플랫폼의 toolchain·prototype·입력 adapter·배포를 앞선 차수의 완료 조건에 포함하지 않는다. 아직 착수하지 않은 대상은 모두 DEFERRED로 유지한다.
+**기본 개발 순서는 Windows/Web(threaded·single-worker) 1차 → Android/Linux 2차(4부) → iOS/macOS 3차(후속 5부)다.** 2026-11-07 사용자 지정으로 Android와 필요한 공통 영역을 먼저 구현했다. Android는 **API·복구·reload 구현 PARTIAL**, Linux·iOS/macOS는 **DEFERRED**다. Android 착수가 Windows/Web W9-13 통과나 전체 차수 완료를 뜻하지 않는다. 후속 플랫폼의 toolchain·prototype·입력 adapter·배포를 앞선 차수의 완료 조건에 포함하지 않는다.
 
 차수 전환의 ‘완료’는 **앞선 차수 모든 대상의 W9-13 기술 gate 통과**다. W9-14의 물리 입력·성능 수락·기본값 전환은 대상/profile별로 따로 판정한다. 전체 플랫폼의 기술 완료와 제품 수락도 각각 구분한다. [완료·차수 전환 기준](work9-3.md#125-차수-전환과-완료-판정)
 
 1~3부는 같은 Windows/Web 계획을 역할별로 나눈 문서다. 실제 구현은 [3부 §12.2의 실행 묶음](work9-3.md#122-windowsweb-1차-실행-순서)을 따라 **W9-00 → W9-06-A → W9-01/02-A/B**부터 진행한다. 파일 번호와 원문 절 번호를 W9 단계의 순번으로 해석하지 않는다.
 
-**현재 상태 — IN_PROGRESS / Windows·Web 1차 PARTIAL:** 공급 **`7df40776…` / ABI 2·schema 1967912362 / App service 12**에서 canonical root/PlatformAssetBundle과 두 SDK App 모델의 공통 asset 소유권을 연결했다. Native C++ **7읽기·52 bytes = SDK**, Original/data 두 profile의 **65/17명령 = SDK**, HTTP metadata/index·취소·실제 actor 종료 뒤 예약 **0**을 검증했다. Source FontLoader·공개 UI load·불변 recording 수명을 유지하며 Core **382/382**, 통합 **44/44**, Source/수명 **46/46**, geometry **2/2·7/7**, 도구/API/supply **32/32** PASS다. TypeScript **7.0.2**, CanvasKit **128/256 MiB**, App **320 MiB**, ledger **768 MiB/GPU 128 MiB**를 유지한다. Web 서비스 bootstrap 취소·실패·늦은 실제 Wasm 초기화 **28조건**도 통과했다. Native/Web loadBuffer·ImmutableBuffer와 NetworkAssetBundle의 비동기 HTTP·마지막 holder/callback 회수도 검증했다. Native 성공 HTTP 16요청(redirect 포함)의 89 bytes는 SDK 전달 86 + 3 bytes와 일치한다. Data/Original Native 선언은 DOM 없이 TypeScript 7 strict 검사를 통과했다. 다음은 ImageDescriptor/Codec buffer 소비·OS font 알림과 기존 클래스 타입 호환성이다. 전체 API **inputValid=true / compatible=false**, Native 창·물리/display/scanout **notVerified**, 성능 flag **false**, W9-13/14 미완료·후속 **DEFERRED**다. [현재 증거와 다음 실행](work9-3.md#현재-구현검증과-잔여-작업)을 따른다.
+**현재 Android 작업:** RN 없는 Activity/JNI·Hermes·Graphite/Dawn/Vulkan·독립 owner, ACK 기반 InputConnection/virtual accessibility·Choreographer/Activity 수명과 arm64-v8a/x86_64 공급·CLI create/build/doctor/run/pack에 Original 편집기·공개 asset/font/text/image/network 서비스와 실제 device loss 후 자동 복구·개발 generation reload를 연결했다. 전체 API 감사는 Android의 DOM 없는 strict 선언 검사도 포함한다. 실제 emulator/공통 회귀·현재 공급 identity·일반 실행 명령과 남은 Android W9-12-B/13/14는 [4부의 현재 구현](work9-4.md#현재-android-구현과-실행)에 기록한다. 전체 원래 API 호환성과 물리·성능 수락은 계속 미완료다.
+
+**Android 착수 전 Windows/Web 검증 기준선 — PARTIAL:** 공급 **`7df40776…` / ABI 2·schema 1967912362 / App service 12**에서 canonical root/PlatformAssetBundle과 두 SDK App 모델의 공통 asset 소유권을 연결했다. Native C++ **7읽기·52 bytes = SDK**, Original/data 두 profile의 **65/17명령 = SDK**, HTTP metadata/index·취소·실제 actor 종료 뒤 예약 **0**을 검증했다. Source FontLoader·공개 UI load·불변 recording 수명을 유지하며 Core **382/382**, 통합 **44/44**, Source/수명 **46/46**, geometry **2/2·7/7**, 도구/API/supply **32/32** PASS다. TypeScript **7.0.2**, CanvasKit **128/256 MiB**, App **320 MiB**, ledger **768 MiB/GPU 128 MiB**를 유지한다. Web 서비스 bootstrap 취소·실패·늦은 실제 Wasm 초기화 **28조건**도 통과했다. Native/Web loadBuffer·ImmutableBuffer와 NetworkAssetBundle의 비동기 HTTP·마지막 holder/callback 회수도 검증했다. Native 성공 HTTP 16요청(redirect 포함)의 89 bytes는 SDK 전달 86 + 3 bytes와 일치한다. Data/Original Native 선언은 DOM 없이 TypeScript 7 strict 검사를 통과했다. 다음은 ImageDescriptor/Codec buffer 소비·OS font 알림과 기존 클래스 타입 호환성이다. 전체 API **inputValid=true / compatible=false**, Native 창·물리/display/scanout **notVerified**, 성능 flag **false**, W9-13/14 미완료다. 이후 Android 초기 port는 위 현재 작업/4부를 따르며 Linux·Apple은 **DEFERRED**다. [현재 증거와 다음 실행](work9-3.md#현재-구현검증과-잔여-작업)을 따른다.
 
 ## 원문 절 목차
 

@@ -88,8 +88,8 @@ foreach ($controlName in @('Material selection','Cupertino selection')) {
   $controlElement = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $controlCondition)
   if ($null -eq $controlElement) { throw "Missing v2 control: $controlName" }
   $controlBounds = $controlElement.Current.BoundingRectangle
-  [NelyxPointerProbe]::Click($taskProcess.MainWindowHandle, $controlBounds.X + $controlBounds.Width / 2, $controlBounds.Y + $controlBounds.Height / 2)
   $toggle = $controlElement.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+  [NelyxPointerProbe]::Click($taskProcess.MainWindowHandle, $controlBounds.X + $controlBounds.Width / 2, $controlBounds.Y + $controlBounds.Height / 2)
   for ($attempt = 0; $attempt -lt 30; $attempt++) {
     if ($toggle.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) { break }
     Start-Sleep -Milliseconds 20

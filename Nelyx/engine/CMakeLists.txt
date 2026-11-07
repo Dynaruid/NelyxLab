@@ -3,6 +3,7 @@ project(NelyxEngineV2 LANGUAGES C CXX)
 option(NELYX_ENGINE_THREADED "Compile the separate shared-memory Wasm profile" OFF)
 option(NELYX_ENGINE_BROWSER_HOST "Build the classic browser owner runtime" OFF)
 option(NELYX_ENGINE_WINDOWS_HOST "Build the HWND/Hermes/Skia host" OFF)
+option(NELYX_ENGINE_ANDROID_HOST "Build the standalone JNI/Hermes/Graphite host" OFF)
 add_library(nelyx_engine_v2 STATIC
   core/protocol/engine.cpp core/protocol/transaction.cpp
   core/scheduler/scheduler.cpp core/scene/frame.cpp core/scene/native_paint.cpp core/layout/layout.cpp core/layout/query.cpp
@@ -48,6 +49,8 @@ if(EMSCRIPTEN)
         "-sEXPORTED_RUNTIME_METHODS=['HEAPU8','PThread','UTF8ToString','stringToUTF8','lengthBytesUTF8']")
     endif()
   endif()
+elseif(ANDROID AND NELYX_ENGINE_ANDROID_HOST)
+  include(platform/android/host.cmake)
 else()
   if(WIN32)
     add_executable(nelyx_engine_clipboard_test tests/windows-clipboard.cpp)

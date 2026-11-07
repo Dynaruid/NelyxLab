@@ -129,6 +129,7 @@ export interface NativePaintEntry {
   readonly transparentOccluder?: boolean;
 }
 export type NativeRenderMetadata =
+  | { readonly kind: 'singleChild' }
   | { readonly kind: 'inlineScale'; readonly scale: number }
   | { readonly kind: 'paint'; readonly entries: readonly NativePaintEntry[] }
   | {
@@ -186,6 +187,6 @@ export function nativeShape(shape: ShapeBorder, direction: 'ltr' | 'rtl' | null)
     radii,
     strokeWidth: side.style === 'none' ? 0 : side.width,
     strokeAlign: side.strokeAlign,
-    strokeColor: side.color,
+    strokeColor: side.style === 'none' ? 0 : side.color,
   };
 }

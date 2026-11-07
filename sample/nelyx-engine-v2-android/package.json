@@ -1,0 +1,11 @@
+{
+  "name": "nelyx-engine-v2-android",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "doctor": "node ../../Nelyx/sdk/tooling/cli/src/main.mjs doctor --engine v2 --target android",
+    "build": "node ../../Nelyx/sdk/tooling/cli/src/main.mjs build --engine v2 --target android",
+    "run": "node ../../Nelyx/sdk/tooling/cli/src/main.mjs run --engine v2 --target android",
+    "dev": "node ../../Nelyx/sdk/tooling/cli/src/main.mjs dev --engine v2 --target android"
+  }
+}

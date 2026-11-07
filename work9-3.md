@@ -8,6 +8,8 @@
 
 **실행 순서:** Windows/Web 1차는 [3부 §12.2의 실행 묶음](work9-3.md#122-windowsweb-1차-실행-순서)을 따른다. 이후 **[4부의 Android·Linux 2차](work9-4.md) → [후속 5부의 iOS·macOS 3차](work9-5.md)**로 진행하며 후속 플랫폼을 Windows/Web 1차 완료의 선행 조건으로 두지 않는다.
 
+**2026-11-07 사용자 지정:** Android와 필요한 공통 영역을 먼저 착수했다. Android API·복구·reload 구현의 구현·emulator·공급 결과와 남은 gate는 [4부](work9-4.md#현재-android-구현과-실행)를 따른다. 아래 기본 차수 전환 조건과 Windows/Web 전체 API 미완료, Linux·Apple DEFERRED는 유지한다.
+
 §14의 기존 문서 검토 기록은 분할 전 결과다. 이번 분할 범위와 확인 결과는 [전체 목차의 문서 분할 기록](work9.md#문서-분할-기록)에 적는다.
 
 ## 12. 구현 단계와 완료 조건
@@ -104,9 +106,9 @@ W9-12의 A·B(Android)·B(iOS)와 W9-13/14의 상태는 대상별로 유지한�
 | 제품 물리·성능           | **1차 Windows/Web**, 후속 대상은 별도. 관측된 장면/입력 source의 실제 조작과 같은 조건의 이동/resize·frame/메모리 측정                                                                                                                  | **notVerified**, 두 acceptance flag **false**                                                                                                                                                                                                 |
 | GTK4                     | **2차 / 4부** Wayland/X11 각각 GPU import·게시/geometry·IM/AT-SPI·회수/소비자 실행                                                                                                                                                      | **DEFERRED / 미착수 / notVerified**                                                                                                                                                                                                           |
 | AppKit                   | **3차 / 후속 5부** macOS의 AppKit/Metal·IME/NSAccessibility·display/resize·회수/.app 공급                                                                                                                                               | **DEFERRED / 미착수 / notVerified**                                                                                                                                                                                                           |
-| Android                  | **2차 / 4부** arm64-v8a standalone host·[§11.4](work9-4.md#114-android--기존-nelyx-os-코드를-먼저-분리)와 공통 입력/mirror/semantics corpus·surface 수명·설치/실행·drain                                                                | **DEFERRED / 소스 검토 / 구현 미착수 / notVerified**                                                                                                                                                                                          |
+| Android                  | **2차 / 4부 / 사용자 지정 선행 착수** arm64-v8a/x86_64 standalone host·[§11.4](work9-4.md#114-android--기존-nelyx-os-코드를-먼저-분리)와 입력/mirror/semantics·surface·설치/drain | **IN_PROGRESS / PARTIAL**. 두 ABI 공급·x86_64 입력/편집/virtual node·공개 서비스·실제 Dawn loss 후 자동 복구·개발 generation reload. 전체 API·arm64 실기기·물리/성능은 별도. [현재 증거](work9-4.md#현재-android-구현과-실행) |
 | iOS                      | **3차 / 후속 5부** 지정 ABI의 UIKit host·[§11.5](work9-5.md#115-ios--uikit-입력-endpoint와-rn-예외-처리-이식)와 공통 입력/mirror/semantics corpus·scene 수명·설치/실행·drain                                                            | **DEFERRED / 소스 검토 / 구현 미착수 / notVerified**                                                                                                                                                                                          |
-| RN/RNW 소스 분리·도입    | **1차 Windows RNW·필요한 Web helper**, 모바일은 후속. 고정한 출처·의존성·native/link/bundle graph, RN 앱 runtime 없이 실제 실행. 기존 구현으로 해결한 범위와 실제 도입을 구분                                                           | **Nelyx OS helper 실행 / RNW는 참고만**. DirectManipulation callback·고정 source hash·standalone link 확인. 물리 trackpad 관측은 0/notVerified. 모바일 DEFERRED, Web 기존 host 유지                                                           |
+| RN/RNW 소스 분리·도입    | **1차 Windows RNW·필요한 Web helper**, 모바일은 후속. 고정한 출처·의존성·native/link/bundle graph, RN 앱 runtime 없이 실제 실행. 기존 구현으로 해결한 범위와 실제 도입을 구분                                                           | **Nelyx OS helper 실행 / RNW는 참고만**. DirectManipulation callback·고정 source hash·standalone link 확인. 물리 trackpad 관측은 0/notVerified. Android 중립 입력 helper/standalone 도입은 4부의 PARTIAL, iOS DEFERRED, Web 기존 host 유지                                                           |
 
 1차 Windows와 Web threaded는 App/Content 50/100/200 ms 지연 중 준비 scene의 입력/합성·게시 진행을 확인한다. Web single-worker는 App 독립·Content 유한 분할/동기 점유 후 회복을 따로 판정한다. 무한 동기 작업·lost wake·무제한 queue·scene 역전·미회수 terminal은 어느 profile에서도 허용하지 않는다.
 
@@ -268,4 +270,4 @@ npm 0xC0000409가 재발할 때만 [기존 한정 조사 절차](history/26/11/0
 
 **Native UI 경계:** 물리 Escape로 중단한 Computer Use는 재개하지 않았다. UIA `E_UNEXPECTED`는 미해결이며 실제 Native font 전환 창·표시·입력·외부 reader·물리 IME/precision trackpad·display/scanout은 **notVerified**다. 강제 종료를 정상 drain으로 바꾸지 않는다.
 
-목표는 **IN_PROGRESS / PARTIAL**이다. W9-06/07/08/13/14는 미완료이며 performanceAccepted=false·resizePerformanceAccepted=false, Android/Linux·iOS/macOS **DEFERRED**를 유지한다.
+목표는 **IN_PROGRESS / PARTIAL**이다. W9-06/07/08/13/14는 미완료이며 performanceAccepted=false·resizePerformanceAccepted=false를 유지한다. Android는 사용자 지정으로 API·복구·reload 구현 **PARTIAL**, Linux·iOS/macOS는 **DEFERRED**다. 이후 Android 실행/공통 수정 결과는 [4부](work9-4.md#현재-android-구현과-실행)를 현재 기록으로 사용하며 위 Windows/Web의 과거 공급 수치와 구별한다.

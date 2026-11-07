@@ -516,6 +516,7 @@ export class WidgetHost {
   private appGeometryNodes = 0;
   private rejectedFallbacks = 0;
   private readonly rejectionReasons: Record<string, number> = {};
+  private readonly controlRevisions = new Map<string, bigint>();
   readonly counters = {
     builds: 0,
     transactions: 0,
@@ -729,11 +730,18 @@ export class WidgetHost {
       ];
       if (node.text)
         config.push(
-          c.text(h, node.text.value, node.text.size, node.resolveTextColor(e.context!), {
-            direction: node.resolveTextDirection(e.context!),
-          }),
+          c.text(
+            h,
+            node.editor && this.accepted.has(id(h)) ? '' : node.text.value,
+            node.text.size,
+            node.resolveTextColor(e.context!),
+            {
+              direction: node.resolveTextDirection(e.context!),
+              ...(node.editor && this.accepted.has(id(h)) ? { styleOnly: true } : {}),
+            },
+          ),
         );
-      if (node.kind === 'paragraph')
+      if (node.kind === 'paragraph' || node.kind === 'editable')
         config.push(
           c.paragraphOptions(h, o.paragraph ?? null),
           c.paragraphFont(h, o.paragraphFont),
@@ -759,7 +767,18 @@ export class WidgetHost {
           ),
         );
       config.push(c.listItem(h, o.listItem ?? null));
-      config.push(c.gesture(h, o.gestures ?? 0), c.control(h, o.control ?? null));
+      config.push(
+        c.gesture(h, o.gestures ?? 0),
+        c.control(
+          h,
+          o.control
+            ? {
+                ...o.control,
+                revision: o.control.revision ?? this.controlRevisions.get(id(h)) ?? 0n,
+              }
+            : null,
+        ),
+      );
       config.push(
         c.eventPolicy(
           h,
@@ -1041,6 +1060,7 @@ export class WidgetHost {
       const after = desired.get(key);
       if (before.node.editor !== after?.node.editor) before.node.editor?.detach(this);
       if (!after) {
+        this.controlRevisions.delete(key);
         this.free.push({ slot: before.handle.slot, generation: before.handle.generation + 1 });
         this.allocations.delete(before.element);
       }
@@ -1185,7 +1205,16 @@ export class WidgetHost {
         else if (event.kind === p.events.key) record.node.options.onKey?.(event);
         else if (event.kind === p.events.controlChanged) {
           ++this.counters.controls;
-          record.node.options.onValue?.(eventValue(event.detail), event.x);
+          const callback = record.node.options.onValue;
+          if (callback) {
+            const key = id(record.handle);
+            this.controlRevisions.set(key, (this.controlRevisions.get(key) ?? 0n) + 1n);
+            try {
+              callback(eventValue(event.detail), event.x);
+            } finally {
+              if (!this.closed) this.schedule();
+            }
+          }
         } else if (event.kind === p.events.gesture) {
           ++this.counters.gestures;
           const kind = Object.entries(p.gestureKinds).find(
@@ -1299,6 +1328,7 @@ export class WidgetHost {
     this.allocations.clear();
     this.globals.clear();
     this.accepted.clear();
+    this.controlRevisions.clear();
     this.focusCallback = undefined;
     this.focusHandle = '';
     this.resources.clear();

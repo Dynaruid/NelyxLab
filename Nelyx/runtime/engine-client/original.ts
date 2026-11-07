@@ -78,6 +78,7 @@ import { originalSpanInput } from './original-spans.ts';
 export { AppTextLayoutService } from './original-text.ts';
 import type { AppTextBackend, AppTextExecution } from './app-text.ts';
 import { OriginalFontOwner } from './original-fonts.ts';
+import { OriginalEditingBridge } from './original-editing.ts';
 
 export interface OriginalWidgetHostOptions {
   readonly platform?: FoundationPlatformEnvironment;
@@ -168,6 +169,7 @@ export class OriginalWidgetHost {
   private readonly reasons: Record<string, number> = {};
   private readonly scrolling: ReturnType<typeof installOriginalScrolling>;
   private readonly focusing: OriginalFocusBridge;
+  private readonly editing: OriginalEditingBridge;
   private readonly geometry: OriginalGeometryBridge;
   private readonly layers: OriginalLayers;
   private readonly appGestures: GestureBinding;
@@ -195,6 +197,7 @@ export class OriginalWidgetHost {
         this.geometry.observePublication(state);
         this.layers.observePublication(state);
         this.focusing.observePublication(state);
+        this.editing.observePublication(state);
       },
       onAfterEvents: () => this.focusing.finishPoll(),
       onExecution: () => options.onExecution?.(this.execution),
@@ -248,7 +251,18 @@ export class OriginalWidgetHost {
               return 'NelyxDefault';
             },
           });
+    this.editing = new OriginalEditingBridge(
+      view,
+      (render) => this.keys.get(render)?.currentNode ?? null,
+      () => this.schedule(),
+      (error) => options.onError?.(error),
+      (reason) => this.unsupported(reason),
+      (apply) => this.focusing.editingFocus(apply),
+    );
     const available = {
+      owner: this.editing.owner,
+      clock: { now: () => this.scrolling.now() },
+      editing: this.editing,
       platformServices: undefined,
       // ClipPath probes this optional service while creating configuration.
       // Custom path clippers remain rejected before any App query can run.
@@ -287,6 +301,7 @@ export class OriginalWidgetHost {
       {},
       systemFonts,
     );
+    this.editing.install(this.owner);
     installOriginalGestures(this.owner, (reason) => this.unsupported(reason));
     this.scrolling = installOriginalScrolling(
       this.owner,
@@ -495,10 +510,13 @@ export class OriginalWidgetHost {
     let options: NodeOptions = { layout: { childConstraints: 'inherit' } };
     let text: NodeWidget['text'];
     let image: NodeWidget['image'];
+    let editable: OriginalNativeRender['editable'];
     if (prototype === OriginalNativeRender.prototype) {
       const source = render as OriginalNativeRender;
       kind = source.kind;
       options = source.options;
+      editable = source.editable;
+      if (editable) text = editable.text;
     } else if (control) {
       kind = control.kind ?? 'box';
       options = { ...options, ...control.options };
@@ -951,6 +969,9 @@ export class OriginalWidgetHost {
       },
       text,
       image,
+      editable?.editor,
+      editable?.flags,
+      editable?.maximumLength,
     );
   }
   flush(): Promise<void> {
@@ -1047,6 +1068,7 @@ export class OriginalWidgetHost {
           await this.native.mount(scene);
         }
         this.layers.accept(this.view.documentEpoch);
+        await this.editing.finishBuild();
       } catch (error) {
         errors.push(error);
         try {
@@ -1171,6 +1193,7 @@ export class OriginalWidgetHost {
       () => this.fontOwner?.stop(),
       () => this.layers.close(),
       () => this.root?.unmount(),
+      () => this.editing.close(),
       () => this.pruneImageOpacity(new Set()),
       () => this.appGestures.dispose(),
       () => this.gestureBindingLease.dispose(),

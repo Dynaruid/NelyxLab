@@ -9,6 +9,10 @@ import { CircleBorder } from '@nelyx/core/framework/painting/circle-border';
 import { RenderDecoratedBox } from '@nelyx/core/framework/rendering/boxes';
 import { RenderOpacity } from '@nelyx/core/framework/rendering/opacity';
 import { RenderMouseRegion } from '@nelyx/core/framework/rendering/mouse-region';
+import {
+  RenderIgnorePointer,
+  RenderAbsorbPointer,
+} from '@nelyx/core/framework/rendering/pointer-blocking';
 import { RenderSemanticsAnnotations } from '@nelyx/core/framework/rendering/semantics-annotations';
 import {
   PlaceholderSpanIndexSemanticsTag,
@@ -20,6 +24,7 @@ import { nativeRadioDeselect } from '@nelyx/core/internal/framework/widgets/nati
 import { SemanticsProperties } from '@nelyx/core/framework/semantics/semantics';
 import { nativeSemanticsRange } from '@nelyx/core/framework/rendering/object';
 import { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
+import { Border, BorderDirectional } from '@nelyx/core/framework/painting/box-border';
 import { Offset } from '@nelyx/core/ui/offset';
 import { PointerDeviceKind } from '@nelyx/core/ui/pointer';
 import { SemanticsRole } from '@nelyx/core/ui/semantics';
@@ -32,6 +37,7 @@ import { FlutterError } from '@nelyx/core/foundation/flutter-error';
 import { FlutterErrorDetails } from '@nelyx/core/foundation/assertions';
 import type { NodeOptions } from './widgets.ts';
 import { protocol as p } from './schema.ts';
+import { RenderTapRegion } from '@nelyx/core/framework/widgets/tap-region';
 
 export interface OriginalControlConfiguration {
   readonly options: NodeOptions;
@@ -90,6 +96,19 @@ export function originalControlConfiguration(
   fail: (reason: string) => never,
 ): OriginalControlConfiguration | undefined {
   const prototype = Object.getPrototypeOf(render);
+  if (prototype === RenderIgnorePointer.prototype || prototype === RenderAbsorbPointer.prototype) {
+    if (
+      prototype === RenderIgnorePointer.prototype
+        ? (render as RenderIgnorePointer).ignoring
+        : (render as RenderAbsorbPointer).absorbing
+    )
+      return fail('pointer-blocked-subtree');
+    return { options: { layout: { childConstraints: 'inherit' }, pointerHitTest: 'proxy' } };
+  }
+  if (prototype === RenderTapRegion.prototype) {
+    if ((render as RenderTapRegion).registry) return fail('native-tap-region-surface');
+    return { options: { layout: { childConstraints: 'inherit' } } };
+  }
   if (prototype === RenderPhysicalShape.prototype || prototype === RenderPhysicalModel.prototype) {
     const source = render as RenderPhysicalShape;
     let shape;
@@ -198,9 +217,19 @@ export function originalControlConfiguration(
       options: { layout: { childConstraints: 'inherit', enforceBounds: true } },
       paint: metadata.entries,
     };
+  if (metadata?.kind === 'singleChild') {
+    if (render.children.length !== 1) return fail('single-child-metadata');
+    return { options: { layout: { childConstraints: 'inherit' } } };
+  }
   if (metadata?.kind === 'inputPadding') {
-    if (metadata.width || metadata.height) return fail('padded-button-hit-test');
-    return { options: {} };
+    return {
+      options: {
+        horizontal: { kind: 'unbounded', min: metadata.width },
+        vertical: { kind: 'unbounded', min: metadata.height },
+        layout: { inputPadding: true, enforceBounds: true, alignment: { x: 0, y: 0 } },
+        pointerHitTest: 'proxy',
+      },
+    };
   }
   if (metadata?.kind === 'inlineScale')
     return { options: { layout: { inlineScale: metadata.scale }, pointerHitTest: 'proxy' } };
@@ -236,7 +265,6 @@ export function originalControlConfiguration(
     const box = decoration as BoxDecoration;
     if (
       box.image ||
-      box.border ||
       box.gradient ||
       box.backgroundBlendMode ||
       box.boxShadow?.length ||
@@ -251,6 +279,15 @@ export function originalControlConfiguration(
       value = radius?.topLeft.x ?? 0;
     if (corners.some((corner) => corner.x !== value || corner.y !== value))
       return fail('nonuniform-decoration-radius');
+    const border = box.border;
+    if (
+      border &&
+      ((Object.getPrototypeOf(border) !== Border.prototype &&
+        Object.getPrototypeOf(border) !== BorderDirectional.prototype) ||
+        !border.isUniform)
+    )
+      return fail('nonuniform-or-custom-decoration-border');
+    const side = border?.top;
     return {
       options: {
         color: box.color ?? 0,
@@ -258,6 +295,23 @@ export function originalControlConfiguration(
         roundedHitTest: true,
         pointerHitTest: 'self',
       },
+      ...(side?.style === 'solid'
+        ? {
+            paint: [
+              {
+                kind: 'border' as const,
+                color: 0,
+                shape: {
+                  kind: 'rrect' as const,
+                  radii: Array<number>(8).fill(value),
+                  strokeWidth: side.width,
+                  strokeColor: side.color,
+                  strokeAlign: side.strokeAlign,
+                },
+              },
+            ],
+          }
+        : {}),
     };
   }
   if (prototype === RenderMouseRegion.prototype) {

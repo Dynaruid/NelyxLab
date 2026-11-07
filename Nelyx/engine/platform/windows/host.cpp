@@ -300,6 +300,7 @@ class Host {
       appMemory.update(rt);
       auto native=jsi::Object(rt);
       native.setProperty(rt,"operatingSystem","windows");
+      native.setProperty(rt,"clockDomain","qpc-milliseconds");
       nw::installAppText(rt,native,appText);
       auto identity=jsi::Object(rt);identity.setProperty(rt,"engine","v2");identity.setProperty(rt,"abiMajor",double(wire::abiMajor));identity.setProperty(rt,"schema",double(wire::schema));native.setProperty(rt,"identity",std::move(identity));
       native.setProperty(rt,"clock",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"clock"),0,[](jsi::Runtime&,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value{return now()*1000;}));

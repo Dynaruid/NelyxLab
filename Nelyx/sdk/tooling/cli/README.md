@@ -24,7 +24,7 @@ The [starter template](templates/nelyx-app/README.md) owns the shared app and pl
 
 ## Standalone v2 engine
 
-For the standalone C++ v2 engine, use `nelyx create MyApp --engine v2 --packages <archive-directory>` and install at `MyApp/`. The [SDK v2 project guide](../../README.md#general-v2-projects) covers entry/assets, verified engine inputs, Web/Windows build/run/dev and portable packages. This route uses `nelyx.v2.json` and `dist/v2-<target>`.
+For the standalone C++ v2 engine, use `nelyx create MyApp --engine v2 --packages <archive-directory>` and install at `MyApp/`. The [SDK v2 project guide](../../README.md#general-v2-projects) covers entry/assets, verified engine inputs, Web/Windows/Android build/run/dev, doctor/pack and portable packages. This route uses `nelyx.v2.json` and `dist/v2-<target>`. Android uses HotSpot JDK 21, the pinned SDK 36 toolchain, and `--architecture arm64-v8a|x86_64`. `dev --engine v2 --target android --architecture x86_64 --device emulator-5554` prepares the next APK, drains the old App/workers/GPU, then installs and starts a new session with reset State. The APK currently uses development debug signing.
 
 ## Supply and install
 

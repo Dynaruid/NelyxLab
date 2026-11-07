@@ -42,7 +42,13 @@ import type {
   EditingSynchronizationRejection,
 } from '../../hosting/interaction.ts';
 import type { Key } from '../../foundation/key.ts';
-import { StatefulWidget, State, Element, RenderObjectWidget } from './framework.ts';
+import {
+  StatefulWidget,
+  State,
+  Element,
+  RenderObjectWidget,
+  buildNativeWidget,
+} from './framework.ts';
 import type { Widget, BuildContext, BuildOwner } from './framework.ts';
 import { RenderBox } from '../rendering/object.ts';
 import { Scrollable } from './scrollable.ts';
@@ -3641,57 +3647,60 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         obscureText: this.boundConfiguration.obscureText,
         graphemeOffsets: graphemeBoundaries(this.widget.controller.text),
       };
-    const box = new Scrollable({
-      key: this.scrollableKey,
-      axisDirection: policy.maxLines === 1 ? AxisDirection.right : AxisDirection.down,
-      controller: options?.scrollController ?? null,
-      physics:
-        options?.scrollPhysics ??
-        (policy.maxLines === 1 && FoundationPlatform.defaultTargetPlatform === 'iOS'
-          ? singleLineIOSPhysics
-          : null),
-      excludeFromSemantics: true,
-      restorationId: options?.restorationId ?? null,
-      scrollBehavior:
-        options?.scrollBehavior ??
-        ScrollConfiguration.of(this.context).copyWith({
-          scrollbars: policy.maxLines !== 1,
-          overscroll: false,
-        }),
-      viewportBuilder: (_context, offset) =>
-        new EditorBox(
-          this.widget.id,
-          this.widget.label,
-          height,
-          () => {
-            if (this.mounted && this.widget.inputOptions?.enabled !== false)
-              this.focus?.requestFocus();
-          },
-          text,
-          focused,
-          enabled && (this.focus?.canRequestFocus ?? false),
-          enabled,
-          paint,
-          this.renderKey,
-          options?.selectionControls || options?.contextMenuBuilder
-            ? this.selectionLinks
-            : undefined,
-          this.boundConfiguration,
-          offset,
-          this.publishInputGeometry,
-          () => this.queueInternalCaretReveal(),
-          resolved?.style,
-          resolved?.baselines,
-          layout,
-          this.semanticsTextActions(),
-          this.widget.controller.revision,
-          this.editingIdentity.generation,
-          this.widget.controller.textRevision,
-        ),
-    });
+    const native = buildNativeWidget(this.context, 'editable-text', this.widget);
+    const box =
+      native ??
+      new Scrollable({
+        key: this.scrollableKey,
+        axisDirection: policy.maxLines === 1 ? AxisDirection.right : AxisDirection.down,
+        controller: options?.scrollController ?? null,
+        physics:
+          options?.scrollPhysics ??
+          (policy.maxLines === 1 && FoundationPlatform.defaultTargetPlatform === 'iOS'
+            ? singleLineIOSPhysics
+            : null),
+        excludeFromSemantics: true,
+        restorationId: options?.restorationId ?? null,
+        scrollBehavior:
+          options?.scrollBehavior ??
+          ScrollConfiguration.of(this.context).copyWith({
+            scrollbars: policy.maxLines !== 1,
+            overscroll: false,
+          }),
+        viewportBuilder: (_context, offset) =>
+          new EditorBox(
+            this.widget.id,
+            this.widget.label,
+            height,
+            () => {
+              if (this.mounted && this.widget.inputOptions?.enabled !== false)
+                this.focus?.requestFocus();
+            },
+            text,
+            focused,
+            enabled && (this.focus?.canRequestFocus ?? false),
+            enabled,
+            paint,
+            this.renderKey,
+            options?.selectionControls || options?.contextMenuBuilder
+              ? this.selectionLinks
+              : undefined,
+            this.boundConfiguration,
+            offset,
+            this.publishInputGeometry,
+            () => this.queueInternalCaretReveal(),
+            resolved?.style,
+            resolved?.baselines,
+            layout,
+            this.semanticsTextActions(),
+            this.widget.controller.revision,
+            this.editingIdentity.generation,
+            this.widget.controller.textRevision,
+          ),
+      });
     if (!enabled) this.hadFocusOnTapDown = false;
     const tapOwner = this.editingIdentity;
-    const gestures = this.selectionGestures(),
+    const gestures = native ? undefined : this.selectionGestures(),
       commands: Pick<FocusAttachmentOptions, 'focus' | 'blur' | 'reveal'> = {
         focus: (request) => {
           const identity = this.editingIdentity,
@@ -3713,11 +3722,12 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       child: new TextFieldTapRegion(
         new ExcludeFocus(
           new EditableFocus(
-            new RawGestureDetector(new IgnorePointer(box, { ignoring: !enabled }), {
-              gestures,
-              excludeFromSemantics: true,
-              behavior: HitTestBehavior.opaque,
-            }),
+            native ??
+              new RawGestureDetector(new IgnorePointer(box, { ignoring: !enabled }), {
+                gestures: gestures!,
+                excludeFromSemantics: true,
+                behavior: HitTestBehavior.opaque,
+              }),
             this.focus!,
             commands,
           ),

@@ -15,6 +15,7 @@
     "upstream/flutter-coverage.json"
   ],
   "exports": {
+    "./internal/framework/widgets/text-input": {"types":"./dist/framework/widgets/text-input.d.ts","default":"./dist/framework/widgets/text-input.js"},
     "./internal/framework/widgets/native-radio-semantics": {
       "types": "./dist/framework/widgets/native-radio-semantics.d.ts",
       "default": "./dist/framework/widgets/native-radio-semantics.js"

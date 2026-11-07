@@ -130,6 +130,9 @@ struct LayoutWork::State {
     const bool h = horizontal(n);
     if (!s.enabled)
       return c;
+    // Material's minimum touch target sizes the wrapper after laying out the
+    // child with the unchanged incoming constraints.
+    if(s.constraintFlags&wire::layoutConstraintFlags::inputPadding)return t.input;
     if(s.constraintFlags&wire::layoutConstraintFlags::inlineScale){
       c.maxWidth=t.innerWidth/s.inlineScale;
       require(!std::isnan(c.maxWidth),wire::statuses::invalidValue);
@@ -236,6 +239,7 @@ struct LayoutWork::State {
       b.height = n.properties.height;
       return;
     }
+    if(s.constraintFlags&wire::layoutConstraintFlags::inputPadding)require(b.children.size()<=1,wire::statuses::invalidGraph);
     if(s.constraintFlags&wire::layoutConstraintFlags::inlineScale){
       require(b.children.size()<=1,wire::statuses::invalidGraph);
       if(!b.children.empty()){
@@ -493,6 +497,7 @@ struct LayoutWork::State {
       n->contentX = n->layout.enabled && measuredLeaf(*n) ? n->layout.left : 0;
       n->contentX = scalar(n->contentX + f.box->textOffsetX);
       n->contentY = n->layout.enabled && measuredLeaf(*n) ? n->layout.top : 0;
+      n->contentY=scalar(n->contentY+f.box->textOffsetY);
       n->contentWidth = f.box->textWidth >= 0 ? f.box->textWidth : inset(f.box->width, n->layout.enabled && measuredLeaf(*n)
                                             ? n->layout.left + n->layout.right : 0);
       n->contentHeight = f.box->textHeight >= 0 ? f.box->textHeight : inset(f.box->height, n->layout.enabled && measuredLeaf(*n)
@@ -657,12 +662,22 @@ struct LayoutWork::State {
           require(n.editing && m.geometry && m.geometry->revision == n.editing->revision,
                   wire::statuses::stale);
           auto caret = m.geometry->caret;
-          caret.x = scalar(caret.x + n.layout.left);
-          caret.y = scalar(caret.y + n.layout.top);
+          if(paragraphSizing){
+            const auto innerWidth=inset(t.box->width,padWidth),innerHeight=inset(t.box->height,padHeight);
+            if(!(n.editFlags&wire::editFlags::multiline))t.box->textOffsetY=std::max(0.0,(innerHeight-m.height)/2);
+            const auto right=caret.x+caret.width+t.box->textOffsetX,bottom=caret.y+caret.height+t.box->textOffsetY;
+            if(right>innerWidth)t.box->textOffsetX-=right-innerWidth;
+            if(caret.x+t.box->textOffsetX<0)t.box->textOffsetX=-caret.x;
+            if(bottom>innerHeight)t.box->textOffsetY-=bottom-innerHeight;
+            if(caret.y+t.box->textOffsetY<0)t.box->textOffsetY=-caret.y;
+            if(t.box->baseline>=0)t.box->baseline+=t.box->textOffsetY;if(t.box->ideographicBaseline>=0)t.box->ideographicBaseline+=t.box->textOffsetY;
+          }
+          caret.x = scalar(caret.x + n.layout.left+t.box->textOffsetX);
+          caret.y = scalar(caret.y + n.layout.top+t.box->textOffsetY);
           auto selection = m.geometry->selection;
           for (auto &rect : selection) {
-            rect.x = scalar(rect.x + n.layout.left);
-            rect.y = scalar(rect.y + n.layout.top);
+            rect.x = scalar(rect.x + n.layout.left+t.box->textOffsetX);
+            rect.y = scalar(rect.y + n.layout.top+t.box->textOffsetY);
           }
           t.box->textGeometry = std::make_shared<TextGeometry>(source->lease.ledger,
               m.geometry->revision, caret, std::move(selection));

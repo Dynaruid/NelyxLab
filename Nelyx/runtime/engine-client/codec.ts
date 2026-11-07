@@ -94,6 +94,8 @@ export interface NodeLayout {
   readonly expandPreferredWidth?: boolean;
   /** Canonical inline wrapper: scale the child's coordinates and layout size. */
   readonly inlineScale?: number;
+  /** Center one child without propagating the minimum touch target to its layout. */
+  readonly inputPadding?: boolean;
   readonly direction?: 'horizontal' | 'vertical';
   readonly mainSize?: 'min' | 'max';
   readonly mainAlign?: keyof typeof p.layoutMainAlign;
@@ -644,7 +646,8 @@ export const commands = {
             (value.preferredSize ? p.layoutConstraintFlags.preferredSize : 0) |
             (value.expandPreferredWidth ? p.layoutConstraintFlags.expandPreferredWidth : 0) |
             (value.paintChild ? p.layoutConstraintFlags.paintChild : 0) |
-            (value.inlineScale !== undefined ? p.layoutConstraintFlags.inlineScale : 0),
+            (value.inlineScale !== undefined ? p.layoutConstraintFlags.inlineScale : 0) |
+            (value.inputPadding ? p.layoutConstraintFlags.inputPadding : 0),
           true,
         );
         [
@@ -679,7 +682,7 @@ export const commands = {
     text: string,
     fontSize = 18,
     color = 0xff172033,
-    options: { readonly direction?: 'ltr' | 'rtl' } = {},
+    options: { readonly direction?: 'ltr' | 'rtl'; readonly styleOnly?: boolean } = {},
   ): Uint8Array {
     const bytes = encodeUtf8(text, p.limits.textBytes);
     const data = body(24 + Math.ceil(bytes.length / 8) * 8, (v) => {
@@ -687,6 +690,7 @@ export const commands = {
       v.setUint32(4, options.direction === 'rtl' ? 1 : 0, true);
       v.setFloat64(8, finite(fontSize), true);
       v.setUint32(16, bytes.length, true);
+      v.setUint32(20, options.styleOnly ? p.textFlags.styleOnly : 0, true);
     });
     data.set(bytes, 24);
     return command(p.commands.text, node, data);

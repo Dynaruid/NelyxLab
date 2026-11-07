@@ -19,6 +19,10 @@
   ],
   "scripts": {
     "build:engine-v2": "node Nelyx/engine/tools/build.mjs",
+    "build:engine-v2:android": "node Nelyx/engine/tools/build-android.mjs",
+    "run:engine-v2:android": "node Nelyx/engine/tools/run-android.mjs",
+    "dev:engine-v2:android": "node Nelyx/engine/tools/run-android.mjs --dev",
+    "test:engine-v2:android": "node --experimental-transform-types --test --test-concurrency=1 --test-timeout=1200000 Nelyx/engine/tests/android-host.test.mjs Nelyx/engine/tests/android-development.test.mjs Nelyx/engine/tests/android-services.test.mjs",
     "run:engine-v2:web": "node Nelyx/engine/tools/serve.mjs",
     "run:engine-v2:windows": "node Nelyx/engine/tools/run-windows.mjs",
     "run:engine-v2:windows-app-sdk": "node Nelyx/engine/tools/run-windows.mjs --host=windows-app-sdk",

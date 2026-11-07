@@ -93,6 +93,7 @@ type Native = NativeAppTextService & {
   enqueue(id: number, bytes: ArrayBuffer): void;
   notify(text: string, execution?: EngineExecutionSnapshot): void;
   clock?(): number;
+  readonly clockDomain?: 'qpc-milliseconds' | 'monotonic-milliseconds';
 };
 /** Shared App-worker/Hermes bootstrap; all framework work enters the same C++ packet port. */
 export function launchEngineV2App(definition: EngineV2App): void {
@@ -330,7 +331,11 @@ export function launchEngineV2App(definition: EngineV2App): void {
         memory: { total: String(state.memory.total), limit: String(state.memory.limit) },
         timing: {
           scope: 'initial-app-build',
-          domain: nativeClock ? 'qpc-milliseconds' : clock ? 'owner-performance' : 'unobserved',
+          domain: nativeClock
+            ? (environment.NelyxV2Native?.clockDomain ?? 'native-monotonic-milliseconds')
+            : clock
+              ? 'owner-performance'
+              : 'unobserved',
           timeOriginMs: nativeClock
             ? 0
             : typeof performance !== 'undefined'

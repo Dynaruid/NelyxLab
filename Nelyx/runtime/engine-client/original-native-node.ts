@@ -5,12 +5,19 @@ import { RenderBox } from '@nelyx/core/framework/rendering/object';
 import type { RenderObject } from '@nelyx/core/framework/rendering/object';
 import { SliverMultiBoxAdaptorParentData } from '@nelyx/core/framework/rendering/sliver-multi-box-adaptor';
 import type { NodeOptions, NodeWidget } from './widgets.ts';
+export interface NativeEditableBody {
+  readonly text: NonNullable<NodeWidget['text']>;
+  readonly editor: NonNullable<NodeWidget['editor']>;
+  readonly flags: number;
+  readonly maximumLength: number;
+}
 type NativeKind = NodeWidget['kind'];
 /** Native configuration only. No Source layout/paint override runs on App. */
 export class OriginalNativeRender extends RenderBox {
   constructor(
     public kind: NativeKind,
     public options: NodeOptions,
+    public editable?: NativeEditableBody,
   ) {
     super();
   }
@@ -27,11 +34,12 @@ export class OriginalNativeNode extends MultiChildRenderObjectWidget {
     children: readonly Widget[],
     readonly options: NodeOptions = {},
     readonly capture?: (render: OriginalNativeRender) => void,
+    readonly editable?: NativeEditableBody,
   ) {
     super(children, { key: options.key ?? null });
   }
   createRenderObject(): OriginalNativeRender {
-    const render = new OriginalNativeRender(this.kind, this.options);
+    const render = new OriginalNativeRender(this.kind, this.options, this.editable);
     this.capture?.(render);
     return render;
   }
@@ -39,6 +47,7 @@ export class OriginalNativeNode extends MultiChildRenderObjectWidget {
     const node = render as OriginalNativeRender;
     node.kind = this.kind;
     node.options = this.options;
+    node.editable = this.editable;
     this.capture?.(node);
   }
 }

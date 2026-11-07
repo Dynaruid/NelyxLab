@@ -35,7 +35,8 @@ const isV2Module = (pkg, module) =>
 
 /** Applicability follows the original platform/backend entry, never v2 support. */
 export function engineV2ApiTarget(module, target) {
-  if (!['windows', 'web'].includes(target)) throw new Error('Unknown API target: ' + target);
+  if (!['windows', 'web', 'android'].includes(target))
+    throw new Error('Unknown API target: ' + target);
   const platform = module.match(
     /@nelyx\/sdk\/(?:platforms|native)\/(windows|web|android|ios|linux|macos)(?:\/|$)/,
   );
@@ -57,7 +58,10 @@ export function engineV2ApiTarget(module, target) {
   if (module.startsWith('@nelyx/sdk/backends/react-native/apple-'))
     return { applicable: false, reason: 'original Apple backend; deferred target' };
   if (/^@nelyx\/sdk\/backends\/(?:react-native|native-hermes)\//.test(module))
-    return { applicable: target === 'windows', reason: 'original native backend' };
+    return {
+      applicable: target === 'windows' || target === 'android',
+      reason: 'original native backend',
+    };
   return { applicable: true, reason: 'shared original public entry' };
 }
 
@@ -255,7 +259,7 @@ export async function auditEngineV2Api({
   contracts,
   resolveRoute = engineV2ImportRoute,
   scope,
-  targets = root === repository ? ['windows', 'web'] : [],
+  targets = root === repository ? ['windows', 'web', 'android'] : [],
   declarationOverrides,
   assetOverrides,
   originalDeclarations = root === repository ? () => originalApiDeclarations(root) : undefined,
