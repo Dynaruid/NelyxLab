@@ -16,7 +16,6 @@ android {
         versionCode 1
         versionName '2.0'
         ndk { abiFilters selectedAbi }
-        testInstrumentationRunner 'dev.nelyx.engine.AndroidHostTests'
         manifestPlaceholders = [nelyxCleartext:providers.gradleProperty('nelyxDevelopment').orElse('false').get()]
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
@@ -28,7 +27,6 @@ android {
         }
     }
     buildTypes { release { signingConfig signingConfigs.debug; minifyEnabled false; debuggable providers.gradleProperty('nelyxDevelopment').orElse('false').get().toBoolean() } }
-    testBuildType 'release'
     packaging { jniLibs { useLegacyPackaging false } }
     lint { abortOnError true }
 }

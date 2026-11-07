@@ -11,7 +11,6 @@ import {
   SizedBox,
   DecoratedBox,
   Center,
-  KeyedSubtree,
 } from '@nelyx/core/framework/widgets/basic';
 import { LayoutBuilder } from '@nelyx/core/framework/widgets/layout-builder';
 import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-builder';
@@ -60,7 +59,6 @@ import { TextFormField } from '@nelyx/material/text-form-field';
 import { Form } from '@nelyx/core/framework/widgets/form';
 import type { FormState } from '@nelyx/core/framework/widgets/form';
 import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
-import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { InputDecoration } from '@nelyx/material/input-decoration';
 import { OutlineInputBorder } from '@nelyx/material/input-border';
 import { AlertDialog, showDialog } from '@nelyx/material/dialog';
@@ -70,13 +68,6 @@ import { CupertinoGallery, CupertinoGalleryValues } from './cupertino-gallery.ts
 import { GallerySection, GallerySectionExtents, GalleryUpdates } from './gallery-section.ts';
 import { ListViewPage } from './list-view.ts';
 import { MixedScrollPage } from './mixed-scroll.ts';
-import { nativeModuleLabel } from './native-module-mode.ts';
-import type { NativeModuleMode } from './native-module-mode.ts';
-import type {
-  GalleryColumn,
-  GalleryRangeColumnBinding,
-  GalleryRangeObservation,
-} from './gallery-range.ts';
 
 const available = demos.filter((demo) => demo.status !== 'planned').length;
 const seeds = [0xff6750a4, 0xff006c4c, 0xff0061a4, 0xff9c4230] as const;
@@ -98,11 +89,7 @@ const column = (...children: Widget[]): Widget =>
 const inset = (value: number, child: Widget): Widget => new Padding(EdgeInsets.all(value), child);
 
 export class ComponentsGallery extends StatefulWidget {
-  constructor(
-    readonly initialText = '안녕하세요, Nelyx!',
-    readonly nativeModuleMode?: NativeModuleMode,
-    readonly galleryRange?: GalleryRangeObservation,
-  ) {
+  constructor(readonly initialText = '안녕하세요, Nelyx!') {
     super();
   }
   createState(): State<ComponentsGallery> {
@@ -126,11 +113,6 @@ class GalleryState extends State<ComponentsGallery> {
   private readonly secondScroll = new ScrollController({ debugLabel: 'material-gallery-second' });
   private readonly firstExtents = new GallerySectionExtents();
   private readonly secondExtents = new GallerySectionExtents();
-  private readonly rangeViewports = [
-    new GlobalKey('primary range viewport'),
-    new GlobalKey('secondary range viewport'),
-  ];
-  private readonly rangeKeys = new Map<string, GlobalKey>();
   private readonly sectionKeys = new Map(
     demos.map(
       (demo) =>
@@ -163,15 +145,6 @@ class GalleryState extends State<ComponentsGallery> {
   private messages = 9;
   private imageCover = true;
   override initState(): void {
-    if (this.widget.galleryRange)
-      for (const demo of demos) {
-        const key =
-          demo.id === 'text-fields'
-            ? (this.sectionKeys.get(demo.id) as GlobalKey)
-            : new GlobalKey('range section ' + demo.id);
-        this.rangeKeys.set(demo.id, key);
-        this.sectionKeys.set(demo.id, key);
-      }
     this.cupertinoValues = new CupertinoGalleryValues(this.widget.initialText);
     this.filled = new TextEditingController(this.widget.initialText);
     this.outlined = new TextEditingController('Material 3');
@@ -266,7 +239,7 @@ class GalleryState extends State<ComponentsGallery> {
           () =>
             new MixedScrollPage(() => {
               void this.navigator.pop();
-            }, this.widget.nativeModuleMode),
+            }),
           '/mixed-scroll',
         ),
       )
@@ -354,22 +327,17 @@ class GalleryState extends State<ComponentsGallery> {
     const primary = catalog.filter((demo, index) => demo.id === 'text-fields' || index % 2 === 0);
     const secondary = catalog.filter((demo, index) => demo.id !== 'text-fields' && index % 2 !== 0);
     const twoColumns = wide && this.category === 'all';
-    const rangeColumns = new Map<GalleryColumn, GalleryRangeColumnBinding>();
     const list = (items: readonly ComponentDemo[], controller: ScrollController): Widget => {
       const extentIndex = (
         controller === this.firstScroll ? this.firstExtents : this.secondExtents
       ).forItems(items.map((demo) => demo.id));
-      const view = ListView.builder({
+      return ListView.builder({
         extentIndex,
         metricRevision: theme,
         childPolicy: {
           mode: 'bounded',
           capacity: 2,
-          preparation: ['all', 'scroll', 'section-lifetime'].includes(
-            this.widget.nativeModuleMode ?? '',
-          )
-            ? 'observed-budget'
-            : 'disabled',
+          preparation: 'disabled',
         },
         controller,
         primary: false,
@@ -381,7 +349,6 @@ class GalleryState extends State<ComponentsGallery> {
         itemCount: items.length,
         itemBuilder: (itemContext, index) => {
           const demo = items[index]!;
-          this.widget.galleryRange?.builtSection();
           return new GallerySection(
             new ListenableBuilder(this.updates.section(demo.id), (context) =>
               this.group(
@@ -395,16 +362,6 @@ class GalleryState extends State<ComponentsGallery> {
           );
         },
       });
-      if (!this.widget.galleryRange) return view;
-      const primary = controller === this.firstScroll;
-      const viewport = this.rangeViewports[primary ? 0 : 1]!;
-      rangeColumns.set(primary ? 'primary' : 'secondary', {
-        ids: items.map((demo) => demo.id),
-        controller,
-        index: extentIndex,
-        viewport,
-      });
-      return new KeyedSubtree({ child: view, key: viewport });
     };
     const content = new Row(
       [
@@ -414,12 +371,10 @@ class GalleryState extends State<ComponentsGallery> {
       ],
       { crossAlign: 'stretch' },
     );
-    this.widget.galleryRange?.configure(rangeColumns, this.rangeKeys, theme, this.includePlanned);
     const title =
-      (this.category === 'all'
+      this.category === 'all'
         ? 'Components'
-        : categories.find((group) => group.id === this.category)!.title) +
-      nativeModuleLabel(this.widget.nativeModuleMode);
+        : categories.find((group) => group.id === this.category)!.title;
     const themeButton = () =>
       new TextFieldTapRegion(
         new IconButton({
@@ -566,45 +521,20 @@ class GalleryState extends State<ComponentsGallery> {
         new RepaintBoundary(
           new Padding(
             EdgeInsets.symmetric({ horizontal: compact ? 16 : 28, vertical: 12 }),
-            this.rangeStatus(
-              new ListenableBuilder(
-                this.updates.status,
-                (context) =>
-                  new Text((this.actionCount ? this.actionCount + ' · ' : '') + this.lastAction, {
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    maxLines: 2,
-                  }),
-              ),
+            new ListenableBuilder(
+              this.updates.status,
+              (context) =>
+                new Text((this.actionCount ? this.actionCount + ' · ' : '') + this.lastAction, {
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  maxLines: 2,
+                }),
             ),
           ),
         ),
       ],
       { crossAlign: 'stretch' },
     );
-  }
-  private rangeStatus(status: Widget): Widget {
-    const observation = this.widget.galleryRange;
-    if (!observation) return status;
-    return new Row([
-      new Expanded(status),
-      new ListenableBuilder(
-        observation,
-        () =>
-          new Row(
-            (['snapshot', 'primary', 'secondary', 'finish'] as const).map(
-              (command) =>
-                new Semantics(new SizedBox(1, 1), {
-                  id: 'gallery-range-' + command,
-                  role: 'button',
-                  enabled: true,
-                  name: command === 'snapshot' ? observation.label : command,
-                  activate: () => observation.command(command),
-                }),
-            ),
-          ),
-      ),
-    ]);
   }
   private categoryButton(category: CategoryId | 'all', label: string): Widget {
     const options = {
@@ -1066,18 +996,7 @@ class GalleryState extends State<ComponentsGallery> {
               cacheWidth: 720,
               fit: this.imageCover ? 'cover' : 'contain',
               semanticLabel: 'Oranges by Mae Mu',
-              ...(this.widget.galleryRange
-                ? {
-                    frameBuilder: (_context, child, frame) => {
-                      this.widget.galleryRange!.imageFrame('image', frame);
-                      return child;
-                    },
-                  }
-                : {}),
-              errorBuilder: () => {
-                this.widget.galleryRange?.imageError('image');
-                return new Text('이미지를 불러오지 못했습니다.');
-              },
+              errorBuilder: () => new Text('이미지를 불러오지 못했습니다.'),
             }),
           ),
           flow(

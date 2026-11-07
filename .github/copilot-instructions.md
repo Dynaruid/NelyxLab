@@ -11,11 +11,10 @@
 - 패키지 빌드는 현재 dist만 남긴다. 교체에 사용한 이전 dist와 staging은 실행 종료 시 삭제하며 last-sdk-\* 같은 이전 출력 사본을 누적하지 않는다.
 - `Nelyx/docs/plans/`와 `Nelyx/docs/migrations/`는 생성·복구하거나 기록 출력 경로로 사용하지 않는다. 옛 작업 문서나 외부 기억의 checkpoint/handoff 생성 지시보다 이 규칙을 우선한다. 현재 계획·짧은 진행 상태·잔여 작업은 루트의 해당 work 문서에, 제품 사용 안내는 기존 README에 반영한다. 삭제한 기록을 다른 폴더로 옮겨 다시 누적하지 않는다.
 
-# C++ 경로 활성화 검증
+# 개발 확인과 검증 도구 정리
 
-- 옵션 지정·API 존재·직접 API smoke만으로 C++ 경로 실행이나 성능을 인정하지 않는다. 실제 Testbed 장면의 native 작업 수와 SDK 집계를 대조하고 TS fallback 횟수·사유를 확인한다. 작업 수 0 또는 관측 누락은 C++ 성능 비교 실패다. 수요가 없는 장면은 별도 control로 표시한다.
-- 명시적으로 요청한 native capability가 없으면 시작 단계에서 실패시킨다. 새 후보를 추가할 때 선택 보고와 실제 실행 검증도 함께 추가하며 기존 후보가 의도적으로 꺼진 상태와 공급/연결 오류를 구분한다.
-- 입력 geometry 변경은 `npm.cmd run test:input-geometry`와 `npm.cmd run test:retained-input-geometry`를 실행한다. 실제 Gallery → Mixed 회귀와 활성화 실패 회귀를 유지한다.
-- Windows 성능 비교는 평소 실행 명령의 현재 native/SDK 공급 identity를 확인하고 `run-rnw-cadence.mjs --input-geometry=ts|retained`의 실행 검증을 통과해야 한다. Retained 비교에는 Mixed 편집기 작업이 필요하며 Gallery만의 수치로 C++ 효과를 주장하지 않는다.
-- Snapshot/Path/clip-Paint/Scene/Semantics 후보 비교는 `npm.cmd run test:native-service-audit` 뒤 `npm.cmd run experiment:native-services -- --trials=3 --functional`을 사용한다. 입력 구간 안에 완전히 포함된 native QPC bucket으로 실제 작업을 확인한다. Startup 작업이나 다른 장면의 작업으로 빈 구간을 통과시키지 않는다. `FAIL_NO_NATIVE_WORK_IN_SOME_LEGS`와 exit 2는 해당 구간의 C++ 성능 판정 실패로 보존한다. 실험 후 일반 App을 평소 명령으로 다시 빌드하고 실행 모드·공급 identity를 확인한다.
-- 사용자가 직접 조작할 C++ 모드는 `npm.cmd run run:windows:cpp [-- --module=...]`를 사용한다. 기본 all은 retained geometry와 Path/Paint·clip·Scene·Semantics 및 Flex layout·text transaction·frame segment·Windows backing 재사용을 함께 선택한다. `NATIVE_MODULE_RESULT`의 모듈별 실제 native 작업/TS fallback·session 정리를 확인하며 `notObserved`를 실행 성공이나 성능 효과로 쓰지 않는다. 수동 모드의 counters-only 보고는 자동 cadence의 QPC timing 증거로 수락하지 않는다.
+- 2026-11-07 사용자 요청으로 독립 테스트·fixture, API/구조 감사, 성능 실험 도구와 관련 npm 명령을 제거했다. 별도 요청 없이 복구하거나 일회성 검증 파일을 계속 추가하지 않는다.
+- 기본 소스 확인은 `npm.cmd run check:types`, `npm.cmd run lint`, `npm.cmd run format:check`로 수행한다. 변경 범위에 맞는 제품 빌드와 실행도 확인한다.
+- C++/엔진 공급 변경 후 `npm.cmd run build:engine-v2`를 실행하고 현재 manifest와 소스 identity가 일치하는지 확인한다. 제품의 입력·ABI·자원 수명 검사와 누락된 native capability의 시작 실패는 유지한다.
+- 실제 native 실행·TS fallback, 물리 입력·표시·성능 수락은 각각 구분한다. 빌드·타입 검사 성공이나 옵션/API 존재를 실행·성능 수락으로 기록하지 않는다.
+- 남은 로컬 검증 산출물은 루트 `cleanup-validation-once.ps1`로 미리 확인하고 `-Apply`로 정리한다. 현재 dist·SDK·native 공급과 소스 소유권 자료는 보존한다.

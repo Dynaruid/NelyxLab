@@ -261,7 +261,6 @@ repositories {
 dependencies {
     //noinspection GradleDynamicVersion
     implementation 'com.facebook.react:react-native:+'  // From node_modules
-    testImplementation 'junit:junit:4.13.2'
 }
 
 // Package all the cpp code in a flattened directory structure

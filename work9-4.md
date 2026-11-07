@@ -1,5 +1,7 @@
 # work9-4 — 4부: Android·Linux 호스트
 
+> 2026-11-07: 사용자 요청으로 본문의 독립 테스트·감사·실험 명령을 폐기했다. 이전 검증 기록과 미완료 판정은 보존하며, 현행 확인·정리 기준은 [전체 목차의 정리 안내](work9.md)를 따른다.
+
 작성: **2026-11-05 KST** · 갱신: **2026-11-07 KST** · 상태: **Android IN_PROGRESS / API·복구·개발 reload 구현 PARTIAL · Linux DEFERRED**
 
 [전체 목차](work9.md) · [이전: 3부](work9-3.md) · [후속: 5부 iOS·macOS](work9-5.md)

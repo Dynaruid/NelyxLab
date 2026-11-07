@@ -72,10 +72,6 @@ class Host {
   std::atomic<bool> stopping{false},contentReady{false},renderReady{false},connected{false},appReady{false};
   std::atomic<bool> failed{false},closed{false};
   std::atomic<bool> closing{false},disposeRequested{false},appDisposed{false};
-  bool probe=false;
-  std::atomic<uint32_t> busyOwners{0};
-  std::atomic<int32_t> probeDelta{0},appSeek{-1};
-  void injectProbeInput(){const auto delta=probeDelta.exchange(0);if(probe&&delta)PostMessageW(window,WM_APP+2,WPARAM(intptr_t(delta)),0);}
   std::atomic<uint32_t> contentThread{0},renderThread{0},appThread{0};uint32_t uiThread=GetCurrentThreadId();
   std::thread contentOwner,renderOwner,appOwner;
   std::mutex appRuntimeMutex;facebook::hermes::HermesRuntime* appRuntime=nullptr;
@@ -103,12 +99,12 @@ class Host {
   std::atomic<uint64_t> graphicsRecords{0},nativeExtensions{0};
   std::atomic<uint64_t> reusedPictures{0},reusedParagraphs{0},reusedImages{0},cachedContentBytes{0},paragraphLayouts{0};
   nw::MemoryPressureMonitor memoryMonitor;
-  bool osPressure=false,forcedPressure=false;
+  bool osPressure=false;
   std::atomic<bool> memoryPressure{false};
   std::atomic<uint64_t> pressureEpoch{1},contentPressureEpoch{0},renderPressureEpoch{0};
   void sampleMemoryPressure() {
     if(stopping||closing)return;
-    osPressure=memoryMonitor.sample(now());const bool low=osPressure||forcedPressure;
+    osPressure=memoryMonitor.sample(now());const bool low=osPressure;
     if(memoryPressure.exchange(low)!=low){++pressureEpoch;contentWake=true;renderWakeRequested=true;changed.notify_all();}
   }
   std::atomic<uint64_t> appHeapBytes{0};
@@ -117,7 +113,6 @@ class Host {
   std::atomic<double> lazyOffset{0};
   std::atomic<double> scrollOffset{0};
   std::atomic<double> publishedWidth{0},publishedHeight{0};
-  std::atomic<uint32_t> contentDelay{0},appDelay{0};
   std::atomic<bool> appUpdate{false};
   std::atomic<bool> contentWake{true},renderWakeRequested{true};
   uint64_t inputSequence=0;double scale=1,width=960,height=720;
@@ -145,7 +140,6 @@ class Host {
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::transaction){interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);}
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::openView){metricsPending=true;renderWakeRequested=true;changed.notify_all();}
           auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}appChanged.notify_one();}
-        if(const auto delay=contentDelay.exchange(0)){busyOwners.fetch_or(2);std::osyncstream(std::cout)<<"V2_CONTENT_DELAY_START "<<delay<<std::endl;injectProbeInput();std::this_thread::sleep_for(std::chrono::milliseconds(delay));busyOwners.fetch_and(~2u);std::osyncstream(std::cout)<<"V2_CONTENT_DELAY_END"<<std::endl;}
         if(connected){
           if(const auto stage=core.fontTransitionSnapshot(1,1)){
             if(stage->phase==wire::fontTransitionPhases::preparing&&!(stage->ready&wire::fontTransitionOwners::content)){
@@ -205,7 +199,7 @@ class Host {
         graphicsRecords=provider.graphicsRecords.load();nativeExtensions=provider.nativeExtensions.load();
         reusedPictures=provider.reusedPictures.load();reusedParagraphs=provider.reusedParagraphs.load();reusedImages=provider.reusedImages.load();
         cachedContentBytes=provider.cachedBytes.load();paragraphLayouts=provider.paragraphLayouts.load();
-        std::unique_lock lock(wakeMutex);changed.wait(lock,[this,&handledPressure]{std::lock_guard queueLock(jobsMutex);return stopping||contentWake||contentDelay||!jobs.empty()||pressureEpoch!=handledPressure;});
+        std::unique_lock lock(wakeMutex);changed.wait(lock,[this,&handledPressure]{std::lock_guard queueLock(jobsMutex);return stopping||contentWake||!jobs.empty()||pressureEpoch!=handledPressure;});
       }
       {std::lock_guard lock(sceneMutex);candidate.reset();fontCandidate.reset();}
     }catch(const std::exception& error){notifyError(error.what());}
@@ -223,7 +217,7 @@ class Host {
       double lastWidth=-1,lastHeight=-1,lastScale=-1;
       bool clock=false;
       double deadline=0;
-      uint64_t lastReportedInput=0,lastReportedDocument=0,handledPressure=0;
+      uint64_t handledPressure=0;
       while(!stopping){
         renderWakeRequested=false;
         {std::shared_ptr<const PreparedFont> prepared;{std::lock_guard lock(sceneMutex);prepared=fontCandidate;}
@@ -258,7 +252,6 @@ class Host {
             if(next&&next->id==frame->scene->preparation){active=std::move(next);next.reset();}
             if(!active||active->id!=frame->scene->preparation)throw std::runtime_error("Native active preparation resource is missing");
             bool drawn=false;
-            const auto busyAtCompose=busyOwners.load();
             try{drawn=provider.draw(*frame,*active);}catch(...){Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(20,1);call(wire::opcodes::releaseFrame,release.bytes);throw;}
             rendered=provider.draws;
             Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(16,drawn?1:0);release.u32(20,drawn?0:1);call(wire::opcodes::releaseFrame,release.bytes);
@@ -268,9 +261,6 @@ class Host {
             {std::lock_guard lock(sceneMutex);publishedPrepared=active;}
             interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);
             publishedWidth=frame->scene->metrics.width;publishedHeight=frame->scene->metrics.height;
-            if(probe&&frame->scene->document->epoch>lastReportedDocument){lastReportedDocument=frame->scene->document->epoch;std::osyncstream(std::cout)<<"V2_SCENE_PUBLISHED "<<lastReportedDocument<<std::endl;}
-            const auto input=r.u64(wire::headerBytes+wire::stateFields::consumedThrough);
-            if(probe&&input>lastReportedInput){lastReportedInput=input;std::osyncstream(std::cout)<<"V2_INPUT_FRAME {\"input\":"<<input<<",\"offset\":"<<scrollOffset<<",\"busyAtCompose\":"<<busyAtCompose<<",\"busyAtCompletion\":"<<busyOwners<<"}"<<std::endl;}
           }
           call(wire::opcodes::pollEvents);
           clock=(sr.u32(wire::headerBytes+wire::stateFields::flags)&128u)!=0;
@@ -333,16 +323,14 @@ class Host {
           appAcknowledgedCommands=uint64_t(commands);appRejectedFallbacks=uint64_t(rejected);
           appExecutionObserved=execution.getProperty(r,"observed").getBool();
         }
-        const auto message=args[0].asString(r).utf8(r);if(message.find("app-delay-start")!=std::string::npos)busyOwners.fetch_or(1);if(message.find("app-delay-end")!=std::string::npos)busyOwners.fetch_and(~1u);std::osyncstream(std::cout)<<"V2_APP "<<message<<std::endl;if(message.find("app-delay-start")!=std::string::npos)injectProbeInput();if(message.find("app-ready")!=std::string::npos)appReady=true;if(message.find("app-disposed")!=std::string::npos)appDisposed=true;if(message.find("app-error")!=std::string::npos){stats();notifyError(message);}return jsi::Value::undefined();}));
+        const auto message=args[0].asString(r).utf8(r);std::osyncstream(std::cout)<<"V2_APP "<<message<<std::endl;if(message.find("app-ready")!=std::string::npos)appReady=true;if(message.find("app-disposed")!=std::string::npos)appDisposed=true;if(message.find("app-error")!=std::string::npos){stats();notifyError(message);}return jsi::Value::undefined();}));
       rt.global().setProperty(rt,"NelyxV2Native",std::move(native));
       const auto bootstrap=std::string("globalThis.__v2Timers=[];globalThis.setTimeout=(f,m=0)=>{const t={f,at:Date.now()+m};__v2Timers.push(t);return t;};globalThis.clearTimeout=t=>{if(t)t.f=null;};globalThis.__v2Pump=()=>{const n=Date.now();const q=__v2Timers.splice(0);for(const t of q){if(t.f&&t.at<=n)t.f();else if(t.f)__v2Timers.push(t);}};");
       rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(bootstrap),"v2-timers.js");
       const auto source=readFile(appDirectory.empty()?directory+"/web/app-native.js":appDirectory+"/application/app.js");rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::string(source.begin(),source.end())),"app-native.js");rt.drainMicrotasks();
       while(!stopping){
         if(disposeRequested.exchange(false)){rt.global().getPropertyAsFunction(rt,"__v2Dispose").call(rt);rt.drainMicrotasks();}
-        if(const auto delay=appDelay.exchange(0)){rt.global().getPropertyAsFunction(rt,"__v2Delay").call(rt,double(delay));rt.drainMicrotasks();}
         if(appUpdate.exchange(false)&&appDirectory.empty()){rt.global().getPropertyAsFunction(rt,"__v2Update").call(rt);rt.drainMicrotasks();}
-        if(const auto index=appSeek.exchange(-1);index>=0){rt.global().getPropertyAsFunction(rt,"__v2Seek").call(rt,double(index));rt.drainMicrotasks();}
         Job result{};bool has=false;
         {std::lock_guard lock(doneMutex);if(!done.empty()){result=std::move(done.front());done.pop_front();has=true;}}
         if(has){auto array=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(result.bytes.size())).getObject(rt);auto buffer=array.getArrayBuffer(rt);std::memcpy(buffer.data(rt),result.bytes.data(),result.bytes.size());rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(result.id),std::move(array));rt.drainMicrotasks();}
@@ -352,7 +340,7 @@ class Host {
     }catch(const std::exception& error){notifyError(error.what());}
   }
  public:
-  Host(std::string directory,bool probe,std::string appDirectory={}):probe(probe),directory(std::move(directory)),appDirectory(std::move(appDirectory)){}
+  Host(std::string directory,std::string appDirectory={}):directory(std::move(directory)),appDirectory(std::move(appDirectory)){}
   void bind(HWND value){window=value;interaction=std::make_unique<nw::Interaction>(window,core,[this](uint32_t op,const std::vector<uint8_t>& bytes){return call(op,bytes);},[this](auto callback){postUI(std::move(callback));},[this]{contentWake=true;renderWakeRequested=true;changed.notify_all();});
     precision=RNSkia::WindowsPrecisionTrackpad::create(window,[this](POINT p)->std::optional<RNSkia::WindowsPrecisionPoint>{
       if(!appReady||stopping||closing||!IsWindowVisible(window)||IsIconic(window))return {};
@@ -382,7 +370,6 @@ class Host {
     metricsPending=true;renderWakeRequested=true;changed.notify_all();
   }
   void update(){if(appReady&&!stopping)appUpdate=true;}
-  void probeWheel(int32_t delta){if(probe)wheel(delta,260,300);}
   void pointer(uint32_t phase,double x,double y){
     if(!appReady||stopping)return;
     if(phase==wire::phases::begin&&interaction&&interaction->point(phase,x,y)){interactionPointer=true;return;}
@@ -426,25 +413,14 @@ class Host {
     sampleMemoryPressure();
     DWORD available=0;const auto pipe=GetStdHandle(STD_INPUT_HANDLE);
     if(PeekNamedPipe(pipe,nullptr,0,nullptr,&available,nullptr)&&available){char data[1024];DWORD read=0;ReadFile(pipe,data,std::min<DWORD>(available,sizeof(data)),&read,nullptr);control.append(data,read);if(control.size()>4096)control.clear();}
-    for(size_t end;(end=control.find('\n'))!=std::string::npos;){auto line=control.substr(0,end);control.erase(0,end+1);std::istringstream in(line);std::string command;in>>command;int value=0;in>>value;
+    for(size_t end;(end=control.find('\n'))!=std::string::npos;){auto line=control.substr(0,end);control.erase(0,end+1);std::istringstream in(line);std::string command;in>>command;
       if(command=="close")PostMessageW(window,WM_CLOSE,0,0);
-      else if(command=="update")appUpdate=true;
-      else if(command=="arm-input")probeDelta=std::clamp(value,-500,500);
-      else if(command=="minimize")ShowWindow(window,SW_MINIMIZE);
-      else if(command=="restore")ShowWindow(window,SW_RESTORE);
-      else if(command=="resize"){const auto dpi=GetDpiForWindow(window);RECT bounds{0,0,MulDiv(std::clamp(value,320,1280),int(dpi),96),MulDiv(720,int(dpi),96)};AdjustWindowRectExForDpi(&bounds,WS_OVERLAPPEDWINDOW,FALSE,0,dpi);SetWindowPos(window,nullptr,0,0,bounds.right-bounds.left,bounds.bottom-bounds.top,SWP_NOMOVE|SWP_NOZORDER);}
-      else if(command=="delay-app")appDelay=uint32_t(std::clamp(value,0,2000));
-      else if(command=="delay-content"){contentDelay=uint32_t(std::clamp(value,0,2000));changed.notify_all();}
-      else if(command=="wheel")wheel(value,260,300);
-      else if(command=="lazy-wheel")wheel(value,650,420);
-      else if(command=="seek")appSeek=std::clamp(value,0,1999);
-      else if(command=="memory-pressure"&&probe){forcedPressure=value!=0;sampleMemoryPressure();}
       else if(command=="stats")stats();
     }
   }
   void stats(){auto bytes=call(wire::opcodes::inspect);auto r=reader(bytes);const auto b=wire::headerBytes;
     std::osyncstream(std::cout)<<"V2_INPUT_SOURCE {\"source\":\"precision-trackpad-directmanipulation\",\"available\":"<<(precision?"true":"false")<<",\"admitted\":"<<precisionPackets<<",\"rejected\":"<<precisionRejected<<",\"physicalAcceptance\":\"notVerified\"}"<<std::endl;
-    std::osyncstream(std::cout)<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"graphicsRecords\":"<<graphicsRecords<<",\"nativeExtensions\":"<<nativeExtensions<<",\"appHeapBytes\":"<<appHeapBytes<<",\"memoryTotal\":"<<r.u64(b+wire::stateFields::memoryTotal)<<",\"memoryPeak\":"<<r.u64(b+wire::stateFields::memoryPeak)<<",\"memoryGpu\":"<<r.u64(b+wire::stateFields::memoryGpu)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbackPolicy\":\"reject-unported\",\"appExecutionObserved\":"<<(appExecutionObserved?"true":"false")<<",\"appAcknowledgedCommands\":"<<appAcknowledgedCommands<<",\"rejectedFallbacks\":"<<(appExecutionObserved?std::to_string(appRejectedFallbacks.load()):"null")<<",\"reusedPictures\":"<<reusedPictures<<",\"reusedParagraphs\":"<<reusedParagraphs<<",\"reusedImages\":"<<reusedImages<<",\"cachedContentBytes\":"<<cachedContentBytes<<",\"paragraphLayouts\":"<<paragraphLayouts<<",\"memoryPressure\":{\"source\":\"windows-resource-notification\",\"osLow\":"<<(osPressure?"true":"false")<<",\"probeLow\":"<<(forcedPressure?"true":"false")<<",\"effectiveLow\":"<<(memoryPressure?"true":"false")<<",\"epoch\":"<<pressureEpoch<<",\"contentEpoch\":"<<contentPressureEpoch<<",\"renderEpoch\":"<<renderPressureEpoch<<",\"gpuCacheLimitBytes\":"<<((memoryPressure?4ull:32ull)*1024*1024)<<"},\"surfaceCommit\":null,"<<timingJson()<<"}"<<std::endl;
+    std::osyncstream(std::cout)<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"graphicsRecords\":"<<graphicsRecords<<",\"nativeExtensions\":"<<nativeExtensions<<",\"appHeapBytes\":"<<appHeapBytes<<",\"memoryTotal\":"<<r.u64(b+wire::stateFields::memoryTotal)<<",\"memoryPeak\":"<<r.u64(b+wire::stateFields::memoryPeak)<<",\"memoryGpu\":"<<r.u64(b+wire::stateFields::memoryGpu)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbackPolicy\":\"reject-unported\",\"appExecutionObserved\":"<<(appExecutionObserved?"true":"false")<<",\"appAcknowledgedCommands\":"<<appAcknowledgedCommands<<",\"rejectedFallbacks\":"<<(appExecutionObserved?std::to_string(appRejectedFallbacks.load()):"null")<<",\"reusedPictures\":"<<reusedPictures<<",\"reusedParagraphs\":"<<reusedParagraphs<<",\"reusedImages\":"<<reusedImages<<",\"cachedContentBytes\":"<<cachedContentBytes<<",\"paragraphLayouts\":"<<paragraphLayouts<<",\"memoryPressure\":{\"source\":\"windows-resource-notification\",\"osLow\":"<<(osPressure?"true":"false")<<",\"effectiveLow\":"<<(memoryPressure?"true":"false")<<",\"epoch\":"<<pressureEpoch<<",\"contentEpoch\":"<<contentPressureEpoch<<",\"renderEpoch\":"<<renderPressureEpoch<<",\"gpuCacheLimitBytes\":"<<((memoryPressure?4ull:32ull)*1024*1024)<<"},\"surfaceCommit\":null,"<<timingJson()<<"}"<<std::endl;
   }
   bool hasFailed()const{return failed;}
   void uiFailure(const std::string& error){notifyError(error);}
@@ -480,7 +456,6 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
     case WM_SETFOCUS:host->focus(true);return 0;case WM_KILLFOCUS:host->focus(false);return 0;
     case WM_APP+3:host->ui();return 0;
     case WM_GETOBJECT:if(l==UiaRootObjectId)return host->object(w,l);break;
-    case WM_APP+2:host->probeWheel(int32_t(intptr_t(w)));return 0;
     case WM_SYSKEYDOWN:case WM_KEYDOWN:if(host->keydown(w,l))return 0;if(w=='U'&&(GetKeyState(VK_CONTROL)&0x8000)){host->update();return 0;}break;
     case WM_SYSKEYUP:case WM_KEYUP:if(host->keyup(w,l))return 0;break;
     case WM_CHAR:if(host->character(wchar_t(w)))return 0;break;
@@ -498,10 +473,9 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
 }
 int main(int argc,char**argv){
   try{
-    if(argc<2)throw std::runtime_error("Usage: NelyxEngineV2Host <current engine dist> [--probe] [--app <bundle directory>]");
-    bool probe=false;std::string appDirectory;
-    for(int i=2;i<argc;++i){const std::string option=argv[i];if(option=="--probe"&&!probe)probe=true;
-      else if(option=="--app"&&appDirectory.empty()&&i+1<argc)appDirectory=std::filesystem::canonical(argv[++i]).string();
+    if(argc<2)throw std::runtime_error("Usage: NelyxEngineV2Host <current engine dist> [--app <bundle directory>]");
+    std::string appDirectory;
+    for(int i=2;i<argc;++i){const std::string option=argv[i];if(option=="--app"&&appDirectory.empty()&&i+1<argc)appDirectory=std::filesystem::canonical(argv[++i]).string();
       else throw std::runtime_error("Unknown or duplicate native host option: "+option);}
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     if(FAILED(CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED)))throw std::runtime_error("UI COM apartment failed");
@@ -509,7 +483,7 @@ int main(int argc,char**argv){
 #ifdef NELYX_WINDOWS_APP_SDK
     nw::AppSdkLoop appSdk;
 #endif
-    Host host(argv[1],probe,std::move(appDirectory));const auto instance=GetModuleHandleW(nullptr);WNDCLASSW klass{};klass.hInstance=instance;klass.lpszClassName=L"NelyxEngineV2Host";klass.lpfnWndProc=procedure;klass.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&klass);
+    Host host(argv[1],std::move(appDirectory));const auto instance=GetModuleHandleW(nullptr);WNDCLASSW klass{};klass.hInstance=instance;klass.lpszClassName=L"NelyxEngineV2Host";klass.lpfnWndProc=procedure;klass.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&klass);
     const auto dpi=GetDpiForSystem();RECT bounds{0,0,LONG(960*dpi/96),LONG(720*dpi/96)};AdjustWindowRectExForDpi(&bounds,WS_OVERLAPPEDWINDOW,FALSE,0,dpi);
     const auto window=CreateWindowExW(0,klass.lpszClassName,L"Nelyx Engine v2 — Native Skia",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,bounds.right-bounds.left,bounds.bottom-bounds.top,nullptr,nullptr,instance,&host);
     if(!window)throw std::runtime_error("Native HWND creation failed");

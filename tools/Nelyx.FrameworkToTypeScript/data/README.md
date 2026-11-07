@@ -11,6 +11,6 @@ Metadata for framework conversion and managed product sources. SDK builds and ap
 
 Preserve source pins, numeric annotations, licenses, generated/adopted ownership, base fingerprints, and direct product edits. Before reusing a recipe, connect a current product validator; missing validation must fail.
 
-[product-module-layout.mjs](../product-module-layout.mjs) connects canonical module destinations to managed owners. Feature generators also validate their source and output identities before writing. Run `npm run check:design-ownership` from the repository root when changing design-source ownership.
+[product-module-layout.mjs](../product-module-layout.mjs) connects canonical module destinations to managed owners. Feature generators also validate their source and output identities before writing. Preserve ownership metadata and direct product changes when updating managed output.
 
 Ownership metadata describes how sources are maintained; it does not qualify current runtime behavior. See the [tool guide](../README.md) for setup and boundaries.

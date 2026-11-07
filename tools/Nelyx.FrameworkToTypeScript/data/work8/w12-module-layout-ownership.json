@@ -1406,10 +1406,6 @@
       "file": "Nelyx/sdk/licenses/system-color-sources.json",
       "sha256": "4ce229296365a1ae465271024cf610486d7e65a0c2e6f6291517173c51223242"
     },
-    "sourceVm": {
-      "file": "packages/material/tests/fixtures/full-theme-source.json",
-      "sha256": "0ea1a28bedebb3c79263057af8dfa7ec3caee491abb6e13c8e5ed0615b0c12b1"
-    },
     "generatorSourcesUnchanged": true,
     "completeSourceFactoryAndPhysicalQualification": false
   },
@@ -1450,10 +1446,6 @@
         "sha256": "b2f8ded630effbca87a591c492119463645ef015db8150415d18bd2c9fbc6d60"
       }
     ],
-    "unchangedSourceVm": {
-      "file": "packages/material/tests/fixtures/theme-widget-source.json",
-      "sha256": "60d2da57e19bc69d3093160dd2775b2408d177d28c49c83d351f061ff8b24e97"
-    },
     "product": [
       {
         "file": "packages/material/src/theme.ts",
@@ -1501,10 +1493,6 @@
       "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-refresh-localizations-ownership.json",
       "sha256": "0c7872935b2a0bf062aa601a222037d9bc61ffe9c210cc9a7adec32cdb38d3db"
     },
-    "sourceVm": {
-      "file": "packages/material/tests/fixtures/refresh-indicator-source.json",
-      "sha256": "32d4e019155cf7b933c49774f4455ca4cf876c30bcc7ab2f172b0bdb1ae3b1ac"
-    },
     "newNumericClaims": 13,
     "coreOriginsUnchanged": true,
     "previousGeneratorsPreserved": true,
@@ -1517,10 +1505,6 @@
       "file": "Nelyx/licenses/safe-area-sources.json",
       "sha256": "0eee39b307d802e102ad51e8aae81641abd46da46dd30d00951042efbe9688a2"
     },
-    "sourceVm": {
-      "file": "packages/material/tests/fixtures/safe-area-source.json",
-      "sha256": "ded9779c1a82152614ad20a54c501795af157d5293f1f35e2bc4ff8893ebcb04"
-    },
     "newCoreOrigins": 2,
     "updatedCoreOrigins": 1,
     "managedGeneratorsUnchanged": 11,
@@ -1531,10 +1515,6 @@
       "file": "packages/material/licenses/card-sources.json",
       "sha256": "f79a157b69e4df2696e796479a591a07030412266bd0d66c2875c236c78b8df4"
     },
-    "sourceVm": {
-      "file": "packages/material/tests/fixtures/card-source.json",
-      "sha256": "e7684838953a8b4882f9b449b5a253f5ce3560db5a8e8f1327eac33241957d9d"
-    },
     "generatorSourcesUnchanged": true,
     "coreOriginBytesUnchanged": true,
     "newNumericClaims": 5
@@ -1544,10 +1524,6 @@
       "file": "packages/material/licenses/badge-avatar-sources.json",
       "sha256": "be7d0475dabe697aba1b92cc59b60ac7d52c71edd83cf60fd31b990c65a4794d"
     },
-    "sourceVm": {
-      "file": "packages/material/tests/fixtures/badge-avatar-source.json",
-      "sha256": "d4144642c0d1524c9336a7982a2e6bf36bb404aa384033da0f04ed8d2d8b19e0"
-    },
     "generatorSourcesUnchanged": true,
     "updatedCoreOrigins": 1,
     "newNumericClaims": 21
@@ -1556,10 +1532,6 @@
     "sourceNotice": {
       "file": "Nelyx/licenses/overflow-bar-sources.json",
       "sha256": "e0cf6cce6dd16f4a169a83a226fd81f778e15010c16aafc0a206b2bfa885fd36"
-    },
-    "sourceVm": {
-      "file": "packages/material/tests/fixtures/overflow-bar-source.json",
-      "sha256": "dc3ac200389600cd9527ac5baa47e377b4a5246bb2709320281a13314c41da9d"
     },
     "generatorSourcesUnchanged": true,
     "newCoreOrigins": 1,

@@ -177,12 +177,8 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
     kind === 'preparation-error' ||
     kind === 'font-preparation-error' ||
     kind === 'render-stats' ||
-    kind === 'content-stats' ||
-    kind === 'delay-started' ||
-    kind === 'delay-ended'
+    kind === 'content-stats'
   ) {
-    if (kind === 'delay-started' || kind === 'delay-ended')
-      post({ kind: 'content-control', value });
     stats({ [String(kind)]: value });
   }
 }
@@ -538,14 +534,6 @@ scope.addEventListener('message', (event) => {
         sentRevision = telemetryRevision;
         post({ kind: 'stats', value: telemetry });
       }
-    } else if (message.kind === 'delay-content') {
-      if (content) {
-        const start = performance.now(),
-          ms = Math.min(2000, Math.max(0, message.milliseconds));
-        actorMessage({ kind: 'delay-started', start, milliseconds: ms });
-        while (performance.now() - start < ms) {}
-        actorMessage({ kind: 'delay-ended', end: performance.now() });
-      } else contentWorker?.postMessage({ kind: 'v2-delay', milliseconds: message.milliseconds });
     } else if (message.kind === 'close') await shutdown();
   })().catch((error) => failHost(failure(error), error instanceof Error ? error.stack : undefined));
 });

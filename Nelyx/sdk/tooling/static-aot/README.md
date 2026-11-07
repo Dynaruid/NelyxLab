@@ -25,15 +25,9 @@ Entry guards preserve the original body for values outside a specialized contrac
 
 A full-runtime package requires complete source/body/native correspondence. Unclassified bodies, unresolved targets, or runtime code generation block its build. Native AOT coverage and type-specialization coverage are separate measures.
 
-## Inspect and build
+## Build
 
-From the repository root, with the current Windows runner installed:
-
-```powershell
-npm run inspect:static-aot-runtime
-```
-
-This inspects the actual Release serializer and installed source maps. For a full application build, follow the [Windows Testbed guide](../../../../sample/nelyx-testbed-app-2/README.md#choose-an-execution-mode).
+For a full application build, follow the [Windows Testbed guide](../../../../sample/nelyx-testbed-app-2/README.md#choose-an-execution-mode).
 
 The RNW runtime's host-function manager and VM-internal Promise/iterator code use separately mapped native units in the same VM. The app's public execution mode is `static-aot`.
 
@@ -43,13 +37,4 @@ The Windows runner keeps its current compiler cache in `.nelyx/windows/static-ao
 
 `STATIC_AOT_FRONTEND`, `STATIC_AOT_CACHE`, and `STATIC_AOT_BUILD` report build stages and timing. `mapStaticAotPc` from `@nelyx/cli/windows-static-aot` maps an image-relative PC to generated/original function candidates. Its precision is a function range, including folded aliases.
 
-## Development checks
-
-From the repository root:
-
-```powershell
-npm run test:static-aot-runtime
-npm run test:static-aot
-```
-
-Native probes are opt-in through `NELYX_STATIC_HERMES_INPUTS`, pointing to a verified toolchain. Build success and source coverage do not establish UI behavior, performance, physical input, or display qualification.
+Standalone inventory probes and regression suites were removed at the user's request on 2026-11-07. Build success and source coverage do not establish UI behavior, performance, physical input or display qualification.

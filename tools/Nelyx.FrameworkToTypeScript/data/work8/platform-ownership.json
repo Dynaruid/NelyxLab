@@ -738,11 +738,6 @@
       "target": "android"
     },
     {
-      "file": "Nelyx/skia/packages/rn/android/src/test/java/com/reactnative/skia/FrameSchedulerTest.java",
-      "owner": "skia",
-      "target": "android"
-    },
-    {
       "file": "Nelyx/skia/packages/rn/cpp/skia/include/android/AHardwareBufferUtils.h",
       "owner": "skia",
       "target": "android"

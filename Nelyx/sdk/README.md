@@ -170,7 +170,7 @@ Windows `ApplicationSurface` defaults to `windowsSurfaceStatusMode="lifecycle"`:
 
 RN `ApplicationSurface` offers experimental `nativeInputGeometry="retained"` for C++ editor-coordinate preparation. Omit it or pass `false` for the default TS path; `'snapshot'` selects the older independent candidate. Choose once per mounted owner and remount to switch. Custom render hooks retain TS behavior. This option does not enable a native hit-test index. Supply matching rebuilt native inputs, renderer and SDK; current runtime validation is limited to Windows. Performance adoption is recorded in the repository's [work5.md](../../history/26/11/03/work5-summary.md).
 
-Explicit C++ service requests fail startup when their native capability is missing. Windows launches report selected candidates, native geometry commits and TS fallback reasons separately. Repository cadence checks require matching SDK/native counts and at least 95% native coverage for the warm Mixed comparison; choosing an option or finding its API is insufficient. See `npm.cmd run test:retained-input-geometry` for the actual Gallery → Mixed regression and activation failure cases.
+Explicit C++ service requests fail startup when their native capability is missing. Windows launches report selected candidates, native geometry commits and TS fallback reasons separately. Standalone cadence and regression tools have been removed; selecting an option or finding its API does not establish execution or performance acceptance.
 
 ## Configuration and providers
 

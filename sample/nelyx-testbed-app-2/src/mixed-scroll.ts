@@ -29,18 +29,13 @@ import { Material } from '@nelyx/material/material';
 import { OutlinedButton } from '@nelyx/material/outlined-button';
 import { TextField } from '@nelyx/material/text-field';
 import { Theme } from '@nelyx/material/theme';
-import { nativeModuleLabel } from './native-module-mode.ts';
-import type { NativeModuleMode } from './native-module-mode.ts';
 
 const itemCount = 12;
 
 /** Finite page content: every row is mounted at entry and lives until route close. */
 export class MixedScrollPage extends StatefulWidget {
   readonly onBack: () => void;
-  constructor(
-    onBack: () => void,
-    readonly nativeModuleMode?: NativeModuleMode,
-  ) {
+  constructor(onBack: () => void) {
     super();
     this.onBack = onBack;
   }
@@ -78,7 +73,7 @@ class MixedScrollPageState extends State<MixedScrollPage> {
                   onPressed: this.widget.onBack,
                 }),
                 new Expanded(
-                  new Text('입력·버튼 스크롤' + nativeModuleLabel(this.widget.nativeModuleMode), {
+                  new Text('입력·버튼 스크롤', {
                     fontSize: 24,
                   }),
                 ),

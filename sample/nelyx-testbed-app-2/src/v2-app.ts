@@ -28,18 +28,14 @@ type AppWorker = {
   postMessage(value: unknown): void;
   addEventListener(
     kind: 'message',
-    callback: (event: {
-      data: { kind: string; port: AppPort; root: string; milliseconds: number; index: number };
-    }) => void,
+    callback: (event: { data: { kind: string; port: AppPort; root: string } }) => void,
   ): void;
 };
 const environment = globalThis as unknown as {
   NelyxV2Native?: NativePort;
   __v2Resolve?: (id: number, bytes: ArrayBuffer, error?: string) => void;
-  __v2Delay?: (ms: number) => void;
   __v2Dispose?: () => Promise<void>;
   __v2Update?: () => Promise<void>;
-  __v2Seek?: (index: number) => Promise<void>;
 };
 async function start(
   endpoint: PacketEndpoint,
@@ -91,39 +87,16 @@ async function start(
         throw error;
     }
   }
-  const intrinsic = await view.intrinsic(scene.header.currentNode!, 'maxWidth');
-  const listIntrinsic = await view.intrinsic(scene.content.currentNode!, 'maxHeight', 538);
-  const dry = await view.dryLayout(
-    scene.header.currentNode!,
-    { kind: 'finite', min: 0, max: 810 },
-    { kind: 'finite', min: 0, max: 100 },
-  );
   await scene.editor.refresh();
-  const declarations = await view.layoutSnapshot();
   notify({
     kind: 'app-ready',
     document: String(active.activeDocument),
     commands: widgets.counters.commands,
     engineWork: String(active.transactionWork),
     execution: widgets.execution,
-    nativeExtensions: declarations.nodes.filter((node) => node.flags & p.nodeFlags.nativeExtension)
-      .length,
     widgets: { ...widgets.counters },
     lazy: { ...scene.lazy.currentState!.counters, itemCount: 2000 },
-    query: {
-      intrinsic: intrinsic.value,
-      contentHeight: listIntrinsic.value,
-      width: dry.width,
-      height: dry.height,
-    },
-    queryWork: String((await view.request(p.opcodes.inspect)).queryWork),
   });
-  environment.__v2Delay = (milliseconds) => {
-    const until = Date.now() + Math.min(2000, Math.max(0, milliseconds));
-    notify({ kind: 'app-delay-start', time: Date.now() });
-    while (Date.now() < until) {}
-    notify({ kind: 'app-delay-end', time: Date.now() });
-  };
   const dispose = engineDisposer(async () => {
     try {
       await drainEngineOwners('Testbed disposal failed', [
@@ -140,10 +113,6 @@ async function start(
     const closing = dispose();
     void closing.catch(() => {});
     return closing;
-  };
-  environment.__v2Seek = async (index) => {
-    const receipt = await scene.lazy.currentState!.scrollToIndex(index);
-    notify({ kind: 'app-seek-requested', id: String(receipt.id), index });
   };
   let updating = false;
   environment.__v2Update = async () => {
@@ -212,15 +181,10 @@ if (environment.NelyxV2Native) {
           scope.postMessage(value),
         );
       })().catch((error) => scope.postMessage({ kind: 'app-error', message: String(error) }));
-    } else if (event.data.kind === 'delay') environment.__v2Delay?.(event.data.milliseconds);
-    else if (event.data.kind === 'update')
+    } else if (event.data.kind === 'update')
       void environment
         .__v2Update?.()
         .catch((error) => scope.postMessage({ kind: 'app-error', message: String(error) }));
     else if (event.data.kind === 'close') void environment.__v2Dispose?.();
-    else if (event.data.kind === 'seek')
-      void environment
-        .__v2Seek?.(event.data.index)
-        .catch((error) => scope.postMessage({ kind: 'app-error', message: String(error) }));
   });
 }

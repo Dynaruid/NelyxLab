@@ -167,7 +167,6 @@ export function sourceIdentity() {
     'CMakeLists.txt',
     '../../package.json',
     '../../package-lock.json',
-    'tests/native-driver.cpp',
     '../package.json',
     '../tsconfig.build.json',
     '../runtime/tsconfig.json',
@@ -331,7 +330,7 @@ async function main() {
     for (const profile of Object.keys(toolchains)) {
       fs.mkdirSync(path.join(supply, profile));
       for (const file of tree(path.join(builds, profile)).filter((name) =>
-        /^(?:engine(?:-browser)?\.(?:js|mjs|wasm|worker\.js)|NelyxEngineV2Host\.exe|nelyx_engine_driver(?:\.exe)?|(?:lib)?nelyx_engine_v2\.(?:lib|a))$/.test(
+        /^(?:engine(?:-browser)?\.(?:js|mjs|wasm|worker\.js)|NelyxEngineV2Host\.exe|(?:lib)?nelyx_engine_v2\.(?:lib|a))$/.test(
           name,
         ),
       ))

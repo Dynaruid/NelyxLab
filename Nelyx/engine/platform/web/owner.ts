@@ -30,7 +30,6 @@ export async function boot(
       canvas?: OffscreenCanvas;
       frameClock?: MessagePort;
       viewport?: Viewport;
-      milliseconds?: number;
       low?: boolean;
       revision?: number;
     };
@@ -59,14 +58,6 @@ export async function boot(
           }
         } else if (message.kind === 'v2-release-prepared') {
           provider.releasePacket((message as unknown as { preparation: bigint }).preparation);
-        } else if (message.kind === 'v2-delay') {
-          const ms = Math.min(2000, Math.max(0, message.milliseconds ?? 0)),
-            start = performance.now();
-          post({ kind: 'delay-started', start, milliseconds: ms });
-          while (performance.now() - start < ms) {
-            /* Intentional bounded Content-owner stall for acceptance. */
-          }
-          post({ kind: 'delay-ended', end: performance.now() });
         } else if (message.kind === 'v2-memory-pressure') {
           if (typeof message.low !== 'boolean' || !Number.isSafeInteger(message.revision))
             throw new Error('Invalid memory pressure control');

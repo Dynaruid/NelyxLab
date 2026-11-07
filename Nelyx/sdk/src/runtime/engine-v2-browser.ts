@@ -31,7 +31,6 @@ export interface EngineBrowserSurface {
   };
   /** Registers an App worker for terminal cleanup before its host reservations retire. */
   createAppPort(app?: BrowserInstance<'Worker'>): BrowserInstance<'MessagePort'>;
-  delayContent(milliseconds: number): void;
   /** Requests a bounded cache policy change; diagnostics report actual owner acknowledgement. */
   setMemoryPressure(low: boolean): void;
   input(
@@ -165,8 +164,7 @@ export async function createBrowserEngineV2Surface(
     frameClockMain: frameClock.stats,
   };
   const inputStats = { collected: 0, dispatched: 0, rejected: 0, canceledStreams: 0 };
-  let contentDelayPending = false,
-    canceling = false,
+  let canceling = false,
     restarting = false;
   let requestedPressure = false,
     pressureRevision = 0,
@@ -255,11 +253,6 @@ export async function createBrowserEngineV2Surface(
           ]),
         (error) => worker.postMessage({ kind: 'ui-result', id: message.id, error: String(error) }),
       );
-    } else if (message.kind === 'content-control') {
-      const value = message.value as Record<string, unknown>;
-      diagnostics = { ...diagnostics, [String(value.kind)]: value };
-      if (value.kind === 'delay-ended') contentDelayPending = false;
-      options.onStats?.(diagnostics);
     } else if (message.kind === 'closed') resolveClose(message.state as Record<string, unknown>);
     else if (message.kind === 'error' || message.kind === 'runtime-error') {
       const error = new Error(String(message.message));
@@ -679,17 +672,6 @@ export async function createBrowserEngineV2Surface(
       ++appPorts;
       if (app) appWorkers.add(app);
       return channel.port1;
-    },
-    delayContent(milliseconds) {
-      if (closed) throw new Error('Engine surface closed');
-      if (contentDelayPending) throw new Error('Content delay is already pending');
-      if (!Number.isFinite(milliseconds) || milliseconds < 0 || milliseconds > 2000)
-        throw new Error('Content delay must be within 0..2000 ms');
-      contentDelayPending = true;
-      worker.postMessage({
-        kind: 'delay-content',
-        milliseconds: Math.min(2000, Math.max(0, milliseconds)),
-      });
     },
     close() {
       return (closing ??= (async () => {
