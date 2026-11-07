@@ -104,6 +104,9 @@ export function windowsAppBuildInputs(app) {
         (!prefix && otherTargets.has(entry.name)) ||
         relative === 'windows/packages' ||
         /^windows\/[^/]+\/Bundle$/.test(relative) ||
+        // NuGet creates this during a fresh native restore. It is generated
+        // output, so its first appearance must not invalidate the app build.
+        /^windows\/[^/]+\/packages\.lock\.json$/.test(relative) ||
         generatedFiles.has(relative) ||
         /^windows\/[^/]+\/AutolinkedNativeModules\.g\.(?:cpp|h|props|targets)$/.test(relative)
       )

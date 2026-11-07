@@ -95,6 +95,7 @@ pwsh -NoProfile -File ./cleanup-validation-once.ps1 -Apply # 실제 정리
 | [SDK](Nelyx/sdk/README.ko.md) | 플랫폼 API, 앱 설정, 자산과 수명 |
 | [Material](packages/material/README.md) / [Cupertino](packages/cupertino/README.md) | 디자인 컴포넌트, 테마와 아이콘 자산 |
 | [Testbed](sample/nelyx-testbed-app-2/README.ko.md) | 컴포넌트 갤러리와 Web·Windows·Android 실행 |
+| [Demo](sample/nelyx-demo-app/README.ko.md) | DorotiDemoApp을 참고한 독립 Material 데모앱 |
 | [CLI](Nelyx/sdk/tooling/cli/README.ko.md) | 앱 생성, 패키지 공급, 빌드와 실행 |
 | [Metro](Nelyx/sdk/tooling/metro/README.ko.md) | Runner 설정, 자산과 번들 |
 | [Skia](Nelyx/skia/README.ko.md) | 렌더러 패키지와 네이티브 입력 |
@@ -116,6 +117,7 @@ Nelyx는 개발 중이며 API가 변경될 수 있습니다. Flutter API의 일�
 | [`packages/`](packages/) | Material·Cupertino 디자인 패키지 |
 | [`Nelyx/sdk/tooling/`](Nelyx/sdk/tooling/) | CLI, Metro와 앱 템플릿 |
 | [`sample/nelyx-testbed-app-2/`](sample/nelyx-testbed-app-2/) | 공통 샘플과 플랫폼 runner |
+| [`sample/nelyx-demo-app/`](sample/nelyx-demo-app/) | 반응형 Material 컴포넌트 데모와 플랫폼 runner |
 | [`Nelyx/eng/`](Nelyx/eng/) | Workspace 빌드·유지보수 도구 |
 
 ## 라이선스

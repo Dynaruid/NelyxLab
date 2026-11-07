@@ -1,0 +1,31 @@
+{
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "name": "nelyx-demo-web-runner",
+  "scripts": {
+    "prepare:native": "node prepare.mjs",
+    "check": "node check.mjs",
+    "build": "node build.mjs",
+    "dev": "nelyx dev --app ../.. --target web"
+  },
+  "dependencies": {
+    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.16.0-d1b3c90d4546a21d3e281326519d351106edd3d11510d5ea29c82b4354ec36b7.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.20.0-5627771a366143e7cf7404f2f660d18b69bb48b70641b4440fabcbf4b5c78361.tgz",
+    "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-51a0dce32aa4b18baada49c4e9a29f4b508a5143fc7d7a6f18153d1cfb1a8395.tgz",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native-web": "0.21.3",
+    "@nelyx/material": "file:../../.nelyx/supply/web/nelyx-material-0.1.0-9ab87e2ca31ddc3ba834e50a487b2032752eb24469d329b2e09ff8b46f9c84ed.tgz"
+  },
+  "devDependencies": {
+    "@nelyx/metro": "file:../../.nelyx/supply/web/nelyx-metro-0.10.0-92b7e1ac1a068099d4c8a665736dee574d82b8ba94e5658df812be1a36883bb4.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.10.0-a217b871615564260ab08bb511147d4f6fd1850ae305df940aeac4c18ecc42fa.tgz",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@types/node": "24.10.1",
+    "typescript": "7.0.2",
+    "@nelyx/static-aot": "file:../../.nelyx/supply/web/nelyx-static-aot-0.1.0-1729647bf09b2ec755830b7ae47b448effd137dc9529a2a6f5efb229d636b4c5.tgz"
+  }
+}

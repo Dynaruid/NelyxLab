@@ -1,0 +1,89 @@
+{
+  "name": "@nelyx/demo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "check": "tsc -p tsconfig.json --noEmit",
+    "prepare:web": "node eng/prepare-runner.mjs web",
+    "prepare:windows": "node eng/prepare-runner.mjs windows",
+    "prepare:android": "node eng/prepare-runner.mjs android",
+    "check:web": "npm --prefix web/runner run check",
+    "dev:web": "npm --prefix web/runner run dev",
+    "build:web": "npm --prefix web/runner run build",
+    "check:windows": "npm --prefix windows/runner run check",
+    "build:windows": "npm --prefix windows/runner run build -- --engine hermes --hermes-profile optimized",
+    "run:windows": "node eng/run-windows.mjs",
+    "dev:windows": "npm --prefix windows/runner run dev",
+    "check:android": "npm --prefix android/runner run check",
+    "build:android": "npm --prefix android/runner run build",
+    "run:android": "npm --prefix android/runner run run"
+  },
+  "dependencies": {
+    "@nelyx/core": "0.16.0",
+    "@nelyx/sdk": "0.20.0",
+    "@nelyx/material": "0.1.0"
+  },
+  "devDependencies": {},
+  "type": "module",
+  "nelyx": {
+    "schema": "nelyx.app/v2",
+    "name": "NelyxDemoApp",
+    "appEntry": "./src/index.ts",
+    "assets": [
+      {
+        "id": "sample-font",
+        "kind": "font",
+        "path": "./assets/NotoSansKR.ttf",
+        "fontFamily": "NelyxSample",
+        "notice": {
+          "path": "./assets/NotoSansKR-OFL.txt"
+        }
+      },
+      {
+        "id": "sample-emoji",
+        "kind": "font",
+        "path": "./assets/NotoColorEmoji.ttf",
+        "fontFamily": "NelyxEmoji",
+        "notice": {
+          "path": "./assets/NotoColorEmoji.ttf.LICENSE.txt"
+        }
+      },
+      {
+        "id": "nelyx-material-icons",
+        "kind": "font",
+        "path": "./assets/nelyx/MaterialIcons.otf",
+        "fontFamily": "MaterialIcons",
+        "notice": {
+          "path": "./assets/nelyx/MaterialIcons-LICENSE.txt"
+        },
+        "packageSource": {
+          "package": "@nelyx/material",
+          "path": "./assets/MaterialIcons.otf",
+          "noticePath": "./licenses/MaterialIcons-LICENSE.txt"
+        }
+      },
+      {
+        "id": "component-image",
+        "kind": "image",
+        "path": "./assets/component-image.webp"
+      }
+    ],
+    "targets": {
+      "web": {
+        "profile": "ganesh-webgl2",
+        "component": "./web/runner/App.tsx"
+      },
+      "windows": {
+        "profile": "rn-graphite-vulkan",
+        "cohort": "rn-0.83.10",
+        "component": "./windows/runner/App.tsx"
+      },
+      "android": {
+        "profile": "graphite-vulkan",
+        "cohort": "rn-0.83.10",
+        "component": "./android/runner/App.tsx"
+      }
+    },
+    "displayName": "Nelyx Demo"
+  }
+}

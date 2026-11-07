@@ -95,6 +95,7 @@ pwsh -NoProfile -File ./cleanup-validation-once.ps1 -Apply # Remove
 | [SDK](Nelyx/sdk/README.md) | Platform APIs, application configuration, assets, and lifecycle |
 | [Material](packages/material/README.md) / [Cupertino](packages/cupertino/README.md) | Design components, themes, and icon assets |
 | [Testbed](sample/nelyx-testbed-app-2/README.md) | Component galleries and Web, Windows, and Android launch commands |
+| [Demo](sample/nelyx-demo-app/README.md) | Independent Material demo inspired by DorotiDemoApp |
 | [CLI](Nelyx/sdk/tooling/cli/README.md) | Application creation, package supply, builds, and execution |
 | [Metro](Nelyx/sdk/tooling/metro/README.md) | Runner configuration, assets, and bundling |
 | [Skia](Nelyx/skia/README.md) | Renderer packages and native inputs |
@@ -116,6 +117,7 @@ Platform readiness varies. Apple native build, runtime, and signing, and Linux G
 | [`packages/`](packages/) | Material and Cupertino design packages |
 | [`Nelyx/sdk/tooling/`](Nelyx/sdk/tooling/) | CLI, Metro, and application templates |
 | [`sample/nelyx-testbed-app-2/`](sample/nelyx-testbed-app-2/) | Shared sample and platform runners |
+| [`sample/nelyx-demo-app/`](sample/nelyx-demo-app/) | Responsive Material components demo and platform runners |
 | [`Nelyx/eng/`](Nelyx/eng/) | Workspace build and maintenance tools |
 
 ## License

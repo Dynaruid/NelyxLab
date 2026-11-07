@@ -1,0 +1,42 @@
+{
+  "name": "nelyx-windows-runner",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "scripts": {
+    "build": "nelyx build --app ../.. --target windows",
+    "run": "nelyx run --app ../.. --target windows",
+    "check": "node check.mjs",
+    "bundle": "node bundle.mjs",
+    "start": "react-native start --config metro.config.cjs",
+    "dev": "nelyx dev --app ../.. --target windows",
+    "doctor": "nelyx doctor --app ../.. --target windows",
+    "prepare:native": "nelyx prepare --app ../.. --target windows",
+    "pack": "nelyx pack --app ../.. --target windows"
+  },
+  "dependencies": {
+    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.16.0-d1b3c90d4546a21d3e281326519d351106edd3d11510d5ea29c82b4354ec36b7.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.20.0-5627771a366143e7cf7404f2f660d18b69bb48b70641b4440fabcbf4b5c78361.tgz",
+    "@nelyx/skia-rn": "file:../../.nelyx/supply/windows/nelyx-skia-rn-0.6.0-41f91e882d507913552b18597e766dcefc6a81583eabbc444c1e29c490c6df14.tgz",
+    "react": "19.2.0",
+    "react-native": "0.83.10",
+    "react-native-windows": "0.83.2",
+    "@nelyx/material": "file:../../.nelyx/supply/windows/nelyx-material-0.1.0-9ab87e2ca31ddc3ba834e50a487b2032752eb24469d329b2e09ff8b46f9c84ed.tgz",
+    "@nelyx/skia-native": "file:../../.nelyx/supply/windows/nelyx-skia-native-0.1.0-181d5e74ae2945e288aba856950f599befb0675c30c26ffc7c8f22198f4b399e.tgz"
+  },
+  "devDependencies": {
+    "@nelyx/metro": "file:../../.nelyx/supply/windows/nelyx-metro-0.10.0-92b7e1ac1a068099d4c8a665736dee574d82b8ba94e5658df812be1a36883bb4.tgz",
+    "@babel/core": "7.28.5",
+    "@react-native/babel-preset": "0.83.10",
+    "@react-native/metro-config": "0.83.10",
+    "@react-native-community/cli": "20.0.0",
+    "@react-native-community/cli-platform-android": "20.0.0",
+    "@react-native-community/cli-platform-ios": "20.0.0",
+    "@react-native-windows/find-dotnet-tools": "0.0.0",
+    "@types/react": "19.2.2",
+    "typescript": "7.0.2",
+    "@nelyx/cli": "file:../../.nelyx/supply/windows/nelyx-cli-0.10.0-a217b871615564260ab08bb511147d4f6fd1850ae305df940aeac4c18ecc42fa.tgz",
+    "@nelyx/static-aot": "file:../../.nelyx/supply/windows/nelyx-static-aot-0.1.0-1729647bf09b2ec755830b7ae47b448effd137dc9529a2a6f5efb229d636b4c5.tgz"
+  }
+}
