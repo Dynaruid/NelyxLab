@@ -65,15 +65,22 @@ npm.cmd run run:windows --workspace @nelyx/demo
 필요한 경우 현재 SDK를 다시 공급하고 패키지를 갱신합니다. 재빌드 전에 기존 데모 창을 닫으세요.
 
 Android는 OpenJDK 21·SDK 36·NDK와 대상 아키텍처의 렌더러 공급이 필요합니다.
+현재 기본값은 x86_64 에뮬레이터용 `emulator-vulkan`입니다.
 
 ```powershell
+$env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
 npm.cmd run prepare:android --workspace @nelyx/demo
-npm.cmd --prefix sample/nelyx-demo-app/android/runner run build -- --architecture arm64-v8a --configuration Release
-npm.cmd --prefix sample/nelyx-demo-app/android/runner run run -- --device <adb-serial>
+npm.cmd run build:android:emulator --workspace @nelyx/demo
+npm.cmd run run:android --workspace @nelyx/demo -- --device emulator-5554
 ```
 
-에뮬레이터는 `package.json`의 `nelyx.targets.android.profile`을 `emulator-vulkan`으로
-설정한 뒤 빌드에 `--architecture x86_64`를 사용합니다.
+JDK 경로는 설치된 일반 OpenJDK 21의 경로로 바꾸세요. 이 Windows 환경에서는
+GraalVM JDK의 Android `jlink` 변환이 실패할 수 있어 Temurin을 선택합니다.
+`adb devices -l`에 표시된 serial이 다르면 `emulator-5554`를 바꿉니다.
+SDK CLI가 Release APK를 빌드·검증·설치하며 별도 Metro 서버 없이 실행합니다.
+ARM64 기기는 `package.json`의 `nelyx.targets.android.profile`을 `graphite-vulkan`으로
+바꾸고 `build:android`에 `-- --architecture arm64-v8a`를 전달합니다.
 플랫폼 준비 조건과 런타임 소스 빌드는 [Testbed 가이드](../nelyx-testbed-app-2/README.ko.md)와
 [SDK 가이드](../../Nelyx/sdk/README.ko.md)를 참고하세요.
 

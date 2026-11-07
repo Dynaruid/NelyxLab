@@ -47,10 +47,21 @@ the runner. If the supplier is absent, build it after runner installation, then 
 Windows uses RNW/Hermes bytecode. The run command refreshes changed repository
 SDK inputs and rebuilds changed application inputs. Close the app before replacing its package.
 
-Android includes an independent RN runner. Use `prepare:android`, then build/run
-from `sample/nelyx-demo-app/android/runner` with `--architecture arm64-v8a` and
-`--device <adb-serial>`. For an emulator, set `nelyx.targets.android.profile` to
-`emulator-vulkan` in `package.json` and build with `--architecture x86_64`.
+Android defaults to the x86_64 `emulator-vulkan` profile. Select a standard JDK 21
+(Temurin is available on this Windows machine), then run from the repository root:
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+npm.cmd run prepare:android --workspace @nelyx/demo
+npm.cmd run build:android:emulator --workspace @nelyx/demo
+npm.cmd run run:android --workspace @nelyx/demo -- --device emulator-5554
+```
+
+Use the JDK path and `adb` serial installed on your machine. The SDK CLI builds,
+verifies and installs the Release APK; Metro is not required. For ARM64 hardware,
+set `nelyx.targets.android.profile` to `graphite-vulkan` and pass
+`-- --architecture arm64-v8a` to `build:android`.
 See the [Korean guide](README.ko.md) for complete commands and the
 [Testbed guide](../nelyx-testbed-app-2/README.md) for platform prerequisites.
 

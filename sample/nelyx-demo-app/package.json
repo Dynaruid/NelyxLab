@@ -15,13 +15,15 @@
     "run:windows": "node eng/run-windows.mjs",
     "dev:windows": "npm --prefix windows/runner run dev",
     "check:android": "npm --prefix android/runner run check",
-    "build:android": "npm --prefix android/runner run build",
-    "run:android": "npm --prefix android/runner run run"
+    "build:android": "npm --prefix android/runner run build --",
+    "build:android:emulator": "npm --prefix android/runner run build -- --architecture x86_64",
+    "run:android": "npm --prefix android/runner run run --"
   },
   "dependencies": {
     "@nelyx/core": "0.16.0",
     "@nelyx/sdk": "0.20.0",
-    "@nelyx/material": "0.1.0"
+    "@nelyx/material": "0.1.0",
+    "@nelyx/cupertino": "0.1.0"
   },
   "devDependencies": {},
   "type": "module",
@@ -79,7 +81,7 @@
         "component": "./windows/runner/App.tsx"
       },
       "android": {
-        "profile": "graphite-vulkan",
+        "profile": "emulator-vulkan",
         "cohort": "rn-0.83.10",
         "component": "./android/runner/App.tsx"
       }

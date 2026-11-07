@@ -8,23 +8,24 @@
     "prepare:native": "node prepare.mjs",
     "check": "node check.mjs",
     "bundle": "node bundle.mjs",
-    "build": "node build.mjs",
+    "build": "nelyx build --app ../.. --target android",
     "start": "react-native start --config metro.config.cjs",
-    "run": "node run.mjs"
+    "run": "nelyx run --app ../.. --target android"
   },
   "dependencies": {
-    "@nelyx/core": "0.16.0",
-    "@nelyx/sdk": "0.20.0",
-    "@nelyx/skia-rn": "0.6.0",
+    "@nelyx/core": "file:../../.nelyx/supply/android/nelyx-core-0.16.0-d1b3c90d4546a21d3e281326519d351106edd3d11510d5ea29c82b4354ec36b7.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/android/nelyx-sdk-0.20.0-5627771a366143e7cf7404f2f660d18b69bb48b70641b4440fabcbf4b5c78361.tgz",
+    "@nelyx/skia-rn": "file:../../.nelyx/supply/android/nelyx-skia-rn-0.6.0-41f91e882d507913552b18597e766dcefc6a81583eabbc444c1e29c490c6df14.tgz",
     "react-native-skia-graphite-android": "154.1.0",
     "react": "19.2.0",
     "react-native": "0.83.10",
-    "@nelyx/material": "0.1.0",
-    "@nelyx/skia-native": "0.1.0"
+    "@nelyx/material": "file:../../.nelyx/supply/android/nelyx-material-0.1.0-9ab87e2ca31ddc3ba834e50a487b2032752eb24469d329b2e09ff8b46f9c84ed.tgz",
+    "@nelyx/skia-native": "file:../../.nelyx/supply/android/nelyx-skia-native-0.1.0-181d5e74ae2945e288aba856950f599befb0675c30c26ffc7c8f22198f4b399e.tgz",
+    "@nelyx/cupertino": "file:../../.nelyx/supply/android/nelyx-cupertino-0.1.0-679f0ed868c695e6b0ffb9f849790731a259d995398dc6e897f89cc2376ab0d0.tgz"
   },
   "devDependencies": {
-    "@nelyx/metro": "0.10.0",
-    "@nelyx/cli": "0.10.0",
+    "@nelyx/metro": "file:../../.nelyx/supply/android/nelyx-metro-0.10.0-92b7e1ac1a068099d4c8a665736dee574d82b8ba94e5658df812be1a36883bb4.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/android/nelyx-cli-0.10.0-a217b871615564260ab08bb511147d4f6fd1850ae305df940aeac4c18ecc42fa.tgz",
     "@babel/core": "7.28.5",
     "@react-native/babel-preset": "0.83.10",
     "@react-native/metro-config": "0.83.10",
@@ -33,6 +34,6 @@
     "@types/react": "19.2.2",
     "@types/node": "24.10.1",
     "typescript": "7.0.2",
-    "@nelyx/static-aot": "0.1.0"
+    "@nelyx/static-aot": "file:../../.nelyx/supply/android/nelyx-static-aot-0.1.0-1729647bf09b2ec755830b7ae47b448effd137dc9529a2a6f5efb229d636b4c5.tgz"
   }
 }
