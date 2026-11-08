@@ -2,7 +2,9 @@
 
 작성·갱신: **2026-11-08 KST** · 상태: **W9B-00 완료 / W9B-00-H 완료 / 구조 개편 PARTIAL**
 
-이 문서는 사용자 요청으로 종료한 [work9-a.md](work9-a.md)의 **남은 작업과 재개 절차를 이어받는 실행 계약**이다. W9B-00의 당시 기능·공급·실행 결과는 §3.1–3.3에 보존한다. §3.4의 **W9B-00-H**에서 App SDK 단일 host·독립 HWND target 제거·RNW clipboard 소스 이식을 구현했다. 플랫폼별 원본/기존 소비자/부족 범위와 이번 실행 근거는 §3.4–3.5를 따른다. 이번 공급·설치·실행 검증과 회수를 마쳤으며 이후 W9B-01의 Core 실행 이관을 이어간다.
+이 문서는 사용자 요청으로 종료한 [work9-a.md](work9-a.md)의 **남은 작업과 재개 절차를 이어받는 실행 계약**이다. W9B-00의 당시 기능·공급·실행 결과는 §3.1–3.3에 보존한다. §3.4의 **W9B-00-H**에서 App SDK 단일 host·독립 HWND target 제거·RNW clipboard 소스 이식을 구현했다. 플랫폼별 원본/기존 소비자/부족 범위와 당시 실행 근거는 §3.4–3.5를 따른다.
+
+**2026-11-08 사용자 요청으로 작업 방식 변경:** 이후에는 **W9B-01–05의 구현을 묶어서 진행 → W9B-06 통합 검증 → 발견한 문제를 모아서 수정 → 영향 범위 재검증** 순서로 실행한다. 개별 기능·파일·구현 시도마다 전체 빌드·설치·대상별 실행을 반복하지 않는다. 먼저 Windows/Web 차수의 구현과 실제 앱 연결을 모으고, Android와 후속 플랫폼은 기존 차수 경계를 따른다. 상세 실행 규칙은 §4.3·§7에 두며, 이번 계획 수정으로 구현·검증 완료 상태를 바꾸지 않는다.
 
 [전체 work9 목차](work9.md) · [이전 구조 계약과 종료 기록](work9-a.md) · [API·디자인·입력 계약](work9-2.md) · [기술·제품 수락 기준](work9-3.md) · [Android·Linux](work9-4.md) · [후속 iOS·macOS](work9-5.md)
 
@@ -117,7 +119,7 @@ W9B-00 당시 Windows/Web와 Android 두 ABI의 source identity는 **`cc66ae1c05
 
 ### 3.3 다음 단계에 남긴 의무
 
-- **W9B-00-H 후 W9B-01:** Gallery가 드러낸 `RenderPointerListener`의 원래 listener/gesture 설정·수명부터 연결한다. subclass/hook 거부를 유지하며 App SDK와 Web의 첫 화면 이후 navigation·control별 차단을 실제 graph로 확인한다.
+- **W9B-00-H 후 W9B-01–05 구현 묶음:** Gallery가 드러낸 `RenderPointerListener`의 원래 listener/gesture 설정·수명부터 연결하되, 원래 Gallery·Testbed/Demo의 실제 graph에서 필요한 후속 render·디자인·서비스·CLI 연결까지 함께 구현한다. subclass/hook 거부를 유지하며 App SDK와 Web의 첫 화면 이후 navigation·control별 실행 문제는 W9B-06 통합 검증에서 모아 대응한다.
 - **W9B-02:** `_RenderExclusiveMouseRegion` 지원만으로 Tooltip 완료를 선언하지 않는다. Tooltip의 위치 delegate/custom child transform·overlay 연결과 실제 hover 후 표시/해제, 전체 디자인 catalog·route/semantics·Snapshot 잔여 의무는 계속 미완료다.
 - **수락:** 전체 API `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리/display/scanout `notVerified`, Linux·iOS/macOS `DEFERRED`를 유지한다. 이번 기능 PASS는 W9-13 전체 완료·W9-14 성능·기본값 전환의 근거로 확대하지 않는다.
 
@@ -159,6 +161,8 @@ W9B-00 당시 Windows/Web와 Android 두 ABI의 source identity는 **`cc66ae1c05
 
 ## 4. 남은 실행 단계와 의존성
 
+아래 W9B 번호는 **기능별 책임·선행 의존성·최종 완료 조건**을 나타낸다. W9B-01–05 각각을 빌드·설치·제품 실행까지 닫아야 다음 번호를 시작할 수 있다는 의미가 아니다. 필요한 구현 의존성만 지키며 같은 차수의 작업을 이어서 작성하고, 실행 근거와 완료 판정은 W9B-06에서 함께 확인한다. 구 실행부의 실제 삭제와 기본값 전환은 §5–6의 조건을 충족한 뒤 수행한다.
+
 | 단계 | 선행·이전 단계 대응 | 작업과 완료 조건 |
 | --- | --- | --- |
 | **W9B-00 미검증 묶음 정리 — 완료** | W9A-04/05 | §3의 Source/Core·공급·설치·실행 확인 완료. Gallery의 다음 차단은 W9B-01로 연결 |
@@ -168,7 +172,7 @@ W9B-00 당시 Windows/Web와 Android 두 ABI의 source identity는 **`cc66ae1c05
 | **W9B-03 SDK 서비스·수명 완성** | 00-H/01의 필요한 서비스 · W9A-06 | Windows RNW·Android/iOS RN·macOS RNM·Linux RNL의 플랫폼 API 소스를 해당 차수에서 실제 수정·이식. 공통 session/view/service·VM·reload/loss·공개 host API와 실패/취소/close 수명 완성 |
 | **W9B-04 CLI·설정·공급 통합** | 03과 현재 App 경로 · W9A-07 | 공통 target descriptor와 하나의 config/template. Windows는 00-H의 App SDK 단일 선택 유지. 각 target의 이식 소스/출처를 같은 App/engine 공급에 포함. v2 제품 기본값 전환은 07 |
 | **W9B-05 대표 앱 이관** | 01/02/03/04 · W9A-08 | Testbed/Demo의 원래 catalog·상태·탐색·입력·자산 보존. Android sample의 남은 기능 연결. 샘플 UI는 엔진 공급의 필수 입력이 아님 |
-| **W9B-06 제품 통합 확인** | 05 · W9A-09 | 생성·설치 앱의 Windows/Web/Android 화면·입력·reload/loss·종료·선언을 확인. W9-13과 W9-14 대상/profile별 판정 분리 |
+| **W9B-06 제품 통합 확인·문제 대응** | 해당 차수의 01–05 구현 묶음 · W9A-09 | 묶음별 공급 갱신·설치 소비·실제 앱 실행을 통합 수행. 실패를 모아 수정하고 영향 범위만 재검증. Windows/Web 차수 후 Android와 후속 차수를 진행하며 W9-13과 W9-14 대상/profile별 판정 분리 |
 | **W9B-07 대상별 기본값 전환·삭제** | 06과 해당 API·기술·제품 gate · W9A-10 | 수락한 target의 일반 CLI/sample/template을 v2 기본값으로 전환. 마지막 구 소비자·중복 Widget·축소 디자인·불필요 export/dependency 제거 |
 | **W9B-08 후속 플랫폼·전역 종료** | 07과 후속 차수 조건 · W9A-11/12 | Linux·iOS/macOS의 대체 host/API 또는 명시적 지원 범위 확정 후 잔여 runtime/공급/빌드/template/배포 파일 제거. 생성·문서 소유권 일치 |
 
@@ -196,7 +200,26 @@ W9B-02·03은 W9B-01에서 필요한 공통 연산이 준비된 기능부터 진
 - [ ] Hermes/V8/JSC의 VM 선택과 렌더 엔진 선택을 구분하고 미공급 조합은 실패한다. 현재 `--engine v2` 후보 경로를 유지하며 수락 전 기본 CLI를 바꾸지 않는다.
 - [ ] Metro의 남은 asset/compiler helper·Hermes bytecode tool을 분리하고 RN bundling/autolinking/Static AOT 구 경로는 마지막 의존성이 끝난 뒤 제거한다. 공통 helper·Skia/CanvasKit/Hermes supplier·license는 보존한다.
 
+### 4.3 구현을 모은 뒤 통합 검증하는 실행 규칙
+
+**기본 구현 묶음은 Windows App SDK·Web 두 profile의 W9B-01–05다.** Core 연산과 원래 Material/Cupertino·서비스·CLI·대표 앱을 실제 사용 경로까지 연결하는 것을 한 묶음으로 잡는다. `RenderPointerListener` 하나를 구현·검증하고 다음 미지원 기능을 찾는 반복 대신, 원래 Gallery·Testbed/Demo의 import·render·호출 graph와 §4.1–4.2를 먼저 대조해 필요한 기능을 함께 작성한다. Android 전용 이식·실행과 Linux/Apple 준비를 이 묶음의 선행 조건으로 만들지 않으며, 공통 변경이 해당 대상에 미친 영향은 다음 차수의 미검증 범위로 남긴다.
+
+| 순서 | 실행 방식 | 다음으로 넘어가는 기준 |
+| --- | --- | --- |
+| **1. 구현 범위 모으기** | 현재 diff와 소비자 graph를 확인하고 01–05의 연결할 기능·공통 변경·아직 지원하지 않는 범위를 정한다. 이후 예상되는 render/control/overlay/service 의존성까지 함께 포함한다 | 이번 차수의 구현 범위와 통합 확인할 앱·흐름이 정해짐. 별도 검증 도구 복원이나 전체 baseline 재실행을 요구하지 않음 |
+| **2. 일괄 구현** | 필요한 Core → 디자인/서비스 → CLI/대표 앱 연결을 의존성 순서대로 작성한다. 한 기능을 작성한 뒤 다음 기능으로 계속 진행하며, 기능마다 pack·새 설치 소비자·전체 플랫폼 실행을 끼우지 않는다 | 이번 범위의 앱 진입·탐색·입력·서비스·종료 경로를 코드로 연결했고 알려진 빌드 차단을 정리함. 실행 결과는 **검증 대기 / notVerified** |
+| **3. W9B-06 통합 검증** | §7의 정적 검사·변경 대상 공급 빌드와 identity/hash 확인을 묶어서 수행한 뒤, 한 공급으로 설치 소비와 §5의 실제 앱 흐름을 확인한다. 첫 실패 뒤에도 독립적으로 실행 가능한 흐름을 계속 확인해 문제 목록을 모은다 | 성공·실패·차단·미실행 범위와 실패 원인이 구분됨. 선행 실패로 도달하지 못한 경로는 PASS로 세지 않음 |
+| **4. 문제 일괄 수정·재검증** | 빌드/공급·공통 protocol·앱 진입 차단을 먼저 고치고 나머지 실패를 원인·의존성별로 묶어 수정한다. 수정 묶음이 끝나면 무효화된 공급·검사·실패 흐름과 직접 영향 회귀만 다시 확인한다 | 실패가 해결됐거나 미완료 의무로 명시됨. 통합 중 새 의존성이 발견되면 구현 묶음에 포함해 다시 진행하며, 작은 수정마다 전체 행렬을 처음부터 반복하지 않음 |
+| **5. 차수 판정·다음 차수** | 해당 차수의 완료/미완료를 기록하고 준비된 다음 플랫폼의 01–05 구현·06 통합 검증을 같은 방식으로 진행한다. 기본값 전환·삭제는 별도 gate를 적용한다 | W9-13·W9-14와 대상/profile별 근거가 분리됨. 준비되지 않은 Linux·iOS/macOS의 **DEFERRED**와 전체 **PARTIAL**을 유지함 |
+
+- **구현 중 최소 확인:** 다음 코드 작성에 필요한 문법·타입·국소 compile·schema 생성 정합성은 필요할 때만 확인한다. 컴파일 불가·wire 구조 충돌처럼 이후 구현을 막는 문제는 즉시 고치되, 이를 매번 전체 제품 검증을 실행하는 근거로 삼지 않는다.
+- **통합 진입 기준:** 해당 차수의 계획한 구현과 소비자 연결이 모이면 실제 실행을 시도한다. 모든 플랫폼·834 API·전체 catalog의 수락을 먼저 요구하지 않으며, 명시한 미지원·남은 계약은 실패/차단/미검증 목록에 남긴다. 통합 시점까지 완료 판정과 체크박스는 보류한다.
+- **재검증 범위:** 변경이 영향을 주지 않은 동일 입력의 PASS는 반복하지 않는다. 공통 wire·ABI/schema·자원 수명 변경이면 관련 대상/profile의 확인을 넓히고, 앱·디자인·CLI만 바뀌면 해당 package/App만 갱신한다. 새 공급과 이전 근거의 대응이 불명확하면 해당 결과를 **notVerified**로 남긴다.
+- **빌드·설치 재사용:** 한 통합 검증 회차에서는 현재 공급과 한 번 만든 최소 설치 소비자를 관련 확인에 공유한다. 수정으로 입력이 바뀌면 필요한 산출물만 갱신하고, 회차 종료 시 임시 자료를 회수한다. 이전 dist나 소비자 사본을 누적해 재사용하지 않는다.
+
 ## 5. 제품 확인과 전환 gate
+
+아래 행렬은 **W9B-06에서 구현 묶음 전체를 확인할 기준**이다. 개별 구현 시도의 반복 체크리스트로 사용하지 않는다. Windows/Web 차수에서 해당 앱·공통 기능·설치·수명을 모아 확인하고, Android 및 후속 플랫폼은 해당 차수에서 적용한다. 검증 순서를 묶어도 API 의무·실제 실행·물리/표시/성능 수락과 삭제 조건은 유지한다.
 
 | 대상·범위 | 실제 확인할 동작 | 판정 경계 |
 | --- | --- | --- |
@@ -233,21 +256,27 @@ RNW/RN/RNM/RNL에서 필요한 소스의 이식은 각 native target W9-13의 �
 
 ## 7. 재개 명령과 기록 원칙
 
-아래는 **다음 구현 시 변경 범위에 맞춰 실행할 현행 명령**이다. W9B-00에서 실행한 범위와 현재 공급은 §3.2를 따른다.
+**재개 직후에는 현재 diff·작업 범위를 읽고 §4.3의 일괄 구현을 이어간다.** 아래 명령 목록을 재개·기능 추가·수정 시도마다 전부 실행하지 않는다. 마지막으로 실행 검증한 공급은 §3.5의 기록이며, 구현으로 입력이 달라지면 새 공급 확인 전까지 해당 변경은 **검증 대기 / notVerified**다.
 
 ```powershell
 git status --short
+```
+
+**W9B-06 통합 검증에 들어갈 때** 아래 정적 검사와 변경 범위에 필요한 빌드를 묶어서 실행한다. 정적 검사·제품 빌드가 실패하면 관련 오류를 모아 수정한 뒤 해당 단계부터 재개하며, 빌드되지 않은 새 코드를 이전 공급으로 실행해 판정하지 않는다.
+
+```powershell
 npm.cmd run check:types
 npm.cmd run lint
 npm.cmd run format:check
 node Nelyx/engine/tools/generate-schema.mjs --check
 npm.cmd run build:core
 npm.cmd run build:engine-v2
-npm.cmd run build:engine-v2:android
 git diff --check
 ```
 
-Windows의 v2 기본 host·sample/template은 App SDK다. `windowsHost`를 생략해도 같은 host를 선택하며 폐기한 설정은 실패한다. 공급 identity·전체 파일 hash를 확인한 뒤 아래 원래 Widget App의 일반 경로를 사용한다.
+Core·디자인·SDK/CLI package는 실제 변경 입력에 필요한 빌드/pack을 한 번씩 수행한다. 엔진 빌드는 native/Core·wire·provider/host 등 공급 입력이 바뀐 경우에 수행하며, 모든 TS/App 변경마다 강제하지 않는다. **Android 공급 빌드 `npm.cmd run build:engine-v2:android`와 설치/run은 Android 차수에서 묶어 수행한다.** 앞선 차수의 공통 변경이 Android에 영향을 주면 그 결과를 미검증으로 표시하며, 새 소스와 예전 Android 공급의 불일치를 숨기지 않는다.
+
+공급 identity·전체 파일 hash·ABI/schema·service version·원래 API 기준과 설치 package 선언/graph 확인은 통합 검증 회차의 공급 확정 시 묶는다. Windows의 v2 기본 host·sample/template은 App SDK다. `windowsHost`를 생략해도 같은 host를 선택하며 폐기한 설정은 실패한다. 확정한 한 공급으로 아래 원래 Widget App과 Gallery·Testbed/Demo의 일반 경로를 이어서 확인한다.
 
 ```powershell
 $w9bEngineInputs = (Resolve-Path .\Nelyx\engine\dist).Path
@@ -257,11 +286,11 @@ node Nelyx/sdk/tooling/cli/src/main.mjs run --engine v2 --app sample/nelyx-engin
 
 Windows root 진입점은 `npm.cmd run run:engine-v2:windows`이며 App SDK에서 data Testbed 후보를 실행한다. 원래 Gallery와 구분한다. 별도 host 선택 명령은 제거했다. Web 두 profile과 Android 일반 명령 `npm.cmd run run:engine-v2:android -- --device=emulator-5554`는 해당 App entry·serial·SDK/JDK·ABI를 확인해 사용한다.
 
-- 저장소 지침의 **20분 timeout**·보통 **30회 이내** 반복을 적용한다. 변경이 무효화한 검사와 실제 실패를 해결하는 범위만 다시 확인한다.
+- 저장소 지침의 테스트별 **20분 timeout**·보통 **30회 이내** 반복 제한을 적용한다. 30회는 채울 목표가 아니며, 통합 검증 후에는 변경이 무효화한 검사와 실제 실패를 해결하는 범위만 다시 확인한다.
 - 폐기한 독립 `test:*`·`audit:*`·`experiment:*`·측정 harness를 선행 작업으로 복원하지 않는다. 의미 비교·malformed wire 등 필요한 확인은 한 실행의 임시 묶음과 실제 제품 흐름에서 수행한다.
 - 현재 dist·실제 build cache·supplier만 남긴다. 검증 로그·immutable receipt·checkpoint/history JSON·이전 dist/staging/archive·독립 설치본·browser profile을 누적하지 않는다.
 - 임시 App·archive·설치본·browser/server·listener·native 창은 실행별 최소 범위로 사용하고 성공/실패/중단 모두 `finally`에서 회수한다. 삭제 전 절대 경로와 소유 범위를 확인한다.
-- 기능 묶음 종료 시 이 문서에 완료 범위·미해결 의무·실행 명령·미실행 대상·현재 공급 상태·다음 시작점만 갱신한다. 이전 PASS 수치를 새 Source의 근거로 복사하지 않는다.
+- 구현 중에는 연결한 범위와 통합 검증에 남긴 항목만 간단히 갱신하고, 미실행 구현을 완료로 기록하지 않는다. 통합 검증·수정 묶음 종료 시 이 문서에 완료 범위·남은 문제/차단·실행 명령·미실행 대상·현재 공급 상태·다음 시작점만 갱신한다. 이전 PASS 수치를 새 Source의 근거로 복사하지 않는다.
 
 ## 8. 전체 완료 체크리스트와 현재 재개점
 
@@ -281,6 +310,6 @@ Windows root 진입점은 `npm.cmd run run:engine-v2:windows`이며 App SDK에�
 
 **현재 상태:** **W9B-00 완료 / W9B-00-H 완료 / 구조 개편 PARTIAL**. §3.2의 과거 공급·실행 근거는 보존하며 이번 구현과 새 검증은 §3.4–3.5에 기록한다. Windows host는 App SDK 하나이고 RNW public clipboard를 실제 수정 소스로 연결했다. 전체 native API 이식과 W9-13/14 수락은 미완료다. 전체 API **compatible=false**, 물리/display/scanout **notVerified**, 두 성능 flag **false**, Linux·iOS/macOS **DEFERRED**를 유지한다.
 
-**다음 시작점:** **W9B-01**의 `RenderPointerListener` 원래 listener/gesture 설정·수명부터 이어간다. W9B-02의 Tooltip 위치/overlay와 W9B-03의 나머지 플랫폼 API 소스 이식 의무를 유지한다.
+**다음 시작점:** **Windows/Web의 W9B-01–05 일괄 구현**. `RenderPointerListener` 원래 listener/gesture 설정·수명에서 시작해 Tooltip 위치/overlay·남은 Core/디자인·RNW 플랫폼 API·서비스·CLI·대표 앱 연결까지 모아서 진행한다. 개별 기능마다 공급·설치·다중 대상 실행을 반복하지 않고, 이 묶음이 통합 실행 가능한 상태가 되면 **W9B-06 통합 검증 → 문제 일괄 수정 → 영향 재검증**으로 이어간다. Android 및 후속 플랫폼의 남은 이식·실행 의무는 다음 차수에 유지한다.
 
-**다음 재개 요청:** `work9-b.md의 W9B-01 작업해줘`
+**다음 재개 요청:** `work9-b.md의 Windows/Web W9B-01–05를 묶어서 구현하고 W9B-06 통합 검증 후 나온 문제를 수정해줘`
