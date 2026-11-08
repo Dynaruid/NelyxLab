@@ -10,6 +10,7 @@
 #include "../common/app_services_jsi.hpp"
 #include "interaction.hpp"
 #include "memory_pressure.hpp"
+#include "rnw/ClipboardModule.h"
 #include "input/WindowsPrecisionTrackpad.h"
 #include <condition_variable>
 #include <deque>
@@ -21,9 +22,7 @@
 #include <cmath>
 #include <syncstream>
 #include <iomanip>
-#ifdef NELYX_WINDOWS_APP_SDK
 #include "app_sdk.hpp"
-#endif
 
 namespace jsi=facebook::jsi;
 using namespace nelyx::v2;
@@ -80,6 +79,7 @@ class Host {
   std::mutex jobsMutex,doneMutex,sceneMutex,wakeMutex,metricsMutex;
   std::condition_variable changed,appChanged;
   std::shared_ptr<nelyx::v2::native::AppServices> services=std::make_shared<nelyx::v2::native::AppServices>(core.memoryLedger(),[this]{PostMessageW(window,WM_APP+3,0,0);},[this]{appChanged.notify_one();});
+  nw::rnw::Clipboard clipboard;
   std::deque<Job> jobs,done;
   std::deque<Job> uiJobs;
   std::deque<std::function<void()>> uiCallbacks;
@@ -294,7 +294,7 @@ class Host {
       native.setProperty(rt,"operatingSystem","windows");
       native.setProperty(rt,"clockDomain","qpc-milliseconds");
       nw::installAppText(rt,native,appText);
-      nelyx::v2::native::installAppServices(rt,native,services);
+      nelyx::v2::native::installAppServices(rt,native,services,[clipboard=clipboard]()mutable{clipboard.cancel();});
       auto identity=jsi::Object(rt);identity.setProperty(rt,"engine","v2");identity.setProperty(rt,"abiMajor",double(wire::abiMajor));identity.setProperty(rt,"schema",double(wire::schema));native.setProperty(rt,"identity",std::move(identity));
       native.setProperty(rt,"clock",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"clock"),0,[](jsi::Runtime&,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value{return now()*1000;}));
       native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[this,&appMemory](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
@@ -350,20 +350,18 @@ class Host {
   LRESULT object(WPARAM w,LPARAM l){return interaction?interaction->object(w,l):0;}
   void ui(){
     if(closed)return;
-    services->pump([this](const std::string& method,const std::string& text)->std::string{
+    services->pumpAsync([this](const std::string& method,const std::string& text,nelyx::v2::native::AppServices::Completion complete){
       // Windows' canonical accessibility embedding ignores node feedback;
       // UIA focus/invoke changes already follow the published Core mirror.
-      if(method=="semantics-tap"||method=="semantics-longPress"||method=="semantics-focus")return {};
+      if(method=="semantics-tap"||method=="semantics-longPress"||method=="semantics-focus"){complete({},{});return;}
       if(method=="system-sound"||method=="haptic-feedback")throw std::runtime_error("Windows system feedback is unavailable");
       if(method=="clipboard-write"){
-        const auto units=utf16({reinterpret_cast<const uint8_t*>(text.data()),text.size()});
-        if(!nw::copyClipboard(window,units))throw std::runtime_error("Windows clipboard write failed");
-        return {};
+        clipboard.setString(winrt::to_hstring(text),std::move(complete));return;
       }
-      if(!IsClipboardFormatAvailable(CF_UNICODETEXT))return method=="clipboard-has-strings"?"0":"";
-      const auto value=nw::pasteClipboard(window,65536);
-      if(!value)throw std::runtime_error("Windows clipboard read failed or exceeded its text limit");
-      return method=="clipboard-has-strings"?(value->empty()?"0":"1"):utf8(*value);
+      if(method!="clipboard-read"&&method!="clipboard-has-strings")throw std::runtime_error("Unsupported Windows OS service");
+      clipboard.getString([complete=std::move(complete),has=method=="clipboard-has-strings"](std::string value,std::string error){
+        complete(error.empty()&&has?(value.empty()?"0":"1"):std::move(value),std::move(error));
+      });
     });
     std::deque<std::function<void()>> callbacks;{std::lock_guard lock(uiMutex);callbacks.swap(uiCallbacks);}for(auto& callback:callbacks)callback();
     std::deque<Job> accepted;{std::lock_guard lock(jobsMutex);accepted.swap(uiJobs);for(const auto& job:accepted)jobBytes-=job.bytes.size();}
@@ -435,6 +433,19 @@ class Host {
   void close(){
     if(closing.exchange(true))return;
     if(precision){precision->cancel();precision.reset();}
+    clipboard.cancel();
+    // WinRT completions may return to this STA. Drain them before destroying
+    // the App/ledger or shutting down its App SDK dispatcher.
+    const auto clipboardDeadline=now()+5;
+    while(clipboard.pending()&&now()<clipboardDeadline){
+      MSG message;
+      while(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){
+        if(message.message==WM_QUIT){PostQuitMessage(int(message.wParam));break;}
+        TranslateMessage(&message);DispatchMessageW(&message);
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    if(clipboard.pending()){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR Clipboard terminal drain timed out"<<std::endl;}
     if(appReady&&!stopping){
       disposeRequested=true;appChanged.notify_all();const auto deadline=now()+3;
       while(!appDisposed&&!stopping&&now()<deadline){ui();std::this_thread::sleep_for(std::chrono::milliseconds(1));}
@@ -482,7 +493,7 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
 }
 int main(int argc,char**argv){
   try{
-    if(argc<4)throw std::runtime_error("Usage: NelyxEngineV2Host <current engine dist> --app <bundle directory>");
+    if(argc<4)throw std::runtime_error("Usage: NelyxEngineAppSdkHost <current engine dist> --app <bundle directory>");
     std::string appDirectory;
     for(int i=2;i<argc;++i){const std::string option=argv[i];if(option=="--app"&&appDirectory.empty()&&i+1<argc)appDirectory=std::filesystem::canonical(argv[++i]).string();
       else throw std::runtime_error("Unknown or duplicate native host option: "+option);}
@@ -490,30 +501,21 @@ int main(int argc,char**argv){
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     if(FAILED(CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED)))throw std::runtime_error("UI COM apartment failed");
     struct Apartment{~Apartment(){CoUninitialize();}}apartment;
-#ifdef NELYX_WINDOWS_APP_SDK
     nw::AppSdkLoop appSdk;
-#endif
-    Host host(argv[1],std::move(appDirectory));const auto instance=GetModuleHandleW(nullptr);WNDCLASSW klass{};klass.hInstance=instance;klass.lpszClassName=L"NelyxEngineV2Host";klass.lpfnWndProc=procedure;klass.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&klass);
+    Host host(argv[1],std::move(appDirectory));const auto instance=GetModuleHandleW(nullptr);WNDCLASSW klass{};klass.hInstance=instance;klass.lpszClassName=L"NelyxEngineAppSdkHost";klass.lpfnWndProc=procedure;klass.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&klass);
     const auto dpi=GetDpiForSystem();RECT bounds{0,0,LONG(960*dpi/96),LONG(720*dpi/96)};AdjustWindowRectExForDpi(&bounds,WS_OVERLAPPEDWINDOW,FALSE,0,dpi);
-    const auto window=CreateWindowExW(0,klass.lpszClassName,L"Nelyx Engine v2 — Native Skia",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,bounds.right-bounds.left,bounds.bottom-bounds.top,nullptr,nullptr,instance,&host);
+    const auto window=CreateWindowExW(0,klass.lpszClassName,L"Nelyx Engine v2 — Windows App SDK",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,bounds.right-bounds.left,bounds.bottom-bounds.top,nullptr,nullptr,instance,&host);
     if(!window)throw std::runtime_error("Native HWND creation failed");
     struct WindowOwner{HWND window;Host& host;~WindowOwner(){host.close();if(IsWindow(window)){SetWindowLongPtrW(window,GWLP_USERDATA,0);DestroyWindow(window);}}}windowOwner{window,host};
     if(!SetConsoleCtrlHandler(closeFromConsole,TRUE))throw std::runtime_error("Native console close handler failed");
     consoleWindow=window;
     struct ConsoleOwner{~ConsoleOwner(){consoleWindow=nullptr;SetConsoleCtrlHandler(closeFromConsole,FALSE);}}consoleOwner;
     host.bind(window);host.metrics();SetTimer(window,1,16,nullptr);
-#ifdef NELYX_WINDOWS_APP_SDK
     appSdk.attach(window,[&host]{host.metrics();});
-#else
-    std::osyncstream(std::cout)<<"V2_WINDOWS_HOST {\"host\":\"windows-hwnd\",\"dispatcherCallback\":false}"<<std::endl;
-    ShowWindow(window,SW_SHOW);
-#endif
     host.metrics();UpdateWindow(window);
     MSG message;int messageStatus;while((messageStatus=GetMessageW(&message,nullptr,0,0))>0){if(!host.filter(message)){TranslateMessage(&message);DispatchMessageW(&message);}}
     host.close();
-#ifdef NELYX_WINDOWS_APP_SDK
     appSdk.shutdown();
-#endif
     if(messageStatus<0)throw std::runtime_error("Native UI message pump failed");return host.hasFailed()?1:0;
   }catch(const winrt::hresult_error& error){std::osyncstream(std::cerr)<<"V2_HOST_ERROR Windows HRESULT="<<error.code().value<<" "<<winrt::to_string(error.message())<<std::endl;return 1;
   }catch(const std::exception& error){std::osyncstream(std::cerr)<<"V2_HOST_ERROR "<<error.what()<<std::endl;return 1;}

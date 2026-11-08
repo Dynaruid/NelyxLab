@@ -61,12 +61,10 @@ function outputPath(app, value) {
     throw Error('Output must not be a symbolic link');
   return result;
 }
-export function engineV2WindowsHost(value = 'windows-hwnd') {
-  if (!['windows-hwnd', 'windows-app-sdk'].includes(value))
-    throw Error('Unknown engine v2 Windows host: ' + value);
-  return value === 'windows-app-sdk'
-    ? { host: value, profile: value, executable: 'windows-app-sdk/NelyxEngineAppSdkHost.exe' }
-    : { host: value, profile: 'native', executable: 'native/NelyxEngineV2Host.exe' };
+export function engineV2WindowsHost(value = 'windows-app-sdk') {
+  if (value !== 'windows-app-sdk')
+    throw Error('Engine v2 Windows requires windows-app-sdk; unsupported host: ' + value);
+  return { host: value, profile: value, executable: 'windows-app-sdk/NelyxEngineAppSdkHost.exe' };
 }
 export function verifyEngineV2Supply(directory, target, windowsHost) {
   const root = fs.realpathSync(directory),
@@ -97,14 +95,36 @@ export function verifyEngineV2Supply(directory, target, windowsHost) {
   if (target === 'windows') {
     const selected = engineV2WindowsHost(windowsHost);
     if (
+      manifest.profiles.native ||
+      [...seen].some((name) => /(?:^|\/)NelyxEngineV2Host\.exe$/i.test(name))
+    )
+      throw Error('Obsolete standalone Windows host supply; rebuild for Windows App SDK');
+    if (
       !seen.has(selected.executable) ||
-      (selected.host === 'windows-app-sdk' &&
-        (manifest.profiles[selected.profile].host !== selected.host ||
-          manifest.profiles[selected.profile].deployment !== 'unpackaged-self-contained' ||
-          !seen.has('windows-app-sdk/Microsoft.UI.Windowing.dll') ||
-          !seen.has('windows-app-sdk/Microsoft.WindowsAppRuntime.dll')))
+      manifest.profiles[selected.profile].host !== selected.host ||
+      manifest.profiles[selected.profile].deployment !== 'unpackaged-self-contained' ||
+      !seen.has('windows-app-sdk/Microsoft.UI.Windowing.dll') ||
+      !seen.has('windows-app-sdk/Microsoft.WindowsAppRuntime.dll')
     )
       throw Error('Requested engine v2 host runtime/identity is missing: ' + selected.host);
+    const port = 'windows-app-sdk/sources/rnw/';
+    if (
+      !manifest.profiles[selected.profile].platformSources?.some(
+        (source) =>
+          source.package === 'react-native-windows' &&
+          source.version === '0.83.2' &&
+          source.provenance === port + 'provenance.json',
+      ) ||
+      [
+        'ClipboardModule.cpp',
+        'ClipboardModule.h',
+        'upstream/ClipboardModule.cpp',
+        'upstream/ClipboardModule.h',
+        'LICENSE',
+        'provenance.json',
+      ].some((file) => !seen.has(port + file))
+    )
+      throw Error('Windows App SDK supply lacks the RNW clipboard source/provenance');
   }
   if (target === 'android') {
     const abis = manifest.profiles.android.abis;
@@ -831,7 +851,11 @@ export function createEngineV2Project(
   );
   fs.writeFileSync(
     path.join(root, 'nelyx.json'),
-    JSON.stringify({ schema: 'nelyx.app/1', entry: 'src/app.ts', assets: {} }, null, 2) + '\n',
+    JSON.stringify(
+      { schema: 'nelyx.app/1', entry: 'src/app.ts', windowsHost: 'windows-app-sdk', assets: {} },
+      null,
+      2,
+    ) + '\n',
   );
   fs.writeFileSync(
     path.join(root, 'src/app.ts'),

@@ -4,7 +4,7 @@
 
 작성: **2026-11-05 KST** · 갱신: **2026-11-08 KST** · 상태: **플랫폼 API 소스 이식 계획 교정 / 전체 호환 PARTIAL**
 
-> **2026-11-08 사용자 교정:** native 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 구현 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기존 직접 구현 우선·회귀 사례 참고만으로 완료하는 방침은 대체한다. Windows host는 App SDK 하나이며 다음 실행은 [W9B-00-H](work9-b.md#34-다음-실행-w9b-00-h--host-단일화플랫폼-소스-이식-착수)다. 이번 변경은 계획 문서이며 실제 소스 이식·build/run 결과를 추가하지 않는다.
+> **2026-11-08 사용자 교정:** native 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 구현 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기존 직접 구현 우선·회귀 사례 참고만으로 완료하는 방침은 대체한다. W9B-00-H에서 Windows host를 App SDK 하나로 이관하고 RNW public clipboard를 실제 이식했다. 이번 공급·실행 범위와 다음 W9B-01은 [work9-b](work9-b.md#35-w9b-00-h-구현과-이번-검증)를 따른다.
 
 [전체 목차](work9.md) · [이전: 1부](work9-1.md) · [다음: 3부](work9-3.md)
 

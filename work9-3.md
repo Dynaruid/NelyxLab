@@ -4,7 +4,7 @@
 
 작성: **2026-11-05 KST** · 갱신: **2026-11-08 KST** · 상태: **host·소스 이식 실행 순서 교정 / Windows·Web PARTIAL**
 
-> **2026-11-08 사용자 교정:** Windows는 **App SDK 단일 host**이며 독립 `windows-hwnd` target·profile·선택 분기를 제거한다. Native 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 구현 소스를 가져와 수정·사용한다. 실제 이식 없이 자체 구현·사례 참고만 한 결과는 완료가 아니다. 현재 다음 실행은 [W9B-00-H](work9-b.md#34-다음-실행-w9b-00-h--host-단일화플랫폼-소스-이식-착수)다. 이번 교정은 문서 변경이고 제품 소스·공급·build/run 상태를 바꾸지 않았다.
+> **2026-11-08 사용자 교정:** Windows는 **App SDK 단일 host**이며 독립 `windows-hwnd` target·profile·선택 분기를 제거한다. Native 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 구현 소스를 가져와 수정·사용한다. 실제 이식 없이 자체 구현·사례 참고만 한 결과는 완료가 아니다. W9B-00-H에서 App SDK 단일 host와 RNW public clipboard를 구현했다. 이번 공급·실행 결과와 다음 W9B-01은 [work9-b](work9-b.md#35-w9b-00-h-구현과-이번-검증)를 따른다. 전체 native API 이식은 미완료다.
 
 [전체 목차](work9.md) · [이전: 2부](work9-2.md) · [다음: 4부 Android·Linux](work9-4.md) · [후속: 5부 iOS·macOS](work9-5.md)
 
@@ -18,7 +18,7 @@
 
 ## 12. 구현 단계와 완료 조건
 
-현재 실행 상태·다음 구현은 [work9-b](work9-b.md)를 따르고, 아래 기존 기록은 당시 구현 근거로 보존한다. Work8의 구현은 [§2](work9-1.md#2-work8에서-이어받는-기준점)의 PARTIAL 기반이다. 원래 W9-00–14와 `-A/-B`·target별 W9-12-B의 의무를 유지하며 현재는 **W9B-00-H → W9B-01–08** 순서로 연결한다. 개발 차수는 Windows/Web → Android/Linux → iOS/macOS이며 W9-13/14는 대상별로 판정한다.
+현재 실행 상태·다음 구현은 [work9-b](work9-b.md)를 따르고, 아래 기존 기록은 당시 구현 근거로 보존한다. Work8의 구현은 [§2](work9-1.md#2-work8에서-이어받는-기준점)의 PARTIAL 기반이다. 원래 W9-00–14와 `-A/-B`·target별 W9-12-B의 의무를 유지하며 현재는 **W9B-01–08** 순서로 연결한다. 개발 차수는 Windows/Web → Android/Linux → iOS/macOS이며 W9-13/14는 대상별로 판정한다.
 
 ### 12.1 검토에서 수정한 선행 관계
 
@@ -227,7 +227,7 @@ npm 0xC0000409가 재발할 때만 [기존 한정 조사 절차](history/26/11/0
 
 ## 현재 구현·검증과 잔여 작업
 
-이 절은 **2026-11-07 당시 구현/공급 기록**이다. 최신 W9B-00 기능 근거와 현재 공급은 [work9-b §3.2](work9-b.md#32-현재-공급검사실행-근거), 현재 작업 순서는 [§3.4 W9B-00-H](work9-b.md#34-다음-실행-w9b-00-h--host-단일화플랫폼-소스-이식-착수)를 따른다. 아래 두 host·직접 구현·참고만 한 RNW의 과거 PASS는 새 구조/API 이식의 수락 근거가 아니다.
+이 절은 **2026-11-07 당시 구현/공급 기록**이다. 최신 W9B-00 기능 근거와 현재 공급은 [work9-b §3.2](work9-b.md#32-현재-공급검사실행-근거), 현재 작업 순서는 [§3.4 W9B-00-H](work9-b.md#34-w9b-00-h--host-단일화플랫폼-소스-이식-착수)를 따른다. 아래 두 host·직접 구현·참고만 한 RNW의 과거 PASS는 새 구조/API 이식의 수락 근거가 아니다.
 
 **2026-11-07 KST / IN_PROGRESS / Windows·Web 1차 PARTIAL.** Canonical root/PlatformAssetBundle을 두 SDK App 모델의 패키지 asset 소유자에 연결하고 서비스 bootstrap 중 취소·실패·종료와 loadBuffer/ImmutableBuffer·NetworkAssetBundle·ImageDescriptor/Codec의 buffer 소비·실제 decoder와 큰 encoded v2 ImageResource의 Scene 전달·Content/Render 표시와 canonical RawImage/RenderImage의 별도 snapshot·C++ 이미지 배치·표시/수명과 ImageProvider/ImageCache·실제 Core frame clock·HTTP header/cancel/progress를 연결했다. Source FontLoader·공개 ui.loadFontFromList·확정 font 알림과 불변 recording 수명은 유지한다. **이미지 stream visibility/복구·Canvas 연결·기존 클래스 타입 호환성·OS font 변경 알림과 전체 text/Canvas·디자인 API·W9-06/07/08/13/14는 미완료**다.
 

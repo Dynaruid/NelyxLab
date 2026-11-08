@@ -4,7 +4,7 @@
 
 작성: **2026-11-05 KST** · 갱신: **2026-11-08 KST** · 상태: **App SDK 단일 host·RNW 소스 이식 계획 교정 / 구현 PARTIAL**
 
-> **2026-11-08 사용자 교정:** Windows 제품 host는 **App SDK 하나**다. 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 실제 소스를 가져와 수정·사용한다. 아래 채택 계약과 [work9-b §1.1·W9B-00-H](work9-b.md#11-사용자-확정-host플랫폼-api-구현-방식)가 우선한다. 기존 구현/공급·두 host 검증은 과거 기능 근거로 보존하며 이번 교정에서 제품 코드는 변경하지 않았다.
+> **2026-11-08 사용자 교정:** Windows 제품 host는 **App SDK 하나**다. 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 실제 소스를 가져와 수정·사용한다. 아래 채택 계약과 [work9-b §1.1·W9B-00-H](work9-b.md#11-사용자-확정-host플랫폼-api-구현-방식)가 우선한다. 기존 두 host 검증은 과거 근거로 보존한다. W9B-00-H에서 App SDK 단일 경로와 RNW public clipboard를 구현했으며 현재 결과와 남은 의무는 [work9-b](work9-b.md#35-w9b-00-h-구현과-이번-검증)를 따른다.
 
 [전체 목차](work9.md) · [다음: 2부](work9-2.md)
 
@@ -86,7 +86,7 @@ P0에서 보완한 원래 표면 고정·gate 입력·동작 의무·실제 경�
 
 | 대상    | 개발 차수          | 호스트·UI owner                                                                       | 그래픽 연결의 계획                                                                             | 필수 범위와 현재 상태                                                                                                                                                                                            |
 | ------- | ------------------ | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Windows | **1차 우선**       | **Windows App SDK + C++/WinRT 단일 host**, RNW 플랫폼 API 소스 수정 이식             | 현재 **Skia Graphite/Vulkan → AppWindow의 HWND** 유지                                                    | Windows 11 x64. 독립 `windows-hwnd` 실행 target·profile·CLI 선택은 W9B-00-H에서 제거. HWND interop와 공통 Core/provider는 유지. RNW 실제 이식은 미완료                                                                                       |
+| Windows | **1차 우선**       | **Windows App SDK + C++/WinRT 단일 host**, RNW 플랫폼 API 소스 수정 이식             | 현재 **Skia Graphite/Vulkan → AppWindow의 HWND** 유지                                                    | Windows 11 x64. 독립 `windows-hwnd` 실행 target·profile·CLI 선택은 W9B-00-H에서 제거. HWND interop와 공통 Core/provider는 유지. RNW public clipboard 이식 완료·나머지 API 미완료                                                                                       |
 | Web     | **1차 우선**       | 기존 Main·App worker·engine worker, 두 실행 profile                                   | 고정 owned `m153-nelyx-paragraph.5 / paragraph API 1·Picture API 2·font API 1`, npm CanvasKit은 타입 선언 | Windows의 Chrome·Edge를 초기 실제 브라우저 검증 대상으로 두고 정확한 버전은 W9-00에서 기록. 두 profile·전체 API·복구는 PARTIAL. 다른 browser/OS는 별도 검증 전 지원 완료로 표시하지 않음                         |
 | Linux   | **2차 / 4부**      | **GTK4** host와 **RNL 플랫폼 API 수정 이식본**, GLib main context                       | Render worker의 **Graphite/Vulkan → DMA-BUF → GdkTexture → GTK snapshot**                      | GTK **4.22 이상**, Linux x86_64, **Wayland와 X11 각각**. RNL 원본의 toolkit/API 차이를 고정해 수정·이식하고 [4부](work9-4.md#5-linux--gtk4-호스트)의 완료 조건 적용. **미착수 / DEFERRED** |
 | macOS   | **3차 / 후속 5부** | **AppKit** host와 **RNM 플랫폼 API 수정 이식본**, Objective-C++ adapter                      | **Skia Graphite/Metal → CAMetalLayer**                                                         | macOS **14 이상**, arm64 초기 계획. RNM 원본/수정·AppKit 실행과 공급 확인 필수. **미착수 / DEFERRED**. x86_64는 별도 target 상태                                                                                            |
@@ -95,7 +95,7 @@ P0에서 보완한 원래 표면 고정·gate 입력·동작 의무·실제 경�
 
 위 OS/ABI는 초기 검증 대상의 계획이다. W9-00에서는 **Windows App SDK/NuGet·Skia/Hermes/CRT·Emscripten/CanvasKit·실제 browser**의 정확한 버전·artifact hash·최저 환경을 고정한다. Android toolchain·GTK/GLib는 2차 착수 때, Xcode·Apple toolchain은 3차 착수 때 고정한다. `latest`나 로컬에 우연히 설치된 SDK를 제품 의존성으로 삼지 않는다. 다른 OS/ABI는 검사 전 지원 완료로 표시하지 않는다.
 
-현재 [v2 CLI](Nelyx/sdk/tooling/cli/src/engine-v2-runner.mjs)는 Windows/Web/Android를 공급하며 Windows의 기존 기본 선택 `windows-hwnd`는 W9B-00-H의 교정 대상이다. 기존 [Linux template](Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/CMakeLists.txt)의 RNL과 [macOS runner](Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/README.md)의 RNM은 해당 플랫폼 API 소스 선정의 출발점이다. 기존 runner 전체를 새 v2 host로 세지 않으며 필요한 소스를 추출·수정하고 실제 소비자를 이관한다.
+현재 [v2 CLI](Nelyx/sdk/tooling/cli/src/engine-v2-runner.mjs)는 Windows/Web/Android를 공급하며 Windows는 W9B-00-H에서 App SDK 단일 기본 선택으로 이관했다. 기존 [Linux template](Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/CMakeLists.txt)의 RNL과 [macOS runner](Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/README.md)의 RNM은 해당 플랫폼 API 소스 선정의 출발점이다. 기존 runner 전체를 새 v2 host로 세지 않으며 필요한 소스를 추출·수정하고 실제 소비자를 이관한다.
 
 ## 4. Windows — Windows App SDK 호스트
 
@@ -123,7 +123,7 @@ Self-contained 설정을 CMake library에만 추가한 것으로 배포 완료 �
 
 **RNW의 Windows 플랫폼 API 구현을 실제 가져와 수정·사용하는 것을 1차 기본 경로로 채택한다.** 원본의 OS 동작·상태/예외 처리·구독/해제 구현을 이식하며 기능·사례 참고만으로 대체하지 않는다. React/Fabric의 전달·소유권을 App SDK dispatcher와 Nelyx 값/handle·Core port로 수정한다. [RNW 공식 구조 설명](https://microsoft.github.io/react-native-windows/docs/new-architecture/)은 원본 구조의 배경이며 Nelyx renderer 도입 결정과 구별한다.
 
-이번 소스 비교 기준은 실제 Windows runner 설치본의 **`react-native-windows@0.83.2`**다. 위치는 `sample/nelyx-testbed-app-2/windows/runner/node_modules/react-native-windows`이며 아래 RNW 경로는 그 안의 `Microsoft.ReactNative/` 기준이다. 이는 비교 기준이고 실제 추출·standalone compile/link·물리 입력 검증은 **미착수**다. 도입할 파일의 원본 commit/package integrity·파일 hash·license는 W9-00에서 고정하고 기존 RN/RNW·Hermes/JSI 공급을 자동 갱신하지 않는다.
+소스 기준은 실제 Windows runner 설치본의 **`react-native-windows@0.83.2`**다. 위치는 `sample/nelyx-testbed-app-2/windows/runner/node_modules/react-native-windows`이며 아래 RNW 경로는 그 안의 `Microsoft.ReactNative/` 기준이다. W9B-00-H에서 **public clipboard 서비스의 추출·수정·standalone compile/link·실제 OS 동작**을 연결했다. [provenance.json](Nelyx/engine/platform/windows/rnw/provenance.json)에 원본 commit/package integrity·원본/수정 hash·MIT license를 고정했다. 입력/IME/UIA/설정 등의 나머지 이식과 물리 입력 수락은 미완료다. 기존 RN/RNW·Hermes/JSI 공급은 자동 갱신하지 않는다.
 
 | 범위                   | 확인한 소스와 재사용 후보                                                                                                                                            | Nelyx 적용 경계                                                                                                                                                                                                    |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -178,7 +178,7 @@ UI·App·Content·Render owner의 권한과 mailbox 상한, `DocumentAccepted`/`
 
 ## 현재 구현·검증 — 2026-11-07 KST
 
-이 절은 **2026-11-07 당시 기록**이다. 최신 W9B-00 기능·공급 근거는 [work9-b §3.2](work9-b.md#32-현재-공급검사실행-근거), 사용자 교정 뒤 다음 실행은 [W9B-00-H](work9-b.md#34-다음-실행-w9b-00-h--host-단일화플랫폼-소스-이식-착수)를 따른다. 아래 두 host·자체 OS helper PASS를 App SDK 단일화·RNW 실제 이식 완료로 사용하지 않는다.
+이 절은 **2026-11-07 당시 기록**이다. 최신 W9B-00 기능·공급 근거는 [work9-b §3.2](work9-b.md#32-현재-공급검사실행-근거), 사용자 교정 뒤 다음 실행은 [W9B-00-H](work9-b.md#34-w9b-00-h--host-단일화플랫폼-소스-이식-착수)를 따른다. 아래 두 host·자체 OS helper PASS를 App SDK 단일화·RNW 실제 이식 완료로 사용하지 않는다.
 
 **IN_PROGRESS / Windows·Web 1차 PARTIAL.** 현재 공급은 **`175c55c60f565577f202650a44b127f67866e214b1ac24e736617e6996005114` / ABI 2·schema 2844160510 / App service 12·image service 2·HTTP header service 2**, manifest **349파일**(manifest 포함 350)이다. Native·두 Wasm·HWND/App SDK host와 Core·두 디자인·SDK를 빌드했다. App SDK **1.8.260508005**·C++/WinRT **2.0.250303.1**·Windows SDK **10.0.26100.0**·`/MD`·Graphite/Vulkan·Hermes를 유지한다.
 

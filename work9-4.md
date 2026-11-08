@@ -4,7 +4,7 @@
 
 작성: **2026-11-05 KST** · 갱신: **2026-11-08 KST** · 상태: **RN/RNL 소스 이식 계획 교정 / Android PARTIAL · Linux DEFERRED**
 
-> **2026-11-08 사용자 교정:** Android 플랫폼 API는 **RN Android**, Linux GTK 플랫폼 API는 **RNL**의 필요한 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기존 자체 OS 구현 우선·알고리즘/사례 참고만으로 완료하는 방침을 대체한다. 기존 standalone/emulator·공급 기록은 보존하며 RN/RNL 소스 이식 완료와 구분한다. 이번 변경은 계획 문서이며 새 이식·build/run은 수행하지 않았다. [우선 계약과 다음 W9B-00-H](work9-b.md#11-사용자-확정-host플랫폼-api-구현-방식)를 따른다.
+> **2026-11-08 사용자 교정:** Android 플랫폼 API는 **RN Android**, Linux GTK 플랫폼 API는 **RNL**의 필요한 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기존 자체 OS 구현 우선·알고리즘/사례 참고만으로 완료하는 방침을 대체한다. 기존 standalone/emulator·공급 기록은 보존하며 RN/RNL 소스 이식 완료와 구분한다. RN/RNL의 새 API 이식은 미완료다. Windows 선행 이식과 이번 Android 회귀·공급은 work9-b §3.5를 따른다. [우선 계약](work9-b.md#11-사용자-확정-host플랫폼-api-구현-방식)를 따른다.
 
 [전체 목차](work9.md) · [이전: 3부](work9-3.md) · [후속: 5부 iOS·macOS](work9-5.md)
 

@@ -1,8 +1,8 @@
 # work9 — Windows·Web 우선 엔진 v2 구현과 호스트 전환
 
-> **2026-11-08 사용자 기획 교정:** Windows는 **Windows App SDK 단일 host**로 통일하고 App SDK 없는 독립 HWND host를 제거한다. 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 소스를 실제로 가져와 수정·사용한다. 기존 자체 구현 우선·사례 참고만으로 완료하는 방침을 대체한다. 이번 변경은 계획 문서에 한정되며 host 삭제·새 소스 이식·build/run은 아직 수행하지 않았다. 필수 계약은 [work9-b §1.1](work9-b.md#11-사용자-확정-host플랫폼-api-구현-방식), 다음 실행은 [W9B-00-H](work9-b.md#34-다음-실행-w9b-00-h--host-단일화플랫폼-소스-이식-착수)다.
+> **2026-11-08 W9B-00-H:** Windows v2의 **App SDK 단일 host·CLI/공급/설치 graph**와 **RNW public clipboard 실제 소스 이식**을 구현했다. 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 소스를 수정·사용하며, [전체 원본/소비자 대응표](Nelyx/engine/platform/native-api-ports.md)에서 첫 이식과 나머지 직접 구현·미지원 범위를 구분한다. 현재 실행·공급·남은 수락은 [work9-b §3.4–3.5](work9-b.md#34-w9b-00-h--host-단일화플랫폼-소스-이식-착수)를 따른다. 이후 재개점은 **W9B-01**이다.
 
-> **2026-11-08 구조 개편 문서 전환:** [work9-a.md](work9-a.md)는 **CLOSED / 후속 문서 이관**으로 종료했고 원래 계약·구현·검증 기록을 보존한다. W9B-00의 기능·공급·설치·실행 검증은 완료했으며 남은 실행은 [work9-b.md](work9-b.md)의 **W9B-00-H → W9B-01–08**을 따른다. 전체 구현은 **PARTIAL**이고 API·물리 입력·성능·기본값 전환 판정은 유지한다. 이전 공급/hash·두 Windows host의 검증은 당시 기록이며 새 host/API 이식 완료를 뜻하지 않는다.
+> **2026-11-08 구조 개편 문서 전환:** [work9-a.md](work9-a.md)는 **CLOSED / 후속 문서 이관**으로 종료했고 원래 계약·구현·검증 기록을 보존한다. W9B-00의 당시 기능 검증과 W9B-00-H의 새 결과를 구분하며 남은 실행은 [work9-b.md](work9-b.md)의 **W9B-01–08**을 따른다. 전체 구현은 **PARTIAL**이고 API·물리 입력·성능·기본값 전환 판정은 유지한다. 이전 공급/hash·두 Windows host의 검증을 이번 실행의 근거로 복사하지 않는다.
 
 > **2026-11-07 사용자 요청 — 개발 검증 정리:** 독립 테스트·fixture, API/구조 감사·성능 실험 도구와 npm 진입점을 제거했다. Testbed의 숨은 측정 버튼·모드와 강제 App/Content 지연·합성 입력 제어도 정리했다. 아래 분할 문서의 과거 `test:*`·`audit:*`·`experiment:*`·`measure:*`·`probe:*`·`inspect:*` 명령은 종료된 검증 기록이며 현재 실행 지시가 아니다. 기존 PASS·PARTIAL·notVerified와 미완료 기능 판정은 유지한다. 현행 확인은 `check:types`·`lint`·`format:check`와 변경 대상 제품 빌드·실행으로 수행한다. 당시 잔여 임시 출력용 일회성 PS1은 현재 저장소에 남아 있지 않다.
 
@@ -28,7 +28,7 @@
 
 차수 전환의 ‘완료’는 **앞선 차수 모든 대상의 W9-13 기술 gate 통과**다. W9-14의 물리 입력·성능 수락·기본값 전환은 대상/profile별로 따로 판정한다. 전체 플랫폼의 기술 완료와 제품 수락도 각각 구분한다. [완료·차수 전환 기준](work9-3.md#125-차수-전환과-완료-판정)
 
-1~3부는 같은 Windows/Web 계획을 역할별로 나눈 문서다. W9-00–14의 원래 의무와 [3부 §12.2의 의존 관계](work9-3.md#122-windowsweb-1차-실행-순서)를 유지하되, 현재의 실제 재개는 **W9B-00-H → W9B-01–08**을 따른다. 파일 번호와 원문 절 번호를 W9 단계의 순번으로 해석하지 않는다.
+1~3부는 같은 Windows/Web 계획을 역할별로 나눈 문서다. W9-00–14의 원래 의무와 [3부 §12.2의 의존 관계](work9-3.md#122-windowsweb-1차-실행-순서)를 유지하되, 현재의 실제 재개는 **W9B-01–08**을 따른다. 파일 번호와 원문 절 번호를 W9 단계의 순번으로 해석하지 않는다.
 
 **현재 Android 작업:** RN 없는 Activity/JNI·Hermes·Graphite/Dawn/Vulkan·독립 owner, ACK 기반 InputConnection/virtual accessibility·Choreographer/Activity 수명과 arm64-v8a/x86_64 공급·CLI create/build/doctor/run/pack에 Original 편집기·공개 asset/font/text/image/network 서비스와 실제 device loss 후 자동 복구·개발 generation reload를 연결했다. 전체 API 감사는 Android의 DOM 없는 strict 선언 검사도 포함한다. 실제 emulator/공통 회귀·현재 공급 identity·일반 실행 명령과 남은 Android W9-12-B/13/14는 [4부의 현재 구현](work9-4.md#현재-android-구현과-실행)에 기록한다. 전체 원래 API 호환성과 물리·성능 수락은 계속 미완료다.
 

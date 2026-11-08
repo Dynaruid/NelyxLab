@@ -38,7 +38,7 @@
       <ExceptionHandling>Sync</ExceptionHandling>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <AdditionalOptions>/utf-8 /bigobj %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>NELYX_WINDOWS_APP_SDK;UNICODE;_UNICODE;NOMINMAX;SK_GRAPHITE;SK_VULKAN;SK_USE_INTERNAL_VULKAN_HEADERS;VK_NO_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;_WIN32_WINNT=0x0A00;JSI_USE_HERMES;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>UNICODE;_UNICODE;NOMINMAX;SK_GRAPHITE;SK_VULKAN;SK_USE_INTERNAL_VULKAN_HEADERS;VK_NO_PROTOTYPES;VK_USE_PLATFORM_WIN32_KHR;_WIN32_WINNT=0x0A00;JSI_USE_HERMES;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(EngineRoot)include;$(EngineRoot)render\skia;$(NelyxSkiaSupplier)\headers;$(NelyxHermesRoot)\source\API;$(NelyxHermesRoot)\source\API\jsi;$(NelyxHermesRoot)\source\public;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -48,6 +48,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="$(EngineRoot)platform\windows\host.cpp" />
+    <ClCompile Include="$(EngineRoot)platform\windows\rnw\ClipboardModule.cpp" />
     <ClCompile Include="$(EngineRoot)render\skia\paragraph_queries.cpp" />
     <ClCompile Include="$(EngineRoot)render\vulkan\device.cpp" />
     <ClCompile Include="$(EngineRoot)platform\windows\font_services.cpp" />

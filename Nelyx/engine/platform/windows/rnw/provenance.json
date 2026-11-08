@@ -1,0 +1,38 @@
+{
+  "schema": "nelyx.native-source-port/1",
+  "repository": "https://github.com/microsoft/react-native-windows",
+  "package": "react-native-windows",
+  "version": "0.83.2",
+  "integrity": "sha512-Zm/oS/YUK19Ba1G814HD+sSmmEMR/gQuhVb/TCpM+fqlqAKukF/XyNVoC/8CFboGCfj1+7AvKW267p9jiyKnbw==",
+  "license": {
+    "file": "LICENSE",
+    "sha256": "815994ebe648433a0e06fe9c91320985c686b5ce8d1235f62fe427fb5b82dd69"
+  },
+  "files": [
+    {
+      "upstream": "Microsoft.ReactNative/Modules/ClipboardModule.cpp",
+      "original": "upstream/ClipboardModule.cpp",
+      "originalSha256": "556a92aa9f4b3d3c4d16c1de4a5708f755b28a3adcf3dd7dfc6262501fac6e4a",
+      "adapted": "ClipboardModule.cpp",
+      "adaptedSha256": "0f700595afada84dcb673f93db5c1544f36c9eff07b71ae7d1f2feceb0b6b6d9",
+      "repositorySha256": "89de68495ba2e5c886ebde6f9ed54bec8c8f6bf7266cb2693c20c7c56fcc792a"
+    },
+    {
+      "upstream": "Microsoft.ReactNative/Modules/ClipboardModule.h",
+      "original": "upstream/ClipboardModule.h",
+      "originalSha256": "b30c4b4b7d9fa2329e0169400820381e704147b33b694dceb6f3429a52d0c928",
+      "adapted": "ClipboardModule.h",
+      "adaptedSha256": "fd3a659ba22f6c55a91ddbae4f0499a89586b8e28d19dcae47fba24d2b8c3ca9",
+      "repositorySha256": "5643176fdfa70049016c2a54c56d43c515c631d57e62a54d6bba7ef0b11a44b1"
+    }
+  ],
+  "changes": [
+    "Replace ReactContext/ReactPromise/codegen with owned Microsoft.UI dispatcher and copied value completion.",
+    "Preserve DataPackage SetText/SetContent and GetTextAsync Completed status/error processing.",
+    "Add text/queue quotas, empty/non-text handling, cancellation before execution, and terminal close drain.",
+    "Public App clipboard service only; synchronous Core editing shortcuts remain a separate W9B-03 consumer."
+  ],
+  "revision": "af0b597c18691c26d1e01a72d94edda46c1fab26",
+  "tag": "react-native-windows_v0.83.2",
+  "originalEncoding": "npm package CRLF; pinned Git originals LF; content equality verified after CRLF normalization"
+}

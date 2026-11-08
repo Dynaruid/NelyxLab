@@ -1,6 +1,7 @@
 {
   "schema": "nelyx.app/1",
   "entry": "src/app.ts",
+  "windowsHost": "windows-app-sdk",
   "supply": "../../Nelyx/engine/dist-android",
   "assets": {},
   "android": {

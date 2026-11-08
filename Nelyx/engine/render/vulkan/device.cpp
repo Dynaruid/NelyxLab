@@ -338,6 +338,10 @@ struct Device::Impl {
     // selected device. Keep that working set recent instead of reallocating it
     // every frame; the allocator's separate 256MiB hard cap remains unchanged.
     options.fGpuBudgetInBytes=96*1024*1024;
+    // Window-sized 4x color/depth attachments exceed the fixed 256MiB native
+    // allocator cap at normal maximized sizes. Use bounded 2x MSAA for WSI;
+    // imported-texture and offscreen consumers retain their existing policy.
+    if(windowSurface)options.fInternalMultisampleCount=skgpu::graphite::SampleCount::k2;
 #endif
     context=skgpu::graphite::ContextFactory::MakeVulkan(backend,options);
     if(!context||context->backend()!=skgpu::BackendApi::kVulkan)throw std::runtime_error("Graphite/native Vulkan context unavailable");
@@ -393,6 +397,7 @@ struct Device::Impl {
   }
   void present(skgpu::graphite::Recorder* recorder,SkSurface* offscreen){
     if(!swapchain||!offscreen)throw std::runtime_error("Vulkan window surface unavailable");
+    allocator->beginReplay();
     uint32_t index=0;checked(api.get<PFN_vkResetFences>("vkResetFences")(api.device,1,&acquireFence),"reset acquire fence");
     auto acquired=api.get<PFN_vkAcquireNextImageKHR>("vkAcquireNextImageKHR")(api.device,swapchain,1000000000ull,VK_NULL_HANDLE,acquireFence,&index);
     if(acquired==VK_ERROR_OUT_OF_DATE_KHR)throw SurfaceChanged("Vulkan swapchain changed before acquisition");
@@ -407,7 +412,7 @@ struct Device::Impl {
       skgpu::graphite::InsertRecordingInfo insert;insert.fRecording=recording.get();insert.fTargetSurface=image.surface.get();auto state=skgpu::MutableTextureStates::MakeVulkan(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,graphics);insert.fTargetTextureState=&state;
       auto signal=skgpu::graphite::BackendSemaphores::MakeVulkan(image.rendered);insert.fNumSignalSemaphores=1;insert.fSignalSemaphores=&signal;
       insertionAttempted=true;
-      if(context->insertRecording(insert)!=skgpu::graphite::InsertStatus::kSuccess)throw std::runtime_error("Graphite window recording rejected");
+      if(context->insertRecording(insert)!=skgpu::graphite::InsertStatus::kSuccess)throw std::runtime_error("Graphite window recording rejected at "+std::to_string(extent.width)+"x"+std::to_string(extent.height)+allocator->replayFailure());
       if(!context->submit(skgpu::graphite::SyncToCpu::kYes))throw std::runtime_error("Graphite window GPU submit failed");
       checked(api.get<PFN_vkResetFences>("vkResetFences")(api.device,1,&image.presented),"reset present fence");
       VkSwapchainPresentFenceInfoEXT fences{VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT};fences.swapchainCount=1;fences.pFences=&image.presented;

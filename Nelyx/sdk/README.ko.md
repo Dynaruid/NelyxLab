@@ -40,9 +40,9 @@ Native App 번들은 browser condition 없이 module/main entry를 선택합니�
 
 App과 Content는 같은 font revision의 실제 사용 가능한 family를 선택합니다. 없는 family는 선언한 다음 family와 bundled default 순으로 처리합니다. Native Windows의 Segoe UI와 Android의 Roboto는 실제 system face를 quota 안에서 유지하며, Web은 해당 App에 공급한 font cohort를 사용합니다. 다른 face를 요청한 이름의 폰트로 등록하지 않습니다.
 
-Windows App SDK 후보를 선택하려면 `nelyx.json` (이전 `nelyx.v2.json`도 가능)에 `"windowsHost": "windows-app-sdk"`를 추가한 뒤 Windows build/run/pack을 수행합니다. 현재 공급의 `windows-app-sdk` profile이 필요하며, 실제 AppWindow·Microsoft.UI dispatcher와 기존 Graphite/Vulkan renderer를 사용합니다. 실행 프로젝트는 고정 `Microsoft.WindowsAppSDK@1.8.260508005`의 unpackaged/self-contained 배포를 만들고 App SDK DLL·MSVC CRT·license를 함께 제공합니다. 필수 runtime이나 공급 identity가 없으면 시작 검사를 거부합니다. 기존 기본값은 `windows-hwnd`이며, 새 후보의 전체 API·물리 입력·성능 수락은 [work9](../../work9.md)에서 별도로 관리합니다.
+Windows engine v2는 Windows App SDK 단일 host를 사용합니다. 일반 Windows create/doctor/build/run/dev/pack은 기본으로 `windows-app-sdk`를 선택하며 생성 앱의 `nelyx.json`에도 기록합니다. 고정 `Microsoft.WindowsAppSDK@1.8.260508005`의 unpackaged/self-contained runtime·MSVC CRT·license를 함께 공급합니다. 필수 runtime·공급 identity 불일치와 폐기한 host 설정은 명시 실패합니다. RNW 0.83.2 public clipboard 소스를 App SDK dispatcher·취소·terminal drain에 맞게 이식했고 원본·수정 소스·hash·MIT license를 `windows-app-sdk/sources/rnw`에 공급합니다. 남은 입력/IME/UIA/설정 이식은 [native API 대응표](../engine/platform/native-api-ports.md)를 따릅니다. 전체 API·물리 입력·성능 수락은 [work9](../../work9.md)에서 별도로 관리합니다.
 
-저장소 Testbed는 `npm.cmd run build:engine-v2` 후 `npm.cmd run run:engine-v2:windows-app-sdk`로 실행합니다. `V2_WINDOWS_HOST`는 실제 host/dispatcher 경로를, `V2_INPUT_SOURCE`는 DirectManipulation 입력의 admission/rejection 수를 보고합니다. 주입 wheel·자동 UIA 검사로 물리 precision trackpad 사용감을 승인하지 않습니다.
+저장소 Testbed는 `npm.cmd run build:engine-v2` 후 `npm.cmd run run:engine-v2:windows`로 실행합니다. `V2_WINDOWS_HOST`는 실제 host/dispatcher 경로를, `V2_INPUT_SOURCE`는 DirectManipulation 입력의 admission/rejection 수를 보고합니다. 주입 wheel·자동 UIA 검사로 물리 precision trackpad 사용감을 승인하지 않습니다.
 
 일반 v2 공급 빌드는 준비된 `m153-nelyx-paragraph.5` CanvasKit의 manifest·파일 hash·paragraph API 1·글꼴 참조 Picture API 2·불변 font collection API 1을 검사합니다. 준비물이 없거나 다르면 빌드를 거부합니다. [Owned runtime 준비 안내](../skia/eng/source-build/README.md)를 따르세요. npm CanvasKit은 타입 선언에 사용하며 앱 실행 중 vendor 다운로드/빌드를 시작하지 않습니다.
 

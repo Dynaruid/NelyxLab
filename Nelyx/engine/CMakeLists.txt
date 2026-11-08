@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.22)
 project(NelyxEngineV2 LANGUAGES C CXX)
 option(NELYX_ENGINE_THREADED "Compile the separate shared-memory Wasm profile" OFF)
 option(NELYX_ENGINE_BROWSER_HOST "Build the classic browser owner runtime" OFF)
-option(NELYX_ENGINE_WINDOWS_HOST "Build the HWND/Hermes/Skia host" OFF)
 option(NELYX_ENGINE_ANDROID_HOST "Build the standalone JNI/Hermes/Graphite host" OFF)
 add_library(nelyx_engine_v2 STATIC
   core/protocol/engine.cpp core/protocol/transaction.cpp
@@ -51,26 +50,4 @@ if(EMSCRIPTEN)
   endif()
 elseif(ANDROID AND NELYX_ENGINE_ANDROID_HOST)
   include(platform/android/host.cmake)
-else()
-  if(NELYX_ENGINE_WINDOWS_HOST)
-    if(NOT WIN32 OR NOT EXISTS "${NELYX_SKIA_SUPPLIER}/headers/include/core/SkCanvas.h" OR NOT EXISTS "${NELYX_HERMES_ROOT}/build/lib/hermesvm.lib")
-      message(FATAL_ERROR "The Windows host requires the pinned Skia and Hermes suppliers")
-    endif()
-    add_executable(NelyxEngineV2Host platform/windows/host.cpp
-      render/skia/paragraph_queries.cpp
-      render/vulkan/device.cpp platform/windows/font_services.cpp)
-    target_compile_features(NelyxEngineV2Host PRIVATE cxx_std_20)
-    target_compile_options(NelyxEngineV2Host PRIVATE /EHsc /utf-8)
-    target_compile_definitions(NelyxEngineV2Host PRIVATE UNICODE _UNICODE NOMINMAX
-      SK_GRAPHITE SK_VULKAN SK_USE_INTERNAL_VULKAN_HEADERS VK_NO_PROTOTYPES VK_USE_PLATFORM_WIN32_KHR
-      _WIN32_WINNT=0x0A00 JSI_USE_HERMES)
-    target_include_directories(NelyxEngineV2Host PRIVATE "${NELYX_SKIA_SUPPLIER}/headers"
-      render/skia
-      "${NELYX_HERMES_ROOT}/source/API" "${NELYX_HERMES_ROOT}/source/API/jsi"
-      "${NELYX_HERMES_ROOT}/source/public")
-    file(GLOB skia_libraries "${NELYX_SKIA_SUPPLIER}/libraries/*.lib")
-    target_link_libraries(NelyxEngineV2Host PRIVATE nelyx_engine_v2 ${skia_libraries}
-      "${NELYX_HERMES_ROOT}/build/lib/hermesvm.lib" "${NELYX_HERMES_ROOT}/build/jsi/jsi.lib"
-      user32 gdi32 dwrite ole32 oleaut32 uuid usp10 shell32 advapi32 shlwapi opengl32 windowscodecs UIAutomationCore runtimeobject dwmapi)
-  endif()
 endif()

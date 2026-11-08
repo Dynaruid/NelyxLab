@@ -80,12 +80,6 @@ export function buildProfiles(
     const args = ['-S', engineRoot, '-B', output, '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release'];
     if (profile === 'native') {
       if (process.platform === 'win32') env = windowsCompilerEnvironment();
-      if (hosts)
-        args.push(
-          '-DNELYX_ENGINE_WINDOWS_HOST=ON',
-          '-DNELYX_SKIA_SUPPLIER=' + path.resolve(engineRoot, '../skia/vendor/inputs/windows-x64'),
-          '-DNELYX_HERMES_ROOT=' + path.resolve(engineRoot, '../../.nelyx/windows-hermes'),
-        );
       run('cmake', args, { env });
       toolchains[profile] = process.platform === 'win32' ? 'MSVC-x64' : 'system-cxx';
     } else {
@@ -277,7 +271,6 @@ async function browserAssets(supply, supplier, runtime) {
     );
   }
   copy(path.join(supplier.skia, 'data/icudtl.dat'), 'assets/icudtl.dat');
-  copy(path.join(supplier.hermes, 'build/lib/hermesvm.dll'), 'native/hermesvm.dll');
   for (const [name, entry, globalName] of webEntries) {
     await build({
       entryPoints: [path.join(engineRoot, entry)],
@@ -311,7 +304,7 @@ async function main() {
     for (const profile of Object.keys(toolchains)) {
       fs.mkdirSync(path.join(supply, profile));
       for (const file of tree(path.join(builds, profile)).filter((name) =>
-        /^(?:engine(?:-browser)?\.(?:js|mjs|wasm|worker\.js)|NelyxEngineV2Host\.exe|(?:lib)?nelyx_engine_v2\.(?:lib|a))$/.test(
+        /^(?:engine(?:-browser)?\.(?:js|mjs|wasm|worker\.js)|(?:lib)?nelyx_engine_v2\.(?:lib|a))$/.test(
           name,
         ),
       ))
@@ -344,13 +337,6 @@ async function main() {
           toolchains,
           profiles: hosts
             ? {
-                native: {
-                  host: 'windows-hwnd',
-                  os: 'windows',
-                  architecture: 'x64',
-                  contentIndependent: true,
-                  renderer: 'Skia-Graphite-Vulkan',
-                },
                 ...(windowsAppSdk
                   ? {
                       'windows-app-sdk': {

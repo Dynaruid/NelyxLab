@@ -305,7 +305,7 @@ export async function createEngineV2Development(options) {
         record.closed?.memoryTotal !== 0 ||
         record.closed?.reservedBytes !== 0 ||
         !record.closed?.workersJoined ||
-        (bundle.manifest.windowsHost === 'windows-app-sdk' && !record.dispatcherClosed)
+        !record.dispatcherClosed
       )
         throw (
           result.error ??

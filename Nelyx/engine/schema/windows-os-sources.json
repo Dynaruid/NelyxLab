@@ -25,7 +25,7 @@
     "package": "react-native-windows",
     "version": "0.83.2",
     "integrity": "sha512-Zm/oS/YUK19Ba1G814HD+sSmmEMR/gQuhVb/TCpM+fqlqAKukF/XyNVoC/8CFboGCfj1+7AvKW267p9jiyKnbw==",
-    "usage": "reference and regression cases only; no RNW source copied or linked",
+    "usage": "input/IME/UIA/settings selected for W9B-03; not yet copied or linked",
     "files": [
       {
         "file": "Microsoft.ReactNative/Utils/KeyboardUtils.cpp",
@@ -38,11 +38,19 @@
       {
         "file": "Microsoft.ReactNative/Fabric/Composition/CompositionDynamicAutomationProvider.cpp",
         "sha256": "fe4b173b35414634dd3796559941f6d914933a56c9d5b64baf4fde5a19c99144"
-      },
-      {
-        "file": "Microsoft.ReactNative/Modules/ClipboardModule.cpp",
-        "sha256": "556a92aa9f4b3d3c4d16c1de4a5708f755b28a3adcf3dd7dfc6262501fac6e4a"
       }
     ]
-  }
+  },
+  "ports": [
+    {
+      "provenance": "Nelyx/engine/platform/windows/rnw/provenance.json",
+      "apis": [
+        "clipboard-read",
+        "clipboard-write",
+        "clipboard-has-strings"
+      ],
+      "consumer": "Nelyx/engine/platform/windows/host.cpp AppServices::pumpAsync",
+      "remaining": "synchronous editing shortcuts in interaction.hpp/clipboard.hpp remain Nelyx-owned until W9B-03"
+    }
+  ]
 }

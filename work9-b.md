@@ -1,8 +1,8 @@
 # work9-b — v2 단일 실행 경로 완성과 제품 전환
 
-작성·갱신: **2026-11-08 KST** · 상태: **W9B-00 기능 검증 완료 / host·플랫폼 API 계획 교정 / 구조 개편 PARTIAL**
+작성·갱신: **2026-11-08 KST** · 상태: **W9B-00 완료 / W9B-00-H 완료 / 구조 개편 PARTIAL**
 
-이 문서는 사용자 요청으로 종료한 [work9-a.md](work9-a.md)의 **남은 작업과 재개 절차를 이어받는 실행 계약**이다. 2026-11-08 W9B-00의 기능·공급·설치·실행 결과는 §3.1–3.3에 보존한다. 이후 사용자 교정에 따라 **Windows App SDK 단일 host와 RNW/RN/RNM/RNL 플랫폼 API 소스 이식**을 필수 구현 방식으로 확정했다. 현재 다음 실행은 §3.4의 **W9B-00-H**이며, 이번 교정은 계획 문서 변경이다. 제품 코드·공급에서 host 삭제나 새 소스 이식을 완료한 상태는 아니다.
+이 문서는 사용자 요청으로 종료한 [work9-a.md](work9-a.md)의 **남은 작업과 재개 절차를 이어받는 실행 계약**이다. W9B-00의 당시 기능·공급·실행 결과는 §3.1–3.3에 보존한다. §3.4의 **W9B-00-H**에서 App SDK 단일 host·독립 HWND target 제거·RNW clipboard 소스 이식을 구현했다. 플랫폼별 원본/기존 소비자/부족 범위와 이번 실행 근거는 §3.4–3.5를 따른다. 이번 공급·설치·실행 검증과 회수를 마쳤으며 이후 W9B-01의 Core 실행 이관을 이어간다.
 
 [전체 work9 목차](work9.md) · [이전 구조 계약과 종료 기록](work9-a.md) · [API·디자인·입력 계약](work9-2.md) · [기술·제품 수락 기준](work9-3.md) · [Android·Linux](work9-4.md) · [후속 iOS·macOS](work9-5.md)
 
@@ -97,9 +97,9 @@ Upstream에 해당 API가 없거나 분리할 수 없는 부분은 **구체적�
 - **영향 회귀에서 발견한 수정:** 가변 목록의 새 측정으로 index seek 목적지가 준비 범위 밖으로 이동하면, 기존 active scene을 보존한 채 실제 목적 구간을 다시 준비한다. 이전 anchor로 돌아가 pending seek를 잃던 경우를 고쳤다. Web resize 중 현재 route blob이 일시 누락돼도 마지막 안내문을 보존하고, 명시적인 빈 route에서만 지운다.
 - **Android 공급:** Gradle/IDE가 만든 `.gradle`·`build` cache는 source identity와 project 복사에서 제외한다. wrapper JAR를 IDE가 열어 promotion을 막던 문제는 같은 volume의 TEMP에 한 staging을 만들고 `finally`로 회수하도록 보완했다. 현재 Android 공급은 cache 파일 없이 42개다.
 
-### 3.2 현재 공급·검사·실행 근거
+### 3.2 W9B-00 당시 공급·검사·실행 근거
 
-현재 Windows/Web와 Android 두 ABI의 source identity는 **`cc66ae1c056114544b417bb23b8cf8d80bbd7d2fc0d930b90716089b57c95c96`**다. `engine/dist` 343개와 `engine/dist-android` 42개 manifest 파일의 SHA-256을 모두 확인했다. ABI **2**·schema **3719990506**·layout **192 bytes**·App text **12**·App service **2**를 유지하며 default/Arabic/Hebrew/Emoji font cohort가 양쪽 공급에 포함된다. 원래 4개 package·834 subpath API 기준 파일 SHA-256 **`5133a536f72ef9ec31c411bc091cf29662ee315fd77268d4b8a34f532fb8dffd`**는 그대로다.
+W9B-00 당시 Windows/Web와 Android 두 ABI의 source identity는 **`cc66ae1c056114544b417bb23b8cf8d80bbd7d2fc0d930b90716089b57c95c96`**다. `engine/dist` 343개와 `engine/dist-android` 42개 manifest 파일의 SHA-256을 모두 확인했다. ABI **2**·schema **3719990506**·layout **192 bytes**·App text **12**·App service **2**를 유지하며 default/Arabic/Hebrew/Emoji font cohort가 양쪽 공급에 포함된다. 원래 4개 package·834 subpath API 기준 파일 SHA-256 **`5133a536f72ef9ec31c411bc091cf29662ee315fd77268d4b8a34f532fb8dffd`**는 그대로다.
 
 | 확인 묶음 | 이번 실행의 결과와 한계 |
 | --- | --- |
@@ -121,24 +121,48 @@ Upstream에 해당 API가 없거나 분리할 수 없는 부분은 **구체적�
 - **W9B-02:** `_RenderExclusiveMouseRegion` 지원만으로 Tooltip 완료를 선언하지 않는다. Tooltip의 위치 delegate/custom child transform·overlay 연결과 실제 hover 후 표시/해제, 전체 디자인 catalog·route/semantics·Snapshot 잔여 의무는 계속 미완료다.
 - **수락:** 전체 API `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리/display/scanout `notVerified`, Linux·iOS/macOS `DEFERRED`를 유지한다. 이번 기능 PASS는 W9-13 전체 완료·W9-14 성능·기본값 전환의 근거로 확대하지 않는다.
 
-### 3.4 다음 실행: W9B-00-H — host 단일화·플랫폼 소스 이식 착수
+### 3.4 W9B-00-H — host 단일화·플랫폼 소스 이식 착수
+
+**완료.** 아래 항목은 이번 구현 범위이며, 실행·회수의 최종 판정은 §3.5를 따른다. 플랫폼별 원본·API·현재 소비자·남길 연결 코드·의존성·구체적인 부족 범위는 [native-api-ports.md](Nelyx/engine/platform/native-api-ports.md)에 기록했다.
 
 **검토 결과:** 기존 계획의 ‘Nelyx 자체 OS 구현 우선·RNW 도입 0개도 완료 가능’과 ‘HWND/App SDK 두 host 유지’가 사용자 의도와 어긋났다. macOS RNM·Linux RNL의 실제 소스 이식도 실행 단계에 빠져 있었다. §1.1을 1–5부와 W9B의 우선 계약으로 적용한다.
 
-- [ ] **원본/소비자 대응:** Windows RNW·Android/iOS RN·macOS RNM·Linux RNL별로 현재 소스/패키지 위치와 원본 선정 상태, API 목록·가져올 구현·남길 Nelyx 연결 코드·기존 소비자·미해결 의존성을 작성한다. 첫 차수의 실제 이식은 Windows부터 하며 Linux/Apple 구현·toolchain 준비를 Windows/Web의 선행 조건으로 만들지 않는다.
-- [ ] **Windows 단일 실행 경로:** App SDK host로 일반 CLI·기본 Windows host 선택·sample/template·run/dev/doctor/build/pack·manifest/profile·설치 graph를 이관한다. 필요한 공통 코드를 분리한 뒤 `NelyxEngineV2Host.exe`의 App SDK 없는 실행 target과 `windows-hwnd` 선택·전용 공급/실행 분기를 같은 묶음에서 제거한다. App SDK 실패 시 구 HWND host로 fallback하지 않는다. 공통 native library와 App SDK가 쓰는 HWND는 삭제하지 않는다.
-- [ ] **RNW 첫 실제 이식:** §4.1의 RNW 원본을 고정하고 clipboard/OS 설정 등 작은 서비스부터 실제 소스를 가져와 수정한다. 기존 직접 구현의 소비자를 App SDK dispatcher·취소/close·Core 서비스 port에 연결한 이식본으로 교체하고 원본/수정 출처를 공급한다. 키보드·pointer/focus·IME·UIA 등 전체 API 이식 잔여는 W9B-03과 W9-07/13에 연결한다.
-- [ ] **동일 앱과 공급 확인:** App SDK의 원래 Widget 앱·설치 소비자의 생성/실행·입력·resize·close, RNW에서 이식한 API의 실제 OS 동작·늦은 callback/구독 해제·오류를 확인한다. Core/공급 변경 범위에 맞춰 Web 두 profile과 Android의 필요한 회귀를 수행하고 source identity·전체 파일 hash를 갱신한다. 공급에 독립 HWND executable/profile이 남지 않아야 한다.
-- [ ] **기록/정리:** 이식한 API와 아직 자체 구현/미지원인 API를 분리하고 출처·수정·실행 범위를 남긴다. 현재 dist와 출처만 유지하고 임시 설치본·archive·browser/server·창을 회수한다. W9B-00의 과거 PASS를 새 이식본의 검증으로 복사하지 않는다.
+- [x] **원본/소비자 대응:** Windows RNW·Android/iOS RN·macOS RNM·Linux RNL별로 현재 소스/패키지 위치와 원본 선정 상태, API 목록·가져올 구현·남길 Nelyx 연결 코드·기존 소비자·미해결 의존성을 작성한다. 첫 차수의 실제 이식은 Windows부터 하며 Linux/Apple 구현·toolchain 준비를 Windows/Web의 선행 조건으로 만들지 않는다.
+- [x] **Windows 단일 실행 경로:** App SDK host로 일반 CLI·기본 Windows host 선택·sample/template·run/dev/doctor/build/pack·manifest/profile·설치 graph를 이관한다. 필요한 공통 코드를 분리한 뒤 `NelyxEngineV2Host.exe`의 App SDK 없는 실행 target과 `windows-hwnd` 선택·전용 공급/실행 분기를 같은 묶음에서 제거한다. App SDK 실패 시 구 HWND host로 fallback하지 않는다. 공통 native library와 App SDK가 쓰는 HWND는 삭제하지 않는다.
+- [x] **RNW 첫 실제 이식:** §4.1의 RNW 원본을 고정하고 clipboard/OS 설정 등 작은 서비스부터 실제 소스를 가져와 수정한다. 기존 직접 구현의 소비자를 App SDK dispatcher·취소/close·Core 서비스 port에 연결한 이식본으로 교체하고 원본/수정 출처를 공급한다. 키보드·pointer/focus·IME·UIA 등 전체 API 이식 잔여는 W9B-03과 W9-07/13에 연결한다.
+- [x] **동일 앱과 공급 확인:** App SDK의 원래 Widget 앱·설치 소비자의 생성/실행·입력·resize·close, RNW에서 이식한 API의 실제 OS 동작·늦은 callback/구독 해제·오류를 확인한다. Core/공급 변경 범위에 맞춰 Web 두 profile과 Android의 필요한 회귀를 수행하고 source identity·전체 파일 hash를 갱신한다. 공급에 독립 HWND executable/profile이 남지 않아야 한다.
+- [x] **기록/정리:** 이식한 API와 아직 자체 구현/미지원인 API를 분리하고 출처·수정·실행 범위를 남긴다. 현재 dist와 출처만 유지하고 임시 설치본·archive·browser/server·창을 회수한다. W9B-00의 과거 PASS를 새 이식본의 검증으로 복사하지 않는다.
 
 **완료 조건:** Windows의 제품 host는 App SDK 하나이며 정상 CLI·공급·설치 graph도 동일하다. RNW 첫 API가 실제 수정 소스에서 실행되고, 남은 모든 native API의 RNW/RN/RNM/RNL 이식 대응과 단계가 명시돼 있다. 이 범위 교정으로 불필요한 독립 HWND host를 제거하는 작업은 W9B-07의 전체 제품 전환·물리/성능 수락까지 미루지 않는다. 다른 v1 실행부의 제거는 기존 대체·소비자 이관·제품 확인 조건을 따른다.
+
+### 3.5 W9B-00-H 구현과 이번 검증
+
+- **단일 host:** CMake의 독립 executable target·기본 선택·전용 분기와 root의 별도 host 선택 명령을 제거했다. 일반 v2 CLI create/doctor/build/run/dev/pack, 생성 template과 두 v2 sample은 App SDK를 사용한다. 폐기한 host 설정·이전 공급 profile·runtime/출처 누락은 명시 실패한다. 공통 native Core library와 AppWindow의 HWND interop는 유지한다. 폐기한 host용 `native/hermesvm.dll` 사본도 공급에서 제거했다.
+- **실제 RNW 소스:** 고정 RNW **0.83.2 / af0b597c18691c26d1e01a72d94edda46c1fab26**의 ClipboardModule.cpp/.h를 복사·수정했다. ReactContext/ReactPromise를 App SDK DispatcherQueue·값 completion으로 교체하고 기존 public Clipboard 소비자를 연결했다. 원본·수정 파일·npm integrity·Git hash·MIT license를 `windows-app-sdk/sources/rnw`에 공급한다. npm CRLF 원본과 Git LF 원본의 byte hash를 각각 보존하고 내용 동등성을 확인했다.
+- **수명:** common AppServices에 비동기 completion을 추가하고 Android의 동기 pump도 같은 경계를 사용한다. stop은 provider를 취소하고 아직 실행하지 않은 쓰기를 차단한다. 늦은 완료는 closed App에 전달하지 않으며 port credit은 OS terminal까지 유지한다. Host close는 STA 완료를 drain한 뒤 App/worker/ledger와 App SDK dispatcher를 정리한다. Clipboard 변경 구독은 등록하지 않는다.
+- **발견한 resize 보완:** 일반 Testbed의 **2560×1459** 최대화에서 4× MSAA attachment가 native allocator **256MiB** 상한을 초과했다. Windows WSI의 internal MSAA를 **2×**로 고정하고 실제 allocator 실패 범위가 오류에 남게 했다. 기존 frame/WSI fence·offscreen/제출 구조와 hard cap을 유지한다. 최대화·복원·정상 close를 실제 창에서 확인했다. 다른 offscreen/imported-texture context의 정책은 유지하며 성능 수락은 별개다.
+- **남은 API:** public clipboard 서비스만 RNW 이식 완료다. `interaction.hpp/clipboard.hpp`의 동기 편집 단축키와 keyboard/pointer/focus·IME·UIA·환경/theme/locale/font·lifecycle/linking/네트워크는 W9B-03의 소비자 이관 대상으로 남긴다. Android/iOS RN·macOS RNM·Linux RNL은 원본과 부족 범위를 고정했으며 새 실제 API 이식은 미완료다. 특히 고정 RNL tree에 독립 clipboard·접근성 provider 등의 구현이 없는 범위를 명시했다.
+
+**최종 공급:** Windows/Web와 Android 두 ABI의 source identity는 **`42d60bd959f145b56c9ceafcc34265382cd6cb837270088cdd7177063f1c7d84`**다. `engine/dist` **347개**, `engine/dist-android` **42개** manifest 파일의 전체 SHA-256과 실제 파일 목록 일치를 확인했다. Windows 제품 profile은 `windows-app-sdk` 하나이며 native Core library는 유지한다. 독립 executable·`native` host profile·폐기한 host용 Hermes DLL 사본은 없다. ABI **2**·schema **3719990506**·layout **192 bytes**·App text **12**·App service **2**, 기본/Arabic/Hebrew/Emoji cohort와 원래 4개 package·834 subpath 기준 hash **`5133a536f72ef9ec31c411bc091cf29662ee315fd77268d4b8a34f532fb8dffd`**를 유지한다. §3.2의 source identity와 PASS는 W9B-00 당시 기록이다.
+
+| 이번 확인 | 결과와 수락 경계 |
+| --- | --- |
+| 공통 서비스 수명 | native `/W4 /WX` 검사에서 stop 전/후·unstarted 쓰기·중복/늦은 completion·owner 파괴 후 완료·terminal 전 credit 보존·잘못된/오류 응답·Android 동기 pump를 확인, 마지막 ledger **0** |
+| 독립 설치 소비 | 새 **8개 package** archive를 일회성 외부 소비자에 offline 설치. 실제 TS **7.0.2**, NodeNext·ES2022·`types: []`·`skipLibCheck: false` 선언 PASS. SDK native helper의 최종 소스도 같은 설치본에 갱신·대조. 생성 template의 App SDK 설정·설치 CLI doctor/build/pack/run과 폐기 설정 거부 PASS |
+| Windows 원래 App | 설치 package만 사용하는 원래 Widget App **698 modules / original-elements**. RNW clipboard 한글/emoji·빈 문자열·65,536 단위 왕복/hasStrings·초과 쓰기 거부, mouse hover/tap·Tab/Space의 **Count 0→1→2**, 실제 UIA·GPU screenshot, LayoutBuilder **912→1232→912** logical width와 최대화/복원 PASS |
+| 실제 OS 실패·취소 | WinRT 비텍스트 clipboard의 빈 결과, OS가 가진 초과 길이 텍스트의 명시 오류, 지연 DataPackage provider 읽기 도중 close와 그 뒤 늦은 OS 완료를 확인. 늦은 성공을 closed App에 전달하지 않으며 모든 해당 host의 close status·예약·메모리 **0**, worker join·dispatcher 종료 PASS |
+| 일반 root·dev | `npm.cmd run run:engine-v2:windows`가 별도 선택 없이 App SDK data Testbed를 실행. 같은 일반 명령의 2560×1459 최대화/복원과 Alt+F4 종료 확인. 설치 CLI의 Windows dev 첫 generation 실행·정상 close도 PASS. data Testbed는 원래 Gallery 전체 catalog와 구분 |
+| Web 영향 회귀 | 설치 App **697 modules**, Chrome single-worker/threaded에서 clipboard·원래 버튼 상태 변경·960→720px viewport resize PASS. 각각 close 예약 **0 / workersStopped=true**. 테스트 context의 clipboard 권한을 사용했으며 Edge·권한 UI·전체 catalog·성능 수락은 미실행 |
+| Android 영향 회귀 | 현재 소스에서 **arm64-v8a/x86_64** 재빌드. Temurin JDK 21·별도 **emulator-5556 / x86_64 / emulator-vulkan**에서 원래 App의 clipboard 한글/emoji·빈 문자열·hasStrings, **38 commands / fallback 0**, 실제 첫 프레임과 개발 제어의 App dispose·worker join·status/예약/메모리 **0** PASS. 테스트 APK·emulator 회수. arm64 실기기·reader·물리 입력/성능은 미실행 |
+
+`check:types`·`lint`·`format:check`·schema check·`git diff --check`와 새 문서 링크/앵커 검사를 통과했다. 폐기된 검증 파일을 가리키는 기존 역사 링크는 보존했으며 harness를 복원하지 않았다. 임시 App·설치본·archive·browser/server·native 창·테스트 emulator·검증 harness를 모두 회수했고 현재 공급·기존 build cache·출처만 유지한다. 전체 API **compatible=false**, 물리/display/scanout **notVerified**, 두 성능 flag **false**, Linux·iOS/macOS **DEFERRED**는 유지한다.
 
 ## 4. 남은 실행 단계와 의존성
 
 | 단계 | 선행·이전 단계 대응 | 작업과 완료 조건 |
 | --- | --- | --- |
 | **W9B-00 미검증 묶음 정리 — 완료** | W9A-04/05 | §3의 Source/Core·공급·설치·실행 확인 완료. Gallery의 다음 차단은 W9B-01로 연결 |
-| **W9B-00-H host·플랫폼 API 교정** | 현재 다음 실행 · 00 | §3.4. App SDK 단일 Windows host로 CLI/공급/소비자 이관 후 독립 HWND target 제거. RNW 첫 실제 소스 이식과 모든 native API의 원본/교체 대응 확정 |
+| **W9B-00-H host·플랫폼 API 교정 — 완료** | 00 | §3.4. App SDK 단일 Windows host로 CLI/공급/소비자 이관 후 독립 HWND target 제거. RNW 첫 실제 소스 이식과 모든 native API의 원본/교체 대응 확정 |
 | **W9B-01 Core 실행 이관** | 00-H · W9A-04 | 표준 RenderObject의 설정·invalidation·parent data를 최종 TS 실행과 분리. 각 모듈이 native 설정을 소유하고 마지막 TS 실행 소비자 제거. OS endpoint는 §1.1의 이식 adapter 사용 |
 | **W9B-02 디자인·접근성 정책 연결** | 01의 필요한 연산 · W9A-05 | 원래 theme/State/painter·controls·폼·route/overlay/localization/assets 실행. 축소 `/v2` 컴포넌트 소비자 종료와 전체 catalog 잔여 추적 |
 | **W9B-03 SDK 서비스·수명 완성** | 00-H/01의 필요한 서비스 · W9A-06 | Windows RNW·Android/iOS RN·macOS RNM·Linux RNL의 플랫폼 API 소스를 해당 차수에서 실제 수정·이식. 공통 session/view/service·VM·reload/loss·공개 host API와 실패/취소/close 수명 완성 |
@@ -223,7 +247,7 @@ npm.cmd run build:engine-v2:android
 git diff --check
 ```
 
-W9B-00-H에서 Windows의 기본 host·sample/template 설정을 App SDK로 이관한다. 그 전에는 실행할 App의 `nelyx.json`에 **`"windowsHost": "windows-app-sdk"`**가 지정됐는지 먼저 확인한다. 아래 `--target windows`가 App SDK 없는 기존 기본값을 선택한 결과를 새 host 검증으로 기록하지 않는다. 공급 identity·파일 hash 확인 후 원래 Widget App의 일반 경로를 확인한다.
+Windows의 v2 기본 host·sample/template은 App SDK다. `windowsHost`를 생략해도 같은 host를 선택하며 폐기한 설정은 실패한다. 공급 identity·전체 파일 hash를 확인한 뒤 아래 원래 Widget App의 일반 경로를 사용한다.
 
 ```powershell
 $w9bEngineInputs = (Resolve-Path .\Nelyx\engine\dist).Path
@@ -231,7 +255,7 @@ node Nelyx/sdk/tooling/cli/src/main.mjs build --engine v2 --app sample/nelyx-eng
 node Nelyx/sdk/tooling/cli/src/main.mjs run --engine v2 --app sample/nelyx-engine-v2-android --target windows --engine-inputs $w9bEngineInputs
 ```
 
-현재 App SDK 명시 root 진입점은 `run:engine-v2:windows-app-sdk`이며 data Testbed 후보를 사용하므로 원래 Gallery와 구분한다. `run:engine-v2:windows`의 App SDK 없는 기본 선택은 00-H의 수정 대상이다. 이후 두 Windows 제품 host를 선택하는 명령/설정을 유지하지 않는다. Web 두 profile과 Android 일반 명령 `npm.cmd run run:engine-v2:android -- --device=emulator-5554`는 해당 App entry·serial·SDK/JDK·ABI를 확인해 사용한다.
+Windows root 진입점은 `npm.cmd run run:engine-v2:windows`이며 App SDK에서 data Testbed 후보를 실행한다. 원래 Gallery와 구분한다. 별도 host 선택 명령은 제거했다. Web 두 profile과 Android 일반 명령 `npm.cmd run run:engine-v2:android -- --device=emulator-5554`는 해당 App entry·serial·SDK/JDK·ABI를 확인해 사용한다.
 
 - 저장소 지침의 **20분 timeout**·보통 **30회 이내** 반복을 적용한다. 변경이 무효화한 검사와 실제 실패를 해결하는 범위만 다시 확인한다.
 - 폐기한 독립 `test:*`·`audit:*`·`experiment:*`·측정 harness를 선행 작업으로 복원하지 않는다. 의미 비교·malformed wire 등 필요한 확인은 한 실행의 임시 묶음과 실제 제품 흐름에서 수행한다.
@@ -242,7 +266,7 @@ node Nelyx/sdk/tooling/cli/src/main.mjs run --engine v2 --app sample/nelyx-engin
 ## 8. 전체 완료 체크리스트와 현재 재개점
 
 - [x] W9B-00의 최근 미검증 변경을 확인하고 소스·공급·설치 소비·원래 Gallery의 실제 상태를 맞췄다.
-- [ ] W9B-00-H의 App SDK 단일 Windows host·독립 HWND target 제거·RNW 첫 실제 API 이식과 전체 native source 대응을 완료했다.
+- [x] W9B-00-H의 App SDK 단일 Windows host·독립 HWND target 제거·RNW 첫 실제 API 이식과 전체 native source 대응을 완료했다.
 - [ ] Windows RNW·Android/iOS RN·macOS RNM·Linux RNL 수정 소스를 각 플랫폼 API의 실제 소비자가 사용하며 출처·의존성·실행 근거를 확인했다.
 - [ ] 제품 Widget/Element/State가 하나이고 중복 `/v2` 컴포넌트 소비자가 없다.
 - [ ] 최종 layout/geometry/hit-test/gesture/scene 권위가 v2 하나이며 구 TS/RN renderer 실행 경로가 없다.
@@ -255,8 +279,8 @@ node Nelyx/sdk/tooling/cli/src/main.mjs run --engine v2 --app sample/nelyx-engin
 - [ ] 후속 플랫폼 대체/지원 범위를 확정하고 구 runtime·공급·불필요 dependency·배포 파일을 제거했다.
 - [ ] 생성 소유권·출처·README·CLI help·work 문서가 실제 지원 상태와 일치한다.
 
-**현재 상태:** **W9B-00 기능 검증 완료 / host·플랫폼 API 계획 교정 / 구조 개편 PARTIAL**. §3.2의 과거 공급·실행 근거는 보존한다. 제품 소스·공급에는 아직 독립 HWND host가 있고 RNW/RN/RNM/RNL 이식 완료도 아니므로 새 구조의 수락은 미완료다. 이번 계획 변경에서 제품 build/run은 수행하지 않았다. 전체 API **compatible=false**, 물리/display/scanout **notVerified**, 두 성능 flag **false**, Linux·iOS/macOS **DEFERRED**를 유지한다.
+**현재 상태:** **W9B-00 완료 / W9B-00-H 완료 / 구조 개편 PARTIAL**. §3.2의 과거 공급·실행 근거는 보존하며 이번 구현과 새 검증은 §3.4–3.5에 기록한다. Windows host는 App SDK 하나이고 RNW public clipboard를 실제 수정 소스로 연결했다. 전체 native API 이식과 W9-13/14 수락은 미완료다. 전체 API **compatible=false**, 물리/display/scanout **notVerified**, 두 성능 flag **false**, Linux·iOS/macOS **DEFERRED**를 유지한다.
 
-**다음 시작점:** **W9B-00-H**의 원본/API/기존 소비자 대응 → Windows App SDK 단일 host·CLI/공급 이관과 독립 HWND target 제거 → RNW 첫 실제 플랫폼 API 이식·일반 앱 확인. 이후 W9B-01의 `RenderPointerListener`와 W9B-02의 Tooltip/overlay를 이어간다.
+**다음 시작점:** **W9B-01**의 `RenderPointerListener` 원래 listener/gesture 설정·수명부터 이어간다. W9B-02의 Tooltip 위치/overlay와 W9B-03의 나머지 플랫폼 API 소스 이식 의무를 유지한다.
 
-**재개 요청:** `work9-b.md의 W9B-00-H 작업해줘`
+**다음 재개 요청:** `work9-b.md의 W9B-01 작업해줘`

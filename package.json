@@ -25,7 +25,6 @@
     "dev:engine-v2:android": "node Nelyx/engine/tools/run-android.mjs --dev",
     "run:engine-v2:web": "node Nelyx/engine/tools/serve.mjs",
     "run:engine-v2:windows": "node Nelyx/engine/tools/run-windows.mjs",
-    "run:engine-v2:windows-app-sdk": "node Nelyx/engine/tools/run-windows.mjs --host=windows-app-sdk",
     "lint": "oxlint --deny-warnings --report-unused-disable-directives .",
     "build:sdk": "npm run build:core && npm run build:designs && npm run build:skia && npm run build --workspace @nelyx/sdk && node Nelyx/eng/generate-providers.mjs && node Nelyx/eng/prepare-cli.mjs",
     "check:types": "npm run check --workspace @nelyx/core && npm run check --workspace @nelyx/tooling-contracts && npm run check --workspace @nelyx/static-aot && npm run check --workspace @nelyx/cupertino && npm run check --workspace @nelyx/material && npm run check --workspace @nelyx/skia-native && npm run check --workspace @nelyx/skia-rn && npm run check --workspace @nelyx/skia-web && npm run check --workspace @nelyx/sdk && npm run check --workspace @nelyx/testbed-2 && npm run check --workspace @nelyx/demo",

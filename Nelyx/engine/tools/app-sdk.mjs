@@ -6,7 +6,39 @@ import { createHash } from 'node:crypto';
 import { windowsCompilerEnvironment } from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
 
 export const windowsAppSdkVersion = '1.8.260508005';
+function supplyRnwPort(engineRoot, output) {
+  const root = path.join(engineRoot, 'platform/windows/rnw');
+  const provenance = JSON.parse(fs.readFileSync(path.join(root, 'provenance.json'), 'utf8'));
+  const records = [
+    ...provenance.files.flatMap((file) => [
+      { path: file.original, sha256: file.originalSha256 },
+      { path: file.adapted, sha256: file.adaptedSha256 },
+    ]),
+    { path: provenance.license.file, sha256: provenance.license.sha256 },
+  ];
+  for (const record of [...records, { path: 'provenance.json' }]) {
+    const source = path.resolve(root, record.path);
+    if (
+      !source.startsWith(root + path.sep) ||
+      (record.sha256 &&
+        createHash('sha256').update(fs.readFileSync(source)).digest('hex') !== record.sha256)
+    )
+      throw Error('RNW port source identity differs: ' + record.path);
+    const destination = path.join(output, 'sources/rnw', record.path);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.copyFileSync(source, destination);
+  }
+  return {
+    provenance: 'windows-app-sdk/sources/rnw/provenance.json',
+    package: provenance.package,
+    version: provenance.version,
+    revision: provenance.revision,
+    integrity: provenance.integrity,
+    apis: ['clipboard-read', 'clipboard-write', 'clipboard-has-strings'],
+  };
+}
 export function buildAppSdkHost({ engineRoot, library, intermediate, output }) {
+  const rnw = supplyRnwPort(engineRoot, output);
   const env = windowsCompilerEnvironment();
   const msbuild = path.join(env.VSINSTALLDIR, 'MSBuild/Current/Bin/MSBuild.exe');
   fs.mkdirSync(intermediate, { recursive: true });
@@ -116,6 +148,7 @@ export function buildAppSdkHost({ engineRoot, library, intermediate, output }) {
     crt: 'MD',
     compiler: env.VCTOOLSVERSION,
     windowsSdk: env.WINDOWSSDKVERSION,
+    platformSources: [rnw],
     packages,
   };
 }
