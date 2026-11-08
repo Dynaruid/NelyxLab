@@ -10,15 +10,18 @@ import type {
   ParagraphBuilder,
   ParagraphStyle,
   Path,
+  Image,
+  MallocObj,
 } from 'canvaskit-wasm';
-import { decodeUtf8, protocol as p } from '../../../runtime/engine-client/index.ts';
+import { protocol as p } from '../../../runtime/engine-client/schema.ts';
+import { decodeUtf8 } from '../../../runtime/engine-client/utf8.ts';
 import type {
   EngineResponse,
   EngineNodeSnapshot,
   ProviderMeasurement,
   NodeHandle,
-  FontResourceSlice,
-} from '../../../runtime/engine-client/index.ts';
+} from '../../../runtime/engine-client/codec.ts';
+import type { FontResourceSlice } from '../../../runtime/engine-client/font-resource.ts';
 import { key, script, verified, CommittedMemoryError } from '../../platform/web/common.ts';
 import { lineIndexUnit, lineNumberAtUTF16, editingGeometry } from './paragraph.ts';
 import type { LineIndexUnit } from './paragraph.ts';
@@ -44,6 +47,7 @@ import { readFontCatalog } from '../../../runtime/engine-client/font-catalog.ts'
 import { acquireImageResources } from '../../../runtime/engine-client/image-resource.ts';
 import type { ImageResourceSlice } from '../../../runtime/engine-client/image-resource.ts';
 import type { FontCatalog } from '../../../runtime/engine-client/font-catalog.ts';
+import type { SnapshotAccess, SnapshotDecision } from '../../../runtime/engine-client/snapshot.ts';
 export interface ProviderFont {
   id: string;
   family: string;
@@ -140,7 +144,7 @@ export interface PreparedPictures {
   }[];
   paths: {
     node: string;
-    segments: readonly import('../../../runtime/engine-client/index.ts').PathSegment[];
+    segments: readonly import('../../../runtime/engine-client/codec.ts').PathSegment[];
     fillRule: 'winding' | 'evenOdd';
   }[];
   local?: Map<string, Picture>;
@@ -187,6 +191,84 @@ const textBytes = (text: PreparedText | undefined): number =>
     0,
   ) ?? 0;
 export class CanvasKitProvider {
+  private snapshotAccess: SnapshotAccess | undefined;
+  private readonly snapshots = new Map<bigint, { image: Image; release: () => void }>();
+  bindSnapshots(access: SnapshotAccess): void {
+    if (this.snapshotAccess) throw Error('Snapshot Core connection is already bound');
+    this.snapshotAccess = access;
+  }
+  private pruneSnapshots(decision: SnapshotDecision): void {
+    for (const [token, entry] of this.snapshots)
+      if (!decision.liveTokens.has(token)) {
+        entry.release();
+        this.snapshots.delete(token);
+      }
+    this.counters.liveSnapshots = this.snapshots.size;
+  }
+  private captureSnapshot(
+    frame: bigint,
+    node: NodeHandle,
+    decision: SnapshotDecision,
+    paint: (canvas: ReturnType<Surface['getCanvas']>) => void,
+    scratchBytes: number,
+  ): void {
+    let surface: Surface | null = null,
+      pixels: MallocObj | null = null,
+      image: Image | null = null;
+    let releaseMetadata: (() => void) | undefined;
+    const release = () => {
+      image?.delete();
+      image = null;
+      surface?.delete();
+      surface = null;
+      if (pixels) this.ck.Free(pixels);
+      pixels = null;
+      releaseMetadata?.();
+    };
+    try {
+      releaseMetadata = this.budget?.reserve(2, 256);
+      this.guarded(decision.pixelWidth * decision.pixelHeight * 16 + scratchBytes, () => {
+        pixels = this.ck.Malloc(Uint8Array, decision.pixelWidth * decision.pixelHeight * 4);
+        if (!pixels.byteOffset) throw Error('Snapshot raster pixels allocation failed');
+        surface = this.ck.MakeRasterDirectSurface(
+          {
+            width: decision.pixelWidth,
+            height: decision.pixelHeight,
+            alphaType: this.ck.AlphaType.Premul,
+            colorType: this.ck.ColorType.RGBA_8888,
+            colorSpace: this.ck.ColorSpace.SRGB,
+          },
+          pixels,
+          decision.pixelWidth * 4,
+        );
+        if (!surface) throw Error('Snapshot raster surface allocation failed');
+        const target = surface.getCanvas();
+        target.clear(this.ck.TRANSPARENT);
+        target.scale(decision.ratio, decision.ratio);
+        paint(target);
+        const original = surface.makeImageSnapshot();
+        try {
+          image = original.makeCopyWithDefaultMipmaps();
+        } finally {
+          original.delete();
+        }
+        if (!image) throw Error('Snapshot image allocation failed');
+      });
+      this.snapshots.set(decision.token, { image: image!, release });
+      this.snapshotAccess!(frame, 2, node, decision.token);
+      ++this.counters.snapshotCaptures;
+      this.counters.liveSnapshots = this.snapshots.size;
+    } catch (error) {
+      this.snapshots.delete(decision.token);
+      release();
+      try {
+        this.snapshotAccess!(frame, 3, node, decision.token);
+      } catch (failure) {
+        throw new AggregateError([error, failure], 'Snapshot capture and rollback failed');
+      }
+      throw error;
+    }
+  }
   private static readonly fontVariationLimit = 16;
   private packetHolds = new Map<bigint, () => void>();
   private backingRelease: (() => void) | undefined;
@@ -231,6 +313,9 @@ export class CanvasKitProvider {
     pictures: 0,
     imports: 0,
     draws: 0,
+    snapshotCaptures: 0,
+    snapshotReuses: 0,
+    liveSnapshots: 0,
     livePaints: 0,
     livePaintEntries: 0,
     orderedParagraphs: 0,
@@ -860,6 +945,10 @@ export class CanvasKitProvider {
               letterSpacing: run.letterSpacing,
               wordSpacing: run.wordSpacing,
               halfLeading: run.halfLeading,
+              textBaseline:
+                run.textBaseline === 'ideographic'
+                  ? this.ck.TextBaseline.Ideographic
+                  : this.ck.TextBaseline.Alphabetic,
               ...(run.height === null ? {} : { heightMultiplier: run.height }),
               decoration: run.decoration,
               decorationStyle: [
@@ -949,30 +1038,31 @@ export class CanvasKitProvider {
         this.budget?.reserve(2, 8 * 1024 * 1024 + 65536 + input.fonts.length * 1024) ?? (() => {});
     let provider: TypefaceFontProvider | null = null;
     try {
-      this.guarded(
-        input.fonts.reduce((size, font) => size + font.bytes.length * 2, 0),
-        () => {
-          for (const font of input.fonts) {
-            const face = this.ck.Typeface.MakeTypefaceFromData(font.bytes.slice().buffer);
-            if (!face) throw Error('Dynamic CanvasKit font decode failed');
-            ++this.counters.dynamicFontLoads;
-            owned.push(face);
-            faces.push(face);
-            identifiers.push(identity + '/' + (owned.length - 1));
-            families.push(font.family);
-          }
-          for (const [id, face] of this.typefaces) {
-            const name = this.fontAliases.get(id)!;
-            if (!replaced.has(name)) {
-              faces.push(face);
-              identifiers.push(id);
-              families.push(name);
-            }
-          }
-          provider = (this.ck as ParagraphRuntime).nelyxMakeFontProvider!(faces, families);
-          if (!provider) throw Error('Dynamic CanvasKit font collection failed');
-        },
-      );
+      for (const font of input.fonts) {
+        // The catalog already owns its immutable input. CanvasKit copies into
+        // its separately admitted Wasm heap; only this one JS slice is staging.
+        this.guarded(font.bytes.length + 65536, () => {
+          const face = this.ck.Typeface.MakeTypefaceFromData(font.bytes.slice().buffer);
+          if (!face) throw Error('Dynamic CanvasKit font decode failed');
+          ++this.counters.dynamicFontLoads;
+          owned.push(face);
+          faces.push(face);
+          identifiers.push(identity + '/' + (owned.length - 1));
+          families.push(font.family);
+        });
+      }
+      for (const [id, face] of this.typefaces) {
+        const name = this.fontAliases.get(id)!;
+        if (!replaced.has(name)) {
+          faces.push(face);
+          identifiers.push(id);
+          families.push(name);
+        }
+      }
+      this.guarded(65536 + faces.length * 1024, () => {
+        provider = (this.ck as ParagraphRuntime).nelyxMakeFontProvider!(faces, families);
+        if (!provider) throw Error('Dynamic CanvasKit font collection failed');
+      });
       const collection = provider!;
       const catalog: AppFontCatalog = Object.freeze({
         provider: collection,
@@ -1909,6 +1999,9 @@ export class CanvasKitProvider {
           : 0) +
           (n.flags & p.nodeFlags.clipSaveLayer
             ? Math.ceil(width * scale) * Math.ceil(height * scale) * 4
+            : 0) +
+          ((n.snapshot?.live?.opacity ?? 1) < 1
+            ? Math.ceil(width * scale) * Math.ceil(height * scale) * 4
             : 0)),
       0,
     );
@@ -1942,127 +2035,234 @@ export class CanvasKitProvider {
       throw new Error('Worker WebGL2 context lost; create a new session');
     const table = this.tables.get(frame.activePreparation);
     if (!table) throw new Error('Active scene has no prepared provider resources');
+    if (!this.snapshotAccess) throw Error('Snapshot Core connection is unavailable');
+    this.pruneSnapshots(this.snapshotAccess(frame.submission, 0)!);
     const target = this.surface.getCanvas();
     target.clear(this.ck.Color(244, 246, 250, 1));
     target.save();
     target.scale(scale, scale);
     const nodes = new Map(frame.nodes.map((node) => [key(node.node), node]));
-    const saves: {
-      count: number;
-      matrix: EngineNodeSnapshot['matrix'];
-      culled: boolean;
-      item: EngineNodeSnapshot;
-    }[] = [];
-    const finish = (draw: boolean) => {
-      const { count, item, culled } = saves.pop()!;
-      try {
-        if (draw && !culled) this.drawPaint(target, table, nodes, item, scale, true);
-      } finally {
-        for (let i = 0; i < count; ++i) target.restore();
-      }
-    };
-    try {
-      for (const item of frame.nodes) {
-        while (saves.length > item.depth) {
-          finish(true);
+    const ends = frame.nodes.map(() => frame.nodes.length),
+      indices: number[] = [];
+    for (let i = 0; i < frame.nodes.length; ++i) {
+      while (indices.length && frame.nodes[indices.at(-1)!]!.depth >= frame.nodes[i]!.depth)
+        ends[indices.pop()!] = i;
+      indices.push(i);
+    }
+    const drawRange = (
+      target: ReturnType<Surface['getCanvas']>,
+      begin: number,
+      end: number,
+      baseMatrix: EngineNodeSnapshot['matrix'],
+      scale: number,
+    ): void => {
+      const baseDepth = begin < end ? frame.nodes[begin]!.depth : 0;
+      const saves: {
+        count: number;
+        matrix: EngineNodeSnapshot['matrix'];
+        culled: boolean;
+        item: EngineNodeSnapshot;
+      }[] = [];
+      const finish = (draw: boolean) => {
+        const { count, item, culled } = saves.pop()!;
+        try {
+          if (draw && !culled) this.drawPaint(target, table, nodes, item, scale, true);
+        } finally {
+          for (let i = 0; i < count; ++i) target.restore();
         }
-        if (item.flags & p.nodeFlags.paintResource) continue;
-        const parent = saves.at(-1),
-          relative = relativeMatrix(parent?.matrix ?? [1, 0, 0, 1, 0, 0], item.matrix);
-        const culled =
-          !!parent?.culled ||
-          !item.clip.width ||
-          !item.clip.height ||
-          !relative ||
-          item.matrix[0] * item.matrix[3] - item.matrix[1] * item.matrix[2] === 0;
-        target.save();
-        let count = 1;
-        if (culled) target.clipRect(this.ck.XYWHRect(0, 0, 0, 0), this.ck.ClipOp.Intersect, false);
-        else target.concat(canvasMatrix(relative!));
-        paintNativeShadow(
-          this.ck,
-          target,
-          item,
-          this.pathTables.get(frame.activePreparation)?.get(key(item.node)),
-          scale,
-        );
-        if (
-          (item.kind === p.kinds.clip && item.clipStyle?.behavior !== 'none') ||
-          item.kind === p.kinds.scrollViewport ||
-          item.flags & p.nodeFlags.clipsChildren
-        ) {
-          const path = this.pathTables.get(frame.activePreparation)?.get(key(item.node)),
-            style = item.clipStyle,
-            antiAlias = !(item.flags & p.nodeFlags.hardEdgeClip),
-            rect = this.ck.XYWHRect(0, 0, item.width, item.height);
-          if (item.nativePaint?.some((entry) => entry.kind === 'physical') && path) {
-            target.clipPath(path, this.ck.ClipOp.Intersect, antiAlias);
-          } else if (item.flags & p.nodeFlags.rectangularClip || (!style && !antiAlias)) {
-            target.clipRect(rect, this.ck.ClipOp.Intersect, false);
-          } else if (style) {
-            if (style.shape === 'rect') target.clipRect(rect, this.ck.ClipOp.Intersect, antiAlias);
-            else
-              target.clipRRect(
-                style.shape === 'oval'
-                  ? this.ck.RRectXY(rect, item.width / 2, item.height / 2)
-                  : Float32Array.from([0, 0, item.width, item.height, ...style.radii]),
+      };
+      try {
+        for (let index = begin; index < end; ++index) {
+          const item = frame.nodes[index]!;
+          while (saves.length > item.depth - baseDepth) {
+            finish(true);
+          }
+          if (item.flags & p.nodeFlags.paintResource) {
+            index = ends[index]! - 1;
+            continue;
+          }
+          const parent = saves.at(-1),
+            relative = relativeMatrix(parent?.matrix ?? baseMatrix, item.matrix);
+          const culled =
+            !!parent?.culled ||
+            item.opacity <= 0 ||
+            !relative ||
+            item.matrix[0] * item.matrix[3] - item.matrix[1] * item.matrix[2] === 0;
+          target.save();
+          let count = 1;
+          if (culled)
+            target.clipRect(this.ck.XYWHRect(0, 0, 0, 0), this.ck.ClipOp.Intersect, false);
+          else target.concat(canvasMatrix(relative!));
+          paintNativeShadow(
+            this.ck,
+            target,
+            item,
+            this.pathTables.get(frame.activePreparation)?.get(key(item.node)),
+            scale,
+          );
+          if (
+            (item.kind === p.kinds.clip && item.clipStyle?.behavior !== 'none') ||
+            item.kind === p.kinds.scrollViewport ||
+            item.flags & p.nodeFlags.clipsChildren
+          ) {
+            const path = this.pathTables.get(frame.activePreparation)?.get(key(item.node)),
+              style = item.clipStyle,
+              antiAlias = !(item.flags & p.nodeFlags.hardEdgeClip),
+              rect = this.ck.XYWHRect(0, 0, item.width, item.height);
+            if (item.nativePaint?.some((entry) => entry.kind === 'physical') && path) {
+              target.clipPath(path, this.ck.ClipOp.Intersect, antiAlias);
+            } else if (item.flags & p.nodeFlags.rectangularClip || (!style && !antiAlias)) {
+              target.clipRect(rect, this.ck.ClipOp.Intersect, false);
+            } else if (style) {
+              if (style.shape === 'rect')
+                target.clipRect(rect, this.ck.ClipOp.Intersect, antiAlias);
+              else
+                target.clipRRect(
+                  style.shape === 'oval'
+                    ? this.ck.RRectXY(rect, item.width / 2, item.height / 2)
+                    : Float32Array.from([0, 0, item.width, item.height, ...style.radii]),
+                  this.ck.ClipOp.Intersect,
+                  antiAlias,
+                );
+            } else if (path) {
+              target.clipRect(
+                this.ck.XYWHRect(0, 0, item.width, item.height),
                 this.ck.ClipOp.Intersect,
                 antiAlias,
               );
-          } else if (path) {
-            target.clipRect(
-              this.ck.XYWHRect(0, 0, item.width, item.height),
-              this.ck.ClipOp.Intersect,
-              antiAlias,
-            );
-            target.clipPath(path, this.ck.ClipOp.Intersect, antiAlias);
-          } else
-            target.clipRRect(
-              this.ck.RRectXY(
-                this.ck.XYWHRect(0, 0, item.width, item.height),
-                item.radius,
-                item.radius,
-              ),
-              this.ck.ClipOp.Intersect,
-              antiAlias,
-            );
-          if (item.flags & p.nodeFlags.clipSaveLayer) {
+              target.clipPath(path, this.ck.ClipOp.Intersect, antiAlias);
+            } else
+              target.clipRRect(
+                this.ck.RRectXY(
+                  this.ck.XYWHRect(0, 0, item.width, item.height),
+                  item.radius,
+                  item.radius,
+                ),
+                this.ck.ClipOp.Intersect,
+                antiAlias,
+              );
+            if (item.flags & p.nodeFlags.clipSaveLayer) {
+              const paint = new this.ck.Paint();
+              try {
+                target.saveLayer(paint, rect);
+                ++count;
+              } finally {
+                paint.delete();
+              }
+            }
+          }
+          if (item.localOpacity < 1 || (item.graphics?.blur ?? 0) > 0) {
             const paint = new this.ck.Paint();
+            const filter =
+              (item.graphics?.blur ?? 0) > 0
+                ? this.ck.ImageFilter.MakeBlur(
+                    item.graphics!.blur!,
+                    item.graphics!.blur!,
+                    this.ck.TileMode.Decal,
+                    null,
+                  )
+                : null;
             try {
-              target.saveLayer(paint, rect);
+              paint.setAlphaf(item.localOpacity);
+              if (filter) paint.setImageFilter(filter);
+              target.saveLayer(paint);
               ++count;
             } finally {
               paint.delete();
+              filter?.delete();
+            }
+          }
+          saves.push({ count, matrix: item.matrix, culled, item });
+          if (!culled) {
+            this.drawItem(target, table, nodes, item, scale);
+            if (item.snapshot) {
+              const decision = this.snapshotAccess!(frame.submission, 1, item.node)!;
+              this.pruneSnapshots(decision);
+              if (decision.action === 1) {
+                let layers = 0;
+                for (let childIndex = index + 1; childIndex < ends[index]!; ++childIndex) {
+                  const child = frame.nodes[childIndex]!;
+                  if (child.opacity <= 0 || child.flags & p.nodeFlags.paintResource) continue;
+                  if (child.localOpacity < 1 || (child.graphics?.blur ?? 0) > 0)
+                    layers += (child.graphics?.blur ?? 0) > 0 ? 3 : 1;
+                  if (child.flags & p.nodeFlags.clipSaveLayer) ++layers;
+                  if ((child.snapshot?.live?.opacity ?? 1) < 1) ++layers;
+                }
+                this.captureSnapshot(
+                  frame.submission,
+                  item.node,
+                  decision,
+                  (recording) =>
+                    drawRange(recording, index + 1, ends[index]!, item.matrix, decision.ratio),
+                  decision.pixelWidth * decision.pixelHeight * 4 * layers,
+                );
+              }
+              if (decision.background) {
+                const paint = new this.ck.Paint();
+                try {
+                  paint.setColor(this.color(decision.background));
+                  target.drawRect(
+                    this.ck.XYWHRect(0, 0, decision.boxWidth, decision.boxHeight),
+                    paint,
+                  );
+                } finally {
+                  paint.delete();
+                }
+              }
+              target.save();
+              let layers = 1;
+              try {
+                target.concat(canvasMatrix(decision.matrix));
+                if (decision.action === 1 || decision.action === 2) {
+                  const image = this.snapshots.get(decision.token)?.image;
+                  if (!image) throw Error('Snapshot raster token is unavailable');
+                  const paint = new this.ck.Paint();
+                  try {
+                    paint.setAlphaf(decision.opacity);
+                    target.drawImageRectOptions(
+                      image,
+                      this.ck.XYWHRect(0, 0, decision.sourceRectWidth, decision.sourceRectHeight),
+                      this.ck.XYWHRect(0, 0, decision.destinationWidth, decision.destinationHeight),
+                      this.ck.FilterMode.Linear,
+                      this.ck.MipmapMode.Linear,
+                      paint,
+                    );
+                  } finally {
+                    paint.delete();
+                  }
+                  if (decision.action === 2) ++this.counters.snapshotReuses;
+                } else if (
+                  decision.boxWidth > 0 &&
+                  decision.boxHeight > 0 &&
+                  decision.opacity > 0
+                ) {
+                  if (decision.opacity < 1) {
+                    const paint = new this.ck.Paint();
+                    try {
+                      paint.setAlphaf(decision.opacity);
+                      target.saveLayer(paint);
+                      ++layers;
+                    } finally {
+                      paint.delete();
+                    }
+                  }
+                  drawRange(target, index + 1, ends[index]!, item.matrix, scale);
+                }
+              } finally {
+                while (layers--) target.restore();
+              }
+              index = ends[index]! - 1;
             }
           }
         }
-        if (item.localOpacity < 1 || (item.graphics?.blur ?? 0) > 0) {
-          const paint = new this.ck.Paint();
-          const filter =
-            (item.graphics?.blur ?? 0) > 0
-              ? this.ck.ImageFilter.MakeBlur(
-                  item.graphics!.blur!,
-                  item.graphics!.blur!,
-                  this.ck.TileMode.Decal,
-                  null,
-                )
-              : null;
-          try {
-            paint.setAlphaf(item.localOpacity);
-            if (filter) paint.setImageFilter(filter);
-            target.saveLayer(paint);
-            ++count;
-          } finally {
-            paint.delete();
-            filter?.delete();
-          }
-        }
-        saves.push({ count, matrix: item.matrix, culled, item });
-        if (!culled) this.drawItem(target, table, nodes, item, scale);
+        while (saves.length) finish(true);
+      } finally {
+        while (saves.length) finish(false);
       }
-      while (saves.length) finish(true);
+    };
+    try {
+      drawRange(target, 0, frame.nodes.length, [1, 0, 0, 1, 0, 0], scale);
     } finally {
-      while (saves.length) finish(false);
       target.restore();
     }
     this.surface.flush();
@@ -2128,7 +2328,7 @@ export class CanvasKitProvider {
     item: EngineNodeSnapshot,
     scale: number,
   ): void {
-    if (!(item.flags & 16) || !item.clip.width || !item.clip.height) return;
+    if (item.width <= 0 || item.height <= 0) return;
     const picture = table.get(key(item.node));
     if (!picture) throw new Error('Prepared node generation missing');
     const geometry =
@@ -2165,9 +2365,6 @@ export class CanvasKitProvider {
   ): void {
     if (
       !(item.flags & p.nodeFlags.livePaint) ||
-      !(item.flags & 16) ||
-      !item.clip.width ||
-      !item.clip.height ||
       (foreground && !item.nativePaint?.some((entry) => entry.kind === 'children'))
     )
       return;
@@ -2229,6 +2426,10 @@ export class CanvasKitProvider {
       throw Error('App provider still has live font catalogs/scopes');
     if (this.immutableBuffers.size) throw Error('App provider still has live immutable buffers');
     this.closing = true;
+    for (const entry of this.snapshots.values()) entry.release();
+    this.snapshots.clear();
+    this.counters.liveSnapshots = 0;
+    this.snapshotAccess = undefined;
     this.trimCache();
     this.retireExcept(-1n);
     for (const release of this.packetHolds.values()) release();

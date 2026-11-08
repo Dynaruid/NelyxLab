@@ -210,3 +210,7 @@ $RECYCLE.BIN/
 # Explicit local supplier inputs are pinned by vendor locks and retained separately from cache.
 /Nelyx/skia/vendor/inputs/
 /Nelyx/upstream
+
+# Projections of engine-owned native helpers for the transitional SDK/Skia packages.
+/Nelyx/sdk/native/engine-helpers/
+/Nelyx/skia/native/engine-helpers/

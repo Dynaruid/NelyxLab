@@ -2,6 +2,7 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Adapted from pinned rendering/proxy_box.dart.
 import { RenderProxyBox } from './boxes.ts';
+import { registerNativeBoxConfiguration } from './native-box.ts';
 import { SemanticsAnnotationsMixin } from './object.ts';
 import type { RenderBox, RenderObject } from './object.ts';
 import type { SemanticsProperties, SemanticsConfiguration } from '../semantics/semantics.ts';
@@ -134,6 +135,16 @@ export class RenderExcludeSemantics extends RenderProxyBox {
   }
 }
 RenderProxyBox._registerGeometryLayoutSemantics(RenderExcludeSemantics.prototype);
+registerNativeBoxConfiguration(RenderBlockSemantics.prototype, (render) => ({
+  kind: 'box',
+  layout: { childConstraints: 'inherit' },
+  semanticsPolicy: { blockPrevious: render.blocking },
+}));
+registerNativeBoxConfiguration(RenderExcludeSemantics.prototype, (render) => ({
+  kind: 'box',
+  layout: { childConstraints: 'inherit' },
+  semanticsPolicy: { excludeChildren: render.excluding },
+}));
 RenderProxyBox._registerSemanticsGeometryPrototype(
   RenderSemanticsAnnotations.prototype,
   RenderBlockSemantics.prototype,

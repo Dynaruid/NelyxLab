@@ -6,7 +6,7 @@ namespace nelyx::v2 {
 namespace {
 unsigned focusPeerRank(const Node& node) {
   if(!node.semantics||node.control.disabled||
-    (node.semantics->flags&(wire::semanticsFlags::disabled|wire::semanticsFlags::hidden))||
+    (node.semantics->flags&(wire::semanticsFlags::disabled|wire::semanticsFlags::hidden|wire::semanticsFlags::scopesRoute))||
     !((node.semantics->flags&wire::semanticsFlags::focusable)||(node.semantics->actions&wire::semanticsActions::focus)))return 0;
   const auto role=node.semantics->role;
   return role==wire::semanticsRoles::group||role==wire::semanticsRoles::radioGroup?
@@ -157,12 +157,22 @@ std::shared_ptr<const Document> View::editingDocument() const {
 }
 void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected,bool exactSession) {
   require(exactSession?expected==focusSession:expected == 0 || expected == focusSession, wire::statuses::stale);
+  Handle semanticNode,semanticSource;
   if (node) {
     require(visible && focused && published && snapshot == publication &&
-                published->allows(node) &&
+                published->allowsFocus(node) &&
                 published->scene->metrics.epoch == metrics.epoch &&
                 published->scene->document->contains(node) && document->contains(node),
             wire::statuses::stale);
+    const auto* semantic=published->semantic(node);
+    require(!semantic||!(semantic->flags&wire::semanticsFlags::scopesRoute),wire::statuses::capabilityMissing);
+    const auto source=published->semanticSource(node,wire::semanticsActions::focus);
+    if(published->allowsSemantics(node)&&semantic&&(semantic->actions&wire::semanticsActions::focus)&&source){
+      require(!(semantic->flags&(wire::semanticsFlags::disabled|wire::semanticsFlags::hidden))&&
+        document->contains(source),wire::statuses::capabilityMissing);
+      require(document->descends(source,node),wire::statuses::stale);
+      semanticNode=node;semanticSource=source;node=source;
+    }
     const auto& requested=document->get(node);
     require(!requested.control.disabled&&!(requested.editFlags&wire::editFlags::disabled)&&
       (!requested.semantics||!(requested.semantics->flags&(wire::semanticsFlags::disabled|wire::semanticsFlags::hidden))),wire::statuses::capabilityMissing);
@@ -185,7 +195,12 @@ void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected,bool exact
         wire::statuses::capabilityMissing);
   } else
     require(!expected || expected == focusSession, wire::statuses::stale);
-  if (node == focusNode) {if(node){revealPending=true;dirty=true;}return;}
+  const auto notifySemantics=[&]{if(semanticNode){
+    Event action{wire::events::semanticAction,wire::statuses::ok,snapshot,document->epoch,wire::semanticsActions::focus,semanticNode};
+    if(semanticSource!=semanticNode)action.semanticSource=semanticSource;
+    interaction(action);
+  }};
+  if (node == focusNode) {if(node){revealPending=true;dirty=true;}notifySemantics();return;}
   if (focusNode) {
     const auto old = editors.find(focusNode.key());
     if (old != editors.end() && old->second->value->composingStart >= 0) {
@@ -213,8 +228,9 @@ void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected,bool exact
   dirty = true;
   Event event{wire::events::focusChanged, wire::statuses::ok, focusSession,
                document ? document->epoch : 0, publication, node};
-  if(published){const auto peer=canonicalFocusPeer(*published->scene->document,node);if(peer!=node)event.focusPeer=peer;}
+  if(published){const auto peer=published->focusPeer(node);if(peer!=node)event.focusPeer=peer;}
   interaction(event);
+  notifySemantics();
 }
 void View::applyEdit(Reader bytes) {
   require(bytes.length >= 64 && bytes.u32(52) == 0);
@@ -266,19 +282,24 @@ void View::semanticAction(Reader bytes) {
   const auto snapshot = bytes.u64(8);
   const uint32_t action = bytes.u32(16);
   require(published && snapshot == publication &&
-              published->allows(node) &&
+              published->allowsSemantics(node) &&
               published->scene->metrics.epoch == metrics.epoch &&
               published->scene->document->contains(node) && document->contains(node),
           wire::statuses::stale);
-  const auto &n = published->scene->document->get(node);
-  const auto &current = document->get(node);
+  const auto* semantic=published->semantic(node);
+  require(semantic&&action&&(action&(action-1))==0&&(semantic->actions&action)==action,wire::statuses::capabilityMissing);
+  const auto source=published->semanticSource(node,action);
+  require(source&&document->contains(source)&&published->scene->document->contains(source)&&document->descends(source,node),wire::statuses::stale);
+  const auto &n = published->scene->document->get(source);
+  const auto &current = document->get(source);
   require(
-      n.semantics && current.semantics &&
+      semantic&&n.semantics && current.semantics &&
+          !(semantic->flags & (wire::semanticsFlags::disabled | wire::semanticsFlags::hidden)) &&
           !(current.semantics->flags &
             (wire::semanticsFlags::disabled | wire::semanticsFlags::hidden)) &&
           !(n.semantics->flags & (wire::semanticsFlags::disabled | wire::semanticsFlags::hidden)) &&
           (current.semantics->actions & action) == action && action &&
-          (action & (action - 1)) == 0 && (n.semantics->actions & action) == action,
+          (action & (action - 1)) == 0 && (semantic->actions & action) == action && (n.semantics->actions & action) == action,
       wire::statuses::capabilityMissing);
   ++semanticsWork;
   if (action == wire::semanticsActions::focus) {
@@ -290,12 +311,17 @@ void View::semanticAction(Reader bytes) {
     const double value=bytes.f64(24);const auto& range=current.semantics->range;const auto& before=n.semantics->range;
     require(range.enabled&&before.enabled&&!range.readOnly&&!before.readOnly,wire::statuses::capabilityMissing);
     require(value>=range.minimum&&value<=range.maximum&&value>=before.minimum&&value<=before.maximum,wire::statuses::invalidValue);
-    Event event{wire::events::semanticAction,wire::statuses::ok,snapshot,document->epoch,action,node};event.x=value;interaction(event);return;
+    Event event{wire::events::semanticAction,wire::statuses::ok,snapshot,document->epoch,action,node};
+    if(source!=node)event.semanticSource=source;
+    event.x=value;interaction(event);return;
   }
-  if(action==wire::semanticsActions::activate)activateControl(node);
+  if(action==wire::semanticsActions::activate)activateControl(source);
   Event event{wire::events::semanticAction, wire::statuses::ok, snapshot, document->epoch, action, node};
+  if(source!=node)event.semanticSource=source;
+  event.tapRegion.batch=dispatchSemanticTapRegions(node,snapshot,action);
   if((current.policy&wire::eventPolicies::canonicalGestures)&&published){
-    for(const auto& item:published->items)if(item.node==node){const auto point=item.world.map({n.properties.width/2,n.properties.height/2});
+    for(const auto& item:published->items)if(item.node==node){const auto& target=published->scene->document->get(node);
+      const auto point=item.world.map({target.properties.width/2,target.properties.height/2});
       event.x=point.x;event.y=point.y;event.gesture=gestureDetails(node,0,point.x,point.y);break;}
   }
   interaction(event);
@@ -310,6 +336,8 @@ Handle View::interactionTarget(double x, double y) const {
     if (!document->contains(n.id))
       continue;
     if(!published->hit(*it,x,y))continue;
+    if(n.semantics&&(n.semantics->flags&wire::semanticsFlags::scopesRoute)&&
+        !(n.semantics->actions&~wire::semanticsActions::focus))continue;
     if (n.kind == wire::kinds::editable || (n.semantics && n.semantics->actions))
       return n.id;
   }

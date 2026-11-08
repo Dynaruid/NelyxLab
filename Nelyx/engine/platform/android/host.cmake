@@ -13,13 +13,13 @@ target_compile_features(nelyx_android_jsi PRIVATE cxx_std_20)
 target_include_directories(nelyx_android_jsi PUBLIC "${NELYX_JSI_ROOT}")
 target_link_options(nelyx_android_jsi PRIVATE -Wl,-z,max-page-size=16384)
 add_library(nelyx_engine_android SHARED platform/android/host.cpp platform/android/font_services.cpp
-  ../skia/native/core/paragraph_queries.cpp)
+  render/skia/paragraph_queries.cpp)
 target_compile_features(nelyx_engine_android PRIVATE cxx_std_20)
 target_compile_options(nelyx_engine_android PRIVATE -fexceptions -frtti -fno-fast-math)
 target_compile_definitions(nelyx_engine_android PRIVATE SK_GRAPHITE SK_DAWN SK_BUILD_FOR_ANDROID JSI_USE_HERMES
   NELYX_ANDROID_SOURCE_SHA="${NELYX_ANDROID_SOURCE_SHA}")
 target_include_directories(nelyx_engine_android PRIVATE "${NELYX_SKIA_HEADERS}" "${NELYX_DAWN_HEADERS}"
-  "${NELYX_ANDROID_HERMES}/prefab/modules/hermesvm/include" "${NELYX_JSI_ROOT}" ../skia/native/core)
+  "${NELYX_ANDROID_HERMES}/prefab/modules/hermesvm/include" "${NELYX_JSI_ROOT}" render/skia)
 add_library(nelyx_android_hermes SHARED IMPORTED)
 set_target_properties(nelyx_android_hermes PROPERTIES IMPORTED_LOCATION "${NELYX_ANDROID_HERMES}/jni/${ANDROID_ABI}/libhermesvm.so")
 add_library(nelyx_android_dawn SHARED IMPORTED)

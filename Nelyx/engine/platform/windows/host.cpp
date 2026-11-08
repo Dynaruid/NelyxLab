@@ -7,9 +7,10 @@
 #include "../../core/engine.hpp"
 #include "skia_provider.hpp"
 #include "app_text_jsi.hpp"
+#include "../common/app_services_jsi.hpp"
 #include "interaction.hpp"
 #include "memory_pressure.hpp"
-#include "../../../skia/native/host/windows/WindowsPrecisionTrackpad.h"
+#include "input/WindowsPrecisionTrackpad.h"
 #include <condition_variable>
 #include <deque>
 #include <fstream>
@@ -78,6 +79,7 @@ class Host {
   std::atomic<bool> appExited{false};
   std::mutex jobsMutex,doneMutex,sceneMutex,wakeMutex,metricsMutex;
   std::condition_variable changed,appChanged;
+  std::shared_ptr<nelyx::v2::native::AppServices> services=std::make_shared<nelyx::v2::native::AppServices>(core.memoryLedger(),[this]{PostMessageW(window,WM_APP+3,0,0);},[this]{appChanged.notify_one();});
   std::deque<Job> jobs,done;
   std::deque<Job> uiJobs;
   std::deque<std::function<void()>> uiCallbacks;
@@ -192,7 +194,7 @@ class Host {
             call(wire::opcodes::preparationResult,reply.bytes);std::osyncstream(std::cout)<<"V2_PREPARATION_ERROR "<<error.what()<<std::endl;
           }
           if(currentTiming.preparation){std::lock_guard lock(timingMutex);contentTiming=currentTiming;}
-          if(r.u16(14)==0 && !(r.u32(wire::headerBytes+wire::stateFields::flags)&16u) && r.u64(wire::headerBytes+wire::stateFields::preparation))contentWake=true;
+          if(r.u16(14)==0 && !(r.u32(wire::headerBytes+wire::stateFields::flags)&(16u|wire::layoutBuildPending)) && r.u64(wire::headerBytes+wire::stateFields::preparation))contentWake=true;
           if(r.u64(wire::headerBytes+wire::stateFields::queryId)&&r.u32(wire::headerBytes+wire::stateFields::queryStatus)==wire::statuses::pending)contentWake=true;
         }
         paragraphs=provider.paragraphs.load();pictures=provider.pictures.load();images=provider.images.load();
@@ -283,8 +285,8 @@ class Host {
       while(!stopping&&!connected)std::this_thread::sleep_for(std::chrono::milliseconds(2));if(stopping)return;
       AppHeapAccount appMemory{core.memoryLedger(),appHeapBytes};
       nw::AppParagraphs appText(directory+"/assets/font.ttf",directory+"/assets/icudtl.dat",core.memoryLedger(),
-        appDirectory.empty()?directory+"/assets":appDirectory+"/application/assets",appDirectory.empty());
-      auto runtime=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withAsyncBreakCheckInEval(true).build());
+        appDirectory+"/application/assets",false);
+      auto runtime=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withES6BlockScoping(true).withAsyncBreakCheckInEval(true).build());
       AppRuntimeRegistration registration(appRuntimeMutex,appRuntime,runtime.get());
       auto& rt=*runtime;
       appMemory.update(rt);
@@ -292,19 +294,9 @@ class Host {
       native.setProperty(rt,"operatingSystem","windows");
       native.setProperty(rt,"clockDomain","qpc-milliseconds");
       nw::installAppText(rt,native,appText);
+      nelyx::v2::native::installAppServices(rt,native,services);
       auto identity=jsi::Object(rt);identity.setProperty(rt,"engine","v2");identity.setProperty(rt,"abiMajor",double(wire::abiMajor));identity.setProperty(rt,"schema",double(wire::schema));native.setProperty(rt,"identity",std::move(identity));
       native.setProperty(rt,"clock",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"clock"),0,[](jsi::Runtime&,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value{return now()*1000;}));
-      // The built-in scene predates the SDK entry. Keep its one image request
-      // behind the same preallocation credit until the App runtime terminates.
-      if(appDirectory.empty())native.setProperty(rt,"asset",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"asset"),1,
-        [&appText,owner=uint64_t(0)](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)mutable->jsi::Value{
-          if(count!=1||!args[0].isString())throw jsi::JSError(r,"Invalid bundled asset request");
-          if(!owner)owner=appText.open();const auto key=args[0].asString(r).utf8(r);const auto size=appText.assetSize(owner,key);
-          const auto credit=appText.reserveAssetBytes(owner,size);
-          try{const auto bytes=appText.readAsset(owner,credit,key);auto array=r.global().getPropertyAsFunction(r,"ArrayBuffer").callAsConstructor(r,double(bytes.size())).getObject(r);
-            auto buffer=array.getArrayBuffer(r);std::memcpy(buffer.data(r),bytes.data(),bytes.size());appText.finishAssetLoad(owner,credit,true);return array;}
-          catch(...){appText.finishAssetLoad(owner,credit,false);throw;}
-        }));
       native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[this,&appMemory](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
         appMemory.update(r);
         if(count!=2)throw jsi::JSError(r,"V2 enqueue arguments");auto buffer=args[1].getObject(r).getArrayBuffer(r);const auto length=buffer.size(r);
@@ -327,10 +319,11 @@ class Host {
       rt.global().setProperty(rt,"NelyxV2Native",std::move(native));
       const auto bootstrap=std::string("globalThis.__v2Timers=[];globalThis.setTimeout=(f,m=0)=>{const t={f,at:Date.now()+m};__v2Timers.push(t);return t;};globalThis.clearTimeout=t=>{if(t)t.f=null;};globalThis.__v2Pump=()=>{const n=Date.now();const q=__v2Timers.splice(0);for(const t of q){if(t.f&&t.at<=n)t.f();else if(t.f)__v2Timers.push(t);}};");
       rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(bootstrap),"v2-timers.js");
-      const auto source=readFile(appDirectory.empty()?directory+"/web/app-native.js":appDirectory+"/application/app.js");rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::string(source.begin(),source.end())),"app-native.js");rt.drainMicrotasks();
+      const auto source=readFile(appDirectory+"/application/app.js");rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::string(source.begin(),source.end())),"application/app.js");rt.drainMicrotasks();
       while(!stopping){
+        while(services->deliver(rt))rt.drainMicrotasks();
         if(disposeRequested.exchange(false)){rt.global().getPropertyAsFunction(rt,"__v2Dispose").call(rt);rt.drainMicrotasks();}
-        if(appUpdate.exchange(false)&&appDirectory.empty()){rt.global().getPropertyAsFunction(rt,"__v2Update").call(rt);rt.drainMicrotasks();}
+        if(appUpdate.exchange(false)&&rt.global().hasProperty(rt,"__v2Update")){rt.global().getPropertyAsFunction(rt,"__v2Update").call(rt);rt.drainMicrotasks();}
         Job result{};bool has=false;
         {std::lock_guard lock(doneMutex);if(!done.empty()){result=std::move(done.front());done.pop_front();has=true;}}
         if(has){auto array=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(result.bytes.size())).getObject(rt);auto buffer=array.getArrayBuffer(rt);std::memcpy(buffer.data(rt),result.bytes.data(),result.bytes.size());rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(result.id),std::move(array));rt.drainMicrotasks();}
@@ -340,7 +333,7 @@ class Host {
     }catch(const std::exception& error){notifyError(error.what());}
   }
  public:
-  Host(std::string directory,std::string appDirectory={}):directory(std::move(directory)),appDirectory(std::move(appDirectory)){}
+  Host(std::string directory,std::string appDirectory):directory(std::move(directory)),appDirectory(std::move(appDirectory)){}
   void bind(HWND value){window=value;interaction=std::make_unique<nw::Interaction>(window,core,[this](uint32_t op,const std::vector<uint8_t>& bytes){return call(op,bytes);},[this](auto callback){postUI(std::move(callback));},[this]{contentWake=true;renderWakeRequested=true;changed.notify_all();});
     precision=RNSkia::WindowsPrecisionTrackpad::create(window,[this](POINT p)->std::optional<RNSkia::WindowsPrecisionPoint>{
       if(!appReady||stopping||closing||!IsWindowVisible(window)||IsIconic(window))return {};
@@ -357,6 +350,21 @@ class Host {
   LRESULT object(WPARAM w,LPARAM l){return interaction?interaction->object(w,l):0;}
   void ui(){
     if(closed)return;
+    services->pump([this](const std::string& method,const std::string& text)->std::string{
+      // Windows' canonical accessibility embedding ignores node feedback;
+      // UIA focus/invoke changes already follow the published Core mirror.
+      if(method=="semantics-tap"||method=="semantics-longPress"||method=="semantics-focus")return {};
+      if(method=="system-sound"||method=="haptic-feedback")throw std::runtime_error("Windows system feedback is unavailable");
+      if(method=="clipboard-write"){
+        const auto units=utf16({reinterpret_cast<const uint8_t*>(text.data()),text.size()});
+        if(!nw::copyClipboard(window,units))throw std::runtime_error("Windows clipboard write failed");
+        return {};
+      }
+      if(!IsClipboardFormatAvailable(CF_UNICODETEXT))return method=="clipboard-has-strings"?"0":"";
+      const auto value=nw::pasteClipboard(window,65536);
+      if(!value)throw std::runtime_error("Windows clipboard read failed or exceeded its text limit");
+      return method=="clipboard-has-strings"?(value->empty()?"0":"1"):utf8(*value);
+    });
     std::deque<std::function<void()>> callbacks;{std::lock_guard lock(uiMutex);callbacks.swap(uiCallbacks);}for(auto& callback:callbacks)callback();
     std::deque<Job> accepted;{std::lock_guard lock(jobsMutex);accepted.swap(uiJobs);for(const auto& job:accepted)jobBytes-=job.bytes.size();}
     for(auto& job:accepted){auto result=interaction->gateway(job.bytes);auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}appChanged.notify_one();}
@@ -438,6 +446,7 @@ class Host {
     if(!appExited){std::lock_guard lock(appRuntimeMutex);if(appRuntime){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR Interrupting stalled App JavaScript"<<std::endl;appRuntime->asyncTriggerTimeout();}}
     if(appOwner.joinable())appOwner.join();if(contentOwner.joinable())contentOwner.join();if(renderOwner.joinable())renderOwner.join();
     if(interaction){interaction->close();interaction.reset();}
+    services->close();
     std::deque<std::function<void()>> callbacks;{std::lock_guard lock(uiMutex);callbacks.swap(uiCallbacks);}for(auto& callback:callbacks)callback();callbacks.clear();
     {std::lock_guard lock(sceneMutex);candidate.reset();publishedPrepared.reset();}
     SkGraphics::PurgeAllCaches();
@@ -473,10 +482,11 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
 }
 int main(int argc,char**argv){
   try{
-    if(argc<2)throw std::runtime_error("Usage: NelyxEngineV2Host <current engine dist> [--app <bundle directory>]");
+    if(argc<4)throw std::runtime_error("Usage: NelyxEngineV2Host <current engine dist> --app <bundle directory>");
     std::string appDirectory;
     for(int i=2;i<argc;++i){const std::string option=argv[i];if(option=="--app"&&appDirectory.empty()&&i+1<argc)appDirectory=std::filesystem::canonical(argv[++i]).string();
       else throw std::runtime_error("Unknown or duplicate native host option: "+option);}
+    if(appDirectory.empty())throw std::runtime_error("An independently built App bundle is required");
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     if(FAILED(CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED)))throw std::runtime_error("UI COM apartment failed");
     struct Apartment{~Apartment(){CoUninitialize();}}apartment;

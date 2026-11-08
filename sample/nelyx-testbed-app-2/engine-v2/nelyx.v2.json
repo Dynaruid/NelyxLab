@@ -1,0 +1,9 @@
+{
+  "schema": "nelyx.app.v2/1",
+  "engine": "v2",
+  "entry": "app.ts",
+  "supply": "../../../Nelyx/engine/dist",
+  "assets": {
+    "image": "assets/component-image.webp"
+  }
+}

@@ -10,6 +10,12 @@ import type { Widget, BuildContext } from './framework.ts';
 import { MediaQuery } from './app-data.ts';
 import { RenderProxyBox } from '../rendering/boxes.ts';
 import type { RenderObject, RenderBox, PipelineOwner } from '../rendering/object.ts';
+import { isNativeRenderObject, registerNativeRenderResources } from '../rendering/object.ts';
+import { registerNativeBoxConfiguration } from '../rendering/native-box.ts';
+import {
+  nativeSnapshotPainterConfiguration,
+  registerNativeSnapshotPainter,
+} from '../rendering/native-snapshot.ts';
 import { OffsetLayer } from '../rendering/layer.ts';
 import { PaintingContext } from '../painting/context.ts';
 import { Size } from '../../ui/size.ts';
@@ -106,6 +112,7 @@ class DefaultSnapshotPainter extends SnapshotPainter {
   }
 }
 const defaultPainter = new DefaultSnapshotPainter();
+registerNativeSnapshotPainter(DefaultSnapshotPainter.prototype, () => ({}));
 export interface SnapshotWidgetOptions {
   readonly key?: Key | null;
   readonly mode?: SnapshotMode;
@@ -159,6 +166,8 @@ export class SnapshotWidget extends RenderObjectWidget {
   }
 }
 class RenderSnapshotWidget extends RenderProxyBox {
+  private nativeRevision = 1n;
+  private nativeListening = false;
   /** @dartType double */
   private density: number;
   private controllerValue: SnapshotController;
@@ -208,6 +217,26 @@ class RenderSnapshotWidget extends RenderProxyBox {
     this.painterValue = painter;
     this.autoresizeValue = autoresize;
     this.rasterizerValue = rasterizer;
+    registerNativeRenderResources(this, {
+      attach: () => {
+        try {
+          this.controller.addListener(this.rasterValueChanged);
+          this.painter.addListener(this.paintChanged);
+          this.nativeListening = true;
+        } catch (error) {
+          this.controller.removeListener(this.rasterValueChanged);
+          this.painter.removeListener(this.paintChanged);
+          throw error;
+        }
+      },
+      detach: () => {
+        this.nativeListening = false;
+        this.controller.removeListener(this.rasterValueChanged);
+        this.painter.removeListener(this.paintChanged);
+        this.disableSnapshotAttempt = false;
+        this.clearRaster();
+      },
+    });
   }
   /** @dartReturn double */
   get devicePixelRatio(): number {
@@ -217,7 +246,7 @@ class RenderSnapshotWidget extends RenderProxyBox {
   set devicePixelRatio(value: number) {
     if (value === this.density) return;
     this.density = value;
-    if (this.childRaster !== null) {
+    if (this.childRaster !== null || isNativeRenderObject(this)) {
       this.clearRaster();
       this.markNeedsPaint();
     }
@@ -231,7 +260,7 @@ class RenderSnapshotWidget extends RenderProxyBox {
     old.removeListener(this.paintChanged);
     this.painterValue = value;
     if (old.constructor !== value.constructor || value.shouldRepaint(old)) this.markNeedsPaint();
-    if (this.attached) value.addListener(this.paintChanged);
+    if (this.attached || this.nativeListening) value.addListener(this.paintChanged);
   }
   get controller(): SnapshotController {
     return this.controllerValue;
@@ -241,7 +270,7 @@ class RenderSnapshotWidget extends RenderProxyBox {
     this.controllerValue.removeListener(this.rasterValueChanged);
     const oldValue = this.controllerValue.allowSnapshotting;
     this.controllerValue = value;
-    if (this.attached) {
+    if (this.attached || this.nativeListening) {
       value.addListener(this.rasterValueChanged);
       if (oldValue !== value.allowSnapshotting) this.rasterValueChanged();
     }
@@ -273,6 +302,7 @@ class RenderSnapshotWidget extends RenderProxyBox {
     this.markNeedsPaint();
   }
   private clearRaster(): void {
+    if (isNativeRenderObject(this)) ++this.nativeRevision;
     const image = this.childRaster;
     this.childRaster = null;
     this.childRasterSize = null;
@@ -382,4 +412,24 @@ class RenderSnapshotWidget extends RenderProxyBox {
         this.devicePixelRatio,
       );
   }
+  /** @internal Only declarative paint policy crosses the native boundary. */
+  nativeConfiguration(reject: (reason: string) => never) {
+    if (this.rasterizerValue !== null) return reject('custom-snapshot-rasterizer');
+    if (!Object.values(SnapshotMode).includes(this.mode)) return reject('snapshot-mode');
+    return {
+      kind: 'box' as const,
+      layout: { childConstraints: 'inherit' as const },
+      snapshot: {
+        revision: this.nativeRevision,
+        enabled: this.controller.allowSnapshotting,
+        autoresize: this.autoresize,
+        pixelRatio: this.devicePixelRatio,
+        mode: this.mode,
+        ...nativeSnapshotPainterConfiguration(this.painter, reject),
+      },
+    };
+  }
 }
+registerNativeBoxConfiguration(RenderSnapshotWidget.prototype, (render, reject) =>
+  render.nativeConfiguration(reject),
+);

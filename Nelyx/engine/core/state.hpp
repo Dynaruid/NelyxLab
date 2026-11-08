@@ -65,6 +65,13 @@ struct Event {
   double x=0,y=0;
   GestureDetails gesture{};
   Handle focusPeer{};
+  Handle semanticSource{};
+  struct TapRegionDetails {
+    uint64_t batch=0;
+    Handle surface,semanticTarget;
+    Affine inverse;
+    uint32_t device=0;
+  } tapRegion{};
 };
 struct Result {
   Lease lease;
@@ -87,6 +94,34 @@ struct Input {
   bool appApproved = false;
 };
 struct PointerHit {Handle node;std::optional<Affine> inverse;};
+struct PointerPathEntry {
+  Handle node;
+  Affine inverse;
+  // A translucent entry can join a path without stopping sibling hit tests.
+  bool hit = false;
+};
+struct PointerPath {
+  Lease lease;
+  std::vector<PointerPathEntry> entries;
+  bool hit = false;
+  PointerPath(const std::shared_ptr<Ledger>& ledger,size_t capacity)
+    :lease(ledger,sizeof(PointerPath)+capacity*sizeof(PointerPathEntry)){entries.reserve(capacity);}
+};
+struct TapRegionRegistration {Handle node,surface;uint64_t revision=0;};
+struct TapRegionCapture {
+  std::shared_ptr<const Frame> frame;
+  std::unique_ptr<PointerPath> path;
+  std::array<std::shared_ptr<const Frame>,wire::limits::publicationSnapshots> publications{};
+  uint32_t cursor=0,source=0;
+};
+struct TapRegionClassification {
+  Lease lease;
+  std::vector<Handle> inside,outside;
+  explicit TapRegionClassification(const std::shared_ptr<Ledger>& ledger)
+    :lease(ledger,sizeof(TapRegionClassification)+2*wire::limits::nodes*sizeof(Handle)){
+    inside.reserve(wire::limits::nodes);outside.reserve(wire::limits::nodes);
+  }
+};
 struct Stream {
   std::array<std::shared_ptr<const Frame>,wire::limits::publicationSnapshots> capturedPublications{};
   uint64_t captureCursor=0;
@@ -132,7 +167,7 @@ struct Property {
   double requested = 0;
   bool deferred = false;
   double value=0,second=1;
-  bool pressed=false,hovered=false,visible=false;
+  bool pressed=false,hovered=false,visible=false,focusVisible=false;
 };
 struct ClipShape {Affine world;Rect bounds;double radius=0;std::shared_ptr<const GraphicsPath> path;uint32_t parent=0;bool oval=false;};
 struct HitRegionShape {Affine world;Rect bounds;uint32_t parent=0;};
@@ -149,8 +184,20 @@ struct DrawItem {
   Point linkedOffset{};
   std::shared_ptr<const NativePaint> paint{};
 };
+struct FrameSemantics {
+  std::shared_ptr<const SemanticData> data;
+  std::array<Handle,8> actionSources{};
+  Handle mergedInto;
+  bool blocked=false,merged=false;
+};
+struct SemanticRoute {
+  uint64_t sequence=0;
+  Handle scope,name;
+  std::shared_ptr<const SemanticData> label;
+};
 struct Frame {
   std::shared_ptr<Lease> snapshotLease;
+  SemanticRoute route;
   Handle modalRoot;
   Handle focusNode;
   uint64_t focusSession=0;
@@ -162,6 +209,8 @@ struct Frame {
   std::vector<DrawItem> items;
   std::vector<ClipShape> clips;
   std::vector<HitRegionShape> hitRegions;
+  std::vector<FrameSemantics> semantics;
+  void resolveRoute(const Frame* previous,uint64_t sequence,const std::shared_ptr<Ledger>& ledger);
   bool sameInputGeometry(const Frame& other, Handle node) const;
   bool sharesInputGeometry(const Frame& other) const;
   std::optional<Point> local(Handle node,double x,double y)const {
@@ -174,16 +223,16 @@ struct Frame {
       if(inverse){const auto p=inverse->map({dx,dy}),zero=inverse->map({0,0});return {p.x-zero.x,p.y-zero.y};}}
     return {};
   }
-  bool hit(const DrawItem& item,double x,double y)const {
-    const auto inverse=item.world.inverse();if(!inverse||!inside({x,y},item.clip))return false;
+  bool hit(const DrawItem& item,double x,double y,const DrawItem* boundary=nullptr)const {
+    const auto inverse=item.world.inverse();if(!inverse||(!boundary&&!inside({x,y},item.clip)))return false;
     const auto& node=scene->document->get(item.node);const auto p=inverse->map({x,y});
     if(!inside(p,{0,0,node.properties.width,node.properties.height}))return false;
     if((node.policy&wire::eventPolicies::roundedHitTest)&&!inside(p,{0,0,node.properties.width,node.properties.height},node.radius))return false;
     if(node.kind==wire::kinds::path&&(!node.graphics.path||!node.graphics.path->contains(p)))return false;
-    for(auto head=item.hitHead;head;head=hitRegions[head-1].parent){const auto& region=hitRegions[head-1];
+    for(auto head=item.hitHead;head&&(!boundary||head!=boundary->hitHead);head=hitRegions[head-1].parent){const auto& region=hitRegions[head-1];
       const auto matrix=region.world.inverse();if(!matrix)return false;const auto point=matrix->map({x,y});
       if(!inside(point,region.bounds)||point.x<=region.bounds.x||point.x>=region.bounds.x+region.bounds.width)return false;}
-    for(auto head=item.clipHead;head;head=clips[head-1].parent){const auto& shape=clips[head-1];
+    for(auto head=item.clipHead;head&&(!boundary||head!=boundary->clipHead);head=clips[head-1].parent){const auto& shape=clips[head-1];
       const auto matrix=shape.world.inverse();if(!matrix)return false;const auto point=matrix->map({x,y});
       if(!inside(point,shape.bounds))return false;
       if(shape.oval){const double deltaX=(point.x-shape.bounds.x)/shape.bounds.width-0.5,deltaY=(point.y-shape.bounds.y)/shape.bounds.height-0.5;
@@ -191,17 +240,66 @@ struct Frame {
       else if(shape.path?!shape.path->contains(point):!inside(point,shape.bounds,shape.radius))return false;}
     return true;
   }
+  // Child-first retained hit entries, including translucent siblings. Each
+  // inverse maps the original collected global point into that entry's space.
+  std::unique_ptr<PointerPath> pointerPath(double x,double y,Handle within={},bool localRoot=false) const;
   bool released = false, published = false, canceled = false, gpuObserved = false;
   bool allows(Handle node) const {
     return scene->document->contains(node)&&node.slot<properties.size()&&properties[node.slot].visible&&
       (!modalRoot||scene->document->descends(node,modalRoot));
   }
+  bool allowsFocus(Handle node) const {
+    return scene->document->contains(node)&&node.slot<properties.size()&&properties[node.slot].focusVisible&&
+      (!modalRoot||scene->document->descends(node,modalRoot));
+  }
+  const SemanticData* semantic(Handle node) const {
+    if(!scene->document->contains(node))return nullptr;
+    return semantics.empty()?scene->document->get(node).semantics.get():semantics[node.slot].data.get();
+  }
+  bool allowsSemantics(Handle node) const {
+    return allows(node)&&(semantics.empty()||(!semantics[node.slot].blocked&&!semantics[node.slot].merged));
+  }
+  Handle semanticSource(Handle node,uint32_t action) const {
+    if(semantics.empty())return node;
+    for(uint32_t i=0;i<8;++i)if(action==(1u<<i))return semantics[node.slot].actionSources[i];
+    return {};
+  }
+  Handle focusPeer(Handle node) const {
+    const auto peer=canonicalFocusPeer(*scene->document,node);
+    if(!peer)return {};
+    if(semantics.empty()){
+      const auto* data=semantic(peer);return data&&(data->flags&wire::semanticsFlags::scopesRoute)?Handle{}:peer;
+    }
+    const auto& value=semantics[peer.slot];
+    const auto result=value.blocked?Handle{}:value.mergedInto?value.mergedInto:peer;
+    const auto* data=result?semantic(result):nullptr;
+    return data&&(data->flags&wire::semanticsFlags::scopesRoute)?Handle{}:result;
+  }
+};
+// Render calls this shared state machine only when a child is actually painted.
+// It stores no pixels; each provider owns bounded images indexed by these tokens.
+class SnapshotRegistry {
+  struct Entry {
+    Handle node;uint64_t revision=0,token=0;
+    double ratio=1,width=0,height=0;
+    uint32_t pixelWidth=0,pixelHeight=0;
+    bool captured=false,disabled=false;
+  };
+  std::array<Entry,64> entries_{};
+  uint64_t sequence_=0,device_=0;
+  void liveTokens(SnapshotDecision&)const;
+ public:
+  void clear(){entries_={};device_=0;}
+  SnapshotDecision beginFrame(const Frame&);
+  SnapshotDecision paint(const Frame&,Handle,bool rasterizable=true);
+  void complete(Handle,uint64_t,bool success);
 };
 struct InteractionSnapshot {
+  std::shared_ptr<Lease> snapshotLease;
   Frame frame;
   std::shared_ptr<const Document> document;
   std::map<uint64_t,std::shared_ptr<const EditingValue>> editors;
-  Handle focus;uint64_t session=0;Metrics metrics;
+  Handle focus;uint64_t session=0;Metrics metrics;bool visible=false;
 };
 struct ScrollCommand {
   uint64_t id, after, revision;
@@ -212,6 +310,7 @@ struct ScrollCommand {
   uint64_t listGeneration = 0;
   uint32_t index = 0;
   double alignment = 0;
+  bool listOffset = false;
 };
 struct RawSample { Handle node; std::array<uint8_t,8+wire::inputBytes> bytes{}; };
 RawSample rawSample(const Input&,Handle,uint64_t generation);
@@ -228,11 +327,13 @@ struct FontTransition {
 };
 struct View {
   Lease lease;
+  SnapshotRegistry snapshots;
   uint32_t generation;
   bool closed = false, visible = true, focused = true, overflowed = false, dirty = false;
   Metrics metrics;
   std::shared_ptr<const Document> document, demand;
   std::unique_ptr<Preparation> preparing;
+  std::shared_ptr<const LayoutOutput> pendingLayoutCache;
   std::unique_ptr<LayoutQuery> query;
   uint64_t lastQuery=0;
   std::map<uint64_t,std::shared_ptr<EditingDocument>> editors;
@@ -267,11 +368,16 @@ struct View {
   uint32_t publicationCursor=0;
   uint64_t nextPreparation = 0, nextScene = 0, propertyEpoch = 0;
   uint64_t nextSubmission = 0, pendingPublication = 0, publication = 0, surfaceCommit = 0;
+  uint64_t routeSequence=0;
   uint64_t lastTransaction = 0, acknowledged = 0, resultBytes = 0;
   std::deque<std::shared_ptr<Result>> results;
   std::deque<Event> events;
   std::deque<Input> input;
   std::array<Stream, wire::limits::streams + 1> streams{};
+  std::array<TapRegionRegistration,wire::limits::nodes> tapRegions{};
+  uint32_t tapRegionCount=0;
+  uint64_t tapRegionBatch=0;
+  std::array<TapRegionCapture,wire::limits::streams+1> tapRegionCaptures{};
   std::map<uint64_t, Overlay> overlays;
   std::map<uint64_t, Frame> frames;
   std::map<uint64_t, ScrollCommand> commands;
@@ -300,7 +406,7 @@ struct View {
   bool hasTime = false;
   explicit View(uint32_t generation, const std::shared_ptr<Ledger>& ledger)
       : lease(ledger, sizeof(View) + wire::limits::nodes * (sizeof(Overlay) + 64 +
-          (wire::limits::frames + 1) * (sizeof(Property) + sizeof(DrawItem)+sizeof(ClipShape))) +
+          (wire::limits::frames + 1) * (sizeof(Property) + sizeof(DrawItem)+sizeof(ClipShape)+sizeof(FrameSemantics))) +
           wire::limits::inputPackets * sizeof(Input) + wire::limits::events * sizeof(Event)+
           wire::limits::observerPackets*sizeof(RawSample)),
         generation(generation), document(std::make_shared<Document>(ledger)) { ++lease.ledger->activeViews; }
@@ -329,13 +435,19 @@ struct View {
   void applyEdit(Reader);
   void semanticAction(Reader);
   void pointer(Input);
+  void installTapRegions(const Document&,const LayoutOutput*);
+  bool registeredTapRegion(const Document&,const TapRegionRegistration&)const;
+  std::unique_ptr<TapRegionClassification> classifyTapRegions(Handle,const PointerPath&)const;
+  bool dispatchTapRegions(const Input&,const TapRegionCapture&,bool up=false);
+  uint64_t dispatchSemanticTapRegions(Handle,uint64_t publication,uint32_t action);
   void advanceGestures();
   void key(Reader);
   void activateControl(Handle);
   void controlValue(Handle,double,bool second=false);
   void gesture(Handle,uint32_t,uint64_t,double,double,double=0,uint32_t=0,const GestureDetails* =nullptr);
   GestureDetails gestureDetails(Handle,uint32_t,double,double)const;
-  void canonicalPointer(const Input&,Stream&);
+  void canonicalPointer(const Input&,Stream&,bool deferArena=false);
+  void canonicalCloseArena(const Input&,Stream&);
   void canonicalCancel(Stream&,uint64_t);
   void advanceCanonicalGestures();
   void updateMouse(const Input& sample,bool hover=true);

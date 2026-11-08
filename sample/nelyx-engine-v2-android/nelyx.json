@@ -1,0 +1,10 @@
+{
+  "schema": "nelyx.app/1",
+  "entry": "src/app.ts",
+  "supply": "../../Nelyx/engine/dist-android",
+  "assets": {},
+  "android": {
+    "applicationId": "dev.nelyx.engine",
+    "architecture": "arm64-v8a"
+  }
+}

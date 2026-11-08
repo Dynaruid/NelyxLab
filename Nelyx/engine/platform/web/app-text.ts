@@ -327,6 +327,12 @@ export class WebAppTextBackend implements AppTextBackend {
     if (expectedSize !== undefined && expectedSize !== entry.size)
       throw Error('App asset final size differs from admitted credit');
     if (delivered) {
+      // Transport/verification has retired before this terminal. Keep the one
+      // caller-owned ArrayBuffer admitted until realm termination, not its
+      // completed native/stream/digest staging copies.
+      const bytes = entry.size + 65536;
+      this.budget.adjust(4, bytes - entry.bytes);
+      entry.bytes = bytes;
       entry.delivered = true;
       ++this.assetLoads;
     } else {

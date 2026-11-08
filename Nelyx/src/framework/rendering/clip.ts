@@ -22,6 +22,8 @@ import { RenderProxyBox } from './boxes.ts';
 import type { BoxConstraints } from './constraints.ts';
 import type { RenderBox, RenderObject, HitTestEntry, PipelineOwner } from './object.ts';
 import { withRenderPaint, assertOutsideRenderPaint } from './phase.ts';
+import { registerNativeBoxConfiguration } from './native-box.ts';
+import type { NativeBoxConfiguration } from './native-box.ts';
 
 export interface CustomClipperOptions {
   readonly reclip?: Listenable | null;
@@ -984,3 +986,39 @@ RenderProxyBox._registerInputGeometryHooks(
   },
   false,
 );
+
+for (const prototype of [RenderClipRect.prototype, RenderClipPath.prototype])
+  registerNativeBoxConfiguration(prototype, (render, reject) => {
+    if (render.clipper) return reject('custom-clipper');
+    return {
+      kind: 'clip',
+      layout: { childConstraints: 'inherit' },
+      clipStyle: { behavior: render.clipBehavior, shape: 'rect' },
+    };
+  });
+registerNativeBoxConfiguration(RenderClipOval.prototype, (render, reject) => {
+  if (render.clipper) return reject('custom-clipper');
+  return {
+    kind: 'clip',
+    layout: { childConstraints: 'inherit' },
+    clipStyle: { behavior: render.clipBehavior, shape: 'oval' },
+  };
+});
+registerNativeBoxConfiguration(RenderClipRRect.prototype, (render, reject) => {
+  if (render.clipper) return reject('custom-clipper');
+  const border = render.borderRadius;
+  let radii: NonNullable<NonNullable<NativeBoxConfiguration['clipStyle']>['radii']>;
+  if (typeof border === 'number')
+    radii = [border, border, border, border, border, border, border, border];
+  else {
+    const radius = border.resolve(render.textDirection);
+    radii = [radius.topLeft, radius.topRight, radius.bottomRight, radius.bottomLeft].flatMap(
+      (corner) => [Math.max(0, corner.x), Math.max(0, corner.y)],
+    ) as unknown as typeof radii;
+  }
+  return {
+    kind: 'clip',
+    layout: { childConstraints: 'inherit' },
+    clipStyle: { behavior: render.clipBehavior, shape: 'rrect', radii },
+  };
+});

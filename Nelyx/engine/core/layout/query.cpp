@@ -91,6 +91,7 @@ struct LayoutQueryWork::State {
   void advance() {
     auto &t = stack.back();
     const auto &n = document->get(t.node);
+    require(!n.layoutBuilder,wire::statuses::capabilityMissing);
     const auto &s = n.layout;
     const bool w = widthQuery(t.mode), minimum = minimumQuery(t.mode);
     const auto &children = document->children[n.id.slot];
@@ -108,6 +109,7 @@ struct LayoutQueryWork::State {
       return;
     }
     if (t.phase == 0) {
+      if(s.constraintFlags&wire::layoutConstraintFlags::offstage){finish({});return;}
       if(n.kind==wire::kinds::image&&n.imageStyle){
         if(minimum&&!(n.imageStyle->flags&(wire::imageFlags::widthSpecified|wire::imageFlags::heightSpecified))){finish({});return;}
         LayoutConstraints c;if(std::isfinite(t.extent)){if(w)c.minHeight=c.maxHeight=t.extent;else c.minWidth=c.maxWidth=t.extent;}

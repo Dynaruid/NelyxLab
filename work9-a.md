@@ -1,8 +1,8 @@
 # work9-a — v2 엔진 중심 구조 개편과 레거시 제거 계획
 
-작성: **2026-11-08 KST** · 상태: **검토·계획 작성 / 구현 NOT_STARTED**
+작성·갱신: **2026-11-08 KST** · 상태: **PAUSED / 구조 개편 PARTIAL**
 
-이 문서는 현재 소스와 패키지·빌드·실행 경로를 검토한 **구조 개편 실행 계획**이다. 이번 작성 작업은 제품 코드 변경, 레거시 삭제, 공급 재빌드, 앱 실행을 포함하지 않는다. 기존 구현의 **PARTIAL**, 전체 API의 **compatible=false**, 물리 입력·표시의 **notVerified**, 두 성능 수락 flag의 **false**를 유지한다.
+이 문서는 현재 소스와 패키지·빌드·실행 경로를 검토한 **구조 개편 실행 계약**이다. W9A-00–03을 중심으로 제품 구현을 시작했다. 현재 진행과 검증 범위는 §11에 기록한다. 기존 구현의 **PARTIAL**, 전체 API의 **compatible=false**, 물리 입력·표시의 **notVerified**, 두 성능 수락 flag의 **false**를 유지한다.
 
 [기존 work9 목차](work9.md) · [공통 소유권](work9-1.md#11-typescript-디자인-패키지와-c-엔진의-책임) · [API·디자인 경계](work9-2.md) · [통합·완료 기준](work9-3.md) · [Android·Linux](work9-4.md) · [후속 iOS·macOS](work9-5.md)
 
@@ -22,7 +22,7 @@
 
 ## 2. 현재 소스에서 확인한 구조적 문제
 
-아래는 **2026-11-08 소스 정적 검토** 결과다. 기존 문서의 실행 기록은 과거 증거이며 이번에 재실행한 결과가 아니다.
+아래는 **2026-11-08 개편 전 소스 정적 검토 기준선**이다. 경로 이동·구현 이후의 현재 대응은 §6.0·§11을 따른다. 기존 문서의 실행 기록은 과거 증거이며 이번에 재실행한 결과가 아니다.
 
 | 관찰 | 소스 근거 | 개편에 미치는 영향 |
 | --- | --- | --- |
@@ -128,7 +128,7 @@ packages/
 
 ## 6. 실행 단계와 의존성
 
-모든 구현 단계는 **NOT_STARTED**다. 우선순위는 경계 확정 → 공통 의존성 분리 → 단일 frontend 수직 연결 → 기능 이관 → 제품 전환 → 실제 삭제다.
+우선순위는 경계 확정 → 공통 의존성 분리 → 단일 frontend 수직 연결 → 기능 이관 → 제품 전환 → 실제 삭제다. 각 단계의 현재 상태는 §11을 따른다.
 
 | 단계 | 선행 | 작업과 산출물 | 완료 조건·기존 work9 연결 |
 | --- | --- | --- | --- |
@@ -148,18 +148,44 @@ packages/
 
 W9A-05와 06은 04에서 필요한 엔진 연산이 준비된 묶음부터 진행할 수 있다. 디자인 전체 완료를 기다리며 자산/서비스의 독립 이관을 막지 않는다. 각 삭제는 자기 소비자의 완료 조건을 충족한 뒤 수행한다.
 
+### 6.0 기준선 대응과 확정한 실행 계약
+
+| 기존 소비자·계약 | 현재 대체와 마지막 소비자 | 잔여 삭제 조건 |
+| --- | --- | --- |
+| 원래 framework → `original.ts` → `WidgetHost` | `runtime/app/host.ts`의 원래 BuildOwner가 `SceneNode` 설정을 만들고 `SceneWriter`로 직접 전송한다. SceneReference는 native handle identity이며 Widget/Element/State/Key가 아니다. Box/Flex/Stack·clip·transform 14종은 원래 모듈이 exact-prototype 설정을 등록한다 | paragraph/image·control/layer의 남은 중앙 분기와 `runtime/app/*` 기능은 W9A-04에서 모듈 소유 설정으로 이관 |
+| 별도 v2 Widget·State·GlobalKey | 기존 `WidgetHost`는 전환 중인 data frontend만 담당하고 공통 writer를 사용한다 | Testbed `src/v2-app.ts`·`v2-scene.ts`, 축소 Material/Cupertino `/v2`, list/navigation/graphics의 data frontend 소비자 이관 후 삭제 |
+| SDK OriginalRoot·App별 host 등록 | `@nelyx/sdk/app`의 `defineApp`·`launchApp`; `app-session.ts`가 하나의 service session을 만들고 native host 준비 후 원래 Widget을 mount | 기존 `engine-v2` launcher는 전환 중인 data App 호출만 호환한다. 신규 App은 일반 entry 사용 |
+| SDK 공통 asset/buffer/image/network 수명 | 두 launcher가 같은 session의 `EngineV2Assets`·buffers·images·text backend를 사용한다 | public platform 서비스·reload/loss와 전체 SDK host API 대응은 W9A-06/09에서 확인 |
+| SDK platform message·clipboard·OS 환경 | 원래 App은 기존 `PlatformMessageConnection`·`PluginPlatformMessagePort`의 단일 messenger를 사용한다. 공통 `clipboard-service.ts`는 구 `installOsServices`와 같은 채널 구현이며, Windows UI·Android HostView UI·Web Main의 실제 clipboard에 v2 transport로 연결한다. 원래 RenderObject feedback은 accepted semantics 조상을 통해 같은 OS owner로 전달하고 Android sound/haptic도 UI에서 실행한다 | 일반 접근성 announce·다른 OS 채널·환경/font/lifecycle 관측·VM globals·reload/loss는 W9A-06/09의 잔여 작업. 구 renderer 재연결 없이 요청/byte 한도와 stop/cancel/drain을 유지 |
+| 엔진 공급에 포함됐던 Testbed App·자산 | 공급은 host/provider/protocol/font만 만든다. 일반 실행 명령이 App package를 준비하고 `sample/nelyx-testbed-app-2/engine-v2`의 기존 후보 장면을 별도 App bundle로 빌드한다 | 실제 Testbed/Demo catalog 이관은 W9A-08. 현재 후보의 data Widget·축소 디자인 소비자는 여전히 삭제 전 |
+| Windows TSF/UIA·trackpad·paragraph/font/Vulkan | `engine/platform/windows/interop`·`input`·`engine/render`; 구 SDK/Skia 파일은 엔진 소유 helper의 현재 package projection만 include | 구 host 전체 삭제는 지원 target별 이전 소비자 종료 후. 중립 helper 자체는 보존 |
+| Android 공통 UTF-16 입력 규칙 | `engine/platform/android/shared`; standalone 공급은 Java를 프로젝트에 포함하고 기존 SDK template은 준비한 helper projection을 사용 | Android 실제 공급·IME/accessibility·종료 확인. Kotlin/RN host는 전환 전 유지 |
+| Metro에 있던 TypeScript compiler helper | 기존 `@nelyx/tooling-contracts/typescript-compiler`로 이동. 엔진/package build는 해당 구현을 직접 사용하고 Metro export는 forwarding | RN bundling·asset helper·Static AOT·이전 CLI 전체의 종료는 W9A-07/10 이후 |
+| BrowserPlatformEnvironment | `sdk/src/platforms/web/environment.ts`; 구 browser backend 경로는 같은 클래스 forwarding | 다른 SDK backend의 마지막 재사용 helper를 분리한 뒤 전체 backend 삭제 |
+| Android sample의 별도 v2 controls | 일반 App entry와 원래 Material/Cupertino·TextEditingController·AnimationController를 사용하는 `src/app.ts` | 기본 InkSparkle·전체 form/route/catalog·실기기 확인은 미완료. `original.ts`는 같은 entry forwarding |
+
+일반 App의 확정 계약은 다음과 같다.
+
+- `defineApp(AppDefinition)`의 `build(AppContext)`는 **원래 Widget** 또는 그 Promise를 반환한다. `launchApp`은 packet/view·공통 services를 준비한 후 font binding/catalog → user build → 원래 BuildOwner → SceneWriter → 활성화 관측 → ready 순서로 실행한다. 서비스 준비 실패·취소에서도 공통 disposer가 이미 설치되어 있다.
+- `State.setState`·Inherited/theme·controller의 App 값은 기존 원래 구현대로 즉시 바뀐다. 문서 ACK는 node/config 채택이며, publication·표시 완료를 뜻하지 않는다. NACK 뒤에는 이전 accepted scene과 해당 font/image holder를 유지한다. 불확정 ACK는 query/retry로 terminal을 확정하기 전에 handle/resource를 재사용하지 않는다.
+- 동기 TextPainter/paragraph 질의는 App 로컬 C++/Wasm backend에 남긴다. 동기 geometry는 기존처럼 미지원이며 stale snapshot을 정답으로 반환하지 않는다. ScrollController·편집 controller의 App intent와 엔진 관측은 기존 bridge 계약을 보존한다.
+- 임의 JS layout/paint/hit-test override와 미등록 RenderObject subclass는 명시 실패한다. 공통 native 연산·명령 기록·명시 extension을 연결하기 전에는 지원 또는 전체 API 호환으로 판정하지 않는다. 중앙 allowlist의 제거는 W9A-04의 별도 의무다.
+- 새 config는 `nelyx.json`의 `schema: "nelyx.app/1"`·상대 `entry`·`assets`·선택 `supply`를 사용하며 renderer는 v2 하나다. 이전 `nelyx.v2.json`은 전환 입력으로 읽는다. 두 파일 또는 `package.json.nelyx`와의 공존은 실패한다. 구 SDK host 설정은 의미가 다른 VM/renderer 옵션을 자동으로 버리지 않고 명시 이관을 요구한다.
+- API 기준 `public-api.json`의 **834 subpath·서명 hash는 변경하지 않는다.** React component/직접 Renderer 주입, 전체 custom hook·동기 geometry, Linux/Apple host의 대체는 계속 미해결 의무다. 이 계약 확정이나 forwarding 추가는 해당 API의 호환 완료를 뜻하지 않는다.
+
 ### 6.1 첫 구현 묶음: W9A-00–03
 
-- [ ] `@nelyx/core/v2`·`/v2/original`·원래 framework·SDK entry의 실제 import 관계, CLI 기본값, template와 세 대표 앱의 진입점을 고정한다. 새 독립 감사 시스템 대신 현재 문서와 기존 build 입력을 사용한다.
-- [ ] 하나의 App 정의가 원래 Widget을 반환하도록 API를 정한다. 별도 `OriginalRoot` marker Widget과 App 모델별 host 등록을 없앨 수 있는 bootstrap 경계를 만든다.
-- [ ] `WidgetHost`에서 handle/node diff·ACK/NACK·command retry·resource upload를 추출한다. 기존 동작을 보존한 뒤 원래 BuildOwner와 연결하고, 별도 v2 Widget tree를 경유하지 않게 한다.
-- [ ] Windows HWND/App SDK, Web single-worker/threaded, Android가 공유하는 부분은 함께 갱신한다. Android의 기존 partial 구현을 초기 상태로 되돌리지 않는다.
+- [x] `@nelyx/core/v2`·`/v2/original`·원래 framework·SDK entry의 실제 import 관계, CLI 기본값, template와 세 대표 앱의 진입점을 고정한다. 새 독립 감사 시스템 대신 현재 문서와 기존 build 입력을 사용한다.
+- [x] 하나의 App 정의가 원래 Widget을 반환하도록 API를 정한다. 별도 `OriginalRoot` marker Widget과 App 모델별 host 등록을 없앨 수 있는 bootstrap 경계를 만든다.
+- [x] `WidgetHost`에서 handle/node diff·ACK/NACK·command retry·resource upload를 추출한다. 기존 동작을 보존한 뒤 원래 BuildOwner와 연결하고, 별도 v2 Widget tree를 경유하지 않게 한다.
+- [x] Windows HWND/App SDK, Web single-worker/threaded, Android가 공유하는 부분은 함께 갱신한다. Android의 기존 partial 구현을 초기 상태로 되돌리지 않는다.
 - [ ] 최소 수직 앱에서 State 갱신·Key reparent·theme 변경·버튼 callback·scroll·TextField·font/asset·정상 close를 확인한다. 이 단계 성공은 전체 API나 디자인 catalog 완료가 아니다.
 
 **첫 묶음 완료점:** 기존 Widget의 수명은 한 번만 실행되고, 같은 session이 C++ transaction을 생성·확정하며, 구 renderer나 별도 v2 State를 사용하지 않는 최소 앱이 동작한다. 이 근거가 생긴 뒤 대량 파일 이동과 구 실행기 삭제를 시작한다.
 
 ### 6.2 Core·디자인 이관: W9A-04–05
 
+- [x] Box/Flex/Stack/Align/Padding·clip·transform·RepaintBoundary·ColoredBox 14종의 native 설정을 원래 모듈로 이관한다. frontend는 typed 설정을 scene으로 compile하며 사용자 subclass와 instance 실행 hook은 계속 거부한다. 전체 RenderObject/custom hook 이관 완료는 아니다.
 - [ ] `RenderObject`의 설정/invalidations/parent data와 TS layout/paint/hit-test 실행을 분리한다. 기본 클래스의 실행 기능을 한꺼번에 지우기 전에 실제 하위 클래스·사용자 확장 의존성을 대응시킨다.
 - [ ] Box/Flex/Stack/Align/Wrap/Grid·clip/transform/layer → paragraph/image/paint → scroll/sliver/lazy list → gesture/focus/editing → overlay/route 순으로 필요한 연산을 이관한다. 각 묶음에서 마지막 TS 실행 소비자를 제거한다.
 - [ ] `original-*`가 제공하던 gesture·focus·scroll·editing·font·image 수명 기능을 새 frontend 모듈로 통합한다. 미지원 기능 거부와 native ownership 검사는 일반 backend 계약으로 옮긴다.
@@ -172,8 +198,10 @@ W9A-05와 06은 04에서 필요한 엔진 연산이 준비된 묶음부터 진�
 - [ ] session/view·App services·host에 각각 한 소유자를 둔다. Text·image·buffer·network owner의 현재 version·quota·font cohort·credit을 유지하고 수명만 이름 바꾸며 생략하지 않는다.
 - [ ] App intent 변경, document accepted, scene 활성화, 실제 host 게시/완료를 구분한다. uncertain ACK·진행 중 upload·IO callback·GPU holder를 가진 객체는 실제 terminal까지 유지한다.
 - [ ] SDK의 RN registration/React Surface/구 NativeEngine 조립을 대체하고, 공통 App/client 선언에서 React/RN/DOM ambient type 의존성을 제거한다. `BrowserPlatformEnvironment` 같은 v2 사용 helper는 먼저 중립 모듈로 옮긴다.
-- [ ] 엔진 공급은 core/provider/host/worker·protocol·supplier를, 앱 빌드는 framework/디자인/SDK 사용 코드·assets를 책임지게 한다. 엔진 도구에서 특정 Testbed UI의 필수 번들링을 제거한다.
-- [ ] source identity를 실제 실행 입력과 일치시킨다. 입력 영역을 나누더라도 host/client ABI·schema·App service version·font/assets·실제 파일 hash 검증은 유지한다. 소스 이동을 이유로 실행 입력 hash를 누락하지 않는다.
+- [x] 원래 App의 공통 messenger에 clipboard 서비스를 연결한다. 세 host의 v2 transport·최대 32 요청·65,536 UTF-16 단위·aggregate byte admission·미지원 채널 거부와 종료 회수를 확인한다. RenderObject feedback의 native owner 연결과 Android sound/haptic도 이 mailbox·종료 drain을 사용한다. 전체 OS 서비스 완료를 뜻하지 않는다.
+- [x] 원래 BuildOwner에 native 게시 장면을 관측하는 View 소유 SemanticsBinding을 연결한다. Tap/long press/increase/decrease listener·clip된 좌표·metrics/device/publication 경계·messenger stop/close 수명만 확인하며 전체 semantics·TapRegion의 callback 내 즉시 정책 변경 계약은 남긴다.
+- [x] 엔진 공급은 core/provider/host/worker·protocol·supplier를, 앱 빌드는 framework/디자인/SDK 사용 코드·assets를 책임지게 한다. 엔진 도구에서 특정 Testbed UI의 필수 번들링을 제거한다.
+- [x] source identity를 실제 실행 입력과 일치시킨다. 입력 영역을 나누더라도 host/client ABI·schema·App service version·font/assets·실제 파일 hash 검증은 유지한다. 소스 이동을 이유로 실행 입력 hash를 누락하지 않는다.
 - [ ] `nelyx.v2.json`과 기존 `package.json.nelyx`를 하나의 버전 있는 App 설정으로 이관한다. 두 설정이 공존해 충돌하면 명시 실패한다. 이전 설정의 읽기는 순수 변환으로 제한하고 구 renderer 선택 기능은 남기지 않는다.
 - [ ] 현재 `--engine v2`를 사용해 후보 앱을 확인한다. 최종 기본값 전환 후 같은 옵션은 허용 가능한 호환 입력으로만 처리하며 새 구 엔진 분기를 만들지 않는다. Hermes/V8/JSC의 VM 선택과 렌더 엔진 버전 선택을 분리하고, 공급되지 않은 조합은 명시 실패한다.
 - [ ] Metro에 있는 compiler/asset helper와 실제 필요한 Hermes bytecode compiler를 분리한다. RN bundling·autolinking·Static AOT의 구 경로만 의존성 종료 후 제거한다. engine build가 빌드 helper 때문에 RN 전체 설치를 요구하지 않게 한다.
@@ -276,12 +304,110 @@ Native 공통 선언은 DOM/RN 없이, Web 선언은 해당 browser 환경에서
 - 생성/adopted 코드는 [변환 도구의 소유권 지침](tools/Nelyx.FrameworkToTypeScript/README.md)에 맞춰 현재 productHash·출처·recipe를 갱신한다. 개편을 이유로 제품 전체 재생성을 실행하지 않는다.
 - 각 구현 묶음 종료 시 이 문서에 **완료 범위·남은 의무·실행한 명령·미실행 범위·다음 시작점**만 현재 상태로 기록한다. 기존 work9의 과거 PASS 수치를 새 구조의 증거로 복사하지 않는다.
 
-## 11. 이번 문서 작업과 다음 시작점
+## 11. 현재 구현과 다음 시작점
 
-**이번에 완료한 범위:** 현재 Core/v2 client/SDK·디자인 패키지·CLI·CMake/Gradle·build/supply·sample/template·기존 work9 계획을 정적으로 검토하고, 중복 구조·유지할 구현·실제 의존성을 구분해 이 계획을 작성했다.
+**상태: PAUSED / PARTIAL.** 사용자의 외출·중간 마무리 요청으로 2026-11-08에 중단했다. 사용자의 재개 요청 전에는 자동으로 이어서 실행하지 않는다. W9A-00–03의 소비자 대응·App 계약·공통 helper·직접 scene 연결을 구현했다. W9A-04의 기능 모듈 이동·Box/Flex/Stack/clip/transform 설정 소유권 분리·Source 고정/가변 ListView 연결, W9A-06의 session/service 통합, W9A-07의 설정·template·compiler와 엔진/App 빌드 분리를 구현했으며 전체 target descriptor·개발/배포 matrix는 남아 있다. W9A-08은 Android sample 이관만 진행했으며, Testbed/Demo의 실제 catalog 이관과 09–12의 전체 완료 조건은 남아 있다.
 
-**문서 확인:** 로컬 링크 **43개**·앵커 **1개**, W9A 단계 **13개**의 누락/중복·선행 관계, 현행 루트 npm 명령 **9개**의 존재, 표 열 수·code fence·공백을 확인했다. `git diff --check`와 새 파일에 대한 `git diff --no-index --check -- NUL work9-a.md`를 통과했다. 제품 검사 명령은 실행하지 않았다.
+**이번 중간 정리의 완료 경계:** Source 목록·controller·공유 예산·padding·State/Key·resize·0 높이/빈 목록 묶음과 Icon/CJK run을 마지막 검증 공급에서 확인했다. Web 두 profile과 새 8개 package 설치 소비자의 State init/dispose는 각각 83/83이었다. Windows HWND/App SDK의 실제 OS pointer 전환은 각각 28/28, 정상 종료의 예약/메모리 0·worker join·App error 0이었다. 상세 범위는 아래 목록 묶음 기록을 따른다. 임시 App·archive·설치본·browser/server·검증용 native 창과 이번 compile helper/산출물은 모두 회수했다.
 
-**구현 시작점:** W9A-00–01의 소비자/계약 대응을 현재 source로 확정한 뒤, W9A-02의 native/tooling 공통 부분 추출과 W9A-03의 단일 frontend 최소 수직 연결을 진행한다. 첫 작업부터 `src`·`sdk/native`·`skia` 전체 삭제나 `/v2` alias 일괄 교체를 시작하지 않는다.
+**진행 중인 미검증 변경:** `rendering/mouse-region.ts`·`widgets/raw-tooltip.ts`의 exact-prototype mouse 정책 등록과 Core retained pointer path의 중첩 exclusive 선택, `rendering/wrap.ts`의 native 선언/줄 정렬·양축 방향/overflow clip, `rendering/boxes.ts`의 Flex baseline 및 positioned Stack 선언을 작성했다. `runtime/app/layout.ts`·`controls.ts`와 scene/codec·Core layout/transaction/frame도 함께 변경했다. Layout wire는 128→192 bytes, Source schema는 **3719990506**, 현재 source identity는 **32b5f2ec89a29bdeb4c421a2cc1aefab9e3486165c2f968c014ad73e7e638bfd**다. Core package build와 전체 `check:types`, 변경한 C++ 5개 unit의 `/W4 /WX` compile-only는 통과했다. 이 새 묶음의 동작·실제 Core protocol·설치 소비자·Web/Windows/Android 실행은 **notVerified**다. Tooltip 위치 delegate/overlay와 새 Stack intrinsic·Wrap/Flex dry/intrinsic 경계는 특히 검토·검증이 남아 있다. 실행 결과를 관측하지 않았으므로 Gallery 차단이 해소됐다고 판정하지 않는다.
 
-**계속 남는 상태:** 구조 개편 구현 **NOT_STARTED**, 기존 기능 **PARTIAL**, 전체 API 호환 미완료, Linux·iOS/macOS **DEFERRED**, 물리/display/scanout **notVerified**, 두 성능 수락 flag **false**. 이번 문서 검증은 빌드·설치·앱 실행·성능 검증을 포함하지 않는다.
+**공급 주의와 정확한 재개점:** 현재 `engine/dist`·`dist-android`는 아래의 마지막 검증 공급 **f26ab2f… / schema 855578348**이며 새 Source와 일치하지 않는다. 이번 중간 정리에서는 긴 엔진 재빌드·앱 실행을 시작하지 않았다. 재개 시 먼저 위 미검증 diff와 원래 Source 의미를 검토하고, Source/Core differential·malformed wire·hover 중첩/opaque/translucent·Wrap 방향/음수 spacing/clip·두 baseline/없는 baseline·Stack positioned/fit/resize/dry/intrinsic 검사를 한 임시 묶음으로 구성한다. 목록/기존 LayoutBuilder·TapRegion·semantics·Snapshot 회귀를 함께 확인한 뒤 `npm.cmd run build:core`, `npm.cmd run build:engine-v2`, `npm.cmd run build:engine-v2:android`로 공급을 갱신한다. 실제 hash/identity·원래 API 834 분모를 확인하고, 새 설치 소비자와 Web 두 profile/Windows 두 host·원래 Gallery 전체로 이어간다. 테스트 timeout은 20분이고 임시 자료는 finally에서 회수한다. 재개 요청: **`work9-a.md 중간 정리 지점부터 재개해줘`**.
+
+**구현한 범위:** `runtime/engine-client/scene.ts`가 Widget 수명과 독립적으로 native handle·diff·ACK/NACK·불확정 ACK 재확인·upload·event 수명을 소유한다. 원래 BuildOwner는 `runtime/app/host.ts`에서 직접 SceneNode를 만들며 별도 data Widget을 만들지 않는다. `@nelyx/sdk/app`의 `defineApp`/`launchApp`은 공통 session에서 서비스를 준비한 뒤 원래 Widget을 mount한다. 이전 original entry는 같은 App 정의로 forwarding하며 CLI가 실제 import graph를 보고 canonical launcher에 직접 연결한다. data launcher는 원래 frontend를 끌어오지 않는다. Windows TSF/UIA·trackpad·font/paragraph·Vulkan과 Android 공통 입력 규칙은 engine 소유로 옮기고 구 host에는 현재 helper projection을 연결했다. TypeScript compiler 구현은 Metro에서 기존 tooling-contracts로 이동했다. 신규 `nelyx.json`과 strict template은 원래 Widget을 사용한다. Android sample도 같은 App entry·원래 controls/controller를 사용한다.
+
+**기능 확인:** 임시 검증은 실행 후 회수했다. 실제 C++ single-worker에서 keyed handle 재배치·NACK의 이전 scene 보존·ACK 유실 뒤 query/retry·handle retirement를 확인했다. 1MiB 초과 이미지의 chunk/commit ACK를 각각 유실시켜 불확정 upload 재개·원래 캡처 bytes 유지·거부된 순환 graph의 retirement 조회·close 뒤 resource bytes 0을 확인했다. 잘못된 desired graph 때문에 회수 조회가 재귀 순환하지 않도록 보강했다. Web 두 profile에서 원래 Material/Cupertino callback·한글/emoji 편집·controller reset·정상 close를 확인했다. 별도의 최소 수직 앱에서는 두 profile의 State·GlobalKey reparent·Inherited/theme·bounded 고정 높이 ListView/ScrollController·FontLoader·MemoryImage·단일 dispose와 자원 회수를 확인했다. Windows HWND와 App SDK의 원래 Widget 앱에서 실제 GPU 화면·Material callback·편집 선택·한글/emoji 붙여넣기와 선택 범위 교체·정상 종료를 확인했다. 입력 직후의 이전 scene 값과 비동기 편집/게시 완료를 구분해 UIA 값·문서·화면을 함께 확인했다. Android x86_64 emulator에서는 일반 run 명령으로 설치·첫 frame·Material/Cupertino State·Switch·TextField controller reset을 확인했다. 개발 build의 정식 stop 경로에서 App dispose·worker join·예약/메모리 0을 확인하고 설치와 직접 시작한 emulator를 회수했다. 분리한 Testbed는 일반 Windows App SDK 실행에서 실제 GPU 화면·제목 갱신·한글/emoji 편집·정상 종료(예약/메모리 0·worker join)를 확인했다. Web 두 profile에서도 별도 App의 버튼 뒤 활성 document 변경·controlled Checkbox·Core 편집 값과 close를 확인했다. single-worker 편집은 포커스 관측 뒤 일반 키보드 입력과 `editSnapshot`으로 확인했으며 `layoutSnapshot`의 이전 scene 값을 live 편집 값으로 판정하지 않는다. 에뮬레이터와 합성 입력은 실기기·물리 IME 수락을 대신하지 않는다.
+
+**설치·선언 확인:** 현재 8개 package archive를 새 소비자에 offline 설치해 TypeScript 7.0.2·NodeNext·ES2022·`types: []`·`skipLibCheck: false` 선언 검사와 설치 CLI doctor/build/pack을 통과했다. SDK `./engine`의 browser service 선언도 이 검사에 포함했다. 현재 standalone Web pack을 두 profile에서 실행해 원래 Widget App·frozen/private-field App 정의·기본 policy의 고정 높이 ListView·실제 게시 offset 1,200px·예약 0/worker 종료를 확인했다. Clipboard와 모듈 소유 설정을 추가한 최종 archive도 별도의 새 소비자로 설치해 두 profile의 공개 Clipboard roundtrip·NUL/길이 거부, rounded clip·transform·RTL flex·RepaintBoundary와 close 예약 0/worker 종료를 확인했다. 설치된 SDK의 미지원 OS 채널 거부는 native 요청 수 0이었다. root package에서는 기본 policy의 seek/복귀·KeepAlive State 유지·총 57개 row의 생성/해제 수 일치도 확인했다. 전체 설치 catalog·모든 FontLoader/image/reload/loss matrix까지 완료한 것은 아니다. 기본 theme의 Segoe UI/Roboto는 실제 system face를 유지하고 Web의 미공급 family는 선언 순서와 bundled default로 동일 font cohort에서 해석하도록 수정했다. 생성 template의 ColoredBox 인자와 네 방향 Insets도 바로잡았다.
+
+**목록 묶음까지 마지막 검증 공급·검사:** `npm.cmd run build:engine-v2`와 `npm.cmd run build:engine-v2:android`를 통과했다. Windows HWND/App SDK·Web threaded/single-worker 공급 343개 파일과 Android arm64-v8a/x86_64 공급 52개 파일의 hash를 당시 source identity `f26ab2f19156a30d936c2a03f0a2e3aaf027e1e6aea53ad1afe2f0aea27f43a5`와 함께 확인했다. ABI 2·App text service 12·App OS service v2의 8개 transport method를 유지하며 TapRegion wire·Offstage layout·semantics policy/게시 관측·callback source·Snapshot style/paint 결정과 게시 semantics route·LayoutBuilder/Source sliver demand·고정 extent·Core scroll 범위·숫자 offset seek·ideographic run 추가에 맞춰 schema를 855578348로 갱신했다. 앞선 SDK pack 목록의 canonical helper 28개와 App/engine entry 포함 여부, 이번에 바뀐 Skia 관리 파일의 hash도 확인했다. `npm.cmd run check:types`, `npm.cmd run lint`, `npm.cmd run format:check`, schema `generate --check`, `git diff --check`를 통과했다. 임시 source 변경을 원복하는 검사에서 Testbed/App host 변경은 엔진 공급을 무효화하지 않고 실제 provider codec 변경은 무효화함을 확인했다. Android 일반 실행은 process-local HotSpot JDK 21로 `npm.cmd run run:engine-v2:android -- --device=emulator-5554`를 사용했다.
+
+**SDK OS 서비스 추가 확인:** 공개 `Clipboard` 읽기/쓰기/문자열 여부와 한글·emoji roundtrip, 65,537 단위·NUL 거부를 Windows HWND, Web 두 profile, Android x86_64에서 확인했다. SDK 계약 검사에서 미지원 채널은 native 접수 없이 실패하고, 종료는 진행 중 callback을 기다린 뒤 pending/bytes 0으로 닫힌다. Android의 정식 stop도 App dispose·worker join·예약/메모리 0이었다. Android는 `dev.nelyx.w9aclipboard` 테스트 설치와 직접 시작한 Pixel_5 emulator를 회수했다. Native bundler의 browser entry 선택을 바로잡고 두 Hermes 공급의 block-scoping 옵션을 켰으며, 실제 실행에서 반복별 `1,2,3` 캡처와 CommonJS export getter를 확인했다. 선언 전 lexical 접근의 TDZ 예외는 현재 Windows evaluator에서 동등하지 않아 VM 언어 동등성은 미완료다. Web 검사는 권한을 부여한 독립 browser context에서 수행했으며 실제 사용자 권한 UI의 수락 검사가 아니다.
+
+**Core 설정 추가 확인:** `framework/rendering/native-box.ts`의 typed 계약과 exact-prototype registry를 사용해 14종의 설정·미지원 옵션 검사를 `boxes.ts`·`clip.ts`·`repaint-boundary.ts`·`widgets/basic.ts`로 옮겼다. `runtime/app/layout.ts`는 클래스 allowlist 대신 공통 compile과 parent data 연결만 수행한다. 실제 C++ single-worker에서 LTR/RTL padding·flex의 게시 좌표, rounded clip radii·affine transform·RepaintBoundary, 미등록 subclass 거부와 이전 accepted document 보존을 확인했다. 기존 instance 실행 hook 거부도 유지한다. TS 최종 layout/paint/hit-test 실행부와 그 마지막 소비자의 제거는 아직 미완료다.
+
+**원래 feedback 추가 확인:** 공통 messenger 연결 후 실제 pointer로 Material 버튼을 눌렀을 때 원래 `sendSemanticsEvent`가 TS attachment를 요구해 실패하는 경로를 수정했다. Native render owner가 accepted 장면의 최종 semantics 조상을 찾아 generation이 있는 handle로 전달하며 TS semantics pipeline에는 attach하지 않는다. Windows 두 host에서 같은 pointer 클릭 후 `Material 1`·AnimationController `Opacity 0.40`의 UIA·GPU 게시와 정상 close(예약/메모리 0·worker join)를 확인했다. Android x86_64에서는 공개 Feedback의 tap/long-press·system sound/haptic 요청, Clipboard v2 roundtrip·정식 stop의 App dispose·worker join·예약/메모리 0을 확인하고 `dev.nelyx.w9afeedback` 설치와 직접 시작한 emulator를 회수했다. 32개 직접 feedback callback이 남은 상태의 close도 모든 취소 응답과 bytes 0을 기다렸다. Windows/Web의 node feedback 무시는 기존 embedding 동작을 유지하며 일반 announce·reader·물리 sound/haptic 수락은 미검증이다.
+
+**서비스 v2 설치 feedback 확인:** 글꼴 staging 수정 전 공급 `2d8368758e630eb9ad7f47a9e07055cda1ad6a5bbf77753325d483c5669c6972`의 8개 archive를 offline 설치해 strict ES2022 선언·v1 host 거부·미지원 채널의 native 접수 0·설치 CLI doctor/build/pack을 확인했다. Standalone pack을 설치된 Chrome과 Edge의 threaded/single-worker에서 각각 실행했다. 네 조합 모두 원래 frozen/private-field App·Clipboard 한글/emoji와 잘못된 입력 거부·rounded clip/transform/RTL flex/RepaintBoundary·실제 pointer 뒤 `Feedback 0 → 1`·close 예약 0/worker 종료가 통과했다. 권한은 테스트 browser context에 부여했으므로 사용자 권한 UI·물리 입력·display/성능 수락으로 확대하지 않는다. 임시 archive·설치본·browser/server는 실행 종료 시 회수했다.
+
+**실제 catalog import·설치 확인:** 원래 `ComponentsGallery`를 축소하지 않고 번들링하며 RangeSlider의 공개 hardware-keyboard·내부 semantics 설정과 Material Scrollbar의 Cupertino 구현 의존성을 연결했다. CLI 내부 import 예외는 선택한 실제 Material/Cupertino package 소유 파일에만 적용한다. 사용자 파일·동일한 폴더명·다른 물리 package의 같은 이름으로는 예외를 얻지 못하며 data frontend도 원래 디자인 구현을 끌어올 수 없다. 새 8개 archive의 offline 소비자에서 TypeScript 7.0.2·NodeNext·ES2022·`types: []`·`skipLibCheck: false`, CLI doctor/build/pack, 직접 private import와 위조 design package 거부를 확인했다. 설치된 실제 gallery는 873 modules·`original-elements`로 번들링된다. 이 설치본의 첫 실행은 optional rasterizer 조회에서 명시 실패했으며, 이후 optional 조회·TapRegion·Offstage·semantics·Snapshot을 수정한 현재 workspace 실행의 차단은 아래 scopesRoute 항목이다. 최신 schema의 독립 설치 검사는 아래 Snapshot 기록으로 갱신했다.
+
+**세 글꼴 asset·quota 확인:** 실제 Testbed의 NotoSansKR·MaterialIcons·CupertinoIcons 합계 12,317,400 bytes를 사용했다. Transport close와 전달 확정 뒤 asset의 임시 read/검증 복사본 예약을 회수하고 호출자 bytes·각 65,536-byte guard는 App realm 종료까지 유지한다. Web font decode는 한 글꼴의 임시 slice만 별도로 admit하며 Wasm heap·font collection 예약은 보존한다. App quota 320 MiB·최대 CanvasKit heap 256 MiB는 올리지 않았다. Chrome 두 profile의 workspace·설치 standalone App, Windows HWND/App SDK, Android x86_64에서 asset 3개·data 12,317,400/credit 12,514,008 bytes·font revision 2·pending stage 0·binding 1을 확인했다. Windows는 UIA·GPU 게시·일반 Alt+F4 close, Android는 first frame·정식 stop을 확인했다. 모두 정상 종료의 예약 0·worker 종료를 확인했고 Native는 메모리 0이었다. Android의 SwiftShader 실행은 Vulkan adapter 준비에서 실패했으며 host GPU·Vulkan feature의 Pixel_5 실행으로 확인했다. `dev.nelyx.w9afonts` 설치와 직접 시작한 emulator는 회수했다. 이 글꼴 확인에 Edge·실기기·물리 입력·성능 수락은 포함하지 않는다.
+
+**게시 semantics binding 확인:** `runtime/app/semantics.ts`는 실제 SDK dispatcher와 같은 View의 원래 SemanticsBinding을 소유한다. 원래 View owner id와 numeric native View id를 같은 게시 좌표에 연결하고 clip·metrics/device·visibility·publication 경계를 지킨다. 오래된 action에는 최신 게시 좌표를 대신 제공하지 않는다. 실제 C++ Web 두 profile과 Windows 두 host에서 tap/long press/increase/decrease의 listener→원래 callback 순서를 확인했고 Windows UIA·화면에 `Listener 4 Callback 4`가 게시됐다. Web은 listener 예외가 해당 callback을 중단한 뒤 다음 action으로 재개하는 동작도 확인했다. 실제 SDK messenger를 사용하는 추가 수명 검사에서 첫 게시 전/후 stop은 좌표·handle·action을 회수하고, binding lease는 Source unmount까지 유지한 뒤 한 번 해제했다. Native TS semantics/layout pipeline에는 attach하지 않는다. OS accessibility feature ingress·focus/range listener 동등성과 전체 semantics API는 남아 있다. TapRegion의 기본 분류 연결은 아래 범위로 확인했다.
+
+**TapRegion 기본 경로 확인:** Source `tap-region.ts`가 exact-prototype 설정·원래 Key equality·등록 revision을 소유하고 `runtime/app/tap-regions.ts`는 실제 Source callback과 semantics listener를 연결한다. C++는 게시된 tree에서 child-first·translucent·modal·clip·전체 affine·input-padding hit path를 계산하며 down 경로를 up까지 보존한다. 현재 등록된 group으로 inside/outside를 분류하고 layout의 postorder·cache 재사용에 따른 등록 순서를 보존한다. outside 입력 소비로 gesture를 취소해도 up 관측과 bounded publication 수명은 남기며 metrics/종료 취소 때 회수한다. 의미 동작은 clip된 native semantics rect의 중심에서 Surface subtree만 검사하고 Source listener 위치에서 원래 synthetic PointerDownEvent를 전달한다. TS hit/layout/arena 실행을 추가하지 않는다.
+
+C++ 검사에서 실제 LayoutWork의 등록 순서·cached ancestor·같은 tick에 대기한 up과 별도로 접수된 up·보조 button·gesture 전후 순서·semantic 분류·callback queue의 부분 전달 거부·모든 예약 회수를 확인했다. 별도 Source 검사에서 equality가 같은 다른 group 객체, 전체 affine local 좌표, synthetic event 기본값, listener 순서, 변경된 등록 revision과 close 뒤 callback 차단을 확인했다. CLI로 번들링한 원래 세 Region App을 Chrome 두 profile에서 실행해 outside→group inside와 좌표가 달라진 up의 down 경로 유지·gesture 소비·listener→Region callback→후속 listener→action 순서를 확인했다. Windows HWND/App SDK는 computer-use의 OS mouse drag로 UIA와 GPU 게시 화면의 `Tap D3 U3 G0`를 확인했고 일반 Alt+F4 종료의 status/예약/메모리 0·worker join을 확인했다. Web도 종료 예약 0·worker 종료였다. 자동화 입력이며 물리 입력·scanout·성능 수락 증거는 아니다.
+
+**TapRegion 남은 계약:** native가 분류·소비를 접수한 뒤 App callback 안에서 즉시 정책을 바꾸거나 예외를 던질 때 소비 결정과 남은 분류를 원래 동기 실행과 동일하게 처리하는 계약은 미완료다. 현재 Source의 enabled·registry·등록 revision·dispose guard와 Surface별 예외 후 callback 중단을 제공하지만 native가 이미 접수한 소비 결정을 되돌리는 근거는 아니다. 이 범위를 전체 TapRegion 호환 완료로 표시하지 않는다. Android는 두 ABI 빌드와 공급 identity만 갱신했으며 이번 TapRegion의 emulator/실기기 입력은 확인하지 않았다.
+
+**Offstage 기본 경로 확인:** Source `rendering/offstage.ts`가 exact-prototype 설정을 등록한다. C++는 hidden 상태에서도 원래 incoming 제약으로 child를 layout하고 parent는 제약의 최소 크기·baseline 없음으로 확정한다. Dry layout과 intrinsic query는 child를 layout/측정하지 않으며 paint 의존성을 실행하지 않는다. Frame의 paint/hit/semantics 표시와 focus 허용을 분리했고 Offstage 아래 leader는 현재 layer link를 성립시키지 않는다. C++ 검사에서 child layout·baseline 보존, parent 최소 크기, dry/intrinsic의 child measurement 0, focus와 link 표시 복원, child layout cache 재사용과 전체 예약 회수를 확인했다.
+
+공개 `RenderBox.hasSize`·`size`는 native 소유 객체에서 실제 게시 layout 관측을 읽는다. 게시 전에는 실패하며 metrics/device·View 숨김·닫힘·handle generation 경계를 지킨다. 기존 TS 소유 객체의 size 경로와 TS layout 후 native 채택 거부도 검사했다. Native 값을 TS measuredSize에 복사하거나 TS layout을 실행하지 않는다. 이 관측 경로는 전체 동기 geometry 완료가 아니며 `constraints`·`needsLayout`·게시 전 동기 질의와 전체 원래 geometry 계약은 남는다.
+
+Chrome 두 profile의 원래 Offstage·FocusNode·State·AnimationController App에서 hidden parent 0×0, child 120×48, shown parent 120×48을 확인했다. 숨김→표시→숨김에도 State init 1·종료 dispose 1과 같은 native focus가 유지됐고 숨긴 동안 keyboard 4개 event·animation tick 진행을 확인했다. Semantics peer 제거에서 발생하는 DOM blur가 retained Core focus를 해제하지 않도록 SDK peer session을 먼저 회수한다. 실제 screenshot pixel은 숨김 RGBA [244,246,250,255]·표시 [255,136,0,255]였고 hidden semantics peer는 없었다. Windows HWND/App SDK에서도 OS mouse/key 입력으로 숨김/표시 UIA·화면 전환, `Hidden I1 K2 D0 → Shown I1 K2 D0 → Hidden I1 K4 D0`를 확인했다. Web 종료 예약 0·worker 종료, Windows 일반 Alt+F4 종료 status/예약/메모리 0·worker join을 확인했다. Android 두 ABI는 현재 공급으로 빌드했으며 이번 Offstage의 Android 입력·숨긴 EditableText의 Web IME 조합은 확인하지 않았다. 자동화 입력·screenshot을 물리 입력·scanout·성능 수락으로 확대하지 않는다.
+
+**BlockSemantics·ExcludeSemantics 기본 경로 확인:** Source `semantics-annotations.ts`가 두 클래스의 exact-prototype 설정과 blocking/excluding 값을 소유한다. C++는 같은 semantic boundary 안의 이전 paint 형제를 제외하고, boundary를 넘는 전파·Offstage와 ExcludeSemantics 아래 blocker를 구분한다. Pointer와 focus 권한에는 이 차단을 적용하지 않는다. App의 선행 label/action 합치기·자식 metadata 삭제를 제거하고 기본 label·flag·서로 충돌하지 않는 action 합치기를 Frame에서 수행한다. Native action은 게시 컨테이너 id와 원래 callback source를 함께 보존하고, reparent된 source에는 옛 컨테이너 action을 전달하지 않는다.
+
+합쳐진 focus peer와 OS focus 요청은 원래 contributor를 연결한다. Semantic focus·같은 항목의 재요청·DOM focus는 각각 원래 callback으로 전달한다. Source feedback은 native가 게시한 merged/blocked 관측과 publication·metrics/device·visibility 경계를 따르며, 차단된 항목은 OS에 보내지 않는다. Windows 두 host와 Android의 접근성 소비자도 원래 Document 대신 Frame의 최종 semantics를 읽는다. Host InteractionSnapshot이 복사한 Frame·semantics·editor map의 예약량은 실제 보관 수명 동안 ledger에 포함한다. 원래 TS semantics/layout pipeline은 attach하지 않는다.
+
+C++ 검사에서 경계별 억제·blocking=false 복원·Offstage/Exclude의 blocker 전파 차단·callback contributor·focus peer·옛 reparent action 거부·App의 게시 merge flag 위조 거부와 전체 예약 회수를 확인했다. Codec은 callback source의 크기/index/중복/identity와 게시 merge flag를 검사한다. Chrome 두 profile에서 서로 다른 tap/long-press callback·semantic/DOM focus callback 3회·pointer 1회·keyboard 2개 event·State init 1 유지·차단된 feedback 생략과 현재 컨테이너로의 전달을 확인했다. Windows HWND/App SDK의 실제 UIA·화면·OS 입력에서도 이전 항목 숨김/복원, excluded child의 paint 유지, `P1 K2`와 semantics 밖 focus 유지를 확인했다. 두 host의 정상 Alt+F4 close는 status/예약/메모리 0·worker join, 두 Web profile은 예약 0·worker 종료였다. Android 두 ABI는 현재 공급으로 빌드했으나 이 항목의 Android 입력과 hidden Web editor IME는 미확인이다. 전체 merge 충돌·역할/정렬·custom action·focus/range listener 동등성은 미완료이며 전체 semantics API 통과를 뜻하지 않는다.
+
+**SnapshotWidget 기본 capture/freeze 수명:** 원래 SnapshotController·SnapshotPainter를 유지하고 native 설정 리소스의 attach/detach를 연결했다. Source root/subtree 분리·재부모화·dispose 때 controller/painter listener를 해제하며 같은 allow 값의 controller 교체와 painter 변경은 이미지를 유지한다. 공통 C++ SnapshotRegistry가 실제 paint 시점의 capture/reuse·revision clear·DPR/device·empty-size·autoresize·permissive disabled attempt·forced·64 token/이미지 크기 상한을 결정한다. TS는 캐시 판정을 복제하지 않는다. Native Skia·CanvasKit이 투명한 자식 raster를 만들고 바깥 clip/opacity는 캡처에서 제외하며 중첩 paint를 기록한다. 기본 cached painter는 요청한 source 크기를 현재 박스로 늘리고, 원래 Material Zoom TS painter는 live/cached scale·translation·opacity·scrim 정책을 선언한다. 자식 layout·pointer·semantics는 최신 Frame을 사용한다.
+
+C++ 상태 검사는 fractional DPR/ceil·stretch/intrinsic·resize·clear·mode/abort·device·quota·해제를 통과했다. Native CPU raster 검사는 바깥 clip 제거 뒤 보존 픽셀·clear·resize·live/cached painter·중첩 invalidation·예약 회수를 확인했다. Chrome 두 profile의 실제 PNG와 Frame은 frozen 색/최신 semantics/입력 공존, clear/autoresize, 중첩 parent freeze/child clear, GlobalKey 재부모화의 State init 1, 종료 live snapshot/예약 0을 확인했다. HWND/App SDK의 UIA·GPU 화면·OS 입력도 파랑 freeze→빨강 clear→초록 autoresize, 비활성 live 보라색, Value 4/P1 semantics와 보라색 freeze, 이동 뒤 cyan 재캡처/I1을 확인했다. 정상 Alt+F4 종료는 status/예약/메모리 0·worker join이었다. Android 두 ABI는 같은 공급으로 빌드했으나 capture/입력은 미확인이다. 미등록 painter·custom rasterizer는 명시 거부하며 실제 PlatformView·전체 Snapshot API·물리 display/scanout·성능 수락 완료를 뜻하지 않는다.
+
+캡처 안의 opacity/blur·clip save-layer와 중첩 live painter의 scratch는 캡처 pixel 크기로 할당 전에 예약한다. Native CPU 검사는 quota 거부가 raster allocation/paint 전에 일어나고 실패 token을 재사용하지 않음을 확인했다. Web provider의 metadata·surface·paint·mipmap·commit 실패를 각각 주입해 원래 paint hook 실행 없이 token abort와 pixel/surface/image/예약 회수를 확인했다. Cached opacity의 실제 합성 픽셀도 확인했다.
+
+**Snapshot 제한·Web 실패 종료:** 새 캡처가 필요한데 조상 world transform의 역변환이 없으면 Core가 capabilityMissing으로 명시 실패한다. 기존 캡처의 유지와 Offstage의 미실행은 보존한다. 이 geometry의 캡처 지원을 완료한 것은 아니다. 이 실패 검사에서 확인한 Web fatal drain도 수정했다. 오류 후 scheduling과 새 App/input/resource 획득은 중단하지만 inspect·기존 transaction 결과/ACK·closeView·font/image 자원 해제·abort는 허용한다. App VM 종료 전에는 provider credit을 해제하거나 pthread를 강제 종료하지 않고 명시 close에서 provider→Core→worker를 정리한다. Shutdown 자체가 실패한 경우에만 close acknowledgement를 실패로 표시한다. 두 profile의 실제 singular-capture 실패에서 새 App port 거부와 close 예약 0·worker 종료를 확인했다. 전체 reload/device-loss·활성 IME/input·FontLoader/image 취소 matrix 완료로 확대하지 않는다.
+
+**Snapshot 당시 설치·재검증:** 당시 8개 archive를 새 소비자에 offline 설치했다. 실제 TypeScript 7.0.2·NodeNext·ES2022·types=[]·skipLibCheck=false에서 생성 template와 Snapshot/Material/Cupertino/SDK engine 선언을 검사했다. 설치 CLI doctor, Windows 479 modules/Web 478 modules build, standalone Web pack과 두 profile의 frozen/current child·clear·autoresize·중첩·재부모화·State init 1·입력/semantics·close 예약/live snapshot 0을 확인했다. 당시 공급의 HWND/App SDK도 freeze→clear 화면과 정상 Alt+F4 close status/예약/메모리 0·worker join을 재확인했다. 같은 당시 공급의 Block/ExcludeSemantics Web 두 profile 회귀도 통과했다. 모든 임시 archive·설치본·App·browser/server·native 창은 finally에서 회수했다.
+
+**Semantics route 선택·알림:** Source의 `scopesRoute`·`namesRoute`와 `explicitChildNodes` 설정을 유지하며, scope가 있는데 자식의 명시적 semantics를 요청하지 않은 구성은 거부한다. Scope를 임의의 container로 바꾸지 않는다. 공통 C++는 성공한 publication에서만 최종 exposed semantics의 depth-first paint 순서로 새 route를 선택하고, 선택한 subtree의 첫 비어 있지 않은 namesRoute label을 보존한다. 중첩·같은 node의 scope/name·unnamed scope·empty stack을 구분한다. 목록이 그대로이면 선택을 유지하므로 기존 route 앞에 삽입한 scope도 다음 Frame이나 이름 변경만으로 되돌아가지 않는다. 이름 변경만으로 edge 알림을 반복하지 않는다. 이 의미의 기준은 원래 [scopesRoute](https://api.flutter.dev/flutter/dart-ui/SemanticsFlag/scopesRoute-constant.html)·[namesRoute](https://api.flutter.dev/flutter/dart-ui/SemanticsFlag/namesRoute-constant.html) 계약이다.
+
+Offstage·Exclude·Block과 hidden subtree는 노출된 route 판정에 반영한다. Scope는 조상의 일반 label/action merge에 흡수하지 않는다. Scope의 semantic focus·접근성 focus peer·focus-only pointer 대상·기본 semantic Tab 후보를 제외하면서 별도의 Core focus와 입력 권한은 유지한다. 게시 비교의 고정 scratch를 할당 전에 예약하고 Frame은 불변 name metadata의 실제 holder를 유지한다. 이름 찾기와 선택 정책을 Web/OS host에 복제하지 않는다.
+
+Schema blob 28의 sequence·scope/name generation·label은 최종 publication과 함께 전달한다. Codec은 foreign opcode/status·중복·예약 필드·잘못된 flags·UTF-8·길이·scope 밖 name·현재 metrics/device 불일치를 거부한다. 숨김/닫힘·오래된 geometry에는 route 관측을 보내지 않는다. Windows는 게시 sequence당 UIA notification을 한 번 보내고 Web은 같은 sequence의 ARIA live region을 갱신한다. Android는 pane title 또는 window-state event를 사용하며 같은 label의 다른 route edge도 구별한다. Scope로 바뀐 Android virtual node의 접근성 focus/hover도 회수한다.
+
+**Route 확인 범위:** 현재 공급의 C++ 검사에서 준비만 된 Frame·stale publication의 무알림, 삽입/여러 push/pop·이름만 변경·첫 nonempty/merged name·hidden/excluded/offstage/blocked route·세대 재사용·semantic focus 거부와 독립 focus 보존·scratch quota·전체 예약 회수를 확인했다. Source exact-prototype·explicit-child 설정과 codec의 게시/좌표/identity/label 경계 검사도 통과했다. 기존 Block/Exclude 및 Snapshot Core 계약 회귀도 통과했다.
+
+Chrome 두 profile의 workspace App과 새 설치 standalone App에서 실제 Core route 관측과 DOM live region을 대조했다. 새 route를 기존 route 앞에 삽입한 뒤 이름을 바꿔도 같은 선택/sequence가 유지됐고, 중첩·같은 node의 이름·hidden name/fallback·Offstage·Exclude·Block 복원·empty stack과 같은 이름의 반복 edge를 확인했다. State init 1·pointer callback 1·keyboard event 2·scope focus callback 0과 별도 focus 유지, 종료 예약 0·worker 종료를 확인했다. HWND/App SDK에서는 computer-use의 OS mouse 입력·UIA·GPU 화면으로 Home→Inserted→이름 변경→Home→Same→empty→Home와 State init 1/P6을 확인했다. 별도 UIA notification listener가 두 host 모두 초기 Home 뒤 `Inserted, Home, Same, Home`만 수신했으며 이름 변경 단계에는 추가 알림이 없었다. 정상 Alt+F4 종료는 status/예약/메모리 0·worker join이었다.
+
+Android arm64-v8a/x86_64 빌드와 Java 17/Android 36의 접근성 host compile을 통과했다. 이번 Android route 입력·pane/window 이벤트의 실제 수신과 screen reader 음성은 확인하지 않았다. Web live-region 관측과 Windows UIA notification 수신도 실제 screen reader 음성·물리 입력·scanout·성능 수락을 뜻하지 않는다. 전체 semantics merge 충돌·역할/정렬·custom action·focus/range listener 동등성은 계속 미완료다.
+
+**Semantics route 당시 설치·공급 확인:** 당시 8개 archive를 새 소비자에 offline 설치해 실제 TypeScript 7.0.2·NodeNext·ES2022·types=[]·skipLibCheck=false에서 생성 template와 Semantics route/EngineResponse·Material/Cupertino·SDK engine 선언을 검사했다. 설치 CLI doctor, Windows 477 modules/Web 476 modules build, standalone Web pack과 위 두 profile 실행을 통과했다. Windows/Web 343개·Android 52개 파일 hash와 source identity·ABI 2/schema 2814365457를 확인했다. 원래 834 subpath API JSON은 같은 hash를 유지한다. 모든 임시 archive·설치본·App·browser/server·UIA listener·native 창은 finally에서 회수했다.
+
+**LayoutBuilder 경계 구현:** 원래 LayoutBuilder Element·BuildScope·builder callback을 유지한다. 공통 Content는 실제 부모에서 받은 min/max 제약과 Source revision이 마지막 결과와 다르면 자식 layout 전에 준비를 중단하고 generation 있는 node·preparation/document·metrics/device·request id를 전달한다. App은 진행 중 transaction이 끝난 뒤 최신 상태·Source configuration serial을 확인해 원래 callback을 실행하고 정상 scene transaction으로 결과 제약과 자식을 전송한다. Viewport 값이나 TS layout을 builder 입력으로 만들지 않는다. 준비 중에는 기존 활성 scene과 Render가 계속 동작하며 새 설정·재표시·종료는 이전 대기를 회수한다. Content worker는 builder 응답을 기다리며 busy loop를 돌지 않는다. Intrinsic/dry 질의는 speculative tree 변경을 거부하며 일반 동기 RenderObject.constraints는 계속 미지원이다.
+
+**LayoutBuilder 검증:** Source 단위 검사는 최초 지연 build·실제 BoxConstraints·자식 State scope·Inherited 의존성·updateShouldRebuild=false·미등록 subclass·stale revision·1회 dispose와 TS layout 미실행을 확인했다. /W4 /WX Core 검사는 실제 padding 뒤 172×80·중첩 164×74·무한 제약·빈 builder 확장·cache/revision 무효화·dry/intrinsic 거부·suspended preparation 취소·hidden/reshow·이전 active scene 유지·close drain을 통과했다. 실제 Core 응답을 현재 TypeScript codec으로 읽었고 잘못된 revision/axis/reserved·외부 owner·중복·document/metrics/device mismatch는 거부했다. 현재 공급의 route·Block/Exclude·Snapshot Core 회귀 검사도 통과했다.
+
+**LayoutBuilder 당시 실제 App·설치 확인:** Chrome single-worker/threaded에서 fixed parent의 tight 제약(outer 212×160, inner 204×154)·부모 너비 변경·무관한 viewport resize의 callback 비반복·실제 pointer State 갱신·Inherited 값 변경·builder 교체 정책·GlobalKey 재부모화·Offstage layout/표시 억제를 확인했다. State init=1, child와 builder의 native handle을 유지했고 screenshot pixel과 close 예약 0/worker 종료를 확인했다. Windows HWND/App SDK도 실제 OS pointer로 같은 크기·상속 변경·재부모화·숨김 복귀를 UIA/GPU 화면에서 확인했고 정상 Alt+F4 종료의 status/예약/메모리 0·worker join·app error 0이었다. 당시 8개 archive를 새 소비자에 offline 설치해 TypeScript 7.0.2·NodeNext·ES2022·types=[]·skipLibCheck=false의 template/LayoutBuilder/EngineResponse·Material/Cupertino·SDK 선언, 설치 CLI doctor·Web 477/Windows 478 modules build·standalone 두 profile의 같은 행렬을 통과했다. Windows/Web 343개·Android 52개 파일의 hash·source c65d4defb3cf6274dd2cfe269a30264619e059816a8c315978cdf97c0d6f920b·ABI 2/schema 2104852756와 원래 834 subpath API hash를 확인했다. Android 두 ABI는 빌드만 확인했으며 이 기능의 기기 실행·물리 입력/표시·성능 수락은 미검증이다. 임시 archive·소비자·App·browser/server·native 창은 finally에서 회수했다.
+
+**Source sliver·목록 묶음 구현:** 원래 SliverSectionList/SliverFixedExtentList의 exact-prototype 설정을 실제 SliverMultiBoxAdaptorElement와 private BuildScope에 연결했다. Key·Element identity에서 얻은 token, 원래 delegate wrapper·State·KeepAlive·공유 ViewWorkBudget을 사용하며 NativeList adapter에 두 번째 row State cache를 추가하지 않는다. SectionExtentIndex는 같은 native resource attach/detach 수명과 실제 Core 측정으로 갱신한다. Core의 유한 부모 너비·viewport·padding·요청 offset으로 원래 자식을 reconcile하며 Source layout/geometry/hit 실행은 하지 않는다. 고정 extent는 자식의 incoming 제약부터 적용한다.
+
+Core는 모르는 가변 높이를 먼저 실제 측정하고 viewport가 덮일 때까지 필요한 구간만 요청한다. 0 높이와 소수 추정치의 prefix, 취소된 준비의 불변 측정 cache 전달, resize·세대 무효화를 처리한다. Indexed metric은 최대 4096개, 한 장면의 필수/명시 child는 최대 128개다. 선택적 보존은 capacity 0–8과 공유 View 예산을 따른다. 이전 게시 document의 필수 구간은 provisional 준비 동안 같은 Source bucket에서 보호하며, 새 게시 뒤 원래 optional 정책으로 넘긴다. 복귀할 캐시 자식을 먼저 required로 전환하므로 outgoing 회수가 그 State를 먼저 퇴출하지 않는다. 이 보호는 별도 Element cache나 TS layout을 만들지 않는다.
+
+**Controller·Core 범위:** Source 목록의 숫자 jump는 Core의 측정 prefix/cache로 목적 구간을 찾는다. SectionExtentIndex.requestItem의 index·항목 내부 offset도 실제 Core seek와 관측 offset으로 연결한다. Padding을 포함한 min/max scroll extent는 Core가 snapshot에 직접 전달한다. Key 재정렬로 anchor가 준비 구간 밖으로 옮겨지면 기존 active scene을 보존한 채 필요한 Core 구간을 다시 준비한다. 다른 sliver owner의 같은 숫자 token을 이전 anchor로 사용하지 않는다. 기존 legacy 고정 목록은 각 명령 단계에서 최신 Core coverage를 읽도록 바꿔 threaded의 먼 이동 직후 0번 복귀 실패를 해결했다.
+
+**Source·Core 검증:** Source 검사는 실제 State 20개 생성/20개 dispose, private build scope·key remap·공유 예산·capacity 0/2·명시 KeepAlive·이전 게시 구간 보호/해제·index 자원 교체·stale/malformed 관측과 TS layout 미실행을 확인했다. /W4 /WX Core 검사는 LayoutBuilder 회귀와 실제 padded parent·가변/고정/0 높이·decimal prefix·resize·숫자 seek·retained-key 준비 재개·owner 경계·pending cache 전달·wire admission·close 예약 회수를 통과했다. 실제 Core 응답을 현재 codec으로 읽었고 request/row identity·범위·reserved·fixed flag를 검사했다. 현재 공급의 route·Block/Exclude·Snapshot Core 회귀도 통과했다.
+
+**여러 구성의 실제 Web 검사:** 두 Source 목록을 같은 View에서 실행하며 실제 pointer·wheel, 2번 항목 내부 7px 이동, 숫자 offset 550/470px와 복귀, 공유 예산·State 재사용, 실제 부모 너비 240→200px, key 재정렬, 고정 40px와 capacity 0의 필수 visible child, 800px 이동·재생성, 명시 KeepAlive, 0 높이·빈 목록을 한 App에서 전환했다. Chrome single-worker/threaded에서 각각 State 83개 생성/83개 dispose, optional 0, close 예약 0·worker 종료를 확인했다. 원래 기본 delegate의 wrapper를 유지했다. Legacy 고정 목록의 wheel→1200px→0px 회귀도 두 profile에서 통과했다.
+
+**목록 묶음의 Windows·설치 확인:** Windows HWND/App SDK에서 실제 OS pointer로 항목 내부 7px 이동·0번 복귀·부모 제약 240→200px·고정 40px/capacity 0·800px 이동과 복귀·빈 목록을 전환했다. 두 host 모두 State init 28/dispose 28, UIA의 실제 행·offset과 GPU 화면, 정상 Alt+F4 뒤 status 0·예약/메모리 0·worker join·App error 0을 확인했다. 현재 8개 archive를 새 소비자에 offline 설치해 TypeScript 7.0.2·NodeNext·ES2022·types=[]·skipLibCheck=false의 template/Source sliver/Core bounds/offset seek/CJK run·Material/Cupertino·SDK 선언을 검사했다. 설치 CLI doctor·Web 478/Windows 479 modules build·standalone Web pack과 위 두 profile의 같은 State 83/83 행렬을 통과했다. Android 두 ABI는 빌드만 확인했다. 물리 touchpad·scanout·성능 수락은 미검증이며 모든 임시 App·archive·설치본·browser/server·native 창은 회수했다.
+
+**Icon·CJK 선언:** IconGlyph의 원래 private paragraph·크기·중앙 정렬·RTL mirror·label/자식 semantics 설정은 Source 모듈이 native 선언을 제공한다. Material/Cupertino Icon을 C++ 컴포넌트로 복제하지 않는다. TextStyle의 ideographic baseline은 단일·혼합 run에 보존해 Native Skia/CanvasKit TextStyle로 전달하며 잘못된 baseline/미지 flag를 거부한다. Source/codec·실제 Core parser 검사를 통과했다. 전체 text/semantics 동등성이나 Icon의 모든 옵션 수락을 뜻하지 않는다.
+
+**마지막 실행의 실제 gallery 차단:** 마지막 검증 공급에서 원래 Gallery 전체 878 modules·original-elements를 실제 NotoSansKR·MaterialIcons·CupertinoIcons로 실행하면 Web 두 profile 모두 indexed extent·bounded capacity=2·preparation=disabled·padding과 Icon/CJK 경로를 지나 _RenderExclusiveMouseRegion에서 명시 실패한다. TS renderer fallback은 계속 거부하며 close 예약 0·worker 종료를 확인했다. 실제 catalog 첫 화면·resize·탐색·전체 controls는 아직 통과하지 않았다.
+
+**다음 구현:** Tooltip/exclusive MouseRegion의 실제 hover/hit 정책, Wrap·flex baseline·positioned Stack 및 overlay/route/snapshot의 남은 실행 소비자를 원래 TypeScript 컴포넌트와 공통 C++ 연산에 연결한다. Paragraph/image·control/layer의 남은 중앙 설정 분기도 모듈 소유로 이관한다. 전체 semantics merge 충돌·역할/정렬·custom action과 TapRegion callback 내 정책 변경·예외의 동기 소비 계약은 남는다. W9A-06의 clipboard 외 OS 환경/font/lifecycle·VM globals·언어 의미·reload/loss와 W9A-07의 공통 target descriptor·create/dev/pack matrix도 미완료다. 엔진/App의 ABI/schema·service version·파일 hash를 계속 검증하고 전환 gate 전에 기본 CLI나 남은 renderer·구 host를 삭제하지 않는다.
+
+아래 원래 Windows App 입력 확인 명령은 위 재개 절차에서 Source와 공급의 identity를 맞춘 뒤 사용한다. root `run:engine-v2:windows`는 전환 중인 기존 data Testbed를 실행하므로 원래 Widget 입력의 근거와 구분한다.
+
+```powershell
+$w9aEngineInputs = (Resolve-Path .\Nelyx\engine\dist).Path
+node Nelyx/sdk/tooling/cli/src/main.mjs build --engine v2 --app sample/nelyx-engine-v2-android --target windows --engine-inputs $w9aEngineInputs
+node Nelyx/sdk/tooling/cli/src/main.mjs run --engine v2 --app sample/nelyx-engine-v2-android --target windows --engine-inputs $w9aEngineInputs
+```
+
+**남은 판정:** 원래 API 분모 834와 서명 hash를 보존하며 `compatible=false`다. 중앙 allowlist·custom hook·동기 geometry·전체 sliver/list·디자인 전체·React/직접 Renderer 계약·SDK 전체 서비스·Testbed/Demo·제품 복구/설치 matrix는 미완료다. Linux·iOS/macOS는 **DEFERRED**, 물리/display/scanout은 **notVerified**, `performanceAccepted=false`·`resizePerformanceAccepted=false`다. 새 최소 앱의 성공을 전체 API·catalog·기본값 전환·전역 삭제 완료로 확대하지 않는다.

@@ -8,6 +8,7 @@ import type { BoxConstraints } from './constraints.ts';
 import type { Size, Offset, TransformMatrix } from '../../ui/geometry.ts';
 import type { SemanticsNode, Rect } from '../../ui/types.ts';
 import type { PaintingContext } from '../painting/context.ts';
+import { registerNativeBoxConfiguration } from './native-box.ts';
 export interface RenderOffstageOptions {
   readonly offstage?: boolean;
   readonly child?: RenderBox<RenderObject>;
@@ -92,3 +93,7 @@ export class RenderOffstage extends RenderProxyBox {
 }
 RenderProxyBox._registerGeometryLayoutSemantics(RenderOffstage.prototype);
 RenderProxyBox._registerInputGeometryHooks(RenderOffstage.prototype, undefined, false);
+registerNativeBoxConfiguration(RenderOffstage.prototype, (render) => ({
+  kind: 'box',
+  layout: { childConstraints: 'inherit', offstage: render.offstage },
+}));

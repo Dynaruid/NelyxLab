@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 import { RenderParagraph as SourceRenderParagraph } from '../rendering/paragraph.ts';
+import { registerNativeBoxConfiguration } from '../rendering/native-box.ts';
 import { TextSpan } from '../painting/text-span.ts';
 import { invariant } from '../../foundation/errors.ts';
 import { Key, ValueKey, sameKey, KeyMap } from '../../foundation/key.ts';
@@ -1302,6 +1303,15 @@ export class RenderColoredBox extends RenderProxyBox {
     super.paint(context);
   }
 }
+registerNativeBoxConfiguration(RenderColoredBox.prototype, (render, reject) => {
+  if (!render.isAntiAlias) return reject('colored-box-antialias-disabled');
+  return {
+    kind: 'box',
+    layout: { childConstraints: 'inherit' },
+    color: render.color,
+    hitTest: 'self',
+  };
+});
 class RichTextFromText extends StatelessWidget {
   constructor(
     readonly span: InlineSpan,

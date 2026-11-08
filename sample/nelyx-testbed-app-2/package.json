@@ -84,7 +84,7 @@
       {
         "id": "component-image",
         "kind": "image",
-        "path": "./assets/component-image.webp"
+        "path": "./engine-v2/assets/component-image.webp"
       }
     ],
     "targets": {

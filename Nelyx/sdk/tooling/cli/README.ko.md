@@ -24,11 +24,11 @@ npm --prefix MyApp/web/runner run dev
 
 ## 자체 v2 엔진
 
-C++ v2 엔진의 일반 앱은 `nelyx create MyApp --engine v2 --packages <archive-directory>`로 만들고 `MyApp/`에서 설치합니다. [SDK 일반 v2 프로젝트 안내](../../README.ko.md#일반-v2-프로젝트)에 entry/자산·검증한 engine 공급·Web/Windows/Android build/run/dev·doctor/pack·독립 package 사용을 설명했습니다. 이 경로는 `nelyx.v2.json`과 `dist/v2-<target>`을 사용합니다. Android는 HotSpot JDK 21·고정한 SDK 36과 `--architecture arm64-v8a|x86_64`를 사용합니다. `dev --engine v2 --target android --architecture x86_64 --device emulator-5554`는 새 APK 준비 → 이전 App/worker/GPU drain → 설치/새 session 순서로 교체하며 State는 초기화합니다. 현재 APK는 개발용 debug key로 서명합니다.
+C++ v2 엔진의 일반 앱은 `nelyx create MyApp --engine v2 --packages <archive-directory>`로 만들고 `MyApp/`에서 설치합니다. [SDK 일반 v2 프로젝트 안내](../../README.ko.md#일반-v2-프로젝트)에 entry/자산·검증한 engine 공급·Web/Windows/Android build/run/dev·doctor/pack·독립 package 사용을 설명했습니다. 새 후보는 원래 Widget을 반환하는 `@nelyx/sdk/app`과 `nelyx.json` (`nelyx.app/1`), `dist/v2-<target>`을 사용합니다. Android는 HotSpot JDK 21·고정한 SDK 36과 `--architecture arm64-v8a|x86_64`를 사용합니다. `dev --engine v2 --target android --architecture x86_64 --device emulator-5554`는 새 APK 준비 → 이전 App/worker/GPU drain → 설치/새 session 순서로 교체하며 State는 초기화합니다. 현재 APK는 개발용 debug key로 서명합니다.
 
 ## 공급과 설치
 
-Archive 디렉터리에는 Core·SDK·Skia-native·Skia-RN·Skia-Web·Metro·CLI·Static AOT tooling과 선택한 Material·Cupertino 패키지가 각각 하나씩 필요합니다. 서로 호환되는 한 묶음을 사용하세요.
+Archive 디렉터리에는 Core·SDK·Skia-native·Skia-RN·Skia-Web·Metro·CLI·Static AOT·Tooling Contracts tooling과 선택한 Material·Cupertino 패키지가 각각 하나씩 필요합니다. 서로 호환되는 한 묶음을 사용하세요.
 
 이 저장소에서는 SDK 빌드 후 archive를 pack합니다. Web archive에는 [준비된 CanvasKit 런타임](../../../skia/eng/source-build/README.md#vendor-build-recipes)도 필요합니다. 저장소 루트에서는 `nelyx` 대신 `node Nelyx/sdk/tooling/cli/src/main.mjs`로 소스 CLI를 실행할 수 있습니다.
 

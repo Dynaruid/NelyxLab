@@ -2,19 +2,19 @@
   "schema": "nelyx.windows-os-sources/1",
   "reused": [
     {
-      "file": "Nelyx/skia/native/host/windows/WindowsPrecisionTrackpad.h",
+      "file": "Nelyx/engine/platform/windows/input/WindowsPrecisionTrackpad.h",
       "sha256": "51352cdc601741218a974a56601f7fdb646f6212a97f55d65063a8871fbe02dd",
       "usage": "standalone OS callbacks; no React runtime",
       "license": "Nelyx/licenses/FlutterEngine-LICENSE.md"
     },
     {
-      "file": "Nelyx/skia/native/host/windows/WindowsMonotonic.h",
+      "file": "Nelyx/engine/platform/windows/input/WindowsMonotonic.h",
       "sha256": "f7364f5e12ebe01141a5deff875f8f5ed85a53932824fe3e660a01725c8a94dc",
       "usage": "standalone OS callbacks; no React runtime",
       "license": "Nelyx/LICENSE.md"
     },
     {
-      "file": "Nelyx/skia/native/host/windows/WindowsInputTrace.h",
+      "file": "Nelyx/engine/platform/windows/input/WindowsInputTrace.h",
       "sha256": "2d5766248f21dd3e58779e39f14cdd3fa6c3d920b4db0ac2785b44cffbc5eb2f",
       "usage": "standalone OS callbacks; no React runtime",
       "license": "Nelyx/LICENSE.md"

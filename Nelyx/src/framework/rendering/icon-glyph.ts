@@ -12,6 +12,8 @@ import type { Size } from '../../ui/geometry.ts';
 import { multiply } from '../../ui/geometry.ts';
 import type { PaintingContext } from '../painting/context.ts';
 import type { SemanticsConfiguration } from '../semantics/semantics.ts';
+import { registerNativeBoxConfiguration } from './native-box.ts';
+import type { NativeBoxConfiguration } from './native-box.ts';
 
 export interface IconGlyphConfiguration {
   readonly size: number;
@@ -52,6 +54,18 @@ export class RenderIconGlyph extends RenderProxyBox {
     if (value.label !== old.label || value.labelDirection !== old.labelDirection)
       this.markNeedsSemanticsUpdate();
     this.configuration = value;
+  }
+  /** @internal The private paragraph remains the same Source render/resource owner. */
+  nativeIconConfiguration(): NativeBoxConfiguration {
+    const value = this.configuration;
+    return {
+      kind: 'transform',
+      constraints: this.additional,
+      layout: { childConstraints: 'loose', enforceBounds: true, alignment: { x: 0, y: 0 } },
+      graphics: { transform: [value.mirror ? -1 : 1, 0, 0, 1, 0, 0], alignment: { x: 0, y: 0 } },
+      semanticsPolicy: { excludeChildren: true },
+      ...(value.label === null ? {} : { semantics: { role: 'group', label: value.label } }),
+    };
   }
   protected override computeMinIntrinsicWidth(_height: number): number {
     return this.additional.minWidth;
@@ -139,3 +153,8 @@ export class RenderIconGlyph extends RenderProxyBox {
     if (errors) throw new AggregateError(errors, 'Icon glyph retirement failed');
   }
 }
+registerNativeBoxConfiguration(RenderIconGlyph.prototype, (render, reject) => {
+  if (Object.hasOwn(render, 'nativeIconConfiguration'))
+    return reject('instance-icon-configuration');
+  return render.nativeIconConfiguration();
+});

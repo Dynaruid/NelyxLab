@@ -2,7 +2,7 @@
 #pragma once
 #include "../common/skia_provider.hpp"
 #include "frame_clock.hpp"
-#include "../../../skia/native/platforms/vulkan/device.h"
+#include "../../render/vulkan/device.h"
 namespace nelyx::v2::windows {
 using namespace ::nelyx::v2::native;
 class UploadProvider final : public skgpu::graphite::ImageProvider {
@@ -12,6 +12,7 @@ class UploadProvider final : public skgpu::graphite::ImageProvider {
 };
 class RenderProvider {
   std::shared_ptr<Ledger> ledger;
+  native::SnapshotImages snapshots;
   std::unique_ptr<ExternalLease> cacheMemory,backingMemory;
   std::shared_ptr<nelyx::vulkan::Device> device;
   std::unique_ptr<skgpu::graphite::Recorder> recorder;
@@ -51,17 +52,18 @@ class RenderProvider {
     uint64_t pathBytes=0,layerBytes=0;for(const auto& item:frame.items){const auto& n=frame.scene->document->get(item.node);
       if(item.paint)pathBytes+=item.paint->paths.size()*256+1024;
       if(frame.properties[n.id.slot].opacity<1||n.graphics.blur>0)layerBytes+=uint64_t(w)*h*4*(n.graphics.blur>0?3:1);
+      if(n.snapshot&&n.snapshot->live.opacity<1)layerBytes+=uint64_t(w)*h*4;
       if(item.flags&wire::nodeFlags::clipSaveLayer)layerBytes+=uint64_t(w)*h*4;}
     ExternalLease pathMemory(ledger,2,2,pathBytes);
     ExternalLease layers(ledger,2,3,layerBytes);
-    drawPreparedFrame(surface->getCanvas(),frame,prepared,scale,paintCounts);
+    drawPreparedFrame(surface->getCanvas(),frame,prepared,scale,paintCounts,snapshots);
     const auto recorded=qpcSeconds();recordAndBackingElapsedMs=(recorded-started)*1000;
     device->present(recorder.get(),surface.get());submitElapsedMs=(qpcSeconds()-recorded)*1000;++draws;return true;
     }catch(const nelyx::vulkan::SurfaceChanged&){
       surface.reset();device->releaseWindow(recorder.get());backingMemory.reset();width=height=0;return false;
     }
   }
-  void close(){if(!device)return;device->retire();surface.reset();device->releaseWindow(recorder.get());recorder.reset();device->drain();device.reset();backingMemory.reset();cacheMemory.reset();}
+  void close(){if(!device)return;device->retire();snapshots.clear();surface.reset();device->releaseWindow(recorder.get());recorder.reset();device->drain();device.reset();backingMemory.reset();cacheMemory.reset();}
   ~RenderProvider(){try{close();}catch(...){device.reset();}}
 };
 }

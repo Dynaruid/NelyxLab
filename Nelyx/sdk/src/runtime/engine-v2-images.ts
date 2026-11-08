@@ -5,13 +5,13 @@ import {
   ImageResource,
   protocol as p,
   rasterImageHeader,
-} from '@nelyx/core/v2';
+} from '@nelyx/core/engine';
 import type {
   AppImageBackend,
   AppImageDescriptor,
   AppImageRaw,
   AppTextBackend,
-} from '@nelyx/core/v2';
+} from '@nelyx/core/engine';
 import type {
   ImageDescriptorLoader,
   ImageDescriptorValue,
@@ -37,7 +37,7 @@ import type {
   OriginalImageSource,
   OriginalImageSceneLease,
   OriginalImageClock,
-} from '@nelyx/core/v2/original';
+} from '@nelyx/core/internal/runtime/app';
 import type { EngineV2Buffers } from './engine-v2-buffers.ts';
 import type { EngineV2Assets, AssetCancellation } from './engine-v2-assets.ts';
 import type { ImageCancellation, ImageReadProgressListener } from '@nelyx/core/hosting/images';

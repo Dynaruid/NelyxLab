@@ -9,6 +9,7 @@
 #include "clip.hpp"
 #include "native_paint.hpp"
 #include "image.hpp"
+#include "snapshot.hpp"
 #include <array>
 #include <memory>
 #include <atomic>
@@ -52,6 +53,8 @@ struct LayoutStyle {
   double flex = 0, gap = 0, runGap = 0, left = 0, top = 0, right = 0, bottom = 0;
   double alignmentX = 0, alignmentY = 0, widthFactor = -1, heightFactor = -1;
   double inlineScale = 1;
+  uint32_t runAlign = 0, textBaseline = 0, positionedFlags = 0, overflowClipBehavior = 0;
+  std::array<double,6> positioned{};
 };
 struct Coverage { uint64_t revision = 0; double minimum = 0, maximum = 0; bool enabled = false; };
 struct TextData {
@@ -66,6 +69,15 @@ struct LayerLinkStyle {
   Handle leader;
   Point offset,leaderAnchor,followerAnchor;
 };
+struct TapRegionStyle {
+  uint32_t flags=0,group=0;
+  Handle surface;
+  uint64_t revision=0;
+};
+struct LayoutBuilderStyle {
+  uint64_t revision=0,builtRevision=0;
+  Axis horizontal,vertical;
+};
 struct Node {
   Lease lease;
   Handle id, parent, paintOwner;
@@ -73,8 +85,11 @@ struct Node {
   Properties properties;
   GraphicsStyle graphics;
   LayerLinkStyle layerLink;
+  TapRegionStyle tapRegion;
+  std::optional<LayoutBuilderStyle> layoutBuilder;
   std::optional<ClipStyle> clipStyle;
   std::optional<ImageStyle> imageStyle;
+  std::optional<SnapshotStyle> snapshot;
   std::shared_ptr<const ImagePaint> imagePaint;
   std::shared_ptr<const NativePaint> nativePaint,resolvedPaint;
   std::shared_ptr<const PaintPlacement> paintPlacement;
@@ -116,7 +131,7 @@ struct Node {
     ++lease.ledger->nodes;
   }
   Node(const Node& n) : lease(n.lease.ledger, sizeof(Node)), id(n.id), parent(n.parent), paintOwner(n.paintOwner),
-      kind(n.kind), order(n.order), policy(n.policy), properties(n.properties), graphics(n.graphics),layerLink(n.layerLink),clipStyle(n.clipStyle),imageStyle(n.imageStyle),imagePaint(n.imagePaint),nativePaint(n.nativePaint),resolvedPaint(n.resolvedPaint),paintPlacement(n.paintPlacement),paintTransform(n.paintTransform),extensionSize(n.extensionSize),
+      kind(n.kind), order(n.order), policy(n.policy), properties(n.properties), graphics(n.graphics),layerLink(n.layerLink),tapRegion(n.tapRegion),layoutBuilder(n.layoutBuilder),clipStyle(n.clipStyle),imageStyle(n.imageStyle),snapshot(n.snapshot),imagePaint(n.imagePaint),nativePaint(n.nativePaint),resolvedPaint(n.resolvedPaint),paintPlacement(n.paintPlacement),paintTransform(n.paintTransform),extensionSize(n.extensionSize),
       horizontal(n.horizontal), vertical(n.vertical), motion(n.motion), layout(n.layout), coverage(n.coverage),
       list(n.list), item(n.item), gestures(n.gestures), control(n.control), listGeometry(n.listGeometry),
       layoutRevision(n.layoutRevision), baseline(n.baseline), contentX(n.contentX), contentY(n.contentY),

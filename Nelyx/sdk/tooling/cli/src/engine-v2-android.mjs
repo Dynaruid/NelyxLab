@@ -140,7 +140,7 @@ export function buildEngineV2AndroidApk({
     });
     if (!lowered?.code) throw Error('Android class lowering produced no application');
     fs.writeFileSync(javascript, lowered.code + '\n');
-    const compilerFlags = ['-Og', '-emit-async-break-check', '-emit-binary'];
+    const compilerFlags = ['-Og', '-block-scoping', '-emit-async-break-check', '-emit-binary'];
     execute(compiler, [
       ...compilerFlags,
       '-out',

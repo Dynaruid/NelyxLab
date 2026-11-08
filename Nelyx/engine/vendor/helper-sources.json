@@ -1,0 +1,117 @@
+{
+  "schema": "nelyx.engine.helpers/1",
+  "projections": [
+    {
+      "source": "platform/windows/interop/Editors.h",
+      "previous": "Nelyx/sdk/native/windows-hermes/Editors.h"
+    },
+    {
+      "source": "platform/windows/interop/SemanticsTree.h",
+      "previous": "Nelyx/sdk/native/windows-hermes/SemanticsTree.h"
+    },
+    {
+      "source": "platform/windows/interop/Packets.h",
+      "previous": "Nelyx/sdk/native/windows-hermes/Packets.h"
+    },
+    {
+      "source": "platform/windows/interop/TextInputStore.h",
+      "previous": "Nelyx/sdk/native/windows/TextInputStore.h"
+    },
+    {
+      "source": "platform/windows/interop/TextInputContext.h",
+      "previous": "Nelyx/sdk/native/windows/TextInputContext.h"
+    },
+    {
+      "source": "platform/windows/interop/TextInputDocument.h",
+      "previous": "Nelyx/sdk/native/windows/TextInputDocument.h"
+    },
+    {
+      "source": "platform/windows/interop/TextInputDataObject.h",
+      "previous": "Nelyx/sdk/native/windows/TextInputDataObject.h"
+    },
+    {
+      "source": "platform/windows/interop/SemanticsTextProvider.h",
+      "previous": "Nelyx/sdk/native/windows/SemanticsTextProvider.h"
+    },
+    {
+      "source": "platform/windows/interop/SemanticsState.h",
+      "previous": "Nelyx/sdk/native/windows/SemanticsState.h"
+    },
+    {
+      "source": "platform/windows/interop/SemanticsTextGeometry.h",
+      "previous": "Nelyx/sdk/native/windows/SemanticsTextGeometry.h"
+    },
+    {
+      "source": "platform/windows/interop/SemanticsTextDocument.h",
+      "previous": "Nelyx/sdk/native/windows/SemanticsTextDocument.h"
+    },
+    {
+      "source": "platform/windows/input/WindowsPrecisionTrackpad.h",
+      "previous": "Nelyx/skia/native/host/windows/WindowsPrecisionTrackpad.h"
+    },
+    {
+      "source": "platform/windows/input/WindowsMonotonic.h",
+      "previous": "Nelyx/skia/native/host/windows/WindowsMonotonic.h"
+    },
+    {
+      "source": "platform/windows/input/WindowsInputTrace.h",
+      "previous": "Nelyx/skia/native/host/windows/WindowsInputTrace.h"
+    },
+    {
+      "source": "render/vulkan/device.cpp",
+      "previous": "Nelyx/skia/native/platforms/vulkan/device.cpp"
+    },
+    {
+      "source": "render/vulkan/device.h",
+      "previous": "Nelyx/skia/native/platforms/vulkan/device.h"
+    },
+    {
+      "source": "render/vulkan/dmabuf.inc",
+      "previous": "Nelyx/skia/native/platforms/vulkan/dmabuf.inc"
+    },
+    {
+      "source": "render/vulkan/frame_lease_gate.h",
+      "previous": "Nelyx/skia/native/platforms/vulkan/frame_lease_gate.h"
+    },
+    {
+      "source": "render/vulkan/gpu_context.cpp",
+      "previous": "Nelyx/skia/native/platforms/vulkan/gpu_context.cpp"
+    },
+    {
+      "source": "render/vulkan/gpu_context.h",
+      "previous": "Nelyx/skia/native/platforms/vulkan/gpu_context.h"
+    },
+    {
+      "source": "render/vulkan/win32_backing_audit.h",
+      "previous": "Nelyx/skia/native/platforms/vulkan/win32_backing_audit.h"
+    },
+    {
+      "source": "render/vulkan/win32_import.inc",
+      "previous": "Nelyx/skia/native/platforms/vulkan/win32_import.inc"
+    },
+    {
+      "source": "render/skia/paragraph_queries.cpp",
+      "previous": "Nelyx/skia/native/core/paragraph_queries.cpp"
+    },
+    {
+      "source": "render/skia/nelyx_skia/paragraph_queries.h",
+      "previous": "Nelyx/skia/native/core/nelyx_skia/paragraph_queries.h"
+    },
+    {
+      "source": "render/skia/font_services.h",
+      "previous": "Nelyx/skia/native/rendering/font_services.h"
+    },
+    {
+      "source": "platform/windows/font_services.cpp",
+      "previous": "Nelyx/skia/native/platforms/windows/font_services.cpp"
+    },
+    {
+      "source": "platform/android/shared/dev/nelyx/input/NelyxInputBuffer.java",
+      "previous": "Nelyx/sdk/native/android/shared/dev/nelyx/input/NelyxInputBuffer.java"
+    },
+    {
+      "source": "platform/android/shared/dev/nelyx/input/NelyxInputRules.java",
+      "previous": "Nelyx/sdk/native/android/shared/dev/nelyx/input/NelyxInputRules.java"
+    }
+  ]
+}

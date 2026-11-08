@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { engineRoot, sourceIdentity } from './build.mjs';
+import { prepareRepositoryAppPackages } from '../../eng/prepare-app-packages.mjs';
 const directory = path.join(engineRoot, 'dist');
 const host = process.argv[2]?.replace(/^--host=/, '') ?? 'windows-hwnd';
 if (process.argv.length > 3 || !['windows-hwnd', 'windows-app-sdk'].includes(host))
@@ -22,17 +22,10 @@ for (const file of manifest.files) {
   )
     throw new Error('Engine v2 supply identity mismatch: ' + file.path);
 }
-const executable =
-  host === 'windows-app-sdk'
-    ? 'windows-app-sdk/NelyxEngineAppSdkHost.exe'
-    : 'native/NelyxEngineV2Host.exe';
-const child = spawn(path.join(directory, executable), [directory], {
-  stdio: 'inherit',
-});
-child.on('error', (error) => {
-  console.error(error.message);
-  process.exitCode = 1;
-});
-child.on('exit', (code) => {
-  process.exitCode = code ?? 1;
-});
+prepareRepositoryAppPackages();
+const { buildEngineV2Application, engineV2Operation } =
+  await import('../../sdk/tooling/cli/src/engine-v2-runner.mjs');
+const app = path.resolve(engineRoot, '../../sample/nelyx-testbed-app-2/engine-v2');
+await buildEngineV2Application({ app, target: 'windows', windowsHost: host });
+const result = await engineV2Operation('run', { app, target: 'windows' });
+process.exitCode = result.exitCode;

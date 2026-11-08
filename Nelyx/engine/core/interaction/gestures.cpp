@@ -31,6 +31,8 @@ void View::observeRaw(const Input& p,Handle h) {
 bool View::appDecision(Input& p) {
   if(p.appApproved)return true;
   auto& stream=streams[p.stream];
+  if((p.flags&2u)&&!(p.flags&4u)&&p.phase!=wire::phases::begin&&
+      tapRegionCaptures[p.stream].path&&!stream.active)return true;
   if(!p.target)p.target=stream.active?stream.target:
     (p.flags&2u?pointerTarget(p.x,p.y,p.snapshot.get()):target(p.x,p.y,p.snapshot.get()));
   if(!active||!p.snapshot||!published||!document->contains(p.target)||
@@ -118,6 +120,8 @@ void View::activateControl(Handle h) {
 void View::pointer(Input p) {
   ++gestureWork;
   auto& s=streams[p.stream];
+  auto& tapCapture=tapRegionCaptures[p.stream];
+  bool canonicalBegan=false;
   if(!p.snapshot||!published||!active||p.metrics!=metrics.epoch||p.snapshot->scene->metrics.epoch!=metrics.epoch){++canceled;return;}
   if(p.flags&4u){
     updateMouse(p);
@@ -127,9 +131,19 @@ void View::pointer(Input p) {
     ++consumed;consumedThrough=p.sequence;return;
   }
   if(p.phase==wire::phases::begin){
+    tapCapture={};
+    if(std::any_of(p.snapshot->items.begin(),p.snapshot->items.end(),[&](const auto& item){return p.snapshot->scene->document->get(item.node).tapRegion.flags==wire::tapRegionFlags::surface;})){
+      auto path=p.snapshot->pointerPath(p.x,p.y);
+      if(std::any_of(path->entries.begin(),path->entries.end(),[&](const auto& hit){return hit.hit&&p.snapshot->scene->document->get(hit.node).tapRegion.flags==wire::tapRegionFlags::surface;}))
+        tapCapture={p.snapshot,std::move(path)};
+      tapCapture.source=p.source;
+    }
     const auto hit=pointerHit(p.x,p.y,p.snapshot.get());const auto h=hit.node;
     if(!h||!document->contains(h)||!active->document->contains(h)||document->get(h).control.disabled||
-       (document->get(h).semantics&&(document->get(h).semantics->flags&(wire::semanticsFlags::hidden|wire::semanticsFlags::disabled)))){++canceled;return;}
+       (document->get(h).semantics&&(document->get(h).semantics->flags&(wire::semanticsFlags::hidden|wire::semanticsFlags::disabled)))){
+      if(tapCapture.path){dispatchTapRegions(p,tapCapture);++consumed;consumedThrough=std::max(consumedThrough,p.sequence);}
+      else ++canceled;return;
+    }
     if(s.active)cancelStream(p.stream,wire::statuses::canceled);
     s={};s.active=true;s.pointer=true;s.target=h;s.source=p.source;s.x=s.startX=p.x;s.y=s.startY=p.y;s.at=time;
     if(hit.inverse){s.pointerInverse=*hit.inverse;s.pointerInverseValid=true;}
@@ -139,11 +153,22 @@ void View::pointer(Input p) {
       s.capturedPublications[s.captureCursor++%wire::limits::publicationSnapshots]=p.snapshot;
     const auto& n=active->document->get(h);auto& o=overlays.at(h.key());o.pressed=true;dirty=true;
     s.kind=p.kind;s.buttons=p.buttons;
-    if((n.policy&wire::eventPolicies::canonicalGestures)&&p.buttons!=1u){cancelStream(p.stream,wire::statuses::canceled);return;}
+    if((n.policy&wire::eventPolicies::canonicalGestures)&&p.buttons!=1u){
+      if(tapCapture.path){dispatchTapRegions(p,tapCapture);++consumed;consumedThrough=std::max(consumedThrough,p.sequence);}
+      cancelStream(p.stream,wire::statuses::canceled);return;
+    }
     for(auto node=h;node;node=active->document->get(node).parent)
       if(active->document->get(node).kind==wire::kinds::scrollViewport){s.scroll=node;break;}
     if(s.scroll){auto& scroll=overlays.at(s.scroll.key());scroll.ballistic=false;scroll.velocity=0;
       for(auto it=commands.begin();it!=commands.end();){const auto current=it++;if(current->second.node==s.scroll)finishCommand(current->first,wire::statuses::canceled);}}
+    if(tapCapture.path){
+      if(n.policy&wire::eventPolicies::canonicalGestures){canonicalPointer(p,s,true);canonicalBegan=true;}
+      if(dispatchTapRegions(p,tapCapture)){
+        ++consumed;consumedThrough=std::max(consumedThrough,p.sequence);observeRaw(p,s.target);
+        cancelStream(p.stream,wire::statuses::canceled);return;
+      }
+      if(canonicalBegan)canonicalCloseArena(p,s);
+    }
     if(n.semantics&&(n.semantics->actions&wire::semanticsActions::focus))setFocus(h,publication,0);
     if(n.gestures&wire::gestures::pinch)for(auto& other:streams)
       if(&other!=&s&&other.active&&other.pointer&&other.target==h){
@@ -157,6 +182,8 @@ void View::pointer(Input p) {
 
       const auto local=p.snapshot->local(h,p.x,p.y);controlValue(h,n.control.minimum+((local?local->x:0)-6)/std::max(1.0,p.snapshot->scene->document->get(h).properties.width-12)*(n.control.maximum-n.control.minimum),s.secondThumb);}
   }
+  if(p.phase==wire::phases::end){dispatchTapRegions(p,tapCapture,true);tapCapture={};}
+  else if(p.phase==wire::phases::cancel)tapCapture={};
   // A begin outside an enabled hit target has no recognizer to cancel. Its later
   // samples remain inert; poisoning that stream would reject a valid disabled drag.
   if(!s.active||!s.pointer){++canceled;return;}
@@ -167,7 +194,7 @@ void View::pointer(Input p) {
   if(!p.appApproved){++consumed;consumedThrough=std::max(consumedThrough,p.sequence);observeRaw(p,s.target);}
   const auto& n=active->document->get(s.target);auto& o=overlays.at(s.target.key());
   const bool canonical=n.policy&wire::eventPolicies::canonicalGestures;
-  if(canonical){canonicalPointer(p,s);return;}
+  if(canonical){if(!canonicalBegan)canonicalPointer(p,s);return;}
   if(p.phase==wire::phases::update){
     const double dx=s.x-p.x,dy=s.y-p.y;s.x=p.x;s.y=p.y;
     if(s.pinched){
@@ -244,7 +271,7 @@ void View::key(Reader r) {
   if(code==9&&published){std::vector<Handle> choices;
     for(const auto& item:published->items){const auto& n=published->scene->document->get(item.node);
       if(item.opacity>0&&published->allows(n.id)&&document->contains(n.id)&&n.semantics&&(n.semantics->flags&wire::semanticsFlags::focusable)&&
-        !(n.semantics->flags&(wire::semanticsFlags::hidden|wire::semanticsFlags::disabled))&&!n.control.disabled&&item.clip.width>0&&item.clip.height>0)choices.push_back(n.id);}
+        !(n.semantics->flags&(wire::semanticsFlags::hidden|wire::semanticsFlags::disabled|wire::semanticsFlags::scopesRoute))&&!n.control.disabled&&item.clip.width>0&&item.clip.height>0)choices.push_back(n.id);}
     if(!choices.empty()){auto at=std::find(choices.begin(),choices.end(),focusNode);const auto index=at==choices.end()?int64_t((modifiers&1u)?0:-1):at-choices.begin();
       setFocus(choices[size_t((index+((modifiers&1u)?-1:1)+int64_t(choices.size()))%int64_t(choices.size()))],publication,0);}return;}
   if(!focusNode||!active||!document->contains(focusNode)||!active->document->contains(focusNode))return;

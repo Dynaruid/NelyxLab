@@ -21,7 +21,7 @@ android {
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     sourceSets {
         main {
-            java.srcDir '../../../../../sdk/native/android/shared'
+            java.srcDir '../../shared'
             jniLibs.srcDir "${supplied}/jni"
             assets.srcDir bundled
         }

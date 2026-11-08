@@ -6,10 +6,8 @@ import {
   isEngineV2OriginalAppImplementation,
 } from './engine-v2-data-api.mjs';
 
-/** Inspect actual bundle inputs, including direct paths and a second package copy. */
-export function inspectEngineV2Graph(inputs, coreDirectory, metadata = {}) {
-  const cache = new Map(),
-    counts = {};
+function packageOwnerReader() {
+  const cache = new Map();
   const ownerOf = (file) => {
     let directory = path.dirname(file);
     const visited = [];
@@ -32,17 +30,68 @@ export function inspectEngineV2Graph(inputs, coreDirectory, metadata = {}) {
     for (const directory of visited) cache.set(directory, owner);
     return owner;
   };
-  const originalApp = inputs.some((source) => {
-    if (!fs.existsSync(source)) return false;
-    const absolute = fs.realpathSync(source),
-      owner = ownerOf(absolute);
+  return ownerOf;
+}
+/** Internal design dependencies belong to the selected physical package, not a matching folder name. */
+export function createEngineV2DesignImportPolicy(resolve) {
+  const ownerOf = packageOwnerReader(),
+    selected = new Map();
+  return (specifier, importer) => {
+    if (!fs.existsSync(importer)) return false;
+    const owner = ownerOf(fs.realpathSync(importer));
+    if (!['@nelyx/material', '@nelyx/cupertino'].includes(owner?.name)) return false;
+    if (!selected.has(owner.name)) {
+      try {
+        selected.set(owner.name, ownerOf(fs.realpathSync(resolve(owner.name + '/v2')))?.directory);
+      } catch {
+        selected.set(owner.name, undefined);
+      }
+    }
+    if (owner.directory !== selected.get(owner.name)) return false;
     return (
-      owner?.name === '@nelyx/sdk' &&
-      /^((dist|src)\/runtime\/engine-v2-original\.(js|ts))$/.test(
-        path.relative(owner.directory, absolute).replaceAll('\\', '/'),
-      )
+      /^@nelyx\/core\/(?:internal\/(?:(foundation|ui|math)\/[^/]+|framework\/(painting|widgets|rendering)\/[^/]+)|services\/(?:system-sound|haptic-feedback|predictive-back-event))$/.test(
+        specifier,
+      ) ||
+      (owner.name === '@nelyx/material' &&
+        /^@nelyx\/cupertino\/internal\/(?:scrollbar-style-source-adapter|scrollbar\.generated)$/.test(
+          specifier,
+        ))
     );
-  });
+  };
+}
+/** Follow application import edges; shared SDK internals do not select a frontend. */
+export function engineV2AppSelection(metadata = {}) {
+  const ownerOf = packageOwnerReader();
+  let canonicalApp = false;
+  const originalApp = Object.entries(metadata).reduce((selected, [source, entry]) => {
+    const sourceOwner = fs.existsSync(source) ? ownerOf(fs.realpathSync(source)) : undefined;
+    if (['@nelyx/core', '@nelyx/sdk'].includes(sourceOwner?.name)) return selected;
+    for (const dependency of entry.imports ?? []) {
+      if (dependency.external || !fs.existsSync(dependency.path)) continue;
+      const absolute = fs.realpathSync(dependency.path),
+        owner = ownerOf(absolute);
+      if (
+        owner?.name === '@nelyx/sdk' &&
+        /^(dist|src)\/(?:app|runtime\/engine-v2-original)\.(js|ts)$/.test(
+          path.relative(owner.directory, absolute).replaceAll('\\', '/'),
+        )
+      ) {
+        selected = true;
+        canonicalApp ||= /^(dist|src)\/app\.(js|ts)$/.test(
+          path.relative(owner.directory, absolute).replaceAll('\\', '/'),
+        );
+      }
+    }
+    return selected;
+  }, false);
+  return { originalApp, canonicalApp };
+}
+
+/** Inspect actual bundle inputs, including direct paths and a second package copy. */
+export function inspectEngineV2Graph(inputs, coreDirectory, metadata = {}) {
+  const counts = {},
+    ownerOf = packageOwnerReader();
+  const { originalApp, canonicalApp } = engineV2AppSelection(metadata);
   // SDK-owned image lifetime code needs these implementations in a Data App.
   // That does not admit direct user imports of the private owners or an old
   // host service. Inspect actual edges, including absolute/relative imports.
@@ -90,6 +139,13 @@ export function inspectEngineV2Graph(inputs, coreDirectory, metadata = {}) {
     if (owner.name === '@nelyx/core') {
       if (owner.directory !== fs.realpathSync(coreDirectory))
         throw Error('Foreign Core package identity in engine v2 bundle');
+      if (
+        canonicalApp &&
+        /^(?:dist\/v2|runtime)\/engine-client\/(widgets|lists|navigation|composition|graphics)\.(js|ts)$/.test(
+          relative,
+        )
+      )
+        throw Error('Canonical App cannot include the temporary v2 Widget frontend: ' + relative);
       allowed =
         relative.startsWith('dist/v2/') ||
         relative.startsWith('runtime/engine-client/') ||
@@ -105,6 +161,16 @@ export function inspectEngineV2Graph(inputs, coreDirectory, metadata = {}) {
     } else if (owner.name === '@nelyx/sdk') {
       allowed =
         implementation === 'backends/browser/platform.js' ||
+        implementation === 'platforms/web/environment.js' ||
+        implementation === 'platforms/web/app-services.js' ||
+        implementation === 'runtime/app-service-protocol.js' ||
+        implementation === 'app.js' ||
+        implementation === 'engine.js' ||
+        implementation === 'runtime/app-session.js' ||
+        (originalApp &&
+          /^runtime\/(app-services|clipboard-service|platform-messages|plugin-port)\.js$/.test(
+            implementation,
+          )) ||
         /^runtime\/engine-v2(?:-app|-assets|-buffers|-network|-images|-browser|-interaction|-original)?\.js$/.test(
           implementation,
         );

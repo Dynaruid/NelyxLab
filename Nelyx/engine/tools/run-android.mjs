@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { engineRoot, sourceIdentity, run } from './build.mjs';
 import { androidSdk, buildAndroidSupply } from './build-android.mjs';
+import { prepareRepositoryAppPackages } from '../../eng/prepare-app-packages.mjs';
 const development = process.argv.includes('--dev');
 const options = Object.fromEntries(
   process.argv
@@ -38,6 +39,7 @@ if (fs.existsSync(path.join(supply, 'engine-manifest.json'))) {
     manifest.sourceSha256 === sourceIdentity() && manifest.profiles?.android?.abis.includes(abi);
 }
 if (!current) await buildAndroidSupply({ sdk });
+prepareRepositoryAppPackages();
 // The build may also replace Core's protocol declarations. Load the CLI only
 // after promotion so a normal source run cannot retain the previous schema.
 const { engineV2Operation, verifyEngineV2Supply } =

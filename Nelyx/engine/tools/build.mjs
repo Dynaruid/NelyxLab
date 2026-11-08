@@ -5,8 +5,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
-import { runTypeScriptCompiler } from '../../sdk/tooling/metro/src/typescript-compiler.cjs';
+import { build, buildSync } from 'esbuild';
+import { runTypeScriptCompiler } from '../../sdk/tooling/contracts/src/typescript-compiler.cjs';
 import { windowsCompilerEnvironment } from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
 import { buildAppSdkHost } from './app-sdk.mjs';
 import { checkWebRuntime } from '../../skia/eng/prepare-web-runtime.mjs';
@@ -39,6 +39,11 @@ const fallbackFonts = [
   },
   { file: 'NotoSansHebrew.ttf', license: 'NotoSansHebrew-OFL.txt', family: 'NelyxHebrew' },
   { file: 'NotoColorEmoji.ttf', license: 'NotoColorEmoji.ttf.LICENSE.txt', family: 'NelyxEmoji' },
+];
+const webEntries = [
+  ['coordinator', 'platform/web/coordinator.ts'],
+  ['owner', 'platform/web/owner.ts', 'NelyxV2Owner'],
+  ['app-text', 'platform/web/app-text.ts', 'NelyxV2AppText'],
 ];
 export function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -163,78 +168,55 @@ function suppliers() {
   return { skia, hermes, revision: cohort.revision };
 }
 export function sourceIdentity() {
+  // Follow the provider's actual module graph. App framework/design/SDK source
+  // belongs to the independently hashed application bundle, not this supply.
+  const graph = buildSync({
+    absWorkingDir: engineRoot,
+    entryPoints: webEntries.map(([, entry]) => entry),
+    outdir: 'unused-engine-identity',
+    bundle: true,
+    write: false,
+    metafile: true,
+    format: 'iife',
+    platform: 'browser',
+    target: 'es2022',
+    logLevel: 'silent',
+  });
+  const runtimeInputs = Object.keys(graph.metafile.inputs).filter((file) => {
+    const absolute = path.resolve(engineRoot, file);
+    if (absolute.startsWith(engineRoot + path.sep)) return false;
+    if (!absolute.startsWith(path.resolve(engineRoot, '../runtime/engine-client') + path.sep))
+      throw Error('Engine provider imports an App/package dependency: ' + file);
+    return true;
+  });
   const sources = [
     'CMakeLists.txt',
     '../../package.json',
     '../../package-lock.json',
-    '../package.json',
     '../tsconfig.build.json',
-    '../runtime/tsconfig.json',
-    '../sdk/package.json',
-    '../sdk/tsconfig.build.json',
-    '../eng/build-packages.mjs',
-    '../sdk/tooling/metro/src/typescript-compiler.cjs',
-    '../sdk/tooling/metro/package.json',
+    '../eng/prepare-engine-helpers.mjs',
+    '../sdk/tooling/contracts/src/typescript-compiler.cjs',
+    '../sdk/tooling/contracts/package.json',
     '../sdk/tooling/cli/src/windows-static-hermes.mjs',
     ...['core', 'bindings', 'include', 'schema', 'tools', 'platform', 'render'].flatMap((dir) =>
-      tree(path.join(engineRoot, dir)).map((file) => `${dir}/${file}`),
+      tree(path.join(engineRoot, dir))
+        .filter(
+          (file) =>
+            dir !== 'tools' || !['run-windows.mjs', 'run-android.mjs', 'serve.mjs'].includes(file),
+        )
+        .map((file) => `${dir}/${file}`),
     ),
-    ...tree(path.resolve(engineRoot, '../runtime/engine-client')).map(
-      (file) => '../runtime/engine-client/' + file,
-    ),
-    '../sdk/src/runtime/engine-v2.ts',
-    '../sdk/src/runtime/engine-v2-app.ts',
-    '../sdk/tooling/cli/src/engine-v2-runner.mjs',
-    '../sdk/tooling/cli/src/engine-v2-android.mjs',
+    ...runtimeInputs,
     '../sdk/tooling/cli/templates/nelyx-app/android/gradle/wrapper/gradle-wrapper.jar',
-    '../sdk/tooling/cli/src/engine-v2-development.mjs',
-    '../sdk/tooling/cli/src/engine-v2-data-api.mjs',
-    '../sdk/tooling/cli/src/engine-v2-assets.mjs',
-    '../sdk/tooling/cli/src/engine-v2-graph.mjs',
-    '../sdk/tooling/cli/src/supply-runner.mjs',
-    ...tree(path.resolve(engineRoot, '../src')).map((file) => '../src/' + file),
-    ...['material', 'cupertino'].flatMap((name) =>
-      tree(path.resolve(engineRoot, '../../packages', name, 'src')).map(
-        (file) => `../../packages/${name}/src/` + file,
-      ),
-    ),
-    '../sdk/tooling/cli/src/main.mjs',
-    '../sdk/tooling/cli/package.json',
-    '../sdk/src/runtime/engine-v2-browser.ts',
-    '../sdk/src/runtime/engine-v2-interaction.ts',
-    ...tree(path.resolve(engineRoot, '../sdk/src')).map((file) => '../sdk/src/' + file),
-    '../skia/packages/native/src/skia/types/Drawing.ts',
     '../skia/packages/web/native-manifest.json',
     '../skia/eng/prepare-web-runtime.mjs',
     '../skia/eng/source-build/canvaskit.lock.json',
     '../skia/vendor/artifacts.lock.json',
     '../skia/eng/source-build/canvaskit-paragraph.patch',
     '../skia/eng/source-build/canvaskit-picture.cpp',
-    ...['windows', 'windows-hermes', 'android'].flatMap((dir) =>
-      tree(path.resolve(engineRoot, '../sdk/native', dir)).map(
-        (file) => '../sdk/native/' + dir + '/' + file,
-      ),
-    ),
-    ...tree(path.resolve(engineRoot, '../skia/native/platforms/vulkan')).map(
-      (file) => '../skia/native/platforms/vulkan/' + file,
-    ),
-    '../skia/native/platforms/windows/font_services.cpp',
-    '../skia/native/host/windows/WindowsPrecisionTrackpad.h',
-    '../skia/native/host/windows/WindowsMonotonic.h',
-    '../skia/native/host/windows/WindowsInputTrace.h',
-    '../skia/native/rendering/font_services.h',
-    '../skia/native/core/paragraph_queries.cpp',
-    '../skia/native/core/nelyx_skia/paragraph_queries.h',
-    '../../sample/nelyx-testbed-app-2/src/v2-app.ts',
-    '../../sample/nelyx-testbed-app-2/src/v2-scene.ts',
-    ...['material', 'cupertino'].flatMap((name) => [
-      `../../packages/${name}/src/v2.ts`,
-      `../../packages/${name}/package.json`,
-      `../../packages/${name}/tsconfig.build.json`,
-    ]),
-    '../../sample/nelyx-testbed-app-2/assets/NotoSansKR.ttf',
-    '../../sample/nelyx-testbed-app-2/assets/NotoSansKR-OFL.txt',
-    '../../sample/nelyx-testbed-app-2/assets/component-image.webp',
+    'vendor/helper-sources.json',
+    '../sdk/tooling/cli/templates/nelyx-app/assets/NotoSansKR.ttf',
+    '../sdk/tooling/cli/templates/nelyx-app/assets/NotoSansKR-OFL.txt',
     ...fallbackFonts.flatMap((font) =>
       [font.file, font.license].map(
         (file) => '../sdk/tooling/cli/templates/nelyx-app/assets/' + file,
@@ -243,7 +225,7 @@ export function sourceIdentity() {
   ];
   return createHash('sha256')
     .update(
-      sources
+      [...new Set(sources)]
         .sort()
         .map((file) => file + ':' + sha256(path.join(engineRoot, file)))
         .join('\n'),
@@ -256,14 +238,19 @@ async function browserAssets(supply, supplier, runtime) {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(from, target);
   };
-  const repo = path.resolve(engineRoot, '../..');
   for (const file of ['canvaskit.js', 'canvaskit.wasm'])
     copy(path.join(runtime.directory, file), 'canvaskit/' + file);
   copy(path.join(runtime.directory, 'LICENSE_SKIA'), 'canvaskit/LICENSE');
   copy(path.join(runtime.directory, 'package.json'), 'canvaskit/package.json');
   copy(path.join(runtime.directory, 'native-manifest.json'), 'canvaskit/native-manifest.json');
-  copy(path.join(repo, 'sample/nelyx-testbed-app-2/assets/NotoSansKR.ttf'), 'assets/font.ttf');
-  copy(path.join(repo, 'sample/nelyx-testbed-app-2/assets/NotoSansKR-OFL.txt'), 'assets/OFL.txt');
+  copy(
+    path.resolve(engineRoot, '../sdk/tooling/cli/templates/nelyx-app/assets/NotoSansKR.ttf'),
+    'assets/font.ttf',
+  );
+  copy(
+    path.resolve(engineRoot, '../sdk/tooling/cli/templates/nelyx-app/assets/NotoSansKR-OFL.txt'),
+    'assets/OFL.txt',
+  );
   for (const font of fallbackFonts) {
     copy(
       path.resolve(engineRoot, '../sdk/tooling/cli/templates/nelyx-app/assets', font.file),
@@ -274,21 +261,9 @@ async function browserAssets(supply, supplier, runtime) {
       'assets/' + font.license,
     );
   }
-  copy(
-    path.join(repo, 'sample/nelyx-testbed-app-2/assets/component-image.webp'),
-    'assets/image.webp',
-  );
   copy(path.join(supplier.skia, 'data/icudtl.dat'), 'assets/icudtl.dat');
   copy(path.join(supplier.hermes, 'build/lib/hermesvm.dll'), 'native/hermesvm.dll');
-  copy(path.join(engineRoot, 'platform/web/index.html'), 'index.html');
-  for (const [name, entry, globalName] of [
-    ['coordinator', 'platform/web/coordinator.ts'],
-    ['owner', 'platform/web/owner.ts', 'NelyxV2Owner'],
-    ['app-text', 'platform/web/app-text.ts', 'NelyxV2AppText'],
-    ['main', 'platform/web/main.ts'],
-    ['app-worker', '../../sample/nelyx-testbed-app-2/src/v2-app.ts'],
-    ['app-native', '../../sample/nelyx-testbed-app-2/src/v2-app.ts'],
-  ]) {
+  for (const [name, entry, globalName] of webEntries) {
     await build({
       entryPoints: [path.join(engineRoot, entry)],
       outfile: path.join(supply, 'web', name + '.js'),
@@ -307,16 +282,7 @@ async function main() {
   const hosts = !process.argv.includes('--headless');
   const webRuntime = hosts ? checkWebRuntime() : undefined;
   const supplier = hosts ? suppliers() : undefined;
-  if (hosts) {
-    for (const target of ['core', 'cupertino', 'material', 'sdk']) {
-      console.log(
-        run(process.execPath, [path.resolve(engineRoot, '../eng/build-packages.mjs'), target]),
-      );
-    }
-    // Provider types consume canonical Core/package declarations emitted above.
-    // Validate them before compiling or promoting the native/Wasm supply.
-    checkBrowserTypes();
-  }
+  if (hosts) checkBrowserTypes();
   const parent = path.join(engineRoot, '.cache');
   fs.mkdirSync(parent, { recursive: true });
   const staged = fs.mkdtempSync(path.join(parent, 'engine-'));
@@ -398,6 +364,23 @@ async function main() {
               }
             : undefined,
           hermes: hosts ? supplier.revision : undefined,
+          appServices: hosts
+            ? {
+                version: 2,
+                methods: [
+                  'clipboard-read',
+                  'clipboard-write',
+                  'clipboard-has-strings',
+                  'semantics-tap',
+                  'semantics-longPress',
+                  'semantics-focus',
+                  'system-sound',
+                  'haptic-feedback',
+                ],
+                maximumTextUnits: 65536,
+                maximumPending: 32,
+              }
+            : undefined,
           appText: hosts
             ? {
                 version: 12,

@@ -6,8 +6,8 @@ option(NELYX_ENGINE_WINDOWS_HOST "Build the HWND/Hermes/Skia host" OFF)
 option(NELYX_ENGINE_ANDROID_HOST "Build the standalone JNI/Hermes/Graphite host" OFF)
 add_library(nelyx_engine_v2 STATIC
   core/protocol/engine.cpp core/protocol/transaction.cpp
-  core/scheduler/scheduler.cpp core/scene/frame.cpp core/scene/native_paint.cpp core/layout/layout.cpp core/layout/query.cpp
-  core/interaction/editing.cpp core/interaction/interaction.cpp core/interaction/gestures.cpp core/interaction/canonical_gestures.cpp core/interaction/mouse_regions.cpp bindings/c_api.cpp)
+  core/scheduler/scheduler.cpp core/scene/frame.cpp core/scene/snapshot.cpp core/scene/native_paint.cpp core/layout/layout.cpp core/layout/query.cpp
+  core/interaction/editing.cpp core/interaction/interaction.cpp core/interaction/gestures.cpp core/interaction/canonical_gestures.cpp core/interaction/mouse_regions.cpp core/interaction/pointer_path.cpp core/interaction/tap_regions.cpp bindings/c_api.cpp)
 target_compile_features(nelyx_engine_v2 PUBLIC cxx_std_20)
 target_include_directories(nelyx_engine_v2 PUBLIC include)
 if(MSVC)
@@ -57,15 +57,15 @@ else()
       message(FATAL_ERROR "The Windows host requires the pinned Skia and Hermes suppliers")
     endif()
     add_executable(NelyxEngineV2Host platform/windows/host.cpp
-      ../skia/native/core/paragraph_queries.cpp
-      ../skia/native/platforms/vulkan/device.cpp ../skia/native/platforms/windows/font_services.cpp)
+      render/skia/paragraph_queries.cpp
+      render/vulkan/device.cpp platform/windows/font_services.cpp)
     target_compile_features(NelyxEngineV2Host PRIVATE cxx_std_20)
     target_compile_options(NelyxEngineV2Host PRIVATE /EHsc /utf-8)
     target_compile_definitions(NelyxEngineV2Host PRIVATE UNICODE _UNICODE NOMINMAX
       SK_GRAPHITE SK_VULKAN SK_USE_INTERNAL_VULKAN_HEADERS VK_NO_PROTOTYPES VK_USE_PLATFORM_WIN32_KHR
       _WIN32_WINNT=0x0A00 JSI_USE_HERMES)
     target_include_directories(NelyxEngineV2Host PRIVATE "${NELYX_SKIA_SUPPLIER}/headers"
-      ../skia/native/core
+      render/skia
       "${NELYX_HERMES_ROOT}/source/API" "${NELYX_HERMES_ROOT}/source/API/jsi"
       "${NELYX_HERMES_ROOT}/source/public")
     file(GLOB skia_libraries "${NELYX_SKIA_SUPPLIER}/libraries/*.lib")

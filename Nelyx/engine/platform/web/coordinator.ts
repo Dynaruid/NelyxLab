@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
+import { protocol as p, packet, response } from '../../../runtime/engine-client/codec.ts';
 import {
-  protocol as p,
-  packet,
-  response,
   appTextServiceVersion,
   appTextQuotaBytes,
-} from '../../../runtime/engine-client/index.ts';
+} from '../../../runtime/engine-client/app-text.ts';
 import { CanvasKitProvider, canvasKitSupply } from '../../render/canvaskit-web/provider.ts';
 import type { PreparedPictures, WebManifest } from '../../render/canvaskit-web/provider.ts';
 import { ContentActor, RenderActor, preparedTransfers } from './actors.ts';
@@ -50,20 +48,22 @@ let pressureRequest:
   | undefined;
 const post = (value: Record<string, unknown>) => scope.postMessage(value);
 function failHost(message: string, stack?: string): void {
-  if (failed) return;
+  if (failed) {
+    if (closing) post({ kind: 'error', message, stack, terminal: true });
+    return;
+  }
   failed = true;
-  closing = true;
   content?.stop();
-  void render
-    ?.stop()
-    .then(() => provider?.close())
-    .catch(() => {});
-  module?.PThread?.terminateAllThreads();
+  void render?.stop().catch(() => {});
+  // Halt scheduling, but retain provider/VM credits until Main has terminated
+  // its App workers and requests the normal ordered shutdown.
+  contentWorker?.postMessage({ kind: 'v2-halt' });
+  renderWorker?.postMessage({ kind: 'v2-halt' });
   for (const request of pending.values())
     send(request.port, { kind: 'packet-result', id: request.id, error: message });
   pending.clear();
   pendingBytes = 0;
-  post({ kind: 'error', message, stack });
+  post({ kind: 'error', message, stack, terminal: closing });
 }
 function stats(value: Record<string, unknown>): void {
   telemetry = {
@@ -354,6 +354,28 @@ function route(port: ClientPort, message: { kind: string; id: number; bytes: Arr
   }
   const bytes = new Uint8Array(message.bytes),
     op = new DataView(message.bytes).getUint16(p.headerFields.opcode, true);
+  if (
+    failed &&
+    ![
+      p.opcodes.inspect,
+      p.opcodes.pollEvents,
+      p.opcodes.queryResult,
+      p.opcodes.acknowledge,
+      p.opcodes.closeView,
+      p.opcodes.fontUploadAbort,
+      p.opcodes.fontTransitionAbort,
+      p.opcodes.fontResourceRelease,
+      p.opcodes.imageUploadAbort,
+      p.opcodes.imageResourceRelease,
+    ].includes(op as 14)
+  ) {
+    send(port, {
+      kind: 'packet-result',
+      id: message.id,
+      error: 'Engine host failed; only inspection and resource retirement are admitted',
+    });
+    return;
+  }
   if (op === p.opcodes.memoryReport) {
     send(port, { kind: 'packet-result', id: message.id, error: 'Memory reports are host-only' });
     return;
@@ -450,6 +472,10 @@ scope.addEventListener('message', (event) => {
     else if (message.kind === 'ui-result') complete(message);
     else if (message.kind === 'port') {
       const port = message.port as MessagePort;
+      if (failed) {
+        port.close();
+        throw Error('Failed engine host cannot admit a new App port');
+      }
       if (ports.size >= 8 || !(port instanceof MessagePort))
         throw Error('App port admission exceeded');
       ports.add(port);
@@ -461,6 +487,7 @@ scope.addEventListener('message', (event) => {
           try {
             if (
               closing ||
+              failed ||
               !announced ||
               e.data.version !== appTextServiceVersion ||
               !ownedAppPorts.has(port) ||

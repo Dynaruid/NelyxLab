@@ -41,7 +41,7 @@ public final class HostView extends TextureView implements TextureView.SurfaceTe
     private final ArrayList<HeldSurface> surfaces=new ArrayList<>();
     public HostView(Context context,String directory,boolean emulator){
         super(context);setOpaque(true);setFocusable(true);setFocusableInTouchMode(true);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);setSurfaceTextureListener(this);
-        host=NativeHost.open(directory,emulator);
+        host=NativeHost.open(directory,emulator,this);
         input=new NelyxInputBuffer(this,new NelyxInputBuffer.Sink(){
             @Override public NelyxInputBuffer.Value edit(NelyxInputBuffer.Value observed,String text,int a,int f,int s,int e){
                 if(closed)return null;
@@ -55,6 +55,44 @@ public final class HostView extends TextureView implements TextureView.SurfaceTe
         accessibility=new EngineAccessibility(this);
     }
     void onFailure(java.util.function.Consumer<JSONObject> callback){failure=callback;}
+    /** Called by the native UI pump for this generation, including retirement. */
+    public String appService(String method,String text){
+        if(Looper.myLooper()!=Looper.getMainLooper()||closed||!hasWindowFocus())throw new IllegalStateException("App service requires the focused UI owner");
+        if("semantics-tap".equals(method)||"semantics-longPress".equals(method)||"semantics-focus".equals(method)){
+            accessibility.feedback(Long.parseUnsignedLong(text),method);return "";
+        }
+        if("system-sound".equals(method)){
+            if("SystemSoundType.click".equals(text))playSoundEffect(android.view.SoundEffectConstants.CLICK);
+            else if(!"SystemSoundType.tick".equals(text)&&!"SystemSoundType.alert".equals(text))throw new IllegalArgumentException("Unknown system sound");
+            return "";
+        }
+        if("haptic-feedback".equals(method)){
+            Integer kind;
+            switch(text){
+                case "":kind=android.view.HapticFeedbackConstants.LONG_PRESS;break;
+                case "HapticFeedbackType.lightImpact":kind=android.view.HapticFeedbackConstants.VIRTUAL_KEY;break;
+                case "HapticFeedbackType.mediumImpact":kind=android.view.HapticFeedbackConstants.KEYBOARD_TAP;break;
+                case "HapticFeedbackType.heavyImpact":kind=android.view.HapticFeedbackConstants.CONTEXT_CLICK;break;
+                case "HapticFeedbackType.selectionClick":kind=android.view.HapticFeedbackConstants.CLOCK_TICK;break;
+                case "HapticFeedbackType.successNotification":kind=android.os.Build.VERSION.SDK_INT>=30?android.view.HapticFeedbackConstants.CONFIRM:null;break;
+                case "HapticFeedbackType.warningNotification":kind=android.os.Build.VERSION.SDK_INT>=30?android.view.HapticFeedbackConstants.KEYBOARD_TAP:null;break;
+                case "HapticFeedbackType.errorNotification":kind=android.os.Build.VERSION.SDK_INT>=30?android.view.HapticFeedbackConstants.REJECT:null;break;
+                default:throw new IllegalArgumentException("Unknown haptic feedback");
+            }
+            if(kind!=null)performHapticFeedback(kind);return "";
+        }
+        android.content.ClipboardManager clipboard=(android.content.ClipboardManager)getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+        if(clipboard==null)throw new IllegalStateException("Android clipboard is unavailable");
+        if("clipboard-write".equals(method)){
+            if(text==null||text.length()>65536||text.indexOf('\0')>=0)throw new IllegalArgumentException("Clipboard text exceeds its boundary");
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("",text));return "";
+        }
+        if(!"clipboard-read".equals(method)&&!"clipboard-has-strings".equals(method))throw new IllegalArgumentException("Unknown App OS service");
+        android.content.ClipData clip=clipboard.getPrimaryClip();CharSequence value=clip==null||clip.getItemCount()==0?null:clip.getItemAt(0).getText();
+        if(value!=null&&value.length()>65536)throw new IllegalStateException("Clipboard text exceeds65536 UTF-16 units");
+        if("clipboard-has-strings".equals(method))return value!=null&&value.length()>0?"1":"0";
+        return value==null?"":value.toString();
+    }
     static NelyxInputBuffer.Value editor(JSONObject value){
         if(value==null)return null;
         try{return new NelyxInputBuffer.Value(value.getLong("owner"),value.getLong("session"),value.getLong("revision"),value.getLong("publication"),value.getLong("metrics"),value.getString("text"),value.getInt("anchor"),value.getInt("focus"),value.getInt("composingStart"),value.getInt("composingEnd"),value.getInt("flags"),rect(value.optJSONArray("caret")),(float)value.optDouble("baseline",0));}catch(Exception e){throw new IllegalStateException("Invalid canonical Android edit mirror",e);}

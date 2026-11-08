@@ -125,7 +125,13 @@ class AppParagraphs {
     auto& state=current(owner);const auto found=state.assets.find(token);
     if(found==state.assets.end()||found->second.delivered)throw std::runtime_error("App asset credit is foreign/already delivered");
     if(size&&*size!=found->second.size)throw std::runtime_error("App asset final size differs from admitted credit");
-    if(delivered){found->second.delivered=true;++state.assetLoads;}else state.assets.erase(found);
+    if(delivered){
+      // The IO/JSI callback has returned. Only caller-owned JS data remains;
+      // its credit stays held until this App realm terminates.
+      auto& asset=found->second;const auto bytes=asset.size+65536;
+      ledger->adjust(6,4,asset.memory->bytes-bytes,true);asset.memory->bytes=bytes;
+      asset.delivered=true;++state.assetLoads;
+    }else state.assets.erase(found);
   }
   std::unique_ptr<ExternalLease> reserveNetworkMetadata(uint64_t owner){
     current(owner);if(reservedBytes()>quota-65536)throw std::runtime_error("App HTTP metadata quota exceeded");return std::make_unique<ExternalLease>(ledger,6,4,65536);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { protocol as p, encodeUtf8, httpHeaders } from '@nelyx/core/v2';
-import type { AppTextBackend } from '@nelyx/core/v2';
+import { protocol as p, encodeUtf8, httpHeaders } from '@nelyx/core/engine';
+import type { AppTextBackend } from '@nelyx/core/engine';
 import { FlutterError } from '@nelyx/core/foundation/flutter-error';
 import type {
   AssetCancellation,

@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { protocol as p, packet, response } from '../../../runtime/engine-client/index.ts';
-import type {
-  EngineResponse,
-  PacketEndpoint,
-  EngineWasmModule,
-  PacketOwner,
-} from '../../../runtime/engine-client/index.ts';
+import { protocol as p, packet, response } from '../../../runtime/engine-client/codec.ts';
+import type { EngineResponse, PacketOwner } from '../../../runtime/engine-client/codec.ts';
+import type { PacketEndpoint } from '../../../runtime/engine-client/message-port.ts';
+import type { EngineWasmModule } from '../../../runtime/engine-client/wasm.ts';
 
 export interface BrowserModule extends EngineWasmModule {
   _nelyx_wasm_connect(engine: number, independent: number, content: number, render: number): number;

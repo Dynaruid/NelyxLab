@@ -68,6 +68,8 @@ export async function boot(
             revision: message.revision,
             counters: { ...provider.counters },
           });
+        } else if (message.kind === 'v2-halt') {
+          await actor.stop();
         } else if (message.kind === 'v2-stop') {
           await actor.stop();
           provider.close();

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { body, packet, protocol as p, response } from '../../../runtime/engine-client/index.ts';
+import { body, packet, protocol as p, response } from '../../../runtime/engine-client/codec.ts';
 import { exchange, sessionOwner } from './common.ts';
 import type { BrowserModule } from './common.ts';
 export interface ProviderMemoryBudget {

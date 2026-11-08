@@ -16,6 +16,7 @@ export interface ParagraphRun {
   readonly letterSpacing: number;
   readonly wordSpacing: number;
   readonly halfLeading: boolean;
+  readonly textBaseline?: 'alphabetic' | 'ideographic';
   readonly backgroundColor?: number;
   readonly decoration: number;
   readonly decorationStyle: 'solid' | 'double' | 'dotted' | 'dashed' | 'wavy';
@@ -73,6 +74,7 @@ const keys = new Set([
   'letterSpacing',
   'wordSpacing',
   'halfLeading',
+  'textBaseline',
   'backgroundColor',
   'decoration',
   'decorationStyle',
@@ -118,6 +120,8 @@ export function paragraphRunBytes(runs: readonly ParagraphRun[]): Uint8Array {
     if (
       !['normal', 'italic'].includes(run.fontStyle) ||
       typeof run.halfLeading !== 'boolean' ||
+      (run.textBaseline !== undefined &&
+        !['alphabetic', 'ideographic'].includes(run.textBaseline)) ||
       !styles.includes(run.decorationStyle)
     )
       throw Error('Invalid paragraph run flags');
@@ -134,7 +138,8 @@ export function paragraphRunBytes(runs: readonly ParagraphRun[]): Uint8Array {
       (run.backgroundColor !== undefined ? 1 : 0) |
         (run.fontStyle === 'italic' ? 2 : 0) |
         (run.halfLeading ? 4 : 0) |
-        (run.decorationColor !== undefined ? 8 : 0),
+        (run.decorationColor !== undefined ? 8 : 0) |
+        (run.textBaseline === 'ideographic' ? p.paragraphRunFlags.ideographicBaseline : 0),
       true,
     );
     data.setUint32(20, integer(run.fontWeight, 100, 900), true);
@@ -217,7 +222,7 @@ export function readParagraphRuns(bytes: Uint8Array, count: number): readonly Pa
         variationCount * 16 +
         shadowCount * 32;
     if (
-      flags > 15 ||
+      flags > (15 | p.paragraphRunFlags.ideographicBaseline) ||
       !familiesLength ||
       familiesLength > p.limits.fontFamilyBytes ||
       !localeLength ||
@@ -289,6 +294,9 @@ export function readParagraphRuns(bytes: Uint8Array, count: number): readonly Pa
       ...(flags & 1 ? { backgroundColor: data.getUint32(12, true) } : {}),
       fontStyle: flags & 2 ? 'italic' : 'normal',
       halfLeading: !!(flags & 4),
+      ...(flags & p.paragraphRunFlags.ideographicBaseline
+        ? { textBaseline: 'ideographic' as const }
+        : {}),
       fontWeight: integer(data.getUint32(20, true), 100, 900),
       fontFamilies: Object.freeze(fontFamilies),
       locale,

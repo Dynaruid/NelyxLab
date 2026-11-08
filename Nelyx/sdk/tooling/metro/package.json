@@ -73,7 +73,8 @@
     "metro-config": "0.83.8",
     "metro-runtime": "0.83.8",
     "metro-transform-worker": "0.83.8",
-    "react-refresh": "0.14.2"
+    "react-refresh": "0.14.2",
+    "@nelyx/tooling-contracts": "0.1.0"
   },
   "peerDependencies": {
     "@nelyx/sdk": "0.20.0",

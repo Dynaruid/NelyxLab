@@ -7,21 +7,12 @@ void View::updateMouse(const Input& sample,bool hover) {
   if(!sample.snapshot||!active)return;
   mouseSample=sample;mouseSample.snapshot.reset();mouseKnown=true;
   const auto& frame=*sample.snapshot;const auto& geometry=*frame.scene->document;
-  std::array<Handle,wire::limits::nodes> nextRegions{};uint32_t count=0;Handle blocker;
-  for(auto item=frame.items.rbegin();item!=frame.items.rend();++item){
-    const auto& node=geometry.get(item->node);
-    if(!frame.allows(node.id)||!frame.hit(*item,sample.x,sample.y))continue;
-    if(blocker&&!geometry.descends(blocker,node.id))continue;
-    const bool canonical=node.policy&wire::eventPolicies::canonicalHitTest;
-    const bool self=!canonical||(node.policy&wire::eventPolicies::hitTestSelf);
-    const bool child=blocker&&geometry.descends(blocker,node.id);
-    if(node.policy&wire::eventPolicies::mouseRegion){
-      if(self||child||(node.policy&wire::eventPolicies::translucent)){
-        if(count<nextRegions.size())nextRegions[count++]=node.id;
-        if((self||child)&&(node.policy&wire::eventPolicies::mouseOpaque)&&!blocker)blocker=node.id;
-      }
-    }else if(self&&!blocker)blocker=node.id;
-  }
+  std::array<Handle,wire::limits::nodes> nextRegions{};uint32_t count=0;
+  const auto path=frame.pointerPath(sample.x,sample.y);
+  for(const auto& entry:path->entries)
+    if(geometry.get(entry.node).policy&wire::eventPolicies::mouseRegion){
+      require(count<nextRegions.size(),wire::statuses::budgetExceeded);nextRegions[count++]=entry.node;
+    }
   const auto emit=[&](Handle node,uint32_t kind){
     if(!active->document->contains(node))return;
     auto details=gestureDetails(node,0,sample.x,sample.y);details.kind=sample.kind;

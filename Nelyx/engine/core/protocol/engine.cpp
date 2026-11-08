@@ -69,8 +69,12 @@ std::shared_ptr<const InteractionSnapshot> Engine::interactionSnapshot(uint32_t 
   auto& s=*state_;std::lock_guard lock(s.mutex);
   if(!view||view>=s.views.size()||!s.views[view]||s.views[view]->generation!=generation)return nullptr;
   const auto& v=*s.views[view];if(v.closed||!v.published)return nullptr;
-  auto result=std::make_shared<InteractionSnapshot>();result->frame=*v.published;result->document=v.document;
-  result->focus=v.focusNode;result->session=v.focusSession;result->metrics=v.metrics;
+  const auto& frame=*v.published;
+  auto held=std::make_shared<Lease>(s.ledger,sizeof(InteractionSnapshot)+frame.properties.size()*sizeof(Property)+
+    frame.items.size()*sizeof(DrawItem)+frame.clips.size()*sizeof(ClipShape)+frame.hitRegions.size()*sizeof(HitRegionShape)+
+    frame.semantics.size()*sizeof(FrameSemantics)+v.editors.size()*(sizeof(std::pair<const uint64_t,std::shared_ptr<const EditingValue>>)+64));
+  auto result=std::make_shared<InteractionSnapshot>();result->snapshotLease=std::move(held);result->frame=frame;result->document=v.document;
+  result->focus=v.focusNode;result->session=v.focusSession;result->metrics=v.metrics;result->visible=v.visible;
   for(const auto& entry:v.editors)result->editors.emplace(entry.first,entry.second->value);return result;
 }
 namespace {
@@ -134,6 +138,8 @@ void nodeRow(Writer& w, size_t p, const Node& n, const Property* o, uint32_t fla
   w.f64(p + wire::nodeFields::contentY,n.contentY);
   w.f64(p + wire::nodeFields::contentWidth,n.contentWidth);
   w.f64(p + wire::nodeFields::contentHeight,n.contentHeight);
+  w.f64(p + wire::nodeFields::scrollMinimum,n.properties.minimum);
+  w.f64(p + wire::nodeFields::scrollMaximum,n.properties.maximum);
   const auto matrix=item?item->world:Affine{1,0,0,1,n.properties.x,n.properties.y};
   const std::array<double,6> values{matrix.a,matrix.b,matrix.c,matrix.d,matrix.tx,matrix.ty};
   for(size_t i=0;i<values.size();++i)w.f64(p+wire::nodeFields::matrix+i*8,values[i]);
@@ -161,6 +167,8 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   const Frame* frame = nullptr;
   Handle editTarget;
   std::shared_ptr<const Resource> fontRead,imageRead;
+  std::optional<SnapshotDecision> snapshotDecision;
+  Handle snapshotTarget;
   uint32_t imageReadOffset=0,imageReadLength=0;
   uint32_t fontReadOffset=0,fontReadLength=0;
   std::vector<Event> events;
@@ -594,6 +602,23 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       } else if (opcode == wire::opcodes::takeFrame) {
         exact(body, 0); status = v.takeFrame();
         if (status == wire::statuses::ok) frame = &v.frames.at(v.nextSubmission);
+      } else if(opcode==wire::opcodes::snapshotPaint) {
+        exact(body,32);const auto phase=body.u32(24);
+        require(phase<=3&&body.u32(28)<=1);
+        const auto it=v.frames.find(body.u64(0));
+        require(it!=v.frames.end()&&!it->second.released&&!it->second.canceled&&
+          it->second.device==v.metrics.device,wire::statuses::stale);
+        snapshotTarget=handle(body,8);
+        if(phase==0) {
+          require(!snapshotTarget&&!snapshotTarget.generation&&!body.u64(16)&&!body.u32(28));
+          snapshotDecision=v.snapshots.beginFrame(it->second);
+        } else if(phase==1) {
+          require(!body.u64(16));
+          snapshotDecision=v.snapshots.paint(it->second,snapshotTarget,bool(body.u32(28)));
+        } else {
+          require(!body.u32(28)&&it->second.scene->document->contains(snapshotTarget),wire::statuses::invalidHandle);
+          v.snapshots.complete(snapshotTarget,body.u64(16),phase==2);
+        }
       } else if (opcode == wire::opcodes::releaseFrame) {
         exact(body, 24); require(body.u32(16) <= 1 && body.u32(20) <= 1);
         v.releaseFrame(body.u64(0), body.u64(8), bool(body.u32(16)), bool(body.u32(20)));
@@ -673,6 +698,34 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   std::vector<std::vector<uint8_t>> ownedBlobs;
   const auto addOwned=[&](uint32_t type,Handle node,Writer bytes){ownedBlobs.push_back(std::move(bytes.bytes));
     const auto& data=ownedBlobs.back();blobs.push_back({type,node,{data.data(),data.size()}});};
+  const auto build=view&&view->preparing&&view->preparing->layout&&view->document&&
+    view->preparing->document->epoch==view->document->epoch&&view->preparing->metrics.epoch==view->metrics.epoch&&
+    view->preparing->metrics.device==view->metrics.device?view->preparing->layout->buildRequest():std::optional<LayoutBuildRequest>{};
+  const auto putAxis=[](Writer& out,size_t at,const Axis& axisValue){out.u32(at,axisValue.tag);out.f64(at+8,axisValue.min);out.f64(at+16,axisValue.max);};
+  if(status==wire::statuses::ok&&build&&view->visible&&!view->closed){
+    const size_t rowCount=build->list&&build->list->measured?build->list->measured->rows.size():0;
+    Writer data(build->list?wire::layoutListBuildRequestBytes+rowCount*wire::layoutListBuildRowBytes:wire::layoutBuildRequestBytes);
+    data.u64(0,view->preparing->id);data.u64(8,view->document->epoch);
+    data.u64(16,view->metrics.epoch);data.u64(24,view->metrics.device);data.u64(32,build->node->layoutBuilder->revision);data.u64(40,build->id);
+    const auto& c=build->constraints;
+    putAxis(data,48,Axis{std::isfinite(c.maxWidth)?wire::bounds::finite:wire::bounds::unbounded,c.minWidth,std::isfinite(c.maxWidth)?c.maxWidth:0});
+    putAxis(data,72,Axis{std::isfinite(c.maxHeight)?wire::bounds::finite:wire::bounds::unbounded,c.minHeight,std::isfinite(c.maxHeight)?c.maxHeight:0});
+    if(build->list){const auto& list=*build->list;data.f64(96,list.offset);data.f64(104,list.beginOffset);data.f64(112,list.paintExtent);
+      data.u32(120,list.begin);data.u32(124,list.end);data.u32(128,uint32_t(rowCount));data.u32(136,list.count);
+      for(size_t i=0;i<rowCount;++i){const auto& row=list.measured->rows[i];const auto at=wire::layoutListBuildRequestBytes+i*wire::layoutListBuildRowBytes;
+        data.u32(at,row.index);data.u64(at+8,row.key);data.f64(at+16,row.offset);data.f64(at+24,row.extent);}}
+    addOwned(wire::layoutBuildRequestBlob,build->node->id,std::move(data));
+  }
+  if(status==wire::statuses::ok&&snapshotDecision)
+    addOwned(wire::snapshotDecisionBlob,snapshotTarget,snapshotDecisionBytes(*snapshotDecision));
+  if(status==wire::statuses::ok&&opcode==wire::opcodes::semanticsSnapshot&&frame&&view&&view->visible&&
+      frame->scene->metrics.epoch==view->metrics.epoch&&frame->device==view->metrics.device){
+    const auto& route=frame->route;const auto size=route.label?route.label->label.size():0;
+    Writer data(wire::semanticRouteBytes+size);data.u64(0,route.sequence);
+    writeHandle(data,8,route.scope);writeHandle(data,16,route.name);data.u32(24,uint32_t(size));
+    if(size)std::memcpy(data.bytes.data()+wire::semanticRouteBytes,route.label->label.data(),size);
+    addOwned(wire::semanticRouteBlob,{},std::move(data));
+  }
   if(view&&view->fontTransition.token){const auto& transition=view->fontTransition;Writer data(32);
     data.u64(0,transition.token);data.u32(8,transition.phase);data.u32(12,transition.ready);
     data.u32(16,transition.failedOwner);data.u32(20,transition.failedStatus);data.u64(24,transition.revision);
@@ -701,6 +754,10 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     addOwned(wire::fontResourceChunkBlob,fontRead->id,std::move(data));
   }
   const auto interactionBlobs=[&](const Node& n,const DrawItem* item=nullptr){
+    if(n.snapshot)addOwned(wire::snapshotStyleBlob,n.id,snapshotStyleBytes(*n.snapshot));
+    if(n.layoutBuilder){const auto& builder=*n.layoutBuilder;Writer data(wire::layoutBuilderBytes);
+      data.u64(0,builder.revision);data.u64(8,builder.builtRevision);putAxis(data,16,builder.horizontal);putAxis(data,40,builder.vertical);
+      addOwned(wire::layoutBuilderBlob,n.id,std::move(data));}
     if(n.imageStyle)addOwned(wire::imagePaintBlob,n.id,imagePaintBytes(*n.imageStyle,n.imagePaint.get()));
     if(n.fontResource||n.fontPinned||n.fontRevision!=1){Writer data(24);writeHandle(data,0,n.fontResource?n.fontResource->id:Handle{});
       data.u64(8,n.fontRevision);data.u32(16,n.fontPinned?1u:0u);addOwned(wire::fontBindingBlob,n.id,std::move(data));}
@@ -735,25 +792,31 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       data.f64(24,c.minimum);data.f64(32,c.maximum);data.f64(40,c.step);data.f64(48,controlValue);
       data.f64(56,visual?visual->second:view&&overlay!=view->overlays.end()?overlay->second.second:c.second);
       data.u64(64,c.revision);addOwned(7,n.id,std::move(data));}
-    if(n.listGeometry){const auto& list=*n.listGeometry;Writer data(64+list.rows.size()*40);
+    if(n.listGeometry){const auto& list=*n.listGeometry;const size_t header=list.style.fixed?72:64;Writer data(header+list.rows.size()*40);
       data.u64(0,list.style.generation);data.u32(8,list.style.count);data.u32(12,list.style.begin);data.u32(16,list.style.end);
-      double offset=0,height=view?view->metrics.height:0;
+      double offset=0,height=view?view->metrics.height:0,paint=height;
       if(view&&n.parent&&rows->contains(n.parent)){const auto& parent=rows->get(n.parent);
         const bool horizontal=(parent.properties.flags&1u)!=0;
         height=horizontal?parent.properties.width:parent.properties.height;const auto scrollOverlay=view->overlays.find(n.parent.key());
-        if(scrollOverlay!=view->overlays.end())offset=scrollOverlay->second.requested-(horizontal?n.properties.x:n.properties.y);}
-      const auto begin=list.indexAt(std::max(0.0,offset-height));
-      data.u32(20,begin);data.u32(24,std::min(list.style.count,list.indexAt(offset+height*2)+1));
+        if(scrollOverlay!=view->overlays.end())offset=scrollOverlay->second.requested-(horizontal?n.properties.x:n.properties.y);
+        if(n.layoutBuilder){const double origin=n.properties.y;
+          const double requested=std::clamp(offset+origin,0.0,std::max(0.0,list.total+parent.layout.top+parent.layout.bottom-height));
+          offset=std::max(0.0,requested-origin);paint=std::max(0.0,height-std::max(0.0,origin-requested));}}
+      if(n.layoutBuilder){const auto range=nativeListRange(list.style,&list,std::max(0.0,offset),paint);data.u32(20,range.begin);data.u32(24,range.end);}
+      else {const auto begin=list.indexAt(std::max(0.0,offset-height));
+        data.u32(20,begin);data.u32(24,std::min(list.style.count,list.indexAt(offset+height*2)+1));}
       data.u32(28,uint32_t(list.rows.size()));data.f64(32,list.style.estimate);
       data.f64(40,list.total);data.f64(48,list.begin);data.f64(56,list.end);
-      for(size_t i=0;i<list.rows.size();++i){const auto& row=list.rows[i];const auto at=64+i*40;
+      if(list.style.fixed)data.u32(64,1);
+      for(size_t i=0;i<list.rows.size();++i){const auto& row=list.rows[i];const auto at=header+i*40;
         writeHandle(data,at,row.node);data.u32(at+8,row.index);data.u64(at+16,row.key);data.f64(at+24,row.offset);data.f64(at+32,row.extent);}
       addOwned(6,n.id,std::move(data));}
-    if(n.semantics){const auto& a=*n.semantics;Writer bytes(wire::semanticsBytes+a.label.size()+a.hint.size()+a.value.size()+a.increasedValue.size()+a.decreasedValue.size());
+    if(const auto* semantic=frame?frame->semantic(n.id):n.semantics.get()){const auto& a=*semantic;Writer bytes(wire::semanticsBytes+a.label.size()+a.hint.size()+a.value.size()+a.increasedValue.size()+a.decreasedValue.size());
       auto semanticFlags=(n.control.kind==wire::controlKinds::toggle||n.control.kind==wire::controlKinds::checkbox||n.control.kind==wire::controlKinds::radio)?
         (a.flags&~wire::semanticsFlags::checked)|(controlValue>n.control.minimum?wire::semanticsFlags::checked:0u):a.flags;
       if(n.control.disabled)semanticFlags|=wire::semanticsFlags::disabled;
-      if(frame&&!frame->allows(n.id))semanticFlags|=wire::semanticsFlags::hidden;
+      if(frame&&!frame->allowsSemantics(n.id))semanticFlags|=wire::semanticsFlags::hidden;
+      if(frame&&!frame->semantics.empty()&&frame->semantics[n.id.slot].merged)semanticFlags|=wire::semanticsFlags::mergedIntoParent;
       bytes.u32(0,a.role);bytes.u32(4,semanticFlags);bytes.u32(8,a.actions);bytes.u32(12,uint32_t(a.label.size()));bytes.u32(16,uint32_t(a.hint.size()));
       bytes.u32(20,uint32_t(a.value.size()));bytes.u32(24,a.range.enabled?(a.range.readOnly?3u:1u):0u);
       bytes.f64(32,a.range.minimum);bytes.f64(40,a.range.maximum);bytes.f64(48,a.range.value);bytes.f64(56,a.range.smallChange);bytes.f64(64,a.range.largeChange);
@@ -787,6 +850,16 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     }
   }
   else if(rows)for(const auto* node:rowNodes)interactionBlobs(*node);
+  for(size_t i=0;i<events.size();++i){const auto& event=events[i];const auto& tap=event.tapRegion;
+    if(event.semanticSource){Writer data(wire::semanticSourceEventBytes);data.u32(0,uint32_t(i));
+      writeHandle(data,8,event.semanticSource);addOwned(wire::semanticSourceEventBlob,event.node,std::move(data));}
+    if(!tap.batch)continue;
+    Writer data(wire::tapRegionEventBytes);data.u32(0,uint32_t(i));data.u32(4,tap.device);data.u64(8,tap.batch);
+    writeHandle(data,16,tap.surface);writeHandle(data,24,tap.semanticTarget);
+    const std::array<double,6> matrix{tap.inverse.a,tap.inverse.b,tap.inverse.c,tap.inverse.d,tap.inverse.tx,tap.inverse.ty};
+    for(size_t j=0;j<matrix.size();++j)data.f64(32+j*8,matrix[j]);
+    addOwned(wire::tapRegionEventBlob,event.node,std::move(data));
+  }
   if(status==wire::statuses::ok&&opcode==wire::opcodes::pollRaw&&view){
     for(uint32_t count=0;!view->rawInputs.empty()&&count<wire::limits::eventsPerPoll;++count){
       const auto& sample=view->rawInputs.front();Writer bytes(sample.bytes.size());
@@ -899,7 +972,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     response.u64(b + wire::stateFields::coverageClamps,v.coverageClamps);
     response.u64(b + wire::stateFields::coverageHandoffs,v.coverageHandoffs);
     writeHandle(response,b+wire::stateFields::focusNode,v.focusNode);response.u64(b+wire::stateFields::focusSession,v.focusSession);
-    const auto peer=v.published?canonicalFocusPeer(*v.published->scene->document,v.focusNode):Handle{};
+    const auto peer=v.published?v.published->focusPeer(v.focusNode):Handle{};
     writeHandle(response,b+wire::stateFields::focusPeer,v.document&&v.document->contains(peer)?peer:Handle{});
     response.u32(b+wire::stateFields::interactionCount,uint32_t(v.interactionEvents.size()));
     response.u64(b+wire::stateFields::editingWork,v.editingWork);response.u64(b+wire::stateFields::semanticsWork,v.semanticsWork);response.u64(b+wire::stateFields::queryWork,v.queryWork);
@@ -913,6 +986,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     response.f64(b + wire::stateFields::nextDeadline, v.nextDeadline());
     flags |= (v.closed ? 1u : 0u) | (v.visible ? 2u : 0u) | (v.focused ? 4u : 0u) |
       (v.wake() ? 8u : 0u) | (v.preparing && v.preparing->ready ? 16u : 0u) | (v.renderWake() ? 128u : 0u);
+    if(build)flags|=wire::layoutBuildPending;
     if(v.published)for(const auto root:v.published->scene->document->children[0])
       if(v.published->scene->document->get(root).policy&wire::eventPolicies::canonicalKeyboard){flags|=256u;break;}
   }
@@ -920,13 +994,14 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   if(frame){response.u64(b+wire::stateFields::framePaintWork,frame->paintWork);response.u64(b+wire::stateFields::framePaintNodes,frame->paintNodes);response.u64(b+wire::stateFields::framePlacementNodes,frame->placementNodes);}
   size_t cursor = b + wire::stateBytes;
   const auto frameFocus=frame?(opcode==wire::opcodes::semanticsSnapshot&&view?view->focusNode:frame->focusNode):Handle{};
-  const auto framePeer=frame?canonicalFocusPeer(*rows,frameFocus):Handle{};
+  const auto framePeer=frame?frame->focusPeer(frameFocus):Handle{};
   if (frame) for (const auto& item : frame->items) {
     const auto& n = rows->get(item.node);
     // Filters can pull an offscreen child's pixels into view. Do not cull by
     // the unfiltered border box before the provider's layer/clip processing.
     const bool drawable=n.properties.width>0&&n.properties.height>0&&item.clip.width>0&&item.clip.height>0;
     nodeRow(response, cursor, n, &frame->properties[n.id.slot], (drawable ? 16u : 0u)|
+      (!frame->semantics.empty()&&frame->semantics[n.id.slot].blocked?wire::nodeFlags::semanticsBlocked:0u)|
       (n.id==framePeer?256u:0u)|(frame->focusNode==n.id&&frame->caretVisible?512u:0u), &item);
     cursor += wire::nodeBytes;
   }

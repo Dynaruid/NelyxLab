@@ -91,6 +91,53 @@ import type {
   InputGeometryCandidate,
 } from '../../hosting/input-geometry.ts';
 const nativeRenderOwners = new WeakMap<RenderObject, object>();
+const nativeRenderResources = new WeakMap<
+  RenderObject,
+  { readonly attach: () => void; readonly detach: () => void; active: boolean }
+>();
+const nativeResourceWork = new WeakMap<RenderObject, number>();
+function changeNativeResourceWork(render: RenderObject, delta: number): void {
+  for (let node: RenderObject | undefined = render; node; node = node.parent)
+    nativeResourceWork.set(node, (nativeResourceWork.get(node) ?? 0) + delta);
+}
+/** @internal Configuration resources have a native lifetime without a TS PipelineOwner. */
+export function registerNativeRenderResources(
+  render: RenderObject,
+  hooks: { readonly attach: () => void; readonly detach: () => void },
+): void {
+  if (nativeRenderResources.has(render)) throw Error('Native render resources already registered');
+  nativeRenderResources.set(render, { ...hooks, active: false });
+}
+function detachNativeRenderResources(render: RenderObject, errors: unknown[]): void {
+  if (!nativeResourceWork.get(render)) return;
+  const state = nativeRenderResources.get(render);
+  if (state?.active) {
+    state.active = false;
+    changeNativeResourceWork(render, -1);
+    attempt(errors, state.detach);
+  }
+  for (const child of render.children) detachNativeRenderResources(child, errors);
+}
+/** @internal Element detachment includes native roots without a PipelineOwner. */
+export function releaseNativeRenderResources(render: RenderObject): void {
+  const errors: unknown[] = [];
+  detachNativeRenderResources(render, errors);
+  throwFailures(errors, 'Detaching native render resources failed');
+}
+const nativeSemanticsEvents = new WeakMap<RenderObject, (event: SemanticsEvent) => void>();
+/** @internal Native configuration never attaches to a TS semantics pipeline. */
+export function bindNativeSemanticsEvents(
+  render: RenderObject,
+  owner: object,
+  send: (event: SemanticsEvent) => void,
+): void {
+  invariant(
+    nativeRenderOwners.get(render) === owner,
+    'foreign-native-semantics',
+    'Semantics belongs to the native render owner',
+  );
+  nativeSemanticsEvents.set(render, send);
+}
 export interface NativePublishedGeometry {
   readonly owner: object;
   readonly snapshot: object;
@@ -127,6 +174,14 @@ export function bindNativePublishedGeometry(
   nativeGeometryReaders.set(render, read);
 }
 export { registerNativeRenderMetadata, nativeRenderMetadata, nativeShape } from './native-paint.ts';
+export { nativeBoxConfiguration } from './native-box.ts';
+export type { NativeLayoutBuilderConfiguration } from './native-box.ts';
+export { nativeSliverConfiguration } from './native-sliver.ts';
+export type {
+  NativeSliverConfiguration,
+  NativeSliverInput,
+  NativeSliverMeasurement,
+} from './native-sliver.ts';
 export { nativeSemanticsRange } from './semantics-transport.ts';
 export type {
   NativeShape,
@@ -194,6 +249,12 @@ export function claimNativeRenderObject(
   );
   nativeRenderOwners.set(render, owner);
   if (invalidated) nativeRenderInvalidators.set(render, invalidated);
+  const resources = nativeRenderResources.get(render);
+  if (resources && !resources.active) {
+    resources.attach();
+    resources.active = true;
+    changeNativeResourceWork(render, 1);
+  }
 }
 function assertAppRenderOperation(render: RenderObject, operation: string): void {
   nativeRenderConfiguration?.(operation);
@@ -1693,6 +1754,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   protected adoptChild(child: RenderObject): void {
     if (child.parent) invariant(false, 'render-parent', 'Adopt requires an unparented child');
+    releaseNativeRenderResources(child);
     this.setupParentData(child);
     child.renderParent = this;
     this.changeInputGeometryWork(child.inputGeometrySubtreeWork);
@@ -1720,6 +1782,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     for (const child of this.children) this.redepthChild(child);
   }
   private releaseChild(child: RenderObject, errors: unknown[], alreadyDetached = false): void {
+    detachNativeRenderResources(child, errors);
     attempt(errors, () => child.parentData?.detach());
     child.parentData = undefined;
     if (child.parent === this) this.changeInputGeometryWork(-child.inputGeometrySubtreeWork);
@@ -2462,6 +2525,21 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     owner.requestVisualUpdate();
   }
   sendSemanticsEvent(event: SemanticsEvent): void {
+    if (nativeRenderOwners.has(this)) {
+      invariant(
+        !this.debugDisposed,
+        'disposed-semantics-event',
+        'Semantics events require a live render object',
+      );
+      const send = nativeSemanticsEvents.get(this);
+      invariant(
+        send !== undefined,
+        'unbound-native-semantics',
+        'Native semantics event owner is unavailable',
+      );
+      send(event);
+      return;
+    }
     if (!(this.owner !== undefined))
       invariant(
         false,
@@ -2842,6 +2920,8 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       );
     const errors: unknown[] = [];
     attempt(errors, () => this.clearSemantics());
+    detachNativeRenderResources(this, errors);
+    nativeRenderResources.delete(this);
     attempt(errors, () => RenderObject.prototype.setChildren.call(this, []));
     attempt(errors, () => this.clearCachedLayoutData());
     this.clearLayoutDependencies();
@@ -4061,6 +4141,8 @@ export abstract class RenderBox<
   }
   private measuredSize: Size | undefined;
   get hasSize(): boolean {
+    const native = nativeGeometryReaders.get(this);
+    if (native) return native() !== undefined;
     return this.measuredSize !== undefined;
   }
   get size(): Size {
@@ -4076,6 +4158,16 @@ export abstract class RenderBox<
         'undeclared-size-dependency',
         'A parent reading child size must pass parentUsesSize true',
       );
+    const native = nativeGeometryReaders.get(this);
+    if (native) {
+      const publication = native();
+      invariant(
+        publication,
+        'missing-native-render-size',
+        `${this.constructor.name} has no current native layout publication`,
+      );
+      return publication.size;
+    }
     if (!this.measuredSize)
       invariant(false, 'missing-render-size', `${this.constructor.name} has not been laid out`);
     return this.measuredSize;

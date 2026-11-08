@@ -15,7 +15,7 @@ import { Overlay, OverlayEntry } from './overlay.ts';
 import { InheritedTheme } from './inherited-theme.ts';
 import { MediaQuery, Directionality } from './app-data.ts';
 import { MouseRegion } from './mouse-region.ts';
-import { RenderMouseRegion } from '../rendering/mouse-region.ts';
+import { RenderMouseRegion, registerNativeMouseRegion } from '../rendering/mouse-region.ts';
 import { Listener } from './listener.ts';
 import { HitTestBehavior } from '../rendering/pointer-listener.ts';
 import { Semantics } from './semantics.ts';
@@ -338,6 +338,7 @@ class RenderExclusiveMouseRegion extends RenderMouseRegion {
     }
   }
 }
+registerNativeMouseRegion(RenderExclusiveMouseRegion.prototype, true);
 /** Source position decisions with live sibling geometry at paint/hit/semantics.
  * This prevents an OverlayEntry from lagging behind a moved/transformed anchor. */
 class TooltipPositionWidget extends SingleChildRenderObjectWidget {

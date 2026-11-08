@@ -9,7 +9,11 @@ import { spawn } from 'node:child_process';
 import { build } from 'esbuild';
 import { protocol as p } from '@nelyx/core/v2';
 import { engineV2ImportRoute, engineV2OriginalAppRoute } from './engine-v2-data-api.mjs';
-import { inspectEngineV2Graph } from './engine-v2-graph.mjs';
+import {
+  inspectEngineV2Graph,
+  engineV2AppSelection,
+  createEngineV2DesignImportPolicy,
+} from './engine-v2-graph.mjs';
 import { applicationAssetKey, writeAssetManifests } from './engine-v2-assets.mjs';
 import {
   buildEngineV2AndroidApk,
@@ -131,24 +135,69 @@ export function verifyEngineV2Supply(directory, target, windowsHost) {
   }
   return { root, manifest };
 }
-function config(app) {
-  const value = read(path.join(app, 'nelyx.v2.json'));
-  if (value.schema !== 'nelyx.app.v2/1' || value.engine !== 'v2')
-    throw Error('Expected nelyx.v2.json with nelyx.app.v2/1 and engine v2');
-  return value;
+/** A versioned App config never selects a renderer or silently combines configurations. */
+export function readAppConfiguration(app) {
+  const canonical = path.join(app, 'nelyx.json'),
+    previous = path.join(app, 'nelyx.v2.json'),
+    packageFile = path.join(app, 'package.json');
+  const packageConfig = fs.existsSync(packageFile) ? read(packageFile).nelyx : undefined;
+  if (
+    [fs.existsSync(canonical), fs.existsSync(previous), packageConfig !== undefined].filter(Boolean)
+      .length > 1
+  )
+    throw Error(
+      'Conflicting App configurations: use only nelyx.json, nelyx.v2.json or package.json.nelyx',
+    );
+  if (fs.existsSync(canonical)) {
+    const value = read(canonical);
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw Error('App configuration must be an object');
+    const allowed = new Set([
+      'schema',
+      'entry',
+      'assets',
+      'supply',
+      'windowsHost',
+      'android',
+      'engine',
+      'vm',
+    ]);
+    for (const key of Object.keys(value))
+      if (!allowed.has(key)) throw Error('Unknown App configuration option: ' + key);
+    if (value.vm !== undefined && !['hermes', 'browser'].includes(value.vm))
+      throw Error('The requested JavaScript VM is not supplied: ' + value.vm);
+    if (value.schema !== 'nelyx.app/1' || (value.engine !== undefined && value.engine !== 'v2'))
+      throw Error('Expected nelyx.json with nelyx.app/1; the App renderer is engine v2');
+    return { ...value, engine: 'v2' };
+  }
+  if (fs.existsSync(previous)) {
+    const value = read(previous);
+    if (value.schema !== 'nelyx.app.v2/1' || value.engine !== 'v2')
+      throw Error('Expected nelyx.v2.json with nelyx.app.v2/1 and engine v2');
+    return value;
+  }
+  if (packageConfig !== undefined)
+    throw Error(
+      'The previous package.json.nelyx host settings require explicit migration to nelyx.app/1',
+    );
+  throw Error('App configuration is missing: create nelyx.json with nelyx.app/1');
 }
+const config = readAppConfiguration;
 export async function buildEngineV2Application(options) {
   const app = fs.realpathSync(options.app),
     settings = config(app),
     target = options.target;
   if (!['windows', 'web', 'android'].includes(target))
     throw Error('Engine v2 has no supplied ' + target + ' host');
+  if (settings.vm !== undefined && settings.vm !== (target === 'web' ? 'browser' : 'hermes'))
+    throw Error('The requested JavaScript VM is not supplied for ' + target);
   const supply = verifyEngineV2Supply(
     path.resolve(app, options.engineInputs ?? settings.supply ?? '__missing_engine_supply__'),
     target,
-    settings.windowsHost,
+    options.windowsHost ?? settings.windowsHost,
   );
   const require = createRequire(path.join(app, 'package.json')),
+    designImport = createEngineV2DesignImportPolicy(require.resolve),
     core = require.resolve('@nelyx/core/v2');
   const installed = await import(pathToFileURL(core));
   if (installed.protocol.schema !== p.schema)
@@ -176,129 +225,132 @@ export async function buildEngineV2Application(options) {
   let moved = false;
   try {
     const importRoutes = new Map();
-    const bundle = await build({
-      stdin: {
-        contents: `import app from ${JSON.stringify(entry)};import {launchEngineV2App} from '@nelyx/sdk/engine-v2';launchEngineV2App(app);`,
-        resolveDir: app,
-        sourcefile: 'engine-v2-entry.ts',
-        loader: 'ts',
-      },
-      outfile: path.join(staged, 'application/app.js'),
-      bundle: true,
-      format: 'iife',
-      platform: 'browser',
-      target: target === 'android' ? 'es2015' : 'es2022',
-      ...(target === 'android' ? { supported: { bigint: true } } : {}),
-      metafile: true,
-      logLevel: 'silent',
-      plugins: [
-        {
-          name: 'v2-entrypoint-contract',
-          setup(builder) {
-            builder.onResolve(
-              { filter: /^@nelyx\/(core|material|cupertino|sdk)(\/|$)/ },
-              (args) => {
-                if (
-                  !engineV2ImportRoute(args.path) &&
-                  !engineV2OriginalAppRoute(args.path) &&
-                  !(
-                    /^@nelyx\/core\/(?:internal\/(?:(foundation|ui|math)\/[^/]+|framework\/(painting|widgets)\/[^/]+)|services\/(?:system-sound|haptic-feedback|predictive-back-event))$/.test(
-                      args.path,
-                    ) && /[/\\](material|cupertino)[/\\](dist|src)[/\\]/.test(args.importer)
-                  ) &&
-                  !(
-                    args.path === '@nelyx/core/internal/ui/color-source-adapter' &&
-                    args.importer.includes('material')
-                  ) &&
-                  !(
-                    args.path === '@nelyx/cupertino/internal/scrollbar-style-source-adapter' &&
-                    /[/\\]material[/\\](dist|src)[/\\]/.test(args.importer)
-                  ) &&
-                  !(
-                    args.path === '@nelyx/core/internal/framework/widgets/ticker-scheduler' &&
-                    /[/\\]v2[/\\]engine-client[/\\]original-scroll\.js$/.test(args.importer)
-                  ) &&
-                  !(
-                    [
-                      '@nelyx/core/internal/services/asset-loader-binding',
-                      '@nelyx/core/internal/ui/immutable-buffer-binding',
-                    ].includes(args.path) &&
-                    fs.existsSync(args.importer) &&
-                    fs.realpathSync(args.importer) ===
-                      fs.realpathSync(
-                        path.join(
-                          path.dirname(require.resolve('@nelyx/sdk/engine-v2')),
-                          'engine-v2-app.js',
-                        ),
-                      )
-                  ) &&
-                  !(
-                    [
-                      '@nelyx/core/internal/ui/image-descriptor-binding',
-                      '@nelyx/core/internal/ui/immutable-buffer-binding',
-                      '@nelyx/core/hosting/images',
-                      '@nelyx/core/hosting/resources',
-                    ].includes(args.path) &&
-                    fs.existsSync(args.importer) &&
-                    [
-                      'engine-v2-images.js',
-                      ...(args.path === '@nelyx/core/internal/ui/image-descriptor-binding'
-                        ? ['engine-v2-app.js']
-                        : []),
-                    ].some(
-                      (file) =>
-                        fs.realpathSync(args.importer) ===
-                        fs.realpathSync(
-                          path.join(path.dirname(require.resolve('@nelyx/sdk/engine-v2')), file),
-                        ),
-                    )
-                  ) &&
-                  !(
-                    args.path === '@nelyx/core/internal/framework/widgets/native-radio-semantics' &&
-                    fs.existsSync(args.importer) &&
-                    fs.realpathSync(args.importer) ===
-                      fs.realpathSync(path.join(path.dirname(core), 'original-controls.js'))
-                  ) &&
-                  !(
-                    args.path === '@nelyx/core/internal/framework/widgets/text-input' &&
-                    fs.existsSync(args.importer) &&
-                    fs.realpathSync(args.importer) ===
-                      fs.realpathSync(path.join(path.dirname(core), 'original-editing.js'))
-                  ) &&
-                  !(
-                    [
-                      '@nelyx/core/hosting/text-layout-budget',
-                      '@nelyx/core/hosting/text-fonts',
-                    ].includes(args.path) &&
-                    fs.existsSync(args.importer) &&
-                    fs.realpathSync(args.importer) ===
-                      fs.realpathSync(path.join(path.dirname(core), 'original-text.js'))
-                  )
-                )
-                  return {
-                    errors: [
-                      {
-                        text: `Engine v2 cannot import ${args.path}; select its implemented /v2 API. Legacy widgets are not an engine fallback.`,
-                      },
-                    ],
-                  };
-                try {
-                  const route =
-                    engineV2ImportRoute(args.path) ??
-                    engineV2OriginalAppRoute(args.path) ??
-                    args.path;
-                  const resolved = require.resolve(route);
-                  importRoutes.set(args.path, route);
-                  return { path: resolved };
-                } catch (error) {
-                  return { errors: [{ text: String(error) }] };
-                }
-              },
-            );
-          },
+    const createBundle = (canonical) =>
+      build({
+        stdin: {
+          contents: canonical
+            ? `import app from ${JSON.stringify(entry)};import {launchApp} from '@nelyx/sdk/app';launchApp(app);`
+            : `import app from ${JSON.stringify(entry)};import {launchEngineV2App} from '@nelyx/sdk/engine-v2';launchEngineV2App(app);`,
+          resolveDir: app,
+          sourcefile: 'engine-v2-entry.ts',
+          loader: 'ts',
         },
-      ],
-    });
+        outfile: path.join(staged, 'application/app.js'),
+        bundle: true,
+        format: 'iife',
+        platform: target === 'web' ? 'browser' : 'neutral',
+        mainFields: target === 'web' ? ['browser', 'module', 'main'] : ['module', 'main'],
+        target: target === 'android' ? 'es2015' : 'es2022',
+        ...(target === 'android' ? { supported: { bigint: true } } : {}),
+        metafile: true,
+        logLevel: 'silent',
+        plugins: [
+          {
+            name: 'v2-entrypoint-contract',
+            setup(builder) {
+              builder.onResolve(
+                { filter: /^@nelyx\/(core|material|cupertino|sdk)(\/|$)/ },
+                (args) => {
+                  if (
+                    !engineV2ImportRoute(args.path) &&
+                    !engineV2OriginalAppRoute(args.path) &&
+                    !designImport(args.path, args.importer) &&
+                    !(
+                      args.path === '@nelyx/core/internal/framework/widgets/ticker-scheduler' &&
+                      /[/\\]v2[/\\]app[/\\]scroll\.js$/.test(args.importer)
+                    ) &&
+                    !(
+                      [
+                        '@nelyx/core/internal/services/asset-loader-binding',
+                        '@nelyx/core/internal/ui/immutable-buffer-binding',
+                      ].includes(args.path) &&
+                      fs.existsSync(args.importer) &&
+                      fs.realpathSync(args.importer) ===
+                        fs.realpathSync(
+                          path.join(
+                            path.dirname(require.resolve('@nelyx/sdk/engine-v2')),
+                            'app-session.js',
+                          ),
+                        )
+                    ) &&
+                    !(
+                      [
+                        '@nelyx/core/internal/ui/image-descriptor-binding',
+                        '@nelyx/core/internal/ui/immutable-buffer-binding',
+                        '@nelyx/core/hosting/images',
+                        '@nelyx/core/hosting/resources',
+                      ].includes(args.path) &&
+                      fs.existsSync(args.importer) &&
+                      [
+                        'engine-v2-images.js',
+                        ...(args.path === '@nelyx/core/internal/ui/image-descriptor-binding'
+                          ? ['app-session.js']
+                          : []),
+                      ].some(
+                        (file) =>
+                          fs.realpathSync(args.importer) ===
+                          fs.realpathSync(
+                            path.join(path.dirname(require.resolve('@nelyx/sdk/engine-v2')), file),
+                          ),
+                      )
+                    ) &&
+                    !(
+                      args.path ===
+                        '@nelyx/core/internal/framework/widgets/native-radio-semantics' &&
+                      fs.existsSync(args.importer) &&
+                      fs.realpathSync(args.importer) ===
+                        fs.realpathSync(path.join(path.dirname(core), '../app/controls.js'))
+                    ) &&
+                    !(
+                      args.path === '@nelyx/core/internal/framework/widgets/text-input' &&
+                      fs.existsSync(args.importer) &&
+                      fs.realpathSync(args.importer) ===
+                        fs.realpathSync(path.join(path.dirname(core), '../app/editing.js'))
+                    ) &&
+                    !(
+                      [
+                        '@nelyx/core/hosting/text-layout-budget',
+                        '@nelyx/core/hosting/text-fonts',
+                      ].includes(args.path) &&
+                      fs.existsSync(args.importer) &&
+                      fs.realpathSync(args.importer) ===
+                        fs.realpathSync(path.join(path.dirname(core), '../app/text.js'))
+                    )
+                  )
+                    return {
+                      errors: [
+                        {
+                          text: `Engine v2 cannot import ${args.path}; select its implemented /v2 API. Legacy widgets are not an engine fallback.`,
+                        },
+                      ],
+                    };
+                  try {
+                    const route =
+                      engineV2ImportRoute(args.path) ??
+                      engineV2OriginalAppRoute(args.path) ??
+                      args.path;
+                    const resolved = require.resolve(route);
+                    importRoutes.set(args.path, route);
+                    return { path: resolved };
+                  } catch (error) {
+                    return { errors: [{ text: String(error) }] };
+                  }
+                },
+              );
+            },
+          },
+        ],
+      });
+    let bundle = await createBundle(settings.schema === 'nelyx.app/1');
+    if (
+      settings.schema !== 'nelyx.app/1' &&
+      engineV2AppSelection(bundle.metafile.inputs).originalApp
+    ) {
+      // Previous original-App configs retain their constructors while linking
+      // directly to the canonical launcher, without a runtime host registry.
+      importRoutes.clear();
+      bundle = await createBundle(true);
+    }
     const coreDirectory = fs.realpathSync(path.resolve(path.dirname(core), '../../..'));
     const graph = inspectEngineV2Graph(
       Object.keys(bundle.metafile.inputs).map((file) => path.resolve(file)),
@@ -399,7 +451,7 @@ export async function buildEngineV2Application(options) {
       target,
       ...(android ? { android } : {}),
       ...(target === 'windows'
-        ? { windowsHost: engineV2WindowsHost(settings.windowsHost).host }
+        ? { windowsHost: engineV2WindowsHost(options.windowsHost ?? settings.windowsHost).host }
         : {}),
       abi: supply.manifest.abi,
       supplySourceSha256: supply.manifest.sourceSha256,
@@ -703,6 +755,7 @@ export function createEngineV2Project(
     cli = '0.10.0',
     metro,
     'static-aot': staticAot,
+    'tooling-contracts': toolingContracts,
     designs = [],
     material = '0.1.0',
     cupertino = '0.1.0',
@@ -737,9 +790,11 @@ export function createEngineV2Project(
           '@nelyx/cli': cli,
           typescript: '7.0.2',
           ...(metro ? { '@nelyx/metro': metro } : {}),
+          ...(toolingContracts ? { '@nelyx/tooling-contracts': toolingContracts } : {}),
           ...(staticAot ? { '@nelyx/static-aot': staticAot } : {}),
         },
         scripts: {
+          'check': 'tsc -p tsconfig.json --noEmit',
           'build:web': 'nelyx build --engine v2 --target web',
           'run:web': 'nelyx run --engine v2 --target web',
           'build:windows': 'nelyx build --engine v2 --target windows',
@@ -754,16 +809,33 @@ export function createEngineV2Project(
     ) + '\n',
   );
   fs.writeFileSync(
-    path.join(root, 'nelyx.v2.json'),
+    path.join(root, 'tsconfig.json'),
     JSON.stringify(
-      { schema: 'nelyx.app.v2/1', engine: 'v2', entry: 'src/app.ts', assets: {} },
+      {
+        compilerOptions: {
+          target: 'ES2022',
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+          lib: ['ES2022'],
+          types: [],
+          strict: true,
+          skipLibCheck: false,
+          noEmit: true,
+          rewriteRelativeImportExtensions: true,
+        },
+        include: ['src/**/*.ts'],
+      },
       null,
       2,
     ) + '\n',
   );
   fs.writeFileSync(
+    path.join(root, 'nelyx.json'),
+    JSON.stringify({ schema: 'nelyx.app/1', entry: 'src/app.ts', assets: {} }, null, 2) + '\n',
+  );
+  fs.writeFileSync(
     path.join(root, 'src/app.ts'),
-    "import {defineEngineV2App} from '@nelyx/sdk/engine-v2';\nimport {Column,Text,Box} from '@nelyx/core/v2';\nexport default defineEngineV2App({build:()=>new Column([new Text('Nelyx v2',{fontSize:28}),new Box([],{properties:{width:160,height:64},color:0xff6750a4,radius:12})],{layout:{gap:20,padding:{left:24,top:24}}})});\n",
+    "import {defineApp} from '@nelyx/sdk/app';\nimport {Column,Text,ColoredBox,SizedBox,Padding} from '@nelyx/core/framework/widgets/basic';\nimport {Directionality} from '@nelyx/core/framework/widgets/app-data';\nexport default defineApp({build:()=>new Directionality('ltr',new Padding({left:24,top:24,right:0,bottom:0},new Column([new Text('Nelyx',{fontSize:28}),new SizedBox(undefined,20),new SizedBox(160,64,new ColoredBox({color:0xff6750a4}))],{mainAxisSize:'min'})))});\n",
   );
   return {
     engine: 'v2',
@@ -771,15 +843,15 @@ export function createEngineV2Project(
     next: 'Install dependencies, then build with --engine-inputs <verified engine dist>.',
   };
 }
-const browserMain = `import {createBrowserEngineV2Surface,protocol as p} from '@nelyx/sdk/engine-v2';
-import {drainEngineOwners} from '@nelyx/core/v2';
+const browserMain = `import {createBrowserEngineV2Surface,bindBrowserAppServices,protocol as p} from '@nelyx/sdk/engine';
+import {drainEngineOwners} from '@nelyx/core/engine';
 const baseRoot=new URL('.',location.href),development=globalThis.__nelyxDevelopment;
 const root=development?new URL('__nelyx_gen/'+development.generation+'/',baseRoot):baseRoot,error=document.querySelector('#error');
 const current=globalThis.__nelyxV2={ready:false,errors:[]};
 const fail=message=>{error.textContent=message;current.errors.push(message);};
 (async()=>{
  const surface=await createBrowserEngineV2Surface(document.querySelector('canvas'),{root,profile:new URL(location.href).searchParams.get('profile')??'auto',onError:fail});
- current.surface=surface;const app=new Worker(new URL('application/app.js',root));current.app=app;let appDisposed=false;
+ current.surface=surface;const app=new Worker(new URL('application/app.js',root));current.app=app;const services=bindBrowserAppServices(app);let appDisposed=false;
  app.addEventListener('message',event=>{if(event.data.kind==='app-ready'){current.ready=true;current.receipt=event.data;}else if(event.data.kind==='app-error')fail(event.data.message);else if(event.data.kind==='app-disposed')appDisposed=true;});
  app.addEventListener('error',event=>fail(event.message));const port=surface.createAppPort(app);
  app.postMessage({kind:'start',root:root.href,port,identity:{engine:'v2',abiMajor:p.abiMajor,schema:p.schema}},[port]);
@@ -796,6 +868,7 @@ const fail=message=>{error.textContent=message;current.errors.push(message);};
   let result;
   await drainEngineOwners('App and surface close failed',[
    ()=>{if(failure)throw failure;},
+   ()=>services.close(),
    async()=>{result=await surface.close();},
    ()=>{current.ready=false;}
   ]);

@@ -2,6 +2,8 @@
 #include "../../core/engine.hpp"
 #include "renderer.hpp"
 #include "../common/app_text_jsi.hpp"
+#include "../common/app_services_jsi.hpp"
+#include "app_services.hpp"
 #include <hermes/hermes.h>
 #include <jsi/instrumentation.h>
 #include <android/native_window_jni.h>
@@ -40,6 +42,8 @@ class AndroidHost:public std::enable_shared_from_this<AndroidHost> {
   std::thread appOwner,contentOwner,renderOwner;
   std::mutex gate,sceneGate,jobsGate,doneGate,windowGate,errorGate,runtimeGate;
   std::condition_variable wake,appWake;
+  std::shared_ptr<na::AppServiceView> clipboard;
+  std::shared_ptr<np::AppServices> services=std::make_shared<np::AppServices>(core.memoryLedger(),[]{},[this]{appWake.notify_one();});
   std::deque<Job> jobs,done,uiJobs;size_t jobBytes=0;
   std::shared_ptr<const np::Prepared> candidate,published;
   std::shared_ptr<const np::ParagraphProvider> preparedFont;
@@ -89,7 +93,7 @@ class AndroidHost:public std::enable_shared_from_this<AndroidHost> {
             if(r.u16(14)==0&&r.u64(wire::headerBytes+wire::stateFields::measureRequest)){completeMeasurement(result,provider);contentWake=true;}
             if(r.u16(14)==0&&(r.u32(wire::headerBytes+wire::stateFields::flags)&16u)){const auto p=core.providerSnapshot(1,1);if(p&&p->id!=last){attempted=p->id;auto value=provider.prepare(*p);last=p->id;{std::lock_guard lock(sceneGate);candidate=std::move(value);}renderWake=true;}}
           }catch(const std::exception& e){provider.discardMeasurements();Writer result(24);result.u64(0,attempted);result.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));result.u64(16,r.u64(wire::headerBytes+wire::stateFields::device));call(wire::opcodes::preparationResult,result.bytes);log("V2_ANDROID_PREPARATION_ERROR "+std::string(e.what()));}
-          if(r.u16(14)==0&&!(r.u32(wire::headerBytes+wire::stateFields::flags)&16u)&&r.u64(wire::headerBytes+wire::stateFields::preparation))contentWake=true;
+          if(r.u16(14)==0&&!(r.u32(wire::headerBytes+wire::stateFields::flags)&(16u|wire::layoutBuildPending))&&r.u64(wire::headerBytes+wire::stateFields::preparation))contentWake=true;
           paragraphs=provider.paragraphs.load();pictures=provider.pictures.load();
         }
         wake.notify_all();std::unique_lock lock(gate);wake.wait(lock,[&]{std::lock_guard queued(jobsGate);return stopping||contentWake||!jobs.empty();});
@@ -141,11 +145,12 @@ class AndroidHost:public std::enable_shared_from_this<AndroidHost> {
     try{
       {std::unique_lock lock(gate);wake.wait(lock,[&]{return stopping||connected;});}if(stopping)return;
       np::AppParagraphs appText(directory+"/engine/assets/font.ttf",directory+"/engine/assets/icudtl.dat",core.memoryLedger(),directory+"/application/assets");
-      auto owned=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withES6Class(false).withOptimizedEval(false).withAsyncBreakCheckInEval(true).build());auto& rt=*owned;
+      auto owned=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withES6Class(false).withEnableBlockScoping(true).withOptimizedEval(false).withAsyncBreakCheckInEval(true).build());auto& rt=*owned;
       {std::lock_guard lock(runtimeGate);runtime=owned.get();}
       struct Unregister{AndroidHost& host;~Unregister(){std::lock_guard lock(host.runtimeGate);host.runtime=nullptr;host.core.memoryLedger()->report(4,1,0);host.appHeap=0;}}unregister{*this};
       const auto reportHeap=[&]{const auto info=rt.instrumentation().getHeapInfo(false);const auto heap=info.find("hermes_heapSize"),external=info.find("hermes_externalBytes");if(heap==info.end()||external==info.end()||heap->second<0||external->second<0)throw std::runtime_error("Android Hermes heap accounting unavailable");appHeap=uint64_t(heap->second)+uint64_t(external->second);core.memoryLedger()->report(4,1,appHeap);};
       jsi::Object native(rt);native.setProperty(rt,"operatingSystem","android");native.setProperty(rt,"clockDomain","monotonic-milliseconds");np::installAppText(rt,native,appText);
+      np::installAppServices(rt,native,services);
       jsi::Object identity(rt);identity.setProperty(rt,"engine","v2");identity.setProperty(rt,"abiMajor",double(wire::abiMajor));identity.setProperty(rt,"schema",double(wire::schema));native.setProperty(rt,"identity",std::move(identity));
       native.setProperty(rt,"clock",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"clock"),0,[](jsi::Runtime&,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value{return now()*1000;}));
       native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[&](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
@@ -169,6 +174,7 @@ class AndroidHost:public std::enable_shared_from_this<AndroidHost> {
       rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(fileText(directory+"/application/app.hbc")),"application/app.js");rt.drainMicrotasks();
       while(!stopping){
         if(disposeRequested.exchange(false)){rt.global().getPropertyAsFunction(rt,"__v2Dispose").call(rt);rt.drainMicrotasks();}
+        while(services->deliver(rt))rt.drainMicrotasks();
         Job result{};bool has=false;{std::lock_guard lock(doneGate);if(!done.empty()){result=std::move(done.front());done.pop_front();has=true;}}
         if(has){auto array=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(result.bytes.size())).getObject(rt);auto bytes=array.getArrayBuffer(rt);std::memcpy(bytes.data(rt),result.bytes.data(),result.bytes.size());rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(result.id),std::move(array));rt.drainMicrotasks();}
         rt.global().getPropertyAsFunction(rt,"__v2Pump").call(rt);rt.drainMicrotasks();reportHeap();std::unique_lock lock(gate);appWake.wait_for(lock,std::chrono::milliseconds(2));
@@ -178,13 +184,14 @@ class AndroidHost:public std::enable_shared_from_this<AndroidHost> {
   static Handle fromKey(uint64_t key){return {uint32_t(key),uint32_t(key>>32)};}
   void rect(std::ostream& out,const Rect& r){out<<'['<<r.x<<','<<r.y<<','<<r.width<<','<<r.height<<']';}
  public:
-  AndroidHost(std::string directory,bool emulator):directory(std::move(directory)),emulator(emulator){}
+  AndroidHost(std::string directory,bool emulator,JNIEnv* env,jobject view):directory(std::move(directory)),emulator(emulator),clipboard(std::make_shared<na::AppServiceView>(env,view)){}
   void start(uint64_t id){hostId=id;log("V2_ANDROID_HOST {\"host\":"+std::to_string(hostId)+",\"sourceSha256\":\""+NELYX_ANDROID_SOURCE_SHA+"\",\"reactNative\":false,\"abi\":2,\"schema\":"+std::to_string(wire::schema)+",\"frameClock\":\"android-choreographer\"}");contentOwner=std::thread([this]{contentLoop();});renderOwner=std::thread([this]{renderLoop();});appOwner=std::thread([this]{appLoop();});}
   bool forceLoss(){if(!emulator||closing||failed||!appReady||!frames)return false;lossRequested=true;renderWake=true;wake.notify_all();return true;}
   void surface(std::shared_ptr<Window> value,uint64_t generation){if(closing)return;std::lock_guard lock(windowGate);if(generation<windowRevision)return;if(desired&&desired->generation<generation&&desired->generation!=activeSurface)retiredSurface=std::max(retiredSurface.load(),desired->generation);desired=std::move(value);windowRevision=generation;renderWake=true;wake.notify_all();}
   void frame(double seconds,bool shown){if(closing||stopping)return;visible=shown;frameTime=seconds;renderWake=true;wake.notify_all();}
   void pump(){
     if(stopping||uint64_t(gettid())!=uiThread)return;std::deque<Job> accepted;{std::lock_guard lock(jobsGate);accepted.swap(uiJobs);for(const auto& job:accepted)jobBytes-=job.bytes.size();}
+    services->pump([this](const std::string& method,const std::string& text){return clipboard->execute(method,text);});
     for(auto& job:accepted){const auto r=reader(job.bytes);if(r.u16(12)==wire::opcodes::edit&&r.length>=wire::headerBytes+64&&r.u32(wire::headerBytes+24)==wire::editKinds::update){std::fill_n(job.bytes.data()+wire::headerBytes+24,4,uint8_t(0xff));}auto result=core.dispatch(reader(job.bytes));reply(std::move(job),std::move(result));}if(!accepted.empty())notifyOwners();
   }
   void selectAt(double x,double y){
@@ -220,7 +227,7 @@ class AndroidHost:public std::enable_shared_from_this<AndroidHost> {
     // Android actions identify a virtual node, not an OS-supplied frame token.
     // Re-resolve that same generation only after a side-effect-free stale NACK.
     for(uint32_t attempt=0;attempt<4;++attempt){Writer b(32);writeHandle(b,0,fromKey(owner));b.u64(8,publication);b.u32(16,kind);b.f64(24,value);const auto result=call(wire::opcodes::semanticsAction,b.bytes);const auto status=reader(result).u16(14);if(status!=wire::statuses::stale){notifyOwners();return status==0;}
-      const auto current=core.interactionSnapshot(1,1);if(!current||!current->document->contains(fromKey(owner))||!current->frame.scene->document->contains(fromKey(owner))||!current->frame.allows(fromKey(owner)))return false;publication=current->frame.id;
+      const auto current=core.interactionSnapshot(1,1);if(!current||!current->document->contains(fromKey(owner))||!current->frame.scene->document->contains(fromKey(owner))||!current->frame.allowsSemantics(fromKey(owner)))return false;publication=current->frame.id;
     }return false;
   }
   bool key(uint32_t code,uint32_t modifiers,bool down,bool repeat){if(closing||stopping||!visible)return false;const auto state=core.interactionSnapshot(1,1);if(!state)return false;Writer b(24);b.u64(0,state->frame.id);b.u32(8,code);b.u32(12,modifiers);b.u32(16,down?1:0);b.u32(20,repeat?1:0);const auto result=call(wire::opcodes::key,b.bytes);notifyOwners();return reader(result).u16(14)==0;}
@@ -233,6 +240,10 @@ class AndroidHost:public std::enable_shared_from_this<AndroidHost> {
     const auto state=core.interactionSnapshot(1,1);
     if(!state){out<<",\"editor\":null,\"nodes\":[]} ";return out.str();}
     const auto& frame=state->frame;out<<",\"frame\":"<<frame.id<<",\"metrics\":"<<state->metrics.epoch;
+    out<<",\"route\":";
+    if(state->visible&&frame.scene->metrics.epoch==state->metrics.epoch&&frame.device==state->metrics.device){
+      out<<"{\"sequence\":"<<frame.route.sequence<<",\"scope\":"<<frame.route.scope.key()<<",\"label\":"<<jsonQuoted(frame.route.label?frame.route.label->label:"")<<'}';
+    }else out<<"null";
     out<<",\"editor\":";
     const auto editor=state->editors.find(state->focus.key());
     if(editor==state->editors.end()||!state->document->contains(state->focus))out<<"null";
@@ -240,10 +251,11 @@ class AndroidHost:public std::enable_shared_from_this<AndroidHost> {
       const auto item=std::find_if(frame.items.begin(),frame.items.end(),[&](const auto& item){return item.node==state->focus;});
       if(item!=frame.items.end()&&frame.scene->metrics.epoch==state->metrics.epoch){const auto& visual=frame.scene->document->get(state->focus);if(visual.textGeometry&&visual.textGeometry->revision==value.revision){const auto& c=visual.textGeometry->caret;rect(out,item->world.bounds({c.x,c.y,c.width,c.height}));out<<",\"baseline\":"<<item->world.map({visual.contentX,visual.baseline}).y;}else out<<"null";}else out<<"null";out<<'}';}
     out<<",\"nodes\":[";bool first=true;
-    std::set<uint64_t> exposed;for(const auto& item:frame.items){const auto& node=frame.scene->document->get(item.node);const auto bounds=intersect(item.bounds,item.clip);if(node.semantics&&!(node.semantics->flags&wire::semanticsFlags::hidden)&&frame.allows(node.id)&&bounds.width>0&&bounds.height>0)exposed.insert(node.id.key());}
-    for(const auto& item:frame.items){const auto& node=frame.scene->document->get(item.node);const auto semantics=node.semantics;if(!semantics||(semantics->flags&wire::semanticsFlags::hidden)||!frame.allows(node.id))continue;const auto bounds=intersect(item.bounds,item.clip);if(bounds.width<=0||bounds.height<=0)continue;
+    const auto focusPeer=frame.focusPeer(state->focus);
+    std::set<uint64_t> exposed;for(const auto& item:frame.items){const auto& node=frame.scene->document->get(item.node);const auto* semantics=frame.semantic(node.id);const auto bounds=intersect(item.bounds,item.clip);if(semantics&&!(semantics->flags&wire::semanticsFlags::hidden)&&frame.allowsSemantics(node.id)&&bounds.width>0&&bounds.height>0)exposed.insert(node.id.key());}
+    for(const auto& item:frame.items){const auto& node=frame.scene->document->get(item.node);const auto* semantics=frame.semantic(node.id);if(!semantics||(semantics->flags&wire::semanticsFlags::hidden)||!frame.allowsSemantics(node.id))continue;const auto bounds=intersect(item.bounds,item.clip);if(bounds.width<=0||bounds.height<=0)continue;
       auto parent=node.parent;for(uint32_t depth=0;parent&&!exposed.contains(parent.key())&&depth<wire::limits::depth;++depth)parent=frame.scene->document->get(parent).parent;
-      if(!first)out<<',';first=false;out<<"{\"owner\":"<<node.id.key()<<",\"parent\":"<<parent.key()<<",\"role\":"<<semantics->role<<",\"flags\":"<<((node.control.kind==wire::controlKinds::toggle||node.control.kind==wire::controlKinds::checkbox)?((semantics->flags&~wire::semanticsFlags::checked)|(frame.properties[node.id.slot].value>node.control.minimum?wire::semanticsFlags::checked:0)):semantics->flags)<<",\"actions\":"<<semantics->actions<<",\"focused\":"<<(state->focus==node.id?"true":"false")<<",\"label\":"<<jsonQuoted(semantics->label)<<",\"hint\":"<<jsonQuoted(semantics->hint)<<",\"value\":"<<jsonQuoted(semantics->value)<<",\"bounds\":";rect(out,bounds);
+      if(!first)out<<',';first=false;out<<"{\"owner\":"<<node.id.key()<<",\"parent\":"<<parent.key()<<",\"role\":"<<semantics->role<<",\"flags\":"<<((node.control.kind==wire::controlKinds::toggle||node.control.kind==wire::controlKinds::checkbox)?((semantics->flags&~wire::semanticsFlags::checked)|(frame.properties[node.id.slot].value>node.control.minimum?wire::semanticsFlags::checked:0)):semantics->flags)<<",\"actions\":"<<semantics->actions<<",\"focused\":"<<(focusPeer==node.id?"true":"false")<<",\"label\":"<<jsonQuoted(semantics->label)<<",\"hint\":"<<jsonQuoted(semantics->hint)<<",\"value\":"<<jsonQuoted(semantics->value)<<",\"bounds\":";rect(out,bounds);
       if(node.editing){out<<",\"password\":"<<((node.editFlags&wire::editFlags::password)?"true":"false")<<",\"text\":"<<jsonQuoted((node.editFlags&wire::editFlags::password)?"":utf8(node.editing->text))<<",\"anchor\":"<<((node.editFlags&wire::editFlags::password)?0:node.editing->base)<<",\"focus\":"<<((node.editFlags&wire::editFlags::password)?0:node.editing->extent)<<",\"revision\":"<<node.editing->revision;}
       if(semantics->range.enabled)out<<",\"range\":["<<semantics->range.minimum<<','<<semantics->range.maximum<<','<<semantics->range.value<<']';out<<'}';
     }out<<"]}";return out.str();
@@ -257,6 +269,7 @@ class AndroidHost:public std::enable_shared_from_this<AndroidHost> {
     const auto appDeadline=now()+.25;while(!appExited&&now()<appDeadline)std::this_thread::sleep_for(std::chrono::milliseconds(1));
     if(!appExited){std::lock_guard lock(runtimeGate);if(runtime)runtime->asyncTriggerTimeout();}
     if(appOwner.joinable())appOwner.join();if(contentOwner.joinable())contentOwner.join();if(renderOwner.joinable())renderOwner.join();
+    services->close();clipboard.reset();
     {std::lock_guard lock(sceneGate);candidate.reset();published.reset();preparedFont.reset();}{std::lock_guard lock(windowGate);desired.reset();}{std::lock_guard lock(jobsGate);jobs.clear();uiJobs.clear();jobBytes=0;}{std::lock_guard lock(doneGate);done.clear();}
     SkGraphics::PurgeAllCaches();const auto result=call(wire::opcodes::closeSession,{},true);const auto state=reader(result);const auto memory=core.memoryLedger()->snapshot();
     std::string reason;{std::lock_guard lock(errorGate);reason=error;}
@@ -273,7 +286,7 @@ static std::shared_ptr<AndroidHost> lookup(jlong id){std::lock_guard lock(regist
 static void javaFailure(JNIEnv* env,const std::exception& error){if(!env->ExceptionCheck())env->ThrowNew(env->FindClass("java/lang/IllegalStateException"),error.what());}
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm,void*){na::vm=vm;JNIEnv* env=nullptr;if(vm->GetEnv(reinterpret_cast<void**>(&env),JNI_VERSION_1_6)!=JNI_OK)return JNI_ERR;const auto local=env->FindClass("dev/nelyx/engine/HttpTransport");if(!local)return JNI_ERR;na::httpClass=static_cast<jclass>(env->NewGlobalRef(local));env->DeleteLocalRef(local);return JNI_VERSION_1_6;}
 extern "C" JNIEXPORT jstring JNICALL Java_dev_nelyx_engine_NativeHost_identity(JNIEnv* env,jclass){return env->NewStringUTF(NELYX_ANDROID_SOURCE_SHA);}
-extern "C" JNIEXPORT jlong JNICALL Java_dev_nelyx_engine_NativeHost_open(JNIEnv* env,jclass,jstring directory,jboolean emulator){try{auto host=std::make_shared<AndroidHost>(na::string(env,directory),emulator);jlong id;{std::lock_guard lock(registryGate);id=++nextHost;registry.emplace(id,host);}host->start(uint64_t(id));return id;}catch(const std::exception& e){javaFailure(env,e);return 0;}}
+extern "C" JNIEXPORT jlong JNICALL Java_dev_nelyx_engine_NativeHost_open(JNIEnv* env,jclass,jstring directory,jboolean emulator,jobject view){try{auto host=std::make_shared<AndroidHost>(na::string(env,directory),emulator,env,view);jlong id;{std::lock_guard lock(registryGate);id=++nextHost;registry.emplace(id,host);}host->start(uint64_t(id));return id;}catch(const std::exception& e){javaFailure(env,e);return 0;}}
 extern "C" JNIEXPORT jboolean JNICALL Java_dev_nelyx_engine_NativeHost_forceLoss(JNIEnv*,jclass,jlong id){if(const auto host=lookup(id))return host->forceLoss();return false;}
 extern "C" JNIEXPORT void JNICALL Java_dev_nelyx_engine_NativeHost_surface(JNIEnv* env,jclass,jlong id,jobject surface,jlong generation,jint width,jint height,jdouble scale){try{const auto host=lookup(id);if(!host)return;std::shared_ptr<Window> window;if(surface){if(width<=0||height<=0||!std::isfinite(scale)||scale<=0)throw std::runtime_error("Invalid Android surface metrics");window=std::make_shared<Window>();window->value=ANativeWindow_fromSurface(env,surface);if(!window->value)throw std::runtime_error("ANativeWindow acquisition failed");window->generation=uint64_t(generation);window->width=uint32_t(width);window->height=uint32_t(height);window->scale=scale;}host->surface(std::move(window),uint64_t(generation));}catch(const std::exception& e){javaFailure(env,e);}}
 extern "C" JNIEXPORT jstring JNICALL Java_dev_nelyx_engine_NativeHost_snapshot(JNIEnv* env,jclass,jlong id){try{const auto host=lookup(id);if(host)return na::string(env,host->snapshot());std::lock_guard lock(registryGate);const auto found=closedHosts.find(id);return na::string(env,found!=closedHosts.end()?found->second:"{\"closed\":true}");}catch(const std::exception& e){javaFailure(env,e);return nullptr;}}

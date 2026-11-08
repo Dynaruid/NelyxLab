@@ -6,6 +6,9 @@ import type { Constraints } from '../rendering/constraints.ts';
 import { BoxConstraints } from '../rendering/constraints.ts';
 import { RenderProxyBox } from '../rendering/boxes.ts';
 import { RenderBox } from '../rendering/object.ts';
+import { isNativeRenderObject } from '../rendering/object.ts';
+import { registerNativeBoxConfiguration } from '../rendering/native-box.ts';
+import { registerNativeLayoutCallback } from '../rendering/layout-callback.ts';
 import type { RenderObject, TextBaseline } from '../rendering/object.ts';
 import { RenderObjectWithLayoutCallbackMixin } from '../rendering/layout-callback.ts';
 import type {
@@ -37,9 +40,11 @@ type AbstractLayoutConstructor<
   Base extends RenderObjectConstructor<
     LayoutCallbackRenderObject & { readonly child: Child | undefined }
   >,
-> = abstract new (
-  ...args: ConstructorParameters<Base>
-) => InstanceType<Base> & AbstractLayoutBuilderRender<I, Child>;
+> = abstract new (...args: ConstructorParameters<Base>) => InstanceType<Base> &
+  AbstractLayoutBuilderRender<I, Child> & {
+    /** @internal The original callback receives an observed native input only. */
+    _rebuildNativeWithConstraints(constraints: Constraints): boolean;
+  };
 /** Curried class factory retains a concrete base constructor and child protocol. */
 export function RenderAbstractLayoutBuilderMixin<I, Child extends RenderObject>() {
   return <
@@ -51,6 +56,7 @@ export function RenderAbstractLayoutBuilderMixin<I, Child extends RenderObject>(
   ): AbstractLayoutConstructor<I, Child, Base> => {
     abstract class AbstractLayoutRender extends Base {
       private _callback: ((constraints: Constraints) => void) | null = null;
+      private _nativeLayoutInfo: I | undefined;
       _updateCallback(value: ((constraints: Constraints) => void) | null): void {
         if (value === this._callback) return;
         this._callback = value;
@@ -61,7 +67,17 @@ export function RenderAbstractLayoutBuilderMixin<I, Child extends RenderObject>(
         this._callback(this.constraints);
       }
       get layoutInfo(): I {
-        return this.constraints as unknown as I;
+        return this._nativeLayoutInfo ?? (this.constraints as unknown as I);
+      }
+      _rebuildNativeWithConstraints(constraints: Constraints): boolean {
+        if (!this._callback || this.debugDisposed) return false;
+        this._nativeLayoutInfo = constraints as unknown as I;
+        try {
+          this._runNativeLayoutCallback(() => this._callback!(constraints));
+          return true;
+        } finally {
+          this._nativeLayoutInfo = undefined;
+        }
       }
     }
     return AbstractLayoutRender as unknown as AbstractLayoutConstructor<I, Child, Base>;
@@ -240,6 +256,26 @@ class _RenderLayoutBuilder extends RenderAbstractLayoutBuilderMixin<
   BoxConstraints,
   RenderBox<RenderObject>
 >()(RenderObjectWithLayoutCallbackMixin(RenderProxyBox)) {
+  private nativeRevision = 1n;
+  private nativeBuilt: { readonly revision: bigint; readonly constraints: BoxConstraints } | null =
+    null;
+  constructor() {
+    super();
+    registerNativeLayoutCallback(this, () => {
+      ++this.nativeRevision;
+    });
+  }
+  private readonly rebuildNative = (revision: bigint, constraints: BoxConstraints): boolean => {
+    if (revision !== this.nativeRevision || !isNativeRenderObject(this) || this.debugDisposed)
+      return false;
+    if (!this._rebuildNativeWithConstraints(constraints) || this.debugDisposed) return false;
+    this.nativeBuilt = { revision, constraints };
+    return true;
+  };
+  /** @internal Configuration only; neither callback nor layout runs during compilation. */
+  nativeBuilderConfiguration() {
+    return { revision: this.nativeRevision, built: this.nativeBuilt, rebuild: this.rebuildNative };
+  }
   protected override computeMinIntrinsicWidth(_height: number): number {
     throw new Error(
       'LayoutBuilder cannot compute intrinsic dimensions without speculative tree mutation',
@@ -280,3 +316,23 @@ class _RenderLayoutBuilder extends RenderAbstractLayoutBuilderMixin<
   }
 }
 RenderBox._registerGeometryLayoutSemantics(_RenderLayoutBuilder.prototype);
+registerNativeBoxConfiguration(_RenderLayoutBuilder.prototype, (render, reject) => {
+  if (
+    [
+      'layoutCallback',
+      'runLayoutCallback',
+      'scheduleLayoutCallback',
+      '_updateCallback',
+      '_runNativeLayoutCallback',
+      '_rebuildNativeWithConstraints',
+      'layoutInfo',
+      'nativeBuilderConfiguration',
+    ].some((name) => Object.hasOwn(render, name))
+  )
+    return reject('instance-layout-builder-hook');
+  return {
+    kind: 'box',
+    layout: { childConstraints: 'inherit', expandEmpty: true },
+    layoutBuilder: render.nativeBuilderConfiguration(),
+  };
+});

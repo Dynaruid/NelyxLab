@@ -125,7 +125,7 @@ inline ParagraphOptions readParagraph(Reader data){
     require(familySize>0&&familySize<=wire::limits::fontFamilyBytes&&localeSize>0&&localeSize<=wire::limits::localeBytes&&families>0&&families<=wire::limits::paragraphRunFamilies&&features<=wire::limits::paragraphRunFeatures&&variations<=wire::limits::paragraphRunVariations&&shadows<=wire::limits::paragraphRunShadows,wire::statuses::budgetExceeded);
     run.fontSize=record.f64(32);run.height=record.f64(40);run.letterSpacing=record.f64(48);run.wordSpacing=record.f64(56);run.decorationThickness=record.f64(64);
     run.decoration=record.u32(72);run.decorationStyle=record.u32(76);run.decorationColor=record.u32(80);
-    require(run.start==end&&run.end>run.start&&run.end<=wire::limits::textBytes&&run.flags<=15&&run.fontWeight>=100&&run.fontWeight<=900&&
+    require(run.start==end&&run.end>run.start&&run.end<=wire::limits::textBytes&&run.flags<=(15|wire::paragraphRunFlags::ideographicBaseline)&&run.fontWeight>=100&&run.fontWeight<=900&&
       run.fontSize>=0&&run.fontSize<=512&&(run.height==-1||(run.height>=0&&run.height<=1e6))&&std::abs(run.letterSpacing)<=1e6&&std::abs(run.wordSpacing)<=1e6&&
       run.decorationThickness>=0&&run.decorationThickness<=1e6&&run.decoration<=7&&run.decorationStyle<=4&&record.u32(100)==0&&record.u64(104)==0&&
       ((run.flags&1)||run.backgroundColor==0)&&((run.flags&8)||run.decorationColor==0),wire::statuses::invalidValue);

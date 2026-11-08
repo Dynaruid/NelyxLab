@@ -15,6 +15,10 @@
     "./provider": {
       "types": "./dist/provider.d.ts",
       "default": "./dist/provider.js"
+    },
+    "./typescript-compiler": {
+      "types": "./src/typescript-compiler.d.cts",
+      "default": "./src/typescript-compiler.cjs"
     }
   },
   "scripts": {

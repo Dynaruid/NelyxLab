@@ -2,9 +2,11 @@ import ts from 'typescript';
 import fs from 'node:fs';
 import path from 'node:path';
 import { shaderAssetImports } from './shader-assets.mjs';
-import { runTypeScriptCompiler } from '../sdk/tooling/metro/src/typescript-compiler.cjs';
+import { runTypeScriptCompiler } from '../sdk/tooling/contracts/src/typescript-compiler.cjs';
+import { prepareEngineHelpers } from './prepare-engine-helpers.mjs';
 const root = path.resolve(import.meta.dirname, '../..');
 const name = process.argv[2] ?? 'core';
+if (name === 'sdk') prepareEngineHelpers();
 // Package ownership comes from workspace manifests, not a fixed core/SDK list.
 const workspace = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const directories = Object.fromEntries(
@@ -194,6 +196,9 @@ try {
       // Explicit declaration extensions also resolve in NodeNext ESM mode.
       // Never fall back to the previously published Core during this build.
       paths: {
+        '@nelyx/core/internal/framework/rendering/native-snapshot': [
+          path.join(staged, 'framework/rendering/native-snapshot.d.ts'),
+        ],
         '@nelyx/core/internal/framework/widgets/text-input': [
           path.join(staged, 'framework/widgets/text-input.d.ts'),
         ],

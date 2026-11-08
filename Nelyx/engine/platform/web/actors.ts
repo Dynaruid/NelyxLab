@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
+import { body, protocol as p, measurementBody } from '../../../runtime/engine-client/codec.ts';
+import type { EngineResponse } from '../../../runtime/engine-client/codec.ts';
 import {
-  body,
-  protocol as p,
-  measurementBody,
   fontResourceReadBytes,
   readFontResourceSlice,
+} from '../../../runtime/engine-client/font-resource.ts';
+import {
   imageResourceReadBytes,
   readImageResourceSlice,
-} from '../../../runtime/engine-client/index.ts';
-import type { EngineResponse } from '../../../runtime/engine-client/index.ts';
+} from '../../../runtime/engine-client/image-resource.ts';
 import { CanvasKitProvider } from '../../render/canvaskit-web/provider.ts';
 import type { PreparedPictures } from '../../render/canvaskit-web/provider.ts';
 import { exchange, request, failure } from './common.ts';
@@ -209,7 +209,7 @@ export class ContentActor {
           },
         });
       } else if (
-        (!state.preparationReady && state.preparation) ||
+        (!state.preparationReady && state.preparation && !state.layoutBuildPending) ||
         state.layoutQuery?.status === p.statuses.pending
       )
         this.kick();
@@ -296,6 +296,27 @@ export class RenderActor {
     private post: ActorPost,
   ) {
     this.fontPreparation = new FontPreparation(module, engine, provider, 'render', post);
+    provider.bindSnapshots((frame, phase, node, token) => {
+      const result = request(
+        module,
+        engine,
+        p.opcodes.snapshotPaint,
+        body(32, (v) => {
+          v.setBigUint64(0, frame, true);
+          v.setUint32(8, node?.slot ?? 0, true);
+          v.setUint32(12, node?.generation ?? 0, true);
+          v.setBigUint64(16, token ?? 0n, true);
+          v.setUint32(24, phase, true);
+          v.setUint32(28, phase === 1 ? 1 : 0, true);
+        }),
+      );
+      if (
+        result.status !== p.statuses.ok ||
+        ((phase === 0 || phase === 1) && !result.snapshotDecision)
+      )
+        throw Error('Snapshot Core request failed: ' + result.status);
+      return result.snapshotDecision;
+    });
     this.clock = new DemandFrameClock(
       (sample) => this.beginFrame(sample),
       (error) => this.post({ kind: 'provider-error', message: failure(error) }),

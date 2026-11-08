@@ -48,6 +48,10 @@ export function isEngineV2DataApi(name) {
 export function engineV2ImportRoute(name) {
   return /^@nelyx\/(core|material|cupertino)\/v2$/.test(name) ||
     name === '@nelyx/core/v2/original' ||
+    name === '@nelyx/core/engine' ||
+    name === '@nelyx/core/internal/runtime/app' ||
+    name === '@nelyx/sdk/app' ||
+    name === '@nelyx/sdk/engine' ||
     name === '@nelyx/sdk/engine-v2-original' ||
     name === '@nelyx/sdk/engine-v2' ||
     isEngineV2DataApi(name)
@@ -56,7 +60,7 @@ export function engineV2ImportRoute(name) {
 }
 /** Candidate App imports require the explicit original-elements SDK entry in the bundle. */
 export function engineV2OriginalAppRoute(name) {
-  return /^@nelyx\/(?:core\/(framework\/(widgets|rendering|painting|animation|gestures|scheduler|semantics)\/[^/]+|ui\/[^/]+|services\/(mouse-cursor|keyboard-key|font-loader|input-formatters)|hosting\/(resources|interaction))|(?:material|cupertino)\/[^/]+)$/.test(
+  return /^@nelyx\/(?:core\/(framework\/(widgets|rendering|painting|animation|gestures|scheduler|semantics)\/[^/]+|ui\/[^/]+|services\/(mouse-cursor|keyboard-key|hardware-keyboard|font-loader|input-formatters|clipboard|binary-messenger|channel-binding|message-codec|message-codecs)|hosting\/(resources|interaction))|(?:material|cupertino)\/[^/]+)$/.test(
     name,
   )
     ? name

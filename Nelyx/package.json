@@ -12,10 +12,18 @@
     "LICENSE.md",
     "licenses",
     "upstream/framework-imports.json",
-    "upstream/flutter-coverage.json"
+    "upstream/flutter-coverage.json",
+    "runtime/app"
   ],
   "exports": {
-    "./internal/framework/widgets/text-input": {"types":"./dist/framework/widgets/text-input.d.ts","default":"./dist/framework/widgets/text-input.js"},
+    "./engine": {
+      "types": "./dist/v2/engine-client/engine.d.ts",
+      "default": "./dist/v2/engine-client/engine.js"
+    },
+    "./internal/framework/widgets/text-input": {
+      "types": "./dist/framework/widgets/text-input.d.ts",
+      "default": "./dist/framework/widgets/text-input.js"
+    },
     "./internal/framework/widgets/native-radio-semantics": {
       "types": "./dist/framework/widgets/native-radio-semantics.d.ts",
       "default": "./dist/framework/widgets/native-radio-semantics.js"
@@ -2167,6 +2175,14 @@
     "./internal/ui/frame-resource-list-binding": {
       "types": "./dist/ui/frame-resource-list-binding.d.ts",
       "default": "./dist/ui/frame-resource-list-binding.js"
+    },
+    "./internal/runtime/app": {
+      "types": "./dist/v2/app/host.d.ts",
+      "default": "./dist/v2/app/host.js"
+    },
+    "./internal/framework/rendering/native-snapshot": {
+      "types": "./dist/framework/rendering/native-snapshot.d.ts",
+      "default": "./dist/framework/rendering/native-snapshot.js"
     }
   },
   "scripts": {

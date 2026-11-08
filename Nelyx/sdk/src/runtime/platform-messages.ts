@@ -74,7 +74,11 @@ export class PlatformMessageConnection implements Disposable {
   });
   constructor(
     private readonly port: PlatformMessagePort,
-    private readonly options: { readonly useAsDefault?: boolean } = {},
+    private readonly options: {
+      readonly useAsDefault?: boolean;
+      /** A bounded host can reject an unimplemented channel before native admission. */
+      readonly checkChannel?: (channel: string) => void;
+    } = {},
   ) {
     this.channelBuffers = new ChannelBuffers({
       sendChannelUpdate: (name, listening) => {
@@ -153,6 +157,7 @@ export class PlatformMessageConnection implements Disposable {
   private send(name: string, data: DataView | null, reply: PlatformMessageResponseCallback): void {
     if (this.state !== 'open' && !(this.state === 'closing' && this.notifyingClosing))
       throw new NelyxError('closed-platform-messages', 'Platform message owner is closing');
+    this.options.checkChannel?.(name);
     let finished = false;
     const captured = snapshot(data),
       record: Request = {

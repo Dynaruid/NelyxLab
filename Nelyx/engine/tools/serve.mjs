@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { engineRoot } from './build.mjs';
+import { engineRoot, sourceIdentity } from './build.mjs';
+import { prepareRepositoryAppPackages } from '../../eng/prepare-app-packages.mjs';
 
 export function createHostServer(directory = path.join(engineRoot, 'dist')) {
   const root = fs.realpathSync(directory);
@@ -50,7 +51,18 @@ export function createHostServer(directory = path.join(engineRoot, 'dist')) {
   });
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const server = createHostServer();
+  const supply = path.join(engineRoot, 'dist');
+  if (
+    JSON.parse(fs.readFileSync(path.join(supply, 'engine-manifest.json'))).sourceSha256 !==
+    sourceIdentity()
+  )
+    throw Error('Engine v2 supply is stale; run npm.cmd run build:engine-v2');
+  prepareRepositoryAppPackages();
+  const { buildEngineV2Application, createEngineV2Server, verifyEngineV2Application } =
+    await import('../../sdk/tooling/cli/src/engine-v2-runner.mjs');
+  const app = path.resolve(engineRoot, '../../sample/nelyx-testbed-app-2/engine-v2');
+  const built = await buildEngineV2Application({ app, target: 'web' });
+  const server = createEngineV2Server(verifyEngineV2Application(built.directory, 'web'));
   const port = Number(process.env.PORT ?? 8192);
   server.listen(port, '127.0.0.1', () =>
     console.log(

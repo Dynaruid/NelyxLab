@@ -126,10 +126,6 @@ export async function buildAndroidSupply({ sdk, abis = androidPins.abis, skiaPac
     throw Error('Android ABI must select arm64-v8a and/or x86_64');
   const sdkRoot = androidSdk(sdk),
     cache = path.join(repository, '.nelyx/android-v2');
-  for (const target of ['core', 'cupertino', 'material', 'sdk'])
-    console.log(
-      run(process.execPath, [path.join(repository, 'Nelyx/eng/build-packages.mjs'), target]),
-    );
   run(process.execPath, [path.join(engineRoot, 'tools/generate-schema.mjs'), '--check']);
   fs.mkdirSync(cache, { recursive: true });
   const hermes = await archiveSupplier(
@@ -263,11 +259,11 @@ export async function buildAndroidSupply({ sdk, abis = androidPins.abis, skiaPac
       console.log('Engine v2 Android compiled: ' + abi);
     }
     copy(
-      path.join(repository, 'sample/nelyx-testbed-app-2/assets/NotoSansKR.ttf'),
+      path.join(repository, 'Nelyx/sdk/tooling/cli/templates/nelyx-app/assets/NotoSansKR.ttf'),
       'assets/font.ttf',
     );
     copy(
-      path.join(repository, 'sample/nelyx-testbed-app-2/assets/NotoSansKR-OFL.txt'),
+      path.join(repository, 'Nelyx/sdk/tooling/cli/templates/nelyx-app/assets/NotoSansKR-OFL.txt'),
       'assets/OFL.txt',
     );
     for (const name of [
@@ -294,7 +290,7 @@ export async function buildAndroidSupply({ sdk, abis = androidPins.abis, skiaPac
       ),
       'project/gradle/wrapper/gradle-wrapper.jar',
     );
-    const input = path.join(repository, 'Nelyx/sdk/native/android/shared');
+    const input = path.join(repository, 'Nelyx/engine/platform/android/shared');
     for (const name of files(input))
       copy(path.join(input, name), 'project/app/src/main/java/' + name);
     copy(path.join(repository, 'Nelyx/LICENSE.md'), 'LICENSE.md');
@@ -330,6 +326,21 @@ export async function buildAndroidSupply({ sdk, abis = androidPins.abis, skiaPac
         files: supplierFiles,
       },
       appText: { version: 12, quotaBytes: 320 * 1024 * 1024 },
+      appServices: {
+        version: 2,
+        methods: [
+          'clipboard-read',
+          'clipboard-write',
+          'clipboard-has-strings',
+          'semantics-tap',
+          'semantics-longPress',
+          'semantics-focus',
+          'system-sound',
+          'haptic-feedback',
+        ],
+        maximumTextUnits: 65536,
+        maximumPending: 32,
+      },
       files: files(supply)
         .sort()
         .map((name) => ({ path: name, sha256: sha256(path.join(supply, name)) })),

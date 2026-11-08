@@ -17,6 +17,32 @@ uint32_t childLimit(const Node& node) {
 }
 void validate(Document& d) {
   for(const auto& slot:d.nodes)if(slot.value){const auto& n=*slot.value;
+    if(n.layout.positionedFlags)require(n.parent&&n.properties.x==0&&n.properties.y==0&&
+      (d.get(n.parent).layout.constraintFlags&wire::layoutConstraintFlags::canonicalStack),wire::statuses::invalidGraph);
+    if(n.kind==wire::kinds::box&&(n.layout.constraintFlags&wire::layoutConstraintFlags::expandEmpty))
+      require(bool(n.layoutBuilder)||(n.policy&wire::eventPolicies::mouseRegion),wire::statuses::invalidGraph);
+    if(n.layoutBuilder)require(n.layout.enabled&&!n.snapshot&&!n.paintOwner&&
+      ((n.kind==wire::kinds::box&&n.layout.constraintFlags==(wire::layoutChildConstraints::inherit|wire::layoutConstraintFlags::expandEmpty))||
+       (n.kind==wire::kinds::sliver&&n.list.generation&&n.parent&&d.get(n.parent).kind==wire::kinds::scrollViewport&&
+        (n.list.fixed||n.list.count<=wire::limits::sourceListMetrics)&&
+        !(d.get(n.parent).properties.flags&1u)&&n.layout.direction==1&&n.layout.constraintFlags==0&&
+        n.layout.gap==0&&n.layout.runGap==0&&n.layout.flex==0&&n.layout.mainSize==0&&n.layout.mainAlign==0&&n.layout.crossAlign==0&&n.properties.x==0&&n.properties.y==0))&&
+      n.horizontal.tag==wire::bounds::unbounded&&n.horizontal.min==0&&n.vertical.tag==wire::bounds::unbounded&&n.vertical.min==0&&
+      n.properties.width==0&&n.properties.height==0&&
+      n.layout.left==0&&n.layout.top==0&&n.layout.right==0&&n.layout.bottom==0,
+      wire::statuses::invalidGraph);
+    if(n.snapshot)require(n.kind==wire::kinds::box&&n.layout.enabled&&
+      n.layout.constraintFlags==wire::layoutChildConstraints::inherit&&!n.paintOwner,wire::statuses::invalidGraph);
+    const auto& tap=n.tapRegion;
+    if(tap.flags||tap.revision){
+      require(n.kind==wire::kinds::box&&n.layout.enabled&&(n.policy&wire::eventPolicies::canonicalHitTest)&&!n.paintOwner,wire::statuses::invalidGraph);
+      if(tap.flags==wire::tapRegionFlags::surface)
+        require(!tap.surface&&!tap.group&&!tap.revision,wire::statuses::invalidValue);
+      else {
+        require(!(tap.flags&~126u)&&tap.revision&&tap.surface&&tap.group<=wire::limits::nodes,wire::statuses::invalidValue);
+        require(d.get(tap.surface).tapRegion.flags==wire::tapRegionFlags::surface&&d.descends(n.parent,tap.surface),wire::statuses::invalidGraph);
+      }
+    }
     if(n.imageStyle){require(n.kind==wire::kinds::image&&n.layout.enabled&&bool(n.resource)==bool(n.imageStyle->width),wire::statuses::invalidGraph);
       if(n.resource)if(const auto raw=readRasterImage({n.resource->bytes.data(),n.resource->bytes.size()}))
         require(raw->width==n.imageStyle->width&&raw->height==n.imageStyle->height,wire::statuses::invalidValue);
@@ -213,10 +239,12 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
         node->fontPinned=true;node->fontRevision=data.u64(8);
       }
     } else if (op == wire::commands::eventPolicy) {
-      require(data.length == 8 && data.u32(4) == 0 && (data.u32(0) & ~262143u) == 0);
+      require(data.length == 8 && data.u32(4) == 0 && (data.u32(0) & ~16777215u) == 0);
       const auto policy=data.u32(0),hit=policy&112u;
       require((!hit||(policy&wire::eventPolicies::canonicalHitTest))&&(!hit||(hit&(hit-1))==0),wire::statuses::invalidValue);
       require(!(policy&(wire::eventPolicies::focusEnabled|wire::eventPolicies::skipTraversal))||(policy&wire::eventPolicies::focusOwner),wire::statuses::invalidValue);
+      require(!(policy&wire::eventPolicies::exclusiveMouseRegion)||
+        ((policy&wire::eventPolicies::mouseRegion)&&(policy&wire::eventPolicies::canonicalHitTest)),wire::statuses::invalidValue);
       edit(h, false)->policy = data.u32(0);
     } else if (op == wire::commands::motion) {
       require(data.length == 32);
@@ -314,6 +342,19 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       if(link.role==1)require(!link.showWhenUnlinked&&!link.leader&&!link.offset.x&&!link.offset.y&&
         !link.leaderAnchor.x&&!link.leaderAnchor.y&&!link.followerAnchor.x&&!link.followerAnchor.y,wire::statuses::invalidValue);
       edit(h,false)->layerLink=link;
+    } else if(op==wire::commands::tapRegion){
+      const auto& before=d->get(h).tapRegion;
+      TapRegionStyle style;
+      if(data.length){
+        require(data.length==wire::tapRegionBytes);
+        style={data.u32(0),data.u32(4),handle(data,8),data.u64(16)};
+        require(bool(style.surface.slot)==bool(style.surface.generation),wire::statuses::invalidHandle);
+        require(style.flags||style.revision,wire::statuses::invalidValue);
+        if(before.revision&&style.revision)require(style.revision>=before.revision,wire::statuses::stale);
+      }
+      const bool layout=before.surface!=style.surface||before.revision!=style.revision||
+        ((before.flags^style.flags)&(wire::tapRegionFlags::surface|wire::tapRegionFlags::enabled|wire::tapRegionFlags::consumeOutside));
+      edit(h,layout)->tapRegion=style;
     } else if(op==wire::commands::imageStyle){
       const auto& previous=d->get(h);require(previous.kind==wire::kinds::image,wire::statuses::invalidValue);
       auto style=readImageStyle(data);
@@ -345,7 +386,7 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       const auto role=data.u32(0),semanticFlags=data.u32(4),actions=data.u32(8),rangeFlags=data.u32(24);
       const std::array<uint32_t,5> lengths{data.u32(12),data.u32(16),data.u32(20),data.u32(72),data.u32(76)};
       size_t total=0;for(const auto textLength:lengths){require(textLength<=wire::limits::semanticsTextBytes,wire::statuses::invalidValue);total+=textLength;}
-      require(role<=wire::semanticsRoles::switchControl&&(semanticFlags&~127u)==0&&(actions&~255u)==0&&
+      require(role<=wire::semanticsRoles::switchControl&&(semanticFlags&~895u)==0&&(actions&~255u)==0&&
         rangeFlags<=3&&rangeFlags!=2&&wire::semanticsBytes+(total+7)/8*8==data.length,wire::statuses::invalidValue);
       require(!(semanticFlags&wire::semanticsFlags::mixed)||(role==wire::semanticsRoles::checkbox&&!(semanticFlags&wire::semanticsFlags::checked)),wire::statuses::invalidValue);
       require(!(actions&wire::semanticsActions::deselect)||(role==wire::semanticsRoles::radio&&
@@ -368,28 +409,46 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
         data.u32(20), data.u32(24), data.u32(28), data.f64(32), data.f64(40), data.f64(48),
         data.f64(56), data.f64(64), data.f64(72), data.f64(80),
         data.f64(88), data.f64(96), data.f64(104), data.f64(112),data.f64(120)};
-      require(s.enabled <= 1 && s.direction <= 1 && s.mainSize <= 1 && s.mainAlign <= 5 &&
-        s.crossAlign <= 4 && s.fit <= 1 && s.columns > 0 && s.columns <= 256 && s.constraintFlags <= 65535 &&
-        (s.constraintFlags & wire::layoutConstraintFlags::childMask) <= 2 &&
-        s.flex >= 0 && s.flex <= 1e6 && s.gap >= 0 && s.runGap >= 0 &&
-        s.left >= 0 && s.top >= 0 && s.right >= 0 && s.bottom >= 0 &&
-        (s.widthFactor == -1 || s.widthFactor >= 0) && (s.heightFactor == -1 || s.heightFactor >= 0), wire::statuses::invalidValue);
+      s.runAlign=data.u32(wire::layoutFields::runAlign);s.textBaseline=data.u32(wire::layoutFields::textBaseline);
+      s.positionedFlags=data.u32(wire::layoutFields::positionedFlags);s.overflowClipBehavior=data.u32(wire::layoutFields::overflowClipBehavior);
+      for(size_t index=0;index<s.positioned.size();++index){s.positioned[index]=data.f64(wire::layoutFields::positioned+index*8);
+        require((s.positionedFlags&(1u<<index))||s.positioned[index]==0,wire::statuses::invalidValue);}
       const auto kind=d->get(h).kind;
+      require(s.enabled <= 1 && s.direction <= 1 && s.mainSize <= 1 && s.mainAlign <= 5 &&
+        s.crossAlign <= 4 && s.fit <= 1 && s.columns > 0 && s.columns <= 256 && s.constraintFlags <= 262143 &&
+        (s.constraintFlags & wire::layoutConstraintFlags::childMask) <= 2 &&
+        s.flex >= 0 && s.flex <= 1e6 && ((s.gap >= 0 && s.runGap >= 0)||kind==wire::kinds::wrap) &&
+        s.left >= 0 && s.top >= 0 && s.right >= 0 && s.bottom >= 0 &&
+        (s.widthFactor == -1 || s.widthFactor >= 0) && (s.heightFactor == -1 || s.heightFactor >= 0)&&
+        s.runAlign<=5&&s.textBaseline<=2&&s.positionedFlags<=63&&s.overflowClipBehavior<=3&&
+        (!(s.positionedFlags&16u)||s.positioned[4]>=0)&&(!(s.positionedFlags&32u)||s.positioned[5]>=0)&&
+        (s.positionedFlags&21u)!=21u&&(s.positionedFlags&42u)!=42u, wire::statuses::invalidValue);
       const auto layoutFlags=s.constraintFlags;
+      require(!s.textBaseline||(kind==wire::kinds::flex&&s.direction==0&&s.crossAlign==wire::layoutCrossAlign::baseline),wire::statuses::capabilityMissing);
+      require(!s.runAlign||kind==wire::kinds::wrap,wire::statuses::capabilityMissing);
+      require(!s.overflowClipBehavior||(layoutFlags&wire::layoutConstraintFlags::clipOverflow),wire::statuses::invalidValue);
+      require(!(layoutFlags&wire::layoutConstraintFlags::canonicalStack)||
+        (kind==wire::kinds::stack&&(layoutFlags&wire::layoutConstraintFlags::alignment)&&s.left==0&&s.top==0&&s.right==0&&s.bottom==0&&
+          !s.mainAlign&&!s.crossAlign&&!s.mainSize&&!s.gap&&!s.runGap),wire::statuses::capabilityMissing);
+      require(!(layoutFlags&wire::layoutConstraintFlags::offstage)||
+        (kind==wire::kinds::box&&layoutFlags==(wire::layoutConstraintFlags::offstage|wire::layoutChildConstraints::inherit)&&
+          s.left==0&&s.top==0&&s.right==0&&s.bottom==0&&s.mainSize==0&&s.mainAlign==0&&s.crossAlign==0&&s.gap==0&&s.runGap==0),wire::statuses::capabilityMissing);
       const bool proxy=kind==wire::kinds::box||kind==wire::kinds::stack||kind==wire::kinds::clip||kind==wire::kinds::transform;
       require(!layoutFlags||s.enabled,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::childMask)||proxy,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::enforceBounds)||proxy||kind==wire::kinds::image,wire::statuses::capabilityMissing);
-      require(!(layoutFlags&(wire::layoutConstraintFlags::reverseMain|wire::layoutConstraintFlags::reverseCross|
-        wire::layoutConstraintFlags::shrinkUnboundedMain))||kind==wire::kinds::flex,wire::statuses::capabilityMissing);
+      require(!(layoutFlags&(wire::layoutConstraintFlags::reverseMain|wire::layoutConstraintFlags::reverseCross))||kind==wire::kinds::flex||kind==wire::kinds::wrap,wire::statuses::capabilityMissing);
+      require(!(layoutFlags&wire::layoutConstraintFlags::shrinkUnboundedMain)||kind==wire::kinds::flex,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::alignment)||proxy,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::alignmentSizing)||
         (kind==wire::kinds::box&&(layoutFlags&wire::layoutConstraintFlags::alignment)&&!(layoutFlags&7u)&&
           s.left==0&&s.top==0&&s.right==0&&s.bottom==0),wire::statuses::capabilityMissing);
       require((layoutFlags&wire::layoutConstraintFlags::alignment)||(s.alignmentX==0&&s.alignmentY==0),wire::statuses::invalidValue);
       require((layoutFlags&wire::layoutConstraintFlags::alignmentSizing)||(s.widthFactor==-1&&s.heightFactor==-1),wire::statuses::invalidValue);
-      require(!(layoutFlags&wire::layoutConstraintFlags::expandEmpty)||kind==wire::kinds::stack,wire::statuses::capabilityMissing);
-      require(!(layoutFlags&wire::layoutConstraintFlags::clipOverflow)||kind==wire::kinds::stack||kind==wire::kinds::flex||kind==wire::kinds::paragraph||kind==wire::kinds::editable,wire::statuses::capabilityMissing);
+      require(!(layoutFlags&wire::layoutConstraintFlags::expandEmpty)||kind==wire::kinds::stack||
+        (kind==wire::kinds::box&&layoutFlags==(wire::layoutChildConstraints::inherit|wire::layoutConstraintFlags::expandEmpty)),
+        wire::statuses::capabilityMissing);
+      require(!(layoutFlags&wire::layoutConstraintFlags::clipOverflow)||kind==wire::kinds::stack||kind==wire::kinds::flex||kind==wire::kinds::wrap||kind==wire::kinds::paragraph||kind==wire::kinds::editable,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::paintChild)||kind==wire::kinds::paragraph,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::paragraphSizing)||kind==wire::kinds::paragraph||kind==wire::kinds::editable,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::preferredSize)||(kind==wire::kinds::box&&s.enabled),wire::statuses::capabilityMissing);
@@ -402,6 +461,22 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
         (kind==wire::kinds::box&&layoutFlags==(wire::layoutConstraintFlags::inputPadding|wire::layoutConstraintFlags::enforceBounds|wire::layoutConstraintFlags::alignment)&&
           s.left==0&&s.top==0&&s.right==0&&s.bottom==0&&s.mainSize==0&&s.mainAlign==0&&s.crossAlign==0&&s.alignmentX==0&&s.alignmentY==0),wire::statuses::capabilityMissing);
       edit(h)->layout = s;
+    } else if (op == wire::commands::layoutBuilder) {
+      if(data.length==0){if(d->get(h).layoutBuilder)edit(h)->layoutBuilder.reset();continue;}
+      require(data.length==wire::layoutBuilderBytes,wire::statuses::invalidValue);
+      LayoutBuilderStyle value{data.u64(0),data.u64(8),axis(data.slice(16,24)),axis(data.slice(40,24))};
+      require(value.revision&&value.builtRevision<=value.revision&&value.horizontal.tag!=wire::bounds::expand&&
+        value.vertical.tag!=wire::bounds::expand,wire::statuses::invalidValue);
+      if(!value.builtRevision)for(size_t at=16;at<data.length;++at)require(data.data[at]==0,wire::statuses::invalidValue);
+      const auto& prior=d->get(h).layoutBuilder;
+      require(!prior||value.revision>=prior->revision,wire::statuses::stale);
+      edit(h)->layoutBuilder=value;
+    } else if (op == wire::commands::snapshot) {
+      const auto value=readSnapshotStyle(data);
+      const auto& node=d->get(h);
+      require(!value||(node.kind==wire::kinds::box&&node.layout.enabled&&
+        node.layout.constraintFlags==wire::layoutChildConstraints::inherit),wire::statuses::capabilityMissing);
+      edit(h,false)->snapshot=value;
     } else if (op == wire::commands::coverage) {
       require(data.length == 32 && data.u32(24) <= 1 && data.u32(28) == 0);
       Coverage coverage{data.u64(0),data.f64(8),data.f64(16),bool(data.u32(24))};
@@ -413,17 +488,17 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
           coverage.maximum == previous.coverage.maximum && coverage.enabled == previous.coverage.enabled), wire::statuses::stale);
       edit(h,false)->coverage = coverage;
     } else if (op == wire::commands::list) {
-      require(data.length==32&&data.u32(20)==0);
-      ListStyle value{data.u64(0),data.u32(8),data.u32(12),data.u32(16),data.f64(24)};
+      require(data.length==32&&data.u32(20)<=1);
+      ListStyle value{data.u64(0),data.u32(8),data.u32(12),data.u32(16),data.f64(24),data.u32(20)!=0};
       const auto& prior=d->get(h);
-      if(!value.generation){require(!value.count&&!value.begin&&!value.end&&value.estimate==0);edit(h)->list={};continue;}
+      if(!value.generation){require(!value.count&&!value.begin&&!value.end&&value.estimate==0&&!value.fixed);edit(h)->list={};continue;}
       require(prior.kind==wire::kinds::sliver&&value.generation>0&&
         value.generation>=prior.list.generation&&value.count<=1000000&&
         value.begin<=value.end&&value.end<=value.count&&
         value.end-value.begin<=wire::limits::listChildren&&value.estimate>0&&
         value.estimate*value.count<=1e12,wire::statuses::invalidValue);
       if(prior.list.generation==value.generation&&prior.list.generation)
-        require(prior.list.count==value.count&&prior.list.estimate==value.estimate,wire::statuses::stale);
+        require(prior.list.count==value.count&&prior.list.estimate==value.estimate&&prior.list.fixed==value.fixed,wire::statuses::stale);
       edit(h)->list=value;
     } else if (op == wire::commands::listItem) {
       require(data.length==16&&data.u32(4)==0&&(data.u64(8)>0||data.u32(0)==0));

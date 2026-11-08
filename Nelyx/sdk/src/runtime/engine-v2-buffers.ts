@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { EngineError, protocol as p } from '@nelyx/core/v2';
-import type { AppTextBackend } from '@nelyx/core/v2';
+import { EngineError, protocol as p } from '@nelyx/core/engine';
+import type { AppTextBackend } from '@nelyx/core/engine';
 import type {
   ImmutableBufferLoader,
   ImmutableBufferValue,

@@ -2,7 +2,7 @@
 #pragma once
 #include "../../core/scene/paragraph.hpp"
 #include "../../core/scene/font_catalog.hpp"
-#include "../../../skia/native/rendering/font_services.h"
+#include "../../render/skia/font_services.h"
 #include "include/core/SkData.h"
 #include "include/core/SkFontArguments.h"
 #include "include/core/SkFontMgr.h"
@@ -91,6 +91,7 @@ class ParagraphProvider {
       for(const auto& shadow:run.shadows)current.addShadow(TextShadow(shadow.color,SkPoint::Make(float(shadow.x),float(shadow.y)),shadow.sigma));
       current.setFontStyle(SkFontStyle(int(run.fontWeight),SkFontStyle::kNormal_Width,(run.flags&2)?SkFontStyle::kItalic_Slant:SkFontStyle::kUpright_Slant));
       current.setLetterSpacing(float(run.letterSpacing));current.setWordSpacing(float(run.wordSpacing));current.setHalfLeading((run.flags&4)!=0);
+      current.setTextBaseline((run.flags&wire::paragraphRunFlags::ideographicBaseline)?TextBaseline::kIdeographic:TextBaseline::kAlphabetic);
       if(run.height>=0){current.setHeightOverride(true);current.setHeight(float(run.height));}
       if(run.flags&1){SkPaint paint;paint.setColor(run.backgroundColor);paint.setAntiAlias(true);current.setBackgroundPaint(paint);}
       current.setDecoration(static_cast<TextDecoration>(run.decoration));current.setDecorationStyle(static_cast<TextDecorationStyle>(run.decorationStyle));
@@ -110,11 +111,11 @@ class ParagraphProvider {
     SkGraphics::SetResourceCacheTotalByteLimit(4*1024*1024);SkGraphics::SetFontCacheLimit(4*1024*1024);
     nelyx::font_services::initialize(icu);
     manager=nelyx::font_services::manager();
-    auto face=manager->makeFromData(SkData::MakeFromFileName(font.c_str()));
-    if(!face)throw std::runtime_error("Native font decode failed");
+    auto defaultFace=manager->makeFromData(SkData::MakeFromFileName(font.c_str()));
+    if(!defaultFace)throw std::runtime_error("Native font decode failed");
     auto provider=sk_make_sp<skia::textlayout::TypefaceFontProvider>();
-    provider->registerTypeface(face,SkString("NelyxDefault"));
-    faces.emplace_back("NelyxDefault",face);
+    provider->registerTypeface(defaultFace,SkString("NelyxDefault"));
+    faces.emplace_back("NelyxDefault",defaultFace);
     for(const auto& fallback:{std::pair{"NotoNaskhArabic-Regular.ttf","NelyxArabic"},
         std::pair{"NotoSansHebrew.ttf","NelyxHebrew"},std::pair{"NotoColorEmoji.ttf","NelyxEmoji"}}){
       auto fallbackFace=manager->makeFromData(SkData::MakeFromFileName((directory/fallback.first).string().c_str()));
@@ -122,22 +123,27 @@ class ParagraphProvider {
       provider->registerTypeface(fallbackFace,SkString(fallback.second));
       faces.emplace_back(fallback.second,fallbackFace);
     }
+#if defined(__ANDROID__) || defined(_WIN32)
+    // Retain the actual platform typography cohort on both App and Content.
+    // Browser owners use their declared bundled/downloaded cohort instead.
 #if defined(__ANDROID__)
-    // Material's Roboto declaration resolves to Android's system sans-serif
-    // cohort. Both owners retain those actual system faces, never bundled aliases.
-    if(auto family=manager->matchFamily("sans-serif")){
-      uint64_t bytes=0;std::vector<sk_sp<SkTypeface>> roboto;std::set<std::pair<size_t,uint64_t>> streams;
+    constexpr auto systemFamily="sans-serif",declaredFamily="Roboto";
+#else
+    constexpr auto systemFamily="Segoe UI",declaredFamily="Segoe UI";
+#endif
+    if(auto family=manager->matchFamily(systemFamily)){
+      uint64_t bytes=0;std::vector<sk_sp<SkTypeface>> systemFaces;std::set<std::pair<size_t,uint64_t>> streams;
       for(int index=0;index<family->count()&&index<32;++index)if(auto face=family->createTypeface(index)){
-        auto stream=face->openStream(nullptr);if(!stream||stream->getLength()>16*1024*1024)throw std::runtime_error("Android system font exceeds its declared budget");
-        // Android exposes many variation instances backed by the same file.
+        auto stream=face->openStream(nullptr);if(!stream||stream->getLength()>16*1024*1024)throw std::runtime_error("System font exceeds its declared budget");
+        // System collections may expose variation instances backed by one file.
         // Charge distinct immutable font data once, plus each face instance.
         uint64_t hash=1469598103934665603ull;size_t total=0;std::array<uint8_t,65536> block;
         for(size_t count;(count=stream->read(block.data(),block.size()))!=0;){total+=count;for(size_t at=0;at<count;++at){hash^=block[at];hash*=1099511628211ull;}}
-        if(total!=stream->getLength())throw std::runtime_error("Android system font stream changed while opening");
+        if(total!=stream->getLength())throw std::runtime_error("System font stream changed while opening");
         if(streams.emplace(total,hash).second)bytes+=total;
-        if(bytes>32*1024*1024)throw std::runtime_error("Android system font cohort exceeds its declared budget");roboto.push_back(std::move(face));
+        if(bytes>32*1024*1024)throw std::runtime_error("System font cohort exceeds its declared budget");systemFaces.push_back(std::move(face));
       }
-      if(!roboto.empty()){systemFontMemory=std::make_shared<ExternalLease>(ledger,owner,2,bytes*3+roboto.size()*65536);for(const auto& face:roboto){provider->registerTypeface(face,SkString("Roboto"));faces.emplace_back("Roboto",face);}}
+      if(!systemFaces.empty()){systemFontMemory=std::make_shared<ExternalLease>(ledger,owner,2,bytes*3+systemFaces.size()*65536);for(const auto& face:systemFaces){provider->registerTypeface(face,SkString(declaredFamily));faces.emplace_back(declaredFamily,face);}}
     }
 #endif
     fonts=sk_make_sp<skia::textlayout::FontCollection>();

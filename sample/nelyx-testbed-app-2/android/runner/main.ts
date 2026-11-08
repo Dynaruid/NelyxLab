@@ -16,7 +16,7 @@ const sources = {
       .filter((asset) => asset.kind === 'font')
       .map((asset) => [asset.id, { uri: 'asset:/nelyx/fonts/' + asset.sha256 + '.ttf' }]),
   ),
-  'component-image': require('../../assets/component-image.webp'),
+  'component-image': require('../../engine-v2/assets/component-image.webp'),
 };
 if (!settings.profile) throw new Error('Android requires an explicit profile');
 registerApplication(config.name, App, {

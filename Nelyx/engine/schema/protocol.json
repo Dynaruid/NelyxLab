@@ -5,10 +5,10 @@
   "magic": 844647502,
   "headerBytes": 64,
   "stateBytes": 744,
-  "nodeBytes": 344,
+  "nodeBytes": 360,
   "eventBytes": 160,
   "inputBytes": 128,
-  "layoutBytes": 128,
+  "layoutBytes": 192,
   "graphicsBytes": 136,
   "graphicsPathBytes": 56,
   "clipStyleBytes": 80,
@@ -31,7 +31,7 @@
   "limits": {
     "views": 8,
     "nodes": 4096,
-    "nodeBlobs": 14,
+    "nodeBlobs": 15,
     "depth": 128,
     "commands": 4096,
     "packetBytes": 1048576,
@@ -87,7 +87,8 @@
     "fontChunkBytes": 262144,
     "imageChunkBytes": 262144,
     "imageTiles": 4096,
-    "appImageCallbacks": 64
+    "appImageCallbacks": 64,
+    "sourceListMetrics": 4096
   },
   "opcodes": {
     "hello": 1,
@@ -150,7 +151,8 @@
     "imageUploadCommit": 58,
     "imageUploadAbort": 59,
     "imageResourceRead": 60,
-    "imageResourceRelease": 61
+    "imageResourceRelease": 61,
+    "snapshotPaint": 62
   },
   "commands": {
     "create": 1,
@@ -183,7 +185,10 @@
     "layerLink": 28,
     "paintPlacement": 29,
     "paragraphFont": 30,
-    "imageStyle": 31
+    "imageStyle": 31,
+    "tapRegion": 32,
+    "snapshot": 33,
+    "layoutBuilder": 34
   },
   "kinds": {
     "box": 1,
@@ -249,7 +254,8 @@
     "rawGap": 17,
     "gestureDecision": 18,
     "appFrame": 19,
-    "key": 20
+    "key": 20,
+    "tapRegion": 21
   },
   "gestures": {
     "tap": 1,
@@ -521,7 +527,9 @@
     "boundsHeight": 320,
     "clipHead": 328,
     "depth": 332,
-    "localOpacity": 336
+    "localOpacity": 336,
+    "scrollMinimum": 344,
+    "scrollMaximum": 352
   },
   "inputFields": {
     "sequence": 0,
@@ -684,7 +692,9 @@
     "expandPreferredWidth": 4096,
     "paintChild": 8192,
     "inlineScale": 16384,
-    "inputPadding": 32768
+    "inputPadding": 32768,
+    "offstage": 65536,
+    "canonicalStack": 131072
   },
   "layoutFields": {
     "enabled": 0,
@@ -706,7 +716,12 @@
     "alignmentY": 96,
     "widthFactor": 104,
     "heightFactor": 112,
-    "inlineScale": 120
+    "inlineScale": 120,
+    "runAlign": 128,
+    "textBaseline": 132,
+    "positionedFlags": 136,
+    "overflowClipBehavior": 140,
+    "positioned": 144
   },
   "measureFields": {
     "preparation": 0,
@@ -789,7 +804,9 @@
     "password": 4,
     "disabled": 8
   },
-  "textFlags": {"styleOnly":1},
+  "textFlags": {
+    "styleOnly": 1
+  },
   "semanticsRoles": {
     "none": 0,
     "group": 1,
@@ -810,7 +827,10 @@
     "selected": 8,
     "focusable": 16,
     "readOnly": 32,
-    "mixed": 64
+    "mixed": 64,
+    "mergedIntoParent": 128,
+    "scopesRoute": 256,
+    "namesRoute": 512
   },
   "semanticsActions": {
     "activate": 1,
@@ -881,7 +901,8 @@
     "clipSaveLayer": 8192,
     "livePaint": 16384,
     "paintResource": 32768,
-    "inlineHidden": 65536
+    "inlineHidden": 65536,
+    "semanticsBlocked": 131072
   },
   "eventPolicies": {
     "observeRaw": 1,
@@ -901,7 +922,13 @@
     "focusOwner": 16384,
     "focusEnabled": 32768,
     "skipTraversal": 65536,
-    "canonicalKeyboard": 131072
+    "canonicalKeyboard": 131072,
+    "semanticsBoundary": 262144,
+    "blockPreviousSemantics": 524288,
+    "mergeSemanticsDescendants": 1048576,
+    "mergeSemanticsIntoParent": 2097152,
+    "excludeChildSemantics": 4194304,
+    "exclusiveMouseRegion": 8388608
   },
   "pointerKinds": {
     "unknown": 0,
@@ -1006,6 +1033,26 @@
     "aborted": 3,
     "failed": 4
   },
+  "tapRegionBytes": 24,
+  "tapRegionEventBlob": 24,
+  "tapRegionEventBytes": 80,
+  "semanticSourceEventBlob": 25,
+  "semanticSourceEventBytes": 16,
+  "tapRegionEvents": {
+    "downInside": 1,
+    "downOutside": 2,
+    "upInside": 3,
+    "upOutside": 4
+  },
+  "tapRegionFlags": {
+    "surface": 1,
+    "enabled": 2,
+    "consumeOutside": 4,
+    "downInside": 8,
+    "downOutside": 16,
+    "upInside": 32,
+    "upOutside": 64
+  },
   "imageStyleBytes": 112,
   "imagePaintBytes": 176,
   "imagePaintBlob": 23,
@@ -1051,5 +1098,27 @@
     "saturation": 26,
     "color": 27,
     "luminosity": 28
+  },
+  "snapshotStyleBytes": 160,
+  "snapshotStyleBlob": 26,
+  "snapshotDecisionBytes": 160,
+  "snapshotDecisionBlob": 27,
+  "semanticRouteBytes": 32,
+  "semanticRouteBlob": 28,
+  "layoutBuilderBytes": 64,
+  "layoutBuilderBlob": 29,
+  "layoutBuildRequestBytes": 96,
+  "layoutBuildRequestBlob": 30,
+  "layoutBuildPending": 512,
+  "layoutListBuildRequestBytes": 144,
+  "layoutListBuildRowBytes": 32,
+  "listFlags": {
+    "fixedExtent": 1
+  },
+  "listSeekFlags": {
+    "offset": 1
+  },
+  "paragraphRunFlags": {
+    "ideographicBaseline": 16
   }
 }

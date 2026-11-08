@@ -5,7 +5,7 @@
 #include "native_paint.hpp"
 #include "paragraph_provider.hpp"
 #include "image_provider.hpp"
-#include "../../../skia/native/rendering/font_services.h"
+#include "../../render/skia/font_services.h"
 #include "include/core/SkCanvas.h"
 #include "include/core/SkData.h"
 #include "include/core/SkImage.h"
@@ -279,13 +279,56 @@ class ContentProvider {
     return result;
   }
 };
+// Raster pixels belong to Render. Core admits reuse only after successful capture.
+class SnapshotImages {
+  struct Image {std::unique_ptr<ExternalLease> memory;sk_sp<SkImage> image;};
+  std::unique_ptr<ExternalLease> memory_;
+  std::map<uint64_t,Image> images_;
+ public:
+  SnapshotRegistry registry;
+  void begin(const Frame& frame) {
+    if(!memory_)memory_=std::make_unique<ExternalLease>(frame.scene->document->lease.ledger,2,2,sizeof(SnapshotImages));
+    prune(registry.beginFrame(frame));
+  }
+  void prune(const SnapshotDecision& decision) {
+    for(auto it=images_.begin();it!=images_.end();) {
+      bool alive=false;for(uint32_t i=0;i<decision.liveCount;++i)alive|=it->first==decision.liveTokens[i];
+      if(!alive)it=images_.erase(it);else ++it;
+    }
+  }
+  void clear(){images_.clear();registry.clear();memory_.reset();}
+  sk_sp<SkImage> get(uint64_t token)const {
+    const auto found=images_.find(token);
+    if(found==images_.end())throw std::runtime_error("Snapshot raster token is unavailable");
+    return found->second.image;
+  }
+  void capture(const SnapshotDecision& decision,Handle node,const std::shared_ptr<Ledger>& ledger,
+      const std::function<void(SkCanvas*)>& paint,uint64_t scratchBytes) {
+    try {
+      auto memory=std::make_unique<ExternalLease>(ledger,2,2,uint64_t(decision.pixelWidth)*decision.pixelHeight*4+sizeof(Image)+256);
+      ExternalLease scratch(ledger,2,2,scratchBytes);
+      auto surface=SkSurfaces::Raster(SkImageInfo::MakeN32Premul(int(decision.pixelWidth),int(decision.pixelHeight)));
+      if(!surface)throw std::runtime_error("Snapshot raster surface allocation failed");
+      surface->getCanvas()->clear(SK_ColorTRANSPARENT);paint(surface->getCanvas());
+      auto image=surface->makeImageSnapshot();if(!image)throw std::runtime_error("Snapshot raster image allocation failed");
+      images_.emplace(decision.token,Image{std::move(memory),std::move(image)});
+      registry.complete(node,decision.token,true);
+    } catch(...) {images_.erase(decision.token);registry.complete(node,decision.token,false);throw;}
+  }
+};
 // The same prepared-frame traversal serves Native GPU presentation and the
 // CPU raster control, including inline resources, foreground and layer exits.
-inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared& prepared,double scale,NativePaintCounts& paintCounts) {
+inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared& prepared,double scale,NativePaintCounts& paintCounts,SnapshotImages& snapshots) {
     canvas->clear(0xfff4f6fa);SkAutoCanvasRestore frameRestore(canvas,true);canvas->scale(float(scale),float(scale));
+    snapshots.begin(frame);
+    ExternalLease traversalMemory(frame.scene->document->lease.ledger,2,2,frame.items.size()*(sizeof(size_t)*2+48));
+    std::vector<size_t> ends(frame.items.size(),frame.items.size()),indices;
+    for(size_t i=0;i<frame.items.size();++i){while(!indices.empty()&&frame.items[indices.back()].depth>=frame.items[i].depth){ends[indices.back()]=i;indices.pop_back();}indices.push_back(i);}
+    std::function<void(SkCanvas*,size_t,size_t,Affine,double)> drawRange;
+    drawRange=[&](SkCanvas* target,size_t begin,size_t end,Affine overrideMatrix,double pixelScale){
+    auto* canvas=target;const auto baseDepth=begin<end?frame.items[begin].depth:0;
     const auto drawPaint=[&](const DrawItem& item,bool foreground){const auto& n=frame.scene->document->get(item.node);
-      if(!item.clip.width||!item.clip.height)return;
-      SkPaint paint;paint.setAntiAlias(true);paintFrameNative(canvas,n,item,paint,scale,foreground,[&](Handle reference){
+      SkPaint paint;paint.setAntiAlias(true);paintFrameNative(canvas,n,item,paint,pixelScale,foreground,[&](Handle reference){
         const auto& resource=frame.scene->document->get(reference);const auto found=prepared.pictures.find(reference.key());
         if(resource.paintOwner!=item.node||found==prepared.pictures.end())throw std::runtime_error("Native prepared paragraph generation missing");
         SkPaint alpha;alpha.setAlphaf(float(frame.properties[reference.slot].opacity));
@@ -295,14 +338,14 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
     };
     struct Saved {int count;const DrawItem* item;};std::vector<Saved> saves;
     const auto finish=[&]{const auto saved=saves.back();saves.pop_back();drawPaint(*saved.item,true);canvas->restoreToCount(saved.count);};
-    for(const auto& item:frame.items){
-      while(saves.size()>item.depth)finish();
-      const auto& n=frame.scene->document->get(item.node);if(n.paintOwner)continue;
+    for(size_t index=begin;index<end;++index){const auto& item=frame.items[index];
+      while(saves.size()>item.depth-baseDepth)finish();
+      const auto& n=frame.scene->document->get(item.node);
+      if(n.paintOwner||item.opacity<=0||!item.world.inverse()){index=ends[index]-1;continue;}
       const int saved=canvas->getSaveCount();canvas->save();saves.push_back({saved,&item});
-      const auto& m=item.world;
-      canvas->setMatrix(SkMatrix::MakeAll(float(m.a*scale),float(m.c*scale),float(m.tx*scale),float(m.b*scale),float(m.d*scale),float(m.ty*scale),0,0,1));
-      if(!item.clip.width||!item.clip.height)canvas->clipRect(SkRect::MakeEmpty());
-      {const auto path=prepared.paths.find(n.id.key());paintNativeShadow(canvas,n,path==prepared.paths.end()?nullptr:&path->second,scale);}
+      const auto m=overrideMatrix*item.world;
+      canvas->setMatrix(SkMatrix::MakeAll(float(m.a*pixelScale),float(m.c*pixelScale),float(m.tx*pixelScale),float(m.b*pixelScale),float(m.d*pixelScale),float(m.ty*pixelScale),0,0,1));
+      {const auto path=prepared.paths.find(n.id.key());paintNativeShadow(canvas,n,path==prepared.paths.end()?nullptr:&path->second,pixelScale);}
       if((n.kind==wire::kinds::clip&&(!n.clipStyle||n.clipStyle->behavior!=wire::clipBehaviors::none))||n.kind==wire::kinds::scrollViewport||(item.flags&wire::nodeFlags::clipsChildren)){
         const auto path=prepared.paths.find(n.id.key());const auto bounds=SkRect::MakeWH(float(n.properties.width),float(n.properties.height));
         const bool antiAlias=!(item.flags&wire::nodeFlags::hardEdgeClip);
@@ -321,7 +364,6 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
       if(property.opacity<1||n.graphics.blur>0){SkPaint layer;layer.setAlphaf(float(property.opacity));
         if(n.graphics.blur>0)layer.setImageFilter(SkImageFilters::Blur(float(n.graphics.blur),float(n.graphics.blur),SkTileMode::kDecal,nullptr));
         canvas->saveLayer(nullptr,&layer);}
-      if(!item.clip.width||!item.clip.height)continue;
       const auto found=prepared.pictures.find(item.node.key());if(found==prepared.pictures.end())throw std::runtime_error("Native prepared generation missing");
       const auto geometry=frame.focusNode==n.id?n.textGeometry:nullptr;
       const auto rect=[&](const TextRect& r,SkColor color){SkPaint paint;paint.setColor(color);canvas->drawRect(SkRect::MakeXYWH(float(r.x),float(r.y),float(r.width),float(r.height)),paint);};
@@ -354,7 +396,41 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
           if(c.kind!=wire::controlKinds::progress)circle(x,cy,state.pressed?9:7,c.foreground);}
       }
       if(geometry&&frame.caretVisible&&n.editing&&n.editing->base==n.editing->extent)rect(geometry->caret,0xff172033);
+      if(n.snapshot) {
+        const auto decision=snapshots.registry.paint(frame,n.id);
+        snapshots.prune(decision);
+        if(decision.action==1) {
+          uint64_t layers=0;
+          for(size_t childIndex=index+1;childIndex<ends[index];++childIndex){
+            const auto& child=frame.items[childIndex];const auto& source=frame.scene->document->get(child.node);
+            if(child.opacity<=0||source.paintOwner)continue;
+            if(frame.properties[child.node.slot].opacity<1||source.graphics.blur>0)layers+=source.graphics.blur>0?3u:1u;
+            if(child.flags&wire::nodeFlags::clipSaveLayer)++layers;
+            if(source.snapshot&&source.snapshot->live.opacity<1)++layers;
+          }
+          snapshots.capture(decision,n.id,n.lease.ledger,[&](SkCanvas* recording){
+            drawRange(recording,index+1,ends[index],*item.world.inverse(),decision.ratio);
+          },uint64_t(decision.pixelWidth)*decision.pixelHeight*4*layers);
+        }
+        if(decision.background){SkPaint background;background.setColor(decision.background);
+          canvas->drawRect(SkRect::MakeWH(float(decision.boxWidth),float(decision.boxHeight)),background);}
+        SkAutoCanvasRestore snapshotRestore(canvas,true);
+        const auto& transform=decision.transform;
+        canvas->concat(SkMatrix::MakeAll(float(transform.a),float(transform.c),float(transform.tx),float(transform.b),float(transform.d),float(transform.ty),0,0,1));
+        if(decision.action==1||decision.action==2) {
+          SkPaint paint;paint.setAlphaf(float(decision.opacity));
+          canvas->drawImageRect(snapshots.get(decision.token),SkRect::MakeWH(float(decision.sourceRectWidth),float(decision.sourceRectHeight)),
+            SkRect::MakeWH(float(decision.destinationWidth),float(decision.destinationHeight)),
+            SkSamplingOptions(SkFilterMode::kLinear,SkMipmapMode::kLinear),&paint,SkCanvas::kStrict_SrcRectConstraint);
+        } else if(decision.boxWidth>0&&decision.boxHeight>0&&decision.opacity>0) {
+          if(decision.opacity<1){SkPaint paint;paint.setAlphaf(float(decision.opacity));canvas->saveLayer(nullptr,&paint);}
+          drawRange(canvas,index+1,ends[index],overrideMatrix*item.world*transform*(*item.world.inverse()),pixelScale);
+        }
+        index=ends[index]-1;
+      }
     }
     while(!saves.empty())finish();
+    };
+    drawRange(canvas,0,frame.items.size(),{},scale);
 }
 }

@@ -1,7 +1,10 @@
+import { prepareEngineHelpers } from './prepare-engine-helpers.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createProviderRegistry, validateProvider } from '@nelyx/sdk/runtime/providers';
 import { sdkVersion } from '@nelyx/sdk/version';
+
+prepareEngineHelpers();
 
 const root = path.resolve(import.meta.dirname, '../..'),
   directory = path.join(root, 'Nelyx/sdk/providers');

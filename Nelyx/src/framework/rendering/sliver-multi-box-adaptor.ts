@@ -1,11 +1,23 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 import { RenderObject as NumericGeometryRenderObject } from './object.ts';
-import { ParentData, RenderBox } from './object.ts';
+import { ParentData, RenderBox, isNativeRenderObject } from './object.ts';
 import type { RenderObject } from './object.ts';
-import { SliverLogicalParentData, RenderSliver } from './sliver.ts';
-import type { SliverConstraints, SliverHitTestResult, SliverHitPosition } from './sliver.ts';
-import { Axis } from '../painting/basic-types.ts';
+import {
+  SliverLogicalParentData,
+  RenderSliver,
+  SliverConstraints,
+  GrowthDirection,
+} from './sliver.ts';
+import type { SliverHitTestResult, SliverHitPosition } from './sliver.ts';
+import { Axis, AxisDirection } from '../painting/basic-types.ts';
+import { ScrollDirection } from './viewport-offset.ts';
+import type {
+  NativeSliverConfiguration,
+  NativeSliverInput,
+  NativeSliverMeasurement,
+} from './native-sliver.ts';
+import { nativeSliverChildOwner } from './native-sliver.ts';
 import { FoundationBuildMode } from '../../foundation/constants.ts';
 import { invariant } from '../../foundation/errors.ts';
 import { identity, multiply, translate } from '../../ui/geometry.ts';
@@ -125,11 +137,327 @@ export function RenderSliverWithKeepAliveMixin<Base extends RenderSliverConstruc
 /** Source active chain and keep-alive bucket. The host's base ownership list
  * retains both sets, so attach/detach/dispose always see every owned child.
  * Unlike the source container's childCount, base children includes cached nodes.
- * A finite 256-owned-child budget is an explicit host boundary. */
+ * The canonical bucket can also retain the previous published native window
+ * until its replacement is visible. A scene admits at most 128 children. */
 export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAliveMixin(
   RenderSliver,
 ) {
   private collectingGarbage = false;
+  private nativeScope: SliverConstraints | undefined;
+  private nativePreviousOffset: number | undefined;
+  private nativeRevision = 1n;
+  private nativeGeneration = 1n;
+  private nativeNeedsBuild = true;
+  private nativeBuilt: NativeSliverConfiguration['built'] = null;
+  private nativeWindow = { begin: 0, end: 0 };
+  private nativeMetrics: { count: number; estimate: number; itemExtent: number | null } | undefined;
+  private readonly nativeTokens = new WeakMap<object, bigint>();
+  private nextNativeToken = 0n;
+  private nativePublished = new Set<bigint>();
+  private readonly nativeReleased = new Set<bigint>();
+  override get constraints(): SliverConstraints {
+    return this.nativeScope ?? super.constraints;
+  }
+  override markNeedsLayout(): void {
+    if (isNativeRenderObject(this) && !this.nativeScope && !this.nativeNeedsBuild) {
+      ++this.nativeRevision;
+      this.nativeNeedsBuild = true;
+    }
+    super.markNeedsLayout();
+  }
+  private nativeToken(child: RenderBox): bigint {
+    const identity = nativeSliverChildOwner(this.childManager)?.identity(child) ?? child;
+    let token = this.nativeTokens.get(identity);
+    if (token === undefined) this.nativeTokens.set(identity, (token = ++this.nextNativeToken));
+    return token;
+  }
+  private publishedNativeChild(child: RenderBox): boolean {
+    return this.nativePublished.size > 0 && this.nativePublished.has(this.nativeToken(child));
+  }
+  /** @internal The owning concrete module supplies only fixed/indexed metric policy. */
+  _nativeListConfiguration(estimate: number, itemExtent: number | null): NativeSliverConfiguration {
+    const childOwner = nativeSliverChildOwner(this.childManager);
+    invariant(
+      childOwner,
+      'native-sliver-child-owner',
+      'Native list requires its actual Source child Element',
+    );
+    const count = this.childManager.estimatedChildCount;
+    invariant(
+      Number.isSafeInteger(count) &&
+        count! >= 0 &&
+        count! <= 1_000_000 &&
+        Number.isFinite(estimate) &&
+        estimate > 0 &&
+        estimate * count! <= 1e12,
+      'invalid-native-sliver-count',
+      'Native list requires a finite delegate and positive estimate',
+    );
+    const previous = this.nativeMetrics;
+    if (
+      previous &&
+      (previous.count !== count ||
+        previous.estimate !== estimate ||
+        previous.itemExtent !== itemExtent)
+    )
+      ++this.nativeGeneration;
+    this.nativeMetrics = { count: count!, estimate, itemExtent };
+    const children = this.children.map((child) => {
+      invariant(
+        child instanceof RenderBox,
+        'invalid-native-sliver-child',
+        'Native list children must be boxes',
+      );
+      return {
+        render: child,
+        index: this.indexOf(child),
+        token: this.nativeToken(child),
+        keptAlive: this.data(child).keptAlive,
+        explicitKeepAlive: this.data(child).keepAlive,
+        published: this.publishedNativeChild(child),
+      };
+    });
+    return {
+      childPolicy: childOwner.policy(),
+      revision: this.nativeRevision,
+      generation: this.nativeGeneration,
+      count: count!,
+      begin: this.nativeNeedsBuild ? 0 : this.nativeWindow.begin,
+      end: this.nativeNeedsBuild ? 0 : this.nativeWindow.end,
+      estimate,
+      itemExtent,
+      built: this.nativeBuilt,
+      children,
+      prepare: this.prepareNativeList,
+      observe: this.observeNativeList,
+      requestWindow: this.requestNativeWindow,
+    };
+  }
+  protected _configureNativeList(_input: NativeSliverInput): boolean {
+    return false;
+  }
+  protected _acceptNativeRows(
+    _input: NativeSliverInput,
+    _rows: readonly NativeSliverMeasurement[],
+  ): void {}
+  /** @internal Reconcile real children without running Source layout or fabricating geometry. */
+  _prepareNativeList(revision: bigint, input: NativeSliverInput): boolean {
+    if (!isNativeRenderObject(this) || this.debugDisposed || revision !== this.nativeRevision)
+      return false;
+    invariant(
+      !this.nativeScope,
+      'reentrant-native-sliver',
+      'Native child scope is already running',
+    );
+    const count = this.childManager.estimatedChildCount;
+    invariant(
+      count !== null &&
+        Number.isSafeInteger(input.begin) &&
+        Number.isSafeInteger(input.end) &&
+        input.begin >= 0 &&
+        input.begin <= input.end &&
+        input.end <= count &&
+        input.end - input.begin <= 128 &&
+        [input.width, input.height, input.paintExtent, input.offset, input.beginOffset].every(
+          (value) => Number.isFinite(value) && value >= 0 && value <= 1e12,
+        ) &&
+        input.paintExtent <= input.height &&
+        input.rows.length <= 128,
+      'invalid-native-sliver-input',
+      'Native child demand must contain bounded Content observations',
+    );
+    const rows: NativeSliverMeasurement[] = [],
+      seen = new Set<number>();
+    for (const row of input.rows) {
+      const child = this.children.find(
+        (child) => child instanceof RenderBox && this.indexOf(child) === row.index,
+      );
+      invariant(
+        Number.isSafeInteger(row.index) &&
+          row.index >= 0 &&
+          row.index < count &&
+          typeof row.token === 'bigint' &&
+          row.token > 0n &&
+          !seen.has(row.index) &&
+          [row.offset, row.extent].every(
+            (value) => Number.isFinite(value) && value >= 0 && value <= 1e12,
+          ),
+        'invalid-native-sliver-measurement',
+        'Native row measurement has an invalid identity or extent',
+      );
+      if (!(child instanceof RenderBox) || this.nativeToken(child) !== row.token) return false;
+      seen.add(row.index);
+      rows.push({ ...row });
+    }
+    const previousOffset = this.nativePreviousOffset;
+    this.nativeScope = new SliverConstraints({
+      axisDirection: AxisDirection.down,
+      growthDirection: GrowthDirection.forward,
+      userScrollDirection:
+        previousOffset === undefined || input.offset === previousOffset
+          ? ScrollDirection.idle
+          : input.offset > previousOffset
+            ? ScrollDirection.reverse
+            : ScrollDirection.forward,
+      scrollOffset: input.offset,
+      precedingScrollExtent: 0,
+      overlap: 0,
+      remainingPaintExtent: input.paintExtent,
+      crossAxisExtent: input.width,
+      crossAxisDirection: AxisDirection.right,
+      viewportMainAxisExtent: input.height,
+      remainingCacheExtent: input.paintExtent,
+      cacheOrigin: 0,
+    });
+    try {
+      this.childManager.didStartLayout();
+      if (this._configureNativeList(input)) ++this.nativeGeneration;
+      this._acceptNativeRows(input, rows);
+      this.childManager.setDidUnderflow(false);
+      // Required cached rows leave the optional budget before outgoing rows
+      // compete for it. Retiring first could evict the very State we need next.
+      for (let index = input.begin; index < input.end; ++index) {
+        if (!this._keepAliveBucket.has(index)) continue;
+        let after: RenderBox | null = null;
+        for (const child of this.activeChildren) {
+          if (this.indexOf(child) >= index) break;
+          after = child;
+        }
+        this._createOrObtainChild(index, { after });
+      }
+      // A completed publication releases its old required rows into the same
+      // canonical optional policy, inside this authorized child build scope.
+      for (const child of this._keepAliveBucket.values()) {
+        const token = this.nativeToken(child);
+        if (
+          this.nativeReleased.has(token) &&
+          !this.nativePublished.has(token) &&
+          !this.data(child).keepAlive &&
+          !this.childManager.isRetainedChild(child)
+        )
+          this.childManager.retainChild(child);
+      }
+      this.nativeReleased.clear();
+      const active = [...this.activeChildren];
+      this.collectGarbage(
+        active.filter((child) => this.indexOf(child) < input.begin).length,
+        active.filter((child) => this.indexOf(child) >= input.end).length,
+      );
+      let after: RenderBox | null = null;
+      for (let index = input.begin; index < input.end; ++index) {
+        let child = this.activeChildren.find((child) => this.indexOf(child) === index);
+        if (!child) {
+          this._createOrObtainChild(index, { after });
+          child = this.activeChildren.find((child) => this.indexOf(child) === index);
+        }
+        invariant(
+          child,
+          'native-sliver-builder-null',
+          'A declared native list row must emit a child',
+        );
+        this.childManager.didObtainChild(child);
+        const row = rows.find((row) => row.index === index);
+        if (row) this.data(child).layoutOffset = row.offset;
+        after = child;
+      }
+      this.childManager.didFinishLayout();
+      this.nativeWindow = { begin: input.begin, end: input.end };
+      this.nativeBuilt = { revision, width: input.width, height: input.height };
+      this.nativeNeedsBuild = false;
+      this.nativePreviousOffset = input.offset;
+      return true;
+    } finally {
+      this.nativeScope = undefined;
+    }
+  }
+  private readonly prepareNativeList = (revision: bigint, input: NativeSliverInput) =>
+    this._prepareNativeList(revision, input);
+  /** @internal Observe a completed Content cohort without entering a build/layout scope. */
+  _observeNativeList(revision: bigint, input: NativeSliverInput): boolean {
+    if (
+      !isNativeRenderObject(this) ||
+      this.debugDisposed ||
+      this.nativeNeedsBuild ||
+      revision !== this.nativeRevision ||
+      this.nativeBuilt?.revision !== revision ||
+      input.width !== this.nativeBuilt.width ||
+      input.height !== this.nativeBuilt.height ||
+      input.begin !== this.nativeWindow.begin ||
+      input.end !== this.nativeWindow.end
+    )
+      return false;
+    invariant(
+      [input.paintExtent, input.offset, input.beginOffset].every(
+        (value) => Number.isFinite(value) && value >= 0 && value <= 1e12,
+      ) &&
+        input.paintExtent <= input.height &&
+        input.rows.length <= 128,
+      'invalid-native-sliver-input',
+      'Native observations require a finite Content viewport',
+    );
+    const seen = new Set<number>();
+    for (const row of input.rows) {
+      invariant(
+        Number.isSafeInteger(row.index) &&
+          row.index >= 0 &&
+          row.index < this.childManager.estimatedChildCount! &&
+          typeof row.token === 'bigint' &&
+          row.token > 0n &&
+          !seen.has(row.index),
+        'invalid-native-sliver-measurement',
+        'Native row observation has an invalid identity',
+      );
+      seen.add(row.index);
+      const child = this.children.find(
+        (child) => child instanceof RenderBox && this.indexOf(child) === row.index,
+      );
+      if (!(child instanceof RenderBox) || this.nativeToken(child) !== row.token) return false;
+      invariant(
+        [row.offset, row.extent].every(
+          (value) => Number.isFinite(value) && value >= 0 && value <= 1e12,
+        ),
+        'invalid-native-sliver-measurement',
+        'Native row measurement must be finite',
+      );
+    }
+    this._acceptNativeRows(input, input.rows);
+    const published = new Set<bigint>();
+    for (const row of input.rows) {
+      const child = this.children.find(
+        (child) => child instanceof RenderBox && this.indexOf(child) === row.index,
+      )!;
+      this.data(child).layoutOffset = row.offset;
+      // Protect the published document's whole required window. Compositor
+      // scrolling can advance its offset before the next frame is published.
+      if (row.index >= input.begin && row.index < input.end) published.add(row.token);
+    }
+    for (const token of this.nativePublished)
+      if (!published.has(token)) this.nativeReleased.add(token);
+    this.nativePublished = published;
+    if (
+      [...this._keepAliveBucket.values()].some((child) =>
+        this.nativeReleased.has(this.nativeToken(child)),
+      )
+    )
+      this.markNeedsLayout();
+    return true;
+  }
+  private readonly observeNativeList = (revision: bigint, input: NativeSliverInput) =>
+    this._observeNativeList(revision, input);
+  private readonly requestNativeWindow = (revision: bigint, begin: number, end: number): void => {
+    if (this.debugDisposed || revision !== this.nativeRevision || this.nativeNeedsBuild) return;
+    invariant(
+      Number.isSafeInteger(begin) &&
+        Number.isSafeInteger(end) &&
+        begin >= 0 &&
+        begin <= end &&
+        end <= this.childManager.estimatedChildCount! &&
+        end - begin <= 128,
+      'invalid-native-sliver-window',
+      'Native child demand must fit the Content row budget',
+    );
+    if (begin !== this.nativeWindow.begin || end !== this.nativeWindow.end) this.markNeedsLayout();
+  };
   /** @internal Off-cache local Elements can retire before replacement layout.
    * GlobalKey subtrees retain the BuildOwner end-of-frame retake window. */
   get _retireInactiveChildrenDuringLayout(): boolean {
@@ -342,13 +670,17 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
   }
   /** @internal Queued widget build scopes flush inside this owner's real layout callback. */
   _invokeChildManagerLayoutCallback(callback: () => void): void {
+    if (this.nativeScope) {
+      callback();
+      return;
+    }
     this.invokeLayoutCallback<SliverConstraints>(() => callback());
   }
   protected _createOrObtainChild(
     index: number,
     { after }: { readonly after: RenderBox | null },
   ): void {
-    this.invokeLayoutCallback<SliverConstraints>(() => {
+    this._invokeChildManagerLayoutCallback(() => {
       const child = this._keepAliveBucket.get(index);
       if (child) {
         const data = this.data(child);
@@ -371,7 +703,8 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
           try {
             for (const cached of this._keepAliveBucket.values()) {
               if (this.children.length < this.childCountLimit) break;
-              if (!this.data(cached).keepAlive) this.childManager.removeChild(cached);
+              if (!this.data(cached).keepAlive && !this.publishedNativeChild(cached))
+                this.childManager.removeChild(cached);
             }
           } finally {
             this.collectingGarbage = wasCollecting;
@@ -383,8 +716,9 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
   }
   private _destroyOrCacheChild(child: RenderBox): void {
     const data = this.data(child);
-    if (data.keepAlive || this.childManager.retainChild?.(child)) {
-      if (data.keepAlive) this.childManager.didObtainChild?.(child, 'explicit');
+    const published = this.publishedNativeChild(child);
+    if (data.keepAlive || published || this.childManager.retainChild?.(child)) {
+      if (data.keepAlive || published) this.childManager.didObtainChild?.(child, 'explicit');
       if (data.keptAlive)
         invariant(false, 'already-cached-sliver-child', 'An active child cannot already be cached');
       const index = this.indexOf(child);
@@ -518,11 +852,11 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
       invariant(false, 'invalid-sliver-garbage', 'Garbage counts must fit the active child list');
     this.collectingGarbage = true;
     try {
-      this.invokeLayoutCallback<SliverConstraints>(() => {
+      this._invokeChildManagerLayoutCallback(() => {
         while (leadingGarbage-- > 0) this._destroyOrCacheChild(this.firstChild!);
         while (trailingGarbage-- > 0) this._destroyOrCacheChild(this.lastChild!);
         const retired = [...this._keepAliveBucket.values()].filter((child) => {
-          if (this.data(child).keepAlive) {
+          if (this.data(child).keepAlive || this.publishedNativeChild(child)) {
             this.childManager.didObtainChild?.(child, 'explicit');
             return false;
           }
@@ -531,7 +865,10 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
         for (const child of retired) this.childManager.removeChild(child);
         if (
           ![...this._keepAliveBucket.values()].every(
-            (child) => this.data(child).keepAlive || this.childManager.isRetainedChild?.(child),
+            (child) =>
+              this.data(child).keepAlive ||
+              this.publishedNativeChild(child) ||
+              this.childManager.isRetainedChild?.(child),
           )
         )
           invariant(

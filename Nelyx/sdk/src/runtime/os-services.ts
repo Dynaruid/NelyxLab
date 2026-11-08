@@ -8,6 +8,7 @@ import {
 } from '@nelyx/core/services/message-codecs';
 import { MissingPluginException, PlatformException } from '@nelyx/core/services/message-codec';
 import type { PluginPlatformMessagePort } from './plugin-port.ts';
+import { invokeClipboardService } from './clipboard-service.ts';
 export type OsEnvironment = Omit<PlatformEnvironment, 'revision'>;
 export interface OsServiceHost {
   readEnvironment(): OsEnvironment;
@@ -117,26 +118,10 @@ export function installOsServices(port: PluginPlatformMessagePort, host: OsServi
         await host.vibrateHapticFeedback(call.arguments);
         return null;
       }
-      case 'Clipboard.getData': {
-        if (call.arguments !== 'text/plain') return null;
-        if (!host.readText) unsupported(call.method);
-        return new Map([['text', await host.readText()]]);
-      }
-      case 'Clipboard.setData': {
-        const args = call.arguments;
-        if (!(args instanceof Map) || typeof args.get('text') !== 'string')
-          throw new PlatformException({
-            code: 'invalid-arguments',
-            message: 'Clipboard.setData requires text',
-          });
-        if (!host.writeText) unsupported(call.method);
-        await host.writeText(args.get('text'));
-        return null;
-      }
-      case 'Clipboard.hasStrings': {
-        if (!host.hasStrings) unsupported(call.method);
-        return new Map([['value', await host.hasStrings()]]);
-      }
+      case 'Clipboard.getData':
+      case 'Clipboard.setData':
+      case 'Clipboard.hasStrings':
+        return invokeClipboardService(host, call);
       case 'SystemNavigator.pop': {
         if (!(call.arguments === null || typeof call.arguments === 'boolean'))
           throw new PlatformException({

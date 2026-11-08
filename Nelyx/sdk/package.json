@@ -51,6 +51,14 @@
     "NelyxPlatformServices.podspec"
   ],
   "exports": {
+    "./engine": {
+      "types": "./dist/engine.d.ts",
+      "default": "./dist/engine.js"
+    },
+    "./app": {
+      "types": "./dist/app.d.ts",
+      "default": "./dist/app.js"
+    },
     "./engine-v2-original": {
       "types": "./dist/runtime/engine-v2-original.d.ts",
       "default": "./dist/runtime/engine-v2-original.js"

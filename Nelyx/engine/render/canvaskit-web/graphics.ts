@@ -6,8 +6,8 @@ import type {
   PathSegment,
   AffineMatrix,
   NodeHandle,
-} from '../../../runtime/engine-client/index.ts';
-import { protocol as p } from '../../../runtime/engine-client/index.ts';
+} from '../../../runtime/engine-client/codec.ts';
+import { protocol as p } from '../../../runtime/engine-client/schema.ts';
 import type { NativePaintSnapshot } from '../../../runtime/engine-client/native-paint.ts';
 /** Recording bounds include displaced paint and blur, while input-only regions never paint. */
 export function nativePaintOutset(

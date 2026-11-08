@@ -85,7 +85,20 @@ void View::finishCanonicalTap(bool accepted) {
   else if(lastTapDownSent)gesture(node,wire::gestureKinds::tapCancel,lastInput,lastTapX,lastTapY,0,0,&lastTapDetails);
   lastTap={};lastTapDownSent=false;lastTapDetails={};
 }
-void View::canonicalPointer(const Input& packetInput,Stream& stream) {
+void View::canonicalCloseArena(const Input& packetInput,Stream& stream) {
+  const auto& node=active->document->get(stream.target);const auto mask=node.gestures;
+  if((mask&(wire::gestures::doubleTap|wire::gestures::longPress|dragMask))==0&&
+      !stream.tapDownSent&&!stream.tapCanceled&&(mask&wire::gestures::tap)){
+    stream.tapDownSent=true;gesture(stream.target,wire::gestureKinds::tapDown,packetInput.sequence,stream.startX,stream.startY,0,packetInput.stream);
+  }
+  const bool singleDrag=(node.policy&wire::eventPolicies::freePan)||(mask&dragMask)==wire::gestures::panX||(mask&dragMask)==wire::gestures::panY;
+  if((mask&dragMask)&&singleDrag&&!stream.scroll&&!(node.policy&wire::eventPolicies::dragThreshold)&&
+      !(mask&(wire::gestures::tap|wire::gestures::doubleTap|wire::gestures::longPress))){
+    stream.pan=true;stream.dragAxis=(node.policy&wire::eventPolicies::freePan)?3:(mask&wire::gestures::panX)?1:2;
+    gesture(stream.target,wire::gestureKinds::panStart,packetInput.sequence,packetInput.x,packetInput.y,0,packetInput.stream);
+  }
+}
+void View::canonicalPointer(const Input& packetInput,Stream& stream,bool deferArena) {
   const auto& node=active->document->get(stream.target);const auto mask=node.gestures;
   const auto index=packetInput.stream;
   const auto emit=[&](uint32_t kind,double x,double y){gesture(stream.target,kind,packetInput.sequence,x,y,0,index);};
@@ -102,13 +115,7 @@ void View::canonicalPointer(const Input& packetInput,Stream& stream) {
       if(node.policy&wire::eventPolicies::freePan){stream.dragAxis=3;emit(wire::gestureKinds::dragDown,packetInput.x,packetInput.y);stream.dragAxis=0;}
       else{if(mask&wire::gestures::panX){stream.dragAxis=1;emit(wire::gestureKinds::dragDown,packetInput.x,packetInput.y);}if(mask&wire::gestures::panY){stream.dragAxis=2;emit(wire::gestureKinds::dragDown,packetInput.x,packetInput.y);}stream.dragAxis=0;}
     }
-    if((mask&(wire::gestures::doubleTap|wire::gestures::longPress|dragMask))==0)tapDown();
-    const bool singleDrag=(node.policy&wire::eventPolicies::freePan)||(mask&dragMask)==wire::gestures::panX||(mask&dragMask)==wire::gestures::panY;
-    if((mask&dragMask)&&singleDrag&&!stream.scroll&&!(node.policy&wire::eventPolicies::dragThreshold)&&
-      !(mask&(wire::gestures::tap|wire::gestures::doubleTap|wire::gestures::longPress))){
-      stream.pan=true;stream.dragAxis=(node.policy&wire::eventPolicies::freePan)?3:(mask&wire::gestures::panX)?1:2;
-      emit(wire::gestureKinds::panStart,packetInput.x,packetInput.y);
-    }
+    if(!deferArena)canonicalCloseArena(packetInput,stream);
   }
   if(packetInput.phase==wire::phases::begin||packetInput.phase==wire::phases::update){
     const auto local=stream.pointerInverseValid?std::optional<Point>(stream.pointerInverse.map({packetInput.x,packetInput.y})):packetInput.snapshot->local(stream.target,packetInput.x,packetInput.y);

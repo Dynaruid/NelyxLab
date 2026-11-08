@@ -14,10 +14,10 @@ Workspace의 `tsc`는 `@typescript/native` alias의 native TypeScript 7.0.2를 �
 
 `@nelyx/core/v2`는 C++ 엔진의 packet codec·명령·`EngineClient`·`createWasmTransport`를 제공합니다. 원본 계약은 [engine/schema/protocol.json](engine/schema/protocol.json)이며 저장소 루트의 `node Nelyx/engine/tools/generate-schema.mjs --check`로 C++/TS 생성본 일치를 검사합니다. `npm.cmd run build:core`가 기존 Core export와 이 subpath를 함께 빌드합니다.
 
-저장소 루트에서 `npm.cmd run build:engine-v2`를 실행합니다. 공개 Core/Material/Cupertino/SDK를 먼저 빌드하고 HWND/Hermes/Skia host, 두 engine Wasm profile, worker/App bundle, 수정하지 않은 owned CanvasKit **m153-nelyx-paragraph.5** 자산(npm 0.41.0 package는 선언 제공)을 현재 `Nelyx/engine/dist`에 공급합니다. Wasm에는 [Emscripten](https://emscripten.org/docs/getting_started/downloads.html) **4.0.22**가 필요하며 `EMSDK` 또는 사용자 cache의 `.cache/tooling/emsdk`에서 찾습니다. Windows는 고정된 local Skia/Hermes 공급을 사용하고 누락·불일치를 거부합니다. 교체 후 staging·이전 출력을 제거합니다.
+저장소 루트에서 `npm.cmd run build:engine-v2`를 실행합니다. HWND/Hermes/Skia host, 두 engine Wasm profile, provider worker·기본 font와 owned CanvasKit **m153-nelyx-paragraph.5** 자산(npm 0.41.0 package는 선언 제공)을 현재 `Nelyx/engine/dist`에 공급합니다. Wasm에는 [Emscripten](https://emscripten.org/docs/getting_started/downloads.html) **4.0.22**가 필요하며 `EMSDK` 또는 사용자 cache의 `.cache/tooling/emsdk`에서 찾습니다. Windows는 고정된 local Skia/Hermes 공급을 사용하고 누락·불일치를 거부합니다. 엔진 빌드는 App package나 Testbed UI를 빌드하지 않습니다. 아래 실행 명령이 Core/Material/Cupertino/SDK를 준비하고 기존 Testbed 후보를 `sample/nelyx-testbed-app-2/engine-v2/dist/v2-<target>`에 별도로 빌드합니다. App 변경은 App bundle을, native/provider/protocol 변경은 엔진 공급을 무효화합니다. 교체 후 staging·이전 출력을 제거합니다.
 
 - Windows: `npm.cmd run run:engine-v2:windows`. Wheel 또는 왼쪽 pointer drag로 스크롤하고 `Ctrl+U`로 App 선언을 갱신합니다. 창을 닫으면 provider를 drain하고 owner를 join합니다.
-- Web: `npm.cmd run run:engine-v2:web` 후 `http://127.0.0.1:8192/isolated/`에서 threaded 자동 선택, `/plain/`에서 비격리 single-worker 자동 선택을 확인합니다. `?profile=threaded`는 격리가 필요하며 명시 요구·자산/ABI 오류는 TS renderer 전환 없이 실패합니다. 정적 배포는 현재 dist 전체와 격리 route의 worker/asset에 일관된 COOP/COEP headers를 제공해야 합니다.
+- Web: `npm.cmd run run:engine-v2:web` 후 `http://127.0.0.1:8192/isolated/`에서 threaded 자동 선택, `/plain/`에서 비격리 single-worker 자동 선택을 확인합니다. `?profile=threaded`는 격리가 필요하며 명시 요구·자산/ABI 오류는 TS renderer 전환 없이 실패합니다. 정적 배포에는 CLI의 `pack --engine v2 --target web` 출력을 사용하고 격리 route의 worker/asset에 일관된 COOP/COEP headers를 제공해야 합니다.
 - 개발 확인: `npm.cmd run check:types`, `npm.cmd run lint`, `npm.cmd run format:check`와 위 제품 빌드·실행 명령을 사용합니다. 독립 회귀 테스트와 API 감사 도구는 2026-11-07 사용자 요청으로 제거했습니다.
 
 Windows/threaded Web은 독립 Content/Render owner를 연결합니다. Single-worker는 협력 실행이며 `contentIndependent=false`입니다. Testbed는 v2 Widget/State/Key로 선언하고 C++ layout·intrinsic/dry query·편집 document·semantics를 사용합니다. Arabic/Hebrew fallback·color emoji를 공급합니다. 전체 Widget/Material/Cupertino API·gesture·Android는 **PARTIAL**이며 실제 IME/reader·trackpad/FPS 수락은 별도입니다. [work8 구현 기록](../history/26/11/04/work8-2-summary.md#이번-작업의-구현검증-현황)과 [work9 잔여 계획](../work9.md)을 참고하세요.
@@ -74,6 +74,8 @@ Editor의 명시적인 `commit`/`cancel` replacement는 host의 실제 compositi
 `WidgetHost.execution`은 ACK를 받은 native 명령/transaction·App geometry 선언·fallback 거부 횟수와 이유를 보고합니다. ACK 전에는 `observed=false`이며, C++ `transactionWork` 및 해당 장면의 실제 layout/paint 작업과 대조합니다. 미지원 Widget은 `fallbackPolicy: 'reject-unported'`로 실패합니다. 빌드 manifest의 `routing`에는 실제 검사한 import graph가 있습니다. 종전의 고정 `fallbacks=0`을 대신하며 성능·display 수락과는 구별합니다.
 
 일반 entry·자산·단독 패키지는 [SDK runner 안내](sdk/README.ko.md#일반-v2-프로젝트)를 따릅니다. 허용한 기존 value API는 원래 source/생성자를 재사용합니다. 독립 API 감사 도구는 제거했으며 기존 전체 Widget/RenderObject/디자인/SDK API 호환성은 계속 미완료입니다. [work9 API 호환 계획](../work9-2.md#8-기존-공개-api-호환-작업)과 [work8 기록](../history/26/11/05/work8-2a-summary.md#현재-구현-현황)을 참고하세요.
+
+일반 App은 `@nelyx/sdk/app`과 원래 Widget/Element/State 클래스를 사용합니다. Box/Flex/Stack·정렬/padding·clip·transform·RepaintBoundary·ColoredBox는 각 Core 모듈에서 native 설정을 제공합니다. Scene compiler는 정확히 등록한 prototype의 설정을 읽으며 TS layout/paint/hit-test를 실행하거나 미등록 render subclass를 허용하지 않습니다. Paragraph/image와 다른 render 계열의 잔여 이관은 [work9-a](../work9-a.md)에서 관리합니다.
 
 ## 모듈
 

@@ -1,7 +1,10 @@
+import { prepareEngineHelpers } from '../../eng/prepare-engine-helpers.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+
+prepareEngineHelpers();
 
 const root = path.resolve(import.meta.dirname, '../../..');
 const skia = path.join(root, 'Nelyx/skia'),
@@ -87,6 +90,11 @@ function mirror(source, target, owner) {
 }
 mirror(externalSdk, path.join(rn, 'generated/sdk'), rn);
 for (const owner of [rn, native]) {
+  mirror(
+    path.join(skia, 'native/engine-helpers'),
+    path.join(owner, 'generated/engine-helpers'),
+    owner,
+  );
   mirror(path.join(skia, 'native/core'), path.join(owner, 'generated/core'), owner);
   mirror(path.join(skia, 'native/host'), path.join(owner, 'generated/host'), owner);
   mirror(
@@ -94,7 +102,11 @@ for (const owner of [rn, native]) {
     path.join(owner, 'generated/gpu/nelyx_skia'),
     owner,
   );
-  mirror(path.join(skia, 'native/platforms/vulkan'), path.join(owner, 'generated/vulkan'), owner);
+  mirror(
+    path.join(root, 'Nelyx/engine/render/vulkan'),
+    path.join(owner, 'generated/vulkan'),
+    owner,
+  );
   const binding = path.join(skia, 'native/adapters/jsi'),
     cpp = path.join(owner, owner === rn ? 'generated/jsi' : 'cpp');
   mirror(path.join(binding, 'cpp'), cpp, owner);

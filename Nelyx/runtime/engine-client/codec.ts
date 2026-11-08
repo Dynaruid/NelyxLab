@@ -12,6 +12,11 @@ import { readFontTransition } from './font-transition.ts';
 import { imageStyleBytes, readImagePaint } from './image-style.ts';
 import type { ImageStyleOptions, ImagePaintSnapshot } from './image-style.ts';
 import type { FontTransitionState } from './font-transition.ts';
+import { snapshotStyleBytes, readSnapshotStyle, readSnapshotDecision } from './snapshot.ts';
+import type { NativeSnapshotConfiguration, SnapshotDecision } from './snapshot.ts';
+import { layoutBuilderBytes, readLayoutBuilder, readLayoutBuildRequest } from './layout-builder.ts';
+import type { LayoutBuilderOptions, LayoutBuildRequest } from './layout-builder.ts';
+export type { LayoutBuilderOptions, LayoutBuildRequest } from './layout-builder.ts';
 export type { PaintPlacementOptions } from './paint-placement.ts';
 import type { NativePaintOptions, NativePaintSnapshot } from './native-paint.ts';
 import type { ClipStyleOptions, ClipStyleSnapshot } from './clip.ts';
@@ -47,6 +52,20 @@ export interface NodeProperties {
   readonly chaining?: boolean;
 }
 export type AffineMatrix = readonly [number, number, number, number, number, number];
+export type NativeTapRegionOptions =
+  | { readonly kind: 'surface' }
+  | {
+      readonly kind: 'region';
+      readonly surface: NodeHandle;
+      readonly revision: bigint;
+      readonly group?: number;
+      readonly enabled?: boolean;
+      readonly consumeOutside?: boolean;
+      readonly downInside?: boolean;
+      readonly downOutside?: boolean;
+      readonly upInside?: boolean;
+      readonly upOutside?: boolean;
+    };
 export type PathSegment =
   | readonly ['move' | 'line', number, number]
   | readonly ['quad', number, number, number, number]
@@ -72,6 +91,8 @@ export interface GraphicsSnapshot extends GraphicsOptions {
   readonly hasPath: boolean;
 }
 export interface NodeLayout {
+  /** Lay out the retained child while reporting the incoming minimum size. */
+  readonly offstage?: boolean;
   readonly enabled?: boolean;
   /** Proxy/padding nodes preserve deflated incoming minima; stack expand also tightens maxima. */
   readonly childConstraints?: keyof typeof p.layoutChildConstraints;
@@ -87,6 +108,17 @@ export interface NodeLayout {
   readonly shrinkUnboundedMain?: boolean;
   readonly expandEmpty?: boolean;
   readonly clipOverflow?: boolean;
+  readonly overflowClipBehavior?: keyof typeof p.clipBehaviors;
+  readonly canonicalStack?: boolean;
+  readonly textBaseline?: 'alphabetic' | 'ideographic';
+  readonly positioned?: {
+    readonly left?: number;
+    readonly top?: number;
+    readonly right?: number;
+    readonly bottom?: number;
+    readonly width?: number;
+    readonly height?: number;
+  };
   readonly paragraphSizing?: boolean;
   /** A paragraph recording does not affect its parent's layout or hit geometry. */
   readonly paintChild?: boolean;
@@ -104,6 +136,7 @@ export interface NodeLayout {
   readonly fit?: 'tight' | 'loose';
   readonly gap?: number;
   readonly runGap?: number;
+  readonly runAlign?: keyof typeof p.layoutMainAlign;
   readonly columns?: number;
   readonly padding?: {
     readonly left?: number;
@@ -113,6 +146,7 @@ export interface NodeLayout {
   };
 }
 export interface ListOptions {
+  readonly fixed?: boolean;
   readonly generation: bigint;
   readonly count: number;
   readonly begin: number;
@@ -444,6 +478,47 @@ export interface LayerLinkOptions {
   readonly followerAnchor?: { readonly x: number; readonly y: number };
 }
 export const commands = {
+  layoutBuilder(node: NodeHandle, options?: LayoutBuilderOptions): Uint8Array {
+    return command(p.commands.layoutBuilder, node, layoutBuilderBytes(options));
+  },
+  snapshot(node: NodeHandle, options?: NativeSnapshotConfiguration): Uint8Array {
+    return command(p.commands.snapshot, node, snapshotStyleBytes(options));
+  },
+  tapRegion(node: NodeHandle, options?: NativeTapRegionOptions): Uint8Array {
+    return command(
+      p.commands.tapRegion,
+      node,
+      options
+        ? body(p.tapRegionBytes, (v) => {
+            if (options.kind === 'surface') {
+              v.setUint32(0, p.tapRegionFlags.surface, true);
+              return;
+            }
+            if (
+              options.revision <= 0n ||
+              options.revision > 0xffffffffffffffffn ||
+              !Number.isInteger(options.group ?? 0) ||
+              (options.group ?? 0) < 0 ||
+              (options.group ?? 0) > p.limits.nodes
+            )
+              throw Error('Invalid native TapRegion registration');
+            let flags = options.enabled === false ? 0 : p.tapRegionFlags.enabled;
+            for (const key of [
+              'consumeOutside',
+              'downInside',
+              'downOutside',
+              'upInside',
+              'upOutside',
+            ] as const)
+              if (options[key]) flags |= p.tapRegionFlags[key];
+            v.setUint32(0, flags, true);
+            v.setUint32(4, options.group ?? 0, true);
+            writeHandle(v, 8, options.surface);
+            v.setBigUint64(16, options.revision, true);
+          })
+        : new Uint8Array(),
+    );
+  },
   imageStyle(node: NodeHandle, options: ImageStyleOptions | null): Uint8Array {
     return command(p.commands.imageStyle, node, imageStyleBytes(options));
   },
@@ -647,7 +722,9 @@ export const commands = {
             (value.expandPreferredWidth ? p.layoutConstraintFlags.expandPreferredWidth : 0) |
             (value.paintChild ? p.layoutConstraintFlags.paintChild : 0) |
             (value.inlineScale !== undefined ? p.layoutConstraintFlags.inlineScale : 0) |
-            (value.inputPadding ? p.layoutConstraintFlags.inputPadding : 0),
+            (value.inputPadding ? p.layoutConstraintFlags.inputPadding : 0) |
+            (value.offstage ? p.layoutConstraintFlags.offstage : 0) |
+            (value.canonicalStack ? p.layoutConstraintFlags.canonicalStack : 0),
           true,
         );
         [
@@ -664,6 +741,34 @@ export const commands = {
           value.heightFactor ?? -1,
           value.inlineScale ?? 1,
         ].forEach((scalar, i) => v.setFloat64(32 + i * 8, finite(scalar), true));
+        v.setUint32(p.layoutFields.runAlign, p.layoutMainAlign[value.runAlign ?? 'start'], true);
+        v.setUint32(
+          p.layoutFields.textBaseline,
+          value.textBaseline === undefined
+            ? 0
+            : value.textBaseline === 'alphabetic'
+              ? 1
+              : value.textBaseline === 'ideographic'
+                ? 2
+                : uint32(NaN),
+          true,
+        );
+        v.setUint32(
+          p.layoutFields.overflowClipBehavior,
+          p.clipBehaviors[value.overflowClipBehavior ?? (value.clipOverflow ? 'hardEdge' : 'none')],
+          true,
+        );
+        let positionedFlags = 0;
+        for (const [index, name] of (
+          ['left', 'top', 'right', 'bottom', 'width', 'height'] as const
+        ).entries()) {
+          const scalar = value.positioned?.[name];
+          if (scalar !== undefined) {
+            positionedFlags |= 1 << index;
+            v.setFloat64(p.layoutFields.positioned + index * 8, finite(scalar), true);
+          }
+        }
+        v.setUint32(p.layoutFields.positionedFlags, positionedFlags, true);
       }),
     );
   },
@@ -795,6 +900,8 @@ export const commands = {
     );
   },
   list(node: NodeHandle, value: ListOptions | null): Uint8Array {
+    if (value?.fixed !== undefined && typeof value.fixed !== 'boolean')
+      throw RangeError('Invalid fixed list flag');
     return command(
       p.commands.list,
       node,
@@ -803,6 +910,7 @@ export const commands = {
         v.setUint32(8, uint32(value?.count ?? 0), true);
         v.setUint32(12, uint32(value?.begin ?? 0), true);
         v.setUint32(16, uint32(value?.end ?? 0), true);
+        v.setUint32(20, value?.fixed ? p.listFlags.fixedExtent : 0, true);
         v.setFloat64(24, finite(value?.estimate ?? 0), true);
       }),
     );
@@ -973,6 +1081,8 @@ export interface LayerCompositionSnapshot {
   readonly linkedOffset: { readonly x: number; readonly y: number };
 }
 export interface EngineNodeSnapshot {
+  readonly layoutBuilder: LayoutBuilderOptions | null;
+  readonly snapshot: NativeSnapshotConfiguration | null;
   readonly imagePaint: ImagePaintSnapshot | null;
   readonly fontBinding: FontResourceBinding | null;
   readonly layerComposition: LayerCompositionSnapshot | null;
@@ -1017,6 +1127,8 @@ export interface EngineNodeSnapshot {
   readonly layoutRevision: bigint;
   readonly textDirection: number;
   readonly requestedOffset: number;
+  readonly scrollMinimum: number;
+  readonly scrollMaximum: number;
   readonly deferred: boolean;
   readonly preparedCoverage: {
     readonly minimum: number;
@@ -1036,6 +1148,15 @@ export interface EngineBlob {
   readonly bytes: Uint8Array;
 }
 export interface EngineEvent {
+  /** Original annotation that contributed this published semantic action. */
+  readonly semanticSource?: NodeHandle;
+  readonly tapRegion?: {
+    readonly batch: bigint;
+    readonly surface: NodeHandle;
+    readonly semanticTarget: NodeHandle;
+    readonly device: number;
+    readonly inverse: AffineMatrix;
+  };
   readonly focusPeer?: NodeHandle;
   readonly gesture?: GestureDetails;
   readonly x: number;
@@ -1048,6 +1169,15 @@ export interface EngineEvent {
   readonly node: NodeHandle;
 }
 export interface EngineResponse {
+  readonly layoutBuildPending: boolean;
+  readonly layoutBuildRequest: LayoutBuildRequest | null;
+  readonly semanticRoute: {
+    readonly sequence: bigint;
+    readonly scope: NodeHandle | null;
+    readonly name: NodeHandle | null;
+    readonly label: string;
+  } | null;
+  readonly snapshotDecision: SnapshotDecision | null;
   readonly canonicalKeyboard: boolean;
   readonly memory: {
     readonly total: bigint;
@@ -1198,6 +1328,8 @@ export function response(bytes: Uint8Array): EngineResponse {
     nodes.push(
       Object.freeze({
         editing: null,
+        layoutBuilder: null,
+        snapshot: null,
         imagePaint: null,
         fontBinding: null,
         paragraph: null,
@@ -1250,6 +1382,8 @@ export function response(bytes: Uint8Array): EngineResponse {
         layoutRevision: v.getBigUint64(cursor + p.nodeFields.layoutRevision, true),
         textDirection: v.getUint32(cursor + p.nodeFields.textDirection, true),
         requestedOffset: f(p.nodeFields.requestedOffset),
+        scrollMinimum: f(p.nodeFields.scrollMinimum),
+        scrollMaximum: f(p.nodeFields.scrollMaximum),
         deferred: !!(v.getUint32(cursor + 20, true) & 64),
         preparedCoverage:
           v.getUint32(cursor + 20, true) & 128
@@ -1351,6 +1485,13 @@ export function response(bytes: Uint8Array): EngineResponse {
         p.imageResourceChunkBlob,
         p.imageResourceBlob,
         p.imagePaintBlob,
+        p.tapRegionEventBlob,
+        p.semanticSourceEventBlob,
+        p.snapshotStyleBlob,
+        p.snapshotDecisionBlob,
+        p.semanticRouteBlob,
+        p.layoutBuilderBlob,
+        p.layoutBuildRequestBlob,
       ].includes(type) ||
       stride > bytes.length - cursor ||
       v.getUint32(cursor + 4, true) ||
@@ -1367,6 +1508,73 @@ export function response(bytes: Uint8Array): EngineResponse {
     cursor += stride;
   }
   if (cursor !== bytes.length) throw new Error('Engine blob table length mismatch');
+  const tapEvents = new Set<number>();
+  const semanticSources = new Set<number>();
+  for (const blob of blobs)
+    if (blob.type === p.semanticSourceEventBlob) {
+      if (blob.bytes.length !== p.semanticSourceEventBytes)
+        throw Error('Invalid semantic source event size');
+      const data = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
+        index = data.getUint32(0, true),
+        event = events[index],
+        source = readHandle(data, 8);
+      if (
+        !event ||
+        event.kind !== p.events.semanticAction ||
+        semanticSources.has(index) ||
+        data.getUint32(4, true) ||
+        blob.handle.slot !== event.node.slot ||
+        blob.handle.generation !== event.node.generation ||
+        !source.slot ||
+        !source.generation ||
+        (source.slot === event.node.slot && source.generation === event.node.generation)
+      )
+        throw Error('Invalid semantic source event identity');
+      semanticSources.add(index);
+      events[index] = Object.freeze({ ...event, semanticSource: source });
+    }
+  for (const blob of blobs)
+    if (blob.type === p.tapRegionEventBlob) {
+      if (blob.bytes.length !== p.tapRegionEventBytes) throw Error('Invalid TapRegion event size');
+      const data = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
+        index = data.getUint32(0, true),
+        event = events[index],
+        surface = readHandle(data, 16),
+        semanticTarget = readHandle(data, 24),
+        batch = data.getBigUint64(8, true);
+      if (
+        !event ||
+        tapEvents.has(index) ||
+        !batch ||
+        blob.handle.slot !== event.node.slot ||
+        blob.handle.generation !== event.node.generation ||
+        !!surface.slot !== !!surface.generation ||
+        !!semanticTarget.slot !== !!semanticTarget.generation ||
+        (event.kind === p.events.tapRegion
+          ? !surface.slot || !event.gesture || event.status < 1 || event.status > 4
+          : event.kind !== p.events.semanticAction ||
+            surface.slot !== 0 ||
+            semanticTarget.slot !== 0)
+      )
+        throw Error('Invalid TapRegion event identity');
+      tapEvents.add(index);
+      const inverse = Object.freeze(
+        Array.from({ length: 6 }, (_, i) => finite(data.getFloat64(32 + i * 8, true))),
+      ) as unknown as AffineMatrix;
+      events[index] = Object.freeze({
+        ...event,
+        tapRegion: Object.freeze({
+          batch,
+          surface,
+          semanticTarget,
+          device: data.getUint32(4, true),
+          inverse,
+        }),
+      });
+    }
+  for (const event of events)
+    if (event.kind === p.events.tapRegion && !event.tapRegion)
+      throw Error('Missing TapRegion event geometry');
   const samples = (type: number): readonly RawInputSample[] =>
     Object.freeze(
       blobs
@@ -1414,7 +1622,18 @@ export function response(bytes: Uint8Array): EngineResponse {
           });
         }),
     );
+  for (const blob of blobs)
+    if (
+      blob.type === p.layoutBuilderBlob &&
+      !nodes.some(
+        (node) =>
+          node.node.slot === blob.handle.slot && node.node.generation === blob.handle.generation,
+      )
+    )
+      throw Error('Foreign layout builder owner');
   const enriched = nodes.map((node) => {
+    let layoutBuilder: LayoutBuilderOptions | null = null;
+    let snapshot: NativeSnapshotConfiguration | null = null;
     let editing: EditingSnapshot | null = null,
       textGeometry: TextGeometry | null = null,
       semantics: SemanticSnapshot | null = null,
@@ -1437,6 +1656,15 @@ export function response(bytes: Uint8Array): EngineResponse {
         continue;
       const d = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
         size = blob.bytes.length;
+      if (blob.type === p.layoutBuilderBlob) {
+        if (layoutBuilder || (node.kind !== p.kinds.box && node.kind !== p.kinds.sliver))
+          throw Error('Duplicate/foreign layout builder');
+        layoutBuilder = readLayoutBuilder(blob.bytes);
+      }
+      if (blob.type === p.snapshotStyleBlob) {
+        if (snapshot || node.kind !== p.kinds.box) throw Error('Duplicate/foreign snapshot style');
+        snapshot = readSnapshotStyle(blob.bytes);
+      }
       if (blob.type === p.imagePaintBlob) {
         if (imagePaint || node.kind !== p.kinds.image) throw Error('Duplicate/foreign image paint');
         imagePaint = readImagePaint(blob.bytes);
@@ -1579,10 +1807,15 @@ export function response(bytes: Uint8Array): EngineResponse {
           size < p.semanticsBytes ||
           d.getUint32(28, true) ||
           d.getUint32(0, true) > p.semanticsRoles.switchControl ||
-          d.getUint32(4, true) & ~127 ||
+          d.getUint32(4, true) & ~1023 ||
           d.getUint32(8, true) & ~255
         )
           throw Error('Invalid semantics blob');
+        if (
+          d.getUint32(4, true) & p.semanticsFlags.mergedIntoParent &&
+          !(d.getUint32(4, true) & p.semanticsFlags.hidden)
+        )
+          throw Error('Merged semantic annotation must be hidden');
         if (
           d.getUint32(4, true) & p.semanticsFlags.mixed &&
           (d.getUint32(0, true) !== p.semanticsRoles.checkbox ||
@@ -1682,14 +1915,20 @@ export function response(bytes: Uint8Array): EngineResponse {
           selection: Object.freeze(selection),
         });
       } else if (blob.type === 6) {
+        if (size < 64) throw Error('Invalid list snapshot');
+        const rows = d.getUint32(28, true),
+          header = size === 72 + rows * 40 ? 72 : 64;
         if (
           list ||
-          size < 64 ||
-          d.getUint32(28, true) > p.limits.listChildren ||
-          size !== 64 + d.getUint32(28, true) * 40
+          node.kind !== p.kinds.sliver ||
+          rows > p.limits.listChildren ||
+          size !== header + rows * 40 ||
+          (header === 72 &&
+            (d.getUint32(64, true) !== p.listFlags.fixedExtent || d.getUint32(68, true)))
         )
           throw new Error('Invalid list snapshot');
         list = Object.freeze({
+          fixed: header === 72,
           generation: d.getBigUint64(0, true),
           count: d.getUint32(8, true),
           begin: d.getUint32(12, true),
@@ -1702,7 +1941,7 @@ export function response(bytes: Uint8Array): EngineResponse {
           preparedEnd: finite(d.getFloat64(56, true)),
           items: Object.freeze(
             Array.from({ length: d.getUint32(28, true) }, (_, i) => {
-              const at = 64 + i * 40;
+              const at = header + i * 40;
               if (d.getUint32(at + 12, true)) throw new Error('Invalid list row');
               return Object.freeze({
                 node: readHandle(d, at),
@@ -1714,6 +1953,40 @@ export function response(bytes: Uint8Array): EngineResponse {
             }),
           ),
         });
+        if (
+          !list.generation ||
+          list.count > 1_000_000 ||
+          list.begin > list.end ||
+          list.end > list.count ||
+          list.end - list.begin > p.limits.listChildren ||
+          list.demandBegin > list.demandEnd ||
+          list.demandEnd > list.count ||
+          list.estimate <= 0 ||
+          list.total < 0 ||
+          list.preparedBegin < 0 ||
+          list.preparedEnd < list.preparedBegin ||
+          list.preparedEnd > list.total
+        )
+          throw Error('Invalid list snapshot bounds');
+        const indices = new Set<number>(),
+          keys = new Set<bigint>();
+        for (const row of list.items) {
+          if (
+            !row.node.slot ||
+            !row.node.generation ||
+            row.node.slot > p.limits.nodes ||
+            row.index >= list.count ||
+            !row.key ||
+            indices.has(row.index) ||
+            keys.has(row.key) ||
+            row.offset < 0 ||
+            row.offset > list.total ||
+            row.extent < 0
+          )
+            throw Error('Invalid list snapshot row');
+          indices.add(row.index);
+          keys.add(row.key);
+        }
       } else if (blob.type === 7) {
         if (
           control ||
@@ -1747,6 +2020,8 @@ export function response(bytes: Uint8Array): EngineResponse {
       throw Error('Pinned paragraph font revision differs from its recording');
     return Object.freeze({
       ...node,
+      layoutBuilder,
+      snapshot,
       editing,
       textGeometry,
       semantics,
@@ -1764,6 +2039,107 @@ export function response(bytes: Uint8Array): EngineResponse {
   });
   const flags = u32(p.stateFields.flags),
     commit = u64(p.stateFields.surfaceCommit);
+  const buildRequests = blobs.filter((blob) => blob.type === p.layoutBuildRequestBlob);
+  let layoutBuildRequest: LayoutBuildRequest | null = null;
+  if (buildRequests.length) {
+    if (
+      buildRequests.length !== 1 ||
+      v.getUint16(p.headerFields.status, true) !== p.statuses.ok ||
+      !(flags & p.layoutBuildPending) ||
+      !(flags & 2) ||
+      flags & 1
+    )
+      throw Error('Invalid layout build request state');
+    layoutBuildRequest = readLayoutBuildRequest(buildRequests[0]!.bytes, buildRequests[0]!.handle);
+    if (
+      layoutBuildRequest.preparation !== u64(p.stateFields.preparation) ||
+      layoutBuildRequest.document !== u64(p.stateFields.document) ||
+      layoutBuildRequest.document !== u64(p.stateFields.preparationDocument) ||
+      layoutBuildRequest.metrics !== u64(p.stateFields.metrics) ||
+      layoutBuildRequest.device !== u64(p.stateFields.device)
+    )
+      throw Error('Stale layout build request');
+  }
+  const decisions = blobs.filter((blob) => blob.type === p.snapshotDecisionBlob);
+  if (
+    decisions.length > 1 ||
+    (decisions.length &&
+      (v.getUint16(p.headerFields.opcode, true) & 0x7fff) !== p.opcodes.snapshotPaint)
+  )
+    throw Error('Duplicate/foreign snapshot decision');
+  const snapshotDecision = decisions.length ? readSnapshotDecision(decisions[0]!.bytes) : null;
+  const routes = blobs.filter((blob) => blob.type === p.semanticRouteBlob);
+  let semanticRoute: EngineResponse['semanticRoute'] = null;
+  if (routes.length) {
+    const blob = routes[0]!;
+    if (
+      routes.length !== 1 ||
+      (v.getUint16(p.headerFields.opcode, true) & 0x7fff) !== p.opcodes.semanticsSnapshot ||
+      v.getUint16(p.headerFields.status, true) !== p.statuses.ok ||
+      !(flags & 2) ||
+      flags & 1 ||
+      !u64(p.stateFields.publication) ||
+      u64(p.stateFields.publishedMetrics) !== u64(p.stateFields.metrics) ||
+      u64(p.stateFields.publishedDevice) !== u64(p.stateFields.device) ||
+      blob.handle.slot ||
+      blob.handle.generation ||
+      blob.bytes.length < p.semanticRouteBytes
+    )
+      throw Error('Invalid semantic route publication');
+    const data = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
+      sequence = data.getBigUint64(0, true),
+      scope = readHandle(data, 8),
+      name = readHandle(data, 16),
+      length = data.getUint32(24, true);
+    if (
+      data.getUint32(28, true) ||
+      length > p.limits.semanticsTextBytes ||
+      p.semanticRouteBytes + length !== blob.bytes.length ||
+      !!scope.slot !== !!scope.generation ||
+      !!name.slot !== !!name.generation ||
+      (!scope.slot && name.slot) ||
+      !!name.slot !== !!length ||
+      (scope.slot && !sequence)
+    )
+      throw Error('Invalid semantic route data');
+    const label = decodeUtf8(blob.bytes.subarray(p.semanticRouteBytes)),
+      same = (a: NodeHandle, b: NodeHandle) => a.slot === b.slot && a.generation === b.generation,
+      scopeNode = enriched.find((node) => same(node.node, scope)),
+      nameNode = enriched.find((node) => same(node.node, name));
+    if (
+      scope.slot &&
+      (!scopeNode?.semantics ||
+        !(scopeNode.semantics.flags & p.semanticsFlags.scopesRoute) ||
+        scopeNode.semantics.flags & p.semanticsFlags.hidden)
+    )
+      throw Error('Invalid semantic route scope');
+    if (name.slot) {
+      if (
+        !nameNode?.semantics ||
+        !(nameNode.semantics.flags & p.semanticsFlags.namesRoute) ||
+        nameNode.semantics.flags & p.semanticsFlags.hidden ||
+        nameNode.semantics.label !== label
+      )
+        throw Error('Invalid semantic route name');
+      let at: EngineNodeSnapshot | undefined = nameNode,
+        found = false;
+      for (let depth = 0; at && depth <= p.limits.depth; ++depth) {
+        if (same(at.node, scope)) {
+          found = true;
+          break;
+        }
+        const parent: NodeHandle = at.parent;
+        at = enriched.find((node) => same(node.node, parent));
+      }
+      if (!found) throw Error('Semantic route name outside scope');
+    }
+    semanticRoute = Object.freeze({
+      sequence,
+      scope: scope.slot ? scope : null,
+      name: name.slot ? name : null,
+      label,
+    });
+  }
   const viewportWidth = finite(v.getFloat64(b + p.stateFields.viewportWidth, true)),
     viewportHeight = finite(v.getFloat64(b + p.stateFields.viewportHeight, true)),
     viewportScale = finite(v.getFloat64(b + p.stateFields.viewportScale, true));
@@ -1776,6 +2152,10 @@ export function response(bytes: Uint8Array): EngineResponse {
   )
     throw new Error('Invalid engine viewport observation');
   return Object.freeze({
+    layoutBuildPending: !!(flags & p.layoutBuildPending),
+    layoutBuildRequest,
+    semanticRoute,
+    snapshotDecision,
     fontTransition: readFontTransition(blobs),
     memory: Object.freeze({
       total: u64(p.stateFields.memoryTotal),

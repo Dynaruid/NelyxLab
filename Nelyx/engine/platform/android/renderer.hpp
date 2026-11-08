@@ -22,6 +22,7 @@ class Renderer {
   // Declared before device/instance: userdata outlives them on constructor unwind too.
   const std::shared_ptr<CallbackState> callbacks=std::make_shared<CallbackState>();
   std::shared_ptr<Ledger> ledger;
+  native::SnapshotImages snapshots;
   std::unique_ptr<ExternalLease> cacheMemory,backingMemory;
   std::unique_ptr<dawn::native::Instance> instance;
   skgpu::graphite::DawnBackendContext backend;
@@ -93,8 +94,10 @@ class Renderer {
     auto target=SkSurfaces::WrapBackendTexture(recorder.get(),backendTexture,SkColorSpace::MakeSRGB(),nullptr);
     if(!target)throw std::runtime_error("Android Graphite surface wrapping failed");
     uint64_t layers=0,paths=0;for(const auto& item:frame.items){const auto& node=frame.scene->document->get(item.node);if(node.graphics.path)paths+=node.graphics.path->commands.size()*256+1024;if(item.paint)paths+=item.paint->paths.size()*256+1024;if(frame.properties[item.node.slot].opacity<1||node.graphics.blur>0)layers+=uint64_t(width)*height*4*(node.graphics.blur>0?3:1);if(item.flags&wire::nodeFlags::clipSaveLayer)layers+=uint64_t(width)*height*4;}
+    for(const auto& item:frame.items){const auto& node=frame.scene->document->get(item.node);
+      if(node.snapshot&&node.snapshot->live.opacity<1)layers+=uint64_t(width)*height*4;}
     ExternalLease pathMemory(ledger,2,2,paths),layerMemory(ledger,2,3,layers);
-    native::drawPreparedFrame(target->getCanvas(),frame,prepared,scale,paintCounts);
+    native::drawPreparedFrame(target->getCanvas(),frame,prepared,scale,paintCounts,snapshots);
     auto recording=recorder->snap();if(!recording)throw std::runtime_error("Android recording unavailable");
     skgpu::graphite::InsertRecordingInfo insert;insert.fRecording=recording.get();
     if(!context->insertRecording(insert)||!context->submit(skgpu::graphite::SyncToCpu::kYes)){check();throw RecoverableGpuLoss("Android Graphite context submission lost");}
@@ -105,7 +108,7 @@ class Renderer {
     // Always release every owner even when a lost device cannot submit a drain.
     if(!callbacks->lost&&!callbacks->error&&context)context->submit(skgpu::graphite::SyncToCpu::kYes);
     callbacks->closing=true;if(surface){surface.Unconfigure();surface=nullptr;}attachedWindow=nullptr;backingMemory.reset();width=height=0;
-    recorder.reset();context.reset();backend={};instance.reset();cacheMemory.reset();
+    snapshots.clear();recorder.reset();context.reset();backend={};instance.reset();cacheMemory.reset();
   }
   ~Renderer(){try{close();}catch(...){}}
 };

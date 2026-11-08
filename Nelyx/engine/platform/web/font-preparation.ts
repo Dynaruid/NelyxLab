@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
+import { protocol as p } from '../../../runtime/engine-client/schema.ts';
 import {
-  protocol as p,
   fontResourceReadBytes,
   readFontResourceSlice,
-  fontTransitionReadyBytes,
-} from '../../../runtime/engine-client/index.ts';
-import type { EngineResponse, FontTransitionOwner } from '../../../runtime/engine-client/index.ts';
+} from '../../../runtime/engine-client/font-resource.ts';
+import { fontTransitionReadyBytes } from '../../../runtime/engine-client/font-transition.ts';
+import type { EngineResponse } from '../../../runtime/engine-client/codec.ts';
+import type { FontTransitionOwner } from '../../../runtime/engine-client/font-transition.ts';
 import type { CanvasKitProvider } from '../../render/canvaskit-web/provider.ts';
 import { request, failure } from './common.ts';
 import type { BrowserModule } from './common.ts';

@@ -14,6 +14,7 @@ const names = {
   metro: 'nelyx-metro-',
   cli: 'nelyx-cli-',
   'static-aot': 'nelyx-static-aot-',
+  'tooling-contracts': 'nelyx-tooling-contracts-',
 };
 function installationLock(runner) {
   const modules = path.join(runner, 'node_modules'),
@@ -104,7 +105,7 @@ export function packageReferences(directory) {
   return references(directory);
 }
 export function engineV2PackageReferences(directory) {
-  return references(directory, ['core', 'sdk', 'cli', 'metro', 'static-aot']);
+  return references(directory, ['core', 'sdk', 'cli', 'metro', 'static-aot', 'tooling-contracts']);
 }
 /** Copy explicitly supplied archives into the consuming app before installation. */
 export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent = false }) {
@@ -146,6 +147,7 @@ export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent =
       'metro',
       'cli',
       'static-aot',
+      'tooling-contracts',
     ],
     fallback,
   );
@@ -158,6 +160,7 @@ export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent =
       target === 'web' ? refs.web : refs.rn,
     '@nelyx/metro': refs.metro,
     '@nelyx/cli': refs.cli,
+    '@nelyx/tooling-contracts': refs['tooling-contracts'],
     ...extra,
   };
   if (target !== 'web' && refs.native) inputs['@nelyx/skia-native'] = refs.native;
@@ -209,7 +212,12 @@ export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent =
         throw new Error('Owned supply archive must be a plain file');
       if (createHash('sha256').update(fs.readFileSync(destination)).digest('hex') !== hash)
         throw new Error('Owned supply archive changed');
-      const section = ['@nelyx/cli', '@nelyx/metro', '@nelyx/static-aot'].includes(name)
+      const section = [
+        '@nelyx/cli',
+        '@nelyx/metro',
+        '@nelyx/static-aot',
+        '@nelyx/tooling-contracts',
+      ].includes(name)
         ? 'devDependencies'
         : 'dependencies';
       manifest[section] ??= {};

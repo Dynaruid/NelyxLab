@@ -666,6 +666,33 @@ export class EngineViewClient {
       ).then((result) => checked(result, [p.statuses.pending, p.statuses.ok])),
     };
   }
+  /** Content locates and measures a Source list's destination from its own metric cache. */
+  startListOffsetSeek(
+    viewport: import('./codec.ts').NodeHandle,
+    list: import('./codec.ts').NodeHandle,
+    generation: bigint,
+    offset: number,
+  ): { readonly id: bigint; readonly receipt: Promise<EngineResponse> } {
+    this.ensureOpen();
+    if (!Number.isFinite(offset) || offset < 0 || offset > 1e12)
+      throw new RangeError('Invalid list offset seek');
+    const id = ++this.nextScroll;
+    return {
+      id,
+      receipt: this.request(
+        p.opcodes.listSeek,
+        body(48, (v) => {
+          writeHandle(v, 0, viewport);
+          writeHandle(v, 8, list);
+          v.setBigUint64(16, uint64(generation), true);
+          v.setUint32(28, p.listSeekFlags.offset, true);
+          v.setFloat64(32, offset, true);
+          v.setFloat64(40, p.limits.commandTimeoutMs / 1000, true);
+        }),
+        id,
+      ).then((result) => checked(result, [p.statuses.pending, p.statuses.ok])),
+    };
+  }
   async semanticsSnapshot(): Promise<EngineResponse> {
     return checked(await this.request(p.opcodes.semanticsSnapshot));
   }

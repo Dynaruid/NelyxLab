@@ -27,7 +27,7 @@ import type { ViewControllerContext } from '../../hosting/runtime.ts';
 import type { ViewMetrics } from '../../ui/types.ts';
 import { ViewWorkBudget } from './view-work-budget.ts';
 import { DormantChildCache } from './dormant-child-cache.ts';
-import { RenderObject } from '../rendering/object.ts';
+import { RenderObject, releaseNativeRenderResources } from '../rendering/object.ts';
 import { RenderErrorBox } from '../rendering/error-box.ts';
 import { assertOutsideRenderPaint } from '../rendering/phase.ts';
 import type { ParentData } from '../rendering/object.ts';
@@ -1893,6 +1893,11 @@ export class RenderObjectElement extends Element {
     let errors: unknown[] | undefined;
     try {
       if (this.render) {
+        try {
+          releaseNativeRenderResources(this.render);
+        } catch (error) {
+          (errors ??= []).push(error);
+        }
         try {
           if (this.ancestor) this.ancestor.removeRenderObjectChild(this.render, this.slot);
           else if (this.render.attached) this.render.detach();

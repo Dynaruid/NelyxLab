@@ -9,14 +9,14 @@ import {
   focusBody,
   semanticActionBody,
   keyBody,
-} from '@nelyx/core/v2';
+} from '@nelyx/core/engine';
 import type {
   EngineResponse,
   EngineNodeSnapshot,
   EditingSnapshot,
   NodeHandle,
   EditingUpdate,
-} from '@nelyx/core/v2';
+} from '@nelyx/core/engine';
 
 const owner = { session: 1, app: 1, view: 1, generation: 1 };
 const key = (n: NodeHandle) => `${n.slot}:${n.generation}`;
@@ -37,8 +37,17 @@ function isInput(element: HTMLElement): element is HTMLTextAreaElement | HTMLInp
 /** Main-thread DOM input/ARIA adapter. Scene bounds always come from Core publication. */
 export class EngineV2BrowserInteraction {
   readonly profile = 'dom-textarea/aria';
-  readonly counters = { edits: 0, actions: 0, snapshots: 0, peers: 0, rejected: 0 };
+  readonly counters = {
+    edits: 0,
+    actions: 0,
+    snapshots: 0,
+    peers: 0,
+    rejected: 0,
+    routeAnnouncements: 0,
+  };
   private layer: HTMLDivElement;
+  private routeAnnouncement: HTMLDivElement;
+  private routeSequence = 0n;
   private peers = new Map<string, Peer>();
   private geometry = new Map<string, HTMLDivElement>();
   private closed = false;
@@ -170,6 +179,21 @@ export class EngineV2BrowserInteraction {
       overflow: 'hidden',
     });
     document.body.append(this.layer);
+    this.routeAnnouncement = document.createElement('div');
+    this.routeAnnouncement.dataset.nelyxRouteAnnouncement = '';
+    this.routeAnnouncement.setAttribute('role', 'status');
+    this.routeAnnouncement.setAttribute('aria-live', 'polite');
+    this.routeAnnouncement.setAttribute('aria-atomic', 'true');
+    Object.assign(this.routeAnnouncement.style, {
+      position: 'fixed',
+      width: '1px',
+      height: '1px',
+      overflow: 'hidden',
+      clipPath: 'inset(50%)',
+      whiteSpace: 'pre',
+      pointerEvents: 'none',
+    });
+    document.body.append(this.routeAnnouncement);
     this.resize = () => this.position();
     window.addEventListener('scroll', this.resize, true);
     window.addEventListener('resize', this.resize);
@@ -476,7 +500,7 @@ export class EngineV2BrowserInteraction {
     }
   }
   private install(state: EngineResponse): void {
-    if (state.publication < this.publication) return;
+    if (this.closed || state.publication < this.publication) return;
     this.publication = state.publication;
     this.canonicalKeyboard = state.canonicalKeyboard;
     if (this.canonicalKeyboard) this.canvas.tabIndex = 0;
@@ -599,6 +623,7 @@ export class EngineV2BrowserInteraction {
       element.setAttribute('aria-disabled', String(disabled));
       element.tabIndex =
         !disabled &&
+        !(s.flags & p.semanticsFlags.scopesRoute) &&
         (node.editing ||
           s.flags & p.semanticsFlags.focusable ||
           s.actions & p.semanticsActions.focus)
@@ -685,6 +710,9 @@ export class EngineV2BrowserInteraction {
     }
     for (const [id, peer] of this.peers)
       if (!wanted.has(id)) {
+        // Removing a semantics peer does not revoke Core focus. Offstage can
+        // keep a Source focus owner while its accessible peer is absent.
+        peer.session = 0n;
         if (this.active === peer) this.active = undefined;
         peer.element.remove();
         this.peers.delete(id);
@@ -696,6 +724,15 @@ export class EngineV2BrowserInteraction {
       }
     this.counters.peers = this.peers.size;
     this.installFocus(state);
+    const route = state.semanticRoute;
+    if (!route?.scope) this.routeAnnouncement.replaceChildren();
+    else if (route.sequence > this.routeSequence) {
+      this.routeSequence = route.sequence;
+      this.routeAnnouncement.replaceChildren(
+        ...(route.label ? [document.createTextNode(route.label)] : []),
+      );
+      if (route.label) ++this.counters.routeAnnouncements;
+    }
   }
   private listen(peer: Peer): void {
     const element = peer.element;
@@ -707,7 +744,7 @@ export class EngineV2BrowserInteraction {
       });
     };
     element.addEventListener('focus', () => {
-      if (this.applying) return;
+      if (this.applying || (peer.node.semantics?.flags ?? 0) & p.semanticsFlags.scopesRoute) return;
       report(
         this.enqueue(async () => {
           const state = await this.dispatch(peer, 'focus');
@@ -864,6 +901,7 @@ export class EngineV2BrowserInteraction {
     window.removeEventListener('keydown', this.keyboard, true);
     window.removeEventListener('keyup', this.keyboard, true);
     this.layer.remove();
+    this.routeAnnouncement.remove();
     await this.tail;
     await Promise.allSettled([...this.forced.values()].map((value) => value.result));
     this.forced.clear();

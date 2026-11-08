@@ -3,7 +3,13 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "../dist/v2",
-    "lib": ["ES2022", "DOM"]
+    "lib": [
+      "ES2022",
+      "DOM"
+    ]
   },
-  "include": ["engine-client/**/*.ts"]
+  "include": [
+    "engine-client/**/*.ts",
+    "app/**/*.ts"
+  ]
 }

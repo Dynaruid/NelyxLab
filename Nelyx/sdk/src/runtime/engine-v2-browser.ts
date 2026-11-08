@@ -8,9 +8,9 @@ import {
   createPacketTransport,
   drainEngineOwners,
   capabilityMask,
-} from '@nelyx/core/v2';
-import type { EngineResponse, InputPacket, PacketEndpoint } from '@nelyx/core/v2';
-import type { EngineV2Host } from './engine-v2.ts';
+} from '@nelyx/core/engine';
+import type { EngineResponse, InputPacket, PacketEndpoint } from '@nelyx/core/engine';
+import type { EngineV2Host } from '../engine.ts';
 import { EngineV2BrowserInteraction } from './engine-v2-interaction.ts';
 
 export type EngineWebProfile = 'auto' | 'single-worker' | 'threaded';
@@ -227,7 +227,7 @@ export async function createBrowserEngineV2Surface(
       diagnostics = { ...diagnostics, ...(message.value as object) };
       const state = (diagnostics['render-stats'] as { state?: EngineResponse } | undefined)?.state;
       if (state) latest = state;
-      if (state?.publication) interaction.update();
+      if (!closed && state?.publication) interaction.update();
       diagnostics = {
         ...diagnostics,
         interaction: { profile: interaction.profile, ...interaction.counters },
@@ -256,13 +256,17 @@ export async function createBrowserEngineV2Surface(
     } else if (message.kind === 'closed') resolveClose(message.state as Record<string, unknown>);
     else if (message.kind === 'error' || message.kind === 'runtime-error') {
       const error = new Error(String(message.message));
+      closed = true;
       rejectReady(error);
-      rejectClose(error);
+      // A reported runtime failure still has live owners to drain. Only an
+      // explicit shutdown failure prevents the later closed acknowledgement.
+      if (message.terminal === true) rejectClose(error);
       options.onError?.(error.message);
     }
   };
   const failed = (event: ErrorEvent) => {
     const error = new Error(event.message || 'Engine worker failed');
+    closed = true;
     rejectReady(error);
     rejectClose(error);
     options.onError?.(error.message);

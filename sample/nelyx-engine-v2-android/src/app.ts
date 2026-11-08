@@ -1,118 +1,147 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { defineEngineV2App } from '@nelyx/sdk/engine-v2';
-import {
-  StatefulWidget,
-  State,
-  Column,
-  Text,
-  ScrollView,
-  EditingController,
-  protocol as p,
-} from '@nelyx/core/v2';
-import { Theme, ThemeData, FilledButton, TextField } from '@nelyx/material/v2';
-import {
-  CupertinoTheme,
-  CupertinoThemeData,
-  CupertinoButton,
-  CupertinoSwitch,
-} from '@nelyx/cupertino/v2';
+import { defineApp } from '@nelyx/sdk/app';
+import { StatefulWidget } from '@nelyx/core/framework/widgets/framework';
+import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
+import { Directionality } from '@nelyx/core/framework/widgets/app-data';
+import { Column, Padding, SizedBox, Text } from '@nelyx/core/framework/widgets/basic';
+import { Opacity } from '@nelyx/core/framework/widgets/opacity';
+import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
+import { FilledButton } from '@nelyx/material/filled-button';
+import { Switch } from '@nelyx/material/switch';
+import { Theme } from '@nelyx/material/theme';
+import { ThemeData } from '@nelyx/material/theme-data';
+import { InkRipple } from '@nelyx/material/ink-ripple';
+import { CupertinoButton } from '@nelyx/cupertino/button';
+import { CupertinoSwitch } from '@nelyx/cupertino/switch';
+import { CupertinoTheme, CupertinoThemeData } from '@nelyx/cupertino/theme';
+import { TextField } from '@nelyx/material/text-field';
+import { CupertinoTextField } from '@nelyx/cupertino/text-field';
+import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
 
-class AndroidScene extends StatefulWidget {
+class OriginalAndroidScene extends StatefulWidget {
   createState() {
-    return new AndroidState();
+    return new OriginalAndroidState();
   }
 }
-class AndroidState extends State {
+class OriginalAndroidState extends TickerProviderStateMixin<OriginalAndroidScene> {
   material = 0;
   cupertino = 0;
   enabled = false;
-  readonly editor = new EditingController('안녕하세요 · Android');
-  readonly password = new EditingController('private');
+  message = new TextEditingController('Original 한글');
+  password = new TextEditingController('secret');
+  fade!: AnimationController;
+  override initState() {
+    super.initState();
+    this.fade = new AnimationController({ vsync: this, value: 1, duration: 180 });
+    this.fade.addListener(() => {
+      if (this.mounted) this.setState(() => {});
+    });
+  }
   build() {
-    return new Theme(
-      new ThemeData(0xff6750a4),
-      new CupertinoTheme(
-        new CupertinoThemeData(0xff007aff),
-        new ScrollView(
-          new Column(
-            [
-              new Text('Nelyx on Android', {
-                fontSize: 26,
-                semantics: { role: 'text', label: 'Nelyx on Android' },
-              }),
-              new Text('Material · Cupertino', { fontSize: 17 }),
-              new FilledButton(
-                'Material ' + this.material,
-                () =>
-                  this.setState(() => {
-                    this.material++;
-                  }),
-                { properties: { width: 280, height: 48 } },
-              ),
-              new CupertinoButton(
-                'Cupertino ' + this.cupertino,
-                () =>
-                  this.setState(() => {
-                    this.cupertino++;
-                  }),
-                { properties: { width: 280, height: 48 } },
-              ),
-              new CupertinoSwitch(
-                this.enabled,
-                (value) =>
-                  this.setState(() => {
-                    this.enabled = value;
-                  }),
-                { semantics: { role: 'switchControl', label: 'Enable feature' } },
-              ),
-              new CupertinoSwitch(false, () => {}, {
-                semantics: { role: 'switchControl', label: 'Keep disabled' },
-              }),
-              new Text('Text input', { fontSize: 18 }),
-              new TextField(this.editor, {
-                properties: { width: 300, height: 64 },
-                flags: p.editFlags.multiline,
-                color: 0xffe9e1f4,
-                semantics: { role: 'textField', label: 'Message' },
-              }),
-              new TextField(this.password, {
-                properties: { width: 300, height: 48 },
-                flags: p.editFlags.password,
-                color: 0xffe9e1f4,
-                semantics: { role: 'textField', label: 'Password' },
-              }),
-              new FilledButton(
-                'Reset text',
-                () => {
-                  void this.editor.refresh().then((value) =>
-                    this.editor.edit({
-                      revision: value.revision,
-                      kind: 'replace',
-                      text: '다시 시작',
-                      base: 5,
-                      extent: 5,
-                      policy: 'cancel',
+    return new Directionality(
+      'ltr',
+      new Theme(
+        new ThemeData({ splashFactory: InkRipple.splashFactory }),
+        new CupertinoTheme(
+          new CupertinoThemeData(),
+          new Padding(
+            { left: 20, top: 24, right: 0, bottom: 0 },
+            new Column(
+              [
+                new Text('Nelyx Original Widgets', { fontSize: 24, color: 0xff172033 }),
+                new SizedBox(undefined, 20),
+                new FilledButton({
+                  child: new Text('Material ' + this.material),
+                  onPressed: () => {
+                    this.setState(() => {
+                      this.material++;
+                    });
+                    void this.fade.animateTo(0.4, { duration: 180 });
+                  },
+                }),
+                new SizedBox(undefined, 16),
+                CupertinoButton.filled({
+                  child: new Text('Cupertino ' + this.cupertino),
+                  onPressed: () =>
+                    this.setState(() => {
+                      this.cupertino++;
                     }),
-                  );
-                },
-                { properties: { width: 280, height: 48 } },
-              ),
-              ...Array.from(
-                { length: 12 },
-                (_, index) =>
-                  new Text('Android scroll item ' + (index + 1), {
-                    fontSize: 18,
-                    properties: { height: 38 },
-                    semantics: { role: 'text', label: 'Android scroll item ' + (index + 1) },
-                  }),
-              ),
-            ],
-            { layout: { gap: 14, padding: { left: 20, top: 24, right: 20, bottom: 24 } } },
+                }),
+                new SizedBox(undefined, 16),
+                new Switch({
+                  value: this.enabled,
+                  onChanged: (value) =>
+                    this.setState(() => {
+                      this.enabled = value;
+                    }),
+                  semanticLabel: 'Enable feature',
+                }),
+                new CupertinoSwitch({
+                  value: false,
+                  onChanged: () => {},
+                  semanticLabel: 'Keep disabled',
+                }),
+                new SizedBox(undefined, 16),
+                new Opacity(
+                  new SizedBox(
+                    300,
+                    192,
+                    new Column(
+                      [
+                        new SizedBox(
+                          300,
+                          64,
+                          new TextField({
+                            id: 'Message',
+                            controller: this.message,
+                            decoration: null,
+                            onChanged: (value) => {
+                              if (value === 'refuse')
+                                this.message.replace('accepted', { anchor: 8, focus: 8 });
+                            },
+                          }),
+                        ),
+                        new SizedBox(
+                          300,
+                          64,
+                          new CupertinoTextField({
+                            id: 'Password',
+                            controller: this.password,
+                            obscureText: true,
+                          }),
+                        ),
+                        new FilledButton({
+                          child: new Text('Reset editor'),
+                          onPressed: () =>
+                            this.message.replace('reset 한글', { anchor: 8, focus: 8 }),
+                        }),
+                      ],
+                      { mainAxisSize: 'min' },
+                    ),
+                  ),
+                  { opacity: 1 },
+                ),
+                new Opacity(
+                  new Text('TypeScript AnimationController', { fontSize: 20, color: 0xff172033 }),
+                  { opacity: this.fade.value },
+                ),
+                new Text('Opacity ' + this.fade.value.toFixed(2), {
+                  fontSize: 18,
+                  color: 0xff172033,
+                }),
+              ],
+              { mainAxisSize: 'min', crossAxisAlignment: 'start', textDirection: 'ltr' },
+            ),
           ),
-          { horizontal: { kind: 'expand' }, vertical: { kind: 'expand' } },
         ),
       ),
     );
   }
+  override dispose() {
+    this.fade.dispose();
+    this.message.dispose();
+    this.password.dispose();
+    super.dispose();
+  }
 }
-export default defineEngineV2App({ build: () => new AndroidScene() });
+export default defineApp({ build: () => new OriginalAndroidScene() });

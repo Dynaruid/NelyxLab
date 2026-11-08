@@ -2,16 +2,16 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 4042167114u;
+inline constexpr uint32_t schema = 3719990506u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
 inline constexpr uint32_t headerBytes = 64u;
 inline constexpr uint32_t stateBytes = 744u;
-inline constexpr uint32_t nodeBytes = 344u;
+inline constexpr uint32_t nodeBytes = 360u;
 inline constexpr uint32_t eventBytes = 160u;
 inline constexpr uint32_t inputBytes = 128u;
-inline constexpr uint32_t layoutBytes = 128u;
+inline constexpr uint32_t layoutBytes = 192u;
 inline constexpr uint32_t graphicsBytes = 136u;
 inline constexpr uint32_t graphicsPathBytes = 56u;
 inline constexpr uint32_t clipStyleBytes = 80u;
@@ -40,11 +40,29 @@ inline constexpr uint32_t fontTransitionBlob = 19u;
 inline constexpr uint32_t imageUploadBlob = 20u;
 inline constexpr uint32_t imageResourceChunkBlob = 21u;
 inline constexpr uint32_t imageResourceBlob = 22u;
+inline constexpr uint32_t tapRegionBytes = 24u;
+inline constexpr uint32_t tapRegionEventBlob = 24u;
+inline constexpr uint32_t tapRegionEventBytes = 80u;
+inline constexpr uint32_t semanticSourceEventBlob = 25u;
+inline constexpr uint32_t semanticSourceEventBytes = 16u;
 inline constexpr uint32_t imageStyleBytes = 112u;
 inline constexpr uint32_t imagePaintBytes = 176u;
 inline constexpr uint32_t imagePaintBlob = 23u;
 inline constexpr uint32_t rasterImageMagic = 1230133326u;
 inline constexpr uint32_t rasterImageHeaderBytes = 32u;
+inline constexpr uint32_t snapshotStyleBytes = 160u;
+inline constexpr uint32_t snapshotStyleBlob = 26u;
+inline constexpr uint32_t snapshotDecisionBytes = 160u;
+inline constexpr uint32_t snapshotDecisionBlob = 27u;
+inline constexpr uint32_t semanticRouteBytes = 32u;
+inline constexpr uint32_t semanticRouteBlob = 28u;
+inline constexpr uint32_t layoutBuilderBytes = 64u;
+inline constexpr uint32_t layoutBuilderBlob = 29u;
+inline constexpr uint32_t layoutBuildRequestBytes = 96u;
+inline constexpr uint32_t layoutBuildRequestBlob = 30u;
+inline constexpr uint32_t layoutBuildPending = 512u;
+inline constexpr uint32_t layoutListBuildRequestBytes = 144u;
+inline constexpr uint32_t layoutListBuildRowBytes = 32u;
 namespace layerCompositionFlags {
 inline constexpr uint32_t linked = 1u;
 inline constexpr uint32_t hasTransform = 2u;
@@ -53,7 +71,7 @@ inline constexpr uint32_t showWhenUnlinked = 4u;
 namespace limits {
 inline constexpr uint32_t views = 8u;
 inline constexpr uint32_t nodes = 4096u;
-inline constexpr uint32_t nodeBlobs = 14u;
+inline constexpr uint32_t nodeBlobs = 15u;
 inline constexpr uint32_t depth = 128u;
 inline constexpr uint32_t commands = 4096u;
 inline constexpr uint32_t packetBytes = 1048576u;
@@ -110,6 +128,7 @@ inline constexpr uint32_t fontChunkBytes = 262144u;
 inline constexpr uint32_t imageChunkBytes = 262144u;
 inline constexpr uint32_t imageTiles = 4096u;
 inline constexpr uint32_t appImageCallbacks = 64u;
+inline constexpr uint32_t sourceListMetrics = 4096u;
 }
 namespace opcodes {
 inline constexpr uint32_t hello = 1u;
@@ -173,6 +192,7 @@ inline constexpr uint32_t imageUploadCommit = 58u;
 inline constexpr uint32_t imageUploadAbort = 59u;
 inline constexpr uint32_t imageResourceRead = 60u;
 inline constexpr uint32_t imageResourceRelease = 61u;
+inline constexpr uint32_t snapshotPaint = 62u;
 }
 namespace commands {
 inline constexpr uint32_t create = 1u;
@@ -206,6 +226,9 @@ inline constexpr uint32_t layerLink = 28u;
 inline constexpr uint32_t paintPlacement = 29u;
 inline constexpr uint32_t paragraphFont = 30u;
 inline constexpr uint32_t imageStyle = 31u;
+inline constexpr uint32_t tapRegion = 32u;
+inline constexpr uint32_t snapshot = 33u;
+inline constexpr uint32_t layoutBuilder = 34u;
 }
 namespace kinds {
 inline constexpr uint32_t box = 1u;
@@ -272,6 +295,7 @@ inline constexpr uint32_t rawGap = 17u;
 inline constexpr uint32_t gestureDecision = 18u;
 inline constexpr uint32_t appFrame = 19u;
 inline constexpr uint32_t key = 20u;
+inline constexpr uint32_t tapRegion = 21u;
 }
 namespace gestures {
 inline constexpr uint32_t tap = 1u;
@@ -544,6 +568,8 @@ inline constexpr uint32_t boundsHeight = 320u;
 inline constexpr uint32_t clipHead = 328u;
 inline constexpr uint32_t depth = 332u;
 inline constexpr uint32_t localOpacity = 336u;
+inline constexpr uint32_t scrollMinimum = 344u;
+inline constexpr uint32_t scrollMaximum = 352u;
 }
 namespace inputFields {
 inline constexpr uint32_t sequence = 0u;
@@ -707,6 +733,8 @@ inline constexpr uint32_t expandPreferredWidth = 4096u;
 inline constexpr uint32_t paintChild = 8192u;
 inline constexpr uint32_t inlineScale = 16384u;
 inline constexpr uint32_t inputPadding = 32768u;
+inline constexpr uint32_t offstage = 65536u;
+inline constexpr uint32_t canonicalStack = 131072u;
 }
 namespace layoutFields {
 inline constexpr uint32_t enabled = 0u;
@@ -729,6 +757,11 @@ inline constexpr uint32_t alignmentY = 96u;
 inline constexpr uint32_t widthFactor = 104u;
 inline constexpr uint32_t heightFactor = 112u;
 inline constexpr uint32_t inlineScale = 120u;
+inline constexpr uint32_t runAlign = 128u;
+inline constexpr uint32_t textBaseline = 132u;
+inline constexpr uint32_t positionedFlags = 136u;
+inline constexpr uint32_t overflowClipBehavior = 140u;
+inline constexpr uint32_t positioned = 144u;
 }
 namespace measureFields {
 inline constexpr uint32_t preparation = 0u;
@@ -835,6 +868,9 @@ inline constexpr uint32_t selected = 8u;
 inline constexpr uint32_t focusable = 16u;
 inline constexpr uint32_t readOnly = 32u;
 inline constexpr uint32_t mixed = 64u;
+inline constexpr uint32_t mergedIntoParent = 128u;
+inline constexpr uint32_t scopesRoute = 256u;
+inline constexpr uint32_t namesRoute = 512u;
 }
 namespace semanticsActions {
 inline constexpr uint32_t activate = 1u;
@@ -906,6 +942,7 @@ inline constexpr uint32_t clipSaveLayer = 8192u;
 inline constexpr uint32_t livePaint = 16384u;
 inline constexpr uint32_t paintResource = 32768u;
 inline constexpr uint32_t inlineHidden = 65536u;
+inline constexpr uint32_t semanticsBlocked = 131072u;
 }
 namespace eventPolicies {
 inline constexpr uint32_t observeRaw = 1u;
@@ -926,6 +963,12 @@ inline constexpr uint32_t focusOwner = 16384u;
 inline constexpr uint32_t focusEnabled = 32768u;
 inline constexpr uint32_t skipTraversal = 65536u;
 inline constexpr uint32_t canonicalKeyboard = 131072u;
+inline constexpr uint32_t semanticsBoundary = 262144u;
+inline constexpr uint32_t blockPreviousSemantics = 524288u;
+inline constexpr uint32_t mergeSemanticsDescendants = 1048576u;
+inline constexpr uint32_t mergeSemanticsIntoParent = 2097152u;
+inline constexpr uint32_t excludeChildSemantics = 4194304u;
+inline constexpr uint32_t exclusiveMouseRegion = 8388608u;
 }
 namespace pointerKinds {
 inline constexpr uint32_t unknown = 0u;
@@ -1016,6 +1059,21 @@ inline constexpr uint32_t committed = 2u;
 inline constexpr uint32_t aborted = 3u;
 inline constexpr uint32_t failed = 4u;
 }
+namespace tapRegionEvents {
+inline constexpr uint32_t downInside = 1u;
+inline constexpr uint32_t downOutside = 2u;
+inline constexpr uint32_t upInside = 3u;
+inline constexpr uint32_t upOutside = 4u;
+}
+namespace tapRegionFlags {
+inline constexpr uint32_t surface = 1u;
+inline constexpr uint32_t enabled = 2u;
+inline constexpr uint32_t consumeOutside = 4u;
+inline constexpr uint32_t downInside = 8u;
+inline constexpr uint32_t downOutside = 16u;
+inline constexpr uint32_t upInside = 32u;
+inline constexpr uint32_t upOutside = 64u;
+}
 namespace imageFlags {
 inline constexpr uint32_t canonical = 1u;
 inline constexpr uint32_t widthSpecified = 2u;
@@ -1056,5 +1114,14 @@ inline constexpr uint32_t hue = 25u;
 inline constexpr uint32_t saturation = 26u;
 inline constexpr uint32_t color = 27u;
 inline constexpr uint32_t luminosity = 28u;
+}
+namespace listFlags {
+inline constexpr uint32_t fixedExtent = 1u;
+}
+namespace listSeekFlags {
+inline constexpr uint32_t offset = 1u;
+}
+namespace paragraphRunFlags {
+inline constexpr uint32_t ideographicBaseline = 16u;
 }
 }

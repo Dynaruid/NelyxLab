@@ -6,6 +6,7 @@ import type { PaintingContext } from '../painting/context.ts';
 import { BoxConstraints } from './constraints.ts';
 import { RenderBox, ContainerBoxParentData } from './object.ts';
 import type { RenderObject, TextBaseline } from './object.ts';
+import { registerNativeBoxConfiguration } from './native-box.ts';
 export type WrapAlignment =
   | 'start'
   | 'end'
@@ -407,3 +408,30 @@ export class RenderWrap extends RenderBox {
   }
 }
 RenderBox._registerGeometryLayoutSemantics(RenderWrap.prototype);
+registerNativeBoxConfiguration(RenderWrap.prototype, (render, reject) => {
+  const horizontal = render.direction === 'horizontal';
+  if (
+    render.textDirection === null &&
+    (horizontal
+      ? render.children.length > 1 || render.alignment === 'start' || render.alignment === 'end'
+      : render.runAlignment === 'start' ||
+        render.runAlignment === 'end' ||
+        render.crossAxisAlignment !== 'center')
+  )
+    return reject('wrap-missing-text-direction');
+  return {
+    kind: 'wrap',
+    layout: {
+      direction: render.direction,
+      mainAlign: render.alignment,
+      crossAlign: render.crossAxisAlignment,
+      gap: render.spacing,
+      runAlign: render.runAlignment,
+      runGap: render.runSpacing,
+      reverseMain: horizontal ? render.textDirection === 'rtl' : render.verticalDirection === 'up',
+      reverseCross: horizontal ? render.verticalDirection === 'up' : render.textDirection === 'rtl',
+      clipOverflow: render.clipBehavior !== 'none',
+      overflowClipBehavior: render.clipBehavior,
+    },
+  };
+});

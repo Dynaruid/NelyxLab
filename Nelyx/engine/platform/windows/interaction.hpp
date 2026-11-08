@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
-#include "../../../sdk/native/windows-hermes/Editors.h"
-#include "../../../sdk/native/windows-hermes/SemanticsTree.h"
+#include "interop/Editors.h"
+#include "interop/SemanticsTree.h"
 #include "../../core/engine.hpp"
 #include "../../core/state.hpp"
 #include "skia_provider.hpp"
@@ -23,7 +23,7 @@ class Interaction {
   std::shared_ptr<int> context = std::make_shared<int>(1);
   std::shared_ptr<const InteractionSnapshot> snapshot;
   std::shared_ptr<const Prepared> prepared;
-  uint64_t viewport = 0, device = 0;
+  uint64_t viewport = 0, device = 0, routeSequence = 0;
   struct Editor {
     Handle node;
     wi::DocumentValue native;
@@ -261,7 +261,7 @@ class Interaction {
     if(before==observed.frame.items.end())return false;
     for(unsigned attempt=0;attempt<3;++attempt){
       const auto current=engine.interactionSnapshot(1,1);
-      if(!current||!current->frame.allows(node)||!current->frame.scene->document->contains(node))return false;
+      if(!current||!current->frame.allowsSemantics(node)||!current->frame.scene->document->contains(node))return false;
       const auto after=std::find_if(current->frame.items.begin(),current->frame.items.end(),[&](const auto& item){return item.node==node;});
       const auto& oldNode=observed.frame.scene->document->get(node);const auto& newNode=current->frame.scene->document->get(node);
       if(after==current->frame.items.end()||before->x!=after->x||before->y!=after->y||
@@ -490,7 +490,7 @@ public:
         editors->execute(command(focused, "focus"));
     }
     std::vector<nh::SemanticPacket> packets;
-    const auto focusPeer=canonicalFocusPeer(*f.scene->document,next->focus);
+    const auto focusPeer=f.focusPeer(next->focus);
     std::map<uint64_t, int> indices;
     for (const auto &item : f.items) {
       const auto &node = f.scene->document->get(item.node);
@@ -520,8 +520,8 @@ public:
         c.geometry = frame;
         editors->execute(std::move(c));
       }
-      const auto a = node.semantics;
-      if (!a || (a->flags & wire::semanticsFlags::hidden))
+      const auto* a = f.semantic(node.id);
+      if (!a || !f.allowsSemantics(node.id) || (a->flags & wire::semanticsFlags::hidden))
         continue;
       nh::SemanticPacket packet;
       auto &s = packet.snapshot;
@@ -556,8 +556,9 @@ public:
       packet.automationId = wide(s.id);
       s.enabled = geometry && !(a->flags & wire::semanticsFlags::disabled) &&
                   !(current.editFlags & wire::editFlags::disabled);
-      s.focusable = (a->flags & wire::semanticsFlags::focusable) ||
-                    (a->actions & wire::semanticsActions::focus);
+      s.focusable = !(a->flags & wire::semanticsFlags::scopesRoute) &&
+                    ((a->flags & wire::semanticsFlags::focusable) ||
+                    (a->actions & wire::semanticsActions::focus));
       s.focused = node.id==focusPeer;
       s.canActivate = a->actions & wire::semanticsActions::activate;
       if (a->role == wire::semanticsRoles::checkbox || a->role == wire::semanticsRoles::switchControl)
@@ -614,6 +615,10 @@ public:
     }
     semantics->publish(std::move(packets), prepared ? std::weak_ptr<void>(prepared->context)
                                                     : std::weak_ptr<void>(context));
+    if(geometry&&next->visible&&f.route.sequence>routeSequence){
+      routeSequence=f.route.sequence;
+      if(f.route.scope&&f.route.label)semantics->announce(wide(f.route.label->label));
+    }
     ++publications;
   }
   bool point(uint32_t phase, double x, double y) {

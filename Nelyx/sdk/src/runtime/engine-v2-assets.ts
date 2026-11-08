@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { protocol as p, encodeUtf8, decodeUtf8, EngineError } from '@nelyx/core/v2';
-import type { AppTextBackend } from '@nelyx/core/v2';
+import { protocol as p, encodeUtf8, decodeUtf8, EngineError } from '@nelyx/core/engine';
+import type { AppTextBackend } from '@nelyx/core/engine';
 import { networkAssetTransport, networkAssetAddress } from './engine-v2-network.ts';
 
 export function applicationAssetKey(key: string): void {

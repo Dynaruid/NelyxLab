@@ -6,6 +6,7 @@ import { invariant } from '../../foundation/errors.ts';
 import type { PictureRasterizer } from '../../ui/picture.ts';
 import type { Image } from '../../ui/image.ts';
 import { RenderObject, RenderBox } from './object.ts';
+import { registerNativeBoxConfiguration } from './native-box.ts';
 export class RenderRepaintBoundary extends RenderConstrainedBox {
   private version = -1;
   private contentsVersion = -1;
@@ -156,3 +157,8 @@ export class RenderRepaintBoundary extends RenderConstrainedBox {
 }
 RenderObject._registerPaintInvalidationBoundary(RenderRepaintBoundary.prototype);
 RenderBox._registerGeometryLayoutSemantics(RenderRepaintBoundary.prototype);
+registerNativeBoxConfiguration(RenderRepaintBoundary.prototype, (render) => ({
+  kind: 'box',
+  layout: { childConstraints: 'inherit', enforceBounds: true },
+  constraints: render.additionalConstraints,
+}));
