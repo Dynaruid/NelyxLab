@@ -75,7 +75,7 @@ Editor의 명시적인 `commit`/`cancel` replacement는 host의 실제 compositi
 
 일반 entry·자산·단독 패키지는 [SDK runner 안내](sdk/README.ko.md#일반-v2-프로젝트)를 따릅니다. 허용한 기존 value API는 원래 source/생성자를 재사용합니다. 독립 API 감사 도구는 제거했으며 기존 전체 Widget/RenderObject/디자인/SDK API 호환성은 계속 미완료입니다. [work9 API 호환 계획](../work9-2.md#8-기존-공개-api-호환-작업)과 [work8 기록](../history/26/11/05/work8-2a-summary.md#현재-구현-현황)을 참고하세요.
 
-일반 App은 `@nelyx/sdk/app`과 원래 Widget/Element/State 클래스를 사용합니다. Box/Flex/Stack·정렬/padding·clip·transform·RepaintBoundary·ColoredBox는 각 Core 모듈에서 native 설정을 제공합니다. Scene compiler는 정확히 등록한 prototype의 설정을 읽으며 TS layout/paint/hit-test를 실행하거나 미등록 render subclass를 허용하지 않습니다. Paragraph/image와 다른 render 계열의 잔여 이관은 [work9-a](../work9-a.md)에서 관리합니다.
+일반 App은 `@nelyx/sdk/app`과 원래 Widget/Element/State 클래스를 사용합니다. Box/Flex/Stack·정렬/padding·clip·transform·RepaintBoundary·ColoredBox는 각 Core 모듈에서 native 설정을 제공합니다. Scene compiler는 정확히 등록한 prototype의 설정을 읽으며 TS layout/paint/hit-test를 실행하거나 미등록 render subclass를 허용하지 않습니다. Paragraph/image와 다른 render 계열의 잔여 이관은 [work9-b](../work9-b.md)에서 관리합니다.
 
 ## 모듈
 

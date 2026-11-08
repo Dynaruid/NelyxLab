@@ -75,7 +75,7 @@ The trusted host ledger admits owned Core/provider/transport/staging resources a
 
 The [SDK runner guide](sdk/README.md#general-v2-projects) covers project entries, assets and standalone packages. Legacy value APIs admitted by the runner retain their canonical source and constructors. The standalone API audit tool has been removed; full Widget/RenderObject/design/SDK compatibility remains incomplete. See the [active API compatibility plan](../work9-2.md#8-기존-공개-api-호환-작업) and [work8 record](../history/26/11/05/work8-2a-summary.md#현재-구현-현황).
 
-Canonical Apps use `@nelyx/sdk/app` with the original Widget/Element/State classes. Box/Flex/Stack, alignment/padding, clipping, transforms, repaint boundaries and colored boxes provide their native configuration from their own Core modules. The scene compiler reads these exact registered prototypes; it does not execute TS layout/paint/hit-test or admit unregistered render subclasses. Paragraph/image and other render families still have remaining migration work in [work9-a](../work9-a.md).
+Canonical Apps use `@nelyx/sdk/app` with the original Widget/Element/State classes. Box/Flex/Stack, alignment/padding, clipping, transforms, repaint boundaries and colored boxes provide their native configuration from their own Core modules. The scene compiler reads these exact registered prototypes; it does not execute TS layout/paint/hit-test or admit unregistered render subclasses. Paragraph/image and other render families still have remaining migration work in [work9-b](../work9-b.md).
 
 ## Modules
 

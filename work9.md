@@ -1,10 +1,12 @@
 # work9 — Windows·Web 우선 엔진 v2 구현과 호스트 전환
 
-> **2026-11-07 사용자 요청 — 개발 검증 정리:** 독립 테스트·fixture, API/구조 감사·성능 실험 도구와 npm 진입점을 제거했다. Testbed의 숨은 측정 버튼·모드와 강제 App/Content 지연·합성 입력 제어도 정리했다. 아래 분할 문서의 과거 `test:*`·`audit:*`·`experiment:*`·`measure:*`·`probe:*`·`inspect:*` 명령은 종료된 검증 기록이며 현재 실행 지시가 아니다. 기존 PASS·PARTIAL·notVerified와 미완료 기능 판정은 유지한다. 현행 확인은 `check:types`·`lint`·`format:check`와 변경 대상 제품 빌드·실행으로 수행한다. 잔여 임시 출력용 [일회성 PS1](cleanup-validation-once.ps1)은 기본 미리보기이며 `-Apply`에서만 삭제한다.
+> **2026-11-08 구조 개편 문서 전환:** [work9-a.md](work9-a.md)는 **CLOSED / 후속 문서 이관**으로 종료했고 원래 계약·구현·검증 기록을 보존한다. 남은 작업과 현행 재개점은 [work9-b.md](work9-b.md)의 **W9B-00–08**을 따른다. 구현은 **PAUSED / PARTIAL**이며 API·물리 입력·성능·기본값 전환 판정은 유지한다. 이번 전환은 문서 작업이며 제품 구현을 재개한 것이 아니다.
+
+> **2026-11-07 사용자 요청 — 개발 검증 정리:** 독립 테스트·fixture, API/구조 감사·성능 실험 도구와 npm 진입점을 제거했다. Testbed의 숨은 측정 버튼·모드와 강제 App/Content 지연·합성 입력 제어도 정리했다. 아래 분할 문서의 과거 `test:*`·`audit:*`·`experiment:*`·`measure:*`·`probe:*`·`inspect:*` 명령은 종료된 검증 기록이며 현재 실행 지시가 아니다. 기존 PASS·PARTIAL·notVerified와 미완료 기능 판정은 유지한다. 현행 확인은 `check:types`·`lint`·`format:check`와 변경 대상 제품 빌드·실행으로 수행한다. 당시 잔여 임시 출력용 일회성 PS1은 현재 저장소에 남아 있지 않다.
 
 개발 검증 정리 결과: **파일 504개 삭제**(테스트·fixture 478개, 감사·측정 도구 24개, Testbed 측정 모듈 2개), 루트 npm 명령 **107→20개**. 삭제 파일의 CMake 대상·공급 identity 입력·Android instrumentation·의존성과 현행 안내를 함께 정리했다. `check:types`·`lint`·`format:check`·`git diff --check`, Windows native·두 Wasm profile·Windows App SDK를 포함한 `build:engine-v2`와 현재 공급 identity/전체 파일 hash 확인 PASS. PS1의 미리보기·WhatIf·실제 삭제와 추적/미무시 파일·junction 보호를 임시 저장소에서 확인하고 임시 자료를 회수했으며, 실제 저장소의 잔여 빈 검증 폴더도 정리했다. 이번 정리는 제품 창·브라우저 UI·실기기·물리 입력·표시·성능의 재검증을 포함하지 않는다. 제품 오류·입력·ABI·자원 수명 검사와 내장 진단 API, 공급/build cache·변환 소유권 자료는 유지했다.
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-07 KST** · 상태: **IN_PROGRESS / Windows·Web PARTIAL · 사용자 지정 Android API·복구·reload PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-08 KST** · 상태: **PAUSED / Windows·Web PARTIAL · 사용자 지정 Android API·복구·reload PARTIAL**
 
 [work8 종료 요약](history/26/11/04/work8-summary.md) · [종료 시 API·검증 기록](history/26/11/05/work8-2a-summary.md#현재-구현-현황) · [Flutter 엔진 비교](history/26/11/05/work8-2a-summary.md#flutter-엔진-c-비교)
 

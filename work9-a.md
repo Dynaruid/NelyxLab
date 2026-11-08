@@ -1,8 +1,10 @@
 # work9-a — v2 엔진 중심 구조 개편과 레거시 제거 계획
 
-작성·갱신: **2026-11-08 KST** · 상태: **PAUSED / 구조 개편 PARTIAL**
+작성·갱신·종료: **2026-11-08 KST** · 문서 상태: **CLOSED / 후속 문서 이관** · 구현 판정: **PARTIAL**
 
-이 문서는 현재 소스와 패키지·빌드·실행 경로를 검토한 **구조 개편 실행 계약**이다. W9A-00–03을 중심으로 제품 구현을 시작했다. 현재 진행과 검증 범위는 §11에 기록한다. 기존 구현의 **PARTIAL**, 전체 API의 **compatible=false**, 물리 입력·표시의 **notVerified**, 두 성능 수락 flag의 **false**를 유지한다.
+> **이 문서는 종료했다.** 남은 작업과 재개 절차의 실행 계약은 [work9-b.md](work9-b.md)로 이관했다. 아래 계획·체크리스트·§11의 구현/검증 수치는 종료 시점의 기록으로 보존한다. 문서 종료는 구조 개편·API 호환·제품 전환·레거시 삭제의 완료를 뜻하지 않는다.
+
+이 문서는 소스와 패키지·빌드·실행 경로를 검토하고 W9A-00–03을 중심으로 구현한 **구조 개편의 기준 계약과 종료 기록**이다. 종료 시점의 진행과 검증 범위는 §11에 기록한다. 기존 구현의 **PARTIAL**, 전체 API의 **compatible=false**, 물리 입력·표시의 **notVerified**, 두 성능 수락 flag의 **false**를 유지한다.
 
 [기존 work9 목차](work9.md) · [공통 소유권](work9-1.md#11-typescript-디자인-패키지와-c-엔진의-책임) · [API·디자인 경계](work9-2.md) · [통합·완료 기준](work9-3.md) · [Android·Linux](work9-4.md) · [후속 iOS·macOS](work9-5.md)
 
@@ -63,7 +65,7 @@
 | 엔진 provider·Render | paragraph/path/image/shader 처리, native paint 실행·record/raster·GPU 수명·게시 | Native Skia와 Web CanvasKit binding의 차이는 provider 구현이다. Web TypeScript glue 자체를 레거시 renderer로 취급하지 않는다 |
 | OS/Web host | surface·clock·입력 carrier·IME·clipboard·접근성·환경·종료 | OS 코드에 Widget/theme/컴포넌트 정책을 넣지 않는다 |
 
-App 로컬의 **동기 C++/Wasm paragraph·이미지 서비스**는 이 구조와 양립한다. 현재 [AppTextLayoutService](Nelyx/runtime/engine-client/original-text.ts)와 [Web App service](Nelyx/engine/platform/web/app-text.ts)가 그 예다. 이를 TS layout fallback이나 미구현 서비스로 잘못 분류하지 않는다. 장면 전체의 최종 geometry 권위는 Content에 유지하고, 로컬 query의 font cohort·quota·handle·수명은 명시적으로 관리한다.
+App 로컬의 **동기 C++/Wasm paragraph·이미지 서비스**는 이 구조와 양립한다. 현재 [AppTextLayoutService](Nelyx/runtime/app/text.ts)와 [Web App service](Nelyx/engine/platform/web/app-text.ts)가 그 예다. 이를 TS layout fallback이나 미구현 서비스로 잘못 분류하지 않는다. 장면 전체의 최종 geometry 권위는 Content에 유지하고, 로컬 query의 font cohort·quota·handle·수명은 명시적으로 관리한다.
 
 ## 4. 목표 구조와 단일 실행 흐름
 
@@ -306,13 +308,13 @@ Native 공통 선언은 DOM/RN 없이, Web 선언은 해당 browser 환경에서
 
 ## 11. 현재 구현과 다음 시작점
 
-**상태: PAUSED / PARTIAL.** 사용자의 외출·중간 마무리 요청으로 2026-11-08에 중단했다. 사용자의 재개 요청 전에는 자동으로 이어서 실행하지 않는다. W9A-00–03의 소비자 대응·App 계약·공통 helper·직접 scene 연결을 구현했다. W9A-04의 기능 모듈 이동·Box/Flex/Stack/clip/transform 설정 소유권 분리·Source 고정/가변 ListView 연결, W9A-06의 session/service 통합, W9A-07의 설정·template·compiler와 엔진/App 빌드 분리를 구현했으며 전체 target descriptor·개발/배포 matrix는 남아 있다. W9A-08은 Android sample 이관만 진행했으며, Testbed/Demo의 실제 catalog 이관과 09–12의 전체 완료 조건은 남아 있다.
+**문서 상태: CLOSED / 이관 종료. 구현 판정: PARTIAL.** 사용자의 외출·중간 마무리 요청으로 2026-11-08에 구현을 중단했고, 이후 사용자 요청으로 이 문서를 종료해 [work9-b.md](work9-b.md)에 남은 작업을 이관했다. 이번 문서 전환에서 구현·제품 빌드·실행을 재개하지 않았다. 아래는 당시 기록이다. W9A-00–03의 소비자 대응·App 계약·공통 helper·직접 scene 연결을 구현했다. W9A-04의 기능 모듈 이동·Box/Flex/Stack/clip/transform 설정 소유권 분리·Source 고정/가변 ListView 연결, W9A-06의 session/service 통합, W9A-07의 설정·template·compiler와 엔진/App 빌드 분리를 구현했으며 전체 target descriptor·개발/배포 matrix는 남아 있다. W9A-08은 Android sample 이관만 진행했으며, Testbed/Demo의 실제 catalog 이관과 09–12의 전체 완료 조건은 남아 있다.
 
 **이번 중간 정리의 완료 경계:** Source 목록·controller·공유 예산·padding·State/Key·resize·0 높이/빈 목록 묶음과 Icon/CJK run을 마지막 검증 공급에서 확인했다. Web 두 profile과 새 8개 package 설치 소비자의 State init/dispose는 각각 83/83이었다. Windows HWND/App SDK의 실제 OS pointer 전환은 각각 28/28, 정상 종료의 예약/메모리 0·worker join·App error 0이었다. 상세 범위는 아래 목록 묶음 기록을 따른다. 임시 App·archive·설치본·browser/server·검증용 native 창과 이번 compile helper/산출물은 모두 회수했다.
 
 **진행 중인 미검증 변경:** `rendering/mouse-region.ts`·`widgets/raw-tooltip.ts`의 exact-prototype mouse 정책 등록과 Core retained pointer path의 중첩 exclusive 선택, `rendering/wrap.ts`의 native 선언/줄 정렬·양축 방향/overflow clip, `rendering/boxes.ts`의 Flex baseline 및 positioned Stack 선언을 작성했다. `runtime/app/layout.ts`·`controls.ts`와 scene/codec·Core layout/transaction/frame도 함께 변경했다. Layout wire는 128→192 bytes, Source schema는 **3719990506**, 현재 source identity는 **32b5f2ec89a29bdeb4c421a2cc1aefab9e3486165c2f968c014ad73e7e638bfd**다. Core package build와 전체 `check:types`, 변경한 C++ 5개 unit의 `/W4 /WX` compile-only는 통과했다. 이 새 묶음의 동작·실제 Core protocol·설치 소비자·Web/Windows/Android 실행은 **notVerified**다. Tooltip 위치 delegate/overlay와 새 Stack intrinsic·Wrap/Flex dry/intrinsic 경계는 특히 검토·검증이 남아 있다. 실행 결과를 관측하지 않았으므로 Gallery 차단이 해소됐다고 판정하지 않는다.
 
-**공급 주의와 정확한 재개점:** 현재 `engine/dist`·`dist-android`는 아래의 마지막 검증 공급 **f26ab2f… / schema 855578348**이며 새 Source와 일치하지 않는다. 이번 중간 정리에서는 긴 엔진 재빌드·앱 실행을 시작하지 않았다. 재개 시 먼저 위 미검증 diff와 원래 Source 의미를 검토하고, Source/Core differential·malformed wire·hover 중첩/opaque/translucent·Wrap 방향/음수 spacing/clip·두 baseline/없는 baseline·Stack positioned/fit/resize/dry/intrinsic 검사를 한 임시 묶음으로 구성한다. 목록/기존 LayoutBuilder·TapRegion·semantics·Snapshot 회귀를 함께 확인한 뒤 `npm.cmd run build:core`, `npm.cmd run build:engine-v2`, `npm.cmd run build:engine-v2:android`로 공급을 갱신한다. 실제 hash/identity·원래 API 834 분모를 확인하고, 새 설치 소비자와 Web 두 profile/Windows 두 host·원래 Gallery 전체로 이어간다. 테스트 timeout은 20분이고 임시 자료는 finally에서 회수한다. 재개 요청: **`work9-a.md 중간 정리 지점부터 재개해줘`**.
+**종료 시 공급 주의와 이관한 재개점:** 당시 `engine/dist`·`dist-android`는 아래의 마지막 검증 공급 **f26ab2f… / schema 855578348**이며 새 Source와 일치하지 않는다. 이번 중간 정리에서는 긴 엔진 재빌드·앱 실행을 시작하지 않았다. 재개 시 먼저 위 미검증 변경과 원래 Source 의미를 검토하고, Source/Core differential·malformed wire·hover 중첩/opaque/translucent·Wrap 방향/음수 spacing/clip·두 baseline/없는 baseline·Stack positioned/fit/resize/dry/intrinsic 검사를 한 임시 묶음으로 구성한다. 목록/기존 LayoutBuilder·TapRegion·semantics·Snapshot 회귀를 함께 확인한 뒤 `npm.cmd run build:core`, `npm.cmd run build:engine-v2`, `npm.cmd run build:engine-v2:android`로 공급을 갱신한다. 실제 hash/identity·원래 API 834 분모를 확인하고, 새 설치 소비자와 Web 두 profile/Windows 두 host·원래 Gallery 전체로 이어간다. 테스트 timeout은 20분이고 임시 자료는 finally에서 회수한다. 이 절의 source identity는 당시 기록이며 재개 직전에 다시 산출한다. 현행 순서와 재개 요청은 [work9-b.md §3](work9-b.md#3-첫-재개-묶음-w9b-00)을 따른다.
 
 **구현한 범위:** `runtime/engine-client/scene.ts`가 Widget 수명과 독립적으로 native handle·diff·ACK/NACK·불확정 ACK 재확인·upload·event 수명을 소유한다. 원래 BuildOwner는 `runtime/app/host.ts`에서 직접 SceneNode를 만들며 별도 data Widget을 만들지 않는다. `@nelyx/sdk/app`의 `defineApp`/`launchApp`은 공통 session에서 서비스를 준비한 뒤 원래 Widget을 mount한다. 이전 original entry는 같은 App 정의로 forwarding하며 CLI가 실제 import graph를 보고 canonical launcher에 직접 연결한다. data launcher는 원래 frontend를 끌어오지 않는다. Windows TSF/UIA·trackpad·font/paragraph·Vulkan과 Android 공통 입력 규칙은 engine 소유로 옮기고 구 host에는 현재 helper projection을 연결했다. TypeScript compiler 구현은 Metro에서 기존 tooling-contracts로 이동했다. 신규 `nelyx.json`과 strict template은 원래 Widget을 사용한다. Android sample도 같은 App entry·원래 controls/controller를 사용한다.
 
@@ -400,7 +402,7 @@ Core는 모르는 가변 높이를 먼저 실제 측정하고 viewport가 덮일
 
 **마지막 실행의 실제 gallery 차단:** 마지막 검증 공급에서 원래 Gallery 전체 878 modules·original-elements를 실제 NotoSansKR·MaterialIcons·CupertinoIcons로 실행하면 Web 두 profile 모두 indexed extent·bounded capacity=2·preparation=disabled·padding과 Icon/CJK 경로를 지나 _RenderExclusiveMouseRegion에서 명시 실패한다. TS renderer fallback은 계속 거부하며 close 예약 0·worker 종료를 확인했다. 실제 catalog 첫 화면·resize·탐색·전체 controls는 아직 통과하지 않았다.
 
-**다음 구현:** Tooltip/exclusive MouseRegion의 실제 hover/hit 정책, Wrap·flex baseline·positioned Stack 및 overlay/route/snapshot의 남은 실행 소비자를 원래 TypeScript 컴포넌트와 공통 C++ 연산에 연결한다. Paragraph/image·control/layer의 남은 중앙 설정 분기도 모듈 소유로 이관한다. 전체 semantics merge 충돌·역할/정렬·custom action과 TapRegion callback 내 정책 변경·예외의 동기 소비 계약은 남는다. W9A-06의 clipboard 외 OS 환경/font/lifecycle·VM globals·언어 의미·reload/loss와 W9A-07의 공통 target descriptor·create/dev/pack matrix도 미완료다. 엔진/App의 ABI/schema·service version·파일 hash를 계속 검증하고 전환 gate 전에 기본 CLI나 남은 renderer·구 host를 삭제하지 않는다.
+**후속 문서로 이관한 구현:** Tooltip/exclusive MouseRegion의 실제 hover/hit 정책, Wrap·flex baseline·positioned Stack 및 overlay/route/snapshot의 남은 실행 소비자를 원래 TypeScript 컴포넌트와 공통 C++ 연산에 연결한다. Paragraph/image·control/layer의 남은 중앙 설정 분기도 모듈 소유로 이관한다. 전체 semantics merge 충돌·역할/정렬·custom action과 TapRegion callback 내 정책 변경·예외의 동기 소비 계약은 남는다. W9A-06의 clipboard 외 OS 환경/font/lifecycle·VM globals·언어 의미·reload/loss와 W9A-07의 공통 target descriptor·create/dev/pack matrix도 미완료다. 엔진/App의 ABI/schema·service version·파일 hash를 계속 검증하고 전환 gate 전에 기본 CLI나 남은 renderer·구 host를 삭제하지 않는다.
 
 아래 원래 Windows App 입력 확인 명령은 위 재개 절차에서 Source와 공급의 identity를 맞춘 뒤 사용한다. root `run:engine-v2:windows`는 전환 중인 기존 data Testbed를 실행하므로 원래 Widget 입력의 근거와 구분한다.
 
@@ -411,3 +413,9 @@ node Nelyx/sdk/tooling/cli/src/main.mjs run --engine v2 --app sample/nelyx-engin
 ```
 
 **남은 판정:** 원래 API 분모 834와 서명 hash를 보존하며 `compatible=false`다. 중앙 allowlist·custom hook·동기 geometry·전체 sliver/list·디자인 전체·React/직접 Renderer 계약·SDK 전체 서비스·Testbed/Demo·제품 복구/설치 matrix는 미완료다. Linux·iOS/macOS는 **DEFERRED**, 물리/display/scanout은 **notVerified**, `performanceAccepted=false`·`resizePerformanceAccepted=false`다. 새 최소 앱의 성공을 전체 API·catalog·기본값 전환·전역 삭제 완료로 확대하지 않는다.
+
+## 12. 문서 종료와 후속 이관
+
+**2026-11-08 KST 사용자 요청으로 CLOSED.** W9A-00–12의 원래 범위·소유권·삭제 조건과 위 구현 기록은 이 문서에 보존한다. 미검증 MouseRegion/Wrap/Flex/Stack 묶음, Core·디자인·SDK·CLI의 잔여 이관, Testbed/Demo, 제품 검증·기본값 전환, 후속 플랫폼·전역 삭제를 [work9-b.md](work9-b.md)의 W9B-00–08로 대응시켰다. 이후 진행·검증·미완료 판정은 후속 문서에서 갱신한다.
+
+문서 전환에서 확인한 범위는 현행 소스·manifest의 상태, 로컬 링크·명령 존재 여부와 문서 diff다. 제품 소스·공급은 변경하지 않았고 제품 빌드·앱 실행·물리 입력·성능 검증은 재수행하지 않았다.
