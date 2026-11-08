@@ -725,8 +725,11 @@ export class EngineV2BrowserInteraction {
     this.counters.peers = this.peers.size;
     this.installFocus(state);
     const route = state.semanticRoute;
-    if (!route?.scope) this.routeAnnouncement.replaceChildren();
-    else if (route.sequence > this.routeSequence) {
+    // A resize can temporarily omit the current route publication. Only an
+    // explicit empty route clears the last announcement; its sequence may stay
+    // unchanged when the same scope is republished with the new metrics.
+    if (route && !route.scope) this.routeAnnouncement.replaceChildren();
+    else if (route && route.sequence > this.routeSequence) {
       this.routeSequence = route.sequence;
       this.routeAnnouncement.replaceChildren(
         ...(route.label ? [document.createTextNode(route.label)] : []),

@@ -4,7 +4,8 @@
 
 namespace nelyx::v2 {
 struct QueryValue {
-  double value = 0, width = 0, height = 0, baseline = -1;
+  double value = 0, width = 0, height = 0, baseline = -1, ideographicBaseline = -1;
+  bool hasBaseline = false, hasIdeographicBaseline = false;
 };
 // Intrinsic and dry queries own their continuations and never install a scene.
 class LayoutQueryWork {

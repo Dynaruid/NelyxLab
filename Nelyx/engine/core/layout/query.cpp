@@ -94,18 +94,31 @@ struct LayoutQueryWork::State {
     require(!n.layoutBuilder,wire::statuses::capabilityMissing);
     const auto &s = n.layout;
     const bool w = widthQuery(t.mode), minimum = minimumQuery(t.mode);
-    const auto &children = document->children[n.id.slot];
+    auto children = document->children[n.id.slot];
+    // Positioned children never contribute to Source Stack intrinsics.
+    if (!t.dry && (s.constraintFlags & wire::layoutConstraintFlags::canonicalStack))
+      std::erase_if(children, [&](Handle child) { return document->get(child).layout.positionedFlags != 0; });
     const double padding = w ? s.left + s.right : s.top + s.bottom;
     const double oppositePadding = w ? s.top + s.bottom : s.left + s.right;
     const double extent = std::max(0.0, t.extent - oppositePadding);
     if (t.dry) {
       if (!t.dry->step(1))
         return;
+      if (t.phase == 7) {
+        const auto &child = *t.dry->output()->boxes[children[t.index - 1].slot];
+        t.values[t.index - 1].baseline = child.baseline;
+        t.values[t.index - 1].ideographicBaseline = child.ideographicBaseline;
+        t.values[t.index - 1].hasBaseline = child.hasBaseline;
+        t.values[t.index - 1].hasIdeographicBaseline = child.hasIdeographicBaseline;
+        t.dry.reset();
+        return;
+      }
       const auto &box = *t.dry->output()->boxes[n.id.slot];
       finish({t.mode == wire::layoutQueries::dry ? 0
               : w                                ? box.width
                                                  : box.height,
-              box.width, box.height, box.baseline});
+              box.width, box.height, box.baseline, box.ideographicBaseline,
+              box.hasBaseline, box.hasIdeographicBaseline});
       return;
     }
     if (t.phase == 0) {
@@ -181,7 +194,8 @@ struct LayoutQueryWork::State {
       v = bounded(preferred > 0 ? preferred : v + padding, w ? n.horizontal : n.vertical);
       finish({v, w ? v : m.width + s.left + s.right,
               w ? m.height + s.top + s.bottom : v,
-              w || m.baseline < 0 ? -1 : s.top + m.baseline});
+              w || m.baseline < 0 ? -1 : s.top + m.baseline,
+              w || m.ideographicBaseline < 0 ? -1 : s.top + m.ideographicBaseline});
       return;
     }
     if (t.phase == 2) {
@@ -213,7 +227,19 @@ struct LayoutQueryWork::State {
       t.index = 0;
       return;
     }
-    if (t.phase == 3) {
+    if (t.phase == 3 || t.phase == 7) {
+      if (t.phase == 7 && t.index < children.size()) {
+        const auto index = t.index++;
+        const auto& child = document->get(children[index]);
+        LayoutConstraints constraints;
+        if (child.layout.flex > 0 && std::isfinite(extent)) {
+          constraints.maxWidth = t.mainSizes[index];
+          if (!child.layout.fit) constraints.minWidth = constraints.maxWidth;
+        }
+        t.dry = std::make_unique<LayoutWork>(document, children[index],
+            constraints, scale, font);
+        return;
+      }
       if (t.index < children.size()) {
         const size_t index = t.index++;
         const double childExtent = t.crossFlex ? t.mainSizes[index]
@@ -223,7 +249,15 @@ struct LayoutQueryWork::State {
         push(children[index], t.mode, childExtent, index);
         return;
       }
+      if (t.phase == 3 && t.crossFlex && s.textBaseline) {
+        // Source asks for a dry baseline with the child's original incoming
+        // constraints, independently of the synthetic intrinsic size.
+        t.phase = 7;
+        t.index = 0;
+        return;
+      }
       double value = 0, flex = 0, fraction = 0, ascent = 0, descent = 0;
+      double wrapCursor = 0, wrapStart = 0, wrapEnd = 0;
       const bool mainFlex = n.kind == wire::kinds::flex && !t.crossFlex;
       const bool sumWrap = n.kind == wire::kinds::wrap && !minimum;
       const bool baselineAligned = !w && s.direction == 0 &&
@@ -235,21 +269,31 @@ struct LayoutQueryWork::State {
         if (mainFlex && child.layout.flex > 0) {
           flex += child.layout.flex;
           fraction = std::max(fraction, v / child.layout.flex);
-        } else if (mainFlex || sumWrap)
+        } else if (sumWrap) {
+          wrapStart = std::min(wrapStart, wrapCursor);
+          wrapEnd = std::max(wrapEnd, wrapCursor + v);
+          wrapCursor += v + s.gap;
+        } else if (mainFlex)
           value += v;
         else
           value = std::max(value, v + (n.kind == wire::kinds::stack || n.kind == wire::kinds::box
                                            ? (w ? child.properties.x : child.properties.y)
                                            : 0));
         if (baselineAligned) {
-          require(t.values[i].baseline >= 0, wire::statuses::capabilityMissing);
-          ascent = std::max(ascent, t.values[i].baseline);
-          descent = std::max(descent, v - t.values[i].baseline);
+          const auto baseline = s.textBaseline == 2 ? t.values[i].ideographicBaseline : t.values[i].baseline;
+          const bool present = s.textBaseline ? (s.textBaseline == 2 ? t.values[i].hasIdeographicBaseline : t.values[i].hasBaseline) : baseline >= 0;
+          require(s.textBaseline || present, wire::statuses::capabilityMissing);
+          if (present) {
+            ascent = std::max(ascent, baseline);
+            descent = std::max(descent, v - baseline);
+          }
         }
       }
       if (mainFlex)
         value += fraction * flex;
-      if ((mainFlex || sumWrap) && !children.empty())
+      if (sumWrap)
+        value = std::max(0.0, wrapEnd - wrapStart);
+      if (mainFlex && !children.empty())
         value += s.gap * (children.size() - 1);
       if (n.kind == wire::kinds::grid)
         value = value * s.columns + s.gap * (s.columns - 1);

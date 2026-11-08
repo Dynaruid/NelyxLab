@@ -124,12 +124,20 @@ export function buildProfiles(
 function sha256(file) {
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
-function tree(directory, prefix = '') {
+function tree(directory, prefix = '', ignore = () => false) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const relative = path.posix.join(prefix, entry.name);
+    if (ignore(relative)) return [];
     if (entry.isSymbolicLink()) throw new Error('Engine build tree contains a symbolic link');
-    return entry.isDirectory() ? tree(path.join(directory, entry.name), relative) : [relative];
+    return entry.isDirectory()
+      ? tree(path.join(directory, entry.name), relative, ignore)
+      : [relative];
   });
+}
+const androidProjectCache = (name) => /(?:^|\/)(?:\.gradle|build)(?:\/|$)/.test(name);
+/** IDE/Gradle discovery can populate the project without changing its inputs. */
+export function androidProjectSourceFiles(directory) {
+  return tree(directory, '', androidProjectCache);
 }
 function cleanup(staged, parent) {
   const resolved = path.resolve(staged);
@@ -199,7 +207,14 @@ export function sourceIdentity() {
     '../sdk/tooling/contracts/package.json',
     '../sdk/tooling/cli/src/windows-static-hermes.mjs',
     ...['core', 'bindings', 'include', 'schema', 'tools', 'platform', 'render'].flatMap((dir) =>
-      tree(path.join(engineRoot, dir))
+      tree(
+        path.join(engineRoot, dir),
+        '',
+        (file) =>
+          dir === 'platform' &&
+          file.startsWith('android/project/') &&
+          androidProjectCache(file.slice('android/project/'.length)),
+      )
         .filter(
           (file) =>
             dir !== 'tools' || !['run-windows.mjs', 'run-android.mjs', 'serve.mjs'].includes(file),

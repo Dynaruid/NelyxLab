@@ -49,6 +49,9 @@ bool canonicalStack(const Node& n) {return n.layout.constraintFlags&wire::layout
 double alignmentBaseline(const LayoutBox& box,const LayoutStyle& style) {
   return style.textBaseline==2?box.ideographicBaseline:box.baseline;
 }
+bool hasAlignmentBaseline(const LayoutBox& box,const LayoutStyle& style) {
+  return style.textBaseline==2?box.hasIdeographicBaseline:box.hasBaseline;
+}
 bool measuredLeaf(const Node &n) {
   return n.kind == wire::kinds::paragraph || n.kind == wire::kinds::editable ||
          n.kind == wire::kinds::image;
@@ -329,8 +332,8 @@ struct LayoutWork::State {
       if(!b.children.empty()){
         const auto& child=*b.children.front().box;
         width=scalar(child.width*s.inlineScale);height=scalar(child.height*s.inlineScale);
-        if(child.baseline>=0)b.baseline=scalar(child.baseline*s.inlineScale);
-        if(child.ideographicBaseline>=0)b.ideographicBaseline=scalar(child.ideographicBaseline*s.inlineScale);
+        if(child.hasBaseline){b.baseline=scalar(child.baseline*s.inlineScale);b.hasBaseline=true;}
+        if(child.hasIdeographicBaseline){b.ideographicBaseline=scalar(child.ideographicBaseline*s.inlineScale);b.hasIdeographicBaseline=true;}
       }
       b.width=constrain(width,c.minWidth,c.maxWidth);b.height=constrain(height,c.minHeight,c.maxHeight);
       return;
@@ -395,8 +398,9 @@ struct LayoutWork::State {
         breadth = std::max(breadth, cross(*child.box, h));
         if (s.crossAlign == wire::layoutCrossAlign::baseline) {
           const double baseline=alignmentBaseline(*child.box,s);
-          require(h && (s.textBaseline||baseline >= 0), wire::statuses::invalidValue);
-          if(baseline>=0){ascent = std::max(ascent, baseline);
+          const bool present=hasAlignmentBaseline(*child.box,s);
+          require(h && (s.textBaseline||present), wire::statuses::invalidValue);
+          if(present){ascent = std::max(ascent, baseline);
             descent = std::max(descent, child.box->height - baseline);}
         }
       }
@@ -451,7 +455,7 @@ struct LayoutWork::State {
         if (s.crossAlign == 2)
           offset = reverseCross?0:freeCross;
         if (s.crossAlign == 4){const auto baseline=alignmentBaseline(*child.box,s);
-          offset = baseline<0?0:ascent-baseline;}
+          offset = hasAlignmentBaseline(*child.box,s)?ascent-baseline:0;}
         position(child, h, lead, offset);
         lead += main(*child.box, h) + gap;
       }
@@ -571,10 +575,14 @@ struct LayoutWork::State {
       child.x = scalar(child.x + s.left);
       child.y = scalar(child.y + s.top);
       const bool highest=canonicalStack(n)||n.kind==wire::kinds::wrap||(n.kind==wire::kinds::flex&&h);
-      if (child.box->baseline >= 0&&(b.baseline<0||highest))
-        b.baseline = b.baseline<0?child.y+child.box->baseline:std::min(b.baseline,child.y+child.box->baseline);
-      if (child.box->ideographicBaseline >= 0&&(b.ideographicBaseline<0||highest))
-        b.ideographicBaseline = b.ideographicBaseline<0?child.y+child.box->ideographicBaseline:std::min(b.ideographicBaseline,child.y+child.box->ideographicBaseline);
+      if (child.box->hasBaseline&&(!b.hasBaseline||highest)){
+        b.baseline = b.hasBaseline?std::min(b.baseline,child.y+child.box->baseline):child.y+child.box->baseline;
+        b.hasBaseline=true;
+      }
+      if (child.box->hasIdeographicBaseline&&(!b.hasIdeographicBaseline||highest)){
+        b.ideographicBaseline = b.hasIdeographicBaseline?std::min(b.ideographicBaseline,child.y+child.box->ideographicBaseline):child.y+child.box->ideographicBaseline;
+        b.hasIdeographicBaseline=true;
+      }
     }
   }
   void advance() {
@@ -781,6 +789,8 @@ struct LayoutWork::State {
         }
         t.box->baseline = m.baseline < 0 ? -1 : n.layout.top + m.baseline;
         t.box->ideographicBaseline = m.ideographicBaseline < 0 ? -1 : n.layout.top + m.ideographicBaseline;
+        t.box->hasBaseline = m.baseline >= 0;
+        t.box->hasIdeographicBaseline = m.ideographicBaseline >= 0;
         if(n.paragraph&&n.paragraph->value.inlineChildren()){
           require(m.placeholders&&m.placeholders->boxes.size()<=t.box->children.size(),wire::statuses::invalidValue);
           for(size_t i=0;i<t.box->children.size();++i){

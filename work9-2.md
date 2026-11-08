@@ -2,7 +2,9 @@
 
 > 2026-11-07: 사용자 요청으로 본문의 독립 테스트·감사·실험 명령을 폐기했다. 이전 검증 기록과 미완료 판정은 보존하며, 현행 확인·정리 기준은 [전체 목차의 정리 안내](work9.md)를 따른다.
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-07 KST** · 상태: **IN_PROGRESS / 사용자 요청 재개 / 전체 호환 PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-08 KST** · 상태: **플랫폼 API 소스 이식 계획 교정 / 전체 호환 PARTIAL**
+
+> **2026-11-08 사용자 교정:** native 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 구현 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기존 직접 구현 우선·회귀 사례 참고만으로 완료하는 방침은 대체한다. Windows host는 App SDK 하나이며 다음 실행은 [W9B-00-H](work9-b.md#34-다음-실행-w9b-00-h--host-단일화플랫폼-소스-이식-착수)다. 이번 변경은 계획 문서이며 실제 소스 이식·build/run 결과를 추가하지 않는다.
 
 [전체 목차](work9.md) · [이전: 1부](work9-1.md) · [다음: 3부](work9-3.md)
 
@@ -20,12 +22,12 @@
 
 | 작업                     | 구현·검증할 의미                                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Gate 입력                | **W9-00에서 먼저 정상화.** [원래 공개 표면](Nelyx/engine/schema/public-api.json)을 유지. 현재 [audit](Nelyx/engine/tools/api-audit.mjs)의 단일 declaration program을 Windows/Web의 target별 program·명시 환경으로 분리하고 원래 entry와 동작 의무를 매핑. `inputValid=true`와 `compatible=true`를 별도 판정. 누락/module/reexport·해석 실패·빈/non-code export를 지우거나 `skipLibCheck`로 FAIL을 없애지 않음 |
+| Gate 입력 | [원래 공개 표면](Nelyx/engine/schema/public-api.json)을 유지하고 target별 실제 설치 consumer·compiler·명시 환경에서 원래 entry/선언·동작 의무를 매핑. `inputValid=true`와 `compatible=true`를 구별하고 폐기된 독립 audit 도구 복원을 선행 조건으로 두지 않음 |
 | Widget/P1                | 원래 Widget/Element/State/BuildContext·Inherited·GlobalKey와 Key equality·parent data·init/update/deactivate/activate/dispose. Reparent/NACK/build 예외·listener 재진입·정확한 해제 횟수를 원래 호출로 검사                                                                                                                                                                                                   |
 | RenderObject/custom hook | 원래 intrinsic/baseline/layout/paint/hit-test/protected subclass 계약을 API별로 대응. 표준 node·등록한 native extension·명시 App boundary의 실제 실행과 한계를 검증. `AppDrivenBoundary`나 alias만으로 임의 동기 hook을 호환 처리하지 않음                                                                                                                                                                    |
 | 동기 상태 API            | ScrollController pixels/jump/animate, editing value/selection, layout geometry의 즉시 읽기·쓰기·listener를 ACK 전후/실패/취소/재진입에서 비교. App의 관측 상태와 C++ 권위 상태를 구별하고 stale cache를 현재 값으로 반환하지 않음                                                                                                                                                                             |
 | 디자인/P3                | 두 TypeScript 패키지의 원래 Widget/State·생성자/default·theme/typography/icons/shapes·form/control·route/overlay/modal·전환·localization을 유지한 채 공통 engine 연산에 연결. SDK app/service/platform API도 원래 사용 사례로 검사. C++ 컴포넌트 재구현으로 대체하지 않음                                                                                                                                     |
-| 실제 소비                | [API 동작 사례](Nelyx/engine/tools/api-behavior.mjs)와 [audit](Nelyx/engine/tools/api-audit.mjs)에 overload/member별 의무를 추가. 부분 검사한 class의 나머지 의무는 그대로 남기고 installed package의 원래 import·compiler·runtime에서 실행                                                                                                                                                                   |
+| 실제 소비 | 원래 overload/member별 선언·동작 의무를 현재 설치 package의 import·compiler·일반 앱 실행에서 확인. 부분 확인한 class의 나머지 의무와 source 이식/기존 소비자 교체·API 미지원 범위는 그대로 추적 |
 
 임의 동기 JS subclass와 독립 Content owner 사이에 동기 callback을 추가하면 교착·App 지연이 생길 수 있다. **W9-06-A를 W9-00 직후의 선행 검증으로 분리**한다. 기존 구현 위에서 State/GlobalKey/context·동기 controller·custom layout/paint/hit-test의 대표 원래 consumer를 실행해 보존할 상태·실행 위치·ACK 전후 의미를 정한다. 큰 그래픽 확장이나 전체 Widget 이식 전에 이 경계를 확인한다.
 
@@ -107,7 +109,9 @@ Reload의 **App 세대만 교체하는 경우와 host/session/surface까지 교�
 
 ### 11.1 채택 방침과 앞선 소스 검토
 
-**Web과 [§4.1](work9-1.md#41-windows-rnw-소스-선별-재사용)의 Windows RNW 재사용은 1차 개발이다. Android는 4부의 2차 W9-12-B(Android), iOS는 그다음 후속 5부의 3차 W9-12-B(iOS)로 진행한다.** 모바일 플랫폼 adapter를 만들 때 Nelyx와 RN의 OS 연결 소스를 선별 재사용한다. C++ core가 layout·editing document·gesture 판정·scroll/motion·scene·frame 일정을 계속 소유한다. RN의 전체 앱 실행·렌더러를 필수 기반으로 추가하지 않는다. 이 방침은 구현 계획에 채택했으며 실제 소스 추출·새 host 빌드·실기기 검증은 아직 하지 않았다.
+**Web과 [§4.1](work9-1.md#41-windows-rnw-소스-선별-재사용)의 App SDK·RNW 소스 이식은 1차 개발이다.** Android RN·Linux RNL은 4부의 2차, iOS RN·macOS RNM은 5부의 3차에 해당한다. Native 플랫폼 API는 해당 upstream의 OS 구현을 실제 복사·수정하고 Nelyx의 dispatcher·view/handle·Core port에 연결한다. 기존 자체 구현과 기능/회귀 사례만 비교한 결과는 소스 이식 완료가 아니다. 공통 C++ Core의 layout·editing document·gesture·scroll/scene/frame 권위와 TypeScript Widget/State를 유지한다. 현재 일부 standalone host가 실행돼도 이 소스 이식은 별도 미완료 의무다.
+
+**2026-11-08 원본 확인 범위:** RNW는 Windows runner 설치본 **0.83.2**, RN은 root 설치본 **0.83.10**의 실제 파일을 확인했다. RNM은 [기존 macOS template](Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/package.json)의 **0.83.0** 선언을 원본 선정 출발점으로 삼는다. RNL은 [기존 Linux inputs](Nelyx/sdk/tooling/cli/src/linux-inputs.mjs)의 **`9412cf605c7cc77f920916401926ff9a9873ecd3`**와 [template](Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/runner/package.json)의 `@lucid-softworks/react-native-linux`을 출발점으로 삼는다. RNM/RNL의 실제 원본 checkout·파일/API·license·toolkit 호환과 v2 이식은 아직 확인하지 않았으며 M0에서 고정한다. 기존 template의 버전 선언을 실제 새 host 공급/이식 검증으로 세지 않는다.
 
 모든 host는 [§8.2](#82-디자인-패키지의-typescript-구현-유지)의 같은 TypeScript 디자인 패키지를 실행한다. OS 입력 carrier·접근성 peer·명시적 platform view는 host/서비스 경계에 두며, 기본 Material/Cupertino 컴포넌트를 플랫폼별 C++/Kotlin/Objective-C++ Widget로 다시 만드는 작업으로 확장하지 않는다.
 
@@ -115,10 +119,13 @@ Reload의 **App 세대만 교체하는 경우와 host/session/surface까지 교�
 
 | 검토한 소스                                                                                                                                                                                               | 확인한 재사용 범위와 의존성                                                                                                                  | 채택 방법                                                                                                                                           |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Nelyx InputConnection](Nelyx/sdk/native/android/NelyxInputConnectionView.kt)·[keyboard host](Nelyx/sdk/native/android/NelyxKeyboardHost.kt)                                                              | BaseInputConnection·조합/selection·batch edit·CursorAnchorInfo·focus/close 처리가 있으나 `ThemedReactContext`, RN map/event/manager에 연결됨 | **Android의 첫 출발점**. OS 처리와 RN 전달 계층을 분리하고 native 값 타입·JNI/engine port로 교체                                                    |
+| [Nelyx InputConnection](Nelyx/sdk/native/android/NelyxInputConnectionView.kt)·[keyboard host](Nelyx/sdk/native/android/NelyxKeyboardHost.kt)                                                              | 기존 BaseInputConnection·조합/selection·batch·CursorAnchorInfo·focus/close와 RN 전달 경계 | 교체할 소비자·동작·수명 계약으로 조사. RN Android 수정 이식본에 연결하고 필요한 Core mirror/ACK·JNI 연결 코드를 보존. 기존 직접 구현만으로 이식 완료 처리하지 않음                                                    |
 | [Nelyx Android semantics](Nelyx/sdk/native/android/NelyxSemanticsView.kt)·[OS services](Nelyx/sdk/native/android/NelyxPlatformServices.kt)                                                                | Native accessibility/action·Activity 서비스의 일부 구현. ReactViewGroup/ViewManager·ReactApplicationContext 소유권과 섞여 있음               | OS 로직과 사례를 재사용하고 v2의 view/semantic handle·Activity 수명으로 재결합                                                                      |
-| [RN Android 입력 wrapper](https://github.com/react/react-native/blob/v0.83.10/packages/react-native/ReactAndroid/src/main/java/com/facebook/react/views/textinput/ReactEditTextInputConnectionWrapper.kt) | `ReactEditText`·EventDispatcher에 결합된 soft-keyboard `onKeyPress` 처리. 조합 전후 커서로 key를 추정하고 batch에서 한 key를 선택            | IME별 경계 처리·사례를 선별. **추정 key를 편집 명령의 원본으로 쓰지 않음**                                                                          |
-| [RN iOS delegate adapter](https://github.com/react/react-native/blob/v0.83.10/packages/react-native/Libraries/Text/TextInput/RCTBackedTextInputDelegateAdapter.mm)                                        | UITextField/UITextView의 선택·자동수정·delegate 이벤트 순서 처리. `RCTBackedTextInputViewProtocol`과 native text control에 의존              | 공통화 가능한 OS handler와 회귀 사례를 이식. Core paragraph geometry를 쓰는 custom UITextInput에 그대로 연결된다고 가정하지 않음                    |
+| [RN Android 입력 wrapper](https://github.com/react/react-native/blob/v0.83.10/packages/react-native/ReactAndroid/src/main/java/com/facebook/react/views/textinput/ReactEditTextInputConnectionWrapper.kt)·`ReactEditText.kt` | 실제 설치 RN의 입력/IME·focus·keyboard 구현. Context·EventDispatcher·native control 결합과 추정 onKeyPress 경계가 있음            | 필요한 구현 본체를 실제 복사·수정하고 일반 Context/Activity·Nelyx mirror/ACK·JNI로 연결. 추정 key를 실제 편집 연산과 중복 적용하지 않음                                                                          |
+| [RN iOS delegate adapter](https://github.com/react/react-native/blob/v0.83.10/packages/react-native/Libraries/Text/TextInput/RCTBackedTextInputDelegateAdapter.mm)                                        | UITextField/UITextView의 선택·자동수정·delegate/observer 등록·해제 구현, `RCTBackedTextInputViewProtocol` 결합              | 실제 입력·delegate 구현을 가져와 Core mirror/geometry·UIKit endpoint에 수정 연결. 참고 사례만 남기지 않으며 필요한 native carrier와 Core 권위 경계를 명시                    |
+| RN Android `modules/{clipboard,accessibilityinfo,appstate,deviceinfo}`·iOS `React/CoreModules/{RCTClipboard,RCTAccessibilityManager,RCTAppState,RCTDeviceInfo}`·`RCTLinkingManager` | 설치 RN에서 확인한 플랫폼 서비스·환경·알림 구현과 React module/Promise 결합 | 입력 외 플랫폼 API도 실제 복사·수정. React module/bridge 전달을 owned service·취소/오류·구독 해제·Core/App port로 교체 |
+| RNM AppKit 플랫폼 API | macOS 원본 선정 후 입력/keyboard/focus·접근성·clipboard·환경·window/lifecycle 구현을 식별 | AppKit host에 실제 수정 이식하고 RNM의 React/native peer 연결을 Nelyx 값·handle·Core mirror로 교체. 상세는 [5부](work9-5.md#6-macos--appkit-호스트) |
+| RNL GTK 플랫폼 API | RNL 원본 선정 후 GTK 입력/IME·focus·접근성·서비스·window/lifecycle과 toolkit 버전 차이를 식별 | GTK4 host에 실제 수정 이식하고 RNL의 React/runtime 의존성을 Nelyx port로 교체. 상세는 [4부](work9-4.md#5-linux--gtk4-호스트) |
 | [Nelyx Apple OS service](Nelyx/sdk/native/apple/NelyxPlatformServices.m)·[기존 RN 입력 peer](Nelyx/sdk/src/backends/react-native/interaction-controls.tsx)                                                | Locale/navigation은 RCTBridgeModule·RCTKeyWindow를 사용. 입력 peer는 React/RN control을 생성                                                 | 서비스 기능은 중립 callback으로 이식. RN peer나 Apple shutdown marker의 존재를 v2 UIKit 입력 host 완료로 세지 않음                                  |
 | [현재 Web 입력/ARIA](Nelyx/sdk/src/runtime/engine-v2-interaction.ts)·RN Web TextInput/createElement                                                                                                       | V2는 Main의 DOM carrier를 직접 관리. 설치 RN Web 소스는 React hook·React element·DOM props 생성과 연결됨                                     | 기존 v2를 유지하고 실제 필요한 DOM 호환 helper/사례만 추출. [RN Web의 React DOM 기반 구조](https://necolas.github.io/react-native-web/docs/)와 구별 |
 
@@ -127,7 +134,7 @@ RN의 render/commit/mount는 React element·shadow tree·layout·host view를 �
 ### 11.2 중립 adapter와 상태 계약
 
 ```text
-Android InputConnection / iOS UITextInput / Web DOM 입력
+RNW Windows / RN Android·iOS / RNM AppKit / RNL GTK 수정 이식본 / Web DOM 입력
   → OS adapter: 입력 연산·focus·조합·동기 질의용 mirror
   → bounded engine port: session/view/node 세대·edit revision·요청 ID
   → C++ editing/interaction: 승인 상태·undo/selection·gesture·scene
@@ -143,7 +150,7 @@ Android InputConnection / iOS UITextInput / Web DOM 입력
 | 스레드·전송              | UI 객체·IME delegate·accessibility는 OS UI owner, JNI/Objective-C++의 packet admission·해제는 명시 소유자, layout/준비/GPU는 기존 owner에 둔다. Callback은 owned immutable 값을 복사하고 RN map·JSI object·native view 포인터를 wire/worker에 보관하지 않음   |
 | Focus·종료               | OS focus와 Core focus session을 연결하고 이전 InputConnection/delegate·reload 결과를 generation으로 거부. Commit/cancel은 OS 종료 확인과 최신 revision을 거친다. Close 뒤 예약 callback·keyboard observer·scene/view·surface hold를 회수하고 복합 오류를 보존 |
 
-OS 동기 API에 반환할 값, Core 승인 전 mirror 변경의 허용 범위, 거부 시 조합을 보존하며 복구하는 방법을 정의한다. 1차에는 Windows/Web의 W9-01/07/12-A에 적용한다. 모바일 W9-12-B/M1은 2차 Android의 DTO/JNI부터 수행하고, 3차 iOS에서 UITextInput adapter로 확장한다. 단순 queue 전달만으로 입력 호환을 완료 처리하지 않는다.
+OS 동기 API에 반환할 값, Core 승인 전 mirror 변경의 허용 범위, 거부 시 조합을 보존하며 복구하는 방법을 정의한다. 1차 Windows RNW·Web, 2차 Android RN·Linux RNL, 3차 iOS RN·macOS RNM에 각각 적용한다. 이식된 OS 동작의 예외 처리·수명·실제 입력을 보존하고, 단순 queue 전달이나 새 자체 구현만으로 이식/호환 완료 처리하지 않는다.
 
 ### 11.3 Web — 기존 DOM·Worker host 유지
 
@@ -169,23 +176,23 @@ Web의 신규 session은 profile probe를 다시 할 수 있지만 실행 중인
 
 App·engine·CanvasKit JS/Wasm·font/image URL은 같은 bundle identity로 확인한다. Plain/isolated 배포와 하위 base URL에서 MIME·CSP/worker/Wasm 허용·cross-origin 자원 정책·HTTPS 또는 신뢰된 localhost 조건을 검사한다. 오래된 cache/혼합 자원·손상 파일은 명시적 공급 실패로 처리하며, 외부 image/clipboard 권한 거부·취소도 해당 API의 동작과 자원 회수에 포함한다.
 
-플랫폼별 구현은 **[4부의 Android §11.4](work9-4.md#114-android--기존-nelyx-os-코드를-먼저-분리)**와 **[후속 5부의 iOS §11.5](work9-5.md#115-ios--uikit-입력-endpoint와-rn-예외-처리-이식)**로 분리했다. 공통 입력 계약·Web helper·도입 gate와 검증 corpus는 이 부에 유지한다.
+플랫폼별 구현은 **[4부의 RN Android·RNL Linux](work9-4.md)**와 **[5부의 RN iOS·RNM macOS](work9-5.md)**로 분리했다. 공통 입력 계약·Web helper·도입 gate와 검증 corpus는 이 부에 유지한다.
 
 ### 11.6 도입 순서와 의존성 gate
 
-M0–M4는 재사용 범위의 식별자다. **1차 Web의 M3는 모바일 M0–M2 완료를 기다리지 않는다.** 모바일 추출·통합은 2차 Android → 3차 iOS 순서로 해당 target의 W9-12-B와 W9-13에서 수행한다. Android의 M0–M2/M4 완료에 iOS 구현·Apple 공급을 요구하지 않는다.
+M0–M4는 소스 이식 범위의 식별자다. 현재 W9B-00-H에서 전체 native API의 원본/소비자 대응을 정하고 Windows RNW 첫 실제 이식을 수행한다. 실제 후속 이식은 2차 Android RN·Linux RNL → 3차 iOS RN·macOS RNM 순서다. **Web M3와 Windows 첫 이식은 후속 플랫폼의 소스 추출 전체·toolchain/build 완료를 기다리지 않는다.**
 
 | 항목                       | 연결 단계·차수                                        | 완료 조건                                                                                                                                                                                                                                            |
 | -------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M0 — 원본·범위 고정        | W9-12-B / Android 2차·iOS 3차                         | Nelyx 우선 재사용·RN 도입·참고만 할 파일을 구별. 원본 tag/commit·파일 hash·변경 이유·필수 의존성·license/notice를 고정. 로컬 node_modules 전체를 제품 source로 복제하지 않음                                                                         |
-| M1 — 중립 계약·helper 추출 | W9-12-B / Android 2차·iOS 3차, W9-01의 공통 계약 사용 | Native DTO/packet·mirror/ACK·focus/connection/reload generation·UI thread·callback/close 계약. 새 standalone adapter는 RN 앱 객체 없이 compile/link 가능하고 기존 v1 wrapper의 기능도 유지                                                           |
-| M2 — 모바일 수직 실행      | W9-12-B / Android 2차·iOS 3차                         | 해당 차수의 Android 또는 iOS **각각**의 일반 앱에서 scene·OS 입력/편집·semantics·surface 재생성·close/drain. SDK 요청과 실제 C++ 작업 대조. RN 부재를 runtime 시작/입력 실패로 숨기지 않음                                                           |
+| M0 — 원본·API·소비자 고정 | W9B-00-H의 대응표·각 native target 착수 | RNW/RN/RNM/RNL별 원본 tag/commit/package integrity·파일 hash·license·필요 의존성·API와 기존 소비자를 고정. 가져올 실제 구현·수정할 연결·미지원 gap을 구분. 전체 checkout/과거 사본을 제품 공급에 복제하지 않음 |
+| M1 — 실제 소스 이식·수정 | Windows W9B-00-H/03·W9-01/07, 후속 각 target | 선택한 OS 구현 파일/함수를 가져와 수정. RN context/tag/module/event/Promise·toolkit 수명을 owned view/dispatcher·값/handle·Core port로 치환. Native DTO·mirror/ACK·세대/취소/close와 원본 동작을 함께 보존 |
+| M2 — 플랫폼 수직 실행 | Windows W9-02-A, Android/iOS W9-12-B, Linux W9-03, macOS W9-04 | 각 App SDK/Activity/UIKit/GTK4/AppKit 일반 앱이 **수정 이식한 소스**의 실제 OS API를 사용. 입력/서비스·scene·surface/세대·close/drain과 SDK/Core 작업을 대조. 기존 직접 구현만 실행한 결과와 구분 |
 | M3 — Web helper 선별       | W9-07/12-A / 1차·필요한 경우                          | 재현된 browser 차이와 필요한 helper만 반영. 출처·의존성, Main의 DOM 소유권·trusted activation·두 profile·geometry·회수 유지. 도입할 helper가 없으면 기존 host 유지로 기록                                                                            |
-| M4 — 공급·통합             | W9-13 / 대상별                                        | 1차는 Windows/Web 및 도입한 RNW/Web helper, 2차는 Android, 3차는 iOS의 dependency/link graph·설치본·앱 entry를 각각 확인. 같은 TypeScript 디자인 구현/자산과 공통 engine 공급의 경계, runtime identity·host/IME/semantics corpus·손상 거부·종료 통과 |
+| M4 — 공급·통합 | W9-13 / 각 native target·Web | 이식한 RNW/RN/RNM/RNL source/patch·저작권/notice·실제 native/link/bundle graph·설치 App entry를 확인. App SDK 없는 Windows executable/profile은 공급하지 않음. API별 실제 이식/미이식과 실행 범위·손상 거부·종료 확인 |
 
 V2 standalone target의 실제 Gradle/CMake·Pod/Xcode link·bundle dependency graph에서 ReactHost/ReactContext·ViewManager/UIManager·Fabric/Yoga·RCTBridgeModule/TurboModule·React DOM renderer 의존성을 검사한다. 소스 이름에서 `React`를 지운 것만으로 분리 성공으로 세지 않는다. 기존 v1 runner나 workspace의 RN 의존성은 이 gate와 구별한다.
 
-Hermes/JSI는 별도로 고정한 VM/ABI 공급으로 사용할 수 있다. 이를 RN 앱 runtime 도입으로 혼동하지 않으며, JSI object를 UI/worker 경계로 넘기지 않는다. RN source를 일부 가져온 것만으로 RN ViewManager/TurboModule 기반 외부 패키지가 자동 호환되지는 않는다. 필요한 plugin/API는 명시 adapter·capability·수명·실제 설치 사례로 연결하고 기존 SDK 공개 API 호환 gate도 계속 적용한다.
+Hermes/JSI는 별도로 고정한 VM/ABI 공급으로 사용할 수 있다. 이를 RN 앱 runtime 도입으로 혼동하지 않으며 JSI object를 UI/worker 경계로 넘기지 않는다. 소스 fork·수정은 허용하지만 VM/ABI 공급을 원본 프로젝트의 binary와 임의로 섞지 않는다. RN ViewManager/TurboModule 기반 외부 패키지의 호환은 별도 adapter·capability·수명·설치 사례로 판정한다. **Native API를 처음부터 자체 구현하고 upstream을 참고만 한 결과나 실제 이식 0개는 M1/M4 완료가 아니다.**
 
 ### 11.7 공통 입력·수명 검증 corpus
 

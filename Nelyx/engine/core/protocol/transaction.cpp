@@ -243,6 +243,8 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       const auto policy=data.u32(0),hit=policy&112u;
       require((!hit||(policy&wire::eventPolicies::canonicalHitTest))&&(!hit||(hit&(hit-1))==0),wire::statuses::invalidValue);
       require(!(policy&(wire::eventPolicies::focusEnabled|wire::eventPolicies::skipTraversal))||(policy&wire::eventPolicies::focusOwner),wire::statuses::invalidValue);
+      require(!(policy&(wire::eventPolicies::mouseRegion|wire::eventPolicies::mouseOpaque))||
+        ((policy&wire::eventPolicies::mouseRegion)&&(policy&wire::eventPolicies::canonicalHitTest)),wire::statuses::invalidValue);
       require(!(policy&wire::eventPolicies::exclusiveMouseRegion)||
         ((policy&wire::eventPolicies::mouseRegion)&&(policy&wire::eventPolicies::canonicalHitTest)),wire::statuses::invalidValue);
       edit(h, false)->policy = data.u32(0);

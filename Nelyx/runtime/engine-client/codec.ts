@@ -741,7 +741,11 @@ export const commands = {
           value.heightFactor ?? -1,
           value.inlineScale ?? 1,
         ].forEach((scalar, i) => v.setFloat64(32 + i * 8, finite(scalar), true));
-        v.setUint32(p.layoutFields.runAlign, p.layoutMainAlign[value.runAlign ?? 'start'], true);
+        v.setUint32(
+          p.layoutFields.runAlign,
+          uint32(p.layoutMainAlign[value.runAlign ?? 'start']),
+          true,
+        );
         v.setUint32(
           p.layoutFields.textBaseline,
           value.textBaseline === undefined
@@ -755,7 +759,11 @@ export const commands = {
         );
         v.setUint32(
           p.layoutFields.overflowClipBehavior,
-          p.clipBehaviors[value.overflowClipBehavior ?? (value.clipOverflow ? 'hardEdge' : 'none')],
+          uint32(
+            p.clipBehaviors[
+              value.overflowClipBehavior ?? (value.clipOverflow ? 'hardEdge' : 'none')
+            ],
+          ),
           true,
         );
         let positionedFlags = 0;

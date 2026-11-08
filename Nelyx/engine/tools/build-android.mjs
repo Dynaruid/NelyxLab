@@ -5,7 +5,13 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { engineRoot, sourceIdentity, run, renameEngineDirectory } from './build.mjs';
+import {
+  engineRoot,
+  sourceIdentity,
+  run,
+  renameEngineDirectory,
+  androidProjectSourceFiles,
+} from './build.mjs';
 import { protocol as p } from '../../runtime/engine-client/schema.ts';
 
 export const androidPins = JSON.parse(
@@ -13,8 +19,8 @@ export const androidPins = JSON.parse(
 );
 function removeStaging(directory) {
   if (
-    path.dirname(directory) !== path.join(engineRoot, '.cache') ||
-    !path.basename(directory).startsWith('engine-android-') ||
+    path.dirname(directory) !== path.resolve(os.tmpdir()) ||
+    !path.basename(directory).startsWith('nelyx-engine-android-') ||
     fs.lstatSync(directory).isSymbolicLink()
   )
     throw Error('Unexpected Android staging cleanup');
@@ -189,8 +195,17 @@ export async function buildAndroidSupply({ sdk, abis = androidPins.abis, skiaPac
     'ReactCommon/jsi',
   );
   const source = sourceIdentity();
+  // Keep the one promotion candidate outside the indexed workspace. IDEs can
+  // open a newly copied Gradle wrapper JAR without FILE_SHARE_DELETE and prevent
+  // even a fully validated supply directory from being renamed on Windows.
+  const stagingParent = path.resolve(os.tmpdir());
+  if (
+    process.platform === 'win32' &&
+    path.parse(stagingParent).root.toLowerCase() !== path.parse(engineRoot).root.toLowerCase()
+  )
+    throw Error('Android promotion requires TEMP on the engine volume');
   const parent = engineRoot,
-    staged = fs.mkdtempSync(path.join(parent, '.cache/engine-android-')),
+    staged = fs.mkdtempSync(path.join(stagingParent, 'nelyx-engine-android-')),
     supply = path.join(staged, 'supply'),
     final = path.join(parent, 'dist-android'),
     backup = path.join(staged, 'previous');
@@ -282,7 +297,8 @@ export async function buildAndroidSupply({ sdk, abis = androidPins.abis, skiaPac
     // so the common provider accounts for exactly the bytes it actually retains.
     fs.writeFileSync(path.join(supply, 'assets/icudtl.dat'), '');
     const project = path.join(engineRoot, 'platform/android/project');
-    for (const name of files(project)) copy(path.join(project, name), 'project/' + name);
+    for (const name of androidProjectSourceFiles(project))
+      copy(path.join(project, name), 'project/' + name);
     copy(
       path.join(
         repository,

@@ -2,11 +2,13 @@
 
 > 2026-11-07: 사용자 요청으로 본문의 독립 테스트·감사·실험 명령을 폐기했다. 이전 검증 기록과 미완료 판정은 보존하며, 현행 확인·정리 기준은 [전체 목차의 정리 안내](work9.md)를 따른다.
 
-작성: **2026-11-05 KST** · 재검토: **2026-11-06 KST** · 상태: **DEFERRED / 3차·Android/Linux W9-13 기술 완료 후 착수 / 구현 미착수·notVerified**
+작성: **2026-11-05 KST** · 재검토: **2026-11-08 KST** · 상태: **RN iOS·RNM AppKit 이식 계획 교정 / 3차 DEFERRED · 구현 미착수·notVerified**
+
+> **2026-11-08 사용자 교정:** iOS 플랫폼 API는 **RN iOS**, macOS AppKit 플랫폼 API는 **RNM(React Native macOS)**의 필요한 구현 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기능/회귀 사례 참고 뒤 자체 구현하는 방침을 대체한다. 후속 차수·DEFERRED는 유지하며 이번 변경은 계획 문서에 한정된다. 실제 이식·Apple build/run·기기 검증은 수행하지 않았다. [공통 우선 계약](work9-b.md#11-사용자-확정-host플랫폼-api-구현-방식)을 따른다.
 
 [전체 목차](work9.md) · [이전: 4부 Android·Linux](work9-4.md)
 
-**범위:** 원문 §11.5·§6. iOS UIKit/UITextInput과 macOS AppKit/Metal host·입력/접근성·Apple 공급을 후속 설계로 보존한다. 기존 절 번호와 W9-12-B(iOS)·W9-04를 유지한다.
+**범위:** 원문 §11.5·§6. RN iOS API 소스 → UIKit/UITextInput host, RNM AppKit API 소스 → macOS AppKit/Metal host의 수정 이식·입력/접근성/서비스·Apple 공급을 다룬다. 기존 절 번호와 W9-12-B(iOS)·W9-04를 유지한다.
 
 **착수 순서:** Windows/Web 1차 → Android/Linux 2차(4부) → **iOS/macOS 3차(후속 5부)**다. 이 부의 prototype·toolchain·RN 예외 처리 추출·Apple 배포를 앞선 두 차수의 완료 조건으로 두지 않는다.
 
@@ -20,14 +22,16 @@
 
 ## iOS 호스트
 
-### 11.5 iOS — UIKit 입력 endpoint와 RN 예외 처리 이식
+<a id="115-ios--uikit-입력-endpoint와-rn-예외-처리-이식"></a>
 
-**3차 W9-12-B(iOS) / DEFERRED.** 아래 UIKit host·RN 예외 처리 이식은 Android/Linux 2차 통합 완료 이후 macOS와 같은 후속 5부에서 수행한다.
+### 11.5 iOS — RN 플랫폼 API 소스 이식
 
-1. UIApplication/scene·owned UIView/UIViewController·Metal surface를 만드는 자체 host를 공급한다. 서비스의 `RCTKeyWindow`·RN root lookup은 해당 scene/view의 명시 소유권으로 바꾸고 multi-scene·background/foreground·close를 검사한다.
-2. 첫 입력 endpoint는 Core에 연결한 **UIView/UITextInput**으로 계획한다. UITextPosition/UITextRange·marked/selected range·tokenizer/selection 질의·UIKeyboard와 clipboard를 구현하고, 네이티브 동기 버퍼와 Core revision을 [§11.2](work9-2.md#112-중립-adapter와-상태-계약) 계약으로 연결한다. 보이는 글자·caret/selection geometry는 Core paragraph를 사용한다.
-3. RN delegate adapter에서 선택/자동수정·중복 알림·입력 종료 순서의 OS 처리를 이식한다. UITextField/UITextView 전용 delegate/RCT protocol이 필요한 부분은 Nelyx endpoint에 맞게 다시 구현하거나 비교 사례로 남긴다. Native text control의 자체 layout/selection rect를 Core geometry의 대체값으로 사용하지 않는다.
-4. UIAccessibilityElement/container·text range·custom action·focus를 Core semantics에 연결한다. 입력 carrier와 semantics peer가 같은 항목을 중복 노출하지 않도록 하고 VoiceOver focus·게시 bounds·삭제 node를 확인한다.
+**3차 W9-12-B(iOS) / DEFERRED.** RN iOS의 플랫폼 API 구현을 가져와 UIKit host에 맞게 수정·사용한다. 설치 RN 0.83.10의 TextInput/delegate와 `React/CoreModules` clipboard/accessibility/appstate/deviceinfo·Linking 구현을 출발점으로 삼고, 착수 때 원본 commit/파일 hash·필요 API·의존성·license를 고정한다. Android/Linux 2차 통합 완료 이후 macOS RNM과 같은 후속 5부에서 수행한다.
+
+1. RN의 scene/view·OS 서비스/lifecycle 구현을 실제 추출·수정하고 UIApplication·owned UIView/UIViewController·Metal surface의 Nelyx host에 연결한다. `RCTKeyWindow`·RN root/bridge lookup을 명시 scene/view 소유권·Core port로 치환하고 multi-scene·background/foreground·close를 검사한다.
+2. RN TextInput·keyboard·selection/조합 구현을 가져와 Core에 연결한 **UIView/UITextInput** endpoint로 수정한다. Native carrier·UITextPosition/UITextRange·tokenizer·동기 질의 mirror의 역할과 Core revision을 [§11.2](work9-2.md#112-중립-adapter와-상태-계약)에 맞추고 보이는 글자/caret/range geometry는 Core paragraph로 연결한다.
+3. RN delegate adapter의 선택/자동수정·중복 알림·observer/입력 종료 구현을 실제 이식한다. UITextField/UITextView 전용 delegate/RCT protocol은 필요한 구현을 분리·수정해 Nelyx endpoint/owned callback에 연결한다. 맞지 않는 부분을 전부 비교 사례로만 남긴 뒤 입력 API를 자체 재작성해 완료로 처리하지 않는다.
+4. RN 접근성·clipboard·환경/설정·linking·lifecycle/service 소스를 가져와 Core semantics/서비스에 수정 연결한다. UIAccessibilityElement/container·text range·custom action·focus와 입력 carrier의 중복 노출·VoiceOver·게시 bounds·삭제 node를 확인한다.
 5. CADisplayLink·keyboard/scene observer·delegate·Metal completion과 App/View generation의 수명을 함께 정리한다. RN 전용 teardown marker·JS 이벤트 응답 없이 정상 종료하고 늦은 callback을 거부하는 실제 .app을 검증한다.
 
 원래 TypeScript AnimationController/Ticker·Cupertino/Material 전환 정책과 listener는 App에서 실행하고 host clock의 frame 시각을 연결한다. Engine의 준비 scene 합성은 이 App callback과 분리한다. UIView/UITextInput·접근성 peer는 OS 연결을 맡으며, UIKit control의 자체 theme/State로 두 디자인 패키지의 동작을 대체하지 않는다. 명시적 platform view는 W9-11의 별도 계약을 따른다.
@@ -36,11 +40,15 @@ UITextInput의 동기 질의·UIKit text/selection 변경 알림·delegate 재�
 
 최소 host/입력/편집/semantics·공급은 target별 W9-12-B(iOS)에 포함한다. UIKit/Metal 실행은 실제 iOS 환경에서 확인하며 simulator와 device arm64·signing 조건을 구별한다. W9-13에서는 원래 TypeScript 디자인의 theme/State·controlled callback·변경 거부/취소·dispose와 C++ 실제 작업을 함께 검증한다. macOS AppKit의 성공을 iOS의 성공으로 보고하지 않는다.
 
+API별 RN 원본·이식 파일/함수·수정/의존성·실제 소비자·license/notice와 OS 동작·정상/실패 종료를 W9-12-B/13의 완료 조건으로 확인한다. 실제 RN 소스 이식 0개·참고 사례만 도입·기존 자체 구현만 실행한 결과는 이 gate의 완료가 아니다.
+
 ## 6. macOS — AppKit 호스트
 
 **3차 W9-04 / DEFERRED.** 아래 설계는 보존하며 Android/Linux 2차 통합 완료 이후 iOS와 같은 후속 5부에서 착수한다. AppKit/Metal prototype과 Apple 공급은 Windows/Web 1차나 Android/Linux 2차 완료의 선행 조건이 아니다.
 
-**NSApplication/NSWindow/NSView와 Objective-C++ adapter를 사용한다.** macOS host를 React Native macOS나 Mac Catalyst 경로의 완료로 대체하지 않는다. 기존 [Apple Skia view](Nelyx/skia/packages/rn/apple/SkiaView.h)의 Metal 수명·공급 코드는 RN/Fabric과 분리할 수 있는 부분만 추출한다.
+**RNM(React Native macOS)의 AppKit 플랫폼 API 소스를 가져와 수정·사용하고 NSApplication/NSWindow/NSView·Objective-C++ host에 연결한다.** [기존 macOS template](Nelyx/sdk/tooling/cli/templates/nelyx-app/macos/runner/package.json)의 `react-native-macos: 0.83.0`은 원본 선정 출발점이며 실제 RNM commit·파일/API·의존성·license·AppKit 대응은 착수 때 고정한다. 기존 RNM runner 전체의 실행을 새 v2 완료로 세지 않으며 필요한 OS 구현을 실제 수정 이식한다. [Apple Skia view](Nelyx/skia/packages/rn/apple/SkiaView.h)의 Metal 수명·공급 코드는 필요한 공통 provider 기반으로 별도 보존한다.
+
+RNM의 AppKit 입력/keyboard·focus·NSTextInput·접근성·clipboard·환경/theme·window/lifecycle/service 구현을 식별·복사하고 React tag/context/bridge/module 연결을 owned NSWindow/NSView·UI dispatcher·Core mirror/ACK·값/handle로 수정한다. 아래 표의 AppKit 단계는 이 이식본의 연결·동작·수명 의무다. Windows RNW·UIKit 전용 구현을 macOS 원본으로 대체하지 않으며 RNM에 없는 API만 구체적인 gap·필요한 Nelyx 연결 코드로 남긴다.
 
 | 작업 | 고정할 계약·완료 증거 |
 | --- | --- |
@@ -51,6 +59,8 @@ UITextInput의 동기 질의·UIKit text/selection 변경 알림·delegate 재�
 | 접근성 | NSAccessibility peer의 role/value/action/focus·text range·screen bounds를 같은 semantic snapshot에서 제공. App 동기 응답을 기다리지 않고 최신 비시각 값과 게시 geometry의 차이를 표현 |
 | TypeScript 디자인 소비 | 원래 Material/Cupertino Widget/State·theme·controller·route/overlay를 App에서 실행하고 C++ engine의 layout/paint/input 연산에 연결. NSView는 host 역할을 유지하며 NSControl이나 C++ 디자인 Widget로 원래 구현을 대체하지 않음. 실제 설치 앱에서 원래 callback·controlled 값/NACK·스타일 변경·dispose를 검사 |
 | 수명·공급 | .app bundle의 engine/Hermes/Skia·fonts/ICU·license·rpath·code signing 조건을 고정. App dispose·autorelease/Metal completion·display link 해제·window close의 순서를 검증. 로컬 unsigned 실행과 배포용 signing/notarization은 별도 gate |
+
+W9-04/13은 RNM 원본·실제 이식 파일/함수·Nelyx 수정·기존/새 소비자·필수 dependency·license/notice와 일반 AppKit 앱의 OS API 실행을 함께 확인한다. Native API를 처음부터 자체 구현한 뒤 RNM을 참고만 하거나 실제 RNM 소스 이식이 0개인 상태는 완료가 아니다.
 
 두 Apple host의 Metal provider는 drawable/frame credit·pixel format/color space·metrics/device 세대와 GPU completion hold를 명시한다. Drawable 획득 실패/지연·숨김·resize·close에서 유한 대기/취소 정책을 사용하고 UI thread를 막지 않는다. 이전 세대 completion이 새 surface를 게시하거나 해제하지 않으며, 마지막 GPU/OS consumer hold가 끝나기 전에 layer/device/provider를 파괴하지 않는다.
 

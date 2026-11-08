@@ -2,11 +2,13 @@
 
 > 2026-11-07: 사용자 요청으로 본문의 독립 테스트·감사·실험 명령을 폐기했다. 이전 검증 기록과 미완료 판정은 보존하며, 현행 확인·정리 기준은 [전체 목차의 정리 안내](work9.md)를 따른다.
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-07 KST** · 상태: **Android IN_PROGRESS / API·복구·개발 reload 구현 PARTIAL · Linux DEFERRED**
+작성: **2026-11-05 KST** · 갱신: **2026-11-08 KST** · 상태: **RN/RNL 소스 이식 계획 교정 / Android PARTIAL · Linux DEFERRED**
+
+> **2026-11-08 사용자 교정:** Android 플랫폼 API는 **RN Android**, Linux GTK 플랫폼 API는 **RNL**의 필요한 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기존 자체 OS 구현 우선·알고리즘/사례 참고만으로 완료하는 방침을 대체한다. 기존 standalone/emulator·공급 기록은 보존하며 RN/RNL 소스 이식 완료와 구분한다. 이번 변경은 계획 문서이며 새 이식·build/run은 수행하지 않았다. [우선 계약과 다음 W9B-00-H](work9-b.md#11-사용자-확정-host플랫폼-api-구현-방식)를 따른다.
 
 [전체 목차](work9.md) · [이전: 3부](work9-3.md) · [후속: 5부 iOS·macOS](work9-5.md)
 
-**범위:** 원문 §11.4·§5. Android standalone host·OS 입력/접근성·RN 코드 분리와 Linux GTK4/DMA-BUF·IM/AT-SPI·공급을 다룬다. 기존 절 번호와 단계 ID를 유지한다.
+**범위:** 원문 §11.4·§5. RN Android의 플랫폼 API 소스 수정 이식·Activity/JNI standalone 연결과 RNL의 GTK 플랫폼 API 소스 수정 이식·GTK4/DMA-BUF·IM/AT-SPI·공급을 다룬다. 기존 절 번호와 단계 ID를 유지한다.
 
 **개발 순서:** Windows/Web 1차 → **4부 Android·Linux 2차** → 후속 5부 iOS·macOS 3차다. 4부의 W9-12-B(Android)·W9-03은 Windows/Web의 **W9-13 기술 완료** 후 착수하며, iOS/macOS 구현·Apple toolchain·공급을 기다리지 않는다. [완료·차수 전환 기준](work9-3.md#125-차수-전환과-완료-판정)
 
@@ -20,25 +22,29 @@
 
 ## Android 호스트
 
-### 11.4 Android — 기존 Nelyx OS 코드를 먼저 분리
+<a id="114-android--기존-nelyx-os-코드를-먼저-분리"></a>
+
+### 11.4 Android — RN 플랫폼 API 소스 이식
 
 **2차 W9-12-B(Android) / IN_PROGRESS · PARTIAL.** 사용자 지정에 따라 standalone 경로와 아래 API·복구·개발 구성을 구현했다. 전체 원래 API 호환성과 제품 수락은 계속 별도 gate이며 iOS·macOS 구현이나 Apple 공급을 이 단계의 완료 조건으로 요구하지 않는다.
 
-1. `NelyxInputConnectionView`의 OS buffer/IME·keyboard·geometry·close 처리를 추출한다. RN Context/map/event/ViewManager를 일반 Android Context·고정 native 값 타입·v2 input port/JNI로 교체한다. 기존 v1 RN wrapper는 같은 중립 helper를 사용할 수 있도록 공급 경계를 정하며 현재 v1 경로를 먼저 삭제하지 않는다.
+1. **RN Android의 필요한 플랫폼 API 소스를 가져와 수정한다.** 설치 RN **0.83.10**의 `ReactEditText`·`ReactEditTextInputConnectionWrapper`·`ReactAccessibilityDelegate`·clipboard/accessibilityinfo/appstate/deviceinfo 등에서 API별 실제 구현·의존성을 고정한다. `NelyxInputConnectionView`와 현재 standalone 구현의 소비자·기능을 대조하고 RN Context/map/event/ViewManager/Promise를 일반 Context/Activity·owned view·값/handle·JNI/Core port로 수정한다. 이미 작성한 Nelyx 구현만 분리해 완료로 처리하지 않는다.
 2. Commit/composing/selection/batch/delete와 hardware key를 Core 입력으로 연결한다. UTF-16 길이·`deleteSurroundingTextInCodePoints`의 code-point 수·grapheme 삭제를 구별하고 `newCursorPosition`, nested batch, 오래된 connection과 조합 종료 중 App 변경을 검사한다.
-3. RN의 IME 예외 처리·focus·keyboard inset·Activity/service 로직은 필요한 기능 단위로만 이식한다. Root/tag 조회는 owned Activity/view·engine handle로 바꾸며 ReactHost·ReactContext·UIManager나 RN event dispatch가 필요한 실행 경로를 남기지 않는다.
-4. Semantics는 Core node 세대와 Android accessibility virtual node/action으로 연결한다. RN ViewGroup의 접근성 구현이나 화면에 없는 native text control의 존재로 전체 C++ semantics tree·range/action이 제공된다고 가정하지 않는다.
+3. RN의 IME·focus·keyboard inset·Activity/lifecycle·환경/설정·clipboard/linking/feedback 등 필요한 플랫폼 API 구현을 실제 이식하고 기존 직접 구현 소비자를 교체한다. Root/tag 조회는 owned Activity/view·engine handle로 바꾸며 ReactHost·ReactContext·UIManager나 RN event dispatch의 실행 의존성을 제거한다. 필요한 Nelyx 전용 연결 코드와 원본 구현이 없는 gap을 API별로 기록한다.
+4. RN 접근성 구현의 이벤트/role/action·focus·OS 설정 처리를 가져와 Core node 세대와 Android virtual node/action에 수정 연결한다. RN ViewGroup·native text control을 그대로 배치한 것만으로 전체 C++ semantics tree·range/action이 제공된다고 가정하지 않는다.
 5. Native surface·device/resize/background/foreground·close/drain을 연결한다. Engine frame 수요는 Android Choreographer에서 host clock 계약으로 전달하며 RN frame scheduler를 필요로 하지 않는다. 원래 TypeScript AnimationController/Ticker·컴포넌트 callback은 App에 유지하고 필요한 host frame 시각을 전달한다. GPU owner와 App/Content 독립성은 기존 native 계약을 적용한다.
 
 Surface/ANativeWindow와 JNI reference는 획득·전달·해제 owner와 세대를 명시한다. Surface 파괴 뒤 이전 frame의 제출을 차단하고 새 surface/metrics가 준비된 뒤 게시한다. UI에서 Render/IME callback을 기다리는 blocking join을 넣지 않으며 background·Activity 재생성·종료 때 Choreographer/observer·오래된 InputConnection·pending/lease를 회수한다. OS 동기 질의의 text/selection mirror와 `updateSelection`·후보창 갱신은 같은 focus/edit revision을 사용한다.
 
 초기 대상은 arm64-v8a 최소 scene·입력·InputConnection·접근성·공급/drain이다. Emulator와 실기기·IME별 자동/물리 결과는 각각 기록하며 전체 Testbed·디자인 제품 수락과 구분한다.
 
-2차 착수 시 Android 최저 OS·min/compile/target SDK·NDK/JDK/Gradle·Hermes/Skia의 ABI·필수 native library를 고정한다. RN 없는 일반 앱의 create/build/run/doctor/pack·설치 실패/성공·실행 identity를 W9-12-B/13에 연결한다. 최소 port의 성공 뒤에도 전체 원래 API·TypeScript 디자인·복구 corpus를 마쳐야 Android W9-13 기술 완료다. 실제 설치 앱에서 두 디자인 패키지의 theme/State·controlled callback·변경 거부/취소·dispose와 C++ 작업을 함께 확인한다. InputConnection carrier·접근성 virtual node는 OS 연결이며 기본 디자인 컴포넌트의 구현을 대신하지 않는다.
+2차에서 원본 RN tag/commit·파일 hash·수정/출처·license와 Android 최저 OS·SDK/NDK/JDK/Gradle·Hermes/Skia ABI를 고정한다. 수정 이식본이 React 앱 runtime 없이 일반 앱의 create/build/run/doctor/pack·실제 OS API·종료에 사용되는지 W9-12-B/13에서 확인한다. 현재 source의 이식/미이식 API·기존 소비자 교체·공급/notice가 필수 gate이며 **RN 실제 소스 이식 0개나 자체 구현만으로 통과하지 않는다.** 전체 원래 API·TypeScript 디자인·복구 corpus와 물리/성능 판정은 별도 유지한다.
 
 ### 현재 Android 구현과 실행
 
-구현 위치는 [Android host](Nelyx/engine/platform/android/host.cpp), [Render provider](Nelyx/engine/platform/android/renderer.hpp), [일반 Android 프로젝트](Nelyx/engine/platform/android/project/app/build.gradle), [중립 InputConnection buffer](Nelyx/sdk/native/android/shared/dev/nelyx/input/NelyxInputBuffer.java), [CLI](Nelyx/sdk/tooling/cli/src/engine-v2-android.mjs)다. 기존 Windows의 Skia·paragraph/image·App text 서비스를 [공통 provider](Nelyx/engine/platform/common/skia_provider.hpp)로 추출했으며 기존 v1 RN host는 유지한다. RN 입력 wrapper와 standalone 입력 buffer는 같은 UTF-16 validator를 사용한다. 전체 RN IME 구현을 추출·재검증한 것으로 확대하지 않는다.
+아래는 사용자 교정 전 standalone 구현과 실행 근거다. 기존 API·복구·emulator PASS를 RN Android 소스 수정 이식본의 완료/검증으로 복사하지 않는다. 이번 교정 뒤 RN 원본/파일·수정·실제 소비자·API별 실행을 다시 대응시킨다. 최신 W9B-00 공급·실행은 [work9-b §3.2](work9-b.md#32-현재-공급검사실행-근거)에 별도로 기록돼 있다.
+
+구현 위치는 [Android host](Nelyx/engine/platform/android/host.cpp), [Render provider](Nelyx/engine/platform/android/renderer.hpp), [일반 Android 프로젝트](Nelyx/engine/platform/android/project/app/build.gradle), [중립 InputConnection buffer](Nelyx/engine/platform/android/shared/dev/nelyx/input/NelyxInputBuffer.java), [CLI](Nelyx/sdk/tooling/cli/src/engine-v2-android.mjs)다. 기존 Windows의 Skia·paragraph/image·App text 서비스를 [공통 provider](Nelyx/engine/platform/common/skia_provider.hpp)로 추출했으며 기존 v1 RN host는 유지한다. RN 입력 wrapper와 standalone 입력 buffer는 같은 UTF-16 validator를 사용한다. 전체 RN IME 구현을 추출·재검증한 것으로 확대하지 않는다.
 
 | 영역 | 구현 범위 |
 | --- | --- |
@@ -101,11 +107,15 @@ Emulator 성공을 arm64 실기기·IME별 물리 조작·TalkBack 제품 수락
 
 **2차 W9-03 / DEFERRED.** 아래 설계는 보존하며 GTK prototype·toolchain·DMA-BUF 추출은 Windows/Web 1차 작업에 포함하지 않는다.
 
+**RNL의 GTK 플랫폼 API 소스를 가져와 수정하는 것을 기본 구현 경로로 삼는다.** 기존 [Linux template](Nelyx/sdk/tooling/cli/templates/nelyx-app/linux/CMakeLists.txt)과 [입력 공급 검증기](Nelyx/sdk/tooling/cli/src/linux-inputs.mjs)의 `@lucid-softworks/react-native-linux`·원본 revision `9412cf605c7cc77f920916401926ff9a9873ecd3`를 선정 출발점으로 삼고 실제 소스·license·GTK 버전/API·필수 의존성을 M0에서 고정한다. 기존 runner가 RNL을 사용한다는 사실만으로 새 v2 이식을 완료 처리하지 않는다.
+
+RNL의 window/이벤트·pointer/key/focus·IME·접근성·clipboard·환경/lifecycle/service 구현을 실제 추출·수정하고 React tag/context/renderer 연결을 Nelyx dispatcher·view/handle·Core port로 바꾼다. 아래 GTK4·IM·AT-SPI 단계는 이 수정 이식본의 연결·검증 의무다. 원본의 toolkit/API가 GTK4/4.22 계약과 다르면 해당 부분을 수정 이식하고 gap을 기록하며, GTK API를 처음부터 별도 구현해 ‘RNL 참고 완료’로 바꾸지 않는다.
+
 **GTK4 UI와 독립 Render worker 사이에 immutable GPU frame을 전달한다.** GTK widget·window·IM·접근성 객체는 UI main context에서 관리하고 App/Hermes·Content/layout·Render/GPU owner는 분리한다. GTK 객체를 Render thread에서 임의로 조작하지 않는다. [GTK threading 규칙](https://docs.gtk.org/gtk4/section-threading.html)
 
 저장소에는 이미 [DMA-BUF exporter](Nelyx/skia/native/platforms/vulkan/dmabuf.inc)와 [GdkTexture import helper](Nelyx/skia/packages/rn/native/linux/DmaBufTexture.h)가 있다. RN/JSI 수명을 제거한 공통 계층으로 추출해 재사용을 검토한다. 해당 소스는 출발점이며 v2의 실제 GTK4/GPU 실행 증거는 아직 없다.
 
-로컬 [Flutter Linux GTK 설정](reference/flutter-master/engine/src/flutter/shell/platform/linux/config/BUILD.gn)은 `gtk+-3.0`을 사용한다. Flutter의 owner·frame·입력 책임 분리는 참고하되 GTK3 widget/접근성 코드를 GTK4 구현으로 간주하지 않고 아래 GTK4 공개 계약으로 다시 연결한다.
+로컬 [Flutter Linux GTK 설정](reference/flutter-master/engine/src/flutter/shell/platform/linux/config/BUILD.gn)은 `gtk+-3.0`을 사용한다. Flutter는 owner/frame 경계의 보조 비교 자료다. 플랫폼 API의 실제 원본은 RNL로 고정하고 수정 이식본을 아래 GTK4 공개 계약에 연결한다.
 
 1. UI에서 GDK display의 지원 fourcc/modifier를 조회하고 Render device와 교집합을 고정한다. 기본 후보는 기존 ARGB8888 경로다. Alpha·stride/offset·color state·물리 크기와 scale을 명시하고 Wayland/X11 및 driver별 실제 import를 확인한다.
 2. Render가 GPU frame을 완성하고 외부 consumer가 읽어도 되는 상태로 넘긴 뒤 UI가 `GdkDmabufTextureBuilder`로 texture를 만든다. 기존 exporter의 동기 GPU 완료 대기는 **Render owner**에서만 허용하며 UI를 막지 않는다. GPU copy/대기·할당 비용은 계측 대상이고, DMA-BUF라는 이유로 전체 경로를 zero-copy나 저지연으로 판정하지 않는다.
@@ -120,6 +130,8 @@ Emulator 성공을 arm64 실기기·IME별 물리 조작·TalkBack 제품 수락
 DMA-BUF import 성공 때만 GDK consumer로 lease를 넘긴다. Import 실패의 임시 FD/lease·builder/GError는 호출 측에서 회수하고 성공 후에는 최종 texture release까지 frame을 재사용/변경하지 않는다. Release callback의 실행 thread를 가정해 GPU를 직접 파괴하지 않고 owner로 회수를 전달하며 close는 UI pump·그 회수 mailbox·GPU owner가 살아 있는 동안 마친다. GDK와 exporter의 hold를 함께 계수하고 실패/resize/close 뒤 FD·native/GPU 자원·ledger를 대조한다.
 
 W9-03 착수 때 Linux 배포판/glibc·GLib/GTK·Vulkan loader/driver·libdrm·font/ICU 기준을 고정한다. Wayland/X11 각각 같은 일반 앱의 build/run/doctor/pack·동적 library/rpath·설치본 실행과 손상 거부를 W9-13에 연결한다. 개발 PC에만 있는 library나 환경 변수로 실행된 prototype을 일반 배포 성공으로 세지 않는다.
+
+W9-03/13은 RNL 원본·가져온 파일/함수·Nelyx 수정·기존/새 소비자·필수 dependency·license/notice와 실제 GTK4 OS API 실행을 함께 확인한다. 입력/IME·접근성·서비스·수명별 이식/미이식 상태를 남기고, 실제 RNL 소스가 사용되지 않거나 전체 기능을 직접 재작성한 상태는 완료가 아니다.
 
 GTK widget은 surface/texture 게시·입력·접근성 host를 담당한다. Material/Cupertino 화면은 원래 TypeScript 패키지가 구성하고 C++ engine이 그리며, GtkButton/GtkSwitch 등으로 디자인 Widget을 바꿔 전체 호환을 판정하지 않는다. Wayland/X11에서 같은 TypeScript theme·State/callback과 공통 engine의 입력/paint 결과를 검사한다.
 

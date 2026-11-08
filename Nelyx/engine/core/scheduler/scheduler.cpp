@@ -235,14 +235,14 @@ static double anchoredOffset(const View& view,const Document& nextDocument,const
   }
   return before;
 }
-static std::optional<double> seekOffset(const Document& document,const ScrollCommand& command) {
+static std::optional<double> seekOffset(const Document& document,const ScrollCommand& command,bool requireCoverage=true) {
   if(!command.list||!document.contains(command.list)||!document.contains(command.node))return {};
   const auto& list=document.get(command.list);const auto& viewport=document.get(command.node);
   if(list.parent!=command.node||!list.listGeometry||list.list.generation!=command.listGeneration||
       (!command.listOffset&&(command.index<list.list.begin||command.index>=list.list.end)))return {};
   if(command.listOffset){
     const double offset=std::clamp(command.target,viewport.properties.minimum,viewport.properties.maximum);
-    if(viewport.coverage.enabled&&(offset<viewport.coverage.minimum||offset>viewport.coverage.maximum))return {};
+    if(requireCoverage&&viewport.coverage.enabled&&(offset<viewport.coverage.minimum||offset>viewport.coverage.maximum))return {};
     return offset;
   }
   const auto row=std::find_if(list.listGeometry->rows.begin(),list.listGeometry->rows.end(),
@@ -253,12 +253,16 @@ static std::optional<double> seekOffset(const Document& document,const ScrollCom
   const double size=horizontal?viewport.properties.width:viewport.properties.height;
   const double offset=std::clamp(origin+row->offset-(size-row->extent)*command.alignment,
     viewport.properties.minimum,viewport.properties.maximum);
-  if(viewport.coverage.enabled&&(offset<viewport.coverage.minimum||offset>viewport.coverage.maximum))return {};
+  if(requireCoverage&&viewport.coverage.enabled&&(offset<viewport.coverage.minimum||offset>viewport.coverage.maximum))return {};
   return offset;
 }
 static double activationOffset(const View& view,const Document& document,const Node& viewport,double before) {
   for(const auto& [id,command]:view.commands)if(command.node==viewport.id&&command.list&&
-      command.deadline>view.time){const auto offset=seekOffset(document,command);if(offset)return *offset;}
+      command.deadline>view.time){
+        // New row measurements can move an indexed seek beyond the prepared
+        // window. Let activation request that real offset before replacing the
+        // active scene; falling back to its old anchor loses the pending seek.
+        const auto offset=seekOffset(document,command,false);if(offset)return *offset;}
   return anchoredOffset(view,document,viewport,before);
 }
 void View::activate() {

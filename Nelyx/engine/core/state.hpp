@@ -349,6 +349,7 @@ struct View {
   uint64_t caretRevision = 0;
   Handle hoverNode,lastTap;
   std::array<Handle,wire::limits::nodes> mouseRegions{};
+  std::array<Affine,wire::limits::nodes> mouseTransforms{};
   uint32_t mouseRegionCount=0;
   Input mouseSample{};
   bool mouseKnown=false;

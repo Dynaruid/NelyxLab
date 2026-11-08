@@ -7,7 +7,7 @@ namespace {
 bool sameInputNode(const Node& a,const Node& b) {
     const auto ap=a.physicalPaint(),bp=b.physicalPaint();
     if(bool(ap)!=bool(bp)||(ap&&!sameNativePaintHit(*ap,*bp)))return false;
-    if(a.parent!=b.parent||a.paintOwner!=b.paintOwner||a.inlineHidden!=b.inlineHidden||a.kind!=b.kind||((a.policy^b.policy)&(120u|wire::eventPolicies::roundedHitTest))||a.properties.width!=b.properties.width||
+    if(a.parent!=b.parent||a.paintOwner!=b.paintOwner||a.inlineHidden!=b.inlineHidden||a.kind!=b.kind||((a.policy^b.policy)&(120u|wire::eventPolicies::roundedHitTest|wire::eventPolicies::mouseRegion|wire::eventPolicies::mouseOpaque|wire::eventPolicies::exclusiveMouseRegion))||a.properties.width!=b.properties.width||
       a.properties.height!=b.properties.height||a.properties.flags!=b.properties.flags||
       ((a.layout.constraintFlags^b.layout.constraintFlags)&wire::layoutConstraintFlags::inputPadding)||
       ((a.kind==wire::kinds::clip||a.kind==wire::kinds::path)&&

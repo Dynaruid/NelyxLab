@@ -123,8 +123,11 @@ void View::pointer(Input p) {
   auto& tapCapture=tapRegionCaptures[p.stream];
   bool canonicalBegan=false;
   if(!p.snapshot||!published||!active||p.metrics!=metrics.epoch||p.snapshot->scene->metrics.epoch!=metrics.epoch){++canceled;return;}
+  // Mouse annotations follow the live hit path during capture too. Only a
+  // hover sample dispatches onHover; pressed movement still sends enter/exit.
+  if(p.kind==wire::pointerKinds::mouse||p.kind==wire::pointerKinds::stylus)
+    updateMouse(p,(p.flags&4u)!=0);
   if(p.flags&4u){
-    updateMouse(p);
     const auto h=pointerTarget(p.x,p.y,p.snapshot.get());
     if(h!=hoverNode){if(hoverNode&&overlays.count(hoverNode.key()))overlays.at(hoverNode.key()).hovered=false;
       hoverNode=h;if(h&&overlays.count(h.key())){overlays.at(h.key()).hovered=true;gesture(h,wire::gestureKinds::hover,p.sequence,p.x,p.y,1);}dirty=true;}
