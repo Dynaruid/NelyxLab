@@ -2,9 +2,9 @@
 
 > 2026-11-07: 사용자 요청으로 본문의 독립 테스트·감사·실험 명령을 폐기했다. 이전 검증 기록과 미완료 판정은 보존하며, 현행 확인·정리 기준은 [전체 목차의 정리 안내](work9.md)를 따른다.
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-08 KST** · 상태: **App SDK 단일 host·RNW 소스 이식 계획 교정 / 구현 PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-09 KST** · 상태: **App SDK 단일 host·RNW 소스 이식 계획 교정 / 구현 PARTIAL**
 
-> **2026-11-08 사용자 교정:** Windows 제품 host는 **App SDK 하나**다. 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 실제 소스를 가져와 수정·사용한다. 아래 채택 계약과 [work9-b §1.1·W9B-00-H](work9-b.md#11-사용자-확정-host플랫폼-api-구현-방식)가 우선한다. 기존 두 host 검증은 과거 근거로 보존한다. W9B-00-H에서 App SDK 단일 경로와 RNW public clipboard를 구현했으며 현재 결과와 남은 의무는 [work9-b](work9-b.md#35-w9b-00-h-구현과-이번-검증)를 따른다.
+> **2026-11-08 사용자 교정:** Windows 제품 host는 **App SDK 하나**다. 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 실제 소스를 가져와 수정·사용한다. W9B-00-H의 App SDK 단일 경로·RNW public clipboard 구현 근거는 [종료한 work9-b](work9-b.md#35-w9b-00-h-구현과-이번-검증)에 보존한다. **2026-11-09 이후 현재 실행·남은 의무는 [work9-c](work9-c.md), 우선 host/API 계약은 [work9-c §1.1](work9-c.md#11-host와-플랫폼-api-소스-이식-계약)을 따른다.** 기존 두 host 검증은 과거 근거다.
 
 [전체 목차](work9.md) · [다음: 2부](work9-2.md)
 
@@ -178,7 +178,7 @@ UI·App·Content·Render owner의 권한과 mailbox 상한, `DocumentAccepted`/`
 
 ## 현재 구현·검증 — 2026-11-07 KST
 
-이 절은 **2026-11-07 당시 기록**이다. 최신 W9B-00 기능·공급 근거는 [work9-b §3.2](work9-b.md#32-현재-공급검사실행-근거), 사용자 교정 뒤 다음 실행은 [W9B-00-H](work9-b.md#34-w9b-00-h--host-단일화플랫폼-소스-이식-착수)를 따른다. 아래 두 host·자체 OS helper PASS를 App SDK 단일화·RNW 실제 이식 완료로 사용하지 않는다.
+이 절은 **2026-11-07 당시 기록**이다. W9B-00 기능·공급 근거는 [work9-b §3.2](work9-b.md#32-w9b-00-당시-공급검사실행-근거), 사용자 교정 뒤 구현은 [W9B-00-H](work9-b.md#34-w9b-00-h--host-단일화플랫폼-소스-이식-착수)에 보존한다. 현재 실행은 [work9-c](work9-c.md)를 따른다. 아래 두 host·자체 OS helper PASS를 App SDK 단일화·RNW 실제 이식 완료로 사용하지 않는다.
 
 **IN_PROGRESS / Windows·Web 1차 PARTIAL.** 현재 공급은 **`175c55c60f565577f202650a44b127f67866e214b1ac24e736617e6996005114` / ABI 2·schema 2844160510 / App service 12·image service 2·HTTP header service 2**, manifest **349파일**(manifest 포함 350)이다. Native·두 Wasm·HWND/App SDK host와 Core·두 디자인·SDK를 빌드했다. App SDK **1.8.260508005**·C++/WinRT **2.0.250303.1**·Windows SDK **10.0.26100.0**·`/MD`·Graphite/Vulkan·Hermes를 유지한다.
 

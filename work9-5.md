@@ -2,9 +2,9 @@
 
 > 2026-11-07: 사용자 요청으로 본문의 독립 테스트·감사·실험 명령을 폐기했다. 이전 검증 기록과 미완료 판정은 보존하며, 현행 확인·정리 기준은 [전체 목차의 정리 안내](work9.md)를 따른다.
 
-작성: **2026-11-05 KST** · 재검토: **2026-11-08 KST** · 상태: **RN iOS·RNM AppKit 이식 계획 교정 / 3차 DEFERRED · 구현 미착수·notVerified**
+작성: **2026-11-05 KST** · 재검토: **2026-11-09 KST** · 상태: **RN iOS·RNM AppKit 이식 계획 교정 / 3차 DEFERRED · 구현 미착수·notVerified**
 
-> **2026-11-08 사용자 교정:** iOS 플랫폼 API는 **RN iOS**, macOS AppKit 플랫폼 API는 **RNM(React Native macOS)**의 필요한 구현 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기능/회귀 사례 참고 뒤 자체 구현하는 방침을 대체한다. 후속 차수·DEFERRED는 유지하며 이번 변경은 계획 문서에 한정된다. 실제 이식·Apple build/run·기기 검증은 수행하지 않았다. [공통 우선 계약](work9-b.md#11-사용자-확정-host플랫폼-api-구현-방식)을 따른다.
+> **2026-11-08 사용자 교정:** iOS 플랫폼 API는 **RN iOS**, macOS AppKit 플랫폼 API는 **RNM(React Native macOS)**의 필요한 구현 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기능/회귀 사례 참고 뒤 자체 구현하는 방침을 대체한다. 후속 차수·DEFERRED는 유지하며 실제 이식·Apple build/run·기기 검증은 수행하지 않았다. **2026-11-09 이후 [work9-c의 공통 우선 계약](work9-c.md#11-host와-플랫폼-api-소스-이식-계약)과 후속 차수를 따른다.**
 
 [전체 목차](work9.md) · [이전: 4부 Android·Linux](work9-4.md)
 

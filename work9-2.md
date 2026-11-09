@@ -2,9 +2,9 @@
 
 > 2026-11-07: 사용자 요청으로 본문의 독립 테스트·감사·실험 명령을 폐기했다. 이전 검증 기록과 미완료 판정은 보존하며, 현행 확인·정리 기준은 [전체 목차의 정리 안내](work9.md)를 따른다.
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-08 KST** · 상태: **플랫폼 API 소스 이식 계획 교정 / 전체 호환 PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-09 KST** · 상태: **플랫폼 API 소스 이식 계획 교정 / 전체 호환 PARTIAL**
 
-> **2026-11-08 사용자 교정:** native 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 구현 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기존 직접 구현 우선·회귀 사례 참고만으로 완료하는 방침은 대체한다. W9B-00-H에서 Windows host를 App SDK 하나로 이관하고 RNW public clipboard를 실제 이식했다. 이번 공급·실행 범위와 다음 W9B-01은 [work9-b](work9-b.md#35-w9b-00-h-구현과-이번-검증)를 따른다.
+> **2026-11-08 사용자 교정:** native 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 구현 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기존 직접 구현 우선·회귀 사례 참고만으로 완료하는 방침은 대체한다. W9B-00-H에서 Windows host를 App SDK 하나로 이관하고 RNW public clipboard를 실제 이식했다. 당시 공급·실행은 [종료한 work9-b](work9-b.md#35-w9b-00-h-구현과-이번-검증)에 보존하고, **2026-11-09 이후 현재 실행·남은 API 계약은 [work9-c](work9-c.md)를 따른다.**
 
 [전체 목차](work9.md) · [이전: 1부](work9-1.md) · [다음: 3부](work9-3.md)
 

@@ -1,8 +1,10 @@
 # work9-b — v2 단일 실행 경로 완성과 제품 전환
 
-작성·갱신: **2026-11-09 KST** · 상태: **W9B-00 완료 / W9B-00-H 완료 / 구조 개편 PARTIAL**
+작성·갱신·종료: **2026-11-09 KST** · 문서 상태: **CLOSED / 후속 문서 이관** · 구현 판정: **PARTIAL**
 
-이 문서는 사용자 요청으로 종료한 [work9-a.md](work9-a.md)의 **남은 작업과 재개 절차를 이어받는 실행 계약**이다. W9B-00의 당시 기능·공급·실행 결과는 §3.1–3.3에 보존한다. §3.4의 **W9B-00-H**에서 App SDK 단일 host·독립 HWND target 제거·RNW clipboard 소스 이식을 구현했다. 플랫폼별 원본/기존 소비자/부족 범위와 당시 실행 근거는 §3.4–3.5를 따른다.
+> **이 문서는 종료했다.** 남은 작업과 정확한 재개 절차의 실행 계약은 [work9-c.md](work9-c.md)로 이관했다. 아래 계획·체크리스트·§3의 구현/검증 기록과 §3.22의 미검증 초안은 종료 시점의 기록으로 보존한다. 문서 종료는 구조 개편·API 호환·제품 전환·레거시 삭제의 완료를 뜻하지 않는다. 제품 구현은 **PAUSED / PARTIAL**이며 이번 이관에서 build/run을 재개하지 않았다.
+
+이 문서는 사용자 요청으로 종료한 [work9-a.md](work9-a.md)의 **남은 작업과 재개 절차를 이어받아 진행한 실행 계약과 종료 기록**이다. W9B-00의 당시 기능·공급·실행 결과는 §3.1–3.3에 보존한다. §3.4의 **W9B-00-H**에서 App SDK 단일 host·독립 HWND target 제거·RNW clipboard 소스 이식을 구현했다. 플랫폼별 원본/기존 소비자/부족 범위와 당시 실행 근거는 §3.4–3.5를 따른다.
 
 **2026-11-08 사용자 요청으로 작업 방식 변경:** 이후에는 **W9B-01–05의 구현을 묶어서 진행 → W9B-06 통합 검증 → 발견한 문제를 모아서 수정 → 영향 범위 재검증** 순서로 실행한다. 개별 기능·파일·구현 시도마다 전체 빌드·설치·대상별 실행을 반복하지 않는다. 먼저 Windows/Web 차수의 구현과 실제 앱 연결을 모으고, Android와 후속 플랫폼은 기존 차수 경계를 따른다. 상세 실행 규칙은 §4.3·§7에 두며, 이번 계획 수정으로 구현·검증 완료 상태를 바꾸지 않는다.
 
@@ -490,7 +492,9 @@ RNW/RN/RNM/RNL에서 필요한 소스의 이식은 각 native target W9-13의 �
 
 현재 실행에 필요한 중립 helper·supplier를 오래된 경로명만 보고 삭제하지 않는다. 이전 구조/삭제 대응의 원본은 [work9-a §7](work9-a.md#7-실제-삭제이관-목록)에 보존한다.
 
-## 7. 재개 명령과 기록 원칙
+## 7. 종료 전 재개 명령과 기록 원칙
+
+이 절의 명령은 종료 당시 실행 절차의 보존 기록이다. 현재 재개는 [work9-c §7](work9-c.md#7-재개-명령과-기록정리-규칙)을 따른다.
 
 **재개 직후에는 현재 diff·§3.6–3.20의 진행 지점을 읽고 §4.3의 구현/통합 수정 묶음을 이어간다.** 아래 명령 목록을 재개·기능 추가·수정 시도마다 전부 실행하지 않는다. §3.5는 과거 완료 공급의 기록이며, 추가 변경은 해당 묶음의 새 공급 확인 전까지 **검증 대기 / notVerified**다.
 
@@ -528,7 +532,9 @@ Windows root 진입점 `npm.cmd run run:engine-v2:windows`와 Web `npm.cmd run r
 - 임시 App·archive·설치본·browser/server·listener·native 창은 실행별 최소 범위로 사용하고 성공/실패/중단 모두 `finally`에서 회수한다. 삭제 전 절대 경로와 소유 범위를 확인한다.
 - 구현 중에는 연결한 범위와 통합 검증에 남긴 항목만 간단히 갱신하고, 미실행 구현을 완료로 기록하지 않는다. 통합 검증·수정 묶음 종료 시 이 문서에 완료 범위·남은 문제/차단·실행 명령·미실행 대상·현재 공급 상태·다음 시작점만 갱신한다. 이전 PASS 수치를 새 Source의 근거로 복사하지 않는다.
 
-## 8. 전체 완료 체크리스트와 현재 재개점
+## 8. 종료 체크리스트와 후속 이관
+
+아래 미완료 의무는 [work9-c.md](work9-c.md)에 모두 이관했다. 체크박스와 기존 PASS는 이 문서 종료 당시의 판정을 유지한다.
 
 - [x] W9B-00의 최근 미검증 변경을 확인하고 소스·공급·설치 소비·원래 Gallery의 실제 상태를 맞췄다.
 - [x] W9B-00-H의 App SDK 단일 Windows host·독립 HWND target 제거·RNW 첫 실제 API 이식과 전체 native source 대응을 완료했다.
@@ -544,8 +550,8 @@ Windows root 진입점 `npm.cmd run run:engine-v2:windows`와 Web `npm.cmd run r
 - [ ] 후속 플랫폼 대체/지원 범위를 확정하고 구 runtime·공급·불필요 dependency·배포 파일을 제거했다.
 - [ ] 생성 소유권·출처·README·CLI help·work 문서가 실제 지원 상태와 일치한다.
 
-**현재 상태:** **PAUSED / PARTIAL** — 사용자 중간 마무리 요청. W9B-00/00-H 완료, W9B-01–05/06은 진행 중이며 §3.21까지의 당시 공급 PASS와 §3.22의 미검증 초안을 구분한다. 현재 Source와 Core/Material/SDK/engine dist가 일치하지 않고 Core runtime 타입 검사는 새 선언 미공급으로 실패했다. 재개 전에는 build/run을 계속하지 않는다. 전체 API **compatible=false**, 물리/display/scanout **notVerified**, 두 성능 flag **false**, Android **stale/notVerified**, Linux·iOS/macOS **DEFERRED**를 유지한다.
+**종료 상태:** **CLOSED / 후속 문서 이관 · 구현 PAUSED / PARTIAL**. W9B-00/00-H 완료, W9B-01–05/06은 미완료이며 §3.21까지의 당시 공급 PASS와 §3.22의 미검증 초안을 구분한다. 종료 시 Source와 Core/Material/SDK/engine dist가 일치하지 않고 Core runtime 타입 검사는 새 선언 미공급으로 실패했다. 전체 API **compatible=false**, 물리/display/scanout **notVerified**, 두 성능 flag **false**, Android **stale/notVerified**, Linux·iOS/macOS **DEFERRED**를 유지한다.
 
-**다음 시작점:** **§3.22 미검증 초안의 실제 compile과 소비자 연결**. 첫 명령은 `npm.cmd run build:core`다. 새 curves 선언을 사용하는 runtime 검사를 통과시킨 뒤 Range custom 선언·상태/수명과 curved editor animation의 실제 소비자·수치/취소/종료 계약을 마무리하고 한 번의 공급·설치·제품 확인으로 묶는다. Custom physics·전체 delegate/동기 geometry·semantics arbitrary sort/child delegate·traversal 식별자·외부 UIA Invoke/reader·RNW layout별 key/dead-key 및 pointer/capture/focus·IME/UIA/settings·서비스는 계속 남는다. 공통 Core의 최종 layout/geometry/hit 권위와 TS 디자인 정책을 유지한다. Android와 후속 플랫폼 의무도 보존한다.
+**후속 시작점:** [work9-c W9C-00](work9-c.md#31-w9c-00--첫-재개-구현-묶음)에서 §3.22 미검증 초안의 실제 compile과 소비자 연결을 이어간다. 첫 제품 빌드는 `npm.cmd run build:core`다. Range/editor 외 custom physics·전체 delegate/동기 geometry·semantics·RNW/OS 서비스·전체 catalog·플랫폼별 수락·마지막 소비자 삭제 의무도 후속 문서에 보존한다.
 
-**다음 재개 요청:** `work9-b.md §3.22의 PAUSED 작업을 재개하고 미검증 Range/editor 변경을 완성한 뒤 W9B-06 통합 검증해줘`
+**후속 재개 요청:** `work9-c.md의 W9C-00부터 남은 Windows/Web 구현을 묶어서 진행하고 W9C-06 통합 검증 후 나온 문제를 수정해줘`

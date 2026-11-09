@@ -2,9 +2,9 @@
 
 > 2026-11-07: 사용자 요청으로 본문의 독립 테스트·감사·실험 명령을 폐기했다. 이전 검증 기록과 미완료 판정은 보존하며, 현행 확인·정리 기준은 [전체 목차의 정리 안내](work9.md)를 따른다.
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-08 KST** · 상태: **host·소스 이식 실행 순서 교정 / Windows·Web PARTIAL**
+작성: **2026-11-05 KST** · 갱신: **2026-11-09 KST** · 상태: **host·소스 이식 실행 순서 교정 / Windows·Web PARTIAL**
 
-> **2026-11-08 사용자 교정:** Windows는 **App SDK 단일 host**이며 독립 `windows-hwnd` target·profile·선택 분기를 제거한다. Native 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 구현 소스를 가져와 수정·사용한다. 실제 이식 없이 자체 구현·사례 참고만 한 결과는 완료가 아니다. W9B-00-H에서 App SDK 단일 host와 RNW public clipboard를 구현했다. 이번 공급·실행 결과와 다음 W9B-01은 [work9-b](work9-b.md#35-w9b-00-h-구현과-이번-검증)를 따른다. 전체 native API 이식은 미완료다.
+> **2026-11-08 사용자 교정:** Windows는 **App SDK 단일 host**이며 독립 `windows-hwnd` target·profile·선택 분기를 제거한다. Native 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 구현 소스를 가져와 수정·사용한다. 실제 이식 없이 자체 구현·사례 참고만 한 결과는 완료가 아니다. W9B-00-H의 App SDK 단일 host·RNW public clipboard와 후속 부분 검증은 [종료한 work9-b](work9-b.md)에 보존한다. **2026-11-09 이후 현재 실행·통합 검증·수락은 [work9-c](work9-c.md)를 따른다.** 전체 native API 이식은 미완료다.
 
 [전체 목차](work9.md) · [이전: 2부](work9-2.md) · [다음: 4부 Android·Linux](work9-4.md) · [후속: 5부 iOS·macOS](work9-5.md)
 
@@ -18,7 +18,7 @@
 
 ## 12. 구현 단계와 완료 조건
 
-현재 실행 상태·다음 구현은 [work9-b](work9-b.md)를 따르고, 아래 기존 기록은 당시 구현 근거로 보존한다. Work8의 구현은 [§2](work9-1.md#2-work8에서-이어받는-기준점)의 PARTIAL 기반이다. 원래 W9-00–14와 `-A/-B`·target별 W9-12-B의 의무를 유지하며 현재는 **W9B-01–08** 순서로 연결한다. 개발 차수는 Windows/Web → Android/Linux → iOS/macOS이며 W9-13/14는 대상별로 판정한다.
+현재 실행 상태·다음 구현은 [work9-c](work9-c.md)를 따르고, 아래 기존 기록은 당시 구현 근거로 보존한다. Work8의 구현은 [§2](work9-1.md#2-work8에서-이어받는-기준점)의 PARTIAL 기반이다. 원래 W9-00–14와 `-A/-B`·target별 W9-12-B의 의무를 유지하며 현재는 **W9C-00–08**로 연결한다. 개발 차수는 Windows/Web → Android/Linux → iOS/macOS이며 W9-13/14는 대상별로 판정한다.
 
 ### 12.1 검토에서 수정한 선행 관계
 
@@ -26,7 +26,7 @@
 - 동기 custom hook·controller·Widget 수명의 실행 모델은 큰 이식 전에 확인해야 한다. W9-06-A를 앞당기고 전체 그래픽 구현을 그 선행 조건에서 뺀다.
 - `packages/cupertino`·`packages/material`은 [1부 §1.1](work9-1.md#11-typescript-디자인-패키지와-c-엔진의-책임)의 TypeScript 구현으로 유지한다. W9-06/08은 원래 구현의 engine 연결과 필요한 공통 연산 확장이며, 디자인 Widget·State·theme를 C++로 이식하는 단계를 두지 않는다.
 - Windows host 변경 중 Web 회귀를 늦게 발견하지 않도록 W9-02를 Windows App SDK와 Web 두 profile의 동등한 최소 수직 연결로 나눈다. 공통 계약 변경은 세 실행 경로에서 같은 묶음으로 검증한다.
-- **현재 선행 교정은 W9B-00-H다.** RNW/RN/RNM/RNL API/원본·기존 소비자 대응 → Windows App SDK 단일 CLI/공급·소비자 이관과 독립 HWND target 제거 → RNW 첫 API의 실제 소스 이식·실행을 마친 뒤 W9B-01의 Gallery/Core 이관을 이어간다. 전체 RNW API 이식은 W9B-03/W9-07/13으로 확장한다.
+- **선행 교정 W9B-00-H는 완료 기록이다.** API 원본·기존 소비자 대응, Windows App SDK 단일 CLI/공급·소비자 이관과 독립 HWND target 제거, RNW 첫 API 소스 이식·실행의 근거는 종료한 work9-b에 보존한다. 현재는 work9-c W9C-00의 미검증 Range/editor부터 재개하며 남은 전체 RNW API 이식은 W9C-03/W9-07/13 의무로 유지한다.
 - 공통 계층 추출·모바일 RN 분리·GTK/AppKit prototype을 한 선행 단계로 묶지 않는다. 1차에서는 Windows RNW의 필요한 OS handler와 Windows/Web 공통 경계만 최소 분리하고 후속 플랫폼은 해당 차수에서 연결한다.
 - Clock·기본 예산/hold·일반 앱 배포는 초기부터 확인한다. 광범위 cache 최적화는 실제 단계 시간과 재사용 수치를 얻은 뒤 수행하고 reload/복구는 모바일 이식과 분리한다.
 - 필수 animated/외부 콘텐츠는 W9-09-A의 기본 수명·예산과 필요한 paint/interaction이 준비되면 시작한다. W9-09-B의 재사용 최적화 전체를 기능 구현의 선행 조건으로 두지 않는다. 차수 전환은 [§12.5](#125-차수-전환과-완료-판정)의 W9-13 기술 완료를 기준으로 통일한다.
@@ -227,7 +227,7 @@ npm 0xC0000409가 재발할 때만 [기존 한정 조사 절차](history/26/11/0
 
 ## 현재 구현·검증과 잔여 작업
 
-이 절은 **2026-11-07 당시 구현/공급 기록**이다. 최신 W9B-00 기능 근거와 현재 공급은 [work9-b §3.2](work9-b.md#32-현재-공급검사실행-근거), 현재 작업 순서는 [§3.4 W9B-00-H](work9-b.md#34-w9b-00-h--host-단일화플랫폼-소스-이식-착수)를 따른다. 아래 두 host·직접 구현·참고만 한 RNW의 과거 PASS는 새 구조/API 이식의 수락 근거가 아니다.
+이 절은 **2026-11-07 당시 구현/공급 기록**이다. W9B-00 기능·공급은 [work9-b §3.2](work9-b.md#32-w9b-00-당시-공급검사실행-근거), App SDK 단일화는 [§3.4 W9B-00-H](work9-b.md#34-w9b-00-h--host-단일화플랫폼-소스-이식-착수)에 보존한다. 현재 공급·작업 순서는 [work9-c](work9-c.md)를 따른다. 아래 두 host·직접 구현·참고만 한 RNW의 과거 PASS는 새 구조/API 이식의 수락 근거가 아니다.
 
 **2026-11-07 KST / IN_PROGRESS / Windows·Web 1차 PARTIAL.** Canonical root/PlatformAssetBundle을 두 SDK App 모델의 패키지 asset 소유자에 연결하고 서비스 bootstrap 중 취소·실패·종료와 loadBuffer/ImmutableBuffer·NetworkAssetBundle·ImageDescriptor/Codec의 buffer 소비·실제 decoder와 큰 encoded v2 ImageResource의 Scene 전달·Content/Render 표시와 canonical RawImage/RenderImage의 별도 snapshot·C++ 이미지 배치·표시/수명과 ImageProvider/ImageCache·실제 Core frame clock·HTTP header/cancel/progress를 연결했다. Source FontLoader·공개 ui.loadFontFromList·확정 font 알림과 불변 recording 수명은 유지한다. **이미지 stream visibility/복구·Canvas 연결·기존 클래스 타입 호환성·OS font 변경 알림과 전체 text/Canvas·디자인 API·W9-06/07/08/13/14는 미완료**다.
 

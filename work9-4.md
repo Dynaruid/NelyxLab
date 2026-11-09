@@ -2,9 +2,9 @@
 
 > 2026-11-07: 사용자 요청으로 본문의 독립 테스트·감사·실험 명령을 폐기했다. 이전 검증 기록과 미완료 판정은 보존하며, 현행 확인·정리 기준은 [전체 목차의 정리 안내](work9.md)를 따른다.
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-08 KST** · 상태: **RN/RNL 소스 이식 계획 교정 / Android PARTIAL · Linux DEFERRED**
+작성: **2026-11-05 KST** · 갱신: **2026-11-09 KST** · 상태: **RN/RNL 소스 이식 계획 교정 / Android PARTIAL · Linux DEFERRED**
 
-> **2026-11-08 사용자 교정:** Android 플랫폼 API는 **RN Android**, Linux GTK 플랫폼 API는 **RNL**의 필요한 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기존 자체 OS 구현 우선·알고리즘/사례 참고만으로 완료하는 방침을 대체한다. 기존 standalone/emulator·공급 기록은 보존하며 RN/RNL 소스 이식 완료와 구분한다. RN/RNL의 새 API 이식은 미완료다. Windows 선행 이식과 이번 Android 회귀·공급은 work9-b §3.5를 따른다. [우선 계약](work9-b.md#11-사용자-확정-host플랫폼-api-구현-방식)를 따른다.
+> **2026-11-08 사용자 교정:** Android 플랫폼 API는 **RN Android**, Linux GTK 플랫폼 API는 **RNL**의 필요한 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기존 자체 OS 구현 우선·알고리즘/사례 참고만으로 완료하는 방침을 대체한다. 기존 standalone/emulator·공급 기록은 보존하며 RN/RNL 소스 이식 완료와 구분한다. Windows 선행 이식과 당시 Android 회귀·공급은 [종료한 work9-b §3.5](work9-b.md#35-w9b-00-h-구현과-이번-검증)에 보존한다. **2026-11-09 이후 우선 계약·남은 차수와 stale/notVerified는 [work9-c](work9-c.md)를 따른다.** RN/RNL 실제 소스 이식은 미완료다.
 
 [전체 목차](work9.md) · [이전: 3부](work9-3.md) · [후속: 5부 iOS·macOS](work9-5.md)
 
@@ -42,7 +42,7 @@ Surface/ANativeWindow와 JNI reference는 획득·전달·해제 owner와 세대
 
 ### 현재 Android 구현과 실행
 
-아래는 사용자 교정 전 standalone 구현과 실행 근거다. 기존 API·복구·emulator PASS를 RN Android 소스 수정 이식본의 완료/검증으로 복사하지 않는다. 이번 교정 뒤 RN 원본/파일·수정·실제 소비자·API별 실행을 다시 대응시킨다. 최신 W9B-00 공급·실행은 [work9-b §3.2](work9-b.md#32-현재-공급검사실행-근거)에 별도로 기록돼 있다.
+아래는 사용자 교정 전 standalone 구현과 실행 근거다. 기존 API·복구·emulator PASS를 RN Android 소스 수정 이식본의 완료/검증으로 복사하지 않는다. 이번 교정 뒤 RN 원본/파일·수정·실제 소비자·API별 실행을 다시 대응시킨다. W9B-00 당시 공급·실행은 [work9-b §3.2](work9-b.md#32-w9b-00-당시-공급검사실행-근거)에 보존하며 현재 공급·남은 의무는 [work9-c](work9-c.md)를 따른다.
 
 구현 위치는 [Android host](Nelyx/engine/platform/android/host.cpp), [Render provider](Nelyx/engine/platform/android/renderer.hpp), [일반 Android 프로젝트](Nelyx/engine/platform/android/project/app/build.gradle), [중립 InputConnection buffer](Nelyx/engine/platform/android/shared/dev/nelyx/input/NelyxInputBuffer.java), [CLI](Nelyx/sdk/tooling/cli/src/engine-v2-android.mjs)다. 기존 Windows의 Skia·paragraph/image·App text 서비스를 [공통 provider](Nelyx/engine/platform/common/skia_provider.hpp)로 추출했으며 기존 v1 RN host는 유지한다. RN 입력 wrapper와 standalone 입력 buffer는 같은 UTF-16 validator를 사용한다. 전체 RN IME 구현을 추출·재검증한 것으로 확대하지 않는다.
 
