@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { engineRoot, sourceIdentity } from './build.mjs';
 import { prepareRepositoryAppPackages } from '../../eng/prepare-app-packages.mjs';
+import { prepareOriginalSample } from '../../../sample/prepare-engine-app.mjs';
 const directory = path.join(engineRoot, 'dist');
 if (process.argv.length > 2) throw new Error('Usage: run-windows.mjs');
 const profile = 'windows-app-sdk';
@@ -23,7 +24,7 @@ for (const file of manifest.files) {
 prepareRepositoryAppPackages();
 const { buildEngineV2Application, engineV2Operation } =
   await import('../../sdk/tooling/cli/src/engine-v2-runner.mjs');
-const app = path.resolve(engineRoot, '../../sample/nelyx-testbed-app-2/engine-v2');
+const app = prepareOriginalSample('nelyx-testbed-app-2');
 await buildEngineV2Application({ app, target: 'windows' });
 const result = await engineV2Operation('run', { app, target: 'windows' });
 process.exitCode = result.exitCode;

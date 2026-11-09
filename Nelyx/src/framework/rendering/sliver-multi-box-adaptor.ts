@@ -150,7 +150,9 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
   private nativeNeedsBuild = true;
   private nativeBuilt: NativeSliverConfiguration['built'] = null;
   private nativeWindow = { begin: 0, end: 0 };
-  private nativeMetrics: { count: number; estimate: number; itemExtent: number | null } | undefined;
+  private nativeMetrics:
+    | { count: number; estimate: number; itemExtent: number | null; sequential: boolean }
+    | undefined;
   private readonly nativeTokens = new WeakMap<object, bigint>();
   private nextNativeToken = 0n;
   private nativePublished = new Set<bigint>();
@@ -174,8 +176,12 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
   private publishedNativeChild(child: RenderBox): boolean {
     return this.nativePublished.size > 0 && this.nativePublished.has(this.nativeToken(child));
   }
-  /** @internal The owning concrete module supplies only fixed/indexed metric policy. */
-  _nativeListConfiguration(estimate: number, itemExtent: number | null): NativeSliverConfiguration {
+  /** @internal The owning concrete module supplies metric policy, never final child geometry. */
+  _nativeListConfiguration(
+    estimate: number,
+    itemExtent: number | null,
+    sequential = false,
+  ): NativeSliverConfiguration {
     const childOwner = nativeSliverChildOwner(this.childManager);
     invariant(
       childOwner,
@@ -188,20 +194,21 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
         count! >= 0 &&
         count! <= 1_000_000 &&
         Number.isFinite(estimate) &&
-        estimate > 0 &&
+        (sequential ? estimate === 0 && itemExtent === null : estimate > 0) &&
         estimate * count! <= 1e12,
       'invalid-native-sliver-count',
-      'Native list requires a finite delegate and positive estimate',
+      'Native list requires a finite delegate and a supported metric policy',
     );
     const previous = this.nativeMetrics;
     if (
       previous &&
       (previous.count !== count ||
         previous.estimate !== estimate ||
-        previous.itemExtent !== itemExtent)
+        previous.itemExtent !== itemExtent ||
+        previous.sequential !== sequential)
     )
       ++this.nativeGeneration;
-    this.nativeMetrics = { count: count!, estimate, itemExtent };
+    this.nativeMetrics = { count: count!, estimate, itemExtent, sequential };
     const children = this.children.map((child) => {
       invariant(
         child instanceof RenderBox,
@@ -226,6 +233,7 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
       end: this.nativeNeedsBuild ? 0 : this.nativeWindow.end,
       estimate,
       itemExtent,
+      sequential,
       built: this.nativeBuilt,
       children,
       prepare: this.prepareNativeList,

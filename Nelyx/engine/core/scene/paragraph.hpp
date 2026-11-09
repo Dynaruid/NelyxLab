@@ -4,6 +4,7 @@
 #include <string>
 #include <algorithm>
 #include <optional>
+#include <tuple>
 
 namespace nelyx::v2 {
 struct ParagraphFeature {uint32_t tag=0,value=0;bool operator==(const ParagraphFeature&)const=default;};
@@ -39,7 +40,9 @@ struct ParagraphRun {
   bool operator==(const ParagraphRun&)const=default;
   size_t bytes()const{size_t size=sizeof(ParagraphRun)+locale.size()+fontFamilies.size()*sizeof(std::string)+features.size()*sizeof(ParagraphFeature)+variations.size()*sizeof(ParagraphVariation)+shadows.size()*sizeof(ParagraphShadow);for(const auto& family:fontFamilies)size+=family.size();return size;}
 };
+struct ParagraphOverflowProbe;
 struct ParagraphOptions {
+  std::shared_ptr<const ParagraphOverflowProbe> overflowProbe;
   uint32_t flags=wire::paragraphFlags::wrap|wire::paragraphFlags::manualHyphens, align=wire::paragraphAlign::start, maxLines=0;
   double height=-1, letterSpacing=0, wordSpacing=0;
   std::string locale="en", ellipsis;
@@ -48,10 +51,10 @@ struct ParagraphOptions {
   std::vector<ParagraphRun> runs;
   std::optional<ParagraphStrut> strut;
   std::vector<ParagraphPlaceholder> placeholders;
-  size_t metadataBytes()const{size_t size=(strut?strut->bytes():0)+placeholders.size()*sizeof(ParagraphPlaceholder);for(const auto& run:runs)size+=run.bytes();return size;}
+  size_t metadataBytes()const;
   double paintOutset(double fontSize)const{const bool compressed=(strut&&(strut->flags&4))||(height>=0&&height<1);double ink=compressed?fontSize*2:0,shadowSize=0;
     for(const auto& run:runs){if(compressed||(run.height>=0&&run.height<1))ink=std::max(ink,run.fontSize*2);for(const auto& shadow:run.shadows)shadowSize=std::max({shadowSize,std::abs(shadow.x)+shadow.sigma*4,std::abs(shadow.y)+shadow.sigma*4});}return ink+shadowSize;}
-  bool operator==(const ParagraphOptions&)const=default;
+  bool operator==(const ParagraphOptions&)const;
   bool wraps()const{return (flags&wire::paragraphFlags::wrap)!=0;}
   bool inlineChildren()const{return (flags&wire::paragraphFlags::inlineChildren)!=0;}
   double alignment(uint32_t direction)const{
@@ -64,6 +67,24 @@ struct ParagraphOptions {
     }
   }
 };
+struct ParagraphOverflowProbe {
+  std::string text;
+  double fontSize=14;
+  uint32_t color=0;
+  ParagraphOptions paragraph;
+  bool operator==(const ParagraphOverflowProbe&)const=default;
+};
+inline size_t ParagraphOptions::metadataBytes()const {
+  size_t size=(strut?strut->bytes():0)+placeholders.size()*sizeof(ParagraphPlaceholder);
+  for(const auto& run:runs)size+=run.bytes();
+  if(overflowProbe){const auto& probe=*overflowProbe;size+=sizeof(ParagraphOverflowProbe)+probe.text.size()+probe.paragraph.locale.size()+probe.paragraph.ellipsis.size()+probe.paragraph.fontFamily.size()+probe.paragraph.metadataBytes();}
+  return size;
+}
+inline bool ParagraphOptions::operator==(const ParagraphOptions& b)const {
+  return std::tie(flags,align,maxLines,height,letterSpacing,wordSpacing,locale,ellipsis,fontWeight,fontFamily,runs,strut,placeholders)==
+    std::tie(b.flags,b.align,b.maxLines,b.height,b.letterSpacing,b.wordSpacing,b.locale,b.ellipsis,b.fontWeight,b.fontFamily,b.runs,b.strut,b.placeholders)&&
+    bool(overflowProbe)==bool(b.overflowProbe)&&(!overflowProbe||*overflowProbe==*b.overflowProbe);
+}
 struct ParagraphData {
   Lease lease;
   ParagraphOptions value;
@@ -85,7 +106,7 @@ inline std::vector<std::string> paragraphFamilies(const std::string& names,uint3
   for(size_t j=0;j<=names.size();++j)if(j==names.size()||names[j]=='\0'){require(j>start,wire::statuses::invalidValue);families.push_back(names.substr(start,j-start));start=j+1;}
   require(families.size()==count,wire::statuses::invalidValue);return families;
 }
-inline ParagraphOptions readParagraph(Reader data){
+inline ParagraphOptions readParagraph(Reader data,bool allowProbe=true){
   require(data.length>=wire::paragraphBytes);
   const auto localeLength=data.u32(12),ellipsisLength=data.u32(16),familyLength=data.u32(20),count=data.u32(28);
   require(localeLength>0&&localeLength<=wire::limits::localeBytes&&ellipsisLength<=wire::limits::ellipsisBytes&&familyLength<=wire::limits::fontFamilyBytes&&count<=wire::limits::paragraphRuns,wire::statuses::budgetExceeded);
@@ -97,9 +118,18 @@ inline ParagraphOptions readParagraph(Reader data){
   value.fontWeight=data.u32(24)?data.u32(24):400;
   value.height=data.f64(32);value.letterSpacing=data.f64(40);value.wordSpacing=data.f64(48);
   value.locale=paragraphString(data,offset,localeLength);value.ellipsis=paragraphString(data,offset,ellipsisLength);value.fontFamily=paragraphString(data,offset,familyLength);
-  require(value.fontWeight>=100&&value.fontWeight<=900&&value.flags<=63&&value.align<=wire::paragraphAlign::justify&&value.maxLines<=wire::limits::textBytes&&
+  require(value.fontWeight>=100&&value.fontWeight<=900&&value.flags<=127&&(allowProbe||!(value.flags&wire::paragraphFlags::overflowProbe))&&value.align<=wire::paragraphAlign::justify&&value.maxLines<=wire::limits::textBytes&&
     (value.height==-1||(value.height>=0&&value.height<=1e6))&&std::abs(value.letterSpacing)<=1e6&&std::abs(value.wordSpacing)<=1e6&&
     value.locale.find('\0')==std::string::npos&&value.fontFamily.find('\0')==std::string::npos,wire::statuses::invalidValue);
+  if(value.flags&wire::paragraphFlags::overflowProbe){
+    const auto header=data.slice(offset,wire::paragraphProbeBytes);offset+=wire::paragraphProbeBytes;
+    const auto length=header.u32(0),optionsLength=header.u32(4);
+    auto probe=std::make_shared<ParagraphOverflowProbe>();probe->fontSize=header.f64(8);probe->color=header.u32(16);
+    require(length>0&&length<=wire::limits::textBytes&&optionsLength>=wire::paragraphBytes&&probe->fontSize>0&&probe->fontSize<=512&&!header.u32(20),wire::statuses::invalidValue);
+    probe->text=paragraphString(data,offset,length);probe->paragraph=readParagraph(data.slice(offset,optionsLength),false);offset+=optionsLength;
+    require(!probe->paragraph.inlineChildren()&&probe->paragraph.placeholders.empty()&&count+probe->paragraph.runs.size()<=wire::limits::paragraphRuns,wire::statuses::invalidValue);
+    value.overflowProbe=std::move(probe);
+  }
   if(strutLength){
     const auto record=data.slice(offset,strutLength);ParagraphStrut strut;strut.flags=record.u32(0);strut.fontWeight=record.u32(4);
     const auto size=record.u32(8),families=record.u32(12);
@@ -166,7 +196,10 @@ inline Writer paragraphBytes(const ParagraphOptions& value){
   const auto join=[](const std::vector<std::string>& values){std::string names;for(const auto& name:values){if(!names.empty())names+='\0';names+=name;}return names;};
   const auto strutNames=value.strut?join(value.strut->fontFamilies):std::string{};
   const auto strutLength=value.strut?wire::paragraphStrutBytes+paragraphAligned(strutNames.size()):0;
-  size_t total=wire::paragraphBytes+locale+ellipsis+family+strutLength+value.placeholders.size()*wire::paragraphPlaceholderBytes;
+  std::optional<Writer> probeBytes;
+  if(value.overflowProbe)probeBytes=paragraphBytes(value.overflowProbe->paragraph);
+  const auto probeLength=value.overflowProbe?wire::paragraphProbeBytes+paragraphAligned(value.overflowProbe->text.size())+probeBytes->bytes.size():0;
+  size_t total=wire::paragraphBytes+locale+ellipsis+family+probeLength+strutLength+value.placeholders.size()*wire::paragraphPlaceholderBytes;
   for(const auto& run:value.runs){size_t names=run.fontFamilies.size()-1;for(const auto& name:run.fontFamilies)names+=name.size();total+=wire::paragraphRunBytes+paragraphAligned(names)+paragraphAligned(run.locale.size())+run.features.size()*8+run.variations.size()*16+run.shadows.size()*32;}
   Writer data(total);
   data.u32(0,value.flags);data.u32(4,value.align);data.u32(8,value.maxLines);
@@ -180,6 +213,10 @@ inline Writer paragraphBytes(const ParagraphOptions& value){
   std::memcpy(data.bytes.data()+wire::paragraphBytes+locale,value.ellipsis.data(),value.ellipsis.size());
   std::memcpy(data.bytes.data()+wire::paragraphBytes+locale+ellipsis,value.fontFamily.data(),value.fontFamily.size());
   size_t offset=wire::paragraphBytes+locale+ellipsis+family;
+  if(value.overflowProbe){const auto& probe=*value.overflowProbe;
+    data.u32(offset,uint32_t(probe.text.size()));data.u32(offset+4,uint32_t(probeBytes->bytes.size()));data.f64(offset+8,probe.fontSize);data.u32(offset+16,probe.color);offset+=wire::paragraphProbeBytes;
+    std::memcpy(data.bytes.data()+offset,probe.text.data(),probe.text.size());offset+=paragraphAligned(probe.text.size());
+    std::memcpy(data.bytes.data()+offset,probeBytes->bytes.data(),probeBytes->bytes.size());offset+=probeBytes->bytes.size();}
   if(value.strut){const auto& strut=*value.strut;data.u32(offset,strut.flags);data.u32(offset+4,strut.fontWeight);data.u32(offset+8,uint32_t(strutNames.size()));data.u32(offset+12,uint32_t(strut.fontFamilies.size()));data.f64(offset+16,strut.fontSize);data.f64(offset+24,strut.height);data.f64(offset+32,strut.leading);
     std::memcpy(data.bytes.data()+offset+wire::paragraphStrutBytes,strutNames.data(),strutNames.size());offset+=strutLength;}
   for(const auto& item:value.placeholders){data.u32(offset,item.offset);data.u32(offset+4,item.alignment);data.u32(offset+8,item.baseline);data.f64(offset+16,item.width);data.f64(offset+24,item.height);data.f64(offset+32,item.baselineOffset);offset+=wire::paragraphPlaceholderBytes;}

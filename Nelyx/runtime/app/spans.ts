@@ -76,7 +76,7 @@ export function originalSpanInput(
     render.registrar ||
     (painter.hyphens !== undefined && !['manual', 'hidden'].includes(painter.hyphens)) ||
     (paragraph.overflow !== undefined &&
-      !['clip', 'visible', 'ellipsis'].includes(paragraph.overflow)) ||
+      !['clip', 'visible', 'ellipsis', 'fade'].includes(paragraph.overflow)) ||
     (paragraph.textWidthBasis !== undefined && paragraph.textWidthBasis !== 'parent')
   )
     return unsupported('paragraph-style-or-selection');
@@ -132,32 +132,69 @@ export function originalSpanInput(
     const size = config.scaler.scale(style.fontSize ?? 18);
     if (!(Number.isFinite(size) && size > 0 && size <= 512))
       return unsupported('paragraph-font-size');
-    return originalParagraphInput(
-      {
-        text: recorder.value,
-        style: style.toRunStyle(config.scaler),
-        runs: recorder.recordedRuns,
-        ...(slots.length ? { placeholders: recorder.recordedPlaceholders } : {}),
-        font: config.font,
-        fontSize: size,
-        width: 0,
-        direction: painter.textDirection ?? 'ltr',
-        scale: config.scale,
-        locale: String(painter.locale ?? style.locale ?? 'en'),
-        color: style.color ?? 0xffe8eef8,
-        unlimitedLines: painter.maxLines == null,
-        ...(painter.maxLines == null ? {} : { maxLines: painter.maxLines }),
-        ellipsis: painter.ellipsis ?? '',
-        hyphens: painter.hyphens ?? 'manual',
-        ...(painter.strutStyle ? { strutStyle: painter.strutStyle.toStyle(config.scaler) } : {}),
-        textAlign: painter.textAlign ?? 'start',
-        ...(painter.textHeightBehavior ? { textHeightBehavior: painter.textHeightBehavior } : {}),
-      },
+    const input: TextLayoutInput = {
+      text: recorder.value,
+      style: style.toRunStyle(config.scaler),
+      runs: recorder.recordedRuns,
+      ...(slots.length ? { placeholders: recorder.recordedPlaceholders } : {}),
+      font: config.font,
+      fontSize: size,
+      width: 0,
+      direction: painter.textDirection ?? 'ltr',
+      scale: config.scale,
+      locale: String(painter.locale ?? style.locale ?? 'en'),
+      color: style.color ?? 0xffe8eef8,
+      unlimitedLines: painter.maxLines == null,
+      ...(painter.maxLines == null ? {} : { maxLines: painter.maxLines }),
+      ellipsis: painter.ellipsis ?? '',
+      hyphens: painter.hyphens ?? 'manual',
+      ...(painter.strutStyle ? { strutStyle: painter.strutStyle.toStyle(config.scaler) } : {}),
+      textAlign: painter.textAlign ?? 'start',
+      ...(painter.textHeightBehavior ? { textHeightBehavior: painter.textHeightBehavior } : {}),
+    };
+    const main = originalParagraphInput(
+      input,
       unsupported,
       true,
       slots.length > 0,
       providerFamilies,
     );
+    if (paragraph.overflow !== 'fade') return main;
+    const {
+      runs: _runs,
+      placeholders: _placeholders,
+      maxLines: _maxLines,
+      strutStyle: _strut,
+      textHeightBehavior: _heightBehavior,
+      ...probeInput
+    } = input;
+    const metric = originalParagraphInput(
+      {
+        ...probeInput,
+        text: '\u2026',
+        unlimitedLines: true,
+        ellipsis: '',
+        textAlign: 'start',
+        hyphens: 'manual',
+      },
+      unsupported,
+      true,
+      false,
+      providerFamilies,
+    );
+    const { height, ...metricOptions } = metric.paragraph;
+    return Object.freeze({
+      ...main,
+      paragraph: Object.freeze({
+        ...main.paragraph,
+        overflowProbe: Object.freeze({
+          text: metric.text,
+          fontSize: metric.fontSize,
+          color: metric.color,
+          paragraph: Object.freeze({ ...metricOptions, ...(height === null ? {} : { height }) }),
+        }),
+      }),
+    });
   } finally {
     recorder.dispose();
   }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "../engine.hpp"
 #include "../state.hpp"
+#include "../interaction/semantics_data.hpp"
 #include <algorithm>
 #include <mutex>
 #include <set>
@@ -754,6 +755,16 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     addOwned(wire::fontResourceChunkBlob,fontRead->id,std::move(data));
   }
   const auto interactionBlobs=[&](const Node& n,const DrawItem* item=nullptr){
+    if(opcode==wire::opcodes::semanticsSnapshot&&frame&&item&&n.layoutPaintValues&&n.layoutPaintValues->semanticsRect){
+      const auto& rect=*n.layoutPaintValues->semanticsRect;
+      const auto matrix=item->world*Affine{1,0,0,1,rect.x,rect.y};
+      const auto bounds=matrix.bounds({0,0,rect.width,rect.height});
+      Writer data(wire::semanticGeometryBytes);
+      const std::array<double,14> values{bounds.x,bounds.y,bounds.width,bounds.height,rect.width,rect.height,
+        matrix.a,matrix.b,matrix.c,matrix.d,matrix.tx,matrix.ty,rect.x,rect.y};
+      for(size_t i=0;i<values.size();++i)data.f64(i*8,values[i]);
+      addOwned(wire::semanticGeometryBlob,n.id,std::move(data));
+    }
     if(n.snapshot)addOwned(wire::snapshotStyleBlob,n.id,snapshotStyleBytes(*n.snapshot));
     if(n.layoutBuilder){const auto& builder=*n.layoutBuilder;Writer data(wire::layoutBuilderBytes);
       data.u64(0,builder.revision);data.u64(8,builder.builtRevision);putAxis(data,16,builder.horizontal);putAxis(data,40,builder.vertical);
@@ -792,7 +803,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       data.f64(24,c.minimum);data.f64(32,c.maximum);data.f64(40,c.step);data.f64(48,controlValue);
       data.f64(56,visual?visual->second:view&&overlay!=view->overlays.end()?overlay->second.second:c.second);
       data.u64(64,c.revision);addOwned(7,n.id,std::move(data));}
-    if(n.listGeometry){const auto& list=*n.listGeometry;const size_t header=list.style.fixed?72:64;Writer data(header+list.rows.size()*40);
+    if(n.listGeometry){const auto& list=*n.listGeometry;const size_t header=list.style.fixed||list.style.sequential?72:64;Writer data(header+list.rows.size()*40);
       data.u64(0,list.style.generation);data.u32(8,list.style.count);data.u32(12,list.style.begin);data.u32(16,list.style.end);
       double offset=0,height=view?view->metrics.height:0,paint=height;
       if(view&&n.parent&&rows->contains(n.parent)){const auto& parent=rows->get(n.parent);
@@ -800,29 +811,34 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         height=horizontal?parent.properties.width:parent.properties.height;const auto scrollOverlay=view->overlays.find(n.parent.key());
         if(scrollOverlay!=view->overlays.end())offset=scrollOverlay->second.requested-(horizontal?n.properties.x:n.properties.y);
         if(n.layoutBuilder){const double origin=n.properties.y;
-          const double requested=std::clamp(offset+origin,0.0,std::max(0.0,list.total+parent.layout.top+parent.layout.bottom-height));
+          const double requested=list.style.sequential&&list.knownCount<list.style.count?std::max(0.0,offset+origin):
+            std::clamp(offset+origin,0.0,std::max(0.0,list.total+parent.layout.top+parent.layout.bottom-height));
           offset=std::max(0.0,requested-origin);paint=std::max(0.0,height-std::max(0.0,origin-requested));}}
       if(n.layoutBuilder){const auto range=nativeListRange(list.style,&list,std::max(0.0,offset),paint);data.u32(20,range.begin);data.u32(24,range.end);}
       else {const auto begin=list.indexAt(std::max(0.0,offset-height));
         data.u32(20,begin);data.u32(24,std::min(list.style.count,list.indexAt(offset+height*2)+1));}
-      data.u32(28,uint32_t(list.rows.size()));data.f64(32,list.style.estimate);
+      data.u32(28,uint32_t(list.rows.size()));data.f64(32,list.estimate);
       data.f64(40,list.total);data.f64(48,list.begin);data.f64(56,list.end);
-      if(list.style.fixed)data.u32(64,1);
+      if(header==72)data.u32(64,list.style.fixed?wire::listFlags::fixedExtent:wire::listFlags::sequential);
       for(size_t i=0;i<list.rows.size();++i){const auto& row=list.rows[i];const auto at=header+i*40;
         writeHandle(data,at,row.node);data.u32(at+8,row.index);data.u64(at+16,row.key);data.f64(at+24,row.offset);data.f64(at+32,row.extent);}
       addOwned(6,n.id,std::move(data));}
-    if(const auto* semantic=frame?frame->semantic(n.id):n.semantics.get()){const auto& a=*semantic;Writer bytes(wire::semanticsBytes+a.label.size()+a.hint.size()+a.value.size()+a.increasedValue.size()+a.decreasedValue.size());
+    if(const auto* semantic=frame?frame->semantic(n.id):n.semantics.get()){const auto& a=*semantic;
       auto semanticFlags=(n.control.kind==wire::controlKinds::toggle||n.control.kind==wire::controlKinds::checkbox||n.control.kind==wire::controlKinds::radio)?
         (a.flags&~wire::semanticsFlags::checked)|(controlValue>n.control.minimum?wire::semanticsFlags::checked:0u):a.flags;
       if(n.control.disabled)semanticFlags|=wire::semanticsFlags::disabled;
       if(frame&&!frame->allowsSemantics(n.id))semanticFlags|=wire::semanticsFlags::hidden;
       if(frame&&!frame->semantics.empty()&&frame->semantics[n.id.slot].merged)semanticFlags|=wire::semanticsFlags::mergedIntoParent;
-      bytes.u32(0,a.role);bytes.u32(4,semanticFlags);bytes.u32(8,a.actions);bytes.u32(12,uint32_t(a.label.size()));bytes.u32(16,uint32_t(a.hint.size()));
-      bytes.u32(20,uint32_t(a.value.size()));bytes.u32(24,a.range.enabled?(a.range.readOnly?3u:1u):0u);
-      bytes.f64(32,a.range.minimum);bytes.f64(40,a.range.maximum);bytes.f64(48,a.range.value);bytes.f64(56,a.range.smallChange);bytes.f64(64,a.range.largeChange);
-      bytes.u32(72,uint32_t(a.increasedValue.size()));bytes.u32(76,uint32_t(a.decreasedValue.size()));
-      size_t at=wire::semanticsBytes;for(const auto* part:{&a.label,&a.hint,&a.value,&a.increasedValue,&a.decreasedValue}){
-        std::memcpy(bytes.bytes.data()+at,part->data(),part->size());at+=part->size();}addOwned(3,n.id,std::move(bytes));
+      addOwned(3,n.id,semanticDataBytes(a,semanticFlags,a.actions));
+      if(frame&&!frame->semantics.empty()&&frame->semantics[n.id.slot].traversal!=UINT32_MAX){
+        const auto& value=frame->semantics[n.id.slot];const auto sources=value.customSources;
+        const auto count=sources?sources->values.size():0;Writer traversal(wire::semanticTraversalBytes+count*wire::semanticCustomSourceBytes);
+        writeHandle(traversal,0,value.parent);traversal.u32(8,value.traversal);
+        traversal.u32(12,uint32_t(count));
+        for(size_t i=0;i<count;++i){const auto offset=wire::semanticTraversalBytes+i*wire::semanticCustomSourceBytes;
+          traversal.u32(offset,sources->values[i].first);writeHandle(traversal,offset+8,sources->values[i].second);}
+        addOwned(wire::semanticTraversalBlob,n.id,std::move(traversal));
+      }
     }
     auto editing=n.editing;
     if(editTarget||(opcode==wire::opcodes::semanticsSnapshot&&view)){const auto found=view->editors.find(n.id.key());if(found!=view->editors.end())editing=found->second->value;}
@@ -851,6 +867,19 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   }
   else if(rows)for(const auto* node:rowNodes)interactionBlobs(*node);
   for(size_t i=0;i<events.size();++i){const auto& event=events[i];const auto& tap=event.tapRegion;
+    if(event.kind==wire::events::key&&event.keyIdentity.keyLength){const auto& identity=event.keyIdentity;
+      const size_t length=size_t(identity.keyLength)+identity.codeLength;
+      Writer data(wire::keyIdentityEventBytes+(length+7)/8*8);data.u32(0,uint32_t(i));
+      data.u32(4,identity.keyLength);data.u32(8,identity.codeLength);data.u32(12,identity.location);
+      std::copy_n(identity.key.begin(),identity.keyLength,data.bytes.begin()+wire::keyIdentityEventBytes);
+      std::copy_n(identity.code.begin(),identity.codeLength,data.bytes.begin()+wire::keyIdentityEventBytes+identity.keyLength);
+      addOwned(wire::keyIdentityEventBlob,event.node,std::move(data));}
+    if(event.kind==wire::events::pointer){Writer data(wire::pointerEventBytes);data.u32(0,uint32_t(i));
+      std::copy(event.pointer.input.begin(),event.pointer.input.end(),data.bytes.begin()+8);
+      const auto& inverse=event.pointer.inverse;
+      const std::array<double,6> matrix{inverse.a,inverse.b,inverse.c,inverse.d,inverse.tx,inverse.ty};
+      for(size_t j=0;j<matrix.size();++j)data.f64(8+wire::inputBytes+j*8,matrix[j]);
+      addOwned(wire::pointerEventBlob,event.node,std::move(data));}
     if(event.semanticSource){Writer data(wire::semanticSourceEventBytes);data.u32(0,uint32_t(i));
       writeHandle(data,8,event.semanticSource);addOwned(wire::semanticSourceEventBlob,event.node,std::move(data));}
     if(!tap.batch)continue;
@@ -1041,6 +1070,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     response.f64(cursor+wire::eventFields::localOriginX,g.localOriginX);response.f64(cursor+wire::eventFields::localOriginY,g.localOriginY);
     response.u32(cursor+wire::eventFields::buttons,g.buttons);response.u32(cursor+wire::eventFields::gestureFlags,g.flags);
     if(e.kind==wire::events::focusChanged)writeHandle(response,cursor+wire::eventFields::focusPeer,e.focusPeer);
+    if(e.kind==wire::events::key)response.u64(cursor+wire::eventFields::clipboardReadSnapshot,e.clipboardReadSnapshot);
     cursor += wire::eventBytes;
   }
   for (const auto& blob : blobs) {

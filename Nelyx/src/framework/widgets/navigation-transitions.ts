@@ -43,9 +43,10 @@ export class NavigationTransitions {
   private rendered: readonly RouteEntry[] = [];
   private readonly exiting = new Set<symbol>();
   private readonly motions = new Map<symbol, Motion>();
+  private pageRevision = 0;
   private readonly pages = new Map<
     symbol,
-    { readonly builder: RouteEntry['builder']; readonly widget: Widget }
+    { readonly builder: RouteEntry['builder']; readonly revision: number; readonly widget: Widget }
   >();
   private readonly adjacencies = new Map<
     symbol,
@@ -274,17 +275,22 @@ export class NavigationTransitions {
   get entries(): readonly RouteEntry[] {
     return this.rendered;
   }
+  /** Parent configuration changes rebuild pages without replacing their Element identity. */
+  refreshPages(): void {
+    ++this.pageRevision;
+  }
   page(entry: RouteEntry): Widget {
     let page = this.pages.get(entry.token);
-    if (!page || page.builder !== entry.builder) {
+    if (!page || page.builder !== entry.builder || page.revision !== this.pageRevision) {
       page = {
         builder: entry.builder,
+        revision: this.pageRevision,
         widget: new Builder(
           (context) =>
             new RepaintBoundary(
               entry.route.transitionPolicy?.buildPage(context) ?? entry.builder(context),
             ),
-          { key: new GlobalKey() },
+          { key: page?.widget.key ?? new GlobalKey() },
         ),
       };
       this.pages.set(entry.token, page);

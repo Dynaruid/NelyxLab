@@ -10,6 +10,11 @@ import { KeyedSubtree } from '@nelyx/core/framework/widgets/basic';
 import { ValueKey } from '@nelyx/core/foundation/key';
 import type { Key } from '@nelyx/core/foundation/key';
 import { RenderBox } from '@nelyx/core/framework/rendering/object';
+import {
+  registerNativeBoxConfiguration,
+  registerNativeRenderResources,
+} from '@nelyx/core/framework/rendering/object';
+import type { NativeLayoutProgram, NativePaintEntry } from '@nelyx/core/framework/rendering/object';
 import { RenderRepaintBoundary } from '@nelyx/core/framework/rendering/repaint-boundary';
 import type {
   RenderObject,
@@ -27,6 +32,8 @@ import { multiply } from '@nelyx/core/ui/geometry';
 import type { Size, Offset, TransformMatrix } from '@nelyx/core/ui/geometry';
 import { invariant } from '@nelyx/core/foundation/errors';
 import type { InputBorder } from '../../input-border.ts';
+import { nativeInputDecorationLayout } from './input-native-layout.ts';
+import { nativeInputBorderPaint } from './input-native-paint.ts';
 
 export type DecorationSlot =
   | 'container'
@@ -90,8 +97,9 @@ export class DecorationBorder extends LeafRenderObjectWidget {
 }
 class RenderDecorationBorder extends RenderRepaintBoundary {
   private listening = false;
+  private nativeAttached = false;
   private readonly animationChanged = () => {
-    if (this.attached) this.markNeedsPaintOnly();
+    if (this.attached || this.nativeAttached) this.markNeedsPaintOnly();
   };
   private gapStartValue: number | null = null;
   private gapExtentValue = 0;
@@ -119,9 +127,36 @@ class RenderDecorationBorder extends RenderRepaintBoundary {
     private animation: ValueListenable<DecorationBorderConfiguration> | null,
   ) {
     super();
+    registerNativeRenderResources(this, {
+      attach: () => {
+        this.nativeAttached = true;
+        try {
+          this.startListening();
+        } catch (error) {
+          this.nativeAttached = false;
+          this.stopListening();
+          throw error;
+        }
+      },
+      detach: () => {
+        this.nativeAttached = false;
+        this.stopListening();
+      },
+    });
+  }
+  _nativePaint(): readonly NativePaintEntry[] {
+    const parent = this.parent;
+    return nativeInputBorderPaint(
+      this.animation?.value ?? this.configuration,
+      parent instanceof RenderInputDecoration &&
+        Object.getPrototypeOf(parent) === RenderInputDecoration.prototype &&
+        nativeInputContainer.call(parent) === this
+        ? parent
+        : undefined,
+    );
   }
   private startListening(): void {
-    if (!this.listening && this.animation && this.attached) {
+    if (!this.listening && this.animation && (this.attached || this.nativeAttached)) {
       this.animation.addListener(this.animationChanged);
       this.listening = true;
     }
@@ -271,6 +306,14 @@ export class RenderInputDecoration extends RenderBox {
   }
   get container(): RenderBox<RenderObject> | null {
     return this.childFor('container') ?? null;
+  }
+  _nativeLayoutProgram(): NativeLayoutProgram {
+    if (
+      new Set(this.slots).size !== this.slots.length ||
+      this.slots.length !== this.children.length
+    )
+      throw Error('native input decoration slot identity');
+    return nativeInputDecorationLayout(this.slots, this.configuration);
   }
   private measure(constraints: BoxConstraints, dry: boolean, intrinsic = false): Measurement {
     invariant(
@@ -573,3 +616,37 @@ export class RenderInputDecoration extends RenderBox {
   }
 }
 RenderBox._registerInputGeometryHooks(RenderInputDecoration.prototype, undefined, false);
+const nativeInputPolicy = RenderInputDecoration.prototype._nativeLayoutProgram,
+  nativeBorderPolicy = RenderDecorationBorder.prototype._nativePaint,
+  nativeInputContainer = Object.getOwnPropertyDescriptor(
+    RenderInputDecoration.prototype,
+    'container',
+  )!.get!;
+registerNativeBoxConfiguration(RenderInputDecoration.prototype, (render, reject) => {
+  if (
+    Object.hasOwn(render, '_nativeLayoutProgram') ||
+    Object.getOwnPropertyDescriptor(RenderInputDecoration.prototype, '_nativeLayoutProgram')
+      ?.value !== nativeInputPolicy
+  )
+    return reject('instance-input-decoration-policy');
+  return {
+    kind: 'stack',
+    layout: {},
+    hitTest: 'deferToChild',
+    layoutProgram: nativeInputPolicy.call(render),
+  };
+});
+registerNativeBoxConfiguration(RenderDecorationBorder.prototype, (render, reject) => {
+  if (
+    Object.hasOwn(render, '_nativePaint') ||
+    Object.getOwnPropertyDescriptor(RenderDecorationBorder.prototype, '_nativePaint')?.value !==
+      nativeBorderPolicy
+  )
+    return reject('instance-input-border-policy');
+  return {
+    kind: 'box',
+    layout: {},
+    hitTest: 'deferToChild',
+    paint: nativeBorderPolicy.call(render),
+  };
+});

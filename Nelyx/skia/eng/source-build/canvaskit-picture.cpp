@@ -23,6 +23,34 @@ struct NelyxPictureFonts {
     std::vector<size_t> sources;
     bool valid=true;
 };
+// A receiving provider owns this cache. Re-importing a Picture must not create
+// a new FreeType face identity for every unchanged variation: Skia's strike/GPU
+// caches can keep those identities alive after the old Picture is retired.
+class NelyxPictureFontCache {
+    using Coordinate=SkFontArguments::VariationPosition::Coordinate;
+    struct Entry {sk_sp<SkTypeface> base,face;std::vector<Coordinate> coordinates;};
+    std::vector<Entry> entries;
+    uint32_t hits_=0,misses_=0;
+public:
+    sk_sp<SkTypeface> resolve(sk_sp<SkTypeface> base,std::vector<Coordinate> coordinates){
+        std::sort(coordinates.begin(),coordinates.end(),[](const auto& a,const auto& b){return a.axis<b.axis;});
+        const auto found=std::find_if(entries.begin(),entries.end(),[&](const auto& entry){
+            return entry.base->uniqueID()==base->uniqueID()&&entry.coordinates.size()==coordinates.size()&&
+                std::equal(entry.coordinates.begin(),entry.coordinates.end(),coordinates.begin(),[](const auto& a,const auto& b){return a.axis==b.axis&&a.value==b.value;});
+        });
+        if(found!=entries.end()){
+            ++hits_;auto face=found->face;std::rotate(found,found+1,entries.end());return face;
+        }
+        ++misses_;SkFontArguments arguments;arguments.setVariationDesignPosition({coordinates.data(),int(coordinates.size())});
+        auto face=base->makeClone(arguments);if(!face)return nullptr;
+        if(entries.size()==16)entries.erase(entries.begin());
+        entries.push_back({std::move(base),face,std::move(coordinates)});return face;
+    }
+    void clear(){entries.clear();}
+    uint32_t size()const{return uint32_t(entries.size());}
+    uint32_t hits()const{return hits_;}
+    uint32_t misses()const{return misses_;}
+};
 bool nelyxSameFontStream(const SkTypeface& face,const SkTypeface& base){
     if(face.uniqueID()==base.uniqueID())return true;
     int faceIndex=-1,baseIndex=-1;auto a=face.openStream(&faceIndex),b=base.openStream(&baseIndex);
@@ -101,7 +129,7 @@ emscripten::val nelyxSerializePicture(const SkPicture& picture,emscripten::val b
     result.set("bytes",val(emscripten::typed_memory_view(data->size(),data->bytes())).call<val>("slice"));
     return result;
 }
-sk_sp<SkPicture> nelyxMakePicture(emscripten::val input,emscripten::val bases,emscripten::val variations,emscripten::val identities){
+sk_sp<SkPicture> nelyxMakePicture(emscripten::val input,emscripten::val bases,emscripten::val variations,emscripten::val identities,NelyxPictureFontCache& cache){
     const auto size=input["byteLength"].as<size_t>(),count=bases["length"].as<size_t>();
     if(!size||size>kNelyxPictureLimit||count>kNelyxFaceLimit||variations["length"].as<size_t>()!=count||identities["length"].as<size_t>()!=count)return nullptr;
     NelyxPictureFonts fonts;
@@ -115,8 +143,7 @@ sk_sp<SkPicture> nelyxMakePicture(emscripten::val input,emscripten::val bases,em
             if(!std::isfinite(value)||std::abs(value)>1e6||std::any_of(coordinates.begin(),coordinates.end(),[&](const auto& c){return c.axis==axis;}))return nullptr;
             coordinates.push_back({axis,float(value)});
         }
-        SkFontArguments arguments;arguments.setVariationDesignPosition({coordinates.data(),int(coordinates.size())});
-        auto face=base->makeClone(arguments);if(!face)return nullptr;fonts.faces.push_back(std::move(face));
+        auto face=cache.resolve(std::move(base),std::move(coordinates));if(!face)return nullptr;fonts.faces.push_back(std::move(face));
     }
     auto data=SkData::MakeUninitialized(size);if(!data)return nullptr;
     emscripten::val(emscripten::typed_memory_view(size,static_cast<uint8_t*>(data->writable_data()))).call<void>("set",input);
@@ -138,7 +165,11 @@ sk_sp<skia::textlayout::TypefaceFontProvider> nelyxMakeFontProvider(emscripten::
 }
 }
 EMSCRIPTEN_BINDINGS(NelyxPicture) {
-    emscripten::function("nelyxPictureApiVersion",emscripten::optional_override([](){return 2;}));
+    emscripten::function("nelyxPictureApiVersion",emscripten::optional_override([](){return 3;}));
+    emscripten::class_<NelyxPictureFontCache>("NelyxPictureFontCache")
+        .constructor<>().function("clear",&NelyxPictureFontCache::clear)
+        .function("size",&NelyxPictureFontCache::size).function("hits",&NelyxPictureFontCache::hits)
+        .function("misses",&NelyxPictureFontCache::misses);
     emscripten::function("nelyxSerializePicture",&nelyxSerializePicture);
     emscripten::function("nelyxMakePicture",&nelyxMakePicture);
     emscripten::function("nelyxFontApiVersion",emscripten::optional_override([](){return 1;}));

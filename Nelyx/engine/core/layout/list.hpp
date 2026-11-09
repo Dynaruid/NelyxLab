@@ -8,7 +8,7 @@ struct ListStyle {
   uint64_t generation = 0;
   uint32_t count = 0, begin = 0, end = 0;
   double estimate = 0;
-  bool fixed = false;
+  bool fixed = false, sequential = false;
 };
 struct ListItem { uint32_t index = 0; uint64_t key = 0; };
 struct ListMetric { uint64_t key = 0; double extent = 0; };
@@ -19,14 +19,22 @@ struct ListGeometry {
   uint32_t metricLimit;
   std::map<uint32_t,ListMetric> measured;
   std::vector<ListRow> rows;
-  double total = 0, begin = 0, end = 0;
+  double total = 0, begin = 0, end = 0, estimate = 0, knownExtent = 0;
+  uint32_t knownCount = 0;
   ListGeometry(const std::shared_ptr<Ledger>& ledger, ListStyle value,uint32_t limit=wire::limits::listMetrics)
     : lease(ledger,sizeof(ListGeometry)+std::min(value.count,limit+wire::limits::listChildren)*(sizeof(ListMetric)+48)+
-        wire::limits::listChildren*sizeof(ListRow)),style(value),metricLimit(limit) {}
+        wire::limits::listChildren*sizeof(ListRow)),style(value),metricLimit(limit),estimate(value.estimate) {}
+  void updateEstimate() {
+    knownCount=0;knownExtent=0;
+    for(const auto& [i,m]:measured){if(i!=knownCount)break;++knownCount;knownExtent+=m.extent;}
+    if(style.sequential)estimate=knownCount?knownExtent/knownCount:0;
+    require(std::isfinite(knownExtent)&&knownExtent>=0&&knownExtent<=1e12&&
+      std::isfinite(estimate)&&estimate>=0&&estimate*style.count<=1e12,wire::statuses::invalidValue);
+  }
   double prefix(uint32_t index) const {
     double offset = 0;uint32_t from=0;
-    for(const auto& [i,m]:measured) { if(i>=index)break;offset+=style.estimate*(i-from)+m.extent;from=i+1; }
-    offset+=style.estimate*(index-from);
+    for(const auto& [i,m]:measured) { if(i>=index)break;offset+=estimate*(i-from)+m.extent;from=i+1; }
+    offset+=estimate*(index-from);
     require(std::isfinite(offset)&&offset>=0&&offset<=1e12,wire::statuses::invalidValue);
     return offset;
   }
@@ -40,7 +48,20 @@ struct ListGeometry {
 struct NativeListRange { uint32_t begin=0,end=0; double beginOffset=0; };
 inline NativeListRange nativeListRange(const ListStyle& style,const ListGeometry* geometry,double offset,double paint) {
   require(std::isfinite(offset)&&offset>=0&&std::isfinite(paint)&&paint>=0,wire::statuses::invalidValue);
-  if(geometry&&geometry->style.count!=style.count)geometry=nullptr;
+  if(geometry&&(geometry->style.count!=style.count||geometry->style.generation!=style.generation))geometry=nullptr;
+  if(style.sequential){
+    const uint32_t known=geometry?geometry->knownCount:0;
+    const double extent=geometry?geometry->knownExtent:0;
+    if(!style.count||paint==0)return {0,0,0};
+    // Estimates describe scroll metrics only. They never skip an unmeasured
+    // prefix: long offsets stream through real Source children in order.
+    if(known<style.count&&offset>=extent)return {known,known+1,extent};
+    const uint32_t begin=geometry?std::min(known,geometry->indexAt(offset)):0;
+    uint32_t end=geometry?std::min(known,geometry->indexAt(offset+paint)):0;
+    if(end<known&&geometry->prefix(end)<offset+paint)++end;
+    if(end==known&&known<style.count&&extent<offset+paint)++end;
+    return {begin,end,geometry?geometry->prefix(begin):0};
+  }
   const auto rank=[&](double at){return geometry?geometry->indexAt(at):uint32_t(std::min(double(style.count),std::floor(at/style.estimate)));};
   const auto prefix=[&](uint32_t at){return geometry?geometry->prefix(at):style.estimate*at;};
   const uint32_t begin=rank(offset),last=rank(offset+paint);

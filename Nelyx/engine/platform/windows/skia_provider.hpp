@@ -51,9 +51,11 @@ class RenderProvider {
     }
     uint64_t pathBytes=0,layerBytes=0;for(const auto& item:frame.items){const auto& n=frame.scene->document->get(item.node);
       if(item.paint)pathBytes+=item.paint->paths.size()*256+1024;
+      if(item.opacity<=0||!item.world.inverse())continue;
       if(frame.properties[n.id.slot].opacity<1||n.graphics.blur>0)layerBytes+=uint64_t(w)*h*4*(n.graphics.blur>0?3:1);
       if(n.snapshot&&n.snapshot->live.opacity<1)layerBytes+=uint64_t(w)*h*4;
       if(item.flags&wire::nodeFlags::clipSaveLayer)layerBytes+=uint64_t(w)*h*4;}
+    for(const auto& item:frame.items)layerBytes+=nativeMaskLayerBytes(item,scale,w,h);
     ExternalLease pathMemory(ledger,2,2,pathBytes);
     ExternalLease layers(ledger,2,3,layerBytes);
     drawPreparedFrame(surface->getCanvas(),frame,prepared,scale,paintCounts,snapshots);

@@ -11,7 +11,8 @@ import type { TickerProvider } from '@nelyx/core/framework/animation/ticker';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { registerNativeRenderMetadata } from '@nelyx/core/framework/rendering/object';
 import type { NativePaintEntry } from '@nelyx/core/framework/rendering/object';
-const nativeFeatures = new WeakMap<object, (feature: InkFeature) => NativePaintEntry>();
+type NativeInkPaint = NativePaintEntry | readonly NativePaintEntry[];
+const nativeFeatures = new WeakMap<object, (feature: InkFeature) => NativeInkPaint>();
 const nativeCenters = new WeakSet<object>();
 export function markNativeInkCenter(position: object): void {
   nativeCenters.add(position);
@@ -21,9 +22,9 @@ export function isNativeInkCenter(position: object): boolean {
 }
 export function registerNativeInkFeature<T extends InkFeature>(
   prototype: T,
-  reader: (feature: T) => NativePaintEntry,
+  reader: (feature: T) => NativeInkPaint,
 ): void {
-  nativeFeatures.set(prototype, reader as (feature: InkFeature) => NativePaintEntry);
+  nativeFeatures.set(prototype, reader as (feature: InkFeature) => NativeInkPaint);
 }
 /** Material.defaultSplashRadius from the pinned material.dart. @dartType double */
 export const materialDefaultSplashRadius = 35;
@@ -146,15 +147,47 @@ export interface InkFeatureOptions {
   readonly referenceBox: RenderBox;
   readonly onRemoved?: (() => void) | null;
 }
-registerNativeRenderMetadata(MaterialInkRender.prototype, (source) => ({
-  kind: 'ink',
-  absorbHitTest: source.absorbHitTest,
-  entries: source.debugInkFeatures.map((feature) => {
+registerNativeRenderMetadata(MaterialInkRender.prototype, (source) => {
+  const entries: NativePaintEntry[] = [];
+  for (const feature of source.debugInkFeatures) {
+    // Source skips paint when its reference leaves the active sliver chain.
+    // Walk ownership/policy only; no App geometry or paint transform runs.
+    let at: RenderObject | undefined = feature.referenceBox;
+    while (at !== source) {
+      const parent: RenderObject | undefined = at?.parent;
+      if (!parent || !parent.paintsChild(at!)) {
+        at = undefined;
+        break;
+      }
+      at = parent;
+    }
+    if (!at || feature.debugDisposed) continue;
     const reader = nativeFeatures.get(Object.getPrototypeOf(feature));
     if (!reader) throw Error('native custom ink feature');
-    return reader(feature);
-  }),
-}));
+    const paint = reader(feature);
+    if (Array.isArray(paint)) entries.push(...paint);
+    else entries.push(paint as NativePaintEntry);
+  }
+  const shape = {
+    kind: 'rrect' as const,
+    radii: Array<number>(8).fill(0),
+    strokeWidth: 0,
+    strokeColor: 0,
+    strokeAlign: 0,
+  };
+  return {
+    kind: 'ink',
+    absorbHitTest: source.absorbHitTest,
+    entries: entries.length
+      ? [
+          { kind: 'save', color: 0, shape },
+          { kind: 'clip', color: 0, shape, clip: 'hardEdge' },
+          ...entries,
+          { kind: 'restore', color: 0, shape },
+        ]
+      : [],
+  };
+});
 export abstract class InkFeature {
   readonly referenceBox: RenderBox;
   readonly onRemoved: (() => void) | null;

@@ -1,18 +1,25 @@
 // SPDX-License-Identifier: BSD-3-Clause
-export const appServicesVersion = 2;
+export const appServicesVersion = 4;
 export const appServiceMethods = [
   'clipboard-read',
   'clipboard-write',
   'clipboard-has-strings',
+  'clipboard-read-event',
+  'clipboard-release-event',
   'semantics-tap',
   'semantics-longPress',
   'semantics-focus',
+  'accessibility-tooltip',
   'system-sound',
   'haptic-feedback',
 ] as const;
 export type AppServiceMethod = (typeof appServiceMethods)[number];
 export function appServiceReadsText(method: AppServiceMethod): boolean {
-  return method === 'clipboard-read' || method === 'clipboard-has-strings';
+  return (
+    method === 'clipboard-read' ||
+    method === 'clipboard-read-event' ||
+    method === 'clipboard-has-strings'
+  );
 }
 export const appServiceTextUnits = 65536;
 export function validateAppServiceText(value: unknown): asserts value is string {

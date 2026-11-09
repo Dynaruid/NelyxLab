@@ -22,7 +22,7 @@ import type {
 import type { SystemFontsRelayoutContext } from '@nelyx/core/framework/rendering/object';
 import { PaintingBinding, createSystemFontsNotifier } from '@nelyx/core/framework/painting/binding';
 import type { NativePaintOptions } from '../engine-client/native-paint.ts';
-import { RenderParagraph } from '@nelyx/core/framework/rendering/paragraph';
+import { RenderParagraph, nativeParagraphFade } from '@nelyx/core/framework/rendering/paragraph';
 import { RenderImage } from '@nelyx/core/framework/rendering/image';
 import { BoxConstraints as ImageConstraints } from '@nelyx/core/framework/rendering/constraints';
 import type { ValueListenable } from '@nelyx/core/foundation/notifier';
@@ -40,7 +40,7 @@ import { SceneReference, SceneNode, SceneWriter } from '../engine-client/scene.t
 import type { EngineExecutionSnapshot, SceneNodeOptions } from '../engine-client/scene.ts';
 import type { EngineViewClient } from '../engine-client/client.ts';
 import { protocol as p } from '../engine-client/schema.ts';
-import type { EngineResponse, EngineNodeSnapshot } from '../engine-client/codec.ts';
+import type { EngineEvent, EngineResponse, EngineNodeSnapshot } from '../engine-client/codec.ts';
 import type { NodeHandle } from '../engine-client/codec.ts';
 import { drainEngineOwners } from '../engine-client/lifecycle.ts';
 import { installOriginalScrolling } from './scroll.ts';
@@ -56,6 +56,7 @@ import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import type { FoundationPlatformEnvironment } from '@nelyx/core/foundation/platform';
 import type { Disposable } from '@nelyx/core/foundation/disposable';
 import { GestureBinding, SamplingClock } from '@nelyx/core/framework/gestures/binding';
+import { pointerEventFromNativeSample } from '@nelyx/core/framework/rendering/pointer-listener';
 import { restrictNativeGestureRecognition } from '@nelyx/core/framework/gestures/recognizer';
 import { AppTextLayoutService } from './text.ts';
 import type { AppParagraphFontLease } from './text.ts';
@@ -81,6 +82,9 @@ export interface OriginalWidgetHostOptions {
   /** The common SDK closes a shared App backend after every service drains. */
   readonly ownsAppText?: boolean;
   readonly binaryMessenger?: BinaryMessenger;
+  /** SDK scopes an OS clipboard snapshot to the original key dispatch. Omit
+   * dispatch when discarding a queued key, so its native token still retires. */
+  readonly dispatchNativeKey?: (event: EngineEvent, dispatch?: () => void) => void;
   readonly semanticsEvent?: (
     node: NodeHandle,
     type: 'tap' | 'longPress' | 'focus',
@@ -162,7 +166,6 @@ export class OriginalWidgetHost {
   private readonly layoutBuilders = new Map<RenderObject, NativeLayoutBuilderConfiguration>();
   private readonly slivers = new Map<RenderObject, NativeSliverConfiguration>();
   private layoutBuildKey: string | undefined;
-  private configurationSerial = 0;
 
   constructor(
     readonly view: EngineViewClient,
@@ -193,6 +196,7 @@ export class OriginalWidgetHost {
         this.editing.observePublication(state);
       },
       onAfterEvents: () => this.focusing.finishPoll(),
+      onInputEvent: (event, perform) => this.focusing.input(event, perform),
       onSemanticAction: (event, perform) =>
         this.taps.action(event, () => this.semantics.action(event, perform)),
       onExecution: () => options.onExecution?.(this.execution),
@@ -343,6 +347,7 @@ export class OriginalWidgetHost {
       () => !this.running && !this.building && !this.closed,
       (error) => this.options.onError?.(error),
       (peer) => this.native.notifyFocusPeer(peer),
+      options.dispatchNativeKey,
     );
   }
   get counters(): SceneWriter['counters'] {
@@ -449,7 +454,6 @@ export class OriginalWidgetHost {
   }
   private schedule(): void {
     if (this.closed) return;
-    ++this.configurationSerial;
     if (this.building) return;
     if (this.running) {
       this.rerun = true;
@@ -492,21 +496,14 @@ export class OriginalWidgetHost {
     this.layoutBuildKey = key;
     if (key) this.schedule();
   }
-  private async rebuildFromContent(serial: number): Promise<void> {
-    if (
-      this.closed ||
-      this.rerun ||
-      serial !== this.configurationSerial ||
-      this.view.hasPendingTransaction
-    )
-      return;
-    const state = await this.view.request(p.opcodes.inspect);
+  private async rebuildFromContent(observed?: EngineResponse): Promise<void> {
+    if (this.closed || this.view.hasPendingTransaction) return;
+    const state = observed ?? (await this.view.request(p.opcodes.inspect));
     if (this.closed) return;
     this.geometry.observeState(state);
     this.layers.observeState(state);
     this.semantics.observeState(state);
     this.observeMetrics(state);
-    if (this.rerun || serial !== this.configurationSerial) return;
     const request = state.layoutBuildRequest;
     if (
       !request ||
@@ -592,7 +589,8 @@ export class OriginalWidgetHost {
       return this.unsupported('native-sliver-viewport-owner');
     if (
       sliver.childPolicy !== 'legacy' &&
-      (sliver.childPolicy.mode !== 'bounded' || sliver.childPolicy.preparation !== 'disabled')
+      sliver.childPolicy.mode === 'bounded' &&
+      sliver.childPolicy.preparation !== 'disabled'
     )
       return this.unsupported('list-child-policy');
     const required = sliver.children.filter((child) => !child.keptAlive || child.explicitKeepAlive);
@@ -621,6 +619,7 @@ export class OriginalWidgetHost {
         end: sliver.end,
         estimate: sliver.estimate,
         fixed: sliver.itemExtent !== null,
+        sequential: sliver.sequential ?? false,
       },
       layoutBuilder: {
         revision: sliver.revision,
@@ -695,7 +694,11 @@ export class OriginalWidgetHost {
   ): SceneNode {
     if (++count.value >= p.limits.nodes || depth >= p.limits.depth)
       return this.unsupported('render-tree-budget');
-    if (!(render instanceof RenderBox)) {
+    const nonBoxConfiguration =
+      render instanceof RenderBox
+        ? undefined
+        : originalBoxConfiguration(render, (reason) => this.unsupported(reason));
+    if (!(render instanceof RenderBox) && !nonBoxConfiguration) {
       const sliver = nativeSliverConfiguration(render, (reason) => this.unsupported(reason));
       if (!sliver) return this.unsupported('non-box-render-object');
       return this.sliverNode(render, sliver, count, depth);
@@ -706,7 +709,10 @@ export class OriginalWidgetHost {
         this.taps.configuration(render) ??
         originalControlConfiguration(render, (reason) => this.unsupported(reason)),
       layer = this.layers.configuration(render);
-    if (render.onPointer || (render.semantics && !paragraph && !control))
+    if (
+      render.onPointer ||
+      (render instanceof RenderBox && render.semantics && !paragraph && !control)
+    )
       return this.unsupported('render-pointer-or-semantics-hook');
     if (
       [
@@ -733,7 +739,8 @@ export class OriginalWidgetHost {
       prototype === OriginalNativeRender.prototype ||
       prototype === RenderIndexedSemantics.prototype
         ? null
-        : originalBoxConfiguration(render, (reason) => this.unsupported(reason));
+        : (nonBoxConfiguration ??
+          originalBoxConfiguration(render, (reason) => this.unsupported(reason)));
     if (prototype === OriginalNativeRender.prototype) {
       const source = render as OriginalNativeRender;
       kind = source.kind;
@@ -849,6 +856,24 @@ export class OriginalWidgetHost {
           paragraphSizing: true,
           clipOverflow: source.paragraphOptions.overflow !== 'visible',
         },
+        ...(source.paragraphOptions.overflow === 'fade'
+          ? {
+              nativePaint: [
+                {
+                  kind: 'children' as const,
+                  color: 0,
+                  shape: {
+                    kind: 'rrect' as const,
+                    radii: Array<number>(8).fill(0),
+                    strokeWidth: 0,
+                    strokeColor: 0,
+                    strokeAlign: 0,
+                  },
+                },
+                nativeParagraphFade(input.textDirection ? 'rtl' : 'ltr'),
+              ],
+            }
+          : {}),
         ...(semantics
           ? {
               semantics: {
@@ -880,7 +905,20 @@ export class OriginalWidgetHost {
     let key = this.keys.get(render);
     if (!key) this.keys.set(render, (key = new SceneReference()));
     options = parentLayout(render, options);
-    const children = (control?.children ?? render.children).map((child) =>
+    if (box?.tooltipPosition) {
+      const placement = box.tooltipPosition;
+      options = {
+        ...options,
+        tooltipPosition: {
+          ...placement,
+          target: () => {
+            const target = placement.target();
+            return target ? (this.keys.get(target)?.currentNode ?? null) : null;
+          },
+        },
+      };
+    }
+    const children = (control?.children ?? box?.children ?? render.children).map((child) =>
       this.node(child, count, depth + 1),
     );
     const emptyShape = {
@@ -967,15 +1005,16 @@ export class OriginalWidgetHost {
         return { kind: 'paragraph', reference: () => key.currentNode, color: 0, shape: emptyShape };
       });
     };
-    if (control?.paint || control?.foreground?.length)
+    const foreground = control?.foreground ?? box?.foreground;
+    if (control?.paint || box?.paint || foreground?.length)
       options = {
         ...options,
         nativePaint: [
-          ...sequence(control.paint ?? [], 0),
-          ...(control.foreground?.length
+          ...sequence(control?.paint ?? box?.paint ?? [], 0),
+          ...(foreground?.length
             ? [
                 { kind: 'children' as const, color: 0, shape: emptyShape },
-                ...sequence(control.foreground, 1),
+                ...sequence(foreground, 1),
               ]
             : []),
         ],
@@ -1017,6 +1056,12 @@ export class OriginalWidgetHost {
       if (!this.desired || this.closed) return;
       const state = await this.view.request(p.opcodes.inspect);
       if (this.closed) return;
+      // Answer the current accepted document before another repaint replaces
+      // it. Continuous App animation must not starve a pending Source builder.
+      // The request's document, node generation and builder revision below
+      // remain authoritative even when a newer invalidation is already queued.
+      await this.rebuildFromContent(state);
+      if (this.closed) return;
       let scene: SceneNode;
       const capturedFonts = new Map<bigint, AppParagraphFontLease>();
       const capturedImages = new Set<string>(),
@@ -1046,7 +1091,7 @@ export class OriginalWidgetHost {
             // Canonical builders may catch their own exceptions and build an
             // ErrorWidget. An unported bridge operation still rejects admission.
             if (this.bridgeFailure) throw this.bridgeFailure;
-            this.layers.prepare(this.root.renderObjects);
+            this.layers.begin();
             const count = { value: 0 };
             return new SceneNode(
               this.sceneRoot,
@@ -1054,6 +1099,11 @@ export class OriginalWidgetHost {
               this.root.renderObjects.map((render) => this.node(render, count)),
               {
                 canonicalKeyboard: true,
+                pointerHitTest: 'self',
+                onPointerSample: (sample) => {
+                  const event = pointerEventFromNativeSample(sample);
+                  if (event && !this.closed) this.appGestures.pointerRouter.route(event);
+                },
                 onKey: this.focusing.key,
               },
             );
@@ -1087,7 +1137,6 @@ export class OriginalWidgetHost {
       const previousFonts = this.sceneFonts,
         pendingFonts = this.pendingSceneFonts,
         builds = this.native.counters.builds;
-      const configurationSerial = this.configurationSerial;
       this.sceneFonts = capturedFonts;
       this.desiredImages = capturedImages;
       const errors: unknown[] = [];
@@ -1142,7 +1191,7 @@ export class OriginalWidgetHost {
       // Source addPostFrameCallback does not itself schedule a frame. Wake Core
       // only for pending lifecycle work; an ordinary ACK needs no extra frame.
       this.scrolling.finishBuild();
-      await this.rebuildFromContent(configurationSerial);
+      await this.rebuildFromContent();
     } while (this.rerun && !this.closed);
   }
   private releaseFontScenes(...scenes: Map<bigint, AppParagraphFontLease>[]): void {
@@ -1221,7 +1270,10 @@ export class OriginalWidgetHost {
     this.closing = drainEngineOwners('OriginalWidgetHost close failed', [
       () => this.semantics.stop(),
       () => this.taps.close(),
-      () => this.running,
+      // An in-flight configuration failure belongs to the runtime error
+      // channel. Settle it before releasing its producers without turning
+      // an already rejected scene into a teardown failure.
+      () => this.running?.catch((error) => this.options.onError?.(error)),
       () => this.native.stop(),
       () => this.fontOwner?.stop(),
       () => this.layers.close(),

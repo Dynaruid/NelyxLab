@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "layout.hpp"
+#include "query.hpp"
 #include <algorithm>
 #include "../interaction/editing.hpp"
 
@@ -72,6 +73,9 @@ struct LayoutWork::State {
     std::shared_ptr<LayoutBox> box;
     double innerWidth = 0, innerHeight = 0, totalFlex = 0, flexSpace = 0;
     std::vector<double> stretch;
+    std::unique_ptr<LayoutQueryWork> intrinsic;
+    std::unique_ptr<LayoutEvaluation> program;
+    double intrinsicWidth=0,intrinsicHeight=0;
   };
   struct Run {
     size_t begin, end;
@@ -81,6 +85,7 @@ struct LayoutWork::State {
     std::shared_ptr<const LayoutBox> box;
     double x = 0, y = 0;
     bool hidden = false;
+    double scaleX = 1, scaleY = 1;
   };
   Lease lease;
   std::shared_ptr<const Document> source;
@@ -96,6 +101,7 @@ struct LayoutWork::State {
   std::optional<MeasurementRequest> pending;
   std::optional<LayoutBuildRequest> pendingBuild;
   std::optional<Measurement> measurement;
+  uint64_t intrinsicRequest=0;
   size_t root = 0;
   Handle queryRoot;
   bool flattening = false, complete = false;
@@ -124,10 +130,20 @@ struct LayoutWork::State {
       if(cached&&cached->node==parent&&cached->listRequestedOffset!=requestedOffset(parent))
         for(Handle at=parent;at;at=source->get(at).parent)nativeInputChanged[at.slot]=true;
     }
+    if(previous)for(const auto& slot:source->nodes)if(slot.value&&slot.value->editorViewport.enabled){
+      const auto& node=*slot.value;const auto& cached=previous->boxes[node.id.slot];
+      if(cached&&cached->node==node.id&&(cached->listRequestedOffset!=requestedOffset(node.id)||
+          cached->editorScrollOffset!=requestedOffset(node.id)))
+        for(Handle at=node.id;at;at=source->get(at).parent)nativeInputChanged[at.slot]=true;
+    }
   }
   double requestedOffset(Handle node)const {
     for(const auto& value:offsets)if(value.node==node)return value.requested;
     return 0;
+  }
+  bool manualOffset(Handle node)const {
+    for(const auto& value:offsets)if(value.node==node)return value.manual;
+    return false;
   }
   LayoutBuildRequest nativeListDemand(const Task& task,const Node& node,const ListGeometry* geometry,bool includeMeasurements) {
     require(stack.size()>1&&stack[stack.size()-2].node==node.parent,wire::statuses::invalidGraph);
@@ -135,10 +151,12 @@ struct LayoutWork::State {
     require(parent.kind==wire::kinds::scrollViewport&&!(parent.properties.flags&1u)&&
       std::isfinite(task.input.maxWidth)&&std::isfinite(parentTask.constraints.maxHeight),wire::statuses::capabilityMissing);
     const double width=task.input.maxWidth,height=parentTask.constraints.maxHeight;
-    if(geometry&&geometry->style.count!=node.list.count)geometry=nullptr;
+    if(geometry&&(geometry->style.count!=node.list.count||geometry->style.generation!=node.list.generation))geometry=nullptr;
     const double total=geometry?geometry->total:node.list.estimate*node.list.count;
     double requested=requestedOffset(parent.id);
-    requested=std::clamp(requested,0.0,std::max(0.0,total+parent.layout.top+parent.layout.bottom-height));
+    if(!node.list.sequential||(geometry&&geometry->knownCount==node.list.count))
+      requested=std::clamp(requested,0.0,std::max(0.0,total+parent.layout.top+parent.layout.bottom-height));
+    else requested=std::max(0.0,requested);
     const double origin=parent.layout.top+node.properties.y,offset=std::max(0.0,requested-origin);
     const double paint=std::max(0.0,height-std::max(0.0,origin-requested));
     // Unknown heights select work only. Materialize the first unknown row,
@@ -206,6 +224,8 @@ struct LayoutWork::State {
       require(std::isfinite(c.maxWidth) && std::isfinite(c.maxHeight), wire::statuses::invalidValue);
       c.minWidth = c.maxWidth;
       c.minHeight = c.maxHeight;
+    } else if(policy==wire::layoutChildConstraints::unconstrained){
+      c={};
     }
     if (flow(n)) {
       double maximum = INFINITY, minimum = 0;
@@ -356,7 +376,7 @@ struct LayoutWork::State {
         std::isfinite(c.maxHeight)?c.maxHeight:childHeight;
     } else if((s.constraintFlags&wire::layoutConstraintFlags::expandEmpty)&&std::none_of(b.children.begin(),b.children.end(),[&](const auto& child){return !(source->get(child.box->node).layout.constraintFlags&wire::layoutConstraintFlags::paintChild);})){
       const bool bounded=std::isfinite(c.maxWidth)&&std::isfinite(c.maxHeight);
-      require((!n.layoutBuilder&&!(n.policy&wire::eventPolicies::mouseRegion))||bounded,wire::statuses::invalidValue);
+      require((!n.layoutBuilder&&!(n.policy&(wire::eventPolicies::mouseRegion|wire::eventPolicies::pointerListener)))||bounded,wire::statuses::invalidValue);
       width=bounded?c.maxWidth:c.minWidth; height=bounded?c.maxHeight:c.minHeight;
     } else if (n.list.generation) {
       require(n.kind==wire::kinds::sliver&&s.left==0&&s.right==0&&s.top==0&&s.bottom==0&&
@@ -379,6 +399,7 @@ struct LayoutWork::State {
         auto first=list->measured.begin(),last=std::prev(list->measured.end());
         const auto distance=[&](uint32_t i){return i<n.list.begin?n.list.begin-i:i>=n.list.end?i-n.list.end+1:0;};
         list->measured.erase(distance(first->first)>distance(last->first)?first:last);}
+      list->updateEstimate();
       for(auto& child:b.children){const auto item=source->get(child.box->node).item;
         const auto offset=list->prefix(item.index);
         child.x=h?offset:0;child.y=h?0:offset;
@@ -558,6 +579,11 @@ struct LayoutWork::State {
       }
       for (auto &child : b.children) {
         if(source->get(child.box->node).layout.constraintFlags&wire::layoutConstraintFlags::paintChild)continue;
+        if(n.childAnchor){const auto& anchor=*n.childAnchor;
+          child.x=scalar(b.width*anchor[0]+child.box->width*anchor[1]+anchor[2]);
+          child.y=scalar(b.height*anchor[3]+child.box->height*anchor[4]+anchor[5]);
+          continue;
+        }
         if(s.constraintFlags&wire::layoutConstraintFlags::alignment){
           child.x=scalar((innerWidth-child.box->width)*(s.alignmentX+1)/2);
           child.y=scalar((innerHeight-child.box->height)*(s.alignmentY+1)/2);
@@ -601,14 +627,24 @@ struct LayoutWork::State {
       flatten.pop_back();
       const auto &original = source->get(f.box->node);
       auto n = std::make_shared<Node>(original);
+      if(original.layout.enabled){const auto constraints=resolve(original,f.box->input);
+        n->paintBoundedWidth=std::isfinite(constraints.maxWidth);
+        n->paintBoundedHeight=std::isfinite(constraints.maxHeight);}
       n->properties.x = scalar(n->properties.x + f.x);
       n->properties.y = scalar(n->properties.y + f.y);
       n->properties.width = f.box->width;
       n->properties.height = f.box->height;
+      n->layoutTransform={f.scaleX,0,0,f.scaleY,0,0};
+      n->layoutPaintValues=f.box->paintValues;
       n->baseline = f.box->baseline;
       n->inlineHidden = f.hidden;
       if(f.box->paragraph)n->paragraph=f.box->paragraph;
       n->textGeometry = f.box->textGeometry;
+      if(n->editorViewport.enabled){
+        n->editorScrollOffset=f.box->editorScrollOffset;
+        n->properties.minimum=0;n->properties.maximum=f.box->editorScrollMaximum;
+        n->properties.flags=(n->properties.flags&~1u)|((n->editFlags&wire::editFlags::multiline)?0u:1u);
+      }
       n->listGeometry = f.box->listGeometry;
       n->contentX = n->layout.enabled && measuredLeaf(*n) ? n->layout.left : 0;
       n->contentX = scalar(n->contentX + f.box->textOffsetX);
@@ -619,6 +655,8 @@ struct LayoutWork::State {
       n->contentHeight = f.box->textHeight >= 0 ? f.box->textHeight : inset(f.box->height, n->layout.enabled && measuredLeaf(*n)
                                               ? n->layout.top + n->layout.bottom : 0);
       n->contentOverflow = f.box->contentOverflow;
+      n->contentOverflowX=f.box->contentOverflowX;
+      n->overflowProbeWidth=f.box->overflowProbeWidth;n->overflowProbeHeight=f.box->overflowProbeHeight;
       if(n->imageStyle){
         const auto placement=imagePlacement(*n->imageStyle,n->properties.width,n->properties.height);
         require(placement.count<=wire::limits::imageTiles-imageTiles,wire::statuses::budgetExceeded);imageTiles+=placement.count;
@@ -650,7 +688,7 @@ struct LayoutWork::State {
       derived->nodes[n->id.slot].value = n;
       result->boxes[n->id.slot] = f.box;
       for (const auto &child : f.box->children)
-        flatten.push_back({child.box, child.x, child.y, f.hidden||!child.visible});
+        flatten.push_back({child.box, child.x, child.y, f.hidden||!child.visible,child.scaleX,child.scaleY});
       return;
     }
     if (stack.empty()) {
@@ -707,7 +745,20 @@ struct LayoutWork::State {
       }
       t.constraints = n.layout.enabled ? resolve(n, t.input) : t.input;
       t.box = std::make_shared<LayoutBox>(n, t.input, children.size());
-      if(n.kind==wire::kinds::scrollViewport)t.box->listRequestedOffset=requestedOffset(n.id);
+      if(n.layoutProgram){
+        t.program=std::make_unique<LayoutEvaluation>(source->lease.ledger,*n.layoutProgram,0,
+          std::array<double,5>{t.constraints.minWidth,t.constraints.maxWidth,t.constraints.minHeight,t.constraints.maxHeight,INFINITY});
+        t.phase=20;return;
+      }
+      if(n.childAnchor)require(std::isfinite(t.constraints.maxWidth)&&std::isfinite(t.constraints.maxHeight),wire::statuses::invalidValue);
+      if(n.intrinsicSizing){
+        require(children.size()==1,wire::statuses::invalidGraph);
+        t.phase=10;
+        LayoutConstraints intrinsic;intrinsic.maxWidth=t.constraints.maxWidth;
+        t.intrinsic=std::make_unique<LayoutQueryWork>(source,children.front(),wire::layoutQueries::maxHeight,intrinsic,result->scale,result->fontRevision);
+        return;
+      }
+      if(n.kind==wire::kinds::scrollViewport||n.editorViewport.enabled)t.box->listRequestedOffset=requestedOffset(n.id);
       const auto &s = n.layout;
       if (s.enabled && (measuredLeaf(n) || n.kind == wire::kinds::scrollViewport))
         require(s.mainAlign == 0 && s.crossAlign == 0 && s.mainSize == 0,
@@ -732,6 +783,15 @@ struct LayoutWork::State {
         }
         require(children.empty(), wire::statuses::invalidGraph);
         require(n.kind != wire::kinds::image || bool(n.resource), wire::statuses::invalidHandle);
+        if(n.editorViewport.enabled){
+          require(n.paragraph&&n.paragraph->value.overflowProbe,wire::statuses::invalidValue);
+          const auto& probe=*n.paragraph->value.overflowProbe;
+          auto measured=std::make_shared<Node>(n);measured->kind=wire::kinds::paragraph;
+          measured->editing.reset();measured->editorViewport={};measured->fontSize=probe.fontSize;measured->color=probe.color;
+          measured->paragraph=std::make_shared<ParagraphData>(source->lease.ledger,probe.paragraph);
+          measured->text=std::make_shared<TextData>(source->lease.ledger,Reader{reinterpret_cast<const uint8_t*>(probe.text.data()),probe.text.size()});
+          pending=MeasurementRequest{++requestId,std::move(measured),0,false};t.phase=8;return;
+        }
         pending = MeasurementRequest{++requestId, source->nodes[n.id.slot].value,
                                      t.innerWidth, std::isfinite(t.innerWidth)&&(!n.paragraph||n.paragraph->value.wraps())};
         if (!pending->bounded)
@@ -775,8 +835,20 @@ struct LayoutWork::State {
         t.box->width = constrain((paragraphSizing?m.maximum:m.width) + padWidth, t.constraints.minWidth, t.constraints.maxWidth);
         require(paragraphSizing || inset(t.box->width, padWidth) == m.width, wire::statuses::invalidValue);
         t.box->height = constrain(m.height + padHeight, t.constraints.minHeight, t.constraints.maxHeight);
-        t.box->contentOverflow = m.didExceedMaxLines || m.height > inset(t.box->height, padHeight) ||
-          (paragraphSizing&&n.paragraph&&!n.paragraph->value.wraps()&&m.maximum>inset(t.box->width,padWidth));
+        if(n.editorViewport.enabled){
+          require(n.editing&&m.geometry&&m.geometry->revision==n.editing->revision&&m.geometry->caret.height>0,
+            wire::statuses::invalidValue);
+          const auto& v=n.editorViewport;const double line=t.box->overflowProbeHeight;
+          require(line>0,wire::statuses::invalidValue);
+          double height;
+          if(v.expands){require(std::isfinite(t.constraints.maxHeight),wire::statuses::invalidValue);height=t.constraints.maxHeight;}
+          else {const double minimum=line*v.minimumLines,maximum=v.maximumLines?line*v.maximumLines:INFINITY;
+            require(std::isfinite(minimum)&&minimum<=1e12&&(!std::isfinite(maximum)||maximum<=1e12),wire::statuses::invalidValue);
+            height=std::clamp(m.height,minimum,maximum)+padHeight;}
+          t.box->height=constrain(height,t.constraints.minHeight,t.constraints.maxHeight);
+        }
+        t.box->contentOverflowX=paragraphSizing&&n.paragraph&&!n.paragraph->value.wraps()&&m.maximum>inset(t.box->width,padWidth);
+        t.box->contentOverflow = m.didExceedMaxLines || m.height > inset(t.box->height, padHeight) || t.box->contentOverflowX;
         if(paragraphSizing){
           t.box->textWidth=m.width;t.box->textHeight=m.height;
           const ParagraphOptions defaults;
@@ -804,7 +876,28 @@ struct LayoutWork::State {
           require(n.editing && m.geometry && m.geometry->revision == n.editing->revision,
                   wire::statuses::stale);
           auto caret = m.geometry->caret;
-          if(paragraphSizing){
+          if(paragraphSizing&&n.editorViewport.enabled){
+            const bool horizontal=!(n.editFlags&wire::editFlags::multiline),rtl=horizontal&&n.textDirection;
+            const double inner=horizontal?inset(t.box->width,padWidth):inset(t.box->height,padHeight);
+            const double content=horizontal?std::max(m.width,m.maximum)+caret.width:m.height;
+            const double maximum=std::max(0.0,content-inner);
+            double logical=std::clamp(requestedOffset(n.id),0.0,maximum),physical=rtl?maximum-logical:logical;
+            const LayoutBox* old=nullptr;
+            if(previous){const auto& cached=previous->boxes[n.id.slot];if(cached&&cached->node==n.id)old=cached.get();}
+            if(!manualOffset(n.id)&&(!old||old->editSerial!=n.editSerial||old->width!=t.box->width||old->height!=t.box->height)){
+              const double first=horizontal?caret.x+t.box->textOffsetX:caret.y;
+              const double last=first+(horizontal?caret.width:caret.height);
+              if(last-physical>inner)physical=last-inner;
+              if(first-physical<0)physical=first;
+              physical=std::clamp(physical,0.0,maximum);logical=rtl?maximum-physical:physical;
+            }
+            t.box->editorScrollOffset=logical;t.box->editorScrollMaximum=maximum;
+            if(horizontal){t.box->textOffsetX-=physical;t.box->textOffsetY=std::max(0.0,(inset(t.box->height,padHeight)-m.height)/2);}
+            else t.box->textOffsetY=-physical;
+            const double baselineOffset=horizontal?t.box->textOffsetY:0;
+            if(t.box->hasBaseline)t.box->baseline=std::clamp(t.box->baseline+baselineOffset,0.0,t.box->height);
+            if(t.box->hasIdeographicBaseline)t.box->ideographicBaseline=std::clamp(t.box->ideographicBaseline+baselineOffset,0.0,t.box->height);
+          }else if(paragraphSizing){
             const auto innerWidth=inset(t.box->width,padWidth),innerHeight=inset(t.box->height,padHeight);
             if(!(n.editFlags&wire::editFlags::multiline))t.box->textOffsetY=std::max(0.0,(innerHeight-m.height)/2);
             const auto right=caret.x+caret.width+t.box->textOffsetX,bottom=caret.y+caret.height+t.box->textOffsetY;
@@ -812,7 +905,9 @@ struct LayoutWork::State {
             if(caret.x+t.box->textOffsetX<0)t.box->textOffsetX=-caret.x;
             if(bottom>innerHeight)t.box->textOffsetY-=bottom-innerHeight;
             if(caret.y+t.box->textOffsetY<0)t.box->textOffsetY=-caret.y;
-            if(t.box->baseline>=0)t.box->baseline+=t.box->textOffsetY;if(t.box->ideographicBaseline>=0)t.box->ideographicBaseline+=t.box->textOffsetY;
+            const double baselineOffset=n.editFlags&wire::editFlags::multiline?0:t.box->textOffsetY;
+            if(t.box->hasBaseline)t.box->baseline=std::clamp(t.box->baseline+baselineOffset,0.0,t.box->height);
+            if(t.box->hasIdeographicBaseline)t.box->ideographicBaseline=std::clamp(t.box->ideographicBaseline+baselineOffset,0.0,t.box->height);
           }
           caret.x = scalar(caret.x + n.layout.left+t.box->textOffsetX);
           caret.y = scalar(caret.y + n.layout.top+t.box->textOffsetY);
@@ -842,8 +937,78 @@ struct LayoutWork::State {
         t.box->width = constrain(width + padWidth, t.constraints.minWidth, t.constraints.maxWidth);
         t.box->height = constrain(height + padHeight, t.constraints.minHeight, t.constraints.maxHeight);
       }
+      if(n.paragraph&&n.paragraph->value.overflowProbe&&!n.editorViewport.enabled&&t.box->contentOverflow){
+        const auto& probe=*n.paragraph->value.overflowProbe;
+        auto measured=std::make_shared<Node>(n);measured->fontSize=probe.fontSize;measured->color=probe.color;
+        measured->paragraph=std::make_shared<ParagraphData>(source->lease.ledger,probe.paragraph);
+        measured->text=std::make_shared<TextData>(source->lease.ledger,Reader{reinterpret_cast<const uint8_t*>(probe.text.data()),probe.text.size()});
+        pending=MeasurementRequest{++requestId,std::move(measured),0,false};t.phase=7;return;
+      }
       done(t.box);
       return;
+    }
+    if(t.phase==7){
+      if(!measurement)return;
+      t.box->overflowProbeWidth=measurement->width;t.box->overflowProbeHeight=measurement->height;
+      measurement.reset();pending.reset();done(t.box);return;
+    }
+    if(t.phase==8){
+      if(!measurement)return;
+      t.box->overflowProbeWidth=measurement->width;t.box->overflowProbeHeight=measurement->height;
+      measurement.reset();pending.reset();
+      pending=MeasurementRequest{++requestId,source->nodes[n.id.slot].value,t.innerWidth,
+        std::isfinite(t.innerWidth)&&(!n.paragraph||n.paragraph->value.wraps())};
+      if(!pending->bounded)pending->width=0;t.phase=5;return;
+    }
+    if(t.phase==20){
+      auto& program=*t.program;
+      if(program.complete()){
+        auto& box=*t.box;box.width=constrain(program.width,t.constraints.minWidth,t.constraints.maxWidth);box.height=constrain(program.height,t.constraints.minHeight,t.constraints.maxHeight);
+        box.baseline=program.hasBaseline?program.baseline:-1;box.hasBaseline=program.hasBaseline;box.ideographicBaseline=program.hasIdeographic?program.ideographic:-1;box.hasIdeographicBaseline=program.hasIdeographic;
+        box.paintValues=program.paintValues;
+        for(size_t i=0;i<children.size();++i){require(bool(box.children[i].box),wire::statuses::invalidGraph);box.children[i].x=program.positions[i].x;box.children[i].y=program.positions[i].y;box.children[i].scaleX=program.scales[i].x;box.children[i].scaleY=program.scales[i].y;}
+        done(t.box);return;
+      }
+      if(!program.demand){program.advance(operations);return;}
+      const auto& demand=*program.demand;const auto& values=demand.values;
+      if(demand.kind==2){t.phase=21;push(children[demand.child],{values[0],values[1],values[2],values[3]},demand.child);return;}
+      LayoutConstraints constraints;if(demand.query<=wire::layoutQueries::maxWidth)constraints.maxHeight=values[0];else constraints.maxWidth=values[0];
+      t.intrinsic=std::make_unique<LayoutQueryWork>(source,children[demand.child],demand.query,constraints,result->scale,result->fontRevision);t.phase=22;return;
+    }
+    if(t.phase==21){
+      auto& program=*t.program;const auto& child=*t.box->children[program.demand->child].box;
+      program.measured(child.width,child.height,child.baseline,child.ideographicBaseline,child.hasBaseline,child.hasIdeographicBaseline);t.phase=20;return;
+    }
+    if(t.phase==22){
+      if(!t.intrinsic->step(1)){if(auto request=t.intrinsic->request()){intrinsicRequest=request->id;request->id=++requestId;pending=std::move(request);}return;}
+      t.program->queried(t.intrinsic->value().value);t.intrinsic.reset();t.phase=20;return;
+    }
+    if(t.phase==10||t.phase==11){
+      if(!t.intrinsic->step(1)){
+        if(auto request=t.intrinsic->request()){
+          intrinsicRequest=request->id;request->id=++requestId;pending=std::move(request);
+        }
+        return;
+      }
+      if(t.phase==10){
+        t.intrinsicHeight=std::max(n.intrinsicSizing->minimumHeight,t.intrinsic->value().value);
+        LayoutConstraints intrinsic;intrinsic.maxHeight=t.constraints.maxHeight;
+        t.intrinsic=std::make_unique<LayoutQueryWork>(source,children.front(),wire::layoutQueries::maxWidth,intrinsic,result->scale,result->fontRevision);
+        t.phase=11;return;
+      }
+      t.intrinsicWidth=std::max(t.intrinsic->value().value,scalar(t.intrinsicHeight*n.intrinsicSizing->minimumWidthPerHeight));
+      t.intrinsic.reset();
+      const double width=constrain(t.intrinsicWidth,t.constraints.minWidth,t.constraints.maxWidth),height=constrain(t.intrinsicHeight,t.constraints.minHeight,t.constraints.maxHeight);
+      t.phase=12;push(children.front(),{width,width,height,height});return;
+    }
+    if(t.phase==12){
+      const auto& child=*t.box->children.front().box;auto& box=*t.box;
+      box.width=n.intrinsicSizing->expandReportedWidth?std::max(child.width,scalar(child.height*n.intrinsicSizing->minimumWidthPerHeight)):child.width;
+      box.height=child.height;box.baseline=child.baseline;box.ideographicBaseline=child.ideographicBaseline;
+      require(box.width>=t.constraints.minWidth&&box.width<=t.constraints.maxWidth&&
+        box.height>=t.constraints.minHeight&&box.height<=t.constraints.maxHeight,wire::statuses::invalidValue);
+      box.hasBaseline=child.hasBaseline;box.hasIdeographicBaseline=child.hasIdeographicBaseline;
+      done(t.box);return;
     }
     if (t.phase == 4) {
       while (t.index < children.size()) {
@@ -944,6 +1109,11 @@ void LayoutWork::measured(uint64_t id, Handle node, Measurement value) {
   auto &s = *state_;
   require(s.pending && !s.measurement && s.pending->id == id && s.pending->node->id == node,
           wire::statuses::stale);
+  if(s.intrinsicRequest){
+    require(!s.stack.empty()&&bool(s.stack.back().intrinsic),wire::statuses::stale);
+    s.stack.back().intrinsic->measured(s.intrinsicRequest,node,std::move(value));
+    s.intrinsicRequest=0;s.pending.reset();return;
+  }
   scalar(value.width);
   scalar(value.height);
   scalar(value.minimum);

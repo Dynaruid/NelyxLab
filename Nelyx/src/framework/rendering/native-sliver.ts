@@ -37,6 +37,8 @@ export interface NativeSliverConfiguration {
   readonly end: number;
   readonly estimate: number;
   readonly itemExtent: number | null;
+  /** Unknown extents are measured in order; Content derives the remaining extent estimate. */
+  readonly sequential?: boolean;
   readonly built: {
     readonly revision: bigint;
     readonly width: number;

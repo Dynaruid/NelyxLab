@@ -142,6 +142,7 @@ export function launchApp(definition: AppDefinition): void {
                   appImages: images,
                   ownsAppText: false,
                   binaryMessenger: services!.binaryMessenger,
+                  dispatchNativeKey: services!.dispatchNativeKey,
                   semanticsEvent: (node, type) => services!.semanticsEvent(node, type),
                 }),
           });

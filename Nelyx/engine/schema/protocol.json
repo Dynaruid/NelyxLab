@@ -9,6 +9,48 @@
   "eventBytes": 160,
   "inputBytes": 128,
   "layoutBytes": 192,
+  "editorViewportBytes": 24,
+  "editorViewportFlags": {
+    "expands": 1
+  },
+  "scrollCurveHeaderBytes": 8,
+  "scrollCurveNodeBytes": 64,
+  "scrollCurveKinds": {
+    "linear": 1,
+    "cubic": 2,
+    "split": 3,
+    "interval": 4,
+    "flipped": 5,
+    "threshold": 6,
+    "sawTooth": 7,
+    "decelerate": 8,
+    "bounceIn": 9,
+    "bounceOut": 10,
+    "bounceInOut": 11,
+    "elasticIn": 12,
+    "elasticOut": 13,
+    "elasticInOut": 14
+  },
+  "layoutProgramHeaderBytes": 64,
+  "layoutProgramExpressionBytes": 24,
+  "layoutProgramCommandBytes": 40,
+  "layoutProgramQueryConditionField": 32,
+  "layoutProgramInstructionKinds": {
+    "set": 1,
+    "layout": 2,
+    "query": 3,
+    "position": 4,
+    "size": 5,
+    "baseline": 6,
+    "assert": 7,
+    "result": 8,
+    "scale": 9,
+    "paintValue": 10,
+    "hitRoute": 11,
+    "hitProjection": 12,
+    "hitSelf": 13,
+    "semanticsRect": 14
+  },
   "graphicsBytes": 136,
   "graphicsPathBytes": 56,
   "clipStyleBytes": 80,
@@ -50,6 +92,10 @@
     "results": 32,
     "resultBytes": 1048576,
     "scrollCommands": 64,
+    "scrollCurveNodes": 32,
+    "scrollCurveDepth": 16,
+    "scrollDurationMs": 60000,
+    "scrollTimeoutMs": 62000,
     "observerPackets": 64,
     "commandTimeoutMs": 2000,
     "textBytes": 65536,
@@ -68,6 +114,7 @@
     "editors": 64,
     "semanticsNodes": 256,
     "semanticsTextBytes": 4096,
+    "semanticsCustomActions": 64,
     "editHistory": 32,
     "editHistoryBytes": 1048576,
     "interactionEvents": 64,
@@ -88,7 +135,12 @@
     "imageChunkBytes": 262144,
     "imageTiles": 4096,
     "appImageCallbacks": 64,
-    "sourceListMetrics": 4096
+    "sourceListMetrics": 4096,
+    "layoutProgramChildren": 64,
+    "layoutProgramVariables": 128,
+    "layoutProgramExpressions": 512,
+    "layoutProgramCommands": 512,
+    "layoutProgramPaintValues": 16
   },
   "opcodes": {
     "hello": 1,
@@ -154,6 +206,23 @@
     "imageResourceRelease": 61,
     "snapshotPaint": 62
   },
+  "nodeCreationBytes": 8,
+  "nodeAttachedCreationBytes": 24,
+  "nodeCreationFields": {
+    "kind": 0,
+    "flags": 4,
+    "parent": 8,
+    "index": 16,
+    "reserved": 20
+  },
+  "nodeCreationFlags": {
+    "layoutEnabled": 1,
+    "inheritChildConstraints": 2,
+    "canonicalHitTest": 4
+  },
+  "nodeDestroyFlags": {
+    "detach": 1
+  },
   "commands": {
     "create": 1,
     "properties": 2,
@@ -188,7 +257,11 @@
     "imageStyle": 31,
     "tapRegion": 32,
     "snapshot": 33,
-    "layoutBuilder": 34
+    "layoutBuilder": 34,
+    "tooltipPosition": 35,
+    "childAnchor": 36,
+    "intrinsicSizing": 37,
+    "layoutProgram": 38
   },
   "kinds": {
     "box": 1,
@@ -255,7 +328,8 @@
     "gestureDecision": 18,
     "appFrame": 19,
     "key": 20,
-    "tapRegion": 21
+    "tapRegion": 21,
+    "pointer": 22
   },
   "gestures": {
     "tap": 1,
@@ -576,7 +650,8 @@
     "localOriginX": 136,
     "localOriginY": 144,
     "buttons": 152,
-    "gestureFlags": 156
+    "gestureFlags": 156,
+    "clipboardReadSnapshot": 56
   },
   "commandFields": {
     "opcode": 0,
@@ -675,7 +750,8 @@
   "layoutChildConstraints": {
     "loose": 0,
     "inherit": 1,
-    "expand": 2
+    "expand": 2,
+    "unconstrained": 3
   },
   "layoutConstraintFlags": {
     "childMask": 3,
@@ -763,7 +839,8 @@
     "disableFirstAscent": 4,
     "disableLastDescent": 8,
     "manualHyphens": 16,
-    "inlineChildren": 32
+    "inlineChildren": 32,
+    "overflowProbe": 64
   },
   "coverageFields": {
     "revision": 0,
@@ -818,7 +895,9 @@
     "link": 7,
     "radio": 8,
     "radioGroup": 9,
-    "switchControl": 10
+    "switchControl": 10,
+    "progressBar": 11,
+    "loadingSpinner": 12
   },
   "semanticsFlags": {
     "disabled": 1,
@@ -840,7 +919,8 @@
     "increment": 16,
     "decrement": 32,
     "longPress": 64,
-    "deselect": 128
+    "deselect": 128,
+    "custom": 256
   },
   "editFields": {
     "node": 0,
@@ -872,7 +952,12 @@
   "clipShapes": {
     "rect": 0,
     "rrect": 1,
-    "oval": 2
+    "oval": 2,
+    "stadium": 3,
+    "circle": 4
+  },
+  "clipStyleFlags": {
+    "hitTestShape": 1
   },
   "graphicsFields": {
     "transform": 0,
@@ -928,7 +1013,13 @@
     "mergeSemanticsDescendants": 1048576,
     "mergeSemanticsIntoParent": 2097152,
     "excludeChildSemantics": 4194304,
-    "exclusiveMouseRegion": 8388608
+    "exclusiveMouseRegion": 8388608,
+    "pointerListener": 16777216,
+    "ignorePointer": 33554432,
+    "absorbPointer": 67108864,
+    "blockSemanticActions": 134217728,
+    "explicitChildSemantics": 268435456,
+    "forceMergeSemantics": 536870912
   },
   "pointerKinds": {
     "unknown": 0,
@@ -947,6 +1038,9 @@
   "nativePaintHeaderBytes": 24,
   "nativePaintExpressionBytes": 24,
   "nativePaintBytes": 512,
+  "nativePaintStrokeWidthExpressionField": 476,
+  "nativePaintGradientExpressionField": 480,
+  "paragraphProbeBytes": 24,
   "nativePaintPathCommandBytes": 112,
   "nativePaintPathVerbs": {
     "move": 1,
@@ -956,7 +1050,16 @@
     "close": 5,
     "conic": 6,
     "rect": 7,
-    "rrect": 8
+    "rrect": 8,
+    "arc": 9
+  },
+  "nativePaintStrokeCaps": {
+    "butt": 0,
+    "round": 1,
+    "square": 2
+  },
+  "nativePaintBlendFlags": {
+    "srcATop": 128
   },
   "nativePaintKinds": {
     "physical": 1,
@@ -975,7 +1078,8 @@
     "restore": 14,
     "path": 15,
     "paragraph": 16,
-    "children": 17
+    "children": 17,
+    "linearMask": 18
   },
   "nativePaintGeometryKinds": {
     "none": 0,
@@ -1006,13 +1110,28 @@
     "equal": 15,
     "select": 16,
     "worldX": 17,
-    "worldY": 18
+    "worldY": 18,
+    "boundedWidth": 19,
+    "boundedHeight": 20,
+    "layoutValue": 21,
+    "acos": 22,
+    "asin": 23,
+    "contentOverflow": 24,
+    "contentOverflowX": 25,
+    "overflowProbeWidth": 26,
+    "overflowProbeHeight": 27,
+    "cos": 28
   },
+  "nativePaintPathConditionField": 4,
   "paragraphFields": {
     "fontFamilyLength": 20,
     "fontWeight": 24
   },
-  "semanticsBytes": 80,
+  "semanticsBytes": 120,
+  "semanticCustomActionBytes": 24,
+  "semanticTraversalBlob": 33,
+  "semanticTraversalBytes": 24,
+  "semanticCustomSourceBytes": 16,
   "paintPlacementBytes": 48,
   "paintPlacementBlob": 15,
   "fontUploadBlob": 16,
@@ -1109,16 +1228,30 @@
   "layoutBuilderBlob": 29,
   "layoutBuildRequestBytes": 96,
   "layoutBuildRequestBlob": 30,
+  "pointerEventBlob": 31,
+  "semanticGeometryBlob": 32,
+  "semanticGeometryBytes": 112,
+  "pointerEventBytes": 184,
+  "gestureFields": {
+    "mask": 0,
+    "devices": 4
+  },
   "layoutBuildPending": 512,
   "layoutListBuildRequestBytes": 144,
   "layoutListBuildRowBytes": 32,
   "listFlags": {
-    "fixedExtent": 1
+    "fixedExtent": 1,
+    "sequential": 2
   },
   "listSeekFlags": {
     "offset": 1
   },
   "paragraphRunFlags": {
     "ideographicBaseline": 16
-  }
+  },
+  "keyClipboardBytes": 32,
+  "keyIdentityBytes": 48,
+  "keyIdentityTextBytes": 64,
+  "keyIdentityEventBlob": 34,
+  "keyIdentityEventBytes": 24
 }

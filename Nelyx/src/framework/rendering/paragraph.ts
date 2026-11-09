@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+export { nativeParagraphFade } from './paragraph-overflow.ts';
 import {
   ParentData,
   ContainerParentDataMixin,

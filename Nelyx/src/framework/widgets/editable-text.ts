@@ -1055,6 +1055,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   }
   private compositionBase: EditingContent | undefined;
   private cursorVisible = true;
+  private nativeCursor = false;
   private blink: Disposable | undefined;
   private blinkVisibility: Disposable | undefined;
   private stopBlink(): void {
@@ -1065,6 +1066,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.stopBlink();
     if (reset) this.cursorVisible = true;
     if (
+      this.nativeCursor ||
       !this.isCurrentEditingOwner(this.editingIdentity) ||
       !this.focus?.hasPrimaryFocus ||
       this.widget.controller.isComposing ||
@@ -2520,7 +2522,17 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       if (changed) this.scheduleCaretReveal();
       return changed;
     }
-    if (!render?.hasSize || render.needsLayout) return false;
+    // Character deletion and an existing selection need only authoritative text,
+    // not a mounted TS RenderEditable. Native editors still use the same nested
+    // ReplaceText Action, formatters and controller synchronization below.
+    const deleting =
+      intent instanceof editingIntents.DeleteCharacterIntent ||
+      intent instanceof editingIntents.DeleteToNextWordBoundaryIntent ||
+      intent instanceof editingIntents.DeleteToLineBreakIntent;
+    const textOnlyDeletion =
+      deleting &&
+      (range.anchor !== range.focus || intent instanceof editingIntents.DeleteCharacterIntent);
+    if (!textOnlyDeletion && (!render?.hasSize || render.needsLayout)) return false;
     const atomic = new CharacterBoundary(text),
       document = new DocumentBoundary(text);
     const beyond = (
@@ -2534,7 +2546,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
           : (boundary.getLeadingTextBoundaryAt(position.offset - 1) ?? 0),
       });
     const word = () =>
-      this.boundConfiguration.obscureText ? document : render.wordBoundaries.moveByWordBoundary;
+      this.boundConfiguration.obscureText ? document : render!.wordBoundaries.moveByWordBoundary;
     const line = (
       position: TextPosition,
       forward: boolean,
@@ -2542,7 +2554,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     ): TextPosition => {
       if (this.boundConfiguration.obscureText)
         return new TextPosition({ offset: forward ? text.length : 0 });
-      let boundary = render.getLineBoundary(position);
+      let boundary = render!.getLineBoundary(position);
       // Home/End on the upstream/downstream side of a soft wrap continues
       // into the adjacent line only for the platform's explicit wrap policy.
       if (
@@ -2561,7 +2573,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
           offset: position.offset,
           affinity: forward ? 'downstream' : 'upstream',
         });
-        boundary = render.getLineBoundary(position);
+        boundary = render!.getLineBoundary(position);
       }
       return new TextPosition({
         offset: forward ? boundary.end : boundary.start,
@@ -2609,7 +2621,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       }
       return true;
     }
-    if (!(intent instanceof editingIntents.DirectionalCaretMovementIntent)) return false;
+    if (!render || !(intent instanceof editingIntents.DirectionalCaretMovementIntent)) return false;
     const collapse = intent.collapseSelection,
       forward = intent.forward,
       expand =
@@ -2629,7 +2641,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
                 ? Math.max(range.anchor, range.focus)
                 : Math.min(range.anchor, range.focus),
             })
-          : render.getNextVisualPosition(position, forward ? 'right' : 'left');
+          : render!.getNextVisualPosition(position, forward ? 'right' : 'left');
     } else if (
       intent instanceof editingIntents.ExtendSelectionToNextWordBoundaryIntent ||
       intent instanceof editingIntents.ExtendSelectionToNextWordBoundaryOrCaretLocationIntent
@@ -3648,6 +3660,8 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         graphemeOffsets: graphemeBoundaries(this.widget.controller.text),
       };
     const native = buildNativeWidget(this.context, 'editable-text', this.widget);
+    this.nativeCursor = native !== undefined;
+    if (this.nativeCursor) this.stopBlink();
     const box =
       native ??
       new Scrollable({

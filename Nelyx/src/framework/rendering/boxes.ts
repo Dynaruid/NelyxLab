@@ -2749,6 +2749,10 @@ RenderObject._registerSemanticsGeometryPrototype(
   RenderAligningShiftedBox.prototype,
 );
 
+registerNativeBoxConfiguration(RenderProxyBox.prototype, () => ({
+  kind: 'box',
+  layout: { childConstraints: 'inherit' },
+}));
 registerNativeBoxConfiguration(RenderConstrainedBox.prototype, (render) => ({
   kind: 'box',
   layout: { childConstraints: 'inherit', enforceBounds: true },

@@ -211,7 +211,11 @@ export function sourceIdentity() {
       )
         .filter(
           (file) =>
-            dir !== 'tools' || !['run-windows.mjs', 'run-android.mjs', 'serve.mjs'].includes(file),
+            (dir !== 'tools' ||
+              !['run-windows.mjs', 'run-android.mjs', 'serve.mjs'].includes(file)) &&
+            // Source/consumer planning is not compiled or shipped. Port sources,
+            // provenance and legal notices remain hashed supply inputs.
+            !(dir === 'platform' && file === 'native-api-ports.md'),
         )
         .map((file) => `${dir}/${file}`),
     ),
@@ -355,7 +359,7 @@ async function main() {
                 version: webRuntime.version,
                 variant: 'owned-full',
                 paragraphApiVersion: 1,
-                pictureApiVersion: 2,
+                pictureApiVersion: 3,
                 fontApiVersion: 1,
                 initialMemoryBytes: 128 * 1024 * 1024,
                 maximumMemoryBytes: 256 * 1024 * 1024,
@@ -367,14 +371,17 @@ async function main() {
           hermes: hosts ? supplier.revision : undefined,
           appServices: hosts
             ? {
-                version: 2,
+                version: 4,
                 methods: [
                   'clipboard-read',
                   'clipboard-write',
                   'clipboard-has-strings',
+                  'clipboard-read-event',
+                  'clipboard-release-event',
                   'semantics-tap',
                   'semantics-longPress',
                   'semantics-focus',
+                  'accessibility-tooltip',
                   'system-sound',
                   'haptic-feedback',
                 ],

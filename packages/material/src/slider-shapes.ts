@@ -67,3 +67,11 @@ export type RangeSliderTickMarkSizeOptions = Parameters<
 >[0];
 export type RangeSliderTickMarkPaintOptions = Parameters<RangeSliderTickMarkShape['paint']>[2];
 export type RangeSliderTrackPaintOptions = Parameters<RangeSliderTrackShape['paint']>[2];
+export { registerNativeRangeSliderShape } from './internal/slider/range-native-shape.ts';
+export type {
+  NativeRangeSliderRect,
+  NativeRangeSliderGeometry,
+  NativeRangeSliderShapeContext,
+  NativeRangeSliderIndicatorContext,
+  NativeRangeSliderShapeAdapter,
+} from './internal/slider/range-native-shape.ts';

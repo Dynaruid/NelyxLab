@@ -48,6 +48,7 @@ const kinds = [
   'path',
   'paragraph',
   'children',
+  'linearMask',
 ] as const;
 const geometryKinds = [
   'none',
@@ -61,13 +62,16 @@ const geometryKinds = [
 ] as const;
 const shapes = ['rrect', 'stadium', 'circle'] as const;
 const clips = ['none', 'hardEdge', 'antiAlias', 'antiAliasWithSaveLayer'] as const;
+const strokeCaps = ['butt', 'round', 'square'] as const;
 const finite = (n: number) => {
   if (!Number.isFinite(n)) throw Error('Non-finite native paint value');
   return n;
 };
 const noExpression = 0xffffffff;
-const operationArity = [0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 3, 2, 2];
-const pathArity = [0, 2, 2, 4, 6, 0, 5, 4, 12];
+const operationArity = [
+  0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 3, 2, 2, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1,
+];
+const pathArity = [0, 2, 2, 4, 6, 0, 5, 4, 12, 7];
 class Expressions {
   readonly nodes: { op: number; args: number[]; value: number }[] = [];
   private readonly objects = new WeakMap<object, number>();
@@ -84,11 +88,21 @@ class Expressions {
       args = constant ? [] : (value.args ?? []);
     if (op === undefined || args.length !== operationArity[op])
       throw Error('Invalid native paint expression operation');
+    const layoutIndex = !constant && value.op === 'layoutValue' ? value.index : undefined;
+    if (
+      !constant &&
+      (value.op === 'layoutValue'
+        ? !Number.isInteger(layoutIndex) ||
+          layoutIndex! < 0 ||
+          layoutIndex! >= p.limits.layoutProgramPaintValues
+        : value.index !== undefined)
+    )
+      throw Error('Invalid native paint layout value');
     const operands = args.map((v) => this.add(v));
     if (this.nodes.length >= p.limits.nativePaintExpressions)
       throw RangeError('Native paint expression budget');
     const index = this.nodes.length;
-    this.nodes.push({ op, args: operands, value: constant ? finite(value) : 0 });
+    this.nodes.push({ op, args: operands, value: constant ? finite(value) : (layoutIndex ?? 0) });
     if (constant) this.constants.set(key, index);
     else {
       this.active.delete(value);
@@ -100,7 +114,7 @@ class Expressions {
 export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Array {
   if (entries.length > p.limits.nativePaintEntries) throw RangeError('Native paint entry budget');
   const expressions = new Expressions();
-  const commands: { verb: number; refs: number[] }[] = [];
+  const commands: { verb: number; condition: number; refs: number[] }[] = [];
   const paths = entries.map((entry) => {
     if (entry.kind !== 'path') {
       if (entry.path) throw Error('Path commands require a path paint entry');
@@ -113,13 +127,16 @@ export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Ar
     )
       throw Error('Invalid native paint path');
     const start = commands.length;
-    for (const command of path.commands) {
+    for (const item of path.commands) {
+      const conditional = 'command' in item,
+        command = conditional ? item.command : item;
       const verb = p.nativePaintPathVerbs[command[0]];
       if (!verb || command.length !== pathArity[verb]! + 1)
         throw Error('Invalid native paint path command');
       if (commands.length >= p.limits.pathCommands) throw RangeError('Native paint path budget');
       commands.push({
         verb,
+        condition: conditional ? expressions.add(item.when) + 1 : 0,
         refs: command.slice(1).map((v) => expressions.add(v as NativePaintScalar)),
       });
     }
@@ -127,6 +144,12 @@ export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Ar
   });
   const programs = entries.map((entry) => {
     const g = entry.geometry;
+    if (
+      entry.kind === 'linearMask'
+        ? !entry.gradient || entry.gradient.length !== 4 || g?.kind !== 'program'
+        : entry.gradient !== undefined
+    )
+      throw Error('Invalid native opacity mask');
     if (g?.kind !== 'program') return;
     if (g.rect.length !== 4 || (g.radii && g.radii.length !== 8))
       throw Error('Invalid native paint program fields');
@@ -141,7 +164,14 @@ export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Ar
     const repeat = g.repeat ?? 1;
     if (!Number.isInteger(repeat) || !Number.isFinite(repeat) || repeat < 0)
       throw Error('Invalid native paint repeat count');
-    return { refs, repeat };
+    if (g.strokeWidth !== undefined && entry.kind !== 'path')
+      throw Error('Dynamic stroke width requires a native path');
+    return {
+      refs,
+      repeat,
+      strokeWidth: g.strokeWidth === undefined ? 0 : expressions.add(g.strokeWidth) + 1,
+      gradient: entry.gradient?.map((value) => expressions.add(value) + 1),
+    };
   });
   const expressionAt = p.nativePaintHeaderBytes + entries.length * p.nativePaintBytes;
   const bytes = new Uint8Array(
@@ -163,11 +193,20 @@ export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Ar
   commands.forEach((command, index) => {
     const at = pathAt + index * p.nativePaintPathCommandBytes;
     v.setUint32(at, command.verb, true);
+    v.setUint32(at + 4, command.condition, true);
     command.refs.forEach((ref, i) => v.setUint32(at + 8 + i * 4, ref, true));
   });
   entries.forEach((entry, index) => {
     const at = p.nativePaintHeaderBytes + index * p.nativePaintBytes,
       reference = typeof entry.reference === 'function' ? entry.reference() : entry.reference;
+    if (
+      entry.blendMode !== undefined &&
+      entry.blendMode !== 'srcOver' &&
+      entry.blendMode !== 'srcATop'
+    )
+      throw Error('Invalid native paint blend mode');
+    if (entry.blendMode === 'srcATop' && entry.kind !== 'shape' && entry.kind !== 'path')
+      throw Error('Native source-atop requires a shape or path');
     if (entry.kind === 'ripple' || entry.kind === 'highlight' || entry.kind === 'paragraph') {
       if (!reference) throw Error('Native ink reference is not mounted');
     }
@@ -180,7 +219,8 @@ export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Ar
         (entry.customClip ? 8 : 0) |
         (entry.fillParent ? 16 : 0) |
         (entry.dash ? 32 : 0) |
-        (entry.transparentOccluder ? 64 : 0),
+        (entry.transparentOccluder ? 64 : 0) |
+        (entry.blendMode === 'srcATop' ? p.nativePaintBlendFlags.srcATop : 0),
       true,
     );
     v.setUint32(at + 8, entry.color, true);
@@ -190,6 +230,10 @@ export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Ar
     v.setUint32(at + 24, shapes.indexOf(entry.shape.kind), true);
     v.setUint32(at + 28, clips.indexOf(entry.clip ?? 'none'), true);
     v.setUint32(at + 32, entry.shape.strokeColor, true);
+    const strokeCap = strokeCaps.indexOf(entry.strokeCap ?? 'butt');
+    if (strokeCap < 0 || (strokeCap && entry.kind !== 'path'))
+      throw Error('Invalid native path stroke cap');
+    v.setUint32(at + 36, strokeCap, true);
     const values = [
       entry.elevation ?? 0,
       entry.shape.strokeWidth,
@@ -227,6 +271,10 @@ export function nativePaintBody(entries: readonly NativePaintOptions[]): Uint8Ar
     if (program) {
       program.refs.forEach((ref, i) => v.setUint32(at + 400 + i * 4, ref, true));
       v.setFloat64(at + 456, program.repeat, true);
+      v.setUint32(at + p.nativePaintStrokeWidthExpressionField, program.strokeWidth, true);
+      program.gradient?.forEach((ref, i) =>
+        v.setUint32(at + p.nativePaintGradientExpressionField + i * 4, ref, true),
+      );
     }
     const path = paths[index];
     if (path) {
@@ -272,10 +320,19 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
       } else if (ref) throw Error('Unused native paint operand');
     }
     const value = finite(v.getFloat64(at + 16, true));
-    if (op && value) throw Error('Unused native paint constant');
+    if (
+      op === p.nativePaintOperations.layoutValue
+        ? !Number.isInteger(value) || value < 0 || value >= p.limits.layoutProgramPaintValues
+        : op && value
+    )
+      throw Error('Unused native paint constant');
     expressions.push(
       op
-        ? { op: names[op] as Exclude<keyof typeof p.nativePaintOperations, 'constant'>, args }
+        ? {
+            op: names[op] as Exclude<keyof typeof p.nativePaintOperations, 'constant'>,
+            args,
+            ...(op === p.nativePaintOperations.layoutValue ? { index: value } : {}),
+          }
         : value,
     );
   }
@@ -283,8 +340,14 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
   const pathNames = Object.keys(p.nativePaintPathVerbs) as (keyof typeof p.nativePaintPathVerbs)[];
   const paths = Array.from({ length: v.getUint32(16, true) }, (_, i) => {
     const at = pathAt + i * p.nativePaintPathCommandBytes,
-      verb = v.getUint32(at, true);
-    if (!verb || verb >= pathArity.length || v.getUint32(at + 4, true))
+      verb = v.getUint32(at, true),
+      condition = v.getUint32(at + 4, true);
+    if (
+      !verb ||
+      verb >= pathArity.length ||
+      condition > expressions.length ||
+      (v.getUint32(4, true) && condition)
+    )
       throw Error('Invalid native paint path command');
     const values = Array.from({ length: pathArity[verb]! }, (_, j) => {
       if (v.getUint32(4, true)) return finite(v.getFloat64(at + 8 + j * 8, true));
@@ -292,7 +355,10 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
       if (ref >= expressions.length) throw Error('Invalid native path expression');
       return expressions[ref]!;
     });
-    return Object.freeze([pathNames[verb - 1]!, ...values]) as NativePaintPath['commands'][number];
+    const command = Object.freeze([pathNames[verb - 1]!, ...values]);
+    return (
+      condition ? Object.freeze({ when: expressions[condition - 1]!, command }) : command
+    ) as NativePaintPath['commands'][number];
   });
   return Object.freeze(
     Array.from({ length: count }, (_, index) => {
@@ -301,8 +367,18 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
         f = (offset: number) => finite(v.getFloat64(at + offset, true)),
         kind = kinds[v.getUint32(at, true) - 1],
         shape = shapes[v.getUint32(at + 24, true)],
-        clip = clips[v.getUint32(at + 28, true)];
-      if (!kind || !shape || !clip || flags & ~127 || v.getUint32(at + 36, true) || f(248))
+        clip = clips[v.getUint32(at + 28, true)],
+        strokeCap = strokeCaps[v.getUint32(at + 36, true)];
+      if (
+        !kind ||
+        !shape ||
+        !clip ||
+        !strokeCap ||
+        flags & ~255 ||
+        (flags & p.nativePaintBlendFlags.srcATop && kind !== 'shape' && kind !== 'path') ||
+        (kind !== 'path' && strokeCap !== 'butt') ||
+        f(248)
+      )
         throw Error('Invalid native paint entry');
       if (
         (flags & 32 && kind !== 'mark') ||
@@ -314,17 +390,35 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
       if (!geometryKind || geometryFlags > 1) throw Error('Invalid native paint geometry');
       const pathStart = v.getUint32(at + 464, true),
         pathCount = v.getUint32(at + 468, true),
-        fillRule = v.getUint32(at + 472, true);
+        fillRule = v.getUint32(at + 472, true),
+        strokeExpression = v.getUint32(at + p.nativePaintStrokeWidthExpressionField, true);
       if (
-        v.getUint32(at + 476, true) ||
+        (strokeExpression &&
+          (kind !== 'path' ||
+            geometryKind !== 'program' ||
+            strokeExpression > expressions.length)) ||
         fillRule > 1 ||
         pathStart + pathCount > paths.length ||
         (kind === 'path' ? !pathCount : pathStart || pathCount || fillRule)
       )
         throw Error('Invalid native paint path range');
+      const gradient =
+        kind === 'linearMask'
+          ? (Object.freeze(
+              Array.from({ length: 4 }, (_, i) => {
+                if (v.getUint32(4, true)) return f(p.nativePaintGradientExpressionField + i * 8);
+                const ref = v.getUint32(at + p.nativePaintGradientExpressionField + i * 4, true);
+                if (!ref || ref > expressions.length) throw Error('Invalid native mask expression');
+                return expressions[ref - 1]!;
+              }),
+            ) as unknown as NativePaintSnapshot['gradient'])
+          : undefined;
       return Object.freeze({
         kind,
+        ...(gradient ? { gradient } : {}),
         color: v.getUint32(at + 8, true),
+        strokeCap,
+        blendMode: flags & p.nativePaintBlendFlags.srcATop ? 'srcATop' : 'srcOver',
         ...(kind === 'path'
           ? {
               path: Object.freeze({
@@ -386,6 +480,9 @@ export function readNativePaint(bytes: Uint8Array): readonly NativePaintSnapshot
                         : { radii: radii.map((r, i) => r ?? f(96 + i * 8)) }),
                       ...(visible === undefined ? {} : { visible }),
                       ...(color === undefined ? {} : { color }),
+                      ...(strokeExpression
+                        ? { strokeWidth: expressions[strokeExpression - 1]! }
+                        : {}),
                       repeat: f(456),
                     };
                   })(),

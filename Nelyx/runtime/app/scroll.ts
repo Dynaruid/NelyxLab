@@ -7,7 +7,8 @@ import {
 } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext, BuildOwner } from '@nelyx/core/framework/widgets/framework';
 import { SliverMultiBoxAdaptorParentData } from '@nelyx/core/framework/rendering/sliver-multi-box-adaptor';
-import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
+import { ListView, CustomScrollView, ScrollView } from '@nelyx/core/framework/widgets/scroll-view';
+import { SliverToBoxAdapter } from '@nelyx/core/framework/widgets/basic';
 import {
   SliverChildListDelegate,
   SliverChildBuilderDelegate,
@@ -24,7 +25,9 @@ import { ScrollActivity } from '@nelyx/core/framework/widgets/scroll-activity';
 import { PrimaryScrollController } from '@nelyx/core/framework/widgets/primary-scroll-controller';
 import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { Axis, AxisDirection } from '@nelyx/core/framework/painting/basic-types';
-import { Curves } from '@nelyx/core/framework/animation/curves';
+import { nativeCurveConfiguration } from '@nelyx/core/framework/animation/curves';
+import { captureScrollCurve } from '../engine-client/scroll-curve.ts';
+import type { ScrollCurve } from '../engine-client/scroll-curve.ts';
 import { DragStartBehavior } from '@nelyx/core/framework/gestures/recognizer';
 import type { ViewportAnimationOptions } from '@nelyx/core/framework/rendering/viewport-offset';
 import { FrameScheduler } from '@nelyx/core/framework/scheduler/scheduler';
@@ -44,6 +47,7 @@ import type {
   EngineEvent,
 } from '../engine-client/codec.ts';
 import type { EngineViewClient } from '../engine-client/client.ts';
+import { EngineError } from '../engine-client/client.ts';
 import { protocol as p } from '../engine-client/schema.ts';
 import { OriginalNativeRender, OriginalNativeNode } from './native-node.ts';
 import { nativeSliverConfiguration } from '@nelyx/core/framework/rendering/object';
@@ -88,8 +92,12 @@ interface Request {
   revision: number;
   target: number;
   duration: number;
+  curve?: ScrollCurve;
   id?: bigint;
   seeking?: boolean;
+  listTarget?: string;
+  staleTarget?: string;
+  itemRequest?: true;
   item?: { readonly index: number; readonly offset: number; resolved: boolean };
   prepared?: {
     readonly minimum: number;
@@ -109,6 +117,7 @@ class NativePosition extends ScrollPositionWithSingleContext {
         extent: number | null;
         count: number;
         source: boolean;
+        sequential: boolean;
       }
     | undefined;
   private coverage: { minimum: number; maximum: number } | undefined;
@@ -167,11 +176,11 @@ class NativePosition extends ScrollPositionWithSingleContext {
   }
   override animateTo(value: number, options: ViewportAnimationOptions): Promise<void> {
     this.validate(value);
-    if (options.curve !== Curves.linear) return this.host.fail('scroll-animation-curve');
+    const curve = captureScrollCurve(nativeCurveConfiguration(options.curve));
     if (
       !Number.isFinite(options.duration) ||
       options.duration < 0 ||
-      options.duration > p.limits.commandTimeoutMs - 100
+      options.duration > p.limits.scrollDurationMs
     )
       return this.host.fail('scroll-animation-duration');
     if (!options.duration || value === this.pixels) {
@@ -182,7 +191,7 @@ class NativePosition extends ScrollPositionWithSingleContext {
     this.finish();
     this.beginActivity(new NativeActivity(this));
     return new Promise<void>((resolve, reject) =>
-      this.enqueue(value, options.duration, resolve, reject),
+      this.enqueue(value, options.duration, resolve, reject, curve),
     );
   }
   private validate(value: number): void {
@@ -195,9 +204,17 @@ class NativePosition extends ScrollPositionWithSingleContext {
     duration: number,
     resolve = () => {},
     reject = (error: unknown) => this.host.error(error),
+    curve?: ScrollCurve,
   ): void {
     this.preserveDesired = false;
-    this.request = { revision: this.revision, target, duration, resolve, reject };
+    this.request = {
+      revision: this.revision,
+      target,
+      duration,
+      resolve,
+      reject,
+      ...(curve ? { curve } : {}),
+    };
     this.send();
   }
   seekItem(index: number, offset: number): void {
@@ -210,6 +227,7 @@ class NativePosition extends ScrollPositionWithSingleContext {
       revision: this.revision,
       target: 0,
       duration: 0,
+      itemRequest: true,
       item: { index, offset, resolved: false },
       resolve: () => {},
       reject: (error) => this.host.error(error),
@@ -225,6 +243,11 @@ class NativePosition extends ScrollPositionWithSingleContext {
       this.stopped
     )
       return;
+    const target = this.listTarget();
+    if (this.request.staleTarget && this.request.staleTarget === target) return;
+    if (this.request.listTarget !== target) delete this.request.prepared;
+    if (target === undefined) delete this.request.listTarget;
+    else this.request.listTarget = target;
     this.sending = true;
     const request = this.request;
     if (this.list && !request.prepared) {
@@ -250,7 +273,7 @@ class NativePosition extends ScrollPositionWithSingleContext {
             sliver.parent.slot !== node.slot ||
             sliver.parent.generation !== node.generation
           )
-            throw Error('Native list coverage is unavailable');
+            throw new EngineError(p.statuses.stale, 'Native list coverage changed');
           request.prepared = {
             minimum: viewport.scrollMinimum,
             maximum: viewport.scrollMaximum,
@@ -265,6 +288,7 @@ class NativePosition extends ScrollPositionWithSingleContext {
         })
         .catch((error) => {
           if (!this.stopped && this.request === request) {
+            if (this.retryStale(request, error instanceof EngineError ? error.status : 0)) return;
             this.request = undefined;
             this.preserveDesired = true;
             this.goIdle();
@@ -280,7 +304,9 @@ class NativePosition extends ScrollPositionWithSingleContext {
     try {
       const target = Math.max(
         request.prepared?.minimum ?? this.minScrollExtent,
-        Math.min(request.target, request.prepared?.maximum ?? this.maxScrollExtent),
+        this.list?.sequential && request.duration === 0
+          ? request.target
+          : Math.min(request.target, request.prepared?.maximum ?? this.maxScrollExtent),
       );
       const coverage = request.prepared?.coverage ?? this.coverage;
       const uncovered = coverage && (target < coverage.minimum || target > coverage.maximum);
@@ -298,14 +324,14 @@ class NativePosition extends ScrollPositionWithSingleContext {
             this.list!.generation,
             item?.index ?? Math.min(this.list!.count - 1, Math.floor(target / this.list!.extent!)),
           )
-        : uncovered && this.list?.source
+        : this.list?.source && this.list.count > 0 && (uncovered || request.duration === 0)
           ? this.host.view.startListOffsetSeek(
               this.node,
               this.list.node,
               this.list.generation,
               target,
             )
-          : this.host.view.startScroll(this.node, target, request.duration);
+          : this.host.view.startScroll(this.node, target, request.duration, request.curve);
       request.id = operation.id;
       void operation.receipt
         .then(
@@ -320,6 +346,7 @@ class NativePosition extends ScrollPositionWithSingleContext {
           },
           (error) => {
             if (!this.stopped && this.request === request) {
+              if (this.retryStale(request, error instanceof EngineError ? error.status : 0)) return;
               this.request = undefined;
               this.preserveDesired = true;
               this.goIdle();
@@ -333,17 +360,46 @@ class NativePosition extends ScrollPositionWithSingleContext {
         });
     } catch (error) {
       this.sending = false;
+      if (this.retryStale(request, error instanceof EngineError ? error.status : 0)) {
+        this.send();
+        return;
+      }
       this.request = undefined;
       this.preserveDesired = true;
       this.goIdle();
       request.reject(error);
     }
   }
+  private listTarget(): string | undefined {
+    const node = this.node,
+      list = this.list;
+    return node && list
+      ? `${node.slot}:${node.generation}/${list.node.slot}:${list.node.generation}/${list.generation}`
+      : undefined;
+  }
+  private retryStale(request: Request, status: number): boolean {
+    if (
+      status !== p.statuses.stale ||
+      request.itemRequest ||
+      request.duration !== 0 ||
+      !request.listTarget
+    )
+      return false;
+    // A numeric jump still belongs to this controller after its Source list
+    // changes. Wait for that new publication; never replay an old item index.
+    request.staleTarget = request.listTarget;
+    request.seeking = false;
+    delete request.id;
+    delete request.prepared;
+    this.coverage = undefined;
+    return true;
+  }
   terminal(event: EngineEvent): void {
     if (event.id !== this.request?.id) return;
     if (event.status === p.statuses.ok) this.completeOperation();
     else if (event.status === p.statuses.superseded || event.status === p.statuses.canceled)
       this.finish();
+    else if (this.retryStale(this.request, event.status)) this.send();
     else {
       const request = this.request;
       this.request = undefined;
@@ -362,19 +418,32 @@ class NativePosition extends ScrollPositionWithSingleContext {
       this.send();
     } else this.finish();
   }
-  observe(viewport: EngineNodeSnapshot, sliver: EngineNodeSnapshot, extent: number | null): void {
+  observe(
+    viewport: EngineNodeSnapshot,
+    sliver: EngineNodeSnapshot | null,
+    extent: number | null,
+  ): void {
     if (this.stopped) return;
     this.node = viewport.node;
-    const list = sliver.list!;
-    this.list = {
-      node: sliver.node,
-      generation: list.generation,
-      extent,
-      count: list.count,
-      source: !!sliver.layoutBuilder,
-    };
+    const list = sliver?.list;
+    this.list =
+      sliver && list
+        ? {
+            node: sliver.node,
+            generation: list.generation,
+            extent,
+            count: list.count,
+            source: !!sliver.layoutBuilder,
+            sequential: list.sequential ?? false,
+          }
+        : undefined;
     this.coverage = viewport.preparedCoverage ?? undefined;
-    this.applyViewportDimension(viewport.height);
+    this.applyViewportDimension(
+      this.context.axisDirection === AxisDirection.down ||
+        this.context.axisDirection === AxisDirection.up
+        ? viewport.height
+        : viewport.width,
+    );
     this.applyContentDimensions(viewport.scrollMinimum, viewport.scrollMaximum);
     if (
       !this.preserveDesired &&
@@ -408,6 +477,7 @@ class NativeContext extends ScrollContext {
   constructor(
     readonly storageContext: BuildContext,
     readonly fail: Fail,
+    readonly direction: () => AxisDirection,
   ) {
     super();
   }
@@ -415,7 +485,7 @@ class NativeContext extends ScrollContext {
     return this.storageContext;
   }
   get axisDirection(): AxisDirection {
-    return AxisDirection.down;
+    return this.direction();
   }
   get devicePixelRatio(): number {
     return this.storageContext.services.readMetrics().scale;
@@ -428,62 +498,37 @@ class NativeContext extends ScrollContext {
   setSemanticsActions(_actions: Set<SemanticsAction>): void {}
   saveOffset(_offset: number): void {}
 }
-interface Entry {
-  index: number;
-  token: bigint;
-  key: Key;
-  child: Widget;
-  render?: OriginalNativeRender;
-}
-class NativeList extends StatefulWidget {
+abstract class NativeScroll extends StatefulWidget {
   constructor(
-    readonly list: ListView,
+    readonly scroll: Pick<ScrollView, 'physics'>,
     readonly host: Host,
     readonly controller: ScrollController | null,
   ) {
     super();
   }
-  createState(): NativeListState {
-    return new NativeListState();
+  get axisDirection(): AxisDirection {
+    return AxisDirection.down;
   }
 }
-class NativeListState extends State<NativeList> {
-  private controller!: ScrollController;
-  private position!: NativePosition;
+abstract class NativeScrollState<W extends NativeScroll> extends State<W> {
+  protected controller!: ScrollController;
+  protected position!: NativePosition;
   private ownsController = false;
-  private generation = 1n;
-  private token = 0n;
-  private entries = new Map<number, Entry>();
-  private begin = 0;
-  private end = 0;
-  private count = 0;
-  private windowSize = 24;
-  private anchor: { index: number; key: bigint } | undefined;
-  private focused: number | undefined;
-  private sourceViewport: OriginalNativeRender | undefined;
-  private get sourceChildren(): boolean {
-    return this.widget.list.childPolicy !== 'legacy' || this.widget.list.extentIndex !== null;
-  }
   override initState(): void {
     this.controller = this.widget.controller ?? new ScrollController();
     this.ownsController = this.widget.controller === null;
     this.position = new NativePosition(
       this.widget.host,
-      new NativeContext(this.context, this.widget.host.fail),
+      new NativeContext(this.context, this.widget.host.fail, () => this.widget.axisDirection),
       this.controller,
-      this.widget.list.physics,
+      this.widget.scroll.physics,
     );
     this.controller.attach(this.position);
-    this.reset();
   }
-  override didUpdateWidget(old: NativeList): void {
+  override didUpdateWidget(_old: W): void {
     const requested = this.widget.controller;
     if (requested !== (this.ownsController ? null : this.controller))
       this.transferController(requested);
-    if (old.list !== this.widget.list) {
-      ++this.generation;
-      this.reset();
-    }
   }
   private transferController(requested: ScrollController | null): void {
     const previous = this.controller,
@@ -516,7 +561,121 @@ class NativeListState extends State<NativeList> {
           }
       }
       if (failures.length === 1) throw error;
-      throw new AggregateError(failures, 'Native ListView controller replacement failed');
+      throw new AggregateError(failures, 'Native scroll controller replacement failed');
+    }
+  }
+  override dispose(): void {
+    const errors: unknown[] = [];
+    for (const close of [
+      () => this.controller.detach(this.position),
+      () => this.position.dispose(),
+      () => {
+        if (this.ownsController) this.controller.dispose();
+      },
+    ])
+      try {
+        close();
+      } catch (error) {
+        errors.push(error);
+      }
+    super.dispose();
+    if (errors.length) throw new AggregateError(errors, 'Native scroll disposal failed');
+  }
+}
+interface Entry {
+  index: number;
+  token: bigint;
+  key: Key;
+  child: Widget;
+  render?: OriginalNativeRender;
+}
+type EditorBuilder = (
+  observe: (node: EngineNodeSnapshot, snapshot: EngineResponse) => void,
+  terminal: (event: EngineEvent) => void,
+) => Widget;
+class NativeEditorScroll extends NativeScroll {
+  constructor(
+    host: Host,
+    controller: ScrollController | null,
+    readonly direction: AxisDirection,
+    readonly builder: EditorBuilder,
+  ) {
+    super({ physics: null }, host, controller);
+  }
+  override get axisDirection(): AxisDirection {
+    return this.direction;
+  }
+  createState(): NativeEditorScrollState {
+    return new NativeEditorScrollState();
+  }
+}
+class NativeEditorScrollState extends NativeScrollState<NativeEditorScroll> {
+  override build(): Widget {
+    return this.widget.builder(
+      (node, snapshot) => {
+        if (
+          this.mounted &&
+          snapshot.visible &&
+          snapshot.publishedMetrics === snapshot.metrics &&
+          snapshot.publishedDevice === snapshot.device &&
+          snapshot.publishedDocument === snapshot.activeDocument
+        )
+          this.position.observe(node, null, null);
+      },
+      (event) => this.position.terminal(event),
+    );
+  }
+}
+/** The actual Source controller observes Content's editor viewport, never App text metrics. */
+export function originalEditorScrolling(
+  host: Host,
+  controller: ScrollController | null,
+  direction: AxisDirection,
+  builder: EditorBuilder,
+): Widget {
+  if (controller && controller.createScrollPosition !== sourcePositionFactory)
+    return host.fail('custom-editor-scroll-position-factory');
+  return new NativeEditorScroll(host, controller, direction, builder);
+}
+class NativeList extends NativeScroll {
+  constructor(
+    readonly list: ListView,
+    host: Host,
+    controller: ScrollController | null,
+  ) {
+    super(list, host, controller);
+  }
+  createState(): NativeListState {
+    return new NativeListState();
+  }
+}
+class NativeListState extends NativeScrollState<NativeList> {
+  private generation = 1n;
+  private token = 0n;
+  private entries = new Map<number, Entry>();
+  private begin = 0;
+  private end = 0;
+  private count = 0;
+  private windowSize = 24;
+  private anchor: { index: number; key: bigint } | undefined;
+  private focused: number | undefined;
+  private sourceViewport: OriginalNativeRender | undefined;
+  private get sourceChildren(): boolean {
+    return (
+      this.widget.list.childPolicy !== 'legacy' ||
+      this.widget.list.extentIndex !== null ||
+      this.widget.list.itemExtent === null
+    );
+  }
+  override initState(): void {
+    super.initState();
+    this.reset();
+  }
+  override didUpdateWidget(old: NativeList): void {
+    super.didUpdateWidget(old);
+    if (old.list !== this.widget.list) {
+      ++this.generation;
+      this.reset();
     }
   }
   private reset(): void {
@@ -743,26 +902,99 @@ class NativeListState extends State<NativeList> {
     if (request) this.position.seekItem(request.index, request.offset);
   };
   override dispose(): void {
-    const errors: unknown[] = [];
-    for (const close of [
-      () => this.controller.detach(this.position),
-      () => this.position.dispose(),
-      () => {
-        if (this.ownsController) this.controller.dispose();
-      },
-      () => this.entries.clear(),
-      () => {
-        this.sourceViewport = undefined;
-      },
-    ])
-      try {
-        close();
-      } catch (error) {
-        errors.push(error);
-      }
+    this.entries.clear();
+    this.sourceViewport = undefined;
     super.dispose();
-    if (errors.length) throw new AggregateError(errors, 'Native ListView disposal failed');
   }
+}
+class NativeBoxScroll extends NativeScroll {
+  constructor(
+    readonly source: CustomScrollView,
+    host: Host,
+    controller: ScrollController | null,
+  ) {
+    super(source, host, controller);
+  }
+  createState(): NativeBoxScrollState {
+    return new NativeBoxScrollState();
+  }
+}
+class NativeBoxScrollState extends NativeScrollState<NativeBoxScroll> {
+  override build(): Widget {
+    return new OriginalNativeNode(
+      'scrollViewport',
+      [
+        new OriginalNativeNode('flex', this.widget.source.slivers, {
+          sliverChildren: true,
+          layout: { direction: 'vertical', mainSize: 'min', crossAlign: 'stretch' },
+        }),
+      ],
+      {
+        pointerHitTest: 'self',
+        layout: {},
+        onLayout: (viewport, snapshot) => {
+          if (
+            this.mounted &&
+            snapshot.visible &&
+            snapshot.publishedMetrics === snapshot.metrics &&
+            snapshot.publishedDevice === snapshot.device &&
+            snapshot.publishedDocument === snapshot.activeDocument
+          )
+            this.position.observe(viewport, null, null);
+        },
+        onScrollTerminal: (event) => this.position.terminal(event),
+      },
+    );
+  }
+}
+const sourceScrollMethods = {
+  getDirection: ScrollView.prototype.getDirection,
+  buildViewport: ScrollView.prototype.buildViewport,
+};
+const sourceBoxSlivers = CustomScrollView.prototype.buildSlivers;
+const sourceBoxAdapterFactory = SliverToBoxAdapter.prototype.createRenderObject;
+const sourceBoxAdapterUpdate = SliverToBoxAdapter.prototype.updateRenderObject;
+const sourcePositionFactory = ScrollController.prototype.createScrollPosition;
+function scrollController(
+  scroll: ScrollView,
+  context: BuildContext,
+  fail: Fail,
+): { primary: boolean; controller: ScrollController | null } {
+  if (
+    scroll.scrollDirection !== Axis.vertical ||
+    scroll.reverse ||
+    scroll.shrinkWrap ||
+    scroll.center ||
+    scroll.anchor !== 0 ||
+    scroll.scrollBehavior ||
+    scroll.restorationId ||
+    scroll.keyboardDismissBehavior !== null ||
+    scroll.paintOrder.index !== 0 ||
+    scroll.hitTestBehavior.index !== 1 ||
+    scroll.dragStartBehavior !== DragStartBehavior.start ||
+    scroll.clipBehavior !== 'hardEdge' ||
+    scroll.getDirection !== sourceScrollMethods.getDirection ||
+    scroll.buildViewport !== sourceScrollMethods.buildViewport
+  )
+    return fail('list-scroll-options');
+  if (scroll.cacheExtent !== null || scroll.scrollCacheExtent !== null)
+    return fail('list-cache-extent');
+  if (
+    scroll.physics &&
+    (![ClampingScrollPhysics.prototype, AlwaysScrollableScrollPhysics.prototype].includes(
+      Object.getPrototypeOf(scroll.physics),
+    ) ||
+      scroll.physics.parent)
+  )
+    return fail('custom-scroll-physics');
+  const primary =
+      scroll.primary ??
+      (scroll.controller === null &&
+        PrimaryScrollController.shouldInherit(context, scroll.scrollDirection)),
+    controller = primary ? PrimaryScrollController.maybeOf(context) : scroll.controller;
+  if (controller && controller.createScrollPosition !== sourcePositionFactory)
+    return fail('custom-scroll-position-factory');
+  return { primary, controller };
 }
 export function installOriginalScrolling(
   owner: BuildOwner,
@@ -788,52 +1020,46 @@ export function installOriginalScrolling(
   });
   registerTickerScheduler(owner, scheduler);
   registerNativeWidgetAdapter(owner, 'scroll-view', (widget, context) => {
+    if (Object.getPrototypeOf(widget) === CustomScrollView.prototype) {
+      const source = widget as CustomScrollView;
+      if (
+        source.buildSlivers !== sourceBoxSlivers ||
+        source.semanticChildCount !== null ||
+        source.slivers.length > 64 ||
+        source.slivers.some(
+          (sliver) =>
+            Object.getPrototypeOf(sliver) !== SliverToBoxAdapter.prototype ||
+            (sliver as SliverToBoxAdapter).createRenderObject !== sourceBoxAdapterFactory ||
+            (sliver as SliverToBoxAdapter).updateRenderObject !== sourceBoxAdapterUpdate,
+        )
+      )
+        return fail('custom-scroll-slivers');
+      const { primary, controller } = scrollController(source, context, fail),
+        result = new NativeBoxScroll(source, { view, fail, error }, controller);
+      return primary && controller ? PrimaryScrollController.none({ child: result }) : result;
+    }
     if (Object.getPrototypeOf(widget) !== ListView.prototype)
       return fail('custom-or-unported-scroll-view');
     const list = widget as ListView,
       delegate = list.childrenDelegate;
     if (
       list.childPolicy !== 'legacy' &&
-      (list.childPolicy.mode !== 'bounded' || list.childPolicy.preparation !== 'disabled')
+      list.childPolicy.mode === 'bounded' &&
+      list.childPolicy.preparation !== 'disabled'
     )
       return fail('list-child-policy');
     if (
-      (!(list.itemExtent && list.itemExtent > 0) && !list.extentIndex) ||
+      (list.itemExtent !== null && !(list.itemExtent > 0)) ||
       list.itemExtentBuilder ||
       list.prototypeItem
     )
-      return fail('list-requires-fixed-or-indexed-extent');
+      return fail('list-extent-policy');
     if (list.buildChildLayout !== ListView.prototype.buildChildLayout)
       return fail('custom-list-child-layout');
-    if (
-      list.scrollDirection !== Axis.vertical ||
-      list.reverse ||
-      list.shrinkWrap ||
-      list.center ||
-      list.anchor !== 0 ||
-      list.scrollBehavior ||
-      list.restorationId ||
-      list.keyboardDismissBehavior !== null ||
-      list.paintOrder.index !== 0 ||
-      list.hitTestBehavior.index !== 1 ||
-      list.dragStartBehavior !== DragStartBehavior.start ||
-      list.clipBehavior !== 'hardEdge'
-    )
-      return fail('list-scroll-options');
-    // The native list owns its coverage window. Explicit Source cache geometry
-    // requires a separate mapping; default legacy policy is not a cache request.
-    if (list.cacheExtent !== null || list.scrollCacheExtent !== null)
-      return fail('list-cache-extent');
-    if (
-      list.physics &&
-      (![ClampingScrollPhysics.prototype, AlwaysScrollableScrollPhysics.prototype].includes(
-        Object.getPrototypeOf(list.physics),
-      ) ||
-        list.physics.parent)
-    )
-      return fail('custom-scroll-physics');
+    const { primary, controller } = scrollController(list, context, fail);
     const padding = list.padding?.resolve(context.maybeDependOn(Directionality)?.direction ?? null);
-    const sourceChildren = list.childPolicy !== 'legacy' || list.extentIndex !== null;
+    const sourceChildren =
+      list.childPolicy !== 'legacy' || list.extentIndex !== null || list.itemExtent === null;
     if (
       !sourceChildren &&
       padding &&
@@ -854,20 +1080,11 @@ export function installOriginalScrolling(
       !Number.isSafeInteger(count) ||
       count < 0 ||
       count > 1_000_000 ||
-      count * (list.itemExtent ?? list.extentIndex!.estimatedExtent) > 1e12 ||
+      (sourceChildren && list.itemExtent === null && count > p.limits.sourceListMetrics) ||
+      count * (list.itemExtent ?? list.extentIndex?.estimatedExtent ?? 0) > 1e12 ||
       (list.semanticChildCount !== null && list.semanticChildCount !== count)
     )
       return fail('list-count-or-semantics');
-    const primary =
-        list.primary ??
-        (list.controller === null &&
-          PrimaryScrollController.shouldInherit(context, list.scrollDirection)),
-      controller = primary ? PrimaryScrollController.maybeOf(context) : list.controller;
-    if (
-      controller &&
-      controller.createScrollPosition !== ScrollController.prototype.createScrollPosition
-    )
-      return fail('custom-scroll-position-factory');
     const result = new NativeList(list, { view, fail, error }, controller);
     return primary && controller ? PrimaryScrollController.none({ child: result }) : result;
   });

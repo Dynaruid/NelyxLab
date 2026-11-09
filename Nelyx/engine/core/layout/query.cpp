@@ -30,6 +30,7 @@ struct LayoutQueryWork::State {
     std::vector<QueryValue> values;
     std::vector<double> mainSizes;
     std::unique_ptr<LayoutWork> dry;
+    std::unique_ptr<LayoutEvaluation> program;
     bool crossFlex = false;
   };
   Lease lease;
@@ -74,7 +75,8 @@ struct LayoutQueryWork::State {
       complete = true;
     } else {
       auto &parent = stack.back();
-      if (parent.phase == 2)
+      if(parent.phase==21&&parent.program){parent.program->queried(value.value);parent.phase=20;}
+      else if (parent.phase == 2)
         parent.mainSizes[index] = value.value;
       else
         parent.values[index] = value;
@@ -101,6 +103,30 @@ struct LayoutQueryWork::State {
     const double padding = w ? s.left + s.right : s.top + s.bottom;
     const double oppositePadding = w ? s.top + s.bottom : s.left + s.right;
     const double extent = std::max(0.0, t.extent - oppositePadding);
+    if(n.layoutProgram&&t.mode!=wire::layoutQueries::dry){
+      if(!t.program){t.program=std::make_unique<LayoutEvaluation>(document->lease.ledger,*n.layoutProgram,t.mode,
+        std::array<double,5>{0,w?INFINITY:t.extent,0,w?t.extent:INFINITY,t.extent});t.phase=20;}
+      auto& program=*t.program;
+      if(t.phase==22){
+        if(!t.dry->step(1))return;
+        const auto& child=*t.dry->output()->boxes[children[program.demand->child].slot];
+        program.measured(child.width,child.height,child.baseline,child.ideographicBaseline,child.hasBaseline,child.hasIdeographicBaseline);t.dry.reset();t.phase=20;return;
+      }
+      if(program.complete()){const double value=bounded(program.result,w?n.horizontal:n.vertical);finish({value,w?value:0,w?0:value});return;}
+      if(!program.demand){program.advance(operations);return;}
+      const auto& demand=*program.demand;const auto& values=demand.values;
+      if(demand.kind==2){t.dry=std::make_unique<LayoutWork>(document,children[demand.child],LayoutConstraints{values[0],values[1],values[2],values[3]},scale,font);t.phase=22;return;}
+      t.phase=21;push(children[demand.child],demand.query,values[0]);return;
+    }
+    if(n.intrinsicSizing&&!t.dry){
+      require(children.size()==1,wire::statuses::invalidGraph);
+      if(t.phase==0){t.values.resize(2);t.phase=30;push(children.front(),wire::layoutQueries::maxHeight,w?INFINITY:t.extent,0);return;}
+      if(t.phase==30&&w){t.phase=31;push(children.front(),wire::layoutQueries::maxWidth,t.extent,1);return;}
+      const auto& policy=*n.intrinsicSizing;
+      const double height=std::max(policy.minimumHeight,t.values[0].value);
+      const double value=w?std::max(t.values[1].value,finiteSize(height*policy.minimumWidthPerHeight)):height;
+      finish({value,w?value:0,w?0:value});return;
+    }
     if (t.dry) {
       if (!t.dry->step(1))
         return;
@@ -141,7 +167,7 @@ struct LayoutQueryWork::State {
       if (n.kind == wire::kinds::paragraph || n.kind == wire::kinds::editable ||
           n.kind == wire::kinds::image) {
         pending = MeasurementRequest{++nextRequest, document->nodes[n.id.slot].value,
-                                     w ? 0 : extent, !w && std::isfinite(extent)&&(!n.paragraph||n.paragraph->value.wraps())};
+                                     w||!std::isfinite(extent)?0:extent, !w && std::isfinite(extent)&&(!n.paragraph||n.paragraph->value.wraps())};
         t.phase = 5;
         return;
       }

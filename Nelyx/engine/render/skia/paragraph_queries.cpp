@@ -95,6 +95,9 @@ std::optional<ParagraphQueryHit> ParagraphQuerySource::hit(uint64_t ticket,void 
   const auto self=sourceFor(ticket);if(!self)return std::nullopt;std::unique_lock access(self->impl_->mutex,std::try_to_lock);
   if(!access.owns_lock()||!self->impl_->matches(ticket,context,identity))return std::nullopt;
   if(!std::isfinite(x)||!std::isfinite(y))throw std::invalid_argument("Invalid Core paragraph hit point");
+  // Empty editors may shape a measurement-only glyph. Their authoritative
+  // document still has one insertion position and no addressable glyph range.
+  if(identity.units==0)return ParagraphQueryHit{};
   const auto position=self->impl_->paragraph->getGlyphPositionAtCoordinate(x,y);ParagraphQueryHit result;result.position=position.position;result.upstream=position.affinity==skia::textlayout::Affinity::kUpstream;
   skia::textlayout::Paragraph::GlyphInfo glyph;result.hasGlyph=self->impl_->paragraph->getClosestUTF16GlyphInfoAt(x,y,&glyph);
   if(result.hasGlyph){result.start=static_cast<uint32_t>(glyph.fGraphemeClusterTextRange.start);result.end=static_cast<uint32_t>(glyph.fGraphemeClusterTextRange.end);result.glyph={glyph.fGraphemeLayoutBounds.left(),glyph.fGraphemeLayoutBounds.top(),glyph.fGraphemeLayoutBounds.right(),glyph.fGraphemeLayoutBounds.bottom(),glyph.fDirection==skia::textlayout::TextDirection::kRtl};}

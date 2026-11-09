@@ -7,6 +7,22 @@ import type { Size, Offset } from '../../ui/geometry.ts';
 import { BoxConstraints } from './constraints.ts';
 import { RenderBox, ContainerBoxParentData } from './object.ts';
 import type { RenderObject, PipelineOwner, TextBaseline } from './object.ts';
+import { registerNativeBoxConfiguration } from './native-box.ts';
+import type { NativeLayoutProgram } from './native-layout.ts';
+type NativeSingleChildReader<T extends object> = (
+  delegate: T,
+  children: number,
+) => NativeLayoutProgram;
+const nativeSingleChildReaders = new WeakMap<object, NativeSingleChildReader<object>>();
+/** Exact delegate modules declare numeric policy; arbitrary JS callbacks remain unsupported. */
+export function registerNativeSingleChildLayout<T extends object>(
+  prototype: T,
+  reader: NativeSingleChildReader<T>,
+): void {
+  if (nativeSingleChildReaders.has(prototype))
+    throw Error('Native single-child layout is already registered');
+  nativeSingleChildReaders.set(prototype, reader as NativeSingleChildReader<object>);
+}
 export type LayoutIdentifier = object | string | number | boolean | bigint | symbol;
 /** Ordinary objects use identity; Nelyx Key values opt into explicit value equality/hash. */
 export function layoutIdKey(id: LayoutIdentifier): Key {
@@ -425,3 +441,16 @@ export class RenderCustomMultiChildLayoutBox extends RenderDelegateBox<MultiChil
     return size;
   }
 }
+registerNativeBoxConfiguration(RenderCustomSingleChildLayoutBox.prototype, (render, reject) => {
+  const delegate = render.delegate,
+    reader = nativeSingleChildReaders.get(Object.getPrototypeOf(delegate));
+  if (!reader) return reject('custom-single-child-layout-delegate');
+  if (delegate.relayout !== null) return reject('single-child-layout-relayout-listener');
+  if (
+    ['getSize', 'getConstraintsForChild', 'getPositionForChild', 'shouldRelayout'].some((name) =>
+      Object.hasOwn(delegate, name),
+    )
+  )
+    return reject('instance-layout-delegate-hook');
+  return { kind: 'box', layout: {}, layoutProgram: reader(delegate, render.children.length) };
+});

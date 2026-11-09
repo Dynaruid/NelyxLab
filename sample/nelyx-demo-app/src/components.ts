@@ -23,6 +23,10 @@ import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controlle
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
 import { TextFieldTapRegion } from '@nelyx/core/framework/widgets/tap-region';
 import { RadioGroup } from '@nelyx/core/framework/widgets/radio-group';
+import { FocusNode } from '@nelyx/core/framework/widgets/focus';
+import { Focus } from '@nelyx/core/framework/widgets/focus-scope';
+import { Semantics } from '@nelyx/core/framework/widgets/semantics';
+import { CustomSemanticsAction, OrdinalSortKey } from '@nelyx/core/framework/semantics/semantics';
 import type { NavigatorController } from '@nelyx/core/framework/widgets/navigation';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { Theme } from '@nelyx/material/theme';
@@ -40,7 +44,7 @@ import { Radio } from '@nelyx/material/radio';
 import { Switch } from '@nelyx/material/switch';
 import { Slider } from '@nelyx/material/slider';
 import { RangeSlider } from '@nelyx/material/range-slider';
-import { RangeValues } from '@nelyx/material/range-slider-values';
+import { RangeValues, RangeLabels } from '@nelyx/material/range-slider-values';
 import {
   LinearProgressIndicator,
   CircularProgressIndicator,
@@ -119,6 +123,9 @@ class ComponentsState extends State<ComponentsScreen> {
     ),
   );
   private readonly messageScroll = new ScrollController();
+  private readonly keyboardFocus = new FocusNode({ debugLabel: 'Demo keyboard' });
+  private keyboardMessage =
+    'Choose Test keyboard, then press a key. Tab moves to the next control.';
   private readonly radioToken = {};
   private filled!: TextEditingController;
   private outlined!: TextEditingController;
@@ -138,17 +145,27 @@ class ComponentsState extends State<ComponentsScreen> {
   private range = new RangeValues(20, 80);
   private progress = false;
   private messages = 9;
+  private readonly markMessagesRead = new CustomSemanticsAction({
+    label: 'Mark all messages as read',
+  });
   private destination = 'Home';
 
   override initState(): void {
     this.filled = new TextEditingController(this.widget.initialText);
     this.outlined = new TextEditingController('Material 3');
+    this.keyboardFocus.onKeyEvent = (_, event) => {
+      this.updates.change('text-fields', () => {
+        this.keyboardMessage = `${event.kind === 'up' ? 'Up' : event.repeat ? 'Repeat' : 'Down'} · ${event.key} · ${event.physicalKey.debugName}`;
+      });
+      return event.key === 'Tab' ? 'ignored' : 'handled';
+    };
   }
   override dispose(): void {
     this.updates.dispose();
     this.firstScroll.dispose();
     this.secondScroll.dispose();
     this.messageScroll.dispose();
+    this.keyboardFocus.dispose();
     this.filled.dispose();
     this.outlined.dispose();
     super.dispose();
@@ -497,27 +514,62 @@ class ComponentsState extends State<ComponentsScreen> {
           }),
         );
       }
-      case 'badges':
-        return flow(
-          Badge.count({
-            count: this.messages,
-            child: new IconButton({
-              id: 'badge-mail',
-              icon: icon(Icons.mail_outline),
-              tooltip: 'Add message',
-              onPressed: () =>
-                update(() => {
-                  this.messages++;
+      case 'badges': {
+        const markRead = () => {
+          update(() => {
+            this.messages = 0;
+          });
+          this.record('Messages marked as read');
+        };
+        return column(
+          new Semantics({
+            identifier: 'demo-inbox',
+            label: 'Inbox',
+            explicitChildNodes: true,
+            customSemanticsActions: this.messages
+              ? new Map([[this.markMessagesRead, markRead]])
+              : null,
+            child: flow(
+              new Semantics({
+                identifier: 'demo-add-message',
+                sortKey: new OrdinalSortKey(2, { name: 'inbox' }),
+                child: Badge.count({
+                  count: this.messages,
+                  child: new IconButton({
+                    id: 'badge-mail',
+                    icon: icon(Icons.mail_outline),
+                    tooltip: 'Add message',
+                    onPressed: () =>
+                      update(() => {
+                        this.messages++;
+                      }),
+                  }),
                 }),
+              }),
+              new Semantics({
+                identifier: 'demo-message-count',
+                sortKey: new OrdinalSortKey(1, { name: 'inbox' }),
+                child: new Text(this.messages + ' messages', { fontSize: 12 }),
+              }),
+              new Semantics({
+                identifier: 'demo-mark-read',
+                sortKey: new OrdinalSortKey(3, { name: 'inbox' }),
+                child: new TextButton({
+                  child: new Text('Mark all as read'),
+                  onPressed: this.messages ? markRead : null,
+                }),
+              }),
+            ),
+          }),
+          flow(
+            Badge.count({
+              count: 9999,
+              child: new SizedBox(48, 32, new Center(icon(Icons.notifications_none))),
             }),
-          }),
-          Badge.count({
-            count: 9999,
-            child: new SizedBox(48, 32, new Center(icon(Icons.notifications_none))),
-          }),
-          new Badge({ child: new SizedBox(40, 32, new Center(icon(Icons.mail_outline))) }),
-          new Text(this.messages + ' messages', { fontSize: 12 }),
+            new Badge({ child: new SizedBox(40, 32, new Center(icon(Icons.mail_outline))) }),
+          ),
         );
+      }
       case 'progress':
         return column(
           new Row(
@@ -666,6 +718,10 @@ class ComponentsState extends State<ComponentsScreen> {
           new RangeSlider({
             id: 'range-value',
             values: this.range,
+            labels: new RangeLabels(
+              String(Math.round(this.range.start)),
+              String(Math.round(this.range.end)),
+            ),
             min: 0,
             max: 100,
             divisions: 10,
@@ -693,6 +749,21 @@ class ComponentsState extends State<ComponentsScreen> {
         );
       case 'text-fields':
         return column(
+          new Focus(
+            column(
+              new TextButton({
+                id: 'demo-test-keyboard',
+                child: new Text('Test keyboard'),
+                onPressed: () => this.keyboardFocus.requestFocus(),
+              }),
+              new Semantics({
+                child: new Text(this.keyboardMessage, { fontSize: 12 }),
+                identifier: 'demo-keyboard-result',
+                liveRegion: true,
+              }),
+            ),
+            { focusNode: this.keyboardFocus },
+          ),
           new TextField({
             id: 'field-filled',
             controller: this.filled,

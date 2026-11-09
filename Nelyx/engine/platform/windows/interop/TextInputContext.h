@@ -38,7 +38,7 @@ public:
   /** Call before TranslateMessage/DispatchMessage. True means TSF actually
    * consumed this key; a test result alone never consumes an application key. */
   bool filterKeyMessage(MSG const& message){
-    ui();const bool down=message.message==WM_KEYDOWN||message.message==WM_SYSKEYDOWN,up=message.message==WM_KEYUP||message.message==WM_SYSKEYUP;if(!down&&!up)return false;
+    ui();const bool down=message.message==WM_KEYDOWN||message.message==WM_SYSKEYDOWN,up=message.message==WM_KEYUP||message.message==WM_SYSKEYUP;if(!down&&!up||message.wParam==VK_PACKET)return false;
     [[maybe_unused]] auto keep=shared_from_this();auto keys=keys_;const auto association=associations_.find(message.hwnd);if(association==associations_.end()||GetFocus()!=message.hwnd)return false;
     Document focused;checkTextInput(manager_->GetFocus(&focused),"Read TSF key focus");if(focused.Get()!=association->second.current.Get())return false;
     BOOL eaten=FALSE;const auto test=down?keys->TestKeyDown(message.wParam,message.lParam,&eaten):keys->TestKeyUp(message.wParam,message.lParam,&eaten);

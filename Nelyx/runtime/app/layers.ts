@@ -7,8 +7,6 @@ import {
 } from '@nelyx/core/framework/rendering/proxy-layer';
 import type { LayerLink, Layer } from '@nelyx/core/framework/rendering/layer';
 import type { RenderObject } from '@nelyx/core/framework/rendering/object';
-import { nativeRenderMetadata } from '@nelyx/core/framework/rendering/object';
-import { RenderStack } from '@nelyx/core/framework/rendering/boxes';
 import type { NodeHandle, EngineResponse } from '../engine-client/codec.ts';
 import type { SceneNodeOptions } from '../engine-client/scene.ts';
 import { Alignment } from '@nelyx/core/framework/painting/alignment';
@@ -41,59 +39,10 @@ export class OriginalLayers {
     private readonly fail: (reason: string) => never,
     private readonly handle: (render: RenderObject) => NodeHandle | null,
   ) {}
-  prepare(roots: readonly RenderObject[]): void {
-    const leaders = new Map<LayerLink, RenderLeaderLayer>(),
-      links = new Set<LayerLink>(),
-      bindings: Binding[] = [];
-    let count = 0;
-    const visit = (render: RenderObject, depth: number) => {
-      if (++count >= p.limits.nodes || depth >= p.limits.depth) this.fail('layer-tree-budget');
-      const prototype = Object.getPrototypeOf(render);
-      if (
-        prototype === RenderLeaderLayer.prototype ||
-        prototype === RenderFollowerLayer.prototype
-      ) {
-        const source = render as RenderLeaderLayer | RenderFollowerLayer,
-          owner = owners.get(source.link);
-        if (
-          (owner && owner !== this) ||
-          (source.link.leader?.owner && source.link.leader.owner !== this.owner)
-        )
-          this.fail('foreign-layer-link');
-        links.add(source.link);
-        bindings.push({
-          render: source,
-          link: source.link,
-          ...(source instanceof RenderFollowerLayer
-            ? {
-                configuration: Object.freeze({
-                  offset: Object.freeze({ ...source.offset }),
-                  leaderAnchor: new Alignment(source.leaderAnchor.x, source.leaderAnchor.y),
-                  followerAnchor: new Alignment(source.followerAnchor.x, source.followerAnchor.y),
-                }),
-              }
-            : {}),
-        });
-      }
-      if (prototype === RenderLeaderLayer.prototype) {
-        const source = render as RenderLeaderLayer;
-        if (leaders.has(source.link)) this.fail('duplicate-layer-leader');
-        leaders.set(source.link, source);
-      }
-      const metadata =
-        render instanceof RenderStack && Object.getPrototypeOf(render) !== RenderStack.prototype
-          ? nativeRenderMetadata(render)
-          : undefined;
-      const children =
-        metadata?.kind === 'overlay' ? render.children.slice(metadata.skipCount) : render.children;
-      for (const child of children) visit(child, depth + 1);
-    };
-    for (const root of roots) visit(root, 0);
-    this.leaders = leaders;
-    this.prepared = bindings;
+  begin(): void {
+    this.leaders.clear();
+    this.prepared = [];
     for (const render of this.mirrors) if (render.debugDisposed) this.mirrors.delete(render);
-    for (const link of links) owners.set(link, this);
-    this.links = new Set([...this.links, ...links]);
   }
   accept(epoch: bigint): void {
     if (this.closed) return;
@@ -169,19 +118,51 @@ export class OriginalLayers {
   }
   configuration(render: RenderObject): SceneNodeOptions | undefined {
     const prototype = Object.getPrototypeOf(render);
-    if (prototype === RenderLeaderLayer.prototype) return { layerLink: { kind: 'leader' } };
-    if (prototype !== RenderFollowerLayer.prototype) return;
-    const source = render as RenderFollowerLayer,
-      leader = this.leaders.get(source.link);
+    if (prototype !== RenderLeaderLayer.prototype && prototype !== RenderFollowerLayer.prototype)
+      return;
+    const source = render as RenderLeaderLayer | RenderFollowerLayer,
+      owner = owners.get(source.link);
+    if (
+      (owner && owner !== this) ||
+      (source.link.leader?.owner && source.link.leader.owner !== this.owner)
+    )
+      this.fail('foreign-layer-link');
+    // Registration follows the projected scene. Source can retain offscreen
+    // list children whose native nodes have already left this transaction.
+    this.prepared.push({
+      render: source,
+      link: source.link,
+      ...(source instanceof RenderFollowerLayer
+        ? {
+            configuration: Object.freeze({
+              offset: Object.freeze({ ...source.offset }),
+              leaderAnchor: new Alignment(source.leaderAnchor.x, source.leaderAnchor.y),
+              followerAnchor: new Alignment(source.followerAnchor.x, source.followerAnchor.y),
+            }),
+          }
+        : {}),
+    });
+    owners.set(source.link, this);
+    this.links.add(source.link);
+    if (source instanceof RenderLeaderLayer) {
+      if (this.leaders.has(source.link)) this.fail('duplicate-layer-leader');
+      this.leaders.set(source.link, source);
+      return { layerLink: { kind: 'leader' } };
+    }
     return {
-      layerLink: () => ({
-        kind: 'follower',
-        leader: leader ? (this.handle(leader) ?? this.fail('unbound-layer-leader')) : null,
-        showWhenUnlinked: source.showWhenUnlinked,
-        offset: source.offset,
-        leaderAnchor: source.leaderAnchor,
-        followerAnchor: source.followerAnchor,
-      }),
+      layerLink: () => {
+        // A retained follower can outlive a lazily removed leader. Resolve the
+        // current prepared tree even when its SceneNode options are reused.
+        const leader = this.leaders.get(source.link);
+        return {
+          kind: 'follower',
+          leader: leader ? (this.handle(leader) ?? this.fail('unbound-layer-leader')) : null,
+          showWhenUnlinked: source.showWhenUnlinked,
+          offset: source.offset,
+          leaderAnchor: source.leaderAnchor,
+          followerAnchor: source.followerAnchor,
+        };
+      },
     };
   }
   close(): void {

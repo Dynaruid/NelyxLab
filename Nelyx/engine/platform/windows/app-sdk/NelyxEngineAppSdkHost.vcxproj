@@ -49,6 +49,8 @@
   <ItemGroup>
     <ClCompile Include="$(EngineRoot)platform\windows\host.cpp" />
     <ClCompile Include="$(EngineRoot)platform\windows\rnw\ClipboardModule.cpp" />
+    <ClCompile Include="$(EngineRoot)platform\windows\rnw\KeyboardUtils.cpp" />
+    <ClCompile Include="$(EngineRoot)platform\windows\rnw\AccessibilityInfoModule.cpp" />
     <ClCompile Include="$(EngineRoot)render\skia\paragraph_queries.cpp" />
     <ClCompile Include="$(EngineRoot)render\vulkan\device.cpp" />
     <ClCompile Include="$(EngineRoot)platform\windows\font_services.cpp" />

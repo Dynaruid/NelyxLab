@@ -1,2 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
-export { default } from '../src/v2-app.ts';
+import { defineApp } from '@nelyx/sdk/app';
+import { ComponentsGallery } from '../src/gallery.ts';
+
+export default defineApp({
+  async fontCatalog(context) {
+    return {
+      fonts: await Promise.all(
+        [
+          ['NelyxSample', 'sample-font'],
+          ['MaterialIcons', 'nelyx-material-icons'],
+          ['packages/cupertino_icons/CupertinoIcons', 'nelyx-cupertino-icons'],
+        ].map(async ([family, key]) => ({ family: family!, bytes: await context.asset(key!) })),
+      ),
+    };
+  },
+  build: () => new ComponentsGallery(),
+});

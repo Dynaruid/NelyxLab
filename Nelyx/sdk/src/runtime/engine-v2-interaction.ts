@@ -16,7 +16,11 @@ import type {
   EditingSnapshot,
   NodeHandle,
   EditingUpdate,
+  SemanticCustomAction,
 } from '@nelyx/core/engine';
+import { EngineV2BrowserSemantics } from './engine-v2-semantics.js';
+import { CheckedState, Tristate, readSemanticsFlagWord } from '@nelyx/core/ui/semantics';
+import type { SemanticsFlagWord } from '@nelyx/core/ui/semantics';
 
 const owner = { session: 1, app: 1, view: 1, generation: 1 };
 const key = (n: NodeHandle) => `${n.slot}:${n.generation}`;
@@ -46,6 +50,7 @@ export class EngineV2BrowserInteraction {
     routeAnnouncements: 0,
   };
   private layer: HTMLDivElement;
+  private semantics: EngineV2BrowserSemantics;
   private routeAnnouncement: HTMLDivElement;
   private routeSequence = 0n;
   private peers = new Map<string, Peer>();
@@ -60,15 +65,31 @@ export class EngineV2BrowserInteraction {
   private active: Peer | undefined;
   private applying = false;
   private canonicalKeyboard = false;
+  private readonly editorKeys = new Set<string>();
   private focusWork = 0n;
   private readonly keyboard = (event: KeyboardEvent): void => {
+    const editorRelease = event.type === 'keyup' && this.editorKeys.delete(event.code);
     if (
       !this.canonicalKeyboard ||
       this.closed ||
-      !(event.target === this.canvas || this.ownsTarget(event.target)) ||
-      (event.target instanceof HTMLElement && isInput(event.target))
+      this.semantics.ownsAction(event.target) ||
+      !(event.target === this.canvas || this.ownsTarget(event.target))
     )
       return;
+    if (event.target instanceof HTMLElement && isInput(event.target) && !editorRelease) {
+      // Keep IME/text ingress on its DOM carrier. Deletion and Enter use Source
+      // editing policy after the selection updates already queued on this owner.
+      if (
+        event.type !== 'keydown' ||
+        event.isComposing ||
+        this.active?.composing ||
+        event.altKey ||
+        (event.key !== 'Enter' &&
+          (event.ctrlKey || event.metaKey || (event.key !== 'Backspace' && event.key !== 'Delete')))
+      )
+        return;
+      this.editorKeys.add(event.code);
+    }
     const special: Record<string, number> = {
       Backspace: 8,
       Tab: 9,
@@ -131,7 +152,7 @@ export class EngineV2BrowserInteraction {
             : /^F(?:[1-9]|1\d|2[0-4])$/.test(event.code)
               ? 111 + Number(event.code.slice(1))
               : 0);
-    if (!code) return;
+    if (!event.key || !event.code) return;
     event.preventDefault();
     event.stopPropagation();
     const down = event.type === 'keydown',
@@ -140,24 +161,43 @@ export class EngineV2BrowserInteraction {
         (Number(event.ctrlKey) << 1) |
         (Number(event.altKey) << 2) |
         (Number(event.metaKey) << 3),
-      repeat = event.repeat;
+      repeat = event.repeat,
+      identity = { key: event.key, code: event.code, location: event.location };
     void this.enqueue(async () => {
+      let observed: EngineResponse | undefined;
       for (let attempt = 0; attempt < 3; ++attempt) {
-        const state = await this.call(p.opcodes.semanticsSnapshot),
-          result = response(
-            await this.exchange(
-              packet(
-                p.opcodes.key,
-                owner,
-                keyBody(state.publication, code, down, modifiers, repeat),
-              ),
+        const state = await this.call(p.opcodes.semanticsSnapshot);
+        if (
+          !state.visible ||
+          !state.focused ||
+          !state.canonicalKeyboard ||
+          state.publishedMetrics !== state.metrics ||
+          state.publishedDevice !== state.device ||
+          (observed &&
+            (state.document !== observed.document ||
+              state.metrics !== observed.metrics ||
+              state.device !== observed.device ||
+              state.focus?.session !== observed.focus?.session))
+        ) {
+          ++this.counters.rejected;
+          return;
+        }
+        observed ??= state;
+        const result = response(
+          await this.exchange(
+            packet(
+              p.opcodes.key,
+              owner,
+              keyBody(state.publication, code, down, modifiers, repeat, 0n, identity),
             ),
-          );
+          ),
+        );
         if (result.status === p.statuses.ok) return;
         if (result.status !== p.statuses.stale)
           throw Error('Native canonical key rejected: ' + result.status);
       }
-      throw Error('Native canonical key publication changed repeatedly');
+      // Resize/publication churn is a refused observation, not an App failure.
+      ++this.counters.rejected;
     }).catch((error) => this.failed(String(error)));
   };
   private forced = new Map<
@@ -179,6 +219,12 @@ export class EngineV2BrowserInteraction {
       overflow: 'hidden',
     });
     document.body.append(this.layer);
+    this.semantics = new EngineV2BrowserSemantics(this.layer, (node, action) => {
+      void this.enqueue(() => this.customAction(node, action)).catch((error) => {
+        ++this.counters.rejected;
+        if (!this.closed) this.failed(String(error));
+      });
+    });
     this.routeAnnouncement = document.createElement('div');
     this.routeAnnouncement.dataset.nelyxRouteAnnouncement = '';
     this.routeAnnouncement.setAttribute('role', 'status');
@@ -264,7 +310,57 @@ export class EngineV2BrowserInteraction {
     }
     return null;
   }
-  /** App edit/focus commands enter the same UI queue as trusted DOM events. */
+  private async customAction(
+    before: EngineNodeSnapshot,
+    action: SemanticCustomAction,
+  ): Promise<void> {
+    const source = (node: EngineNodeSnapshot) =>
+      node.semanticTraversal?.customSources.find((entry) => entry.id === action.id)?.source;
+    const origin = source(before);
+    if (!origin) return;
+    for (let attempt = 0; attempt < 3; ++attempt) {
+      const state = await this.call(p.opcodes.semanticsSnapshot),
+        current = state.nodes.find((node) => key(node.node) === key(before.node)),
+        next = current?.semantics?.customActions?.find((value) => value.id === action.id),
+        nextOrigin = current && source(current);
+      if (
+        !current ||
+        !next?.invokable ||
+        !nextOrigin ||
+        key(origin) !== key(nextOrigin) ||
+        next.label !== action.label ||
+        (next.hint ?? '') !== (action.hint ?? '') ||
+        (next.overrideAction ?? 0) !== (action.overrideAction ?? 0) ||
+        !(current.semantics!.actions & p.semanticsActions.custom) ||
+        current.semantics!.flags & (p.semanticsFlags.hidden | p.semanticsFlags.disabled) ||
+        current.matrix.some((value, index) => value !== before.matrix[index]) ||
+        current.width !== before.width ||
+        current.height !== before.height ||
+        ['x', 'y', 'width', 'height'].some(
+          (field) => current.clip[field as 'x'] !== before.clip[field as 'x'],
+        )
+      )
+        return;
+      const result = response(
+        await this.exchange(
+          packet(
+            p.opcodes.semanticsAction,
+            owner,
+            semanticActionBody(current.node, state.publication, 'custom', 0n, action.id),
+          ),
+        ),
+      );
+      if (result.status === p.statuses.ok) {
+        ++this.counters.actions;
+        this.update();
+        return;
+      }
+      if (result.status !== p.statuses.stale && result.status !== p.statuses.capabilityMissing)
+        throw Error('Browser custom semantics action rejected: ' + result.status);
+      if (result.status === p.statuses.capabilityMissing) return;
+    }
+  }
+  /** App commands and pointer packets retain DOM focus/key collection order. */
   gateway(bytes: Uint8Array): Promise<Uint8Array> {
     const header = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength),
       b = p.headerBytes;
@@ -464,14 +560,23 @@ export class EngineV2BrowserInteraction {
   }
   private installFocus(state: EngineResponse): void {
     if (state.focusWork < this.focusWork) return;
+    const changed = state.focusWork > this.focusWork;
     this.focusWork = state.focusWork;
     const focus = state.focus;
     const focusedPeer = focus?.peer ? this.peers.get(key(focus.peer)) : undefined;
     for (const peer of this.peers.values())
       peer.session = focus && peer === focusedPeer ? focus.session : 0n;
+    // A virtual action uses the browser's accessible keyboard focus. Preserve
+    // it across identical Core focus snapshots; a new Source focus still wins.
+    if (!changed && this.semantics.ownsAction(document.activeElement)) return;
     if (focus) {
       const peer = focusedPeer;
-      if (peer && !peer.ending && document.activeElement !== peer.element) {
+      if (
+        peer &&
+        !peer.ending &&
+        document.activeElement !== peer.element &&
+        !this.semantics.ownsAction(document.activeElement, peer.node.node)
+      ) {
         this.applying = true;
         try {
           peer.element.focus({ preventScroll: true });
@@ -574,6 +679,8 @@ export class EngineV2BrowserInteraction {
       'radio',
       'radiogroup',
       'switch',
+      'progressbar',
+      'progressbar',
     ];
     for (const node of state.nodes) {
       const s = node.semantics;
@@ -607,16 +714,38 @@ export class EngineV2BrowserInteraction {
           pending: 0,
         };
         this.peers.set(id, peer);
-        this.geometry.get(id)!.append(element);
+        // The peer is the node's own surface. Descendant geometry must remain
+        // above it even when this semantic owner is created after its children.
+        this.geometry.get(id)!.prepend(element);
         this.listen(peer);
       }
       peer.node = node;
       peer.publication = state.publication;
       const element = peer.element;
       element.dataset.nelyxNode = id;
+      if (s.identifier) element.dataset.nelyxIdentifier = s.identifier;
+      else delete element.dataset.nelyxIdentifier;
       element.setAttribute('role', roles[s.role] ?? 'group');
+      if (
+        s.configuration &&
+        readSemanticsFlagWord(s.configuration.flags as SemanticsFlagWord, 'isLiveRegion')
+      )
+        element.setAttribute('aria-live', 'polite');
+      else element.removeAttribute('aria-live');
       element.setAttribute('aria-label', s.label);
-      element.setAttribute('aria-description', s.hint);
+      element.setAttribute(
+        'aria-description',
+        [
+          s.hint,
+          ...(s.customActions ?? [])
+            .filter((action) => action.hintOverride)
+            .map((action) => action.hint ?? ''),
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      );
+      if (s.role === p.semanticsRoles.loadingSpinner) element.setAttribute('aria-busy', 'true');
+      else element.removeAttribute('aria-busy');
       const disabled =
         !!(s.flags & p.semanticsFlags.disabled) ||
         !!(node.editing?.flags && node.editing.flags & p.editFlags.disabled);
@@ -629,23 +758,37 @@ export class EngineV2BrowserInteraction {
           s.actions & p.semanticsActions.focus)
           ? 0
           : -1;
+      const sourceFlags = s.configuration?.flags as SemanticsFlagWord | undefined,
+        checked =
+          sourceFlags === undefined
+            ? CheckedState.none
+            : readSemanticsFlagWord(sourceFlags, 'isChecked'),
+        selected =
+          sourceFlags === undefined
+            ? Tristate.none
+            : readSemanticsFlagWord(sourceFlags, 'isSelected');
+      if (selected !== Tristate.none)
+        element.setAttribute('aria-selected', String(selected === Tristate.isTrue));
+      else element.removeAttribute('aria-selected');
       if (
+        checked !== CheckedState.none ||
         s.role === p.semanticsRoles.checkbox ||
         s.role === p.semanticsRoles.radio ||
         s.role === p.semanticsRoles.switchControl
       )
         element.setAttribute(
           'aria-checked',
-          s.flags & p.semanticsFlags.mixed
+          checked === CheckedState.mixed || s.flags & p.semanticsFlags.mixed
             ? 'mixed'
-            : String(!!(s.flags & p.semanticsFlags.checked)),
+            : String(checked === CheckedState.isTrue || !!(s.flags & p.semanticsFlags.checked)),
         );
       else element.removeAttribute('aria-checked');
       if (s.range) {
         element.setAttribute('aria-valuemin', String(s.range.minimum));
         element.setAttribute('aria-valuemax', String(s.range.maximum));
         element.setAttribute('aria-valuenow', String(s.range.value));
-        element.setAttribute('aria-readonly', String(!!s.range.readOnly));
+        if (s.role === p.semanticsRoles.progressBar) element.removeAttribute('aria-readonly');
+        else element.setAttribute('aria-readonly', String(!!s.range.readOnly));
       } else if (
         node.control &&
         (node.control.kind === p.controlKinds.slider ||
@@ -661,21 +804,26 @@ export class EngineV2BrowserInteraction {
       }
       if (s.value !== undefined) element.setAttribute('aria-valuetext', s.value);
       else element.removeAttribute('aria-valuetext');
-      const left = Math.max(node.bounds.x, node.clip.x),
-        top = Math.max(node.bounds.y, node.clip.y),
-        right = Math.min(node.bounds.x + node.bounds.width, node.clip.x + node.clip.width),
-        bottom = Math.min(node.bounds.y + node.bounds.height, node.clip.y + node.clip.height);
+      const geometry = isInput(element) ? null : node.semanticGeometry,
+        bounds = geometry?.bounds ?? node.bounds,
+        left = Math.max(bounds.x, node.clip.x),
+        top = Math.max(bounds.y, node.clip.y),
+        right = Math.min(bounds.x + bounds.width, node.clip.x + node.clip.width),
+        bottom = Math.min(bounds.y + bounds.height, node.clip.y + node.clip.height);
       Object.assign(element.style, {
         position: 'absolute',
-        left: '0',
-        top: '0',
-        width: `${Math.max(0, node.width)}px`,
-        height: `${Math.max(0, node.height)}px`,
+        left: `${geometry?.x ?? 0}px`,
+        top: `${geometry?.y ?? 0}px`,
+        width: `${Math.max(0, geometry?.width ?? node.width)}px`,
+        height: `${Math.max(0, geometry?.height ?? node.height)}px`,
         clipPath:
           node.kind === p.kinds.path && node.graphics?.path
             ? `path(${node.graphics.fillRule === 'evenOdd' ? 'evenodd' : 'nonzero'}, "${node.graphics.path.map((segment) => ({ move: 'M', line: 'L', quad: 'Q', cubic: 'C', close: 'Z' })[segment[0]] + ' ' + segment.slice(1).join(' ')).join(' ')}")`
             : 'none',
-        pointerEvents: s.actions && !disabled && right > left && bottom > top ? 'auto' : 'none',
+        pointerEvents:
+          s.actions & ~p.semanticsActions.custom && !disabled && right > left && bottom > top
+            ? 'auto'
+            : 'none',
         userSelect: isInput(element) ? 'text' : 'none',
         touchAction: isInput(element) ? 'auto' : 'none',
         opacity: '0',
@@ -692,7 +840,7 @@ export class EngineV2BrowserInteraction {
         fontFamily: 'sans-serif',
         whiteSpace:
           node.editing?.flags && node.editing.flags & p.editFlags.multiline ? 'pre-wrap' : 'pre',
-        direction: node.textDirection ? 'rtl' : 'ltr',
+        direction: s.textDirection ?? (node.textDirection ? 'rtl' : 'ltr'),
       });
       if (isInput(element) && node.editing) {
         element.disabled = disabled;
@@ -723,6 +871,7 @@ export class EngineV2BrowserInteraction {
         this.geometry.delete(id);
       }
     this.counters.peers = this.peers.size;
+    this.semantics.update(this.peers);
     this.installFocus(state);
     const route = state.semanticRoute;
     // A resize can temporarily omit the current route publication. Only an
@@ -899,6 +1048,8 @@ export class EngineV2BrowserInteraction {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
+    this.editorKeys.clear();
+    this.semantics.close();
     window.removeEventListener('scroll', this.resize, true);
     window.removeEventListener('resize', this.resize);
     window.removeEventListener('keydown', this.keyboard, true);

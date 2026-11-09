@@ -3,11 +3,13 @@
 #include <set>
 #include <algorithm>
 #include "../interaction/editing.hpp"
+#include "../interaction/semantics_data.hpp"
 
 namespace nelyx::v2 {
 namespace {
 uint32_t childLimit(const Node& node) {
   if(node.kind==wire::kinds::paragraph&&node.paragraph&&node.paragraph->value.inlineChildren())return wire::limits::paragraphPlaceholders;
+  if(node.layoutProgram)return node.layoutProgram->children;
   switch (node.kind) {
     case wire::kinds::paragraph: case wire::kinds::image: case wire::kinds::editable: case wire::kinds::path: return 0;
     case wire::kinds::box: case wire::kinds::clip: case wire::kinds::transform:
@@ -17,10 +19,20 @@ uint32_t childLimit(const Node& node) {
 }
 void validate(Document& d) {
   for(const auto& slot:d.nodes)if(slot.value){const auto& n=*slot.value;
+    if(n.layoutProgram)require((n.kind==wire::kinds::box||n.kind==wire::kinds::stack)&&n.layout.enabled&&
+      !n.childAnchor&&!n.intrinsicSizing&&!n.layoutBuilder&&!n.snapshot&&!n.tooltipPosition&&!n.paintOwner&&
+      n.layout.constraintFlags==0&&!n.layout.left&&!n.layout.top&&!n.layout.right&&!n.layout.bottom&&
+      !n.layout.mainSize&&!n.layout.mainAlign&&!n.layout.crossAlign&&!n.properties.width&&!n.properties.height,wire::statuses::invalidGraph);
+    if(n.childAnchor||n.intrinsicSizing)require(n.kind==wire::kinds::box&&n.layout.enabled&&
+      !n.layoutBuilder&&!n.paintOwner&&!n.snapshot&&!n.tooltipPosition&&
+      n.layout.left==0&&n.layout.top==0&&n.layout.right==0&&n.layout.bottom==0,wire::statuses::invalidGraph);
+    if(n.childAnchor)require(!n.intrinsicSizing&&n.layout.constraintFlags==(wire::layoutChildConstraints::unconstrained|
+      wire::layoutConstraintFlags::alignment|wire::layoutConstraintFlags::alignmentSizing),wire::statuses::invalidGraph);
+    if(n.intrinsicSizing)require(n.layout.constraintFlags==0&&!n.properties.width&&!n.properties.height,wire::statuses::invalidGraph);
     if(n.layout.positionedFlags)require(n.parent&&n.properties.x==0&&n.properties.y==0&&
       (d.get(n.parent).layout.constraintFlags&wire::layoutConstraintFlags::canonicalStack),wire::statuses::invalidGraph);
     if(n.kind==wire::kinds::box&&(n.layout.constraintFlags&wire::layoutConstraintFlags::expandEmpty))
-      require(bool(n.layoutBuilder)||(n.policy&wire::eventPolicies::mouseRegion),wire::statuses::invalidGraph);
+      require(bool(n.layoutBuilder)||(n.policy&(wire::eventPolicies::mouseRegion|wire::eventPolicies::pointerListener)),wire::statuses::invalidGraph);
     if(n.layoutBuilder)require(n.layout.enabled&&!n.snapshot&&!n.paintOwner&&
       ((n.kind==wire::kinds::box&&n.layout.constraintFlags==(wire::layoutChildConstraints::inherit|wire::layoutConstraintFlags::expandEmpty))||
        (n.kind==wire::kinds::sliver&&n.list.generation&&n.parent&&d.get(n.parent).kind==wire::kinds::scrollViewport&&
@@ -31,6 +43,12 @@ void validate(Document& d) {
       n.properties.width==0&&n.properties.height==0&&
       n.layout.left==0&&n.layout.top==0&&n.layout.right==0&&n.layout.bottom==0,
       wire::statuses::invalidGraph);
+    if(n.list.sequential)require(n.layoutBuilder&&n.list.count<=wire::limits::sourceListMetrics,
+      wire::statuses::invalidGraph);
+    if(n.editorViewport.enabled)require(n.kind==wire::kinds::editable&&n.layout.enabled&&
+      (n.layout.constraintFlags&wire::layoutConstraintFlags::paragraphSizing)&&
+      ((n.editFlags&wire::editFlags::multiline)||(!n.editorViewport.expands&&
+        n.editorViewport.minimumLines==1&&n.editorViewport.maximumLines==1)),wire::statuses::invalidGraph);
     if(n.snapshot)require(n.kind==wire::kinds::box&&n.layout.enabled&&
       n.layout.constraintFlags==wire::layoutChildConstraints::inherit&&!n.paintOwner,wire::statuses::invalidGraph);
     const auto& tap=n.tapRegion;
@@ -66,12 +84,18 @@ void validate(Document& d) {
   std::set<std::pair<uint64_t, uint32_t>> order;
   for (const auto& slot : d.nodes) if (slot.value) {
     const Node* n = slot.value.get();
+    if(n->paragraph&&n->paragraph->value.overflowProbe){
+      require((n->kind==wire::kinds::paragraph||(n->kind==wire::kinds::editable&&n->editorViewport.enabled))&&
+        n->layout.enabled,wire::statuses::invalidValue);
+      const auto& probe=*n->paragraph->value.overflowProbe;
+      forParagraphRuns(probe.text,probe.paragraph,[](const auto&,size_t,size_t){});
+    }
     if(n->paragraph&&(!n->paragraph->value.runs.empty()||!n->paragraph->value.placeholders.empty())){
       require(n->kind==wire::kinds::paragraph&&bool(n->text),wire::statuses::invalidValue);
       forParagraphRuns(n->text->value,n->paragraph->value,[](const auto&,size_t,size_t){});
       validateParagraphPlaceholders(n->text->value,n->paragraph->value);
     }
-    d.framePaintGeometry|=(n->nativePaint&&n->nativePaint->frameDependent)||livePaintPlacement(*n);
+    d.framePaintGeometry|=(n->nativePaint&&n->nativePaint->frameDependent)||livePaintPlacement(*n)||n->tooltipPosition.has_value();
     const bool paintChild=n->layout.constraintFlags&wire::layoutConstraintFlags::paintChild;
     require(paintChild==bool(n->paintPlacement),wire::statuses::invalidValue);
     if(paintChild){
@@ -108,12 +132,24 @@ void validate(Document& d) {
       d.children[n.id.slot].size()==n.paragraph->value.placeholders.size(),wire::statuses::invalidGraph);
     for(const auto child:d.children[n.id.slot])require(!d.get(child).paintPlacement,wire::statuses::invalidGraph);
   }
+  for(const auto& slot:d.nodes)if(slot.value&&slot.value->layoutProgram){const auto& n=*slot.value;
+    require(d.children[n.id.slot].size()==n.layoutProgram->children,wire::statuses::invalidGraph);
+    for(const auto child:d.children[n.id.slot])require(!d.get(child).paintPlacement&&!d.get(child).layout.positionedFlags,wire::statuses::invalidGraph);
+  }
   std::array<bool,wire::limits::nodes+1> leaders{};
+  std::array<bool,wire::limits::nodes+1> visited{};
   std::function<void(Handle)> visit=[&](Handle id){const auto& n=d.get(id);const auto& link=n.layerLink;
+    if(n.childAnchor||n.intrinsicSizing)require(d.children[id.slot].size()==1&&!d.get(d.children[id.slot].front()).paintPlacement,wire::statuses::invalidGraph);
+    if(n.tooltipPosition){const auto target=n.tooltipPosition->target;
+      require(n.kind==wire::kinds::box&&n.layout.enabled&&d.children[id.slot].size()==1&&
+        (n.layout.constraintFlags&wire::layoutConstraintFlags::alignmentSizing),wire::statuses::invalidGraph);
+      require(!target||(d.contains(target)&&visited[target.slot]&&!d.descends(id,target)),wire::statuses::invalidGraph);
+    }
     if(link.role==1)leaders[id.slot]=true;
     if(link.role==2&&link.leader){const auto& leader=d.get(link.leader);
       require(leader.layerLink.role==1&&leaders[link.leader.slot],wire::statuses::invalidGraph);}
     for(const auto child:d.children[id.slot])visit(child);
+    visited[id.slot]=true;
   };
   for(const auto root:d.children[0])visit(root);
 }
@@ -141,6 +177,18 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
     if (parent) for (auto& slot : d->nodes) if (slot.value && slot.value->parent == parent &&
         slot.value->order > old) --edit(slot.value->id)->order;
   };
+  const auto attach = [&](Handle h, Handle parent, uint32_t index, bool moving) {
+    d->get(parent);
+    require(parent != h, wire::statuses::invalidGraph);
+    if (moving) detach(h);
+    else require(!d->get(h).parent, wire::statuses::invalidGraph);
+    uint32_t children = 0;
+    for (const auto& slot : d->nodes) if (slot.value && slot.value->parent == parent) ++children;
+    require(index <= children, wire::statuses::invalidGraph);
+    for (auto& slot : d->nodes) if (slot.value && slot.value->parent == parent &&
+        slot.value->order >= index) ++edit(slot.value->id)->order;
+    auto node = edit(h); node->parent = parent; node->order = index;
+  };
   size_t position = 0;
   for (uint32_t i = 0; i < count; ++i) {
     body.range(position, 16);
@@ -151,18 +199,29 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
     const auto data = body.slice(position + 16, length - 16);
     position += length;
     if (op == wire::commands::create) {
-      require(data.length == 8 && data.u32(4) == 0);
-      const auto kind = data.u32(0);
+      require(data.length == wire::nodeCreationBytes ||
+        (data.length == wire::nodeAttachedCreationBytes && data.u32(wire::nodeCreationFields::reserved) == 0));
+      const auto kind = data.u32(0), initial = data.u32(4);
+      require((initial & ~7u) == 0 &&
+        (!(initial & wire::nodeCreationFlags::inheritChildConstraints) ||
+          (initial & wire::nodeCreationFlags::layoutEnabled)), wire::statuses::invalidValue);
       require(h.slot > 0 && h.slot < d->nodes.size() && h.generation > 0 &&
         !d->nodes[h.slot].value && h.generation >= d->nodes[h.slot].generation,
         wire::statuses::invalidHandle);
       require(kind >= wire::kinds::box && kind <= wire::kinds::path, wire::statuses::invalidValue);
       auto n = std::make_shared<Node>(current->lease.ledger);
       n->id = h; n->kind = kind;
+      n->layout.enabled = (initial & wire::nodeCreationFlags::layoutEnabled) ? 1u : 0u;
+      n->layout.constraintFlags = (initial & wire::nodeCreationFlags::inheritChildConstraints)
+        ? wire::layoutChildConstraints::inherit : wire::layoutChildConstraints::loose;
+      n->policy = (initial & wire::nodeCreationFlags::canonicalHitTest)
+        ? wire::eventPolicies::canonicalHitTest : 0u;
       d->nodes[h.slot] = {h.generation, std::move(n)};
       dirty.insert(h.slot);
       ++d->count;
       d->highWater = std::max(d->highWater, h.slot);
+      if (data.length == wire::nodeAttachedCreationBytes)
+        attach(h, handle(data, wire::nodeCreationFields::parent), data.u32(wire::nodeCreationFields::index), false);
     } else if (op == wire::commands::properties) {
       require(data.length == 64);
       Properties p{data.f64(0), data.f64(8), data.f64(16), data.f64(24), data.f64(32),
@@ -181,22 +240,13 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       node->contentWidth = p.width; node->contentHeight = p.height;
     } else if (op == wire::commands::attach || op == wire::commands::move) {
       require(data.length == 16 && data.u32(12) == 0);
-      const auto parent = handle(data, 0);
-      d->get(parent);
-      require(parent != h, wire::statuses::invalidGraph);
-      if (op == wire::commands::move) detach(h);
-      else require(!d->get(h).parent, wire::statuses::invalidGraph);
-      const auto index = data.u32(8);
-      uint32_t children = 0;
-      for (const auto& slot : d->nodes) if (slot.value && slot.value->parent == parent) ++children;
-      require(index <= children, wire::statuses::invalidGraph);
-      for (auto& slot : d->nodes) if (slot.value && slot.value->parent == parent &&
-          slot.value->order >= index) ++edit(slot.value->id)->order;
-      auto node = edit(h); node->parent = parent; node->order = index;
+      attach(h, handle(data, 0), data.u32(8), op == wire::commands::move);
     } else if (op == wire::commands::detach) {
       require(data.length == 0); detach(h);
     } else if (op == wire::commands::destroy) {
-      require(data.length == 0);
+      require(data.length == 0 ||
+        (data.length == 8 && data.u32(0) == wire::nodeDestroyFlags::detach && data.u32(4) == 0));
+      if (data.length) detach(h);
       const auto& node = d->get(h);
       require(!node.parent, wire::statuses::invalidGraph);
       require(h.generation != UINT32_MAX, wire::statuses::exhausted);
@@ -239,8 +289,12 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
         node->fontPinned=true;node->fontRevision=data.u64(8);
       }
     } else if (op == wire::commands::eventPolicy) {
-      require(data.length == 8 && data.u32(4) == 0 && (data.u32(0) & ~16777215u) == 0);
+      require(data.length == 8 && data.u32(4) == 0 && (data.u32(0) & ~1073741823u) == 0);
       const auto policy=data.u32(0),hit=policy&112u;
+      require(!(policy&wire::eventPolicies::forceMergeSemantics)||(policy&wire::eventPolicies::semanticsBoundary),wire::statuses::invalidValue);
+      require(!(policy&wire::eventPolicies::pointerListener)||(policy&wire::eventPolicies::canonicalHitTest),wire::statuses::invalidValue);
+      const auto blocking=policy&(wire::eventPolicies::ignorePointer|wire::eventPolicies::absorbPointer);
+      require(!blocking||((policy&wire::eventPolicies::canonicalHitTest)&&(blocking&(blocking-1))==0),wire::statuses::invalidValue);
       require((!hit||(policy&wire::eventPolicies::canonicalHitTest))&&(!hit||(hit&(hit-1))==0),wire::statuses::invalidValue);
       require(!(policy&(wire::eventPolicies::focusEnabled|wire::eventPolicies::skipTraversal))||(policy&wire::eventPolicies::focusOwner),wire::statuses::invalidValue);
       require(!(policy&(wire::eventPolicies::mouseRegion|wire::eventPolicies::mouseOpaque))||
@@ -330,6 +384,26 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       n->textDirection = data.u32(4);
       require(n->fontSize > 0 && n->fontSize <= 512, wire::statuses::invalidValue);
       if (!styleOnly&&(!n->text || n->text->value != text)) n->text = std::make_shared<TextData>(current->lease.ledger, value);
+    } else if(op==wire::commands::childAnchor){
+      if(!data.length){edit(h)->childAnchor.reset();continue;}
+      require(data.length==48,wire::statuses::invalidValue);std::array<double,6> anchor{};
+      for(size_t anchorIndex=0;anchorIndex<anchor.size();++anchorIndex){anchor[anchorIndex]=data.f64(anchorIndex*8);require(std::abs(anchor[anchorIndex])<=(anchorIndex%3==2?1e12:1e6),wire::statuses::invalidValue);}
+      edit(h)->childAnchor=anchor;
+    } else if(op==wire::commands::layoutProgram){
+      edit(h)->layoutProgram=data.length?readLayoutProgram(d->lease.ledger,data):nullptr;
+    } else if(op==wire::commands::intrinsicSizing){
+      if(!data.length){edit(h)->intrinsicSizing.reset();continue;}
+      require(data.length==24&&data.u32(16)<=1&&!data.u32(20),wire::statuses::invalidValue);
+      IntrinsicSizingStyle style{data.f64(0),data.f64(8),bool(data.u32(16))};
+      require(style.minimumHeight>=0&&style.minimumHeight<=1e12&&style.minimumWidthPerHeight>=0&&style.minimumWidthPerHeight<=1e6,wire::statuses::invalidValue);
+      edit(h)->intrinsicSizing=style;
+    } else if(op==wire::commands::tooltipPosition){
+      if(!data.length){edit(h,false)->tooltipPosition.reset();continue;}
+      require(data.length==32&&data.u32(24)<=1&&data.u32(28)==0,wire::statuses::invalidValue);
+      TooltipPositionStyle style{handle(data,0),data.f64(8),data.f64(16),bool(data.u32(24))};
+      require(bool(style.target.slot)==bool(style.target.generation),wire::statuses::invalidHandle);
+      require(std::abs(style.verticalOffset)<=1e12&&style.margin>=0&&style.margin<=1e12,wire::statuses::invalidValue);
+      edit(h,false)->tooltipPosition=style;
     } else if(op==wire::commands::layerLink){
       const auto& previous=d->get(h);
       if(!data.length){edit(h,false)->layerLink={};continue;}
@@ -368,8 +442,8 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       require(d->get(h).kind==wire::kinds::clip,wire::statuses::invalidValue);
       if(!data.length){edit(h,false)->clipStyle.reset();continue;}
       require(data.length==wire::clipStyleBytes&&data.u32(0)<=wire::clipBehaviors::antiAliasWithSaveLayer&&
-        data.u32(4)<=wire::clipShapes::oval&&data.u64(8)==0,wire::statuses::invalidValue);
-      ClipStyle style;style.behavior=data.u32(0);style.shape=data.u32(4);
+        data.u32(4)<=wire::clipShapes::circle&&data.u32(8)<=wire::clipStyleFlags::hitTestShape&&!data.u32(12),wire::statuses::invalidValue);
+      ClipStyle style;style.behavior=data.u32(0);style.shape=data.u32(4);style.hitTestShape=data.u32(8)!=0;
       for(size_t radiusIndex=0;radiusIndex<style.radii.size();++radiusIndex){style.radii[radiusIndex]=data.f64(16+radiusIndex*8);
         require(style.radii[radiusIndex]>=0&&(style.shape==wire::clipShapes::rrect||style.radii[radiusIndex]==0),wire::statuses::invalidValue);}
       edit(h,false)->clipStyle=std::move(style);
@@ -380,31 +454,21 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       else{auto value=readParagraph(data);const bool changed=!previous.paragraph||previous.paragraph->value!=value;
         auto node=edit(h,changed);if(changed)node->paragraph=std::make_shared<ParagraphData>(current->lease.ledger,std::move(value));}
     } else if(op==wire::commands::editor){
-      require(data.length==8&&(data.u32(0)&~15u)==0&&data.u32(4)>0&&data.u32(4)<=wire::limits::textBytes,wire::statuses::invalidValue);
-      auto node=edit(h,false);require(node->kind==wire::kinds::editable,wire::statuses::invalidValue);
+      require((data.length==8||data.length==wire::editorViewportBytes)&&(data.u32(0)&~15u)==0&&
+        data.u32(4)>0&&data.u32(4)<=wire::limits::textBytes,wire::statuses::invalidValue);
+      auto node=edit(h);require(node->kind==wire::kinds::editable,wire::statuses::invalidValue);
       node->editFlags=data.u32(0);node->maximumLength=data.u32(4);
+      node->editorViewport={};
+      if(data.length==wire::editorViewportBytes){
+        const auto min=data.u32(8),max=data.u32(12),viewportFlags=data.u32(16);
+        require(!(viewportFlags&~wire::editorViewportFlags::expands)&&data.u32(20)==0&&
+          min<=wire::limits::textBytes&&max<=wire::limits::textBytes&&
+          (viewportFlags?(min==0&&max==0):(min>0&&(!max||max>=min))),wire::statuses::invalidValue);
+        node->editorViewport={true,bool(viewportFlags),min,max};
+      }
     } else if(op==wire::commands::semantics){
-      require(data.length>=wire::semanticsBytes&&data.u32(28)==0);
-      const auto role=data.u32(0),semanticFlags=data.u32(4),actions=data.u32(8),rangeFlags=data.u32(24);
-      const std::array<uint32_t,5> lengths{data.u32(12),data.u32(16),data.u32(20),data.u32(72),data.u32(76)};
-      size_t total=0;for(const auto textLength:lengths){require(textLength<=wire::limits::semanticsTextBytes,wire::statuses::invalidValue);total+=textLength;}
-      require(role<=wire::semanticsRoles::switchControl&&(semanticFlags&~895u)==0&&(actions&~255u)==0&&
-        rangeFlags<=3&&rangeFlags!=2&&wire::semanticsBytes+(total+7)/8*8==data.length,wire::statuses::invalidValue);
-      require(!(semanticFlags&wire::semanticsFlags::mixed)||(role==wire::semanticsRoles::checkbox&&!(semanticFlags&wire::semanticsFlags::checked)),wire::statuses::invalidValue);
-      require(!(actions&wire::semanticsActions::deselect)||(role==wire::semanticsRoles::radio&&
-        (semanticFlags&wire::semanticsFlags::checked)&&(actions&wire::semanticsActions::activate)),wire::statuses::invalidValue);
-      std::array<std::string,5> text;size_t cursor=wire::semanticsBytes;
-      for(size_t textIndex=0;textIndex<text.size();++textIndex){const auto part=data.slice(cursor,lengths[textIndex]);require(validUtf8(part),wire::statuses::invalidValue);
-        text[textIndex]=std::string(reinterpret_cast<const char*>(part.data),part.length);cursor+=part.length;}
-      for(size_t j=cursor;j<data.length;++j)require(data.data[j]==0);
-      SemanticRangeData range{bool(rangeFlags&1u),bool(rangeFlags&2u),data.f64(32),data.f64(40),data.f64(48),data.f64(56),data.f64(64)};
-      if(range.enabled)require(range.minimum<=range.maximum&&range.value>=range.minimum&&range.value<=range.maximum&&range.smallChange>=0&&range.largeChange>=0,wire::statuses::invalidValue);
-      else require(range.minimum==0&&range.maximum==0&&range.value==0&&range.smallChange==0&&range.largeChange==0,wire::statuses::invalidValue);
-      require(!range.enabled||!(actions&wire::semanticsActions::setValue)||!range.readOnly,wire::statuses::invalidValue);
-      auto node=edit(h,false);
-      if(role==0){require(semanticFlags==0&&actions==0&&total==0&&!range.enabled);node->semantics.reset();}
-      else node->semantics=std::make_shared<SemanticData>(current->lease.ledger,role,semanticFlags,actions,
-        std::move(text[0]),std::move(text[1]),std::move(text[2]),std::move(text[3]),std::move(text[4]),range);
+      auto value=readSemanticData(current->lease.ledger,data);
+      edit(h,false)->semantics=std::move(value);
     } else if (op == wire::commands::layout) {
       require(data.length == wire::layoutBytes);
       LayoutStyle s{data.u32(0), data.u32(4), data.u32(8), data.u32(12), data.u32(16),
@@ -418,7 +482,7 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       const auto kind=d->get(h).kind;
       require(s.enabled <= 1 && s.direction <= 1 && s.mainSize <= 1 && s.mainAlign <= 5 &&
         s.crossAlign <= 4 && s.fit <= 1 && s.columns > 0 && s.columns <= 256 && s.constraintFlags <= 262143 &&
-        (s.constraintFlags & wire::layoutConstraintFlags::childMask) <= 2 &&
+        (s.constraintFlags & wire::layoutConstraintFlags::childMask) <= 3 &&
         s.flex >= 0 && s.flex <= 1e6 && ((s.gap >= 0 && s.runGap >= 0)||kind==wire::kinds::wrap) &&
         s.left >= 0 && s.top >= 0 && s.right >= 0 && s.bottom >= 0 &&
         (s.widthFactor == -1 || s.widthFactor >= 0) && (s.heightFactor == -1 || s.heightFactor >= 0)&&
@@ -443,7 +507,8 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       require(!(layoutFlags&wire::layoutConstraintFlags::shrinkUnboundedMain)||kind==wire::kinds::flex,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::alignment)||proxy,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::alignmentSizing)||
-        (kind==wire::kinds::box&&(layoutFlags&wire::layoutConstraintFlags::alignment)&&!(layoutFlags&7u)&&
+        (kind==wire::kinds::box&&(layoutFlags&wire::layoutConstraintFlags::alignment)&&
+          ((layoutFlags&wire::layoutConstraintFlags::childMask)==0||(layoutFlags&wire::layoutConstraintFlags::childMask)==wire::layoutChildConstraints::unconstrained)&&
           s.left==0&&s.top==0&&s.right==0&&s.bottom==0),wire::statuses::capabilityMissing);
       require((layoutFlags&wire::layoutConstraintFlags::alignment)||(s.alignmentX==0&&s.alignmentY==0),wire::statuses::invalidValue);
       require((layoutFlags&wire::layoutConstraintFlags::alignmentSizing)||(s.widthFactor==-1&&s.heightFactor==-1),wire::statuses::invalidValue);
@@ -490,24 +555,26 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
           coverage.maximum == previous.coverage.maximum && coverage.enabled == previous.coverage.enabled), wire::statuses::stale);
       edit(h,false)->coverage = coverage;
     } else if (op == wire::commands::list) {
-      require(data.length==32&&data.u32(20)<=1);
-      ListStyle value{data.u64(0),data.u32(8),data.u32(12),data.u32(16),data.f64(24),data.u32(20)!=0};
+      require(data.length==32&&(data.u32(20)==0||data.u32(20)==wire::listFlags::fixedExtent||data.u32(20)==wire::listFlags::sequential));
+      ListStyle value{data.u64(0),data.u32(8),data.u32(12),data.u32(16),data.f64(24),
+        data.u32(20)==wire::listFlags::fixedExtent,data.u32(20)==wire::listFlags::sequential};
       const auto& prior=d->get(h);
-      if(!value.generation){require(!value.count&&!value.begin&&!value.end&&value.estimate==0&&!value.fixed);edit(h)->list={};continue;}
+      if(!value.generation){require(!value.count&&!value.begin&&!value.end&&value.estimate==0&&!value.fixed&&!value.sequential);edit(h)->list={};continue;}
       require(prior.kind==wire::kinds::sliver&&value.generation>0&&
         value.generation>=prior.list.generation&&value.count<=1000000&&
         value.begin<=value.end&&value.end<=value.count&&
-        value.end-value.begin<=wire::limits::listChildren&&value.estimate>0&&
+        value.end-value.begin<=wire::limits::listChildren&&(value.sequential?value.estimate==0:value.estimate>0)&&
         value.estimate*value.count<=1e12,wire::statuses::invalidValue);
       if(prior.list.generation==value.generation&&prior.list.generation)
-        require(prior.list.count==value.count&&prior.list.estimate==value.estimate&&prior.list.fixed==value.fixed,wire::statuses::stale);
+        require(prior.list.count==value.count&&prior.list.estimate==value.estimate&&prior.list.fixed==value.fixed&&
+          prior.list.sequential==value.sequential,wire::statuses::stale);
       edit(h)->list=value;
     } else if (op == wire::commands::listItem) {
       require(data.length==16&&data.u32(4)==0&&(data.u64(8)>0||data.u32(0)==0));
       edit(h)->item={data.u32(0),data.u64(8)};
     } else if (op == wire::commands::gesture) {
-      require(data.length==8&&data.u32(4)==0&&(data.u32(0)&~255u)==0);
-      edit(h,false)->gestures=data.u32(0);
+      require(data.length==8&&(data.u32(4)&~63u)==0&&(data.u32(0)&~255u)==0);
+      auto node=edit(h,false);node->gestures=data.u32(0);node->gestureDevices=data.u32(4);
     } else if (op == wire::commands::control) {
       require(data.length==64);
       ControlStyle value{data.u32(0),data.u32(4)&1u,data.u32(8),data.u32(12),data.u64(16),

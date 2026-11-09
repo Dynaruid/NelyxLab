@@ -74,6 +74,46 @@ type Native = NativeAppTextService & {
   clock?(): number;
   readonly clockDomain?: 'qpc-milliseconds' | 'monotonic-milliseconds';
 };
+function appFailure(error: unknown): Record<string, unknown> {
+  let remaining = 8192;
+  const seen = new Set<unknown>();
+  const describe = (cause: unknown, stackLimit: number): Record<string, unknown> => {
+    const message = String(cause).slice(0, Math.min(2048, remaining));
+    remaining -= message.length;
+    const result: Record<string, unknown> = { message };
+    if (cause instanceof Error && remaining > 0 && cause.stack) {
+      result.stack = cause.stack.slice(0, Math.min(stackLimit, remaining));
+      remaining -= (result.stack as string).length;
+    }
+    return result;
+  };
+  const description = describe(error, 2048);
+  const pending = [error],
+    causes: Record<string, unknown>[] = [];
+  for (let work = 0; work < 128 && pending.length && causes.length < 8 && remaining > 0; ++work) {
+    const cause = pending.pop();
+    if (seen.has(cause)) continue;
+    seen.add(cause);
+    if (cause instanceof AggregateError) pending.push(...cause.errors.slice(0, 4).reverse());
+    else if (cause instanceof Error && cause.cause !== undefined) pending.push(cause.cause);
+    else if (cause !== error) causes.push(describe(cause, 1024));
+  }
+  return {
+    kind: 'app-error',
+    ...description,
+    ...(causes.length ? { causes } : {}),
+    ...(error instanceof EngineError && error.result
+      ? {
+          engine: {
+            opcode: error.result.opcode,
+            status: error.status,
+            document: String(error.result.document),
+            activeDocument: String(error.result.activeDocument),
+          },
+        }
+      : {}),
+  };
+}
 /** Shared App-worker/Hermes bootstrap; all framework work enters the same C++ packet port. */
 export function launchAppSession<T>(
   definition: AppSessionDefinition<T>,
@@ -140,7 +180,7 @@ export function launchAppSession<T>(
     let assetBinding: ReturnType<typeof bindAssetLoader> | undefined;
     let bufferBinding: ReturnType<typeof bindImmutableBufferLoader> | undefined;
     let imageBinding: ReturnType<typeof bindImageDescriptorLoader> | undefined;
-    const onError = (error: unknown) => notify({ kind: 'app-error', message: String(error) });
+    const onError = (error: unknown) => notify(appFailure(error));
     const onExecution = (execution: EngineExecutionSnapshot) =>
       notify({
         kind: 'app-execution',
@@ -212,7 +252,7 @@ export function launchAppSession<T>(
       if (!reportedDisposal) {
         reportedDisposal = true;
         // Native callers pump microtasks without awaiting JS Promises.
-        void disposal.catch((error) => notify({ kind: 'app-error', message: String(error) }));
+        void disposal.catch(onError);
       }
       return disposal;
     };
@@ -382,7 +422,7 @@ export function launchAppSession<T>(
       notify,
       native.identity,
       async () => nativeAppTextBackend(native),
-    ).catch((error) => notify({ kind: 'app-error', message: String(error) }));
+    ).catch((error) => notify(appFailure(error)));
   } else {
     const scope = globalThis as unknown as {
         postMessage(value: unknown): void;
@@ -416,7 +456,7 @@ export function launchAppSession<T>(
         notify,
         message.identity!,
         (signal) => loadWebAppText(message.root!, port, signal!),
-      ).catch((error) => notify({ kind: 'app-error', message: String(error) }));
+      ).catch((error) => notify(appFailure(error)));
     });
   }
 }

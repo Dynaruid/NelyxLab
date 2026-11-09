@@ -4,6 +4,7 @@
 import {
   StatefulWidget,
   LeafRenderObjectWidget,
+  MultiChildRenderObjectWidget,
   Element,
 } from '@nelyx/core/framework/widgets/framework';
 import type {
@@ -41,7 +42,7 @@ import type { KeyEvent } from '@nelyx/core/services/hardware-keyboard';
 import { LogicalKeyboardKey } from '@nelyx/core/services/keyboard-key';
 import { SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
 import type { MouseCursor } from '@nelyx/core/services/mouse-cursor';
-import { WidgetState, WidgetStatePropertyAll } from '@nelyx/core/framework/widgets/widget-state';
+import { WidgetState } from '@nelyx/core/framework/widgets/widget-state';
 import type { WidgetStateProperty } from '@nelyx/core/framework/widgets/widget-state';
 import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import { Overlay, OverlayEntry } from '@nelyx/core/framework/widgets/overlay';
@@ -51,7 +52,8 @@ import {
 } from '@nelyx/core/framework/widgets/composited-transform';
 import { LayerLink } from '@nelyx/core/framework/rendering/layer';
 import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
-import { Padding, SizedBox, Stack, Row } from '@nelyx/core/framework/widgets/basic';
+import { Padding, SizedBox, Stack } from '@nelyx/core/framework/widgets/basic';
+import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { tickerScheduler } from '@nelyx/core/internal/framework/widgets/ticker-scheduler';
 import { scrollChromeTimer } from '@nelyx/core/internal/framework/widgets/scroll-chrome-timers';
@@ -59,12 +61,14 @@ import type { Disposable } from '@nelyx/core/foundation/disposable';
 import {
   RenderBox,
   RelayoutWhenSystemFontsChangeMixin,
+  registerNativeBoxConfiguration,
+  registerNativeRenderMetadata,
+  isNativeRenderObject,
 } from '@nelyx/core/framework/rendering/object';
 import type { RenderObject } from '@nelyx/core/framework/rendering/object';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import type { PaintingContext } from '@nelyx/core/framework/painting/context';
-import { SemanticsNode, SemanticsConfiguration } from '@nelyx/core/framework/semantics/semantics';
-import { setSemanticsTransportProperties } from '@nelyx/core/internal/framework/rendering/semantics-transport';
+import { SemanticsConfiguration } from '@nelyx/core/framework/semantics/semantics';
 import type { SemanticsTransportProperties } from '@nelyx/core/internal/framework/rendering/semantics-transport';
 import { TextPainter } from '@nelyx/core/framework/painting/text-painter';
 import { TextSpan } from '@nelyx/core/framework/painting/text-span';
@@ -76,8 +80,7 @@ import { Size } from '@nelyx/core/ui/size';
 import { Rect } from '@nelyx/core/ui/rect';
 import { Color } from '@nelyx/core/ui/color';
 import { clampDouble } from '@nelyx/core/ui/math';
-import { nullableDartType } from '@nelyx/core/foundation/dart-type-witness';
-import { sourceSizeType, captureSourceSize } from '@nelyx/core/ui/size-source';
+import { captureSourceSize } from '@nelyx/core/ui/size-source';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { Theme } from './theme.ts';
 import { SliderTheme, SliderThemeData, ShowValueIndicator, Thumb } from './slider-theme.ts';
@@ -86,6 +89,10 @@ import { RangeValues, RangeLabels } from './range-slider-values.ts';
 import type { RangeThumbSelector } from './range-slider-values.ts';
 import { RectangularRangeSliderValueIndicatorShape } from './slider-shapes.ts';
 import { materialRangeSliderDefaults } from './internal/slider/range-slider-defaults.ts';
+import { nativeRangeSliderConfiguration } from './internal/slider/range-native-paint.ts';
+import { nativeRangeSliderIndicators } from './internal/slider/range-native-indicator.ts';
+import type { NativeRangeSource } from './internal/slider/range-native-paint.ts';
+import { materialRangeSliderPaintThemes } from './internal/slider/range-paint-policy.ts';
 export interface RangeSliderOptions extends WidgetOptions {
   readonly values: RangeValues;
   readonly onChanged: ((values: RangeValues) => void) | null;
@@ -243,8 +250,7 @@ function shouldShowOnDrag(theme: SliderThemeData, discrete: boolean): boolean {
       ? !discrete
       : mode !== ShowValueIndicator.never;
 }
-const one = new AlwaysStoppedAnimation(1),
-  sizeType = nullableDartType(sourceSizeType);
+const one = new AlwaysStoppedAnimation(1);
 interface RangePaintModel {
   readonly owner: MaterialRangeSliderState;
   readonly theme: SliderThemeData;
@@ -325,12 +331,14 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
   private readonly animationChanged = () => {
     if (!this.live) return;
     const render = this.renderer();
+    render?.markNeedsLayout();
     render?.markNeedsPaint();
     render?.markNeedsSemanticsUpdate();
     this.entry?.markNeedsBuild();
   };
   private readonly focusChanged = () => {
     if (this.live) {
+      this.setState(() => {});
       this.animationChanged();
     }
   };
@@ -421,12 +429,14 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     }
     if (!this.enabled) this.cancel();
   }
-  renderer(): MaterialRangeSliderRender | null {
+  renderer(requireSize = true): MaterialRangeSliderRender | null {
     if (!this.live) return null;
     const context = this.surfaceKey.currentContext;
     if (!(context instanceof Element) || !context.active) return null;
     const render = context.findRenderObject();
-    return render instanceof MaterialRangeSliderRender && render.hasSize ? render : null;
+    return render instanceof MaterialRangeSliderRender && (!requireSize || render.hasSize)
+      ? render
+      : null;
   }
   private fraction(global: Point): number {
     const render = this.renderer();
@@ -566,6 +576,51 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     return (
       this.widget.semanticFormatterCallback?.(this.lerp(value)) ??
       String(Math.floor(value * 100 + 0.5)) + '%'
+    );
+  }
+  semanticChild(thumb: Thumb): Widget {
+    const start = thumb === Thumb.start,
+      values = this.semanticValues,
+      value = start ? this.values.start : this.values.end,
+      increased = start ? values.increasedStart : values.increasedEnd,
+      decreased = start ? values.decreasedStart : values.decreasedEnd,
+      focus = start ? this.startFocusNode : this.endFocusNode,
+      id = this.widget.options.id,
+      suffix = start ? 'start' : 'end';
+    return new Focus(
+      new Semantics({
+        container: true,
+        slider: true,
+        enabled: this.enabled,
+        focusable: true,
+        focused: focus.hasFocus,
+        textDirection: this.direction,
+        value: this.format(value),
+        increasedValue: this.format(increased),
+        decreasedValue: this.format(decreased),
+        ...(id === undefined
+          ? {}
+          : { identifier: id + '-' + suffix, transportId: id + '-' + suffix }),
+        transportRange: { min: this.widget.min, max: this.widget.max, value: this.lerp(value) },
+        ...(this.enabled
+          ? {
+              onIncrease: () => this.adjust(thumb, true),
+              onDecrease: () => this.adjust(thumb, false),
+              onFocus: () => {
+                if (this.live && this.enabled) focus.requestFocus();
+              },
+              transportRangeActions: {
+                setValue: (value: number) => this.setSemanticValue(thumb, value),
+              },
+            }
+          : {}),
+        child: SizedBox.shrink(),
+      }),
+      {
+        focusNode: focus,
+        includeSemantics: false,
+        onKeyEvent: (_node, event) => this.key(thumb, event),
+      },
     );
   }
   adjust(thumb: Thumb, increase: boolean): void {
@@ -760,6 +815,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     if (errors.length) throw new AggregateError(errors, 'RangeSlider retirement failed');
   }
   build(context: BuildContext): Widget {
+    this.updateValues();
     const w = this.widget,
       ambient = SliderTheme.of(context),
       theme = Theme.of(context),
@@ -851,18 +907,6 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
         shouldShowOnDrag(effective, this.discrete),
     );
     return new Stack([
-      new Row([
-        new Focus(SizedBox.shrink(), {
-          focusNode: this.startFocusNode,
-          includeSemantics: false,
-          onKeyEvent: (_node, event) => this.key(Thumb.start, event),
-        }),
-        new Focus(SizedBox.shrink(), {
-          focusNode: this.endFocusNode,
-          includeSemantics: false,
-          onKeyEvent: (_node, event) => this.key(Thumb.end, event),
-        }),
-      ]),
       new MouseRegion(content, {
         cursor:
           w.mouseCursor?.resolve(states) ??
@@ -888,12 +932,12 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     ]);
   }
 }
-class RangePaintWidget extends LeafRenderObjectWidget {
+class RangePaintWidget extends MultiChildRenderObjectWidget {
   constructor(
     readonly model: RangePaintModel,
     key: GlobalKey,
   ) {
-    super(key);
+    super([model.owner.semanticChild(Thumb.start), model.owner.semanticChild(Thumb.end)], { key });
   }
   createRenderObject(): MaterialRangeSliderRender {
     return new MaterialRangeSliderRender(this.model);
@@ -911,8 +955,33 @@ abstract class RangeRenderBase extends RenderBox {}
 class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(RangeRenderBase) {
   private startLabel: TextPainter;
   private endLabel: TextPainter;
-  private startNode: SemanticsNode | null = null;
-  private endNode: SemanticsNode | null = null;
+  static {
+    registerNativeBoxConfiguration(MaterialRangeSliderRender.prototype, (source) =>
+      nativeRangeSliderConfiguration(source.nativeSource()),
+    );
+  }
+  nativeSource(): NativeRangeSource {
+    const m = this.model,
+      o = m.owner;
+    return {
+      theme: m.theme,
+      preferred: m.preferred,
+      direction: m.direction,
+      start: o.startPosition.value,
+      end: o.endPosition.value,
+      enabled: o.enabled,
+      divisions: o.widget.divisions,
+      enable: o.enableAnimation.value,
+      overlay: o.overlayAnimation.value,
+      indicator: o.indicatorAnimation.value,
+      active: o.active,
+      selected: o.selected,
+      focusedStart: o.startFocusNode.hasFocus,
+      focusedEnd: o.endFocusNode.hasFocus,
+      hoverStart: o.hoverStart,
+      hoverEnd: o.hoverEnd,
+    };
+  }
   constructor(public model: RangePaintModel) {
     super();
     this.startLabel = new TextPainter({}, model.textContext);
@@ -980,7 +1049,15 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
     return new Size(v.width, v.height);
   }
   protected override performLayout(constraints: BoxConstraints): Size {
-    return this.computeDryLayout(constraints);
+    const size = this.computeDryLayout(constraints);
+    this.size = size;
+    const [start, end] = this.centers(),
+      centers = this.model.direction === 'rtl' ? [end, start] : [start, end];
+    this.children.forEach((child, index) => {
+      (child as RenderBox).layout(new BoxConstraints(48, 48, 48, 48));
+      child.layoutOffset = new Offset(centers[index]!.dx - 24, centers[index]!.dy - 24);
+    });
+    return size;
   }
   inputTrackRect(): Rect {
     return this.model.theme.rangeTrackShape!.getPreferredRect({
@@ -1028,86 +1105,6 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
     config.isSemanticBoundary = true;
     config.explicitChildNodes = true;
   }
-  override assembleSemanticsNode(
-    node: SemanticsNode,
-    config: SemanticsConfiguration,
-    _children: SemanticsNode[],
-  ): void {
-    const m = this.model,
-      o = m.owner,
-      v = o.values,
-      steps = o.semanticValues,
-      [start, end] = this.centers();
-    this.startNode ??= new SemanticsNode();
-    this.endNode ??= new SemanticsNode();
-    for (const [thumb, child, value, increased, decreased, focused, center] of [
-      [
-        Thumb.start,
-        this.startNode,
-        v.start,
-        steps.increasedStart,
-        steps.decreasedStart,
-        o.startFocusNode.hasFocus,
-        m.direction === 'ltr' ? start : end,
-      ],
-      [
-        Thumb.end,
-        this.endNode,
-        v.end,
-        steps.increasedEnd,
-        steps.decreasedEnd,
-        o.endFocusNode.hasFocus,
-        m.direction === 'ltr' ? end : start,
-      ],
-    ] as const) {
-      const c = new SemanticsConfiguration();
-      c.isEnabled = o.enabled;
-      c.textDirection = m.direction;
-      c.isSlider = true;
-      c.isFocusable = true;
-      c.isFocused = focused;
-      c.value = o.format(value);
-      c.increasedValue = o.format(increased);
-      c.decreasedValue = o.format(decreased);
-      if (o.enabled) {
-        c.onIncrease = () => o.adjust(thumb, true);
-        c.onDecrease = () => o.adjust(thumb, false);
-        c.onFocus = () => {
-          if (o.live && o.enabled)
-            (thumb === Thumb.start ? o.startFocusNode : o.endFocusNode).requestFocus();
-        };
-      }
-      const id = o.widget.options.id,
-        suffix = thumb === Thumb.start ? 'start' : 'end';
-      if (id !== undefined) c.identifier = id + '-' + suffix;
-      child.rect = Rect.fromCenter({
-        center,
-        width: 48,
-        height: 48,
-      });
-      child.updateWith({ config: c });
-      setSemanticsTransportProperties(child, {
-        id: id === undefined ? 'range-thumb-' + child.id : id + '-' + suffix,
-        role: 'group',
-        name: '',
-        enabled: o.enabled,
-        numericRange: {
-          min: o.widget.min,
-          max: o.widget.max,
-          value: o.widget.min * (1 - value) + o.widget.max * value,
-        },
-        ...(o.enabled
-          ? { rangeActions: { setValue: (value: number) => o.setSemanticValue(thumb, value) } }
-          : {}),
-      });
-    }
-    node.updateWith({ config, childrenInInversePaintOrder: [this.startNode, this.endNode] });
-  }
-  override clearSemantics(): void {
-    super.clearSemantics();
-    this.startNode = null;
-    this.endNode = null;
-  }
   override dispose(): void {
     try {
       this.startLabel.dispose();
@@ -1136,13 +1133,37 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
       sizeWithOverflow: m.screen.isEmpty ? new Size(this.size.width, this.size.height) : m.screen,
     };
   }
+  nativeIndicator(): ReturnType<typeof nativeRangeSliderIndicators> {
+    const m = this.model,
+      o = m.owner,
+      always = m.theme.showValueIndicator === ShowValueIndicator.alwaysVisible;
+    if (
+      (!this.attached && !isNativeRenderObject(this)) ||
+      this.debugDisposed ||
+      !o.live ||
+      !o.enabled ||
+      o.widget.labels === null ||
+      (!always && (!shouldShowOnDrag(m.theme, o.discrete) || o.indicatorAnimation.isDismissed))
+    )
+      return { kind: 'paint', entries: [] };
+    return nativeRangeSliderIndicators({
+      ...this.nativeSource(),
+      enable: always ? 1 : o.enableAnimation.value,
+      reference: this,
+      startLabel: this.startLabel,
+      endLabel: this.endLabel,
+      activation: always ? 1 : o.indicatorAnimation.value,
+      textScale: m.scale,
+      screenWidth: m.screen.isEmpty ? null : m.screen.width,
+    });
+  }
   paintIndicators(context: PaintingContext): void {
     const m = this.model,
       o = m.owner,
       t = m.theme,
       always = t.showValueIndicator === ShowValueIndicator.alwaysVisible;
     if (
-      !this.attached ||
+      (!this.attached && !isNativeRenderObject(this)) ||
       !o.live ||
       !o.enabled ||
       o.widget.labels === null ||
@@ -1194,20 +1215,10 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
       t = m.theme,
       rect = this.trackRect(),
       [start, end] = this.centers(),
-      normal = t.thumbSize?.resolve(emptyWidgetStateSet()),
-      pressed = emptyWidgetStateSet();
-    pressed.add(WidgetState.pressed);
-    const pressedWidth = t.thumbSize?.resolve(pressed)?.width;
-    let gap = t.trackGap,
-      width = normal?.width;
-    if (o.active && width != null && pressedWidth != null && gap != null) {
-      const delta = width - pressedWidth;
-      width = pressedWidth;
-      if (gap > 0) gap -= delta / 2;
-    }
+      themes = materialRangeSliderPaintThemes(t, o.active);
     t.rangeTrackShape!.paint(context, Offset.zero, {
       parentBox: this,
-      sliderTheme: t.copyWith({ trackGap: gap }),
+      sliderTheme: themes.track,
       enableAnimation: o.enableAnimation,
       textDirection: m.direction,
       startThumbCenter: start,
@@ -1262,15 +1273,7 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
     const lastStart = o.selected === Thumb.start,
       bottom = lastStart ? Thumb.end : Thumb.start,
       top = lastStart ? Thumb.start : Thumb.end,
-      effective =
-        width != null && normal
-          ? t.copyWith({
-              thumbSize: new WidgetStatePropertyAll(
-                sizeType,
-                captureSourceSize(new Size(width, normal.height)),
-              ),
-            })
-          : t;
+      effective = themes.thumb;
     for (const [thumb, onTop, activation] of [
       [bottom, false, o.indicatorAnimation],
       [
@@ -1311,6 +1314,13 @@ class RangeIndicatorWidget extends LeafRenderObjectWidget {
   }
 }
 class RangeIndicatorRender extends RenderBox {
+  static {
+    registerNativeRenderMetadata(
+      RangeIndicatorRender.prototype,
+      (source) =>
+        source.slider.renderer(false)?.nativeIndicator() ?? { kind: 'paint', entries: [] },
+    );
+  }
   constructor(readonly slider: MaterialRangeSliderState) {
     super();
   }

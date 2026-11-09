@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "nelyx/engine.h"
 #include <cstdlib>
+#include <emscripten/em_asm.h>
 
 extern "C" {
+// Growth on another pthread does not run this owner's JS resize hook. Refresh
+// every canonical view before external JS accesses an allocated packet range.
+void nelyx_wasm_refresh_heap() { EM_ASM({ updateMemoryViews(); }); }
 uint32_t nelyx_wasm_connect(nelyx_engine* engine, uint32_t independent, uint32_t content, uint32_t render) {
   return nelyx_engine_connect_provider(engine, independent, content, render);
 }

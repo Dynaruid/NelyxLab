@@ -8,6 +8,7 @@
 #include "skia_provider.hpp"
 #include "app_text_jsi.hpp"
 #include "../common/app_services_jsi.hpp"
+#include "../common/input_clipboard.hpp"
 #include "interaction.hpp"
 #include "memory_pressure.hpp"
 #include "rnw/ClipboardModule.h"
@@ -80,6 +81,7 @@ class Host {
   std::condition_variable changed,appChanged;
   std::shared_ptr<nelyx::v2::native::AppServices> services=std::make_shared<nelyx::v2::native::AppServices>(core.memoryLedger(),[this]{PostMessageW(window,WM_APP+3,0,0);},[this]{appChanged.notify_one();});
   nw::rnw::Clipboard clipboard;
+  std::shared_ptr<nelyx::v2::native::InputClipboard> inputClipboard=std::make_shared<nelyx::v2::native::InputClipboard>(core.memoryLedger());
   std::deque<Job> jobs,done;
   std::deque<Job> uiJobs;
   std::deque<std::function<void()>> uiCallbacks;
@@ -139,7 +141,10 @@ class Host {
           if(op==wire::opcodes::scroll||op==wire::opcodes::listSeek||op==wire::opcodes::gestureReply||op==wire::opcodes::requestAppFrame){renderWakeRequested=true;changed.notify_all();}
           if(op==wire::opcodes::fontTransitionBegin||op==wire::opcodes::fontTransitionReady||
             op==wire::opcodes::fontTransitionCommit||op==wire::opcodes::fontTransitionAbort){renderWakeRequested=true;changed.notify_all();}
-          if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::transaction){interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);}
+          if(op==wire::opcodes::transaction){
+            interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);
+            if(reader(result).u16(14)==wire::statuses::accepted){renderWakeRequested=true;changed.notify_all();}
+          }
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::openView){metricsPending=true;renderWakeRequested=true;changed.notify_all();}
           auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}appChanged.notify_one();}
         if(connected){
@@ -194,7 +199,9 @@ class Host {
             call(wire::opcodes::preparationResult,reply.bytes);std::osyncstream(std::cout)<<"V2_PREPARATION_ERROR "<<error.what()<<std::endl;
           }
           if(currentTiming.preparation){std::lock_guard lock(timingMutex);contentTiming=currentTiming;}
-          if(r.u16(14)==0 && !(r.u32(wire::headerBytes+wire::stateFields::flags)&(16u|wire::layoutBuildPending)) && r.u64(wire::headerBytes+wire::stateFields::preparation))contentWake=true;
+          if(r.u16(14)==0 &&
+              ((!(r.u32(wire::headerBytes+wire::stateFields::flags)&(16u|wire::layoutBuildPending)) && r.u64(wire::headerBytes+wire::stateFields::preparation)) ||
+               (!r.u64(wire::headerBytes+wire::stateFields::preparation) && r.u64(wire::headerBytes+wire::stateFields::pendingDocument))))contentWake=true;
           if(r.u64(wire::headerBytes+wire::stateFields::queryId)&&r.u32(wire::headerBytes+wire::stateFields::queryStatus)==wire::statuses::pending)contentWake=true;
         }
         paragraphs=provider.paragraphs.load();pictures=provider.pictures.load();images=provider.images.load();
@@ -204,7 +211,7 @@ class Host {
         std::unique_lock lock(wakeMutex);changed.wait(lock,[this,&handledPressure]{std::lock_guard queueLock(jobsMutex);return stopping||contentWake||!jobs.empty()||pressureEpoch!=handledPressure;});
       }
       {std::lock_guard lock(sceneMutex);candidate.reset();fontCandidate.reset();}
-    }catch(const std::exception& error){notifyError(error.what());}
+    }catch(const std::exception& error){notifyError(std::string("Content owner: ")+error.what());}
     CoUninitialize();
   }
   void renderLoop(){
@@ -264,7 +271,12 @@ class Host {
             interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);
             publishedWidth=frame->scene->metrics.width;publishedHeight=frame->scene->metrics.height;
           }
-          call(wire::opcodes::pollEvents);
+          const auto events=call(wire::opcodes::pollEvents);const auto er=reader(events);
+          for(uint32_t index=0;index<er.u32(wire::headerBytes+wire::stateFields::eventCount);++index){
+            const size_t offset=wire::headerBytes+wire::stateBytes+er.u32(wire::headerFields::count)*wire::nodeBytes+index*wire::eventBytes;
+            if(er.u32(offset)==wire::events::preparationFailed)
+              std::osyncstream(std::cout)<<"V2_PREPARATION_ERROR Core status="<<er.u32(offset+4)<<" preparation="<<er.u64(offset+8)<<" document="<<er.u64(offset+16)<<std::endl;
+          }
           clock=(sr.u32(wire::headerBytes+wire::stateFields::flags)&128u)!=0;
           deadline=sr.f64(wire::headerBytes+wire::stateFields::nextDeadline);
           if(sr.u64(wire::headerBytes+wire::stateFields::pendingDocument)){contentWake=true;changed.notify_all();}
@@ -276,7 +288,7 @@ class Host {
         else changed.wait(lock,wake);
       }
       active.reset();next.reset();provider.close();
-    }catch(const std::exception& error){notifyError(error.what());}
+    }catch(const std::exception& error){notifyError(std::string("Render owner: ")+error.what());}
   }
   void appLoop(){
     AppExitSignal exitSignal{appExited};
@@ -294,7 +306,7 @@ class Host {
       native.setProperty(rt,"operatingSystem","windows");
       native.setProperty(rt,"clockDomain","qpc-milliseconds");
       nw::installAppText(rt,native,appText);
-      nelyx::v2::native::installAppServices(rt,native,services,[clipboard=clipboard]()mutable{clipboard.cancel();});
+      nelyx::v2::native::installAppServices(rt,native,services,[clipboard=clipboard,input=inputClipboard]()mutable{input->close();clipboard.cancel();});
       auto identity=jsi::Object(rt);identity.setProperty(rt,"engine","v2");identity.setProperty(rt,"abiMajor",double(wire::abiMajor));identity.setProperty(rt,"schema",double(wire::schema));native.setProperty(rt,"identity",std::move(identity));
       native.setProperty(rt,"clock",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"clock"),0,[](jsi::Runtime&,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value{return now()*1000;}));
       native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[this,&appMemory](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
@@ -330,11 +342,16 @@ class Host {
         rt.global().getPropertyAsFunction(rt,"__v2Pump").call(rt);rt.drainMicrotasks();appMemory.update(rt);
         std::unique_lock lock(wakeMutex);appChanged.wait_for(lock,std::chrono::milliseconds(2));
       }
-    }catch(const std::exception& error){notifyError(error.what());}
+    }catch(const std::exception& error){notifyError(std::string("App owner: ")+error.what());}
   }
  public:
   Host(std::string directory,std::string appDirectory):directory(std::move(directory)),appDirectory(std::move(appDirectory)){}
-  void bind(HWND value){window=value;interaction=std::make_unique<nw::Interaction>(window,core,[this](uint32_t op,const std::vector<uint8_t>& bytes){return call(op,bytes);},[this](auto callback){postUI(std::move(callback));},[this]{contentWake=true;renderWakeRequested=true;changed.notify_all();});
+  void bind(HWND value){window=value;interaction=std::make_unique<nw::Interaction>(window,core,[this](uint32_t op,const std::vector<uint8_t>& bytes){return call(op,bytes);},[this](auto callback){postUI(std::move(callback));},[this]{contentWake=true;renderWakeRequested=true;changed.notify_all();},[this]{
+      const auto id=inputClipboard->begin();
+      try{clipboard.captureString([input=inputClipboard,id](std::string value,std::string error){input->complete(id,std::move(value),std::move(error));});}
+      catch(...){inputClipboard->complete(id,{},"Input clipboard capture failed");inputClipboard->release(id);throw;}
+      return id;
+    },[input=inputClipboard](uint64_t id){input->release(id);});
     precision=RNSkia::WindowsPrecisionTrackpad::create(window,[this](POINT p)->std::optional<RNSkia::WindowsPrecisionPoint>{
       if(!appReady||stopping||closing||!IsWindowVisible(window)||IsIconic(window))return {};
       ScreenToClient(window,&p);const auto dpi=GetDpiForWindow(window)/96.0;RECT bounds{};GetClientRect(window,&bounds);
@@ -354,7 +371,13 @@ class Host {
       // Windows' canonical accessibility embedding ignores node feedback;
       // UIA focus/invoke changes already follow the published Core mirror.
       if(method=="semantics-tap"||method=="semantics-longPress"||method=="semantics-focus"){complete({},{});return;}
+      if(method=="accessibility-tooltip"){
+        if(!interaction)throw std::runtime_error("Accessibility owner is unavailable");
+        interaction->tooltip(text);complete({},{});return;
+      }
       if(method=="system-sound"||method=="haptic-feedback")throw std::runtime_error("Windows system feedback is unavailable");
+      if(method=="clipboard-read-event"){inputClipboard->read(std::stoull(text),std::move(complete));return;}
+      if(method=="clipboard-release-event"){inputClipboard->release(std::stoull(text));complete({},{});return;}
       if(method=="clipboard-write"){
         clipboard.setString(winrt::to_hstring(text),std::move(complete));return;
       }
@@ -398,7 +421,7 @@ class Host {
   void cancelPointer(){if(dragging)pointer(wire::phases::cancel,pointerX,pointerY);}
   void wheel(double delta,double x,double y){
     if(!appReady||stopping)return;auto result=call(wire::opcodes::inspect);auto r=reader(result);if(r.u16(14))return;
-    Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,1);input.u32(28,wire::phases::update);input.u32(32,wire::sources::wheelUnknown);input.f64(40,now());input.f64(56,x);input.f64(64,y);input.f64(80,delta);input.u32(96,1);input.u64(wire::inputFields::publication,r.u64(wire::headerBytes+wire::stateFields::publication));call(wire::opcodes::input,input.bytes);renderWakeRequested=true;changed.notify_all();
+    Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,3);input.u32(28,wire::phases::update);input.u32(32,wire::sources::wheelUnknown);input.f64(40,now());input.f64(56,x);input.f64(64,y);input.f64(80,delta);input.u32(96,1);input.u64(wire::inputFields::publication,r.u64(wire::headerBytes+wire::stateFields::publication));call(wire::opcodes::input,input.bytes);renderWakeRequested=true;changed.notify_all();
   }
   bool precisionOwnsWheel()const{return precision&&precision->ownsWheel();}
   void precisionInput(const RNSkia::WindowsPrecisionEvent& event){
@@ -425,6 +448,19 @@ class Host {
     }
   }
   void stats(){auto bytes=call(wire::opcodes::inspect);auto r=reader(bytes);const auto b=wire::headerBytes;
+    std::osyncstream(std::cout)<<"V2_CORE_STATE {\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)
+      <<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)
+      <<",\"preparationDocument\":"<<r.u64(b+wire::stateFields::preparationDocument)<<",\"failedDocument\":"<<r.u64(b+wire::stateFields::failedDocument)
+      <<",\"publishedDocument\":"<<r.u64(b+wire::stateFields::publishedDocument)<<",\"flags\":"<<r.u32(b+wire::stateFields::flags)
+      <<",\"rejected\":"<<r.u64(b+wire::stateFields::rejected)<<",\"canceled\":"<<r.u64(b+wire::stateFields::canceled)<<"}"<<std::endl;
+    if(interaction)std::osyncstream(std::cout)<<"V2_TEXT_INPUT {\"focusNode\":"<<r.u64(b+wire::stateFields::focusNode)
+      <<",\"focusPeer\":"<<r.u64(b+wire::stateFields::focusPeer)<<",\"focusSession\":"<<r.u64(b+wire::stateFields::focusSession)
+      <<",\"characters\":"<<interaction->characters<<",\"applied\":"<<interaction->charactersApplied
+      <<",\"unavailable\":"<<interaction->charactersUnavailable<<",\"stale\":"<<interaction->charactersStale
+      <<",\"busy\":"<<interaction->charactersBusy<<",\"limited\":"<<interaction->charactersLimited
+      <<",\"keysAdmitted\":"<<interaction->keysAdmitted<<",\"keysStale\":"<<interaction->keysStale
+      <<",\"keysRejected\":"<<interaction->keysRejected<<",\"lastKeyStatus\":"<<interaction->lastKeyStatus
+      <<",\"clipboardSnapshots\":"<<inputClipboard->pending()<<"}"<<std::endl;
     std::osyncstream(std::cout)<<"V2_INPUT_SOURCE {\"source\":\"precision-trackpad-directmanipulation\",\"available\":"<<(precision?"true":"false")<<",\"admitted\":"<<precisionPackets<<",\"rejected\":"<<precisionRejected<<",\"physicalAcceptance\":\"notVerified\"}"<<std::endl;
     std::osyncstream(std::cout)<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"graphicsRecords\":"<<graphicsRecords<<",\"nativeExtensions\":"<<nativeExtensions<<",\"appHeapBytes\":"<<appHeapBytes<<",\"memoryTotal\":"<<r.u64(b+wire::stateFields::memoryTotal)<<",\"memoryPeak\":"<<r.u64(b+wire::stateFields::memoryPeak)<<",\"memoryGpu\":"<<r.u64(b+wire::stateFields::memoryGpu)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbackPolicy\":\"reject-unported\",\"appExecutionObserved\":"<<(appExecutionObserved?"true":"false")<<",\"appAcknowledgedCommands\":"<<appAcknowledgedCommands<<",\"rejectedFallbacks\":"<<(appExecutionObserved?std::to_string(appRejectedFallbacks.load()):"null")<<",\"reusedPictures\":"<<reusedPictures<<",\"reusedParagraphs\":"<<reusedParagraphs<<",\"reusedImages\":"<<reusedImages<<",\"cachedContentBytes\":"<<cachedContentBytes<<",\"paragraphLayouts\":"<<paragraphLayouts<<",\"memoryPressure\":{\"source\":\"windows-resource-notification\",\"osLow\":"<<(osPressure?"true":"false")<<",\"effectiveLow\":"<<(memoryPressure?"true":"false")<<",\"epoch\":"<<pressureEpoch<<",\"contentEpoch\":"<<contentPressureEpoch<<",\"renderEpoch\":"<<renderPressureEpoch<<",\"gpuCacheLimitBytes\":"<<((memoryPressure?4ull:32ull)*1024*1024)<<"},\"surfaceCommit\":null,"<<timingJson()<<"}"<<std::endl;
   }
@@ -433,6 +469,7 @@ class Host {
   void close(){
     if(closing.exchange(true))return;
     if(precision){precision->cancel();precision.reset();}
+    inputClipboard->close();
     clipboard.cancel();
     // WinRT completions may return to this STA. Drain them before destroying
     // the App/ledger or shutting down its App SDK dispatcher.
@@ -476,7 +513,7 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
     case WM_SETFOCUS:host->focus(true);return 0;case WM_KILLFOCUS:host->focus(false);return 0;
     case WM_APP+3:host->ui();return 0;
     case WM_GETOBJECT:if(l==UiaRootObjectId)return host->object(w,l);break;
-    case WM_SYSKEYDOWN:case WM_KEYDOWN:if(host->keydown(w,l))return 0;if(w=='U'&&(GetKeyState(VK_CONTROL)&0x8000)){host->update();return 0;}break;
+    case WM_SYSKEYDOWN:case WM_KEYDOWN:if(host->keydown(w,l))return 0;if(w=='U'&&nw::rnw::keyDown(VK_CONTROL)){host->update();return 0;}break;
     case WM_SYSKEYUP:case WM_KEYUP:if(host->keyup(w,l))return 0;break;
     case WM_CHAR:if(host->character(wchar_t(w)))return 0;break;
     case WM_LBUTTONDOWN:{SetFocus(window);SetCapture(window);const auto scale=GetDpiForWindow(window)/96.0;host->pointer(wire::phases::begin,GET_X_LPARAM(l)/scale,GET_Y_LPARAM(l)/scale);return 0;}
@@ -487,8 +524,8 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
     case WM_MOUSEWHEEL:{if(host->precisionOwnsWheel())return 0;POINT p{GET_X_LPARAM(l),GET_Y_LPARAM(l)};ScreenToClient(window,&p);double scale=GetDpiForWindow(window)/96.0;host->wheel(-GET_WHEEL_DELTA_WPARAM(w)/120.0*48,p.x/scale,p.y/scale);return 0;}
     case WM_ERASEBKGND:return 1;case WM_TIMER:host->timer(w);return 0;case WM_APP+4:case WM_CLOSE:host->close();DestroyWindow(window);return 0;case WM_DESTROY:PostQuitMessage(0);return 0;}
   return DefWindowProcW(window,message,w,l);
-  }catch(const ::Nelyx::WindowsSemantics::TextError& e){if(host)host->uiFailure("UIA publication rejected HRESULT="+std::to_string(e.result));return 0;}
-  catch(const std::exception& e){if(host)host->uiFailure(e.what());return 0;}
+  }catch(const ::Nelyx::WindowsSemantics::TextError& e){if(host)host->uiFailure("UIA publication rejected HRESULT="+std::to_string(e.result)+(e.reason?std::string("; ")+e.reason:std::string{}));return 0;}
+  catch(const std::exception& e){if(host)host->uiFailure("UI message="+std::to_string(message)+": "+e.what());return 0;}
   catch(...){if(host)host->uiFailure("Unhandled UI bridge exception");return 0;}
 }
 int main(int argc,char**argv){

@@ -23,6 +23,12 @@ import { diagnosticDoubleString } from '../../foundation/debug.ts';
 import { fixed, protect } from '../../ui/value-math.ts';
 import { clampDouble } from '../../ui/math.ts';
 import { RenderObject, RenderBox, ParentData } from './object.ts';
+import { registerNativeBoxConfiguration } from './native-box.ts';
+import {
+  NativeLayoutBuilder,
+  nativeLayoutExpression as expression,
+  nativeLayoutInput as input,
+} from './native-layout.ts';
 import type { LayoutOptions, HitTestEntry as LegacyHitTestEntry } from './object.ts';
 import { HitTestResult, HitTestEntry } from '../gestures/hit-test.ts';
 import { Offset } from '../../ui/offset.ts';
@@ -571,6 +577,54 @@ export class RenderSliverToBoxAdapter extends RenderSliverSingleBoxAdapter {
     this.setChildParentData(child, constraints, this.geometry);
   }
 }
+// A forward vertical box sliver has the box's full scroll extent. The native
+// viewport owns clipping, scrolling and hit coordinates; Source keeps the
+// original adapter/child Elements and never lays out the child on App.
+const boxAdapterLayout = Object.getOwnPropertyDescriptor(
+  RenderSliverToBoxAdapter.prototype,
+  'performLayout',
+)!.value;
+registerNativeBoxConfiguration(RenderSliverToBoxAdapter.prototype, (render, reject) => {
+  if (
+    [
+      'child',
+      'performLayout',
+      'hitTestChildren',
+      'hitTestSelf',
+      'applyPaintTransform',
+      'setChildParentData',
+      'calculatePaintOffset',
+      'calculateCacheOffset',
+    ].some((name) => Object.hasOwn(render, name)) ||
+    Object.getOwnPropertyDescriptor(RenderSliverToBoxAdapter.prototype, 'performLayout')?.value !==
+      boxAdapterLayout
+  )
+    return reject('custom-box-sliver-policy');
+  const builder = new NativeLayoutBuilder();
+  builder.assert(expression('finite', input.maxWidth));
+  builder.assert(expression('equal', input.maxHeight, input.unbounded));
+  if (render.children.length) {
+    const child = builder.child(0, [input.maxWidth, input.maxWidth, 0, input.unbounded]);
+    builder.place(0, 0, 0);
+    builder.size(input.maxWidth, child.height);
+  } else builder.size(input.maxWidth, 0);
+  const unsupported = [
+    { kind: 'assert' as const, values: [0] },
+    { kind: 'result' as const, values: [0] },
+  ];
+  return {
+    kind: 'box',
+    layout: {},
+    layoutProgram: {
+      children: render.children.length,
+      layout: builder.commands,
+      minWidth: unsupported,
+      maxWidth: unsupported,
+      minHeight: unsupported,
+      maxHeight: unsupported,
+    },
+  };
+});
 export class GrowthDirection {
   static readonly forward = new GrowthDirection(0, 'forward');
   static readonly reverse = new GrowthDirection(1, 'reverse');

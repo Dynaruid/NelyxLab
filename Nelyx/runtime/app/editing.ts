@@ -14,6 +14,8 @@ import type { EngineViewClient } from '../engine-client/client.ts';
 import { EngineError } from '../engine-client/client.ts';
 import type { EditingSnapshot, EngineResponse, NodeHandle } from '../engine-client/codec.ts';
 import { protocol as p } from '../engine-client/schema.ts';
+import { AxisDirection } from '@nelyx/core/framework/painting/basic-types';
+import { originalEditorScrolling } from './scroll.ts';
 
 type Record = {
   controller: EditingController;
@@ -72,8 +74,6 @@ export class OriginalEditingBridge implements EditingHost {
           ...(options.textScaler ? { textScaler: options.textScaler } : {}),
         });
       if (
-        options.expands ||
-        options.scrollController ||
         options.scrollPhysics ||
         options.scrollBehavior ||
         options.strutStyle ||
@@ -87,66 +87,93 @@ export class OriginalEditingBridge implements EditingHost {
           (configuration.obscureText ? p.editFlags.password : 0) |
           (!enabled ? p.editFlags.disabled : 0);
       const style = resolved.style.toRunStyle(resolved.scaler);
+      const paragraph = {
+        fontFamily:
+          style.fontFamilies?.[0] === 'CupertinoSystemText'
+            ? 'NelyxDefault'
+            : (style.fontFamilies?.[0] ?? 'NelyxDefault'),
+        fontWeight: style.fontWeight ?? 400,
+        letterSpacing: style.letterSpacing ?? 0,
+        wordSpacing: style.wordSpacing ?? 0,
+        locale: style.locale ?? 'en',
+        wrap: configuration.multiline,
+        maxLines: configuration.multiline ? 0 : 1,
+        ...(style.height === undefined ? {} : { height: style.height }),
+      };
       // Native editor shaping owns the metrics, caret, scroll and password paint.
-      return new OriginalNativeNode(
-        'editable',
-        [],
-        {
-          key: new ObjectKey(record),
-          pointerHitTest: 'self',
-          layout: { paragraphSizing: true, clipOverflow: true },
-          paragraph: {
-            fontFamily:
-              style.fontFamilies?.[0] === 'CupertinoSystemText'
-                ? 'NelyxDefault'
-                : (style.fontFamilies?.[0] ?? 'NelyxDefault'),
-            fontWeight: style.fontWeight ?? 400,
-            letterSpacing: style.letterSpacing ?? 0,
-            wordSpacing: style.wordSpacing ?? 0,
-            locale: style.locale ?? 'en',
-            wrap: configuration.multiline,
-            maxLines: configuration.multiline ? 0 : 1,
-            ...(style.height === undefined ? {} : { height: style.height }),
-          },
-          vertical: {
-            kind: 'unbounded',
-            min: Math.max(source.height, options.minHeight ?? 48),
-          },
-          semantics: {
-            role: 'textField',
-            label: source.label,
-            flags: p.semanticsFlags.focusable | (!enabled ? p.semanticsFlags.disabled : 0),
-            actions:
-              p.semanticsActions.focus |
-              p.semanticsActions.setValue |
-              p.semanticsActions.setSelection,
-          },
-          onFocusChanged: (focused) => {
-            if (!record.active) return;
-            record.focused = focused;
-            this.focusChanged(() => {
-              if (record.active && !this.closed) record.options.focusChanged?.(focused);
-            });
-          },
-          onKey: (event) => {
-            if (Number(event.detail & 0xffff_ffffn) === 13 && event.status === p.keyKinds.down)
-              record.options.onAction?.(record.value);
-          },
-        },
-        (render) => {
-          record.render = render;
-        },
-        {
-          text: {
-            value: record.controller.initialText,
-            size: style.fontSize ?? 18,
-            color: style.color ?? 0xff172033,
-            direction: resolved.painterOptions.textDirection ?? 'ltr',
-          },
-          editor: record.controller,
-          flags,
-          maximumLength: p.limits.textBytes,
-        },
+      return originalEditorScrolling(
+        { view: this.view, fail: this.fail, error: this.error },
+        options.scrollController ?? null,
+        configuration.multiline
+          ? AxisDirection.down
+          : resolved.painterOptions.textDirection === 'rtl'
+            ? AxisDirection.left
+            : AxisDirection.right,
+        (onLayout, onScrollTerminal) =>
+          new OriginalNativeNode(
+            'editable',
+            [],
+            {
+              key: new ObjectKey(record),
+              pointerHitTest: 'self',
+              layout: { paragraphSizing: true, clipOverflow: true },
+              editorViewport: {
+                minLines: options.expands ? 0 : (options.minLines ?? 1),
+                maxLines:
+                  options.expands || options.maxLines === null ? 0 : (options.maxLines ?? 1),
+                expands: options.expands ?? false,
+              },
+              onLayout,
+              onScrollTerminal,
+              paragraph: {
+                ...paragraph,
+                overflowProbe: {
+                  text: ' ',
+                  fontSize: style.fontSize ?? 18,
+                  color: style.color ?? 0xff172033,
+                  paragraph: { ...paragraph, maxLines: 0, wrap: false },
+                },
+              },
+              vertical: {
+                kind: 'unbounded',
+                min: Math.max(source.height, options.minHeight ?? 48),
+              },
+              semantics: {
+                role: 'textField',
+                label: source.label,
+                flags: p.semanticsFlags.focusable | (!enabled ? p.semanticsFlags.disabled : 0),
+                actions:
+                  p.semanticsActions.focus |
+                  p.semanticsActions.setValue |
+                  p.semanticsActions.setSelection,
+              },
+              onFocusChanged: (focused) => {
+                if (!record.active) return;
+                record.focused = focused;
+                this.focusChanged(() => {
+                  if (record.active && !this.closed) record.options.focusChanged?.(focused);
+                });
+              },
+              onKey: (event) => {
+                if (Number(event.detail & 0xffff_ffffn) === 13 && event.status === p.keyKinds.down)
+                  record.options.onAction?.(record.value);
+              },
+            },
+            (render) => {
+              record.render = render;
+            },
+            {
+              text: {
+                value: record.controller.initialText,
+                size: style.fontSize ?? 18,
+                color: style.color ?? 0xff172033,
+                direction: resolved.painterOptions.textDirection ?? 'ltr',
+              },
+              editor: record.controller,
+              flags,
+              maximumLength: p.limits.textBytes,
+            },
+          ),
       );
     });
   }

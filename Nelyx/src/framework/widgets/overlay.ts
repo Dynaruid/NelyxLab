@@ -6,11 +6,30 @@ import { invariant } from '../../foundation/errors.ts';
 import type { Key } from '../../foundation/key.ts';
 import { GlobalKey } from './global-key.ts';
 import { StatefulWidget, State } from './framework.ts';
-import type { Widget, BuildContext } from './framework.ts';
+import type { Widget, BuildContext, Element } from './framework.ts';
 import { TickerMode } from './ticker-mode.ts';
 import { maybeTickerScheduler } from './ticker-scheduler.ts';
 import type { Clip } from '../../ui/clip.ts';
 import { OverlayTheater } from './internal/overlay-theater.ts';
+
+function deferOverlayBuild(
+  context: BuildContext,
+  callback: () => void,
+  debugLabel: string,
+): boolean {
+  const scheduler = maybeTickerScheduler(context);
+  // The native App's BuildOwner can be building while its frame scheduler is
+  // idle. Overlay entries are siblings, so that phase alone cannot establish
+  // whether setState is legal during a widget update or removal.
+  if (
+    !(context as Element).owner.building &&
+    !['persistent', 'build', 'layout', 'paint', 'semantics'].includes(scheduler?.phase ?? 'idle')
+  )
+    return false;
+  if (scheduler) scheduler.addPostFrameCallback(callback, { debugLabel });
+  else void Promise.resolve().then(callback);
+  return true;
+}
 export interface OverlayEntryOptions {
   readonly builder: (context: BuildContext) => Widget;
   readonly opaque?: boolean;
@@ -127,22 +146,19 @@ class OverlayEntryWidgetState extends State<OverlayEntryWidget> {
     this.widget.entry.didMount(this);
   }
   markEntryDirty(): void {
-    if (!this.mounted) return;
-    const scheduler = maybeTickerScheduler(this.context);
+    if (!this.mounted || this.pendingDirty) return;
     if (
-      scheduler &&
-      ['persistent', 'build', 'layout', 'paint', 'semantics'].includes(scheduler.phase)
-    ) {
-      if (this.pendingDirty) return;
-      this.pendingDirty = true;
-      scheduler.addPostFrameCallback(
+      deferOverlayBuild(
+        this.context,
         () => {
           this.pendingDirty = false;
           if (this.mounted && this.context.mounted) this.setState(() => {});
         },
-        { debugLabel: 'OverlayEntry.markNeedsBuild' },
-      );
-    } else this.setState(() => {});
+        'OverlayEntry.markNeedsBuild',
+      )
+    )
+      this.pendingDirty = true;
+    else this.setState(() => {});
   }
   override dispose(): void {
     this.widget.entry.didUnmount(this);
@@ -260,21 +276,19 @@ export class OverlayState extends State<Overlay> {
     if (index < 0) return;
     this.entries.splice(index, 1);
     if (!this.isActive) return;
-    const scheduler = maybeTickerScheduler(this.context);
+    if (this.pendingRemovalBuild) return;
     if (
-      scheduler &&
-      ['persistent', 'build', 'layout', 'paint', 'semantics'].includes(scheduler.phase)
-    ) {
-      if (this.pendingRemovalBuild) return;
-      this.pendingRemovalBuild = true;
-      scheduler.addPostFrameCallback(
+      deferOverlayBuild(
+        this.context,
         () => {
           this.pendingRemovalBuild = false;
           if (this.isActive) this.setState(() => {});
         },
-        { debugLabel: 'OverlayEntry.remove' },
-      );
-    } else this.setState(() => {});
+        'OverlayEntry.remove',
+      )
+    )
+      this.pendingRemovalBuild = true;
+    else this.setState(() => {});
   }
   didChangeEntryOpacity(): void {
     if (this.isActive) this.setState(() => {});

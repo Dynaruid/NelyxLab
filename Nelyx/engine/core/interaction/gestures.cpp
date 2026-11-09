@@ -32,7 +32,7 @@ bool View::appDecision(Input& p) {
   if(p.appApproved)return true;
   auto& stream=streams[p.stream];
   if((p.flags&2u)&&!(p.flags&4u)&&p.phase!=wire::phases::begin&&
-      tapRegionCaptures[p.stream].path&&!stream.active)return true;
+      (tapRegionCaptures[p.stream].path||pointerListeners[p.stream].path)&&!stream.active)return true;
   if(!p.target)p.target=stream.active?stream.target:
     (p.flags&2u?pointerTarget(p.x,p.y,p.snapshot.get()):target(p.x,p.y,p.snapshot.get()));
   if(!active||!p.snapshot||!published||!document->contains(p.target)||
@@ -63,38 +63,25 @@ void View::gesture(Handle node,uint32_t kind,uint64_t sequence,double x,double y
 Handle View::pointerTarget(double x,double y,const Frame* snapshot) const {
   return pointerHit(x,y,snapshot).node;
 }
-PointerHit View::pointerHit(double x,double y,const Frame* snapshot,Handle within,uint32_t depth) const {
+PointerHit View::pointerHit(double x,double y,const Frame* snapshot,Handle within,uint32_t depth,uint32_t kind) const {
   const auto* frame=snapshot?snapshot:published.get();
   if(!frame||depth>wire::limits::depth)return {};
-  const auto& d=*frame->scene->document;
-  Handle translucent;
-  for(auto it=frame->items.rbegin();it!=frame->items.rend();++it){
-    const auto& n=d.get(it->node);
-    if(within){auto parent=n.id;while(parent&&parent!=within)parent=d.get(parent).parent;if(!parent)continue;}
-    if(!frame->allows(n.id))continue;
-    if((it->opacity<=0&&!(n.policy&wire::eventPolicies::canonicalHitTest))||!frame->hit(*it,x,y))continue;
-    if(n.layout.constraintFlags&wire::layoutConstraintFlags::inputPadding){
-      const auto& children=d.children[n.id.slot];
-      if(children.size()==1){const auto child=children.front();const auto item=std::find_if(frame->items.begin(),frame->items.end(),[&](const auto& value){return value.node==child;});
-        if(item!=frame->items.end()){const auto& size=d.get(child).properties;const auto center=item->world.map({size.width/2,size.height/2});auto hit=pointerHit(center.x,center.y,frame,child,depth+1);
-          if(hit.node){if(!hit.inverse){const auto local=frame->local(hit.node,center.x,center.y);if(!local)continue;hit.inverse=Affine{0,0,0,0,local->x,local->y};}return hit;}}}
-      continue;
-    }
-    const bool canonical=n.policy&wire::eventPolicies::canonicalHitTest;
-    const bool self=!canonical||(n.policy&wire::eventPolicies::hitTestSelf);
-    for(const Node* node=&n;node;node=node->parent?&d.get(node->parent):nullptr) {
-      if((node->policy&7u)||node->gestures||(node->control.kind&&node->control.kind<=wire::controlKinds::rangeSlider)||node->control.kind==wire::controlKinds::checkbox||node->kind==wire::kinds::scrollViewport||
-        (node->semantics&&(node->semantics->actions&wire::semanticsActions::activate))) {
-        if(node->policy&wire::eventPolicies::translucent){if(!translucent)translucent=node->id;break;}
-        if(!(node->policy&wire::eventPolicies::canonicalHitTest)||(node->policy&wire::eventPolicies::hitTestSelf)||self)
-          return {translucent?translucent:node->id,{}};
-      }
-      if(within&&node->id==within)break;
-    }
-    if(canonical&&self)return {translucent,{}};
+  // Use the same child-first hit path as pointer listeners and mouse tracking.
+  // A defer-to-child overlay which misses its badge must not select a scroll
+  // ancestor ahead of the button behind it. Numeric routes and InputPadding
+  // also retain their captured projection in this path.
+  const auto path=frame->pointerPath(x,y,within);
+  const auto& geometry=*frame->scene->document;
+  for(const auto& hit:path->entries){const auto& node=geometry.get(hit.node);
+    if((node.policy&7u)||(node.gestures&&(kind==63||(node.gestureDevices&(1u<<kind))))||
+        (node.control.kind&&node.control.kind<=wire::controlKinds::rangeSlider)||
+        node.control.kind==wire::controlKinds::checkbox||node.kind==wire::kinds::scrollViewport||
+        (node.semantics&&(node.semantics->actions&wire::semanticsActions::activate)))
+      return {hit.node,hit.inverse};
   }
-  return {translucent,{}};
+  return {};
 }
+
 void View::controlValue(Handle h,double value,bool second) {
   if(!active||!document->contains(h)||!active->document->contains(h))return;
   const auto& c=active->document->get(h).control;
@@ -141,7 +128,7 @@ void View::pointer(Input p) {
         tapCapture={p.snapshot,std::move(path)};
       tapCapture.source=p.source;
     }
-    const auto hit=pointerHit(p.x,p.y,p.snapshot.get());const auto h=hit.node;
+    const auto hit=pointerHit(p.x,p.y,p.snapshot.get(),{},0,p.kind);const auto h=hit.node;
     if(!h||!document->contains(h)||!active->document->contains(h)||document->get(h).control.disabled||
        (document->get(h).semantics&&(document->get(h).semantics->flags&(wire::semanticsFlags::hidden|wire::semanticsFlags::disabled)))){
       if(tapCapture.path){dispatchTapRegions(p,tapCapture);++consumed;consumedThrough=std::max(consumedThrough,p.sequence);}
@@ -258,17 +245,42 @@ void View::advanceGestures() {
       (active->document->get(s.target).gestures&wire::gestures::longPress)&&!(active->document->get(s.target).policy&wire::eventPolicies::canonicalGestures)&&time-s.at>=0.5){s.longSent=true;gesture(s.target,wire::gestureKinds::longPress,lastInput,s.x,s.y);}
 }
 void View::key(Reader r) {
-  require(r.length==24&&r.u32(20)<=1&&r.u32(16)<=1&&(!r.u32(20)||r.u32(16))&&r.u32(12)<=15&&r.u32(8)<=65535,wire::statuses::invalidValue);
+  const bool identity=r.length>=wire::keyIdentityBytes;
+  require((r.length==24||r.length==wire::keyClipboardBytes||identity)&&r.u32(20)<=1&&r.u32(16)<=1&&(!r.u32(20)||r.u32(16))&&r.u32(12)<=15&&r.u32(8)<=65535,wire::statuses::invalidValue);
+  Event::KeyIdentity observedKey;
+  if(identity){
+    observedKey.keyLength=r.u32(32);observedKey.codeLength=r.u32(36);observedKey.location=r.u32(40);
+    const auto length=size_t(observedKey.keyLength)+observedKey.codeLength;
+    require(observedKey.keyLength&&observedKey.keyLength<=wire::keyIdentityTextBytes&&
+      observedKey.codeLength&&observedKey.codeLength<=wire::keyIdentityTextBytes&&observedKey.location<=3&&
+      r.u32(44)==0&&r.length==wire::keyIdentityBytes+(length+7)/8*8,wire::statuses::invalidValue);
+    const auto text=r.slice(wire::keyIdentityBytes,length);require(validUtf8(text)&&
+      std::find(text.data,text.data+text.length,uint8_t(0))==text.data+text.length,wire::statuses::invalidValue);
+    require(validUtf8(r.slice(wire::keyIdentityBytes,observedKey.keyLength))&&
+      validUtf8(r.slice(wire::keyIdentityBytes+observedKey.keyLength,observedKey.codeLength)),wire::statuses::invalidValue);
+    for(size_t i=wire::keyIdentityBytes+length;i<r.length;++i)require(r.data[i]==0,wire::statuses::invalidValue);
+    std::copy_n(text.data,observedKey.keyLength,observedKey.key.begin());
+    std::copy_n(text.data+observedKey.keyLength,observedKey.codeLength,observedKey.code.begin());
+  }
+  const auto clipboard=r.length>=wire::keyClipboardBytes?r.u64(24):0;
+  if(r.length==wire::keyClipboardBytes)require(clipboard,wire::statuses::invalidValue);
+  if(clipboard)require(r.u32(16)&&
+    ((r.u32(8)==86&&(r.u32(12)&2u)&&!(r.u32(12)&12u))||
+      (r.u32(8)==45&&r.u32(12)==1u)),wire::statuses::invalidValue);
   require(r.u64(0)==publication,wire::statuses::stale);
+  if(identity)require(published&&visible&&focused&&published->scene->metrics.epoch==metrics.epoch&&
+    published->device==metrics.device,wire::statuses::stale);
   if(published&&visible&&focused&&published->scene->metrics.epoch==metrics.epoch){
     Handle keyboard;
     for(const auto root:published->scene->document->children[0])
       if(published->scene->document->get(root).policy&wire::eventPolicies::canonicalKeyboard){keyboard=root;break;}
     if(keyboard){require(document->contains(keyboard)&&(document->get(keyboard).policy&wire::eventPolicies::canonicalKeyboard),wire::statuses::stale);
       require(interactionEvents.size()<wire::limits::interactionEvents,wire::statuses::budgetExceeded);
-      interaction({wire::events::key,r.u32(16)?(r.u32(20)?wire::keyKinds::repeat:wire::keyKinds::down):wire::keyKinds::up,
-        publication,focusSession,uint64_t(r.u32(8))|(uint64_t(r.u32(12))<<32),keyboard,time});++keyWork;return;}
+      Event event{wire::events::key,r.u32(16)?(r.u32(20)?wire::keyKinds::repeat:wire::keyKinds::down):wire::keyKinds::up,
+        publication,focusSession,uint64_t(r.u32(8))|(uint64_t(r.u32(12))<<32),keyboard,time};
+      event.clipboardReadSnapshot=clipboard;event.keyIdentity=observedKey;interaction(event);++keyWork;return;}
   }
+  require(!clipboard&&!identity,wire::statuses::capabilityMissing);
   if(!r.u32(16))return;
   const auto code=r.u32(8),modifiers=r.u32(12);
   if(code==9&&published){std::vector<Handle> choices;

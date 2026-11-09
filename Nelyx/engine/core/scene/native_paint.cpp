@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "document.hpp"
 namespace nelyx::v2 {
-namespace {constexpr std::array<size_t,9> paintPathArity{0,2,2,4,6,0,5,4,12};}
+namespace {constexpr std::array<size_t,10> paintPathArity{0,2,2,4,6,0,5,4,12,7};}
 std::shared_ptr<const NativePaint> readNativePaint(const std::shared_ptr<Ledger>& ledger,Reader bytes) {
   require(bytes.length>=wire::nativePaintHeaderBytes&&bytes.u32(4)==0&&bytes.u32(12)==0&&bytes.u32(0)<=wire::limits::nativePaintEntries&&bytes.u32(8)<=wire::limits::nativePaintExpressions&&
     bytes.u32(16)<=wire::limits::pathCommands&&!bytes.u32(20)&&
@@ -10,18 +10,19 @@ std::shared_ptr<const NativePaint> readNativePaint(const std::shared_ptr<Ledger>
   const auto expressionAt=wire::nativePaintHeaderBytes+paint->entries.size()*wire::nativePaintBytes;
   for(size_t i=0;i<paint->expressions.size();++i){auto& e=paint->expressions[i];const auto at=expressionAt+i*wire::nativePaintExpressionBytes;
     e={bytes.u32(at),bytes.u32(at+4),bytes.u32(at+8),bytes.u32(at+12),bytes.finiteF64(at+16),false};
-    require(e.op<=wire::nativePaintOperations::worldY,wire::statuses::invalidValue);
+    require(e.op<=wire::nativePaintOperations::cos,wire::statuses::invalidValue);
     paint->frameDependent|=e.op==wire::nativePaintOperations::worldX||e.op==wire::nativePaintOperations::worldY;
-    const uint32_t arity=e.op<=3?0u:(e.op==10||e.op==16?3u:2u);
+    const uint32_t arity=e.op==wire::nativePaintOperations::acos||e.op==wire::nativePaintOperations::asin||e.op==wire::nativePaintOperations::cos?1u:e.op<=3||e.op>=wire::nativePaintOperations::boundedWidth?0u:(e.op==10||e.op==16?3u:2u);
     const std::array<uint32_t,3> operands{e.a,e.b,e.c};
     for(size_t j=0;j<operands.size();++j){if(j<arity)require(operands[j]<i,wire::statuses::invalidValue);else require(!operands[j],wire::statuses::invalidValue);}
-    require(!e.op||!e.value,wire::statuses::invalidValue);
+    require(e.op==wire::nativePaintOperations::layoutValue?e.value>=0&&e.value<wire::limits::layoutProgramPaintValues&&std::floor(e.value)==e.value:!e.op||!e.value,wire::statuses::invalidValue);
     e.varying=e.op==3;
     for(size_t j=0;j<arity;++j)e.varying|=paint->expressions[operands[j]].varying;
   }
   const auto pathAt=expressionAt+paint->expressions.size()*wire::nativePaintExpressionBytes;
   for(size_t i=0;i<paint->paths.size();++i){auto& command=paint->paths[i];const auto at=pathAt+i*wire::nativePaintPathCommandBytes;
-    command.verb=bytes.u32(at);require(command.verb>0&&command.verb<paintPathArity.size()&&!bytes.u32(at+4),wire::statuses::invalidValue);
+    command.verb=bytes.u32(at);const auto condition=bytes.u32(at+4);command.condition=condition?condition-1:UINT32_MAX;
+    require(command.verb>0&&command.verb<paintPathArity.size()&&condition<=paint->expressions.size(),wire::statuses::invalidValue);
     for(size_t j=0;j<command.expressions.size();++j){const auto ref=bytes.u32(at+8+j*4);command.expressions[j]=ref;
       require(j<paintPathArity[command.verb]?ref<paint->expressions.size():ref==0,wire::statuses::invalidValue);}
     for(size_t j=56;j<wire::nativePaintPathCommandBytes;j+=8)require(!bytes.u64(at+j),wire::statuses::invalidValue);
@@ -29,12 +30,14 @@ std::shared_ptr<const NativePaint> readNativePaint(const std::shared_ptr<Ledger>
   uint32_t scope=0,pathCursor=0;bool children=false;
   for(size_t i=0;i<paint->entries.size();++i){auto& e=paint->entries[i];const auto at=wire::nativePaintHeaderBytes+i*wire::nativePaintBytes;
     e.kind=bytes.u32(at);e.flags=bytes.u32(at+4);e.color=bytes.u32(at+8);e.shadowColor=bytes.u32(at+12);
-    e.reference={bytes.u32(at+16),bytes.u32(at+20)};e.shape=bytes.u32(at+24);e.clip=bytes.u32(at+28);e.strokeColor=bytes.u32(at+32);
+    e.reference={bytes.u32(at+16),bytes.u32(at+20)};e.shape=bytes.u32(at+24);e.clip=bytes.u32(at+28);e.strokeColor=bytes.u32(at+32);e.strokeCap=bytes.u32(at+36);
     paint->frameDependent|=bool(e.reference);
-    require(e.kind>=1&&e.kind<=wire::nativePaintKinds::children&&!(e.flags&~127u)&&e.shape<=2&&e.clip<=3&&!bytes.u32(at+36),wire::statuses::invalidValue);
+    require(e.kind>=1&&e.kind<=wire::nativePaintKinds::linearMask&&!(e.flags&~255u)&&e.shape<=2&&e.clip<=3&&e.strokeCap<=wire::nativePaintStrokeCaps::square&&
+      (!e.strokeCap||e.kind==wire::nativePaintKinds::path),wire::statuses::invalidValue);
     require(!children||e.kind!=wire::nativePaintKinds::physical,wire::statuses::capabilityMissing);
     require(!(e.flags&32u)||e.kind==6,wire::statuses::invalidValue);
     require(!(e.flags&64u)||e.kind==wire::nativePaintKinds::elevationShadow,wire::statuses::invalidValue);
+    require(!(e.flags&wire::nativePaintBlendFlags::srcATop)||e.kind==wire::nativePaintKinds::shape||e.kind==wire::nativePaintKinds::path,wire::statuses::invalidValue);
     e.elevation=bytes.f64(at+40);e.strokeWidth=bytes.f64(at+48);e.strokeAlign=bytes.f64(at+56);
     e.x=bytes.f64(at+64);e.y=bytes.f64(at+72);e.radius=bytes.f64(at+80);e.progress=bytes.f64(at+88);
     require(e.elevation>=0&&e.elevation<=128&&e.strokeWidth>=0&&e.strokeWidth<=512&&std::abs(e.strokeAlign)<=1e6&&
@@ -57,7 +60,7 @@ std::shared_ptr<const NativePaint> readNativePaint(const std::shared_ptr<Ledger>
     if(e.geometry!=wire::nativePaintGeometryKinds::linear)for(const auto value:e.linear)require(value==0,wire::statuses::invalidValue);
     if(e.geometry==wire::nativePaintGeometryKinds::program){
       require(!e.geometryFlags&&!e.trackWidth&&!e.trackHeight&&!e.thumbWidth&&!e.thumbHeight&&!e.extension&&!e.position&&!e.inset&&
-        (e.kind==2||e.kind==7||e.kind==8||e.kind==9||e.kind==10||e.kind==12||e.kind==wire::nativePaintKinds::path)&&e.repeat>=0&&std::floor(e.repeat)==e.repeat,wire::statuses::invalidValue);
+        (e.kind==2||e.kind==7||e.kind==8||e.kind==9||e.kind==10||e.kind==11||e.kind==12||e.kind==wire::nativePaintKinds::path||e.kind==wire::nativePaintKinds::linearMask)&&e.repeat>=0&&std::floor(e.repeat)==e.repeat,wire::statuses::invalidValue);
       for(size_t j=0;j<e.expressions.size();++j)require((j>=4&&e.expressions[j]==UINT32_MAX)||e.expressions[j]<paint->expressions.size(),wire::statuses::invalidValue);
     }else{
       require(!e.repeat,wire::statuses::invalidValue);for(const auto ref:e.expressions)require(!ref,wire::statuses::invalidValue);
@@ -77,12 +80,23 @@ std::shared_ptr<const NativePaint> readNativePaint(const std::shared_ptr<Ledger>
       if(e.geometry==2||e.geometry==3)require(e.thumbWidth>0&&e.thumbHeight>0,wire::statuses::invalidValue);
     }
     if(e.reference&&e.kind!=3&&e.kind!=4&&e.kind!=wire::nativePaintKinds::paragraph)require(e.geometry==wire::nativePaintGeometryKinds::program,wire::statuses::invalidValue);
-    if(e.kind==wire::nativePaintKinds::hitRegion)require(e.geometry==wire::nativePaintGeometryKinds::linear&&e.shape==0&&!e.color&&!e.strokeWidth&&!e.flags&&!e.clip,wire::statuses::invalidValue);
+    if(e.kind==wire::nativePaintKinds::hitRegion)require((e.geometry==wire::nativePaintGeometryKinds::linear||
+      (e.geometry==wire::nativePaintGeometryKinds::program&&e.repeat<=1))&&e.shape==0&&!e.color&&!e.strokeWidth&&!e.flags&&!e.clip,wire::statuses::invalidValue);
     e.pathStart=bytes.u32(at+464);e.pathCount=bytes.u32(at+468);e.pathFillRule=bytes.u32(at+472);
-    require(!bytes.u32(at+476),wire::statuses::invalidValue);for(size_t j=480;j<512;j+=8)require(!bytes.u64(at+j),wire::statuses::invalidValue);
+    const auto strokeExpression=bytes.u32(at+wire::nativePaintStrokeWidthExpressionField);
+    require(!strokeExpression||(e.kind==wire::nativePaintKinds::path&&e.geometry==wire::nativePaintGeometryKinds::program&&strokeExpression<=paint->expressions.size()),wire::statuses::invalidValue);
+    e.strokeWidthExpression=strokeExpression?strokeExpression-1:UINT32_MAX;
+    if(e.kind==wire::nativePaintKinds::linearMask){
+      require(children&&!scope&&i+1==paint->entries.size()&&e.geometry==wire::nativePaintGeometryKinds::program&&e.repeat==1&&!e.reference&&
+        !e.flags&&!e.color&&!e.shadowColor&&!e.shape&&!e.clip&&!e.strokeWidth&&!e.strokeColor&&!e.strokeAlign&&!e.elevation&&!e.x&&!e.y&&e.radius==-1&&!e.progress&&e.expressions[13]==UINT32_MAX,wire::statuses::invalidValue);
+      for(size_t j=0;j<4;++j){e.gradientExpressions[j]=bytes.u32(at+wire::nativePaintGradientExpressionField+j*4);require(e.gradientExpressions[j]>0&&e.gradientExpressions[j]<=paint->expressions.size(),wire::statuses::invalidValue);}
+      for(size_t j=4;j<12;++j)require(e.expressions[j]==UINT32_MAX,wire::statuses::invalidValue);
+      for(const auto radius:e.radii)require(!radius,wire::statuses::invalidValue);
+      require(!bytes.u64(at+496)&&!bytes.u64(at+504),wire::statuses::invalidValue);
+    }else for(size_t j=480;j<512;j+=8)require(!bytes.u64(at+j),wire::statuses::invalidValue);
     if(e.kind==wire::nativePaintKinds::path){
       require(e.pathCount>0&&e.pathStart==pathCursor&&e.pathCount<=paint->paths.size()-std::min(size_t(pathCursor),paint->paths.size())&&e.pathFillRule<=1&&
-        e.geometry==wire::nativePaintGeometryKinds::program&&!e.shape&&!e.flags&&!e.clip&&!e.shadowColor&&!e.strokeAlign&&!e.elevation&&!e.x&&!e.y&&e.radius==-1&&!e.progress,wire::statuses::invalidValue);
+        e.geometry==wire::nativePaintGeometryKinds::program&&!e.shape&&!(e.flags&~wire::nativePaintBlendFlags::srcATop)&&!e.clip&&!e.shadowColor&&!e.strokeAlign&&!e.elevation&&!e.x&&!e.y&&e.radius==-1&&!e.progress,wire::statuses::invalidValue);
       for(const auto radius:e.radii)require(!radius,wire::statuses::invalidValue);for(size_t j=4;j<12;++j)require(e.expressions[j]==UINT32_MAX,wire::statuses::invalidValue);
       pathCursor+=e.pathCount;
     }else require(!e.pathStart&&!e.pathCount&&!e.pathFillRule,wire::statuses::invalidValue);
@@ -103,7 +117,7 @@ Writer nativePaintBytes(const NativePaint& paint) {
   Writer bytes(wire::nativePaintHeaderBytes+paint.entries.size()*wire::nativePaintBytes+paint.expressions.size()*wire::nativePaintExpressionBytes+paint.paths.size()*wire::nativePaintPathCommandBytes);bytes.u32(0,uint32_t(paint.entries.size()));bytes.u32(4,paint.resolved?1:0);bytes.u32(8,uint32_t(paint.expressions.size()));bytes.u32(16,uint32_t(paint.paths.size()));
   for(size_t i=0;i<paint.entries.size();++i){const auto& e=paint.entries[i];const auto at=wire::nativePaintHeaderBytes+i*wire::nativePaintBytes;
     bytes.u32(at,e.kind);bytes.u32(at+4,e.flags);bytes.u32(at+8,e.color);bytes.u32(at+12,e.shadowColor);
-    bytes.u32(at+16,e.reference.slot);bytes.u32(at+20,e.reference.generation);bytes.u32(at+24,e.shape);bytes.u32(at+28,e.clip);bytes.u32(at+32,e.strokeColor);
+    bytes.u32(at+16,e.reference.slot);bytes.u32(at+20,e.reference.generation);bytes.u32(at+24,e.shape);bytes.u32(at+28,e.clip);bytes.u32(at+32,e.strokeColor);bytes.u32(at+36,e.strokeCap);
     bytes.f64(at+40,e.elevation);bytes.f64(at+48,e.strokeWidth);bytes.f64(at+56,e.strokeAlign);
     bytes.f64(at+64,e.x);bytes.f64(at+72,e.y);bytes.f64(at+80,e.radius);bytes.f64(at+88,e.progress);
     for(size_t j=0;j<8;++j)bytes.f64(at+96+j*8,e.radii[j]);
@@ -117,13 +131,15 @@ Writer nativePaintBytes(const NativePaint& paint) {
     for(size_t j=0;j<e.expressions.size();++j)bytes.u32(at+400+j*4,e.expressions[j]);
     bytes.f64(at+456,e.repeat);
     bytes.u32(at+464,e.pathStart);bytes.u32(at+468,e.pathCount);bytes.u32(at+472,e.pathFillRule);
-    bytes.f64(at+480,e.pathBounds.x);bytes.f64(at+488,e.pathBounds.y);bytes.f64(at+496,e.pathBounds.width);bytes.f64(at+504,e.pathBounds.height);
+    bytes.u32(at+wire::nativePaintStrokeWidthExpressionField,e.strokeWidthExpression==UINT32_MAX?0:e.strokeWidthExpression+1);
+    if(e.kind==wire::nativePaintKinds::linearMask){for(size_t j=0;j<4;++j){if(paint.resolved)bytes.f64(at+wire::nativePaintGradientExpressionField+j*8,e.gradient[j]);else bytes.u32(at+wire::nativePaintGradientExpressionField+j*4,e.gradientExpressions[j]);}}
+    else {bytes.f64(at+480,e.pathBounds.x);bytes.f64(at+488,e.pathBounds.y);bytes.f64(at+496,e.pathBounds.width);bytes.f64(at+504,e.pathBounds.height);}
   }
   const auto expressionAt=wire::nativePaintHeaderBytes+paint.entries.size()*wire::nativePaintBytes;
   for(size_t i=0;i<paint.expressions.size();++i){const auto& e=paint.expressions[i];const auto at=expressionAt+i*wire::nativePaintExpressionBytes;
     bytes.u32(at,e.op);bytes.u32(at+4,e.a);bytes.u32(at+8,e.b);bytes.u32(at+12,e.c);bytes.f64(at+16,e.value);}
   const auto pathAt=expressionAt+paint.expressions.size()*wire::nativePaintExpressionBytes;
-  for(size_t i=0;i<paint.paths.size();++i){const auto& command=paint.paths[i];const auto at=pathAt+i*wire::nativePaintPathCommandBytes;bytes.u32(at,command.verb);
+  for(size_t i=0;i<paint.paths.size();++i){const auto& command=paint.paths[i];const auto at=pathAt+i*wire::nativePaintPathCommandBytes;bytes.u32(at,command.verb);bytes.u32(at+4,paint.resolved||command.condition==UINT32_MAX?0:command.condition+1);
     for(size_t j=0;j<paintPathArity.at(command.verb);++j){if(paint.resolved)bytes.f64(at+8+j*8,command.values[j]);else bytes.u32(at+8+j*4,command.expressions[j]);}}
   return bytes;
 }
@@ -153,6 +169,9 @@ Writer paintPlacementBytes(const PaintPlacement& value) {
 namespace {
 struct PaintEvaluator {
   const NativePaint& paint;double width,height,index=0;uint64_t stamp=1;uint64_t& operations;Affine world;
+  bool boundedWidth=true,boundedHeight=true;
+  const LayoutPaintValues* layoutValues=nullptr;
+  const Node* reference=nullptr;
   std::array<double,wire::limits::nativePaintExpressions> values{};
   std::array<uint64_t,wire::limits::nativePaintExpressions> stamps{};
   double read(uint32_t ref){const auto& e=paint.expressions.at(ref);
@@ -168,7 +187,15 @@ struct PaintEvaluator {
       case 10:{const auto low=b(),high=c();require(low<=high,wire::statuses::invalidValue);value=std::clamp(a(),low,high);break;}
       case 11:value=a()<b();break;case 12:value=a()<=b();break;case 13:value=a()>b();break;case 14:value=a()>=b();break;case 15:value=a()==b();break;
       case 16:value=a()!=0?b():c();break;
-      case 17:value=world.map({a(),b()}).x;break;case 18:value=world.map({a(),b()}).y;break;default:require(false,wire::statuses::invalidValue);
+      case 17:value=world.map({a(),b()}).x;break;case 18:value=world.map({a(),b()}).y;break;
+      case 19:value=boundedWidth;break;case 20:value=boundedHeight;break;
+      case 21:{const auto slot=uint32_t(e.value);require(layoutValues&&(layoutValues->defined&(1u<<slot)),wire::statuses::invalidValue);value=layoutValues->values[slot];break;}
+      case 22:value=std::acos(a());break;case 23:value=std::asin(a());break;
+      case 28:value=std::cos(a());break;
+      case 24:require(reference,wire::statuses::invalidValue);value=reference->contentOverflow;break;
+      case 25:require(reference,wire::statuses::invalidValue);value=reference->contentOverflowX;break;
+      case 26:case 27:require(reference&&reference->paragraph&&reference->paragraph->value.overflowProbe,wire::statuses::invalidValue);value=e.op==26?reference->overflowProbeWidth:reference->overflowProbeHeight;break;
+      default:require(false,wire::statuses::invalidValue);
     }
     require(std::isfinite(value),wire::statuses::invalidValue);
     values[ref]=value;stamps[ref]=stamp;return value;
@@ -182,13 +209,16 @@ void resolvePaintPath(NativePaintEntry& entry,const NativePaint& input,PaintEval
     else {left=std::min(left,x);top=std::min(top,y);right=std::max(right,x);bottom=std::max(bottom,y);}};
   for(size_t i=0;i<entry.pathCount;++i){
     require(++evaluator.operations<=wire::limits::nativePaintOperations,wire::statuses::budgetExceeded);
-    const auto& source=input.paths.at(sourceStart+i);NativePaintPathCommand command;command.verb=source.verb;
+    const auto& source=input.paths.at(sourceStart+i);
+    if(source.condition!=UINT32_MAX&&evaluator.read(source.condition)==0)continue;
+    NativePaintPathCommand command;command.verb=source.verb;
     const auto arity=paintPathArity.at(command.verb);
     for(size_t j=0;j<arity;++j){const auto value=evaluator.read(source.expressions[j]);require(std::abs(value)<=1e12,wire::statuses::invalidValue);command.values[j]=value;}
     const auto& v=command.values;
-    if(command.verb==7||command.verb==8){
+    if(command.verb==7||command.verb==8||command.verb==wire::nativePaintPathVerbs::arc){
       require(v[2]>=0&&v[3]>=0,wire::statuses::invalidValue);point(v[0],v[1]);point(v[0]+v[2],v[1]+v[3]);
       if(command.verb==8)for(size_t j=4;j<12;++j)require(v[j]>=0&&v[j]<=1e6,wire::statuses::invalidValue);
+      if(command.verb==wire::nativePaintPathVerbs::arc)require(v[6]==0||v[6]==1,wire::statuses::invalidValue);
     }else if(command.verb!=5){
       if(command.verb!=1&&!hasPoint)point(0,0);
       if(command.verb==6)require(v[4]>0&&v[4]<=1e6,wire::statuses::invalidValue);
@@ -197,6 +227,7 @@ void resolvePaintPath(NativePaintEntry& entry,const NativePaint& input,PaintEval
     }
     paths.push_back(std::move(command));
   }
+  entry.pathCount=uint32_t(paths.size())-entry.pathStart;
   entry.pathBounds={left,top,right-left,bottom-top};
 }
 std::shared_ptr<NativePaint> expandPaint(const Node& node,const NativePaint& input,uint64_t& operations,const Document* document=nullptr,const PaintMatrices* matrices=nullptr) {
@@ -209,7 +240,7 @@ std::shared_ptr<NativePaint> expandPaint(const Node& node,const NativePaint& inp
   if(!input.paths.empty())paths.reserve(wire::limits::pathCommands);
   for(const auto& source:input.entries){
     const auto& reference=source.reference&&document?document->get(source.reference):node;
-    PaintEvaluator evaluator{input,reference.properties.width,reference.properties.height,0,1,operations,matrices?(*matrices)[reference.id.slot]:Affine{}};
+    PaintEvaluator evaluator{input,reference.properties.width,reference.properties.height,0,1,operations,matrices?(*matrices)[reference.id.slot]:Affine{},reference.paintBoundedWidth,reference.paintBoundedHeight,reference.layoutPaintValues.get(),&reference};
     if(source.geometry!=wire::nativePaintGeometryKinds::program){require(entries.size()<wire::limits::nativePaintDraws,wire::statuses::budgetExceeded);entries.push_back(source);continue;}
     evaluator.index=0;evaluator.stamp=1;
     const auto condition=source.expressions[12];
@@ -223,8 +254,11 @@ std::shared_ptr<NativePaint> expandPaint(const Node& node,const NativePaint& inp
         evaluator.read(source.expressions[2]),evaluator.read(source.expressions[3])};
       for(size_t j=0;j<entry.radii.size();++j)if(source.expressions[j+4]!=UINT32_MAX){entry.radii[j]=evaluator.read(source.expressions[j+4]);require(entry.radii[j]>=0&&entry.radii[j]<=1e6,wire::statuses::invalidValue);}
       if(source.expressions[13]!=UINT32_MAX){const auto color=evaluator.read(source.expressions[13]);require(color>=0&&color<=UINT32_MAX&&std::floor(color)==color,wire::statuses::invalidValue);entry.color=uint32_t(color);}
+      if(source.strokeWidthExpression!=UINT32_MAX){entry.strokeWidth=evaluator.read(source.strokeWidthExpression);require(entry.strokeWidth>=0&&entry.strokeWidth<=512,wire::statuses::invalidValue);}
+      entry.strokeWidthExpression=UINT32_MAX;
+      if(entry.kind==wire::nativePaintKinds::linearMask){for(size_t j=0;j<4;++j){entry.gradient[j]=evaluator.read(source.gradientExpressions[j]-1);require(std::abs(entry.gradient[j])<=1e12,wire::statuses::invalidValue);}entry.gradientExpressions.fill(0);}
       if(entry.kind==7&&entry.radius<0)entry.radius=std::max(0.0,std::min(entry.linear[6],entry.linear[7])/2);
-      if(entry.kind==wire::nativePaintKinds::path)resolvePaintPath(entry,input,evaluator,paths);
+      if(entry.kind==wire::nativePaintKinds::path){resolvePaintPath(entry,input,evaluator,paths);if(!entry.pathCount)continue;}
       entry.expressions.fill(0);entry.repeat=0;entries.push_back(std::move(entry));
     }
   }
@@ -300,8 +334,6 @@ std::shared_ptr<const NativePaint> resolveNodePaint(const Node& node,const Docum
       if(e.reference){if(e.kind==wire::nativePaintKinds::paragraph)require(ref.paintOwner==node.id,wire::statuses::invalidGraph);
         else if(e.kind==3||e.kind==4)require(document.descends(ref.id,node.id),wire::statuses::invalidValue);
         else {for(Handle at=ref.id;at;at=document.get(at).parent)require(!document.get(at).paintPlacement,wire::statuses::invalidValue);}
-        if(e.kind==3||e.kind==4)for(Handle at=ref.id;at!=node.id;at=document.get(at).parent)
-          require(document.get(at).kind!=wire::kinds::scrollViewport,wire::statuses::capabilityMissing);
         const auto inverse=matrices[node.id.slot].inverse();require(inverse.has_value(),wire::statuses::invalidValue);
         e.transform=*inverse*matrices[ref.id.slot];
       }

@@ -18,6 +18,9 @@ class Clipboard final {
   using Completion=std::function<void(std::string,std::string)>;
   Clipboard();
   void getString(Completion result);
+  // Nelyx input carrier captures GetContent on this UI turn, before App keys
+  // can run. RNW's async text retrieval/cancellation still owns completion.
+  void captureString(Completion result);
   void setString(winrt::hstring content,Completion result);
   void cancel();
   size_t pending()const;
@@ -35,7 +38,8 @@ class Clipboard final {
     bool closed=false;
   };
   std::shared_ptr<State> state;
-  void post(Completion result,std::function<void(const std::shared_ptr<State>&,uint64_t)> work);
+  void post(Completion result,std::function<void(const std::shared_ptr<State>&,uint64_t)> work,bool immediate=false);
+  void readString(Completion result,bool immediate);
   static void finish(const std::shared_ptr<State>& state,uint64_t id,std::string text,std::string error);
 };
 }

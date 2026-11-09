@@ -9,11 +9,15 @@ import type {
   EditingSnapshot,
   EditingUpdate,
   ListOptions,
+  EditorViewportOptions,
   EngineResponse,
   EngineNodeSnapshot,
   ControlOptions,
   GestureEvent,
   RawInputSample,
+  PointerSample,
+  TooltipPositionOptions,
+  IntrinsicSizingOptions,
   EngineEvent,
   GraphicsOptions,
   ParagraphOptions,
@@ -28,6 +32,7 @@ import type { NativePaintOptions } from './native-paint.ts';
 import type { ImageStyleOptions } from './image-style.ts';
 import type { NativeSnapshotConfiguration } from './snapshot.ts';
 import type { LayoutBuilderOptions } from './layout-builder.ts';
+import type { NativeLayoutProgram } from '@nelyx/core/framework/rendering/object';
 export class ImageResource {
   readonly bytes: Uint8Array;
   constructor(bytes: Uint8Array) {
@@ -35,6 +40,10 @@ export class ImageResource {
   }
 }
 export interface SceneNodeOptions {
+  readonly layoutProgram?: NativeLayoutProgram;
+  readonly childAnchor?: readonly [number, number, number, number, number, number];
+  readonly intrinsicSizing?: IntrinsicSizingOptions;
+  readonly tooltipPosition?: TooltipPositionOptions;
   readonly snapshot?: NativeSnapshotConfiguration;
   readonly layoutBuilder?: LayoutBuilderOptions;
   readonly tapRegion?: NativeTapRegionOptions | (() => NativeTapRegionOptions);
@@ -51,6 +60,9 @@ export interface SceneNodeOptions {
     readonly mergeDescendants?: boolean;
     readonly mergeIntoParent?: boolean;
     readonly excludeChildren?: boolean;
+    readonly blockActions?: boolean;
+    readonly explicitChildren?: boolean;
+    readonly forceMergeDescendants?: boolean;
   };
   readonly nativePaint?: readonly NativePaintOptions[];
   readonly paintPlacement?: import('./paint-placement.ts').PaintPlacementOptions;
@@ -70,12 +82,14 @@ export interface SceneNodeOptions {
   readonly clipStyle?: ClipStyleOptions;
   readonly onScrollTerminal?: (event: EngineEvent) => void;
   readonly onRawInput?: (sample: RawInputSample) => void;
+  readonly onPointerSample?: (sample: PointerSample) => void;
   readonly onRawGap?: (first: bigint, last: bigint) => void;
   /** App response required for each sample; one outstanding request/stream, 100 ms timeout. */
   readonly appControlled?: (sample: RawInputSample) => boolean | PromiseLike<boolean>;
   readonly modal?: boolean;
   /** Canonical RenderBox hit policy; omitted preserves the data API's existing hit geometry. */
   readonly pointerHitTest?: 'proxy' | 'self' | 'deferToChild' | 'translucent';
+  readonly pointerBlock?: 'ignore' | 'absorb';
   readonly canonicalGestures?: boolean;
   readonly dragStartDown?: boolean;
   readonly freePan?: boolean;
@@ -84,10 +98,12 @@ export interface SceneNodeOptions {
   readonly roundedHitTest?: boolean;
   readonly onFocusChanged?: (focused: boolean, event?: EngineEvent) => void;
   readonly gestures?: number;
+  readonly gestureDevices?: number;
   readonly control?: ControlOptions;
   readonly onGesture?: (event: GestureEvent) => void;
   readonly onValue?: (value: number, second: number) => void;
   readonly list?: ListOptions;
+  readonly editorViewport?: EditorViewportOptions;
   readonly listItem?: { readonly index: number; readonly key: bigint };
   readonly onLayout?: (node: EngineNodeSnapshot, snapshot: EngineResponse) => void;
   readonly properties?: NodeProperties;
@@ -187,6 +203,7 @@ export class SceneNode {
 function id(h: NodeHandle): string {
   return `${h.slot}:${h.generation}`;
 }
+const commandKind = (bytes: Uint8Array) => bytes[0]! | (bytes[1]! << 8);
 interface NativeRecord {
   readonly node: SceneNode;
   readonly handle: NodeHandle;
@@ -296,6 +313,8 @@ export class SceneWriter {
       onPublication?: (state: EngineResponse) => void;
       /** The frontend runs its Source listeners before the accepted node callback. */
       onSemanticAction?: (event: EngineEvent, perform: () => void) => void;
+      /** Source input callbacks share the frontend's focus/key mailbox. */
+      onInputEvent?: (event: EngineEvent, perform: () => void) => void;
       onAfterEvents?: () => void;
       onAppFrame?: (timestampSeconds: number, serial: bigint) => void;
       /** Published only after adoption of a known native ACK, including ACK recovery. */
@@ -385,6 +404,15 @@ export class SceneWriter {
           o.vertical ?? { kind: 'unbounded' },
         ),
       ];
+      const before = this.accepted.get(id(h));
+      const optional = (enabled: unknown, command: Uint8Array) => {
+        const previous = before?.config.find(
+          (value) => commandKind(value) === commandKind(command),
+        );
+        // Never spend a command on an absent default. An explicit reset is
+        // retained until ACK; NACK/retry still sees the old immutable bytes.
+        if (enabled || (previous && !equalBytes(previous, command))) config.push(command);
+      };
       if (node.text)
         config.push(
           c.text(
@@ -407,16 +435,27 @@ export class SceneWriter {
       else if (o.paragraphFont) throw Error('Paragraph fonts require a native paragraph node');
       if (node.kind === 'clip') config.push(c.clipStyle(h, o.clipStyle ?? null));
       else if (o.clipStyle) throw Error('Clip styles require a native clip node');
-      if (node.editor) config.push(c.editor(h, node.editorFlags, node.maximumLength));
-      config.push(c.semantics(h, o.semantics ?? null));
+      if (node.editor)
+        config.push(c.editor(h, node.editorFlags, node.maximumLength, o.editorViewport));
+      optional(o.semantics, c.semantics(h, o.semantics ?? null));
       if (node.kind === 'sliver') config.push(c.list(h, o.list ?? null));
-      config.push(c.graphics(h, o.graphics));
-      config.push(c.nativePaint(h, o.nativePaint));
-      config.push(c.paintPlacement(h, o.paintPlacement));
-      config.push(c.layerLink(h, typeof o.layerLink === 'function' ? o.layerLink() : o.layerLink));
-      config.push(c.tapRegion(h, typeof o.tapRegion === 'function' ? o.tapRegion() : o.tapRegion));
-      config.push(c.snapshot(h, o.snapshot));
-      config.push(c.layoutBuilder(h, o.layoutBuilder));
+      optional(o.graphics, c.graphics(h, o.graphics));
+      optional(o.nativePaint?.length, c.nativePaint(h, o.nativePaint));
+      optional(o.paintPlacement, c.paintPlacement(h, o.paintPlacement));
+      optional(
+        o.layerLink,
+        c.layerLink(h, typeof o.layerLink === 'function' ? o.layerLink() : o.layerLink),
+      );
+      optional(
+        o.tapRegion,
+        c.tapRegion(h, typeof o.tapRegion === 'function' ? o.tapRegion() : o.tapRegion),
+      );
+      optional(o.snapshot, c.snapshot(h, o.snapshot));
+      optional(o.layoutBuilder, c.layoutBuilder(h, o.layoutBuilder));
+      optional(o.tooltipPosition, c.tooltipPosition(h, o.tooltipPosition));
+      optional(o.childAnchor, c.childAnchor(h, o.childAnchor));
+      optional(o.intrinsicSizing, c.intrinsicSizing(h, o.intrinsicSizing));
+      optional(o.layoutProgram, c.layoutProgram(h, o.layoutProgram));
       if (o.nativeSparkline)
         config.push(
           c.nativeExtension(
@@ -426,9 +465,10 @@ export class SceneWriter {
             o.nativeSparkline.values,
           ),
         );
-      config.push(c.listItem(h, o.listItem ?? null));
-      config.push(
-        c.gesture(h, o.gestures ?? 0),
+      optional(o.listItem, c.listItem(h, o.listItem ?? null));
+      optional(o.gestures, c.gesture(h, o.gestures ?? 0, o.gestureDevices));
+      optional(
+        o.control,
         c.control(
           h,
           o.control
@@ -451,6 +491,7 @@ export class SceneWriter {
             (o.freePan ? p.eventPolicies.freePan : 0) |
             (o.dragThreshold ? p.eventPolicies.dragThreshold : 0) |
             (o.mouseRegion ? p.eventPolicies.mouseRegion : 0) |
+            (o.onPointerSample ? p.eventPolicies.pointerListener : 0) |
             (o.mouseRegion?.opaque ? p.eventPolicies.mouseOpaque : 0) |
             (o.mouseRegion?.exclusive ? p.eventPolicies.exclusiveMouseRegion : 0) |
             (o.roundedHitTest ? p.eventPolicies.roundedHitTest : 0) |
@@ -463,6 +504,11 @@ export class SceneWriter {
             (o.semanticsPolicy?.mergeDescendants ? p.eventPolicies.mergeSemanticsDescendants : 0) |
             (o.semanticsPolicy?.mergeIntoParent ? p.eventPolicies.mergeSemanticsIntoParent : 0) |
             (o.semanticsPolicy?.excludeChildren ? p.eventPolicies.excludeChildSemantics : 0) |
+            (o.semanticsPolicy?.blockActions ? p.eventPolicies.blockSemanticActions : 0) |
+            (o.semanticsPolicy?.explicitChildren ? p.eventPolicies.explicitChildSemantics : 0) |
+            (o.semanticsPolicy?.forceMergeDescendants ? p.eventPolicies.forceMergeSemantics : 0) |
+            (o.pointerBlock === 'ignore' ? p.eventPolicies.ignorePointer : 0) |
+            (o.pointerBlock === 'absorb' ? p.eventPolicies.absorbPointer : 0) |
             (o.pointerHitTest === 'self' ? p.eventPolicies.hitTestSelf : 0) |
             (o.pointerHitTest === 'deferToChild' ? p.eventPolicies.deferToChild : 0) |
             (o.pointerHitTest === 'translucent' ? p.eventPolicies.translucent : 0),
@@ -513,20 +559,84 @@ export class SceneWriter {
     };
     for (const r of this.accepted.values())
       if (!desired.has(id(r.handle))) {
-        if (r.parent) changes.push(c.detach(r.handle));
         detach(r);
       }
     for (const r of [...this.accepted.values()].reverse())
-      if (!desired.has(id(r.handle))) changes.push(c.destroy(r.handle));
-    for (const r of desired.values()) {
+      if (!desired.has(id(r.handle))) changes.push(c.destroy(r.handle, !!r.parent));
+    const preorder: NativeRecord[] = [],
+      indices = new Map<string, number>(),
+      creationFlags = new Map<string, number>(),
+      attached = new Set<string>();
+    const visit = (record: NativeRecord): void => {
+      preorder.push(record);
+      record.children.forEach((child, index) => {
+        indices.set(id(child), index);
+        visit(desired.get(id(child))!);
+      });
+    };
+    for (const record of desired.values()) if (!record.parent) visit(record);
+    // Parents precede new children so construction can also place one child.
+    // Configuration follows all creation; paint/reference targets then exist.
+    for (const r of preorder) {
       const before = this.accepted.get(id(r.handle));
+      let initialFlags = 0;
       if (!before) {
-        changes.push(c.create(r.handle, r.node.kind));
+        const layout = r.config.find((value) => commandKind(value) === p.commands.layout),
+          policy = r.config.find((value) => commandKind(value) === p.commands.eventPolicy);
+        if (layout && equalBytes(layout, c.layout(r.handle)))
+          initialFlags |= p.nodeCreationFlags.layoutEnabled;
+        else if (layout && equalBytes(layout, c.layout(r.handle, { childConstraints: 'inherit' })))
+          initialFlags |=
+            p.nodeCreationFlags.layoutEnabled | p.nodeCreationFlags.inheritChildConstraints;
+        if (policy && equalBytes(policy, c.eventPolicy(r.handle, p.eventPolicies.canonicalHitTest)))
+          initialFlags |= p.nodeCreationFlags.canonicalHitTest;
+        creationFlags.set(id(r.handle), initialFlags);
+        const siblings = r.parent ? topology.get(id(r.parent))! : undefined,
+          index = siblings ? Math.min(indices.get(id(r.handle))!, siblings.length) : 0;
+        changes.push(
+          c.create(
+            r.handle,
+            r.node.kind,
+            initialFlags,
+            r.parent ? { parent: r.parent, index } : undefined,
+          ),
+        );
+        if (siblings) {
+          siblings.splice(index, 0, id(r.handle));
+          attached.add(id(r.handle));
+        }
         topology.set(id(r.handle), []);
       }
-      r.config.forEach((config, index) => {
-        if (!before || !before.config[index] || !equalBytes(config, before.config[index]!))
-          changes.push(config);
+    }
+    for (const r of desired.values()) {
+      const before = this.accepted.get(id(r.handle)),
+        initialFlags = creationFlags.get(id(r.handle)) ?? 0;
+      // Creation already establishes these exact Core defaults. Keep their
+      // immutable records for later resets, while omitting redundant writes
+      // from the atomic transaction (large route replacement uses this path).
+      const initial = before
+        ? undefined
+        : [
+            c.properties(r.handle, {}),
+            c.paint(r.handle, 0),
+            c.constraints(r.handle, { kind: 'unbounded' }, { kind: 'unbounded' }),
+            c.layout(r.handle, {
+              enabled: !!(initialFlags & p.nodeCreationFlags.layoutEnabled),
+              childConstraints:
+                initialFlags & p.nodeCreationFlags.inheritChildConstraints ? 'inherit' : 'loose',
+            }),
+            c.eventPolicy(
+              r.handle,
+              initialFlags & p.nodeCreationFlags.canonicalHitTest
+                ? p.eventPolicies.canonicalHitTest
+                : 0,
+            ),
+          ];
+      r.config.forEach((config) => {
+        const previous = (before?.config ?? initial)?.find(
+          (value) => commandKind(value) === commandKind(config),
+        );
+        if (!previous || !equalBytes(config, previous)) changes.push(config);
       });
     }
     // Every parent exists. Populate siblings in declaration order against the
@@ -535,10 +645,14 @@ export class SceneWriter {
       const list = topology.get(id(r.handle))!;
       r.children.forEach((h, index) => {
         const old = this.accepted.get(id(h));
-        if (old?.parent && id(old.parent) === id(r.handle) && list.indexOf(id(h)) === index) return;
-        if (old?.parent) {
+        if (
+          ((old?.parent && id(old.parent) === id(r.handle)) || attached.has(id(h))) &&
+          list.indexOf(id(h)) === index
+        )
+          return;
+        if (old?.parent || attached.has(id(h))) {
           changes.push(c.move(h, r.handle, index));
-          detach(old);
+          detach(old ?? desired.get(id(h))!);
         } else changes.push(c.attach(h, r.handle, index));
         list.splice(index, 0, id(h));
       });
@@ -644,6 +758,17 @@ export class SceneWriter {
         }
       }
       const changes = this.diff(desired);
+      if (changes.length > p.limits.commands) {
+        const kinds = new Map<number, number>();
+        for (const change of changes) {
+          const kind = commandKind(change);
+          kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
+        }
+        throw new RangeError(
+          `Scene command budget ${changes.length}/${p.limits.commands} for ${desired.size} nodes: ` +
+            [...kinds].map(([kind, count]) => `${kind}=${count}`).join(','),
+        );
+      }
       if (changes.length) {
         this.pending = { desired, changes };
         try {
@@ -782,6 +907,20 @@ export class SceneWriter {
   notifyFocusPeer(node: NodeHandle): void {
     if (!this.closed) this.accepted.get(id(node))?.node.options.onFocusChanged?.(true);
   }
+  private inputEvent(
+    event: EngineEvent,
+    record: NativeRecord | undefined,
+    run: (current: NativeRecord | undefined) => void,
+  ): void {
+    const perform = () => {
+      if (this.closed) return;
+      const current = record ? this.accepted.get(id(record.handle)) : undefined;
+      if (record && (!current || current.node.reference !== record.node.reference)) return;
+      run(current);
+    };
+    if (this.options.onInputEvent) this.options.onInputEvent(event, perform);
+    else perform();
+  }
   async pollEvents(): Promise<void> {
     if (this.closed || this.polling) return;
     this.polling = true;
@@ -857,59 +996,77 @@ export class SceneWriter {
           continue;
         }
         if (event.kind === p.events.focusChanged) {
-          const next =
-              event.status === p.statuses.ok && event.id
-                ? this.accepted.get(id(event.node))
-                : undefined,
-            handle = next ? id(next.handle) : '';
-          if (handle !== this.focusHandle) {
-            (
-              this.accepted.get(this.focusHandle)?.node.options.onFocusChanged ?? this.focusCallback
-            )?.(false, event);
-            this.focusHandle = handle;
-            this.focusCallback = next?.node.options.onFocusChanged;
-            this.focusCallback?.(true, event);
-          }
+          this.inputEvent(event, undefined, () => {
+            const next =
+                event.status === p.statuses.ok && event.id
+                  ? this.accepted.get(id(event.node))
+                  : undefined,
+              handle = next ? id(next.handle) : '';
+            if (handle !== this.focusHandle) {
+              (
+                this.accepted.get(this.focusHandle)?.node.options.onFocusChanged ??
+                this.focusCallback
+              )?.(false, event);
+              this.focusHandle = handle;
+              this.focusCallback = next?.node.options.onFocusChanged;
+              this.focusCallback?.(true, event);
+            }
+          });
           continue;
         }
         const record = this.accepted.get(id(event.node));
         if (!record) {
           if (event.kind === p.events.semanticAction && event.tapRegion)
-            this.options.onSemanticAction?.(event, () => {});
+            this.inputEvent(event, undefined, () =>
+              this.options.onSemanticAction?.(event, () => {}),
+            );
           continue;
         }
-        if (event.kind === p.events.scrollTerminal) record.node.options.onScrollTerminal?.(event);
+        if (event.kind === p.events.scrollTerminal)
+          this.inputEvent(event, record, (current) =>
+            current?.node.options.onScrollTerminal?.(event),
+          );
         else if (event.kind === p.events.key) record.node.options.onKey?.(event);
-        else if (event.kind === p.events.tapRegion) record.node.options.onTapRegion?.(event);
+        else if (event.kind === p.events.pointer && event.pointer)
+          this.inputEvent(event, record, (current) =>
+            current?.node.options.onPointerSample?.(event.pointer!),
+          );
+        else if (event.kind === p.events.tapRegion)
+          this.inputEvent(event, record, (current) => current?.node.options.onTapRegion?.(event));
         else if (event.kind === p.events.controlChanged) {
           ++this.counters.controls;
-          const callback = record.node.options.onValue;
-          if (callback) {
-            const key = id(record.handle);
-            this.controlRevisions.set(key, (this.controlRevisions.get(key) ?? 0n) + 1n);
-            try {
-              callback(eventValue(event.detail), event.x);
-            } finally {
-              if (!this.closed) this.schedule();
+          this.inputEvent(event, record, (current) => {
+            const callback = current?.node.options.onValue;
+            if (callback) {
+              const key = id(record.handle);
+              this.controlRevisions.set(key, (this.controlRevisions.get(key) ?? 0n) + 1n);
+              try {
+                callback(eventValue(event.detail), event.x);
+              } finally {
+                if (!this.closed) this.schedule();
+              }
             }
-          }
+          });
         } else if (event.kind === p.events.gesture) {
           ++this.counters.gestures;
           const kind = Object.entries(p.gestureKinds).find(
             ([, value]) => value === event.status,
           )?.[0] as GestureEvent['kind'] | undefined;
           if (kind)
-            record.node.options.onGesture?.({
-              kind,
-              sequence: event.id,
-              x: event.x,
-              y: event.y,
-              value: eventValue(event.detail),
-              ...(event.gesture ? { details: event.gesture } : {}),
-            });
+            this.inputEvent(event, record, (current) =>
+              current?.node.options.onGesture?.({
+                kind,
+                sequence: event.id,
+                x: event.x,
+                y: event.y,
+                value: eventValue(event.detail),
+                ...(event.gesture ? { details: event.gesture } : {}),
+              }),
+            );
         } else if (event.kind === p.events.editingChanged && record.node.editor) {
           const editing = await this.view.editSnapshot(event.node);
-          if (!this.closed) record.node.editor.publish(editing);
+          if (!this.closed)
+            this.inputEvent(event, record, (current) => current?.node.editor?.publish(editing));
         } else if (event.kind === p.events.semanticAction) {
           const action = Object.entries(p.semanticsActions).find(
             ([, v]) => BigInt(v) === event.detail,
@@ -927,8 +1084,10 @@ export class SceneWriter {
               )
                 source.node.options.onAction?.(action, event);
             };
-            if (this.options.onSemanticAction) this.options.onSemanticAction(event, perform);
-            else perform();
+            this.inputEvent(event, record, () => {
+              if (this.options.onSemanticAction) this.options.onSemanticAction(event, perform);
+              else perform();
+            });
           }
         }
       }

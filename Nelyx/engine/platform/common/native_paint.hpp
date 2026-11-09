@@ -2,12 +2,41 @@
 #pragma once
 #include "graphics.hpp"
 #include "include/utils/SkShadowUtils.h"
+#include "include/effects/SkGradient.h"
 #include <functional>
 namespace nelyx::v2::native {
 struct NativePaintCounts {uint64_t paragraphs=0,foreground=0;};
+inline const NativePaintEntry* nativeLinearMask(const NativePaint* paint) {
+  return paint&&!paint->entries.empty()&&paint->entries.back().kind==wire::nativePaintKinds::linearMask?&paint->entries.back():nullptr;
+}
+inline SkRect nativeMaskBounds(const NativePaintEntry& e) {
+  return SkRect::MakeXYWH(float(e.transform.tx),float(e.transform.ty),float(e.width),float(e.height));
+}
+// The mask clips before saveLayer. Only its rounded device clip can allocate
+// backing; reserve a pixel fringe rather than another entire window surface.
+inline uint64_t nativeMaskLayerBytes(const DrawItem& item,double scale,uint32_t width,uint32_t height) {
+  const auto mask=nativeLinearMask(item.paint.get());if(!mask||item.opacity<=0||!item.world.inverse())return 0;
+  const auto& m=item.world;
+  const auto device=SkMatrix::MakeAll(float(m.a*scale),float(m.c*scale),float(m.tx*scale),float(m.b*scale),float(m.d*scale),float(m.ty*scale),0,0,1).mapRect(nativeMaskBounds(*mask));
+  const auto clip=intersect({device.x(),device.y(),device.width(),device.height()},{0,0,double(width),double(height)});
+  if(clip.width<=0||clip.height<=0)return 0;
+  const double left=std::max(0.0,std::floor(clip.x)-1),top=std::max(0.0,std::floor(clip.y)-1),
+    right=std::min(double(width),std::ceil(clip.x+clip.width)+1),bottom=std::min(double(height),std::ceil(clip.y+clip.height)+1);
+  return uint64_t(right-left)*uint64_t(bottom-top)*4;
+}
+inline void paintNativeMask(SkCanvas* canvas,const NativePaintEntry& e) {
+  const SkPoint points[2]{{float(e.gradient[0]),float(e.gradient[1])},{float(e.gradient[2]),float(e.gradient[3])}};
+  const SkColor4f colors[2]{{1,1,1,1},{1,1,1,0}};
+  const SkGradient gradient{SkGradient::Colors{{colors,2},SkTileMode::kClamp},SkGradient::Interpolation{}};
+  auto shader=SkShaders::LinearGradient(points,gradient);
+  if(!shader)throw std::runtime_error("Native linear mask shader unavailable");
+  SkPaint paint;paint.setBlendMode(SkBlendMode::kModulate);paint.setShader(std::move(shader));
+  SkAutoCanvasRestore restore(canvas,true);canvas->translate(float(e.transform.tx),float(e.transform.ty));
+  canvas->drawRect(SkRect::MakeWH(float(e.width),float(e.height)),paint);
+}
 inline double nativePaintOutset(const NativePaintEntry& e,double width,double height,double scale=1) {
-  if(e.kind==wire::nativePaintKinds::hitRegion||e.kind==wire::nativePaintKinds::clip||e.kind==wire::nativePaintKinds::save||e.kind==wire::nativePaintKinds::restore||e.kind==wire::nativePaintKinds::children)return 0;
-  if(e.kind==wire::nativePaintKinds::path){auto bounds=e.pathBounds;const double padding=2*e.strokeWidth;
+  if(e.kind==wire::nativePaintKinds::hitRegion||e.kind==wire::nativePaintKinds::clip||e.kind==wire::nativePaintKinds::save||e.kind==wire::nativePaintKinds::restore||e.kind==wire::nativePaintKinds::children||e.kind==wire::nativePaintKinds::linearMask)return 0;
+  if(e.kind==wire::nativePaintKinds::path){auto bounds=e.pathBounds;const double padding=2*(e.strokeWidth==0&&(e.strokeColor>>24)?1/std::max(.125,scale):e.strokeWidth);
     bounds={bounds.x-padding,bounds.y-padding,bounds.width+2*padding,bounds.height+2*padding};bounds=e.transform.bounds(bounds);
     return std::max({0.0,-bounds.x,-bounds.y,bounds.x+bounds.width-width,bounds.y+bounds.height-height});}
   const bool circle=e.kind==7||e.kind==4||(e.kind==3&&(e.flags&4u));
@@ -37,6 +66,8 @@ inline SkPath nativePaintPath(const NativePaint& paint,const NativePaintEntry& e
       case 7:builder.addRect(SkRect::MakeXYWH(float(v[0]),float(v[1]),float(v[2]),float(v[3])));break;
       case 8:{SkVector radii[4];for(size_t j=0;j<4;++j)radii[j]={float(v[4+j*2]),float(v[5+j*2])};SkRRect rect;
         rect.setRectRadii(SkRect::MakeXYWH(float(v[0]),float(v[1]),float(v[2]),float(v[3])),radii);builder.addRRect(rect);break;}
+      case wire::nativePaintPathVerbs::arc:builder.arcTo(SkRect::MakeXYWH(float(v[0]),float(v[1]),float(v[2]),float(v[3])),
+        float(v[4]*180/3.141592653589793),float(v[5]*180/3.141592653589793),v[6]!=0);break;
     }
   }return builder.detach();
 }
@@ -57,18 +88,20 @@ inline void paintNative(SkCanvas* canvas,const Node& node,const NativePaint& seq
   const bool ink=std::any_of(begin,end,[](const auto& e){return e.kind==3||e.kind==4;});
   SkAutoCanvasRestore restore(canvas,true);if(ink)canvas->clipRect(SkRect::MakeWH(float(node.properties.width),float(node.properties.height)));
   for(auto at=begin;at!=end;++at){const auto& e=*at;
-    if(e.kind==wire::nativePaintKinds::hitRegion)continue;
+    if(e.kind==wire::nativePaintKinds::hitRegion||e.kind==wire::nativePaintKinds::linearMask)continue;
     if(e.kind==wire::nativePaintKinds::save){canvas->save();continue;}
     if(e.kind==wire::nativePaintKinds::restore){canvas->restore();continue;}
-    if(e.kind==10){auto shape=nativePaintShape(e);shape.offset(float(e.transform.tx),float(e.transform.ty));canvas->clipRRect(shape,true);continue;}
+    if(e.kind==10){auto shape=nativePaintShape(e);shape.offset(float(e.transform.tx),float(e.transform.ty));canvas->clipRRect(shape,e.clip!=wire::clipBehaviors::hardEdge);continue;}
     canvas->save();
     const auto& m=e.transform;canvas->concat(SkMatrix::MakeAll(float(m.a),float(m.c),float(m.tx),float(m.b),float(m.d),float(m.ty),0,0,1));
     paint.setColor(e.color);paint.setStyle(SkPaint::kFill_Style);
+    paint.setBlendMode(e.flags&wire::nativePaintBlendFlags::srcATop?SkBlendMode::kSrcATop:SkBlendMode::kSrcOver);
     if(e.kind==wire::nativePaintKinds::paragraph){
       if(!paragraph)throw std::runtime_error("Native prepared paragraph resolver unavailable");paragraph(e.reference);if(counts)++counts->paragraphs;
-    }else if(e.kind==wire::nativePaintKinds::path){const auto path=nativePaintPath(sequence,e);SkPaint pathPaint;pathPaint.setAntiAlias(true);
+    }else if(e.kind==wire::nativePaintKinds::path){const auto path=nativePaintPath(sequence,e);SkPaint pathPaint;pathPaint.setAntiAlias(true);pathPaint.setBlendMode(paint.getBlendMode_or(SkBlendMode::kSrcOver));
       if(e.color>>24){pathPaint.setColor(e.color);canvas->drawPath(path,pathPaint);}
-      if(e.strokeWidth>0&&(e.strokeColor>>24)){pathPaint.setColor(e.strokeColor);pathPaint.setStyle(SkPaint::kStroke_Style);pathPaint.setStrokeWidth(float(e.strokeWidth));canvas->drawPath(path,pathPaint);}
+      if(e.strokeColor>>24){pathPaint.setColor(e.strokeColor);pathPaint.setStyle(SkPaint::kStroke_Style);pathPaint.setStrokeWidth(float(e.strokeWidth));
+        pathPaint.setStrokeCap(e.strokeCap==wire::nativePaintStrokeCaps::round?SkPaint::kRound_Cap:e.strokeCap==wire::nativePaintStrokeCaps::square?SkPaint::kSquare_Cap:SkPaint::kButt_Cap);canvas->drawPath(path,pathPaint);}
     }else if(e.kind==2){if(e.strokeColor>>24){
       paint.setColor(e.strokeColor);paint.setStrokeWidth(float(e.strokeWidth));paint.setStyle(SkPaint::kStroke_Style);
       canvas->drawRRect(nativePaintShape(e,e.strokeWidth*e.strokeAlign/2),paint);paint.setStyle(SkPaint::kFill_Style);
@@ -96,6 +129,7 @@ inline void paintNative(SkCanvas* canvas,const Node& node,const NativePaint& seq
     }
     canvas->restore();
   }
+  paint.setBlendMode(SkBlendMode::kSrcOver);
 }
 inline void paintNative(SkCanvas* canvas,const Node& node,SkPaint& paint,double scale=1) {
   if(node.resolvedPaint)paintNative(canvas,node,*node.resolvedPaint,paint,scale);

@@ -2483,6 +2483,27 @@ export class SemanticsConfiguration {
       this._flagValue('isKeyboardKey')
     );
   }
+  /** @internal Closed annotation state for Core's semantic fragment assembly.
+   * This records policy only; layout and semantic geometry remain in Core. */
+  _nativeMergeConfiguration(): {
+    readonly flags: number;
+    readonly explicitRole: boolean;
+    readonly declaredRole: boolean;
+    readonly annotated: boolean;
+  } {
+    const flags = this._flagsWord ?? semanticsFlagWord(this._flags);
+    invariant(
+      flags !== null,
+      'native-semantics-flags',
+      'Native semantics requires canonical flags',
+    );
+    return {
+      flags,
+      explicitRole: this._hasExplicitRole,
+      declaredRole: this._role !== SemanticsRole.none,
+      annotated: this.hasBeenAnnotated,
+    };
+  }
   isCompatibleWith(other: SemanticsConfiguration | null): boolean {
     if (other === null || !other.hasBeenAnnotated) return true;
     if (!valueEquals(this._traversalChildIdentifier, other._traversalChildIdentifier)) return false;

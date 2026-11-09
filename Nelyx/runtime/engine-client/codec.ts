@@ -1,5 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { protocol as p } from './schema.ts';
+import { semanticBody, readSemanticBody } from './semantics.ts';
+import { keyIdentityText, keyIdentityLocation, readKeyIdentity } from './keyboard.ts';
+import type { KeyIdentity } from './keyboard.ts';
+export type { KeyIdentity } from './keyboard.ts';
+import type { SemanticProperties, SemanticSnapshot } from './semantics.ts';
+export type { SemanticProperties, SemanticSnapshot, SemanticCustomAction } from './semantics.ts';
+import { layoutProgramBytes } from './layout-program.ts';
+import type { NativeLayoutProgram } from '@nelyx/core/framework/rendering/object';
 import { encodeUtf8, decodeUtf8 } from './utf8.ts';
 import { paragraphOptionsBytes, readParagraphOptions } from './paragraph.ts';
 import { clipStyleBytes, readClipStyle } from './clip.ts';
@@ -147,11 +155,18 @@ export interface NodeLayout {
 }
 export interface ListOptions {
   readonly fixed?: boolean;
+  readonly sequential?: boolean;
   readonly generation: bigint;
   readonly count: number;
   readonly begin: number;
   readonly end: number;
   readonly estimate: number;
+}
+export interface EditorViewportOptions {
+  readonly minLines: number;
+  /** Zero preserves the Source unbounded maximum. */
+  readonly maxLines: number;
+  readonly expands?: boolean;
 }
 export interface ListSnapshot extends ListOptions {
   readonly demandBegin: number;
@@ -232,14 +247,37 @@ export function keyBody(
   down = true,
   modifiers = 0,
   repeat = false,
+  clipboardReadSnapshot = 0n,
+  identity?: KeyIdentity,
 ): Uint8Array {
-  return body(24, (v) => {
-    v.setBigUint64(0, uint64(publication), true);
-    v.setUint32(8, uint32(code), true);
-    v.setUint32(12, uint32(modifiers), true);
-    v.setUint32(16, down ? 1 : 0, true);
-    v.setUint32(20, repeat ? 1 : 0, true);
-  });
+  const key = identity ? keyIdentityText(identity.key) : null,
+    textCode = identity ? keyIdentityText(identity.code) : null;
+  if (identity) keyIdentityLocation(identity.location);
+  const bytes = body(
+    identity
+      ? p.keyIdentityBytes + Math.ceil((key!.length + textCode!.length) / 8) * 8
+      : clipboardReadSnapshot
+        ? p.keyClipboardBytes
+        : 24,
+    (v) => {
+      v.setBigUint64(0, uint64(publication), true);
+      v.setUint32(8, uint32(code), true);
+      v.setUint32(12, uint32(modifiers), true);
+      v.setUint32(16, down ? 1 : 0, true);
+      v.setUint32(20, repeat ? 1 : 0, true);
+      if (clipboardReadSnapshot) v.setBigUint64(24, uint64(clipboardReadSnapshot), true);
+      if (identity) {
+        v.setUint32(32, key!.length, true);
+        v.setUint32(36, textCode!.length, true);
+        v.setUint32(40, identity.location, true);
+      }
+    },
+  );
+  if (identity) {
+    bytes.set(key!, p.keyIdentityBytes);
+    bytes.set(textCode!, p.keyIdentityBytes + key!.length);
+  }
+  return bytes;
 }
 export function uint32(value: number): number {
   if (!Number.isInteger(value) || value < 0 || value > 0xffff_ffff)
@@ -376,35 +414,6 @@ export interface TextGeometry {
   readonly caret: TextRect;
   readonly selection: readonly TextRect[];
 }
-export interface SemanticProperties {
-  readonly role: keyof typeof p.semanticsRoles;
-  readonly label?: string;
-  readonly hint?: string;
-  readonly flags?: number;
-  readonly actions?: number;
-  readonly value?: string;
-  readonly increasedValue?: string;
-  readonly decreasedValue?: string;
-  readonly range?: {
-    readonly minimum: number;
-    readonly maximum: number;
-    readonly value: number;
-    readonly smallChange?: number;
-    readonly largeChange?: number;
-    readonly readOnly?: boolean;
-  };
-}
-export interface SemanticSnapshot {
-  readonly role: number;
-  readonly label: string;
-  readonly hint: string;
-  readonly value?: string;
-  readonly increasedValue?: string;
-  readonly decreasedValue?: string;
-  readonly range?: NonNullable<SemanticProperties['range']>;
-  readonly flags: number;
-  readonly actions: number;
-}
 export interface EditingUpdate {
   readonly revision: bigint;
   readonly session?: bigint;
@@ -465,7 +474,10 @@ export function semanticActionBody(
     writeHandle(v, 0, node);
     v.setBigUint64(8, uint64(publication), true);
     v.setUint32(16, p.semanticsActions[action], true);
-    if (action === 'setValue') v.setFloat64(24, finite(value ?? NaN), true);
+    if (action === 'custom') {
+      v.setUint32(20, uint32(value ?? NaN), true);
+      v.setBigUint64(24, uint64(session), true);
+    } else if (action === 'setValue') v.setFloat64(24, finite(value ?? NaN), true);
     else v.setBigUint64(24, uint64(session), true);
   });
 }
@@ -477,7 +489,72 @@ export interface LayerLinkOptions {
   readonly leaderAnchor?: { readonly x: number; readonly y: number };
   readonly followerAnchor?: { readonly x: number; readonly y: number };
 }
+export interface TooltipPositionOptions {
+  readonly target: () => NodeHandle | null;
+  readonly verticalOffset: number;
+  readonly margin: number;
+  readonly preferBelow: boolean;
+}
+export interface IntrinsicSizingOptions {
+  readonly minimumHeight: number;
+  readonly minimumWidthPerHeight: number;
+  readonly expandReportedWidth: boolean;
+}
 export const commands = {
+  childAnchor(
+    node: NodeHandle,
+    options?: readonly [number, number, number, number, number, number],
+  ): Uint8Array {
+    return command(
+      p.commands.childAnchor,
+      node,
+      options
+        ? body(48, (data) => {
+            if (options.length !== 6) throw Error('Invalid child anchor');
+            options.forEach((value, index) => data.setFloat64(index * 8, finite(value), true));
+          })
+        : new Uint8Array(),
+    );
+  },
+  layoutProgram(node: NodeHandle, options?: NativeLayoutProgram): Uint8Array {
+    return command(p.commands.layoutProgram, node, layoutProgramBytes(options));
+  },
+  intrinsicSizing(node: NodeHandle, options?: IntrinsicSizingOptions): Uint8Array {
+    return command(
+      p.commands.intrinsicSizing,
+      node,
+      options
+        ? body(24, (data) => {
+            if (
+              options.minimumHeight < 0 ||
+              options.minimumWidthPerHeight < 0 ||
+              typeof options.expandReportedWidth !== 'boolean'
+            )
+              throw Error('Invalid intrinsic sizing');
+            data.setFloat64(0, finite(options.minimumHeight), true);
+            data.setFloat64(8, finite(options.minimumWidthPerHeight), true);
+            data.setUint32(16, options.expandReportedWidth ? 1 : 0, true);
+          })
+        : new Uint8Array(),
+    );
+  },
+  tooltipPosition(node: NodeHandle, options?: TooltipPositionOptions): Uint8Array {
+    return command(
+      p.commands.tooltipPosition,
+      node,
+      options
+        ? body(32, (data) => {
+            const target = options.target();
+            if (target) writeHandle(data, 0, target);
+            if (typeof options.preferBelow !== 'boolean' || options.margin < 0)
+              throw Error('Invalid tooltip position policy');
+            data.setFloat64(8, finite(options.verticalOffset), true);
+            data.setFloat64(16, finite(options.margin), true);
+            data.setUint32(24, options.preferBelow ? 1 : 0, true);
+          })
+        : new Uint8Array(),
+    );
+  },
   layoutBuilder(node: NodeHandle, options?: LayoutBuilderOptions): Uint8Array {
     return command(p.commands.layoutBuilder, node, layoutBuilderBytes(options));
   },
@@ -634,50 +711,44 @@ export const commands = {
       }),
     );
   },
-  editor(node: NodeHandle, flags = 0, maximumLength: number = p.limits.textBytes): Uint8Array {
+  editor(
+    node: NodeHandle,
+    flags = 0,
+    maximumLength: number = p.limits.textBytes,
+    viewport?: EditorViewportOptions,
+  ): Uint8Array {
+    if (
+      viewport &&
+      ((viewport.expands !== undefined && typeof viewport.expands !== 'boolean') ||
+        !Number.isSafeInteger(viewport.minLines) ||
+        !Number.isSafeInteger(viewport.maxLines) ||
+        viewport.minLines < 0 ||
+        viewport.maxLines < 0 ||
+        viewport.minLines > p.limits.textBytes ||
+        viewport.maxLines > p.limits.textBytes ||
+        (viewport.expands
+          ? viewport.minLines !== 0 || viewport.maxLines !== 0
+          : viewport.minLines === 0 ||
+            (viewport.maxLines !== 0 && viewport.maxLines < viewport.minLines)))
+    )
+      throw RangeError('Invalid editor viewport');
     return command(
       p.commands.editor,
       node,
-      body(8, (v) => {
+      body(viewport ? p.editorViewportBytes : 8, (v) => {
         v.setUint32(0, uint32(flags), true);
         v.setUint32(4, uint32(maximumLength), true);
+        if (viewport) {
+          v.setUint32(8, viewport.minLines, true);
+          v.setUint32(12, viewport.maxLines, true);
+          v.setUint32(16, viewport.expands ? p.editorViewportFlags.expands : 0, true);
+        }
       }),
     );
   },
   semantics(node: NodeHandle, value: SemanticProperties | null): Uint8Array {
-    const text = [
-      value?.label,
-      value?.hint,
-      value?.value,
-      value?.increasedValue,
-      value?.decreasedValue,
-    ].map((s) => encodeUtf8(s ?? '', p.limits.semanticsTextBytes));
-    const range = value?.range;
-    const bytes = body(
-      p.semanticsBytes + Math.ceil(text.reduce((n, s) => n + s.length, 0) / 8) * 8,
-      (v) => {
-        v.setUint32(0, value ? p.semanticsRoles[value.role] : 0, true);
-        v.setUint32(4, uint32(value?.flags ?? 0), true);
-        v.setUint32(8, uint32(value?.actions ?? 0), true);
-        [12, 16, 20, 72, 76].forEach((at, i) => v.setUint32(at, text[i]!.length, true));
-        v.setUint32(24, range ? 1 | (range.readOnly ? 2 : 0) : 0, true);
-        [
-          range?.minimum ?? 0,
-          range?.maximum ?? 0,
-          range?.value ?? 0,
-          range?.smallChange ?? 0,
-          range?.largeChange ?? 0,
-        ].forEach((n, i) => v.setFloat64(32 + i * 8, finite(n), true));
-      },
-    );
-    let at = p.semanticsBytes;
-    for (const part of text) {
-      bytes.set(part, at);
-      at += part.length;
-    }
-    return command(p.commands.semantics, node, bytes);
+    return command(p.commands.semantics, node, semanticBody(value));
   },
-  /** Prepared visual offsets, distinct from the logical content extent. */
   coverage(
     node: NodeHandle,
     revision: bigint,
@@ -833,11 +904,30 @@ export const commands = {
   paragraphOptions(node: NodeHandle, value: ParagraphOptions | null): Uint8Array {
     return command(p.commands.paragraphOptions, node, paragraphOptionsBytes(value));
   },
-  create(node: NodeHandle, kind: keyof typeof p.kinds): Uint8Array {
+  create(
+    node: NodeHandle,
+    kind: keyof typeof p.kinds,
+    initialFlags = 0,
+    placement?: { readonly parent: NodeHandle; readonly index?: number },
+  ): Uint8Array {
+    uint32(initialFlags);
+    if (
+      initialFlags > 7 ||
+      (initialFlags & p.nodeCreationFlags.inheritChildConstraints &&
+        !(initialFlags & p.nodeCreationFlags.layoutEnabled))
+    )
+      throw new RangeError('Invalid node creation flags');
     return command(
       p.commands.create,
       node,
-      body(8, (v) => v.setUint32(0, p.kinds[kind], true)),
+      body(placement ? p.nodeAttachedCreationBytes : p.nodeCreationBytes, (v) => {
+        v.setUint32(0, p.kinds[kind], true);
+        v.setUint32(4, initialFlags, true);
+        if (placement) {
+          writeHandle(v, p.nodeCreationFields.parent, placement.parent);
+          v.setUint32(p.nodeCreationFields.index, uint32(placement.index ?? 0), true);
+        }
+      }),
     );
   },
   properties(node: NodeHandle, value: NodeProperties): Uint8Array {
@@ -878,8 +968,13 @@ export const commands = {
   detach(node: NodeHandle): Uint8Array {
     return command(p.commands.detach, node);
   },
-  destroy(node: NodeHandle): Uint8Array {
-    return command(p.commands.destroy, node);
+  destroy(node: NodeHandle, detach = false): Uint8Array {
+    if (typeof detach !== 'boolean') throw new TypeError('Invalid node destroy policy');
+    return command(
+      p.commands.destroy,
+      node,
+      detach ? body(8, (v) => v.setUint32(0, p.nodeDestroyFlags.detach, true)) : undefined,
+    );
   },
   acquireResource(resource: NodeHandle, bytes: Uint8Array): Uint8Array {
     if (bytes.length > p.limits.packetBytes - 88)
@@ -910,6 +1005,11 @@ export const commands = {
   list(node: NodeHandle, value: ListOptions | null): Uint8Array {
     if (value?.fixed !== undefined && typeof value.fixed !== 'boolean')
       throw RangeError('Invalid fixed list flag');
+    if (
+      (value?.sequential !== undefined && typeof value.sequential !== 'boolean') ||
+      (value?.sequential && (value.fixed || value.estimate !== 0))
+    )
+      throw RangeError('Invalid sequential list policy');
     return command(
       p.commands.list,
       node,
@@ -918,16 +1018,25 @@ export const commands = {
         v.setUint32(8, uint32(value?.count ?? 0), true);
         v.setUint32(12, uint32(value?.begin ?? 0), true);
         v.setUint32(16, uint32(value?.end ?? 0), true);
-        v.setUint32(20, value?.fixed ? p.listFlags.fixedExtent : 0, true);
+        v.setUint32(
+          20,
+          (value?.fixed ? p.listFlags.fixedExtent : 0) |
+            (value?.sequential ? p.listFlags.sequential : 0),
+          true,
+        );
         v.setFloat64(24, finite(value?.estimate ?? 0), true);
       }),
     );
   },
-  gesture(node: NodeHandle, mask: number): Uint8Array {
+  gesture(node: NodeHandle, mask: number, devices = 63): Uint8Array {
     return command(
       p.commands.gesture,
       node,
-      body(8, (v) => v.setUint32(0, uint32(mask), true)),
+      body(8, (v) => {
+        if (uint32(devices) > 63) throw Error('Invalid gesture device mask');
+        v.setUint32(0, uint32(mask), true);
+        v.setUint32(4, devices, true);
+      }),
     );
   },
   control(node: NodeHandle, value: ControlOptions | null): Uint8Array {
@@ -1047,6 +1156,57 @@ export interface RawInputSample extends InputPacket {
   readonly node: NodeHandle;
   readonly subscription: bigint;
 }
+export interface PointerSample extends InputPacket {
+  readonly inverse: AffineMatrix;
+}
+function readInputSample(data: DataView, b: number): InputPacket {
+  const phase = Object.entries(p.phases).find(
+    ([, value]) => value === data.getUint32(b + 28, true),
+  )?.[0] as InputPacket['phase'] | undefined;
+  const source = Object.entries(p.sources).find(
+    ([, value]) => value === data.getUint32(b + 32, true),
+  )?.[0] as InputPacket['source'] | undefined;
+  const kind = Object.entries(p.pointerKinds).find(
+    ([, value]) => value === data.getUint32(b + p.inputFields.kind, true),
+  )?.[0] as InputPacket['kind'];
+  const flags = data.getUint32(b + 36, true),
+    stream = data.getUint32(b + 24, true);
+  if (
+    !phase ||
+    !source ||
+    !kind ||
+    flags & ~7 ||
+    (flags & 4 && !(flags & 2)) ||
+    !stream ||
+    stream > p.limits.streams
+  )
+    throw Error('Invalid input sample');
+  const number = (offset: number) => finite(data.getFloat64(b + offset, true));
+  return Object.freeze({
+    sequence: data.getBigUint64(b, true),
+    metrics: data.getBigUint64(b + 8, true),
+    target: readHandle(data, b + 16),
+    stream,
+    phase,
+    source,
+    pointer: !!(flags & 2),
+    hover: !!(flags & 4),
+    time: number(40),
+    ...(flags & 1 ? { sample: number(48) } : {}),
+    x: number(56),
+    y: number(64),
+    dx: number(72),
+    dy: number(80),
+    velocity: number(88),
+    clock: data.getUint32(b + 96, true),
+    buttons: data.getUint32(b + 100, true),
+    modifiers: data.getUint32(b + 104, true),
+    device: data.getUint32(b + 108, true),
+    contact: data.getUint32(b + 112, true),
+    kind,
+    publication: data.getBigUint64(b + 120, true),
+  });
+}
 export function inputBody(value: InputPacket): Uint8Array {
   return body(p.inputBytes, (v) => {
     v.setUint32(p.inputFields.kind, p.pointerKinds[value.kind ?? 'unknown'], true);
@@ -1108,6 +1268,19 @@ export interface EngineNodeSnapshot {
   readonly editing: EditingSnapshot | null;
   readonly textGeometry: TextGeometry | null;
   readonly semantics: SemanticSnapshot | null;
+  readonly semanticTraversal: {
+    readonly parent: NodeHandle;
+    readonly index: number;
+    readonly customSources: readonly { readonly id: number; readonly source: NodeHandle }[];
+  } | null;
+  readonly semanticGeometry?: {
+    readonly bounds: TextRect;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly matrix: AffineMatrix;
+  } | null;
   readonly hasFocus: boolean;
   readonly caretVisible: boolean;
   readonly node: NodeHandle;
@@ -1156,6 +1329,8 @@ export interface EngineBlob {
   readonly bytes: Uint8Array;
 }
 export interface EngineEvent {
+  readonly keyIdentity?: KeyIdentity;
+  readonly pointer?: PointerSample;
   /** Original annotation that contributed this published semantic action. */
   readonly semanticSource?: NodeHandle;
   readonly tapRegion?: {
@@ -1166,6 +1341,8 @@ export interface EngineEvent {
     readonly inverse: AffineMatrix;
   };
   readonly focusPeer?: NodeHandle;
+  /** Host-owned clipboard view captured at this native paste key's ingress. */
+  readonly clipboardReadSnapshot?: bigint;
   readonly gesture?: GestureDetails;
   readonly x: number;
   readonly y: number;
@@ -1349,6 +1526,7 @@ export function response(bytes: Uint8Array): EngineResponse {
         list: null,
         textGeometry: null,
         semantics: null,
+        semanticTraversal: null,
         hasFocus: !!(v.getUint32(cursor + 20, true) & 256),
         caretVisible: !!(v.getUint32(cursor + 20, true) & 512),
         node: readHandle(v, cursor),
@@ -1411,6 +1589,10 @@ export function response(bytes: Uint8Array): EngineResponse {
     );
   }
   for (let i = 0; i < eventCount; ++i, cursor += p.eventBytes) {
+    const clipboardReadSnapshot =
+      v.getUint32(cursor, true) === p.events.key
+        ? v.getBigUint64(cursor + p.eventFields.clipboardReadSnapshot, true)
+        : 0n;
     const focusPeer =
       v.getUint32(cursor, true) === p.events.focusChanged
         ? readHandle(v, cursor + p.eventFields.focusPeer)
@@ -1451,6 +1633,7 @@ export function response(bytes: Uint8Array): EngineResponse {
       Object.freeze({
         ...(gesture ? { gesture } : {}),
         ...(focusPeer?.slot ? { focusPeer } : {}),
+        ...(clipboardReadSnapshot ? { clipboardReadSnapshot } : {}),
         kind: v.getUint32(cursor, true),
         status: v.getUint32(cursor + 4, true),
         id: v.getBigUint64(cursor + 8, true),
@@ -1500,6 +1683,10 @@ export function response(bytes: Uint8Array): EngineResponse {
         p.semanticRouteBlob,
         p.layoutBuilderBlob,
         p.layoutBuildRequestBlob,
+        p.pointerEventBlob,
+        p.semanticGeometryBlob,
+        p.semanticTraversalBlob,
+        p.keyIdentityEventBlob,
       ].includes(type) ||
       stride > bytes.length - cursor ||
       v.getUint32(cursor + 4, true) ||
@@ -1516,7 +1703,62 @@ export function response(bytes: Uint8Array): EngineResponse {
     cursor += stride;
   }
   if (cursor !== bytes.length) throw new Error('Engine blob table length mismatch');
+  const keyEvents = new Set<number>();
+  for (const blob of blobs) {
+    if (blob.type !== p.keyIdentityEventBlob) continue;
+    if (blob.bytes.length < p.keyIdentityEventBytes)
+      throw Error('Truncated keyboard identity event');
+    const data = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
+      index = data.getUint32(0, true),
+      event = events[index];
+    if (
+      !event ||
+      event.kind !== p.events.key ||
+      keyEvents.has(index) ||
+      blob.handle.slot !== event.node.slot ||
+      blob.handle.generation !== event.node.generation ||
+      data.getBigUint64(16, true) !== 0n
+    )
+      throw Error('Invalid keyboard identity event');
+    const keyIdentity = readKeyIdentity(blob.bytes, p.keyIdentityEventBytes, 4);
+    keyEvents.add(index);
+    events[index] = Object.freeze({ ...event, keyIdentity });
+  }
   const tapEvents = new Set<number>();
+  const pointerEvents = new Set<number>();
+  for (const blob of blobs) {
+    if (blob.type !== p.pointerEventBlob) continue;
+    if (blob.bytes.length !== p.pointerEventBytes) throw Error('Invalid pointer event size');
+    const data = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
+      index = data.getUint32(0, true),
+      event = events[index];
+    if (
+      !event ||
+      event.kind !== p.events.pointer ||
+      pointerEvents.has(index) ||
+      data.getUint32(4, true) ||
+      blob.handle.slot !== event.node.slot ||
+      blob.handle.generation !== event.node.generation
+    )
+      throw Error('Invalid pointer event identity');
+    const sample = readInputSample(data, 8),
+      inverse = Object.freeze(
+        Array.from({ length: 6 }, (_, i) =>
+          finite(data.getFloat64(8 + p.inputBytes + i * 8, true)),
+        ),
+      ) as unknown as AffineMatrix;
+    if (
+      sample.sequence !== event.id ||
+      sample.x !== event.x ||
+      sample.y !== event.y ||
+      !sample.publication
+    )
+      throw Error('Invalid pointer event sample');
+    pointerEvents.add(index);
+    events[index] = Object.freeze({ ...event, pointer: Object.freeze({ ...sample, inverse }) });
+  }
+  if (events.some((event, index) => event.kind === p.events.pointer && !pointerEvents.has(index)))
+    throw Error('Missing pointer event sample');
   const semanticSources = new Set<number>();
   for (const blob of blobs)
     if (blob.type === p.semanticSourceEventBlob) {
@@ -1632,14 +1874,18 @@ export function response(bytes: Uint8Array): EngineResponse {
     );
   for (const blob of blobs)
     if (
-      blob.type === p.layoutBuilderBlob &&
+      (blob.type === p.layoutBuilderBlob ||
+        blob.type === p.semanticGeometryBlob ||
+        blob.type === p.semanticTraversalBlob) &&
       !nodes.some(
         (node) =>
           node.node.slot === blob.handle.slot && node.node.generation === blob.handle.generation,
       )
     )
-      throw Error('Foreign layout builder owner');
+      throw Error('Foreign layout/semantics geometry owner');
   const enriched = nodes.map((node) => {
+    let semanticGeometry: EngineNodeSnapshot['semanticGeometry'] = null;
+    let semanticTraversal: EngineNodeSnapshot['semanticTraversal'] = null;
     let layoutBuilder: LayoutBuilderOptions | null = null;
     let snapshot: NativeSnapshotConfiguration | null = null;
     let editing: EditingSnapshot | null = null,
@@ -1664,6 +1910,85 @@ export function response(bytes: Uint8Array): EngineResponse {
         continue;
       const d = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
         size = blob.bytes.length;
+      if (blob.type === p.semanticTraversalBlob) {
+        if (semanticTraversal || size < p.semanticTraversalBytes || d.getBigUint64(16, true))
+          throw Error('Invalid semantics traversal');
+        const count = d.getUint32(12, true);
+        if (
+          count > p.limits.semanticsCustomActions ||
+          size !== p.semanticTraversalBytes + count * p.semanticCustomSourceBytes
+        )
+          throw Error('Invalid semantics custom sources');
+        const parent = readHandle(d, 0),
+          index = d.getUint32(8, true);
+        if (
+          index >= p.limits.semanticsNodes ||
+          (!parent.slot && parent.generation) ||
+          (parent.slot &&
+            (!parent.generation ||
+              !nodes.some(
+                (n) => n.node.slot === parent.slot && n.node.generation === parent.generation,
+              )))
+        )
+          throw Error('Foreign semantics traversal parent/index');
+        const customSources: { readonly id: number; readonly source: NodeHandle }[] = [];
+        for (let i = 0; i < count; ++i) {
+          const at = p.semanticTraversalBytes + i * p.semanticCustomSourceBytes,
+            id = d.getUint32(at, true),
+            source = readHandle(d, at + 8);
+          if (
+            d.getUint32(at + 4, true) ||
+            customSources.some((entry) => entry.id === id) ||
+            !nodes.some(
+              (entry) =>
+                entry.node.slot === source.slot && entry.node.generation === source.generation,
+            )
+          )
+            throw Error('Foreign/duplicate semantics custom source');
+          customSources.push(Object.freeze({ id, source }));
+        }
+        semanticTraversal = Object.freeze({
+          parent,
+          index,
+          customSources: Object.freeze(customSources),
+        });
+      }
+      if (blob.type === p.semanticGeometryBlob) {
+        if (
+          semanticGeometry ||
+          size !== p.semanticGeometryBytes ||
+          !u64(p.stateFields.publication) ||
+          (v.getUint16(p.headerFields.opcode, true) & 0x7fff) !== p.opcodes.semanticsSnapshot
+        )
+          throw Error('Invalid semantics geometry publication');
+        const value = (at: number) => finite(d.getFloat64(at, true)),
+          width = value(32),
+          height = value(40),
+          boundsWidth = value(16),
+          boundsHeight = value(24);
+        if (width < 0 || height < 0 || boundsWidth < 0 || boundsHeight < 0)
+          throw Error('Invalid semantics geometry size');
+        semanticGeometry = Object.freeze({
+          bounds: Object.freeze({
+            x: value(0),
+            y: value(8),
+            width: boundsWidth,
+            height: boundsHeight,
+          }),
+          width,
+          height,
+          x: value(96),
+          y: value(104),
+          matrix: Object.freeze([
+            value(48),
+            value(56),
+            value(64),
+            value(72),
+            value(80),
+            value(88),
+          ]) as AffineMatrix,
+        });
+      }
       if (blob.type === p.layoutBuilderBlob) {
         if (layoutBuilder || (node.kind !== p.kinds.box && node.kind !== p.kinds.sliver))
           throw Error('Duplicate/foreign layout builder');
@@ -1810,87 +2135,9 @@ export function response(bytes: Uint8Array): EngineResponse {
         return Object.freeze(r);
       };
       if (blob.type === 3) {
-        if (
-          semantics ||
-          size < p.semanticsBytes ||
-          d.getUint32(28, true) ||
-          d.getUint32(0, true) > p.semanticsRoles.switchControl ||
-          d.getUint32(4, true) & ~1023 ||
-          d.getUint32(8, true) & ~255
-        )
+        if (semantics || size < p.semanticsBytes || !(d.getUint32(80, true) & 1))
           throw Error('Invalid semantics blob');
-        if (
-          d.getUint32(4, true) & p.semanticsFlags.mergedIntoParent &&
-          !(d.getUint32(4, true) & p.semanticsFlags.hidden)
-        )
-          throw Error('Merged semantic annotation must be hidden');
-        if (
-          d.getUint32(4, true) & p.semanticsFlags.mixed &&
-          (d.getUint32(0, true) !== p.semanticsRoles.checkbox ||
-            d.getUint32(4, true) & p.semanticsFlags.checked)
-        )
-          throw Error('Invalid mixed semantics');
-        if (
-          d.getUint32(8, true) & p.semanticsActions.deselect &&
-          (d.getUint32(0, true) !== p.semanticsRoles.radio ||
-            !(d.getUint32(4, true) & p.semanticsFlags.checked) ||
-            !(d.getUint32(8, true) & p.semanticsActions.activate))
-        )
-          throw Error('Invalid deselection semantics');
-        const lengths = [12, 16, 20, 72, 76].map((at) => d.getUint32(at, true)),
-          flags = d.getUint32(24, true);
-        if (
-          lengths.some((n) => n > p.limits.semanticsTextBytes) ||
-          size !== p.semanticsBytes + lengths.reduce((a, b) => a + b, 0) ||
-          flags > 3 ||
-          flags === 2
-        )
-          throw Error('Invalid semantics text or range');
-        let cursor = p.semanticsBytes;
-        const text = lengths.map((length) => {
-          const value = decodeUtf8(blob.bytes.subarray(cursor, cursor + length));
-          cursor += length;
-          return value;
-        });
-        const [minimum, maximum, value, smallChange, largeChange] = [32, 40, 48, 56, 64].map((at) =>
-          finite(d.getFloat64(at, true)),
-        ) as [number, number, number, number, number];
-        if (
-          flags
-            ? minimum > maximum ||
-              value < minimum ||
-              value > maximum ||
-              smallChange < 0 ||
-              largeChange < 0
-            : minimum !== 0 ||
-              maximum !== 0 ||
-              value !== 0 ||
-              smallChange !== 0 ||
-              largeChange !== 0
-        )
-          throw Error('Invalid semantic numeric range');
-        semantics = Object.freeze({
-          role: d.getUint32(0, true),
-          flags: d.getUint32(4, true),
-          actions: d.getUint32(8, true),
-          label: text[0]!,
-          hint: text[1]!,
-          ...(text[2] ? { value: text[2] } : {}),
-          ...(text[3] ? { increasedValue: text[3] } : {}),
-          ...(text[4] ? { decreasedValue: text[4] } : {}),
-          ...(flags
-            ? {
-                range: Object.freeze({
-                  minimum,
-                  maximum,
-                  value,
-                  smallChange,
-                  largeChange,
-                  readOnly: !!(flags & 2),
-                }),
-              }
-            : {}),
-        });
+        semantics = readSemanticBody(blob.bytes);
       } else if (blob.type === 4) {
         if (editing || size < 48 || d.getUint32(44, true) || size !== 48 + d.getUint32(40, true))
           throw new Error('Invalid editing blob');
@@ -1932,11 +2179,14 @@ export function response(bytes: Uint8Array): EngineResponse {
           rows > p.limits.listChildren ||
           size !== header + rows * 40 ||
           (header === 72 &&
-            (d.getUint32(64, true) !== p.listFlags.fixedExtent || d.getUint32(68, true)))
+            ((d.getUint32(64, true) !== p.listFlags.fixedExtent &&
+              d.getUint32(64, true) !== p.listFlags.sequential) ||
+              d.getUint32(68, true)))
         )
           throw new Error('Invalid list snapshot');
         list = Object.freeze({
-          fixed: header === 72,
+          fixed: header === 72 && d.getUint32(64, true) === p.listFlags.fixedExtent,
+          sequential: header === 72 && d.getUint32(64, true) === p.listFlags.sequential,
           generation: d.getBigUint64(0, true),
           count: d.getUint32(8, true),
           begin: d.getUint32(12, true),
@@ -1969,7 +2219,7 @@ export function response(bytes: Uint8Array): EngineResponse {
           list.end - list.begin > p.limits.listChildren ||
           list.demandBegin > list.demandEnd ||
           list.demandEnd > list.count ||
-          list.estimate <= 0 ||
+          (list.sequential ? list.estimate < 0 : list.estimate <= 0) ||
           list.total < 0 ||
           list.preparedBegin < 0 ||
           list.preparedEnd < list.preparedBegin ||
@@ -2033,6 +2283,8 @@ export function response(bytes: Uint8Array): EngineResponse {
       editing,
       textGeometry,
       semantics,
+      semanticTraversal,
+      semanticGeometry,
       list,
       control,
       graphics,
@@ -2045,6 +2297,51 @@ export function response(bytes: Uint8Array): EngineResponse {
       paragraph,
     });
   });
+  const traversalIndices = new Set<number>();
+  for (const node of enriched)
+    if (node.semanticTraversal) {
+      const traversal = node.semanticTraversal;
+      if (
+        !node.semantics ||
+        node.semantics.flags & p.semanticsFlags.hidden ||
+        traversalIndices.has(traversal.index)
+      )
+        throw Error('Duplicate/hidden semantics traversal');
+      traversalIndices.add(traversal.index);
+      for (const entry of traversal.customSources) {
+        if (
+          !(node.semantics.actions & p.semanticsActions.custom) ||
+          !node.semantics.customActions?.some(
+            (action) => action.id === entry.id && action.invokable,
+          )
+        )
+          throw Error('Unadvertised semantics custom source');
+        let source = enriched.find(
+          (n) => n.node.slot === entry.source.slot && n.node.generation === entry.source.generation,
+        );
+        let depth = 0;
+        while (
+          source &&
+          (source.node.slot !== node.node.slot || source.node.generation !== node.node.generation)
+        ) {
+          if (++depth > p.limits.depth) throw Error('Cyclic custom semantics source');
+          const parent = source.parent;
+          source = enriched.find(
+            (n) => n.node.slot === parent.slot && n.node.generation === parent.generation,
+          );
+        }
+        if (!source) throw Error('Foreign custom semantics source ancestor');
+      }
+      if (traversal.parent.slot) {
+        const parent = enriched.find(
+          (n) =>
+            n.node.slot === traversal.parent.slot &&
+            n.node.generation === traversal.parent.generation,
+        );
+        if (!parent?.semanticTraversal || parent.semanticTraversal.index >= traversal.index)
+          throw Error('Cyclic or unordered semantics traversal');
+      }
+    }
   const flags = u32(p.stateFields.flags),
     commit = u64(p.stateFields.surfaceCommit);
   const buildRequests = blobs.filter((blob) => blob.type === p.layoutBuildRequestBlob);

@@ -33,6 +33,9 @@ import {
   paintNative,
   nativePaintOutset,
   paintNativeShadow,
+  nativeLinearMask,
+  nativeMaskBounds,
+  paintNativeMask,
   canvasMatrix,
   relativeMatrix,
 } from './graphics.ts';
@@ -60,20 +63,28 @@ export interface AppImmutableData {
   close(): void;
 }
 export const canvasKitSupply = Object.freeze({
-  version: 'm153-nelyx-paragraph.5',
+  version: 'm153-nelyx-paragraph.6',
   variant: 'owned-full',
   paragraphApiVersion: 1,
-  pictureApiVersion: 2,
+  pictureApiVersion: 3,
   fontApiVersion: 1,
   initialMemoryBytes: 128 * 1024 * 1024,
   maximumMemoryBytes: 256 * 1024 * 1024,
 });
 type PictureFont = { font: string; coordinates: { axis: number; value: number }[] };
+type PictureFontCache = {
+  clear(): void;
+  delete(): void;
+  size(): number;
+  hits(): number;
+  misses(): number;
+};
 type ParagraphRuntime = CanvasKit & {
   nelyxFontApiVersion?: () => number;
   nelyxMakeFontProvider?: (faces: Typeface[], families: string[]) => TypefaceFontProvider | null;
   nelyxParagraphApiVersion?: () => number;
   nelyxPictureApiVersion?: () => number;
+  NelyxPictureFontCache?: new () => PictureFontCache;
   nelyxSerializePicture?: (
     picture: Picture,
     bases: Typeface[],
@@ -87,6 +98,7 @@ type ParagraphRuntime = CanvasKit & {
     bases: Typeface[],
     coordinates: PictureFont['coordinates'][],
     identities: string[],
+    cache: PictureFontCache,
   ) => Picture | null;
 };
 const pictureFontBytes = (fonts: readonly PictureFont[] | undefined) =>
@@ -292,6 +304,7 @@ export class CanvasKitProvider {
   private readonly resourceFonts = new Map<string, ResourceFont>();
   private readonly paragraphFonts = new WeakMap<Paragraph, () => void>();
   private readonly tableFonts = new Map<bigint, () => void>();
+  private pictureFonts: PictureFontCache | undefined;
   private fontScopes = 0;
   private readonly immutableBuffers = new Set<AppImmutableData>();
   readonly textCapabilities: {
@@ -334,6 +347,9 @@ export class CanvasKitProvider {
     fontReferencePictures: 0,
     fontReferenceImports: 0,
     fontReferenceBytes: 0,
+    livePictureFontVariations: 0,
+    pictureFontCacheHits: 0,
+    pictureFontCacheMisses: 0,
     measurements: 0,
     paragraphLayouts: 0,
     liveParagraphs: 0,
@@ -382,6 +398,8 @@ export class CanvasKitProvider {
     }
     this.regularTypefaces.clear();
     this.counters.liveFontVariations = 0;
+    this.pictureFonts?.clear();
+    this.counters.livePictureFontVariations = 0;
   }
   setMemoryPressure(low: boolean): void {
     this.memoryPressure = this.counters.memoryPressure = low;
@@ -403,7 +421,8 @@ export class CanvasKitProvider {
       if (
         runtime.nelyxPictureApiVersion?.() !== canvasKitSupply.pictureApiVersion ||
         !runtime.nelyxSerializePicture ||
-        !runtime.nelyxMakePicture
+        !runtime.nelyxMakePicture ||
+        !runtime.NelyxPictureFontCache
       )
         throw Error('Owned font-reference Picture capability missing');
       if (
@@ -656,6 +675,7 @@ export class CanvasKitProvider {
         (ck as ParagraphRuntime).nelyxPictureApiVersion?.() !== canvasKitSupply.pictureApiVersion ||
         !(ck as ParagraphRuntime).nelyxSerializePicture ||
         !(ck as ParagraphRuntime).nelyxMakePicture ||
+        !(ck as ParagraphRuntime).NelyxPictureFontCache ||
         (ck as ParagraphRuntime).nelyxFontApiVersion?.() !== canvasKitSupply.fontApiVersion ||
         !(ck as ParagraphRuntime).nelyxMakeFontProvider ||
         !ck.MakePicture ||
@@ -1890,10 +1910,16 @@ export class CanvasKitProvider {
               bases!,
               item.fonts.map((font) => font.coordinates),
               item.fonts.map((font) => font.font),
+              (this.pictureFonts ??= new (this.ck as ParagraphRuntime).NelyxPictureFontCache!()),
             )
           : this.ck.MakePicture(item.bytes);
         if (!picture) throw new Error('Prepared Picture decode failed');
-        if (item.fonts) ++this.counters.fontReferenceImports;
+        if (item.fonts) {
+          ++this.counters.fontReferenceImports;
+          this.counters.livePictureFontVariations = this.pictureFonts!.size();
+          this.counters.pictureFontCacheHits = this.pictureFonts!.hits();
+          this.counters.pictureFontCacheMisses = this.pictureFonts!.misses();
+        }
         this.holdPicture(picture);
         table.set(item.node, picture);
         ++this.counters.imports;
@@ -1991,18 +2017,21 @@ export class CanvasKitProvider {
     const layerBytes = frame.nodes.reduce(
       (total, n) =>
         total +
-        ((n.localOpacity < 1 || (n.graphics?.blur ?? 0) > 0
-          ? Math.ceil(width * scale) *
-            Math.ceil(height * scale) *
-            4 *
-            ((n.graphics?.blur ?? 0) > 0 ? 3 : 1)
-          : 0) +
-          (n.flags & p.nodeFlags.clipSaveLayer
-            ? Math.ceil(width * scale) * Math.ceil(height * scale) * 4
-            : 0) +
-          ((n.snapshot?.live?.opacity ?? 1) < 1
-            ? Math.ceil(width * scale) * Math.ceil(height * scale) * 4
-            : 0)),
+        (n.opacity <= 0 || n.matrix[0] * n.matrix[3] - n.matrix[1] * n.matrix[2] === 0
+          ? 0
+          : (n.localOpacity < 1 || (n.graphics?.blur ?? 0) > 0
+              ? Math.ceil(width * scale) *
+                Math.ceil(height * scale) *
+                4 *
+                ((n.graphics?.blur ?? 0) > 0 ? 3 : 1)
+              : 0) +
+            (n.flags & p.nodeFlags.clipSaveLayer
+              ? Math.ceil(width * scale) * Math.ceil(height * scale) * 4
+              : 0) +
+            (nativeLinearMask(n) ? Math.ceil(width * scale) * Math.ceil(height * scale) * 4 : 0) +
+            ((n.snapshot?.live?.opacity ?? 1) < 1
+              ? Math.ceil(width * scale) * Math.ceil(height * scale) * 4
+              : 0)),
       0,
     );
     const pathBytes = frame.nodes.reduce(
@@ -2066,7 +2095,11 @@ export class CanvasKitProvider {
       const finish = (draw: boolean) => {
         const { count, item, culled } = saves.pop()!;
         try {
-          if (draw && !culled) this.drawPaint(target, table, nodes, item, scale, true);
+          if (draw && !culled) {
+            this.drawPaint(target, table, nodes, item, scale, true);
+            const mask = nativeLinearMask(item);
+            if (mask) paintNativeMask(this.ck, target, mask);
+          }
         } finally {
           for (let i = 0; i < count; ++i) target.restore();
         }
@@ -2118,9 +2151,26 @@ export class CanvasKitProvider {
                 target.clipRect(rect, this.ck.ClipOp.Intersect, antiAlias);
               else
                 target.clipRRect(
-                  style.shape === 'oval'
-                    ? this.ck.RRectXY(rect, item.width / 2, item.height / 2)
-                    : Float32Array.from([0, 0, item.width, item.height, ...style.radii]),
+                  style.shape === 'circle'
+                    ? this.ck.RRectXY(
+                        this.ck.XYWHRect(
+                          (item.width - Math.min(item.width, item.height)) / 2,
+                          (item.height - Math.min(item.width, item.height)) / 2,
+                          Math.min(item.width, item.height),
+                          Math.min(item.width, item.height),
+                        ),
+                        Math.min(item.width, item.height) / 2,
+                        Math.min(item.width, item.height) / 2,
+                      )
+                    : style.shape === 'stadium'
+                      ? this.ck.RRectXY(
+                          rect,
+                          Math.min(item.width, item.height) / 2,
+                          Math.min(item.width, item.height) / 2,
+                        )
+                      : style.shape === 'oval'
+                        ? this.ck.RRectXY(rect, item.width / 2, item.height / 2)
+                        : Float32Array.from([0, 0, item.width, item.height, ...style.radii]),
                   this.ck.ClipOp.Intersect,
                   antiAlias,
                 );
@@ -2172,6 +2222,18 @@ export class CanvasKitProvider {
               filter?.delete();
             }
           }
+          const mask = !culled && nativeLinearMask(item);
+          if (mask) {
+            const bounds = nativeMaskBounds(this.ck, mask),
+              paint = new this.ck.Paint();
+            try {
+              target.clipRect(bounds, this.ck.ClipOp.Intersect, false);
+              target.saveLayer(paint, bounds);
+              ++count;
+            } finally {
+              paint.delete();
+            }
+          }
           saves.push({ count, matrix: item.matrix, culled, item });
           if (!culled) {
             this.drawItem(target, table, nodes, item, scale);
@@ -2186,6 +2248,7 @@ export class CanvasKitProvider {
                   if (child.localOpacity < 1 || (child.graphics?.blur ?? 0) > 0)
                     layers += (child.graphics?.blur ?? 0) > 0 ? 3 : 1;
                   if (child.flags & p.nodeFlags.clipSaveLayer) ++layers;
+                  if (nativeLinearMask(child)) ++layers;
                   if ((child.snapshot?.live?.opacity ?? 1) < 1) ++layers;
                 }
                 this.captureSnapshot(
@@ -2376,6 +2439,7 @@ export class CanvasKitProvider {
           picture = table.get(key(reference));
         if (!resource || !picture || !(resource.flags & p.nodeFlags.paintResource))
           throw Error('Prepared paragraph generation missing');
+        if (resource.localOpacity <= 0) return;
         const layered = resource.localOpacity < 1 || (resource.graphics?.blur ?? 0) > 0;
         if (layered) {
           const alpha = new this.ck.Paint(),
@@ -2432,6 +2496,8 @@ export class CanvasKitProvider {
     this.snapshotAccess = undefined;
     this.trimCache();
     this.retireExcept(-1n);
+    this.pictureFonts?.delete();
+    this.pictureFonts = undefined;
     for (const release of this.packetHolds.values()) release();
     this.packetHolds.clear();
     this.surface?.delete();

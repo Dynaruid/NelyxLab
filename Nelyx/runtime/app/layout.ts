@@ -18,6 +18,12 @@ export function bounds(value: BoxConstraints): Pick<SceneNodeOptions, 'horizonta
   };
 }
 export interface BoxConfiguration {
+  readonly children?: readonly RenderObject[];
+  readonly paint?: NonNullable<ReturnType<typeof nativeBoxConfiguration>>['paint'];
+  readonly foreground?: NonNullable<ReturnType<typeof nativeBoxConfiguration>>['foreground'];
+  readonly tooltipPosition?: NonNullable<
+    ReturnType<typeof nativeBoxConfiguration>
+  >['tooltipPosition'];
   readonly builder?: NativeLayoutBuilderConfiguration;
   readonly kind: SceneNode['kind'];
   readonly options: SceneNodeOptions;
@@ -31,10 +37,19 @@ export function originalBoxConfiguration(
   if (!config) return;
   return {
     kind: config.kind,
+    ...(config.children ? { children: config.children } : {}),
+    ...(config.paint ? { paint: config.paint } : {}),
+    ...(config.foreground ? { foreground: config.foreground } : {}),
+    ...(config.tooltipPosition ? { tooltipPosition: config.tooltipPosition } : {}),
     ...(config.layoutBuilder ? { builder: config.layoutBuilder } : {}),
     options: {
       layout: config.layout,
+      ...(config.layoutProgram ? { layoutProgram: config.layoutProgram } : {}),
+      ...(config.childAnchor ? { childAnchor: config.childAnchor } : {}),
+      ...(config.intrinsicSizing ? { intrinsicSizing: config.intrinsicSizing } : {}),
       pointerHitTest: config.hitTest ?? 'proxy',
+      ...(config.onPointerSample ? { onPointerSample: config.onPointerSample } : {}),
+      ...(config.pointerBlock ? { pointerBlock: config.pointerBlock } : {}),
       ...(config.snapshot ? { snapshot: config.snapshot } : {}),
       ...(config.layoutBuilder
         ? {
@@ -61,6 +76,7 @@ export function originalBoxConfiguration(
       ...(config.semanticsPolicy ? { semanticsPolicy: config.semanticsPolicy } : {}),
       ...(config.constraints ? bounds(config.constraints) : {}),
       ...(config.color === undefined ? {} : { color: config.color }),
+      ...(config.opacity === undefined ? {} : { properties: { opacity: config.opacity } }),
       ...(config.semantics ? { semantics: config.semantics } : {}),
       ...(config.clipStyle ? { clipStyle: config.clipStyle } : {}),
       ...(config.graphics ? { graphics: config.graphics } : {}),

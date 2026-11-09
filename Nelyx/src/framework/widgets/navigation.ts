@@ -718,6 +718,7 @@ class NavigatorState extends TickerProviderStateMixin<Navigator> {
       'navigator-controller-change',
       'Changing NavigatorController requires remount',
     );
+    this.transitionOwner.refreshPages();
     this.persistence.update(this.context, this.widget.options.restorationId ?? null);
   }
   override dispose(): void {

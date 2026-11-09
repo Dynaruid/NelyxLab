@@ -6,8 +6,18 @@ import type { ParagraphRun } from './paragraph-runs.ts';
 export type { ParagraphRun } from './paragraph-runs.ts';
 import { paragraphExtrasBytes, readParagraphExtras } from './paragraph-extras.ts';
 import type { ParagraphStrut, ParagraphPlaceholder } from './paragraph-extras.ts';
+import { validateParagraphRuns } from './paragraph-runs.ts';
+
+/** An independent, bounded text measurement in the same Content font cohort. */
+export interface ParagraphOverflowProbe {
+  readonly text: string;
+  readonly fontSize: number;
+  readonly color: number;
+  readonly paragraph: ParagraphOptions;
+}
 
 export interface ParagraphOptions {
+  readonly overflowProbe?: ParagraphOverflowProbe;
   /** Core measures and places the ordered WidgetSpan children. */
   readonly inlineChildren?: boolean;
   readonly strut?: ParagraphStrut;
@@ -29,6 +39,7 @@ export interface ParagraphOptions {
   readonly applyHeightToLastDescent?: boolean;
 }
 export interface ParagraphSnapshot {
+  readonly overflowProbe?: ParagraphOverflowProbe;
   readonly inlineChildren?: boolean;
   readonly strut?: ParagraphStrut;
   readonly placeholders?: readonly ParagraphPlaceholder[];
@@ -50,6 +61,7 @@ export interface ParagraphSnapshot {
 }
 const names = Object.keys(p.paragraphAlign) as (keyof typeof p.paragraphAlign)[];
 const allowed = new Set([
+  'overflowProbe',
   'inlineChildren',
   'strut',
   'placeholders',
@@ -74,7 +86,7 @@ const finite = (value: number) => {
   if (!Number.isFinite(value) || Math.abs(value) > 1e12) throw Error('Invalid paragraph scalar');
   return value;
 };
-export function readParagraphOptions(bytes: Uint8Array): ParagraphSnapshot {
+export function readParagraphOptions(bytes: Uint8Array, allowProbe = true): ParagraphSnapshot {
   if (bytes.byteLength < p.paragraphBytes) throw Error('Truncated paragraph options');
   const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength),
     flags = data.getUint32(0, true),
@@ -90,7 +102,8 @@ export function readParagraphOptions(bytes: Uint8Array): ParagraphSnapshot {
     letterSpacing = finite(data.getFloat64(40, true)),
     wordSpacing = finite(data.getFloat64(48, true));
   if (
-    flags > 63 ||
+    flags > 127 ||
+    (!allowProbe && !!(flags & p.paragraphFlags.overflowProbe)) ||
     align > p.paragraphAlign.justify ||
     maxLines > p.limits.textBytes ||
     !localeLength ||
@@ -130,8 +143,50 @@ export function readParagraphOptions(bytes: Uint8Array): ParagraphSnapshot {
     );
   if (locale.includes('\0')) throw Error('Invalid paragraph locale');
   if (fontFamily.includes('\0')) throw Error('Invalid paragraph font family');
-  const extrasOffset = p.paragraphBytes + localeBytes + ellipsisBytes + familyBytes,
-    extras = readParagraphExtras(
+  let extrasOffset = p.paragraphBytes + localeBytes + ellipsisBytes + familyBytes;
+  let overflowProbe: ParagraphOverflowProbe | undefined;
+  if (flags & p.paragraphFlags.overflowProbe) {
+    if (bytes.length < extrasOffset + p.paragraphProbeBytes)
+      throw Error('Truncated paragraph probe');
+    const at = extrasOffset,
+      textLength = data.getUint32(at, true),
+      paragraphLength = data.getUint32(at + 4, true),
+      fontSize = finite(data.getFloat64(at + 8, true)),
+      color = data.getUint32(at + 16, true);
+    if (
+      !textLength ||
+      textLength > p.limits.textBytes ||
+      fontSize <= 0 ||
+      fontSize > 512 ||
+      data.getUint32(at + 20, true) ||
+      paragraphLength < p.paragraphBytes ||
+      bytes.length < at + p.paragraphProbeBytes + aligned(textLength) + paragraphLength
+    )
+      throw Error('Invalid paragraph probe');
+    const textAt = at + p.paragraphProbeBytes,
+      text = decodeUtf8(bytes.subarray(textAt, textAt + textLength)),
+      paragraph = readParagraphOptions(
+        bytes.subarray(
+          textAt + aligned(textLength),
+          textAt + aligned(textLength) + paragraphLength,
+        ),
+        false,
+      );
+    for (let i = textLength; i < aligned(textLength); ++i)
+      if (bytes[textAt + i]) throw Error('Nonzero paragraph probe padding');
+    if (paragraph.inlineChildren || paragraph.placeholders?.length)
+      throw Error('Paragraph probe cannot have children');
+    validateParagraphRuns(text, paragraph.runs);
+    const { height, ...options } = paragraph;
+    overflowProbe = Object.freeze({
+      text,
+      fontSize,
+      color,
+      paragraph: Object.freeze({ ...options, ...(height === null ? {} : { height }) }),
+    });
+    extrasOffset = textAt + aligned(textLength) + paragraphLength;
+  }
+  const extras = readParagraphExtras(
       bytes.subarray(extrasOffset),
       data.getUint32(56, true),
       data.getUint32(60, true),
@@ -140,7 +195,10 @@ export function readParagraphOptions(bytes: Uint8Array): ParagraphSnapshot {
       bytes.subarray(extrasOffset + extras.length),
       data.getUint32(28, true),
     );
+  if (runs.length + (overflowProbe?.paragraph.runs?.length ?? 0) > p.limits.paragraphRuns)
+    throw Error('Paragraph run budget includes its probe');
   return Object.freeze({
+    ...(overflowProbe ? { overflowProbe } : {}),
     ...(flags & p.paragraphFlags.inlineChildren ? { inlineChildren: true } : {}),
     ...(extras.strut ? { strut: extras.strut } : {}),
     ...(extras.placeholders ? { placeholders: extras.placeholders } : {}),
@@ -161,10 +219,25 @@ export function readParagraphOptions(bytes: Uint8Array): ParagraphSnapshot {
     applyHeightToLastDescent: !(flags & p.paragraphFlags.disableLastDescent),
   });
 }
-export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Array {
+export function paragraphOptionsBytes(
+  value: ParagraphOptions | null,
+  allowProbe = true,
+): Uint8Array {
   if (!value) return new Uint8Array();
   for (const key of Object.keys(value))
     if (!allowed.has(key)) throw Error('Unknown paragraph option: ' + key);
+  if (!allowProbe && value.overflowProbe) throw Error('Nested paragraph probe');
+  const probe = value.overflowProbe,
+    probeText = probe ? encodeUtf8(probe.text, p.limits.textBytes) : new Uint8Array(),
+    probeParagraph = probe ? paragraphOptionsBytes(probe.paragraph, false) : new Uint8Array(),
+    probeLength = probe
+      ? p.paragraphProbeBytes + aligned(probeText.length) + probeParagraph.length
+      : 0;
+  if (
+    probe &&
+    Object.keys(probe).some((key) => !['text', 'fontSize', 'color', 'paragraph'].includes(key))
+  )
+    throw Error('Unknown paragraph probe field');
   for (const key of [
     'inlineChildren',
     'wrap',
@@ -189,7 +262,8 @@ export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Arra
         aligned(ellipsis.length) +
         aligned(family.length) +
         extras.bytes.length +
-        runs.length,
+        runs.length +
+        probeLength,
     ),
     data = new DataView(bytes.buffer),
     maxLines = value.maxLines ?? 0,
@@ -207,6 +281,7 @@ export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Arra
       (value.hyphens === 'hidden' ? 0 : p.paragraphFlags.manualHyphens) |
       (value.halfLeading ? p.paragraphFlags.halfLeading : 0) |
       (value.inlineChildren ? p.paragraphFlags.inlineChildren : 0) |
+      (probe ? p.paragraphFlags.overflowProbe : 0) |
       (value.applyHeightToFirstAscent === false ? p.paragraphFlags.disableFirstAscent : 0) |
       (value.applyHeightToLastDescent === false ? p.paragraphFlags.disableLastDescent : 0),
     true,
@@ -229,8 +304,19 @@ export function paragraphOptionsBytes(value: ParagraphOptions | null): Uint8Arra
   bytes.set(locale, p.paragraphBytes);
   bytes.set(ellipsis, p.paragraphBytes + aligned(locale.length));
   bytes.set(family, p.paragraphBytes + aligned(locale.length) + aligned(ellipsis.length));
-  const extrasOffset =
+  const probeOffset =
     p.paragraphBytes + aligned(locale.length) + aligned(ellipsis.length) + aligned(family.length);
+  if (probe) {
+    if (!Number.isInteger(probe.color) || probe.color < 0 || probe.color > 0xffffffff)
+      throw Error('Invalid paragraph probe color');
+    data.setUint32(probeOffset, probeText.length, true);
+    data.setUint32(probeOffset + 4, probeParagraph.length, true);
+    data.setFloat64(probeOffset + 8, finite(probe.fontSize), true);
+    data.setUint32(probeOffset + 16, probe.color, true);
+    bytes.set(probeText, probeOffset + p.paragraphProbeBytes);
+    bytes.set(probeParagraph, probeOffset + p.paragraphProbeBytes + aligned(probeText.length));
+  }
+  const extrasOffset = probeOffset + probeLength;
   bytes.set(extras.bytes, extrasOffset);
   bytes.set(runs, extrasOffset + extras.bytes.length);
   readParagraphOptions(bytes);

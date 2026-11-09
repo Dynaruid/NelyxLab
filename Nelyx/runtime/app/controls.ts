@@ -7,27 +7,20 @@ import { RenderCustomPaint } from '@nelyx/core/framework/rendering/custom-paint'
 import { RoundedRectangleBorder } from '@nelyx/core/framework/painting/rounded-rectangle-border';
 import { CircleBorder } from '@nelyx/core/framework/painting/circle-border';
 import { RenderDecoratedBox } from '@nelyx/core/framework/rendering/boxes';
-import { RenderOpacity } from '@nelyx/core/framework/rendering/opacity';
 import { nativeMouseRegionConfiguration } from '@nelyx/core/framework/rendering/mouse-region';
-import {
-  RenderIgnorePointer,
-  RenderAbsorbPointer,
-} from '@nelyx/core/framework/rendering/pointer-blocking';
-import { RenderSemanticsAnnotations } from '@nelyx/core/framework/rendering/semantics-annotations';
 import {
   PlaceholderSpanIndexSemanticsTag,
   TextParentData,
   RenderParagraph,
 } from '@nelyx/core/framework/rendering/paragraph';
-import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { nativeRadioDeselect } from '@nelyx/core/internal/framework/widgets/native-radio-semantics';
-import { SemanticsProperties } from '@nelyx/core/framework/semantics/semantics';
 import { nativeSemanticsRange } from '@nelyx/core/framework/rendering/object';
 import { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
 import { Border, BorderDirectional } from '@nelyx/core/framework/painting/box-border';
 import { Offset } from '@nelyx/core/ui/offset';
 import { PointerDeviceKind } from '@nelyx/core/ui/pointer';
 import { SemanticsRole } from '@nelyx/core/ui/semantics';
+import { SemanticsAction } from '@nelyx/core/ui/semantics-action';
 import {
   PointerEnterEvent,
   PointerExitEvent,
@@ -45,43 +38,6 @@ export interface OriginalControlConfiguration {
   readonly paint?: readonly NativePaintEntry[];
   readonly foreground?: readonly NativePaintEntry[];
 }
-const semanticsDefaults = new SemanticsProperties();
-// Semantics owns a private canonical render subtype. Resolve its exact identity
-// through the configuration factory, then dispose the unattached metadata.
-const semanticsProbe = new Semantics().createRenderObject();
-const widgetSemanticsPrototype: unknown = Object.getPrototypeOf(semanticsProbe);
-semanticsProbe.dispose();
-const semanticFields = new Set([
-  'enabled',
-  'checked',
-  'mixed',
-  'role',
-  'inMutuallyExclusiveGroup',
-  'toggled',
-  'selected',
-  'button',
-  'link',
-  'textField',
-  'slider',
-  'readOnly',
-  'focusable',
-  'focused',
-  'hidden',
-  'scopesRoute',
-  'namesRoute',
-  'identifier',
-  'label',
-  'hint',
-  'textDirection',
-  'onTap',
-  'onLongPress',
-  'onFocus',
-  'onIncrease',
-  'onDecrease',
-  'value',
-  'increasedValue',
-  'decreasedValue',
-]);
 function invoke(callback: (() => void) | null | undefined): void {
   try {
     callback?.();
@@ -95,15 +51,6 @@ export function originalControlConfiguration(
   fail: (reason: string) => never,
 ): OriginalControlConfiguration | undefined {
   const prototype = Object.getPrototypeOf(render);
-  if (prototype === RenderIgnorePointer.prototype || prototype === RenderAbsorbPointer.prototype) {
-    if (
-      prototype === RenderIgnorePointer.prototype
-        ? (render as RenderIgnorePointer).ignoring
-        : (render as RenderAbsorbPointer).absorbing
-    )
-      return fail('pointer-blocked-subtree');
-    return { options: { layout: { childConstraints: 'inherit' }, pointerHitTest: 'proxy' } };
-  }
   if (prototype === RenderPhysicalShape.prototype || prototype === RenderPhysicalModel.prototype) {
     const source = render as RenderPhysicalShape;
     let shape;
@@ -146,6 +93,12 @@ export function originalControlConfiguration(
     const source = render as RenderCustomPaint;
     const read = (painter: object | null): readonly NativePaintEntry[] => {
       if (!painter) return [];
+      if (
+        ['paint', 'hitTest', 'semanticsBuilder', 'shouldRepaint', 'shouldRebuildSemantics'].some(
+          (name) => Object.hasOwn(painter, name),
+        )
+      )
+        return fail('instance-painter-hook');
       let metadata;
       try {
         metadata = nativeRenderMetadata(painter);
@@ -182,8 +135,10 @@ export function originalControlConfiguration(
   let metadata;
   try {
     metadata = nativeRenderMetadata(render);
-  } catch {
-    return fail('native-render-configuration');
+  } catch (error) {
+    return fail(
+      'native-render-configuration:' + render.constructor.name + ':' + String(error).slice(0, 256),
+    );
   }
   if (metadata?.kind === 'overlay') {
     if (metadata.clip !== 'none' && metadata.clip !== 'hardEdge')
@@ -201,6 +156,7 @@ export function originalControlConfiguration(
         layout: {
           childConstraints: 'expand',
           alignment: metadata.alignment,
+          canonicalStack: true,
           expandEmpty: true,
           clipOverflow: metadata.clip === 'hardEdge',
         },
@@ -245,20 +201,24 @@ export function originalControlConfiguration(
       options: { pointerHitTest: metadata.absorbHitTest ? 'self' : 'proxy' },
       paint: metadata.entries,
     };
-  if (prototype === RenderOpacity.prototype) {
-    const source = render as RenderOpacity;
-    return {
-      options: {
-        properties: { opacity: source.alpha / 255 },
-        semanticsPolicy: { excludeChildren: source.alpha === 0 && !source.alwaysIncludeSemantics },
-      },
-    };
-  }
   if (prototype === RenderDecoratedBox.prototype) {
     const source = render as RenderDecoratedBox,
       decoration = source.decoration;
-    if (Object.getPrototypeOf(decoration) !== BoxDecoration.prototype)
-      return fail('custom-decoration');
+    if (Object.getPrototypeOf(decoration) !== BoxDecoration.prototype) {
+      let metadata;
+      try {
+        metadata = nativeRenderMetadata(decoration, source.configuration.textDirection);
+      } catch {
+        return fail('native-decoration-shape');
+      }
+      if (metadata?.kind !== 'decoration') return fail('custom-decoration');
+      return {
+        options: { pointerHitTest: 'self' },
+        ...(source.position === 'foreground'
+          ? { foreground: metadata.entries }
+          : { paint: metadata.entries }),
+      };
+    }
     const box = decoration as BoxDecoration;
     if (
       box.image ||
@@ -346,19 +306,13 @@ export function originalControlConfiguration(
       },
     };
   }
-  if (
-    prototype === RenderSemanticsAnnotations.prototype ||
-    prototype === widgetSemanticsPrototype
-  ) {
-    const source = render as RenderSemanticsAnnotations,
-      properties = source.properties;
-    if (
-      Object.getPrototypeOf(properties) !== SemanticsProperties.prototype ||
-      source.localeForSubtree ||
-      source.blockUserActions
-    )
-      return fail('custom-semantics-configuration');
-    const tag = properties.tagForChildren;
+  if (metadata?.kind === 'semantics') {
+    const { source, configuration } = metadata,
+      properties = source.properties,
+      tag = properties.tagForChildren,
+      range = nativeSemanticsRange(source),
+      progress = properties.role === SemanticsRole.progressBar,
+      loading = properties.role === SemanticsRole.loadingSpinner;
     const inlineTag =
       tag instanceof PlaceholderSpanIndexSemanticsTag &&
       Object.getPrototypeOf(tag) === PlaceholderSpanIndexSemanticsTag.prototype &&
@@ -367,19 +321,7 @@ export function originalControlConfiguration(
       render.parent instanceof RenderParagraph &&
       Object.getPrototypeOf(render.parent) === RenderParagraph.prototype &&
       render.parent.children[tag.index] === render;
-    for (const key of Object.keys(properties) as (keyof SemanticsProperties)[])
-      if (
-        !(key === 'tagForChildren' && inlineTag) &&
-        !semanticFields.has(key) &&
-        properties[key] !== semanticsDefaults[key]
-      )
-        return fail('semantics-property:' + key);
-    if (
-      properties.role != null &&
-      properties.role !== SemanticsRole.none &&
-      properties.role !== SemanticsRole.radioGroup
-    )
-      return fail('semantics-role');
+    if (tag && !inlineTag) return fail('semantics-property:tagForChildren');
     let flags = 0,
       actions = 0;
     if (properties.scopesRoute && !source.explicitChildNodes)
@@ -398,64 +340,88 @@ export function originalControlConfiguration(
     if (properties.onFocus) actions |= p.semanticsActions.focus;
     if (properties.onIncrease) actions |= p.semanticsActions.increment;
     if (properties.onDecrease) actions |= p.semanticsActions.decrement;
-    const range = nativeSemanticsRange(render);
     if (range.actions) actions |= p.semanticsActions.setValue;
-    const role =
-      properties.role === SemanticsRole.radioGroup
-        ? 'radioGroup'
-        : properties.inMutuallyExclusiveGroup && properties.checked !== null
-          ? 'radio'
-          : properties.button
-            ? 'button'
-            : properties.link
-              ? 'link'
-              : properties.textField
-                ? 'textField'
-                : properties.slider
-                  ? 'slider'
-                  : properties.toggled !== null
-                    ? 'switchControl'
-                    : properties.checked !== null || properties.mixed
-                      ? 'checkbox'
-                      : 'group';
+    if (properties.customSemanticsActions !== null) actions |= p.semanticsActions.custom;
+    const role = progress
+      ? 'progressBar'
+      : loading
+        ? 'loadingSpinner'
+        : properties.role === SemanticsRole.radioGroup
+          ? 'radioGroup'
+          : properties.inMutuallyExclusiveGroup && properties.checked !== null
+            ? 'radio'
+            : properties.button
+              ? 'button'
+              : properties.link
+                ? 'link'
+                : properties.textField
+                  ? 'textField'
+                  : properties.slider
+                    ? 'slider'
+                    : properties.toggled !== null
+                      ? 'switchControl'
+                      : properties.checked !== null || properties.mixed
+                        ? 'checkbox'
+                        : 'group';
     const deselect = nativeRadioDeselect(properties.onTap);
     if (role === 'radio' && properties.checked && properties.enabled !== false && deselect)
       actions |= p.semanticsActions.deselect;
+    const merge = configuration._nativeMergeConfiguration();
     return {
       options: {
-        semantics: {
-          role,
-          flags,
-          actions,
-          label: properties.label ?? '',
-          hint: properties.hint ?? '',
-          ...(properties.value != null ? { value: properties.value } : {}),
-          ...(properties.increasedValue != null
-            ? { increasedValue: properties.increasedValue }
-            : {}),
-          ...(properties.decreasedValue != null
-            ? { decreasedValue: properties.decreasedValue }
-            : {}),
-          ...(range.range
-            ? {
-                range: {
-                  minimum: range.range.min,
-                  maximum: range.range.max,
-                  value: range.range.value,
-                  smallChange: range.range.smallChange ?? 0,
-                  largeChange: range.range.largeChange ?? 0,
-                  readOnly: !range.actions || properties.enabled === false || !!properties.readOnly,
-                },
-              }
-            : {}),
-        },
+        ...(merge.annotated
+          ? {
+              semantics: {
+                role,
+                flags,
+                actions,
+                configuration: merge,
+                identifier: configuration.identifier,
+                textDirection: configuration.textDirection,
+                sortKey: metadata.sortKey,
+                customActions: metadata.customActions,
+                label: properties.label ?? '',
+                hint: [properties.hint, properties.tooltip]
+                  .filter((value) => value != null && value !== '')
+                  .join('\n'),
+                ...(properties.value != null ? { value: properties.value } : {}),
+                ...(properties.increasedValue != null
+                  ? { increasedValue: properties.increasedValue }
+                  : {}),
+                ...(properties.decreasedValue != null
+                  ? { decreasedValue: properties.decreasedValue }
+                  : {}),
+                ...(range.range
+                  ? {
+                      range: {
+                        minimum: range.range.min,
+                        maximum: range.range.max,
+                        value: range.range.value,
+                        smallChange: range.range.smallChange ?? 0,
+                        largeChange: range.range.largeChange ?? 0,
+                        readOnly:
+                          !range.actions || properties.enabled === false || !!properties.readOnly,
+                      },
+                    }
+                  : {}),
+              },
+            }
+          : {}),
         semanticsPolicy: {
-          boundary: source.container,
-          mergeIntoParent: !source.container && !source.explicitChildNodes,
+          boundary: configuration.isSemanticBoundary,
+          mergeIntoParent: !configuration.isSemanticBoundary,
           mergeDescendants: !source.explicitChildNodes && !source.excludeSemantics,
           excludeChildren: source.excludeSemantics,
+          explicitChildren: source.explicitChildNodes,
+          forceMergeDescendants: configuration.isMergingSemanticsOfDescendants,
+          blockActions: source.blockUserActions,
         },
         onAction: (action, event) => {
+          if (action === 'custom') {
+            if (event)
+              invoke(() => configuration.getActionHandler(SemanticsAction.customAction)?.(event.x));
+            return;
+          }
           if (action === 'deselect') {
             invoke(deselect);
             return;

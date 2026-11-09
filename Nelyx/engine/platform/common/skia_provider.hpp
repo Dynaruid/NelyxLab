@@ -240,7 +240,9 @@ class ContentProvider {
           paragraphProvider.unicode->forEachBreak(text.data(),int(text.size()),SkUnicode::BreakType::kGraphemes,[&](auto position,auto){record.characters.push_back(position);});
           paragraphProvider.unicode->forEachBreak(text.data(),int(text.size()),SkUnicode::BreakType::kWords,[&](auto position,auto){record.words.push_back(position);});
           std::vector<LineMetrics> lines;shared->getLineMetrics(lines);record.lines.push_back(0);
-          for(const auto& line:lines){const auto bytes=std::min(line.fEndIncludingNewline,n.text->value.size());const int offset=paragraphProvider.lineMetricsUtf16?int(line.fEndIncludingNewline):int(utf16({reinterpret_cast<const uint8_t*>(n.text->value.data()),bytes}).size());
+          // Empty editors shape a measurement-only U+200B. Its line end is
+          // outside the authoritative empty document and is not a UIA stop.
+          if(!text.empty())for(const auto& line:lines){const auto bytes=std::min(line.fEndIncludingNewline,n.text->value.size());const int offset=paragraphProvider.lineMetricsUtf16?int(line.fEndIncludingNewline):int(utf16({reinterpret_cast<const uint8_t*>(n.text->value.data()),bytes}).size());
             if(offset>record.lines.back())record.lines.push_back(offset);}
           if(record.characters.empty())record.characters.push_back(0);if(record.words.empty())record.words.push_back(0);
           if(record.lines.back()!=int(text.size()))record.lines.push_back(int(text.size()));
@@ -331,13 +333,16 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
       SkPaint paint;paint.setAntiAlias(true);paintFrameNative(canvas,n,item,paint,pixelScale,foreground,[&](Handle reference){
         const auto& resource=frame.scene->document->get(reference);const auto found=prepared.pictures.find(reference.key());
         if(resource.paintOwner!=item.node||found==prepared.pictures.end())throw std::runtime_error("Native prepared paragraph generation missing");
+        if(frame.properties[reference.slot].opacity<=0)return;
         SkPaint alpha;alpha.setAlphaf(float(frame.properties[reference.slot].opacity));
         if(resource.graphics.blur>0)alpha.setImageFilter(SkImageFilters::Blur(float(resource.graphics.blur),float(resource.graphics.blur),SkTileMode::kDecal,nullptr));
         canvas->drawPicture(found->second,nullptr,&alpha);
       },&paintCounts);
     };
     struct Saved {int count;const DrawItem* item;};std::vector<Saved> saves;
-    const auto finish=[&]{const auto saved=saves.back();saves.pop_back();drawPaint(*saved.item,true);canvas->restoreToCount(saved.count);};
+    const auto finish=[&]{const auto saved=saves.back();saves.pop_back();drawPaint(*saved.item,true);
+      if(const auto mask=nativeLinearMask(saved.item->paint.get()))paintNativeMask(canvas,*mask);
+      canvas->restoreToCount(saved.count);};
     for(size_t index=begin;index<end;++index){const auto& item=frame.items[index];
       while(saves.size()>item.depth-baseDepth)finish();
       const auto& n=frame.scene->document->get(item.node);
@@ -354,6 +359,9 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
         else if(n.clipStyle){const auto& clip=*n.clipStyle;
           if(clip.shape==wire::clipShapes::rect)canvas->clipRect(bounds,antiAlias);
           else if(clip.shape==wire::clipShapes::oval)canvas->clipRRect(SkRRect::MakeOval(bounds),antiAlias);
+          else if(clip.shape==wire::clipShapes::stadium)canvas->clipRRect(SkRRect::MakeRectXY(bounds,bounds.height()<bounds.width()?bounds.height()/2:bounds.width()/2,bounds.height()<bounds.width()?bounds.height()/2:bounds.width()/2),antiAlias);
+          else if(clip.shape==wire::clipShapes::circle){const float size=std::min(bounds.width(),bounds.height());
+            canvas->clipRRect(SkRRect::MakeOval(SkRect::MakeXYWH((bounds.width()-size)/2,(bounds.height()-size)/2,size,size)),antiAlias);}
           else{SkVector radii[4];for(size_t i=0;i<4;++i)radii[i]={float(clip.radii[i*2]),float(clip.radii[i*2+1])};
             SkRRect rounded;rounded.setRectRadii(bounds,radii);canvas->clipRRect(rounded,antiAlias);}}
         else if(path!=prepared.paths.end()){canvas->clipRect(bounds,antiAlias);canvas->clipPath(path->second,antiAlias);}
@@ -364,6 +372,7 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
       if(property.opacity<1||n.graphics.blur>0){SkPaint layer;layer.setAlphaf(float(property.opacity));
         if(n.graphics.blur>0)layer.setImageFilter(SkImageFilters::Blur(float(n.graphics.blur),float(n.graphics.blur),SkTileMode::kDecal,nullptr));
         canvas->saveLayer(nullptr,&layer);}
+      if(const auto mask=nativeLinearMask(item.paint.get())){const auto bounds=nativeMaskBounds(*mask);canvas->clipRect(bounds,false);canvas->saveLayer(&bounds,nullptr);}
       const auto found=prepared.pictures.find(item.node.key());if(found==prepared.pictures.end())throw std::runtime_error("Native prepared generation missing");
       const auto geometry=frame.focusNode==n.id?n.textGeometry:nullptr;
       const auto rect=[&](const TextRect& r,SkColor color){SkPaint paint;paint.setColor(color);canvas->drawRect(SkRect::MakeXYWH(float(r.x),float(r.y),float(r.width),float(r.height)),paint);};
@@ -406,6 +415,7 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
             if(child.opacity<=0||source.paintOwner)continue;
             if(frame.properties[child.node.slot].opacity<1||source.graphics.blur>0)layers+=source.graphics.blur>0?3u:1u;
             if(child.flags&wire::nodeFlags::clipSaveLayer)++layers;
+            if(nativeLinearMask(child.paint.get()))++layers;
             if(source.snapshot&&source.snapshot->live.opacity<1)++layers;
           }
           snapshots.capture(decision,n.id,n.lease.ledger,[&](SkCanvas* recording){

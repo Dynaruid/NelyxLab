@@ -39,6 +39,8 @@ import {
   readImageResourceSlice,
 } from './image-resource.ts';
 import type { ImageUploadState, ImageResourceSlice } from './image-resource.ts';
+import { scrollCurveBytes } from './scroll-curve.ts';
+import type { ScrollCurve } from './scroll-curve.ts';
 const resourceSlots = new WeakMap<EngineClient, ResourceSlots>();
 function slotsFor(client: EngineClient): ResourceSlots {
   const slots = resourceSlots.get(client);
@@ -594,6 +596,7 @@ export class EngineViewClient {
     node: import('./codec.ts').NodeHandle,
     target: number,
     durationMs = 0,
+    curve?: ScrollCurve,
   ): {
     readonly id: bigint;
     readonly receipt: Promise<EngineResponse>;
@@ -604,20 +607,22 @@ export class EngineViewClient {
       Math.abs(target) > 1e12 ||
       !Number.isFinite(durationMs) ||
       durationMs < 0 ||
-      durationMs > p.limits.commandTimeoutMs - 100
+      durationMs > p.limits.scrollDurationMs
     )
       throw new RangeError('Invalid native scroll target or duration');
-    const id = ++this.nextScroll;
+    const tail = curve ? scrollCurveBytes(curve) : new Uint8Array(),
+      id = ++this.nextScroll;
     return {
       id,
       receipt: this.request(
         p.opcodes.scroll,
-        body(56, (value) => {
+        body(56 + tail.length, (value) => {
           writeHandle(value, 0, node);
           value.setFloat64(24, target, true);
           value.setFloat64(32, durationMs / 1000, true);
-          value.setFloat64(40, p.limits.commandTimeoutMs / 1000, true);
+          value.setFloat64(40, (durationMs + p.limits.commandTimeoutMs) / 1000, true);
           value.setUint32(48, 3, true);
+          new Uint8Array(value.buffer, value.byteOffset, value.byteLength).set(tail, 56);
         }),
         id,
       ).then((result) => checked(result, [p.statuses.pending, p.statuses.ok])),

@@ -330,7 +330,7 @@ export async function createBrowserEngineV2Surface(
   const liveInputs = new Map<number, InputValue>();
   const sendInput = async (value: InputValue): Promise<EngineResponse> => {
     const state = response(
-      await transport.exchange(
+      await interaction.gateway(
         packet(
           p.opcodes.input,
           owner,
@@ -589,6 +589,11 @@ export async function createBrowserEngineV2Surface(
           event.clientY < rect.bottom,
         relatedSurface =
           event.relatedTarget === canvas || interaction.ownsTarget(event.relatedTarget);
+      // ARIA peers and their geometry wrappers share the same Core surface.
+      // Their DOM boundaries are not pointer exits; the normal pointermove
+      // already carries this sample. Forwarding every captured pointerleave
+      // in a deep ancestor chain can overflow the mandatory Core event queue.
+      if (inside && relatedSurface) return;
       void input({
         pointer: true,
         kind:
@@ -602,8 +607,8 @@ export async function createBrowserEngineV2Surface(
         hover: true,
         phase: 'update',
         source: 'engineDriven',
-        x: inside && relatedSurface ? event.clientX - rect.left : -1,
-        y: inside && relatedSurface ? event.clientY - rect.top : -1,
+        x: -1,
+        y: -1,
       });
     }
   };
@@ -611,7 +616,7 @@ export async function createBrowserEngineV2Surface(
     if (interaction.ownsTarget(event.target)) leave(event);
   };
   canvas.addEventListener('pointerleave', leave);
-  document.addEventListener('pointerleave', overlayLeave, true);
+  document.addEventListener('pointerout', overlayLeave);
   canvas.style.touchAction = 'none';
   canvas.style.userSelect = 'none';
   const nativeDrag = (event: DragEvent) => {
@@ -690,7 +695,7 @@ export async function createBrowserEngineV2Surface(
         canvas.removeEventListener('wheel', wheel);
         document.removeEventListener('wheel', overlayWheel);
         canvas.removeEventListener('pointerleave', leave);
-        document.removeEventListener('pointerleave', overlayLeave, true);
+        document.removeEventListener('pointerout', overlayLeave);
         canvas.removeEventListener('pointerdown', down);
         canvas.removeEventListener('pointermove', move);
         canvas.removeEventListener('pointerup', end);

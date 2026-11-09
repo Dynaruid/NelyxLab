@@ -5,16 +5,25 @@
 #include <cstring>
 #include <limits>
 #include <exception>
+#include <source_location>
+#include <cstdio>
 #include <vector>
 
 namespace nelyx::v2 {
 struct Error : std::exception {
   uint32_t status;
-  explicit Error(uint32_t value):status(value){}
-  const char* what()const noexcept override{return "Engine protocol/layout error";}
+  char message[256]{};
+  explicit Error(uint32_t value,std::source_location at=std::source_location::current()) noexcept:status(value){
+    const char* file=at.file_name();
+    for(const char* p=file;*p;++p)if(*p=='/'||*p=='\\')file=p+1;
+    std::snprintf(message,sizeof(message),"Engine protocol/layout error status=%u at %s:%u (%s)",
+      value,file,at.line(),at.function_name());
+  }
+  const char* what()const noexcept override{return message;}
 };
-inline void require(bool test, uint32_t status = wire::statuses::malformed) {
-  if (!test) throw Error{status};
+inline void require(bool test, uint32_t status = wire::statuses::malformed,
+  std::source_location at=std::source_location::current()) {
+  if (!test) throw Error{status,at};
 }
 inline uint64_t next(uint64_t value) {
   require(value != UINT64_MAX, wire::statuses::exhausted);

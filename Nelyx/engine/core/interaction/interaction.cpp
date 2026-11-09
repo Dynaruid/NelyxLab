@@ -277,10 +277,12 @@ void View::applyEdit(Reader bytes) {
   }
 }
 void View::semanticAction(Reader bytes) {
-  require(bytes.length == 32 && bytes.u32(20) == 0);
+  require(bytes.length == 32);
   const auto node = handle(bytes, 0);
   const auto snapshot = bytes.u64(8);
   const uint32_t action = bytes.u32(16);
+  const auto customId=bytes.u32(20);
+  require(action==wire::semanticsActions::custom?bytes.u64(24)==0:customId==0);
   require(published && snapshot == publication &&
               published->allowsSemantics(node) &&
               published->scene->metrics.epoch == metrics.epoch &&
@@ -288,7 +290,7 @@ void View::semanticAction(Reader bytes) {
           wire::statuses::stale);
   const auto* semantic=published->semantic(node);
   require(semantic&&action&&(action&(action-1))==0&&(semantic->actions&action)==action,wire::statuses::capabilityMissing);
-  const auto source=published->semanticSource(node,action);
+  const auto source=published->semanticSource(node,action,customId);
   require(source&&document->contains(source)&&published->scene->document->contains(source)&&document->descends(source,node),wire::statuses::stale);
   const auto &n = published->scene->document->get(source);
   const auto &current = document->get(source);
@@ -302,6 +304,20 @@ void View::semanticAction(Reader bytes) {
           (action & (action - 1)) == 0 && (semantic->actions & action) == action && (n.semantics->actions & action) == action,
       wire::statuses::capabilityMissing);
   ++semanticsWork;
+  if(action==wire::semanticsActions::custom){
+    const auto find=[&](const SemanticData& data)->const SemanticCustomActionData*{
+      for(const auto& value:data.metadata.custom)if(value.id==customId&&value.invokable)return &value;
+      return nullptr;
+    };
+    const auto before=find(*n.semantics),now=find(*current.semantics),advertised=find(*semantic);
+    require(before&&now&&advertised&&*before==*now&&before->label==advertised->label&&before->hint==advertised->hint&&
+      before->overrideAction==advertised->overrideAction,wire::statuses::stale);
+    for(auto at=source;at;at=document->get(at).parent)
+      require(!(document->get(at).policy&wire::eventPolicies::blockSemanticActions),wire::statuses::capabilityMissing);
+    Event event{wire::events::semanticAction,wire::statuses::ok,snapshot,document->epoch,action,node};
+    if(source!=node)event.semanticSource=source;
+    event.x=customId;interaction(event);return;
+  }
   if (action == wire::semanticsActions::focus) {
     setFocus(node, snapshot, bytes.u64(24));
     return;

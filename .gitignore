@@ -214,3 +214,9 @@ $RECYCLE.BIN/
 # Projections of engine-owned native helpers for the transitional SDK/Skia packages.
 /Nelyx/sdk/native/engine-helpers/
 /Nelyx/skia/native/engine-helpers/
+
+# Current original-App assets prepared from each sample's owned catalog.
+/sample/nelyx-testbed-app-2/engine-v2/assets/*.ttf
+/sample/nelyx-testbed-app-2/engine-v2/assets/*.otf
+/sample/nelyx-testbed-app-2/engine-v2/assets/*.LICENSE.txt
+/sample/nelyx-demo-app/engine-v2/assets/

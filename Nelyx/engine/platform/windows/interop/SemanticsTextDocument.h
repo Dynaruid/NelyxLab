@@ -16,8 +16,8 @@
 #include <vector>
 
 namespace Nelyx::WindowsSemantics {
-struct TextError {HRESULT result;};
-inline void require(bool condition,HRESULT result=E_INVALIDARG){if(!condition)throw TextError{result};}
+struct TextError {HRESULT result;const char* reason=nullptr;};
+inline void require(bool condition,HRESULT result=E_INVALIDARG,const char* reason=nullptr){if(!condition)throw TextError{result,reason};}
 template<class F> HRESULT boundary(F&& action)noexcept{
   try{action();return S_OK;}catch(TextError const& error){return error.result;}catch(std::bad_alloc const&){return E_OUTOFMEMORY;}catch(...){return E_FAIL;}
 }
@@ -108,15 +108,15 @@ public:
     return {boundaries[static_cast<size_t>(index)],static_cast<int>(index-base)};
   }
   static void validate(TextSnapshot const& value){
-    require(value.revision<=9007199254740991ULL&&value.textRevision<=9007199254740991ULL&&value.generation>0&&value.generation<=9007199254740991ULL&&value.text.size()<=maximumTextUnits);
+    require(value.revision<=9007199254740991ULL&&value.textRevision<=9007199254740991ULL&&value.generation>0&&value.generation<=9007199254740991ULL&&value.text.size()<=maximumTextUnits,E_INVALIDARG,"text snapshot identity");
     validateText(value.text);
-    validateSpan(value,std::min(value.anchor,value.focus),std::max(value.anchor,value.focus));
+    require(scalarBoundary(value.text,value.anchor)&&scalarBoundary(value.text,value.focus),E_INVALIDARG,"text snapshot selection");
     require(!value.obscured||(value.text.empty()&&value.characters.empty()&&value.words.empty()&&value.lines.empty()&&value.anchor==0&&value.focus==0));
     for(auto const* values:{&value.characters,&value.words,&value.lines}){
-      if(values->empty())continue;require(values->size()<=maximumTextUnits+1&&values->front()==0&&values->back()==static_cast<int>(value.text.size()));
-      int previous=-1;for(const int stop:*values){require(stop>previous&&scalarBoundary(value.text,stop));previous=stop;}
+      if(values->empty())continue;require(values->size()<=maximumTextUnits+1&&values->front()==0&&values->back()==static_cast<int>(value.text.size()),E_INVALIDARG,"text navigation coverage");
+      int previous=-1;for(const int stop:*values){require(stop>previous&&scalarBoundary(value.text,stop),E_INVALIDARG,"text navigation order");previous=stop;}
     }
-    require(value.obscured||!value.characters.empty());
+    require(value.obscured||!value.characters.empty(),E_INVALIDARG,"text character stops missing");
   }
   static void validateTransition(TextSnapshot const& previous,TextSnapshot const& value){
     require(value.generation==previous.generation);

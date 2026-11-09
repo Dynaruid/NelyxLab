@@ -34,10 +34,12 @@ class AppServices final : public std::enable_shared_from_this<AppServices> {
     :ledger(std::move(ledger)),notifyUI(std::move(ui)),notifyApp(std::move(app)){}
   void request(uint32_t id,std::string method,std::string value) {
     text(value);
-    const bool read=method=="clipboard-read"||method=="clipboard-has-strings";
+    const bool eventRead=method=="clipboard-read-event",eventRelease=method=="clipboard-release-event";
+    const bool read=method=="clipboard-read"||method=="clipboard-has-strings"||eventRead;
     const bool semantics=method=="semantics-tap"||method=="semantics-longPress"||method=="semantics-focus";
-    if((!read&&method!="clipboard-write"&&!semantics&&method!="system-sound"&&method!="haptic-feedback")||
-      (read&&!value.empty()))throw std::runtime_error("Unsupported App OS service request");
+    if((!read&&!eventRelease&&method!="clipboard-write"&&!semantics&&method!="accessibility-tooltip"&&method!="system-sound"&&method!="haptic-feedback")||
+      (read&&!eventRead&&!value.empty()))throw std::runtime_error("Unsupported App OS service request");
+    if(eventRead||eventRelease){if(value.empty()||value.size()>16||value.find_first_not_of("0123456789")!=std::string::npos||std::stoull(value)==0||std::stoull(value)>9007199254740991ull)throw std::runtime_error("Invalid clipboard input snapshot identity");}
     if(semantics){if(value.empty()||value.size()>20||value.find_first_not_of("0123456789")!=std::string::npos||std::stoull(value)==0)throw std::runtime_error("Invalid native semantics event identity");}
     // Reserve returned UTF-8 and the temporary OS UTF-16 copy before access.
     const auto bytes=sizeof(Record)+value.size()+(read?6ull*65536:0ull)+1024;
@@ -68,7 +70,7 @@ class AppServices final : public std::enable_shared_from_this<AppServices> {
           try{
             if(error.empty()){
               text(value);
-              if(record->method!="clipboard-read"&&record->method!="clipboard-has-strings"&&!value.empty())throw std::runtime_error("Invalid App feedback/write reply");
+              if(record->method!="clipboard-read"&&record->method!="clipboard-read-event"&&record->method!="clipboard-has-strings"&&!value.empty())throw std::runtime_error("Invalid App feedback/write reply");
               if(record->method=="clipboard-has-strings"&&value!="0"&&value!="1")throw std::runtime_error("Invalid clipboard availability reply");
             }
           }catch(const std::exception& failure){error=failure.what();}
@@ -104,7 +106,7 @@ class AppServices final : public std::enable_shared_from_this<AppServices> {
 };
 inline void installAppServices(facebook::jsi::Runtime& rt,facebook::jsi::Object& native,const std::shared_ptr<AppServices>& services,std::function<void()> cancelProvider={}) {
   namespace jsi=facebook::jsi;
-  native.setProperty(rt,"appServicesVersion",2);
+  native.setProperty(rt,"appServicesVersion",4);
   native.setProperty(rt,"appService",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"appService"),3,[services](jsi::Runtime& rt,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
     if(count!=3)throw jsi::JSError(rt,"App OS service arguments required");
     const auto id=Packet(rt,jsi::Value(rt,args[0])).counter(false);

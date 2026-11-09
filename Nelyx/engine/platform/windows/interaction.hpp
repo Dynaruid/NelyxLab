@@ -6,6 +6,8 @@
 #include "../../core/state.hpp"
 #include "skia_provider.hpp"
 #include "clipboard.hpp"
+#include "rnw/KeyboardUtils.h"
+#include "rnw/AccessibilityInfoModule.h"
 #include <set>
 
 namespace nelyx::v2::windows {
@@ -18,6 +20,8 @@ class Interaction {
   std::function<std::vector<uint8_t>(uint32_t, const std::vector<uint8_t> &)> call;
   std::function<void(std::function<void()>)> post;
   std::function<void()> wake;
+  std::function<uint64_t()> captureClipboard;
+  std::function<void(uint64_t)> releaseClipboard;
   std::shared_ptr<nh::Editors> editors;
   std::shared_ptr<nh::SemanticsTree> semantics;
   std::shared_ptr<int> context = std::make_shared<int>(1);
@@ -264,6 +268,13 @@ class Interaction {
       if(!current||!current->frame.allowsSemantics(node)||!current->frame.scene->document->contains(node))return false;
       const auto after=std::find_if(current->frame.items.begin(),current->frame.items.end(),[&](const auto& item){return item.node==node;});
       const auto& oldNode=observed.frame.scene->document->get(node);const auto& newNode=current->frame.scene->document->get(node);
+      if(opcode==wire::opcodes::semanticsAction&&Reader{body.bytes.data(),body.bytes.size()}.u32(16)==wire::semanticsActions::custom){
+        const auto customId=Reader{body.bytes.data(),body.bytes.size()}.u32(20);
+        const auto descriptor=[&](const Frame& frame)->const SemanticCustomActionData*{const auto* data=frame.semantic(node);
+          if(data)for(const auto& action:data->metadata.custom)if(action.id==customId&&action.invokable)return &action;return nullptr;};
+        const auto a=descriptor(observed.frame),b=descriptor(current->frame);
+        if(!a||!b||*a!=*b||observed.frame.semanticSource(node,wire::semanticsActions::custom,customId)!=current->frame.semanticSource(node,wire::semanticsActions::custom,customId))return false;
+      }
       if(after==current->frame.items.end()||before->x!=after->x||before->y!=after->y||
         before->world.a!=after->world.a||before->world.b!=after->world.b||before->world.c!=after->world.c||before->world.d!=after->world.d||
         oldNode.graphics.path!=newNode.graphics.path||oldNode.radius!=newNode.radius||
@@ -314,17 +325,23 @@ class Interaction {
     Writer b(32);
     writeHandle(b, 0, node);
     b.u64(8, action.commit);
-    b.u32(16, action.kind=="deselect"?wire::semanticsActions::deselect:wire::semanticsActions::activate);
+    b.u32(16, action.customAction?wire::semanticsActions::custom:action.kind=="deselect"?wire::semanticsActions::deselect:wire::semanticsActions::activate);
+    if(action.customAction)b.u32(20,*action.customAction);
     publishedAction(wire::opcodes::semanticsAction,std::move(b),node,*observed);
     wake();
   }
 
 public:
   uint64_t publications = 0, nativeEdits = 0;
+  uint64_t characters = 0, charactersApplied = 0, charactersUnavailable = 0,
+           charactersStale = 0, charactersBusy = 0, charactersLimited = 0;
+  uint64_t keysAdmitted = 0, keysStale = 0, keysRejected = 0;
+  uint32_t lastKeyStatus = wire::statuses::ok;
   Interaction(HWND window, Engine &engine, decltype(call) call, decltype(post) post,
-              decltype(wake) wake)
+              decltype(wake) wake,decltype(captureClipboard) captureClipboard,
+              decltype(releaseClipboard) releaseClipboard)
       : window(window), engine(engine), call(std::move(call)), post(std::move(post)),
-        wake(std::move(wake)) {
+        wake(std::move(wake)),captureClipboard(std::move(captureClipboard)),releaseClipboard(std::move(releaseClipboard)) {
     editors = std::make_shared<nh::Editors>(window, this->post, [this](auto e) {
       ++nativeEdits;
       nativeEvent(std::move(e));
@@ -346,6 +363,11 @@ public:
   }
   LRESULT object(WPARAM w, LPARAM l) {
     return closed ? 0 : UiaReturnRawElementProvider(window, w, l, semantics->root.Get());
+  }
+  void tooltip(const std::string& text) {
+    if(closed)throw std::runtime_error("Accessibility owner is closed");
+    semantics->ui();
+    winrt::check_hresult(rnw::announceForAccessibility(semantics->root.Get(),winrt::to_hstring(text).c_str()));
   }
   std::vector<uint8_t> gateway(const std::vector<uint8_t> &bytes) {
     const Reader r{bytes.data(), bytes.size()};
@@ -532,28 +554,40 @@ public:
       s.surface = next->metrics.device;
       s.frame = frame;
       s.bounds = frame.bounds;
+      if(node.layoutPaintValues&&node.layoutPaintValues->semanticsRect){
+        const auto semanticBounds=item.world.bounds(*node.layoutPaintValues->semanticsRect);
+        s.bounds={semanticBounds.x,semanticBounds.y,semanticBounds.width,semanticBounds.height};
+        s.frame.bounds=s.bounds;
+      }
       static constexpr const char *roles[] = {"group", "group", "button", "text",
-          "text-field", "button", "group", "button", "button", "group", "button"};
-      static_assert(std::size(roles) == wire::semanticsRoles::switchControl + 1);
+          "text-field", "button", "group", "button", "button", "group", "button", "progress", "loading"};
+      static_assert(std::size(roles) == wire::semanticsRoles::loadingSpinner + 1);
       s.role = a->role < std::size(roles) ? roles[a->role] : "group";
       packet.isLink = a->role == wire::semanticsRoles::link;
       packet.isSlider = a->role == wire::semanticsRoles::slider;
       packet.isRadio = a->role == wire::semanticsRoles::radio;
       packet.canDeselect = a->actions & wire::semanticsActions::deselect;
       packet.isRadioGroup = a->role == wire::semanticsRoles::radioGroup;
+      // Source's closed configuration word packs isLiveRegion at bit 24.
+      packet.liveRegion = (a->mergeFlags & (1u << 24)) != 0;
       if(packet.isSlider&&node.control.kind){nh::SemanticRange range;
         range.min=node.control.minimum;range.max=node.control.maximum;range.value=f.properties[node.id.slot].value;
         range.smallChange=node.control.step>0?node.control.step:(node.control.maximum-node.control.minimum)/20;
         range.largeChange=(node.control.maximum-node.control.minimum)/5;range.readOnly=node.control.disabled;
         packet.range=range;}
-      else if(packet.isSlider&&a->range.enabled){nh::SemanticRange range;
+      else if((packet.isSlider||a->role==wire::semanticsRoles::progressBar)&&a->range.enabled){nh::SemanticRange range;
         range.min=a->range.minimum;range.max=a->range.maximum;range.value=a->range.value;
         range.smallChange=a->range.smallChange;range.largeChange=a->range.largeChange;
         range.readOnly=a->range.readOnly;packet.range=range;}
       if(!a->value.empty()||a->range.enabled)packet.value=wide(a->value);
       packet.name = wide(a->label);
       packet.tooltip = wide(a->hint);
-      packet.automationId = wide(s.id);
+      packet.automationId = wide(a->metadata.identifier.empty()?s.id:a->metadata.identifier);
+      packet.traversal=f.semantics[node.id.slot].traversal;
+      packet.paintOrder=uint32_t(&item-f.items.data());
+      for(const auto& action:a->metadata.custom)if(action.hintOverride&&!action.hint.empty()){
+        if(!packet.tooltip.empty())packet.tooltip+=L"\n";packet.tooltip+=wide(action.hint);
+      }
       s.enabled = geometry && !(a->flags & wire::semanticsFlags::disabled) &&
                   !(current.editFlags & wire::editFlags::disabled);
       s.focusable = !(a->flags & wire::semanticsFlags::scopesRoute) &&
@@ -613,7 +647,24 @@ public:
       indices[node.id.key()] = int(packets.size());
       packets.push_back(std::move(packet));
     }
-    semantics->publish(std::move(packets), prepared ? std::weak_ptr<void>(prepared->context)
+    std::stable_sort(packets.begin(),packets.end(),[](const auto& a,const auto& b){return a.traversal<b.traversal;});
+    indices.clear();std::vector<nh::SemanticPacket> accessible;
+    for(auto& packet:packets){const Handle node{uint32_t(packet.snapshot.source),uint32_t(packet.snapshot.source>>32)};
+      auto parent=f.semantics[node.slot].parent;while(parent&&!indices.contains(parent.key()))parent=f.semantics[parent.slot].parent;
+      packet.parent=parent?indices.at(parent.key()):-1;
+      const auto index=int(accessible.size());indices[node.key()]=index;accessible.push_back(std::move(packet));
+      const auto* data=f.semantic(node);
+      if(data&&(data->actions&wire::semanticsActions::custom))for(const auto& action:data->metadata.custom)if(action.invokable){
+        nh::SemanticPacket peer;const auto& target=accessible[index];peer.snapshot=target.snapshot;
+        peer.actionTarget=target.snapshot.id;peer.customAction=action.id;
+        peer.snapshot.id=target.snapshot.id+"/action/"+std::to_string(action.id);peer.snapshot.role="button";
+        peer.snapshot.focused=false;peer.snapshot.focusable=false;peer.snapshot.canActivate=true;peer.snapshot.text.reset();peer.snapshot.paragraph.reset();
+        peer.name=wide(action.label.empty()?action.hint:action.label);peer.tooltip=wide(action.hint);
+        peer.automationId=target.automationId+L"/action/"+std::to_wstring(action.id);peer.parent=index;
+        accessible.push_back(std::move(peer));
+      }
+    }
+    semantics->publish(std::move(accessible), prepared ? std::weak_ptr<void>(prepared->context)
                                                     : std::weak_ptr<void>(context));
     if(geometry&&next->visible&&f.route.sequence>routeSequence){
       routeSequence=f.route.sequence;
@@ -684,8 +735,11 @@ public:
     return false;
   }
   bool character(wchar_t unit) {
-    if (focused.empty() || !documents.contains(focused))
+    ++characters;
+    if (focused.empty() || !documents.contains(focused)) {
+      ++charactersUnavailable;
       return false;
+    }
     std::wstring text;
     if (unit >= 0xd800 && unit <= 0xdbff) {
       high = unit;
@@ -707,20 +761,64 @@ public:
     c.revision = documents.at(focused).native.revision;
     c.focusEpoch = snapshot->session;
     const auto result = editors->keyboardText(c, snapshot->session);
+    if(result.first=="applied")++charactersApplied;
+    else if(result.first=="stale")++charactersStale;
+    else if(result.first=="busy")++charactersBusy;
+    else if(result.first=="limit")++charactersLimited;
+    else ++charactersUnavailable;
     return result.first != "unavailable";
   }
   bool canonicalKey(WPARAM key,LPARAM detail,bool down) {
-    if(key==VK_F4&&(GetKeyState(VK_MENU)&0x8000))return false;
-    if(!snapshot)return false;
+    // Unicode input packets become WM_CHAR through TranslateMessage. They do
+    // not identify a physical Source key or a TSF composition key.
+    if(key==VK_PACKET)return false;
+    if(key==VK_F4&&rnw::keyDown(VK_MENU))return false;
+    // A UI mirror may lag a caret-only publication. Start from the actual
+    // ingress state and retry only a refused publication, never an accepted
+    // key or a key whose focus/document/surface ownership has changed.
+    const auto observed=engine.interactionSnapshot(1,1);
+    if(!observed)return false;
     bool canonical=false;
-    for(const auto root:snapshot->frame.scene->document->children[0])
-      if(snapshot->frame.scene->document->get(root).policy&wire::eventPolicies::canonicalKeyboard){canonical=true;break;}
+    for(const auto root:observed->frame.scene->document->children[0])
+      if(observed->frame.scene->document->get(root).policy&wire::eventPolicies::canonicalKeyboard){canonical=true;break;}
     if(!canonical)return false;
-    Writer data(24);data.u64(0,snapshot->frame.id);data.u32(8,uint32_t(key));
-    data.u32(12,((GetKeyState(VK_SHIFT)&0x8000)?1u:0u)|((GetKeyState(VK_CONTROL)&0x8000)?2u:0u)|
-      ((GetKeyState(VK_MENU)&0x8000)?4u:0u)|(((GetKeyState(VK_LWIN)|GetKeyState(VK_RWIN))&0x8000)?8u:0u));
+    const auto modifiers=rnw::modifierMask();
+    const bool paste=down&&((key=='V'&&(modifiers&2u)&&!(modifiers&12u))||(key==VK_INSERT&&modifiers==1u));
+    const auto clipboard=paste?captureClipboard():0;
+    const auto identity=rnw::IdentityFromMessage(uint32_t(key),uint32_t((uintptr_t(detail)>>16)&0xff),bool(detail&(LPARAM(1)<<24)),
+      bool(modifiers&1u),rnw::IsKeyLocked(winrt::Windows::System::VirtualKey::CapitalLock));
+    require(!identity.key.empty()&&identity.key.size()<=wire::keyIdentityTextBytes&&
+      !identity.code.empty()&&identity.code.size()<=wire::keyIdentityTextBytes,wire::statuses::invalidValue);
+    Writer data(wire::keyIdentityBytes+(identity.key.size()+identity.code.size()+7)/8*8);data.u64(0,observed->frame.id);data.u32(8,uint32_t(key));
+    data.u32(12,modifiers);
     data.u32(16,down?1:0);data.u32(20,down&&(detail&(LPARAM(1)<<30))?1:0);
-    call(wire::opcodes::key,data.bytes);wake();sync();return true;
+    if(clipboard)data.u64(24,clipboard);
+    data.u32(32,uint32_t(identity.key.size()));data.u32(36,uint32_t(identity.code.size()));data.u32(40,identity.location);
+    std::copy(identity.key.begin(),identity.key.end(),data.bytes.begin()+wire::keyIdentityBytes);
+    std::copy(identity.code.begin(),identity.code.end(),data.bytes.begin()+wire::keyIdentityBytes+identity.key.size());
+    try{
+      auto current=observed;
+      lastKeyStatus=wire::statuses::stale;
+      for(unsigned attempt=0;attempt<3;++attempt){
+        if(attempt){
+          current=engine.interactionSnapshot(1,1);
+          if(!current||current->focus!=observed->focus||current->session!=observed->session||
+             current->visible!=observed->visible||current->document->epoch!=observed->document->epoch||
+             current->frame.scene->document->epoch!=observed->frame.scene->document->epoch||
+             current->metrics.epoch!=observed->metrics.epoch||current->metrics.device!=observed->metrics.device||
+             current->frame.device!=observed->frame.device)break;
+          data.u64(0,current->frame.id);
+        }
+        const auto result=call(wire::opcodes::key,data.bytes);
+        lastKeyStatus=Reader{result.data(),result.size()}.u16(14);
+        if(lastKeyStatus==wire::statuses::ok)break;
+        if(lastKeyStatus!=wire::statuses::stale)break;
+        ++keysStale;
+      }
+      if(lastKeyStatus==wire::statuses::ok)++keysAdmitted;
+      else {++keysRejected;if(clipboard)releaseClipboard(clipboard);}
+    }catch(...){if(clipboard)releaseClipboard(clipboard);throw;}
+    wake();sync();return true;
   }
   bool keyup(WPARAM key,LPARAM detail){return canonicalKey(key,detail,false);}
   bool keydown(WPARAM key,LPARAM detail=0) {
@@ -728,7 +826,7 @@ public:
     if(snapshot&&(key==VK_TAB||(focused.empty()&&(key==VK_SPACE||key==VK_RETURN||
        key==VK_LEFT||key==VK_RIGHT||key==VK_UP||key==VK_DOWN||key==VK_HOME||key==VK_END)))){
       Writer data(24);data.u64(0,snapshot->frame.id);data.u32(8,uint32_t(key));
-      data.u32(12,(GetKeyState(VK_SHIFT)&0x8000)?1u:0u);data.u32(16,1);
+      data.u32(12,rnw::keyDown(VK_SHIFT)?1u:0u);data.u32(16,1);
       call(wire::opcodes::key,data.bytes);wake();sync();return true;}
     if (focused.empty() || !documents.contains(focused))
       return false;
@@ -736,7 +834,7 @@ public:
     if (d.native.composing.active())
       return false;
     const auto e = d.core;
-    const bool control = GetKeyState(VK_CONTROL) & 0x8000, shift = GetKeyState(VK_SHIFT) & 0x8000;
+    const bool control = rnw::keyDown(VK_CONTROL), shift = rnw::keyDown(VK_SHIFT);
     uint32_t kind = wire::editKinds::selection;
     auto text = e->text;
     int32_t base = e->base, extent = e->extent;

@@ -10,12 +10,20 @@ import type { SliverConstraints } from './sliver.ts';
 import type { RenderBox } from './object.ts';
 import { FoundationBuildMode, precisionErrorTolerance } from '../../foundation/constants.ts';
 import { invariant } from '../../foundation/errors.ts';
+import { registerNativeSliverConfiguration } from './native-sliver.ts';
+import type { NativeSliverInput } from './native-sliver.ts';
 
 /** Source dead-reckoning list layout. Long seeks still measure intermediate
  * rows; streaming garbage collection bounds active render nodes. The lazy
  * manager may retire detached local subtrees between streaming batches, while
  * GlobalKey subtrees retain the source end-of-frame retake semantics. */
 export class RenderSliverList extends RenderSliverMultiBoxAdaptor {
+  private nativeWidth: number | undefined;
+  protected override _configureNativeList(input: NativeSliverInput): boolean {
+    const changed = this.nativeWidth !== undefined && this.nativeWidth !== input.width;
+    this.nativeWidth = input.width;
+    return changed;
+  }
   private streamingRetirement = false;
   /** @internal The real widget manager uses this scope for local owner retirement. */
   override get _retireInactiveChildrenDuringLayout(): boolean {
@@ -238,3 +246,6 @@ export class RenderSliverList extends RenderSliverMultiBoxAdaptor {
     this.childManager.didFinishLayout();
   }
 }
+registerNativeSliverConfiguration(RenderSliverList.prototype, (render) =>
+  render._nativeListConfiguration(0, null, true),
+);

@@ -25,7 +25,7 @@
     "package": "react-native-windows",
     "version": "0.83.2",
     "integrity": "sha512-Zm/oS/YUK19Ba1G814HD+sSmmEMR/gQuhVb/TCpM+fqlqAKukF/XyNVoC/8CFboGCfj1+7AvKW267p9jiyKnbw==",
-    "usage": "input/IME/UIA/settings selected for W9B-03; not yet copied or linked",
+    "usage": "KeyboardUtils and AccessibilityInfo tooltip notification are copied/linked; pointer/IME/UIA-provider/settings source ports remain W9B-03 obligations",
     "files": [
       {
         "file": "Microsoft.ReactNative/Utils/KeyboardUtils.cpp",
@@ -47,10 +47,21 @@
       "apis": [
         "clipboard-read",
         "clipboard-write",
-        "clipboard-has-strings"
+        "clipboard-has-strings",
+        "clipboard-input-snapshot"
       ],
       "consumer": "Nelyx/engine/platform/windows/host.cpp AppServices::pumpAsync",
-      "remaining": "synchronous editing shortcuts in interaction.hpp/clipboard.hpp remain Nelyx-owned until W9B-03"
+      "remaining": "Source canonical paste keys read the captured RNW clipboard snapshot; noncanonical synchronous editing shortcuts in interaction.hpp/clipboard.hpp remain Nelyx-owned until W9B-03"
+    },
+    {
+      "provenance": "Nelyx/engine/platform/windows/rnw/provenance.json",
+      "apis": [
+        "keyboard-modifier-state",
+        "keyboard-key-code",
+        "accessibility-tooltip"
+      ],
+      "consumer": "interaction.hpp canonical key ingress uses RNW key/code tables and InputKeyboardSource state; copied identity crosses Core into Source Focus/HardwareKeyboard; existing Core UIA tooltip notification",
+      "remaining": "RNW VK labels retain upstream layout limits; international/dead-key/IME qualification, pointer/capture/focus source ports, UIA provider and settings subscriptions remain pending"
     }
   ]
 }

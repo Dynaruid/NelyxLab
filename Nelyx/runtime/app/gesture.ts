@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { registerNativeWidgetAdapter } from '@nelyx/core/framework/widgets/framework';
+import {
+  registerNativeWidgetAdapter,
+  StatefulElement,
+} from '@nelyx/core/framework/widgets/framework';
+import { RawTooltip, RawTooltipState } from '@nelyx/core/framework/widgets/raw-tooltip';
 import type { BuildOwner } from '@nelyx/core/framework/widgets/framework';
 import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector';
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
@@ -55,16 +59,36 @@ const admitted = new Set([
   'excludeFromSemantics',
   'label',
   'enabled',
+  'supportedDevices',
   'key',
 ]);
 /** Canonical details are constructed from Content-owned published coordinates and recognizer state. */
 export function installOriginalGestures(owner: BuildOwner, fail: (reason: string) => never): void {
   installOriginalRawGestures(owner, fail);
+  registerNativeWidgetAdapter(owner, 'raw-tooltip', (widget, context) => {
+    if (
+      Object.getPrototypeOf(widget) !== RawTooltip.prototype ||
+      !(context instanceof StatefulElement) ||
+      Object.getPrototypeOf(context.stateObject) !== RawTooltipState.prototype
+    )
+      return fail('custom-raw-tooltip');
+    return (context.stateObject as RawTooltipState).buildNative(context);
+  });
   registerNativeWidgetAdapter(owner, 'gesture-detector', (widget, context) => {
     if (Object.getPrototypeOf(widget) !== GestureDetector.prototype)
       return fail('custom-gesture-detector');
     const source = widget as GestureDetector,
       options = source.options;
+    let devices = 63;
+    if (options.supportedDevices) {
+      if (Object.getPrototypeOf(options.supportedDevices) !== Set.prototype)
+        return fail('custom-gesture-devices');
+      devices = 0;
+      for (const kind of options.supportedDevices) {
+        if (!PointerDeviceKind.values.includes(kind)) return fail('gesture-device-kind');
+        devices |= 1 << p.pointerKinds[kind.name];
+      }
+    }
     for (const [key, value] of Object.entries(options))
       if (value != null && value !== false && !admitted.has(key))
         return fail('gesture-option:' + key);
@@ -205,6 +229,7 @@ export function installOriginalGestures(owner: BuildOwner, fail: (reason: string
       layout: { childConstraints: 'inherit' },
       pointerHitTest: behavior === 1 ? 'self' : behavior === 2 ? 'translucent' : 'deferToChild',
       canonicalGestures: true,
+      gestureDevices: devices,
       dragStartDown: options.dragStartBehavior === DragStartBehavior.down,
       freePan: pan,
       dragThreshold: options.onlyAcceptDragOnThreshold === true,
@@ -216,6 +241,7 @@ export function installOriginalGestures(owner: BuildOwner, fail: (reason: string
         (pan || vertical ? p.gestures.panY : 0),
       ...(semantics
         ? {
+            semanticsPolicy: { mergeIntoParent: true, mergeDescendants: true },
             semantics: {
               role: 'group',
               label: options.label ?? '',

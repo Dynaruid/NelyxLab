@@ -6,6 +6,7 @@
 #include <array>
 #include <mutex>
 #include <algorithm>
+#include <type_traits>
 namespace nelyx::v2 {
 struct MemorySnapshot {uint64_t total=0,peak=0,cpu=0,gpu=0,staging=0,engineHeap=0,providerHeap=0,rejected=0;};
 struct Ledger {
@@ -62,5 +63,23 @@ struct ExternalLease {
     :ledger(std::move(book)),owner(slot),kind(category),bytes(count){ledger->adjust(owner,kind,bytes,false);}
   ~ExternalLease(){ledger->adjust(owner,kind,bytes,true);}
   ExternalLease(const ExternalLease&)=delete;ExternalLease& operator=(const ExternalLease&)=delete;
+};
+/** Variable-sized geometry pays for each container allocation before allocating.
+ * Rebind/copy/move retain the same ledger through nested vector growth. */
+template<class T> struct LedgerAllocator {
+  using value_type=T;
+  using propagate_on_container_move_assignment=std::true_type;
+  std::shared_ptr<Ledger> ledger;
+  explicit LedgerAllocator(std::shared_ptr<Ledger> owner) noexcept:ledger(std::move(owner)){}
+  template<class U> LedgerAllocator(const LedgerAllocator<U>& other) noexcept:ledger(other.ledger){}
+  T* allocate(size_t count){
+    if(count>std::numeric_limits<size_t>::max()/sizeof(T))throw std::bad_array_new_length{};
+    const auto bytes=uint64_t(count)*sizeof(T);ledger->reserve(bytes,false);
+    try{return std::allocator<T>{}.allocate(count);}catch(...){ledger->release(bytes,false);throw;}
+  }
+  void deallocate(T* pointer,size_t count) noexcept{
+    std::allocator<T>{}.deallocate(pointer,count);ledger->release(uint64_t(count)*sizeof(T),false);
+  }
+  template<class U> bool operator==(const LedgerAllocator<U>& other)const noexcept{return ledger==other.ledger;}
 };
 }

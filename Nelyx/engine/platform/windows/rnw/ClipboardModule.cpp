@@ -28,7 +28,7 @@ void Clipboard::finish(const std::shared_ptr<State>& state,uint64_t id,std::stri
   result={}; // Retire the completion's port credit before reporting terminal.
   {std::lock_guard lock(state->gate);state->requests.erase(id);}
 }
-void Clipboard::post(Completion result,std::function<void(const std::shared_ptr<State>&,uint64_t)> work) {
+void Clipboard::post(Completion result,std::function<void(const std::shared_ptr<State>&,uint64_t)> work,bool immediate) {
   uint64_t id=0;
   {
     std::lock_guard lock(state->gate);
@@ -38,18 +38,30 @@ void Clipboard::post(Completion result,std::function<void(const std::shared_ptr<
   }
   if(!id){result({},"Windows clipboard is closed or full");return;}
   try {
-    if(state->dispatcher.TryEnqueue([state=state,id,work=std::move(work)]{
+    auto execute=[state=state,id,work=std::move(work)]{
       bool closed;{std::lock_guard lock(state->gate);closed=state->closed;}
       if(closed){finish(state,id,{},"Windows clipboard operation canceled before execution");return;}
       try{work(state,id);}
       catch(const winrt::hresult_error& error){finish(state,id,{},winrt::to_string(error.message()));}
       catch(const std::exception& error){finish(state,id,{},error.what());}
-    }))return;
+    };
+    if(immediate){
+      if(!state->dispatcher.HasThreadAccess())throw std::runtime_error("Input clipboard capture requires its UI owner");
+      execute();return;
+    }
+    if(state->dispatcher.TryEnqueue(std::move(execute)))return;
   }catch(const winrt::hresult_error& error){finish(state,id,{},winrt::to_string(error.message()));return;}
+  catch(const std::exception& error){finish(state,id,{},error.what());return;}
   finish(state,id,{},"App SDK dispatcher rejected clipboard operation");
 }
 
 void Clipboard::getString(Completion result) {
+  readString(std::move(result),false);
+}
+void Clipboard::captureString(Completion result) {
+  readString(std::move(result),true);
+}
+void Clipboard::readString(Completion result,bool immediate) {
   post(std::move(result),[](const auto& state,uint64_t id){
     auto data=DataTransfer::Clipboard::GetContent();
     if(!data.Contains(DataTransfer::StandardDataFormats::Text())){finish(state,id,{},{});return;}
@@ -76,7 +88,7 @@ void Clipboard::getString(Completion result) {
     // stop can race GetTextAsync before cancel() can see this operation.
     // Register terminal delivery first, then cancel the newly published handle.
     if(canceled)asyncOp.Cancel();
-  });
+  },immediate);
 }
 void Clipboard::setString(winrt::hstring content,Completion result) {
   if(content.size()>65536){result({},"Windows clipboard exceeds65536 UTF-16 units");return;}

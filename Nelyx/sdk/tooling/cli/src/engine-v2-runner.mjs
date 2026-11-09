@@ -120,11 +120,19 @@ export function verifyEngineV2Supply(directory, target, windowsHost) {
         'ClipboardModule.h',
         'upstream/ClipboardModule.cpp',
         'upstream/ClipboardModule.h',
+        'KeyboardUtils.cpp',
+        'KeyboardUtils.h',
+        'upstream/KeyboardUtils.cpp',
+        'upstream/KeyboardUtils.h',
+        'AccessibilityInfoModule.cpp',
+        'AccessibilityInfoModule.h',
+        'upstream/AccessibilityInfoModule.cpp',
+        'upstream/AccessibilityInfoModule.h',
         'LICENSE',
         'provenance.json',
       ].some((file) => !seen.has(port + file))
     )
-      throw Error('Windows App SDK supply lacks the RNW clipboard source/provenance');
+      throw Error('Windows App SDK supply lacks the RNW clipboard/keyboard source/provenance');
   }
   if (target === 'android') {
     const abis = manifest.profiles.android.abis;
@@ -883,9 +891,10 @@ const fail=message=>{error.textContent=message;current.errors.push(message);};
  current.close=()=>closing??=(async()=>{
   let failure;try{
    if(!appDisposed)await new Promise((resolve,reject)=>{
+    let appError;
     const cleanup=()=>{clearTimeout(timer);app.removeEventListener('message',receive);};
-    const receive=event=>{if(event.data.kind==='app-disposed'){cleanup();resolve();}else if(event.data.kind==='app-error'){cleanup();reject(Error(event.data.message));}};
-    const timer=setTimeout(()=>{cleanup();reject(Error('App disposal timeout'));},3000);
+    const receive=event=>{if(event.data.kind==='app-disposed'){cleanup();resolve();}else if(event.data.kind==='app-error')appError??=Error(event.data.message);};
+    const timer=setTimeout(()=>{cleanup();reject(appError??Error('App disposal timeout'));},3000);
     app.addEventListener('message',receive);app.postMessage({kind:'close'});
    });
   }catch(error){failure=error;}

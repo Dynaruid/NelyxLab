@@ -4,6 +4,7 @@
 #include "../layout/list.hpp"
 #include "../interaction/controls.hpp"
 #include "geometry.hpp"
+#include "../layout/program.hpp"
 #include "paragraph.hpp"
 #include "font_catalog.hpp"
 #include "clip.hpp"
@@ -74,18 +75,31 @@ struct TapRegionStyle {
   Handle surface;
   uint64_t revision=0;
 };
+struct TooltipPositionStyle {
+  Handle target;
+  double verticalOffset=0,margin=10;
+  bool preferBelow=true;
+};
 struct LayoutBuilderStyle {
   uint64_t revision=0,builtRevision=0;
   Axis horizontal,vertical;
+};
+struct IntrinsicSizingStyle {
+  double minimumHeight=0,minimumWidthPerHeight=0;
+  bool expandReportedWidth=false;
 };
 struct Node {
   Lease lease;
   Handle id, parent, paintOwner;
   uint32_t kind = 0, order = 0, policy = 0;
+  uint32_t gestureDevices=63;
   Properties properties;
   GraphicsStyle graphics;
   LayerLinkStyle layerLink;
   TapRegionStyle tapRegion;
+  std::optional<TooltipPositionStyle> tooltipPosition;
+  std::optional<std::array<double,6>> childAnchor;
+  std::optional<IntrinsicSizingStyle> intrinsicSizing;
   std::optional<LayoutBuilderStyle> layoutBuilder;
   std::optional<ClipStyle> clipStyle;
   std::optional<ImageStyle> imageStyle;
@@ -93,12 +107,14 @@ struct Node {
   std::shared_ptr<const ImagePaint> imagePaint;
   std::shared_ptr<const NativePaint> nativePaint,resolvedPaint;
   std::shared_ptr<const PaintPlacement> paintPlacement;
-  Affine paintTransform;
+  Affine paintTransform,layoutTransform;
+  std::shared_ptr<const LayoutPaintValues> layoutPaintValues;
   const NativePaintEntry* physicalPaint()const {
     if(resolvedPaint)for(const auto& entry:resolvedPaint->entries)if(entry.kind==1)return &entry;
     return nullptr;
   }
   Point extensionSize;
+  std::shared_ptr<const LayoutProgram> layoutProgram;
   Axis horizontal, vertical;
   Motion motion;
   LayoutStyle layout;
@@ -112,9 +128,14 @@ struct Node {
   double baseline = -1;
   double contentX = 0, contentY = 0, contentWidth = 0, contentHeight = 0;
   bool contentOverflow = false;
+  bool contentOverflowX = false;
+  double overflowProbeWidth=0,overflowProbeHeight=0;
+  bool paintBoundedWidth = true, paintBoundedHeight = true;
   bool inlineHidden = false;
   uint64_t editSerial=0;
   uint32_t editFlags=0,maximumLength=wire::limits::textBytes;
+  struct EditorViewport { bool enabled=false,expands=false;uint32_t minimumLines=0,maximumLines=0; } editorViewport;
+  double editorScrollOffset=0;
   std::shared_ptr<const EditingValue> editing;
   std::shared_ptr<const TextGeometry> textGeometry;
   std::shared_ptr<const SemanticData> semantics;
@@ -131,12 +152,12 @@ struct Node {
     ++lease.ledger->nodes;
   }
   Node(const Node& n) : lease(n.lease.ledger, sizeof(Node)), id(n.id), parent(n.parent), paintOwner(n.paintOwner),
-      kind(n.kind), order(n.order), policy(n.policy), properties(n.properties), graphics(n.graphics),layerLink(n.layerLink),tapRegion(n.tapRegion),layoutBuilder(n.layoutBuilder),clipStyle(n.clipStyle),imageStyle(n.imageStyle),snapshot(n.snapshot),imagePaint(n.imagePaint),nativePaint(n.nativePaint),resolvedPaint(n.resolvedPaint),paintPlacement(n.paintPlacement),paintTransform(n.paintTransform),extensionSize(n.extensionSize),
-      horizontal(n.horizontal), vertical(n.vertical), motion(n.motion), layout(n.layout), coverage(n.coverage),
+      kind(n.kind), order(n.order), policy(n.policy), gestureDevices(n.gestureDevices), properties(n.properties), graphics(n.graphics),layerLink(n.layerLink),tapRegion(n.tapRegion),tooltipPosition(n.tooltipPosition),childAnchor(n.childAnchor),intrinsicSizing(n.intrinsicSizing),layoutBuilder(n.layoutBuilder),clipStyle(n.clipStyle),imageStyle(n.imageStyle),snapshot(n.snapshot),imagePaint(n.imagePaint),nativePaint(n.nativePaint),resolvedPaint(n.resolvedPaint),paintPlacement(n.paintPlacement),paintTransform(n.paintTransform),layoutTransform(n.layoutTransform),layoutPaintValues(n.layoutPaintValues),extensionSize(n.extensionSize),
+      layoutProgram(n.layoutProgram),horizontal(n.horizontal), vertical(n.vertical), motion(n.motion), layout(n.layout), coverage(n.coverage),
       list(n.list), item(n.item), gestures(n.gestures), control(n.control), listGeometry(n.listGeometry),
       layoutRevision(n.layoutRevision), baseline(n.baseline), contentX(n.contentX), contentY(n.contentY),
-      contentWidth(n.contentWidth), contentHeight(n.contentHeight), contentOverflow(n.contentOverflow), inlineHidden(n.inlineHidden), editSerial(n.editSerial),editFlags(n.editFlags),maximumLength(n.maximumLength),
-      editing(n.editing),textGeometry(n.textGeometry),semantics(n.semantics),color(n.color), textDirection(n.textDirection), radius(n.radius),
+      contentWidth(n.contentWidth), contentHeight(n.contentHeight), contentOverflow(n.contentOverflow), contentOverflowX(n.contentOverflowX),overflowProbeWidth(n.overflowProbeWidth),overflowProbeHeight(n.overflowProbeHeight),paintBoundedWidth(n.paintBoundedWidth), paintBoundedHeight(n.paintBoundedHeight), inlineHidden(n.inlineHidden), editSerial(n.editSerial),editFlags(n.editFlags),maximumLength(n.maximumLength),
+      editorViewport(n.editorViewport),editorScrollOffset(n.editorScrollOffset),editing(n.editing),textGeometry(n.textGeometry),semantics(n.semantics),color(n.color), textDirection(n.textDirection), radius(n.radius),
       fontSize(n.fontSize), text(n.text), paragraph(n.paragraph), resource(n.resource),fontResource(n.fontResource),fontRevision(n.fontRevision),fontPinned(n.fontPinned) {
     ++lease.ledger->nodes;
   }
@@ -154,7 +175,7 @@ inline Affine nodeTransform(const Node& node,Affine parent,const Node* leader=nu
     const auto offset=layerOffset(node,*leader);
     return *leaderWorld*Affine{1,0,0,1,offset.x,offset.y}*local;
   }
-  return parent*Affine{1,0,0,1,node.properties.x,node.properties.y}*(paintTransform?*paintTransform:node.paintTransform)*local;
+  return parent*Affine{1,0,0,1,node.properties.x,node.properties.y}*node.layoutTransform*(paintTransform?*paintTransform:node.paintTransform)*local;
 }
 inline Affine childTransform(const Node& node,Affine world) {
   return (node.layout.constraintFlags&wire::layoutConstraintFlags::inlineScale)?

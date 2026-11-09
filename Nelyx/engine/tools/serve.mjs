@@ -5,6 +5,7 @@ import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { engineRoot, sourceIdentity } from './build.mjs';
 import { prepareRepositoryAppPackages } from '../../eng/prepare-app-packages.mjs';
+import { prepareOriginalSample } from '../../../sample/prepare-engine-app.mjs';
 
 export function createHostServer(directory = path.join(engineRoot, 'dist')) {
   const root = fs.realpathSync(directory);
@@ -60,7 +61,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   prepareRepositoryAppPackages();
   const { buildEngineV2Application, createEngineV2Server, verifyEngineV2Application } =
     await import('../../sdk/tooling/cli/src/engine-v2-runner.mjs');
-  const app = path.resolve(engineRoot, '../../sample/nelyx-testbed-app-2/engine-v2');
+  const app = prepareOriginalSample('nelyx-testbed-app-2');
   const built = await buildEngineV2Application({ app, target: 'web' });
   const server = createEngineV2Server(verifyEngineV2Application(built.directory, 'web'));
   const port = Number(process.env.PORT ?? 8192);

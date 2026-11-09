@@ -57,13 +57,14 @@ inline bool inside(Point p,Rect r,double radius=0) {
 }
 struct PathCommand {uint32_t verb=0;std::array<double,6> values{};};
 struct GraphicsPath {
+  using Contour=std::vector<Point,LedgerAllocator<Point>>;
   Lease lease;
   uint32_t fillRule;
   std::vector<PathCommand> commands;
-  std::vector<std::vector<Point>> contours;
+  std::vector<Contour,LedgerAllocator<Contour>> contours;
   GraphicsPath(const std::shared_ptr<Ledger>& ledger,std::vector<PathCommand> data,uint32_t rule)
-    :lease(ledger,sizeof(GraphicsPath)+data.size()*sizeof(PathCommand)+8192*(sizeof(Point)+sizeof(std::vector<Point>))),
-      fillRule(rule),commands(std::move(data)) {
+    :lease(ledger,sizeof(GraphicsPath)+data.capacity()*sizeof(PathCommand)),
+      fillRule(rule),commands(std::move(data)),contours(LedgerAllocator<Contour>{ledger}) {
     Point current;bool active=false;size_t points=0;
     const auto add=[&](Point p){require(++points<=8192,wire::statuses::budgetExceeded);contours.back().push_back(p);};
     const auto middle=[](Point a,Point b){return Point{(a.x+b.x)/2,(a.y+b.y)/2};};
@@ -77,7 +78,7 @@ struct GraphicsPath {
       const auto ab=middle(a,b),bc=middle(b,c),cd=middle(c,d),abc=middle(ab,bc),bcd=middle(bc,cd),center=middle(abc,bcd);
       cubic(a,ab,abc,center,depth+1);cubic(center,bcd,cd,d,depth+1);};
     for(const auto& command:commands){const auto& v=command.values;
-      if(command.verb==1){contours.emplace_back();current={v[0],v[1]};add(current);active=true;continue;}
+      if(command.verb==1){contours.emplace_back(LedgerAllocator<Point>{ledger});current={v[0],v[1]};add(current);active=true;continue;}
       require(active,wire::statuses::invalidValue);
       if(command.verb==2){current={v[0],v[1]};add(current);}
       else if(command.verb==3){const Point end{v[2],v[3]};quad(current,{v[0],v[1]},end,0);current=end;}

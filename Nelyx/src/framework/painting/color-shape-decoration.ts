@@ -13,7 +13,41 @@ import { Rect } from '../../ui/rect.ts';
 import type { Offset } from '../../ui/geometry.ts';
 import { invariant } from '../../foundation/errors.ts';
 import { OutlinedBorder } from './borders.ts';
+import { nativeShape, registerNativeRenderMetadata } from '../rendering/native-paint.ts';
+import type { NativePaintEntry } from '../rendering/native-paint.ts';
 export class ColorShapeDecoration extends Decoration {
+  static {
+    registerNativeRenderMetadata(ColorShapeDecoration.prototype, (decoration, direction) => {
+      if (
+        ['createBoxPainter', 'getClipPath', 'hitTest'].some((name) =>
+          Object.hasOwn(decoration, name),
+        )
+      )
+        throw Error('Custom decoration hooks are unavailable');
+      const shape = nativeShape(decoration.shape, direction),
+        entries: NativePaintEntry[] = [];
+      if (decoration.color !== null) {
+        const side = decoration.shape instanceof OutlinedBorder ? decoration.shape.side : null;
+        const inset =
+          side && side.style === 'solid' && side.color >>> 24 === 255 ? side.strokeInset / 2 : 0;
+        entries.push({
+          kind: 'shape',
+          color: decoration.color.toARGB32(),
+          shape: { ...shape, strokeColor: 0 },
+          ...(inset
+            ? {
+                geometry: {
+                  kind: 'linear',
+                  rect: [0, 0, 1, 1, inset, inset, -2 * inset, -2 * inset] as const,
+                },
+              }
+            : {}),
+        });
+      }
+      if (shape.strokeColor >>> 24) entries.push({ kind: 'border', color: 0, shape });
+      return { kind: 'decoration', entries, shape };
+    });
+  }
   constructor(
     readonly shape: ShapeBorder,
     readonly color: Color | null,

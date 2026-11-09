@@ -2,6 +2,7 @@
 #pragma once
 #include "scene/document.hpp"
 #include "input/physics.hpp"
+#include "input/curve.hpp"
 #include "layout/layout.hpp"
 #include "layout/query.hpp"
 #include "interaction/editing.hpp"
@@ -66,12 +67,21 @@ struct Event {
   GestureDetails gesture{};
   Handle focusPeer{};
   Handle semanticSource{};
+  struct PointerDetails {
+    std::array<uint8_t,wire::inputBytes> input{};
+    Affine inverse;
+  } pointer{};
   struct TapRegionDetails {
     uint64_t batch=0;
     Handle surface,semanticTarget;
     Affine inverse;
     uint32_t device=0;
   } tapRegion{};
+  uint64_t clipboardReadSnapshot=0;
+  struct KeyIdentity {
+    std::array<uint8_t,wire::keyIdentityTextBytes> key{},code{};
+    uint32_t keyLength=0,codeLength=0,location=0;
+  } keyIdentity{};
 };
 struct Result {
   Lease lease;
@@ -169,7 +179,7 @@ struct Property {
   double value=0,second=1;
   bool pressed=false,hovered=false,visible=false,focusVisible=false;
 };
-struct ClipShape {Affine world;Rect bounds;double radius=0;std::shared_ptr<const GraphicsPath> path;uint32_t parent=0;bool oval=false;};
+struct ClipShape {Affine world;Rect bounds;double radius=0;std::shared_ptr<const GraphicsPath> path;uint32_t parent=0;bool oval=false;std::optional<std::array<double,8>> radii;};
 struct HitRegionShape {Affine world;Rect bounds;uint32_t parent=0;};
 struct DrawItem {
   Handle node;
@@ -184,9 +194,19 @@ struct DrawItem {
   Point linkedOffset{};
   std::shared_ptr<const NativePaint> paint{};
 };
+struct SemanticCustomSources {
+  using Entry=std::pair<uint32_t,Handle>;
+  Lease lease;
+  std::vector<Entry,LedgerAllocator<Entry>> values;
+  explicit SemanticCustomSources(const std::shared_ptr<Ledger>& ledger)
+    :lease(ledger,sizeof(SemanticCustomSources)),values(LedgerAllocator<Entry>{ledger}){}
+};
 struct FrameSemantics {
   std::shared_ptr<const SemanticData> data;
   std::array<Handle,8> actionSources{};
+  std::shared_ptr<const SemanticCustomSources> customSources;
+  Handle parent;
+  uint32_t traversal=UINT32_MAX;
   Handle mergedInto;
   bool blocked=false,merged=false;
 };
@@ -235,7 +255,8 @@ struct Frame {
     for(auto head=item.clipHead;head&&(!boundary||head!=boundary->clipHead);head=clips[head-1].parent){const auto& shape=clips[head-1];
       const auto matrix=shape.world.inverse();if(!matrix)return false;const auto point=matrix->map({x,y});
       if(!inside(point,shape.bounds))return false;
-      if(shape.oval){const double deltaX=(point.x-shape.bounds.x)/shape.bounds.width-0.5,deltaY=(point.y-shape.bounds.y)/shape.bounds.height-0.5;
+      if(shape.radii){if(!roundedContains(point,shape.bounds,*shape.radii))return false;}
+      else if(shape.oval){const double deltaX=(point.x-shape.bounds.x)/shape.bounds.width-0.5,deltaY=(point.y-shape.bounds.y)/shape.bounds.height-0.5;
         if(deltaX*deltaX+deltaY*deltaY>0.25)return false;}
       else if(shape.path?!shape.path->contains(point):!inside(point,shape.bounds,shape.radius))return false;}
     return true;
@@ -259,8 +280,13 @@ struct Frame {
   bool allowsSemantics(Handle node) const {
     return allows(node)&&(semantics.empty()||(!semantics[node.slot].blocked&&!semantics[node.slot].merged));
   }
-  Handle semanticSource(Handle node,uint32_t action) const {
+  Handle semanticSource(Handle node,uint32_t action,uint32_t customId=0) const {
     if(semantics.empty())return node;
+    if(action==wire::semanticsActions::custom){
+      const auto& sources=semantics[node.slot].customSources;
+      if(sources)for(const auto& entry:sources->values)if(entry.first==customId)return entry.second;
+      return {};
+    }
     for(uint32_t i=0;i<8;++i)if(action==(1u<<i))return semantics[node.slot].actionSources[i];
     return {};
   }
@@ -311,6 +337,7 @@ struct ScrollCommand {
   uint32_t index = 0;
   double alignment = 0;
   bool listOffset = false;
+  ScrollCurve curve;
 };
 struct RawSample { Handle node; std::array<uint8_t,8+wire::inputBytes> bytes{}; };
 RawSample rawSample(const Input&,Handle,uint64_t generation);
@@ -353,6 +380,12 @@ struct View {
   uint32_t mouseRegionCount=0;
   Input mouseSample{};
   bool mouseKnown=false;
+  struct ListenerCapture {
+    std::shared_ptr<const Frame> frame;
+    std::unique_ptr<PointerPath> path;
+    Input sample{};
+  };
+  std::array<ListenerCapture,wire::limits::streams+1> pointerListeners{};
   bool appFrameRequested=false;
   double appFrameDeadline=0;
   uint64_t appFrameSerial=0;
@@ -409,7 +442,10 @@ struct View {
       : lease(ledger, sizeof(View) + wire::limits::nodes * (sizeof(Overlay) + 64 +
           (wire::limits::frames + 1) * (sizeof(Property) + sizeof(DrawItem)+sizeof(ClipShape)+sizeof(FrameSemantics))) +
           wire::limits::inputPackets * sizeof(Input) + wire::limits::events * sizeof(Event)+
-          wire::limits::observerPackets*sizeof(RawSample)),
+          wire::limits::observerPackets*sizeof(RawSample)+
+          wire::limits::scrollCommands*(sizeof(ScrollCommand)+64)+
+          wire::limits::results*(sizeof(CommandResult)+64+56+wire::scrollCurveHeaderBytes+
+            wire::limits::scrollCurveNodes*wire::scrollCurveNodeBytes)),
         generation(generation), document(std::make_shared<Document>(ledger)) { ++lease.ledger->activeViews; }
   ~View() {
     if (!closed) {
@@ -436,6 +472,8 @@ struct View {
   void applyEdit(Reader);
   void semanticAction(Reader);
   void pointer(Input);
+  void dispatchPointerListeners(const Input&);
+  void cancelPointerListeners(uint32_t stream);
   void installTapRegions(const Document&,const LayoutOutput*);
   bool registeredTapRegion(const Document&,const TapRegionRegistration&)const;
   std::unique_ptr<TapRegionClassification> classifyTapRegions(Handle,const PointerPath&)const;
@@ -458,7 +496,7 @@ struct View {
   bool appDecision(Input&);
   void gestureReply(Reader);
   Handle pointerTarget(double,double,const Frame* snapshot=nullptr) const;
-  PointerHit pointerHit(double,double,const Frame*,Handle within={},uint32_t depth=0) const;
+  PointerHit pointerHit(double,double,const Frame*,Handle within={},uint32_t depth=0,uint32_t kind=63) const;
   Handle interactionTarget(double,double) const;
   void failPreparation(uint64_t id, uint32_t reason);
   uint32_t enqueue(Input packet);

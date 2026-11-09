@@ -34,6 +34,10 @@ export class RenderIconGlyph extends RenderProxyBox {
     const additional = BoxConstraints.tightFor(configuration.size, configuration.size);
     additional.debugAssertIsValid();
     const paragraph = RenderParagraph._fromConfiguration(configuration.paragraph, context);
+    // The owner publishes the Icon label and excludes the private glyph from
+    // semantics. A constructor-time text transport label would outlive a
+    // later glyph/configuration change even though that annotation is unused.
+    paragraph.semantics = undefined;
     super(paragraph);
     this.paragraph = paragraph;
     this.additional = additional;

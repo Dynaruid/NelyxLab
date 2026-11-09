@@ -26,6 +26,8 @@ import {
 } from '../semantics/semantics.ts';
 import type { SemanticsSortKey, SemanticsPropertiesOptions } from '../semantics/semantics.ts';
 import { setSemanticsTransportRange } from '../rendering/semantics-transport.ts';
+import { registerNativeRenderMetadata } from '../rendering/native-paint.ts';
+import { nativeSemanticsMetadata } from '../rendering/native-semantics.ts';
 import { valueEquals } from '../painting/value-equality.ts';
 
 const semanticPropertyFields = Object.keys(
@@ -286,6 +288,11 @@ export class SliverSemantics extends _SemanticsBase {
   }
 }
 class RenderSemantics extends RenderSemanticsAnnotations {
+  static {
+    registerNativeRenderMetadata(RenderSemantics.prototype, (source) =>
+      nativeSemanticsMetadata(source, RenderSemantics.prototype.describeSemanticsConfiguration),
+    );
+  }
   protected override markNeedsPaintAfterLayout(): void {
     if (
       this.hasStaticLayoutSemantics(

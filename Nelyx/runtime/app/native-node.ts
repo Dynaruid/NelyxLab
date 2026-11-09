@@ -7,6 +7,8 @@ import type { SceneNodeOptions, SceneNode } from '../engine-client/scene.ts';
 import type { Key } from '@nelyx/core/foundation/key';
 interface NodeOptions extends SceneNodeOptions {
   readonly key?: Key;
+  /** Source box adapters retain their non-box RenderObjects under this owner. */
+  readonly sliverChildren?: boolean;
 }
 export interface NativeEditableBody {
   readonly text: NonNullable<SceneNode['text']>;
@@ -22,7 +24,7 @@ export class OriginalNativeRender extends RenderBox<RenderObject> {
     public options: NodeOptions,
     public editable?: NativeEditableBody,
   ) {
-    super(kind === 'scrollViewport' ? { childType: RenderObject } : {});
+    super(kind === 'scrollViewport' || options.sliverChildren ? { childType: RenderObject } : {});
   }
   override setupParentData(child: RenderObject): void {
     if (this.kind === 'sliver' || this.options.listItem) {

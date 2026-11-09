@@ -11,13 +11,13 @@ export async function loadCanvasKit(root: URL, manifest: CanvasKitManifest): Pro
     !['http:', 'https:'].includes(root.protocol) ||
     !root.href.endsWith('/') ||
     manifest.schema !== 'nelyx.canvaskit/v1' ||
-    manifest.version !== 'm153-nelyx-paragraph.5' ||
+    manifest.version !== 'm153-nelyx-paragraph.6' ||
     manifest.adapterAbi !== 1 ||
     manifest.initialMemoryBytes !== 128 * 1024 * 1024 ||
     manifest.maximumMemoryBytes !== 256 * 1024 * 1024 ||
     manifest.files.length !== 2 ||
     manifest.paragraphApiVersion !== 1 ||
-    manifest.pictureApiVersion !== 2 ||
+    manifest.pictureApiVersion !== 3 ||
     manifest.fontApiVersion !== 1
   )
     throw new Error('Invalid CanvasKit runtime manifest');
@@ -84,7 +84,7 @@ export async function loadCanvasKit(root: URL, manifest: CanvasKitManifest): Pro
       ).nelyxParagraphApiVersion?.() !== 1 ||
       (
         runtime as CanvasKit & { nelyxPictureApiVersion?: () => number }
-      ).nelyxPictureApiVersion?.() !== 2 ||
+      ).nelyxPictureApiVersion?.() !== 3 ||
       (runtime as CanvasKit & { nelyxFontApiVersion?: () => number }).nelyxFontApiVersion?.() !==
         1 ||
       typeof (runtime as CanvasKit & { nelyxMakeFontProvider?: unknown }).nelyxMakeFontProvider !==

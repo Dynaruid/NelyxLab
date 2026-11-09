@@ -1,0 +1,11 @@
+{
+  "schema": "nelyx.app/1",
+  "entry": "app.ts",
+  "windowsHost": "windows-app-sdk",
+  "supply": "../../../Nelyx/engine/dist",
+  "assets": {
+    "sample-font": "assets/NotoSansKR.ttf",
+    "nelyx-material-icons": "assets/MaterialIcons.otf",
+    "component-image": "assets/component-image.webp"
+  }
+}

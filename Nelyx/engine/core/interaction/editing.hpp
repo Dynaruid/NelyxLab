@@ -3,6 +3,8 @@
 #include "../memory.hpp"
 #include <deque>
 #include <string>
+#include <optional>
+#include <vector>
 
 namespace nelyx::v2 {
 struct TextData;
@@ -54,14 +56,62 @@ struct SemanticRangeData {
   bool enabled=false,readOnly=false;
   double minimum=0,maximum=0,value=0,smallChange=0,largeChange=0;
 };
+struct SemanticCustomActionData {
+  uint32_t id=0,overrideAction=0;
+  std::string label,hint;
+  bool invokable=true,hintOverride=false;
+  bool operator==(const SemanticCustomActionData&)const=default;
+};
+struct SemanticSortKey {
+  double order=0;
+  std::optional<std::string> name;
+};
+struct SemanticMetadata {
+  std::string identifier;
+  uint32_t direction=0;
+  std::optional<SemanticSortKey> sort;
+  std::vector<SemanticCustomActionData> custom;
+  size_t bytes()const {
+    size_t result=identifier.size()+(sort&&sort->name?sort->name->size():0)+custom.capacity()*sizeof(SemanticCustomActionData);
+    for(const auto& action:custom)result+=action.label.size()+action.hint.size();
+    return result;
+  }
+};
 struct SemanticData {
   Lease lease;
   uint32_t role = 0, flags = 0, actions = 0;
   std::string label, hint, value, increasedValue, decreasedValue;
   SemanticRangeData range;
+  SemanticMetadata metadata;
+  uint32_t mergeFlags=0;
+  bool explicitRole=false,declaredRole=false;
+  static uint32_t defaultMergeFlags(uint32_t role,uint32_t flags){
+    uint32_t result=0;
+    if(role==wire::semanticsRoles::checkbox||role==wire::semanticsRoles::radio)
+      result|=(flags&wire::semanticsFlags::mixed)?3u:(flags&wire::semanticsFlags::checked)?1u:2u;
+    if(role==wire::semanticsRoles::switchControl)result|=((flags&wire::semanticsFlags::checked)?1u:2u)<<6;
+    if(flags&wire::semanticsFlags::selected)result|=1u<<2;
+    if(flags&wire::semanticsFlags::disabled)result|=2u<<4;
+    if(flags&wire::semanticsFlags::focusable)result|=2u<<12;
+    if(flags&wire::semanticsFlags::readOnly)result|=1u<<27;
+    if(flags&wire::semanticsFlags::hidden)result|=1u<<22;
+    if(flags&wire::semanticsFlags::scopesRoute)result|=1u<<20;
+    if(flags&wire::semanticsFlags::namesRoute)result|=1u<<21;
+    if(role==wire::semanticsRoles::button)result|=1u<<15;
+    if(role==wire::semanticsRoles::textField)result|=1u<<16;
+    if(role==wire::semanticsRoles::radio)result|=1u<<17;
+    if(role==wire::semanticsRoles::link)result|=1u<<28;
+    if(role==wire::semanticsRoles::slider)result|=1u<<29;
+    return result;
+  }
   SemanticData(const std::shared_ptr<Ledger> &ledger, uint32_t r, uint32_t f, uint32_t a,
-               std::string name, std::string description, std::string displayed, std::string increased, std::string decreased, SemanticRangeData numeric)
-      : lease(ledger, sizeof(SemanticData) + name.size() + description.size() + displayed.size() + increased.size() + decreased.size()), role(r), flags(f),
-        actions(a), label(std::move(name)), hint(std::move(description)), value(std::move(displayed)), increasedValue(std::move(increased)), decreasedValue(std::move(decreased)), range(numeric) {}
+               std::string name, std::string description, std::string displayed, std::string increased, std::string decreased, SemanticRangeData numeric,
+               uint32_t sourceFlags=UINT32_MAX,uint32_t configuration=0,SemanticMetadata traits={})
+      : lease(ledger, sizeof(SemanticData) + name.size() + description.size() + displayed.size() + increased.size() + decreased.size()+traits.bytes()), role(r), flags(f),
+        actions(a), label(std::move(name)), hint(std::move(description)), value(std::move(displayed)), increasedValue(std::move(increased)), decreasedValue(std::move(decreased)), range(numeric),metadata(std::move(traits)) {
+    mergeFlags=sourceFlags==UINT32_MAX?defaultMergeFlags(r,f):sourceFlags;
+    declaredRole=sourceFlags==UINT32_MAX?(r==wire::semanticsRoles::radioGroup||r==wire::semanticsRoles::progressBar||r==wire::semanticsRoles::loadingSpinner):bool(configuration&4u);
+    explicitRole=sourceFlags==UINT32_MAX?(declaredRole||bool(mergeFlags&((1u<<16)|(1u<<20)|(1u<<23)|(1u<<28)|(1u<<29)|(1u<<30)))):bool(configuration&2u);
+  }
 };
 } // namespace nelyx::v2

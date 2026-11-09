@@ -343,11 +343,13 @@ export async function buildAndroidSupply({ sdk, abis = androidPins.abis, skiaPac
       },
       appText: { version: 12, quotaBytes: 320 * 1024 * 1024 },
       appServices: {
-        version: 2,
+        version: 4,
         methods: [
           'clipboard-read',
           'clipboard-write',
           'clipboard-has-strings',
+          'clipboard-read-event',
+          'clipboard-release-event',
           'semantics-tap',
           'semantics-longPress',
           'semantics-focus',

@@ -4,6 +4,7 @@ import { protocol as p } from './schema.ts';
 
 export interface EngineWasmModule {
   readonly HEAPU8: Uint8Array;
+  _nelyx_wasm_refresh_heap?(): void;
   _malloc(bytes: number): number;
   _free(pointer: number): void;
   _nelyx_wasm_open(session: number, app: number, schema: number, required: number): number;
@@ -34,16 +35,19 @@ export function createWasmTransport(
       if (!engine) throw new Error('Engine Wasm session closed');
       if (bytes.length > p.limits.packetBytes)
         throw new RangeError('Engine Wasm packet budget exceeded');
+      module._nelyx_wasm_refresh_heap?.();
       const input = module._malloc(bytes.length || 1);
       if (!input) throw new Error('Engine Wasm input allocation failed');
       let output = 0;
       try {
         // Acquire views after each allocation/dispatch: memory may have grown.
+        module._nelyx_wasm_refresh_heap?.();
         module.HEAPU8.set(bytes, input);
         output = module._nelyx_wasm_dispatch(engine, input, bytes.length);
         if (!output) throw new Error('Engine Wasm dispatch allocation failed');
         const pointer = module._nelyx_wasm_buffer_data(output),
           length = module._nelyx_wasm_buffer_length(output);
+        module._nelyx_wasm_refresh_heap?.();
         if (length > p.limits.packetBytes || pointer + length > module.HEAPU8.length)
           throw new Error('Invalid engine Wasm output bounds');
         return module.HEAPU8.slice(pointer, pointer + length);

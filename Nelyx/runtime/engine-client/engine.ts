@@ -16,3 +16,4 @@ export * from './raster-image.ts';
 export * from './image-style.ts';
 export * from './layout-builder.ts';
 export * from './scene.ts';
+export * from './scroll-curve.ts';

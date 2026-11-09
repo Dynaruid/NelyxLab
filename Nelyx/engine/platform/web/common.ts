@@ -5,6 +5,7 @@ import type { PacketEndpoint } from '../../../runtime/engine-client/message-port
 import type { EngineWasmModule } from '../../../runtime/engine-client/wasm.ts';
 
 export interface BrowserModule extends EngineWasmModule {
+  _nelyx_wasm_refresh_heap(): void;
   _nelyx_wasm_connect(engine: number, independent: number, content: number, render: number): number;
   _nelyx_host_start(engine: number, role: number, adapter: number, root: number): number;
   _nelyx_host_thread_id(): number;
@@ -43,6 +44,7 @@ export function exchange(module: BrowserModule, engine: number, bytes: Uint8Arra
         )
       : 0;
   const sync = () => {
+    module._nelyx_wasm_refresh_heap();
     const data = new Uint8Array(16),
       view = new DataView(data.buffer);
     view.setBigUint64(8, BigInt(module.HEAPU8.byteLength), true);
@@ -62,14 +64,19 @@ export function exchange(module: BrowserModule, engine: number, bytes: Uint8Arra
   if (!input) throw new Error('Engine packet allocation failed');
   let result = 0;
   try {
+    module._nelyx_wasm_refresh_heap();
     module.HEAPU8.set(bytes, input);
     result = module._nelyx_wasm_dispatch(engine, input, bytes.length);
     if (!result) throw new Error('Engine dispatch failed');
     const pointer = module._nelyx_wasm_buffer_data(result),
       length = module._nelyx_wasm_buffer_length(result);
-    if (length > p.limits.packetBytes || pointer + length > module.HEAPU8.length)
-      throw new Error('Engine packet output bounds');
-    return module.HEAPU8.slice(pointer, pointer + length);
+    module._nelyx_wasm_refresh_heap();
+    const heap = module.HEAPU8;
+    if (length > p.limits.packetBytes || pointer + length > heap.length)
+      throw new Error(
+        `Engine packet output bounds (opcode=${op}, bytes=${length}, heap=${heap.length})`,
+      );
+    return heap.slice(pointer, pointer + length);
   } finally {
     if (result) module._nelyx_wasm_release(result);
     module._free(input);

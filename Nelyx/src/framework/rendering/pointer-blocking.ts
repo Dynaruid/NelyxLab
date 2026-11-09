@@ -8,6 +8,7 @@ import type { Offset, TransformMatrix } from '../../ui/geometry.ts';
 import type { SemanticsNode, Rect } from '../../ui/types.ts';
 import { RenderProxyBox } from './boxes.ts';
 import type { RenderBox, RenderObject, HitTestEntry } from './object.ts';
+import { registerNativeBoxConfiguration } from './native-box.ts';
 function blockActions(nodes: readonly SemanticsNode[]): SemanticsNode[] {
   let count = 0;
   const ancestors = new Set<SemanticsNode>();
@@ -130,3 +131,13 @@ export class RenderAbsorbPointer extends RenderProxyBox {
     output.push(...blockActions(nodes));
   }
 }
+registerNativeBoxConfiguration(RenderIgnorePointer.prototype, (render) => ({
+  kind: 'box',
+  layout: { childConstraints: 'inherit' },
+  ...(render.ignoring ? { pointerBlock: 'ignore', semanticsPolicy: { blockActions: true } } : {}),
+}));
+registerNativeBoxConfiguration(RenderAbsorbPointer.prototype, (render) => ({
+  kind: 'box',
+  layout: { childConstraints: 'inherit' },
+  ...(render.absorbing ? { pointerBlock: 'absorb', semanticsPolicy: { blockActions: true } } : {}),
+}));

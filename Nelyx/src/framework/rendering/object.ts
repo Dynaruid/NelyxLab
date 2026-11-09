@@ -174,8 +174,14 @@ export function bindNativePublishedGeometry(
   nativeGeometryReaders.set(render, read);
 }
 export { registerNativeRenderMetadata, nativeRenderMetadata, nativeShape } from './native-paint.ts';
-export { nativeBoxConfiguration } from './native-box.ts';
-export type { NativeLayoutBuilderConfiguration } from './native-box.ts';
+export { nativeBoxConfiguration, registerNativeBoxConfiguration } from './native-box.ts';
+export type { NativeLayoutBuilderConfiguration, NativeBoxConfiguration } from './native-box.ts';
+export { NativeLayoutBuilder, nativeLayoutExpression, nativeLayoutInput } from './native-layout.ts';
+export type {
+  NativeLayoutScalar,
+  NativeLayoutProgram,
+  NativeLayoutCommand,
+} from './native-layout.ts';
 export { nativeSliverConfiguration } from './native-sliver.ts';
 export type {
   NativeSliverConfiguration,
@@ -2421,6 +2427,36 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   /** Compose complete paint transforms, including sibling coordinate conversion within one tree. */
   getTransformTo(target: RenderObject | null = null): Matrix4Storage {
+    if (nativeRenderOwners.has(this) || (target && nativeRenderOwners.has(target))) {
+      const from = nativePublishedGeometry(this);
+      invariant(
+        from !== undefined,
+        'unpublished-native-transform',
+        'Native transforms require a current published Core observation',
+      );
+      if (target === this) return matrix4Identity;
+      if (!target) return from.transform;
+      const to = nativePublishedGeometry(target);
+      invariant(
+        to !== undefined &&
+          to.owner === from.owner &&
+          to.snapshot === from.snapshot &&
+          to.publication === from.publication,
+        'foreign-native-transform',
+        'Native transform targets must share one published Core observation',
+      );
+      let fromRoot: RenderObject = this,
+        toRoot = target;
+      while (fromRoot.parent) fromRoot = fromRoot.parent;
+      while (toRoot.parent) toRoot = toRoot.parent;
+      invariant(
+        fromRoot === toRoot,
+        'unrelated-render-transform',
+        'Render transform targets must share a render tree',
+      );
+      const inverse = inverseMatrix4(to.transform);
+      return inverse ? multiplyMatrix4(inverse, from.transform) : captureMatrix4(Array(16).fill(0));
+    }
     assertAppRenderOperation(this, 'geometry');
     if (target === this) return matrix4Identity;
     let from: RenderObject = this,

@@ -34,7 +34,15 @@ function supplyRnwPort(engineRoot, output) {
     version: provenance.version,
     revision: provenance.revision,
     integrity: provenance.integrity,
-    apis: ['clipboard-read', 'clipboard-write', 'clipboard-has-strings'],
+    apis: [
+      'clipboard-read',
+      'clipboard-write',
+      'clipboard-has-strings',
+      'clipboard-input-snapshot',
+      'keyboard-modifier-state',
+      'keyboard-key-code',
+      'accessibility-tooltip',
+    ],
   };
 }
 export function buildAppSdkHost({ engineRoot, library, intermediate, output }) {

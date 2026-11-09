@@ -147,9 +147,10 @@ class _AutomaticKeepAliveState extends State<AutomaticKeepAlive> {
           return;
         }
         if (
-          scheduler.phase === 'idle' ||
-          scheduler.phase === 'transient' ||
-          scheduler.phase === 'mid-frame-microtasks'
+          !(this.context as Element).owner.building &&
+          (scheduler.phase === 'idle' ||
+            scheduler.phase === 'transient' ||
+            scheduler.phase === 'mid-frame-microtasks')
         )
           this.setState(() => {
             this._keepingAlive = false;

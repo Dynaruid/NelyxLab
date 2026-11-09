@@ -93,9 +93,10 @@ class Renderer {
     auto backendTexture=skgpu::graphite::BackendTextures::MakeDawn(texture.texture.Get());
     auto target=SkSurfaces::WrapBackendTexture(recorder.get(),backendTexture,SkColorSpace::MakeSRGB(),nullptr);
     if(!target)throw std::runtime_error("Android Graphite surface wrapping failed");
-    uint64_t layers=0,paths=0;for(const auto& item:frame.items){const auto& node=frame.scene->document->get(item.node);if(node.graphics.path)paths+=node.graphics.path->commands.size()*256+1024;if(item.paint)paths+=item.paint->paths.size()*256+1024;if(frame.properties[item.node.slot].opacity<1||node.graphics.blur>0)layers+=uint64_t(width)*height*4*(node.graphics.blur>0?3:1);if(item.flags&wire::nodeFlags::clipSaveLayer)layers+=uint64_t(width)*height*4;}
+    uint64_t layers=0,paths=0;for(const auto& item:frame.items){const auto& node=frame.scene->document->get(item.node);if(node.graphics.path)paths+=node.graphics.path->commands.size()*256+1024;if(item.paint)paths+=item.paint->paths.size()*256+1024;if(item.opacity<=0||!item.world.inverse())continue;if(frame.properties[item.node.slot].opacity<1||node.graphics.blur>0)layers+=uint64_t(width)*height*4*(node.graphics.blur>0?3:1);if(item.flags&wire::nodeFlags::clipSaveLayer)layers+=uint64_t(width)*height*4;}
     for(const auto& item:frame.items){const auto& node=frame.scene->document->get(item.node);
-      if(node.snapshot&&node.snapshot->live.opacity<1)layers+=uint64_t(width)*height*4;}
+      layers+=native::nativeMaskLayerBytes(item,scale,width,height);
+      if(item.opacity>0&&item.world.inverse()&&node.snapshot&&node.snapshot->live.opacity<1)layers+=uint64_t(width)*height*4;}
     ExternalLease pathMemory(ledger,2,2,paths),layerMemory(ledger,2,3,layers);
     native::drawPreparedFrame(target->getCanvas(),frame,prepared,scale,paintCounts,snapshots);
     auto recording=recorder->snap();if(!recording)throw std::runtime_error("Android recording unavailable");

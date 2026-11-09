@@ -30,7 +30,7 @@ if(EMSCRIPTEN)
     -sMODULARIZE=1 -sEXPORT_ES6=1 -sENVIRONMENT=web,worker,node
     -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=33554432 -sMAXIMUM_MEMORY=268435456
     -sSTACK_SIZE=1048576 -sASSERTIONS=1
-    "-sEXPORTED_FUNCTIONS=['_nelyx_wasm_open','_nelyx_wasm_dispatch','_nelyx_wasm_buffer_data','_nelyx_wasm_buffer_length','_nelyx_wasm_release','_nelyx_engine_destroy','_nelyx_engine_schema','_nelyx_engine_capabilities','_malloc','_free']"
+    "-sEXPORTED_FUNCTIONS=['_nelyx_wasm_refresh_heap','_nelyx_wasm_open','_nelyx_wasm_dispatch','_nelyx_wasm_buffer_data','_nelyx_wasm_buffer_length','_nelyx_wasm_release','_nelyx_engine_destroy','_nelyx_engine_schema','_nelyx_engine_capabilities','_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['HEAPU8']")
   if(NELYX_ENGINE_BROWSER_HOST)
     add_executable(nelyx_engine_browser bindings/wasm.cpp bindings/browser_owners.cpp)
@@ -41,7 +41,7 @@ if(EMSCRIPTEN)
       -sMODULARIZE=1 -sEXPORT_NAME=NelyxEngineModule -sENVIRONMENT=worker
       -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=33554432 -sMAXIMUM_MEMORY=268435456
       -sSTACK_SIZE=1048576 -sASSERTIONS=1
-      "-sEXPORTED_FUNCTIONS=['_nelyx_wasm_open','_nelyx_wasm_dispatch','_nelyx_wasm_buffer_data','_nelyx_wasm_buffer_length','_nelyx_wasm_release','_nelyx_wasm_connect','_nelyx_engine_destroy','_nelyx_engine_schema','_nelyx_host_start','_nelyx_host_thread_id','_nelyx_host_exit','_malloc','_free']"
+      "-sEXPORTED_FUNCTIONS=['_nelyx_wasm_refresh_heap','_nelyx_wasm_open','_nelyx_wasm_dispatch','_nelyx_wasm_buffer_data','_nelyx_wasm_buffer_length','_nelyx_wasm_release','_nelyx_wasm_connect','_nelyx_engine_destroy','_nelyx_engine_schema','_nelyx_host_start','_nelyx_host_thread_id','_nelyx_host_exit','_malloc','_free']"
       "-sEXPORTED_RUNTIME_METHODS=['HEAPU8','UTF8ToString','stringToUTF8','lengthBytesUTF8']")
     if(NELYX_ENGINE_THREADED)
       target_link_options(nelyx_engine_browser PRIVATE -sPTHREAD_POOL_SIZE=2 -sPTHREAD_POOL_DELAY_LOAD=1

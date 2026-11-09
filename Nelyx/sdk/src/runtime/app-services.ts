@@ -7,8 +7,8 @@ import { PlatformException, MissingPluginException } from '@nelyx/core/services/
 import { PluginPlatformMessagePort } from './plugin-port.ts';
 import { PlatformMessageConnection } from './platform-messages.ts';
 import { invokeClipboardService } from './clipboard-service.ts';
-import { JSONMethodCodec } from '@nelyx/core/services/message-codecs';
-import type { NodeHandle } from '@nelyx/core/engine';
+import { JSONMethodCodec, StandardMessageCodec } from '@nelyx/core/services/message-codecs';
+import type { EngineEvent, NodeHandle } from '@nelyx/core/engine';
 
 import {
   appServicesVersion,
@@ -38,7 +38,7 @@ export function createAppServices(onError: (error: unknown) => void) {
   const native = environment.NelyxV2Native;
   if (native) {
     if (native.appServicesVersion !== appServicesVersion)
-      throw new Error('Required App OS service version 2 is unavailable');
+      throw new Error('Required App OS service version 4 is unavailable');
     // Hermes uses the same standard implementation as the previous SDK VM.
     // This App realm owns these missing constructors until the VM retires.
     if (typeof AbortController === 'undefined')
@@ -114,8 +114,30 @@ export function createAppServices(onError: (error: unknown) => void) {
     return result;
   };
   const port = new PluginPlatformMessagePort();
+  const accessibilityCodec = new StandardMessageCodec();
+  port.register('flutter/accessibility', async (data) => {
+    const value = accessibilityCodec.decodeMessage(data);
+    if (!(value instanceof Map) || value.get('type') !== 'tooltip' || value.size !== 2)
+      throw new MissingPluginException('App accessibility event is unavailable');
+    const payload = value.get('data');
+    if (
+      !(payload instanceof Map) ||
+      payload.size !== 1 ||
+      typeof payload.get('message') !== 'string'
+    )
+      throw new PlatformException({
+        code: 'invalid-arguments',
+        message: 'Invalid tooltip semantics event',
+      });
+    await call('accessibility-tooltip', payload.get('message'));
+    return accessibilityCodec.encodeMessage(null);
+  });
+  let clipboardReadSnapshot = 0n;
   const clipboard = {
-    readText: () => call('clipboard-read'),
+    readText: () =>
+      clipboardReadSnapshot
+        ? call('clipboard-read-event', String(clipboardReadSnapshot))
+        : call('clipboard-read'),
     writeText: async (text: string) => {
       await call('clipboard-write', text);
     },
@@ -162,7 +184,7 @@ export function createAppServices(onError: (error: unknown) => void) {
   const messages = new PlatformMessageConnection(port, {
     useAsDefault: true,
     checkChannel: (channel) => {
-      if (channel !== 'flutter/platform')
+      if (channel !== 'flutter/platform' && channel !== 'flutter/accessibility')
         throw new MissingPluginException('App OS channel is unavailable: ' + channel);
     },
   });
@@ -197,6 +219,19 @@ export function createAppServices(onError: (error: unknown) => void) {
   }
   return {
     binaryMessenger: messages.binaryMessenger,
+    dispatchNativeKey: (event: EngineEvent, dispatch?: () => void): void => {
+      const snapshot = event.clipboardReadSnapshot ?? 0n,
+        previous = clipboardReadSnapshot;
+      if (snapshot && !native) throw Error('Native clipboard snapshot has no owning OS host');
+      clipboardReadSnapshot = snapshot;
+      try {
+        dispatch?.();
+      } finally {
+        clipboardReadSnapshot = previous;
+        if (snapshot && !stopped)
+          void call('clipboard-release-event', String(snapshot)).catch(onError);
+      }
+    },
     semanticsEvent: async (node: NodeHandle, type: 'tap' | 'longPress' | 'focus') => {
       if (
         !Number.isInteger(node.slot) ||

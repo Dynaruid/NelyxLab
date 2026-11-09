@@ -3,7 +3,7 @@
 #include "geometry.hpp"
 namespace nelyx::v2 {
 struct NativePaintEntry {
-  uint32_t kind=0,flags=0,color=0,shadowColor=0,shape=0,clip=0,strokeColor=0;
+  uint32_t kind=0,flags=0,color=0,shadowColor=0,shape=0,clip=0,strokeColor=0,strokeCap=0;
   Handle reference;
   double elevation=0,strokeWidth=0,strokeAlign=-1,x=0,y=0,radius=-1,progress=0;
   std::array<double,8> radii{};
@@ -15,6 +15,9 @@ struct NativePaintEntry {
   std::array<uint32_t,14> expressions{};
   double repeat=0;
   uint32_t pathStart=0,pathCount=0,pathFillRule=0;
+  uint32_t strokeWidthExpression=UINT32_MAX;
+  std::array<uint32_t,4> gradientExpressions{};
+  std::array<double,4> gradient{};
   Rect pathBounds;
 };
 struct NativePaintExpression {
@@ -24,6 +27,7 @@ struct NativePaintExpression {
 };
 struct NativePaintPathCommand {
   uint32_t verb=0;
+  uint32_t condition=UINT32_MAX;
   std::array<uint32_t,12> expressions{};
   std::array<double,12> values{};
 };

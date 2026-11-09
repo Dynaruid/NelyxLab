@@ -17,6 +17,7 @@ const sourceActions = new Map<number, SemanticsAction>([
   [p.semanticsActions.focus, SemanticsAction.focus],
   [p.semanticsActions.increment, SemanticsAction.increase],
   [p.semanticsActions.decrement, SemanticsAction.decrease],
+  [p.semanticsActions.custom, SemanticsAction.customAction],
 ]);
 
 /** Source action listeners and rectangles follow the actual native View publication.
@@ -94,7 +95,7 @@ export class OriginalSemanticsBridge {
       for (const node of this.frame!.nodes) {
         const semantic = node.semantics;
         if (!semantic || semantic.flags & p.semanticsFlags.hidden) continue;
-        const bounds = intersect(node.bounds, node.clip);
+        const bounds = intersect(node.semanticGeometry?.bounds ?? node.bounds, node.clip);
         if (bounds.width <= 0 || bounds.height <= 0) continue;
         // SemanticsBinding consumes ids and actual published rectangles. The
         // richer native roles/actions remain owned by the engine/host tree.
@@ -139,6 +140,7 @@ export class OriginalSemanticsBridge {
           viewId: this.viewId,
           nodeId: `${event.node.slot}:${event.node.generation}`,
           type: action,
+          ...(action === SemanticsAction.customAction ? { arguments: event.x } : {}),
         }),
         () => perform(),
       );

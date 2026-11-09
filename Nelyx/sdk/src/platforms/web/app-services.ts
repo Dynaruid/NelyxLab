@@ -12,6 +12,7 @@ type BrowserAppWorker =
 /** DOM clipboard ownership stays on the Main owner, outside the App worker. */
 export function bindBrowserAppServices(app: BrowserAppWorker) {
   const pending = new Set<Promise<void>>();
+  let tooltip: HTMLElement | undefined;
   let stopped = false,
     bytes = 0,
     sequence = 0;
@@ -24,6 +25,8 @@ export function bindBrowserAppServices(app: BrowserAppWorker) {
     };
     if (value.kind === 'app-services-stop') {
       stopped = true;
+      tooltip?.remove();
+      tooltip = undefined;
       return;
     }
     if (value.kind !== 'app-service') return;
@@ -58,6 +61,26 @@ export function bindBrowserAppServices(app: BrowserAppWorker) {
     bytes += held;
     const task = (async () => {
       try {
+        if (stopped) throw new Error('Browser App OS service is stopped');
+        if (value.method === 'accessibility-tooltip') {
+          if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.setAttribute('role', 'status');
+            tooltip.setAttribute('aria-live', 'polite');
+            tooltip.setAttribute('aria-atomic', 'true');
+            Object.assign(tooltip.style, {
+              position: 'fixed',
+              width: '1px',
+              height: '1px',
+              overflow: 'hidden',
+              clipPath: 'inset(50%)',
+            });
+            document.body.append(tooltip);
+          }
+          tooltip.replaceChildren(document.createTextNode(value.text as string));
+          reply('');
+          return;
+        }
         // The original browser accessibility handler ignores these empty
         // node-feedback events. DOM live announcements are a separate service.
         if (value.method?.startsWith('semantics-')) {
@@ -92,6 +115,8 @@ export function bindBrowserAppServices(app: BrowserAppWorker) {
       stopped = true;
       await Promise.all(pending);
       app.removeEventListener('message', receive);
+      tooltip?.remove();
+      tooltip = undefined;
       if (pending.size || bytes) throw new Error('Browser App OS service bytes have not retired');
     },
     get execution() {

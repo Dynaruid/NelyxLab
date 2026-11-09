@@ -3,6 +3,8 @@
 // Adapted from pinned rendering/proxy_box.dart.
 import { RenderProxyBox } from './boxes.ts';
 import { registerNativeBoxConfiguration } from './native-box.ts';
+import { registerNativeRenderMetadata } from './native-paint.ts';
+import { nativeSemanticsMetadata } from './native-semantics.ts';
 import { SemanticsAnnotationsMixin } from './object.ts';
 import type { RenderBox, RenderObject } from './object.ts';
 import type { SemanticsProperties, SemanticsConfiguration } from '../semantics/semantics.ts';
@@ -21,6 +23,14 @@ export interface RenderSemanticsAnnotationsOptions {
   readonly textDirection?: 'ltr' | 'rtl' | null;
 }
 export class RenderSemanticsAnnotations extends SemanticsAnnotationsMixin(RenderProxyBox) {
+  static {
+    registerNativeRenderMetadata(RenderSemanticsAnnotations.prototype, (source) =>
+      nativeSemanticsMetadata(
+        source,
+        RenderSemanticsAnnotations.prototype.describeSemanticsConfiguration,
+      ),
+    );
+  }
   protected override markNeedsPaintAfterLayout(): void {
     if (
       this.hasStaticLayoutSemantics(
@@ -144,6 +154,11 @@ registerNativeBoxConfiguration(RenderExcludeSemantics.prototype, (render) => ({
   kind: 'box',
   layout: { childConstraints: 'inherit' },
   semanticsPolicy: { excludeChildren: render.excluding },
+}));
+registerNativeBoxConfiguration(RenderMergeSemantics.prototype, () => ({
+  kind: 'box',
+  layout: { childConstraints: 'inherit' },
+  semanticsPolicy: { boundary: true, forceMergeDescendants: true },
 }));
 RenderProxyBox._registerSemanticsGeometryPrototype(
   RenderSemanticsAnnotations.prototype,

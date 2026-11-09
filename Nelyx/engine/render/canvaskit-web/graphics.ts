@@ -9,6 +9,38 @@ import type {
 } from '../../../runtime/engine-client/codec.ts';
 import { protocol as p } from '../../../runtime/engine-client/schema.ts';
 import type { NativePaintSnapshot } from '../../../runtime/engine-client/native-paint.ts';
+export function nativeLinearMask(node: EngineNodeSnapshot): NativePaintSnapshot | undefined {
+  const last = node.nativePaint?.at(-1);
+  return last?.kind === 'linearMask' ? last : undefined;
+}
+export function nativeMaskBounds(ck: CanvasKit, entry: NativePaintSnapshot): Float32Array {
+  return ck.XYWHRect(entry.transform[4], entry.transform[5], entry.width, entry.height);
+}
+export function paintNativeMask(ck: CanvasKit, canvas: Canvas, entry: NativePaintSnapshot): void {
+  const g = entry.gradient;
+  if (!g || g.some((value) => typeof value !== 'number' || !Number.isFinite(value)))
+    throw Error('Unresolved native linear mask');
+  const shader = ck.Shader.MakeLinearGradient(
+      [g[0] as number, g[1] as number],
+      [g[2] as number, g[3] as number],
+      [ck.Color(255, 255, 255, 1), ck.Color(255, 255, 255, 0)],
+      null,
+      ck.TileMode.Clamp,
+    ),
+    paint = new ck.Paint();
+  canvas.save();
+  try {
+    if (!shader) throw Error('Native linear mask shader unavailable');
+    canvas.translate(entry.transform[4], entry.transform[5]);
+    paint.setBlendMode(ck.BlendMode.Modulate);
+    paint.setShader(shader);
+    canvas.drawRect(ck.XYWHRect(0, 0, entry.width, entry.height), paint);
+  } finally {
+    canvas.restore();
+    paint.delete();
+    shader?.delete();
+  }
+}
 /** Recording bounds include displaced paint and blur, while input-only regions never paint. */
 export function nativePaintOutset(
   entry: NativePaintSnapshot,
@@ -21,7 +53,8 @@ export function nativePaintOutset(
     entry.kind === 'clip' ||
     entry.kind === 'save' ||
     entry.kind === 'restore' ||
-    entry.kind === 'children'
+    entry.kind === 'children' ||
+    entry.kind === 'linearMask'
   )
     return 0;
   const circle =
@@ -29,13 +62,13 @@ export function nativePaintOutset(
     entry.kind === 'ripple' ||
     (entry.kind === 'highlight' && entry.circular);
   const stroke =
-    entry.kind === 'border' && entry.shape.strokeWidth === 0 && entry.shape.strokeColor >>> 24
+    (entry.kind === 'border' || entry.kind === 'path') &&
+    entry.shape.strokeWidth === 0 &&
+    entry.shape.strokeColor >>> 24
       ? 1 / Math.max(0.125, scale)
       : entry.shape.strokeWidth;
   const padding =
-    (entry.kind === 'path'
-      ? 2 * entry.shape.strokeWidth
-      : (stroke * (1 + Math.abs(entry.shape.strokeAlign))) / 2) +
+    (entry.kind === 'path' ? 2 * stroke : (stroke * (1 + Math.abs(entry.shape.strokeAlign))) / 2) +
     (entry.kind === 'shadow'
       ? 4 * (entry.blurSigma ?? 0)
       : entry.kind === 'elevationShadow'
@@ -103,6 +136,7 @@ function nativePaintPath(ck: CanvasKit, entry: NativePaintSnapshot): Path {
       entry.path.fillRule === 'evenOdd' ? ck.FillType.EvenOdd : ck.FillType.Winding,
     );
     for (const command of entry.path.commands) {
+      if ('command' in command) throw Error('Unresolved native path condition');
       const values = command.slice(1).map((value) => {
         if (typeof value !== 'number' || !Number.isFinite(value))
           throw Error('Unresolved native path');
@@ -142,6 +176,14 @@ function nativePaintPath(ck: CanvasKit, entry: NativePaintSnapshot): Path {
             false,
           );
           break;
+        case 'arc':
+          builder.arcToOval(
+            ck.XYWHRect(values[0]!, values[1]!, values[2]!, values[3]!),
+            (values[4]! * 180) / Math.PI,
+            (values[5]! * 180) / Math.PI,
+            values[6] !== 0,
+          );
+          break;
       }
     }
     return builder.detach();
@@ -172,7 +214,7 @@ export function paintNative(
     if (entries.some((entry) => entry.kind === 'highlight' || entry.kind === 'ripple'))
       canvas.clipRect(ck.XYWHRect(0, 0, node.width, node.height), ck.ClipOp.Intersect, false);
     for (const entry of entries) {
-      if (entry.kind === 'hitRegion') continue;
+      if (entry.kind === 'hitRegion' || entry.kind === 'linearMask') continue;
       if (entry.kind === 'save') {
         canvas.save();
         continue;
@@ -187,7 +229,7 @@ export function paintNative(
         rect[2]! += entry.transform[4];
         rect[1]! += entry.transform[5];
         rect[3]! += entry.transform[5];
-        canvas.clipRRect(rect, ck.ClipOp.Intersect, true);
+        canvas.clipRRect(rect, ck.ClipOp.Intersect, entry.clip !== 'hardEdge');
         continue;
       }
       canvas.save();
@@ -195,6 +237,9 @@ export function paintNative(
         canvas.concat(canvasMatrix(entry.transform));
         paint.setColor(color(ck, entry.color));
         paint.setStyle(ck.PaintStyle.Fill);
+        paint.setBlendMode(
+          entry.blendMode === 'srcATop' ? ck.BlendMode.SrcATop : ck.BlendMode.SrcOver,
+        );
         if (entry.kind === 'paragraph') {
           if (!paragraph) throw Error('Prepared paragraph paint resolver is unavailable');
           paragraph(entry.reference);
@@ -204,14 +249,24 @@ export function paintNative(
             const pathPaint = new ck.Paint();
             try {
               pathPaint.setAntiAlias(true);
+              pathPaint.setBlendMode(
+                entry.blendMode === 'srcATop' ? ck.BlendMode.SrcATop : ck.BlendMode.SrcOver,
+              );
               if (entry.color >>> 24) {
                 pathPaint.setColor(color(ck, entry.color));
                 canvas.drawPath(path, pathPaint);
               }
-              if (entry.shape.strokeWidth > 0 && entry.shape.strokeColor >>> 24) {
+              if (entry.shape.strokeColor >>> 24) {
                 pathPaint.setColor(color(ck, entry.shape.strokeColor));
                 pathPaint.setStyle(ck.PaintStyle.Stroke);
                 pathPaint.setStrokeWidth(entry.shape.strokeWidth);
+                pathPaint.setStrokeCap(
+                  entry.strokeCap === 'round'
+                    ? ck.StrokeCap.Round
+                    : entry.strokeCap === 'square'
+                      ? ck.StrokeCap.Square
+                      : ck.StrokeCap.Butt,
+                );
                 canvas.drawPath(path, pathPaint);
               }
             } finally {
@@ -335,6 +390,7 @@ export function paintNative(
       }
     }
   } finally {
+    paint.setBlendMode(ck.BlendMode.SrcOver);
     canvas.restoreToCount(saved);
   }
 }

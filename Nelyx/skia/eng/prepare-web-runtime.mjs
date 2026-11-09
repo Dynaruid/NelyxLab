@@ -19,9 +19,9 @@ function sourceIdentity(manifest) {
   if (
     manifest.schema !== 'nelyx.canvaskit/v1' ||
     manifest.adapterAbi !== 1 ||
-    manifest.version !== 'm153-nelyx-paragraph.5' ||
+    manifest.version !== 'm153-nelyx-paragraph.6' ||
     manifest.paragraphApiVersion !== 1 ||
-    manifest.pictureApiVersion !== 2 ||
+    manifest.pictureApiVersion !== 3 ||
     manifest.fontApiVersion !== 1 ||
     manifest.initialMemoryBytes !== 128 * 1024 * 1024 ||
     manifest.maximumMemoryBytes !== 256 * 1024 * 1024 ||

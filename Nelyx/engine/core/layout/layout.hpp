@@ -13,6 +13,7 @@ struct Placement {
   std::shared_ptr<const LayoutBox> box;
   double x = 0, y = 0;
   bool visible = true;
+  double scaleX = 1, scaleY = 1;
 };
 struct LayoutBox {
   Lease lease;
@@ -24,10 +25,14 @@ struct LayoutBox {
   double width = 0, height = 0, baseline = -1, ideographicBaseline = -1;
   bool hasBaseline = false, hasIdeographicBaseline = false;
   double textWidth = -1, textHeight = -1, textOffsetX = 0, textOffsetY=0;
+  double editorScrollOffset=0,editorScrollMaximum=0;
   bool contentOverflow = false;
+  bool contentOverflowX = false;
+  double overflowProbeWidth=0,overflowProbeHeight=0;
   std::shared_ptr<const TextGeometry> textGeometry;
   std::shared_ptr<const ListGeometry> listGeometry;
   std::shared_ptr<const ParagraphData> paragraph;
+  std::shared_ptr<const LayoutPaintValues> paintValues;
   std::vector<Placement> children;
   LayoutBox(const Node &n, LayoutConstraints constraints, size_t count)
       : lease(n.lease.ledger, sizeof(LayoutBox) + count * sizeof(Placement)), node(n.id),
@@ -51,7 +56,7 @@ struct LayoutBuildRequest {
   LayoutConstraints constraints;
   std::optional<List> list;
 };
-struct ScrollLayoutOffset { Handle node; double requested=0; };
+struct ScrollLayoutOffset { Handle node; double requested=0; bool manual=false; };
 struct Measurement {
   double width = 0, height = 0, minimum = 0, maximum = 0, baseline = -1;
   std::shared_ptr<const TextGeometry> geometry = nullptr;
