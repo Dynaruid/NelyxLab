@@ -4,7 +4,7 @@
 
 이 문서는 사용자 요청으로 종료한 [work9-b.md](work9-b.md)의 **남은 작업과 정확한 재개 절차를 이어받는 실행 계약**이다. W9B-00·00-H의 완료와 §3.6–3.21의 부분 검증 기록은 이전 문서에 보존하고, §3.22의 미검증 Range/editor 초안부터 이어간다. 문서 이관만 수행했으며 제품 구현·빌드·실행은 재개하지 않았다.
 
-**실행 방식:** Windows/Web의 관련 구현과 실제 소비자 연결을 먼저 모은 뒤 **W9C-06 통합 검증 → 문제 일괄 수정 → 영향 범위 재검증**으로 진행한다. 기능·파일·작은 수정마다 전체 빌드·설치·플랫폼 실행을 반복하지 않는다. Android와 후속 플랫폼은 해당 차수에서 같은 방식을 적용한다.
+**실행 방식:** **W9C-00–05의 챕터 하나를 단위로 전체 구현·소비자 연결 → W9C-06 통합 검증 → 문제 일괄 수정 → 영향 범위 재검증 → 다음 챕터**로 진행한다. W9C-06은 각 챕터 끝에서 적용하는 공통 절차다. 기능·파일·작은 수정마다 전체 빌드·설치·플랫폼 실행을 반복하지 않는다. Windows/Web부터 진행하고 Android와 후속 플랫폼은 해당 차수에서 같은 방식을 적용한다.
 
 [전체 work9 목차](work9.md) · [직전 구현·검증·종료 기록](work9-b.md) · [원래 구조 계약](work9-a.md) · [API·디자인·입력 계약](work9-2.md) · [기술·제품 수락 기준](work9-3.md) · [Android·Linux](work9-4.md) · [후속 iOS·macOS](work9-5.md)
 
@@ -72,21 +72,23 @@
 | **W9C-03 SDK 서비스·수명** | W9B-03 · W9A-06 | 해당 native target의 실제 수정 소스 이식, session/view/service·VM·reload/loss·공개 host API와 실패/취소/close 완성 |
 | **W9C-04 CLI·설정·공급** | W9B-04 · W9A-07 | 공통 target descriptor·하나의 config/template·원본/출처 포함 공급. 구 설정/도구 소비자 이관. v2 제품 기본값 전환은 07 |
 | **W9C-05 대표 앱 이관** | W9B-05 · W9A-08 | Testbed/Demo의 원래 catalog·상태·탐색·입력·자산 보존과 Android sample 잔여 기능. Sample UI는 엔진 공급 필수 입력이 아님 |
-| **W9C-06 통합 확인·문제 대응** | W9B-06 · W9A-09 | 구현 묶음의 공급 갱신·설치 소비·실제 앱·복구/종료를 확인. 문제를 모아 수정하고 직접 영향 범위 재검증. W9-13/14 분리 판정 |
+| **W9C-06 통합 확인·문제 대응** | W9B-06 · W9A-09 | 각 챕터 구현 후 공통 적용. 변경 공급·설치 소비·실제 앱·복구/종료를 함께 확인하고 문제 일괄 수정·영향 범위 재검증. 00–05 연결 후 챕터 간 누락을 종합 확인하며 W9-13/14 분리 판정 |
 | **W9C-07 대상별 기본값 전환·삭제** | W9B-07 · W9A-10 | 해당 API·기술·제품 gate를 통과한 target의 일반 CLI/sample/template 전환. 마지막 구 소비자·중복 Widget·축소 디자인·불필요 export/dependency 제거 |
 | **W9C-08 후속 플랫폼·전역 종료** | W9B-08 · W9A-11/12 | Linux·iOS/macOS의 대체 host/API 또는 명시적 지원 범위 확정. 잔여 runtime/공급/빌드/template/배포 제거와 생성·문서 소유권 일치 |
 
-00–05는 필요한 공통 연산·서비스가 준비된 기능부터 같은 차수에서 진행한다. 00을 기능별 전체 제품 검증으로 닫아야 01을 시작하는 구조로 만들지 않는다. 기본 차수는 **Windows/Web → Android/Linux → iOS/macOS**다. 준비되지 않은 후속 플랫폼을 Windows/Web 구현·통합 검증의 선행 조건으로 넣지 않으며 각 대상의 남은 의무와 DEFERRED는 보존한다.
+00–05는 챕터 단위로 구현·통합 검증하며 필요한 공통 연산·서비스의 의존성 순서를 따른다. 다음 챕터의 연결이 있어야 실행할 수 있는 범위만 인접 챕터와 함께 묶고, 그 의존성과 통합 시점을 기록한다. 기본 차수는 **Windows/Web → Android/Linux → iOS/macOS**다. 준비되지 않은 후속 플랫폼을 Windows/Web 구현·통합 검증의 선행 조건으로 넣지 않으며 각 대상의 남은 의무와 DEFERRED는 보존한다.
+
+**§3.1–3.4의 체크박스는 구현과 통합 검증을 모두 충족한 완료 조건이다.** 항목마다 구현·빌드·실행을 반복하는 순서로 사용하지 않는다. 챕터 안의 구현·소비자·확인할 시나리오를 먼저 함께 준비하고, 수치·수명·제품 실행 확인은 챕터 끝의 W9C-06에서 모아 수행한다. 구현을 마쳤어도 통합 확인 전에는 **구현 완료 / 검증 대기 / notVerified**로 기록하고 완료 체크는 보류한다.
 
 ### 3.1 W9C-00 — 첫 재개 구현 묶음
 
-- [ ] `npm.cmd run build:core`로 새 Source 선언과 runtime의 실제 compile 결과를 확인하고 오류를 고친다. 이전 dist 선언으로 발생한 실패와 실제 구현 오류를 구분한다.
+- [ ] 새 Source 선언과 runtime의 compile 오류를 해결한다. 알려진 이전 dist 선언 오류가 후속 구현을 막으면 §7.1의 `npm.cmd run build:core`로 필요한 선언을 먼저 공급하고, 나머지 공급·제품 검증은 챕터 끝에 모은다.
 - [ ] Range exact custom extension의 등록·선언·미지원 callback 계약을 검토·문서화하고 실제 custom track/thumb/tick/overlay/indicator 소비자를 연결한다.
 - [ ] Source painter와 Core의 rect·thumb center·track gap·paint·label 배치를 대조하고 enabled/discrete·RTL·overlap/horizontal shift·text scale·상태 교체/제거·paragraph 수명을 확인한다. Divisions 127 제한을 원래 API 의무에 대응시킨다.
 - [ ] Source Curve 데이터 캡처·정확한 reader·기존 56-byte 호환·curve tail·malformed/reserved/depth/node/budget 경계와 Source/Core 수치 일치를 확인한다. 임의 Curve callback 전체 지원으로 판정하지 않는다.
 - [ ] Demo에 custom Range와 curved editor animation UI를 연결하고 실제 Source controller/client 소비 경로를 완성한다.
 - [ ] Editor request/terminal·중간/최종 offset·duration 0/상한·cancel/supersede/timeout·입력 취소·text 축소/extent/resize·controller 교체·hide/close와 메모리 회수를 확인한다.
-- [ ] 구현을 모은 뒤 Core/Material/SDK·변경 engine 공급을 갱신하고 같은 공급으로 설치 소비·Web 두 profile·Windows 실제 흐름을 06에서 확인한다. §3.21 Focus/입력 큐·기존 Range 흐름을 직접 영향 회귀에 포함한다.
+- [ ] W9C-00 전체 구현을 모은 뒤 Core/Material/SDK·변경 engine 공급을 갱신하고 같은 공급으로 설치 소비·Web 두 profile·Windows 실제 흐름을 06에서 확인한다. 이전 문서 §3.21의 Focus/입력 큐·기존 Range 흐름을 직접 영향 회귀에 포함한다.
 
 ### 3.2 W9C-01–02 — Core·디자인·접근성 잔여 계약
 
@@ -120,21 +122,38 @@
 - [ ] Data Testbed·list/navigation/graphics·디자인 `/v2`·구 runner의 마지막 소비자를 추적해 일반 App/frontend로 이관한다.
 - [ ] Android sample의 기본 painter·controls/controller·입력·서비스와 남은 화면을 해당 차수에 연결하고 emulator/물리 기기 결과를 구분한다.
 
-## 4. 구현을 모은 뒤 통합 검증하는 방식
+## 4. 챕터 전체 구현 후 통합 검증하는 방식
 
-**기본 묶음은 Windows App SDK·Web single-worker/threaded의 W9C-00–05다.** 모든 플랫폼·834 API·전체 catalog 수락을 기다리지 않고 해당 차수에서 모은 구현과 실제 소비자 연결로 06에 진입한다. 남은 API는 미완료 의무로 유지한다.
+**기본 구현 단위는 W9C-00–05 중 한 챕터다.** Windows App SDK·Web single-worker/threaded에서 해당 챕터의 남은 구현과 실제 소비자 연결을 한 번에 모은 뒤 W9C-06을 적용한다. §3.2의 01–02와 §3.3의 03–04는 관련 계약을 함께 설명한 절이며, 기본 실행 단위는 각각 01·02·03·04다. 실행에 필요한 인접 챕터 의존성만 함께 구현할 수 있다.
+
+| 구현 챕터 | 한 번에 모을 범위 | 챕터 끝에서 통합 확인할 연결 |
+| --- | --- | --- |
+| W9C-00 | Range custom 선언·공유 painter 정책·Curve/wire·editor animation·Demo 연결 | Source/Core 수치·상태/취소/종료·설치 소비·Windows/Web 실제 흐름 |
+| W9C-01 | Core 모듈 이관·custom/동기 geometry·scroll/gesture/focus/editing 실행 계약 | 원래 RenderObject·controller·실제 앱 소비 경로와 직접 영향 회귀 |
+| W9C-02 | 원래 디자인/theme/painter·controls·semantics/접근성·관련 catalog 연결 | 원래 TS 정책·입력/접근성·화면/상태 전환 |
+| W9C-03 | 해당 플랫폼 소스 이식·SDK 서비스/VM·자원/session/view 수명 | OS API 실제 소비·실패/취소/복구/종료 |
+| W9C-04 | CLI/config/target descriptor·공급/출처·template·기존 도구 소비자 이관 | 설치 package의 create/doctor/build/run/dev/pack·선언/실제 graph |
+| W9C-05 | Testbed/Demo의 남은 전체 catalog·상태/탐색/입력/자산·구 소비자 이관 | 앞선 챕터를 사용하는 전체 앱 흐름과 챕터 간 연결 |
+
+이 표는 §3의 책임을 묶는 실행 단위이며 확인할 API·수명 의무를 줄이지 않는다. 해당 챕터 범위를 먼저 정하고 그 안의 작은 기능마다 통합 검증으로 전환하지 않는다. 모든 플랫폼·834 API·전체 catalog 수락을 한 챕터의 통합 진입 조건으로 요구하지 않으며, 해당 차수 밖의 범위와 미지원 계약은 미완료 의무로 남긴다.
 
 | 순서 | 실행 방식 | 판정 |
 | --- | --- | --- |
-| 1. 구현 범위 모으기 | 현재 diff·§2의 초안·앱 호출 graph·§3의 잔여 계약을 대조하고 실제 확인할 앱/흐름을 정한다 | 필요한 render/control/overlay/service 의존성을 함께 포함 |
-| 2. 일괄 구현 | Core → 디자인/서비스 → CLI/대표 앱 순서로 연결. 필요한 문법·타입·국소 compile·schema 정합성만 확인 | 실행 결과는 **검증 대기 / notVerified**. 기능마다 pack·설치·전체 실행하지 않음 |
-| 3. W9C-06 통합 검증 | 정적 검사·필요 제품 빌드·공급 identity/hash·설치 소비·§5 실제 흐름을 같은 공급으로 확인 | 첫 실패 후에도 독립적으로 가능한 흐름을 확인해 실패/차단/미실행 목록 수집 |
-| 4. 문제 일괄 수정 | 빌드/공급·공통 protocol·앱 진입 차단을 먼저 수정하고 원인/의존성별 나머지를 함께 수정 | 변경이 무효화한 공급·실패 흐름·직접 영향 회귀만 재확인 |
-| 5. 차수 판정 | 성공·실패·차단·미실행과 W9-13/14를 분리하고 준비된 다음 차수로 진행 | 준비되지 않은 Linux/Apple DEFERRED·전체 PARTIAL 유지 |
+| 1. 챕터 범위 모으기 | 현재 diff·§2의 초안·앱 호출 graph·§3의 잔여 계약을 대조하고 해당 챕터의 구현·의존성·확인할 앱/흐름을 정한다 | 챕터 안의 후속 render/control/overlay/service 연결을 함께 포함 |
+| 2. 챕터 전체 일괄 구현 | 의존성 순서로 끝까지 연결하고 필요한 문법·타입·국소 compile·schema 정합성만 확인 | 계획한 구현·소비자 연결과 알려진 빌드 차단을 정리. **검증 대기 / notVerified** 유지 |
+| 3. 챕터 통합 검증 — W9C-06 | 챕터 구현을 모은 시점에 정적 검사·필요 제품 빌드·공급 identity/hash·설치 소비·§5의 관련 실제 흐름을 같은 공급으로 확인 | 첫 실패 후에도 독립적으로 가능한 흐름을 확인해 실패/차단/미실행 목록 수집 |
+| 4. 문제 일괄 수정·재검증 | 빌드/공급·공통 protocol·앱 진입 차단을 먼저 수정하고 나머지 문제도 원인/의존성별로 모아 수정 | 수정 묶음이 끝난 뒤 무효화한 공급·실패 흐름·직접 영향 회귀만 재확인 |
+| 5. 챕터 판정·다음 챕터 | 검증한 완료 범위와 실패/차단/미실행을 기록하고 다음 챕터로 진행. 00–05 연결 후 챕터 간 누락·남은 공통 회귀를 종합 확인 | 차단된 의존 범위는 미완료로 유지하고 독립 챕터는 진행 가능. W9-13/14·대상/profile·전체 PARTIAL 분리 |
+
+- **구현 중 확인:** 다음 구현을 막는 문법·타입·국소 compile·schema 문제만 필요할 때 확인한다. 기능 하나가 연결됐다는 이유로 전체 check/build·pack·독립 설치·Windows/Web 실행을 끼우지 않는다. 알려진 선언 공급 차단을 푸는 국소 빌드는 허용하며 같은 입력이면 반복하지 않는다.
+- **통합 검증 시점:** 해당 챕터의 계획한 구현과 소비자 연결이 모이면 최초 통합 검증을 한 회차로 수행한다. 확인 도중 발견한 독립 문제를 모아 수정하고 필요한 재검증을 수행한다. 한 번 시도했다는 이유로 실패/미실행을 완료 처리하지 않는다.
+- **다음 챕터 진행:** 앞선 챕터의 문제는 남은 의무로 기록한다. 다음 챕터가 그 실패 경로에 의존하면 함께 고치고, 독립적인 범위는 계속 구현한다. 물리 입력·표시·성능 수락과 기본값 전환은 §5–6의 별도 gate를 유지한다.
 
 동일 입력의 영향 없는 PASS는 반복하지 않는다. 공통 wire·ABI/schema·자원 수명 변경은 관련 target/profile 확인을 넓히며, App/디자인/CLI만 바뀌면 해당 package/App을 갱신한다. 한 통합 회차에서 현재 공급과 최소 설치 소비자를 공유하고 입력이 바뀌면 필요한 산출물만 갱신한다. 이전 dist/archive/설치본을 누적 보관하지 않는다.
 
 ## 5. W9C-06 제품 확인과 수락 경계
+
+아래 행렬은 **챕터 끝의 통합 검증과 마지막 종합 확인에 적용할 기준**이다. 매 챕터에는 변경된 계약·소비자·직접 영향 범위에 해당하는 행을 모아 확인한다. 00–05 연결 후에는 아직 확인하지 못한 챕터 간 연결·공통 회귀·전환 gate를 확인하며, 입력과 영향이 같은 기존 PASS를 전부 다시 실행하지 않는다.
 
 | 대상·범위 | 실제 확인할 동작 | 판정 경계 |
 | --- | --- | --- |
@@ -172,25 +191,32 @@
 
 ### 7.1 재개 직후
 
-이 문서 §2–3과 현재 diff·소스·소비자를 읽고 미검증 초안을 이어간다. 아래 첫 제품 빌드는 새 curves 선언으로 runtime을 검사하기 위한 것이며 이후 기능마다 반복할 전체 검증 절차가 아니다.
+이 문서 §2–3과 현재 diff·소스·소비자를 읽고 W9C-00 전체의 구현 범위를 정한 뒤 미검증 초안을 이어간다.
 
 ```powershell
 git status --short
+```
+
+알려진 이전 curves 선언 오류가 후속 구현을 막으면 아래 빌드로 새 선언을 공급한다. 같은 입력으로 이미 공급했다면 재개할 때마다 반복하지 않는다. 선언 공급이 구현을 막지 않으면 챕터 통합 검증 시점에 수행한다.
+
+```powershell
 npm.cmd run build:core
 ```
 
-이 단계에서 나온 compile 오류를 수정한 뒤 Range custom 선언·소비자·곡선 editor animation을 함께 연결한다. 이전 engine dist로 현재 초안을 실행한 결과를 새 코드의 검증으로 세지 않는다.
+선언 오류와 실제 compile 오류를 구분해 해결하고 Range custom 선언·공유 정책·Curve/wire·소비자·곡선 editor animation을 한 챕터로 함께 연결한다. 이 국소 빌드만으로 제품 확인을 완료 처리하지 않으며 이전 engine dist로 현재 초안을 실행한 결과를 새 코드의 검증으로 세지 않는다.
 
 ### 7.2 W9C-06 통합 검증에 진입할 때
 
-계획한 구현과 실제 소비자 연결을 모은 뒤 아래 검사와 변경 package 빌드/pack을 묶어서 실행한다. Core 선언 공급을 먼저 해결하고 전체 type 검사를 진행한다. 실패를 모아 수정한 뒤 해당 단계부터 재개한다.
+해당 챕터의 계획한 구현과 실제 소비자 연결을 모두 모은 뒤 아래 검사 중 변경 범위에 필요한 항목과 package 빌드/pack을 묶어서 실행한다. Core 선언 공급이 필요하면 먼저 해결하고 전체 type 검사를 진행한다. 같은 입력의 유효한 결과·공급은 재사용하며, 실패를 모아 수정한 뒤 무효화된 단계부터 재개한다.
 
 ```powershell
+# Core 소스·선언 입력이 바뀌었고 아직 공급하지 않은 경우
 npm.cmd run build:core
 npm.cmd run check:types
 npm.cmd run lint
 npm.cmd run format:check
 node Nelyx/engine/tools/generate-schema.mjs --check
+# native/Core·wire·provider/host 등 engine 공급 입력이 바뀐 경우
 npm.cmd run build:engine-v2
 git diff --check
 ```
@@ -213,7 +239,7 @@ Root의 `npm.cmd run run:engine-v2:windows`·`npm.cmd run run:engine-v2:web`는 
 - 폐기한 독립 `test:*`·`audit:*`·`experiment:*`·측정 harness를 선행 작업으로 복원하지 않는다. 필요한 의미 비교·malformed wire 확인은 한 실행의 임시 묶음과 제품 흐름에서 수행한다.
 - 현재 dist·실제 build cache·supplier만 남긴다. 검증 로그·immutable receipt·checkpoint/history JSON·이전 dist/staging/archive·독립 설치본·browser profile을 누적하지 않는다.
 - 임시 App·archive·설치본·browser/server·listener·native 창은 실행별 최소 범위로 사용하고 성공/실패/중단 모두 `finally`에서 회수한다. 삭제 전 절대 경로·workspace 안의 소유 범위·남은 process handle을 확인한다.
-- 구현 중에는 연결 범위와 통합 대기 항목을 간단히 갱신한다. 묶음 종료 시 완료 범위·남은 문제/차단·실행 명령·미실행 대상·현재 공급·정확한 다음 시작점을 기록한다. 새 소스에 이전 PASS 수치를 복사하지 않는다.
+- 구현 중에는 챕터의 연결 범위와 통합 대기 항목을 간단히 갱신한다. 챕터 종료 시 완료 범위·남은 문제/차단·실행 명령·미실행 대상·현재 공급·정확한 다음 시작점을 기록한다. 중단 시에는 **구현 중 / 통합 검증 대기 / 일괄 수정 중 / 영향 범위 재검증 대기** 중 어디에서 이어갈지 명시한다. 새 소스에 이전 PASS 수치를 복사하지 않는다.
 
 ### 7.4 이전 정리 미완료의 별도 인계
 
@@ -241,6 +267,6 @@ Root의 `npm.cmd run run:engine-v2:windows`·`npm.cmd run run:engine-v2:web`는 
 
 **현재 상태:** **문서 OPEN / 재개 대기 · 구현 PAUSED / PARTIAL**. W9B-00·00-H 완료와 기존 부분 PASS를 보존하며 Range/editor 초안은 **notVerified**다. Source/dist 불일치와 Core runtime 타입 실패를 이어받는다. 전체 **compatible=false**, 두 성능 flag **false**, 물리/display/scanout **notVerified**, Android **stale/notVerified**, Linux·iOS/macOS **DEFERRED**다.
 
-**다음 시작점:** W9C-00, §3.1·§7.1의 `npm.cmd run build:core`. 새 선언으로 실제 compile을 확인한 뒤 Range extension·실제 Demo·editor animation을 묶어 완성하고 W9C-06에서 공급·설치·제품 확인을 수행한다.
+**다음 시작점:** W9C-00, §3.1·§7.1의 챕터 전체 구현. Range extension·공유 정책·Curve/wire·실제 Demo·editor animation을 함께 완성한다. 이전 선언 오류가 구현을 막으면 `npm.cmd run build:core`로 먼저 해결하고, 챕터 구현 후 W9C-06에서 공급·설치·제품 확인과 문제 일괄 수정·영향 범위 재검증을 수행한 뒤 W9C-01로 진행한다.
 
-**다음 재개 요청:** `work9-c.md의 W9C-00부터 남은 Windows/Web 구현을 묶어서 진행하고 W9C-06 통합 검증 후 나온 문제를 수정해줘`
+**다음 재개 요청:** `work9-c.md의 W9C-00부터 Windows/Web 작업을 챕터별로 전체 구현한 뒤 각 챕터 끝에 W9C-06 통합 검증·문제 일괄 수정·영향 범위 재검증을 수행하고 다음 챕터로 계속 진행해줘`
