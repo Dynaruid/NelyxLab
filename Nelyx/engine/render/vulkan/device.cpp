@@ -178,6 +178,13 @@ struct Device::Impl {
   VkSurfaceKHR windowSurface{};
   VkSwapchainKHR swapchain{};
   VkFence acquireFence{};
+  VkSemaphore acquiredSemaphore{};
+  uint32_t acquiredIndex=UINT32_MAX;
+  bool gpuPending=false,gpuFailed=false,acquirePending=false;
+  std::unique_ptr<skgpu::graphite::Recording> windowRecording;
+  WindowFrameTiming windowTiming;
+  std::chrono::steady_clock::time_point windowSubmitted;
+  static double elapsedMs(std::chrono::steady_clock::time_point start){return std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();}
   struct WindowImage {sk_sp<SkSurface> surface;VkSemaphore rendered{};VkFence presented{};bool pending=false;};
   std::vector<WindowImage> windowImages;
   VkExtent2D extent{};
@@ -351,17 +358,47 @@ struct Device::Impl {
     checked(api.get<PFN_vkWaitForFences>("vkWaitForFences")(api.device,1,&image.presented,VK_TRUE,5000000000ull),"Vulkan presentation resource fence");
     image.pending=false;
   }
+  bool windowFrameComplete(){
+    context->checkAsyncWorkCompletion();
+    if(gpuFailed)throw std::runtime_error("Asynchronous window GPU work failed");
+    if(gpuPending)return false;
+    for(auto& image:windowImages)if(image.pending){
+      const auto result=api.get<PFN_vkGetFenceStatus>("vkGetFenceStatus")(api.device,image.presented);
+      if(result==VK_NOT_READY)return false;
+      checked(result,"Vulkan presentation resource status");image.pending=false;
+    }
+    if(windowRecording)windowTiming.resourcesObservedMs=elapsedMs(windowSubmitted);
+    windowRecording.reset();return true;
+  }
+  bool acquireWindowFrame(){
+    if(!swapchain||acquiredIndex!=UINT32_MAX)throw std::runtime_error("Invalid asynchronous window acquisition");
+    if(!windowFrameComplete())return false;
+    windowTiming={};const auto started=std::chrono::steady_clock::now();
+    checked(api.get<PFN_vkResetFences>("vkResetFences")(api.device,1,&acquireFence),"reset acquire fence");
+    const auto result=api.get<PFN_vkAcquireNextImageKHR>("vkAcquireNextImageKHR")(api.device,swapchain,0,acquiredSemaphore,acquireFence,&acquiredIndex);
+    windowTiming.acquireMs=elapsedMs(started);
+    if(result==VK_NOT_READY||result==VK_TIMEOUT){acquiredIndex=UINT32_MAX;return false;}
+    if(result==VK_ERROR_OUT_OF_DATE_KHR){acquiredIndex=UINT32_MAX;throw SurfaceChanged("Vulkan swapchain changed before acquisition");}
+    if(result!=VK_SUBOPTIMAL_KHR)checked(result,"vkAcquireNextImageKHR");
+    acquirePending=true;
+    return true;
+  }
   void releaseWindow(skgpu::graphite::Recorder* recorder){
     for(auto& image:windowImages)waitPresent(image);
     // Drop an abandoned pre-insertion draw before freeing its wrapped image. Asset
     // uploads are completed by loadAssetBytes, so no live upload is discarded here.
     if(recorder&&swapchain){auto abandoned=recorder->snap();abandoned.reset();}
     if(context&&!context->submit(skgpu::graphite::SyncToCpu::kYes))throw std::runtime_error("Window GPU drain failed");
+    if(gpuFailed||gpuPending)throw std::runtime_error("Window completion unconfirmed");
+    if(acquirePending){checked(api.get<PFN_vkWaitForFences>("vkWaitForFences")(api.device,1,&acquireFence,VK_TRUE,5000000000ull),"Abandoned acquire completion");acquirePending=false;}
+    windowRecording.reset();
     for(auto& image:windowImages)if(image.surface){image.surface.reset();}
     if(recorder)recorder->freeGpuResources();if(context)context->freeGpuResources();
     for(auto& image:windowImages){if(image.rendered){api.get<PFN_vkDestroySemaphore>("vkDestroySemaphore")(api.device,image.rendered,nullptr);}if(image.presented){api.get<PFN_vkDestroyFence>("vkDestroyFence")(api.device,image.presented,nullptr);}}
     windowImages.clear();
     if(acquireFence){api.get<PFN_vkDestroyFence>("vkDestroyFence")(api.device,acquireFence,nullptr);acquireFence={};}
+    if(acquiredSemaphore){api.get<PFN_vkDestroySemaphore>("vkDestroySemaphore")(api.device,acquiredSemaphore,nullptr);acquiredSemaphore={};}
+    acquiredIndex=UINT32_MAX;
     if(swapchain){api.get<PFN_vkDestroySwapchainKHR>("vkDestroySwapchainKHR")(api.device,swapchain,nullptr);swapchain={};}
     extent={};
   }
@@ -394,30 +431,45 @@ struct Device::Impl {
       image.surface=SkSurfaces::WrapBackendTexture(recorder,backend,nullptr,nullptr);if(!image.surface)throw std::runtime_error("Graphite Vulkan swapchain surface wrapping failed");
     }
     VkFenceCreateInfo fence{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};checked(api.get<PFN_vkCreateFence>("vkCreateFence")(api.device,&fence,nullptr,&acquireFence),"acquire fence");
+    VkSemaphoreCreateInfo semaphore{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};checked(api.get<PFN_vkCreateSemaphore>("vkCreateSemaphore")(api.device,&semaphore,nullptr,&acquiredSemaphore),"acquire semaphore");
   }
-  void present(skgpu::graphite::Recorder* recorder,SkSurface* offscreen){
+  void present(skgpu::graphite::Recorder* recorder,SkSurface* offscreen,bool asynchronous=false){
     if(!swapchain||!offscreen)throw std::runtime_error("Vulkan window surface unavailable");
     allocator->beginReplay();
-    uint32_t index=0;checked(api.get<PFN_vkResetFences>("vkResetFences")(api.device,1,&acquireFence),"reset acquire fence");
+    uint32_t index=acquiredIndex;
+    if(asynchronous){if(index==UINT32_MAX)throw std::runtime_error("Window frame was not acquired");}
+    else {
+    checked(api.get<PFN_vkResetFences>("vkResetFences")(api.device,1,&acquireFence),"reset acquire fence");
     auto acquired=api.get<PFN_vkAcquireNextImageKHR>("vkAcquireNextImageKHR")(api.device,swapchain,1000000000ull,VK_NULL_HANDLE,acquireFence,&index);
     if(acquired==VK_ERROR_OUT_OF_DATE_KHR)throw SurfaceChanged("Vulkan swapchain changed before acquisition");
     if(acquired!=VK_SUCCESS&&acquired!=VK_SUBOPTIMAL_KHR)checked(acquired,"vkAcquireNextImageKHR");
     checked(api.get<PFN_vkWaitForFences>("vkWaitForFences")(api.device,1,&acquireFence,VK_TRUE,5000000000ull),"Vulkan acquire fence");
-    auto& image=windowImages.at(index);waitPresent(image);
+    }
+    auto& image=windowImages.at(index);if(!asynchronous)waitPresent(image);
     bool insertionAttempted=false;
     try{
-      // This owner submits synchronously before any next-frame mutation of the shared backing.
+      // Async admission guarantees the previous use of the backing is retired.
       auto snapshot=SkSurfaces::AsImage(sk_ref_sp(offscreen));if(!snapshot)throw std::runtime_error("Graphite offscreen image unavailable");image.surface->getCanvas()->drawImage(snapshot,0,0);
       auto recording=recorder->snap();if(!recording)throw std::runtime_error("Graphite window recording unavailable");
       skgpu::graphite::InsertRecordingInfo insert;insert.fRecording=recording.get();insert.fTargetSurface=image.surface.get();auto state=skgpu::MutableTextureStates::MakeVulkan(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,graphics);insert.fTargetTextureState=&state;
       auto signal=skgpu::graphite::BackendSemaphores::MakeVulkan(image.rendered);insert.fNumSignalSemaphores=1;insert.fSignalSemaphores=&signal;
+      auto wait=skgpu::graphite::BackendSemaphores::MakeVulkan(acquiredSemaphore);
+      if(asynchronous){
+        insert.fNumWaitSemaphores=1;insert.fWaitSemaphores=&wait;
+        gpuPending=true;insert.fFinishedContext=this;
+        insert.fFinishedProc=[](void* value,skgpu::CallbackResult result){auto& self=*static_cast<Impl*>(value);self.gpuFailed=result!=skgpu::CallbackResult::kSuccess;self.gpuPending=false;if(!self.gpuFailed){self.acquirePending=false;self.windowTiming.gpuObservedMs=elapsedMs(self.windowSubmitted);}};
+      }
       insertionAttempted=true;
       if(context->insertRecording(insert)!=skgpu::graphite::InsertStatus::kSuccess)throw std::runtime_error("Graphite window recording rejected at "+std::to_string(extent.width)+"x"+std::to_string(extent.height)+allocator->replayFailure());
-      if(!context->submit(skgpu::graphite::SyncToCpu::kYes))throw std::runtime_error("Graphite window GPU submit failed");
+      if(asynchronous)windowRecording=std::move(recording);
+      windowSubmitted=std::chrono::steady_clock::now();
+      if(!context->submit(asynchronous?skgpu::graphite::SyncToCpu::kNo:skgpu::graphite::SyncToCpu::kYes))throw std::runtime_error("Graphite window GPU submit failed");
+      windowTiming.submitMs=elapsedMs(windowSubmitted);
       checked(api.get<PFN_vkResetFences>("vkResetFences")(api.device,1,&image.presented),"reset present fence");
       VkSwapchainPresentFenceInfoEXT fences{VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT};fences.swapchainCount=1;fences.pFences=&image.presented;
       VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};present.pNext=&fences;present.waitSemaphoreCount=1;present.pWaitSemaphores=&image.rendered;present.swapchainCount=1;present.pSwapchains=&swapchain;present.pImageIndices=&index;
-      image.pending=true;const auto result=api.get<PFN_vkQueuePresentKHR>("vkQueuePresentKHR")(queue,&present);waitPresent(image);
+      const auto presentStarted=std::chrono::steady_clock::now();
+      image.pending=true;const auto result=api.get<PFN_vkQueuePresentKHR>("vkQueuePresentKHR")(queue,&present);windowTiming.presentMs=elapsedMs(presentStarted);acquiredIndex=UINT32_MAX;if(!asynchronous)waitPresent(image);
       if(result==VK_ERROR_OUT_OF_DATE_KHR)throw SurfaceChanged("Vulkan swapchain changed before presentation");
       if(result!=VK_SUCCESS&&result!=VK_SUBOPTIMAL_KHR)checked(result,"vkQueuePresentKHR");
     }catch(...){
@@ -507,6 +559,10 @@ std::shared_ptr<const Win32Frame> Device::renderWin32Frame(std::unique_ptr<skgpu
 }
 void Device::resizeWindow(skgpu::graphite::Recorder* recorder,uint32_t width,uint32_t height){if(impl->drained)throw std::runtime_error("Vulkan owner drained");impl->resizeWindow(recorder,width,height);}
 void Device::present(skgpu::graphite::Recorder* recorder,SkSurface* surface){if(impl->drained)throw std::runtime_error("Vulkan owner drained");impl->present(recorder,surface);}
+bool Device::windowFrameComplete(){return impl->windowFrameComplete();}
+WindowFrameTiming Device::windowFrameTiming()const{return impl->windowTiming;}
+bool Device::acquireWindowFrame(){return impl->acquireWindowFrame();}
+void Device::presentWindowFrame(skgpu::graphite::Recorder* recorder,SkSurface* surface){impl->present(recorder,surface,true);}
 void Device::releaseWindow(skgpu::graphite::Recorder* recorder){impl->releaseWindow(recorder);}
 void Device::retire(){if(!context()->submit(skgpu::graphite::SyncToCpu::kYes))throw std::runtime_error("Graphite GPU submit failed");checked(impl->api.get<PFN_vkQueueWaitIdle>("vkQueueWaitIdle")(impl->queue),"vkQueueWaitIdle");}
 uint32_t Device::outstandingDmaBufFrames() const {

@@ -44,6 +44,7 @@ struct Prepared {
     std::vector<int> characters,words,lines;
   };
   uint64_t id, metrics, device;
+  std::vector<size_t> subtreeEnds;
   std::map<uint64_t, sk_sp<SkPicture>> pictures;
   std::map<uint64_t,SkPath> paths;
   uint64_t bytes = 0;
@@ -186,6 +187,12 @@ class ContentProvider {
   std::shared_ptr<const Prepared> prepare(const Preparation& p) {
     ExternalLease staging(ledger,1,4,wire::limits::resourceBytes);
     auto result = std::make_shared<Prepared>();result->id=p.id;result->metrics=p.metrics.epoch;result->device=p.metrics.device;
+    result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,p.document->count*sizeof(size_t)));
+    result->subtreeEnds.reserve(p.document->count);
+    std::function<void(Handle)> topology=[&](Handle node){const auto index=result->subtreeEnds.size();result->subtreeEnds.push_back(0);
+      for(const auto child:p.document->children[node.slot])topology(child);
+      result->subtreeEnds[index]=result->subtreeEnds.size();};
+    for(const auto root:p.document->children[0])topology(root);
     result->memory.push_back(paragraphProvider.fontMemory);result->memory.push_back(paragraphProvider.cacheMemory);
     std::map<uint64_t,std::shared_ptr<const CachedPicture>> nextRecorded;
     uint64_t nextCachedBytes=0;
@@ -325,8 +332,8 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
     canvas->clear(0xfff4f6fa);SkAutoCanvasRestore frameRestore(canvas,true);canvas->scale(float(scale),float(scale));
     snapshots.begin(frame);
     ExternalLease traversalMemory(frame.scene->document->lease.ledger,2,2,frame.items.size()*(sizeof(size_t)*2+48));
-    std::vector<size_t> ends(frame.items.size(),frame.items.size()),indices;
-    for(size_t i=0;i<frame.items.size();++i){while(!indices.empty()&&frame.items[indices.back()].depth>=frame.items[i].depth){ends[indices.back()]=i;indices.pop_back();}indices.push_back(i);}
+    const auto& ends=prepared.subtreeEnds;
+    if(ends.size()!=frame.items.size())throw std::runtime_error("Prepared draw topology differs");
     std::function<void(SkCanvas*,size_t,size_t,Affine,double)> drawRange;
     drawRange=[&](SkCanvas* target,size_t begin,size_t end,Affine overrideMatrix,double pixelScale){
     auto* canvas=target;const auto baseDepth=begin<end?frame.items[begin].depth:0;

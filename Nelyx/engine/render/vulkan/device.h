@@ -25,6 +25,7 @@ struct DmaBufDeviceOptions { std::vector<uint64_t> modifiers; };
 // Exact adapter selected by the owning Windows Composition/D3D device. This
 // prepares external texture/fence import; it does not create another window.
 struct Win32DeviceOptions { std::array<uint8_t,8> adapterLuid{}; };
+struct WindowFrameTiming { double acquireMs=0,submitMs=0,presentMs=0,gpuObservedMs=0,resourcesObservedMs=0; };
 // Borrowed native COM inputs. The import retains these objects; no JSI/View
 // owner is permitted in the native frame. D3D must have completed waitValue.
 struct Win32ProducerTiming {
@@ -102,6 +103,12 @@ class Device : public std::enable_shared_from_this<Device> {
   bool hasWindow() const;
   void resizeWindow(skgpu::graphite::Recorder*,uint32_t width,uint32_t height);
   void present(skgpu::graphite::Recorder*,SkSurface*);
+  // One asynchronous WSI slot. Completion includes GPU and presentation-resource
+  // retirement, and does not claim physical display/scanout observation.
+  bool windowFrameComplete();
+  WindowFrameTiming windowFrameTiming() const;
+  bool acquireWindowFrame();
+  void presentWindowFrame(skgpu::graphite::Recorder*,SkSurface*);
   void releaseWindow(skgpu::graphite::Recorder*);
   std::shared_ptr<const DmaBufFrame> exportDmaBufFrame(
     std::unique_ptr<skgpu::graphite::Recorder>,uint32_t width,uint32_t height,

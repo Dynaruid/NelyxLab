@@ -18,10 +18,17 @@ class RenderProvider {
   std::unique_ptr<skgpu::graphite::Recorder> recorder;
   sk_sp<SkSurface> surface;
   uint32_t width=0,height=0;
+  struct FrameSlot {
+    std::shared_ptr<const Frame> frame;
+    std::shared_ptr<const Prepared> prepared;
+    std::unique_ptr<ExternalLease> paths,layers;
+  };
+  std::unique_ptr<FrameSlot> slot;
  public:
   uint64_t draws=0;
   NativePaintCounts paintCounts;
   double recordAndBackingElapsedMs=0,submitElapsedMs=0;
+  bool needsMetrics=false;
   RenderProvider(uint64_t window,uint32_t uiThread,std::shared_ptr<Ledger> book):ledger(std::move(book)) {
     cacheMemory=std::make_unique<ExternalLease>(ledger,2,3,32*1024*1024);
     device=std::make_shared<nelyx::vulkan::Device>(nelyx::vulkan::WindowTarget{nelyx::vulkan::WindowKind::Win32,0,window,uiThread});
@@ -36,7 +43,13 @@ class RenderProvider {
     // Keep the conservative GPU reservation: in-use resources and driver
     // allocations are not proven to disappear when a cache limit is reduced.
   }
-  bool draw(const Frame& frame,const Prepared& prepared) {
+  bool complete() {return device->windowFrameComplete();}
+  nelyx::vulkan::WindowFrameTiming timing()const{return device->windowFrameTiming();}
+  void retireFrame(){if(!complete())throw std::runtime_error("Window slot is still in use");slot.reset();}
+  bool draw(std::shared_ptr<const Frame> frameOwner,std::shared_ptr<const Prepared> preparedOwner) {
+    needsMetrics=false;
+    const auto& frame=*frameOwner;const auto& prepared=*preparedOwner;
+    if(slot)throw std::runtime_error("Window frame slot is occupied");
     try {
     const auto started=qpcSeconds();
     const auto scale=frame.scene->metrics.scale;
@@ -49,6 +62,8 @@ class RenderProvider {
       surface=SkSurfaces::RenderTarget(recorder.get(),SkImageInfo::Make(w,h,kRGBA_8888_SkColorType,kPremul_SkAlphaType));
       if(!surface)throw std::runtime_error("Native GPU surface unavailable");width=w;height=h;backingMemory=std::move(nextMemory);
     }
+    if(!device->acquireWindowFrame())return false;
+    slot=std::make_unique<FrameSlot>();slot->frame=std::move(frameOwner);slot->prepared=std::move(preparedOwner);
     uint64_t pathBytes=0,layerBytes=0;for(const auto& item:frame.items){const auto& n=frame.scene->document->get(item.node);
       if(item.paint)pathBytes+=item.paint->paths.size()*256+1024;
       if(item.opacity<=0||!item.world.inverse())continue;
@@ -56,16 +71,20 @@ class RenderProvider {
       if(n.snapshot&&n.snapshot->live.opacity<1)layerBytes+=uint64_t(w)*h*4;
       if(item.flags&wire::nodeFlags::clipSaveLayer)layerBytes+=uint64_t(w)*h*4;}
     for(const auto& item:frame.items)layerBytes+=nativeMaskLayerBytes(item,scale,w,h);
-    ExternalLease pathMemory(ledger,2,2,pathBytes);
-    ExternalLease layers(ledger,2,3,layerBytes);
+    slot->paths=std::make_unique<ExternalLease>(ledger,2,2,pathBytes);
+    slot->layers=std::make_unique<ExternalLease>(ledger,2,3,layerBytes);
     drawPreparedFrame(surface->getCanvas(),frame,prepared,scale,paintCounts,snapshots);
     const auto recorded=qpcSeconds();recordAndBackingElapsedMs=(recorded-started)*1000;
-    device->present(recorder.get(),surface.get());submitElapsedMs=(qpcSeconds()-recorded)*1000;++draws;return true;
+    device->presentWindowFrame(recorder.get(),surface.get());submitElapsedMs=(qpcSeconds()-recorded)*1000;++draws;return true;
     }catch(const nelyx::vulkan::SurfaceChanged&){
-      surface.reset();device->releaseWindow(recorder.get());backingMemory.reset();width=height=0;return false;
+      device->releaseWindow(recorder.get());slot.reset();surface.reset();backingMemory.reset();width=height=0;needsMetrics=true;return false;
     }
   }
-  void close(){if(!device)return;device->retire();snapshots.clear();surface.reset();device->releaseWindow(recorder.get());recorder.reset();device->drain();device.reset();backingMemory.reset();cacheMemory.reset();}
-  ~RenderProvider(){try{close();}catch(...){device.reset();}}
+  void close(){if(!device)return;device->releaseWindow(recorder.get());device->retire();slot.reset();snapshots.clear();surface.reset();recorder.reset();device->drain();device.reset();backingMemory.reset();cacheMemory.reset();}
+  ~RenderProvider(){try{close();}catch(...){
+    // An unconfirmed timeout/device loss is not permission to release leases.
+    struct Retained {std::shared_ptr<nelyx::vulkan::Device> device;std::unique_ptr<skgpu::graphite::Recorder> recorder;sk_sp<SkSurface> surface;native::SnapshotImages snapshots;std::unique_ptr<FrameSlot> slot;std::unique_ptr<ExternalLease> backing,cache;};
+    (void)new Retained{std::move(device),std::move(recorder),std::move(surface),std::move(snapshots),std::move(slot),std::move(backingMemory),std::move(cacheMemory)};
+  }}
 };
 }

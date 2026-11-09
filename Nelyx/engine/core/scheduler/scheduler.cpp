@@ -482,7 +482,14 @@ uint32_t View::enqueue(Input p) {
   if(p.snapshot&&published&&p.snapshot->scene!=published->scene){
     geometryCurrent=false;
     if(tapContinuation&&p.snapshot->scene->metrics.epoch==metrics.epoch&&p.snapshot->device==metrics.device)geometryCurrent=true;
-    else if(p.flags&2u){
+    else if(standalone){
+      // A wheel packet collected during a paint-only App update retains its
+      // original hit geometry, just like pointer admission below. Do not lose
+      // the delta merely because ink/hover published a new document meanwhile.
+      const auto hit=target(p.x,p.y,p.snapshot.get());
+      geometryCurrent=hit&&hit==target(p.x,p.y,published.get())&&
+        p.snapshot->sameInputGeometry(*published,hit);
+    }else if(p.flags&2u){
       const Input* queuedBegin=nullptr;
       if(p.phase!=wire::phases::begin&&!(p.flags&4u))
         for(auto it=input.rbegin();it!=input.rend();++it)if(it->stream==p.stream&&(it->flags&2u)&&!(it->flags&4u)){

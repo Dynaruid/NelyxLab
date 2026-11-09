@@ -26,6 +26,31 @@ export type Viewport = {
   focused: boolean;
 };
 export type ActorPost = (value: Record<string, unknown>, transfer?: ArrayBuffer[]) => void;
+function changeNotifier(post: ActorPost): (state: EngineResponse) => void {
+  let previous = '';
+  return (state) => {
+    const key = [
+      state.document,
+      state.publication,
+      state.metrics,
+      state.device,
+      state.failedDocument,
+      state.preparation,
+      state.layoutBuildRequest?.id,
+      state.visible,
+      state.focused,
+      state.focusWork,
+      state.editingWork,
+      state.controlWork,
+      state.appFrameWork,
+      state.consumedThrough,
+    ].join('/');
+    if (key !== previous || state.interactionCount) {
+      previous = key;
+      post({ kind: 'engine-change' });
+    }
+  };
+}
 export function preparedTransfers(packet: PreparedPictures): ArrayBuffer[] {
   return [
     ...packet.pictures.map((p) => p.bytes),
@@ -36,6 +61,7 @@ export function preparedTransfers(packet: PreparedPictures): ArrayBuffer[] {
   ];
 }
 export class ContentActor {
+  private readonly notifyChange = changeNotifier((value) => this.post(value));
   private readonly fontPreparation: FontPreparation;
   private scheduled = false;
   private stopped = false;
@@ -149,6 +175,7 @@ export class ContentActor {
         body(8, (v) => v.setUint32(0, p.limits.contentPerStep, true)),
       );
       if (state.status !== p.statuses.ok || state.closed) return;
+      this.notifyChange(state);
       if (state.preparation !== this.timingPreparation) {
         this.timingPreparation = state.preparation;
         this.timing = {
@@ -299,6 +326,7 @@ export class ContentActor {
   }
 }
 export class RenderActor {
+  private readonly notifyChange = changeNotifier((value) => this.post(value));
   private readonly fontPreparation: FontPreparation;
   private stopped = false;
   private running: Promise<void> | undefined;
@@ -562,6 +590,7 @@ export class RenderActor {
     }
     this.last = state;
     const events = request(this.module, this.engine, p.opcodes.pollEvents);
+    this.notifyChange(state);
     if (submission !== null)
       this.publishedTiming = {
         domain: 'owner-performance',

@@ -1,6 +1,8 @@
 # Windows engine v2 스크롤·호버·클릭 지연 검토
 
-작성: **2026-11-09 KST** · 상태: **검토 및 개선 설계 완료 / 구현 전**
+작성·갱신: **2026-11-09 KST** · 상태: **P0/P1 및 P2/P3 일부 구현·Windows/Web 통합 확인 / 전체 PARTIAL**
+
+**현재 구현과 검증은 §9에 기록한다. §2–8은 수정 전 검토 기록이며, 그 안의 source hash·실행 표본·“문서만 변경”은 당시 시점에 한정한다. 전체 증분 scene 전환·bounded 선행 준비·물리 성능 수락을 완료한 것은 아니다.**
 
 대상: `sample/nelyx-demo-app/engine-v2`, Windows App SDK, Hermes App + C++ Core + Skia Graphite/Vulkan.
 
@@ -273,3 +275,49 @@ P1 이후에도 CPU 작업 자체가 budget을 넘는다면 P2를 이어간다. 
 - **변경은 이 문서뿐**이다. 엔진 구현·재빌드·새 성능 계측기 추가·Doroti 실행 비교·물리 트랙패드·최대화 성능·전체 프레임 분포 검증은 이번에 수행하지 않았다.
 
 다음 구현 시작점은 **P0의 stage/queue 계측 → P1-A 이벤트 전달과 P1-B GPU lifetime/비동기 제출 설계**다. 단순 cache 확대나 또 다른 전체 rewrite에 앞서 이 두 지연 경로를 우선 제거하고 동일 조건으로 비교한다.
+
+## 9. 2026-11-09 구현 및 통합 확인
+
+### 9.1 반영한 변경
+
+- **P0 계측:** Windows host에 최근 **1,024 dispatch / 256 frame** 고정 크기 ring을 추가했다. stdin `trace`에서 sequence, opcode/request, consumed input, document/preparation/submission/publication, 큐 체류, Core lock 대기·보유, frame record/output, acquire/Graphite submit/present API 및 완료 관측 시간을 읽는다. hot path에는 파일·콘솔 출력이 없다. 덮어쓴 표본 수를 함께 반환한다. `gpuObservedMs`는 완료 callback을 확인한 시간이며 GPU 순수 실행시간이 아니다. transaction의 unlock 구간은 lock 보유 시간에서 제외한다.
+- **P1-A App 전달:** 공통 transport에 선택적 변경 알림 구독을 연결했다. Windows는 Hermes App owner만 JS를 호출하고, Web은 Content/Render→coordinator→App port로 알린다. 지원 host에서는 SceneWriter의 16ms polling과 OriginalWidgetHost의 8ms preparation 재조회를 제거했다. 알림 revision·진행 중 poll의 후속 요청 병합·잔여 interaction batch 처리·종료 시 readiness wait 해제를 포함한다. Android 등 미지원 host는 기존 polling fallback이다.
+- **Windows App wake:** Hermes timer의 다음 실제 deadline까지 condition variable로 기다린다. 기존 2ms pump를 계속 돌리지 않는다. wake revision은 대기 mutex로 동기화한다. interaction/raw poll은 일반 Content job 대기열을 거치지 않고 App owner에서 짧은 Core dispatch를 수행한다. 일반 transaction 순서와 ACK는 유지한다.
+- **P1-B 출력:** v2 Windows는 **GPU slot 1개**로 제한한다. timeout=0 acquire와 GPU wait semaphore, `SyncToCpu::kNo`, Graphite finished callback 및 present-resource fence의 nonblocking status 확인을 연결했다. Core tick은 slot 대기와 별도로 실행할 수 있다. offscreen은 완료 확인 뒤에만 다시 쓴다. slot은 Frame·Prepared·recording·path/layer lease를 보유한다. `releaseFrame(gpuObserved)`와 publish는 완료 확인 뒤에 수행하며 scanout으로 간주하지 않는다. resize/close의 drain은 유지하고, 완료 불명 실패는 자원을 조기 해제하지 않는다. 구 renderer의 동기 `present()` API는 별도 유지한다.
+- **P2 일부:** 같은 Scene의 semantic text/custom-action 병합을 재사용한다. 노출 집합·modal root·선형 transform이 같고 각 semantic sibling group의 공통 이동만 바뀌면 정렬도 재사용한다. 그 외에는 정렬을 다시 한다. bounds/hit/clip/visibility는 매 frame 갱신한다. native provider의 subtree 종료 index를 Prepared별로 보관하며, 동일 SceneWriter record는 다시 할당·config diff하지 않는다.
+- **P3 일부:** indexed variable list의 미측정 row를 한 번에 최대 **8개** 요청한다. estimate는 요청량 선택에만 쓰고 Content 실측 후 range를 다시 계산한다. viewport보다 큰 첫 row에서는 실제 필요한 range로 줄어드는 회귀를 확인했다. Demo capacity=2와 preparation=disabled는 바꾸지 않았다.
+- **추가 입력 수정:** click/hover의 paint-only document 교체와 wheel이 겹치면 이전 publication의 wheel을 무조건 stale로 거부하던 Core 경로를 수정했다. 같은 스크롤 대상과 전체 조상 input geometry가 확인될 때만 받아들인다. viewport geometry가 달라진 stale wheel은 계속 거부한다. 새 publication으로 무조건 재전송하거나 입력 hit 검사를 생략하지 않는다.
+
+통합 중 발견한 activated Prepared 선택 지연, App wake와 job mutex의 lock 순서 충돌, host 종료 중 notification wait 잔류도 수정했다. 실패했던 실행은 PASS에 포함하지 않았다. 정상 종료하지 못했던 이번 소유 테스트 process는 종료했고, 그 후 새 공급으로 재확인했다.
+
+### 9.2 공급과 검증
+
+| 항목 | 결과 |
+| --- | --- |
+| 최종 engine source/supply | `2416cdf4ae7075a0567e22100b6c5ff3927f245e9eff4e2e68283c6e72004d32` 일치, manifest **355 files** SHA-256 확인 |
+| wire | ABI **2**, schema **896476372**, wire 변경 없음 |
+| 빌드 | MSVC Core·Windows App SDK, Wasm single-worker/threaded, Core/SDK, Demo Windows **861** / Web **860** modules |
+| source 회귀 | `node Nelyx/eng/check-event-notifications.mjs`: early/lost wake, poll 중 알림 병합, 잔여 batch, idle, fallback, host/view 종료 구독 해제 PASS |
+| native 회귀 | `node Nelyx/eng/check-frame-reuse.mjs`: 6가지 이동/opacity 조건에서 full semantics 재계산과 비교, list batch/실측 범위, paint-only wheel 허용·geometry 변경 거부, ledger=0 PASS |
+| Web 실제 앱 | `node Nelyx/eng/check-event-web.mjs`: threaded/single-worker에서 클릭 직후 wheel, resident 왕복 4회, 긴 이동·반전, resize, 오류 없음, 종료 reservedBytes=0 / workersStopped=true |
+| Windows 실제 앱 | §2.2와 같은 일반 CLI. Filled callback 표시, 목록 경계 이동, resident 왕복, 오류 없음. 최종 exit=0 / reservedBytes=0 / memoryTotal=0 / workersJoined=true |
+| Windows lifecycle | 직전 동일 비동기 출력 구현에서 최대화 1280×729.5 logical, 최소화 visible=false, 복귀 visible=true, 정상 종료 확인. 마지막 wheel admission 수정 이후 최대화/hide를 다시 수행한 것은 아님 |
+| 정적 확인 | Core·SDK 타입, Web host 타입(엔진 빌드), 변경 TS/JS lint·format·diff 검사 |
+
+Web 자동 실행의 renderer는 **ANGLE SwiftShader**다. 기능·수명 회귀이며 RTX의 Web 성능 결과로 해석하지 않는다. Windows는 **RTX 4060 Laptop GPU**, DWM composition interval 약 **6.0605ms**, 물리 트랙패드가 아닌 Computer Use 합성 입력이다.
+
+### 9.3 확인한 비용과 한계
+
+- **Windows resident 왕복:** offset **176→184→176**, document **21**, layoutWork **6,863**, paragraphLayouts **338**, pictures **1,121** 유지, queued=0. 마지막 두 frame의 Core **1.219/1.105ms**, record **0.454/0.573ms**, output **0.669/0.704ms**. acquire **0.023/0.030ms**, Graphite submit **0.406/0.383ms**, present API **0.060/0.056ms**. GPU 완료 관측 **2.566/6.790ms**는 위 CPU 호출과 별개다.
+- 최종 Windows **38 frame** ring의 output 중앙값은 **0.430ms**였다. 시작/클릭/목록 준비가 섞인 표본이며 warm p95/FPS로 보고하지 않는다. §2의 과거 단일 submit 15.208ms와 동일 인과 frame을 대조한 수치는 아니다.
+- **Web resident 왕복:** 최종 재번들 재확인에서 threaded document **19**, layoutWork **5,593**, measurement **49** 유지. single-worker document **19**, layoutWork **5,601**, measurement **49** 유지. 양쪽에서 최초 click→wheel은 **5 collected / 5 dispatched / 0 rejected**, 왕복 뒤 **9/9/0**, queued=0이었다. 변경 전 같은 빠른 순서에서는 5/4/1과 offset=0이 재현됐다.
+- **Cold/resize 비용은 남음:** 직전 Windows lifecycle 실행의 첫 backing 준비 **372ms**, resize backing 준비 **172ms**, 첫 내용 recording/output **40ms** 수준의 표본이 있었다. 정상 frame의 GPU 완료 CPU wait를 없앤 것과 초기 GPU pipeline/큰 backing 비용을 없앤 것은 다르다. resize 직후 이전 크기 장면과 빈 오른쪽 영역이 잠깐 관측됐으므로 resize 표시 성능·무깜빡임을 PASS로 판정하지 않는다.
+- GPU slot 대기 중 tick을 수행하는 경로는 연결했으나, 이번 제한된 입력 trace에서 **실제로 아직 GPU가 busy인 순간의 input→tick p95**를 산출하지 않았다. notification→JS callback 전체 분포, builder request별 왕복 분포, actual display interval/scanout도 미측정이다.
+
+### 9.4 남은 설계와 수락 범위
+
+**P0 전체 인과 latency와 P2/P3 전체 개편은 완료가 아니다.** dirty subtree/edge만 방문하는 SceneWriter 저장소·동적 등록 attach/update/detach 수명, Content 계산의 immutable snapshot/시간 deadline, property-only 독립 revision, 전체 draw topology/property 분리, 모든 cache 계층의 hit/miss/eviction 계측은 남는다. semantics 병합/정렬과 native replay index 재사용을 이 전체 전환으로 확대하지 않는다.
+
+여러 independent builder의 동시 range protocol과 v2 `bounded preparation: observed-budget`도 미구현이며 기존 명시적 거부를 유지한다. 첫 방문과 eviction 후 복귀를 resident 수치와 합치지 않는다. 이번 확인은 Demo 대상이며 Gallery·Android 공급/실앱·설치 소비자 전체·IME/UIA 세부 행렬·device-loss 주입·물리 트랙패드·전체 표시 성능을 재수락한 것이 아니다. Android는 공통 Core 변경 미반영 **stale/notVerified**다.
+
+후속 시작점은 현재 `trace`로 cold/resize 및 연속 입력 구간을 별도로 수집하고, §6 P2/P3의 남은 항목을 이어가는 것이다. **compatible=false, performanceAccepted=false, resizePerformanceAccepted=false, physical/display/scanout=notVerified, 전체 PARTIAL**을 유지한다. 원시 trace/스크린샷/검증 browser profile·임시 native executable은 누적 보관하지 않았다. 새로 복구한 `.nelyx/windows-hermes`는 현재 빌드 공급이며 검증 임시 복사본이 아니다.

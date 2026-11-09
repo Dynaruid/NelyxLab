@@ -337,6 +337,9 @@ export class SceneWriter {
   private closing: Promise<void> | undefined;
   private rerun = false;
   private eventTimer: ReturnType<typeof setTimeout> | undefined;
+  private unsubscribeChanges: (() => void) | undefined;
+  private eventRequested = false;
+  private eventRunning = false;
   private polling = false;
   private focusHandle = '';
   private focusCallback: SceneNodeOptions['onFocusChanged'];
@@ -409,7 +412,9 @@ export class SceneWriter {
   private startEvents(): void {
     if (this.eventsStarted || this.closed || this.options.pollEvents === false) return;
     this.eventsStarted = true;
-    this.pollSoon();
+    this.unsubscribeChanges = this.view.subscribeChanges(() => this.requestEvents());
+    if (this.unsubscribeChanges) this.requestEvents();
+    else this.pollSoon();
   }
   private schedule(): void {
     this.options.onInvalidate?.();
@@ -471,7 +476,13 @@ export class SceneWriter {
         !o.control &&
         before.config.every((bytes) => before.configInputs.has(commandKind(bytes)))
       ) {
-        records.set(id(h), { ...before, parent, children });
+        const sameParent =
+          before.parent === parent ||
+          (!!before.parent && !!parent && id(before.parent) === id(parent));
+        const sameChildren =
+          before.children.length === children.length &&
+          before.children.every((child, index) => id(child) === id(children[index]!));
+        records.set(id(h), sameParent && sameChildren ? before : { ...before, parent, children });
         ++this.counters.reusedRecords;
         return [h];
       }
@@ -751,6 +762,7 @@ export class SceneWriter {
     for (const r of desired.values()) {
       const before = this.accepted.get(id(r.handle)),
         initialFlags = creationFlags.get(id(r.handle)) ?? 0;
+      if (before === r) continue;
       // Creation already establishes these exact Core defaults. Keep their
       // immutable records for later resets, while omitting redundant writes
       // from the atomic transaction (large route replacement uses this path).
@@ -1072,6 +1084,7 @@ export class SceneWriter {
       this.semanticState = state;
       this.options.onState?.(state);
       await this.deliverInput(state);
+      if (state.interactionCount > 0) this.eventRequested = true;
       if (this.closed) return;
       let observed = state;
       const publication = this.semanticPublication;
@@ -1293,9 +1306,28 @@ export class SceneWriter {
         .finally(() => this.pollSoon());
     }, 16);
   }
+  private requestEvents(): void {
+    if (this.closed) return;
+    this.eventRequested = true;
+    if (this.eventRunning) return;
+    this.eventRunning = true;
+    void (async () => {
+      try {
+        do {
+          this.eventRequested = false;
+          await this.pollEvents();
+        } while (this.eventRequested && !this.closed);
+      } catch (error) {
+        if (!this.closed) this.options.onError?.(error);
+      } finally {
+        this.eventRunning = false;
+      }
+    })();
+  }
   /** @internal Stop event-driven builds before the owner retires scene resources. */
   async stop(): Promise<void> {
     this.closed = true;
+    this.unsubscribeChanges?.();
     this.semanticPublication = this.semanticState = undefined;
     this.layoutObservation = undefined;
     if (this.eventTimer !== undefined) clearTimeout(this.eventTimer);

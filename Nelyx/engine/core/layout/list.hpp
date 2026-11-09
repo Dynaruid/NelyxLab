@@ -75,7 +75,11 @@ inline NativeListRange nativeListRange(const ListStyle& style,const ListGeometry
   const auto prefix=[&](uint32_t at){return geometry?geometry->prefix(at):style.estimate*at;};
   const uint32_t begin=rank(offset),last=rank(offset+paint);
   uint32_t end=paint==0?begin:std::min(style.count,last+uint32_t(last<style.count&&prefix(last)<offset+paint));
-  if(!style.fixed)for(uint32_t i=begin;i<end;++i)if(!geometry||!geometry->measured.count(i)){end=i+1;break;}
+  // Estimates select bounded builder work, never accepted coverage. Content
+  // measures the returned rows and recomputes the range before publication.
+  // Avoid one App round trip per unknown row in an indexed variable list.
+  end=std::min(end,begin+wire::limits::listChildren);
+  if(!style.fixed)for(uint32_t i=begin;i<end;++i)if(!geometry||!geometry->measured.count(i)){end=std::min(end,i+8);break;}
   return {begin,end,prefix(begin)};
 }
 }

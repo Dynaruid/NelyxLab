@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <mutex>
 #include <set>
+#include <chrono>
 
 namespace nelyx::v2 {
 struct Engine::State {
@@ -162,9 +163,18 @@ void nodeRow(Writer& w, size_t p, const Node& n, const Property* o, uint32_t fla
 }
 }
 
-std::vector<uint8_t> Engine::dispatch(Reader packet) {
+std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
   auto& s = *state_;
+  using Clock=std::chrono::steady_clock;
+  auto lockAt=timing?Clock::now():Clock::time_point{};
   std::unique_lock lock(s.mutex);
+  struct LockTiming {
+    DispatchTiming* output;Clock::time_point at;
+    void acquired(Clock::time_point started){if(output){at=Clock::now();output->lockWaitMs+=std::chrono::duration<double,std::milli>(at-started).count();}}
+    void released(){if(output)output->lockHeldMs+=std::chrono::duration<double,std::milli>(Clock::now()-at).count();}
+    ~LockTiming(){released();}
+  } measured{timing,{}};
+  if(timing){*timing={};measured.acquired(lockAt);}
   const uint32_t actualCapabilities = capabilities | (s.providerConnected ? wire::capabilities::surface : 0) |
     (s.independent ? wire::capabilities::contentIndependent : 0);
   uint32_t status = wire::statuses::ok, opcode = 0, viewId = 0, generation = 0;
@@ -452,11 +462,11 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
             const auto resources = s.resources;
             const auto resourceRevision = s.resourceRevision;
             v.transactionActive = true;
-            lock.unlock();
+            measured.released();lock.unlock();
             Installed installed;
             try { installed = transact(original, resources, body, count); }
-            catch (...) { lock.lock(); v.transactionActive = false; throw; }
-            lock.lock(); v.transactionActive = false;
+            catch (...) {lockAt=timing?Clock::now():Clock::time_point{};lock.lock();measured.acquired(lockAt);v.transactionActive=false;throw;}
+            lockAt=timing?Clock::now():Clock::time_point{};lock.lock();measured.acquired(lockAt);v.transactionActive=false;
             require(!v.closed && !s.closing && !s.closed && s.views[viewId] == retained,
               wire::statuses::closed);
             require(resourceRevision == s.resourceRevision, wire::statuses::busy);

@@ -4,6 +4,7 @@ import { protocol as p } from './schema.ts';
 import { engineFailures } from './lifecycle.ts';
 
 export interface PacketEndpoint {
+  readonly notifications?: boolean;
   post(value: unknown, transfer: ArrayBuffer[]): void;
   subscribe(callback: (value: unknown) => void): () => void;
   close(): void;
@@ -21,8 +22,13 @@ export function createPacketTransport(endpoint: PacketEndpoint, timeoutMs = 2000
       timer: ReturnType<typeof setTimeout>;
     }
   >();
+  const changes = new Set<() => void>();
   const unsubscribe = endpoint.subscribe((value) => {
     const message = value as { kind?: string; id?: number; bytes?: ArrayBuffer; error?: string };
+    if (message.kind === 'engine-change') {
+      for (const callback of Array.from(changes)) callback();
+      return;
+    }
     if (message.kind !== 'packet-result' || typeof message.id !== 'number') return;
     const request = pending.get(message.id);
     if (!request) return;
@@ -38,6 +44,16 @@ export function createPacketTransport(endpoint: PacketEndpoint, timeoutMs = 2000
     else request.resolve(new Uint8Array(message.bytes));
   });
   return {
+    ...(endpoint.notifications
+      ? {
+          subscribeChanges(callback: () => void) {
+            changes.add(callback);
+            return () => {
+              changes.delete(callback);
+            };
+          },
+        }
+      : {}),
     exchange(bytes) {
       if (
         closed ||
@@ -71,6 +87,7 @@ export function createPacketTransport(endpoint: PacketEndpoint, timeoutMs = 2000
     close() {
       if (closed) return;
       closed = true;
+      changes.clear();
       const errors: unknown[] = [];
       for (const cleanup of [unsubscribe, () => endpoint.close()]) {
         try {

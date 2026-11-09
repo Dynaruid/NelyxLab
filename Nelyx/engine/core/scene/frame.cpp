@@ -416,8 +416,35 @@ void View::makeDrawItems(Frame& f)const {
   };
   f.items.reserve(geometry.count);f.clips.reserve(geometry.count);f.hitRegions.reserve(geometry.count);
   for(const auto root:geometry.children[0])visit(geometry.get(root),{},1,{0,0,f.scene->metrics.width,f.scene->metrics.height},0,0,0,false,false);
-  makeSemantics(f,lease.ledger);
-  orderSemantics(f,lease.ledger);
+  // Semantic text/custom-action merging is a document operation. Scroll and
+  // control properties still get fresh geometry and visibility above.
+  const auto* previous=published&&published->scene==f.scene?published.get():nullptr;
+  if(previous)f.semantics=previous->semantics;
+  else makeSemantics(f,lease.ledger);
+  bool sameOrder=previous&&previous->items.size()==f.items.size()&&previous->modalRoot==f.modalRoot;
+  if(sameOrder){
+    Lease scratch(lease.ledger,(geometry.highWater+1)*sizeof(std::optional<Point>));
+    std::vector<std::optional<Point>> translations(geometry.highWater+1);
+    for(size_t i=0;i<f.items.size()&&sameOrder;++i){
+      const auto& item=f.items[i];const auto& old=previous->items[i];
+      if(item.node!=old.node){sameOrder=false;break;}
+      const auto* semantic=f.semantic(item.node);
+      if(!semantic||(semantic->flags&wire::semanticsFlags::hidden))continue;
+      const bool exposed=f.allowsSemantics(item.node)&&item.opacity>0;
+      if(exposed!=(previous->allowsSemantics(old.node)&&old.opacity>0)){sameOrder=false;break;}
+      if(!exposed)continue;
+      const auto& a=item.world;const auto& b=old.world;
+      if(a.a!=b.a||a.b!=b.b||a.c!=b.c||a.d!=b.d){sameOrder=false;break;}
+      auto& translation=translations[f.semantics[item.node.slot].parent.slot];
+      const Point delta{a.tx-b.tx,a.ty-b.ty};
+      if(translation&&(translation->x!=delta.x||translation->y!=delta.y)){sameOrder=false;break;}
+      translation=delta;
+    }
+  }
+  if(!sameOrder){
+    for(auto& semantic:f.semantics){semantic.parent={};semantic.traversal=UINT32_MAX;}
+    orderSemantics(f,lease.ledger);
+  }
 }
 Handle View::target(double x,double y,const Frame* snapshot)const {
   const auto* frame=snapshot?snapshot:published.get();if(!frame)return {};

@@ -16,12 +16,13 @@ struct MeasurementRequest;
 struct InteractionSnapshot;
 struct FontTransition;
 struct EventOverflowInfo;
+struct DispatchTiming { double lockWaitMs=0,lockHeldMs=0; };
 class Engine {
  public:
   Engine(uint32_t session, uint32_t app);
   ~Engine();
   std::shared_ptr<Ledger> memoryLedger() const;
-  std::vector<uint8_t> dispatch(Reader packet);
+  std::vector<uint8_t> dispatch(Reader packet,DispatchTiming* timing=nullptr);
   void connectProvider(bool independent, uint64_t contentOwner, uint64_t renderOwner);
   std::shared_ptr<const Preparation> providerSnapshot(uint32_t view, uint32_t generation);
   std::shared_ptr<const MeasurementRequest> measurementSnapshot(uint32_t view, uint32_t generation);

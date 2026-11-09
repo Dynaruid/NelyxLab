@@ -99,7 +99,9 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
     failHost(String(value.message));
     return;
   }
-  if (kind === 'font-wake') {
+  if (kind === 'engine-change') {
+    for (const port of ownedAppPorts) send(port, { kind: 'engine-change' });
+  } else if (kind === 'font-wake') {
     if (content && render) {
       content.checkFonts();
       render.checkFonts();

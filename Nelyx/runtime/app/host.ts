@@ -1127,6 +1127,7 @@ export class OriginalWidgetHost {
     do {
       this.rerun = false;
       if (!this.desired || this.closed) return;
+      let notification = this.view.notificationRevision;
       let state = await this.view.inspectState();
       if (this.closed) return;
       // Answer the current accepted document before another repaint replaces
@@ -1142,11 +1143,13 @@ export class OriginalWidgetHost {
         this.inputCheckpoint = true;
         try {
           await this.focusing.finishBuild();
-          await new Promise<void>((resolve) => setTimeout(resolve, 8));
+          if (this.closed) return;
+          await this.view.waitForChange(notification);
         } finally {
           this.inputCheckpoint = false;
         }
         if (this.closed) return;
+        notification = this.view.notificationRevision;
         state = await this.view.inspectState();
         if (this.closed) return;
         await this.rebuildFromContent(state);
@@ -1367,6 +1370,7 @@ export class OriginalWidgetHost {
   close(): Promise<void> {
     if (this.closing) return this.closing;
     this.closed = true;
+    this.view.wakeChangeWaits();
     this.fontOwner?.cancel();
     this.focusing.close();
     this.geometry.close();

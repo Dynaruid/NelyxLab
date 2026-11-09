@@ -50,6 +50,8 @@ function slotsFor(client: EngineClient): ResourceSlots {
 }
 
 export interface EngineTransport {
+  /** Coalesced readiness hint; packet responses and ACKs remain authoritative. */
+  subscribeChanges?(callback: () => void): () => void;
   /** The port returns standalone bytes, never a live native/Wasm heap view. */
   exchange(bytes: Uint8Array): Promise<Uint8Array>;
   close(): void | Promise<void>;
@@ -92,6 +94,19 @@ function checked(
   return result;
 }
 export class EngineClient {
+  private changeRevision = 0;
+  private readonly changes = new Set<() => void>();
+  private unsubscribeChanges: (() => void) | undefined;
+  get notificationRevision(): number {
+    return this.changeRevision;
+  }
+  subscribeChanges(callback: () => void): (() => void) | undefined {
+    if (!this.transport.subscribeChanges) return undefined;
+    this.changes.add(callback);
+    return () => {
+      this.changes.delete(callback);
+    };
+  }
   readonly owner: PacketOwner;
   private closed = false;
   private aborting: Promise<void> | undefined;
@@ -116,6 +131,10 @@ export class EngineClient {
       generation: 0,
     });
     resourceSlots.set(this, new ResourceSlots());
+    this.unsubscribeChanges = transport.subscribeChanges?.(() => {
+      ++this.changeRevision;
+      for (const callback of Array.from(this.changes)) callback();
+    });
   }
   static async connect(
     transport: EngineTransport,
@@ -271,11 +290,46 @@ export class EngineClient {
     this.views.clear();
     resourceSlots.get(this)?.clear();
     resourceSlots.delete(this);
+    this.unsubscribeChanges?.();
+    this.changes.clear();
     this.aborting = Promise.resolve().then(() => this.transport.close());
     return this.aborting;
   }
 }
 export class EngineViewClient {
+  private readonly changeWaits = new Set<() => void>();
+  /** @internal Release readiness waits before the owning App host drains. */
+  wakeChangeWaits(): void {
+    for (const finish of Array.from(this.changeWaits)) finish();
+  }
+  get notificationRevision(): number {
+    return this.client.notificationRevision;
+  }
+  subscribeChanges(callback: () => void): (() => void) | undefined {
+    return this.client.subscribeChanges(callback);
+  }
+  async waitForChange(revision: number): Promise<void> {
+    this.ensureOpen();
+    if (revision !== this.notificationRevision) return;
+    await new Promise<void>((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let unsubscribe: (() => void) | undefined;
+      const finish = (error?: Error) => {
+        if (timer !== undefined) clearTimeout(timer);
+        unsubscribe?.();
+        this.waits.delete(cancel);
+        this.changeWaits.delete(finish);
+        if (error) reject(error);
+        else resolve();
+      };
+      const cancel = (error: Error) => finish(error);
+      this.waits.add(cancel);
+      this.changeWaits.add(finish);
+      unsubscribe = this.subscribeChanges(() => finish());
+      if (!unsubscribe) timer = setTimeout(() => finish(), 8);
+      else if (revision !== this.notificationRevision) finish();
+    });
+  }
   private rawGeneration = 0n;
   private nextScroll = 0n;
   private nextEdit = 0n;

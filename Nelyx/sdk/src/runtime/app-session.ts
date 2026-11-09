@@ -68,6 +68,7 @@ export type AppSceneHostFactory<T> = (
 ) => AppSceneHost<T>;
 type AppMessage = { kind: string; root?: string; port?: MessagePort; identity?: EngineIdentity };
 type Native = NativeAppTextService & {
+  eventNotifications?: boolean;
   identity: EngineIdentity;
   enqueue(id: number, bytes: ArrayBuffer): void;
   notify(text: string, execution?: EngineExecutionSnapshot): void;
@@ -122,6 +123,7 @@ export function launchAppSession<T>(
   const environment = globalThis as unknown as {
     NelyxV2Native?: Native;
     __v2Resolve?: (id: number, bytes: ArrayBuffer, error?: string) => void;
+    __v2Changed?: () => void;
     __v2Dispose?: () => Promise<void>;
   };
   let started = false,
@@ -399,6 +401,9 @@ export function launchAppSession<T>(
   const native = environment.NelyxV2Native;
   if (native) {
     const callbacks = new Set<(value: unknown) => void>();
+    environment.__v2Changed = () => {
+      for (const callback of callbacks) callback({ kind: 'engine-change' });
+    };
     environment.__v2Resolve = (id, bytes, error) => {
       for (const callback of callbacks) callback({ kind: 'packet-result', id, bytes, error });
     };
@@ -406,6 +411,7 @@ export function launchAppSession<T>(
       native.notify(JSON.stringify(value), value.execution as EngineExecutionSnapshot | undefined);
     void start(
       {
+        notifications: native.eventNotifications === true,
         post(value) {
           const message = value as { id: number; bytes: ArrayBuffer };
           native.enqueue(message.id, message.bytes);
@@ -444,6 +450,7 @@ export function launchAppSession<T>(
       port.start();
       void start(
         {
+          notifications: true,
           post: (value, transfer) => port.postMessage(value, transfer),
           subscribe(callback) {
             const receive = (event: MessageEvent) => callback(event.data);

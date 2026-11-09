@@ -40,7 +40,7 @@ static std::vector<uint8_t> makePacket(uint32_t op,const std::vector<uint8_t>& d
   Writer w(wire::headerBytes+data.size());w.u32(0,wire::magic);w.u16(4,2);w.u32(8,wire::schema);w.u16(12,uint16_t(op));w.u32(16,uint32_t(w.bytes.size()));w.u32(20,1);w.u32(24,1);w.u32(28,session?0:1);w.u32(32,session?0:1);
   w.u64(40,requestId);if(!data.empty())std::memcpy(w.bytes.data()+wire::headerBytes,data.data(),data.size());return std::move(w.bytes);
 }
-struct Job{uint32_t id;std::vector<uint8_t> bytes;std::shared_ptr<ExternalLease> memory;};
+struct Job{uint32_t id;std::vector<uint8_t> bytes;std::shared_ptr<ExternalLease> memory;double enqueued=now();};
 struct PreparedFont {uint64_t token;std::shared_ptr<const Resource> resource;std::shared_ptr<nw::ParagraphProvider> fonts;};
 struct AppHeapAccount {
   std::shared_ptr<Ledger> ledger;std::atomic<uint64_t>& observed;
@@ -62,9 +62,34 @@ struct AppRuntimeRegistration {
   ~AppRuntimeRegistration(){std::lock_guard held(gate);current=nullptr;}
 };
 class Host {
-  struct FrameTiming {nw::DisplayClockSample clock;double started=0,coreMs=0,recordMs=0,submitMs=0,publicationMs=0,completed=0;uint64_t submission=0,document=0,publication=0,input=0;};
+  struct Trace {uint64_t sequence=0,request=0,input=0,document=0,preparation=0,submission=0,publication=0;uint32_t opcode=0,status=0;double started=0,elapsedMs=0,queueMs=0,lockWaitMs=0,lockHeldMs=0;};
+  std::mutex traceMutex;std::array<Trace,1024> traceRing{};uint64_t traceSequence=0;
+  std::vector<uint8_t> dispatch(const std::vector<uint8_t>& bytes,double enqueued=0){
+    const auto started=now();DispatchTiming timing;auto result=core.dispatch({bytes.data(),bytes.size()},&timing);
+    const auto ended=now();const auto r=reader(result);const auto b=wire::headerBytes;
+    if(result.size()>=b+wire::stateBytes&&r.u16(12)!=wire::opcodes::inspect){
+      std::lock_guard lock(traceMutex);const auto sequence=++traceSequence;
+      traceRing[(sequence-1)%traceRing.size()]={sequence,r.u64(40),(r.u16(12)==wire::opcodes::input?reader(bytes).u64(b):r.u64(b+wire::stateFields::consumedThrough)),r.u64(b+wire::stateFields::document),r.u64(b+wire::stateFields::preparation),r.u64(b+wire::stateFields::submission),r.u64(b+wire::stateFields::publication),r.u16(12),r.u16(14),started,(ended-started)*1000,enqueued?(started-enqueued)*1000:0,timing.lockWaitMs,timing.lockHeldMs};
+    }
+    return result;
+  }
+  void trace(){
+    std::array<Trace,1024> copy;uint64_t through;{std::lock_guard lock(traceMutex);copy=traceRing;through=traceSequence;}
+    std::ostringstream out;out<<std::setprecision(17)<<"V2_TRACE {\"through\":"<<through<<",\"overwritten\":"<<(through>copy.size()?through-copy.size():0)<<",\"samples\":[";
+    const auto first=through>copy.size()?through-copy.size()+1:1;
+    for(auto i=first;i<=through;++i){const auto& t=copy[(i-1)%copy.size()];if(i!=first)out<<',';
+      out<<"{\"seq\":"<<t.sequence<<",\"op\":"<<t.opcode<<",\"request\":"<<t.request<<",\"input\":"<<t.input<<",\"document\":"<<t.document<<",\"preparation\":"<<t.preparation<<",\"submission\":"<<t.submission<<",\"publication\":"<<t.publication<<",\"status\":"<<t.status<<",\"started\":"<<t.started<<",\"elapsedMs\":"<<t.elapsedMs<<",\"queueMs\":"<<t.queueMs<<",\"lockWaitMs\":"<<t.lockWaitMs<<",\"lockHeldMs\":"<<t.lockHeldMs<<'}';}
+    out<<"],\"frames\":[";
+    {std::lock_guard lock(timingMutex);const auto begin=frameSampleCount>frameSamples.size()?frameSampleCount-frameSamples.size():0;
+      for(auto i=begin;i<frameSampleCount;++i){const auto& f=frameSamples[i%frameSamples.size()];if(i!=begin)out<<',';
+        out<<"{\"submission\":"<<f.submission<<",\"document\":"<<f.document<<",\"publication\":"<<f.publication<<",\"input\":"<<f.input<<",\"started\":"<<f.started<<",\"completed\":"<<f.completed<<",\"coreMs\":"<<f.coreMs<<",\"recordMs\":"<<f.recordMs<<",\"outputMs\":"<<f.submitMs<<",\"acquireMs\":"<<f.gpu.acquireMs<<",\"submitMs\":"<<f.gpu.submitMs<<",\"presentMs\":"<<f.gpu.presentMs<<",\"gpuObservedMs\":"<<f.gpu.gpuObservedMs<<",\"resourcesObservedMs\":"<<f.gpu.resourcesObservedMs<<'}';}
+      out<<"],\"frameSamplesThrough\":"<<frameSampleCount<<",\"frameSamplesOverwritten\":"<<(frameSampleCount>frameSamples.size()?frameSampleCount-frameSamples.size():0);}
+    out<<"}";std::osyncstream(std::cout)<<out.str()<<std::endl;
+  }
+  struct FrameTiming {nw::DisplayClockSample clock;double started=0,coreMs=0,recordMs=0,submitMs=0,publicationMs=0,completed=0;uint64_t submission=0,document=0,publication=0,input=0;nelyx::vulkan::WindowFrameTiming gpu;};
   struct ContentTiming {uint64_t preparation=0,document=0,steps=0,work=0;double started=0,coreMs=0,measureMs=0,recordMs=0,completed=0;bool failed=false;};
   std::mutex timingMutex;FrameTiming frameTiming;ContentTiming contentTiming;
+  std::array<FrameTiming,256> frameSamples{};uint64_t frameSampleCount=0;
   std::string timingJson(){std::lock_guard lock(timingMutex);const auto& t=frameTiming;std::ostringstream out;out<<std::setprecision(17);
     out<<"\"frameClock\":{\"source\":\""<<(t.clock.observed?"dwm-composition-qpc":(t.clock.sampledAt?"timer-fallback":"unobserved"))<<"\",\"status\":"<<int32_t(t.clock.status)<<",\"periodMs\":"<<t.clock.period*1000<<",\"targetSeconds\":"<<t.clock.target<<",\"monitor\":\""<<t.clock.monitor<<"\",\"monitorSpecific\":false},";
     out<<"\"timing\":{\"domain\":\"qpc-seconds\",\"qpcFrequency\":"<<nw::qpcFrequency()<<",\"startedAtSeconds\":"<<t.started<<",\"coreElapsedMs\":"<<t.coreMs<<",\"recordAndBackingElapsedMs\":"<<t.recordMs<<",\"submitElapsedMs\":"<<t.submitMs<<",\"publicationElapsedMs\":"<<t.publicationMs<<",\"completedAtSeconds\":"<<t.completed<<",\"submission\":"<<t.submission<<",\"document\":"<<t.document<<",\"publication\":"<<t.publication<<",\"consumedThrough\":"<<t.input<<",\"scanout\":\"unobserved\"},";
@@ -79,7 +104,32 @@ class Host {
   std::atomic<bool> appExited{false};
   std::mutex jobsMutex,doneMutex,sceneMutex,wakeMutex,metricsMutex;
   std::condition_variable changed,appChanged;
-  std::shared_ptr<nelyx::v2::native::AppServices> services=std::make_shared<nelyx::v2::native::AppServices>(core.memoryLedger(),[this]{PostMessageW(window,WM_APP+3,0,0);},[this]{appChanged.notify_one();});
+  uint64_t appWakeRevision=0;
+  std::atomic<bool> appNotification{false};
+  void wakeApp(){ {std::lock_guard lock(wakeMutex);++appWakeRevision;} appChanged.notify_one(); }
+  std::mutex notificationMutex;
+  std::array<uint64_t,14> notifiedState{};
+  void notifyState(const std::vector<uint8_t>& bytes){
+    if(bytes.size()<wire::headerBytes+wire::stateBytes)return;
+    const auto r=reader(bytes);const auto b=wire::headerBytes;
+    if(r.u16(14)!=wire::statuses::ok)return;
+    const auto flags=r.u32(b+wire::stateFields::flags);
+    const std::array<uint64_t,14> current{
+      r.u64(b+wire::stateFields::document),r.u64(b+wire::stateFields::publication),
+      r.u64(b+wire::stateFields::metrics),r.u64(b+wire::stateFields::device),
+      r.u64(b+wire::stateFields::failedDocument),r.u64(b+wire::stateFields::preparation),
+      (flags&wire::layoutBuildPending)?r.u64(b+wire::stateFields::contentWork):0,
+      uint64_t(flags&~128u),r.u64(b+wire::stateFields::focusWork),
+      r.u64(b+wire::stateFields::editingWork),r.u64(b+wire::stateFields::controlWork),
+      r.u64(b+wire::stateFields::appFrameWork),r.u64(b+wire::stateFields::consumedThrough),
+      r.u64(b+wire::stateFields::fontRevision)};
+    bool changedState=false;
+    {std::lock_guard lock(notificationMutex);changedState=current!=notifiedState;notifiedState=current;}
+    if(changedState||r.u32(b+wire::stateFields::interactionCount)){
+      appNotification=true;wakeApp();
+    }
+  }
+  std::shared_ptr<nelyx::v2::native::AppServices> services=std::make_shared<nelyx::v2::native::AppServices>(core.memoryLedger(),[this]{PostMessageW(window,WM_APP+3,0,0);},[this]{wakeApp();});
   nw::rnw::Clipboard clipboard;
   std::shared_ptr<nelyx::v2::native::InputClipboard> inputClipboard=std::make_shared<nelyx::v2::native::InputClipboard>(core.memoryLedger());
   std::deque<Job> jobs,done;
@@ -126,9 +176,12 @@ class Host {
   std::vector<uint8_t> call(uint32_t op,const std::vector<uint8_t>& data={},bool session=false,uint64_t requestId=0){
     // Host input/clock/status reads do not consume document node payloads.
     if(op==wire::opcodes::inspect&&data.empty()){Writer query(4);query.u32(0,wire::inspectionFlags::stateOnly);return call(op,query.bytes,session,requestId);}
-    auto bytes=makePacket(op,data,session,requestId);return core.dispatch({bytes.data(),bytes.size()});}
+    auto bytes=makePacket(op,data,session,requestId);auto result=dispatch(bytes);
+    if(op==wire::opcodes::tick||op==wire::opcodes::contentStep||op==wire::opcodes::publish||
+       op==wire::opcodes::metrics||op==wire::opcodes::visibility||op==wire::opcodes::preparationResult)notifyState(result);
+    return result;}
   static Reader reader(const std::vector<uint8_t>& bytes){return {bytes.data(),bytes.size()};}
-  void notifyError(const std::string& error){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR "<<error<<std::endl;stopping=true;changed.notify_all();appChanged.notify_all();PostMessageW(window,WM_CLOSE,0,0);}
+  void notifyError(const std::string& error){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR "<<error<<std::endl;stopping=true;changed.notify_all();wakeApp();PostMessageW(window,WM_CLOSE,0,0);}
   void contentLoop(){
     contentThread=GetCurrentThreadId();CoInitializeEx(nullptr,COINIT_MULTITHREADED);
     try{
@@ -139,7 +192,7 @@ class Host {
         Job job{};bool has=false;
         {std::lock_guard lock(jobsMutex);if(!jobs.empty()){job=std::move(jobs.front());jobs.pop_front();jobBytes-=job.bytes.size();has=true;}}
         contentWake=false;
-        if(has){auto result=core.dispatch({job.bytes.data(),job.bytes.size()});
+        if(has){auto result=dispatch(job.bytes,job.enqueued);
           const auto op=Reader{job.bytes.data(),job.bytes.size()}.u16(12);
           if(op==wire::opcodes::scroll||op==wire::opcodes::scrollCancel||op==wire::opcodes::listSeek||op==wire::opcodes::gestureReply||op==wire::opcodes::requestAppFrame){renderWakeRequested=true;changed.notify_all();}
           if(op==wire::opcodes::fontTransitionBegin||op==wire::opcodes::fontTransitionReady||
@@ -149,7 +202,7 @@ class Host {
             if(reader(result).u16(14)==wire::statuses::accepted){renderWakeRequested=true;changed.notify_all();}
           }
           if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::openView){metricsPending=true;renderWakeRequested=true;changed.notify_all();}
-          auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}appChanged.notify_one();}
+          auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}wakeApp();}
         if(connected){
           if(const auto stage=core.fontTransitionSnapshot(1,1)){
             if(stage->phase==wire::fontTransitionPhases::preparing&&!(stage->ready&wire::fontTransitionOwners::content)){
@@ -224,14 +277,30 @@ class Host {
       std::osyncstream(std::cout)<<"V2_RENDERER "<<provider.driver()<<std::endl;
       while(!stopping&&!contentReady)std::this_thread::sleep_for(std::chrono::milliseconds(2));
       if(stopping)return;
-      core.connectProvider(true,contentThread,renderThread);connected=true;appChanged.notify_all();changed.notify_all();
-      std::shared_ptr<const nw::Prepared> active,next;
+      core.connectProvider(true,contentThread,renderThread);connected=true;wakeApp();changed.notify_all();
+      std::shared_ptr<const nw::Prepared> active,next,pendingPrepared;
+      std::shared_ptr<const Frame> pendingFrame;FrameTiming pendingTiming;
       double lastWidth=-1,lastHeight=-1,lastScale=-1;
       bool clock=false;
       double deadline=0;
       uint64_t handledPressure=0;
       while(!stopping){
         renderWakeRequested=false;
+        bool retryAcquire=false;
+        if(pendingFrame&&provider.complete()){
+          const auto frame=pendingFrame;const auto id=frame->id;
+          Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(16,1);call(wire::opcodes::releaseFrame,release.bytes);
+          const auto publicationStarted=now();Writer publication(24);publication.u64(0,id);publication.u64(8,frame->device);
+          const auto published=call(wire::opcodes::publish,publication.bytes);const auto state=reader(published);
+          pendingTiming.publicationMs=(now()-publicationStarted)*1000;pendingTiming.completed=now();pendingTiming.publication=state.u64(wire::headerBytes+wire::stateFields::publication);
+          {std::lock_guard lock(timingMutex);pendingTiming.gpu=provider.timing();frameTiming=pendingTiming;frameSamples[frameSampleCount++%frameSamples.size()]=pendingTiming;}
+          if(state.u16(14)==wire::statuses::ok){
+            {std::lock_guard lock(sceneMutex);publishedPrepared=pendingPrepared;}
+            interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);
+            publishedWidth=frame->scene->metrics.width;publishedHeight=frame->scene->metrics.height;
+          }
+          provider.retireFrame();pendingFrame.reset();pendingPrepared.reset();
+        }
         {std::shared_ptr<const PreparedFont> prepared;{std::lock_guard lock(sceneMutex);prepared=fontCandidate;}
           if(prepared)if(const auto stage=core.fontTransitionSnapshot(1,1);stage&&stage->token==prepared->token&&
               stage->phase==wire::fontTransitionPhases::preparing&&!(stage->ready&wire::fontTransitionOwners::render)){
@@ -279,6 +348,11 @@ class Host {
           throw std::runtime_error("Core view closed status="+std::to_string(reason));
         }
         if(sr.u16(14)==0){
+          // Activation advances even while the previous GPU slot is occupied.
+          // Retain each activated cohort immediately; pendingPrepared owns the
+          // older submitted cohort until its independent retirement.
+          if(next&&next->id==sr.u64(wire::headerBytes+wire::stateFields::activePreparation)){active=std::move(next);next.reset();}
+          if(!pendingFrame){
           auto result=call(wire::opcodes::takeFrame);auto r=reader(result);const auto coreElapsedMs=(now()-coreStarted)*1000;
           if(r.u16(14)==0){
             const auto id=r.u64(wire::headerBytes+wire::stateFields::submission);auto frame=core.frameSnapshot(1,1,id);
@@ -286,15 +360,11 @@ class Host {
             if(next&&next->id==frame->scene->preparation){active=std::move(next);next.reset();}
             if(!active||active->id!=frame->scene->preparation)throw std::runtime_error("Native active preparation resource is missing");
             bool drawn=false;
-            try{drawn=provider.draw(*frame,*active);}catch(...){Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(20,1);call(wire::opcodes::releaseFrame,release.bytes);throw;}
+            try{drawn=provider.draw(frame,active);}catch(...){Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(20,1);call(wire::opcodes::releaseFrame,release.bytes);throw;}
             rendered=provider.draws;
-            Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(16,drawn?1:0);release.u32(20,drawn?0:1);call(wire::opcodes::releaseFrame,release.bytes);
-            if(!drawn){metricsPending=true;std::unique_lock lock(wakeMutex);changed.wait_for(lock,std::chrono::duration<double>(display.period),[this]{return stopping.load();});continue;}
-            const auto publicationStarted=now();Writer publication(24);publication.u64(0,id);publication.u64(8,frame->device);const auto published=call(wire::opcodes::publish,publication.bytes);const auto publicationElapsedMs=(now()-publicationStarted)*1000;
-            {const auto state=reader(published);std::lock_guard lock(timingMutex);frameTiming={display,frameStarted,coreElapsedMs,provider.recordAndBackingElapsedMs,provider.submitElapsedMs,publicationElapsedMs,now(),id,frame->scene->document->epoch,state.u64(wire::headerBytes+wire::stateFields::publication),r.u64(wire::headerBytes+wire::stateFields::consumedThrough)};}
-            {std::lock_guard lock(sceneMutex);publishedPrepared=active;}
-            interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);
-            publishedWidth=frame->scene->metrics.width;publishedHeight=frame->scene->metrics.height;
+            if(!drawn){Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(20,1);call(wire::opcodes::releaseFrame,release.bytes);retryAcquire=true;if(provider.needsMetrics)metricsPending=true;}
+            else {pendingFrame=frame;pendingPrepared=active;pendingTiming={display,frameStarted,coreElapsedMs,provider.recordAndBackingElapsedMs,provider.submitElapsedMs,0,0,id,frame->scene->document->epoch,0,r.u64(wire::headerBytes+wire::stateFields::consumedThrough)};}
+          }
           }
           const auto events=call(wire::opcodes::pollEvents);const auto er=reader(events);
           for(uint32_t index=0;index<er.u32(wire::headerBytes+wire::stateFields::eventCount);++index){
@@ -307,12 +377,14 @@ class Host {
           if(sr.u64(wire::headerBytes+wire::stateFields::pendingDocument)){contentWake=true;changed.notify_all();}
         }
         std::unique_lock lock(wakeMutex);
-        const auto wake=[this,&handledPressure]{return stopping||renderWakeRequested||metricsPending||pressureEpoch!=handledPressure;};
-        if(clock){const auto display=nw::displayClock(window);const auto target=deadline>0?std::min(display.target,deadline):display.target;changed.wait_for(lock,std::chrono::duration<double>(std::max(0.0,target-now())),wake);}
+        const auto wake=[this,&handledPressure,&retryAcquire]{return stopping||renderWakeRequested||(metricsPending&&!retryAcquire)||pressureEpoch!=handledPressure;};
+        if(clock||pendingFrame||retryAcquire){const auto display=nw::displayClock(window);const auto target=deadline>0?std::min(display.target,deadline):display.target;changed.wait_for(lock,std::chrono::duration<double>(std::max(0.0,target-now())),wake);}
         else if(deadline>0)changed.wait_for(lock,std::chrono::duration<double>(std::max(0.001,deadline-now())),wake);
         else changed.wait(lock,wake);
       }
-      active.reset();next.reset();provider.close();
+      provider.close();
+      if(pendingFrame){Writer release(24);release.u64(0,pendingFrame->id);release.u64(8,pendingFrame->device);release.u32(20,1);call(wire::opcodes::releaseFrame,release.bytes);}
+      pendingFrame.reset();pendingPrepared.reset();active.reset();next.reset();
     }catch(const std::exception& error){notifyError(std::string("Render owner: ")+error.what());}
   }
   void appLoop(){
@@ -329,6 +401,7 @@ class Host {
       appMemory.update(rt);
       auto native=jsi::Object(rt);
       native.setProperty(rt,"operatingSystem","windows");
+      native.setProperty(rt,"eventNotifications",true);
       native.setProperty(rt,"clockDomain","qpc-milliseconds");
       nw::installAppText(rt,native,appText);
       nelyx::v2::native::installAppServices(rt,native,services,[clipboard=clipboard,input=inputClipboard]()mutable{input->close();clipboard.cancel();});
@@ -337,10 +410,18 @@ class Host {
       native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[this,&appMemory](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
         appMemory.update(r);
         if(count!=2)throw jsi::JSError(r,"V2 enqueue arguments");auto buffer=args[1].getObject(r).getArrayBuffer(r);const auto length=buffer.size(r);
-        std::lock_guard lock(jobsMutex);if(stopping)throw jsi::JSError(r,"V2 native mailbox closed");
+        std::unique_lock lock(jobsMutex);if(stopping)throw jsi::JSError(r,"V2 native mailbox closed");
         if(jobs.size()+uiJobs.size()>=wire::limits::results||jobBytes+length>4*wire::limits::packetBytes)throw jsi::JSError(r,"V2 native mailbox full");
         auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,length);std::vector<uint8_t> bytes(buffer.data(r),buffer.data(r)+length);const auto op=Reader{bytes.data(),bytes.size()}.u16(12);
         if(op==wire::opcodes::memoryReport)throw jsi::JSError(r,"Memory reports are host-only");
+        // These bounded reads run on the App owner, outside the Content job
+        // schedule. They still serialize with Core's authoritative input state.
+        if(op==wire::opcodes::pollInteractionEvents||op==wire::opcodes::pollRaw){
+          lock.unlock();
+          auto result=dispatch(bytes);auto responseMemory=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());
+          {std::lock_guard ready(doneMutex);done.push_back({uint32_t(args[0].asNumber()),std::move(result),std::move(responseMemory)});}
+          wakeApp();return jsi::Value::undefined();
+        }
         if(op==wire::opcodes::edit||op==wire::opcodes::focus||op==wire::opcodes::semanticsAction){uiJobs.push_back({uint32_t(args[0].asNumber()),std::move(bytes),std::move(hold)});PostMessageW(window,WM_APP+3,0,0);}
         else jobs.push_back({uint32_t(args[0].asNumber()),std::move(bytes),std::move(hold)});jobBytes+=length;
         contentWake=true;
@@ -360,10 +441,12 @@ class Host {
         if(message.starts_with("{\"kind\":\"app-execution\""))return jsi::Value::undefined();
         std::osyncstream(std::cout)<<"V2_APP "<<message<<std::endl;if(message.find("app-ready")!=std::string::npos)appReady=true;if(message.find("app-disposed")!=std::string::npos)appDisposed=true;if(message.find("app-error")!=std::string::npos){stats();notifyError(message);}return jsi::Value::undefined();}));
       rt.global().setProperty(rt,"NelyxV2Native",std::move(native));
-      const auto bootstrap=std::string("globalThis.__v2Timers=[];globalThis.setTimeout=(f,m=0)=>{const t={f,at:Date.now()+m};__v2Timers.push(t);return t;};globalThis.clearTimeout=t=>{if(t)t.f=null;};globalThis.__v2Pump=()=>{const n=Date.now();const q=__v2Timers.splice(0);for(const t of q){if(t.f&&t.at<=n)t.f();else if(t.f)__v2Timers.push(t);}};");
+      const auto bootstrap=std::string("globalThis.__v2Timers=[];globalThis.setTimeout=(f,m=0)=>{const t={f,at:Date.now()+m};__v2Timers.push(t);return t;};globalThis.clearTimeout=t=>{if(t)t.f=null;};globalThis.__v2Delay=()=>{let d=2147483647;const n=Date.now();for(const t of __v2Timers)if(t.f)d=Math.min(d,Math.max(0,t.at-n));return d;};globalThis.__v2Pump=()=>{const n=Date.now();const q=__v2Timers.splice(0);for(const t of q){if(t.f&&t.at<=n)t.f();else if(t.f)__v2Timers.push(t);}};");
       rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(bootstrap),"v2-timers.js");
       const auto source=readFile(appDirectory+"/application/app.js");rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::string(source.begin(),source.end())),"application/app.js");rt.drainMicrotasks();
       while(!stopping){
+        uint64_t observedWake;{std::lock_guard lock(wakeMutex);observedWake=appWakeRevision;}
+        if(appNotification.exchange(false)&&rt.global().hasProperty(rt,"__v2Changed")){rt.global().getPropertyAsFunction(rt,"__v2Changed").call(rt);rt.drainMicrotasks();}
         while(services->deliver(rt))rt.drainMicrotasks();
         if(disposeRequested.exchange(false)){rt.global().getPropertyAsFunction(rt,"__v2Dispose").call(rt);rt.drainMicrotasks();}
         if(appUpdate.exchange(false)&&rt.global().hasProperty(rt,"__v2Update")){rt.global().getPropertyAsFunction(rt,"__v2Update").call(rt);rt.drainMicrotasks();}
@@ -371,8 +454,9 @@ class Host {
         {std::lock_guard lock(doneMutex);if(!done.empty()){result=std::move(done.front());done.pop_front();has=true;}}
         if(has){auto array=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(result.bytes.size())).getObject(rt);auto buffer=array.getArrayBuffer(rt);std::memcpy(buffer.data(rt),result.bytes.data(),result.bytes.size());rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(result.id),std::move(array));rt.drainMicrotasks();}
         rt.global().getPropertyAsFunction(rt,"__v2Pump").call(rt);rt.drainMicrotasks();appMemory.update(rt);
-        std::unique_lock lock(wakeMutex);appChanged.wait_for(lock,std::chrono::milliseconds(2),[this]{
-          if(stopping||disposeRequested||appUpdate)return true;
+        const auto delay=rt.global().getPropertyAsFunction(rt,"__v2Delay").call(rt).asNumber();
+        std::unique_lock lock(wakeMutex);appChanged.wait_for(lock,std::chrono::duration<double,std::milli>(delay),[this,observedWake]{
+          if(stopping||disposeRequested||appUpdate||appNotification||appWakeRevision!=observedWake)return true;
           std::lock_guard ready(doneMutex);return !done.empty();
         });
       }
@@ -422,7 +506,7 @@ class Host {
     });
     std::deque<std::function<void()>> callbacks;{std::lock_guard lock(uiMutex);callbacks.swap(uiCallbacks);}for(auto& callback:callbacks)callback();
     std::deque<Job> accepted;{std::lock_guard lock(jobsMutex);accepted.swap(uiJobs);for(const auto& job:accepted)jobBytes-=job.bytes.size();}
-    for(auto& job:accepted){auto result=interaction->gateway(job.bytes);auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}appChanged.notify_one();}
+    for(auto& job:accepted){auto result=interaction->gateway(job.bytes);auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}wakeApp();}
     if(interactionDirty.exchange(false)&&interaction){std::shared_ptr<const nw::Prepared> published;{std::lock_guard lock(sceneMutex);published=publishedPrepared;}interaction->sync(std::move(published));}
   }
   void timer(UINT_PTR id){if(interaction)interaction->timer(id);if(id==1)poll();}
@@ -479,6 +563,7 @@ class Host {
     for(size_t end;(end=control.find('\n'))!=std::string::npos;){auto line=control.substr(0,end);control.erase(0,end+1);std::istringstream in(line);std::string command;in>>command;
       if(command=="close")PostMessageW(window,WM_CLOSE,0,0);
       else if(command=="stats")stats();
+      else if(command=="trace")trace();
     }
   }
   void stats(){auto bytes=call(wire::opcodes::inspect);auto r=reader(bytes);const auto b=wire::headerBytes;
@@ -518,11 +603,11 @@ class Host {
     }
     if(clipboard.pending()){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR Clipboard terminal drain timed out"<<std::endl;}
     if(appReady&&!stopping){
-      disposeRequested=true;appChanged.notify_all();const auto deadline=now()+3;
+      disposeRequested=true;wakeApp();const auto deadline=now()+3;
       while(!appDisposed&&!stopping&&now()<deadline){ui();std::this_thread::sleep_for(std::chrono::milliseconds(1));}
       if(!appDisposed&&!stopping){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR App disposal timeout"<<std::endl;}
     }
-    closed=true;stopping=true;changed.notify_all();appChanged.notify_all();
+    closed=true;stopping=true;changed.notify_all();wakeApp();
     const auto appDeadline=now()+0.25;
     while(!appExited&&now()<appDeadline)std::this_thread::sleep_for(std::chrono::milliseconds(1));
     if(!appExited){std::lock_guard lock(appRuntimeMutex);if(appRuntime){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR Interrupting stalled App JavaScript"<<std::endl;appRuntime->asyncTriggerTimeout();}}

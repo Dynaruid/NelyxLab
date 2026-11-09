@@ -202,6 +202,14 @@
 - 현재 Engine source SHA **`9ec9b741c87660a56e3b6d5ac8ebd9cbe884c84c8672d133aaf07957ea5885e9`** / source·355 files hash 확인. 전체 Windows/Web 공급 재빌드, Demo **861/860**, Gallery **894/893** 번들 갱신·검증.
 - 최종 일반 Windows App SDK Demo는 **RTX 4060**에서 기본 그림자·스크롤 왕복·클릭/hover 해제 후 유지 확인. 수치 검사는 **AMD 780M**의 4 DPR/6 elevation·8 위치·retained replay·부모 opacity 0.5 기여율 0.521·ledger=0이며 실제 창과 구분한다. 최종 document=active=published=20 / preparation=0 / failedDocument=0 / input received=consumed=19 / rejected=0. Gallery/Web UI 재수락과 물리 트랙패드·전체 성능 수락은 별도다.
 
+#### 3.1.7 2026-11-09 problem.md 지연 경로 구현 — Windows/Web 해당 회귀 PASS / 전체 PARTIAL
+
+- [problem.md §9](problem.md#9-2026-11-09-구현-및-통합-확인)에 현재 구현·수치·미검증 범위를 기록했다. 이전 §3.1.4–3.1.6의 과거 problem.md 절 번호와 혼동하지 않는다.
+- Windows bounded async GPU slot·완료 추적/lease, Hermes/Web 변경 알림, 16/8ms App 재조회 제거, 실제 timer deadline wake, interaction/raw의 Content queue 우회, bounded dispatch/frame trace와 Core lock 계측을 연결했다.
+- 동일 scene semantics 병합·조건부 정렬 및 Prepared subtree index 재사용, record identity 재사용, indexed 미측정 row 최대 8개 batch를 반영했다. 빠른 click→wheel에서 발견한 paint-only publication 교체의 wheel stale 거부를 geometry 검증을 유지하며 수정했다.
+- 최종 공급 **`2416cdf4ae7075a0567e22100b6c5ff3927f245e9eff4e2e68283c6e72004d32`**, ABI 2/schema 896476372, 355 files 검증. Demo Windows/Web **861/860** 갱신. Native/Wasm·Windows host 빌드, source 회귀, Web 두 profile, Windows 일반 CLI callback/scroll/종료 확인. Windows 종료 예약·메모리 0, Web 예약 0/worker 종료.
+- Windows resident 왕복에서 document/layout/paragraph/picture 수 유지, Web 두 profile에서도 document/layout/measurement 유지. Cold/resize backing 비용과 일시적 빈 영역은 남으며, 전체 성능·물리 표시 수락은 하지 않았다. dirty subtree 전체 전환, Content snapshot/deadline, property revision, 독립 builder batch, v2 observed-budget 준비는 후속이다. 기존 compatible=false·성능 flag=false·물리/display/scanout notVerified·Android stale/notVerified를 유지한다.
+
 ### 3.2 W9C-01–02 — Core·디자인·접근성 잔여 계약
 
 - [ ] Paragraph/image·control/layer의 남은 중앙 설정을 원래 모듈 소유로 옮긴다. 미등록 subclass·instance 실행 hook 거부를 유지하며 명시 extension/custom draw 지원 범위를 확정한다.
