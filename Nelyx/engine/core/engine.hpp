@@ -15,6 +15,7 @@ struct Frame;
 struct MeasurementRequest;
 struct InteractionSnapshot;
 struct FontTransition;
+struct EventOverflowInfo;
 class Engine {
  public:
   Engine(uint32_t session, uint32_t app);
@@ -27,6 +28,7 @@ class Engine {
   std::shared_ptr<const Frame> frameSnapshot(uint32_t view, uint32_t generation, uint64_t id);
   std::shared_ptr<const InteractionSnapshot> interactionSnapshot(uint32_t view,uint32_t generation);
   std::shared_ptr<const FontTransition> fontTransitionSnapshot(uint32_t view,uint32_t generation);
+  std::shared_ptr<const EventOverflowInfo> eventOverflowSnapshot(uint32_t view,uint32_t generation);
  private:
   struct State;
   std::unique_ptr<State> state_;

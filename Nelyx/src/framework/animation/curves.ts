@@ -717,6 +717,7 @@ export type NativeCurveConfiguration =
   | { readonly kind: 'sawTooth'; readonly count: number }
   | { readonly kind: 'elasticIn' | 'elasticOut' | 'elasticInOut'; readonly period: number };
 const nativeCurveReaders = new WeakMap<object, (curve: Curve) => NativeCurveConfiguration>();
+const nativeCustomCurveMethods = new WeakMap<object, readonly unknown[]>();
 const nativeCurveMethods = new Map(
   [
     Cubic.prototype,
@@ -749,11 +750,17 @@ export function registerNativeCurveConfiguration<T extends Curve>(
   if (
     !prototype ||
     prototype === Curve.prototype ||
+    !(prototype instanceof Curve) ||
+    nativeCurveMethods.has(prototype) ||
     nativeCurveReaders.has(prototype) ||
     typeof reader !== 'function'
   )
     throw Error('Invalid or duplicate native Curve configuration');
   nativeCurveReaders.set(prototype, reader as (curve: Curve) => NativeCurveConfiguration);
+  nativeCustomCurveMethods.set(prototype, [
+    Reflect.get(prototype, 'transform'),
+    Reflect.get(prototype, 'transformInternal'),
+  ]);
 }
 export function nativeCurveConfiguration(curve: Curve): NativeCurveConfiguration {
   const active = new Set<Curve>();
@@ -762,7 +769,15 @@ export function nativeCurveConfiguration(curve: Curve): NativeCurveConfiguration
     const prototype = Object.getPrototypeOf(value),
       custom = nativeCurveReaders.get(prototype),
       methods = nativeCurveMethods.get(prototype);
-    if (custom) return custom(value);
+    if (custom) {
+      const expected = nativeCustomCurveMethods.get(prototype)!;
+      if (
+        Reflect.get(value, 'transform') !== expected[0] ||
+        Reflect.get(value, 'transformInternal') !== expected[1]
+      )
+        throw Error('Native Curve methods changed after registration');
+      return custom(value);
+    }
     if (
       !methods ||
       Reflect.get(value, 'transform') !== methods[0] ||

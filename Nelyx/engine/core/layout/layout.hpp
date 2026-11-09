@@ -94,6 +94,9 @@ public:
   std::shared_ptr<const Document> document() const;
   std::shared_ptr<const LayoutOutput> output() const;
   std::shared_ptr<const LayoutOutput> pendingCache() const;
+  // Continue only a version-matched builder subtree replacement. False leaves
+  // this work untouched so the scheduler can use its normal restart path.
+  bool resumeBuild(std::shared_ptr<const Document>, const std::vector<ScrollLayoutOffset>&);
   uint64_t work() const;
   uint64_t reused() const;
   uint64_t imagePaintWork() const;

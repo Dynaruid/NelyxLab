@@ -3,7 +3,7 @@
 export interface CanvasKitManifest {
   readonly schema: 'nelyx.canvaskit/v1';
   readonly adapterAbi: 1;
-  readonly version: 'm153-nelyx-paragraph.6';
+  readonly version: 'm153-nelyx-paragraph.7';
   readonly paragraphApiVersion: 1;
   readonly pictureApiVersion: 3;
   readonly fontApiVersion: 1;

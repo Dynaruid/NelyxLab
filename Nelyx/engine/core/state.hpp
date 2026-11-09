@@ -339,6 +339,11 @@ struct ScrollCommand {
   bool listOffset = false;
   ScrollCurve curve;
 };
+struct EventOverflowInfo {
+  std::shared_ptr<Lease> lease;
+  uint32_t queue=0,kind=0,status=0,queued=0,pointerPhase=0,pointerFlags=0;
+  std::array<uint32_t,wire::events::pointer+1> kinds{};
+};
 struct RawSample { Handle node; std::array<uint8_t,8+wire::inputBytes> bytes{}; };
 RawSample rawSample(const Input&,Handle,uint64_t generation);
 struct CommandResult {
@@ -357,6 +362,7 @@ struct View {
   SnapshotRegistry snapshots;
   uint32_t generation;
   bool closed = false, visible = true, focused = true, overflowed = false, dirty = false;
+  EventOverflowInfo eventOverflow;
   Metrics metrics;
   std::shared_ptr<const Document> document, demand;
   std::unique_ptr<Preparation> preparing;
@@ -455,7 +461,9 @@ struct View {
     }
   }
   void event(Event e);
+  void recordEventOverflow(const Event& event,bool interactionQueue);
   void close(uint32_t reason);
+  bool endDeferredInput(uint32_t stream,bool cancelPending);
   void cancelStream(uint32_t stream, uint32_t reason);
   void cancelInput(uint32_t reason);
   void requestContent();

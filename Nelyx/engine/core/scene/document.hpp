@@ -44,6 +44,7 @@ struct Properties {
   double x = 0, y = 0, width = 0, height = 0, opacity = 1;
   double minimum = 0, maximum = 0;
   uint32_t extent = wire::extents::finite, flags = 0;
+  bool operator==(const Properties&) const = default;
 };
 struct Motion {
   uint64_t id = 0, baseRevision = 0;
@@ -56,6 +57,7 @@ struct LayoutStyle {
   double inlineScale = 1;
   uint32_t runAlign = 0, textBaseline = 0, positionedFlags = 0, overflowClipBehavior = 0;
   std::array<double,6> positioned{};
+  bool operator==(const LayoutStyle&) const = default;
 };
 struct Coverage { uint64_t revision = 0; double minimum = 0, maximum = 0; bool enabled = false; };
 struct TextData {
@@ -125,6 +127,8 @@ struct Node {
   ControlStyle control;
   std::shared_ptr<const ListGeometry> listGeometry;
   uint64_t layoutRevision = 0;
+  // Direct transaction edits, excluding ancestor layout invalidation.
+  uint64_t configurationRevision = 0;
   double baseline = -1;
   double contentX = 0, contentY = 0, contentWidth = 0, contentHeight = 0;
   bool contentOverflow = false;
@@ -155,7 +159,7 @@ struct Node {
       kind(n.kind), order(n.order), policy(n.policy), gestureDevices(n.gestureDevices), properties(n.properties), graphics(n.graphics),layerLink(n.layerLink),tapRegion(n.tapRegion),tooltipPosition(n.tooltipPosition),childAnchor(n.childAnchor),intrinsicSizing(n.intrinsicSizing),layoutBuilder(n.layoutBuilder),clipStyle(n.clipStyle),imageStyle(n.imageStyle),snapshot(n.snapshot),imagePaint(n.imagePaint),nativePaint(n.nativePaint),resolvedPaint(n.resolvedPaint),paintPlacement(n.paintPlacement),paintTransform(n.paintTransform),layoutTransform(n.layoutTransform),layoutPaintValues(n.layoutPaintValues),extensionSize(n.extensionSize),
       layoutProgram(n.layoutProgram),horizontal(n.horizontal), vertical(n.vertical), motion(n.motion), layout(n.layout), coverage(n.coverage),
       list(n.list), item(n.item), gestures(n.gestures), control(n.control), listGeometry(n.listGeometry),
-      layoutRevision(n.layoutRevision), baseline(n.baseline), contentX(n.contentX), contentY(n.contentY),
+      layoutRevision(n.layoutRevision), configurationRevision(n.configurationRevision), baseline(n.baseline), contentX(n.contentX), contentY(n.contentY),
       contentWidth(n.contentWidth), contentHeight(n.contentHeight), contentOverflow(n.contentOverflow), contentOverflowX(n.contentOverflowX),overflowProbeWidth(n.overflowProbeWidth),overflowProbeHeight(n.overflowProbeHeight),paintBoundedWidth(n.paintBoundedWidth), paintBoundedHeight(n.paintBoundedHeight), inlineHidden(n.inlineHidden), editSerial(n.editSerial),editFlags(n.editFlags),maximumLength(n.maximumLength),
       editorViewport(n.editorViewport),editorScrollOffset(n.editorScrollOffset),editing(n.editing),textGeometry(n.textGeometry),semantics(n.semantics),color(n.color), textDirection(n.textDirection), radius(n.radius),
       fontSize(n.fontSize), text(n.text), paragraph(n.paragraph), resource(n.resource),fontResource(n.fontResource),fontRevision(n.fontRevision),fontPinned(n.fontPinned) {

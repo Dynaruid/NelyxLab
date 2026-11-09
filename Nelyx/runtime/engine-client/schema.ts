@@ -5,6 +5,9 @@ export const protocol = {
   'abiMinor': 0,
   'magic': 844647502,
   'headerBytes': 64,
+  'inspectionFlags': {
+    'stateOnly': 1,
+  },
   'stateBytes': 744,
   'nodeBytes': 360,
   'eventBytes': 160,
@@ -206,6 +209,7 @@ export const protocol = {
     'imageResourceRead': 60,
     'imageResourceRelease': 61,
     'snapshotPaint': 62,
+    'scrollCancel': 63,
   },
   'nodeCreationBytes': 8,
   'nodeAttachedCreationBytes': 24,
@@ -1255,5 +1259,5 @@ export const protocol = {
   'keyIdentityTextBytes': 64,
   'keyIdentityEventBlob': 34,
   'keyIdentityEventBytes': 24,
-  'schema': 905102333,
+  'schema': 896476372,
 } as const;

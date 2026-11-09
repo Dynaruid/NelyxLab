@@ -2,7 +2,7 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 905102333u;
+inline constexpr uint32_t schema = 896476372u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
@@ -89,6 +89,9 @@ inline constexpr uint32_t keyIdentityBytes = 48u;
 inline constexpr uint32_t keyIdentityTextBytes = 64u;
 inline constexpr uint32_t keyIdentityEventBlob = 34u;
 inline constexpr uint32_t keyIdentityEventBytes = 24u;
+namespace inspectionFlags {
+inline constexpr uint32_t stateOnly = 1u;
+}
 namespace editorViewportFlags {
 inline constexpr uint32_t expands = 1u;
 }
@@ -264,6 +267,7 @@ inline constexpr uint32_t imageUploadAbort = 59u;
 inline constexpr uint32_t imageResourceRead = 60u;
 inline constexpr uint32_t imageResourceRelease = 61u;
 inline constexpr uint32_t snapshotPaint = 62u;
+inline constexpr uint32_t scrollCancel = 63u;
 }
 namespace nodeCreationFields {
 inline constexpr uint32_t kind = 0u;

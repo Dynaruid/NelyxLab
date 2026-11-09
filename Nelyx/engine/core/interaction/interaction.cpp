@@ -53,7 +53,43 @@ Handle canonicalFocusPeer(const Document& document,Handle focus) {
   }
   return result;
 }
+void View::recordEventOverflow(const Event& event,bool interactionQueue) {
+  if(!eventOverflow.queue){
+    eventOverflow.queue=interactionQueue?2u:1u;eventOverflow.kind=event.kind;eventOverflow.status=event.status;
+    const auto& queue=interactionQueue?interactionEvents:events;eventOverflow.queued=uint32_t(queue.size());
+    for(const auto& pending:queue)if(pending.kind<eventOverflow.kinds.size())++eventOverflow.kinds[pending.kind];
+    if(event.kind==wire::events::pointer){const Reader sample{event.pointer.input.data(),event.pointer.input.size()};
+      eventOverflow.pointerPhase=sample.u32(wire::inputFields::phase);eventOverflow.pointerFlags=sample.u32(wire::inputFields::flags);}
+  }
+  overflowed=true;
+}
 void View::interaction(Event e) {
+  if(e.kind==wire::events::pointer){
+    const Reader sample{e.pointer.input.data(),e.pointer.input.size()};
+    if(sample.u32(wire::inputFields::phase)==wire::phases::update){
+      // Source can be building while Core keeps scrolling. Retain the latest
+      // continuous observation and its total delta, without crossing discrete
+      // input, routing generations, modifier changes or coordinate mappings.
+      for(auto at=interactionEvents.rbegin();at!=interactionEvents.rend();++at){
+        if(at->kind!=wire::events::pointer)break;
+        const Reader previous{at->pointer.input.data(),at->pointer.input.size()};
+        if(previous.u32(wire::inputFields::phase)!=wire::phases::update)break;
+        if(at->node!=e.node)continue;
+        const auto& a=at->pointer.inverse;const auto& b=e.pointer.inverse;
+        bool same=at->epoch==e.epoch&&a.a==b.a&&a.b==b.b&&a.c==b.c&&a.d==b.d&&a.tx==b.tx&&a.ty==b.ty&&
+          previous.u64(wire::inputFields::metrics)==sample.u64(wire::inputFields::metrics);
+        for(const auto field:{wire::inputFields::stream,wire::inputFields::source,wire::inputFields::flags,
+            wire::inputFields::buttons,wire::inputFields::modifiers,wire::inputFields::device,wire::inputFields::contact,wire::inputFields::kind})
+          same&=previous.u32(field)==sample.u32(field);
+        if(!same)break;
+        Writer merged(wire::inputBytes);std::copy(e.pointer.input.begin(),e.pointer.input.end(),merged.bytes.begin());
+        merged.f64(wire::inputFields::dx,previous.f64(wire::inputFields::dx)+sample.f64(wire::inputFields::dx));
+        merged.f64(wire::inputFields::dy,previous.f64(wire::inputFields::dy)+sample.f64(wire::inputFields::dy));
+        std::copy(merged.bytes.begin(),merged.bytes.end(),e.pointer.input.begin());
+        interactionEvents.erase(std::prev(at.base()));interactionEvents.push_back(e);return;
+      }
+    }
+  }
   if (e.kind == wire::events::appFrame || e.kind == wire::events::editingChanged || e.kind == wire::events::needChildren ||
       e.kind == wire::events::controlChanged || (e.kind==wire::events::gesture&&
         (e.status==wire::gestureKinds::panUpdate||e.status==wire::gestureKinds::pinchUpdate||e.status==wire::gestureKinds::hover||e.status==wire::gestureKinds::mouseHover))) {
@@ -68,7 +104,7 @@ void View::interaction(Event e) {
       }
   }
   if (interactionEvents.size() >= wire::limits::interactionEvents) {
-    overflowed = true;
+    recordEventOverflow(e,true);
     return;
   }
   interactionEvents.push_back(e);
@@ -268,6 +304,8 @@ void View::applyEdit(Reader bytes) {
   const auto serial = next(editClock);
   const auto value = found->second->apply(command, serial);
   if (value->serial == serial) {
+    for(auto it=commands.begin();it!=commands.end();){const auto scrolling=it++;
+      if(scrolling->second.node==node)finishCommand(scrolling->first,wire::statuses::canceled);}
     if(node==focusNode)revealPending=true;
     editClock = serial;
     ++editingWork;

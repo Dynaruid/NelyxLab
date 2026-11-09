@@ -157,7 +157,7 @@ export class EditingController {
   async edit(update: EditingUpdate): Promise<EditingSnapshot> {
     const b = this.binding;
     if (!b) throw new Error('Editor is detached');
-    const state = await b.host.view.request(p.opcodes.inspect);
+    const state = await b.host.view.inspectState();
     const session = state.focus && id(state.focus.node) === id(b.node) ? state.focus.session : 0n;
     const value = await b.host.view.edit(b.node, { ...update, session });
     this.publish(value);
@@ -200,16 +200,24 @@ export class SceneNode {
     readonly maximumLength: number = p.limits.textBytes,
   ) {}
 }
+const retainedConfigurations = new WeakSet<SceneNode>();
+/** @internal Source capture owns invalidation and immutable configuration
+ * identity. Public SceneNode producers still get mutation-safe input diffing. */
+export function retainSceneConfiguration(node: SceneNode): void {
+  retainedConfigurations.add(node);
+}
 function id(h: NodeHandle): string {
   return `${h.slot}:${h.generation}`;
 }
 const commandKind = (bytes: Uint8Array) => bytes[0]! | (bytes[1]! << 8);
 interface NativeRecord {
+  readonly appGeometry: boolean;
   readonly node: SceneNode;
   readonly handle: NodeHandle;
   readonly parent: NodeHandle | null;
   readonly children: readonly NodeHandle[];
   readonly config: readonly Uint8Array[];
+  readonly configInputs: ReadonlyMap<number, unknown>;
 }
 export interface EngineExecutionSnapshot {
   readonly selected: 'engine-v2-cpp';
@@ -223,7 +231,63 @@ export interface EngineExecutionSnapshot {
   readonly rejectionReasons: Readonly<Record<string, number>>;
 }
 const equalBytes = (a: Uint8Array, b: Uint8Array) =>
-  a.length === b.length && a.every((n, i) => n === b[i]);
+  a === b || (a.length === b.length && a.every((n, i) => n === b[i]));
+const uncacheableInput = Symbol('uncacheable scene input');
+/** Keep independent data snapshots. Reusing a mutable options object must not
+ * hide a later change; executable/accessor values always run through encoding. */
+function captureConfigInput(value: unknown, parents = new Set<object>()): unknown {
+  if (value === null || typeof value !== 'object')
+    return typeof value === 'function' || typeof value === 'symbol' ? uncacheableInput : value;
+  const array = Array.isArray(value);
+  if (
+    (!array &&
+      Object.getPrototypeOf(value) !== Object.prototype &&
+      Object.getPrototypeOf(value) !== null) ||
+    parents.has(value)
+  )
+    return uncacheableInput;
+  parents.add(value);
+  const copy: Record<string, unknown> | unknown[] = array ? [] : Object.create(null);
+  for (const key of Object.keys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
+    if (!('value' in descriptor)) return uncacheableInput;
+    const captured = captureConfigInput(descriptor.value, parents);
+    if (captured === uncacheableInput) return uncacheableInput;
+    (copy as Record<string, unknown>)[key] = captured;
+  }
+  if (array) (copy as unknown[]).length = value.length;
+  parents.delete(value);
+  return copy;
+}
+function sameConfigInput(value: unknown, captured: unknown): boolean {
+  if (Object.is(value, captured)) return true;
+  if (!value || !captured || typeof value !== 'object' || typeof captured !== 'object')
+    return false;
+  const array = Array.isArray(value);
+  if (
+    array !== Array.isArray(captured) ||
+    (array && value.length !== (captured as unknown[]).length)
+  )
+    return false;
+  if (
+    !array &&
+    Object.getPrototypeOf(value) !== Object.prototype &&
+    Object.getPrototypeOf(value) !== null
+  )
+    return false;
+  const keys = Object.keys(value);
+  if (keys.length !== Object.keys(captured).length) return false;
+  for (const key of keys) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
+    if (
+      !('value' in descriptor) ||
+      !Object.hasOwn(captured, key) ||
+      !sameConfigInput(descriptor.value, (captured as Record<string, unknown>)[key])
+    )
+      return false;
+  }
+  return true;
+}
 
 /** ACK-based engine document writer shared by all App producers. */
 export class SceneWriter {
@@ -278,9 +342,11 @@ export class SceneWriter {
   private focusCallback: SceneNodeOptions['onFocusChanged'];
   private semanticPublication: EngineResponse | undefined;
   private semanticState: EngineResponse | undefined;
+  private layoutObservation: EngineResponse | undefined;
   private appGeometryNodes = 0;
   private readonly controlRevisions = new Map<string, bigint>();
   readonly counters = {
+    reusedRecords: 0,
     builds: 0,
     transactions: 0,
     commands: 0,
@@ -394,68 +460,142 @@ export class SceneWriter {
           'AppDrivenBoundary requires explicit finite width and height on every node',
         );
       const children = node.children.flatMap((child) => visit(child, h, appGeometry));
+      const before = this.accepted.get(id(h));
+      // Resolve executable configuration every time: a retained follower or
+      // paint reference may point to a newly allocated native handle. Records
+      // with native control revisions likewise require live encoding.
+      if (
+        before?.node === node &&
+        retainedConfigurations.has(node) &&
+        before.appGeometry === appGeometry &&
+        !o.control &&
+        before.config.every((bytes) => before.configInputs.has(commandKind(bytes)))
+      ) {
+        records.set(id(h), { ...before, parent, children });
+        ++this.counters.reusedRecords;
+        return [h];
+      }
+      const previousConfig = new Map(before?.config.map((value) => [commandKind(value), value]));
+      const configInputs = new Map<number, unknown>();
+      const encode = (kind: number, input: unknown, make: () => Uint8Array): Uint8Array => {
+        const previous = previousConfig.get(kind);
+        if (
+          previous &&
+          before!.configInputs.has(kind) &&
+          sameConfigInput(input, before!.configInputs.get(kind))
+        ) {
+          configInputs.set(kind, before!.configInputs.get(kind));
+          return previous;
+        }
+        const bytes = make();
+        const captured = captureConfigInput(input);
+        if (captured !== uncacheableInput) configInputs.set(kind, captured);
+        return bytes;
+      };
+      const layout = appGeometry || o.layout === false ? { enabled: false } : (o.layout ?? {});
       const config = [
-        c.properties(h, o.properties ?? {}),
-        c.paint(h, o.color ?? 0, o.radius ?? 0),
-        c.layout(h, appGeometry || o.layout === false ? { enabled: false } : (o.layout ?? {})),
-        c.constraints(
-          h,
-          o.horizontal ?? { kind: 'unbounded' },
-          o.vertical ?? { kind: 'unbounded' },
+        encode(p.commands.properties, o.properties, () => c.properties(h, o.properties ?? {})),
+        encode(p.commands.paint, [o.color, o.radius], () =>
+          c.paint(h, o.color ?? 0, o.radius ?? 0),
+        ),
+        encode(p.commands.layout, layout, () => c.layout(h, layout)),
+        encode(p.commands.constraints, [o.horizontal, o.vertical], () =>
+          c.constraints(
+            h,
+            o.horizontal ?? { kind: 'unbounded' },
+            o.vertical ?? { kind: 'unbounded' },
+          ),
         ),
       ];
-      const before = this.accepted.get(id(h));
-      const optional = (enabled: unknown, command: Uint8Array) => {
-        const previous = before?.config.find(
-          (value) => commandKind(value) === commandKind(command),
-        );
+      const optional = (
+        kind: number,
+        enabled: unknown,
+        make: () => Uint8Array,
+        input: unknown = enabled,
+      ) => {
+        const previous = previousConfig.get(kind);
         // Never spend a command on an absent default. An explicit reset is
         // retained until ACK; NACK/retry still sees the old immutable bytes.
+        if (!enabled && !previous) return;
+        const command = encode(kind, input, make);
         if (enabled || (previous && !equalBytes(previous, command))) config.push(command);
       };
-      if (node.text)
+      const text = node.text;
+      if (text)
         config.push(
-          c.text(
-            h,
-            node.editor && this.accepted.has(id(h)) ? '' : node.text.value,
-            node.text.size,
-            node.text.color,
-            {
-              direction: node.text.direction,
-              ...(node.editor && this.accepted.has(id(h)) ? { styleOnly: true } : {}),
-            },
+          encode(
+            p.commands.text,
+            [
+              node.editor && before ? '' : text.value,
+              text.size,
+              text.color,
+              text.direction,
+              !!node.editor && !!before,
+            ],
+            () =>
+              c.text(
+                h,
+                node.editor && this.accepted.has(id(h)) ? '' : text.value,
+                text.size,
+                text.color,
+                {
+                  direction: text.direction,
+                  ...(node.editor && this.accepted.has(id(h)) ? { styleOnly: true } : {}),
+                },
+              ),
           ),
         );
       if (node.kind === 'paragraph' || node.kind === 'editable')
         config.push(
-          c.paragraphOptions(h, o.paragraph ?? null),
-          c.paragraphFont(h, o.paragraphFont),
+          encode(p.commands.paragraphOptions, o.paragraph, () =>
+            c.paragraphOptions(h, o.paragraph ?? null),
+          ),
+          encode(p.commands.paragraphFont, o.paragraphFont, () =>
+            c.paragraphFont(h, o.paragraphFont),
+          ),
         );
       else if (o.paragraph) throw Error('Paragraph options require a native paragraph node');
       else if (o.paragraphFont) throw Error('Paragraph fonts require a native paragraph node');
-      if (node.kind === 'clip') config.push(c.clipStyle(h, o.clipStyle ?? null));
+      if (node.kind === 'clip')
+        config.push(
+          encode(p.commands.clipStyle, o.clipStyle, () => c.clipStyle(h, o.clipStyle ?? null)),
+        );
       else if (o.clipStyle) throw Error('Clip styles require a native clip node');
       if (node.editor)
         config.push(c.editor(h, node.editorFlags, node.maximumLength, o.editorViewport));
-      optional(o.semantics, c.semantics(h, o.semantics ?? null));
-      if (node.kind === 'sliver') config.push(c.list(h, o.list ?? null));
-      optional(o.graphics, c.graphics(h, o.graphics));
-      optional(o.nativePaint?.length, c.nativePaint(h, o.nativePaint));
-      optional(o.paintPlacement, c.paintPlacement(h, o.paintPlacement));
+      optional(p.commands.semantics, o.semantics, () => c.semantics(h, o.semantics ?? null));
+      if (node.kind === 'sliver')
+        config.push(encode(p.commands.list, o.list, () => c.list(h, o.list ?? null)));
+      optional(p.commands.graphics, o.graphics, () => c.graphics(h, o.graphics));
       optional(
-        o.layerLink,
+        p.commands.nativePaint,
+        o.nativePaint?.length,
+        () => c.nativePaint(h, o.nativePaint),
+        o.nativePaint,
+      );
+      optional(p.commands.paintPlacement, o.paintPlacement, () =>
+        c.paintPlacement(h, o.paintPlacement),
+      );
+      optional(p.commands.layerLink, o.layerLink, () =>
         c.layerLink(h, typeof o.layerLink === 'function' ? o.layerLink() : o.layerLink),
       );
-      optional(
-        o.tapRegion,
+      optional(p.commands.tapRegion, o.tapRegion, () =>
         c.tapRegion(h, typeof o.tapRegion === 'function' ? o.tapRegion() : o.tapRegion),
       );
-      optional(o.snapshot, c.snapshot(h, o.snapshot));
-      optional(o.layoutBuilder, c.layoutBuilder(h, o.layoutBuilder));
-      optional(o.tooltipPosition, c.tooltipPosition(h, o.tooltipPosition));
-      optional(o.childAnchor, c.childAnchor(h, o.childAnchor));
-      optional(o.intrinsicSizing, c.intrinsicSizing(h, o.intrinsicSizing));
-      optional(o.layoutProgram, c.layoutProgram(h, o.layoutProgram));
+      optional(p.commands.snapshot, o.snapshot, () => c.snapshot(h, o.snapshot));
+      optional(p.commands.layoutBuilder, o.layoutBuilder, () =>
+        c.layoutBuilder(h, o.layoutBuilder),
+      );
+      optional(p.commands.tooltipPosition, o.tooltipPosition, () =>
+        c.tooltipPosition(h, o.tooltipPosition),
+      );
+      optional(p.commands.childAnchor, o.childAnchor, () => c.childAnchor(h, o.childAnchor));
+      optional(p.commands.intrinsicSizing, o.intrinsicSizing, () =>
+        c.intrinsicSizing(h, o.intrinsicSizing),
+      );
+      optional(p.commands.layoutProgram, o.layoutProgram, () =>
+        c.layoutProgram(h, o.layoutProgram),
+      );
       if (o.nativeSparkline)
         config.push(
           c.nativeExtension(
@@ -465,73 +605,73 @@ export class SceneWriter {
             o.nativeSparkline.values,
           ),
         );
-      optional(o.listItem, c.listItem(h, o.listItem ?? null));
-      optional(o.gestures, c.gesture(h, o.gestures ?? 0, o.gestureDevices));
+      optional(p.commands.listItem, o.listItem, () => c.listItem(h, o.listItem ?? null));
       optional(
-        o.control,
-        c.control(
-          h,
-          o.control
-            ? {
-                ...o.control,
-                revision: o.control.revision ?? this.controlRevisions.get(id(h)) ?? 0n,
-              }
-            : null,
-        ),
+        p.commands.gesture,
+        o.gestures,
+        () => c.gesture(h, o.gestures ?? 0, o.gestureDevices),
+        [o.gestures, o.gestureDevices],
       );
-      config.push(
-        c.eventPolicy(
-          h,
-          (o.onRawInput ? p.eventPolicies.observeRaw : 0) |
-            (o.appControlled ? p.eventPolicies.appControlled : 0) |
-            (o.modal ? p.eventPolicies.modal : 0) |
-            (o.pointerHitTest ? p.eventPolicies.canonicalHitTest : 0) |
-            (o.canonicalGestures ? p.eventPolicies.canonicalGestures : 0) |
-            (o.dragStartDown ? p.eventPolicies.dragStartDown : 0) |
-            (o.freePan ? p.eventPolicies.freePan : 0) |
-            (o.dragThreshold ? p.eventPolicies.dragThreshold : 0) |
-            (o.mouseRegion ? p.eventPolicies.mouseRegion : 0) |
-            (o.onPointerSample ? p.eventPolicies.pointerListener : 0) |
-            (o.mouseRegion?.opaque ? p.eventPolicies.mouseOpaque : 0) |
-            (o.mouseRegion?.exclusive ? p.eventPolicies.exclusiveMouseRegion : 0) |
-            (o.roundedHitTest ? p.eventPolicies.roundedHitTest : 0) |
-            (o.nativeFocus ? p.eventPolicies.focusOwner : 0) |
-            (o.nativeFocus?.enabled ? p.eventPolicies.focusEnabled : 0) |
-            (o.nativeFocus?.skipTraversal ? p.eventPolicies.skipTraversal : 0) |
-            (o.canonicalKeyboard ? p.eventPolicies.canonicalKeyboard : 0) |
-            (o.semanticsPolicy?.boundary ? p.eventPolicies.semanticsBoundary : 0) |
-            (o.semanticsPolicy?.blockPrevious ? p.eventPolicies.blockPreviousSemantics : 0) |
-            (o.semanticsPolicy?.mergeDescendants ? p.eventPolicies.mergeSemanticsDescendants : 0) |
-            (o.semanticsPolicy?.mergeIntoParent ? p.eventPolicies.mergeSemanticsIntoParent : 0) |
-            (o.semanticsPolicy?.excludeChildren ? p.eventPolicies.excludeChildSemantics : 0) |
-            (o.semanticsPolicy?.blockActions ? p.eventPolicies.blockSemanticActions : 0) |
-            (o.semanticsPolicy?.explicitChildren ? p.eventPolicies.explicitChildSemantics : 0) |
-            (o.semanticsPolicy?.forceMergeDescendants ? p.eventPolicies.forceMergeSemantics : 0) |
-            (o.pointerBlock === 'ignore' ? p.eventPolicies.ignorePointer : 0) |
-            (o.pointerBlock === 'absorb' ? p.eventPolicies.absorbPointer : 0) |
-            (o.pointerHitTest === 'self' ? p.eventPolicies.hitTestSelf : 0) |
-            (o.pointerHitTest === 'deferToChild' ? p.eventPolicies.deferToChild : 0) |
-            (o.pointerHitTest === 'translucent' ? p.eventPolicies.translucent : 0),
-        ),
-      );
+      const control = o.control
+        ? { ...o.control, revision: o.control.revision ?? this.controlRevisions.get(id(h)) ?? 0n }
+        : null;
+      optional(p.commands.control, control, () => c.control(h, control));
+      const eventPolicy =
+        (o.onRawInput ? p.eventPolicies.observeRaw : 0) |
+        (o.appControlled ? p.eventPolicies.appControlled : 0) |
+        (o.modal ? p.eventPolicies.modal : 0) |
+        (o.pointerHitTest ? p.eventPolicies.canonicalHitTest : 0) |
+        (o.canonicalGestures ? p.eventPolicies.canonicalGestures : 0) |
+        (o.dragStartDown ? p.eventPolicies.dragStartDown : 0) |
+        (o.freePan ? p.eventPolicies.freePan : 0) |
+        (o.dragThreshold ? p.eventPolicies.dragThreshold : 0) |
+        (o.mouseRegion ? p.eventPolicies.mouseRegion : 0) |
+        (o.onPointerSample ? p.eventPolicies.pointerListener : 0) |
+        (o.mouseRegion?.opaque ? p.eventPolicies.mouseOpaque : 0) |
+        (o.mouseRegion?.exclusive ? p.eventPolicies.exclusiveMouseRegion : 0) |
+        (o.roundedHitTest ? p.eventPolicies.roundedHitTest : 0) |
+        (o.nativeFocus ? p.eventPolicies.focusOwner : 0) |
+        (o.nativeFocus?.enabled ? p.eventPolicies.focusEnabled : 0) |
+        (o.nativeFocus?.skipTraversal ? p.eventPolicies.skipTraversal : 0) |
+        (o.canonicalKeyboard ? p.eventPolicies.canonicalKeyboard : 0) |
+        (o.semanticsPolicy?.boundary ? p.eventPolicies.semanticsBoundary : 0) |
+        (o.semanticsPolicy?.blockPrevious ? p.eventPolicies.blockPreviousSemantics : 0) |
+        (o.semanticsPolicy?.mergeDescendants ? p.eventPolicies.mergeSemanticsDescendants : 0) |
+        (o.semanticsPolicy?.mergeIntoParent ? p.eventPolicies.mergeSemanticsIntoParent : 0) |
+        (o.semanticsPolicy?.excludeChildren ? p.eventPolicies.excludeChildSemantics : 0) |
+        (o.semanticsPolicy?.blockActions ? p.eventPolicies.blockSemanticActions : 0) |
+        (o.semanticsPolicy?.explicitChildren ? p.eventPolicies.explicitChildSemantics : 0) |
+        (o.semanticsPolicy?.forceMergeDescendants ? p.eventPolicies.forceMergeSemantics : 0) |
+        (o.pointerBlock === 'ignore' ? p.eventPolicies.ignorePointer : 0) |
+        (o.pointerBlock === 'absorb' ? p.eventPolicies.absorbPointer : 0) |
+        (o.pointerHitTest === 'self' ? p.eventPolicies.hitTestSelf : 0) |
+        (o.pointerHitTest === 'deferToChild' ? p.eventPolicies.deferToChild : 0) |
+        (o.pointerHitTest === 'translucent' ? p.eventPolicies.translucent : 0);
+      config.push(encode(p.commands.eventPolicy, eventPolicy, () => c.eventPolicy(h, eventPolicy)));
       if (node.kind === 'image') {
         let resource = node.image ? this.resources.get(node.image) : undefined;
         if (node.image && !resource) {
           resource = this.view.allocateResource();
           this.resources.set(node.image, resource);
         }
-        config.push(c.bindResource(h, resource ?? null));
+        config.push(
+          encode(p.commands.bindResource, resource, () => c.bindResource(h, resource ?? null)),
+        );
         if (
           o.imageStyle !== undefined ||
           this.accepted.get(id(h))?.node.options.imageStyle !== undefined
         )
-          config.push(c.imageStyle(h, o.imageStyle ?? null));
+          config.push(
+            encode(p.commands.imageStyle, o.imageStyle, () =>
+              c.imageStyle(h, o.imageStyle ?? null),
+            ),
+          );
       }
       if (o.motion)
         config.push(
           c.motion(h, o.motion.id, o.motion.revision ?? 0n, o.motion.opacity, o.motion.seconds),
         );
-      records.set(id(h), { node, handle: h, parent, children, config });
+      records.set(id(h), { node, handle: h, parent, children, config, configInputs, appGeometry });
       return [h];
     };
     const roots = visit(root, null);
@@ -925,9 +1065,32 @@ export class SceneWriter {
     if (this.closed || this.polling) return;
     this.polling = true;
     try {
-      if (this.options.onPublication) {
+      // Drain the bounded input queue before optional scene observations. The
+      // latter can be large and must not hold admitted input behind two RPCs.
+      const state = await this.view.pollInteractionEvents();
+      if (this.closed) return;
+      this.semanticState = state;
+      this.options.onState?.(state);
+      await this.deliverInput(state);
+      if (this.closed) return;
+      let observed = state;
+      const publication = this.semanticPublication;
+      if (
+        this.options.onPublication &&
+        (!publication ||
+          publication.publication !== state.publication ||
+          publication.metrics !== state.metrics ||
+          publication.device !== state.device ||
+          publication.visible !== state.visible ||
+          publication.focused !== state.focused ||
+          publication.focusWork !== state.focusWork ||
+          publication.editingWork !== state.editingWork ||
+          publication.controlWork !== state.controlWork ||
+          publication.consumedThrough !== state.consumedThrough)
+      ) {
         const publication = await this.view.request(p.opcodes.semanticsSnapshot);
         if (this.closed) return;
+        observed = publication;
         if (publication.status === p.statuses.ok) {
           this.semanticPublication = publication;
           this.options.onPublication(publication);
@@ -940,8 +1103,29 @@ export class SceneWriter {
           );
       }
       const observers = [...this.accepted.values()].filter((r) => r.node.options.onLayout);
-      if (observers.length) {
+      const layout = this.layoutObservation;
+      if (
+        observers.length &&
+        (!layout ||
+          layout.activePreparation !== observed.activePreparation ||
+          layout.metrics !== observed.metrics ||
+          layout.device !== observed.device ||
+          layout.publishedDocument !== observed.publishedDocument ||
+          layout.publishedMetrics !== observed.publishedMetrics ||
+          layout.publishedDevice !== observed.publishedDevice ||
+          layout.property !== observed.property ||
+          layout.lastInput !== observed.lastInput ||
+          layout.consumedThrough !== observed.consumedThrough ||
+          layout.focusWork !== observed.focusWork ||
+          layout.editingWork !== observed.editingWork ||
+          layout.controlWork !== observed.controlWork ||
+          layout.fontRevision !== observed.fontRevision ||
+          layout.visible !== observed.visible ||
+          layout.focused !== observed.focused)
+      ) {
         const snapshot = await this.view.request(p.opcodes.layoutSnapshot);
+        if (this.closed) return;
+        observed = snapshot;
         // Mount acknowledgement can precede the first activated layout, in
         // particular during cold native-DPR browser startup. Keep polling
         // terminal/input events without reporting normal preparation as an error.
@@ -954,147 +1138,150 @@ export class SceneWriter {
           )
         )
           throw new EngineError(snapshot.status, 'Scene layout observation failed', snapshot);
-        if (snapshot.status === p.statuses.ok)
+        if (snapshot.status === p.statuses.ok) {
+          this.layoutObservation = snapshot;
+          const nodes = new Map(snapshot.nodes.map((node) => [id(node.node), node]));
           for (const record of observers) {
-            const node = snapshot.nodes.find((n) => id(n.node) === id(record.handle));
+            const node = nodes.get(id(record.handle));
             if (node && !this.closed) record.node.options.onLayout!(node, snapshot);
           }
-      }
-      const state = await this.view.pollInteractionEvents();
-      if (this.closed) return;
-      this.semanticState = state;
-      this.options.onState?.(state);
-      for (const sample of state.gestureRequests) {
-        const record = this.accepted.get(id(sample.node));
-        const decision = record?.node.options.appControlled;
-        if (!decision) continue;
-        void Promise.resolve()
-          .then(() => (this.closed ? undefined : decision(sample)))
-          .then((accept) => (this.closed ? undefined : this.view.replyGesture(sample, !!accept)))
-          .catch((error) => {
-            if (
-              !this.closed &&
-              (!(error instanceof EngineError) || error.status !== p.statuses.stale)
-            )
-              this.options.onError?.(error);
-          });
-      }
-      if (this.rawSubscribed) {
-        const raw = await this.view.pollRaw();
-        if (this.closed) return;
-        for (const sample of raw.rawInputs)
-          if (!this.closed) this.accepted.get(id(sample.node))?.node.options.onRawInput?.(sample);
-        for (const gap of raw.events)
-          if (gap.kind === p.events.rawGap)
-            for (const record of this.accepted.values())
-              record.node.options.onRawGap?.(gap.epoch, gap.detail);
-      }
-      for (const event of state.events) {
-        if (this.closed) break;
-        if (event.kind === p.events.appFrame) {
-          this.options.onAppFrame?.(event.x, event.id);
-          continue;
-        }
-        if (event.kind === p.events.focusChanged) {
-          this.inputEvent(event, undefined, () => {
-            const next =
-                event.status === p.statuses.ok && event.id
-                  ? this.accepted.get(id(event.node))
-                  : undefined,
-              handle = next ? id(next.handle) : '';
-            if (handle !== this.focusHandle) {
-              (
-                this.accepted.get(this.focusHandle)?.node.options.onFocusChanged ??
-                this.focusCallback
-              )?.(false, event);
-              this.focusHandle = handle;
-              this.focusCallback = next?.node.options.onFocusChanged;
-              this.focusCallback?.(true, event);
-            }
-          });
-          continue;
-        }
-        const record = this.accepted.get(id(event.node));
-        if (!record) {
-          if (event.kind === p.events.semanticAction && event.tapRegion)
-            this.inputEvent(event, undefined, () =>
-              this.options.onSemanticAction?.(event, () => {}),
-            );
-          continue;
-        }
-        if (event.kind === p.events.scrollTerminal)
-          this.inputEvent(event, record, (current) =>
-            current?.node.options.onScrollTerminal?.(event),
-          );
-        else if (event.kind === p.events.key) record.node.options.onKey?.(event);
-        else if (event.kind === p.events.pointer && event.pointer)
-          this.inputEvent(event, record, (current) =>
-            current?.node.options.onPointerSample?.(event.pointer!),
-          );
-        else if (event.kind === p.events.tapRegion)
-          this.inputEvent(event, record, (current) => current?.node.options.onTapRegion?.(event));
-        else if (event.kind === p.events.controlChanged) {
-          ++this.counters.controls;
-          this.inputEvent(event, record, (current) => {
-            const callback = current?.node.options.onValue;
-            if (callback) {
-              const key = id(record.handle);
-              this.controlRevisions.set(key, (this.controlRevisions.get(key) ?? 0n) + 1n);
-              try {
-                callback(eventValue(event.detail), event.x);
-              } finally {
-                if (!this.closed) this.schedule();
-              }
-            }
-          });
-        } else if (event.kind === p.events.gesture) {
-          ++this.counters.gestures;
-          const kind = Object.entries(p.gestureKinds).find(
-            ([, value]) => value === event.status,
-          )?.[0] as GestureEvent['kind'] | undefined;
-          if (kind)
-            this.inputEvent(event, record, (current) =>
-              current?.node.options.onGesture?.({
-                kind,
-                sequence: event.id,
-                x: event.x,
-                y: event.y,
-                value: eventValue(event.detail),
-                ...(event.gesture ? { details: event.gesture } : {}),
-              }),
-            );
-        } else if (event.kind === p.events.editingChanged && record.node.editor) {
-          const editing = await this.view.editSnapshot(event.node);
-          if (!this.closed)
-            this.inputEvent(event, record, (current) => current?.node.editor?.publish(editing));
-        } else if (event.kind === p.events.semanticAction) {
-          const action = Object.entries(p.semanticsActions).find(
-            ([, v]) => BigInt(v) === event.detail,
-          )?.[0] as keyof typeof p.semanticsActions | undefined;
-          if (action) {
-            const source = event.semanticSource
-              ? this.accepted.get(id(event.semanticSource))
-              : record;
-            const perform = () => {
-              if (
-                !this.closed &&
-                this.accepted.get(id(event.node)) === record &&
-                source &&
-                this.accepted.get(id(source.handle)) === source
-              )
-                source.node.options.onAction?.(action, event);
-            };
-            this.inputEvent(event, record, () => {
-              if (this.options.onSemanticAction) this.options.onSemanticAction(event, perform);
-              else perform();
-            });
-          }
         }
       }
+      this.semanticState = observed;
+      this.options.onState?.(observed);
       this.options.onAfterEvents?.();
     } finally {
       this.polling = false;
     }
+  }
+  private async deliverInput(state: EngineResponse): Promise<void> {
+    for (const sample of state.gestureRequests) {
+      const record = this.accepted.get(id(sample.node));
+      const decision = record?.node.options.appControlled;
+      if (!decision) continue;
+      void Promise.resolve()
+        .then(() => (this.closed ? undefined : decision(sample)))
+        .then((accept) => (this.closed ? undefined : this.view.replyGesture(sample, !!accept)))
+        .catch((error) => {
+          if (
+            !this.closed &&
+            (!(error instanceof EngineError) || error.status !== p.statuses.stale)
+          )
+            this.options.onError?.(error);
+        });
+    }
+    if (this.rawSubscribed) {
+      const raw = await this.view.pollRaw();
+      if (this.closed) return;
+      for (const sample of raw.rawInputs)
+        if (!this.closed) this.accepted.get(id(sample.node))?.node.options.onRawInput?.(sample);
+      for (const gap of raw.events)
+        if (gap.kind === p.events.rawGap)
+          for (const record of this.accepted.values())
+            record.node.options.onRawGap?.(gap.epoch, gap.detail);
+    }
+    for (const event of state.events) {
+      if (this.closed) break;
+      if (event.kind === p.events.appFrame) {
+        this.options.onAppFrame?.(event.x, event.id);
+        continue;
+      }
+      if (event.kind === p.events.focusChanged) {
+        this.inputEvent(event, undefined, () => {
+          const next =
+              event.status === p.statuses.ok && event.id
+                ? this.accepted.get(id(event.node))
+                : undefined,
+            handle = next ? id(next.handle) : '';
+          if (handle !== this.focusHandle) {
+            (
+              this.accepted.get(this.focusHandle)?.node.options.onFocusChanged ?? this.focusCallback
+            )?.(false, event);
+            this.focusHandle = handle;
+            this.focusCallback = next?.node.options.onFocusChanged;
+            this.focusCallback?.(true, event);
+          }
+        });
+        continue;
+      }
+      const record = this.accepted.get(id(event.node));
+      if (!record) {
+        if (event.kind === p.events.semanticAction && event.tapRegion)
+          this.inputEvent(event, undefined, () => this.options.onSemanticAction?.(event, () => {}));
+        continue;
+      }
+      if (event.kind === p.events.scrollTerminal)
+        this.inputEvent(event, record, (current) =>
+          current?.node.options.onScrollTerminal?.(event),
+        );
+      else if (event.kind === p.events.key) record.node.options.onKey?.(event);
+      else if (event.kind === p.events.pointer && event.pointer)
+        this.inputEvent(event, record, (current) =>
+          current?.node.options.onPointerSample?.(event.pointer!),
+        );
+      else if (event.kind === p.events.tapRegion)
+        this.inputEvent(event, record, (current) => current?.node.options.onTapRegion?.(event));
+      else if (event.kind === p.events.controlChanged) {
+        ++this.counters.controls;
+        this.inputEvent(event, record, (current) => {
+          const callback = current?.node.options.onValue;
+          if (callback) {
+            const key = id(record.handle);
+            this.controlRevisions.set(key, (this.controlRevisions.get(key) ?? 0n) + 1n);
+            try {
+              callback(eventValue(event.detail), event.x);
+            } finally {
+              if (!this.closed) this.schedule();
+            }
+          }
+        });
+      } else if (event.kind === p.events.gesture) {
+        ++this.counters.gestures;
+        const kind = Object.entries(p.gestureKinds).find(
+          ([, value]) => value === event.status,
+        )?.[0] as GestureEvent['kind'] | undefined;
+        if (kind)
+          this.inputEvent(event, record, (current) =>
+            current?.node.options.onGesture?.({
+              kind,
+              sequence: event.id,
+              x: event.x,
+              y: event.y,
+              value: eventValue(event.detail),
+              ...(event.gesture ? { details: event.gesture } : {}),
+            }),
+          );
+      } else if (event.kind === p.events.editingChanged && record.node.editor) {
+        const editing = await this.view.editSnapshot(event.node);
+        if (!this.closed)
+          this.inputEvent(event, record, (current) => current?.node.editor?.publish(editing));
+      } else if (event.kind === p.events.semanticAction) {
+        const action = Object.entries(p.semanticsActions).find(
+          ([, v]) => BigInt(v) === event.detail,
+        )?.[0] as keyof typeof p.semanticsActions | undefined;
+        if (action) {
+          const source = event.semanticSource
+            ? this.accepted.get(id(event.semanticSource))
+            : record;
+          const perform = () => {
+            const current = this.accepted.get(id(event.node)),
+              currentSource = source && this.accepted.get(id(source.handle));
+            if (
+              !this.closed &&
+              current?.node.reference === record.node.reference &&
+              source &&
+              currentSource?.node.reference === source.node.reference
+            )
+              currentSource.node.options.onAction?.(action, event);
+          };
+          this.inputEvent(event, record, () => {
+            if (this.options.onSemanticAction) this.options.onSemanticAction(event, perform);
+            else perform();
+          });
+        }
+      }
+    }
+    this.options.onAfterEvents?.();
   }
   private pollSoon(): void {
     if (this.closed) return;
@@ -1110,6 +1297,7 @@ export class SceneWriter {
   async stop(): Promise<void> {
     this.closed = true;
     this.semanticPublication = this.semanticState = undefined;
+    this.layoutObservation = undefined;
     if (this.eventTimer !== undefined) clearTimeout(this.eventTimer);
     await this.running;
   }

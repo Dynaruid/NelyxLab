@@ -108,7 +108,11 @@ export function nativePaintOutset(
   }
   return Math.max(0, -left, -top, r - width, bt - height);
 }
-function nativePaintShape(ck: CanvasKit, entry: NativePaintSnapshot, delta = 0): Float32Array {
+export function nativePaintShape(
+  ck: CanvasKit,
+  entry: NativePaintSnapshot,
+  delta = 0,
+): Float32Array {
   let x = 0,
     y = 0,
     w = entry.width,
@@ -211,8 +215,6 @@ export function paintNative(
   const saved = canvas.getSaveCount();
   canvas.save();
   try {
-    if (entries.some((entry) => entry.kind === 'highlight' || entry.kind === 'ripple'))
-      canvas.clipRect(ck.XYWHRect(0, 0, node.width, node.height), ck.ClipOp.Intersect, false);
     for (const entry of entries) {
       if (entry.kind === 'hitRegion' || entry.kind === 'linearMask') continue;
       if (entry.kind === 'save') {
@@ -234,6 +236,8 @@ export function paintNative(
       }
       canvas.save();
       try {
+        if (entry.kind === 'highlight' || entry.kind === 'ripple')
+          canvas.clipRect(ck.XYWHRect(0, 0, node.width, node.height), ck.ClipOp.Intersect, false);
         canvas.concat(canvasMatrix(entry.transform));
         paint.setColor(color(ck, entry.color));
         paint.setStyle(ck.PaintStyle.Fill);
@@ -451,6 +455,26 @@ export function relativeMatrix(parent: AffineMatrix, child: AffineMatrix): Affin
     b * x + d * y,
   ];
   return result.every(Number.isFinite) ? result : null;
+}
+export function makeRoundedRectPath(
+  ck: CanvasKit,
+  roundedRect: readonly number[],
+  transform?: AffineMatrix,
+): Path {
+  if (roundedRect.length !== 12 || roundedRect.some((value) => !Number.isFinite(value)))
+    throw Error('Invalid prepared physical rounded rectangle');
+  const builder = new ck.PathBuilder();
+  try {
+    builder.addRRect(new Float32Array(roundedRect), false);
+    if (transform) {
+      if (transform.length !== 6 || transform.some((value) => !Number.isFinite(value)))
+        throw Error('Invalid prepared physical transform');
+      builder.transform(canvasMatrix(transform));
+    }
+    return builder.detach();
+  } finally {
+    builder.delete();
+  }
 }
 export function makePath(
   ck: CanvasKit,

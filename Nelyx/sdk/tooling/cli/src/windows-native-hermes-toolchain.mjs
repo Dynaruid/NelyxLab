@@ -232,6 +232,32 @@ function patchSource(source) {
       ) +
     text.slice(end);
   write(flags, text);
+  // The pinned Windows module otherwise overrides the requested /MD cohort
+  // with hybrid /MT. Respect the explicit runtime selected by this supplier.
+  const windows = path.join(source, 'cmake/modules/HermesWindows.cmake');
+  write(
+    windows,
+    fs
+      .readFileSync(windows, 'utf8')
+      .replace(
+        'if(NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")',
+        'if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")',
+      ),
+  );
+  // Direct C++ host entry points must be present in hermesvm.dll's import
+  // library, including the public RuntimeConfig/CrashManager destructors.
+  for (const [relative, target] of [
+    ['API/hermes/CMakeLists.txt', 'hermesapi_obj'],
+    ['public/hermes/Public/CMakeLists.txt', 'hermesPublic_obj'],
+  ]) {
+    const file = path.join(source, relative),
+      marker = '# Nelyx direct Hermes DLL exports';
+    write(
+      file,
+      fs.readFileSync(file, 'utf8').split(marker)[0].trimEnd() +
+        `\n\n${marker}\nif(WIN32)\n  target_compile_definitions(${target} PRIVATE CREATE_SHARED_LIBRARY)\nendif()\n`,
+    );
+  }
   const jsi = path.join(source, 'API/jsi/jsi/CMakeLists.txt'),
     marker = '# Nelyx direct Hermes exception ownership';
   const jsiText = fs.readFileSync(jsi, 'utf8').split(marker)[0].trimEnd();

@@ -328,7 +328,7 @@ export function launchAppSession<T>(
       // ready() can commit another tree. Observe the ordered App port after
       // that callback so native work and acknowledged SDK commands agree.
       try {
-        state = await view.request(p.opcodes.inspect);
+        state = await view.inspectState();
       } catch (error) {
         if (closeRequested) {
           await dispose();

@@ -11,6 +11,7 @@ import {
   editBody,
   focusBody,
   semanticActionBody,
+  stateInspectionBody,
   writeHandle,
 } from './codec.ts';
 import type { EngineResponse, PacketOwner } from './codec.ts';
@@ -83,7 +84,11 @@ function checked(
   allowed: readonly number[] = [p.statuses.ok],
 ): EngineResponse {
   if (!allowed.includes(result.status))
-    throw new EngineError(result.status, `Engine v2 request failed (${result.status})`, result);
+    throw new EngineError(
+      result.status,
+      `Engine v2 request failed (opcode ${result.opcode}, status ${result.status})`,
+      result,
+    );
   return result;
 }
 export class EngineClient {
@@ -591,6 +596,10 @@ export class EngineViewClient {
   async layoutSnapshot(): Promise<EngineResponse> {
     return checked(await this.request(p.opcodes.layoutSnapshot));
   }
+  /** Lightweight owner/status query; inspect without this flag still returns the scene. */
+  async inspectState(): Promise<EngineResponse> {
+    return checked(await this.request(p.opcodes.inspect, stateInspectionBody()));
+  }
   /** Starts a Content-owned scroll; scrollTerminal carries its completion. */
   startScroll(
     node: import('./codec.ts').NodeHandle,
@@ -627,6 +636,18 @@ export class EngineViewClient {
         id,
       ).then((result) => checked(result, [p.statuses.pending, p.statuses.ok])),
     };
+  }
+  /** Cancel exactly one command; a delayed owner cannot cancel its successor. */
+  async cancelScroll(id: bigint): Promise<void> {
+    this.ensureOpen();
+    if (id <= 0n || id > 0xffff_ffff_ffff_ffffn) throw RangeError('Invalid scroll command');
+    checked(
+      await this.request(
+        p.opcodes.scrollCancel,
+        body(8, (value) => value.setBigUint64(0, id, true)),
+      ),
+      [p.statuses.ok, p.statuses.resultExpired],
+    );
   }
   /** Receipt for a bounded, cancellable seek. Its scrollTerminal event reports completion. */
   async seekList(
@@ -804,7 +825,7 @@ export class EngineViewClient {
     let completed = false,
       id = 0n;
     try {
-      const state = checked(await this.request(p.opcodes.inspect));
+      const state = checked(await this.inspectState());
       this.queryId = uint64(
         (state.layoutQuery && state.layoutQuery.id > this.queryId
           ? state.layoutQuery.id
@@ -910,7 +931,7 @@ export class EngineViewClient {
         p.statuses.busy,
         'Resolve the pending transaction before resynchronizing',
       );
-    const result = checked(await this.request(p.opcodes.inspect));
+    const result = checked(await this.inspectState());
     this.epoch = result.document;
     this.nextId = this.nextId > result.lastTransaction ? this.nextId : result.lastTransaction;
     return result;
@@ -941,7 +962,7 @@ export class EngineViewClient {
         }),
         (async () => {
           while (!done && !this.closed && Date.now() < deadline) {
-            const result = checked(await this.request(p.opcodes.inspect));
+            const result = checked(await this.inspectState());
             if (result.activeDocument >= atLeastDocumentEpoch) return result;
             if (result.failedDocument >= atLeastDocumentEpoch)
               throw new EngineError(p.statuses.failed, 'Scene preparation failed', result);

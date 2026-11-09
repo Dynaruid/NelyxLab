@@ -1,8 +1,8 @@
 # work9-c — v2 잔여 구현·통합 검증·제품 전환
 
-작성·갱신: **2026-11-09 KST** · 문서 상태: **OPEN / 재개 대기** · 구현 판정: **PAUSED / PARTIAL**
+작성·갱신: **2026-11-09 KST** · 문서 상태: **OPEN / W9C-00 구조 병목 수정·Windows/Web 부분 검증·물리 체감 재확인 대기** · 전체 판정: **PARTIAL**
 
-이 문서는 사용자 요청으로 종료한 [work9-b.md](work9-b.md)의 **남은 작업과 정확한 재개 절차를 이어받는 실행 계약**이다. W9B-00·00-H의 완료와 §3.6–3.21의 부분 검증 기록은 이전 문서에 보존하고, §3.22의 미검증 Range/editor 초안부터 이어간다. 문서 이관만 수행했으며 제품 구현·빌드·실행은 재개하지 않았다.
+이 문서는 사용자 요청으로 종료한 [work9-b.md](work9-b.md)의 **남은 작업과 정확한 재개 절차를 이어받는 실행 계약**이다. W9B-00·00-H의 완료와 §3.6–3.21의 부분 검증 기록은 이전 문서에 보존한다. §2는 문서 이관 당시의 미검증 상태이며, 이번 W9C-00 구현·공급·실행 결과는 §3.1.1에 기록한다. W9C-01은 시작하지 않았다.
 
 **실행 방식:** **W9C-00–05의 챕터 하나를 단위로 전체 구현·소비자 연결 → W9C-06 통합 검증 → 문제 일괄 수정 → 영향 범위 재검증 → 다음 챕터**로 진행한다. W9C-06은 각 챕터 끝에서 적용하는 공통 절차다. 기능·파일·작은 수정마다 전체 빌드·설치·플랫폼 실행을 반복하지 않는다. Windows/Web부터 진행하고 Android와 후속 플랫폼은 해당 차수에서 같은 방식을 적용한다.
 
@@ -82,13 +82,125 @@
 
 ### 3.1 W9C-00 — 첫 재개 구현 묶음
 
-- [ ] 새 Source 선언과 runtime의 compile 오류를 해결한다. 알려진 이전 dist 선언 오류가 후속 구현을 막으면 §7.1의 `npm.cmd run build:core`로 필요한 선언을 먼저 공급하고, 나머지 공급·제품 검증은 챕터 끝에 모은다.
-- [ ] Range exact custom extension의 등록·선언·미지원 callback 계약을 검토·문서화하고 실제 custom track/thumb/tick/overlay/indicator 소비자를 연결한다.
-- [ ] Source painter와 Core의 rect·thumb center·track gap·paint·label 배치를 대조하고 enabled/discrete·RTL·overlap/horizontal shift·text scale·상태 교체/제거·paragraph 수명을 확인한다. Divisions 127 제한을 원래 API 의무에 대응시킨다.
-- [ ] Source Curve 데이터 캡처·정확한 reader·기존 56-byte 호환·curve tail·malformed/reserved/depth/node/budget 경계와 Source/Core 수치 일치를 확인한다. 임의 Curve callback 전체 지원으로 판정하지 않는다.
-- [ ] Demo에 custom Range와 curved editor animation UI를 연결하고 실제 Source controller/client 소비 경로를 완성한다.
-- [ ] Editor request/terminal·중간/최종 offset·duration 0/상한·cancel/supersede/timeout·입력 취소·text 축소/extent/resize·controller 교체·hide/close와 메모리 회수를 확인한다.
-- [ ] W9C-00 전체 구현을 모은 뒤 Core/Material/SDK·변경 engine 공급을 갱신하고 같은 공급으로 설치 소비·Web 두 profile·Windows 실제 흐름을 06에서 확인한다. 이전 문서 §3.21의 Focus/입력 큐·기존 Range 흐름을 직접 영향 회귀에 포함한다.
+- [x] 새 Source 선언과 runtime의 compile 오류를 해결한다. 알려진 이전 dist 선언 오류가 후속 구현을 막으면 §7.1의 `npm.cmd run build:core`로 필요한 선언을 먼저 공급하고, 나머지 공급·제품 검증은 챕터 끝에 모은다.
+- [x] Range exact custom extension의 등록·선언·미지원 callback 계약을 검토·문서화하고 실제 custom track/thumb/tick/overlay/indicator 소비자를 연결한다.
+- [x] Source painter와 Core의 rect·thumb center·track gap·paint·label 배치를 대조하고 enabled/discrete·RTL·overlap/horizontal shift·text scale·상태 교체/제거·paragraph 수명을 확인한다. Divisions 127 제한을 원래 API 의무에 대응시킨다.
+- [x] Source Curve 데이터 캡처·정확한 reader·기존 56-byte 호환·curve tail·malformed/reserved/depth/node/budget 경계와 Source/Core 수치 일치를 확인한다. 임의 Curve callback 전체 지원으로 판정하지 않는다.
+- [x] Demo에 custom Range와 curved editor animation UI를 연결하고 실제 Source controller/client 소비 경로를 완성한다.
+- [x] Editor request/terminal·중간/최종 offset·duration 0/상한·cancel/supersede/timeout·입력 취소·text 축소/extent/resize·controller 교체·hide/close와 메모리 회수를 확인한다.
+- [x] W9C-00 전체 구현을 모은 뒤 Core/Material/SDK·변경 engine 공급을 갱신하고 같은 공급으로 설치 소비·Web 두 profile·Windows 실제 흐름을 06에서 확인한다. 이전 문서 §3.21의 Focus/입력 큐·기존 Range 흐름을 직접 영향 회귀에 포함한다. 아래의 간헐 오류 추적과 제품 수락은 별도 유지한다.
+
+#### 3.1.1 2026-11-09 W9C-00 구현·통합 확인 — 현재 기능 범위 PASS / 전체 PARTIAL
+
+- 이전 curves 선언 오류는 새 Core build로 해결했다. Range의 다섯 custom shape 역할과 등록 후 method identity 검사, concrete tick의 실제 entry budget 및 단일 program entry 반복 tick을 연결했다. 127 고정 제한을 제거하고 200 divisions 소비자를 Demo에 추가했다. [extension 계약](Nelyx/engine/range-editor.md)은 임의 callback 미지원·전체 API 의무와 자원 budget을 구분한다.
+- 명령 ID별 `scrollCancel`을 추가했다. Source controller의 교체·dispose·supersede, hide/focus·metrics/device 무효화, editor 편집 입력에서 기존 명령을 정리하고 늦은 취소가 새 명령을 취소하지 않게 했다. Demo에는 등록한 Interval/ThreePointCubic Curve, 긴 editor text, animation/stop/jump/controller 교체 UI를 연결했다.
+- 통합에서 custom indicator의 `worldX` 인자가 빠진 오류와 canonical Material에서 임시 `/v2` Widget export graph를 끌어온 import를 수정했다. Material은 중립 `@nelyx/core/engine`을 사용한다.
+- 종료 대기 중인 layout 응답은 `SceneWriter.stop()` 이후 관측 callback/오류를 만들지 않게 했다. Core event overflow는 명시적 terminal status를 반환하고, view 종료로 해제된 active scene/edit target을 직렬화하지 않게 했다. Windows host도 닫힌 view를 감지하면 정상 close 또는 원인 status를 구분해 drain한다.
+
+| 확인 | 현재 결과 |
+| --- | --- |
+| 정적·공급 | Core/Material/SDK build, 전체 workspace 타입 검사(마지막 Demo 수정 후 영향 타입 재확인), lint, format, schema 검사 PASS. 후속 close 보완의 Core 및 engine 재빌드 PASS. Windows App SDK·Web 두 profile compile PASS. Source/dist `52e4be1e97499f407158d0e5c30c93bd981ae4523d4b8d16c0592bd63c6aded0`, ABI 2 / schema **70183166**, **355 files** 전체 hash 확인. 원래 4 packages / 834 subpaths baseline 보존 |
+| Curve | 실제 Source 19종 × 9 지점과 MSVC C++ 수치 일치. 32 nodes / depth 16 경계와 malformed 11종, cycle/미등록·변경 method/데이터 capture 거부 확인 |
+| Range | 실제 Wasm Core와 Source rect/centers를 enabled/discrete/RTL 8개 조합에서 대조. 200 tick 순서·paint 제거·close 회수 PASS. Source indicator painter와 Core edge shift/text scale/activation 12조합 PASS. 겹침/비겹침·양쪽 edge shift·RTL·선택 thumb의 paint 순서/overlap context 16조합 PASS. Gapped/Handle pressed gap·thumb size·RTL 4조합 PASS(기록 시 SkScalar 정밀도 반영) |
+| 명령·editor | Wasm의 기존 56-byte body, curve tail, 중간/최종 offset, 초기 offset 일치 시 조기 종료 방지, duration 0/60000·60001 거부, supersede·명령 ID cancel·timeout·hide·wheel·text replace·node 제거·session memory=0 PASS. Editor 측정은 이 수치 검증에서 명시 provider 값을 사용했고 실제 paragraph는 아래 앱에서 확인 |
+| 종료·overflow | 실제 SceneWriter/Wasm의 publication/layout 응답을 보류한 상태에서 stop/close 후 재개해 late callback/error 없음·memory=0 PASS. Focus 이벤트 큐 overflow의 status 30, 이후 닫힌 layout snapshot의 status 14 및 viewClosed 원인 보존·memory=0 PASS |
+| 설치 package | 8 tarballs 독립 설치, TS 7.0.2·NodeNext·ES2022·types=[]·skipLibCheck=false에서 custom shape/Curve/client 선언 PASS. 설치 CLI create/doctor/build(Web/Windows)/Web pack·폐기 Windows host 거부 PASS. App model `original-elements` |
+| Web 실제 Demo | 현재 공급에서 Chrome/Edge × single-worker/threaded의 custom Range keyboard/drag/indicator·enabled·RTL·shape 교체, parent Focus, editor curved terminal/stop/controller 교체/resize/한글·emoji text 입력을 확인했다. Edge/threaded 첫 통합에서 busy(23) 1회 FAIL 후 같은 전체 흐름의 두 번 재검은 PASS. 이를 무오류 최초 통과로 바꾸지 않는다. 각 close reservedBytes=0 / workersStopped=true. 기존 Gallery도 Chrome single-worker·Edge threaded의 원래 Filled callback과 close PASS |
+| Windows PowerShell·설치본 | 현재 공급의 원래 Demo를 일반 CLI와 독립 설치 CLI로 실행하고 PowerShell의 실제 mouse/key 입력으로 custom Range drag·enabled·RTL·shape 교체, 긴 editor 곡선 terminal/stop·controller 교체·재클릭, parent Focus `Up · a · Key A`, 한글/emoji·maximize/restore·text 축소/extent 재생성·animation 중 close PASS. 설치본 **860 modules / original-elements**, exit 0 / reservedBytes=0 / memoryTotal=0 / workersJoined=true. Core와 host를 함께 ASAN 빌드한 같은 입력 흐름도 오류 없이 종료 |
+
+**관측한 실패와 후속 추적:** 초기 공급의 Windows editor 재클릭에서 **exit 3221225477 (0xC0000005)** 1회와 최소 소비자의 동일 exit를 관측했으나 당시 fault stack은 확보하지 못했다. 후속 §3.1.2에서 editor 포커스 전환 중 같은 접근 위반을 재현하고 실제 fault stack·소스 위치를 확보해 해당 경로를 수정했다. 최초 실행의 stack까지 소급해 확인한 것으로 확대하지 않는다. Web busy(23)는 최초 opcode/stack을 확보하지 못해 근본 원인 해결로 판정하지 않는다. 재발하면 상세 EngineError의 opcode·document·stack으로 정확한 경로부터 좁히고 영향 회귀만 다시 확인한다.
+
+추가 Edge/threaded 6회 전환 진단은 첫 cycle 뒤 두 번째 Selection의 custom Range가 visible이 되는 대기에서 timeout했다. App/host 오류 수집은 비어 있었고 정상 close/drain했지만 이 진단을 6회 PASS로 세지 않는다. 반복 탐색 때 목록의 보존 위치·가시성/virtualization을 구분하는 검증은 W9C-01/05의 잔여 범위로 남긴다.
+
+**버벅임 확인의 한계:** 사용자 요청 이후 Windows 실행·조작은 PowerShell로 수행했다. 독립 설치본의 세 시점에서 Core 처리 약 **0.6–1.9 ms**, 기록 약 **0.5–1.1 ms**, 제출 약 **0.7–4.5 ms**, 입력 queue 0을 관측했다. UIA 조회/PowerShell 동작/게시 대기를 포함한 관측 시간은 입력→표시 지연과 같지 않으며 이 표본으로 부드러움 개선·성능 수락을 선언하지 않는다. Scanout은 `unobserved`, 물리/display/scanout **notVerified**, 두 성능 flag **false**, Android **stale/notVerified**, 후속 플랫폼 **DEFERRED**를 유지한다.
+
+#### 3.1.2 2026-11-09 Windows 트랙패드 스크롤 후 자동 종료 — 원인 수정·영향 회귀 PASS
+
+- 사용자가 일반 PowerShell Demo 실행에서 스크롤 후 수 초 안에 종료됨을 보고했다. 제공한 로그의 첫 원인은 **Core view closed status=30(eventOverflow)**이며, 뒤의 `pollInteractionEvents` opcode 35/status 14(closed)는 이미 닫힌 view를 읽은 결과다. Exit 1 / 정상 메모리 drain과 앞서 원인 미확정인 `0xC0000005`는 구분한다.
+- 출력을 즉시 소비하는 진단 창에서는 사용자가 트랙패드로 스크롤해도 유지됨을 확인했다. 수정 전 같은 공급에서 실제 DirectManipulation packet **213개 / rejected 0**, 사용자 창 닫기 후 exit 0 / memoryTotal=0 / workersJoined=true를 관측했다. 이것만으로 일반 콘솔 재현을 부정하지 않는다.
+- **동일 원인 재현:** 원래 CLI로 Demo를 실행하고 stdout 소비를 6초 보류한 동안 Windows mouse-move/wheel carrier에 각 300개 합성 메시지를 보냈다. `native.notify → onExecution → SceneWriter.adopt`에서 App thread가 동기 콘솔 출력에 막혀 Core queue가 overflow하고 **status 30 / exit 1**로 종료됐다. 출력된 execution snapshot은 13개, 전체 출력은 43,956 bytes였다. 합성 입력 재현은 물리 트랙패드 수락과 구분한다.
+- **수정:** Windows `native.notify`는 매 scene ACK의 execution counter를 계속 갱신하되, `app-execution` 전체 JSON을 매번 stdout에 쓰지 않는다. 명시적 `stats`의 observed/ACK/fallback counter와 app-ready/disposed/error 출력은 유지한다. Core event queue 크기·overflow 정책·물리 입력 cadence는 변경하지 않았다.
+- 출력 정체를 해소한 뒤 **Original native focus/keyboard mailbox exceeded**도 재현했다. 연속 content/animation 갱신이 끝나기를 기다리며 Source 입력을 미뤘고, 반복 native 편집 중에는 새 desired document가 게시되기를 기다리는 조건과 비동기 geometry 조회가 짧은 ACK checkpoint를 벗어나는 문제가 겹쳤다. 각 scene ACK·retirement 뒤 Source 입력을 처리하며, 필요한 geometry 조회가 끝날 때까지 checkpoint를 유지한다. 키의 geometry는 현재 게시된 document/publication과 live node handle로 확인하고 metrics/device 검사는 유지한다. 입력 한도 증가·입력 버리기로 해결하지 않았다.
+- **별도 접근 위반 원인 확보:** 일반/ASAN Windows 실행에서 editor와 부모 Focus를 오가다 `0xC0000005`를 재현했다. Vectored exception의 fault RVA `0x6d6f08`을 해당 PDB의 DIA 정보로 해석하면 `vector<int>::operator=` → `Interaction::sync`의 `t.words = q.words`였다. Prepared ID가 scene과 다를 때 만든 singular map iterator를 실제 `end()`와 비교한 뒤 역참조한 오류다. 해당 frame과 일치하는 Prepared를 지역 shared owner로 보존하고 실제 조회가 성공한 paragraph만 사용하며 UIA query context도 같은 Prepared에 묶었다. 문단이 아직 준비되지 않았으면 기존 text-only 경로를 사용한다.
+
+| 후속 확인 | 현재 결과 |
+| --- | --- |
+| 현재 공급·앱 | Engine/Core 재빌드, Core 타입·lint·format·schema·diff 검사 PASS. Source/dist **`fad4be8d1c6e816f362f95cb33b9d3e353719f01a0f40bce4ec02c094f494d94`**, ABI **2 / schema 70183166**, **355 files** 전체 hash 일치. Demo Windows/Web **860/859 modules**, Gallery **893/892 modules**, `original-elements` 번들 재빌드·검사. 마지막 C++ 수정 전후 non-Windows 공급 27 files hash 동일 |
+| 원래 CLI·출력 정체 | 같은 6초 stdout 보류·mouse-move/wheel 각 300개 합성 carrier 조건 PASS. **exit 0 / errors 0 / executionLogs 0**, 출력 **7,390 bytes**, App/Core ACK **5,581/5,581**, received/consumed **628/628**, queue **0**. Close reservedBytes=0 / memoryTotal=0 / workersJoined=true |
+| 일반 Windows·PowerShell | Range drag·enabled·RTL·shape 교체, 긴 editor 곡선 terminal·controller 교체, 부모 Focus와 editor 간 **12회** 재진입·서로 다른 한글/emoji 입력, 마지막 Source `Up · b · Key B` 처리, maximize/restore·text 축소/extent 재생성·명시적 stop·animation 중 close PASS. Editor 시점 received/consumed **130/130**, queue 0. Exit 0 / close reservedBytes=0 / memoryTotal=0 / workersJoined=true |
+| ASAN Windows | 최종 Source 입력 보완 후 editor 곡선·controller·Focus 재진입·서로 다른 한글/emoji 입력 **6회 PASS**. Received/consumed **71/71**, queue 0, ASAN/접근 위반/앱 오류 없음. Exit 0 / close reservedBytes=0 / memoryTotal=0 / workersJoined=true. ASAN Range drag는 앞선 시도에서 값 변경 대기가 timeout하여 전체 ASAN Range PASS로 세지 않는다. 일반 Windows Range와 Web Range 결과는 별도 판정 |
+| Web | 최종 Source 입력 보완 후 Chrome/Edge × single-worker/threaded **4/4 PASS**. Range keyboard/drag·enabled·RTL·shape 교체, parent Focus key, editor 곡선 terminal/cancel/controller·resize·한글/emoji, close reservedBytes=0 / workersStopped=true |
+
+§3.1.1의 독립 설치 소비자 결과는 그때의 공급에 한정하며 이번 후속은 현재 repository CLI·일반/ASAN host·현재 앱 번들로 확인한다. 수정 후 물리 트랙패드 재확인은 아직 **notVerified**다. 앞선 사용자 관측은 수정 전 빠른 출력 소비 조건의 근거다. 실제 부드러움·display/scanout·두 성능 flag·Android 및 후속 플랫폼의 수락 경계는 유지한다.
+
+#### 3.1.3 2026-11-09 메뉴 재종료·상단 섹션 복원·physical 그림자 — 수정 및 통합 확인 중
+
+§3.1.2는 당시 확인한 경로의 결과다. 이후 사용자가 목록/다른 화면에서 메뉴를 열다 다시 종료되는 로그와 ElevatedButton/Card의 사각형으로 잘린 듯한 그림자를 보고했다. 첫 로그의 **status 30(eventOverflow)** 뒤 mailbox 오류는 종료 후속 증상이며, 이전 출력 정체 수정 하나로 모든 종료 경로가 해결됐다고 확대하지 않는다.
+
+- **연속 관측 큐:** Source가 새 장면을 만드는 동안 같은 listener의 연속 pointer update가 interaction queue 64개를 채우는 경로를 별도 재현했다. 동일 node generation·document·좌표 변환·stream/source/device/contact·버튼/수정 키의 연속 update만 합치며, 마지막 좌표/시각과 누적 delta를 보존한다. Down/up/cancel·키·다른 좌표계 경계와 discrete overflow 정책은 유지한다. 최초 overflow의 queue/kind/phase/종류별 개수를 `V2_EVENT_OVERFLOW`로 남기고 mailbox full/closed 메시지도 구분했다.
+- **목록 초기화 timeout:** 최대화 Demo의 스크롤→메뉴 선택 반복에서 `Native scroll failed (28)`도 재현했다. 이미 Core의 현재/요청 위치에 있는 numeric jump를 Source seek로 보내 unrelated accepted document 활성화를 기다리게 하던 경로를 수정했다. 실제 Core snapshot의 두 위치가 목표와 같고 준비 범위 안이면 일반 native scroll로 활동 취소를 수행한다. 다른 위치로의 이동·새 목록 generation·미준비 목적지의 seek는 유지한다.
+- **물리 입력에서 새 최초 오류 확보:** 위 수정 후 일반 PowerShell CLI의 실제 트랙패드 **admitted 364 / rejected 10** 실행에서 사용자가 재종료를 확인했다. 이번 최초 오류는 **opcode 40(listSeek) / status 23(busy), document=activeDocument=128**이며 status 30과 다르다. List seek의 내부 scroll 정규화에 일반 programmatic scroll의 interrupt/rebase 정책이 빠져 진행 중 입력을 busy로 거부했다. 해당 viewport의 입력을 취소하고 이동하도록 맞추며 다른 viewport의 입력은 유지한다. 오류 무시나 재시도로 숨기지 않는다.
+- **상단 섹션으로 돌아가지 못함:** 사용자는 상단 위젯이 사라지고 위로 더 스크롤할 수도 없다고 확인했다. 동일 Core의 synthetic engineDriven begin/update/end로 **offset 362 → 역방향 후 212에 고정**, prepared minimum=212 / list begin=1을 재현했다. 정상 end가 미준비 영역으로 향하던 `requested`를 현재 coverage 경계로 지워 버리는 원인이다. 정상 종료는 pending destination을 Content가 준비할 때까지 보존하고 cancel에서만 폐기하도록 direct scroll/pointer pan 양쪽을 맞춘다. 모든 항목을 keep-alive하거나 window/queue 한도를 늘리지 않는다.
+- **그림자:** physical rounded rectangle을 일반 cubic contour로 바꿔 Skia에 넘겨 fill과 shadow occluder의 도형 종류가 달라졌다. Windows/CanvasKit의 Content→Render 준비 경로에 원래 RRect/conic을 유지한다. Ink highlight/ripple의 clip도 paint sequence 전체 대신 각 ink entry에만 적용해 주변 그림자/paint outset을 자르지 않는다.
+- **후속 물리 실패를 최종 근거로 보존:** 상단 복원 수정 공급에서 사용자는 상단은 복원되지만 메뉴가 열리지 않고 입력 반응·스크롤이 심하게 느리다고 보고했다. 실제 트랙패드 **admitted 939 / rejected 0** 뒤 **opcode 4(transaction) / status 19(budgetExceeded), document 285 / activeDocument 175**로 종료됐다. 이 실행을 물리 입력 PASS로 세지 않는다. 앞의 eventOverflow·listSeek busy와 서로 다른 최초 오류이며, 한도 초과의 세부 항목까지 당시 로그로 확정하지 않는다.
+- **상태 조회와 장면 전송 분리:** Windows의 입력·clock/status와 Source의 스케줄러·폰트·편집 상태 확인이 기본 `inspect`의 전체 desired scene을 반복 직렬화하고 있었다. 기존 full inspect는 유지하고 같은 opcode의 명시적 `stateOnly=1` body를 추가해 상태·pending work metadata만 받는다. 공통 codec/client와 Windows/Web 내부 상태 소비자를 연결하고 ABI 2 / schema **896476372**로 갱신했다. Android 공급은 갱신하지 않았다.
+- **게시 전 장면 교체 제어:** 보통 animation/input invalidation은 이전 accepted scene의 게시까지 합치되, 해당 document·metrics·device의 Source LayoutBuilder/list 요청은 계속 처리한다. Metrics/device/font 변경도 새 설정으로 진행한다. 대기 중과 ACK 뒤에 입력 checkpoint를 열어 입력을 끝없는 build promise 뒤에 두지 않는다. Windows App owner는 이미 도착한 응답이 있으면 2ms wait를 건너뛴다.
+- **관측·직렬화 비용 축소:** bounded interaction queue를 먼저 읽고, publication·active preparation·property/input/focus/editing·metrics/device 변경으로 장면/레이아웃 관측을 갱신한다. 없는 optional 명령은 버퍼도 만들지 않는다. 자주 쓰는 설정은 ACK된 입력의 독립 데이터 snapshot과 비교해 동일한 명령 바이트를 재사용한다. 원래 객체의 in-place 변경, accessor/실행 값, NACK/재시도를 구분하며 새 callback은 계속 채택한다. 값 검증·reset·queue/resource 한도를 완화하지 않는다.
+- **목록 준비 왕복 축소:** sequential list는 첫 실제 행을 측정한 뒤 그 prefix의 실제 높이로 최대 8개의 연속 미측정 행을 묶어 준비한다. 예측은 준비할 작업 선택에만 쓰고 최종 viewport/extent는 모든 행의 Content 측정으로 결정한다. 긴 이동에서 미측정 prefix를 건너뛰지 않고, 최종 window 밖의 미리 준비한 행은 정상적으로 제외한다. Non-sequential section의 준비 규칙과 전체 listChildren 한도는 유지한다.
+
+- **통합 검사에서 발견한 별도 수명 오류:** Range의 값 표시 OverlayEntry 제거가 현재 Overlay build 뒤로 지연된 동안 비활성 Source Element에서 `Directionality.of`를 읽어 `Ancestor lookup requires an active Element`가 발생했다. Chrome/Edge × single/threaded **4/4 FAIL**을 확보했다. Range/Slider indicator builder가 live owner와 현재 entry identity를 먼저 확인하고, 이미 은퇴한 entry는 빈 구성으로 끝내도록 수정했다. 활성 owner의 새 방향·shape·callback은 그대로 읽는다.
+
+| 이번 통합 확인 | 실제 결과 및 범위 |
+| --- | --- |
+| 현재 공급·앱 | Engine source/dist **`9c19f59ed7c5a04a0185ce65a165f8521f20487a0a19417f63ffbbc6323e3b2a`**, ABI **2 / schema 896476372**, **355 files** 전체 hash 확인. Core·SDK·Material 빌드, Web host 타입·lint·format·schema·diff 검사 PASS. Demo Windows/Web **860/859 modules**, Gallery **893/892 modules** 재빌드·manifest 파일 hash 확인, `original-elements`. Engine 공급 identity와 별도로 Source framework/SDK/design 변경은 새 App 번들에 포함된다. 이번 변경의 독립 설치 소비자는 재실행하지 않았다 |
+| Core ASAN | 연속 pointer 300개→누적 delta 보존 1개, listener 순서·stream/generation/좌표계·discrete 경계, 65번째 discrete의 overflow 진단, indexed/numeric seek의 해당 viewport interrupt/rebase, 정상 end/cancel의 deferred 목적지 보존/폐기, 실제 측정 prefix의 bounded 목록 준비·0높이/긴 이동/최종 window 회수 PASS. 각 수명 종료 후 ledger=0 |
+| 상태 wire | 실제 Engine의 151 nodes full inspect **55,168 bytes**, stateOnly **808 bytes**, 상태 epoch 일치·nodes=0, 잘못된 flag/body 거부, view/session close 뒤 inspection, ASAN 및 ledger=0 PASS |
+| Source writer | optional 설정 제거의 NACK/재시도·ACK 후 no-op, 설정 객체의 in-place/중첩 변경·accessor·NaN 거부·이전 바이트 불변, 입력 poll 선행·publication/layout/input/focus/device epoch별 갱신·stop 뒤 callback 억제 PASS |
+| Windows 메뉴 | 원래 PowerShell CLI에서 **3회 × wheel 30개** 및 **6회 × wheel 150개** 뒤 메뉴 열기/All components 선택 PASS. 긴 흐름 received/consumed **955/954**, queue **0**, 마지막 desired/active **214/208**, exit **0**, close reservedBytes=0 / memoryTotal=0 / workersJoined=true, peak **603,528,516 bytes**. 물리 트랙패드 테스트가 아니다 |
+| Windows Range/editor | 일반 CLI·PowerShell에서 custom Range drag·enable/RTL/shape 교체, 긴 editor 곡선 terminal·controller 교체·부모 Focus key, 한글/emoji **3회** 재진입·Source `Up · b · Key B`, maximize/restore·text 축소/재생성·명시적 stop·animation 중 close PASS. Editor received/consumed **85/85**, queue 0, exit 0 / memoryTotal=0 / workersJoined=true. 진단 첫 시도의 foreground timeout, 다음 시도의 route 전환 직후 load-long timeout은 PASS로 세지 않는다. 후속은 버튼 출현에 더해 route publication/명령 안정 후 조작했다 |
+| Web Range/editor | 위 overlay 수명 수정 후 Chrome/Edge × single-worker/threaded **4/4 PASS**. Custom Range keyboard/drag·indicator·enable·RTL·shape 교체, 부모 Focus·editor terminal/cancel/controller/resize·한글/emoji, 각 close reservedBytes=0 / workersStopped=true |
+| Web lazy 역방향 | Chrome/Edge × single-worker/threaded **4/4 PASS**. Synthetic engineDriven begin/update/end의 offset **949 → 362 → 0**, coverage minimum=0 / list begin=0 / row 0 복원·상단 ElevatedButton visible, errors=[], 각 close reservedBytes=0 / workersStopped=true. 한 gesture의 deferred 이동 예산과 물리 입력 수락은 별도다 |
+| 그림자 | Native와 CanvasKit ink 격리에서 영역 밖 shadow **1,564 pixels**, shadow mismatch **0**, ink leak **0**, 내부 ink **958 pixels**. 현재 native capture의 외곽 6점이 exact RRect CPU reference와 일치. 처음 네 점 `(253,247,255)`, 나머지 두 점 `(251,245,253)/(252,246,254)`이며 이전 generic cubic의 어두운 사각 모서리와 구분한다 |
+
+**아직 해결 완료가 아닌 구조적 경계:** 메뉴의 PowerShell/UIA 관측은 일반 흐름 열기 **2.73–2.81초**, 긴 입력 흐름 **1.75–2.45초**였다. 별도 적은 입력 진단의 1.3–1.5초와 같은 조건의 수치로 섞지 않는다. 기존 약 6초보다 줄었어도 사용자 체감·scanout 지연이 아니며 부드러움 수락은 아니다. Source builder마다 전체 scene을 다시 capture하고 Core의 단일 pending builder 응답을 transaction으로 다시 준비하는 왕복이 남는다. 단순 queue 증설로 해결했다고 보지 않는다.
+
+**별도 Web 장시간 실패도 보존:** synthetic engineDriven 입력과 Containment→Selection→All→Text inputs→All→Navigation 전환은 Chrome single-worker 6회 PASS, threaded는 5회 뒤 마지막 메뉴 준비에서 **CanvasKit committed heap / unified budget status 19 FAIL**이었다. 당시 보고된 total **784,120,867**, providerHeap **327,548,928**, 새 heap 요청 **231,997,440**, 한도 **805,306,368 bytes**다. App text의 고정 320MiB reservation과 독립 Content/Render Wasm heap의 성장·사후 account 사이에 headroom 문제가 남는다. 이를 초기 Windows transaction/19의 동일 원인으로 단정하지 않는다. 한도 증가·account 누락으로 숨기지 않았으며 Web 장시간 전체 PASS로 세지 않는다.
+
+수정 공급의 실제 트랙패드·메뉴·반응 지연은 PowerShell 확인 창에서 **사용자 재확인 대기 / notVerified**다. 이전 자동 PASS는 실제 물리 입력 실패를 대체하지 않는다. **compatible=false**, 두 성능 flag **false**, display/scanout **notVerified**, Android **stale/notVerified**, 후속 플랫폼 **DEFERRED**를 유지한다.
+
+#### 3.1.4 2026-11-09 problem.md 구조 검토와 수정
+
+- TS 구성/Core 실행/host 입력·표시 소유권을 유지하면서 실제 병목을 수정했다. 상세 원인·보호 조건·검증은 [problem.md §8](problem.md#8-2026-11-09-구조-수정과-현재-검증)에 기록한다.
+- **Core:** 직접 configuration revision과 조상 layout revision을 구분한다. 변경이 builder subtree에 국한되고 generation/constraints/metrics/device/font/native offset이 일치하면 부모 continuation·완료된 형제·preparation identity를 유지한다. 불일치 시 cache를 이용해 재시작한다. Release/전체 Core ASAN에서 geometry 일치·8종 거부 조건·resize·ledger=0 확인. 남은 작업 표본 **39 vs cold 122**는 Core work이며 표시 지연 수치가 아니다.
+- **Source:** 동일 builder 요청의 중복 실행 방지, ACK 입력 snapshot에 의한 선택적 설정 바이트 재사용, layout observer index를 적용했다. in-place/accessor/reset/NACK/불변성 확인. 전체 Source tree 증분 캡처는 미구현이다.
+- **Web:** Content는 4ms/최대 32 step씩 준비 가능한 작업을 처리한다. catalog별 `FontCollection` 재사용으로 문단마다 새 collection을 만들던 경로를 제거했다. 실제 heap 성장 전 admission·성장 실패 credit 복원, 오래된 candidate의 import 전 회수, 떠난 노드 기록의 prepare 전 회수를 적용했다. App credit 320MiB·CanvasKit 128/256MiB·통합 한도 768MiB를 유지한다.
+- **Focus:** 전환 중 opcode 30/status 12에 대해 Source eligibility와 native 설정을 재검사하고, 응답이 게시 상태의 변경을 증명하는 경우만 재시도한다. 안정된 capability 오류는 그대로 보고한다. 결정적 검사 및 최종 Chrome/Edge × 두 profile 각 6회 전환 PASS.
+- **현재 공급:** `626550fe7da0ae04854dcf62eed27c9e78992524573510b42f9424805dd521c0`, ABI 2/schema 896476372, 355 files hash PASS. CanvasKit **m153-nelyx-paragraph.7** 고정 source/patch 재빌드·adopt, 인스턴스 wasmMemory export. Core와 Demo **860/859**, Gallery **893/892** Windows/Web 번들 갱신; Gallery UI 재실행은 하지 않았다.
+- **최종 Web:** 4개 조합 각각 6회 전환에서 memory.rejected=0 / failedDocument=0 / 오류 없음. provider heap single 128MiB / threaded 합계 256MiB 유지. threaded peak Chrome **741,885,808**, Edge **742,736,613 bytes**. 최종 Range/editor 4/4, Chrome threaded lazy **949→362→0** 복원, 모든 close 예약 0/workersStopped=true. Synthetic update와 route 교체는 입력 무손실 또는 물리 트랙패드 수락 근거가 아니다.
+- **Windows:** 일반 PowerShell 명령 실행에서 최대화·메뉴·Text inputs 전환·정상 종료 확인. 최종 Source 재실행 startup/close도 exit=0 / memoryTotal=0 / workersJoined=true. 자동 편집 입력 결과와 물리 트랙패드/체감/scanout은 미검증이다. 이전 공급의 초 단위 메뉴 관측값과 직접 비교하지 않는다.
+- 전체 타입 검사, 변경 TS lint, diff whitespace PASS. 각 검증 timeout 20분. 이번 `.nelyx/problem-rz7JpF` 삭제는 자동 승인 검토에서 거부되어 §7.6에 정리 미완료로 기록한다. §7.4–7.5의 이전 차단 경로는 건드리지 않았다.
+- **남은 것:** Source 전체 증분 캡처·단계별 입력/표시 지연 측정·실제 사용자 트랙패드/편집/resize 성능 확인. W9C-01로 자동 진행하지 않으며 compatible=false, 두 performance flag=false, 물리/display/scanout notVerified, Android stale/notVerified, 후속 플랫폼 DEFERRED 유지.
+
+#### 3.1.5 2026-11-09 잔여 버벅임 — 증분 캡처·입력 우선 전달
+
+- 최신 사용자 평가: **“조금 더 나아졌지만 여전히 버벅임”**. §3.1.4의 물리 성능 수락은 충족되지 않았다.
+- Source에 RenderObject invalidation→ancestor dirty 경로와 subtree SceneNode 재사용을 추가했다. parent/edge/metrics/device/font가 바뀌면 재캡처한다. 자원·builder·tap/layer·editable 등 동적 경계는 방문하며 Core geometry 권한은 유지한다.
+- native semantics-only 및 OriginalNativeNode 설정 교체 invalidation을 연결하고, SceneWriter의 불변 내부 기록 재사용을 추가했다. 공개 mutable 입력·함수/accessor·control revision은 기존 경로를 유지한다.
+- 큰 semantics/layout 관측 전에 입력 callback을 전달한다. semantic action이 ACK 후 교체된 임시 record 때문에 취소되던 오류는 실제 reference 수명으로 판정한다. 브라우저의 이미 focus를 잃은 편집 입력은 정상 취소로 집계한다.
+- 결정적 검사: **501개 중 2개 재캡처 / 499개 재사용**, context/edge/dynamic/budget/NACK/public mutation/native invalidation, snapshot 미완료 중 입력 전달, ACK 뒤 action 보존·노드 제거 뒤 억제 PASS.
+- Web 최종 기능 확인은 Chrome/Edge × 두 profile에서 완료했다. 테마·6개 메뉴·Range·편집·resize·Images/Navigation, failedDocument=0 / memory.rejected=0 / 오류 없음, close 예약 0/workersStopped=true. 중간 resize 대기 조건 오류와 stale 입력 거부, Edge threaded 합성 burst 상단 복원 실패 및 일반 wheel 재확인, fill selection 경합과 키보드 삽입 확인은 `problem.md` §9에 구분했다. 입력 무손실/물리 성능 PASS는 아니다.
+- Windows 일반 CLI의 App SDK 시작·메뉴·Text inputs 게시·exit=0 확인. 상태 document=active=published=72 / failedDocument=0 / preparation=0 / rejected=0. 편집 내용 자동 변경·물리 트랙패드·scanout은 미검증이다.
+- Core/SDK 및 Demo **861/860**, Gallery **894/893** Windows/Web 번들 갱신, 전체 타입/변경 TS lint/diff 검사 PASS. App/SDK 변경이므로 엔진 공급은 `626550fe7da0ae04854dcf62eed27c9e78992524573510b42f9424805dd521c0` 그대로이며 현재 source와 355 files 확인. Gallery UI 재실행은 없음.
+- 구현·검증 상세는 [problem.md §9](problem.md#9-2026-11-09-후속-구조-수정--증분-캡처와-입력-우선-전달). 동적 경계/전체 diff와 단계별 latency·실제 사용자 수락은 남는다. compatible=false, 두 performance flag=false, 물리/display/scanout notVerified를 유지한다.
+
+#### 3.1.6 2026-11-09 Windows 기본 그림자 소실·스크롤 깜빡임 후속
+
+- 최신 사용자 보고를 Windows 일반 CLI와 실제 App SDK 창에서 확인했다. 기본 elevation=1 / black shadow / DPR=2이며 설정 누락이 아니다.
+- v2에 빠져 있던 기존 Windows native stable-shadow 처리를 physical paint와 retained elevationShadow replay에 이식했다. 최종 device transform/clip에서 Skia의 연속적인 ambient/spot blur 모델을 사용한다. Material 기본 elevation·색은 그대로다.
+- 실제 geometry의 스크롤 위치 8개, DPR 4종 × elevation 6종, fill-only 차분·GPU/CPU·retained replay·ledger=0 검사를 통과했다. 상세 근거와 범위는 [problem.md §10](problem.md#10-2026-11-09-windows-elevatedbutton-그림자-소실깜빡임).
+- 새 Hermes 공급 생성에서 발견된 `/MD` 무시와 direct API export 누락도 생성기에서 수정했다. JSI `/MD`·API export 3개 및 실제 host 링크·실행 확인.
+- 현재 Engine source SHA **`9ec9b741c87660a56e3b6d5ac8ebd9cbe884c84c8672d133aaf07957ea5885e9`** / source·355 files hash 확인. 전체 Windows/Web 공급 재빌드, Demo **861/860**, Gallery **894/893** 번들 갱신·검증.
+- 최종 일반 Windows App SDK Demo는 **RTX 4060**에서 기본 그림자·스크롤 왕복·클릭/hover 해제 후 유지 확인. 수치 검사는 **AMD 780M**의 4 DPR/6 elevation·8 위치·retained replay·부모 opacity 0.5 기여율 0.521·ledger=0이며 실제 창과 구분한다. 최종 document=active=published=20 / preparation=0 / failedDocument=0 / input received=consumed=19 / rejected=0. Gallery/Web UI 재수락과 물리 트랙패드·전체 성능 수락은 별도다.
 
 ### 3.2 W9C-01–02 — Core·디자인·접근성 잔여 계약
 
@@ -250,9 +362,29 @@ Root의 `npm.cmd run run:engine-v2:windows`·`npm.cmd run run:engine-v2:web`는 
 
 이번 문서 이관에서 process·경로의 현재 존재/소유권은 재확인하지 않았고 종료/삭제를 시도하지 않았다. 과거 PID를 현재 소유 process로 간주하거나 승인 거부를 우회하지 않는다. 향후 정리가 필요하면 실제 경로·실행 파일·소유 관계·남은 handle을 먼저 확인하고 미해결 범위를 계속 기록한다. 이 과거 정리 미완료를 새 구현 묶음의 전체 build/run 선행 조건으로 확대하지 않는다.
 
+**2026-11-09 W9C-00 정리:** 각 독립 설치본·tarball은 검증의 `finally`에서 회수했고 browser/server·native 실행도 종료했다. 마지막 임시 검증 root `.nelyx/w9c00-4cUhKP`(진단 ASAN host/Core·수치 fixture·스크린샷)의 재귀 삭제 요청은 자동 승인 검토가 **`blocked by policy`**로 거부했다. 세부 사유는 제공되지 않았으며 삭제를 다른 도구로 우회하지 않았다. 거부 후 읽기 확인에서 이 root는 workspace 안의 2,384 files / 554,420,244 bytes, reparse point 0 / tracked file 0 / 해당 검증 process 0이었다. 이 root는 **정리 미완료**로 남기고 현재 dist와 구분한다. 이전 §7.4 경로/PID의 종료·삭제는 재시도하지 않았다.
+
+**Windows 종료 후속 정리:** 새 진단 root `.nelyx/w9c-trackpad-7cf7c5b`(현재 ASAN host·PDB/DIA resolver·PowerShell/웹 fixture·스크린샷)의 재귀 삭제도 자동 승인 검토가 **`blocked by policy`**로 거부했다. 세부 사유는 제공되지 않았다. 거부 뒤 읽기 확인에서 workspace 내 **2,313 files / 440,084,159 bytes**, tracked/reparse/해당 process **각 0**, 남은 native host **0**이었다. 삭제를 우회하지 않아 이 root도 **정리 미완료**다. 개발·수정·빌드·실행 검증은 완료했으며 거부된 작업은 임시 root 삭제다. 앞서 거부된 root와 과거 PID의 종료·삭제를 재시도하지 않았다.
+
+### 7.5 이번 메뉴·그림자·구조 진단 산출물 정리 차단
+
+현재 실행에서 만든 `.nelyx/w9c-menu-shadow-207c08d3`는 **120 files / 158,605,505 bytes**, tracked/reparse/process **0/0/0**을 확인하고 해석된 절대 경로가 workspace 안의 정확한 대상과 같음을 검사했다. 해당 경로의 PowerShell `Remove-Item -LiteralPath ... -Recurse -Force` 1회는 실행 전 자동 승인 검토의 **`blocked by policy`**로 거부됐다. 삭제 완료로 기록하지 않으며 다른 셸·스크립트·언어로 우회하거나 재시도하지 않는다. 앞 절의 이전 차단 경로도 재시도하지 않았다. 실제 트랙패드 확인 창은 이전 fixture를 읽어 일반 CLI로 실행한 별도 앱이며, 이 임시 디렉터리를 사용하지 않는다.
+
+### 7.6 problem.md 구조 수정 검증 임시 자료 정리 차단
+
+이번 실행 소유 `.nelyx/problem-rz7JpF`에 대해 저장소 내부 절대 경로·tracked·reparse·실행 프로세스 검사 후 삭제하는 PowerShell 명령을 요청했으나, 명령 실행 전 자동 승인 검토가 `blocked by policy`로 거부했다. 세부 사유는 제공되지 않았다. 다른 shell/API로 삭제를 우회하지 않았다. 이후 읽기 전용 확인에서 **115 files / 124,408,990 bytes / tracked 0 / reparse 0 / 해당 경로 실행파일 프로세스 0**이었다. 테스트 및 자체 실행 Demo는 종료했다. 현재 공급과 앱 번들은 갱신됐으며 이 임시 디렉터리만 정리 미완료로 남는다. 이전 §7.4–7.5 경로의 상태도 그대로다.
+
+### 7.7 증분 캡처 검증 자료 정리 차단
+
+이번 소유 `.nelyx/retained-rdQYDQ`의 절대 경로와 5 files / 1,120,407 bytes, tracked/reparse/process 각 0을 확인했다. PowerShell 재귀 삭제 요청은 자동 승인 검토에서 `blocked by policy`로 실행 전 거부됐다. 세부 사유는 제공되지 않았으며 다른 API로 우회하지 않았다. 자체 browser/server/Windows 앱은 종료했으나 이 임시 자료는 정리 미완료다. 현재 dist 및 이전 차단 경로와 구분한다.
+
+### 7.8 Windows 그림자 검증 자료 정리 차단
+
+최종 Windows Demo는 status=0 / reservedBytes=0 / memoryTotal=0 / workersJoined=true 및 dispatcher 종료·native exit 0을 확인했다. 이번 소유 `.nelyx/shadow-XU2Ajw`는 workspace 내 정확한 절대 경로·**13 files / 7,667,459 bytes / tracked 0 / reparse 0 / 해당 process 0**을 확인했다. PowerShell 재귀 삭제는 자동 승인 검토가 `blocked by policy`로 실행 전 거부했다. 세부 사유는 제공되지 않았으며 우회·재시도하지 않아 임시 자료는 정리 미완료다. 현재 dist·앱 번들 및 실제 빌드 공급 `.nelyx/windows-hermes`는 유지하고 이전 차단 경로는 변경하지 않았다.
+
 ## 8. 전체 완료 체크리스트와 정확한 재개점
 
-- [ ] W9C-00의 새 선언/runtime compile·Range custom 소비자·editor 곡선 animation과 수치/취소/종료 계약을 완성하고 현재 공급으로 확인했다.
+- [x] W9C-00의 새 선언/runtime compile·Range custom 소비자·editor 곡선 animation과 수치/취소/종료 계약을 Windows/Web 공급으로 확인했다. 이전 Windows 종료 수정은 §3.1.2, 이후 물리 재발·현재 공급의 기능 검사 및 미해결 장면 준비 지연/Web 메모리 한도는 §3.1.3으로 구분한다. 물리/성능 수락은 남은 범위다.
 - [ ] Windows RNW·Android/iOS RN·macOS RNM·Linux RNL 수정 소스를 해당 플랫폼 API의 실제 소비자가 사용하며 출처·의존성·실행 근거를 확인했다.
 - [ ] Widget/Element/State가 하나이고 중복 `/v2` 컴포넌트 소비자가 없다.
 - [ ] 최종 layout/geometry/hit-test/gesture/scene 권위가 v2 하나이며 구 TS/RN renderer 실행 경로가 없다.
@@ -265,8 +397,13 @@ Root의 `npm.cmd run run:engine-v2:windows`·`npm.cmd run run:engine-v2:web`는 
 - [ ] 후속 플랫폼 대체/지원 범위를 확정하고 구 runtime·공급·불필요 dependency·배포 파일을 제거했다.
 - [ ] 생성 소유권·출처·README·CLI help·work 문서가 실제 지원 상태와 일치하고 정리 미완료를 처리 또는 명시했다.
 
-**현재 상태:** **문서 OPEN / 재개 대기 · 구현 PAUSED / PARTIAL**. W9B-00·00-H 완료와 기존 부분 PASS를 보존하며 Range/editor 초안은 **notVerified**다. Source/dist 불일치와 Core runtime 타입 실패를 이어받는다. 전체 **compatible=false**, 두 성능 flag **false**, 물리/display/scanout **notVerified**, Android **stale/notVerified**, Linux·iOS/macOS **DEFERRED**다.
+**현재 상태:** **문서 OPEN / W9C-00 구조 병목 수정·통합 검사 통과·물리 체감 재확인 대기 · 전체 PARTIAL**. 현재 공급과 그림자 검증은 §3.1.6 및 `problem.md` §10이다. 증분 캡처 검증은 §3.1.5/§9에 구분한다. 새 선언·custom Range·editor Curve/취소·종료의 이전 소비 근거는 §3.1.1–2, 이후 물리 입력의 eventOverflow·listSeek busy·transaction budget 실패와 lazy 상단 복원·메뉴 지연은 §3.1.3에 구분한다. `fad4be8d…`와 후속 공급의 과거 자동 PASS를 현재 물리 입력 성공으로 확대하지 않는다. 전체 **compatible=false**, 두 성능 flag **false**, 물리/display/scanout **notVerified**, Android **stale/notVerified**, Linux·iOS/macOS **DEFERRED**다.
 
-**다음 시작점:** W9C-00, §3.1·§7.1의 챕터 전체 구현. Range extension·공유 정책·Curve/wire·실제 Demo·editor animation을 함께 완성한다. 이전 선언 오류가 구현을 막으면 `npm.cmd run build:core`로 먼저 해결하고, 챕터 구현 후 W9C-06에서 공급·설치·제품 확인과 문제 일괄 수정·영향 범위 재검증을 수행한 뒤 W9C-01로 진행한다.
+**다음 시작점:** §3.1.6의 현재 App 번들과 공급에서 실제 트랙패드로 목록 왕복·메뉴 열기/다른 항목 선택·반응 지연을 재확인한다. 재발 시 최초 opcode/status와 desired/active/published 진행·노드/자원 사용을 함께 좁힌다. 이 사용자 보고가 해결되기 전 W9C-01로 넘어가지 않는다. 실제 트랙패드와 버벅임은 아래 일반 명령·같은 화면과 입력으로 PowerShell에서 확인하고 물리 입력/표시/성능 수락과 자동 기능 근거를 구분한다.
 
-**다음 재개 요청:** `work9-c.md의 W9C-00부터 Windows/Web 작업을 챕터별로 전체 구현한 뒤 각 챕터 끝에 W9C-06 통합 검증·문제 일괄 수정·영향 범위 재검증을 수행하고 다음 챕터로 계속 진행해줘`
+```powershell
+Set-Location C:\Users\parti\Labo\NelyxLab
+node .\Nelyx\sdk\tooling\cli\src\main.mjs run --engine v2 --app .\sample\nelyx-demo-app\engine-v2 --target windows
+```
+
+**다음 재개 요청:** `work9-c.md의 W9C-01부터 Windows/Web 작업을 챕터별로 구현하고 각 챕터 끝에 W9C-06 통합 검증·문제 일괄 수정·영향 범위 재검증을 수행해줘. 실제 Windows 조작은 PowerShell로 하고 §3.1.1의 간헐 오류 추적도 유지해줘.`

@@ -44,7 +44,7 @@ Windows engine v2는 Windows App SDK 단일 host를 사용합니다. 일반 Wind
 
 저장소 Testbed는 `npm.cmd run build:engine-v2` 후 `npm.cmd run run:engine-v2:windows`로 실행합니다. `V2_WINDOWS_HOST`는 실제 host/dispatcher 경로를, `V2_INPUT_SOURCE`는 DirectManipulation 입력의 admission/rejection 수를 보고합니다. 주입 wheel·자동 UIA 검사로 물리 precision trackpad 사용감을 승인하지 않습니다.
 
-일반 v2 공급 빌드는 준비된 `m153-nelyx-paragraph.6` CanvasKit의 manifest·파일 hash·paragraph API 1·글꼴 참조 Picture API 3·불변 font collection API 1을 검사합니다. 준비물이 없거나 다르면 빌드를 거부합니다. [Owned runtime 준비 안내](../skia/eng/source-build/README.md)를 따르세요. npm CanvasKit은 타입 선언에 사용하며 앱 실행 중 vendor 다운로드/빌드를 시작하지 않습니다.
+일반 v2 공급 빌드는 준비된 `m153-nelyx-paragraph.7` CanvasKit의 manifest·파일 hash·paragraph API 1·글꼴 참조 Picture API 3·불변 font collection API 1을 검사합니다. 준비물이 없거나 다르면 빌드를 거부합니다. [Owned runtime 준비 안내](../skia/eng/source-build/README.md)를 따르세요. npm CanvasKit은 타입 선언에 사용하며 앱 실행 중 vendor 다운로드/빌드를 시작하지 않습니다.
 
 서로 맞는 Core·SDK·CLI·Metro·Static AOT·Tooling Contracts 패키지 archive로 일반 프로젝트를 만듭니다. 디자인 패키지를 사용할 때는 해당 archive와 `--designs material,cupertino`를 추가합니다. App 루트에서 한 번 설치합니다.
 

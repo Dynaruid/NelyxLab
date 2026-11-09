@@ -23,7 +23,8 @@ function compile(curve: ScrollCurve): { nodes: Node[]; captured: ScrollCurve } {
     active.add(value);
     try {
       const kind = p.scrollCurveKinds[value.kind];
-      if (!kind) throw RangeError('Invalid native scroll curve kind');
+      if (!Object.hasOwn(p.scrollCurveKinds, value.kind))
+        throw RangeError('Invalid native scroll curve kind');
       let first = none,
         second = none,
         values: number[] = [],

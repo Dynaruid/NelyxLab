@@ -1150,6 +1150,66 @@ std::shared_ptr<const LayoutOutput> LayoutWork::pendingCache()const {
   require(state_->pendingBuild.has_value(),wire::statuses::pending);
   return state_->result;
 }
+bool LayoutWork::resumeBuild(std::shared_ptr<const Document> document,
+    const std::vector<ScrollLayoutOffset>& offsets) {
+  auto& s=*state_;
+  if(!s.pendingBuild||s.stack.empty()||s.flattening||s.complete||s.queryRoot||
+      document->epoch<=s.source->epoch)return false;
+  const auto& request=*s.pendingBuild;
+  const auto boundary=request.node->id;
+  if(s.stack.back().node!=boundary||!document->contains(boundary)||
+      document->children[0]!=s.source->children[0])return false;
+  const auto& before=*request.node;const auto& after=document->get(boundary);
+  const auto sameAxis=[](Axis a,Axis b){return a.tag==b.tag&&a.min==b.min&&a.max==b.max;};
+  if(!after.layoutBuilder||!before.layoutBuilder||
+      after.layoutBuilder->revision!=before.layoutBuilder->revision||
+      after.layoutBuilder->builtRevision!=after.layoutBuilder->revision||
+      after.kind!=before.kind||after.parent!=before.parent||after.order!=before.order||
+      after.properties!=before.properties||after.layout!=before.layout||
+      !sameAxis(after.horizontal,before.horizontal)||!sameAxis(after.vertical,before.vertical)||
+      after.list.generation!=before.list.generation||after.list.count!=before.list.count||
+      after.list.fixed!=before.list.fixed||after.list.sequential!=before.list.sequential||
+      after.list.estimate!=before.list.estimate)return false;
+  const auto& built=*after.layoutBuilder;
+  if(LayoutConstraints{built.horizontal.min,built.horizontal.tag==wire::bounds::finite?built.horizontal.max:INFINITY,
+      built.vertical.min,built.vertical.tag==wire::bounds::finite?built.vertical.max:INFINITY}!=request.constraints)return false;
+  // Offsets are native input, independent of transaction revisions.
+  if(offsets.size()!=s.offsets.size())return false;
+  for(const auto& offset:offsets)if(std::none_of(s.offsets.begin(),s.offsets.end(),[&](const auto& old){
+      return old.node==offset.node&&old.requested==offset.requested&&old.manual==offset.manual;}))return false;
+  // No siblings, ancestors, root ordering or cross-boundary moves may change.
+  // Font/editing snapshots can change without a Source transaction edit.
+  for(uint32_t slot=1;slot<=std::max(document->highWater,s.source->highWater);++slot){
+    const auto& old=s.source->nodes[slot].value;const auto& value=document->nodes[slot].value;
+    const bool oldInside=old&&s.source->descends(old->id,boundary);
+    const bool newInside=value&&document->descends(value->id,boundary);
+    if(oldInside||newInside){
+      if(old&&value&&(oldInside!=newInside))return false;
+      continue;
+    }
+    if(bool(old)!=bool(value))return false;
+    if(old&&(old->id!=value->id||old->configurationRevision!=value->configurationRevision||
+        old->editSerial!=value->editSerial||old->editing!=value->editing||
+        old->fontRevision!=value->fontRevision||old->fontResource!=value->fontResource||
+        old->paintOwner!=value->paintOwner||s.source->children[slot]!=document->children[slot]))return false;
+  }
+  for(const auto& task:s.stack)if(task.intrinsic||task.program)return false;
+  // All rejection checks precede mutation. Restart only the answered builder;
+  // completed siblings and the parent constraint/placement continuations live on.
+  const auto input=s.stack.back().input;const auto index=s.stack.back().parentIndex;
+  s.stack.pop_back();
+  for(auto& task:s.stack)if(task.box)task.box->revision=document->get(task.node).layoutRevision;
+  auto& visits=s.result->tapRegionVisits;
+  visits.erase(std::remove_if(visits.begin(),visits.end(),[&](Handle node){
+    return !document->contains(node)||s.source->descends(node,boundary);}),visits.end());
+  for(size_t slot=1;slot<s.result->boxes.size();++slot){
+    const auto& box=s.result->boxes[slot];
+    if(box&&!document->contains(box->node))s.result->boxes[slot].reset();
+  }
+  s.source=std::move(document);s.previous=s.result;s.pendingBuild.reset();
+  s.push(boundary,input,index);
+  return true;
+}
 uint64_t LayoutWork::work() const { return state_->operations; }
 uint64_t LayoutWork::reused() const { return state_->reused; }
 uint64_t LayoutWork::imagePaintWork() const {return state_->imageWork;}

@@ -11,7 +11,7 @@ export async function loadCanvasKit(root: URL, manifest: CanvasKitManifest): Pro
     !['http:', 'https:'].includes(root.protocol) ||
     !root.href.endsWith('/') ||
     manifest.schema !== 'nelyx.canvaskit/v1' ||
-    manifest.version !== 'm153-nelyx-paragraph.6' ||
+    manifest.version !== 'm153-nelyx-paragraph.7' ||
     manifest.adapterAbi !== 1 ||
     manifest.initialMemoryBytes !== 128 * 1024 * 1024 ||
     manifest.maximumMemoryBytes !== 256 * 1024 * 1024 ||

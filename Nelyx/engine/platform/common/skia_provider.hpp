@@ -216,7 +216,8 @@ class ContentProvider {
       if(n.resolvedPaint&&!n.resolvedPaint->paths.empty())result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,n.resolvedPaint->paths.size()*256+1024));
       const auto& style=n.graphics;if(style.path||style.shadowColor||style.strokeColor||style.blur||style.transform.a!=1||style.transform.b||style.transform.c||style.transform.d!=1||style.transform.tx||style.transform.ty)++graphicsRecords;
       if(n.extensionSize.x>0)++nativeExtensions;
-      if(n.graphics.path){result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,n.graphics.path->commands.size()*128+1024));result->paths.emplace(n.id.key(),graphicsPath(*n.graphics.path));}
+      if(n.graphics.path){result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,n.graphics.path->commands.size()*128+1024));
+        const auto physical=n.physicalPaint();result->paths.emplace(n.id.key(),physical?nativePhysicalPath(*physical):graphicsPath(*n.graphics.path));}
       SkPictureRecorder recorder;
       const auto& g=n.graphics;double padding=4*(g.shadowSigma+g.blur)+g.strokeWidth+2;
       if(n.resolvedPaint)for(const auto& e:n.resolvedPaint->entries)
@@ -379,6 +380,11 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
       if(geometry)for(const auto& r:geometry->selection)rect(r,0x663582f6);
       // Opacity and blur already wrap the subtree above. A default paint here
       // adds an isolation layer and changes overlapping strut glyph rounding.
+#if defined(_WIN32) && defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
+      if(n.nativePaint&&std::any_of(n.nativePaint->entries.begin(),n.nativePaint->entries.end(),[](const auto& e){return e.kind==wire::nativePaintKinds::elevationShadow;})){
+        NativeShadowReplayCanvas replay(*canvas);replay.drawPicture(found->second);
+      }else
+#endif
       canvas->drawPicture(found->second);
       drawPaint(item,false);
       if(n.control.kind){const auto& c=n.control;const auto& state=frame.properties[n.id.slot];SkPaint paint;paint.setAntiAlias(true);

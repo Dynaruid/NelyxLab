@@ -20,6 +20,14 @@ import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-buil
 import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
 import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
+import { Directionality } from '@nelyx/core/framework/widgets/app-data';
+import {
+  Curve,
+  Curves,
+  Interval,
+  nativeCurveConfiguration,
+  registerNativeCurveConfiguration,
+} from '@nelyx/core/framework/animation/curves';
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
 import { TextFieldTapRegion } from '@nelyx/core/framework/widgets/tap-region';
 import { RadioGroup } from '@nelyx/core/framework/widgets/radio-group';
@@ -45,6 +53,7 @@ import { Switch } from '@nelyx/material/switch';
 import { Slider } from '@nelyx/material/slider';
 import { RangeSlider } from '@nelyx/material/range-slider';
 import { RangeValues, RangeLabels } from '@nelyx/material/range-slider-values';
+import { SliderTheme } from '@nelyx/material/slider-theme';
 import {
   LinearProgressIndicator,
   CircularProgressIndicator,
@@ -59,6 +68,18 @@ import { showDialog } from '@nelyx/material/dialog';
 import { GallerySection, GallerySectionExtents, GalleryUpdates } from './gallery-section.ts';
 import { ImageDemo } from './image-demo.ts';
 import { column, flow, inset, icon } from './layout.ts';
+import { demoRangeTheme } from './range-demo-shapes.ts';
+
+const messageCurve = new Interval(0.1, 0.9, { curve: Curves.easeInOutCubicEmphasized });
+class MessageScrollCurve extends Curve {
+  protected override transformInternal(t: number): number {
+    return messageCurve.transform(t);
+  }
+}
+registerNativeCurveConfiguration(MessageScrollCurve.prototype, () =>
+  nativeCurveConfiguration(messageCurve),
+);
+const curvedMessageScroll = new MessageScrollCurve();
 
 const groups = [
   'Actions',
@@ -122,7 +143,13 @@ class ComponentsState extends State<ComponentsScreen> {
         ] as const,
     ),
   );
-  private readonly messageScroll = new ScrollController();
+  private readonly primaryMessageScroll = new ScrollController();
+  private readonly alternateMessageScroll = new ScrollController();
+  private messageAlternate = false;
+  private get messageScroll(): ScrollController {
+    return this.messageAlternate ? this.alternateMessageScroll : this.primaryMessageScroll;
+  }
+  private messageAnimation = 0;
   private readonly keyboardFocus = new FocusNode({ debugLabel: 'Demo keyboard' });
   private keyboardMessage =
     'Choose Test keyboard, then press a key. Tab moves to the next control.';
@@ -143,6 +170,10 @@ class ComponentsState extends State<ComponentsScreen> {
   private filtered = true;
   private slider = 30;
   private range = new RangeValues(20, 80);
+  private customRange = new RangeValues(25, 75);
+  private rangeEnabled = true;
+  private rangeRtl = false;
+  private rangeCustom = true;
   private progress = false;
   private messages = 9;
   private readonly markMessagesRead = new CustomSemanticsAction({
@@ -161,10 +192,12 @@ class ComponentsState extends State<ComponentsScreen> {
     };
   }
   override dispose(): void {
+    ++this.messageAnimation;
     this.updates.dispose();
     this.firstScroll.dispose();
     this.secondScroll.dispose();
-    this.messageScroll.dispose();
+    this.primaryMessageScroll.dispose();
+    this.alternateMessageScroll.dispose();
     this.keyboardFocus.dispose();
     this.filled.dispose();
     this.outlined.dispose();
@@ -733,6 +766,59 @@ class ComponentsState extends State<ComponentsScreen> {
           new Text('Range ' + Math.round(this.range.start) + ' – ' + Math.round(this.range.end), {
             fontSize: 12,
           }),
+          new Directionality(
+            this.rangeRtl ? 'rtl' : 'ltr',
+            new SliderTheme(
+              this.rangeCustom ? demoRangeTheme : SliderTheme.of(context),
+              new RangeSlider({
+                id: 'range-custom',
+                values: this.customRange,
+                min: 0,
+                max: 100,
+                divisions: 200,
+                labels: new RangeLabels(
+                  this.customRange.start.toFixed(1),
+                  this.customRange.end.toFixed(1),
+                ),
+                onChanged: this.rangeEnabled
+                  ? (values) =>
+                      update(() => {
+                        this.customRange = values;
+                      })
+                  : null,
+              }),
+            ),
+          ),
+          new Text(
+            `Custom range ${this.customRange.start.toFixed(1)} – ${this.customRange.end.toFixed(1)}`,
+            { fontSize: 12 },
+          ),
+          flow(
+            new TextButton({
+              id: 'range-toggle-enabled',
+              child: new Text(this.rangeEnabled ? 'Disable range' : 'Enable range'),
+              onPressed: () =>
+                update(() => {
+                  this.rangeEnabled = !this.rangeEnabled;
+                }),
+            }),
+            new TextButton({
+              id: 'range-toggle-direction',
+              child: new Text(this.rangeRtl ? 'Use LTR' : 'Use RTL'),
+              onPressed: () =>
+                update(() => {
+                  this.rangeRtl = !this.rangeRtl;
+                }),
+            }),
+            new TextButton({
+              id: 'range-toggle-style',
+              child: new Text(this.rangeCustom ? 'Use standard shapes' : 'Use custom shapes'),
+              onPressed: () =>
+                update(() => {
+                  this.rangeCustom = !this.rangeCustom;
+                }),
+            }),
+          ),
         );
       case 'switches':
         return flow(
@@ -857,6 +943,7 @@ class ComponentsState extends State<ComponentsScreen> {
                         this.messageScroll.hasClients &&
                         this.messageScroll.position.hasContentDimensions
                       ) {
+                        ++this.messageAnimation;
                         this.messageScroll.jumpTo(
                           end ? this.messageScroll.position.maxScrollExtent : 0,
                         );
@@ -865,6 +952,67 @@ class ComponentsState extends State<ComponentsScreen> {
                     },
                   }),
               ),
+              new TextButton({
+                id: 'message-load-long',
+                child: new Text('Load long message'),
+                onPressed: () => {
+                  this.outlined.text = Array.from(
+                    { length: 12 },
+                    (_, i) => `${i + 1}. 안녕하세요 · Nelyx 🌿`,
+                  ).join('\n');
+                  update(() => {});
+                },
+              }),
+              new TextButton({
+                id: 'message-scroll-curve',
+                child: new Text('Animate message'),
+                onPressed: () => {
+                  if (
+                    !this.messageScroll.hasClients ||
+                    !this.messageScroll.position.hasContentDimensions
+                  )
+                    return;
+                  const revision = ++this.messageAnimation,
+                    target =
+                      this.messageScroll.offset < this.messageScroll.position.maxScrollExtent / 2
+                        ? this.messageScroll.position.maxScrollExtent
+                        : 0;
+                  this.record('Message scrolling…');
+                  void this.messageScroll
+                    .animateTo(target, { duration: 900, curve: curvedMessageScroll })
+                    .then(
+                      () => {
+                        if (this.mounted && revision === this.messageAnimation)
+                          this.record('Message scroll finished');
+                      },
+                      (error: unknown) => {
+                        if (this.mounted && revision === this.messageAnimation)
+                          this.record('Message scroll failed: ' + String(error));
+                      },
+                    );
+                },
+              }),
+              new TextButton({
+                id: 'message-scroll-cancel',
+                child: new Text('Stop scrolling'),
+                onPressed: () => {
+                  ++this.messageAnimation;
+                  if (this.messageScroll.hasClients)
+                    this.messageScroll.jumpTo(this.messageScroll.offset);
+                  this.record('Message scrolling stopped');
+                },
+              }),
+              new TextButton({
+                id: 'message-scroll-controller',
+                child: new Text('Switch scroll controller'),
+                onPressed: () => {
+                  ++this.messageAnimation;
+                  update(() => {
+                    this.messageAlternate = !this.messageAlternate;
+                  });
+                  this.record('Message scroll controller changed');
+                },
+              }),
             ),
           ),
         );

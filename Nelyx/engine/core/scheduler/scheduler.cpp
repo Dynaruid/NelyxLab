@@ -4,7 +4,7 @@
 
 namespace nelyx::v2 {
 void View::event(Event e) {
-  if (events.size() == wire::limits::events) { overflowed = true; return; }
+  if (events.size() == wire::limits::events) { recordEventOverflow(e,false); return; }
   events.push_back(e);
 }
 void View::finishCommand(uint64_t id, uint32_t status) {
@@ -12,13 +12,26 @@ void View::finishCommand(uint64_t id, uint32_t status) {
   if (it == commands.end()) return;
   const auto& c = it->second;
   const auto overlay = overlays.find(c.node.key());
-  if(c.list&&overlay!=overlays.end()) { overlay->second.requested=overlay->second.offset;overlay->second.needSent=false; }
+  if((c.list||status!=wire::statuses::ok)&&overlay!=overlays.end()) {
+    overlay->second.requested=overlay->second.offset;overlay->second.needSent=false;
+    if(document&&document->contains(c.node)&&document->get(c.node).editorViewport.enabled)requestContent();
+  }
   event({wire::events::scrollTerminal, status, id, document ? document->epoch : 0,
     overlay == overlays.end() ? 0 : overlay->second.revision, c.node});
   interaction({wire::events::scrollTerminal,status,id,document?document->epoch:0,
     overlay==overlays.end()?0:overlay->second.revision,c.node});
   for (auto& result : commandResults) if (result.id == id) result.status = status;
   commands.erase(it);
+}
+bool View::endDeferredInput(uint32_t stream,bool cancelPending) {
+  bool deferred=false;
+  for(auto& [key,overlay]:overlays)if(overlay.deferredStream==stream){
+    deferred|=overlay.deferred;overlay.deferredStream=0;
+    // A normal end keeps the accepted destination until Content covers it.
+    // Canceling it here strands reverse scrolling at the cache's leading edge.
+    if(cancelPending){overlay.deferred=false;overlay.requested=overlay.offset;}
+  }
+  return deferred;
 }
 void View::cancelStream(uint32_t stream, uint32_t reason) {
   auto& s = streams.at(stream);
@@ -38,17 +51,14 @@ void View::cancelStream(uint32_t stream, uint32_t reason) {
     if(overlay->second.pressed){overlay->second.pressed=false;dirty=true;} }
   if(s.active&&s.pointer)gesture(s.target,wire::gestureKinds::cancel,lastInput,s.x,s.y);
   if(s.pinched)for(auto& other:streams)if(&other!=&s&&other.active&&other.target==s.target){other.pinched=false;other.pan=true;}
-  for (auto& entry : overlays) if (entry.second.deferredStream == stream) {
-    entry.second.deferred = false; entry.second.requested = entry.second.offset; entry.second.deferredStream = 0;
-  }
+  endDeferredInput(stream,true);
   s.active = false; s.pointer=false; s.denied = true;
   s.decision=0;s.appAccepted=false;s.decisionDeadline=0;
 }
 void View::cancelInput(uint32_t reason) {
   for(uint32_t i=1;i<=wire::limits::streams;++i)cancelPointerListeners(i);
   for(auto& capture:tapRegionCaptures)capture={};
-  for(auto it=commands.begin();it!=commands.end();) {const auto current=it++;
-    if(current->second.list)finishCommand(current->first,reason);}
+  while(!commands.empty())finishCommand(commands.begin()->first,reason);
   for (uint32_t i = 1; i <= wire::limits::streams; ++i) cancelStream(i, reason);
   for (auto& entry : overlays) {
     auto& overlay=entry.second;overlay.ballistic=false;overlay.velocity=0;
@@ -85,11 +95,6 @@ void View::close(uint32_t reason) {
 }
 void View::requestContent() {
   if (!document || closed) return;
-  if(preparing&&preparing->layout&&preparing->layout->buildRequest()){
-    pendingLayoutCache=preparing->layout->pendingCache();
-    event({wire::events::preparationCanceled,wire::statuses::superseded,preparing->id,preparing->document->epoch});
-    preparing.reset();
-  }
   if (demand && demand->epoch != document->epoch)
     event({wire::events::skipped, wire::statuses::superseded, 0, demand->epoch, document->epoch});
   demand = document;
@@ -109,8 +114,29 @@ void View::contentStep(uint32_t quota) {
   // A newer transaction can arrive before an older layout reaches its App
   // builder. That request cannot be answered against the current document.
   // Retain completed cache entries and prepare the latest accepted document.
-  if(demand&&preparing&&preparing->layout&&preparing->layout->buildRequest()&&
-      preparing->document->epoch!=demand->epoch)requestContent();
+  if(demand&&preparing&&preparing->layout&&preparing->layout->buildRequest()){
+    bool resumed=false;
+    if(preparing->metrics.epoch==metrics.epoch&&preparing->metrics.device==metrics.device&&
+        preparing->fontRevision==fontRevision&&preparing->document->epoch<demand->epoch){
+      try {
+        std::vector<ScrollLayoutOffset> offsets;
+        for(const auto& [key,value]:overlays){const Handle node{uint32_t(key),uint32_t(key>>32)};
+          if(document->contains(node)&&(document->get(node).kind==wire::kinds::scrollViewport||document->get(node).editorViewport.enabled)){
+            const bool manual=document->get(node).editorViewport.enabled&&std::any_of(commands.begin(),commands.end(),
+              [&](const auto& command){return command.second.node==node;});
+            offsets.push_back({node,value.requested,manual});}}
+        auto candidate=fontDocument(editingDocument(),fontResource,fontRevision);
+        resumed=preparing->layout->resumeBuild(candidate,offsets);
+        if(resumed){preparing->document=std::move(candidate);demand.reset();}
+      }catch(const Error&){ /* Normal restart owns admission/failure reporting. */ }
+       catch(const std::bad_alloc&){ }
+    }
+    if(!resumed){
+      pendingLayoutCache=preparing->layout->pendingCache();
+      event({wire::events::preparationCanceled,wire::statuses::superseded,preparing->id,preparing->document->epoch});
+      preparing.reset();
+    }
+  }
   if (!preparing && demand) {
     const auto id = next(nextPreparation);
     auto p = std::make_unique<Preparation>();
@@ -596,13 +622,14 @@ uint32_t View::scroll(Reader r, uint64_t id) {
     timeout <= std::min(wire::limits::scrollTimeoutMs/1000.0,duration+wire::limits::commandTimeoutMs/1000.0),
     wire::statuses::invalidValue);
   const auto curve=ScrollCurve::read(r.slice(56,r.length-56));
-  require(commands.size() < wire::limits::scrollCommands, wire::statuses::budgetExceeded);
+  require(commands.size() < wire::limits::scrollCommands || std::any_of(commands.begin(),commands.end(),
+    [&](const auto& command){return command.second.node==node;}), wire::statuses::budgetExceeded);
   for (auto it = commands.begin(); it != commands.end();) {
     const auto old = it++;
     if (old->second.node == node) finishCommand(old->first, wire::statuses::superseded);
   }
   ScrollCommand command{id, r.u64(8), r.u64(16), node, target, duration,
-    time + timeout, 0, 0, bool(policy & 1u), bool(policy & 2u), false, {}, 0, 0, 0};
+    time + timeout, 0, 0, bool(policy & 1u), bool(policy & 2u), false, {}, 0, 0, 0, false, {}};
   command.curve=curve;commands.emplace(id,std::move(command));
   lastCommand = id;
   commandResults.push_back({id, std::vector<uint8_t>(r.data, r.data + r.length)});
@@ -636,6 +663,9 @@ uint32_t View::listSeek(Reader r,uint64_t id) {
     parent.properties.minimum,parent.properties.maximum);
   Writer normalized(56);writeHandle(normalized,0,viewport);normalized.u64(8,document->epoch);
   normalized.u64(16,overlays.at(viewport.key()).revision);normalized.f64(24,target);normalized.f64(40,r.f64(40));
+  // Programmatic list jumps have the same interrupt/rebase contract as scroll.
+  // Otherwise a still-active trackpad stream turns a controller jump into busy.
+  normalized.u32(48,3);
   const auto status=scroll({normalized.bytes.data(),normalized.bytes.size()},id);
   commandResults.back().bytes.assign(r.data,r.data+r.length);
   if(status!=wire::statuses::pending)return status;
@@ -683,11 +713,7 @@ void View::processInput(Input p) {
     o.velocity = p.velocity;
   } else if (p.phase == wire::phases::end || p.phase == wire::phases::cancel) {
     stream.active = false;
-    bool deferred = false;
-    for (auto& entry : overlays) if (entry.second.deferredStream == p.stream) {
-      deferred |= entry.second.deferred;entry.second.deferred=false;entry.second.deferredStream=0;
-      entry.second.requested=entry.second.offset;
-    }
+    const bool deferred=endDeferredInput(p.stream,p.phase==wire::phases::cancel);
     if (p.phase == wire::phases::end && p.source == wire::sources::engineDriven &&
         !deferred && std::abs(p.velocity) >= 1) {
       o.ballistic = true; o.start = o.offset; o.startVelocity = p.velocity; o.elapsed = 0;

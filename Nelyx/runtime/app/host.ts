@@ -67,6 +67,7 @@ import { OriginalFontOwner } from './fonts.ts';
 import { OriginalEditingBridge } from './editing.ts';
 import { OriginalSemanticsBridge } from './semantics.ts';
 import { OriginalTapRegions } from './tap-regions.ts';
+import { RenderSceneCapture } from './capture.ts';
 
 export interface OriginalWidgetHostOptions {
   readonly platform?: FoundationPlatformEnvironment;
@@ -91,6 +92,12 @@ export interface OriginalWidgetHostOptions {
   ) => Promise<void>;
 }
 export interface OriginalWidgetExecution extends EngineExecutionSnapshot {
+  readonly capture: Readonly<{
+    captured: number;
+    reused: number;
+    passes: number;
+    reusedRecords: number;
+  }>;
   readonly imageClock?: AppImageClockSnapshot;
   readonly appModel: 'original-elements';
   readonly compatibility: 'partial';
@@ -114,6 +121,11 @@ class AppRoot extends StatelessWidget {
  * This bounded first bridge deliberately rejects unported render hooks/services.
  */
 export class OriginalWidgetHost {
+  private readonly capture = new RenderSceneCapture();
+  private invalidateRender(render: RenderObject): void {
+    this.capture.invalidate(render);
+    this.schedule();
+  }
   private readonly native: SceneWriter;
   private readonly owner: BuildOwner;
   private readonly keys = new WeakMap<RenderObject, SceneReference>();
@@ -122,8 +134,12 @@ export class OriginalWidgetHost {
   private root: Element | undefined;
   private desired: OriginalWidget | undefined;
   private nativeMounted = false;
+  private sceneMetrics = 0n;
+  private sceneDevice = 0n;
+  private sceneFontRevision = 0n;
   private closed = false;
   private building = false;
+  private inputCheckpoint = false;
   private scheduled = false;
   private rerun = false;
   private running: Promise<void> | undefined;
@@ -166,6 +182,7 @@ export class OriginalWidgetHost {
   private readonly layoutBuilders = new Map<RenderObject, NativeLayoutBuilderConfiguration>();
   private readonly slivers = new Map<RenderObject, NativeSliverConfiguration>();
   private layoutBuildKey: string | undefined;
+  private answeredLayoutBuild: string | undefined;
 
   constructor(
     readonly view: EngineViewClient,
@@ -344,7 +361,7 @@ export class OriginalWidgetHost {
       this.owner,
       view,
       (render) => this.keys.get(render)?.currentNode ?? null,
-      () => !this.running && !this.building && !this.closed,
+      () => (!this.running || this.inputCheckpoint) && !this.building && !this.closed,
       (error) => this.options.onError?.(error),
       (peer) => this.native.notifyFocusPeer(peer),
       options.dispatchNativeKey,
@@ -357,6 +374,10 @@ export class OriginalWidgetHost {
     const native = this.native.execution;
     return Object.freeze({
       ...native,
+      capture: Object.freeze({
+        ...this.capture.counters,
+        reusedRecords: this.native.counters.reusedRecords,
+      }),
       appModel: 'original-elements',
       compatibility: 'partial',
       tsLayoutFallbacks: 0,
@@ -498,7 +519,7 @@ export class OriginalWidgetHost {
   }
   private async rebuildFromContent(observed?: EngineResponse): Promise<void> {
     if (this.closed || this.view.hasPendingTransaction) return;
-    const state = observed ?? (await this.view.request(p.opcodes.inspect));
+    const state = observed ?? (await this.view.inspectState());
     if (this.closed) return;
     this.geometry.observeState(state);
     this.layers.observeState(state);
@@ -513,6 +534,8 @@ export class OriginalWidgetHost {
       request.device !== state.device
     )
       return;
+    const answer = `${request.preparation}/${request.id}/${request.document}/${request.metrics}/${request.device}/${state.fontRevision}/${request.node.slot}:${request.node.generation}/${request.revision}`;
+    if (answer === this.answeredLayoutBuild) return;
     if (request.list) {
       for (const [render, sliver] of this.slivers) {
         const node = this.keys.get(render)?.currentNode;
@@ -532,7 +555,8 @@ export class OriginalWidgetHost {
           width: request.horizontal.max,
           height: request.vertical.max,
         };
-        this.rebuildNativeContent(() => sliver.prepare(request.revision, input));
+        if (this.rebuildNativeContent(() => sliver.prepare(request.revision, input)))
+          this.answeredLayoutBuild = answer;
         return;
       }
       return;
@@ -557,11 +581,12 @@ export class OriginalWidgetHost {
         height.min ?? 0,
         height.kind === 'finite' ? height.max : Infinity,
       );
-      this.rebuildNativeContent(() => builder.rebuild(request.revision, constraints));
+      if (this.rebuildNativeContent(() => builder.rebuild(request.revision, constraints)))
+        this.answeredLayoutBuild = answer;
       return;
     }
   }
-  private rebuildNativeContent(callback: () => boolean): void {
+  private rebuildNativeContent(callback: () => boolean): boolean {
     this.building = true;
     this.bridgeFailure = undefined;
     try {
@@ -570,6 +595,7 @@ export class OriginalWidgetHost {
       );
       if (this.bridgeFailure) throw this.bridgeFailure;
       if (rebuilt) this.rerun = true;
+      return rebuilt;
     } finally {
       this.building = false;
     }
@@ -595,7 +621,7 @@ export class OriginalWidgetHost {
       return this.unsupported('list-child-policy');
     const required = sliver.children.filter((child) => !child.keptAlive || child.explicitKeepAlive);
     if (required.length > p.limits.listChildren) return this.unsupported('list-keep-alive-budget');
-    claimNativeRenderObject(render, this, () => this.schedule());
+    claimNativeRenderObject(render, this, () => this.invalidateRender(render));
     this.geometry.bind(render);
     let key = this.keys.get(render);
     if (!key) this.keys.set(render, (key = new SceneReference()));
@@ -692,6 +718,20 @@ export class OriginalWidgetHost {
     depth = 0,
     listItem?: SceneNodeOptions['listItem'],
   ): SceneNode {
+    // ParentData can be changed by a parent layout widget without invalidating
+    // the child itself. Compare only that small independent input at the edge.
+    const input =
+      JSON.stringify(parentLayout(render, {}).layout) + `/${listItem?.index}/${listItem?.key}`;
+    return this.capture.node(render, input, count, depth, () =>
+      this.captureNode(render, count, depth, listItem),
+    );
+  }
+  private captureNode(
+    render: RenderObject,
+    count: { value: number },
+    depth = 0,
+    listItem?: SceneNodeOptions['listItem'],
+  ): SceneNode {
     if (++count.value >= p.limits.nodes || depth >= p.limits.depth)
       return this.unsupported('render-tree-budget');
     const nonBoxConfiguration =
@@ -699,16 +739,23 @@ export class OriginalWidgetHost {
         ? undefined
         : originalBoxConfiguration(render, (reason) => this.unsupported(reason));
     if (!(render instanceof RenderBox) && !nonBoxConfiguration) {
+      this.capture.dynamic();
       const sliver = nativeSliverConfiguration(render, (reason) => this.unsupported(reason));
       if (!sliver) return this.unsupported('non-box-render-object');
       return this.sliverNode(render, sliver, count, depth);
     }
     const prototype: unknown = Object.getPrototypeOf(render),
       paragraph = prototype === RenderParagraph.prototype;
-    const control =
-        this.taps.configuration(render) ??
-        originalControlConfiguration(render, (reason) => this.unsupported(reason)),
+    const tap = this.taps.configuration(render),
+      control = tap ?? originalControlConfiguration(render, (reason) => this.unsupported(reason)),
       layer = this.layers.configuration(render);
+    if (
+      tap ||
+      layer ||
+      control?.options.semantics ||
+      prototype === RenderIndexedSemantics.prototype
+    )
+      this.capture.dynamic();
     if (
       render.onPointer ||
       (render instanceof RenderBox && render.semantics && !paragraph && !control)
@@ -746,6 +793,7 @@ export class OriginalWidgetHost {
       kind = source.kind;
       options = source.options;
       editable = source.editable;
+      if (editable) this.capture.dynamic();
       if (editable) text = editable.text;
     } else if (control) {
       kind = control.kind ?? 'box';
@@ -775,7 +823,9 @@ export class OriginalWidgetHost {
       kind = box.kind;
       options = box.options;
       if (box.builder) this.layoutBuilders.set(render, box.builder);
+      if (box.builder || box.tooltipPosition) this.capture.dynamic();
     } else if (prototype === RenderImage.prototype) {
+      this.capture.dynamic();
       const source = render as RenderImage,
         value = source.image;
       if (!this.options.appImages) return this.unsupported('App-image-owner-unavailable');
@@ -885,7 +935,7 @@ export class OriginalWidgetHost {
           : {}),
       };
     } else return this.unsupported('custom-or-unported-render-object:' + render.constructor.name);
-    claimNativeRenderObject(render, this, () => this.schedule());
+    claimNativeRenderObject(render, this, () => this.invalidateRender(render));
     bindNativeSemanticsEvents(render, this, (event) => {
       if (this.closed) return;
       if (!['tap', 'longPress', 'focus'].includes(event.type) || event.getDataMap().size)
@@ -952,6 +1002,7 @@ export class OriginalWidgetHost {
           (entry.geometry && entry.geometry.kind !== 'program')
         )
           return this.unsupported('paragraph-paint-configuration');
+        this.capture.dynamic();
         if (
           entry.geometry?.kind === 'program' &&
           (entry.geometry.radii ||
@@ -1047,14 +1098,36 @@ export class OriginalWidgetHost {
       .then(() => this.perform())
       .finally(() => {
         this.running = undefined;
+        this.focusing.finishPoll();
       });
     return this.running;
+  }
+  private waitForContent(state: EngineResponse): boolean {
+    const request = state.layoutBuildRequest;
+    return !!(
+      this.nativeMounted &&
+      state.visible &&
+      state.viewport &&
+      state.viewport.width > 0 &&
+      state.viewport.height > 0 &&
+      state.document > state.publishedDocument &&
+      state.failedDocument < state.document &&
+      state.metrics === this.sceneMetrics &&
+      state.device === this.sceneDevice &&
+      state.fontRevision === this.sceneFontRevision &&
+      !(
+        request &&
+        request.document === state.document &&
+        request.metrics === state.metrics &&
+        request.device === state.device
+      )
+    );
   }
   private async perform(): Promise<void> {
     do {
       this.rerun = false;
       if (!this.desired || this.closed) return;
-      const state = await this.view.request(p.opcodes.inspect);
+      let state = await this.view.inspectState();
       if (this.closed) return;
       // Answer the current accepted document before another repaint replaces
       // it. Continuous App animation must not starve a pending Source builder.
@@ -1062,6 +1135,22 @@ export class OriginalWidgetHost {
       // remain authoritative even when a newer invalidation is already queued.
       await this.rebuildFromContent(state);
       if (this.closed) return;
+      while (this.waitForContent(state)) {
+        // Coalesce ordinary animation/input invalidations while Content finishes
+        // the accepted scene. Required Source builders above can still advance
+        // that preparation. Replacing it on every App frame starves publication.
+        this.inputCheckpoint = true;
+        try {
+          await this.focusing.finishBuild();
+          await new Promise<void>((resolve) => setTimeout(resolve, 8));
+        } finally {
+          this.inputCheckpoint = false;
+        }
+        if (this.closed) return;
+        state = await this.view.inspectState();
+        if (this.closed) return;
+        await this.rebuildFromContent(state);
+      }
       let scene: SceneNode;
       const capturedFonts = new Map<bigint, AppParagraphFontLease>();
       const capturedImages = new Set<string>(),
@@ -1070,6 +1159,8 @@ export class OriginalWidgetHost {
       this.capturingImages = capturedImages;
       this.capturingImageRenders = new Set();
       this.building = true;
+      this.capture.context = `${state.metrics}/${state.device}/${state.fontRevision}`;
+      ++this.capture.counters.passes;
       this.bridgeFailure = undefined;
       this.taps.beginBuild();
       this.layoutBuilders.clear();
@@ -1147,6 +1238,9 @@ export class OriginalWidgetHost {
           await this.native.mount(scene);
         }
         this.layers.accept(this.view.documentEpoch);
+        this.sceneMetrics = state.metrics;
+        this.sceneDevice = state.device;
+        this.sceneFontRevision = state.fontRevision;
         await this.editing.finishBuild();
       } catch (error) {
         errors.push(error);
@@ -1191,6 +1285,15 @@ export class OriginalWidgetHost {
       // Source addPostFrameCallback does not itself schedule a frame. Wake Core
       // only for pending lifecycle work; an ordinary ACK needs no extra frame.
       this.scrolling.finishBuild();
+      // Continuous content/animation invalidations may keep this owner promise
+      // alive indefinitely. Drain admitted Source input after this scene's ACK
+      // and retirement, before the next build, rather than waiting for idle.
+      this.inputCheckpoint = true;
+      try {
+        await this.focusing.finishBuild();
+      } finally {
+        this.inputCheckpoint = false;
+      }
       await this.rebuildFromContent();
     } while (this.rerun && !this.closed);
   }
@@ -1278,6 +1381,7 @@ export class OriginalWidgetHost {
       () => this.fontOwner?.stop(),
       () => this.layers.close(),
       () => this.root?.unmount(),
+      () => this.capture.clear(),
       () => this.editing.close(),
       () => this.pruneImageOpacity(new Set()),
       () => this.appGestures.dispose(),

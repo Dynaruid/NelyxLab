@@ -103,6 +103,8 @@ interface Request {
     readonly minimum: number;
     readonly maximum: number;
     readonly coverage: { readonly minimum: number; readonly maximum: number };
+    readonly offset: number;
+    readonly requestedOffset: number;
   };
   resolve(): void;
   reject(error: unknown): void;
@@ -164,7 +166,7 @@ class NativePosition extends ScrollPositionWithSingleContext {
   override jumpTo(value: number): void {
     this.validate(value);
     const revision = ++this.revision;
-    this.finish();
+    this.finish(true);
     super.jumpTo(value);
     if (!this.stopped && revision === this.revision) this.enqueue(value, 0);
   }
@@ -188,7 +190,7 @@ class NativePosition extends ScrollPositionWithSingleContext {
       return Promise.resolve();
     }
     ++this.revision;
-    this.finish();
+    this.finish(true);
     this.beginActivity(new NativeActivity(this));
     return new Promise<void>((resolve, reject) =>
       this.enqueue(value, options.duration, resolve, reject, curve),
@@ -220,7 +222,7 @@ class NativePosition extends ScrollPositionWithSingleContext {
   seekItem(index: number, offset: number): void {
     this.ensureScrollAlive();
     ++this.revision;
-    this.finish();
+    this.finish(true);
     this.preserveDesired = false;
     this.beginActivity(new NativeActivity(this));
     this.request = {
@@ -278,6 +280,8 @@ class NativePosition extends ScrollPositionWithSingleContext {
             minimum: viewport.scrollMinimum,
             maximum: viewport.scrollMaximum,
             coverage: viewport.preparedCoverage,
+            offset: viewport.offset,
+            requestedOffset: viewport.requestedOffset,
           };
           if (request.item?.resolved) {
             const row = sliver.list.items.find((row) => row.index === request.item!.index);
@@ -313,6 +317,9 @@ class NativePosition extends ScrollPositionWithSingleContext {
       if (uncovered && request.duration > 0)
         this.host.fail('scroll-animation-outside-prepared-content');
       const item = request.item;
+      // A jump already at Core's current and requested offset still cancels
+      // native activity. It needs no Source seek waiting for an unrelated
+      // accepted document to activate (and consuming its command deadline).
       request.seeking = !!(
         (item && !item.resolved) ||
         (uncovered && this.list && !this.list.source && this.list.count > 0)
@@ -324,7 +331,12 @@ class NativePosition extends ScrollPositionWithSingleContext {
             this.list!.generation,
             item?.index ?? Math.min(this.list!.count - 1, Math.floor(target / this.list!.extent!)),
           )
-        : this.list?.source && this.list.count > 0 && (uncovered || request.duration === 0)
+        : this.list?.source &&
+            this.list.count > 0 &&
+            (uncovered ||
+              (request.duration === 0 &&
+                (request.prepared?.offset !== target ||
+                  request.prepared?.requestedOffset !== target)))
           ? this.host.view.startListOffsetSeek(
               this.node,
               this.list.node,
@@ -459,16 +471,24 @@ class NativePosition extends ScrollPositionWithSingleContext {
   get desiredOffset(): number {
     return this.request?.target ?? this.pixels;
   }
-  private finish(): void {
+  cancel(): void {
+    ++this.revision;
+    this.finish(true);
+  }
+  private finish(cancel = false): void {
     const request = this.request;
     this.request = undefined;
+    if (cancel && request?.id !== undefined)
+      void this.host.view.cancelScroll(request.id).catch((error: unknown) => {
+        if (!this.stopped && !(error instanceof EngineError && error.status === p.statuses.closed))
+          this.host.error(error);
+      });
     request?.resolve();
     if (!this.stopped && this.activity) this.goIdle();
   }
   override dispose(): void {
     this.stopped = true;
-    this.request?.resolve();
-    this.request = undefined;
+    this.finish(true);
     this.node = undefined;
     super.dispose();
   }
@@ -539,6 +559,7 @@ abstract class NativeScrollState<W extends NativeScroll> extends State<W> {
       previous.detach(this.position);
       next.attach(this.position);
       attached = true;
+      this.position.cancel();
       this.controller = next;
       this.ownsController = requested === null;
       if (owned) previous.dispose();

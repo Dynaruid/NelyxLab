@@ -2325,6 +2325,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate semantics',
       );
+    nativeRenderInvalidators.get(this)?.();
     if (FoundationBuildMode.debug) {
       if (this.owner?.debugDoingSemantics)
         invariant(

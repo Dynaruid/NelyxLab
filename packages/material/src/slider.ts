@@ -376,14 +376,16 @@ class MaterialSliderState extends TickerProviderStateMixin<Slider> {
         }
         this.retireOverlay();
         const entry = new OverlayEntry({
-          builder: () =>
-            new Directionality(
+          builder: () => {
+            if (!this.live || this.entry !== entry) return SizedBox.shrink();
+            return new Directionality(
               Directionality.of(this.context),
               new CompositedTransformFollower(new SliderIndicator(this), {
                 link: this.link,
                 showWhenUnlinked: false,
               }),
-            ),
+            );
+          },
         });
         this.entry = entry;
         overlay.insert(entry);

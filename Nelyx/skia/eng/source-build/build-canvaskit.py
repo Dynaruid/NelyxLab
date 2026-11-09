@@ -176,7 +176,7 @@ def build(root, jobs):
     files = [{'id': name, 'path': name, 'sha256': sha(output / name)}
              for name in ['canvaskit.js', 'canvaskit.wasm']]
     manifest = {'schema': 'nelyx.canvaskit/v1', 'adapterAbi': 1,
-                'version': 'm153-nelyx-paragraph.6', 'paragraphApiVersion': 1, 'pictureApiVersion': 3, 'fontApiVersion': 1,
+                'version': 'm153-nelyx-paragraph.7', 'paragraphApiVersion': 1, 'pictureApiVersion': 3, 'fontApiVersion': 1,
                 'initialMemoryBytes': 128 * 1024 * 1024,
                 'maximumMemoryBytes': 256 * 1024 * 1024,
                 'source': {'revision': LOCK['skia']['revision'],

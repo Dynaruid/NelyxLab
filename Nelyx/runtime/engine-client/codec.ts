@@ -315,6 +315,10 @@ function readHandle(v: DataView, offset: number): NodeHandle {
     generation: v.getUint32(offset + 4, true),
   });
 }
+/** State and pending-work metadata without copying the desired scene. */
+export function stateInspectionBody(): Uint8Array {
+  return body(4, (view) => view.setUint32(0, p.inspectionFlags.stateOnly, true));
+}
 export function packet(
   opcode: number,
   owner: PacketOwner,

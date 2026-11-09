@@ -53,13 +53,22 @@ inline NativeListRange nativeListRange(const ListStyle& style,const ListGeometry
     const uint32_t known=geometry?geometry->knownCount:0;
     const double extent=geometry?geometry->knownExtent:0;
     if(!style.count||paint==0)return {0,0,0};
+    // Batch contiguous construction from actual prefix measurements. These
+    // heights select bounded Source work only; Content still measures every
+    // child before deciding the visible window or final scroll geometry.
+    const auto extend=[&](uint32_t begin){
+      const double average=known?extent/known:0;
+      const double remaining=std::max(0.0,offset+paint-extent);
+      const auto count=!known?1u:average>0?uint32_t(std::clamp(std::ceil(remaining/average),1.0,8.0)):8u;
+      return known+std::min({count,style.count-known,wire::limits::listChildren-(known-begin)});
+    };
     // Estimates describe scroll metrics only. They never skip an unmeasured
     // prefix: long offsets stream through real Source children in order.
-    if(known<style.count&&offset>=extent)return {known,known+1,extent};
+    if(known<style.count&&offset>=extent)return {known,extend(known),extent};
     const uint32_t begin=geometry?std::min(known,geometry->indexAt(offset)):0;
     uint32_t end=geometry?std::min(known,geometry->indexAt(offset+paint)):0;
     if(end<known&&geometry->prefix(end)<offset+paint)++end;
-    if(end==known&&known<style.count&&extent<offset+paint)++end;
+    if(end==known&&known<style.count&&extent<offset+paint)end=extend(begin);
     return {begin,end,geometry?geometry->prefix(begin):0};
   }
   const auto rank=[&](double at){return geometry?geometry->indexAt(at):uint32_t(std::min(double(style.count),std::floor(at/style.estimate)));};

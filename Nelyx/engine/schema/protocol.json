@@ -4,6 +4,9 @@
   "abiMinor": 0,
   "magic": 844647502,
   "headerBytes": 64,
+  "inspectionFlags": {
+    "stateOnly": 1
+  },
   "stateBytes": 744,
   "nodeBytes": 360,
   "eventBytes": 160,
@@ -204,7 +207,8 @@
     "imageUploadAbort": 59,
     "imageResourceRead": 60,
     "imageResourceRelease": 61,
-    "snapshotPaint": 62
+    "snapshotPaint": 62,
+    "scrollCancel": 63
   },
   "nodeCreationBytes": 8,
   "nodeAttachedCreationBytes": 24,

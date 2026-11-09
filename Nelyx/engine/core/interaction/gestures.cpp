@@ -148,7 +148,7 @@ void View::pointer(Input p) {
       cancelStream(p.stream,wire::statuses::canceled);return;
     }
     for(auto node=h;node;node=active->document->get(node).parent)
-      if(active->document->get(node).kind==wire::kinds::scrollViewport){s.scroll=node;break;}
+      if(active->document->get(node).kind==wire::kinds::scrollViewport||active->document->get(node).editorViewport.enabled){s.scroll=node;break;}
     if(s.scroll){auto& scroll=overlays.at(s.scroll.key());scroll.ballistic=false;scroll.velocity=0;
       for(auto it=commands.begin();it!=commands.end();){const auto current=it++;if(current->second.node==s.scroll)finishCommand(current->first,wire::statuses::canceled);}}
     if(tapCapture.path){
@@ -229,7 +229,7 @@ void View::pointer(Input p) {
     }
     if(canceledPointer)gesture(s.target,wire::gestureKinds::cancel,p.sequence,p.x,p.y);
     if(s.scroll){auto& scroll=overlays.at(s.scroll.key());
-      bool deferred=false;for(auto& entry:overlays)if(entry.second.deferredStream==p.stream){deferred|=entry.second.deferred;entry.second.deferred=false;entry.second.requested=entry.second.offset;}
+      const bool deferred=endDeferredInput(p.stream,canceledPointer);
       if(!canceledPointer&&s.pan&&!s.pinched&&!deferred&&std::abs(p.velocity)>=1){scroll.ballistic=true;scroll.start=scroll.offset;scroll.startVelocity=p.velocity;scroll.elapsed=0;}}
     s.active=false;s.pointer=false;
     s.capturedPublications.fill(nullptr);

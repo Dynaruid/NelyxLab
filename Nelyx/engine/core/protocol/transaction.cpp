@@ -160,9 +160,10 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
   auto d = std::make_shared<Document>(*current);
   Resources staged = resources;
   std::set<uint32_t> dirty;
-  const auto edit = [&](Handle h, bool layout = true) {
+  const auto edit = [&](Handle h, bool layout = true, bool configuration = true) {
     const auto& original = d->get(h);
     auto copy = std::make_shared<Node>(original);
+    if(configuration)copy->configurationRevision=next(current->epoch);
     d->nodes[h.slot].value = copy;
     if (layout) dirty.insert(h.slot);
     return copy;
@@ -603,7 +604,7 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
   }
   for (const auto slot : invalidated) {
     const auto id = d->nodes[slot].value->id;
-    edit(id, false)->layoutRevision = d->epoch;
+    edit(id, false, false)->layoutRevision = d->epoch;
   }
   return {std::move(d), std::move(staged)};
 }

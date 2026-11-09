@@ -38,7 +38,7 @@ Windows engine v2 uses a single Windows App SDK host. Normal Windows create/doct
 
 For the repository Testbed, run `npm.cmd run build:engine-v2`, then `npm.cmd run run:engine-v2:windows`. `V2_WINDOWS_HOST` reports the actual host/dispatcher path; `V2_INPUT_SOURCE` reports DirectManipulation input admission/rejection counts. Injected wheel and automated UIA checks do not approve physical precision trackpad behavior.
 
-The full v2 supply build checks a prepared `m153-nelyx-paragraph.6` CanvasKit manifest, file hashes, paragraph API 1, font-reference Picture API 3 and immutable font-collection API 1. Missing or mismatched inputs fail the build; follow the [owned runtime preparation guide](../skia/eng/source-build/README.md). The npm CanvasKit dependency supplies types. App startup does not download or build vendor inputs.
+The full v2 supply build checks a prepared `m153-nelyx-paragraph.7` CanvasKit manifest, file hashes, paragraph API 1, font-reference Picture API 3 and immutable font-collection API 1. Missing or mismatched inputs fail the build; follow the [owned runtime preparation guide](../skia/eng/source-build/README.md). The npm CanvasKit dependency supplies types. App startup does not download or build vendor inputs.
 
 Create a standalone project from the matching Core, SDK, CLI, Metro, Static AOT and Tooling Contracts package archives. Add `--designs material,cupertino` and their archives when needed. Install once at the app root:
 

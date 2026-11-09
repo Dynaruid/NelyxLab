@@ -4,6 +4,7 @@ import type {
   SkPicture as Picture,
   Surface,
   TypefaceFontProvider,
+  FontCollection,
   Typeface,
   GrDirectContext,
   Paragraph,
@@ -29,6 +30,8 @@ import { paintControl } from './controls.ts';
 import { providerImage, paintImage } from './image.ts';
 import {
   makePath,
+  makeRoundedRectPath,
+  nativePaintShape,
   paintShape,
   paintNative,
   nativePaintOutset,
@@ -40,6 +43,7 @@ import {
   relativeMatrix,
 } from './graphics.ts';
 import type { ProviderMemoryBudget } from '../../platform/web/memory.ts';
+import { admitHeapGrowth } from '../../platform/web/heap.ts';
 import type { AppTextInput } from '../../../runtime/engine-client/app-text.ts';
 import {
   validateParagraphRuns,
@@ -63,7 +67,7 @@ export interface AppImmutableData {
   close(): void;
 }
 export const canvasKitSupply = Object.freeze({
-  version: 'm153-nelyx-paragraph.6',
+  version: 'm153-nelyx-paragraph.7',
   variant: 'owned-full',
   paragraphApiVersion: 1,
   pictureApiVersion: 3,
@@ -158,6 +162,8 @@ export interface PreparedPictures {
     node: string;
     segments: readonly import('../../../runtime/engine-client/codec.ts').PathSegment[];
     fillRule: 'winding' | 'evenOdd';
+    roundedRect?: readonly number[];
+    transform?: import('../../../runtime/engine-client/codec.ts').AffineMatrix;
   }[];
   local?: Map<string, Picture>;
 }
@@ -203,6 +209,25 @@ const textBytes = (text: PreparedText | undefined): number =>
     0,
   ) ?? 0;
 export class CanvasKitProvider {
+  private readonly paragraphCollections = new Map<TypefaceFontProvider, FontCollection>();
+  private paragraphCollection(provider: TypefaceFontProvider): FontCollection {
+    let collection = this.paragraphCollections.get(provider);
+    if (collection) return collection;
+    collection = this.ck.FontCollection.Make();
+    try {
+      collection.setDefaultFontManager(provider);
+      collection.enableFontFallback();
+      this.paragraphCollections.set(provider, collection);
+      return collection;
+    } catch (error) {
+      collection.delete();
+      throw error;
+    }
+  }
+  private releaseParagraphCollection(provider: TypefaceFontProvider): void {
+    this.paragraphCollections.get(provider)?.delete();
+    this.paragraphCollections.delete(provider);
+  }
   private snapshotAccess: SnapshotAccess | undefined;
   private readonly snapshots = new Map<bigint, { image: Image; release: () => void }>();
   bindSnapshots(access: SnapshotAccess): void {
@@ -392,6 +417,8 @@ export class CanvasKitProvider {
     this.recorded.clear();
     this.counters.cachedContentBytes = 0;
     this.discardMeasurements();
+    for (const provider of this.paragraphCollections.keys())
+      this.releaseParagraphCollection(provider);
     for (const entry of this.regularTypefaces.values()) {
       entry.face.delete();
       entry.release();
@@ -472,6 +499,8 @@ export class CanvasKitProvider {
       this.syncMemory();
       this.counters.unifiedMemory = !!budget;
     } catch (error) {
+      for (const provider of this.paragraphCollections.keys())
+        this.releaseParagraphCollection(provider);
       for (const face of this.typefaces.values()) face.delete();
       this.fontProvider.delete();
       throw error;
@@ -665,6 +694,10 @@ export class CanvasKitProvider {
         wasmBinary: wasm,
         locateFile: () => new URL(manifest.canvasKit.wasm, root).href,
       });
+      const memory = (ck as unknown as { wasmMemory: WebAssembly.Memory }).wasmMemory;
+      if (!(memory instanceof WebAssembly.Memory))
+        throw Error('Owned CanvasKit memory admission capability missing');
+      if (budget) admitHeapGrowth(memory, budget);
       budget?.set(1, (ck as unknown as { HEAPU8: Uint8Array }).HEAPU8.byteLength);
       // Instantiation itself is not abortable. Do not publish a late result or
       // claim disposal until the factory has actually settled.
@@ -679,7 +712,8 @@ export class CanvasKitProvider {
         (ck as ParagraphRuntime).nelyxFontApiVersion?.() !== canvasKitSupply.fontApiVersion ||
         !(ck as ParagraphRuntime).nelyxMakeFontProvider ||
         !ck.MakePicture ||
-        !ck.ParagraphBuilder.MakeFromFontProvider ||
+        !ck.ParagraphBuilder.MakeFromFontCollection ||
+        !ck.FontCollection?.Make ||
         !ck.GetWebGLContext ||
         !ck.MakeWebGLContext ||
         !ck.MakeOnScreenGLSurface ||
@@ -742,7 +776,7 @@ export class CanvasKitProvider {
       paragraph: Paragraph | undefined,
       selected: Typeface | undefined;
     try {
-      builder = this.ck.ParagraphBuilder.MakeFromFontProvider(
+      builder = this.ck.ParagraphBuilder.MakeFromFontCollection(
         new this.ck.ParagraphStyle({
           textStyle: {
             fontFamilies: [family],
@@ -754,7 +788,7 @@ export class CanvasKitProvider {
             fontVariations: [{ axis: 'wght', value: weight }],
           },
         }),
-        this.fontProvider,
+        this.paragraphCollection(this.fontProvider),
       );
       builder.addText(probe);
       paragraph = builder.build();
@@ -888,9 +922,12 @@ export class CanvasKitProvider {
       textDirection:
         node.textDirection === 1 ? this.ck.TextDirection.RTL : this.ck.TextDirection.LTR,
     };
-    const builder = this.ck.ParagraphBuilder.MakeFromFontProvider(
+    // One collection per immutable font catalog preserves Skia's typeface and
+    // shaping caches. MakeFromFontProvider constructs a new collection for every
+    // paragraph and repeatedly clones variable faces across route transitions.
+    const builder = this.ck.ParagraphBuilder.MakeFromFontCollection(
       new this.ck.ParagraphStyle(paragraphStyle),
-      selectedCatalog?.provider ?? this.fontProvider,
+      this.paragraphCollection(selectedCatalog?.provider ?? this.fontProvider),
     );
     let paragraph: Paragraph | undefined;
     try {
@@ -1093,6 +1130,7 @@ export class CanvasKitProvider {
         ),
         close: () => {
           if (!this.appFonts.delete(catalog)) return;
+          this.releaseParagraphCollection(collection);
           collection.delete();
           for (const face of owned) face.delete();
           release();
@@ -1386,6 +1424,16 @@ export class CanvasKitProvider {
     }
   }
   prepare(scene: EngineResponse, sharedOwner: boolean): PreparedPictures {
+    // Retire optional records from departed nodes before allocating the next
+    // route, while live tables keep their independent Picture/font references.
+    const present = new Set(scene.nodes.map((node) => key(node.node)));
+    for (const [id, record] of this.recorded)
+      if (!present.has(id)) {
+        if (record.picture) this.dropPicture(record.picture);
+        record.release();
+        this.recorded.delete(id);
+        this.counters.cachedContentBytes -= record.bytes;
+      }
     const fontEntries = this.sceneFonts(scene),
       holds: (() => void)[] = [this.holdFontEntries(fontEntries)];
     let transferred = 0;
@@ -1482,10 +1530,22 @@ export class CanvasKitProvider {
           ]);
         if (node.graphics?.hasPath) {
           const segments = node.graphics.path ?? [],
-            fillRule = node.graphics.fillRule ?? 'winding';
-          retain(128 + segments.length * 64);
-          paths.set(key(node.node), makePath(this.ck, segments, fillRule));
-          packet.paths.push({ node: key(node.node), segments, fillRule });
+            fillRule = node.graphics.fillRule ?? 'winding',
+            physical = node.nativePaint?.find((entry) => entry.kind === 'physical'),
+            roundedRect = physical ? Array.from(nativePaintShape(this.ck, physical)) : undefined;
+          retain(128 + segments.length * 64 + (physical ? 256 : 0));
+          paths.set(
+            key(node.node),
+            roundedRect
+              ? makeRoundedRectPath(this.ck, roundedRect, physical!.transform)
+              : makePath(this.ck, segments, fillRule),
+          );
+          packet.paths.push({
+            node: key(node.node),
+            segments,
+            fillRule,
+            ...(roundedRect ? { roundedRect, transform: physical!.transform } : {}),
+          });
         }
 
         const previous = this.recorded.get(id);
@@ -1871,7 +1931,12 @@ export class CanvasKitProvider {
       }
       for (const path of packet.paths ?? []) {
         if (paths.has(path.node)) throw new Error('Duplicate prepared clip path');
-        paths.set(path.node, makePath(this.ck, path.segments, path.fillRule));
+        paths.set(
+          path.node,
+          path.roundedRect
+            ? makeRoundedRectPath(this.ck, path.roundedRect, path.transform)
+            : makePath(this.ck, path.segments, path.fillRule),
+        );
       }
       for (const item of packet.pictures) {
         bytes += item.bytes.byteLength + pictureFontBytes(item.fonts);

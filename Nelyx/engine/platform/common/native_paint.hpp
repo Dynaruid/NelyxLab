@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include "graphics.hpp"
+#include "native_shadow.hpp"
 #include "include/utils/SkShadowUtils.h"
 #include "include/effects/SkGradient.h"
 #include <functional>
@@ -54,6 +55,15 @@ inline SkRRect nativePaintShape(const NativePaintEntry& e,double delta=0) {
   SkVector radii[4];for(size_t i=0;i<4;++i)radii[i]={float(std::max(0.0,e.radii[i*2]+delta)),float(std::max(0.0,e.radii[i*2+1]+delta))};
   SkRRect result;result.setRectRadii(rect,radii);return result;
 }
+inline SkPath nativePhysicalPath(const NativePaintEntry& e) {
+  // Preserve Skia's rounded-rect/conic identity for the shadow occluder, just
+  // like the physical fill. A generic cubic approximation selects a different
+  // shadow geometry and produces hard rectangular corners at low elevation.
+  SkPathBuilder builder;builder.addRRect(nativePaintShape(e));
+  const auto& m=e.transform;
+  builder.transform(SkMatrix::MakeAll(float(m.a),float(m.c),float(m.tx),float(m.b),float(m.d),float(m.ty),0,0,1));
+  return builder.detach();
+}
 inline SkPath nativePaintPath(const NativePaint& paint,const NativePaintEntry& entry) {
   SkPathBuilder builder;builder.setFillType(entry.pathFillRule?SkPathFillType::kEvenOdd:SkPathFillType::kWinding);
   for(size_t i=0;i<entry.pathCount;++i){const auto& command=paint.paths.at(entry.pathStart+i);const auto& v=command.values;
@@ -75,6 +85,9 @@ inline void paintNativeShadow(SkCanvas* canvas,const Node& node,const SkPath* pa
   const auto e=node.physicalPaint();if(!e||!path||e->elevation<=0||!(e->shadowColor>>24))return;
   SkColor ambient,spot;const auto alpha=SkColorGetA(e->shadowColor);
   SkShadowUtils::ComputeTonalColors(SkColorSetA(e->shadowColor,uint8_t(0.039f*alpha)),SkColorSetA(e->shadowColor,uint8_t(0.25f*alpha)),&ambient,&spot);
+#if defined(_WIN32) && defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
+  if(drawStableNativeShadow(*canvas,*path,{{0,0,float(scale*e->elevation)},{0,-1,1},800.f/600.f,ambient,spot,4u|((e->color>>24)!=255?1u:0u)}))return;
+#endif
   SkShadowUtils::DrawShadow(canvas,*path,SkPoint3::Make(0,0,float(scale*e->elevation)),SkPoint3::Make(0,-1,1),800.f/600.f,
     ambient,spot,4u|((e->color>>24)!=255?1u:0u));
 }
@@ -85,14 +98,14 @@ inline void paintNative(SkCanvas* canvas,const Node& node,const NativePaint& seq
   const auto begin=foreground?boundary+1:sequence.entries.begin(),end=foreground?sequence.entries.end():boundary;
   if(begin==end)return;
   if(foreground&&counts)++counts->foreground;
-  const bool ink=std::any_of(begin,end,[](const auto& e){return e.kind==3||e.kind==4;});
-  SkAutoCanvasRestore restore(canvas,true);if(ink)canvas->clipRect(SkRect::MakeWH(float(node.properties.width),float(node.properties.height)));
+  SkAutoCanvasRestore restore(canvas,true);
   for(auto at=begin;at!=end;++at){const auto& e=*at;
     if(e.kind==wire::nativePaintKinds::hitRegion||e.kind==wire::nativePaintKinds::linearMask)continue;
     if(e.kind==wire::nativePaintKinds::save){canvas->save();continue;}
     if(e.kind==wire::nativePaintKinds::restore){canvas->restore();continue;}
     if(e.kind==10){auto shape=nativePaintShape(e);shape.offset(float(e.transform.tx),float(e.transform.ty));canvas->clipRRect(shape,e.clip!=wire::clipBehaviors::hardEdge);continue;}
     canvas->save();
+    if(e.kind==3||e.kind==4)canvas->clipRect(SkRect::MakeWH(float(node.properties.width),float(node.properties.height)));
     const auto& m=e.transform;canvas->concat(SkMatrix::MakeAll(float(m.a),float(m.c),float(m.tx),float(m.b),float(m.d),float(m.ty),0,0,1));
     paint.setColor(e.color);paint.setStyle(SkPaint::kFill_Style);
     paint.setBlendMode(e.flags&wire::nativePaintBlendFlags::srcATop?SkBlendMode::kSrcATop:SkBlendMode::kSrcOver);
@@ -113,6 +126,9 @@ inline void paintNative(SkCanvas* canvas,const Node& node,const NativePaint& seq
       SkPathBuilder builder;builder.addRRect(nativePaintShape(e));const auto path=builder.detach();
       SkColor ambient,spot;const auto alpha=SkColorGetA(e.color);
       SkShadowUtils::ComputeTonalColors(SkColorSetA(e.color,uint8_t(0.039f*alpha)),SkColorSetA(e.color,uint8_t(0.25f*alpha)),&ambient,&spot);
+#if defined(_WIN32) && defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
+      if(!drawStableNativeShadow(*canvas,path,{{0,0,float(scale*e.elevation)},{0,-1,1},800.f/600.f,ambient,spot,4u|((e.flags&64u)?1u:0u)}))
+#endif
       SkShadowUtils::DrawShadow(canvas,path,SkPoint3::Make(0,0,float(scale*e.elevation)),SkPoint3::Make(0,-1,1),800.f/600.f,ambient,spot,4u|((e.flags&64u)?1u:0u));
     }}else if(e.kind==9){if(e.blurSigma>0)paint.setMaskFilter(SkMaskFilter::MakeBlur(kNormal_SkBlurStyle,float(e.blurSigma)));
       canvas->drawRRect(nativePaintShape(e),paint);paint.setMaskFilter(nullptr);

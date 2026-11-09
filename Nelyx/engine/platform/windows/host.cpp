@@ -123,7 +123,10 @@ class Host {
   bool dragging=false;double pointerX=0,pointerY=0,pointerAt=0,pointerVelocity=0;
   std::atomic<bool> metricsPending{false};bool focused=true,visible=true;
   std::string control;
-  std::vector<uint8_t> call(uint32_t op,const std::vector<uint8_t>& data={},bool session=false,uint64_t requestId=0){auto bytes=makePacket(op,data,session,requestId);return core.dispatch({bytes.data(),bytes.size()});}
+  std::vector<uint8_t> call(uint32_t op,const std::vector<uint8_t>& data={},bool session=false,uint64_t requestId=0){
+    // Host input/clock/status reads do not consume document node payloads.
+    if(op==wire::opcodes::inspect&&data.empty()){Writer query(4);query.u32(0,wire::inspectionFlags::stateOnly);return call(op,query.bytes,session,requestId);}
+    auto bytes=makePacket(op,data,session,requestId);return core.dispatch({bytes.data(),bytes.size()});}
   static Reader reader(const std::vector<uint8_t>& bytes){return {bytes.data(),bytes.size()};}
   void notifyError(const std::string& error){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR "<<error<<std::endl;stopping=true;changed.notify_all();appChanged.notify_all();PostMessageW(window,WM_CLOSE,0,0);}
   void contentLoop(){
@@ -138,7 +141,7 @@ class Host {
         contentWake=false;
         if(has){auto result=core.dispatch({job.bytes.data(),job.bytes.size()});
           const auto op=Reader{job.bytes.data(),job.bytes.size()}.u16(12);
-          if(op==wire::opcodes::scroll||op==wire::opcodes::listSeek||op==wire::opcodes::gestureReply||op==wire::opcodes::requestAppFrame){renderWakeRequested=true;changed.notify_all();}
+          if(op==wire::opcodes::scroll||op==wire::opcodes::scrollCancel||op==wire::opcodes::listSeek||op==wire::opcodes::gestureReply||op==wire::opcodes::requestAppFrame){renderWakeRequested=true;changed.notify_all();}
           if(op==wire::opcodes::fontTransitionBegin||op==wire::opcodes::fontTransitionReady||
             op==wire::opcodes::fontTransitionCommit||op==wire::opcodes::fontTransitionAbort){renderWakeRequested=true;changed.notify_all();}
           if(op==wire::opcodes::transaction){
@@ -253,6 +256,28 @@ class Host {
         {std::lock_guard lock(sceneMutex);if(candidate){next=std::move(candidate);candidate.reset();}}
         if(next){Writer p(24);p.u64(0,next->id);p.u64(8,next->metrics);p.u64(16,next->device);auto ack=call(wire::opcodes::providerReady,p.bytes);if(reader(ack).u16(14)!=0)next.reset();}
         const auto coreStarted=now();Writer tick(8);tick.f64(0,now());auto state=call(wire::opcodes::tick,tick.bytes);auto sr=reader(state);
+        if(sr.u32(wire::headerBytes+wire::stateFields::flags)&1u){
+          if(closing)break;
+          if(const auto overflow=core.eventOverflowSnapshot(1,1)){
+            std::ostringstream detail;detail<<"V2_EVENT_OVERFLOW {\"queue\":\""<<(overflow->queue==2?"interaction":"lifecycle")
+              <<"\",\"triggerKind\":"<<overflow->kind<<",\"triggerStatus\":"<<overflow->status<<",\"queued\":"<<overflow->queued
+              <<",\"pointerPhase\":"<<overflow->pointerPhase<<",\"pointerFlags\":"<<overflow->pointerFlags<<",\"kinds\":{";
+            bool first=true;for(size_t kind=0;kind<overflow->kinds.size();++kind)if(overflow->kinds[kind]){
+              if(!first)detail<<',';first=false;detail<<'"'<<kind<<"\":"<<overflow->kinds[kind];}
+            std::osyncstream(std::cerr)<<detail.str()<<"}}"<<std::endl;
+          }
+          uint32_t reason=wire::statuses::closed;
+          for(uint32_t batch=0;batch<=wire::limits::events/wire::limits::eventsPerPoll;++batch){
+            const auto terminal=call(wire::opcodes::pollEvents);const auto tr=reader(terminal);
+            const auto count=tr.u32(wire::headerBytes+wire::stateFields::eventCount);
+            for(uint32_t index=0;index<count;++index){
+              const size_t offset=wire::headerBytes+wire::stateBytes+tr.u32(wire::headerFields::count)*wire::nodeBytes+index*wire::eventBytes;
+              if(tr.u32(offset)==wire::events::viewClosed)reason=tr.u32(offset+4);
+            }
+            if(count<wire::limits::eventsPerPoll)break;
+          }
+          throw std::runtime_error("Core view closed status="+std::to_string(reason));
+        }
         if(sr.u16(14)==0){
           auto result=call(wire::opcodes::takeFrame);auto r=reader(result);const auto coreElapsedMs=(now()-coreStarted)*1000;
           if(r.u16(14)==0){
@@ -312,7 +337,8 @@ class Host {
       native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[this,&appMemory](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
         appMemory.update(r);
         if(count!=2)throw jsi::JSError(r,"V2 enqueue arguments");auto buffer=args[1].getObject(r).getArrayBuffer(r);const auto length=buffer.size(r);
-        std::lock_guard lock(jobsMutex);if(stopping||jobs.size()+uiJobs.size()>=32||jobBytes+length>4*wire::limits::packetBytes)throw jsi::JSError(r,"V2 native mailbox full/closed");
+        std::lock_guard lock(jobsMutex);if(stopping)throw jsi::JSError(r,"V2 native mailbox closed");
+        if(jobs.size()+uiJobs.size()>=wire::limits::results||jobBytes+length>4*wire::limits::packetBytes)throw jsi::JSError(r,"V2 native mailbox full");
         auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,length);std::vector<uint8_t> bytes(buffer.data(r),buffer.data(r)+length);const auto op=Reader{bytes.data(),bytes.size()}.u16(12);
         if(op==wire::opcodes::memoryReport)throw jsi::JSError(r,"Memory reports are host-only");
         if(op==wire::opcodes::edit||op==wire::opcodes::focus||op==wire::opcodes::semanticsAction){uiJobs.push_back({uint32_t(args[0].asNumber()),std::move(bytes),std::move(hold)});PostMessageW(window,WM_APP+3,0,0);}
@@ -327,7 +353,12 @@ class Host {
           appAcknowledgedCommands=uint64_t(commands);appRejectedFallbacks=uint64_t(rejected);
           appExecutionObserved=execution.getProperty(r,"observed").getBool();
         }
-        const auto message=args[0].asString(r).utf8(r);std::osyncstream(std::cout)<<"V2_APP "<<message<<std::endl;if(message.find("app-ready")!=std::string::npos)appReady=true;if(message.find("app-disposed")!=std::string::npos)appDisposed=true;if(message.find("app-error")!=std::string::npos){stats();notifyError(message);}return jsi::Value::undefined();}));
+        const auto message=args[0].asString(r).utf8(r);
+        // Each scene ACK updates the counters above. Printing its full snapshot
+        // blocks the App event pump on slow consoles until interaction events
+        // overflow. Explicit stats and lifecycle/error messages remain visible.
+        if(message.starts_with("{\"kind\":\"app-execution\""))return jsi::Value::undefined();
+        std::osyncstream(std::cout)<<"V2_APP "<<message<<std::endl;if(message.find("app-ready")!=std::string::npos)appReady=true;if(message.find("app-disposed")!=std::string::npos)appDisposed=true;if(message.find("app-error")!=std::string::npos){stats();notifyError(message);}return jsi::Value::undefined();}));
       rt.global().setProperty(rt,"NelyxV2Native",std::move(native));
       const auto bootstrap=std::string("globalThis.__v2Timers=[];globalThis.setTimeout=(f,m=0)=>{const t={f,at:Date.now()+m};__v2Timers.push(t);return t;};globalThis.clearTimeout=t=>{if(t)t.f=null;};globalThis.__v2Pump=()=>{const n=Date.now();const q=__v2Timers.splice(0);for(const t of q){if(t.f&&t.at<=n)t.f();else if(t.f)__v2Timers.push(t);}};");
       rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(bootstrap),"v2-timers.js");
@@ -340,7 +371,10 @@ class Host {
         {std::lock_guard lock(doneMutex);if(!done.empty()){result=std::move(done.front());done.pop_front();has=true;}}
         if(has){auto array=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(result.bytes.size())).getObject(rt);auto buffer=array.getArrayBuffer(rt);std::memcpy(buffer.data(rt),result.bytes.data(),result.bytes.size());rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(result.id),std::move(array));rt.drainMicrotasks();}
         rt.global().getPropertyAsFunction(rt,"__v2Pump").call(rt);rt.drainMicrotasks();appMemory.update(rt);
-        std::unique_lock lock(wakeMutex);appChanged.wait_for(lock,std::chrono::milliseconds(2));
+        std::unique_lock lock(wakeMutex);appChanged.wait_for(lock,std::chrono::milliseconds(2),[this]{
+          if(stopping||disposeRequested||appUpdate)return true;
+          std::lock_guard ready(doneMutex);return !done.empty();
+        });
       }
     }catch(const std::exception& error){notifyError(std::string("App owner: ")+error.what());}
   }

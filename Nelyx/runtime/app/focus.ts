@@ -136,7 +136,7 @@ export class OriginalFocusBridge {
   private version = 0;
   private syncing = false;
   private pumping = false;
-  private refreshing = false;
+  private refreshing: Promise<void> | undefined;
   private closed = false;
   constructor(
     private readonly owner: BuildOwner,
@@ -215,7 +215,10 @@ export class OriginalFocusBridge {
     return !!(
       state &&
       frame &&
-      frame.publishedDocument === state.document &&
+      // A newer accepted document can still be preparing while this published
+      // frame owns the admitted input. Its live node handles remain queryable;
+      // waiting for the desired document would starve keys during native edits.
+      frame.publishedDocument === state.publishedDocument &&
       frame.publishedMetrics === state.metrics &&
       frame.publishedDevice === state.device &&
       frame.publication === state.publication
@@ -281,6 +284,7 @@ export class OriginalFocusBridge {
       if (
         request.binding &&
         (!request.binding.active ||
+          !request.binding.node.canRequestFocus ||
           !current ||
           !target ||
           current.slot !== target.slot ||
@@ -289,10 +293,26 @@ export class OriginalFocusBridge {
         this.request = undefined;
         return;
       }
+      // Source may have changed focus eligibility before its render metadata
+      // reaches an ACK/publication. Wait for that configuration rather than
+      // sending focus to the still-disabled native boundary.
+      if (request.binding && !request.binding.render?.options.nativeFocus?.enabled) return;
       await this.view.focus(target, state.publication, request.session, true);
       if (this.request?.version === request.version) this.request = undefined;
     } catch (error) {
-      if (!(error instanceof EngineError) || error.status !== p.statuses.stale) throw error;
+      if (!(error instanceof EngineError)) throw error;
+      const result = error.result;
+      // An accepted route update can disable the target after our snapshot but
+      // before focus arrives. Retry only when the rejection itself proves the
+      // published configuration was overtaken; a stable capability error is
+      // still an error, never silently accepted.
+      const changed =
+        error.status === p.statuses.capabilityMissing &&
+        result &&
+        (result.document !== result.publishedDocument ||
+          result.metrics !== result.publishedMetrics ||
+          result.device !== result.publishedDevice);
+      if (error.status !== p.statuses.stale && !changed) throw error;
       if (
         (error.result?.focus?.session ?? 0n) !== request.session &&
         this.request?.version === request.version
@@ -314,10 +334,9 @@ export class OriginalFocusBridge {
     // Source Focus retains its lifecycle, while the actual Core editor owns IME focus.
     return this.handle(editors.length === 1 ? editors[0]! : root);
   }
-  private refreshForKeys(): void {
-    if (this.refreshing) return;
-    this.refreshing = true;
-    void this.view
+  private refreshForKeys(): Promise<void> {
+    if (this.refreshing) return this.refreshing;
+    this.refreshing = this.view
       .semanticsSnapshot()
       .then((frame) => {
         if (this.closed) return;
@@ -326,14 +345,20 @@ export class OriginalFocusBridge {
           this.publication = frame;
           this.state = frame;
         }
-        this.refreshing = false;
         // Missing geometry waits for the next publication, without a query loop.
         if (this.geometryReady()) this.finishPoll();
       })
-      .catch(this.error)
       .finally(() => {
-        this.refreshing = false;
+        this.refreshing = undefined;
       });
+    return this.refreshing;
+  }
+  async finishBuild(): Promise<void> {
+    // The owner holds a stable ACK checkpoint until this observation returns.
+    // Otherwise its next build can keep every asynchronous key refresh deferred.
+    if (!this.closed && !this.geometryReady() && this.queue.some((value) => value.kind === 'key'))
+      await this.refreshForKeys();
+    this.finishPoll();
   }
   finishPoll = (): void => {
     if (this.closed || this.draining) return;
@@ -360,7 +385,7 @@ export class OriginalFocusBridge {
     // synchronous Source traversal reads instead of waiting for a quiet frame.
     if (!this.stable() || !this.state?.visible || !this.state?.focused) return;
     if (!this.geometryReady() && this.queue.some((value) => value.kind === 'key')) {
-      this.refreshForKeys();
+      void this.refreshForKeys().catch(this.error);
       return;
     }
     const queued = this.queue;

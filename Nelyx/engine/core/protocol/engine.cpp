@@ -47,6 +47,12 @@ std::shared_ptr<const FontTransition> Engine::fontTransitionSnapshot(uint32_t vi
   if(result->phase==wire::fontTransitionPhases::committed&&result->revision==v.fontRevision)result->resource=v.fontResource;
   return result;
 }
+std::shared_ptr<const EventOverflowInfo> Engine::eventOverflowSnapshot(uint32_t view,uint32_t generation){
+  auto& s=*state_;std::lock_guard lock(s.mutex);
+  if(!view||view>=s.views.size()||!s.views[view]||s.views[view]->generation!=generation||!s.views[view]->eventOverflow.queue)return nullptr;
+  auto result=std::make_shared<EventOverflowInfo>(s.views[view]->eventOverflow);
+  result->lease=std::make_shared<Lease>(s.ledger,sizeof(EventOverflowInfo)+64);return result;
+}
 std::shared_ptr<const Frame> Engine::frameSnapshot(uint32_t view, uint32_t generation, uint64_t id) {
   auto& s = *state_; std::lock_guard lock(s.mutex);
   require(view && view < s.views.size() && s.views[view] && s.views[view]->generation == generation,
@@ -173,6 +179,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
   uint32_t imageReadOffset=0,imageReadLength=0;
   uint32_t fontReadOffset=0,fontReadLength=0;
   std::vector<Event> events;
+  bool stateOnlyInspection=false;
   try {
     require(packet.length >= wire::headerBytes && packet.length <= wire::limits::packetBytes);
     opcode = packet.u16(wire::headerFields::opcode); viewId = packet.u32(wire::headerFields::view); generation = packet.u32(wire::headerFields::generation); id = packet.u64(wire::headerFields::id);
@@ -182,6 +189,10 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
       packet.u32(wire::headerFields::schema) == wire::schema, wire::statuses::incompatible);
     require(packet.u32(wire::headerFields::session) == s.session && packet.u32(wire::headerFields::app) == s.app, wire::statuses::staleGeneration);
     const auto body = packet.slice(wire::headerBytes, packet.length - wire::headerBytes);
+    if(opcode==wire::opcodes::inspect){
+      require(body.length==0||(body.length==4&&body.u32(0)==wire::inspectionFlags::stateOnly));
+      stateOnlyInspection=body.length==4;
+    }
     const auto count = packet.u32(wire::headerFields::count);
     require(opcode == wire::opcodes::transaction || count == 0);
     require(!s.closed || opcode == wire::opcodes::inspect || opcode == wire::opcodes::closeSession||opcode==wire::opcodes::memoryReport,
@@ -206,7 +217,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         s.resources = {}; s.closed = true; s.closing = false;
       }
     } else if (viewId == 0 && opcode == wire::opcodes::inspect) {
-      exact(body, 0); require(generation == 0);
+      require(generation == 0);
     } else {
       require(viewId > 0 && viewId <= wire::limits::views && generation > 0, wire::statuses::invalidHandle);
       if (opcode == wire::opcodes::openView) {
@@ -627,6 +638,11 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         exact(body, 24); v.publish(body.u64(0), body.u64(8), body.u64(16));
       } else if (opcode == wire::opcodes::scroll) {
         status = v.scroll(body, id);
+      } else if (opcode == wire::opcodes::scrollCancel) {
+        exact(body,8);const auto command=body.u64(0);require(command>0);
+        if(v.commands.contains(command))v.finishCommand(command,wire::statuses::canceled);
+        else require(std::any_of(v.commandResults.begin(),v.commandResults.end(),
+          [&](const auto& result){return result.id==command;}),wire::statuses::resultExpired);
       } else if (opcode == wire::opcodes::key) {
         v.key(body);
       } else if (opcode == wire::opcodes::controlValue) {
@@ -671,9 +687,14 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
         }
       } else {
         require(opcode == wire::opcodes::inspect || opcode == wire::opcodes::openView, wire::statuses::incompatible);
-        exact(body, 0);
+        exact(body, stateOnlyInspection?4:0);
       }
-      if (v.overflowed && !v.closed) { v.close(wire::statuses::eventOverflow); frame = nullptr; }
+      if (v.overflowed && !v.closed) {
+        v.close(wire::statuses::eventOverflow);
+        status = wire::statuses::eventOverflow;
+        frame = nullptr;
+        editTarget = {};
+      }
     }
   } catch (const Error& error) { status = error.status; frame = nullptr; }
 
@@ -683,9 +704,9 @@ std::vector<uint8_t> Engine::dispatch(Reader packet) {
     view->query->document.get():measure&&view->preparing?view->preparing->document.get():nullptr;
   const Document* rows = frame ? frame->scene->document.get() :
     editTarget&&view?view->document.get():
-    status == wire::statuses::ok && opcode == wire::opcodes::layoutSnapshot && view ? view->active->document.get() :
+    status == wire::statuses::ok && opcode == wire::opcodes::layoutSnapshot && view && view->active ? view->active->document.get() :
     measureDocument ? measureDocument :
-    opcode == wire::opcodes::inspect && view ? view->document.get() :
+    opcode == wire::opcodes::inspect && !stateOnlyInspection && view ? view->document.get() :
     status == wire::statuses::ok && opcode == wire::opcodes::preparationScene && view && view->preparing ?
       view->preparing->document.get() : nullptr;
   std::vector<const Node*> rowNodes;

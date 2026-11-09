@@ -444,6 +444,10 @@ public:
       ~Reset() { flag = false; }
     } reset{syncing};
     const auto &f = next->frame;
+    // Input may observe a newer Core frame before its prepared paragraphs arrive.
+    // Retain one matching publication across native editor/UIA callbacks.
+    const auto preparedFrame =
+        prepared && prepared->id == f.scene->preparation ? prepared : nullptr;
     const bool geometry =
         f.scene->metrics.epoch == next->metrics.epoch && f.device == next->metrics.device;
     if (viewport != next->metrics.epoch || device != next->metrics.device) {
@@ -619,11 +623,14 @@ public:
           t.text = wide(e.text);
           t.anchor = e.base;
           t.focus = e.extent;
-          const auto record = prepared && prepared->id == f.scene->preparation
-                                  ? prepared->editors.find(node.id.key())
-                                  : std::map<uint64_t, Prepared::EditorParagraph>::const_iterator{};
-          if (textGeometry && prepared && record != prepared->editors.end()) {
-            const auto &q = record->second;
+          const Prepared::EditorParagraph *record = nullptr;
+          if (textGeometry && preparedFrame) {
+            const auto found = preparedFrame->editors.find(node.id.key());
+            if (found != preparedFrame->editors.end())
+              record = &found->second;
+          }
+          if (record) {
+            const auto &q = *record;
             t.characters = q.characters;
             t.words = q.words;
             t.lines = q.lines;
@@ -664,8 +671,8 @@ public:
         accessible.push_back(std::move(peer));
       }
     }
-    semantics->publish(std::move(accessible), prepared ? std::weak_ptr<void>(prepared->context)
-                                                    : std::weak_ptr<void>(context));
+    semantics->publish(std::move(accessible), preparedFrame ? std::weak_ptr<void>(preparedFrame->context)
+                                                         : std::weak_ptr<void>(context));
     if(geometry&&next->visible&&f.route.sequence>routeSequence){
       routeSequence=f.route.sequence;
       if(f.route.scope&&f.route.label)semantics->announce(wide(f.route.label->label));

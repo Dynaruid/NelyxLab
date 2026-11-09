@@ -159,7 +159,7 @@ export class OriginalFontOwner {
     }
   }
   private async inspect(): Promise<EngineResponse> {
-    const state = await this.retry(() => this.view.request(p.opcodes.inspect));
+    const state = await this.retry(() => this.view.inspectState());
     if (state.status !== p.statuses.ok || state.closed)
       throw new EngineError(
         state.closed ? p.statuses.closed : state.status,

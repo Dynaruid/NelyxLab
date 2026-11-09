@@ -8,6 +8,7 @@ import {
   editBody,
   focusBody,
   semanticActionBody,
+  stateInspectionBody,
   keyBody,
 } from '@nelyx/core/engine';
 import type {
@@ -444,7 +445,7 @@ export class EngineV2BrowserInteraction {
     }, bytes.length);
   }
   private async reply(bytes: Uint8Array, status: number): Promise<Uint8Array> {
-    const result = await this.exchange(packet(p.opcodes.inspect, owner)),
+    const result = await this.exchange(packet(p.opcodes.inspect, owner, stateInspectionBody())),
       h = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength),
       r = new DataView(result.buffer, result.byteOffset, result.byteLength);
     r.setUint16(p.headerFields.opcode, h.getUint16(p.headerFields.opcode, true) | 0x8000, true);
@@ -983,6 +984,13 @@ export class EngineV2BrowserInteraction {
       ++peer.pending;
       report(
         this.enqueue(async () => {
+          // Source may move focus or retire this peer while a DOM input waits
+          // in the mailbox. Never re-focus it or report that cancellation as
+          // an application failure (selection events can arrive after blur).
+          if (!peer.session || this.peers.get(key(peer.node.node)) !== peer) {
+            ++this.counters.rejected;
+            return;
+          }
           if (!peer.value)
             peer.value = (
               await this.call(
@@ -990,7 +998,7 @@ export class EngineV2BrowserInteraction {
                 body(8, (v) => writeHandle(v, 0, peer.node.node)),
               )
             ).nodes[0]!.editing;
-          if (!peer.value || !peer.session) throw new Error('Editor lost focus before input');
+          if (!peer.value) throw new Error('Editor snapshot has no editing value');
           const result = await this.call(
             p.opcodes.edit,
             editBody(peer.node.node, {

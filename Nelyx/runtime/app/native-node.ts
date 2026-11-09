@@ -53,6 +53,9 @@ export class OriginalNativeNode extends MultiChildRenderObjectWidget {
     node.kind = this.kind;
     node.options = this.options;
     node.editable = this.editable;
+    // This bridge has no TS PipelineOwner. Retained scene capture must still
+    // observe native configuration/callback replacement on the render object.
+    node.markNeedsLayout();
     this.capture?.(node);
   }
 }

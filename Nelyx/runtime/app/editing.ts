@@ -211,7 +211,7 @@ export class OriginalEditingBridge implements EditingHost {
         if (!handle) return;
         try {
           const current = await this.view.editSnapshot(handle),
-            state = await this.view.request(p.opcodes.inspect);
+            state = await this.view.inspectState();
           const result = await this.view.edit(handle, {
             kind: 'replace',
             revision: current.revision,

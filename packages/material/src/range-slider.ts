@@ -755,17 +755,22 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
           return;
         }
         this.retireOverlay();
-        this.entry = new OverlayEntry({
-          builder: () =>
-            new Directionality(
+        const entry = new OverlayEntry({
+          builder: () => {
+            // Removal can be deferred until the owning Overlay finishes its
+            // current build. A retired entry must not read an inactive owner.
+            if (!this.live || this.entry !== entry) return SizedBox.shrink();
+            return new Directionality(
               this.direction,
               new CompositedTransformFollower(new RangeIndicatorWidget(this), {
                 link: this.link,
                 showWhenUnlinked: false,
               }),
-            ),
+            );
+          },
         });
-        overlay.insert(this.entry);
+        this.entry = entry;
+        overlay.insert(entry);
       },
       { debugLabel: 'RangeSlider.valueIndicator' },
     );

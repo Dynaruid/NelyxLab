@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+import { stateInspectionBody } from '../../../runtime/engine-client/codec.ts';
 import { protocol as p } from '../../../runtime/engine-client/schema.ts';
 import {
   fontResourceReadBytes,
@@ -30,7 +31,7 @@ export class FontPreparation {
   }
   check(): void {
     if (this.stopped) return;
-    const state = request(this.module, this.engine, p.opcodes.inspect),
+    const state = request(this.module, this.engine, p.opcodes.inspect, stateInspectionBody()),
       stage = state.fontTransition;
     if (this.active && (state.closed || this.active.revision !== state.fontRevision)) {
       this.active.release();
@@ -88,7 +89,7 @@ export class FontPreparation {
     } catch (error) {
       this.discardPending();
       if (error instanceof Error && 'fatalMemory' in error) throw error;
-      const current = request(this.module, this.engine, p.opcodes.inspect);
+      const current = request(this.module, this.engine, p.opcodes.inspect, stateInspectionBody());
       if (
         current.fontTransition?.token !== stage.token ||
         current.fontTransition.phase !== 'preparing'

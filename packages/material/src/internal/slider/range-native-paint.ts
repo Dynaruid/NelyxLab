@@ -26,6 +26,7 @@ import type {
   NativeRangeSliderShapeContext,
 } from './range-native-shape.ts';
 import { materialRangeSliderPaintThemes } from './range-paint-policy.ts';
+import { protocol as p } from '@nelyx/core/engine';
 import {
   RoundedRectRangeSliderTrackShape,
   RectangularRangeSliderTrackShape,
@@ -418,17 +419,36 @@ export function nativeRangeSliderPaint(s: NativeRangeSource): readonly NativePai
           : 1,
       );
     if (customTick) {
-      if (s.divisions > 127)
-        throw Error('Custom RangeSlider tick paint exceeds bounded entry budget');
       const visible = op('greaterEqual', div(trackWidth, s.divisions), 3 * width);
-      for (let i = 0; i <= s.divisions; i++)
+      if (customTick.repeat) {
+        const values = customTick.paint(tick!, {
+          ...context(x, Thumb.start, s.enable, false, 0),
+          tickIndex: op('index'),
+        });
+        if (
+          values.length !== 1 ||
+          values[0]!.geometry?.kind !== 'program' ||
+          (values[0]!.geometry.repeat ?? 1) !== 1
+        )
+          throw Error('Repeating RangeSlider tick requires one non-repeating program entry');
         customEntries(
-          customTick.paint(tick!, {
-            ...context(tickX(i), Thumb.start, s.enable, false, 0),
-            tickIndex: i,
-          }),
+          [{ ...values[0]!, geometry: { ...values[0]!.geometry, repeat: s.divisions + 1 } }],
           visible,
         );
+      } else
+        for (let i = 0; i <= s.divisions; i++) {
+          if (entries.length >= p.limits.nativePaintEntries - 2)
+            throw RangeError(
+              'Custom RangeSlider concrete tick paint exceeds entry budget; use a repeating tick adapter',
+            );
+          customEntries(
+            customTick.paint(tick!, {
+              ...context(tickX(i), Thumb.start, s.enable, false, 0),
+              tickIndex: i,
+            }),
+            visible,
+          );
+        }
     } else
       entries.push({
         kind: 'shape',

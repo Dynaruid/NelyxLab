@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+import { stateInspectionBody } from '../../../runtime/engine-client/codec.ts';
 import { body, protocol as p, measurementBody } from '../../../runtime/engine-client/codec.ts';
 import type { EngineResponse } from '../../../runtime/engine-client/codec.ts';
 import {
@@ -40,6 +41,7 @@ export class ContentActor {
   private stopped = false;
   private last = 0n;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private pumping = false;
   private timingPreparation = 0n;
   private timing = {
     startedAtMs: 0,
@@ -63,7 +65,27 @@ export class ContentActor {
   kick(): void {
     if (this.stopped || this.scheduled) return;
     this.scheduled = true;
-    this.timer = setTimeout(() => this.step(), 0);
+    if (this.pumping) return;
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      this.pumping = true;
+      const deadline = performance.now() + 4;
+      try {
+        // Measurements and bounded Core steps are synchronous on this owner.
+        // Continue ready work within one time slice instead of paying the
+        // browser's nested-timer clamp for every paragraph/layout step.
+        let steps = 0;
+        do {
+          this.step();
+        } while (this.scheduled && !this.stopped && ++steps < 32 && performance.now() < deadline);
+      } finally {
+        this.pumping = false;
+        if (this.scheduled && !this.stopped) {
+          this.scheduled = false;
+          this.kick();
+        }
+      }
+    }, 0);
   }
   private resources(scene: EngineResponse): { scene: EngineResponse; release(): void } {
     const images = this.provider.acquireImageResources(
@@ -219,7 +241,7 @@ export class ContentActor {
         this.post({ kind: 'provider-error', message: failure(error) });
         return;
       }
-      const state = request(this.module, this.engine, p.opcodes.inspect);
+      const state = request(this.module, this.engine, p.opcodes.inspect, stateInspectionBody());
       this.provider.discardMeasurements();
       const failed = attempt ?? {
         id: state.measurePreparation || state.preparation,
@@ -338,7 +360,7 @@ export class RenderActor {
   update(viewport: Viewport): void {
     if (this.stopped) return;
     this.viewport = viewport;
-    const state = request(this.module, this.engine, p.opcodes.inspect);
+    const state = request(this.module, this.engine, p.opcodes.inspect, stateInspectionBody());
     if (state.status !== p.statuses.ok || state.closed) return;
     const identity = [viewport.width, viewport.height, viewport.scale].join('/');
     if (identity !== this.cppMetrics) {
@@ -358,7 +380,7 @@ export class RenderActor {
       this.cppMetrics = identity;
       this.post({ kind: 'content-wake' });
     }
-    const current = request(this.module, this.engine, p.opcodes.inspect);
+    const current = request(this.module, this.engine, p.opcodes.inspect, stateInspectionBody());
     request(
       this.module,
       this.engine,
@@ -372,12 +394,15 @@ export class RenderActor {
       this.clock.cancel();
       this.wanted = false;
       this.wakeAt = undefined;
-      this.report(request(this.module, this.engine, p.opcodes.inspect), this.clock.snapshot);
+      this.report(
+        request(this.module, this.engine, p.opcodes.inspect, stateInspectionBody()),
+        this.clock.snapshot,
+      );
     } else this.kick();
   }
   prepared(packet: PreparedPictures): void {
     if (this.stopped) return;
-    const state = request(this.module, this.engine, p.opcodes.inspect);
+    const state = request(this.module, this.engine, p.opcodes.inspect, stateInspectionBody());
     if (
       state.preparation !== packet.preparation ||
       state.metrics !== packet.metrics ||
@@ -387,6 +412,10 @@ export class RenderActor {
       return;
     }
     try {
+      // The previous candidate is superseded by this preparation. Drop it
+      // before import so active + obsolete + incoming never coexist here.
+      this.provider.retireExcept(state.activePreparation, packet.preparation);
+      if (this.candidate !== state.activePreparation) this.candidate = 0n;
       this.provider.import(packet);
     } catch (error) {
       request(
