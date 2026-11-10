@@ -35,6 +35,24 @@ export function originalBoxConfiguration(
 ): BoxConfiguration | undefined {
   const config = nativeBoxConfiguration(render, unsupported);
   if (!config) return;
+  const { padding, alignment } = config.layout;
+  // Canonical EdgeInsets/Alignment values are Source value objects. Own the
+  // wire scalars here, so a retained configuration does not keep an opaque
+  // class instance that forces every ancestor through the encoder again.
+  const layout = {
+    ...config.layout,
+    ...(padding
+      ? {
+          padding: {
+            left: padding.left ?? 0,
+            top: padding.top ?? 0,
+            right: padding.right ?? 0,
+            bottom: padding.bottom ?? 0,
+          },
+        }
+      : {}),
+    ...(alignment ? { alignment: { x: alignment.x, y: alignment.y } } : {}),
+  };
   return {
     kind: config.kind,
     ...(config.children ? { children: config.children } : {}),
@@ -43,7 +61,7 @@ export function originalBoxConfiguration(
     ...(config.tooltipPosition ? { tooltipPosition: config.tooltipPosition } : {}),
     ...(config.layoutBuilder ? { builder: config.layoutBuilder } : {}),
     options: {
-      layout: config.layout,
+      layout,
       ...(config.layoutProgram ? { layoutProgram: config.layoutProgram } : {}),
       ...(config.childAnchor ? { childAnchor: config.childAnchor } : {}),
       ...(config.intrinsicSizing ? { intrinsicSizing: config.intrinsicSizing } : {}),

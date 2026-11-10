@@ -8,7 +8,7 @@ import { CanvasKitProvider, canvasKitSupply } from '../../render/canvaskit-web/p
 import type { PreparedPictures, WebManifest } from '../../render/canvaskit-web/provider.ts';
 import { ContentActor, RenderActor, preparedTransfers } from './actors.ts';
 import type { Viewport } from './actors.ts';
-import { exchange, failure, script, verified, sessionOwner } from './common.ts';
+import { exchange, failure, script, verified, sessionOwner, forgetHeapReport } from './common.ts';
 import type { BrowserModule } from './common.ts';
 import { ProviderBudget } from './memory.ts';
 
@@ -257,6 +257,7 @@ async function initialize(message: {
   if (shared !== (profile === 'threaded'))
     throw new Error('Selected engine has the wrong memory profile');
   engine = module._nelyx_wasm_open(1, 1, p.schema, 15);
+  forgetHeapReport(module, engine);
   if (!engine) throw new Error('Engine session initialization failed');
   transportBudget = new ProviderBudget(module, engine, 3);
   appTextBudget = new ProviderBudget(module, engine, 6);
@@ -448,6 +449,7 @@ async function shutdown(): Promise<void> {
     if (result.status !== p.statuses.ok || result.holds || result.reservedBytes !== 0n)
       throw new Error('Core did not drain before shutdown');
     module._nelyx_engine_destroy(engine);
+    forgetHeapReport(module, engine);
     engine = 0;
   }
   module.PThread?.terminateAllThreads();

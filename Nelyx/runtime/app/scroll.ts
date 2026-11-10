@@ -302,7 +302,7 @@ class NativePosition extends ScrollPositionWithSingleContext {
       // Publication polling may lag a just-completed seek. Read Core coverage
       // for each command phase; absence or an old interval is not unlimited content.
       void this.host.view
-        .layoutSnapshot()
+        .observeApp(p.opcodes.layoutSnapshot, [list.node])
         .then((snapshot) => {
           if (this.stopped || this.request !== request) return;
           const viewport = snapshot.nodes.find(
@@ -523,7 +523,11 @@ class NativePosition extends ScrollPositionWithSingleContext {
           ? this.desiredOffset / this.pageExtent
           : this.pageController.initialPage;
       this.pageExtent = dimension;
-      if (dimension > 0) this.jumpTo(page * dimension);
+      // Content already anchored the newly activated geometry. An App position
+      // can still be one publication behind after a fast native swipe; writing
+      // its old page back here overrides Core's correct resize anchor. Only a
+      // pending explicit App write owns a desired page to rescale and resend.
+      if (dimension > 0 && (this.request || this.preserveDesired)) this.jumpTo(page * dimension);
     }
     this.applyViewportDimension(
       this.context.axisDirection === AxisDirection.down ||
@@ -940,7 +944,7 @@ class NativeListState extends NativeScrollState<NativeList> {
         !list.fixed
       )
         return;
-      this.observeDemand(list.demandBegin, list.demandEnd);
+      this.observeDemand(list.demandBegin, list.demandEnd, parent, list);
       return;
     }
     this.position.observe(parent, node, this.widget.list.itemExtent!);
@@ -973,10 +977,29 @@ class NativeListState extends NativeScrollState<NativeList> {
           value.node.generation === focus!.parent.generation,
       );
     }
-    this.observeDemand(list.demandBegin, list.demandEnd);
+    this.observeDemand(list.demandBegin, list.demandEnd, parent, list);
   };
-  private observeDemand(demandBegin: number, demandEnd: number): void {
+  private observeDemand(
+    demandBegin: number,
+    demandEnd: number,
+    viewport?: EngineNodeSnapshot,
+    materialized?: { readonly begin: number; readonly end: number },
+  ): void {
     if (demandBegin >= this.begin && demandEnd <= this.end) return;
+    const coverage = viewport?.preparedCoverage;
+    if (
+      this.controller instanceof PageController &&
+      coverage &&
+      !viewport!.deferred &&
+      this.position.desiredOffset >= coverage.minimum &&
+      this.position.desiredOffset <= coverage.maximum
+    ) {
+      // A late observation still describes its own materialized window. It
+      // must not undo a new window that Source has already requested while
+      // that transaction/preparation is in flight. Real misses bypass this.
+      if (materialized && (materialized.begin !== this.begin || materialized.end !== this.end))
+        return;
+    }
     const begin = Math.min(demandBegin, Math.max(0, this.count - this.windowSize)),
       end = Math.min(this.count, begin + this.windowSize);
     if (demandEnd > end)

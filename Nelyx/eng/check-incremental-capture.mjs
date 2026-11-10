@@ -11,12 +11,17 @@ try {
       contents: `
       import assert from 'node:assert/strict';
       import { RenderSceneCapture } from './Nelyx/runtime/app/capture.ts';
-      import { SceneNode, SceneReference, SceneWriter } from './Nelyx/runtime/engine-client/scene.ts';
+      import { SceneNode, SceneReference, SceneWriter, retainSceneConfiguration } from './Nelyx/runtime/engine-client/scene.ts';
       import { protocol as p } from './Nelyx/runtime/engine-client/schema.ts';
       import { originalControlConfiguration } from './Nelyx/runtime/app/controls.ts';
       import { RenderSemanticsAnnotations } from '@nelyx/core/framework/rendering/semantics-annotations';
       import { SemanticsProperties } from '@nelyx/core/framework/semantics/semantics';
       import { claimNativeRenderObject } from '@nelyx/core/framework/rendering/object';
+      import {LayoutBuilder} from '@nelyx/core/framework/widgets/layout-builder';
+      import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
+      import {originalBoxConfiguration} from './Nelyx/runtime/app/layout.ts';
+      import {RenderPadding} from '@nelyx/core/framework/rendering/boxes';
+      import {EdgeInsets} from '@nelyx/core/framework/painting/edge-insets';
       const capture = new RenderSceneCapture(), calls = new Map(), effects:string[] = [];
       function render(name, children=[], dynamic=false) {
         const r:any = {name,children,dynamic,reference:new SceneReference(),color:0,debugDisposed:false,edge:''};
@@ -60,6 +65,46 @@ try {
       fail=true;assert.throws(read,/capture failed/);fail=false;read();
       assert.throws(()=>visit(root,{value:p.limits.nodes-2}),/budget/);
       capture.clear();const rebuilt=read();assert.notEqual(rebuilt,moved);
+      const durable = new RenderSceneCapture();
+      const fontOwner=render('fontOwner'), target=render('target'), dependent=render('dependent');
+      const durableRoot=render('durableRoot',[fontOwner,target,dependent]);
+      let resourceRevision=1, durableBuilds=0;
+      const project=(r,count={value:0},depth=0)=>durable.node(r,'',count,depth,()=>{
+        ++durableBuilds;++count.value;
+        if(r===fontOwner)durable.bind('font',resourceRevision,resourceRevision);
+        if(r===dependent)durable.dependOn(target);
+        return new SceneNode(r.reference,'stack',r.children.map(child=>project(child,count,depth+1)));
+      },(count,depth)=>project(r,count,depth));
+      project(durableRoot);durable.commit([durableRoot]);
+      assert.deepEqual([...durable.bindings('font').keys()],[1]);
+      const durableInitial=durableBuilds, registered=durable.counters.registrationEdits;
+      project(durableRoot);durable.commit([durableRoot]);
+      assert.equal(durableBuilds,durableInitial,'Unchanged resource owner was recaptured');
+      assert.equal(durable.counters.registrationEdits,registered,'Reused subtree repeated registration');
+      durable.invalidate(target);project(durableRoot);durable.commit([durableRoot]);
+      assert.equal(durableBuilds-durableInitial,2,'Reference target did not invalidate its non-tree consumer');
+      assert.equal(durable.counters.registrationEdits,registered,'Unrelated change touched a font owner');
+      durableRoot.children=[target,dependent];durable.invalidate(durableRoot);
+      project(durableRoot);durable.commit([durableRoot]);
+      assert.equal(durable.bindings('font').size,0,'Parked owner retained its resource registration');
+      resourceRevision=2;durableRoot.children.push(fontOwner);durable.invalidate(durableRoot);
+      project(durableRoot);durable.commit([durableRoot]);
+      assert.deepEqual([...durable.bindings('font').keys()],[2],'Remount reused a retired resource binding');
+      resourceRevision=3;durable.invalidate(fontOwner);project(durableRoot);durable.abort();
+      assert.deepEqual([...durable.bindings('font').keys()],[2],'Rejected capture replaced accepted registrations');
+      project(durableRoot);durable.commit([durableRoot]);
+      assert.deepEqual([...durable.bindings('font').keys()],[3]);
+      durable.clear();assert.equal(durable.bindings('font').size,0);
+      const builderCapture=new RenderSceneCapture(),builderRender:any=new LayoutBuilder(()=>null as any).createRenderObject({} as any),builderReference=new SceneReference();
+      builderRender._updateCallback(()=>{});
+      claimNativeRenderObject(builderRender,{},kind=>builderCapture.invalidate(builderRender,kind));
+      const builderRead=()=>builderCapture.node(builderRender,'',{value:0},0,()=>new SceneNode(builderReference,'box',[],originalBoxConfiguration(builderRender,reason=>{throw Error(reason);})!.options),()=>builderRead());
+      const builderBefore=builderRead(),builder=originalBoxConfiguration(builderRender,reason=>{throw Error(reason);})!.builder!;
+      assert(builder.rebuild(builder.revision,BoxConstraints.tight({width:100,height:60})));
+      const builderAfter=builderRead();
+      assert.notEqual(builderAfter,builderBefore,'Completed unchanged-child builder did not invalidate native metadata');
+      assert.equal(builderAfter.options.layoutBuilder?.built?.revision,builder.revision);
+      builderRender.dispose();builderCapture.clear();
       const semanticCapture = new RenderSceneCapture(), semanticReference = new SceneReference();
       let actions = '', semanticBuilds = 0;
       const semantic = new RenderSemanticsAnnotations({properties:new SemanticsProperties({label:'A',button:true,onTap:()=>actions+='A'})});
@@ -97,7 +142,96 @@ try {
       assert.deepEqual(terminalEvents,['mouseEnter','mouseExit'],
         'A retained Source removed from Content needs exactly one terminal hover exit');
       assert.equal(terminalWriter.hovered.size,0);
+      const stable = (reference, children=[], color=0) => {
+        const scene=new SceneNode(reference,'stack',children,{color});
+        retainSceneConfiguration(scene);return scene;
+      };
+      const journalWork = [];
+      for (const width of [8, 96]) {
+        const commits = [], refs = Array.from({length:width},()=>new SceneReference());
+        const leaves=refs.map(ref=>stable(ref)), branchRef=new SceneReference(), rootRef=new SceneReference();
+        const branch=stable(branchRef,leaves), localRef=new SceneReference();
+        const local=stable(localRef), first=stable(rootRef,[branch,local]);
+        const writer:any=new SceneWriter({commit:async commands=>{commits.push(commands);}},
+          {pollEvents:false,retainedScene:true});
+        await writer.mount(first);
+        const visits=writer.counters.recordVisits, allocations=writer.counters.allocatedVisits;
+        await writer.update(stable(rootRef,[branch,stable(localRef,[],0xff123456)]));
+        assert.equal(commits.at(-1).length,1,'Local paint must produce one command');
+        journalWork.push([writer.counters.recordVisits-visits,writer.counters.allocatedVisits-allocations]);
+        const unchanged=writer.root, builds=commits.length;
+        await writer.update(unchanged);
+        assert.equal(commits.length,builds,'Unchanged retained root submitted a transaction');
+        const next=stable(rootRef,[stable(branchRef,[...leaves,stable(localRef,[],0xff123456)])]);
+        await writer.update(next);
+        assert(commits.at(-1).some(bytes=>new DataView(bytes.buffer).getUint16(0,true)===p.commands.move),
+          'Cross-parent change lost its native move');
+        await assert.rejects(writer.update(stable(rootRef,[next.children[0],stable(localRef)])),/Duplicate/);
+        await writer.update(stable(rootRef,[branch]));
+        assert.equal(localRef.currentNode,null,'Removed reference retained a mounted handle');
+        await writer.update(stable(rootRef,[branch,stable(localRef)]));
+        assert.equal(localRef.currentNode.generation,2,'Remount must allocate a new generation');
+      }
+      assert.deepEqual(journalWork[0],journalWork[1],
+        'Unrelated subtree size changed the local journal work');
+      const paddingWork=[];
+      for(const width of [8,96]){
+        const sourcePads=Array.from({length:width},()=>new RenderPadding(EdgeInsets.all(8)));
+        const pads=sourcePads.map(render=>{const config=originalBoxConfiguration(render,reason=>{throw Error(reason);})!;
+          return retain(new SceneNode(new SceneReference(),'box',[],config.options));});
+        function retain(node){retainSceneConfiguration(node);return node;}
+        const branch=retain(new SceneNode(new SceneReference(),'stack',pads)),rootKey=new SceneReference(),localKey=new SceneReference();
+        const padded:any=new SceneWriter({commit:async()=>{}},{pollEvents:false,retainedScene:true});
+        await padded.mount(retain(new SceneNode(rootKey,'stack',[branch,retain(new SceneNode(localKey,'box'))])));
+        const records=padded.counters.recordVisits;
+        await padded.update(retain(new SceneNode(rootKey,'stack',[branch,retain(new SceneNode(localKey,'box',[],{color:1}))])));
+        paddingWork.push(padded.counters.recordVisits-records);
+        for(const render of sourcePads)render.dispose();
+      }
+      assert.deepEqual(paddingWork,[2,2],'Canonical Source padding caused an unrelated full encoding walk');
+      const creationWork=[];
+      for(const unrelated of [64,2048]){
+        const known=new Set<string>();
+        const writer:any=new SceneWriter({commit:async commands=>{
+          for(const command of commands){const v=new DataView(command.buffer,command.byteOffset,command.byteLength);
+            if(v.getUint16(0,true)!==p.commands.create)continue;
+            if(command.length===16+p.nodeAttachedCreationBytes){const offset=16+p.nodeCreationFields.parent;
+              assert(known.has(v.getUint32(offset,true)+':'+v.getUint32(offset+4,true)),'Created child before its native parent');}
+            known.add(v.getUint32(8,true)+':'+v.getUint32(12,true));}
+        }},{pollEvents:false,retainedScene:true});
+        const root=new SceneReference(),leaf=new SceneReference(),chain=Array.from({length:24},()=>new SceneReference());
+        const retain=node=>{retainSceneConfiguration(node);return node;};
+        const padding=retain(new SceneNode(new SceneReference(),'stack',Array.from({length:unrelated},()=>retain(new SceneNode(new SceneReference(),'box')))));
+        const scene=children=>{let branch=retain(new SceneNode(leaf,'stack',children));
+          for(const reference of [...chain].reverse())branch=retain(new SceneNode(reference,'stack',[branch]));
+          return retain(new SceneNode(root,'stack',[branch,padding]));};
+        await writer.mount(scene([]));const before=writer.counters.creationDepthVisits;
+        await writer.update(scene(Array.from({length:24},()=>retain(new SceneNode(new SceneReference(),'box')))));
+        const visits=writer.counters.creationDepthVisits-before;assert(visits<=50,'New siblings repeated retained ancestor walks');creationWork.push(visits);
+      }
+      assert.deepEqual(creationWork,[50,50],'Creation depth work scaled with unrelated native nodes');
+      let releaseCommit, commitStarted;
+      const started=new Promise(resolve=>{commitStarted=resolve;}), inflightCommands=[];
+      const inFlight:any=new SceneWriter({commit:async commands=>{
+        inflightCommands.push(commands);
+        if(inflightCommands.length===2){commitStarted();await new Promise(resolve=>{releaseCommit=resolve;});}
+      }},{pollEvents:false,retainedScene:true});
+      const inflightRef=new SceneReference();
+      await inFlight.mount(stable(inflightRef));
+      const sending=inFlight.update(stable(inflightRef,[],1));
+      await started;
+      inFlight.update(stable(inflightRef,[],2));
+      releaseCommit();await sending;
+      assert.equal(inflightCommands.length,3,'ACK overwrote a modification made in flight');
+      assert.equal([...inFlight.accepted.values()][0].node.options.color,2);
+      const closedWriter:any=new SceneWriter({close:async()=>{}},{pollEvents:false});
+      closedWriter.adopt(closedWriter.records(new SceneNode(new SceneReference(),'box',[],{onLayout:()=>{}})),[]);
+      assert.equal(closedWriter.layoutObservers.size,1);
+      await closedWriter.close();
+      assert.equal(closedWriter.layoutObservers.size,0,'Closed host retained layout callbacks');
+      assert.equal(closedWriter.accepted.size,0);
       console.log('Incremental capture: dynamic effects, local dirty path, reparent, edge/context, failure and budgets PASS.',capture.counters);
+      console.log('Retained journal: size-independent paint work, moves, duplicate rejection, parking generations and in-flight updates PASS.',journalWork);
     `,
     },
     bundle: true,

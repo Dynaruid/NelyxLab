@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { KeyMap } from '@nelyx/core/foundation/key';
+import type { Key } from '@nelyx/core/foundation/key';
+import type { RenderSceneCapture } from './capture.ts';
 import {
   nativeTapRegionConfiguration,
   bindNativeTapRegionSemantics,
@@ -21,6 +23,8 @@ import { protocol as p } from '../engine-client/schema.ts';
 export class OriginalTapRegions {
   private groups = new KeyMap<number>();
   private nextGroup = 0;
+  private readonly groupKeys = new Map<number, Key>();
+  private readonly freeGroups: number[] = [];
   private readonly surfaces = new Map<
     RenderTapRegionSurface,
     { release: () => void; ancestors: readonly RenderObject[] }
@@ -37,20 +41,36 @@ export class OriginalTapRegions {
     private readonly viewId: number,
     private readonly handle: (render: RenderObject) => NodeHandle | null,
     private readonly reject: (reason: string) => never,
+    private readonly capture?: Pick<RenderSceneCapture, 'bind' | 'bindings' | 'dependOn'>,
   ) {}
   beginBuild(): void {
-    this.groups.clear();
-    this.nextGroup = 0;
+    if (!this.capture) {
+      this.groups.clear();
+      this.nextGroup = 0;
+    }
     this.retained.clear();
   }
   finishBuild(): void {
+    if (this.capture) {
+      for (const surface of this.capture
+        .bindings<RenderTapRegionSurface, RenderTapRegionSurface>('tapSurfaces')
+        .keys())
+        this.retain(surface);
+      const active = this.capture.bindings<number, Key>('tapGroups');
+      for (const [group, key] of this.groupKeys)
+        if (!active.has(group)) {
+          this.groups.delete(key);
+          this.groupKeys.delete(group);
+          this.freeGroups.push(group);
+        }
+    }
     for (const [surface, binding] of this.surfaces)
       if (!this.retained.has(surface)) {
         binding.release();
         this.surfaces.delete(surface);
       }
     this.retained.clear();
-    this.groups.clear();
+    if (!this.capture) this.groups.clear();
   }
   retain(render: RenderObject): void {
     const source = nativeTapRegionConfiguration(render);
@@ -83,6 +103,13 @@ export class OriginalTapRegions {
   configuration(render: RenderObject): OriginalControlConfiguration | undefined {
     const source = nativeTapRegionConfiguration(render);
     if (!source) return undefined;
+    if (this.capture) {
+      for (let ancestor = render.parent, depth = 0; ancestor; ancestor = ancestor.parent) {
+        if (++depth > p.limits.depth) return this.reject('tap-region-parent-depth');
+        this.capture.dependOn(ancestor);
+      }
+      if (source.kind === 'surface') this.capture.bind('tapSurfaces', source.render, source.render);
+    }
     const options = {
       layout: { childConstraints: 'inherit' as const },
       pointerHitTest: source.pointerHitTest,
@@ -99,9 +126,12 @@ export class OriginalTapRegions {
     if (source.groupKey) {
       group = this.groups.get(source.groupKey) ?? 0;
       if (!group) {
-        group = ++this.nextGroup;
+        group = this.freeGroups.pop() ?? ++this.nextGroup;
+        if (group > p.limits.nodes) return this.reject('tap-region-group-budget');
         this.groups.set(source.groupKey, group);
+        this.groupKeys.set(group, source.groupKey);
       }
+      this.capture?.bind('tapGroups', group, source.groupKey);
     }
     const revision = source.revision;
     const invoke = (event: EngineEvent, viewId: number | string = this.viewId): void => {
@@ -220,6 +250,8 @@ export class OriginalTapRegions {
     this.surfaces.clear();
     this.retained.clear();
     this.groups.clear();
+    this.groupKeys.clear();
+    this.freeGroups.length = 0;
     this.semanticEvents.clear();
     this.semanticBatch = 0n;
   }

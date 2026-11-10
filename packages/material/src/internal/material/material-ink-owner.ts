@@ -149,12 +149,15 @@ export interface InkFeatureOptions {
 }
 registerNativeRenderMetadata(MaterialInkRender.prototype, (source) => {
   const entries: NativePaintEntry[] = [];
+  const dependencies = new Set<RenderObject>();
   for (const feature of source.debugInkFeatures) {
     // Source skips paint when its reference leaves the active sliver chain.
     // Walk ownership/policy only; no App geometry or paint transform runs.
     let at: RenderObject | undefined = feature.referenceBox;
     while (at !== source) {
+      if (at) dependencies.add(at);
       const parent: RenderObject | undefined = at?.parent;
+      if (parent) dependencies.add(parent);
       if (!parent || !parent.paintsChild(at!)) {
         at = undefined;
         break;
@@ -178,6 +181,7 @@ registerNativeRenderMetadata(MaterialInkRender.prototype, (source) => {
   return {
     kind: 'ink',
     dependsOnChildVisibility: source.features.length !== 0,
+    dependencies: [...dependencies],
     absorbHitTest: source.absorbHitTest,
     entries: entries.length
       ? [

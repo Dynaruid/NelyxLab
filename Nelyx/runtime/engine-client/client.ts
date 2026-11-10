@@ -15,6 +15,7 @@ import {
   writeHandle,
 } from './codec.ts';
 import { ObservationDecodeCache } from './observation-cache.ts';
+import { ObservationStream, ObservationGapError } from './observation-stream.ts';
 import type { EngineResponse, PacketOwner } from './codec.ts';
 import { protocol as p } from './schema.ts';
 import { drainEngineOwners } from './lifecycle.ts';
@@ -55,6 +56,9 @@ export interface EngineTransport {
   subscribeChanges?(callback: () => void): () => void;
   /** The port returns standalone bytes, never a live native/Wasm heap view. */
   exchange(bytes: Uint8Array): Promise<Uint8Array>;
+  /** Consumes an exclusive, standalone command buffer. May detach it. */
+  exchangeOwned?(bytes: Uint8Array): Promise<Uint8Array>;
+  diagnostics?(): Readonly<Record<string, number>>;
   close(): void | Promise<void>;
 }
 export class EngineError extends Error {
@@ -95,7 +99,51 @@ function checked(
   return result;
 }
 export class EngineClient {
+  readonly transportCounters = {
+    requests: 0,
+    copiedRequestBytes: 0,
+    ownedRequestBytes: 0,
+    responseBytes: 0,
+    pendingPeakBytes: 0,
+  };
+  diagnostics(): Record<string, unknown> {
+    return {
+      ...this.transportCounters,
+      pending: this.pending,
+      pendingBytes: this.pendingBytes,
+      transport: this.transport.diagnostics?.(),
+      decode: {
+        ...this.observationCache.counters,
+        entries: this.observationCache.size,
+        bytes: this.observationCache.byteLength,
+      },
+      observations: [...this.observations].map(([owner, stream]) => ({
+        owner,
+        version: stream.version,
+        bytes: stream.byteLength,
+        ...stream.counters,
+      })),
+    };
+  }
   private readonly observationCache = new ObservationDecodeCache();
+  private readonly observations = new Map<string, ObservationStream>();
+  private observationKey(owner: PacketOwner, opcode: number): string {
+    return `${owner.session}:${owner.app}:${owner.view}:${owner.generation}/${opcode}`;
+  }
+  /** @internal One version sequence per owner and observation consistency role. */
+  observationStream(owner: PacketOwner, opcode: number): ObservationStream {
+    const key = this.observationKey(owner, opcode);
+    let stream = this.observations.get(key);
+    if (!stream) this.observations.set(key, (stream = new ObservationStream()));
+    return stream;
+  }
+  private releaseObservations(owner: PacketOwner): void {
+    for (const opcode of [p.opcodes.layoutSnapshot, p.opcodes.semanticsSnapshot]) {
+      const key = this.observationKey(owner, opcode);
+      this.observations.get(key)?.clear();
+      this.observations.delete(key);
+    }
+  }
   private changeRevision = 0;
   private readonly changes = new Set<() => void>();
   private unsubscribeChanges: (() => void) | undefined;
@@ -153,7 +201,7 @@ export class EngineClient {
     const client = new EngineClient(transport, options.session ?? 1, options.app ?? 1, timeoutMs);
     try {
       const required = capabilityMask(options.requiredCapabilities ?? p.capabilities.protocol);
-      const result = await client.send(
+      const result = await client.sendOwned(
         packet(
           p.opcodes.hello,
           client.owner,
@@ -179,6 +227,13 @@ export class EngineClient {
     }
   }
   async send(bytes: Uint8Array): Promise<EngineResponse> {
+    return this.sendPacket(bytes, false);
+  }
+  /** @internal Packet builders hand off a fresh buffer; replay keeps its own copy. */
+  async sendOwned(bytes: Uint8Array): Promise<EngineResponse> {
+    return this.sendPacket(bytes, true);
+  }
+  private async sendPacket(bytes: Uint8Array, exclusive: boolean): Promise<EngineResponse> {
     if (this.closed) throw new EngineError(p.statuses.closed, 'Engine client closed');
     if (
       bytes.length > p.limits.packetBytes ||
@@ -186,7 +241,16 @@ export class EngineClient {
       this.pendingBytes + bytes.length > p.limits.packetBytes * 4
     )
       throw new EngineError(p.statuses.budgetExceeded, 'Engine transport queue budget exceeded');
-    const owned = bytes.slice();
+    if (bytes.length < p.headerBytes) throw new RangeError('Invalid engine packet header');
+    const consume =
+      exclusive &&
+      bytes.buffer instanceof ArrayBuffer &&
+      bytes.byteOffset === 0 &&
+      bytes.byteLength === bytes.buffer.byteLength;
+    const owned = consume ? bytes : bytes.slice();
+    ++this.transportCounters.requests;
+    if (consume) this.transportCounters.ownedRequestBytes += bytes.length;
+    else this.transportCounters.copiedRequestBytes += bytes.length;
     const sent = new DataView(owned.buffer);
     const expected = {
       session: sent.getUint32(20, true),
@@ -195,28 +259,64 @@ export class EngineClient {
       generation: sent.getUint32(32, true),
       id: sent.getBigUint64(40, true),
       opcode: sent.getUint16(12, true),
+      appObservation:
+        owned.length >= p.headerBytes + 4 &&
+        (sent.getUint32(p.headerBytes, true) === p.inspectionFlags.appObservation ||
+          sent.getUint32(p.headerBytes, true) === p.inspectionFlags.appLayoutSelection ||
+          sent.getUint32(p.headerBytes, true) === p.inspectionFlags.appObservationDelta ||
+          sent.getUint32(p.headerBytes, true) === p.inspectionFlags.appLayoutDelta),
+      deltaObservation:
+        owned.length >= p.headerBytes + 16 &&
+        (
+          [
+            p.inspectionFlags.appObservationDelta,
+            p.inspectionFlags.appLayoutDelta,
+          ] as readonly number[]
+        ).includes(sent.getUint32(p.headerBytes, true)),
     };
     const length = owned.length;
     ++this.pending;
     this.pendingBytes += owned.length;
+    this.transportCounters.pendingPeakBytes = Math.max(
+      this.transportCounters.pendingPeakBytes,
+      this.pendingBytes,
+    );
     let cancel: ((error: Error) => void) | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     // Timed-out work continues to count until the port settles. A caller timeout
     // never cancels an accepted transaction or admits an unbounded orphan tail.
     const work = Promise.resolve()
-      .then(() => this.transport.exchange(owned))
+      .then(() => this.transport.exchangeOwned?.(owned) ?? this.transport.exchange(owned))
       .then((received) => {
+        if (this.closed) throw new EngineError(p.statuses.closed, 'Engine session closed');
+        // Reject foreign replies before touching owner-scoped dictionaries.
+        const header = new DataView(received.buffer, received.byteOffset, received.byteLength);
+        if (
+          received.length < p.headerBytes ||
+          header.getUint32(20, true) !== expected.session ||
+          header.getUint32(24, true) !== expected.app ||
+          header.getUint32(28, true) !== expected.view ||
+          header.getUint32(32, true) !== expected.generation ||
+          header.getBigUint64(40, true) !== expected.id ||
+          (header.getUint16(12, true) & 0x7fff) !== expected.opcode
+        )
+          throw new EngineError(
+            p.statuses.staleGeneration,
+            'Engine response owner/request differs',
+          );
         const appObservation =
           (expected.opcode === p.opcodes.layoutSnapshot ||
             expected.opcode === p.opcodes.semanticsSnapshot) &&
-          owned.length >= p.headerBytes + 4 &&
-          (sent.getUint32(p.headerBytes, true) === p.inspectionFlags.appObservation ||
-            (expected.opcode === p.opcodes.layoutSnapshot &&
-              sent.getUint32(p.headerBytes, true) === p.inspectionFlags.appLayoutSelection));
+          expected.appObservation;
+        this.transportCounters.responseBytes += received.byteLength;
         const result = response(received, {
           appObservation,
+          ownedObservation: true,
           observationCache: this.observationCache,
           observationOwner: `${expected.view}:${expected.generation}`,
+          ...(expected.deltaObservation
+            ? { observationStream: this.observationStream(expected, expected.opcode) }
+            : {}),
         });
         if (
           result.owner.session !== expected.session ||
@@ -230,6 +330,7 @@ export class EngineClient {
             p.statuses.staleGeneration,
             'Engine response owner/request differs',
           );
+        if (result.closed) this.releaseObservations(expected);
         return result;
       })
       .finally(() => {
@@ -265,7 +366,7 @@ export class EngineClient {
       view: uint32(view),
       generation: uint32(generation),
     });
-    checked(await this.send(packet(p.opcodes.openView, owner)));
+    checked(await this.sendOwned(packet(p.opcodes.openView, owner)));
     const client = new EngineViewClient(this, owner);
     this.views.add(client);
     return client;
@@ -273,10 +374,11 @@ export class EngineClient {
   /** @internal Remove closed generations instead of retaining a session history. */
   releaseView(view: EngineViewClient): void {
     this.views.delete(view);
+    this.releaseObservations(view.owner);
   }
   async close(): Promise<void> {
     if (this.closed) return;
-    const result = await this.send(packet(p.opcodes.closeSession, this.owner));
+    const result = await this.sendOwned(packet(p.opcodes.closeSession, this.owner));
     if (result.status === p.statuses.busy) {
       for (const view of this.views) view.sessionClosed();
       throw new EngineError(
@@ -302,6 +404,8 @@ export class EngineClient {
     for (const view of this.views) view.sessionClosed();
     this.views.clear();
     this.observationCache.clear();
+    for (const stream of this.observations.values()) stream.clear();
+    this.observations.clear();
     resourceSlots.get(this)?.clear();
     resourceSlots.delete(this);
     this.unsubscribeChanges?.();
@@ -311,6 +415,53 @@ export class EngineClient {
   }
 }
 export class EngineViewClient {
+  private observationTail: Promise<void> = Promise.resolve();
+  /** Full immutable row snapshots reconstructed from versioned native deltas.
+   * Layout uses the active cohort; semantics uses the published cohort. */
+  observeApp(
+    opcode: number,
+    selection?: readonly import('./codec.ts').NodeHandle[],
+  ): Promise<EngineResponse> {
+    if (opcode !== p.opcodes.layoutSnapshot && opcode !== p.opcodes.semanticsSnapshot)
+      return Promise.reject(new RangeError('Invalid App observation role'));
+    if (selection && opcode !== p.opcodes.layoutSnapshot)
+      return Promise.reject(new RangeError('Selection requires active layout'));
+    const nodes = selection?.map((node) => Object.freeze({ ...node })) ?? [];
+    if (nodes.length > p.limits.nodes)
+      return Promise.reject(new RangeError('Observation selection budget exceeded'));
+    const work = this.observationTail.then(async () => {
+      const stream = this.client.observationStream(this.owner, opcode);
+      for (let attempt = 0; attempt < 2; ++attempt) {
+        const data = body(16 + nodes.length * 8, (view) => {
+          view.setUint32(
+            0,
+            opcode === p.opcodes.layoutSnapshot && selection !== undefined
+              ? p.inspectionFlags.appLayoutDelta
+              : p.inspectionFlags.appObservationDelta,
+            true,
+          );
+          view.setUint32(4, nodes.length, true);
+          view.setBigUint64(8, attempt ? 0n : stream.version, true);
+          nodes.forEach((node, index) => writeHandle(view, 16 + index * 8, node));
+        });
+        try {
+          return await this.request(opcode, data);
+        } catch (error) {
+          if (!(error instanceof ObservationGapError) || attempt) throw error;
+          ++stream.counters.resyncs;
+        }
+      }
+      throw Error('Observation resync failed');
+    });
+    this.observationTail = work.then(
+      () => {},
+      () => {},
+    );
+    return work;
+  }
+  diagnostics(): Record<string, unknown> {
+    return this.client.diagnostics();
+  }
   private readonly changeWaits = new Set<() => void>();
   /** @internal Release readiness waits before the owning App host drains. */
   wakeChangeWaits(): void {
@@ -654,7 +805,7 @@ export class EngineViewClient {
     id = 0n,
   ): Promise<EngineResponse> {
     this.ensureOpen();
-    const result = await this.client.send(packet(opcode, this.owner, data, id));
+    const result = await this.client.sendOwned(packet(opcode, this.owner, data, id));
     if (result.closed) this.sessionClosed();
     return result;
   }

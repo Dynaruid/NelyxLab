@@ -2,12 +2,12 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 2570296319u;
+inline constexpr uint32_t schema = 3789315557u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
 inline constexpr uint32_t headerBytes = 64u;
-inline constexpr uint32_t stateBytes = 744u;
+inline constexpr uint32_t stateBytes = 832u;
 inline constexpr uint32_t nodeBytes = 360u;
 inline constexpr uint32_t eventBytes = 160u;
 inline constexpr uint32_t inputBytes = 128u;
@@ -90,10 +90,17 @@ inline constexpr uint32_t keyIdentityBytes = 48u;
 inline constexpr uint32_t keyIdentityTextBytes = 64u;
 inline constexpr uint32_t keyIdentityEventBlob = 34u;
 inline constexpr uint32_t keyIdentityEventBytes = 24u;
+inline constexpr uint32_t observationDeltaBlob = 35u;
+inline constexpr uint32_t observationReferencesBlob = 36u;
+inline constexpr uint32_t observationRegistrationBlob = 37u;
+inline constexpr uint32_t observationDeltaBytes = 176u;
 namespace inspectionFlags {
 inline constexpr uint32_t stateOnly = 1u;
 inline constexpr uint32_t appObservation = 2u;
 inline constexpr uint32_t appLayoutSelection = 4u;
+inline constexpr uint32_t appObservationDelta = 8u;
+inline constexpr uint32_t appLayoutDelta = 16u;
+inline constexpr uint32_t browserObservation = 32u;
 }
 namespace editorViewportFlags {
 inline constexpr uint32_t expands = 1u;
@@ -207,6 +214,9 @@ inline constexpr uint32_t layoutProgramVariables = 128u;
 inline constexpr uint32_t layoutProgramExpressions = 512u;
 inline constexpr uint32_t layoutProgramCommands = 512u;
 inline constexpr uint32_t layoutProgramPaintValues = 16u;
+inline constexpr uint32_t observationBytes = 4194304u;
+inline constexpr uint32_t immutableBlobs = 4096u;
+inline constexpr uint32_t immutableBlobBytes = 4194304u;
 }
 namespace opcodes {
 inline constexpr uint32_t hello = 1u;
@@ -327,6 +337,9 @@ inline constexpr uint32_t tooltipPosition = 35u;
 inline constexpr uint32_t childAnchor = 36u;
 inline constexpr uint32_t intrinsicSizing = 37u;
 inline constexpr uint32_t layoutProgram = 38u;
+inline constexpr uint32_t registerBlob = 39u;
+inline constexpr uint32_t useBlob = 40u;
+inline constexpr uint32_t releaseBlob = 41u;
 }
 namespace nodePropertyFlags {
 inline constexpr uint32_t horizontal = 1u;
@@ -629,6 +642,17 @@ inline constexpr uint32_t framePaintNodes = 712u;
 inline constexpr uint32_t framePlacementNodes = 720u;
 inline constexpr uint32_t imagePaintWork = 728u;
 inline constexpr uint32_t appFrameWork = 736u;
+inline constexpr uint32_t transactionNodeClones = 744u;
+inline constexpr uint32_t transactionSlotPages = 752u;
+inline constexpr uint32_t transactionDirectories = 760u;
+inline constexpr uint32_t transactionChildLists = 768u;
+inline constexpr uint32_t transactionFullValidations = 776u;
+inline constexpr uint32_t transactionIncrementalValidations = 784u;
+inline constexpr uint32_t transactionValidationVisits = 792u;
+inline constexpr uint32_t transactionSiblingVisits = 800u;
+inline constexpr uint32_t transactionBlobRegistrations = 808u;
+inline constexpr uint32_t transactionBlobBindings = 816u;
+inline constexpr uint32_t transactionBlobBytes = 824u;
 }
 namespace nodeFields {
 inline constexpr uint32_t node = 0u;

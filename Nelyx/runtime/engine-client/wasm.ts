@@ -30,7 +30,9 @@ export function createWasmTransport(
     options.requiredCapabilities ?? p.capabilities.protocol,
   );
   if (!engine) throw new Error('Engine Wasm ABI/schema/capability initialization failed');
+  const counters = { exchanges: 0, inputCopyBytes: 0, outputCopyBytes: 0 };
   return {
+    diagnostics: () => ({ ...counters }),
     async exchange(bytes) {
       if (!engine) throw new Error('Engine Wasm session closed');
       if (bytes.length > p.limits.packetBytes)
@@ -43,6 +45,8 @@ export function createWasmTransport(
         // Acquire views after each allocation/dispatch: memory may have grown.
         module._nelyx_wasm_refresh_heap?.();
         module.HEAPU8.set(bytes, input);
+        ++counters.exchanges;
+        counters.inputCopyBytes += bytes.length;
         output = module._nelyx_wasm_dispatch(engine, input, bytes.length);
         if (!output) throw new Error('Engine Wasm dispatch allocation failed');
         const pointer = module._nelyx_wasm_buffer_data(output),
@@ -50,7 +54,12 @@ export function createWasmTransport(
         module._nelyx_wasm_refresh_heap?.();
         if (length > p.limits.responseBytes || pointer + length > module.HEAPU8.length)
           throw new Error('Invalid engine Wasm output bounds');
-        return module.HEAPU8.slice(pointer, pointer + length);
+        // The engine owns and releases this allocation in finally. A response
+        // must survive release and the next memory.grow, so this copy is owned
+        // by the caller and cannot be replaced with a borrowed heap view.
+        const response = module.HEAPU8.slice(pointer, pointer + length);
+        counters.outputCopyBytes += length;
+        return response;
       } finally {
         if (output) module._nelyx_wasm_release(output);
         module._free(input);

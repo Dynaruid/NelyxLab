@@ -31,27 +31,31 @@ try {
       ++count.value;
       const config=originalControlConfiguration(render,reason=>{throw Error(reason);});
       if(config?.dynamicPaint)capture.dynamic();
+      for(const target of config?.dependencies??[])capture.dependOn(target);
       const children=render instanceof OriginalNativeRender&&render.options.parkedChildren?[]:render.children;
       return new SceneNode(reference(render),'box',children.map(child=>project(child,count,depth+1)),{
         ...config?.options,
         nativePaint:config?.paint?.map(entry=>({...entry,reference:entry.reference?()=>keys.get(entry.reference)?.currentNode??null:undefined})),
       });
     },(nextCount,nextDepth)=>project(render,nextCount,nextDepth));
-    const writer=new SceneWriter({} as any,{pollEvents:false}) as any;
-    const visible=project(ink);writer.adopt(writer.records(visible),[]);
+    const read=()=>{const scene=project(ink);capture.commit([ink]);return scene;};
+    const writer=new SceneWriter({} as any,{pollEvents:false,retainedScene:true}) as any;
+    const visible=read();writer.adopt(writer.records(visible),[]);
+    const captured=capture.counters.captured;assert.equal(read(),visible);
+    assert.equal(capture.counters.captured,captured,'Unchanged live ink repeated its capture');
     assert(visible.options.nativePaint.some(entry=>entry.kind==='highlight'));
     const originalHandle=reference(cell).currentNode;
     page.options={parkedChildren:true};capture.invalidate(page);
     assert.equal(page.paintsChild(cell),false,'A parked native page still advertises its children as painted');
-    const parked=project(ink);
-    assert.equal(originalControlConfiguration(ink,reason=>{throw Error(reason);}).dynamicPaint,true,'Parked live features still need visibility refresh');
+    const parked=read();
+    assert.equal(originalControlConfiguration(ink,reason=>{throw Error(reason);}).dynamicPaint,false,'Canonical ink uses visibility dependencies');
     assert(!parked.options.nativePaint.some(entry=>entry.kind==='highlight'),'Retained ink configuration still references a parked cell');
     writer.adopt(writer.records(parked),[]);
     assert.equal(reference(cell).currentNode,null);
-    writer.records(project(ink));
+    writer.records(read());
     assert.equal(ink.features[0],feature);assert.equal(feature.debugDisposed,false,'Source keep-alive ink was disposed to hide projection failure');
     page.options={parkedChildren:false};capture.invalidate(page);
-    const restored=project(ink);const restoredRecords=writer.records(restored);
+    const restored=read();const restoredRecords=writer.records(restored);
     assert(restored.options.nativePaint.some(entry=>entry.kind==='highlight'));
     assert.notDeepEqual(reference(cell).currentNode,originalHandle,'Reappearing cell must resolve its new native generation');
     writer.adopt(restoredRecords,[]);

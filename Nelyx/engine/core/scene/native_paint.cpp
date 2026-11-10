@@ -324,7 +324,7 @@ void resolvePaintPlacements(Document& document,uint64_t fontRevision) {
     const auto close=[](double a,double b){return std::abs(a-b)<=1e-5;};
     require(close(node->contentWidth,placement.width)&&close(node->contentHeight,placement.height)&&close(node->baseline,placement.baseline),wire::statuses::stale);
     node->paintTransform=resolvePaintPlacement(*node,document,matrices,matrices[node->parent.slot],operations);
-    slot.value=std::move(node);
+    document.nodes.edit(node->id.slot).value=std::move(node);
   }
 }
 std::shared_ptr<const NativePaint> resolveNodePaint(const Node& node,const Document& document,const PaintMatrices& matrices,uint64_t& operations) {
@@ -397,7 +397,7 @@ void resolveNativePaint(Document& document) {
     }
     node->resolvedPaint=resolveNodePaint(*node,document,matrices,operations);
     for(const auto& e:node->resolvedPaint->entries)if(e.kind==1)node->graphics.path=shapePath(e,document.lease.ledger);
-    slot.value=std::move(node);
+    document.nodes.edit(node->id.slot).value=std::move(node);
   }
 }
 }

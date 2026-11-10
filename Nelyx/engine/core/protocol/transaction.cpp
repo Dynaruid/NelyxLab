@@ -2,6 +2,7 @@
 #include "../scene/document.hpp"
 #include <set>
 #include <algorithm>
+#include <unordered_map>
 #include "../interaction/editing.hpp"
 #include "../interaction/semantics_data.hpp"
 
@@ -17,8 +18,7 @@ uint32_t childLimit(const Node& node) {
     default: return wire::limits::nodes;
   }
 }
-void validate(Document& d) {
-  for(const auto& slot:d.nodes)if(slot.value){const auto& n=*slot.value;
+void validateLocal(const Document& d,const Node& n) {
     if(n.layoutProgram)require((n.kind==wire::kinds::box||n.kind==wire::kinds::stack)&&n.layout.enabled&&
       !n.childAnchor&&!n.intrinsicSizing&&!n.layoutBuilder&&!n.snapshot&&!n.tooltipPosition&&!n.paintOwner&&
       n.layout.constraintFlags==0&&!n.layout.left&&!n.layout.top&&!n.layout.right&&!n.layout.bottom&&
@@ -65,9 +65,46 @@ void validate(Document& d) {
       if(n.resource)if(const auto raw=readRasterImage({n.resource->bytes.data(),n.resource->bytes.size()}))
         require(raw->width==n.imageStyle->width&&raw->height==n.imageStyle->height,wire::statuses::invalidValue);
     }
+}
+void validateContent(const Document& d,const Node& n) {
+  uint32_t count=0;for(const auto child:d.children[n.id.slot])if(!d.get(child).paintPlacement)
+    require(++count<=childLimit(n),wire::statuses::invalidGraph);
+  if(n.fontPinned)require(n.paintPlacement&&n.paintPlacement->fontRevision==n.fontRevision,wire::statuses::invalidValue);
+  if(n.paragraph&&n.paragraph->value.overflowProbe){
+    require((n.kind==wire::kinds::paragraph||(n.kind==wire::kinds::editable&&n.editorViewport.enabled))&&n.layout.enabled,wire::statuses::invalidValue);
+    const auto& probe=*n.paragraph->value.overflowProbe;
+    forParagraphRuns(probe.text,probe.paragraph,[](const auto&,size_t,size_t){});
   }
+  if(n.paragraph&&(!n.paragraph->value.runs.empty()||!n.paragraph->value.placeholders.empty())){
+    require(n.kind==wire::kinds::paragraph&&bool(n.text),wire::statuses::invalidValue);
+    forParagraphRuns(n.text->value,n.paragraph->value,[](const auto&,size_t,size_t){});
+    validateParagraphPlaceholders(n.text->value,n.paragraph->value);
+  }
+  if(n.paragraph&&n.paragraph->value.inlineChildren()){
+    require(n.kind==wire::kinds::paragraph&&n.layout.enabled&&d.children[n.id.slot].size()==n.paragraph->value.placeholders.size(),wire::statuses::invalidGraph);
+    for(const auto child:d.children[n.id.slot])require(!d.get(child).paintPlacement,wire::statuses::invalidGraph);
+  }
+  if(n.paintPlacement)require(!n.semantics&&!n.gestures&&!n.control.kind&&
+    !(n.policy&~(wire::eventPolicies::canonicalHitTest|wire::eventPolicies::deferToChild))&&
+    (n.policy&wire::eventPolicies::deferToChild)&&(!n.paragraph||!n.paragraph->value.inlineChildren()),wire::statuses::invalidValue);
+}
+bool localCommand(uint32_t op){
+  switch(op){
+    case wire::commands::paint:case wire::commands::motion:case wire::commands::text:
+    case wire::commands::paragraphOptions:case wire::commands::paragraphFont:case wire::commands::editor:
+    case wire::commands::semantics:case wire::commands::eventPolicy:case wire::commands::gesture:
+    case wire::commands::control:case wire::commands::clipStyle:case wire::commands::imageStyle:
+    case wire::commands::layoutBuilder:case wire::commands::list:case wire::commands::listItem:
+    case wire::commands::coverage:return true;
+    case wire::commands::registerBlob:case wire::commands::releaseBlob:case wire::commands::useBlob:return true;
+    default:return false;
+  }
+}
+template<class Edit> void validate(Document& d,const Edit& edit) {
+  for(const auto& slot:d.nodes)if(slot.value){++d.work.validationVisits;validateLocal(d,*slot.value);}
   uint32_t semantics=0,editors=0;
   d.framePaintGeometry=false;
+  d.semanticCount=0;
   std::vector<uint32_t> children(d.nodes.size(), 0);
   Lease ownerScratch(d.lease.ledger,d.nodes.size()*sizeof(Handle));
   std::vector<Handle> paintOwners(d.nodes.size());
@@ -77,10 +114,11 @@ void validate(Document& d) {
       require(target.parent==slot.value->id&&target.paintPlacement&&!target.nativePaint,wire::statuses::invalidGraph);
       paintOwners[target.id.slot]=slot.value->id;
     }
-  for(auto& slot:d.nodes)if(slot.value&&slot.value->paintOwner!=paintOwners[slot.value->id.slot]){
-    auto node=std::make_shared<Node>(*slot.value);node->paintOwner=paintOwners[node->id.slot];slot.value=std::move(node);
+  for(const auto& slot:d.nodes)if(slot.value&&slot.value->paintOwner!=paintOwners[slot.value->id.slot]){
+    auto node=edit(slot.value->id,false,false);node->paintOwner=paintOwners[node->id.slot];
   }
-  for (auto& list : d.children) list.clear();
+  std::vector<std::vector<Handle>> ordered(d.nodes.size());
+  Lease childrenScratch(d.lease.ledger,d.nodes.size()*sizeof(std::vector<Handle>)+d.count*sizeof(Handle));
   std::set<std::pair<uint64_t, uint32_t>> order;
   for (const auto& slot : d.nodes) if (slot.value) {
     const Node* n = slot.value.get();
@@ -110,8 +148,9 @@ void validate(Document& d) {
         !(parent.layout.constraintFlags&(wire::layoutConstraintFlags::alignmentSizing|wire::layoutConstraintFlags::inlineScale)),wire::statuses::capabilityMissing);
     }
     if(n->semantics)require(++semantics<=wire::limits::semanticsNodes,wire::statuses::budgetExceeded);
+    d.semanticCount=semantics;
     if(n->kind==wire::kinds::editable)require(++editors<=wire::limits::editors,wire::statuses::budgetExceeded);
-    d.children[n->parent.slot].push_back(n->id);
+    ordered[n->parent.slot].push_back(n->id);
     if (n->parent) {
       const auto& parent = d.get(n->parent);
       if(!paintChild)require(++children[parent.id.slot] <= childLimit(parent), wire::statuses::invalidGraph);
@@ -122,10 +161,11 @@ void validate(Document& d) {
       require(++depth <= wire::limits::depth && p->parent != n->id, wire::statuses::invalidGraph);
     }
   }
-  for (auto& list : d.children) std::sort(list.begin(), list.end(), [&](Handle a, Handle b) {
+  for (auto& list : ordered) std::sort(list.begin(), list.end(), [&](Handle a, Handle b) {
     const auto& first = d.get(a); const auto& second = d.get(b);
     return first.order == second.order ? a.slot < b.slot : first.order < second.order;
   });
+  for(size_t slot=0;slot<ordered.size();++slot)d.children.set(slot,std::move(ordered[slot]));
   for(const auto& slot:d.nodes)if(slot.value&&slot.value->paragraph&&slot.value->paragraph->value.inlineChildren()){
     const auto& n=*slot.value;
     require(n.kind==wire::kinds::paragraph&&n.layout.enabled&&
@@ -160,13 +200,22 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
   auto d = std::make_shared<Document>(*current);
   Resources staged = resources;
   std::set<uint32_t> dirty;
+  std::unordered_map<uint32_t,std::shared_ptr<Node>> edits;
+  std::unordered_map<uint32_t,std::vector<Handle>> childEdits;
+  bool paintOnly=current->graphValidated&&count>0;
+  bool localOnly=paintOnly;
   const auto edit = [&](Handle h, bool layout = true, bool configuration = true) {
     const auto& original = d->get(h);
-    auto copy = std::make_shared<Node>(original);
+    auto& copy=edits[h.slot];
+    if(!copy){copy=std::make_shared<Node>(original);d->nodes.edit(h.slot).value=copy;++d->work.nodeClones;}
     if(configuration)copy->configurationRevision=next(current->epoch);
-    d->nodes[h.slot].value = copy;
     if (layout) dirty.insert(h.slot);
     return copy;
+  };
+  const auto childList=[&](uint32_t parent)->std::vector<Handle>&{
+    auto [entry,added]=childEdits.try_emplace(parent);
+    if(added)entry->second=d->children[parent];
+    return entry->second;
   };
   const auto detach = [&](Handle h) {
     auto node = edit(h);
@@ -175,31 +224,68 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
     const auto old = node->order;
     node->parent = {};
     node->order = 0;
-    if (parent) for (auto& slot : d->nodes) if (slot.value && slot.value->parent == parent &&
-        slot.value->order > old) --edit(slot.value->id)->order;
+    if(parent){
+      auto& siblings=childList(parent.slot);
+      const auto at=std::find(siblings.begin(),siblings.end(),h);
+      require(at!=siblings.end(),wire::statuses::invalidGraph);siblings.erase(at);
+      for(const auto sibling:siblings){++d->work.siblingVisits;
+        if(d->get(sibling).order>old)--edit(sibling)->order;}
+      childList(0).push_back(h);
+    }
   };
   const auto attach = [&](Handle h, Handle parent, uint32_t index, bool moving) {
     d->get(parent);
     require(parent != h, wire::statuses::invalidGraph);
     if (moving) detach(h);
     else require(!d->get(h).parent, wire::statuses::invalidGraph);
-    uint32_t children = 0;
-    for (const auto& slot : d->nodes) if (slot.value && slot.value->parent == parent) ++children;
-    require(index <= children, wire::statuses::invalidGraph);
-    for (auto& slot : d->nodes) if (slot.value && slot.value->parent == parent &&
-        slot.value->order >= index) ++edit(slot.value->id)->order;
+    auto& siblings=childList(parent.slot);
+    require(index<=siblings.size(),wire::statuses::invalidGraph);
+    for(const auto sibling:siblings){++d->work.siblingVisits;
+      if(d->get(sibling).order>=index)++edit(sibling)->order;}
+    auto& roots=childList(0);const auto at=std::find(roots.begin(),roots.end(),h);
+    require(at!=roots.end(),wire::statuses::invalidGraph);roots.erase(at);
+    siblings.insert(siblings.begin()+index,h);
     auto node = edit(h); node->parent = parent; node->order = index;
   };
   size_t position = 0;
   for (uint32_t i = 0; i < count; ++i) {
     body.range(position, 16);
     const auto op = body.u16(position), flags = body.u16(position + 2);
+    paintOnly=paintOnly&&(op==wire::commands::paint||op==wire::commands::motion);
+    localOnly=localOnly&&localCommand(op);
     const auto length = body.u32(position + 4);
     const auto h = handle(body, position + 8);
     require(length >= 16 && length % 8 == 0 && (flags & ~1u) == 0);
     const auto data = body.slice(position + 16, length - 16);
     position += length;
-    if (op == wire::commands::create) {
+    if(op==wire::commands::registerBlob){
+      require(data.length>=8&&data.u32(4)==data.length-8,wire::statuses::invalidValue);
+      const auto kind=data.u32(0);const auto bytes=data.slice(8,data.length-8);
+      require(kind==wire::commands::paragraphOptions||kind==wire::commands::semantics||kind==wire::commands::nativePaint,wire::statuses::capabilityMissing);
+      require(h.slot&&h.slot<d->blobs.size()&&h.generation&&!d->blobs[h.slot].value&&h.generation>=d->blobs[h.slot].generation,wire::statuses::invalidHandle);
+      require(d->blobCount<wire::limits::immutableBlobs&&bytes.length<=wire::limits::immutableBlobBytes-d->blobBytes,wire::statuses::budgetExceeded);
+      auto blob=std::make_shared<ImmutableConfiguration>(d->lease.ledger,h,kind,bytes);
+      if(kind==wire::commands::paragraphOptions)blob->paragraph=std::make_shared<ParagraphData>(d->lease.ledger,readParagraph(bytes));
+      else if(kind==wire::commands::semantics)blob->semantics=readSemanticData(d->lease.ledger,bytes);
+      else blob->paint=readNativePaint(d->lease.ledger,bytes);
+      d->blobs.edit(h.slot)={h.generation,std::move(blob)};++d->blobCount;d->blobBytes+=bytes.length;
+      ++d->work.blobRegistrations;d->work.blobBytes+=bytes.length;
+    }else if(op==wire::commands::releaseBlob){
+      require(!data.length&&h.slot&&h.slot<d->blobs.size()&&d->blobs[h.slot].value&&d->blobs[h.slot].value->id==h,wire::statuses::invalidHandle);
+      require(h.generation!=UINT32_MAX,wire::statuses::exhausted);
+      d->blobBytes-=d->blobs[h.slot].value->bytes.size();--d->blobCount;d->blobs.edit(h.slot)={h.generation+1,nullptr};
+    }else if(op==wire::commands::useBlob){
+      require(data.length==16&&!data.u32(12));const auto id=handle(data,0);
+      require(id.slot&&id.slot<d->blobs.size()&&d->blobs[id.slot].value&&d->blobs[id.slot].value->id==id,wire::statuses::invalidHandle);
+      const auto& blob=*d->blobs[id.slot].value;require(data.u32(8)==blob.command,wire::statuses::invalidValue);
+      if(blob.command==wire::commands::paragraphOptions){const auto& previous=d->get(h);
+        require(previous.kind==wire::kinds::paragraph||previous.kind==wire::kinds::editable,wire::statuses::capabilityMissing);
+        const bool changed=!previous.paragraph||previous.paragraph->value!=blob.paragraph->value;
+        auto node=edit(h,changed);node->paragraph=blob.paragraph;
+      }else if(blob.command==wire::commands::semantics)edit(h,false)->semantics=blob.semantics;
+      else {localOnly=false;auto node=edit(h,false);node->nativePaint=blob.paint;node->resolvedPaint.reset();}
+      ++d->work.blobBindings;
+    }else if (op == wire::commands::create) {
       require(data.length == wire::nodeCreationBytes ||
         (data.length == wire::nodeAttachedCreationBytes && data.u32(wire::nodeCreationFields::reserved) == 0));
       const auto kind = data.u32(0), initial = data.u32(4);
@@ -217,7 +303,9 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
         ? wire::layoutChildConstraints::inherit : wire::layoutChildConstraints::loose;
       n->policy = (initial & wire::nodeCreationFlags::canonicalHitTest)
         ? wire::eventPolicies::canonicalHitTest : 0u;
-      d->nodes[h.slot] = {h.generation, std::move(n)};
+      edits[h.slot]=n;
+      d->nodes.edit(h.slot) = {h.generation, std::move(n)};
+      childList(0).push_back(h);
       dirty.insert(h.slot);
       ++d->count;
       d->highWater = std::max(d->highWater, h.slot);
@@ -253,7 +341,10 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       const auto& node = d->get(h);
       require(!node.parent, wire::statuses::invalidGraph);
       require(h.generation != UINT32_MAX, wire::statuses::exhausted);
-      d->nodes[h.slot] = {h.generation + 1, nullptr}; --d->count;
+      auto& roots=childList(0);const auto at=std::find(roots.begin(),roots.end(),h);
+      require(at!=roots.end(),wire::statuses::invalidGraph);roots.erase(at);
+      edits.erase(h.slot);
+      d->nodes.edit(h.slot) = {h.generation + 1, nullptr}; --d->count;
     } else if (op == wire::commands::acquireResource) {
       require(data.length >= 8 && data.u32(4) == 0 && data.u32(0) <= data.length - 8 &&
         (data.u32(0) + 7u) / 8u * 8u == data.length - 8);
@@ -603,10 +694,27 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
     } else require((flags & 1u) != 0, wire::statuses::incompatible);
   }
   require(position == body.length);
-  for(const auto& slot:d->nodes)if(slot.value&&slot.value->fontPinned)
-    require(slot.value->paintPlacement&&slot.value->paintPlacement->fontRevision==slot.value->fontRevision,wire::statuses::invalidValue);
-  validate(*d);
-  validateGraphics(*d);
+  for(auto& [parent,children]:childEdits)d->children.set(parent,std::move(children));
+  if(localOnly){
+    ++d->work.incrementalValidations;
+    if(!paintOnly){
+      int64_t semantics=current->semanticCount;
+      for(const auto& [slot,node]:edits){
+        ++d->work.validationVisits;
+        validateLocal(*d,*node);validateContent(*d,*node);
+        semantics+=int(bool(node->semantics))-int(bool(current->get(node->id).semantics));
+      }
+      require(semantics>=0&&semantics<=wire::limits::semanticsNodes,wire::statuses::budgetExceeded);
+      d->semanticCount=uint32_t(semantics);
+    }
+  }else {
+    ++d->work.fullValidations;
+    for(const auto& slot:d->nodes)if(slot.value&&slot.value->fontPinned)
+      require(slot.value->paintPlacement&&slot.value->paintPlacement->fontRevision==slot.value->fontRevision,wire::statuses::invalidValue);
+    validate(*d,edit);
+    validateGraphics(*d);
+  }
+  d->graphValidated=true;
   d->epoch = next(current->epoch);
   std::set<uint32_t> invalidated;
   for (const auto slot : dirty) if (d->nodes[slot].value) {

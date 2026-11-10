@@ -4,6 +4,30 @@ import type { EngineNodeSnapshot, NodeHandle, AffineMatrix, TextRect } from './c
 
 type Row = { data: DataView; at: number; cache: Record<string, unknown> };
 const rows = new WeakMap<object, Row>();
+/** @internal Retained deltas must not pin a large transport packet for a few
+ * surviving rows. Relocation changes storage only, never snapshot values or
+ * row identity, including values already materialized by lazy getters. */
+export function observationBacking(node: EngineNodeSnapshot): DataView | undefined {
+  return rows.get(node)?.data;
+}
+export function compactObservationRows(nodes: readonly EngineNodeSnapshot[]): DataView {
+  const bytes = new Uint8Array(nodes.length * p.nodeBytes),
+    data = new DataView(bytes.buffer);
+  nodes.forEach((node, index) => {
+    const row = rows.get(node);
+    if (!row) throw Error('Only owned observation rows can be compacted');
+    bytes.set(
+      new Uint8Array(row.data.buffer, row.data.byteOffset + row.at, p.nodeBytes),
+      index * p.nodeBytes,
+    );
+  });
+  nodes.forEach((node, index) => {
+    const row = rows.get(node)!;
+    row.data = data;
+    row.at = index * p.nodeBytes;
+  });
+  return data;
+}
 const scalarOffsets = [
   24,
   32,

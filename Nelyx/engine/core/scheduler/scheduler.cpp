@@ -46,6 +46,7 @@ bool View::endDeferredInput(uint32_t stream,bool cancelPending) {
 }
 void View::cancelStream(uint32_t stream, uint32_t reason) {
   auto& s = streams.at(stream);
+  observations[0].mark(s.target);
   if(s.active&&s.pointer)canonicalCancel(s,lastInput);
   s.capturedPublications.fill(nullptr);
   s.appPending.reset();
@@ -86,6 +87,7 @@ void View::close(uint32_t reason) {
   if (demand) event({wire::events::skipped, reason, 0, demand->epoch});
   closed = true;
   snapshots.clear();
+  for(auto& observation:observations)observation.clear();
   if(fontUpload){fontUpload.reset();fontUploadStatus=3;}
   if(imageUpload){imageUpload.reset();imageUploadStatus=3;}
   if(fontTransition.phase==wire::fontTransitionPhases::preparing){
@@ -434,7 +436,7 @@ void View::activate() {
   auto scene = std::make_shared<Scene>(Scene{p.document, p.metrics, epoch, p.id,
     p.layout ? p.layout->output() : nullptr});
   try{
-    Lease scratch(lease.ledger,sizeof(Frame)+(p.document->highWater+1)*(sizeof(Property)+sizeof(FrameSemantics))+p.document->count*(sizeof(DrawItem)+sizeof(ClipShape)+sizeof(HitRegionShape)));
+    Lease scratch(lease.ledger,sizeof(Frame)+(p.document->highWater+1)*(sizeof(Property)+sizeof(FrameSemantics)+sizeof(uint32_t))+p.document->count*(sizeof(DrawItem)+sizeof(ClipShape)+sizeof(HitRegionShape)+sizeof(uint32_t)+sizeof(Handle)));
     Frame check;check.scene=scene;check.properties.resize(p.document->highWater+1);
     for(const auto& slot:p.document->nodes)if(slot.value){const auto& n=*slot.value;auto& property=check.properties[n.id.slot];property.opacity=1;
       const auto old=overlays.find(n.id.key());property.offset=activationOffset(*this,*p.document,n,old==overlays.end()?0:old->second.offset);}
@@ -460,6 +462,7 @@ void View::activate() {
     const auto& overlay = it->second;
     if (!p.document->contains(overlay.node) ||
         (active && active->document->get(overlay.node).kind != p.document->get(overlay.node).kind)) {
+      observations[0].mark(overlay.node);observations[0].orderDirty=true;
       if (overlay.motion && !overlay.motionDone) event({wire::events::motionTerminal, wire::statuses::canceled,
         overlay.motion, p.document->epoch, 0, overlay.node});
       for (uint32_t i = 1; i <= wire::limits::streams; ++i)
@@ -469,6 +472,12 @@ void View::activate() {
   }
   for (const auto& slot : p.document->nodes) if (slot.value) {
     const auto& n = *slot.value;
+    if(!active||!active->document->contains(n.id)){
+      observations[0].mark(n.id);observations[0].orderDirty=true;
+    }else {const auto& old=active->document->get(n.id);
+      if(!sameObservationNode(n,old))observations[0].mark(n.id);
+      if(n.parent!=old.parent||n.order!=old.order)observations[0].orderDirty=true;
+    }
     auto [it, inserted] = overlays.try_emplace(n.id.key());
     auto& o = it->second;
     if (inserted) { o.node = n.id; o.opacity = n.properties.opacity;
@@ -530,8 +539,12 @@ void View::activate() {
       }
     }
     if (!o.motion) o.opacity = n.properties.opacity;
+    if(n.kind==wire::kinds::scrollViewport){observations[0].mark(n.id);
+      for(const auto child:p.document->children[n.id.slot])if(p.document->get(child).listGeometry)
+        for(auto& state:observations)state.mark(child);}
   }
   installTapRegions(*scene->document,scene->layout.get());
+  scene->fontRevision=p.fontRevision;
   active = std::move(scene); nextScene = epoch; ++activated; dirty = true;
   if (active->document->epoch >= failedDocument) failedDocument = 0;
   event({wire::events::activated, wire::statuses::ok, p.id, p.document->epoch, epoch});
@@ -615,6 +628,7 @@ uint32_t View::enqueue(Input p) {
   return wire::statuses::ok;
 }
 void View::needContent(const Node& n, Overlay& o, uint32_t stream) {
+  observeOverlay(n.id);
   if (o.needSent) return;
   o.needSent = true; ++coverageRequests;
   event({wire::events::needChildren,wire::statuses::contentUnavailable,n.coverage.revision,
@@ -623,17 +637,20 @@ void View::needContent(const Node& n, Overlay& o, uint32_t stream) {
     active->document->epoch,stream,n.id});
 }
 void View::applyDelta(Handle h, double delta, uint32_t stream,const Frame* snapshot) {
+  observeOverlay(h);
   if (!active) return;
   const auto* geometry=snapshot?snapshot:published.get();std::optional<Point> remainder;
   for (uint32_t depth = 0; h && depth <= wire::limits::depth; ++depth) {
     if (!active->document->contains(h)) return;
     const auto& n = active->document->get(h);
     if(n.editorViewport.enabled){
+      observeOverlay(h);
       auto& o=overlays.at(h.key());
       const double target=std::clamp(o.requested+delta,n.properties.minimum,n.properties.maximum);
       if(target!=o.requested){o.requested=target;requestContent();dirty=true;return;}
     }
     if (n.kind == wire::kinds::scrollViewport) {
+      observeOverlay(h);
       if(remainder){if(!geometry)return;const auto local=geometry->delta(h,remainder->x,remainder->y);delta=(n.properties.flags&1u)?local.x:local.y;if(std::abs(delta)<1e-12)return;}
       auto& o = overlays.at(h.key());
       if (o.deferred && (o.requested-o.offset)*delta < 0) {
@@ -673,6 +690,7 @@ void View::advanceDeferred(double dt) {
   for (auto& entry : overlays) {
     auto& o = entry.second;
     if (!o.deferred) continue;
+    observeOverlay(o.node);
     if ((o.deferredStream && !streams[o.deferredStream].active) || !active->document->contains(o.node)) {
       o.deferred = false; o.requested = o.offset; continue;
     }
@@ -760,6 +778,7 @@ uint32_t View::listSeek(Reader r,uint64_t id) {
   command.index=r.u32(24);command.alignment=r.f64(32);
   command.listOffset=numeric;
   auto& overlay=overlays.at(viewport.key());
+  observeOverlay(viewport);
   overlay.requested=numeric&&n.list.sequential?r.f64(32):target;overlay.needSent=false;
   if(!seekOffset(*active->document,command))needContent(parent,overlay,0);
   dirty=true;
@@ -771,6 +790,7 @@ void View::processInput(Input p) {
   if(p.flags&2u){pointer(p);return;}
   auto& stream = streams[p.stream];
   if (!p.target) p.target = (stream.active || (p.phase==wire::phases::cancel&&stream.source==p.source)) ? stream.target : target(p.x, p.y,p.snapshot.get());
+  observations[0].mark(p.target);
   if (p.metrics != metrics.epoch || !p.snapshot || !published || !active ||
       p.snapshot->scene->metrics.epoch != p.metrics ||
       !p.snapshot->scene->document->contains(p.target) || !published->allows(p.target) ||
@@ -873,6 +893,7 @@ void View::tick(double now) {
   }
   if (visible && active && metrics.width > 0 && metrics.height > 0) for (auto& entry : overlays) {
     auto& o = entry.second;
+    if(o.ballistic||(o.motion&&!o.motionDone)||active->document->get(o.node).control.kind==wire::controlKinds::activity)observeOverlay(o.node);
     if(active->document->get(o.node).control.kind==wire::controlKinds::activity&&(!published||published->allows(o.node))){o.value=std::fmod(time,1.0);dirty=true;}
     if (o.ballistic && !o.deferred) {
       // A temporary cache boundary is not the end of the scroll extent.
@@ -918,7 +939,7 @@ void View::revealFocus() {
     if(editor==editors.end()||!node.textGeometry||node.textGeometry->revision!=editor->second->value->revision)return;
     const auto& caret=node.textGeometry->caret;local={caret.x,caret.y,caret.width,caret.height};
   }
-  Lease scratch(lease.ledger,sizeof(Frame)+(geometry.highWater+1)*(sizeof(Property)+sizeof(FrameSemantics))+geometry.count*(sizeof(DrawItem)+sizeof(ClipShape)+sizeof(HitRegionShape)));
+  Lease scratch(lease.ledger,sizeof(Frame)+(geometry.highWater+1)*(sizeof(Property)+sizeof(FrameSemantics)+sizeof(uint32_t))+geometry.count*(sizeof(DrawItem)+sizeof(ClipShape)+sizeof(HitRegionShape)+sizeof(uint32_t)+sizeof(Handle)));
   Frame frame;frame.scene=active;frame.properties.resize(geometry.highWater+1);
   for(const auto& [key,o]:overlays){auto& property=frame.properties[o.node.slot];
     property.node=o.node;property.offset=o.offset;property.opacity=o.opacity;}
@@ -953,6 +974,7 @@ void View::revealFocus() {
 }
 void View::advanceCaret() {
   const bool before = caretVisible;
+  const auto previousNode=caretNode;
   const auto current = editors.find(focusNode.key());
   const bool eligible = visible && focused && focusNode && active &&
       metrics.width > 0 && metrics.height > 0 && active->metrics.epoch == metrics.epoch &&
@@ -979,7 +1001,7 @@ void View::advanceCaret() {
       caretDeadline = time + period - std::fmod(time - caretDeadline, period);
     }
   }
-  if (before != caretVisible) dirty = true;
+  if (before != caretVisible) {dirty = true;observations[1].mark(previousNode);observations[1].mark(caretNode);}
 }
 double View::nextDeadline() const {
   double deadline = 0;
@@ -1057,8 +1079,17 @@ void View::publish(uint64_t id, uint64_t device, uint64_t commit) {
   auto& f = it->second;
   auto snapshot=std::make_shared<Frame>(f);
   snapshot->snapshotLease=std::make_shared<Lease>(lease.ledger,sizeof(Frame)+
-    snapshot->properties.size()*sizeof(Property)+snapshot->semantics.size()*sizeof(FrameSemantics)+snapshot->items.size()*sizeof(DrawItem)+snapshot->clips.size()*sizeof(ClipShape)+snapshot->hitRegions.size()*sizeof(HitRegionShape));
+    snapshot->properties.size()*sizeof(Property)+snapshot->semantics.size()*sizeof(FrameSemantics)+snapshot->items.size()*sizeof(DrawItem)+snapshot->clips.size()*sizeof(ClipShape)+snapshot->hitRegions.size()*sizeof(HitRegionShape)+(snapshot->observationRows.capacity()+snapshot->itemBySlot.capacity())*sizeof(uint32_t)+snapshot->observationRemoved.capacity()*sizeof(Handle));
   snapshot->resolveRoute(published.get(),routeSequence,lease.ledger);
+  auto& observation=observations[1];
+  if(observation.version){
+    if(snapshot->observationBase!=publication)observation.fullRequired=true;
+    for(const auto index:snapshot->observationRows)observation.mark(snapshot->items[index].node);
+    for(const auto node:snapshot->observationRemoved)observation.mark(node);
+    observation.orderDirty|=snapshot->observationOrderChanged;
+  }
+  for(const auto index:snapshot->observationRows){const auto node=snapshot->items[index].node;
+    if(!published||!published->scene->document->contains(node))observations[0].mark(node);}
   // Paint-only App documents must not retire packets collected before capture
   // exists. Retain the same bounded window only while it shares input geometry;
   // enqueue still validates the exact hit target and its complete ancestor path.

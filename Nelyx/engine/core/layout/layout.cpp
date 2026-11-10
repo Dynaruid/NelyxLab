@@ -689,7 +689,7 @@ struct LayoutWork::State {
               std::max(0.0,origin+list.end-(h?n->properties.width:n->properties.height)),true};
           require(n->coverage.minimum<=n->coverage.maximum,wire::statuses::contentUnavailable);}
       }
-      derived->nodes[n->id.slot].value = n;
+      derived->nodes.edit(n->id.slot).value = n;
       result->boxes[n->id.slot] = f.box;
       for (const auto &child : f.box->children)
         flatten.push_back({child.box, child.x, child.y, f.hidden||!child.visible,child.scaleX,child.scaleY});

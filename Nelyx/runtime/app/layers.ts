@@ -12,7 +12,7 @@ import type { SceneNodeOptions } from '../engine-client/scene.ts';
 import { Alignment } from '@nelyx/core/framework/painting/alignment';
 import { protocol as p } from '../engine-client/schema.ts';
 const owners = new WeakMap<LayerLink, OriginalLayers>();
-interface Binding {
+export interface OriginalLayerBinding {
   readonly render: RenderLeaderLayer | RenderFollowerLayer;
   readonly link: LayerLink;
   readonly configuration?: {
@@ -21,6 +21,7 @@ interface Binding {
     readonly followerAnchor: Alignment;
   };
 }
+type Binding = OriginalLayerBinding;
 
 /** Resolve Source link identities; Content owns every linked transform and anchor. */
 export class OriginalLayers {
@@ -34,15 +35,41 @@ export class OriginalLayers {
   private state: EngineResponse | undefined;
   private notified = 0n;
   private closed = false;
+  private projection: Binding[] = [];
+  private projectionRevision = -1;
   constructor(
     private readonly owner: object,
     private readonly fail: (reason: string) => never,
     private readonly handle: (render: RenderObject) => NodeHandle | null,
   ) {}
   begin(): void {
-    this.leaders.clear();
+    if (this.projectionRevision < 0) this.leaders.clear();
     this.prepared = [];
     for (const render of this.mirrors) if (render.debugDisposed) this.mirrors.delete(render);
+  }
+  project(bindings: Iterable<OriginalLayerBinding>, revision: number): void {
+    if (revision === this.projectionRevision) {
+      this.prepared = this.projection;
+      return;
+    }
+    this.leaders.clear();
+    this.prepared = [];
+    for (const binding of bindings) this.register(binding);
+    this.projection = this.prepared;
+    this.projectionRevision = revision;
+  }
+  private register(binding: Binding): void {
+    const { render, link } = binding,
+      owner = owners.get(link);
+    if ((owner && owner !== this) || (link.leader?.owner && link.leader.owner !== this.owner))
+      this.fail('foreign-layer-link');
+    this.prepared.push(binding);
+    owners.set(link, this);
+    this.links.add(link);
+    if (render instanceof RenderLeaderLayer) {
+      if (this.leaders.has(link)) this.fail('duplicate-layer-leader');
+      this.leaders.set(link, render);
+    }
   }
   accept(epoch: bigint): void {
     if (this.closed) return;
@@ -55,11 +82,15 @@ export class OriginalLayers {
   }
   reject(): void {
     this.prepared = [];
+    this.projectionRevision = -1;
     this.releaseUnusedOwners();
   }
   private releaseUnusedOwners(): void {
+    const pinned = new Set(this.acceptedLinks);
+    for (const bindings of this.snapshots.values())
+      for (const binding of bindings) pinned.add(binding.link);
     for (const link of this.links)
-      if (!this.acceptedLinks.has(link)) {
+      if (!pinned.has(link)) {
         if (owners.get(link) === this) owners.delete(link);
         this.links.delete(link);
       }
@@ -87,6 +118,7 @@ export class OriginalLayers {
       if (this.snapshots.size <= p.limits.publicationSnapshots) break;
       if (!pinned.has(epoch)) this.snapshots.delete(epoch);
     }
+    this.releaseUnusedOwners();
   }
   private synchronize(): void {
     const frame = this.publication;
@@ -116,7 +148,10 @@ export class OriginalLayers {
     if (errors.length)
       throw new AggregateError(errors, 'Native composition observation callbacks failed');
   }
-  configuration(render: RenderObject): SceneNodeOptions | undefined {
+  configuration(
+    render: RenderObject,
+    retain?: (binding: OriginalLayerBinding) => void,
+  ): SceneNodeOptions | undefined {
     const prototype = Object.getPrototypeOf(render);
     if (prototype !== RenderLeaderLayer.prototype && prototype !== RenderFollowerLayer.prototype)
       return;
@@ -129,7 +164,7 @@ export class OriginalLayers {
       this.fail('foreign-layer-link');
     // Registration follows the projected scene. Source can retain offscreen
     // list children whose native nodes have already left this transaction.
-    this.prepared.push({
+    const binding: Binding = {
       render: source,
       link: source.link,
       ...(source instanceof RenderFollowerLayer
@@ -141,12 +176,10 @@ export class OriginalLayers {
             }),
           }
         : {}),
-    });
-    owners.set(source.link, this);
-    this.links.add(source.link);
+    };
+    if (retain) retain(binding);
+    else this.register(binding);
     if (source instanceof RenderLeaderLayer) {
-      if (this.leaders.has(source.link)) this.fail('duplicate-layer-leader');
-      this.leaders.set(source.link, source);
       return { layerLink: { kind: 'leader' } };
     }
     return {
@@ -177,6 +210,8 @@ export class OriginalLayers {
       }
     this.mirrors.clear();
     this.snapshots.clear();
+    this.projection = [];
+    this.projectionRevision = -1;
     this.prepared = [];
     this.acceptedLinks.clear();
     this.publication = undefined;

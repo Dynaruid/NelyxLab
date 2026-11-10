@@ -18,6 +18,7 @@ try {
       import { createPacketTransport } from './Nelyx/runtime/engine-client/message-port.ts';
       import { EngineViewClient } from './Nelyx/runtime/engine-client/client.ts';
       import { SceneWriter, SceneNode, SceneReference } from './Nelyx/runtime/engine-client/scene.ts';
+      import { OriginalWidgetHost } from './Nelyx/runtime/app/host.ts';
       import { protocol as p } from './Nelyx/runtime/engine-client/schema.ts';
       import { response } from './Nelyx/runtime/engine-client/codec.ts';
       // A large observation exercises per-handle blob association, duplicate
@@ -69,6 +70,34 @@ try {
       packet.setUint32(blobStart + 12, 2, true);
       assert.throws(() => response(observation), /Foreign layout/);
       const turn = () => new Promise(resolve => setImmediate(resolve));
+      {
+        const observed={events:[],gestureRequests:[],interactionCount:0};
+        const host=new SceneWriter({pollInteractionEvents:async()=>observed} as any,{pollEvents:false}) as any;
+        let pending,inject=false,visits=0;
+        Object.defineProperty(host,'observationPending',{
+          get(){if(!pending&&inject){inject=false;queueMicrotask(()=>{pending=observed;});}return pending;},
+          set(value){pending=value;},
+        });
+        host.observeScene=async()=>{if(++visits===1)inject=true;};
+        await host.pollEvents();await turn();
+        assert.equal(visits,2,'observation completion stranded the final publication');
+        assert.equal(host.observationRunning,undefined);
+        assert.equal(pending,undefined);
+      }
+      // A final callback can land after perform's last loop condition but
+      // before the owner promise clears. This models route retirement in the
+      // completion microtask, with no unrelated future notification to rescue it.
+      for(const kind of ['widget','scene']) {
+        const host=kind==='widget'?Object.create(OriginalWidgetHost.prototype):new SceneWriter({} as any,{pollEvents:false});
+        host.closed=false;host.rerun=false;host.focusing={finishPoll(){}};
+        let passes=0;
+        host.perform=()=>{host.rerun=false;++passes;return Promise.resolve().then(()=>{
+          if(passes===1)queueMicrotask(()=>kind==='widget'?host.schedule():void host.flush());
+        });};
+        await host.flush();await turn();
+        assert.equal(passes,2,kind+' completion lost its final invalidation');
+        assert.equal(host.running,undefined);
+      }
       let receive, closed = false;
       const transport = createPacketTransport({ notifications: true,
         subscribe(callback) { receive = callback; return () => { receive = undefined; }; },
@@ -136,12 +165,12 @@ try {
         nodes:[{node:{slot:1,generation:1}}] };
       const observations:number[] = [];
       const projected = new SceneWriter({pollInteractionEvents:async()=>observationState,
-        request:async(op,data)=>{ assert.equal(new DataView(data.buffer).getUint32(0,true),
-          op===p.opcodes.layoutSnapshot?p.inspectionFlags.appLayoutSelection:p.inspectionFlags.appObservation);
-          if(op===p.opcodes.layoutSnapshot)assert.equal(data.length,16,'one observer request, not the full scene');
+        observeApp:async(op,selection)=>{
+          if(op===p.opcodes.layoutSnapshot)assert.equal(selection.length,1,'one registered observer, not the full scene');
           observations.push(op); return observationState; }} as any,
         {appObservations:true,pollEvents:false,onPublication:()=>{}}) as any;
-      projected.accepted = new Map([['1:1',{handle:{slot:1,generation:1},node:{options:{onLayout:()=>{}}}}]]);
+      const observedReference = new SceneReference();
+      projected.adopt(projected.records(new SceneNode(observedReference,'box',[],{onLayout:()=>{}})),[]);
       await projected.pollEvents(); assert.equal(observations.length,2);
       observationState = {...observationState,lastInput:2n,consumedThrough:2n};
       await projected.pollEvents(); assert.equal(observations.length,2,'input serial alone must not recopy an unchanged App observation');
@@ -151,6 +180,33 @@ try {
       observationState = {...observationState,publication:2n};
       await projected.pollEvents(); assert.equal(observations.at(-1),p.opcodes.semanticsSnapshot);
       assert.equal(observations.length,4,'new published geometry must still be observed');
+      projected.adopt(projected.records(new SceneNode(observedReference,'box',[],{onLayout:()=>{}})),[]);
+      await projected.pollEvents();
+      assert.equal(observations.length,5,'A replaced layout subscription needs a current observation without a document change');
+      projected.adopt(projected.records(new SceneNode(observedReference,'box')),[]);
+      observationState={...observationState,property:3n};await projected.pollEvents();
+      assert.equal(observations.length,5,'A removed layout subscription must stop requesting rows');
+      for (const merged of [false,true]) {
+        const queued: (()=>void)[] = [];let actions=0;
+        const input = new SceneWriter({} as any,{pollEvents:false,
+          onInputEvent:(_event,perform)=>queued.push(perform)}) as any;
+        const root=new SceneReference(),target=new SceneReference();
+        input.adopt(input.records(new SceneNode(root,'stack')),[]);
+        const desired=input.records(new SceneNode(root,'stack',[
+          new SceneNode(target,'box',[],{semantics:{role:'button',label:'OK'},onAction:()=>++actions})
+        ]));
+        const targetRecord=[...desired.values()].find(record=>record.node.reference===target),
+          rootRecord=[...input.accepted.values()][0];
+        const event={kind:p.events.semanticAction,node:merged?rootRecord.handle:targetRecord.handle,
+          ...(merged?{semanticSource:targetRecord.handle}:{}),detail:BigInt(p.semanticsActions.activate),id:1n};
+        await input.deliverInput({gestureRequests:[],events:[event]});
+        input.adopt(desired,[]);for(const perform of queued.splice(0))perform();
+        assert.equal(actions,1,'Core admitted a published semantic action before its Source ACK was adopted');
+        await input.deliverInput({gestureRequests:[],events:[event]});
+        input.adopt(input.records(new SceneNode(root,'stack')),[]);
+        for(const perform of queued.splice(0))perform();
+        assert.equal(actions,1,'A retired Source action must not run after the checkpoint');
+      }
       let finishObservation, slowPolls=0, snapshotRequests=0;
       const states:number[]=[];
       const slow = new SceneWriter({subscribeChanges:client.subscribeChanges,
@@ -168,7 +224,7 @@ try {
       console.log('Notification transport, lost wake, coalescing, queue drain, idle and close checks passed.');
     `,
     },
-    logOverride: { 'package.json': 'silent' },
+    logOverride: { 'package.json': 'silent', 'ignored-bare-import': 'silent' },
     bundle: true,
     write: false,
     format: 'esm',

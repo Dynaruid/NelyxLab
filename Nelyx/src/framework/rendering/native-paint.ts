@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import type { RenderBox } from './object.ts';
+import type { RenderBox, RenderObject } from './object.ts';
 import type { ResourceId } from '../../ui/types.ts';
 import type { NativeSemanticsMetadata } from './native-semantics.ts';
 import { StadiumBorder } from '../painting/stadium-border.ts';
@@ -191,6 +191,7 @@ export type NativeRenderMetadata =
       readonly absorbHitTest: boolean;
       /** Includes live features whose reference is temporarily not painted. */
       readonly dependsOnChildVisibility?: boolean;
+      readonly dependencies?: readonly RenderObject[];
     }
   | { readonly kind: 'border'; readonly shape: NativeShape | null };
 type MetadataDirection = 'ltr' | 'rtl' | null;

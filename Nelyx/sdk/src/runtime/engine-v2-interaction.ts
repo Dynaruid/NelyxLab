@@ -9,6 +9,7 @@ import {
   focusBody,
   semanticActionBody,
   stateInspectionBody,
+  browserObservationBody,
   keyBody,
 } from '@nelyx/core/engine';
 import type {
@@ -20,6 +21,7 @@ import type {
   SemanticCustomAction,
 } from '@nelyx/core/engine';
 import { EngineV2BrowserSemantics } from './engine-v2-semantics.js';
+import { setManagedStyles, setManagedAttribute, setManagedText } from './engine-v2-dom.js';
 import { CheckedState, Tristate, readSemanticsFlagWord } from '@nelyx/core/ui/semantics';
 import type { SemanticsFlagWord } from '@nelyx/core/ui/semantics';
 
@@ -47,6 +49,8 @@ export class EngineV2BrowserInteraction {
     edits: 0,
     actions: 0,
     snapshots: 0,
+    skippedProjections: 0,
+    domStyleWrites: 0,
     peers: 0,
     rejected: 0,
     routeAnnouncements: 0,
@@ -64,6 +68,7 @@ export class EngineV2BrowserInteraction {
   private queued = 0;
   private queuedBytes = 0;
   private publication = 0n;
+  private installedProjection: string | undefined;
   private active: Peer | undefined;
   private applying = false;
   private canonicalKeyboard = false;
@@ -214,7 +219,7 @@ export class EngineV2BrowserInteraction {
   ) {
     this.layer = document.createElement('div');
     this.layer.dataset.nelyxV2Semantics = '';
-    Object.assign(this.layer.style, {
+    this.counters.domStyleWrites += setManagedStyles(this.layer, {
       position: 'fixed',
       pointerEvents: 'none',
       zIndex: '1',
@@ -251,7 +256,7 @@ export class EngineV2BrowserInteraction {
   }
   private position(): void {
     const r = this.canvas.getBoundingClientRect();
-    Object.assign(this.layer.style, {
+    this.counters.domStyleWrites += setManagedStyles(this.layer, {
       left: `${r.left}px`,
       top: `${r.top}px`,
       width: `${r.width}px`,
@@ -277,6 +282,7 @@ export class EngineV2BrowserInteraction {
     return result;
   }
   private async call(op: number, data?: Uint8Array): Promise<EngineResponse> {
+    if (op === p.opcodes.semanticsSnapshot && data === undefined) data = browserObservationBody();
     const result = response(await this.exchange(packet(op, owner, data)));
     if (result.status !== p.statuses.ok)
       throw new Error(`Browser interaction rejected (${result.status})`);
@@ -284,7 +290,9 @@ export class EngineV2BrowserInteraction {
   }
   private async dispatch(peer: Peer, action: 'focus' | 'activate'): Promise<EngineResponse | null> {
     for (let attempt = 0; attempt < 3; ++attempt) {
-      const scene = response(await this.exchange(packet(p.opcodes.semanticsSnapshot, owner)));
+      const scene = response(
+        await this.exchange(packet(p.opcodes.semanticsSnapshot, owner, browserObservationBody())),
+      );
       if (scene.status !== p.statuses.ok) return null;
       const current = scene.nodes.find((n) => key(n.node) === key(peer.node.node));
       if (!current) return null;
@@ -389,7 +397,11 @@ export class EngineV2BrowserInteraction {
       if (this.forced.size >= 32 || held + bytes.length > p.limits.packetBytes)
         return this.reply(bytes, p.statuses.budgetExceeded);
       const owned = bytes.slice();
-      const entry: { bytes: Uint8Array; result: Promise<Uint8Array>; settled: boolean } = {
+      const entry: {
+        bytes: Uint8Array;
+        result: Promise<Uint8Array>;
+        settled: boolean;
+      } = {
         bytes: owned,
         result: Promise.resolve(new Uint8Array()),
         settled: false,
@@ -521,12 +533,26 @@ export class EngineV2BrowserInteraction {
     this.syncing = true;
     void this.enqueue(async () => {
       this.wanted = false;
-      const state = response(await this.exchange(packet(p.opcodes.semanticsSnapshot, owner)));
+      // Content/builder/ACK notifications often leave the published geometry
+      // unchanged. Inspect the small state first; live editing/focus/control
+      // and metric/device changes still invalidate the projection.
+      const current = await this.call(p.opcodes.inspect, stateInspectionBody());
+      if (current.closed || this.closed) return;
+      if (this.projectionKey(current) === this.installedProjection) {
+        ++this.counters.skippedProjections;
+        this.position();
+        this.installFocus(current);
+        return;
+      }
+      const state = response(
+        await this.exchange(packet(p.opcodes.semanticsSnapshot, owner, browserObservationBody())),
+      );
       if (state.status === p.statuses.notFound || state.closed) return;
       if (state.status !== p.statuses.ok)
         throw new Error(`Semantics snapshot rejected (${state.status})`);
       ++this.counters.snapshots;
       this.install(state);
+      this.installedProjection = this.projectionKey(state);
     })
       .catch((e) => {
         if (!this.closed) this.failed(String(e));
@@ -535,6 +561,21 @@ export class EngineV2BrowserInteraction {
         this.syncing = false;
         if (this.wanted && !this.closed) this.update();
       });
+  }
+  private projectionKey(state: EngineResponse): string {
+    return [
+      state.publication,
+      state.property,
+      state.metrics,
+      state.device,
+      state.fontRevision,
+      state.editingWork,
+      state.focusWork,
+      state.controlWork,
+      state.canonicalKeyboard,
+      state.visible,
+      state.focused,
+    ].join('/');
   }
   private installValue(peer: Peer, value: EditingSnapshot): void {
     if (peer.value && value.revision < peer.value.revision) return;
@@ -619,7 +660,7 @@ export class EngineV2BrowserInteraction {
     if (this.closed || state.publication < this.publication) return;
     this.publication = state.publication;
     this.canonicalKeyboard = state.canonicalKeyboard;
-    if (this.canonicalKeyboard) this.canvas.tabIndex = 0;
+    if (this.canonicalKeyboard && this.canvas.tabIndex !== 0) this.canvas.tabIndex = 0;
     this.position();
     const byNode = new Map(state.nodes.map((n) => [key(n.node), n]));
     const geometryWanted = new Set<string>();
@@ -657,7 +698,7 @@ export class EngineV2BrowserInteraction {
             segment.slice(1).join(' '),
         )
         .join(' ');
-      Object.assign(wrapper.style, {
+      this.counters.domStyleWrites += setManagedStyles(wrapper, {
         position: 'absolute',
         left: '0',
         top: '0',
@@ -734,26 +775,29 @@ export class EngineV2BrowserInteraction {
       peer.node = node;
       peer.publication = state.publication;
       const element = peer.element;
-      element.dataset.nelyxNode = id;
-      if (s.identifier) element.dataset.nelyxIdentifier = s.identifier;
-      else delete element.dataset.nelyxIdentifier;
-      element.setAttribute('role', roles[s.role] ?? 'group');
+      setManagedAttribute(element, 'data-nelyx-node', id);
+      setManagedAttribute(element, 'data-nelyx-identifier', s.identifier || null);
+      const focusBlocked = !!(s.flags & p.semanticsFlags.blockAccessibilityFocus);
+      setManagedAttribute(
+        element,
+        'role',
+        focusBlocked ? 'presentation' : (roles[s.role] ?? 'group'),
+      );
       if (
         s.configuration &&
         readSemanticsFlagWord(s.configuration.flags as SemanticsFlagWord, 'isLiveRegion')
       )
-        element.setAttribute('aria-live', 'polite');
-      else element.removeAttribute('aria-live');
-      const focusBlocked = !!(s.flags & p.semanticsFlags.blockAccessibilityFocus);
+        setManagedAttribute(element, 'aria-live', 'polite');
+      else setManagedAttribute(element, 'aria-live', null);
       if (focusBlocked) {
-        element.setAttribute('role', 'presentation');
-        element.removeAttribute('aria-label');
-        element.textContent = element.hasAttribute('aria-live') ? s.label : '';
+        setManagedAttribute(element, 'aria-label', null);
+        setManagedText(element, element.hasAttribute('aria-live') ? s.label : '');
       } else {
-        if (element.tagName !== 'TEXTAREA' && element.tagName !== 'INPUT') element.textContent = '';
-        element.setAttribute('aria-label', s.label);
+        if (!isInput(element)) setManagedText(element, '');
+        setManagedAttribute(element, 'aria-label', s.label);
       }
-      element.setAttribute(
+      setManagedAttribute(
+        element,
         'aria-description',
         [
           s.hint,
@@ -764,13 +808,14 @@ export class EngineV2BrowserInteraction {
           .filter(Boolean)
           .join('\n'),
       );
-      if (s.role === p.semanticsRoles.loadingSpinner) element.setAttribute('aria-busy', 'true');
-      else element.removeAttribute('aria-busy');
+      if (s.role === p.semanticsRoles.loadingSpinner)
+        setManagedAttribute(element, 'aria-busy', 'true');
+      else setManagedAttribute(element, 'aria-busy', null);
       const disabled =
         !!(s.flags & p.semanticsFlags.disabled) ||
         !!(node.editing?.flags && node.editing.flags & p.editFlags.disabled);
-      element.setAttribute('aria-disabled', String(disabled));
-      element.tabIndex =
+      setManagedAttribute(element, 'aria-disabled', String(disabled));
+      const tabIndex =
         !disabled &&
         !focusBlocked &&
         !(s.flags & p.semanticsFlags.scopesRoute) &&
@@ -779,6 +824,7 @@ export class EngineV2BrowserInteraction {
           s.actions & p.semanticsActions.focus)
           ? 0
           : -1;
+      if (element.tabIndex !== tabIndex) element.tabIndex = tabIndex;
       const sourceFlags = s.configuration?.flags as SemanticsFlagWord | undefined,
         checked =
           sourceFlags === undefined
@@ -789,49 +835,52 @@ export class EngineV2BrowserInteraction {
             ? Tristate.none
             : readSemanticsFlagWord(sourceFlags, 'isSelected');
       if (selected !== Tristate.none)
-        element.setAttribute('aria-selected', String(selected === Tristate.isTrue));
-      else element.removeAttribute('aria-selected');
+        setManagedAttribute(element, 'aria-selected', String(selected === Tristate.isTrue));
+      else setManagedAttribute(element, 'aria-selected', null);
       if (
         checked !== CheckedState.none ||
         s.role === p.semanticsRoles.checkbox ||
         s.role === p.semanticsRoles.radio ||
         s.role === p.semanticsRoles.switchControl
       )
-        element.setAttribute(
+        setManagedAttribute(
+          element,
           'aria-checked',
           checked === CheckedState.mixed || s.flags & p.semanticsFlags.mixed
             ? 'mixed'
             : String(checked === CheckedState.isTrue || !!(s.flags & p.semanticsFlags.checked)),
         );
-      else element.removeAttribute('aria-checked');
+      else setManagedAttribute(element, 'aria-checked', null);
       if (s.range) {
-        element.setAttribute('aria-valuemin', String(s.range.minimum));
-        element.setAttribute('aria-valuemax', String(s.range.maximum));
-        element.setAttribute('aria-valuenow', String(s.range.value));
-        if (s.role === p.semanticsRoles.progressBar) element.removeAttribute('aria-readonly');
-        else element.setAttribute('aria-readonly', String(!!s.range.readOnly));
+        setManagedAttribute(element, 'aria-valuemin', String(s.range.minimum));
+        setManagedAttribute(element, 'aria-valuemax', String(s.range.maximum));
+        setManagedAttribute(element, 'aria-valuenow', String(s.range.value));
+        if (s.role === p.semanticsRoles.progressBar)
+          setManagedAttribute(element, 'aria-readonly', null);
+        else setManagedAttribute(element, 'aria-readonly', String(!!s.range.readOnly));
       } else if (
         node.control &&
         (node.control.kind === p.controlKinds.slider ||
           node.control.kind === p.controlKinds.rangeSlider)
       ) {
-        element.setAttribute('aria-valuemin', String(node.control.minimum));
-        element.setAttribute('aria-valuemax', String(node.control.maximum));
-        element.setAttribute('aria-valuenow', String(node.control.value));
-        element.removeAttribute('aria-readonly');
+        setManagedAttribute(element, 'aria-valuemin', String(node.control.minimum));
+        setManagedAttribute(element, 'aria-valuemax', String(node.control.maximum));
+        setManagedAttribute(element, 'aria-valuenow', String(node.control.value));
+        setManagedAttribute(element, 'aria-readonly', null);
       } else {
-        for (const name of ['aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-readonly'])
-          element.removeAttribute(name);
+        for (const name of ['aria-valuemin', 'aria-valuemax', 'aria-valuenow'])
+          setManagedAttribute(element, name, null);
+        if (!isInput(element)) setManagedAttribute(element, 'aria-readonly', null);
       }
-      if (s.value !== undefined) element.setAttribute('aria-valuetext', s.value);
-      else element.removeAttribute('aria-valuetext');
+      if (s.value !== undefined) setManagedAttribute(element, 'aria-valuetext', s.value);
+      else setManagedAttribute(element, 'aria-valuetext', null);
       const geometry = isInput(element) ? null : node.semanticGeometry,
         bounds = geometry?.bounds ?? node.bounds,
         left = Math.max(bounds.x, node.clip.x),
         top = Math.max(bounds.y, node.clip.y),
         right = Math.min(bounds.x + bounds.width, node.clip.x + node.clip.width),
         bottom = Math.min(bounds.y + bounds.height, node.clip.y + node.clip.height);
-      Object.assign(element.style, {
+      this.counters.domStyleWrites += setManagedStyles(element, {
         position: 'absolute',
         left: `${geometry?.x ?? 0}px`,
         top: `${geometry?.y ?? 0}px`,
@@ -864,16 +913,19 @@ export class EngineV2BrowserInteraction {
         direction: s.textDirection ?? (node.textDirection ? 'rtl' : 'ltr'),
       });
       if (isInput(element) && node.editing) {
-        element.disabled = disabled;
-        element.readOnly = !!(node.editing.flags & p.editFlags.readOnly);
-        element.maxLength = node.editing.maximumLength;
-        element.setAttribute(
+        if (element.disabled !== disabled) element.disabled = disabled;
+        const readOnly = !!(node.editing.flags & p.editFlags.readOnly);
+        if (element.readOnly !== readOnly) element.readOnly = readOnly;
+        if (element.maxLength !== node.editing.maximumLength)
+          element.maxLength = node.editing.maximumLength;
+        setManagedAttribute(
+          element,
           'aria-multiline',
           String(!!(node.editing.flags & p.editFlags.multiline)),
         );
-        element.setAttribute('aria-readonly', String(element.readOnly));
-        element.autocomplete = 'off';
-        element.spellcheck = false;
+        setManagedAttribute(element, 'aria-readonly', String(element.readOnly));
+        if (element.autocomplete !== 'off') element.autocomplete = 'off';
+        if (element.spellcheck) element.spellcheck = false;
         if (!peer.pending) this.installValue(peer, node.editing);
       }
     }
@@ -898,8 +950,9 @@ export class EngineV2BrowserInteraction {
     // A resize can temporarily omit the current route publication. Only an
     // explicit empty route clears the last announcement; its sequence may stay
     // unchanged when the same scope is republished with the new metrics.
-    if (route && !route.scope) this.routeAnnouncement.replaceChildren();
-    else if (route && route.sequence > this.routeSequence) {
+    if (route && !route.scope) {
+      if (this.routeAnnouncement.hasChildNodes()) this.routeAnnouncement.replaceChildren();
+    } else if (route && route.sequence > this.routeSequence) {
       this.routeSequence = route.sequence;
       this.routeAnnouncement.replaceChildren(
         ...(route.label ? [document.createTextNode(route.label)] : []),

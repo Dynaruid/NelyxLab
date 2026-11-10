@@ -52,6 +52,28 @@ bool sameInputItem(const DrawItem& a,const DrawItem& b) {
   return a.clip.x==b.clip.x&&a.clip.y==b.clip.y&&a.clip.width==b.clip.width&&a.clip.height==b.clip.height&&
     x.a==y.a&&x.b==y.b&&x.c==y.c&&x.d==y.d&&x.tx==y.tx&&x.ty==y.ty;
 }
+bool sameObservationProperty(const Property& a,const Property& b){
+  return a.node==b.node&&a.offset==b.offset&&a.velocity==b.velocity&&a.opacity==b.opacity&&
+    a.revision==b.revision&&a.motion==b.motion&&a.requested==b.requested&&a.deferred==b.deferred&&
+    a.value==b.value&&a.second==b.second&&a.pressed==b.pressed&&a.hovered==b.hovered&&
+    a.visible==b.visible&&a.focusVisible==b.focusVisible;
+}
+bool sameObservationItem(const DrawItem& a,const DrawItem& b){
+  const auto rect=[](const Rect& x,const Rect& y){return x.x==y.x&&x.y==y.y&&x.width==y.width&&x.height==y.height;};
+  const auto matrix=[](const Affine& x,const Affine& y){return x.a==y.a&&x.b==y.b&&x.c==y.c&&x.d==y.d&&x.tx==y.tx&&x.ty==y.ty;};
+  return a.node==b.node&&a.x==b.x&&a.y==b.y&&a.opacity==b.opacity&&rect(a.clip,b.clip)&&rect(a.bounds,b.bounds)&&
+    matrix(a.world,b.world)&&a.clipHead==b.clipHead&&a.depth==b.depth&&a.flags==b.flags&&a.layerTransform.has_value()==b.layerTransform.has_value()&&
+    (!a.layerTransform||matrix(*a.layerTransform,*b.layerTransform))&&a.linkedOffset.x==b.linkedOffset.x&&a.linkedOffset.y==b.linkedOffset.y;
+}
+bool sameObservationSemantics(const FrameSemantics& a,const FrameSemantics& b){
+  if(a.parent!=b.parent||a.traversal!=b.traversal||a.mergedInto!=b.mergedInto||a.blocked!=b.blocked||a.merged!=b.merged)return false;
+  if(a.customSources!=b.customSources&&(!a.customSources||!b.customSources||a.customSources->values!=b.customSources->values))return false;
+  if(a.data==b.data)return true;if(!a.data||!b.data)return false;
+  const auto& x=*a.data;const auto& y=*b.data;
+  return x.role==y.role&&x.flags==y.flags&&x.actions==y.actions&&x.label==y.label&&x.hint==y.hint&&x.value==y.value&&
+    x.increasedValue==y.increasedValue&&x.decreasedValue==y.decreasedValue&&x.range==y.range&&x.metadata==y.metadata&&
+    x.mergeFlags==y.mergeFlags&&x.explicitRole==y.explicitRole&&x.declaredRole==y.declaredRole;
+}
 // Source SemanticsConfiguration's closed flag word uses seven nullable
 // two-bit states, then ordinary booleans. Even equal non-null states conflict.
 bool compatibleSemantics(const SemanticData& a,const SemanticData& b) {
@@ -229,12 +251,32 @@ void makeSemantics(Frame& frame,const std::shared_ptr<Ledger>& ledger) {
 void Frame::resolveRoute(const Frame* previous,uint64_t sequence,const std::shared_ptr<Ledger>& ledger) {
   // Routes are edges of the exposed semantic tree, resolved only at publication.
   // Fixed scratch is charged before walking either immutable frame.
-  Lease scratch(ledger,2*wire::limits::semanticsNodes*sizeof(Handle));
+  Lease scratch(ledger,2*wire::limits::semanticsNodes*sizeof(Handle)+sizeof(std::bitset<wire::limits::nodes+1>));
   std::array<Handle,wire::limits::semanticsNodes> current{},old{};
   uint32_t count=0,oldCount=0;
-  const auto exposed=[](const Frame& frame,const auto& visit){
+  std::bitset<wire::limits::nodes+1> changed;
+  if(previous)for(const auto index:observationRows)changed.set(items[index].node.slot);
+  const auto peer=focusPeer(focusNode),oldPeer=previous?previous->focusPeer(previous->focusNode):Handle{};
+  bool recordChanges=true;
+  const auto exposed=[&](const Frame& frame,const auto& visit){
     uint32_t hiddenDepth=UINT32_MAX;
+    uint32_t index=0;
     for(const auto& item:frame.items){
+      const auto node=item.node;const auto itemIndex=index++;
+      // Reuse this existing publication traversal, including hidden entries.
+      // Observation requests only drain the resulting slot journal; they do
+      // not add a new scene walk or repeat semantic serialization.
+      if(recordChanges&&previous){
+        if(&frame==this){
+          if(!changed[node.slot]&&(!previous->scene->document->contains(node)||node.slot>=previous->semantics.size()||
+              !sameObservationSemantics(semantics[node.slot],previous->semantics[node.slot])||
+              allowsSemantics(node)!=previous->allowsSemantics(node)||
+              ((node==peer)!=(node==oldPeer))||
+              ((node==focusNode&&caretVisible)!=(node==previous->focusNode&&previous->caretVisible)))){
+            observationRows.push_back(itemIndex);changed.set(node.slot);
+          }
+        }else if(observationOrderChanged&&!scene->document->contains(node))observationRemoved.push_back(node);
+      }
       if(hiddenDepth!=UINT32_MAX&&item.depth>hiddenDepth)continue;
       hiddenDepth=UINT32_MAX;
       const auto* data=frame.semantic(item.node);
@@ -251,6 +293,7 @@ void Frame::resolveRoute(const Frame* previous,uint64_t sequence,const std::shar
     });
   };
   collect(*this,current,count);if(previous)collect(*previous,old,oldCount);
+  recordChanges=false;
   route={};route.sequence=sequence;
   const bool unchanged=previous&&count==oldCount&&std::equal(current.begin(),current.begin()+count,old.begin());
   if(unchanged)route.scope=previous->route.scope;
@@ -315,6 +358,10 @@ void validateGraphics(const Document& geometry) {
 }
 void View::makeDrawItems(Frame& f)const {
   const auto& geometry=*f.scene->document;
+  const auto* observed=published.get();
+  f.observationBase=observed?publication:0;f.observationRows.clear();f.observationRemoved.clear();
+  f.itemBySlot.assign(geometry.highWater+1,UINT32_MAX);
+  f.observationOrderChanged=!observed||geometry.count!=observed->items.size();
   // References may point at descendants. Capture current compositor geometry
   // before evaluating paint; neither App nor Content participates in this pass.
   Lease matrixLease(lease.ledger,geometry.framePaintGeometry?(geometry.highWater+1)*(sizeof(Affine)+sizeof(std::optional<Affine>)):0);
@@ -408,6 +455,13 @@ void View::makeDrawItems(Frame& f)const {
     if(node.nativePaint&&node.nativePaint->frameDependent&&world.inverse()){
       f.items.back().paint=resolveNodePaint(node,geometry,matrices,f.paintWork);++f.paintNodes;
     }
+    const auto index=uint32_t(f.items.size()-1);f.itemBySlot[node.id.slot]=index;
+    f.observationOrderChanged|=observed&&(index>=observed->items.size()||observed->items[index].node!=node.id);
+    bool changed=!observed||!observed->scene->document->contains(node.id)||node.id.slot>=observed->itemBySlot.size();
+    if(!changed){const auto oldIndex=observed->itemBySlot[node.id.slot];
+      changed=oldIndex==UINT32_MAX||!sameObservationNode(node,observed->scene->document->get(node.id))||
+        !sameObservationItem(f.items.back(),observed->items[oldIndex])||!sameObservationProperty(property,observed->properties[node.id.slot]);}
+    if(changed)f.observationRows.push_back(index);
     if(link.role==1&&!offstage&&!hidden)leaders[node.id.slot]=&f.items.back();
     if((node.policy&4u)&&alpha>0&&!offstage)f.modalRoot=node.id;
     if(node.kind==wire::kinds::scrollViewport)

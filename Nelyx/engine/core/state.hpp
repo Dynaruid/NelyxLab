@@ -6,6 +6,7 @@
 #include "layout/layout.hpp"
 #include "layout/query.hpp"
 #include "interaction/editing.hpp"
+#include "protocol/observation_state.hpp"
 #include <deque>
 #include <map>
 #include <optional>
@@ -29,6 +30,7 @@ struct Scene {
   Metrics metrics;
   uint64_t epoch = 0, preparation = 0;
   std::shared_ptr<const LayoutOutput> layout;
+  uint64_t fontRevision=1;
 };
 struct Preparation {
   std::shared_ptr<const Document> document;
@@ -232,6 +234,11 @@ struct Frame {
   bool caretVisible = false;
   uint64_t id = 0, device = 0, propertyEpoch = 0;
   uint64_t paintWork=0,paintNodes=0,placementNodes=0;
+  uint64_t observationBase=0;
+  std::vector<uint32_t> observationRows;
+  std::vector<uint32_t> itemBySlot;
+  std::vector<Handle> observationRemoved;
+  bool observationOrderChanged=false;
   std::shared_ptr<const Scene> scene;
   std::vector<Property> properties;
   std::vector<DrawItem> items;
@@ -374,6 +381,15 @@ struct FontTransition {
 };
 struct View {
   Lease lease;
+  std::array<ObservationState,2> observations;
+  uint64_t observationSequence=0,observationBlobSequence=0;
+  // Current overlay metadata can change before a frame is published. Only
+  // this viewport and its list consumers depend on requested/velocity values.
+  void observeOverlay(Handle node){
+    observations[0].mark(node);
+    if(active&&active->document->contains(node))for(const auto child:active->document->children[node.slot])
+      if(active->document->get(child).listGeometry)for(auto& state:observations)state.mark(child);
+  }
   SnapshotRegistry snapshots;
   uint32_t generation;
   bool closed = false, visible = true, focused = true, overflowed = false, dirty = false;
@@ -462,12 +478,13 @@ struct View {
   bool hasTime = false;
   explicit View(uint32_t generation, const std::shared_ptr<Ledger>& ledger)
       : lease(ledger, sizeof(View) + wire::limits::nodes * (sizeof(Overlay) + 64 +
-          (wire::limits::frames + 1) * (sizeof(Property) + sizeof(DrawItem)+sizeof(ClipShape)+sizeof(FrameSemantics))) +
+          (wire::limits::frames + 1) * (sizeof(Property) + sizeof(DrawItem)+sizeof(ClipShape)+sizeof(FrameSemantics)+2*sizeof(uint32_t)+sizeof(Handle))) +
           wire::limits::inputPackets * sizeof(Input) + wire::limits::events * sizeof(Event)+
           wire::limits::observerPackets*sizeof(RawSample)+
           wire::limits::scrollCommands*(sizeof(ScrollCommand)+64)+
           wire::limits::results*(sizeof(CommandResult)+64+56+wire::scrollCurveHeaderBytes+
             wire::limits::scrollCurveNodes*wire::scrollCurveNodeBytes)),
+        observations{ObservationState(ledger),ObservationState(ledger)},
         generation(generation), document(std::make_shared<Document>(ledger)) { ++lease.ledger->activeViews; }
   ~View() {
     if (!closed) {

@@ -11,6 +11,7 @@
 #include "native_paint.hpp"
 #include "image.hpp"
 #include "snapshot.hpp"
+#include "paged_storage.hpp"
 #include <array>
 #include <memory>
 #include <atomic>
@@ -168,6 +169,19 @@ struct Node {
   }
   ~Node() { --lease.ledger->nodes; }
 };
+// App observation inputs, including layout-produced values whose transaction
+// configuration revision does not change. Comparing shared pointers alone
+// would turn every materialized layout document into a full observation.
+inline bool sameObservationNode(const Node& a,const Node& b){
+  return a.id==b.id&&a.parent==b.parent&&a.order==b.order&&a.kind==b.kind&&
+    a.configurationRevision==b.configurationRevision&&a.layoutRevision==b.layoutRevision&&
+    a.properties==b.properties&&a.baseline==b.baseline&&a.contentX==b.contentX&&a.contentY==b.contentY&&
+    a.contentWidth==b.contentWidth&&a.contentHeight==b.contentHeight&&a.inlineHidden==b.inlineHidden&&
+    a.coverage.enabled==b.coverage.enabled&&a.coverage.revision==b.coverage.revision&&
+    a.coverage.minimum==b.coverage.minimum&&a.coverage.maximum==b.coverage.maximum&&
+    a.listGeometry==b.listGeometry&&a.textGeometry==b.textGeometry&&a.editing==b.editing&&
+    a.layoutPaintValues==b.layoutPaintValues;
+}
 inline Point layerOffset(const Node& node,const Node& leader) {
   const auto& link=node.layerLink;const auto& source=leader.properties;
   return {(link.leaderAnchor.x+1)*source.width/2-(link.followerAnchor.x+1)*node.properties.width/2+link.offset.x,
@@ -190,20 +204,39 @@ template<class T> struct Slot {
   uint32_t generation = 1;
   std::shared_ptr<const T> value;
 };
+struct ImmutableConfiguration {
+  Lease lease;
+  Handle id;
+  uint32_t command;
+  std::vector<uint8_t> bytes;
+  std::shared_ptr<const ParagraphData> paragraph;
+  std::shared_ptr<const SemanticData> semantics;
+  std::shared_ptr<const NativePaint> paint;
+  ImmutableConfiguration(const std::shared_ptr<Ledger>& ledger,Handle handle,uint32_t kind,Reader data)
+    :lease(ledger,sizeof(ImmutableConfiguration)+data.length),id(handle),command(kind),bytes(data.data,data.data+data.length){}
+};
 struct Document {
   Lease lease;
   uint64_t epoch = 0;
+  // A transaction containing only scalar paint commands preserves topology,
+  // layout and semantic configuration. Derived geometry copies retain this
+  // provenance; a new transaction must explicitly establish it again.
   uint32_t count = 0;
   uint32_t highWater = 0;
   bool framePaintGeometry=false;
-  std::vector<Slot<Node>> nodes;
-  std::vector<std::vector<Handle>> children;
+  bool graphValidated=false;
+  uint32_t semanticCount=0;
+  struct Work {uint64_t nodeClones=0,fullValidations=0,incrementalValidations=0,validationVisits=0,siblingVisits=0,
+    blobRegistrations=0,blobBindings=0,blobBytes=0;} work;
+  PagedStorage<Slot<Node>,wire::limits::nodes+1> nodes;
+  ChildStorage children;
+  PagedStorage<Slot<ImmutableConfiguration>,wire::limits::immutableBlobs+1> blobs;
+  uint32_t blobCount=0;
+  uint64_t blobBytes=0;
   explicit Document(const std::shared_ptr<Ledger>& ledger)
-      : lease(ledger, sizeof(Document) + (wire::limits::nodes + 1) *
-          (sizeof(Slot<Node>) + sizeof(std::vector<Handle>) + 4 * sizeof(Handle))),
-        nodes(wire::limits::nodes + 1), children(wire::limits::nodes + 1) {}
+      : lease(ledger, sizeof(Document)),nodes(ledger),children(ledger),blobs(ledger) {}
   Document(const Document& d) : lease(d.lease.ledger, d.lease.bytes),
-      epoch(d.epoch), count(d.count), highWater(d.highWater), framePaintGeometry(d.framePaintGeometry), nodes(d.nodes), children(d.children) {}
+      epoch(d.epoch), count(d.count), highWater(d.highWater), framePaintGeometry(d.framePaintGeometry),graphValidated(d.graphValidated),semanticCount(d.semanticCount),nodes(d.nodes),children(d.children),blobs(d.blobs),blobCount(d.blobCount),blobBytes(d.blobBytes) {}
   const Node& get(Handle h) const {
     require(h.slot > 0 && h.slot < nodes.size() && nodes[h.slot].value &&
       nodes[h.slot].value->id == h, wire::statuses::invalidHandle);
@@ -230,7 +263,7 @@ inline std::shared_ptr<const Document> fontDocument(std::shared_ptr<const Docume
         (node.fontRevision==revision&&node.fontResource==resource))continue;
     if(!derived)derived=std::make_shared<Document>(*source);
     auto copy=std::make_shared<Node>(node);copy->fontResource=resource;copy->fontRevision=revision;
-    derived->nodes[node.id.slot].value=std::move(copy);
+    derived->nodes.edit(node.id.slot).value=std::move(copy);
   }
   return derived?std::shared_ptr<const Document>(std::move(derived)):source;
 }

@@ -42,15 +42,44 @@ static std::vector<uint8_t> makePacket(uint32_t op,const std::vector<uint8_t>& d
   w.u64(40,requestId);if(!data.empty())std::memcpy(w.bytes.data()+wire::headerBytes,data.data(),data.size());return std::move(w.bytes);
 }
 struct Job{uint32_t id;std::vector<uint8_t> bytes;std::shared_ptr<ExternalLease> memory;double enqueued=now();};
+struct ResponseBackingStats {
+  std::atomic<uint64_t> movedBytes{0},liveBytes{0},holders{0},gcCreditedBytes{0},gcAccountingSkews{0};
+};
+/** Core relinquishes this storage permanently. Hermes retains the holder until
+ * its ArrayBuffer finalizer; neither a caller timeout nor mailbox drain returns
+ * its memory credit. The pinned Hermes external block needs explicit GC advice;
+ * that advisory credit is excluded from the unified App heap account. */
+class ResponseBuffer final:public jsi::MutableBuffer {
+  std::vector<uint8_t> bytes;
+  std::shared_ptr<ExternalLease> memory;
+  std::shared_ptr<ResponseBackingStats> stats;
+  bool gcCredited=false;
+public:
+  ResponseBuffer(Job&& result,std::shared_ptr<ResponseBackingStats> counters)
+    :bytes(std::move(result.bytes)),memory(std::move(result.memory)),stats(std::move(counters)){
+    stats->movedBytes+=bytes.size();stats->liveBytes+=bytes.size();++stats->holders;
+  }
+  void creditGc(){gcCredited=true;stats->gcCreditedBytes+=bytes.size();}
+  ~ResponseBuffer()override{if(gcCredited)stats->gcCreditedBytes-=bytes.size();stats->liveBytes-=bytes.size();--stats->holders;}
+  size_t size()const override{return bytes.size();}
+  uint8_t* data()override{return bytes.data();}
+};
 struct PreparedFont {uint64_t token;std::shared_ptr<const Resource> resource;std::shared_ptr<nw::ParagraphProvider> fonts;};
 struct AppHeapAccount {
   std::shared_ptr<Ledger> ledger;std::atomic<uint64_t>& observed;
+  std::shared_ptr<ResponseBackingStats> responses;
   void update(jsi::Runtime& runtime){
     const auto info=runtime.instrumentation().getHeapInfo(false);
     const auto heap=info.find("hermes_heapSize"),external=info.find("hermes_externalBytes");
     if(heap==info.end()||external==info.end()||heap->second<0||external->second<0)
       throw std::runtime_error("Hermes App heap accounting is unavailable");
-    const auto bytes=uint64_t(heap->second)+uint64_t(external->second);
+    const auto credited=responses->gcCreditedBytes.load(),outside=uint64_t(external->second);
+    // GC pressure guides Hermes collection. The holder's ExternalLease remains
+    // the unified ledger authority, so exclude its advisory credit once. If
+    // finalizer statistics lag, account conservatively rather than undercount.
+    const auto duplicate=outside>=credited?credited:0;
+    if(outside<credited)++responses->gcAccountingSkews;
+    const auto bytes=uint64_t(heap->second)+outside-duplicate;
     try{ledger->report(4,1,bytes);}catch(const Error&){throw std::runtime_error("Hermes App heap exceeded the unified memory budget");}
     observed=bytes;
   }
@@ -67,6 +96,7 @@ struct AppRuntimeRegistration {
   ~AppRuntimeRegistration(){std::lock_guard held(gate);current=nullptr;}
 };
 class Host {
+  std::shared_ptr<ResponseBackingStats> responseBacking=std::make_shared<ResponseBackingStats>();
   struct Trace {uint64_t sequence=0,request=0,input=0,document=0,preparation=0,submission=0,publication=0;uint32_t opcode=0,status=0;double started=0,elapsedMs=0,queueMs=0,lockWaitMs=0,lockHeldMs=0;};
   std::mutex traceMutex;std::array<Trace,1024> traceRing{};uint64_t traceSequence=0;
   std::vector<uint8_t> dispatch(const std::vector<uint8_t>& bytes,double enqueued=0){
@@ -99,7 +129,7 @@ class Host {
   std::string timingJson(){std::lock_guard lock(timingMutex);const auto& t=frameTiming;std::ostringstream out;out<<std::setprecision(17);
     out<<"\"frameClock\":{\"source\":\""<<(t.clock.observed?"dwm-composition-qpc":(t.clock.sampledAt?"timer-fallback":"unobserved"))<<"\",\"status\":"<<int32_t(t.clock.status)<<",\"periodMs\":"<<t.clock.period*1000<<",\"targetSeconds\":"<<t.clock.target<<",\"monitor\":\""<<t.clock.monitor<<"\",\"monitorSpecific\":false},";
     out<<"\"timing\":{\"domain\":\"qpc-seconds\",\"qpcFrequency\":"<<nw::qpcFrequency()<<",\"startedAtSeconds\":"<<t.started<<",\"coreElapsedMs\":"<<t.coreMs<<",\"recordAndBackingElapsedMs\":"<<t.recordMs<<",\"submitElapsedMs\":"<<t.submitMs<<",\"publicationElapsedMs\":"<<t.publicationMs<<",\"completedAtSeconds\":"<<t.completed<<",\"submission\":"<<t.submission<<",\"document\":"<<t.document<<",\"publication\":"<<t.publication<<",\"consumedThrough\":"<<t.input<<",\"scanout\":\"unobserved\"},";
-    const auto& c=contentTiming;out<<"\"contentTiming\":{\"domain\":\"qpc-seconds\",\"preparation\":"<<c.preparation<<",\"document\":"<<c.document<<",\"steps\":"<<c.steps<<",\"nativeWorkThrough\":"<<c.work<<",\"startedAtSeconds\":"<<c.started<<",\"coreStepElapsedMs\":"<<c.coreMs<<",\"measurementElapsedMs\":"<<c.measureMs<<",\"recordElapsedMs\":"<<c.recordMs<<",\"completedAtSeconds\":"<<c.completed<<",\"failed\":"<<(c.failed?"true":"false")<<"}";return out.str();}
+    const auto& c=contentTiming;out<<"\"contentTiming\":{\"domain\":\"qpc-seconds\",\"preparation\":"<<c.preparation<<",\"document\":"<<c.document<<",\"steps\":"<<c.steps<<",\"nativeWorkThrough\":"<<c.work<<",\"startedAtSeconds\":"<<c.started<<",\"coreStepElapsedMs\":"<<c.coreMs<<",\"measurementElapsedMs\":"<<c.measureMs<<",\"recordElapsedMs\":"<<c.recordMs<<",\"completedAtSeconds\":"<<c.completed<<",\"failed\":"<<(c.failed?"true":"false")<<"},\"responseBacking\":{\"movedBytes\":"<<responseBacking->movedBytes<<",\"liveBytes\":"<<responseBacking->liveBytes<<",\"holders\":"<<responseBacking->holders<<",\"gcCreditedBytes\":"<<responseBacking->gcCreditedBytes<<",\"gcAccountingSkews\":"<<responseBacking->gcAccountingSkews<<",\"copiedResponseBytes\":0}";return out.str();}
   Engine core{1,1};HWND window=nullptr;
   std::atomic<bool> stopping{false},contentReady{false},renderReady{false},connected{false},appReady{false};
   std::atomic<bool> failed{false},closed{false};
@@ -365,6 +395,9 @@ class Host {
           if(next&&next->id==sr.u64(wire::headerBytes+wire::stateFields::activePreparation)){active=std::move(next);next.reset();}
           if(!pendingFrame){
           auto result=call(wire::opcodes::takeFrame);auto r=reader(result);const auto coreElapsedMs=(now()-coreStarted)*1000;
+          const auto frameStatus=r.u16(14);
+          if(frameStatus!=wire::statuses::ok&&frameStatus!=wire::statuses::notFound&&frameStatus!=wire::statuses::busy&&frameStatus!=wire::statuses::closed&&frameStatus!=wire::statuses::contentUnavailable)
+            throw std::runtime_error("Core frame response rejected: "+std::to_string(frameStatus));
           if(r.u16(14)==0){
             const auto id=r.u64(wire::headerBytes+wire::stateFields::submission);auto frame=core.frameSnapshot(1,1,id);
             bool firstScroll=true;for(const auto& item:frame->items)if(frame->scene->document->get(item.node).kind==wire::kinds::scrollViewport){if(firstScroll){scrollOffset=frame->properties[item.node.slot].offset;firstScroll=false;}else lazyOffset=frame->properties[item.node.slot].offset;}
@@ -406,7 +439,7 @@ class Host {
     appThread=GetCurrentThreadId();
     try{
       while(!stopping&&!connected)std::this_thread::sleep_for(std::chrono::milliseconds(2));if(stopping)return;
-      AppHeapAccount appMemory{core.memoryLedger(),appHeapBytes};
+      AppHeapAccount appMemory{core.memoryLedger(),appHeapBytes,responseBacking};
       nw::AppParagraphs appText(directory+"/assets/font.ttf",directory+"/assets/icudtl.dat",core.memoryLedger(),
         appDirectory+"/application/assets",false);
       wchar_t profileFlag[2]{};const bool profiling=GetEnvironmentVariableW(L"NELYX_V2_CPU_PROFILE",profileFlag,2)==1&&profileFlag[0]==L'1';
@@ -481,7 +514,9 @@ class Host {
         // A commit continuation must not postpone an older input/geometry reply
         // behind another complete App capture just because it was second in FIFO.
         std::deque<Job> completed;{std::lock_guard lock(doneMutex);completed.swap(done);}
-        for(auto& result:completed){auto array=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(result.bytes.size())).getObject(rt);auto buffer=array.getArrayBuffer(rt);std::memcpy(buffer.data(rt),result.bytes.data(),result.bytes.size());rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(result.id),std::move(array));}
+        for(auto& result:completed){const auto id=result.id;auto holder=std::make_shared<ResponseBuffer>(std::move(result),responseBacking);auto buffer=jsi::ArrayBuffer(rt,holder);
+          buffer.setExternalMemoryPressure(rt,holder->size());holder->creditGc();
+          rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(id),std::move(buffer));}
         completed.clear();rt.drainMicrotasks();
         rt.global().getPropertyAsFunction(rt,"__v2Pump").call(rt);rt.drainMicrotasks();appMemory.update(rt);
         const auto timerDelay=rt.global().getPropertyAsFunction(rt,"__v2Delay").call(rt).asNumber();

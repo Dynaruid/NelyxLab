@@ -18,7 +18,29 @@ export class ObservationDecodeCache {
   get size(): number {
     return this.entries.size;
   }
+  /** Only owner-scoped registrations that have already passed exact ID/bytes
+   * validation may use this path. Eviction remains an explicit cache miss. */
+  readRegistered<T>(key: string, bytes: Uint8Array, decode: (bytes: Uint8Array) => T): T {
+    const identity = `registered/${key}`;
+    const previous = this.entries.get(identity);
+    if (previous?.bytes === bytes) {
+      ++this.counters.hits;
+      return previous.value as T;
+    }
+    // A decoded registration from a response that later failed validation was
+    // never committed to the stream. A matching ID alone cannot certify it.
+    // Only the same private immutable backing has already passed that check.
+    return this.readValue(identity, bytes, decode, true);
+  }
   read<T>(key: string, bytes: Uint8Array, decode: (bytes: Uint8Array) => T): T {
+    return this.readValue(key, bytes, decode, false);
+  }
+  private readValue<T>(
+    key: string,
+    bytes: Uint8Array,
+    decode: (bytes: Uint8Array) => T,
+    immutableRegistration: boolean,
+  ): T {
     const previous = this.entries.get(key);
     if (previous && previous.bytes.length === bytes.length) {
       let equal = true;
@@ -28,6 +50,7 @@ export class ObservationDecodeCache {
           break;
         }
       if (equal) {
+        if (immutableRegistration) previous.bytes = bytes;
         ++this.counters.hits;
         return previous.value as T;
       }
@@ -45,7 +68,7 @@ export class ObservationDecodeCache {
       this.bytes -= this.entries.get(oldest)!.bytes.length;
       this.entries.delete(oldest);
     }
-    const owned = bytes.slice();
+    const owned = immutableRegistration ? bytes : bytes.slice();
     this.entries.set(key, { bytes: owned, value });
     this.bytes += owned.length;
     return value;

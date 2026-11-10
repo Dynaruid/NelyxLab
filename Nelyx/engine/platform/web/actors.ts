@@ -440,6 +440,11 @@ export class RenderActor {
       return;
     }
     try {
+      if (
+        (packet.reused?.length || packet.fontReferences?.length) &&
+        packet.basePreparation !== state.activePreparation
+      )
+        throw Error('Prepared reference no longer belongs to the active preparation');
       // The previous candidate is superseded by this preparation. Drop it
       // before import so active + obsolete + incoming never coexist here.
       this.provider.retireExcept(state.activePreparation, packet.preparation);
@@ -537,6 +542,14 @@ export class RenderActor {
       publicationElapsedMs = 0,
       submission: bigint | null = null;
     const frame = request(this.module, this.engine, p.opcodes.takeFrame);
+    if (
+      frame.status !== p.statuses.ok &&
+      frame.status !== p.statuses.notFound &&
+      frame.status !== p.statuses.busy &&
+      frame.status !== p.statuses.closed &&
+      frame.status !== p.statuses.contentUnavailable
+    )
+      throw Error('Core frame response rejected: ' + frame.status);
     if (frame.status === p.statuses.ok) {
       submission = frame.submission;
       this.offsets = frame.nodes

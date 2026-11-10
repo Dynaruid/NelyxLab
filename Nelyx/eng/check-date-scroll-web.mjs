@@ -93,7 +93,18 @@ try {
             start = performance.now();
           while (performance.now() - start < 15000) {
             const s = await h.view.inspectState();
-            if (!h.running && !h.rerun && !s.preparation && s.document === s.publishedDocument)
+            if (
+              !h.running &&
+              !h.rerun &&
+              !h.scheduled &&
+              !h.native.observationRunning &&
+              !h.native.observationPending &&
+              !s.preparation &&
+              s.document === s.publishedDocument &&
+              h.native.layoutObservation?.property === s.property &&
+              h.native.layoutObservation?.metrics === s.metrics &&
+              h.native.layoutObservation?.activePreparation === s.activePreparation
+            )
               return;
             await new Promise((resolve) => setTimeout(resolve, 50));
           }
@@ -155,6 +166,10 @@ try {
                 scene: h.diagnostics().scene,
                 capture: h.diagnostics().capture,
                 retainedBuilderRebuilds: h.diagnostics().retainedBuilderRebuilds,
+                samples: h.diagnostics().samples,
+                samplesThrough: h.diagnostics().samplesThrough,
+                samplesOverwritten: h.diagnostics().samplesOverwritten,
+                transport: h.diagnostics().transport,
               },
               (k, v) => (typeof v === 'bigint' ? String(v) : v),
             ),
@@ -175,6 +190,14 @@ try {
             retainedBuilderRebuilds: value.retainedBuilderRebuilds,
             captured: value.capture.captured,
             dynamic: value.capture.dynamic,
+            recordVisits: value.scene.recordVisits,
+            skippedSubtreeNodes: value.scene.skippedSubtreeNodes,
+            journalRecords: value.scene.journalRecords,
+            recordsMs: value.scene.recordsMs,
+            diffMs: value.scene.diffMs,
+            transport: value.transport,
+            samplesThrough: value.samplesThrough,
+            samplesOverwritten: value.samplesOverwritten,
           }),
         );
         if (value.elements > 6000)
@@ -383,6 +406,35 @@ try {
       );
       await sample('resized', 0);
       assert.deepEqual(errors, []);
+    } catch (error) {
+      const worker = page.workers().find((w) => w.url().includes('/application/app.js'));
+      console.log(
+        'CALENDAR_FAILURE',
+        await worker
+          ?.evaluate(async () => {
+            const h = globalThis.__dateScrollHost;
+            return JSON.stringify(
+              {
+                state: await h.view.inspectState(),
+                running: !!h.running,
+                rerun: h.rerun,
+                scheduled: h.scheduled,
+                diagnostics: h.diagnostics(),
+                scrolls: (await h.view.layoutSnapshot()).nodes
+                  .filter((n) => n.list || n.kind === 11)
+                  .map((n) => ({
+                    node: n.node,
+                    offset: n.offset,
+                    requested: n.requestedOffset,
+                    list: n.list,
+                  })),
+              },
+              (_, value) => (typeof value === 'bigint' ? String(value) : value),
+            );
+          })
+          .catch(String),
+      );
+      throw error;
     } finally {
       console.log(
         profile,

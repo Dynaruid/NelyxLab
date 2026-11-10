@@ -14,11 +14,20 @@ const timeout = setTimeout(() => {
   throw Error('Web integration exceeded 20 minutes');
 }, 1200000);
 try {
-  for (const profile of ['isolated', 'plain']) {
+  for (const profile of process.argv.includes('--plain') ? ['plain'] : ['isolated', 'plain']) {
     const context = await browser.newContext({ viewport: { width: 960, height: 720 } });
     const page = await context.newPage();
     page.setDefaultTimeout(15000);
     const errors = [];
+    if (process.argv.includes('--diagnose'))
+      await page.route('**/application/app.js', async (route) => {
+        const response = await route.fetch(),
+          body = (await response.text()).replace(
+            /hosts\.set\(view, (host\d*)\);/,
+            'hosts.set(view, $1); globalThis.__diagnosticHost=$1;',
+          );
+        await route.fulfill({ response, body });
+      });
     page.on('pageerror', (e) => errors.push(e.message));
     const info = () =>
       page.evaluate(() => {
@@ -33,6 +42,7 @@ try {
           preparation: String(s?.preparation),
           pending: String(s?.pendingDocument),
           input: globalThis.__nelyxV2?.surface.inputStats,
+          interaction: d?.interaction,
           received: String(s?.received),
           consumed: String(s?.consumed),
           canceled: String(s?.canceled),
@@ -46,6 +56,57 @@ try {
     try {
       await page.goto(`http://127.0.0.1:${server.address().port}/${profile}/`);
       await page.waitForFunction(() => __nelyxV2?.ready || __nelyxV2?.errors.length);
+      if (process.argv.includes('--diagnose'))
+        for (const worker of page.workers())
+          await worker.evaluate(() => {
+            const h = globalThis.__diagnosticHost;
+            if (!h) return;
+            h.routeTrace = [];
+            h.actionTrace = [];
+            const action = h.native.options.onSemanticAction;
+            h.native.options.onSemanticAction = (event, perform) => {
+              const source = event.semanticSource ?? event.node;
+              const record = h.native.accepted.get(source.slot + ':' + source.generation);
+              const row = {
+                node: event.node,
+                source,
+                label: record?.node.options.semantics?.label,
+                detail: String(event.detail),
+                publication: String(event.id),
+                invoked: false,
+              };
+              if (h.actionTrace.length === 64) h.actionTrace.shift();
+              h.actionTrace.push(row);
+              action(event, () => {
+                row.invoked = true;
+                perform();
+              });
+            };
+            h.routeTokens = new Map();
+            h.routeId = (token) => {
+              if (!h.routeTokens.has(token)) h.routeTokens.set(token, h.routeTokens.size + 1);
+              return h.routeTokens.get(token);
+            };
+            const visit = (element) => {
+              const controller = element.state?.widget?.controller;
+              if (element.state?.transitionOwner && controller)
+                controller.observeTransitions((event) => {
+                  if (h.routeTrace.length === 32) h.routeTrace.shift();
+                  h.routeTrace.push({
+                    direction: event.direction,
+                    from: h.routeId(event.from),
+                    to: h.routeId(event.to),
+                    at: performance.now(),
+                    routes: controller.routes.map((e) => ({
+                      id: h.routeId(e.token),
+                      name: e.name,
+                    })),
+                  });
+                });
+              for (const child of element.children) visit(child);
+            };
+            visit(h.root);
+          });
       console.log(profile, 'ready');
       assert((await info()).ready);
       await page.mouse.click(202, 226);
@@ -201,6 +262,7 @@ try {
             await activate('OK');
             await named('Selected date: ' + selected).waitFor();
             await page.getByRole('dialog').waitFor({ state: 'detached' });
+            if (process.argv.includes('--date-confirm-only')) break;
             await activate('Choose date');
             await day(year + 1, month, 15).waitFor();
             await idle();
@@ -270,7 +332,12 @@ try {
           await activate('Show all');
           await page.getByRole('button', { name: 'Filled', exact: true }).waitFor();
         }
-        console.log(profile, 'theme, route, image and editor lifetimes PASS');
+        console.log(
+          profile,
+          process.argv.includes('--date-confirm-only')
+            ? 'compound navigation and date confirmation PASS'
+            : 'theme, route, image and editor lifetimes PASS',
+        );
       }
       assert.deepEqual((await info()).errors, []);
       assert.equal((await info()).preparationError, undefined);
@@ -283,7 +350,105 @@ try {
         workersStopped: closed.workersStopped,
       });
     } catch (e) {
-      console.log(profile, 'FAILED', await info());
+      console.log(profile, 'FAILED', JSON.stringify(await info()));
+      if (process.argv.includes('--diagnose'))
+        for (const worker of page.workers())
+          console.log(
+            'APP DIAGNOSTICS',
+            JSON.stringify(
+              await worker
+                .evaluate(async () => {
+                  const h = globalThis.__diagnosticHost;
+                  if (!h) return null;
+                  const routes = [];
+                  const visit = (element) => {
+                    const owner = element.state?.transitionOwner;
+                    if (owner)
+                      routes.push({
+                        mounted: element.state.mounted,
+                        controller: element.state.widget.controller.routes.map((e) => ({
+                          name: e.name,
+                          id: h.routeId?.(e.token),
+                          kind: e.route.constructor.name,
+                        })),
+                        live: owner.live.map((e) => e.name),
+                        rendered: owner.rendered.map((e) => e.name),
+                        exiting: owner.exiting.size,
+                        pending: owner.pendingRetirements.size,
+                        motions: [...owner.motions.values()].map((m) => ({
+                          value: m.primary.value,
+                          status: m.primary.status,
+                          animating: m.primary.isAnimating,
+                        })),
+                      });
+                    for (const child of element.children) visit(child);
+                  };
+                  visit(h.root);
+                  const full = await h.view.request(33);
+                  return JSON.parse(
+                    JSON.stringify(
+                      {
+                        diagnostics: {
+                          ...h.diagnostics(),
+                          samples: h.diagnostics().samples.slice(-8),
+                        },
+                        reasons: h.reasons,
+                        closed: h.closed,
+                        builders: h.layoutBuilders.size,
+                        running: !!h.running,
+                        rerun: h.rerun,
+                        scheduled: !!h.scheduled,
+                        ownerDirty: h.owner.hasDirty,
+                        activeDirty: h.owner.hasDirtyInActiveLayout,
+                        routes,
+                        routeTrace: h.routeTrace,
+                        actionTrace: h.actionTrace,
+                        input: {
+                          polling: h.native.polling,
+                          eventRunning: h.native.eventRunning,
+                          eventRequested: h.native.eventRequested,
+                          focused: full.focused,
+                          visible: full.visible,
+                          interactionCount: full.interactionCount,
+                          queue: h.focusing.queue.map((v) => ({ kind: v.kind, event: v.event })),
+                        },
+                        full: {
+                          document: full.document,
+                          published: full.publishedDocument,
+                          dialogs: full.nodes
+                            .filter((n) => n.semantics?.role === 13)
+                            .map((n) => ({
+                              node: n.node,
+                              parent: n.parent,
+                              flags: n.flags,
+                              opacity: n.opacity,
+                              semantics: n.semantics,
+                            })),
+                        },
+                        latest: h.builderDiagnostic,
+                        scheduler: {
+                          phase: h.scrolling.scheduler.phase,
+                          visible: h.scrolling.scheduler.visible,
+                          scheduled: h.scrolling.scheduler.hasScheduledFrame,
+                          transient: h.scrolling.scheduler.transientCallbackCount,
+                          pendingPostFrame: h.scrolling.scheduler.pendingPostFrame,
+                        },
+                        retainedDialogs: [...h.native.accepted.values()]
+                          .filter((record) => record.node.options.semantics?.role === 'dialog')
+                          .map((record) => ({
+                            handle: record.handle,
+                            kind: record.node.kind,
+                            children: record.node.children.length,
+                          }))
+                          .slice(0, 8),
+                      },
+                      (_, v) => (typeof v === 'bigint' ? String(v) : v),
+                    ),
+                  );
+                })
+                .catch(String),
+            ),
+          );
       console.log(
         'Current semantic labels',
         await page.locator('[aria-label]').evaluateAll((nodes) =>

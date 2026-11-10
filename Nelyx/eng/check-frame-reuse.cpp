@@ -9,8 +9,10 @@
 #include <iostream>
 #include <stdexcept>
 using namespace nelyx::v2;
+void checkTransactionSharing();
 static void check(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 static void run(){
+  checkTransactionSharing();
   auto ledger=std::make_shared<Ledger>();
   {
     View view(1,ledger);
@@ -24,7 +26,7 @@ static void run(){
       SemanticMetadata metadata;metadata.direction=1;
       node->semantics=std::make_shared<SemanticData>(ledger,wire::semanticsRoles::group,0,wire::semanticsActions::activate,
         std::to_string(id),"","","","",SemanticRangeData{},UINT32_MAX,0,std::move(metadata));
-      document->nodes[id].value=node;document->children[node->parent.slot].push_back(node->id);
+      document->nodes.edit(id).value=node;document->children.append(node->parent.slot,node->id);
     }
     document->count=document->highWater=6;
     auto scene=std::make_shared<Scene>();scene->document=document;scene->metrics={1,1,200,300,1};
@@ -136,7 +138,7 @@ static void ballisticCoverage(){
     viewport->coverage={1,0,100,true};
     auto child=std::make_shared<Node>(ledger);child->id={2,1};child->parent=viewport->id;child->kind=wire::kinds::box;
     child->properties.width=200;child->properties.height=2100;
-    document->nodes[1].value=viewport;document->nodes[2].value=child;document->children[0]={viewport->id};document->children[1]={child->id};document->count=document->highWater=2;
+    document->nodes.edit(1).value=viewport;document->nodes.edit(2).value=child;document->children.set(0,{viewport->id});document->children.set(1,{child->id});document->count=document->highWater=2;
     auto scene=std::make_shared<Scene>();scene->document=document;scene->metrics={1,1,200,100,1};
     view.document=document;view.active=scene;view.metrics=scene->metrics;view.time=1;view.hasTime=true;
     auto& overlay=view.overlays[viewport->id.key()];overlay.node=viewport->id;overlay.offset=overlay.requested=90;
@@ -171,15 +173,15 @@ static void movingBuilder(){
     auto parent=std::make_shared<Node>(ledger);parent->id={1,1};parent->kind=wire::kinds::scrollViewport;parent->layout.enabled=true;parent->layout.direction=1;
     auto list=std::make_shared<Node>(ledger);list->id={2,1};list->parent=parent->id;list->kind=wire::kinds::sliver;list->layout.enabled=true;list->layout.direction=1;
     list->list={1,100,0,0,20,true,false};list->layoutBuilder=LayoutBuilderStyle{1,0};
-    document->nodes[1].value=parent;document->nodes[2].value=list;document->children[0]={parent->id};document->children[1]={list->id};document->count=document->highWater=2;
+    document->nodes.edit(1).value=parent;document->nodes.edit(2).value=list;document->children.set(0,{parent->id});document->children.set(1,{list->id});document->count=document->highWater=2;
     LayoutWork work(document,200,100,1,1,nullptr,{{parent->id,0,false,1000}});
     for(int i=0;i<10&&!work.waiting();++i)work.step(10000);
     check(bool(work.buildRequest())&&bool(work.buildRequest()->list),"list builder did not suspend");
     const auto request=*work.buildRequest();auto next=std::make_shared<Document>(*document);next->epoch=2;
     auto built=std::make_shared<Node>(*list);built->list.begin=request.list->begin;built->list.end=request.list->end;
     built->layoutBuilder->builtRevision=1;built->layoutBuilder->horizontal={wire::bounds::finite,0,request.constraints.maxWidth};built->layoutBuilder->vertical={wire::bounds::finite,0,request.constraints.maxHeight};
-    next->nodes[2].value=built;
-    for(auto i=built->list.begin;i<built->list.end;++i){auto child=std::make_shared<Node>(ledger);child->id={3+i,1};child->parent=list->id;child->kind=wire::kinds::box;child->properties.width=200;child->properties.height=20;child->item={i,i+1};next->nodes[child->id.slot].value=child;next->children[2].push_back(child->id);++next->count;next->highWater=child->id.slot;}
+    next->nodes.edit(2).value=built;
+    for(auto i=built->list.begin;i<built->list.end;++i){auto child=std::make_shared<Node>(ledger);child->id={3+i,1};child->parent=list->id;child->kind=wire::kinds::box;child->properties.width=200;child->properties.height=20;child->item={i,i+1};next->nodes.edit(child->id.slot).value=child;next->children.append(2,child->id);++next->count;next->highWater=child->id.slot;}
     check(!work.resumeBuild(next,{{parent->id,8,true,1000}}),"manual/editor offset fence was lost");
     check(!work.resumeBuild(next,{{{99,1},8,false,1000}}),"foreign viewport retarget was accepted");
     check(work.resumeBuild(next,{{parent->id,8,false,1000}}),"moving own viewport restarted a valid child reply");

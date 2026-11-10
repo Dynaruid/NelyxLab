@@ -92,7 +92,7 @@ void View::controlValue(Handle h,double value,bool second) {
   if(c.kind==wire::controlKinds::rangeSlider)value=second?std::max(value,o.value):std::min(value,o.second);
   auto& destination=second?o.second:o.value;
   if(destination==value)return;
-  destination=value;dirty=true;
+  destination=value;dirty=true;observeOverlay(h);
   ++controlWork;
   uint64_t bits;std::memcpy(&bits,&o.value,sizeof(bits));
   interaction({wire::events::controlChanged,wire::statuses::ok,lastInput,active->document->epoch,bits,h,o.second,0});
@@ -107,6 +107,7 @@ void View::activateControl(Handle h) {
 void View::pointer(Input p) {
   ++gestureWork;
   auto& s=streams[p.stream];
+  observations[0].mark(s.target);
   auto& tapCapture=tapRegionCaptures[p.stream];
   bool canonicalBegan=false;
   if(!p.snapshot||!published||!active||p.metrics!=metrics.epoch||p.snapshot->scene->metrics.epoch!=metrics.epoch){++canceled;return;}
@@ -116,7 +117,8 @@ void View::pointer(Input p) {
     updateMouse(p,(p.flags&4u)!=0);
   if(p.flags&4u){
     const auto h=pointerTarget(p.x,p.y,p.snapshot.get());
-    if(h!=hoverNode){if(hoverNode&&overlays.count(hoverNode.key()))overlays.at(hoverNode.key()).hovered=false;
+    if(h!=hoverNode){observations[0].mark(hoverNode);observations[0].mark(h);
+      if(hoverNode&&overlays.count(hoverNode.key()))overlays.at(hoverNode.key()).hovered=false;
       hoverNode=h;if(h&&overlays.count(h.key())){overlays.at(h.key()).hovered=true;gesture(h,wire::gestureKinds::hover,p.sequence,p.x,p.y,1);}dirty=true;}
     ++consumed;consumedThrough=p.sequence;return;
   }
@@ -136,6 +138,7 @@ void View::pointer(Input p) {
     }
     if(s.active)cancelStream(p.stream,wire::statuses::canceled);
     s={};s.active=true;s.pointer=true;s.target=h;s.source=p.source;s.x=s.startX=p.x;s.y=s.startY=p.y;s.at=time;
+    observations[0].mark(h);
     if(hit.inverse){s.pointerInverse=*hit.inverse;s.pointerInverseValid=true;}
     for(const auto& snapshot:publications)if(snapshot&&snapshot->scene==p.snapshot->scene)
       s.capturedPublications[s.captureCursor++%wire::limits::publicationSnapshots]=snapshot;

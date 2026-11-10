@@ -124,6 +124,9 @@ class AndroidHost:public std::enable_shared_from_this<AndroidHost> {
           if(next){Writer ready(24);ready.u64(0,next->id);ready.u64(8,next->metrics);ready.u64(16,next->device);const auto result=call(wire::opcodes::providerReady,ready.bytes);if(reader(result).u16(14)!=wire::statuses::ok)next.reset();}
           const auto clock=frameTime.load();
           if(window&&visible&&clock>0){Writer tick(8);lastClock=std::max(clock,lastClock);tick.f64(0,lastClock);call(wire::opcodes::tick,tick.bytes);const auto result=call(wire::opcodes::takeFrame);const auto fr=reader(result);
+            const auto frameStatus=fr.u16(14);
+            if(frameStatus!=wire::statuses::ok&&frameStatus!=wire::statuses::notFound&&frameStatus!=wire::statuses::busy&&frameStatus!=wire::statuses::closed&&frameStatus!=wire::statuses::contentUnavailable)
+              throw std::runtime_error("Android frame response rejected: "+std::to_string(frameStatus));
             if(fr.u16(14)==0){const auto id=fr.u64(wire::headerBytes+wire::stateFields::submission);auto frame=core.frameSnapshot(1,1,id);if(!frame)throw std::runtime_error("Android frame lease is missing");
               if(next&&next->id==frame->scene->preparation){active=std::move(next);next.reset();}
               if(!active||active->id!=frame->scene->preparation)throw std::runtime_error("Android frame preparation identity differs");

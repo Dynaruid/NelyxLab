@@ -11,6 +11,7 @@ import type { NativeLayoutProgram } from '@nelyx/core/framework/rendering/object
 import { encodeUtf8, decodeUtf8 } from './utf8.ts';
 import { readObservationRow } from './observation-row.ts';
 import type { ObservationDecodeCache } from './observation-cache.ts';
+import type { ObservationStream, ObservationDelta } from './observation-stream.ts';
 import { paragraphOptionsBytes, readParagraphOptions } from './paragraph.ts';
 import { clipStyleBytes, readClipStyle } from './clip.ts';
 import { nativePaintBody, readNativePaint } from './native-paint.ts';
@@ -328,6 +329,10 @@ export function stateInspectionBody(): Uint8Array {
 /** Geometry, list, focus/editing and semantics without renderer paint payloads. */
 export function appObservationBody(): Uint8Array {
   return body(4, (view) => view.setUint32(0, p.inspectionFlags.appObservation, true));
+}
+/** Published interaction geometry including clip paths, without render payloads. */
+export function browserObservationBody(): Uint8Array {
+  return body(4, (view) => view.setUint32(0, p.inspectionFlags.browserObservation, true));
 }
 /** Active layout for registered observers plus each observer's direct parent. */
 export function appLayoutSelectionBody(nodes: readonly NodeHandle[]): Uint8Array {
@@ -1355,6 +1360,8 @@ export interface EngineNodeSnapshot {
   };
 }
 export interface EngineBlob {
+  /** @internal Immutable ID within one observation owner/generation. */
+  readonly registration?: bigint;
   readonly type: number;
   readonly handle: NodeHandle;
   readonly bytes: Uint8Array;
@@ -1385,6 +1392,7 @@ export interface EngineEvent {
   readonly node: NodeHandle;
 }
 export interface EngineResponse {
+  readonly observation: ObservationDelta | null;
   readonly layoutBuildPending: boolean;
   readonly layoutBuildRequest: LayoutBuildRequest | null;
   readonly semanticRoute: {
@@ -1427,6 +1435,20 @@ export interface EngineResponse {
   readonly queryWork: bigint;
   readonly gestureWork: bigint;
   readonly controlWork: bigint;
+  /** Last accepted transaction, identified by document; never summed across polls. */
+  readonly transactionCost: Readonly<{
+    blobRegistrations: bigint;
+    blobBindings: bigint;
+    blobBytes: bigint;
+    nodeClones: bigint;
+    slotPages: bigint;
+    directories: bigint;
+    childLists: bigint;
+    fullValidations: bigint;
+    incrementalValidations: bigint;
+    validationVisits: bigint;
+    siblingVisits: bigint;
+  }>;
   readonly layoutQuery: EngineLayoutQuery | null;
   readonly measurePreparation: bigint;
   readonly measureDocument: bigint;
@@ -1513,8 +1535,11 @@ export function response(
   bytes: Uint8Array,
   options: {
     appObservation?: boolean;
+    /** Internal transport hands off this buffer for the snapshot's entire life. */
+    ownedObservation?: boolean;
     observationCache?: ObservationDecodeCache;
     observationOwner?: string;
+    observationStream?: ObservationStream;
   } = {},
 ): EngineResponse {
   if (bytes.length < p.headerBytes + p.stateBytes || bytes.length > p.limits.responseBytes)
@@ -1545,10 +1570,16 @@ export function response(
   const u32 = (offset: number) => v.getUint32(b + offset, true);
   const nodes: EngineNodeSnapshot[] = [],
     events: EngineEvent[] = [];
+  if (options.observationStream && eventCount)
+    throw Error('Observation subscriptions cannot carry input events');
   let cursor = p.headerBytes + p.stateBytes;
   // Lazy App rows never retain a transport-owned/mutable caller buffer.
   const observationData =
-    options.appObservation && rows ? new DataView(bytes.slice().buffer) : undefined;
+    options.appObservation && rows
+      ? options.ownedObservation
+        ? v
+        : new DataView(bytes.slice().buffer)
+      : undefined;
   for (let i = 0; i < rows; ++i, cursor += p.nodeBytes) {
     if (observationData) {
       nodes.push(readObservationRow(observationData, cursor, finite));
@@ -1688,7 +1719,7 @@ export function response(
       }),
     );
   }
-  const blobs: EngineBlob[] = [];
+  let blobs: EngineBlob[] = [];
   for (let i = 0; i < blobCount; ++i) {
     if (cursor + 24 > bytes.length) throw new Error('Truncated engine blob');
     const type = v.getUint32(cursor, true),
@@ -1730,6 +1761,9 @@ export function response(
         p.semanticGeometryBlob,
         p.semanticTraversalBlob,
         p.keyIdentityEventBlob,
+        p.observationDeltaBlob,
+        p.observationReferencesBlob,
+        p.observationRegistrationBlob,
       ].includes(type) ||
       stride > bytes.length - cursor ||
       v.getUint32(cursor + 4, true) ||
@@ -1746,6 +1780,57 @@ export function response(
     cursor += stride;
   }
   if (cursor !== bytes.length) throw new Error('Engine blob table length mismatch');
+  const exposedBlobs = blobs;
+  if (
+    v.getUint16(p.headerFields.status, true) !== p.statuses.ok &&
+    blobs.some((blob) => blob.type === p.observationDeltaBlob)
+  )
+    throw Error('Rejected observations must not update a subscription');
+  const observation = blobs.some((blob) => blob.type === p.observationDeltaBlob)
+    ? options.observationStream?.prepare(blobs, nodes)
+    : undefined;
+  if (
+    !observation &&
+    blobs.some((blob) =>
+      (
+        [
+          p.observationDeltaBlob,
+          p.observationReferencesBlob,
+          p.observationRegistrationBlob,
+        ] as readonly number[]
+      ).includes(blob.type),
+    )
+  )
+    throw Error('Observation delta requires an owner subscription');
+  if (observation) blobs = observation.blobs;
+  if (observation) {
+    const { accepted, active, published } = observation.metadata.cohorts;
+    if (
+      accepted.document !== u64(p.stateFields.document) ||
+      accepted.metrics !== u64(p.stateFields.metrics) ||
+      accepted.device !== u64(p.stateFields.device) ||
+      accepted.font !== u64(p.stateFields.fontRevision) ||
+      active.document !== u64(p.stateFields.activeDocument) ||
+      active.metrics !== u64(p.stateFields.layoutMetrics) ||
+      active.preparation !== u64(p.stateFields.activePreparation) ||
+      published.document !== u64(p.stateFields.publishedDocument) ||
+      published.metrics !== u64(p.stateFields.publishedMetrics) ||
+      published.device !== u64(p.stateFields.publishedDevice) ||
+      published.publication !== u64(p.stateFields.publication)
+    )
+      throw Error('Observation metadata/rows have different consistency cohorts');
+  }
+  const decodeBlob = <T>(blob: EngineBlob, decode: (bytes: Uint8Array) => T): T => {
+    const cache = options.observationCache;
+    if (!cache) return decode(blob.bytes);
+    return blob.registration
+      ? cache.readRegistered(`${options.observationOwner}/${blob.registration}`, blob.bytes, decode)
+      : cache.read(
+          `${options.observationOwner}/${blob.type}/${blob.handle.slot}:${blob.handle.generation}`,
+          blob.bytes,
+          decode,
+        );
+  };
   const keyEvents = new Set<number>();
   for (const blob of blobs) {
     if (blob.type !== p.keyIdentityEventBlob) continue;
@@ -1918,7 +2003,7 @@ export function response(
   // Group once by the complete generational handle. Scanning every blob for
   // every node made each publication/layout observation quadratic on Hermes.
   const nodeKey = (handle: NodeHandle) => `${handle.slot}:${handle.generation}`;
-  const nodeHandles = new Set(nodes.map((node) => nodeKey(node.node)));
+  const nodeHandles = observation?.handles ?? new Set(nodes.map((node) => nodeKey(node.node)));
   const nodeBlobs = new Map<string, EngineBlob[]>();
   for (const blob of blobs) {
     if (blob.type < 3) continue;
@@ -1935,7 +2020,7 @@ export function response(
       !nodeHandles.has(nodeKey(blob.handle))
     )
       throw Error('Foreign layout/semantics geometry owner');
-  const enriched = nodes.map((node): EngineNodeSnapshot => {
+  const changedRows = nodes.map((node): EngineNodeSnapshot => {
     if (observationData && !nodeBlobs.has(nodeKey(node.node))) return Object.freeze(node);
     let semanticGeometry: EngineNodeSnapshot['semanticGeometry'] = null;
     let semanticTraversal: EngineNodeSnapshot['semanticTraversal'] = null;
@@ -2099,13 +2184,7 @@ export function response(
       }
       if (blob.type === 11) {
         if (paragraph) throw Error('Duplicate paragraph options');
-        paragraph = options.observationCache
-          ? options.observationCache.read(
-              `${options.observationOwner}/11/${node.node.slot}:${node.node.generation}`,
-              blob.bytes,
-              readParagraphOptions,
-            )
-          : readParagraphOptions(blob.bytes);
+        paragraph = decodeBlob(blob, readParagraphOptions);
         continue;
       }
       if (blob.type === 10) {
@@ -2183,13 +2262,7 @@ export function response(
       if (blob.type === 3) {
         if (semantics || size < p.semanticsBytes || !(d.getUint32(80, true) & 1))
           throw Error('Invalid semantics blob');
-        semantics = options.observationCache
-          ? options.observationCache.read(
-              `${options.observationOwner}/3/${node.node.slot}:${node.node.generation}`,
-              blob.bytes,
-              readSemanticBody,
-            )
-          : readSemanticBody(blob.bytes);
+        semantics = decodeBlob(blob, readSemanticBody);
       } else if (blob.type === 4) {
         if (editing || size < 48 || d.getUint32(44, true) || size !== 48 + d.getUint32(40, true))
           throw new Error('Invalid editing blob');
@@ -2352,8 +2425,22 @@ export function response(
       }),
     );
   });
+  const enriched = observation ? observation.merge(changedRows) : Object.freeze(changedRows);
+  let semanticNodes: Map<string, EngineNodeSnapshot> | undefined;
+  const semanticNode = (handle: NodeHandle): EngineNodeSnapshot | undefined => {
+    if (!semanticNodes) {
+      semanticNodes = new Map();
+      for (const node of enriched) semanticNodes.set(nodeKey(node.node), node);
+    }
+    return semanticNodes.get(nodeKey(handle));
+  };
   const traversalIndices = new Set<number>();
-  for (const node of enriched)
+  for (const node of observation &&
+  !observation.metadata.full &&
+  !observation.metadata.changedRows &&
+  !observation.metadata.removedRows
+    ? []
+    : enriched)
     if (node.semanticTraversal) {
       const traversal = node.semanticTraversal;
       if (
@@ -2371,9 +2458,7 @@ export function response(
           )
         )
           throw Error('Unadvertised semantics custom source');
-        let source = enriched.find(
-          (n) => n.node.slot === entry.source.slot && n.node.generation === entry.source.generation,
-        );
+        let source = semanticNode(entry.source);
         let depth = 0;
         while (
           source &&
@@ -2381,18 +2466,12 @@ export function response(
         ) {
           if (++depth > p.limits.depth) throw Error('Cyclic custom semantics source');
           const parent = source.parent;
-          source = enriched.find(
-            (n) => n.node.slot === parent.slot && n.node.generation === parent.generation,
-          );
+          source = semanticNode(parent);
         }
         if (!source) throw Error('Foreign custom semantics source ancestor');
       }
       if (traversal.parent.slot) {
-        const parent = enriched.find(
-          (n) =>
-            n.node.slot === traversal.parent.slot &&
-            n.node.generation === traversal.parent.generation,
-        );
+        const parent = semanticNode(traversal.parent);
         if (!parent?.semanticTraversal || parent.semanticTraversal.index >= traversal.index)
           throw Error('Cyclic or unordered semantics traversal');
       }
@@ -2464,8 +2543,8 @@ export function response(
       throw Error('Invalid semantic route data');
     const label = decodeUtf8(blob.bytes.subarray(p.semanticRouteBytes)),
       same = (a: NodeHandle, b: NodeHandle) => a.slot === b.slot && a.generation === b.generation,
-      scopeNode = enriched.find((node) => same(node.node, scope)),
-      nameNode = enriched.find((node) => same(node.node, name));
+      scopeNode = semanticNode(scope),
+      nameNode = semanticNode(name);
     if (
       scope.slot &&
       (!scopeNode?.semantics ||
@@ -2489,7 +2568,7 @@ export function response(
           break;
         }
         const parent: NodeHandle = at.parent;
-        at = enriched.find((node) => same(node.node, parent));
+        at = semanticNode(parent);
       }
       if (!found) throw Error('Semantic route name outside scope');
     }
@@ -2511,8 +2590,21 @@ export function response(
     (!viewportScale && (viewportWidth || viewportHeight || u64(p.stateFields.metrics)))
   )
     throw new Error('Invalid engine viewport observation');
-  return Object.freeze({
+  const result: EngineResponse = Object.freeze({
     layoutBuildPending: !!(flags & p.layoutBuildPending),
+    transactionCost: Object.freeze({
+      nodeClones: u64(p.stateFields.transactionNodeClones),
+      slotPages: u64(p.stateFields.transactionSlotPages),
+      directories: u64(p.stateFields.transactionDirectories),
+      childLists: u64(p.stateFields.transactionChildLists),
+      fullValidations: u64(p.stateFields.transactionFullValidations),
+      incrementalValidations: u64(p.stateFields.transactionIncrementalValidations),
+      validationVisits: u64(p.stateFields.transactionValidationVisits),
+      siblingVisits: u64(p.stateFields.transactionSiblingVisits),
+      blobRegistrations: u64(p.stateFields.transactionBlobRegistrations),
+      blobBindings: u64(p.stateFields.transactionBlobBindings),
+      blobBytes: u64(p.stateFields.transactionBlobBytes),
+    }),
     layoutBuildRequest,
     semanticRoute,
     snapshotDecision,
@@ -2643,10 +2735,13 @@ export function response(
     coverageClamps: u64(p.stateFields.coverageClamps),
     coverageHandoffs: u64(p.stateFields.coverageHandoffs),
     renderWake: !!(flags & 128),
-    blobs: Object.freeze(blobs),
+    observation: observation?.metadata ?? null,
+    blobs: Object.freeze(exposedBlobs),
     nodes: Object.freeze(enriched),
     events: Object.freeze(events),
   });
+  observation?.commit();
+  return result;
 }
 export interface ProviderMeasurement {
   readonly geometry?: TextGeometry;

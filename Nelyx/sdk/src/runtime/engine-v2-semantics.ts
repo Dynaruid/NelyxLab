@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
+import { setManagedAttribute, setManagedText } from './engine-v2-dom.js';
 import { protocol as p } from '@nelyx/core/engine';
 import type { EngineNodeSnapshot, NodeHandle, SemanticCustomAction } from '@nelyx/core/engine';
 
 const key = (node: NodeHandle) => `${node.slot}:${node.generation}`;
 let nextOwner = 0;
-type Peer = { readonly element: HTMLElement; readonly node: EngineNodeSnapshot };
+type Peer = {
+  readonly element: HTMLElement;
+  readonly node: EngineNodeSnapshot;
+};
 type ActionPeer = {
   readonly element: HTMLButtonElement;
   node: EngineNodeSnapshot;
@@ -42,7 +46,7 @@ export class EngineV2BrowserSemantics {
       const owner = parent.slot && peers.has(key(parent)) ? key(parent) : '';
       if (!children.has(owner)) children.set(owner, []);
       children.get(owner)!.push(id);
-      peer.element.id = this.prefix + id;
+      setManagedAttribute(peer.element, 'id', this.prefix + id);
       const semantics = node.semantics!;
       const ids: string[] = [];
       for (const action of semantics.customActions ?? []) {
@@ -81,8 +85,9 @@ export class EngineV2BrowserSemantics {
         }
         value.node = node;
         value.action = action;
-        value.element.textContent = action.label || action.hint || '';
-        value.element.disabled = !!(semantics.flags & p.semanticsFlags.disabled);
+        setManagedText(value.element, action.label || action.hint || '');
+        const disabled = !!(semantics.flags & p.semanticsFlags.disabled);
+        if (value.element.disabled !== disabled) value.element.disabled = disabled;
       }
       actionIds.set(id, ids);
     }
@@ -103,7 +108,7 @@ export class EngineV2BrowserSemantics {
         if (!group) {
           group = document.createElement('div');
           group.id = this.prefix + id + '-group';
-          group.setAttribute('role', 'group');
+          setManagedAttribute(group, 'role', 'group');
           Object.assign(group.style, {
             position: 'absolute',
             width: '1px',
@@ -124,14 +129,14 @@ export class EngineV2BrowserSemantics {
         ...(children.get(id) ?? []).map((child) => targets.get(child)!),
       ];
       if (group) {
-        peer.element.removeAttribute('aria-owns');
-        group.setAttribute('aria-owns', [peer.element.id, ...owns].join(' '));
-      } else if (owns.length) peer.element.setAttribute('aria-owns', owns.join(' '));
-      else peer.element.removeAttribute('aria-owns');
+        setManagedAttribute(peer.element, 'aria-owns', null);
+        setManagedAttribute(group, 'aria-owns', [peer.element.id, ...owns].join(' '));
+      } else if (owns.length) setManagedAttribute(peer.element, 'aria-owns', owns.join(' '));
+      else setManagedAttribute(peer.element, 'aria-owns', null);
     }
     const roots = (children.get('') ?? []).map((id) => targets.get(id)!);
-    if (roots.length) this.layer.setAttribute('aria-owns', roots.join(' '));
-    else this.layer.removeAttribute('aria-owns');
+    if (roots.length) setManagedAttribute(this.layer, 'aria-owns', roots.join(' '));
+    else setManagedAttribute(this.layer, 'aria-owns', null);
     for (const [id, element] of this.groups)
       if (!wantedGroups.has(id)) {
         element.remove();
@@ -148,6 +153,6 @@ export class EngineV2BrowserSemantics {
     for (const peer of this.actions.values()) peer.element.remove();
     this.groups.clear();
     this.actions.clear();
-    this.layer.removeAttribute('aria-owns');
+    setManagedAttribute(this.layer, 'aria-owns', null);
   }
 }

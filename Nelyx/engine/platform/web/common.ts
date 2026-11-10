@@ -19,6 +19,10 @@ export const sessionOwner: PacketOwner = { ...owner, view: 0, generation: 0 };
 export class CommittedMemoryError extends Error {
   readonly fatalMemory = true;
 }
+const heapReports = new WeakMap<BrowserModule, Map<number, number>>();
+export function forgetHeapReport(module: BrowserModule, engine: number): void {
+  heapReports.get(module)?.delete(engine);
+}
 export function key(handle: { slot: number; generation: number }): string {
   return handle.generation + ':' + handle.slot;
 }
@@ -45,19 +49,28 @@ export function exchange(module: BrowserModule, engine: number, bytes: Uint8Arra
       : 0;
   const sync = () => {
     module._nelyx_wasm_refresh_heap();
+    const length = module.HEAPU8.byteLength;
+    let reports = heapReports.get(module);
+    if (reports?.get(engine) === length) return;
     const data = new Uint8Array(16),
       view = new DataView(data.buffer);
-    view.setBigUint64(8, BigInt(module.HEAPU8.byteLength), true);
+    view.setBigUint64(8, BigInt(length), true);
     const result = exchange(module, engine, packet(p.opcodes.memoryReport, sessionOwner, data));
     if (
       new DataView(result.buffer, result.byteOffset, result.byteLength).getUint16(
         p.headerFields.status,
         true,
       ) !== p.statuses.ok
-    )
+    ) {
+      forgetHeapReport(module, engine);
       throw new CommittedMemoryError(
         'Committed engine heap exceeds the unified memory budget; session cannot continue',
       );
+    }
+    if (!reports) heapReports.set(module, (reports = new Map()));
+    // Cache only the acknowledged size, never a borrowed heap view. A grow
+    // during dispatch (including this report) is detected at the next sync.
+    reports.set(engine, length);
   };
   if (op !== p.opcodes.memoryReport) sync();
   const input = module._malloc(bytes.length || 1);
@@ -81,6 +94,7 @@ export function exchange(module: BrowserModule, engine: number, bytes: Uint8Arra
     if (result) module._nelyx_wasm_release(result);
     module._free(input);
     if (op !== p.opcodes.memoryReport && op !== p.opcodes.closeSession) sync();
+    if (op === p.opcodes.closeSession) forgetHeapReport(module, engine);
   }
 }
 export function request(

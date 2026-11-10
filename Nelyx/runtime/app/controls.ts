@@ -37,6 +37,7 @@ export interface OriginalControlConfiguration {
   readonly cacheableSemantics?: boolean;
   /** Paint depends on descendant visibility, independently of this node's dirtiness. */
   readonly dynamicPaint?: boolean;
+  readonly dependencies?: readonly RenderObject[];
   readonly kind?: 'stack';
   readonly children?: readonly RenderObject[];
   readonly paint?: readonly NativePaintEntry[];
@@ -202,7 +203,8 @@ export function originalControlConfiguration(
     };
   if (metadata?.kind === 'ink')
     return {
-      dynamicPaint: metadata.dependsOnChildVisibility ?? true,
+      dynamicPaint: metadata.dependencies ? false : (metadata.dependsOnChildVisibility ?? true),
+      ...(metadata.dependencies ? { dependencies: metadata.dependencies } : {}),
       options: { pointerHitTest: metadata.absorbHitTest ? 'self' : 'proxy' },
       paint: metadata.entries,
     };

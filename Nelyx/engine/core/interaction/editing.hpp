@@ -55,6 +55,7 @@ private:
 struct SemanticRangeData {
   bool enabled=false,readOnly=false;
   double minimum=0,maximum=0,value=0,smallChange=0,largeChange=0;
+  bool operator==(const SemanticRangeData&)const=default;
 };
 struct SemanticCustomActionData {
   uint32_t id=0,overrideAction=0;
@@ -65,12 +66,14 @@ struct SemanticCustomActionData {
 struct SemanticSortKey {
   double order=0;
   std::optional<std::string> name;
+  bool operator==(const SemanticSortKey&)const=default;
 };
 struct SemanticMetadata {
   std::string identifier;
   uint32_t direction=0;
   std::optional<SemanticSortKey> sort;
   std::vector<SemanticCustomActionData> custom;
+  bool operator==(const SemanticMetadata&)const=default;
   size_t bytes()const {
     size_t result=identifier.size()+(sort&&sort->name?sort->name->size():0)+custom.capacity()*sizeof(SemanticCustomActionData);
     for(const auto& action:custom)result+=action.label.size()+action.hint.size();

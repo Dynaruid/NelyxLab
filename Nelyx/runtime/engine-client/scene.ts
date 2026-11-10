@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import {
-  commands as c,
-  protocol as p,
-  eventValue,
-  appObservationBody,
-  appLayoutSelectionBody,
-} from './codec.ts';
+import { commands as c, protocol as p, eventValue } from './codec.ts';
+import { SceneBlobJournal } from './scene-blobs.ts';
+import type { SceneBlobPlan } from './scene-blobs.ts';
 import type {
   NodeHandle,
   NodeLayout,
@@ -229,6 +225,88 @@ interface NativeRecord {
   readonly fullyCacheable: boolean;
   readonly configInputs: ReadonlyMap<number, unknown>;
 }
+/** A transaction's private write set over the accepted registry. The base is
+ * changed only after a terminal ACK; in-flight edits never mutate it. */
+class RecordPatch {
+  readonly changed = new Map<string, NativeRecord>();
+  readonly removed = new Map<string, NativeRecord>();
+  constructor(readonly base: Map<string, NativeRecord>) {}
+  get size(): number {
+    let count = this.base.size - this.removed.size;
+    for (const key of this.changed.keys()) if (!this.base.has(key)) ++count;
+    return count;
+  }
+  get(key: string): NativeRecord | undefined {
+    return this.removed.has(key) ? undefined : (this.changed.get(key) ?? this.base.get(key));
+  }
+  has(key: string): boolean {
+    return this.get(key) !== undefined;
+  }
+  set(key: string, record: NativeRecord): void {
+    if (record !== this.base.get(key)) this.changed.set(key, record);
+  }
+  *values(): IterableIterator<NativeRecord> {
+    for (const [key, record] of this.base)
+      if (!this.removed.has(key)) yield this.changed.get(key) ?? record;
+    for (const [key, record] of this.changed) if (!this.base.has(key)) yield record;
+  }
+  *[Symbol.iterator](): IterableIterator<[string, NativeRecord]> {
+    for (const record of this.values()) yield [id(record.handle), record];
+  }
+  reconcile(root: NodeHandle, previousRoot?: NodeHandle): void {
+    const candidates: NativeRecord[] = [];
+    for (const record of this.changed.values()) {
+      const before = this.base.get(id(record.handle));
+      if (!before) continue;
+      const children = new Set(record.children.map(id));
+      for (const child of before.children)
+        if (!children.has(id(child))) candidates.push(this.base.get(id(child))!);
+    }
+    // A Source root replacement is also a removal edge.
+    if (previousRoot && id(previousRoot) !== id(root))
+      candidates.push(this.base.get(id(previousRoot))!);
+    const remove = (before: NativeRecord): void => {
+      const key = id(before.handle);
+      if (this.removed.has(key)) return;
+      const after = this.changed.get(key);
+      if (after) return; // Reparented/reused elsewhere in this batch.
+      this.removed.set(key, before);
+      for (const child of before.children) remove(this.base.get(id(child))!);
+    };
+    for (const before of candidates) remove(before);
+    // Validate the affected edge closure, including edges into skipped subtrees.
+    // This catches duplicate references without visiting those subtrees.
+    for (const record of this.changed.values()) {
+      const before = this.base.get(id(record.handle));
+      if (before?.parent && (!record.parent || id(before.parent) !== id(record.parent))) {
+        const oldParent = this.get(id(before.parent));
+        if (oldParent?.children.some((child) => id(child) === id(record.handle)))
+          throw Error('Duplicate scene reference in retained subtree');
+      }
+      if (record.parent) {
+        const parent = this.get(id(record.parent));
+        if (!parent?.children.some((child) => id(child) === id(record.handle)))
+          throw Error('Scene parent edge is absent');
+      }
+      const children = new Set<string>();
+      for (const child of record.children) {
+        const key = id(child),
+          next = this.get(key);
+        if (children.has(key) || !next?.parent || id(next.parent) !== id(record.handle))
+          throw Error('Duplicate scene reference or inconsistent child edge');
+        children.add(key);
+      }
+    }
+  }
+}
+type RecordSet = Map<string, NativeRecord> | RecordPatch;
+type RetainedSubtree = {
+  record: NativeRecord;
+  count: number;
+  height: number;
+  geometry: number;
+  cacheable: boolean;
+};
 export interface EngineExecutionSnapshot {
   readonly selected: 'engine-v2-cpp';
   readonly fallbackPolicy: 'reject-unported';
@@ -329,6 +407,23 @@ export class SceneWriter {
   private eventsStarted = false;
   private closed = false;
   private accepted = new Map<string, NativeRecord>();
+  private acceptedRoot: NodeHandle | undefined;
+  private retainedSubtrees = new WeakMap<SceneNode, RetainedSubtree>();
+  private readonly layoutObservers = new Map<string, NativeRecord>();
+  private readonly imageCounts = new Map<ImageResource, number>();
+  private readonly provisional = new Set<string>();
+  private recordCheckpoint:
+    | {
+        nextSlot: number;
+        popped: NodeHandle[];
+        bindings: {
+          reference: SceneReference;
+          before: { kind: SceneNode['kind']; handle: NodeHandle } | undefined;
+          handle: NodeHandle;
+        }[];
+        resources: ImageResource[];
+      }
+    | undefined;
   private hovered = new Map<string, GestureEvent>();
   private handles = new Map<SceneReference, { kind: SceneNode['kind']; handle: NodeHandle }>();
   private allocations = new Map<string, { reference: SceneReference; handle: NodeHandle }>();
@@ -341,8 +436,9 @@ export class SceneWriter {
   private uploading:
     | { resource: ImageResource; handle: NodeHandle; token: bigint; bytes: Uint8Array }
     | undefined;
+  private readonly blobJournal = new SceneBlobJournal();
   private pending:
-    | { desired: Map<string, NativeRecord>; changes: readonly Uint8Array[] }
+    | { desired: RecordSet; changes: readonly Uint8Array[]; blobPlan?: SceneBlobPlan | undefined }
     | undefined;
   private running: Promise<void> | undefined;
   private closing: Promise<void> | undefined;
@@ -364,6 +460,12 @@ export class SceneWriter {
   private appGeometryNodes = 0;
   private readonly controlRevisions = new Map<string, bigint>();
   readonly counters = {
+    blobRegistrations: 0,
+    blobBindings: 0,
+    blobRetired: 0,
+    blobRegisteredBytes: 0,
+    blobReferencedBytes: 0,
+    blobRetainedBytes: 0,
     recordsMs: 0,
     diffMs: 0,
     topologyReused: 0,
@@ -380,6 +482,13 @@ export class SceneWriter {
     created: 0,
     destroyed: 0,
     moved: 0,
+    allocatedVisits: 0,
+    recordVisits: 0,
+    skippedSubtreeNodes: 0,
+    journalRecords: 0,
+    fullRecordBuilds: 0,
+    topologyRecords: 0,
+    creationDepthVisits: 0,
     gestures: 0,
     controls: 0,
   };
@@ -403,6 +512,9 @@ export class SceneWriter {
       pollEvents?: boolean;
       /** Internal App bridges consume geometry/semantics, not renderer payloads. */
       appObservations?: boolean;
+      /** Internal Source producer supplies immutable, invalidated Scene configs. */
+      retainedScene?: boolean;
+      immutableBlobs?: boolean;
       /** Core observations share the existing bounded event poll. */
       onState?: (state: EngineResponse) => void;
       onPublication?: (state: EngineResponse) => void;
@@ -450,35 +562,78 @@ export class SceneWriter {
   }
   private allocate(): NodeHandle {
     const h = this.free.pop();
-    if (h) return h;
+    if (h) {
+      this.recordCheckpoint?.popped.push(h);
+      return h;
+    }
     if (this.nextSlot >= p.limits.nodes)
       throw new EngineError(p.statuses.budgetExceeded, 'Scene node budget');
     return { slot: ++this.nextSlot, generation: 1 };
   }
-  private records(root: SceneNode): Map<string, NativeRecord> {
-    const records = new Map<string, NativeRecord>();
+  private records(root: SceneNode): RecordSet {
+    const records: RecordSet = this.options.retainedScene
+      ? new RecordPatch(this.accepted)
+      : new Map<string, NativeRecord>();
+    if (!(records instanceof RecordPatch)) ++this.counters.fullRecordBuilds;
     const seen = new Set<SceneReference>();
+    const reusable = (node: SceneNode): RetainedSubtree | undefined => {
+      if (!(records instanceof RecordPatch) || !retainedConfigurations.has(node)) return;
+      const cached = this.retainedSubtrees.get(node);
+      if (
+        cached?.cacheable &&
+        this.handles.get(node.reference)?.handle === cached.record.handle &&
+        this.accepted.get(id(cached.record.handle)) === cached.record
+      )
+        return cached;
+    };
     const allocate = (node: SceneNode, depth: number): void => {
       if (depth > p.limits.depth || seen.size >= p.limits.nodes)
         throw Error('Scene node/depth budget');
       if (seen.has(node.reference)) throw Error('Duplicate scene reference');
       seen.add(node.reference);
+      ++this.counters.allocatedVisits;
+      if (reusable(node)) return;
       let binding = this.handles.get(node.reference);
       if (!binding || binding.kind !== node.kind) {
         const handle = this.allocate();
+        this.recordCheckpoint?.bindings.push({
+          reference: node.reference,
+          before: binding,
+          handle,
+        });
         binding = { kind: node.kind, handle };
         this.handles.set(node.reference, binding);
         this.allocations.set(id(handle), { reference: node.reference, handle });
+        this.provisional.add(id(handle));
       }
       node.reference.bind(this, binding.handle);
       for (const child of node.children) allocate(child, depth + 1);
     };
     allocate(root, 0);
-    const visit = (node: SceneNode, parent: NodeHandle | null, appGeometry = false): NodeHandle => {
+    const visit = (
+      node: SceneNode,
+      parent: NodeHandle | null,
+      appGeometry = false,
+      depth = 0,
+    ): NodeHandle => {
       const h = this.handles.get(node.reference)!.handle,
         o = node.options,
         key = id(h);
       appGeometry ||= !!o.appDrivenGeometry;
+      const cached = reusable(node);
+      if (cached && cached.record.appGeometry === appGeometry) {
+        if (depth + cached.height > p.limits.depth) throw Error('Scene node/depth budget');
+        const sameParent =
+          cached.record.parent === parent ||
+          (!!cached.record.parent && !!parent && id(cached.record.parent) === id(parent));
+        const record = sameParent ? cached.record : { ...cached.record, parent };
+        records.set(key, record);
+        this.retainedSubtrees.set(node, { ...cached, record });
+        this.appGeometryNodes += cached.geometry;
+        this.counters.skippedSubtreeNodes += cached.count;
+        return h;
+      }
+      ++this.counters.recordVisits;
       if (appGeometry) ++this.appGeometryNodes;
       if (
         appGeometry &&
@@ -487,7 +642,22 @@ export class SceneWriter {
         throw new Error(
           'AppDrivenBoundary requires explicit finite width and height on every node',
         );
-      const children = node.children.map((child) => visit(child, h, appGeometry));
+      const children = node.children.map((child) => visit(child, h, appGeometry, depth + 1));
+      const retainSubtree = (record: NativeRecord): void => {
+        const descendants = node.children.map((child) => this.retainedSubtrees.get(child)!);
+        this.retainedSubtrees.set(node, {
+          record,
+          count: 1 + descendants.reduce((sum, child) => sum + child.count, 0),
+          height: descendants.reduce((height, child) => Math.max(height, child.height + 1), 0),
+          geometry:
+            Number(appGeometry) + descendants.reduce((sum, child) => sum + child.geometry, 0),
+          cacheable:
+            retainedConfigurations.has(node) &&
+            record.fullyCacheable &&
+            !o.control &&
+            descendants.every((child) => child.cacheable),
+        });
+      };
       const before = this.accepted.get(key);
       // Resolve executable configuration every time: a retained follower or
       // paint reference may point to a newly allocated native handle. Records
@@ -515,7 +685,9 @@ export class SceneWriter {
           before.children.every(
             (child, index) => child === children[index] || id(child) === id(children[index]!),
           );
-        records.set(key, sameParent && sameChildren ? before : { ...before, parent, children });
+        const record = sameParent && sameChildren ? before : { ...before, parent, children };
+        records.set(key, record);
+        retainSubtree(record);
         ++this.counters.reusedRecords;
         return h;
       }
@@ -697,6 +869,7 @@ export class SceneWriter {
         if (node.image && !resource) {
           resource = this.view.allocateResource();
           this.resources.set(node.image, resource);
+          this.recordCheckpoint?.resources.push(node.image);
         }
         config.push(
           encode(p.commands.bindResource, resource, () => c.bindResource(h, resource ?? null)),
@@ -732,7 +905,7 @@ export class SceneWriter {
         node.maximumLength,
       );
       if (retainedConfigurations.has(node)) retainSceneConfiguration(ownNode);
-      records.set(key, {
+      const record: NativeRecord = {
         node: ownNode,
         handle: h,
         parent,
@@ -742,17 +915,36 @@ export class SceneWriter {
         fullyCacheable: config.every((bytes) => configInputs.has(commandKind(bytes))),
         configInputs,
         appGeometry,
-      });
+      };
+      records.set(key, record);
+      retainSubtree(record);
       return h;
     };
     visit(root, null);
+    if (records instanceof RecordPatch) {
+      records.reconcile(this.handles.get(root.reference)!.handle, this.acceptedRoot);
+      this.counters.journalRecords += records.changed.size + records.removed.size;
+    }
     return records;
   }
-  private diff(desired: Map<string, NativeRecord>): Uint8Array[] {
+  private wantedResources(desired: RecordSet): Set<ImageResource> {
+    if (!(desired instanceof RecordPatch))
+      return new Set([...desired.values()].flatMap((r) => (r.node.image ? [r.node.image] : [])));
+    const counts = new Map(this.imageCounts);
+    const adjust = (resource: ImageResource | undefined, amount: number) => {
+      if (resource) counts.set(resource, (counts.get(resource) ?? 0) + amount);
+    };
+    for (const before of desired.removed.values()) adjust(before.node.image, -1);
+    for (const [key, after] of desired.changed) {
+      adjust(this.accepted.get(key)?.node.image, -1);
+      adjust(after.node.image, 1);
+    }
+    return new Set([...counts].filter(([, count]) => count > 0).map(([resource]) => resource));
+  }
+  private diff(desired: RecordSet): Uint8Array[] {
     const changes: Uint8Array[] = [],
-      wantedResources = new Set(
-        [...desired.values()].flatMap((r) => (r.node.image ? [r.node.image] : [])),
-      );
+      wantedResources = this.wantedResources(desired),
+      changed = desired instanceof RecordPatch ? desired.changed : desired;
     for (const resource of wantedResources)
       if (!this.acceptedResources.has(resource) && !this.uploadedResources.has(resource))
         changes.push(c.acquireResource(this.resources.get(resource)!, resource.bytes));
@@ -760,9 +952,12 @@ export class SceneWriter {
     // a shadow topology, preorder and detach/move indexes for that common case.
     const sameHandle = (a: NodeHandle | null, b: NodeHandle | null) =>
       a === b || (!!a && !!b && a.slot === b.slot && a.generation === b.generation);
-    let sameTopology = desired.size === this.accepted.size;
+    let sameTopology =
+      desired instanceof RecordPatch
+        ? desired.removed.size === 0
+        : desired.size === this.accepted.size;
     if (sameTopology)
-      for (const [key, record] of desired) {
+      for (const [key, record] of changed) {
         const before = this.accepted.get(key);
         if (
           !before ||
@@ -776,7 +971,7 @@ export class SceneWriter {
       }
     if (sameTopology) {
       ++this.counters.topologyReused;
-      for (const [key, record] of desired) {
+      for (const [key, record] of changed) {
         const before = this.accepted.get(key)!;
         if (before === record) continue;
         for (const config of record.config) {
@@ -790,22 +985,29 @@ export class SceneWriter {
       return changes;
     }
     const topology = new Map<string, string[]>();
-    for (const r of this.accepted.values()) topology.set(id(r.handle), r.children.map(id));
+    const siblingsOf = (parent: NodeHandle): string[] => {
+      const key = id(parent);
+      let children = topology.get(key);
+      if (!children) {
+        children = this.accepted.get(key)?.children.map(id) ?? [];
+        topology.set(key, children);
+        this.counters.topologyRecords += children.length + 1;
+      }
+      return children;
+    };
     const detach = (r: NativeRecord) => {
       if (r.parent) {
-        const a = topology.get(id(r.parent));
-        if (a) {
-          const index = a.indexOf(id(r.handle));
-          if (index >= 0) a.splice(index, 1);
-        }
+        const a = siblingsOf(r.parent),
+          index = a.indexOf(id(r.handle));
+        if (index >= 0) a.splice(index, 1);
       }
     };
-    for (const r of this.accepted.values())
-      if (!desired.has(id(r.handle))) {
-        detach(r);
-      }
-    for (const r of [...this.accepted.values()].reverse())
-      if (!desired.has(id(r.handle))) changes.push(c.destroy(r.handle, !!r.parent));
+    const removed =
+      desired instanceof RecordPatch
+        ? [...desired.removed.values()]
+        : [...this.accepted.values()].filter((r) => !desired.has(id(r.handle)));
+    for (const r of removed) detach(r);
+    for (const r of removed.reverse()) changes.push(c.destroy(r.handle, !!r.parent));
     const preorder: NativeRecord[] = [],
       indices = new Map<string, number>(),
       creationFlags = new Map<string, number>(),
@@ -817,7 +1019,42 @@ export class SceneWriter {
         visit(desired.get(id(child))!);
       });
     };
-    for (const record of desired.values()) if (!record.parent) visit(record);
+    if (desired instanceof RecordPatch) {
+      // New siblings share long retained ancestor paths. Sorting must not walk
+      // that same path twice for every comparison (calendar/lazy-list inserts).
+      // This memo belongs to this immutable desired patch and expires after diff.
+      const depths = new Map<string, number>();
+      const depth = (r: NativeRecord): number => {
+        const key = id(r.handle),
+          cached = depths.get(key);
+        if (cached !== undefined) return cached;
+        const chain: NativeRecord[] = [];
+        let at: NativeRecord | undefined = r;
+        while (at && !depths.has(id(at.handle))) {
+          if (chain.length > p.limits.depth) throw Error('Scene node/depth budget');
+          chain.push(at);
+          ++this.counters.creationDepthVisits;
+          const parent: NodeHandle | null = at.parent;
+          at = parent ? desired.get(id(parent)) : undefined;
+          if (parent && !at) throw Error('Scene parent is absent from the desired patch');
+        }
+        let value = at ? depths.get(id(at.handle))! : -1;
+        for (let i = chain.length - 1; i >= 0; --i) {
+          if (++value > p.limits.depth) throw Error('Scene node/depth budget');
+          depths.set(id(chain[i]!.handle), value);
+        }
+        return depths.get(key)!;
+      };
+      for (const record of [...changed.values()]
+        .filter((r) => !this.accepted.has(id(r.handle)))
+        .sort((a, b) => depth(a) - depth(b))) {
+        preorder.push(record);
+        record.children.forEach((child, index) => indices.set(id(child), index));
+      }
+      // Existing parents can introduce new children too.
+      for (const record of changed.values())
+        record.children.forEach((child, index) => indices.set(id(child), index));
+    } else for (const record of desired.values()) if (!record.parent) visit(record);
     // Parents precede new children so construction can also place one child.
     // Configuration follows all creation; paint/reference targets then exist.
     for (const r of preorder) {
@@ -834,7 +1071,7 @@ export class SceneWriter {
         if (policy && equalBytes(policy, c.eventPolicy(r.handle, p.eventPolicies.canonicalHitTest)))
           initialFlags |= p.nodeCreationFlags.canonicalHitTest;
         creationFlags.set(id(r.handle), initialFlags);
-        const siblings = r.parent ? topology.get(id(r.parent))! : undefined,
+        const siblings = r.parent ? siblingsOf(r.parent) : undefined,
           index = siblings ? Math.min(indices.get(id(r.handle))!, siblings.length) : 0;
         changes.push(
           c.create(
@@ -851,7 +1088,7 @@ export class SceneWriter {
         topology.set(id(r.handle), []);
       }
     }
-    for (const r of desired.values()) {
+    for (const r of changed.values()) {
       const before = this.accepted.get(id(r.handle)),
         initialFlags = creationFlags.get(id(r.handle)) ?? 0;
       if (before === r) continue;
@@ -885,8 +1122,8 @@ export class SceneWriter {
     }
     // Every parent exists. Populate siblings in declaration order against the
     // topology produced by preceding moves, including cross-parent moves.
-    for (const r of desired.values()) {
-      const list = topology.get(id(r.handle))!;
+    for (const r of changed.values()) {
+      const list = siblingsOf(r.handle);
       r.children.forEach((h, index) => {
         const old = this.accepted.get(id(h));
         if (
@@ -901,7 +1138,7 @@ export class SceneWriter {
         list.splice(index, 0, id(h));
       });
     }
-    for (const r of desired.values())
+    for (const r of changed.values())
       if (!r.parent) {
         const old = this.accepted.get(id(r.handle));
         if (old?.parent) {
@@ -924,6 +1161,9 @@ export class SceneWriter {
       .then(() => this.perform())
       .finally(() => {
         this.running = undefined;
+      })
+      .then(() => {
+        if (this.rerun && !this.closed) return this.flush();
       });
     return this.running;
   }
@@ -933,6 +1173,7 @@ export class SceneWriter {
       const known = await this.view.queryCommitResult();
       if (known.status === p.statuses.notFound) await this.view.retryCommit();
       else if (known.status !== p.statuses.accepted) {
+        pending.blobPlan?.reject();
         this.pending = undefined;
         throw new EngineError(known.status, 'Scene transaction rejected', known);
       }
@@ -946,12 +1187,14 @@ export class SceneWriter {
       this.rerun = false;
       if (!this.root) return;
       this.appGeometryNodes = 0;
-      const handles = new Map(this.handles),
-        allocations = new Map(this.allocations),
-        free = [...this.free],
-        nextSlot = this.nextSlot,
-        resources = new Map(this.resources);
-      let desired: Map<string, NativeRecord>;
+      const checkpoint: NonNullable<SceneWriter['recordCheckpoint']> = {
+        nextSlot: this.nextSlot,
+        popped: [],
+        bindings: [],
+        resources: [],
+      };
+      this.recordCheckpoint = checkpoint;
+      let desired: RecordSet;
       const recordsStarted = typeof performance === 'undefined' ? Date.now() : performance.now();
       try {
         desired = this.records(this.root);
@@ -959,20 +1202,26 @@ export class SceneWriter {
           (typeof performance === 'undefined' ? Date.now() : performance.now()) - recordsStarted;
         ++this.counters.builds;
       } catch (error) {
-        for (const reference of this.handles.keys()) reference.release(this);
-        this.handles = handles;
-        this.allocations = allocations;
-        this.free = free;
-        this.nextSlot = nextSlot;
-        for (const [reference, binding] of handles) reference.bind(this, binding.handle);
-        for (const [resource, handle] of this.resources)
-          if (!resources.has(resource)) this.view.recycleResource(handle, false);
-        this.resources = resources;
+        for (const { reference, before, handle } of checkpoint.bindings.reverse()) {
+          reference.release(this, handle);
+          this.allocations.delete(id(handle));
+          this.provisional.delete(id(handle));
+          if (before) {
+            this.handles.set(reference, before);
+            reference.bind(this, before.handle);
+          } else this.handles.delete(reference);
+        }
+        this.free.push(...checkpoint.popped.reverse());
+        this.nextSlot = checkpoint.nextSlot;
+        for (const resource of checkpoint.resources) {
+          this.view.recycleResource(this.resources.get(resource)!, false);
+          this.resources.delete(resource);
+        }
         throw error;
+      } finally {
+        this.recordCheckpoint = undefined;
       }
-      const wanted = new Set(
-        [...desired.values()].flatMap((record) => (record.node.image ? [record.node.image] : [])),
-      );
+      const wanted = this.wantedResources(desired);
       for (const [resource, handle] of this.resources)
         if (!this.acceptedResources.has(resource) && !wanted.has(resource)) {
           if (this.uploadedResources.has(resource)) {
@@ -1005,10 +1254,15 @@ export class SceneWriter {
         }
       }
       const diffStarted = typeof performance === 'undefined' ? Date.now() : performance.now();
-      const changes = this.diff(desired);
+      const rawChanges = this.diff(desired);
+      const blobPlan = this.options.immutableBlobs
+        ? this.blobJournal.prepare(rawChanges)
+        : undefined;
+      const changes = blobPlan?.commands ?? rawChanges;
       this.counters.diffMs +=
         (typeof performance === 'undefined' ? Date.now() : performance.now()) - diffStarted;
       if (changes.length > p.limits.commands) {
+        blobPlan?.reject();
         const kinds = new Map<number, number>();
         for (const change of changes) {
           const kind = commandKind(change);
@@ -1020,12 +1274,15 @@ export class SceneWriter {
         );
       }
       if (changes.length) {
-        this.pending = { desired, changes };
+        this.pending = { desired, changes, blobPlan };
         try {
           await this.view.commit(changes);
         } catch (error) {
           if (error instanceof EngineError && error.status === p.statuses.budgetExceeded) {
-            if (!this.view.hasPendingTransaction) this.pending = undefined;
+            if (!this.view.hasPendingTransaction) {
+              blobPlan?.reject();
+              this.pending = undefined;
+            }
             const semantics = [...desired.values()].filter(
               (record) => record.node.options.semantics !== undefined,
             ).length;
@@ -1036,7 +1293,10 @@ export class SceneWriter {
             );
           }
           if (!(error instanceof EngineError) || error.status !== p.statuses.timedOut) {
-            if (!this.view.hasPendingTransaction) this.pending = undefined;
+            if (!this.view.hasPendingTransaction) {
+              blobPlan?.reject();
+              this.pending = undefined;
+            }
             throw error;
           }
           const known = await this.view.queryCommitResult();
@@ -1046,14 +1306,29 @@ export class SceneWriter {
         }
       }
       this.adopt(desired, changes);
-      if (!this.rawSubscribed && [...desired.values()].some((r) => r.node.options.onRawInput)) {
+      if (
+        !this.rawSubscribed &&
+        [...(desired instanceof RecordPatch ? desired.changed : desired).values()].some(
+          (r) => r.node.options.onRawInput,
+        )
+      ) {
         await this.view.subscribeRaw();
         this.rawSubscribed = true;
       }
       this.pending = undefined;
     } while (this.rerun && !this.closed);
   }
-  private adopt(desired: Map<string, NativeRecord>, changes: readonly Uint8Array[]): void {
+  private adopt(desired: RecordSet, changes: readonly Uint8Array[]): void {
+    this.pending?.blobPlan?.accept();
+    const blobs = this.blobJournal.diagnostics();
+    Object.assign(this.counters, {
+      blobRegistrations: blobs.registrations,
+      blobBindings: blobs.bindings,
+      blobRetired: blobs.retired,
+      blobRegisteredBytes: blobs.registeredBytes,
+      blobReferencedBytes: blobs.referencedBytes,
+      blobRetainedBytes: blobs.bytes,
+    });
     if (changes.length) {
       ++this.counters.transactions;
       this.counters.commands += changes.length;
@@ -1067,7 +1342,15 @@ export class SceneWriter {
         if (op === p.commands.move) ++this.counters.moved;
       }
     }
-    for (const [key, before] of this.accepted) {
+    const affected =
+      desired instanceof RecordPatch
+        ? new Map(
+            [...desired.changed.keys(), ...desired.removed.keys()].flatMap((key) =>
+              this.accepted.has(key) ? [[key, this.accepted.get(key)!] as const] : [],
+            ),
+          )
+        : this.accepted;
+    for (const [key, before] of affected) {
       const after = desired.get(key);
       if (before.node.editor !== after?.node.editor) before.node.editor?.detach(this);
       if (!after) {
@@ -1080,7 +1363,12 @@ export class SceneWriter {
         if (hover) before.node.options.onGesture?.({ ...hover, kind: 'mouseExit' });
       }
     }
-    for (const [key, allocation] of this.allocations) {
+    const retiring =
+      desired instanceof RecordPatch
+        ? new Set([...this.provisional, ...desired.removed.keys()])
+        : this.allocations.keys();
+    for (const key of retiring) {
+      const allocation = this.allocations.get(key)!;
       if (desired.has(key)) continue;
       const { reference, handle } = allocation;
       this.free.push({
@@ -1093,9 +1381,7 @@ export class SceneWriter {
       }
       this.allocations.delete(key);
     }
-    const resources = new Set(
-      [...desired.values()].flatMap((r) => (r.node.image ? [r.node.image] : [])),
-    );
+    const resources = this.wantedResources(desired);
     for (const resource of this.acceptedResources)
       if (!resources.has(resource)) {
         const h = this.resources.get(resource)!;
@@ -1103,9 +1389,38 @@ export class SceneWriter {
         this.uploadedResources.delete(resource);
         this.view.recycleResource(h, true);
       }
-    this.accepted = desired;
+    const updated = desired instanceof RecordPatch ? desired.changed : desired;
+    let observersChanged = false;
+    const adjustImage = (resource: ImageResource | undefined, amount: number) => {
+      if (!resource) return;
+      const count = (this.imageCounts.get(resource) ?? 0) + amount;
+      if (count) this.imageCounts.set(resource, count);
+      else this.imageCounts.delete(resource);
+    };
+    for (const [key, before] of affected) {
+      this.layoutObservers.delete(key);
+      adjustImage(before.node.image, -1);
+    }
+    for (const [key, record] of updated) {
+      if (record.node.options.onLayout) {
+        observersChanged ||=
+          affected.get(key)?.node.options.onLayout !== record.node.options.onLayout;
+        this.layoutObservers.set(key, record);
+      }
+      adjustImage(record.node.image, 1);
+    }
+    if (desired instanceof RecordPatch) {
+      for (const key of desired.removed.keys()) this.accepted.delete(key);
+      for (const [key, record] of desired.changed) this.accepted.set(key, record);
+    } else this.accepted = desired;
+    this.provisional.clear();
+    for (const record of updated.values()) if (!record.parent) this.acceptedRoot = record.handle;
     this.acceptedResources = resources;
-    for (const r of desired.values()) r.node.editor?.attach(this, r.handle);
+    for (const r of updated.values()) r.node.editor?.attach(this, r.handle);
+    if (observersChanged) {
+      ++this.layoutDemand;
+      if (this.eventsStarted) this.requestEvents();
+    }
     if (changes.length) {
       try {
         this.options.onExecution?.(this.execution);
@@ -1211,6 +1526,10 @@ export class SceneWriter {
     // Input keeps draining while the single observation owner decodes geometry.
     // Retain only the newest demand, never a queue of obsolete frame snapshots.
     this.observationPending = state;
+    const observation = this.drainObservations();
+    if (waitForObservation) await observation;
+  }
+  private drainObservations(): Promise<void> {
     if (!this.observationRunning) {
       this.observationRunning = Promise.resolve()
         .then(async () => {
@@ -1222,12 +1541,18 @@ export class SceneWriter {
         })
         .finally(() => {
           this.observationRunning = undefined;
+        })
+        .then(() => {
+          // The last poll can complete after the drain's while condition,
+          // while the old promise still owns this slot. It must not strand a
+          // route-removal publication until another event happens to arrive.
+          if (this.observationPending && !this.closed) return this.drainObservations();
         });
       void this.observationRunning.catch((error) => {
         if (!this.closed) this.options.onError?.(error);
       });
     }
-    if (waitForObservation) await this.observationRunning;
+    return this.observationRunning;
   }
   private async observeScene(state: EngineResponse): Promise<void> {
     let observed = state;
@@ -1246,10 +1571,9 @@ export class SceneWriter {
         (!this.options.appObservations && publication.consumedThrough !== state.consumedThrough))
     ) {
       const started = typeof performance === 'undefined' ? Date.now() : performance.now();
-      const publication = await this.view.request(
-        p.opcodes.semanticsSnapshot,
-        this.options.appObservations ? appObservationBody() : undefined,
-      );
+      const publication = await (this.options.appObservations
+        ? this.view.observeApp(p.opcodes.semanticsSnapshot)
+        : this.view.request(p.opcodes.semanticsSnapshot));
       const elapsed =
         (typeof performance === 'undefined' ? Date.now() : performance.now()) - started;
       ++this.counters.publicationObservations;
@@ -1271,7 +1595,7 @@ export class SceneWriter {
           publication,
         );
     }
-    const observers = [...this.accepted.values()].filter((r) => r.node.options.onLayout);
+    const observers = [...this.layoutObservers.values()];
     const layout = this.layoutObservation;
     const demand = this.layoutDemand;
     if (
@@ -1296,12 +1620,12 @@ export class SceneWriter {
         layout.focused !== observed.focused)
     ) {
       const started = typeof performance === 'undefined' ? Date.now() : performance.now();
-      const snapshot = await this.view.request(
-        p.opcodes.layoutSnapshot,
-        this.options.appObservations
-          ? appLayoutSelectionBody(observers.map((record) => record.handle))
-          : undefined,
-      );
+      const snapshot = await (this.options.appObservations
+        ? this.view.observeApp(
+            p.opcodes.layoutSnapshot,
+            observers.map((record) => record.handle),
+          )
+        : this.view.request(p.opcodes.layoutSnapshot));
       const elapsed =
         (typeof performance === 'undefined' ? Date.now() : performance.now()) - started;
       ++this.counters.layoutObservations;
@@ -1392,12 +1716,38 @@ export class SceneWriter {
         });
         continue;
       }
-      const record = this.accepted.get(id(event.node));
-      if (!record) {
-        if (event.kind === p.events.semanticAction && event.tapRegion)
-          this.inputEvent(event, undefined, () => this.options.onSemanticAction?.(event, () => {}));
+      if (event.kind === p.events.semanticAction) {
+        const action = Object.entries(p.semanticsActions).find(
+          ([, v]) => BigInt(v) === event.detail,
+        )?.[0] as keyof typeof p.semanticsActions | undefined;
+        if (action)
+          this.inputEvent(event, undefined, () => {
+            // Core can publish the accepted document before this App receives
+            // its commit ACK. Resolve both handles at the Source checkpoint,
+            // after that ACK has installed new callbacks in accepted. Looking
+            // them up during the poll can permanently discard admitted input.
+            const record = this.accepted.get(id(event.node)),
+              source = this.accepted.get(id(event.semanticSource ?? event.node));
+            if (!record && !event.tapRegion) return;
+            const perform = () => {
+              const current = this.accepted.get(id(event.node)),
+                currentSource = source && this.accepted.get(id(source.handle));
+              if (
+                !this.closed &&
+                record &&
+                current?.node.reference === record.node.reference &&
+                source &&
+                currentSource?.node.reference === source.node.reference
+              )
+                currentSource.node.options.onAction?.(action, event);
+            };
+            if (this.options.onSemanticAction) this.options.onSemanticAction(event, perform);
+            else perform();
+          });
         continue;
       }
+      const record = this.accepted.get(id(event.node));
+      if (!record) continue;
       if (event.kind === p.events.scrollTerminal)
         this.inputEvent(event, record, (current) =>
           current?.node.options.onScrollTerminal?.(event),
@@ -1447,30 +1797,6 @@ export class SceneWriter {
         const editing = await this.view.editSnapshot(event.node);
         if (!this.closed)
           this.inputEvent(event, record, (current) => current?.node.editor?.publish(editing));
-      } else if (event.kind === p.events.semanticAction) {
-        const action = Object.entries(p.semanticsActions).find(
-          ([, v]) => BigInt(v) === event.detail,
-        )?.[0] as keyof typeof p.semanticsActions | undefined;
-        if (action) {
-          const source = event.semanticSource
-            ? this.accepted.get(id(event.semanticSource))
-            : record;
-          const perform = () => {
-            const current = this.accepted.get(id(event.node)),
-              currentSource = source && this.accepted.get(id(source.handle));
-            if (
-              !this.closed &&
-              current?.node.reference === record.node.reference &&
-              source &&
-              currentSource?.node.reference === source.node.reference
-            )
-              currentSource.node.options.onAction?.(action, event);
-          };
-          this.inputEvent(event, record, () => {
-            if (this.options.onSemanticAction) this.options.onSemanticAction(event, perform);
-            else perform();
-          });
-        }
       }
     }
     this.options.onAfterEvents?.();
@@ -1552,6 +1878,12 @@ export class SceneWriter {
     this.handles.clear();
     this.allocations.clear();
     this.accepted.clear();
+    this.blobJournal.clear();
+    this.retainedSubtrees = new WeakMap();
+    this.layoutObservers.clear();
+    this.imageCounts.clear();
+    this.provisional.clear();
+    this.acceptedRoot = undefined;
     this.hovered.clear();
     this.controlRevisions.clear();
     this.focusCallback = undefined;

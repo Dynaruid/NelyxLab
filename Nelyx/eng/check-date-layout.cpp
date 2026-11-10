@@ -7,7 +7,7 @@ namespace {
 void requireDate(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 std::shared_ptr<Node> addDateNode(std::shared_ptr<Document> document,uint32_t slot,uint32_t kind,Handle parent={}){
   auto node=std::make_shared<Node>(document->lease.ledger);node->id={slot,1};node->kind=kind;node->parent=parent;
-  document->nodes[slot].value=node;document->children[parent.slot].push_back(node->id);++document->count;document->highWater=std::max(document->highWater,slot);return node;
+  document->nodes.edit(slot).value=node;document->children.append(parent.slot,node->id);++document->count;document->highWater=std::max(document->highWater,slot);return node;
 }
 }
 void checkDateLayout(){
@@ -81,7 +81,7 @@ void checkDateLayout(){
     requireDate(view.active&&view.overlays.at(viewport->id.key()).offset==18000,"First publication did not show initial page");
     auto repaint=std::make_shared<Document>(*geometry);
     auto changed=std::make_shared<Node>(repaint->get(viewport->id));
-    changed->properties.initialScrollOffset=0;repaint->nodes[viewport->id.slot].value=changed;
+    changed->properties.initialScrollOffset=0;repaint->nodes.edit(viewport->id.slot).value=changed;
     geometry=repaint;prepare(2);
     requireDate(view.overlays.at(viewport->id.key()).offset==50*360,"Republish reset live page to initial page");
     view.close(wire::statuses::closed);
@@ -145,7 +145,7 @@ void checkDateLayout(){
     auto built=std::make_shared<Node>(*builder);built->layoutBuilder->builtRevision=1;
     built->layoutBuilder->horizontal={wire::bounds::finite,request.constraints.minWidth,request.constraints.maxWidth};
     built->layoutBuilder->vertical={wire::bounds::finite,request.constraints.minHeight,request.constraints.maxHeight};
-    next->nodes[4].value=built;
+    next->nodes.edit(4).value=built;
     requireDate(!work.resumeBuild(next,{{{99,1},8,false,1000}}),"Foreign page viewport was accepted");
     requireDate(!work.resumeBuild(next,{{viewport->id,8,true,1000}}),"Page manual-input fence was lost");
     requireDate(work.resumeBuild(next,{{viewport->id,180,false,1000}}),"Moving page discarded a valid descendant builder reply");

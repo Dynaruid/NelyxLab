@@ -198,7 +198,14 @@ export type {
   NativePaintScalar,
   NativeRenderMetadata,
 } from './native-paint.ts';
-const nativeRenderInvalidators = new WeakMap<RenderObject, () => void>();
+export type NativeRenderChange =
+  | 'children'
+  | 'layout'
+  | 'paint'
+  | 'semantics'
+  | 'interaction'
+  | 'resource';
+const nativeRenderInvalidators = new WeakMap<RenderObject, (kind: NativeRenderChange) => void>();
 const nativeFontsBindings = new WeakMap<
   RenderObject,
   (scope: SystemFontsRelayoutContext, isLive: () => boolean) => void
@@ -240,7 +247,7 @@ export function withNativeRenderConfiguration<T>(
 export function claimNativeRenderObject(
   render: RenderObject,
   owner: object,
-  invalidated?: () => void,
+  invalidated?: (kind: NativeRenderChange) => void,
 ): void {
   const previous = nativeRenderOwners.get(render);
   invariant(
@@ -2188,7 +2195,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate layout',
       );
-    nativeRenderInvalidators.get(this)?.();
+    nativeRenderInvalidators.get(this)?.(this.changingChildren ? 'children' : 'layout');
     const errors = this.invalidateLayout(undefined, undefined);
     if (errors) throwFailures(errors, 'Layout invalidation failed');
   }
@@ -2237,7 +2244,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate paint',
       );
-    nativeRenderInvalidators.get(this)?.();
+    nativeRenderInvalidators.get(this)?.('paint');
     let owner: PipelineOwner | undefined,
       contents = true;
     let batch = this.paintCoalesces ? this.pipelineOwner?._paintInvalidationBatch : null;
@@ -2325,7 +2332,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate semantics',
       );
-    nativeRenderInvalidators.get(this)?.();
+    nativeRenderInvalidators.get(this)?.('semantics');
     if (FoundationBuildMode.debug) {
       if (this.owner?.debugDoingSemantics)
         invariant(

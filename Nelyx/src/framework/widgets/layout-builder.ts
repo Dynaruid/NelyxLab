@@ -270,6 +270,9 @@ class _RenderLayoutBuilder extends RenderAbstractLayoutBuilderMixin<
       return false;
     if (!this._rebuildNativeWithConstraints(constraints) || this.debugDisposed) return false;
     this.nativeBuilt = { revision, constraints };
+    // A callback may return the same Widget and leave every child unchanged.
+    // Its completed Content input is still new native configuration metadata.
+    this.markNeedsLayout();
     return true;
   };
   /** @internal Configuration only; neither callback nor layout runs during compilation. */

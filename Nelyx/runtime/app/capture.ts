@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import type { RenderObject } from '@nelyx/core/framework/rendering/object';
+import type { RenderObject, NativeRenderChange } from '@nelyx/core/framework/rendering/object';
 import { protocol as p } from '../engine-client/schema.ts';
 import { retainSceneConfiguration, SceneNode } from '../engine-client/scene.ts';
 
 type Count = { value: number };
 type Refresh = (count: Count, depth: number) => SceneNode;
-type Child = { scene: SceneNode; refresh: Refresh; depth: number; count: number };
+type Child = {
+  render: RenderObject;
+  scene: SceneNode;
+  refresh: Refresh;
+  depth: number;
+  count: number;
+};
+type Uses = Map<string, Map<unknown, unknown>>;
 type Entry = {
   scene: SceneNode;
   parent: RenderObject | undefined;
@@ -16,6 +23,9 @@ type Entry = {
   dynamic: boolean;
   hasDynamic: boolean;
   children: readonly Child[];
+  uses: Uses;
+  dependencies: ReadonlySet<RenderObject>;
+  revision: Readonly<Partial<Record<NativeRenderChange, number>>>;
 };
 type CaptureFrame = {
   depth: number;
@@ -23,6 +33,8 @@ type CaptureFrame = {
   dynamic: boolean;
   hasDynamic: boolean;
   children: Child[];
+  uses: Uses;
+  dependencies: Set<RenderObject>;
 };
 
 /** Configuration cache with independently dirty nodes and descendant edges.
@@ -33,15 +45,163 @@ export class RenderSceneCapture {
   private dirty = new WeakSet<RenderObject>();
   private localDirty = new WeakSet<RenderObject>();
   private frames: CaptureFrame[] = [];
+  private readonly active = new Map<RenderObject, Entry>();
+  private roots = new Set<RenderObject>();
+  private readonly parents = new Map<RenderObject, RenderObject | undefined>();
+  private readonly consumers = new Map<RenderObject, Set<RenderObject>>();
+  private readonly registrations = new Map<string, Map<unknown, Map<RenderObject, unknown>>>();
+  private readonly values = new Map<string, Map<unknown, unknown>>();
+  private readonly channelRevisions = new Map<string, number>();
+  private revisions = new WeakMap<RenderObject, Partial<Record<NativeRenderChange, number>>>();
   context = '';
-  readonly counters = { captured: 0, reused: 0, relinked: 0, dynamic: 0, passes: 0 };
-  invalidate(render: RenderObject): void {
+  readonly counters = {
+    captured: 0,
+    reused: 0,
+    relinked: 0,
+    dynamic: 0,
+    passes: 0,
+    activated: 0,
+    retired: 0,
+    registrationEdits: 0,
+    dependencyInvalidations: 0,
+  };
+  invalidate(
+    render: RenderObject,
+    kind: NativeRenderChange = 'layout',
+    visited = new Set<RenderObject>(),
+  ): void {
+    if (visited.has(render)) return;
+    visited.add(render);
+    let revision = this.revisions.get(render);
+    if (!revision) this.revisions.set(render, (revision = {}));
+    revision[kind] = (revision[kind] ?? 0) + 1;
     this.localDirty.add(render);
     for (let at: RenderObject | undefined = render, depth = 0; at; at = at.parent) {
       if (++depth > p.limits.depth) throw Error('Native capture parent depth exceeded');
       if (this.dirty.has(at)) break;
       this.dirty.add(at);
     }
+    for (const consumer of this.consumers.get(render) ?? []) {
+      ++this.counters.dependencyInvalidations;
+      this.invalidate(consumer, kind, visited);
+    }
+  }
+  /** A registration belongs to this projected owner, including while its
+   * configuration is reused. Parking retires it; a remount captures it anew. */
+  bind(channel: string, key: unknown, value: unknown): void {
+    const frame = this.frames.at(-1);
+    if (!frame) throw Error('Capture registration has no owner');
+    let uses = frame.uses.get(channel);
+    if (!uses) frame.uses.set(channel, (uses = new Map()));
+    uses.set(key, value);
+  }
+  bindings<K, V>(channel: string): ReadonlyMap<K, V> {
+    let values = this.values.get(channel);
+    if (!values) this.values.set(channel, (values = new Map()));
+    return values as Map<K, V>;
+  }
+  bindingRevision(channel: string): number {
+    return this.channelRevisions.get(channel) ?? 0;
+  }
+  binding<K, V>(channel: string, key: K): V | undefined {
+    for (let i = this.frames.length - 1; i >= 0; --i) {
+      const uses = this.frames[i]!.uses.get(channel);
+      if (uses?.has(key)) return uses.get(key) as V;
+    }
+    return this.bindings<K, V>(channel).get(key);
+  }
+  dependOn(render: RenderObject): void {
+    this.frames.at(-1)?.dependencies.add(render);
+  }
+  private register(render: RenderObject, entry: Entry, add: boolean): void {
+    for (const [channel, uses] of entry.uses) {
+      let keys = this.registrations.get(channel);
+      if (!keys) this.registrations.set(channel, (keys = new Map()));
+      const values = this.bindings(channel) as Map<unknown, unknown>;
+      for (const [key, value] of uses) {
+        let owners = keys.get(key);
+        if (add) {
+          if (!owners) keys.set(key, (owners = new Map()));
+          owners.set(render, value);
+        } else owners?.delete(render);
+        if (owners?.size) values.set(key, owners.values().next().value);
+        else {
+          keys.delete(key);
+          values.delete(key);
+        }
+        ++this.counters.registrationEdits;
+        this.channelRevisions.set(channel, this.bindingRevision(channel) + 1);
+      }
+    }
+    for (const target of entry.dependencies) {
+      let owners = this.consumers.get(target);
+      if (add) {
+        if (!owners) this.consumers.set(target, (owners = new Set()));
+        owners.add(render);
+      } else {
+        owners?.delete(render);
+        if (!owners?.size) this.consumers.delete(target);
+      }
+    }
+  }
+  /** Commit the desired projection. Only changed edges and removed subtrees
+   * are visited; a reused subtree retains all its registrations in O(1). */
+  commit(roots: readonly RenderObject[]): void {
+    const nextRoots = new Set(roots),
+      candidates = new Set(this.roots);
+    const visit = (render: RenderObject, parent?: RenderObject): void => {
+      const next = this.entries.get(render);
+      if (!next) throw Error('Uncaptured projected owner');
+      const previous = this.active.get(render);
+      this.parents.set(render, parent);
+      if (previous === next) return;
+      if (previous) {
+        if (previous.uses !== next.uses || previous.dependencies !== next.dependencies)
+          this.register(render, previous, false);
+        const children = new Set(next.children.map((child) => child.render));
+        for (const child of previous.children)
+          if (!children.has(child.render)) candidates.add(child.render);
+      } else ++this.counters.activated;
+      this.active.set(render, next);
+      if (!previous || previous.uses !== next.uses || previous.dependencies !== next.dependencies)
+        this.register(render, next, true);
+      for (const child of next.children) visit(child.render, render);
+    };
+    for (const render of roots) visit(render);
+    this.roots = nextRoots;
+    const connected = (render: RenderObject): boolean => {
+      for (let at: RenderObject | undefined = render, depth = 0; at;) {
+        if (++depth > p.limits.depth) throw Error('Capture projection cycle/depth exceeded');
+        if (nextRoots.has(at)) return true;
+        const parent = this.parents.get(at);
+        if (!parent || !this.active.get(parent)?.children.some((child) => child.render === at))
+          return false;
+        at = parent;
+      }
+      return false;
+    };
+    const retire = (render: RenderObject): void => {
+      if (connected(render)) return;
+      const entry = this.active.get(render);
+      if (!entry) return;
+      this.active.delete(render);
+      this.parents.delete(render);
+      this.entries.delete(render);
+      this.register(render, entry, false);
+      ++this.counters.retired;
+      // Reference encoders still resolve the current handle at commit. Mark
+      // their Source owners too, so the next projection cannot reuse a stale
+      // configuration after this target parks or changes generations.
+      for (const owner of this.consumers.get(render) ?? []) this.invalidate(owner);
+      for (const child of entry.children) retire(child.render);
+    };
+    for (const render of candidates) retire(render);
+  }
+  /** A failed capture never becomes the next cache baseline. This full walk
+   * is deliberately confined to recovery, not successful scene updates. */
+  abort(): void {
+    this.entries = new WeakMap(this.active);
+    for (const render of this.active.keys()) this.invalidate(render);
   }
   dynamic(): void {
     const frame = this.frames.at(-1);
@@ -61,6 +221,7 @@ export class RenderSceneCapture {
     const entry = this.entries.get(render)!;
     if (parent) {
       parent.children.push({
+        render,
         scene,
         refresh,
         depth: depth - parent.depth,
@@ -102,6 +263,8 @@ export class RenderSceneCapture {
       dynamic: false,
       hasDynamic: false,
       children: [],
+      uses: reconnect ? entry.uses : new Map(),
+      dependencies: reconnect ? (entry.dependencies as Set<RenderObject>) : new Set(),
     };
     this.frames.push(frame);
     try {
@@ -141,8 +304,18 @@ export class RenderSceneCapture {
         ++this.counters.captured;
         scene = build();
       }
-      if (!frame.dynamic) retainSceneConfiguration(scene);
-      else ++this.counters.dynamic;
+      if (!frame.dynamic) {
+        // Paint/inline projections are owned by this Source configuration too.
+        // Stop at render-child boundaries: their owners decide independently
+        // whether live references/control policies can retain configuration.
+        const renderChildren = new Set(frame.children.map((child) => child.scene));
+        const retain = (node: SceneNode): void => {
+          if (node !== scene && renderChildren.has(node)) return;
+          retainSceneConfiguration(node);
+          for (const child of node.children) retain(child);
+        };
+        retain(scene);
+      } else ++this.counters.dynamic;
       this.entries.set(render, {
         scene,
         parent: render.parent,
@@ -153,6 +326,9 @@ export class RenderSceneCapture {
         dynamic: frame.dynamic,
         hasDynamic: frame.hasDynamic,
         children: frame.children,
+        uses: frame.uses,
+        dependencies: frame.dependencies,
+        revision: Object.freeze({ ...this.revisions.get(render) }),
       });
       return scene;
     } catch (error) {
@@ -166,5 +342,13 @@ export class RenderSceneCapture {
     this.entries = new WeakMap();
     this.dirty = new WeakSet();
     this.localDirty = new WeakSet();
+    this.revisions = new WeakMap();
+    this.active.clear();
+    this.roots.clear();
+    this.parents.clear();
+    this.consumers.clear();
+    this.registrations.clear();
+    this.channelRevisions.clear();
+    for (const values of this.values.values()) values.clear();
   }
 }

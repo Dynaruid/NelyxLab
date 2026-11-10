@@ -2,6 +2,7 @@
 #include "../engine.hpp"
 #include "../state.hpp"
 #include "../interaction/semantics_data.hpp"
+#include "observation.hpp"
 #include <algorithm>
 #include <mutex>
 #include <set>
@@ -87,7 +88,7 @@ std::shared_ptr<const InteractionSnapshot> Engine::interactionSnapshot(uint32_t 
   const auto& frame=*v.published;
   auto held=std::make_shared<Lease>(s.ledger,sizeof(InteractionSnapshot)+frame.properties.size()*sizeof(Property)+
     frame.items.size()*sizeof(DrawItem)+frame.clips.size()*sizeof(ClipShape)+frame.hitRegions.size()*sizeof(HitRegionShape)+
-    frame.semantics.size()*sizeof(FrameSemantics)+v.editors.size()*(sizeof(std::pair<const uint64_t,std::shared_ptr<const EditingValue>>)+64));
+    frame.semantics.size()*sizeof(FrameSemantics)+(frame.observationRows.capacity()+frame.itemBySlot.capacity())*sizeof(uint32_t)+frame.observationRemoved.capacity()*sizeof(Handle)+v.editors.size()*(sizeof(std::pair<const uint64_t,std::shared_ptr<const EditingValue>>)+64));
   auto result=std::make_shared<InteractionSnapshot>();result->snapshotLease=std::move(held);result->frame=frame;result->document=v.document;
   result->focus=v.focusNode;result->session=v.focusSession;result->metrics=v.metrics;result->visible=v.visible;
   for(const auto& entry:v.editors)result->editors.emplace(entry.first,entry.second->value);return result;
@@ -196,8 +197,10 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
   uint32_t imageReadOffset=0,imageReadLength=0;
   uint32_t fontReadOffset=0,fontReadLength=0;
   std::vector<Event> events;
-  bool stateOnlyInspection=false,appObservation=false;
+  bool stateOnlyInspection=false,appObservation=false,browserObservation=false;
   bool selectedLayout=false;
+  bool deltaObservation=false;
+  uint64_t observationBase=0;
   std::vector<Handle> layoutSelection;
   try {
     require(packet.length >= wire::headerBytes && packet.length <= wire::limits::packetBytes);
@@ -213,14 +216,22 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
       stateOnlyInspection=body.length==4;
     }
     if(opcode==wire::opcodes::layoutSnapshot||opcode==wire::opcodes::semanticsSnapshot){
-      selectedLayout=opcode==wire::opcodes::layoutSnapshot&&body.length>=8&&body.u32(0)==wire::inspectionFlags::appLayoutSelection;
+      browserObservation=opcode==wire::opcodes::semanticsSnapshot&&body.length==4&&
+        body.u32(0)==wire::inspectionFlags::browserObservation;
+      deltaObservation=body.length>=16&&(body.u32(0)==wire::inspectionFlags::appObservationDelta||body.u32(0)==wire::inspectionFlags::appLayoutDelta);
+      selectedLayout=opcode==wire::opcodes::layoutSnapshot&&body.length>=8&&
+        (body.u32(0)==wire::inspectionFlags::appLayoutSelection||body.u32(0)==wire::inspectionFlags::appLayoutDelta);
       if(selectedLayout){
-        const auto count=body.u32(4);require(count<=wire::limits::nodes&&body.length==8+size_t(count)*8);
+        const size_t header=deltaObservation?16:8;
+        const auto count=body.u32(4);require(count<=wire::limits::nodes&&body.length==header+size_t(count)*8);
         std::unordered_set<uint64_t> seen;
-        for(uint32_t i=0;i<count;++i){const auto node=handle(body,8+size_t(i)*8);
+        for(uint32_t i=0;i<count;++i){const auto node=handle(body,header+size_t(i)*8);
           require(node&&node.slot<=wire::limits::nodes&&node.generation&&seen.insert(node.key()).second);
           layoutSelection.push_back(node);}
-      }else require(body.length==0||(body.length==4&&body.u32(0)==wire::inspectionFlags::appObservation));
+      }else if(deltaObservation)require(body.length==16&&
+        body.u32(0)==wire::inspectionFlags::appObservationDelta&&!body.u32(4));
+      else require(body.length==0||browserObservation||(body.length==4&&body.u32(0)==wire::inspectionFlags::appObservation));
+      if(deltaObservation)observationBase=body.u64(8);
       appObservation=body.length!=0;
     }
     const auto count = packet.u32(wire::headerFields::count);
@@ -608,7 +619,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
         exact(body,8);require(v.document&&v.document->contains(handle(body,0))&&v.editors.contains(handle(body,0).key()),wire::statuses::invalidHandle);
         editTarget=handle(body,0);
       } else if(opcode==wire::opcodes::semanticsSnapshot){
-        exact(body,appObservation?4:0);require(bool(v.published),wire::statuses::notFound);frame=&*v.published;
+        exact(body,deltaObservation?16:appObservation?4:0);require(bool(v.published),wire::statuses::notFound);frame=&*v.published;
       } else if(opcode==wire::opcodes::semanticsAction){
         v.semanticAction(body);
       } else if(opcode==wire::opcodes::focusAt||opcode==wire::opcodes::activateAt){
@@ -743,8 +754,44 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
     opcode == wire::opcodes::inspect && !stateOnlyInspection && view ? view->document.get() :
     status == wire::statuses::ok && opcode == wire::opcodes::preparationScene && view && view->preparing ?
       view->preparing->document.get() : nullptr;
+  auto* observation=deltaObservation&&status==wire::statuses::ok&&view?
+    &view->observations[opcode==wire::opcodes::semanticsSnapshot?1:0]:nullptr;
+  const auto observationKey=observation?observationSignature(*view,opcode==wire::opcodes::semanticsSnapshot):std::array<uint64_t,20>{};
+  const bool reusedObservation=observation&&observation->version&&observation->pending.empty()&&!observation->orderDirty&&
+    !observation->fullRequired&&observation->selected==selectedLayout&&observation->signature==observationKey&&observation->selection==layoutSelection;
+  const bool partialObservation=observation&&!reusedObservation&&rows&&observation->selected==selectedLayout&&observation->selection==layoutSelection&&observationPatch(*observation,observationKey);
+  std::vector<uint32_t> frameRows;
+  std::vector<Handle> observationOrder,observationRemoved;
   std::vector<const Node*> rowNodes;
-  if (rows && !frame) {
+  if(partialObservation){
+    std::unordered_set<uint64_t> wanted;
+    std::unordered_set<uint64_t> removedKeys;
+    const auto remove=[&](Handle node){if(removedKeys.insert(node.key()).second)observationRemoved.push_back(node);};
+    if(selectedLayout){
+      const auto add=[&](Handle node){if(wanted.insert(node.key()).second)observationOrder.push_back(node);};
+      for(const auto node:layoutSelection)if(rows->contains(node)){add(node);const auto parent=rows->get(node).parent;if(parent)add(parent);}
+      for(const auto node:observation->order)if(!wanted.contains(node.key()))remove(node);
+      // A selected node can acquire a different viewport parent.
+      for(const auto node:observationOrder)if(!observation->rows.contains(node.key()))observation->mark(node);
+      if(observationOrder!=observation->order)observation->orderDirty=true;
+    }else if(observation->orderDirty){
+      if(frame)for(const auto& item:frame->items)observationOrder.push_back(item.node);
+      else for(const auto& slot:rows->nodes)if(slot.value)observationOrder.push_back(slot.value->id);
+    }
+    for(const auto slot:observation->pending){
+      const auto old=observation->slots[slot];const auto& entry=rows->nodes[slot];
+      const auto current=entry.value?entry.value->id:Handle{};
+      if(old&&(old!=current||(selectedLayout&&!wanted.contains(old.key()))))remove(old);
+      if(!current||(selectedLayout&&!wanted.contains(current.key())))continue;
+      if(frame){if(slot<frame->itemBySlot.size()&&frame->itemBySlot[slot]!=UINT32_MAX)frameRows.push_back(frame->itemBySlot[slot]);}
+      else rowNodes.push_back(entry.value.get());
+    }
+  }
+  const auto frameRowCount=frame?(partialObservation?frameRows.size():frame->items.size()):0;
+  const auto forFrameRows=[&](const auto& visit){if(!frame||reusedObservation)return;
+    if(partialObservation)for(const auto index:frameRows)visit(frame->items.at(index));
+    else for(const auto& item:frame->items)visit(item);};
+  if (rows && !frame && !reusedObservation&&!partialObservation) {
     if(editTarget)rowNodes.push_back(&rows->get(editTarget));
     else if (measure) rowNodes.push_back(measure->node.get());
     else if(selectedLayout){
@@ -843,6 +890,12 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
     if(n.clipStyle)addOwned(12,n.id,clipStyleBytes(*n.clipStyle));
     if(n.resolvedPaint||n.nativePaint)addOwned(13,n.id,nativePaintBytes(*(item&&item->paint?item->paint:n.resolvedPaint?n.resolvedPaint:n.nativePaint)));
     if(n.paragraph)addOwned(11,n.id,paragraphBytes(n.paragraph->value));
+    }
+    // Browser interaction needs clip paths and semantic geometry, not renderer
+    // pictures, paragraph shaping, fonts, images or live paint programs. This
+    // full projection does not consume the App's delta subscription journal.
+    if(browserObservation&&n.clipStyle)addOwned(12,n.id,clipStyleBytes(*n.clipStyle));
+    if(!appObservation||browserObservation){
     const auto& graph=n.graphics;const auto& m=graph.transform;
     if(graph.path||graph.origin||graph.alignment||graph.shadowColor||graph.strokeColor||graph.blur||m.a!=1||m.b!=0||m.c!=0||m.d!=1||m.tx!=0||m.ty!=0){
       const bool full=!frame||opcode==wire::opcodes::semanticsSnapshot;
@@ -921,7 +974,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
       }
     }
   };
-  if(frame)for(const auto& item:frame->items){const auto& node=rows->get(item.node);interactionBlobs(node,&item);
+  if(frame)forFrameRows([&](const auto& item){const auto& node=rows->get(item.node);interactionBlobs(node,&item);
     if(node.layerLink.role){Writer data(wire::layerCompositionBytes);
       data.u32(0,node.layerLink.role);data.u32(4,(node.layerLink.leader?wire::layerCompositionFlags::linked:0u)|
         (item.layerTransform?wire::layerCompositionFlags::hasTransform:0u)|
@@ -932,7 +985,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
       data.f64(64,item.linkedOffset.x);data.f64(72,item.linkedOffset.y);
       addOwned(wire::layerCompositionBlob,node.id,std::move(data));
     }
-  }
+  });
   else if(rows)for(const auto* node:rowNodes)interactionBlobs(*node);
   for(size_t i=0;i<events.size();++i){const auto& event=events[i];const auto& tap=event.tapRegion;
     if(event.kind==wire::events::key&&event.keyIdentity.keyLength){const auto& identity=event.keyIdentity;
@@ -987,10 +1040,15 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
   }
   for (const auto& blob : blobs) blobBytes += 24 + (blob.data.length + 7) / 8 * 8;
   // A bounded response can include every admitted node, unlike a delta request.
-  if(wire::headerBytes+wire::stateBytes+(frame?frame->items.size():rowNodes.size())*wire::nodeBytes+events.size()*wire::eventBytes+blobBytes>wire::limits::responseBytes){
+  if(wire::headerBytes+wire::stateBytes+(frame?frameRowCount:rowNodes.size())*wire::nodeBytes+events.size()*wire::eventBytes+blobBytes>wire::limits::responseBytes){
+    // takeFrame created this holder while the Core lock is held. No provider
+    // can have received it when its response is rejected, so it must not keep
+    // close busy or require a release for a frame the caller never acquired.
+    if(opcode==wire::opcodes::takeFrame&&view&&frame){const auto unissued=frame->id;
+      frame=nullptr;view->frames.erase(unissued);view->dirty=true;}
     status=wire::statuses::budgetExceeded;rows=nullptr;rowNodes.clear();blobs.clear();blobBytes=0;frame=nullptr;
   }
-  const auto rowCount = rows ? (frame ? frame->items.size() : rowNodes.size()) : 0;
+  const auto rowCount = rows && !reusedObservation ? (frame ? frameRowCount : rowNodes.size()) : 0;
   Writer response(wire::headerBytes + wire::stateBytes + rowCount * wire::nodeBytes +
     events.size() * wire::eventBytes + blobBytes);
   response.u32(wire::headerFields::magic, wire::magic); response.u16(wire::headerFields::major, wire::abiMajor); response.u16(wire::headerFields::minor, wire::abiMinor);
@@ -1044,6 +1102,19 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
     response.u64(b + wire::stateFields::activePreparation, v.active ? v.active->preparation : 0);
     response.u64(b + wire::stateFields::failedDocument, v.failedDocument);
     response.u64(b + wire::stateFields::transactionWork, v.transactionWork);
+    if(v.document){const auto& d=*v.document;
+      response.u64(b+wire::stateFields::transactionNodeClones,d.work.nodeClones);
+      response.u64(b+wire::stateFields::transactionSlotPages,d.nodes.pageCopies);
+      response.u64(b+wire::stateFields::transactionDirectories,d.nodes.directoryCopies);
+      response.u64(b+wire::stateFields::transactionChildLists,d.children.blockCopies);
+      response.u64(b+wire::stateFields::transactionFullValidations,d.work.fullValidations);
+      response.u64(b+wire::stateFields::transactionIncrementalValidations,d.work.incrementalValidations);
+      response.u64(b+wire::stateFields::transactionValidationVisits,d.work.validationVisits);
+      response.u64(b+wire::stateFields::transactionSiblingVisits,d.work.siblingVisits);
+      response.u64(b+wire::stateFields::transactionBlobRegistrations,d.work.blobRegistrations);
+      response.u64(b+wire::stateFields::transactionBlobBindings,d.work.blobBindings);
+      response.u64(b+wire::stateFields::transactionBlobBytes,d.work.blobBytes);
+    }
     response.u64(b + wire::stateFields::contentWork, v.contentWork);
     response.u64(b + wire::stateFields::preparationDocument, v.preparing ? v.preparing->document->epoch : 0);
     const auto pending=v.measurement();
@@ -1093,7 +1164,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
   size_t cursor = b + wire::stateBytes;
   const auto frameFocus=frame?(opcode==wire::opcodes::semanticsSnapshot&&view?view->focusNode:frame->focusNode):Handle{};
   const auto framePeer=frame?frame->focusPeer(frameFocus):Handle{};
-  if (frame) for (const auto& item : frame->items) {
+  forFrameRows([&](const auto& item) {
     const auto& n = rows->get(item.node);
     // Filters can pull an offscreen child's pixels into view. Do not cull by
     // the unfiltered border box before the provider's layer/clip processing.
@@ -1102,7 +1173,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
       (!frame->semantics.empty()&&frame->semantics[n.id.slot].blocked?wire::nodeFlags::semanticsBlocked:0u)|
       (n.id==framePeer?256u:0u)|(frame->focusNode==n.id&&frame->caretVisible?512u:0u), &item);
     cursor += wire::nodeBytes;
-  }
+  });
   if (rows && !frame) for (const auto* node : rowNodes) {
     const Property* property = nullptr;
     Property current;
@@ -1147,6 +1218,22 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
     response.u32(cursor + 16, uint32_t(blob.data.length));
     if (blob.data.length) std::memcpy(response.bytes.data() + cursor + 24, blob.data.data, blob.data.length);
     cursor += 24 + (blob.data.length + 7) / 8 * 8;
+  }
+  if(observation&&status==wire::statuses::ok){
+    try{auto result=observationPacket(*view,*observation,response,observationBase,observationKey,layoutSelection,reusedObservation,partialObservation,std::move(observationOrder),std::move(observationRemoved));
+      observation->selected=selectedLayout;return result;}
+    catch(const Error& error){
+      // A response rejected by the cache quota must retain coherent state,
+      // but cannot publish a partial delta or advance the subscription base.
+      response.bytes.resize(wire::headerBytes+wire::stateBytes);
+      response.u16(wire::headerFields::status,uint16_t(error.status));
+      response.u32(wire::headerFields::length,uint32_t(response.bytes.size()));
+      response.u32(wire::headerFields::count,0);
+      response.u32(wire::headerBytes+wire::stateFields::eventCount,0);
+      response.u32(wire::headerBytes+wire::stateFields::blobCount,0);
+      response.u32(wire::headerBytes+wire::stateFields::blobBytes,0);
+      return std::move(response.bytes);
+    }
   }
   return std::move(response.bytes);
 }

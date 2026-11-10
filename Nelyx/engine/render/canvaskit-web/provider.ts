@@ -141,6 +141,10 @@ export interface PreparedPictures {
   document: bigint;
   pictures: { node: string; bytes: ArrayBuffer; fonts?: PictureFont[] }[];
   fontCatalogs?: { resource: NodeHandle; bytes: ArrayBuffer }[];
+  /** References belong to the exact still-active immutable preparation. */
+  basePreparation?: bigint;
+  reused?: string[];
+  fontReferences?: NodeHandle[];
   texts: {
     node: string;
     width: number;
@@ -169,6 +173,7 @@ export interface PreparedPictures {
 }
 type PreparedText = PreparedPictures['texts'][number];
 type ContentRecord = {
+  token: number;
   signature: string;
   resource: Uint8Array | undefined;
   picture: Picture | undefined;
@@ -313,6 +318,15 @@ export class CanvasKitProvider {
   private closing = false;
   private memoryPressure = false;
   private recorded = new Map<string, ContentRecord>();
+  private nextRecordToken = 0;
+  private readonly preparedRecords = new Map<
+    bigint,
+    {
+      tokens: ReadonlyMap<string, number>;
+      fonts: ReadonlySet<string>;
+      release(): void;
+    }
+  >();
   private pictureOwners = new Map<Picture, number>();
   private pathTables = new Map<bigint, Map<string, Path>>();
   private measuredParagraphs = new Map<string, { signature: string; paragraph: Paragraph }>();
@@ -351,6 +365,7 @@ export class CanvasKitProvider {
     pictures: 0,
     imports: 0,
     draws: 0,
+    clipCulledNodes: 0,
     snapshotCaptures: 0,
     snapshotReuses: 0,
     liveSnapshots: 0,
@@ -385,6 +400,12 @@ export class CanvasKitProvider {
     reusedPictures: 0,
     reusedParagraphs: 0,
     reusedImages: 0,
+    referencedPictures: 0,
+    referencedImports: 0,
+    referencedFontCatalogs: 0,
+    fontCatalogCopyBytes: 0,
+    avoidedPictureCopyBytes: 0,
+    livePaintKeysSkipped: 0,
     cachedContentBytes: 0,
     memoryPressure: false,
     gpuCacheLimitBytes: 32 * 1024 * 1024,
@@ -532,6 +553,27 @@ export class CanvasKitProvider {
   releasePacket(preparation: bigint): void {
     this.packetHolds.get(preparation)?.();
     this.packetHolds.delete(preparation);
+  }
+  private forgetPreparedRecords(preparation: bigint): void {
+    this.preparedRecords.get(preparation)?.release();
+    this.preparedRecords.delete(preparation);
+  }
+  private rememberPreparedRecords(
+    preparation: bigint,
+    records: ReadonlyMap<string, ContentRecord>,
+    fonts: readonly ResourceFont[],
+  ): void {
+    const release = this.budget?.reserve(2, 256 + (records.size + fonts.length) * 64) ?? (() => {});
+    let kept = false;
+    try {
+      const tokens = new Map([...records].map(([id, record]) => [id, record.token]));
+      const ids = new Set(fonts.map((font) => key(font.resource)));
+      this.forgetPreparedRecords(preparation);
+      this.preparedRecords.set(preparation, { tokens, fonts: ids, release });
+      kept = true;
+    } finally {
+      if (!kept) release();
+    }
   }
   createImmutableBuffer(bytes: Uint8Array): AppImmutableData {
     if (
@@ -1424,6 +1466,8 @@ export class CanvasKitProvider {
     }
   }
   prepare(scene: EngineResponse, sharedOwner: boolean): PreparedPictures {
+    for (const id of this.preparedRecords.keys())
+      if (id !== scene.activePreparation) this.forgetPreparedRecords(id);
     // Retire optional records from departed nodes before allocating the next
     // route, while live tables keep their independent Picture/font references.
     const present = new Set(scene.nodes.map((node) => key(node.node)));
@@ -1457,6 +1501,8 @@ export class CanvasKitProvider {
           scene.blobs.reduce((n, b) => n + b.bytes.length * 2, 0),
         () => this.prepareInner(scene, sharedOwner, retain, fontEntries),
       );
+      if (!sharedOwner)
+        this.rememberPreparedRecords(packet.preparation, this.recorded, fontEntries);
       this.releasePacket(packet.preparation);
       this.packetHolds.set(packet.preparation, release);
       return packet;
@@ -1487,47 +1533,75 @@ export class CanvasKitProvider {
       texts: [],
       paths: [],
     };
+    const base = !sharedOwner ? this.preparedRecords.get(scene.activePreparation) : undefined;
+    if (base) packet.basePreparation = scene.activePreparation;
     const local = new Map<string, Picture>();
     const paths = new Map<string, Path>();
     const nextRecorded = new Map<string, ContentRecord>();
     let nextCachedBytes = 0;
     let bytes = 0;
+    let referenceBytes = 0;
     try {
-      if (!sharedOwner && fontEntries.length)
-        packet.fontCatalogs = fontEntries.map((entry) => {
-          retain(entry.bytes.length + 32);
-          return { resource: entry.resource, bytes: entry.bytes.slice().buffer };
-        });
+      if (!sharedOwner && fontEntries.length) {
+        packet.fontCatalogs = [];
+        packet.fontReferences = [];
+        for (const entry of fontEntries) {
+          if (base?.fonts.has(key(entry.resource))) {
+            retain(16);
+            packet.fontReferences.push(entry.resource);
+            ++this.counters.referencedFontCatalogs;
+          } else {
+            retain(entry.bytes.length + 32);
+            packet.fontCatalogs.push({
+              resource: entry.resource,
+              bytes: entry.bytes.slice().buffer,
+            });
+            this.counters.fontCatalogCopyBytes += entry.bytes.length;
+          }
+        }
+      }
       for (const node of scene.nodes) {
+        let paintKey = '';
+        if (node.flags & p.nodeFlags.livePaint) {
+          // Render executes this paint from the current frame. Its changing
+          // values cannot invalidate the separately recorded base Picture.
+          if (node.nativePaint?.length) ++this.counters.livePaintKeysSkipped;
+        } else if (node.nativePaint) {
+          paintKey = JSON.stringify(node.nativePaint);
+        }
         const id = key(node.node),
           text = texts.get(id) ?? '',
           resource = node.resource ? resources.get(key(node.resource)) : undefined,
-          signature = JSON.stringify([
-            sharedOwner,
-            String(scene.metrics),
-            String(scene.device),
-            String(node.fontBinding?.fontRevision ?? scene.fontRevision),
-            node.kind,
-            node.width,
-            node.height,
-            node.color,
-            node.radius,
-            node.fontSize,
-            node.paragraph,
-            node.fontBinding && [
-              node.fontBinding.resource,
-              String(node.fontBinding.fontRevision),
-              node.fontBinding.pinned,
-            ],
-            node.paintPlacement?.unbounded ?? false,
-            node.textDirection,
-            node.content,
-            node.graphics,
-            node.nativePaint,
-            node.imagePaint,
-            node.editing?.flags ?? 0,
-            text,
-          ]);
+          previous = this.recorded.get(id),
+          signature =
+            JSON.stringify([
+              sharedOwner,
+              String(scene.metrics),
+              String(scene.device),
+              String(node.fontBinding?.fontRevision ?? scene.fontRevision),
+              node.kind,
+              node.width,
+              node.height,
+              node.color,
+              node.radius,
+              node.fontSize,
+              node.paragraph,
+              node.fontBinding && [
+                node.fontBinding.resource,
+                String(node.fontBinding.fontRevision),
+                node.fontBinding.pinned,
+              ],
+              node.paintPlacement?.unbounded ?? false,
+              node.textDirection,
+              node.content,
+              node.graphics,
+              node.imagePaint,
+              node.editing?.flags ?? 0,
+              text,
+              node.flags & p.nodeFlags.livePaint,
+            ]) +
+            '\n' +
+            paintKey;
         if (node.graphics?.hasPath) {
           const segments = node.graphics.path ?? [],
             fillRule = node.graphics.fillRule ?? 'winding',
@@ -1548,12 +1622,20 @@ export class CanvasKitProvider {
           });
         }
 
-        const previous = this.recorded.get(id);
         if (previous?.signature === signature && sameBytes(previous.resource, resource)) {
           if (sharedOwner) {
             if (!previous.picture) throw new Error('Local cached Picture missing');
             this.holdPicture(previous.picture);
             local.set(id, previous.picture);
+          } else if (base?.tokens.get(id) === previous.token) {
+            // These small entries are covered by prepare's per-node scratch
+            // reservation while staged. Adopt their exact transport credit
+            // together, rather than dispatching one memory report per node.
+            referenceBytes += 16 + id.length * 2;
+            (packet.reused ??= []).push(id);
+            ++this.counters.referencedPictures;
+            this.counters.avoidedPictureCopyBytes +=
+              previous.encoded?.byteLength ?? textBytes(previous.text);
           } else if (previous.encoded) {
             const size = previous.encoded.byteLength + pictureFontBytes(previous.fonts);
             retain(size);
@@ -1825,6 +1907,7 @@ export class CanvasKitProvider {
             let kept = false;
             try {
               const record: ContentRecord = {
+                token: ++this.nextRecordToken,
                 signature,
                 resource,
                 picture: sharedOwner ? local.get(id) : undefined,
@@ -1836,6 +1919,8 @@ export class CanvasKitProvider {
                 bytes: entryBytes,
                 release,
               };
+              if (!Number.isSafeInteger(record.token))
+                throw Error('Prepared record identity exhausted');
               if (record.picture) this.holdPicture(record.picture);
               nextRecorded.set(id, record);
               nextCachedBytes += entryBytes;
@@ -1850,6 +1935,7 @@ export class CanvasKitProvider {
           recorder.delete();
         }
       }
+      if (referenceBytes) retain(referenceBytes);
       this.counters.serializedBytes += bytes;
       this.counters.sourceBytes = [...resources.values()].reduce(
         (sum, data) => sum + data.length,
@@ -1908,7 +1994,10 @@ export class CanvasKitProvider {
       fontFaces = new Map(this.typefaces);
     let bytes = 0;
     try {
-      if (packet.pictures.length + packet.texts.length > p.limits.nodes)
+      if (
+        packet.pictures.length + packet.texts.length + (packet.reused?.length ?? 0) >
+        p.limits.nodes
+      )
         throw new Error('Prepared node budget exceeded');
       if ((packet.fontCatalogs?.length ?? 0) > p.limits.resources)
         throw Error('Prepared font catalog count exceeded');
@@ -1928,6 +2017,31 @@ export class CanvasKitProvider {
         fontHolds.push(this.holdFontEntries([entry]));
         fontEntries.push(entry);
         for (const origin of entry.catalog.faces) fontFaces.set(origin.id, origin.face);
+      }
+      const base = packet.basePreparation ? this.tables.get(packet.basePreparation) : undefined;
+      const baseRecords = packet.basePreparation
+        ? this.preparedRecords.get(packet.basePreparation)
+        : undefined;
+      if ((packet.reused?.length || packet.fontReferences?.length) && (!base || !baseRecords))
+        throw Error('Prepared reference base is unavailable');
+      if ((packet.fontReferences?.length ?? 0) + fontIds.size > p.limits.resources)
+        throw Error('Prepared font reference budget exceeded');
+      for (const resource of packet.fontReferences ?? []) {
+        const id = key(resource),
+          entry = this.resourceFonts.get(id);
+        if (fontIds.has(id) || !baseRecords!.fonts.has(id) || !entry)
+          throw Error('Invalid/duplicate prepared font reference');
+        fontIds.add(id);
+        fontHolds.push(this.holdFontEntries([entry]));
+        fontEntries.push(entry);
+        for (const origin of entry.catalog.faces) fontFaces.set(origin.id, origin.face);
+      }
+      for (const id of packet.reused ?? []) {
+        const picture = base!.get(id);
+        if (!picture || table.has(id)) throw Error('Invalid/duplicate prepared Picture reference');
+        this.holdPicture(picture);
+        table.set(id, picture);
+        ++this.counters.referencedImports;
       }
       for (const path of packet.paths ?? []) {
         if (paths.has(path.node)) throw new Error('Duplicate prepared clip path');
@@ -2067,10 +2181,12 @@ export class CanvasKitProvider {
           recorder.delete();
         }
       }
+      this.rememberPreparedRecords(packet.preparation, new Map(), fontEntries);
       this.tables.set(packet.preparation, table);
       this.pathTables.set(packet.preparation, paths);
       this.tableFonts.set(packet.preparation, this.holdFontEntries(fontEntries));
     } catch (error) {
+      this.forgetPreparedRecords(packet.preparation);
       for (const picture of table.values()) this.dropPicture(picture);
       for (const path of paths.values()) path.delete();
       throw error;
@@ -2149,6 +2265,7 @@ export class CanvasKitProvider {
       end: number,
       baseMatrix: EngineNodeSnapshot['matrix'],
       scale: number,
+      sceneClip = true,
     ): void => {
       const baseDepth = begin < end ? frame.nodes[begin]!.depth : 0;
       const saves: {
@@ -2176,6 +2293,22 @@ export class CanvasKitProvider {
             finish(true);
           }
           if (item.flags & p.nodeFlags.paintResource) {
+            index = ends[index]! - 1;
+            continue;
+          }
+          // Core's empty paint clip excludes the descendants too. Physical
+          // shadows precede the node's own clip and can still reach the parent
+          // viewport. Snapshot recording also needs content outside that live
+          // viewport, using its own bounds for a later move/replay.
+          if (
+            sceneClip &&
+            (item.clip.width <= 0 || item.clip.height <= 0) &&
+            !item.nativePaint?.some(
+              (entry) =>
+                entry.kind === 'physical' && entry.elevation! > 0 && entry.shadowColor! >>> 24,
+            )
+          ) {
+            this.counters.clipCulledNodes += ends[index]! - index;
             index = ends[index]! - 1;
             continue;
           }
@@ -2321,7 +2454,14 @@ export class CanvasKitProvider {
                   item.node,
                   decision,
                   (recording) =>
-                    drawRange(recording, index + 1, ends[index]!, item.matrix, decision.ratio),
+                    drawRange(
+                      recording,
+                      index + 1,
+                      ends[index]!,
+                      item.matrix,
+                      decision.ratio,
+                      false,
+                    ),
                   decision.pixelWidth * decision.pixelHeight * 4 * layers,
                 );
               }
@@ -2374,7 +2514,7 @@ export class CanvasKitProvider {
                       paint.delete();
                     }
                   }
-                  drawRange(target, index + 1, ends[index]!, item.matrix, scale);
+                  drawRange(target, index + 1, ends[index]!, item.matrix, scale, sceneClip);
                 }
               } finally {
                 while (layers--) target.restore();
@@ -2539,6 +2679,8 @@ export class CanvasKitProvider {
     }
   }
   retireExcept(active: bigint, candidate = 0n): void {
+    for (const id of this.preparedRecords.keys())
+      if (id !== active && id !== candidate) this.forgetPreparedRecords(id);
     for (const [id, table] of this.tables)
       if (id !== active && id !== candidate) {
         for (const picture of table.values()) this.dropPicture(picture);

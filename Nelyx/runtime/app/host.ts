@@ -14,7 +14,11 @@ import {
   withNativeRenderConfiguration,
   nativeSliverConfiguration,
 } from '@nelyx/core/framework/rendering/object';
-import type { RenderObject, NativePaintEntry } from '@nelyx/core/framework/rendering/object';
+import type {
+  RenderObject,
+  NativePaintEntry,
+  NativeRenderChange,
+} from '@nelyx/core/framework/rendering/object';
 import type {
   NativeLayoutBuilderConfiguration,
   NativeSliverConfiguration,
@@ -51,6 +55,7 @@ import { originalControlConfiguration } from './controls.ts';
 import { OriginalFocusBridge } from './focus.ts';
 import { OriginalGeometryBridge } from './geometry.ts';
 import { OriginalLayers } from './layers.ts';
+import type { OriginalLayerBinding } from './layers.ts';
 import { FlutterErrorDetails } from '@nelyx/core/foundation/assertions';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import type { FoundationPlatformEnvironment } from '@nelyx/core/foundation/platform';
@@ -68,6 +73,7 @@ import { OriginalEditingBridge } from './editing.ts';
 import { OriginalSemanticsBridge } from './semantics.ts';
 import { OriginalTapRegions } from './tap-regions.ts';
 import { RenderSceneCapture } from './capture.ts';
+import { retainSceneConfiguration } from '../engine-client/scene.ts';
 
 export interface OriginalWidgetHostOptions {
   readonly platform?: FoundationPlatformEnvironment;
@@ -138,6 +144,9 @@ export class OriginalWidgetHost {
       domain:
         typeof performance === 'undefined' ? 'date-milliseconds' : 'app-performance-milliseconds',
       samples: this.timings.slice(),
+      samplesThrough: this.timingSamples,
+      samplesOverwritten: Math.max(0, this.timingSamples - this.timings.length),
+      transport: this.view.diagnostics(),
       scene: { ...this.native.counters },
       capture: { ...this.capture.counters },
       layoutBuilder: this.builderDiagnostic,
@@ -145,8 +154,9 @@ export class OriginalWidgetHost {
     };
   }
   private readonly capture = new RenderSceneCapture();
-  private invalidateRender(render: RenderObject): void {
-    this.capture.invalidate(render);
+  private timingSamples = 0;
+  private invalidateRender(render: RenderObject, kind?: NativeRenderChange): void {
+    this.capture.invalidate(render, kind);
     if (render instanceof OriginalNativeRender) render.options.onChildrenInvalidated?.();
     this.schedule();
   }
@@ -182,17 +192,14 @@ export class OriginalWidgetHost {
   private readonly fontsLive = () => !this.closed;
   private sceneFonts = new Map<bigint, AppParagraphFontLease>();
   private pendingSceneFonts: Map<bigint, AppParagraphFontLease> | undefined;
-  private capturingFonts: Map<bigint, AppParagraphFontLease> | undefined;
   private readonly imageLeases = new Map<string, OriginalImageSceneLease>();
   private readonly imageClock: AppImageClock | undefined;
   private readonly imageClockLease: Disposable | undefined;
   private desiredImages = new Set<string>();
-  private capturingImages: Set<string> | undefined;
   private readonly imageOpacity = new Map<
     RenderImage,
     { value: ValueListenable<number>; release(): void }
   >();
-  private capturingImageRenders: Set<RenderImage> | undefined;
   private readonly reasons: Record<string, number> = {};
   private readonly scrolling: ReturnType<typeof installOriginalScrolling>;
   private readonly focusing: OriginalFocusBridge;
@@ -203,9 +210,13 @@ export class OriginalWidgetHost {
   private readonly appGestures: GestureBinding;
   private readonly gestureBindingLease: Disposable;
   private readonly semantics: OriginalSemanticsBridge;
-  private readonly layoutBuilders = new Map<RenderObject, NativeLayoutBuilderConfiguration>();
+  private get layoutBuilders(): ReadonlyMap<RenderObject, NativeLayoutBuilderConfiguration> {
+    return this.capture.bindings('builders');
+  }
   private retainedBuilderRebuilds = 0;
-  private readonly slivers = new Map<RenderObject, NativeSliverConfiguration>();
+  private get slivers(): ReadonlyMap<RenderObject, NativeSliverConfiguration> {
+    return this.capture.bindings('slivers');
+  }
   private layoutBuildKey: string | undefined;
   private answeredLayoutBuild: string | undefined;
   private builderDiagnostic: Record<string, string | number> | undefined;
@@ -222,6 +233,8 @@ export class OriginalWidgetHost {
     this.native = new SceneWriter(view, {
       ...options,
       appObservations: true,
+      retainedScene: true,
+      immutableBlobs: true,
       onInvalidate: () => this.schedule(),
       onState: (state) => {
         this.geometry.observeState(state);
@@ -384,6 +397,7 @@ export class OriginalWidgetHost {
       view.owner.view,
       (render) => this.keys.get(render)?.currentNode ?? null,
       (reason) => this.unsupported(reason),
+      this.capture,
     );
     this.focusing = new OriginalFocusBridge(
       this.owner,
@@ -597,7 +611,10 @@ export class OriginalWidgetHost {
         const rebuilt = this.rebuildNativeContent(() => sliver.prepare(request.revision, input));
         if (this.builderDiagnostic)
           this.builderDiagnostic.result = rebuilt ? 'sliver-built' : 'sliver-declined';
-        if (rebuilt) this.answeredLayoutBuild = answer;
+        if (rebuilt) {
+          this.capture.invalidate(render, 'layout');
+          this.answeredLayoutBuild = answer;
+        }
         return;
       }
       if (this.builderDiagnostic) this.builderDiagnostic.result = 'sliver-owner-not-found';
@@ -628,7 +645,10 @@ export class OriginalWidgetHost {
       );
       if (this.builderDiagnostic)
         this.builderDiagnostic.result = rebuilt ? 'builder-built' : 'builder-declined';
-      if (rebuilt) this.answeredLayoutBuild = answer;
+      if (rebuilt) {
+        this.capture.invalidate(render, 'layout');
+        this.answeredLayoutBuild = answer;
+      }
       return;
     }
     if (this.builderDiagnostic) this.builderDiagnostic.result = 'builder-owner-not-found';
@@ -668,11 +688,11 @@ export class OriginalWidgetHost {
       return this.unsupported('list-child-policy');
     const required = sliver.children.filter((child) => !child.keptAlive || child.explicitKeepAlive);
     if (required.length > p.limits.listChildren) return this.unsupported('list-keep-alive-budget');
-    claimNativeRenderObject(render, this, () => this.invalidateRender(render));
+    claimNativeRenderObject(render, this, (kind) => this.invalidateRender(render, kind));
     this.geometry.bind(render);
     let key = this.keys.get(render);
     if (!key) this.keys.set(render, (key = new SceneReference()));
-    this.slivers.set(render, sliver);
+    this.capture.bind('slivers', render, sliver);
     const published = sliver.children.filter(
       (child) => child.keptAlive && !child.explicitKeepAlive && child.published,
     );
@@ -762,7 +782,7 @@ export class OriginalWidgetHost {
       snapshot.preparation === 0n &&
       snapshot.document === snapshot.activeDocument &&
       snapshot.document === this.view.documentEpoch &&
-      this.slivers.get(render) === sliver
+      this.capture.binding('slivers', render) === sliver
     ) {
       if (
         this.rebuildNativeContent(() =>
@@ -830,7 +850,6 @@ export class OriginalWidgetHost {
         ? undefined
         : originalBoxConfiguration(render, (reason) => this.unsupported(reason));
     if (!(render instanceof RenderBox) && !nonBoxConfiguration) {
-      this.capture.dynamic();
       const sliver = nativeSliverConfiguration(render, (reason) => this.unsupported(reason));
       if (!sliver) return this.unsupported('non-box-render-object');
       return this.sliverNode(render, sliver, count, depth);
@@ -839,14 +858,11 @@ export class OriginalWidgetHost {
       paragraph = prototype === RenderParagraph.prototype;
     const tap = this.taps.configuration(render),
       control = tap ?? originalControlConfiguration(render, (reason) => this.unsupported(reason)),
-      layer = this.layers.configuration(render);
-    if (
-      tap ||
-      layer ||
-      control?.dynamicPaint ||
-      (control?.options.semantics && !control.cacheableSemantics) ||
-      prototype === RenderIndexedSemantics.prototype
-    )
+      layer = this.layers.configuration(render, (binding) =>
+        this.capture.bind('layers', render, binding),
+      );
+    for (const target of control?.dependencies ?? []) this.capture.dependOn(target);
+    if (control?.dynamicPaint || (control?.options.semantics && !control.cacheableSemantics))
       this.capture.dynamic();
     if (
       render.onPointer ||
@@ -898,6 +914,7 @@ export class OriginalWidgetHost {
       let ancestor: RenderObject | undefined = render,
         index: number | undefined;
       while (ancestor) {
+        this.capture.dependOn(ancestor);
         if (
           ancestor instanceof OriginalNativeRender &&
           ancestor.options.sourceCollectionIndex !== undefined
@@ -909,7 +926,12 @@ export class OriginalWidgetHost {
           index = ancestor.options.listItem.index;
           break;
         }
-        const source = ancestor.parent ? this.slivers.get(ancestor.parent) : undefined;
+        const source = ancestor.parent
+          ? this.capture.binding<RenderObject, NativeSliverConfiguration>(
+              'slivers',
+              ancestor.parent,
+            )
+          : undefined;
         if (source) {
           index = source.children.find((child) => child.render === ancestor)?.index;
           break;
@@ -921,16 +943,15 @@ export class OriginalWidgetHost {
     } else if (box) {
       kind = box.kind;
       options = box.options;
-      if (box.builder) this.layoutBuilders.set(render, box.builder);
-      if (box.builder || box.tooltipPosition) this.capture.dynamic();
+      if (box.builder) this.capture.bind('builders', render, box.builder);
+      if (box.tooltipPosition) this.capture.dynamic();
     } else if (prototype === RenderImage.prototype) {
-      this.capture.dynamic();
       const source = render as RenderImage,
         value = source.image;
       if (!this.options.appImages) return this.unsupported('App-image-owner-unavailable');
       if (source.matchTextDirection && source.textDirection === null)
         return this.unsupported('image-missing-text-direction');
-      this.observeImageOpacity(source);
+      this.capture.bind('imageRenders', source, source);
       if (value) {
         // Validate every Image's exact registry and dimensions, even when an
         // immutable frame snapshot is already shared by other render nodes.
@@ -942,7 +963,7 @@ export class OriginalWidgetHost {
           lease = captured;
           this.imageLeases.set(key, lease);
         }
-        this.capturingImages!.add(key);
+        this.capture.bind('images', key, key);
         image = lease.resource;
       }
       const alignment = source.alignment.resolve(source.textDirection),
@@ -1034,7 +1055,7 @@ export class OriginalWidgetHost {
           : {}),
       };
     } else return this.unsupported('custom-or-unported-render-object:' + render.constructor.name);
-    claimNativeRenderObject(render, this, () => this.invalidateRender(render));
+    claimNativeRenderObject(render, this, (kind) => this.invalidateRender(render, kind));
     bindNativeSemanticsEvents(render, this, (event) => {
       if (this.closed) return;
       if (!['tap', 'longPress', 'focus'].includes(event.type) || event.getDataMap().size)
@@ -1056,6 +1077,8 @@ export class OriginalWidgetHost {
     options = parentLayout(render, options);
     if (box?.tooltipPosition) {
       const placement = box.tooltipPosition;
+      const target = placement.target();
+      if (target) this.capture.dependOn(target);
       options = {
         ...options,
         tooltipPosition: {
@@ -1089,6 +1112,7 @@ export class OriginalWidgetHost {
       return entries.map((entry) => {
         if (entry.kind !== 'paragraph') {
           const { reference, paragraph: _, ...paint } = entry;
+          if (reference) this.capture.dependOn(reference);
           return {
             ...paint,
             ...(reference
@@ -1103,7 +1127,7 @@ export class OriginalWidgetHost {
           (entry.geometry && entry.geometry.kind !== 'program')
         )
           return this.unsupported('paragraph-paint-configuration');
-        this.capture.dynamic();
+        if (entry.reference) this.capture.dependOn(entry.reference);
         if (
           entry.geometry?.kind === 'program' &&
           (entry.geometry.radii ||
@@ -1119,10 +1143,8 @@ export class OriginalWidgetHost {
           key =
             paintKeys![plane][paragraphIndex] ??
             (paintKeys![plane][paragraphIndex] = new SceneReference());
-        if (fontBinding && !this.capturingFonts!.has(fontBinding.fontRevision)) {
-          const lease = this.textService.retainPaintFont(entry.paragraph);
-          if (lease) this.capturingFonts!.set(fontBinding.fontRevision, lease);
-        }
+        if (fontBinding)
+          this.capture.bind('fonts', fontBinding.fontRevision, fontBinding.fontRevision);
         paragraphIndex++;
         children.push(
           new SceneNode(
@@ -1200,6 +1222,12 @@ export class OriginalWidgetHost {
       .finally(() => {
         this.running = undefined;
         this.focusing.finishPoll();
+      })
+      .then(() => {
+        // A callback can invalidate after perform's final loop condition but
+        // before its promise releases this owner. Carry that work into the
+        // same flush, without waiting for an unrelated input/publication edge.
+        if (this.rerun && !this.closed) return this.flush();
       });
     return this.running;
   }
@@ -1272,17 +1300,12 @@ export class OriginalWidgetHost {
       const capturedFonts = new Map<bigint, AppParagraphFontLease>();
       const capturedImages = new Set<string>(),
         previousImageObservers = new Set(this.imageOpacity.keys());
-      this.capturingFonts = capturedFonts;
-      this.capturingImages = capturedImages;
-      this.capturingImageRenders = new Set();
       this.building = true;
       this.capture.context = `${state.metrics}/${state.device}/${state.fontRevision}`;
       ++this.capture.counters.passes;
       this.bridgeFailure = undefined;
       this.taps.beginBuild();
       const retainedBuilders = [...this.layoutBuilders.keys()];
-      this.layoutBuilders.clear();
-      this.slivers.clear();
       let captureStarted = now();
       try {
         this.geometry.observeState(state);
@@ -1360,10 +1383,14 @@ export class OriginalWidgetHost {
           (operation) => this.unsupported('synchronous-render-' + operation),
         );
       } catch (error) {
-        this.capturingImageRenders = undefined;
+        this.capture.abort();
         const errors: unknown[] = [error];
         for (const cleanup of [
           () => this.layers.reject(),
+          () => {
+            this.taps.beginBuild();
+            this.taps.finishBuild();
+          },
           () => this.releaseFontScenes(capturedFonts),
           () => this.pruneImageScenes(),
           () => this.pruneImageOpacity(previousImageObservers),
@@ -1376,14 +1403,44 @@ export class OriginalWidgetHost {
         if (errors.length === 1) throw error;
         throw new AggregateError(errors, 'Original image/font capture failed');
       } finally {
-        this.taps.finishBuild();
         this.building = false;
-        this.capturingFonts = undefined;
-        this.capturingImages = undefined;
       }
       timing.captureMs = now() - captureStarted;
-      this.pruneImageOpacity(this.capturingImageRenders!);
-      this.capturingImageRenders = undefined;
+      retainSceneConfiguration(scene);
+      try {
+        this.capture.commit(this.root!.renderObjects);
+        this.taps.finishBuild();
+        this.layers.project(
+          this.capture.bindings<RenderObject, OriginalLayerBinding>('layers').values(),
+          this.capture.bindingRevision('layers'),
+        );
+        for (const revision of this.capture.bindings<bigint, bigint>('fonts').keys()) {
+          const lease = this.textService!.retainCapturedFont(revision);
+          if (lease) capturedFonts.set(revision, lease);
+        }
+        for (const key of this.capture.bindings<string, string>('images').keys())
+          capturedImages.add(key);
+        const imageRenders = this.capture.bindings<RenderImage, RenderImage>('imageRenders');
+        for (const render of imageRenders.keys()) this.observeImageOpacity(render);
+        this.pruneImageOpacity(new Set(imageRenders.keys()));
+      } catch (error) {
+        this.capture.abort();
+        const errors = [error];
+        for (const cleanup of [
+          () => this.layers.reject(),
+          () => this.releaseFontScenes(capturedFonts),
+          () => this.pruneImageScenes(),
+          () => this.pruneImageOpacity(previousImageObservers),
+        ]) {
+          try {
+            cleanup();
+          } catch (failure) {
+            errors.push(failure);
+          }
+        }
+        if (errors.length === 1) throw error;
+        throw new AggregateError(errors, 'Projected registration admission failed');
+      }
       const previousFonts = this.sceneFonts,
         pendingFonts = this.pendingSceneFonts,
         builds = this.native.counters.builds;
@@ -1445,6 +1502,7 @@ export class OriginalWidgetHost {
       timing.completed = now();
       if (this.timings.length === 128) this.timings.shift();
       this.timings.push(timing);
+      ++this.timingSamples;
       // App desired values remain immediate on NACK. Inactive Elements are
       // finalized only after a known native ACK (or terminal close), never early.
       this.owner.finalizeTree();
@@ -1477,7 +1535,6 @@ export class OriginalWidgetHost {
     if (errors.length) throw new AggregateError(errors, 'Captured font retirement failed');
   }
   private observeImageOpacity(render: RenderImage): void {
-    this.capturingImageRenders!.add(render);
     const value = render.opacity,
       previous = this.imageOpacity.get(render);
     if (previous?.value === value) return;
@@ -1487,7 +1544,8 @@ export class OriginalWidgetHost {
     }
     if (!value) return;
     const changed = () => {
-      if (!this.closed && this.imageOpacity.get(render)?.value === value) this.schedule();
+      if (!this.closed && this.imageOpacity.get(render)?.value === value)
+        this.invalidateRender(render);
     };
     try {
       value.addListener(changed);
@@ -1585,8 +1643,6 @@ export class OriginalWidgetHost {
       () => {
         this.root = undefined;
         this.desired = undefined;
-        this.layoutBuilders.clear();
-        this.slivers.clear();
         this.layoutBuildKey = undefined;
       },
     ]);

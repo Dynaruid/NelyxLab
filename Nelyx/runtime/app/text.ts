@@ -270,6 +270,13 @@ export class AppTextLayoutService implements TextLayoutService {
   retainPaintFont(resource: ResourceId): AppParagraphFontLease | undefined {
     return this.retainFont?.(this.paintEntry(resource).fontRevision);
   }
+  /** A retained Source projection owns the immutable font revision even after
+   * the paragraph producer that recorded it has retired. */
+  retainCapturedFont(revision: bigint): AppParagraphFontLease | undefined {
+    const value = Number(revision);
+    if (!Number.isSafeInteger(value) || value <= 0) throw Error('Invalid captured font revision');
+    return this.retainFont?.(value);
+  }
   private paintEntry(resource: ResourceId): Entry {
     this.ensure();
     // A foreign Proxy is rejected before any field access.

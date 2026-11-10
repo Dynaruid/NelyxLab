@@ -156,11 +156,16 @@ void View::installEditors(const std::shared_ptr<const Document> &nextDocument) {
       serial = found->second->value->serial;
     }
   }
+  for(const auto& [key,editor]:editors){const auto found=staged.find(key);
+    if(found==staged.end()||found->second->value!=editor->value)for(auto& state:observations)state.mark({uint32_t(key),uint32_t(key>>32)});}
+  for(const auto& [key,editor]:staged)if(!editors.contains(key))for(auto& state:observations)state.mark({uint32_t(key),uint32_t(key>>32)});
   editors = std::move(staged);
   editClock = serial;
   if (clearFocus) {
     interaction({wire::events::focusChanged, wire::statuses::canceled, focusSession,
                  nextDocument->epoch, publication, focusNode});
+    for(auto& state:observations)state.mark(focusNode);
+    if(published)observations[1].mark(published->focusPeer(focusNode));
     focusNode = {};
     focusSession = 0;
     ++focusWork;
@@ -180,14 +185,14 @@ std::shared_ptr<const Document> View::editingDocument() const {
     copy->editing = value;
     copy->text = value->paintText;
     copy->editSerial = value->serial;
-    result->nodes[node.slot].value = copy;
+    result->nodes.edit(node.slot).value = copy;
     for (auto h = node; h; h = document->get(h).parent)
       revisions[h.slot] = std::max(revisions[h.slot], value->serial);
   }
   for (const auto &item : revisions) {
     auto copy = std::make_shared<Node>(*result->nodes[item.first].value);
     copy->editSerial = item.second;
-    result->nodes[item.first].value = std::move(copy);
+    result->nodes.edit(item.first).value = std::move(copy);
   }
   return result;
 }
@@ -254,6 +259,8 @@ void View::setFocus(Handle node, uint64_t snapshot, uint64_t expected,bool exact
       requestContent();
     }
   }
+  for(auto& state:observations){state.mark(focusNode);state.mark(node);}
+  if(published){observations[1].mark(published->focusPeer(focusNode));observations[1].mark(published->focusPeer(node));}
   focusNode = node;
   ++focusWork;
   revealPending=bool(node);
@@ -309,6 +316,7 @@ void View::applyEdit(Reader bytes) {
     if(node==focusNode)revealPending=true;
     editClock = serial;
     ++editingWork;
+    for(auto& state:observations)state.mark(node);
     requestContent();
     interaction({wire::events::editingChanged, wire::statuses::ok, focusSession, document->epoch,
                  value->revision, node});
