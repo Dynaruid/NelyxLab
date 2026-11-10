@@ -72,7 +72,7 @@ export function exchange(module: BrowserModule, engine: number, bytes: Uint8Arra
       length = module._nelyx_wasm_buffer_length(result);
     module._nelyx_wasm_refresh_heap();
     const heap = module.HEAPU8;
-    if (length > p.limits.packetBytes || pointer + length > heap.length)
+    if (length > p.limits.responseBytes || pointer + length > heap.length)
       throw new Error(
         `Engine packet output bounds (opcode=${op}, bytes=${length}, heap=${heap.length})`,
       );

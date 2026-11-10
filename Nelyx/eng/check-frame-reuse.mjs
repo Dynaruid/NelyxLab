@@ -28,8 +28,14 @@ try {
     '/EHsc',
     '/MD',
     '/O2',
+    '/DNOMINMAX',
     path.join(import.meta.dirname, 'check-frame-reuse.cpp'),
-    path.join(root, 'Nelyx/engine/dist/native/nelyx_engine_v2.lib'),
+    path.join(import.meta.dirname, 'check-moving-list.cpp'),
+    path.join(import.meta.dirname, 'check-date-layout.cpp'),
+    path.resolve(
+      process.argv.slice(2).find((arg) => arg.endsWith('.lib')) ??
+        path.join(root, 'Nelyx/engine/dist/native/nelyx_engine_v2.lib'),
+    ),
     '/Fe:check.exe',
   ]);
   console.log(run(path.join(temporary, 'check.exe'), []).trim());

@@ -65,6 +65,7 @@ import { TextField } from '@nelyx/material/text-field';
 import { InputDecoration } from '@nelyx/material/input-decoration';
 import { OutlineInputBorder } from '@nelyx/material/input-border';
 import { showDialog } from '@nelyx/material/dialog';
+import { showDatePicker, DateTime } from '@nelyx/material/date-picker';
 import { GallerySection, GallerySectionExtents, GalleryUpdates } from './gallery-section.ts';
 import { ImageDemo } from './image-demo.ts';
 import { column, flow, inset, icon } from './layout.ts';
@@ -106,6 +107,7 @@ const demos: readonly Demo[] = [
   { id: 'dividers', title: 'Dividers', group: 'Containment' },
   { id: 'navigation', title: 'Destinations and drawer', group: 'Navigation' },
   { id: 'checkboxes', title: 'Checkboxes', group: 'Selection' },
+  { id: 'date-picker', title: 'Date picker', group: 'Selection' },
   { id: 'chips', title: 'Chips', group: 'Selection' },
   { id: 'radios', title: 'Radio buttons', group: 'Selection' },
   { id: 'sliders', title: 'Sliders', group: 'Selection' },
@@ -129,6 +131,31 @@ export class ComponentsScreen extends StatefulWidget {
 }
 
 class ComponentsState extends State<ComponentsScreen> {
+  private selectedDate = DateTime.now();
+  private openDatePicker(): void {
+    const today = DateTime.now();
+    void showDatePicker({
+      context: this.context,
+      initialDate: this.selectedDate,
+      firstDate: new DateTime(today.year - 10, 1, 1),
+      lastDate: new DateTime(today.year + 10, 12, 31),
+    })
+      .then((date) => {
+        if (!this.mounted || date === null) return;
+        this.selectedDate = date;
+        this.record(
+          'Selected date: ' +
+            date.year +
+            '-' +
+            String(date.month).padStart(2, '0') +
+            '-' +
+            String(date.day).padStart(2, '0'),
+        );
+      })
+      .catch((error) => {
+        if (this.mounted) this.record(String(error));
+      });
+  }
   private readonly updates = new GalleryUpdates();
   private readonly firstScroll = new ScrollController({ debugLabel: 'demo-first' });
   private readonly secondScroll = new ScrollController({ debugLabel: 'demo-second' });
@@ -659,6 +686,11 @@ class ComponentsState extends State<ComponentsScreen> {
           new Divider(),
           new Text('Below', { fontSize: 12 }),
         );
+      case 'date-picker':
+        return new FilledButton({
+          child: new Text('Choose date'),
+          onPressed: () => this.openDatePicker(),
+        });
       case 'checkboxes':
         return flow(
           new Checkbox({

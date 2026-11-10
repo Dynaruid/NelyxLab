@@ -8,6 +8,7 @@ import { selectionMessages } from './generated/localizations/selection-localizat
 import { scriptCategories } from './generated/localizations/script-categories.ts';
 import { ScriptCategory } from './script-category.ts';
 import { refreshIndicatorLabels } from './generated/localizations/refresh-localizations-data.ts';
+import { SourceDateLocalizations } from './generated/date/material_localizations.generated.ts';
 function localeCandidates(locale: string): string[] {
   const parts = locale.replaceAll('-', '_').split('_'),
     language = parts[0]!,
@@ -30,10 +31,11 @@ function categoryFor(candidates: readonly string[]): ScriptCategory {
     )
   ];
 }
-export class MaterialLocalizations {
+export class MaterialLocalizations extends SourceDateLocalizations {
   private readonly messages: Readonly<Record<string, string>>;
   private readonly category: ScriptCategory;
   constructor(readonly locale = 'en') {
+    super();
     const candidates = localeCandidates(locale);
     this.messages = Object.freeze(
       Object.assign(

@@ -564,8 +564,8 @@ public:
         s.frame.bounds=s.bounds;
       }
       static constexpr const char *roles[] = {"group", "group", "button", "text",
-          "text-field", "button", "group", "button", "button", "group", "button", "progress", "loading"};
-      static_assert(std::size(roles) == wire::semanticsRoles::loadingSpinner + 1);
+          "text-field", "button", "group", "button", "button", "group", "button", "progress", "loading", "dialog"};
+      static_assert(std::size(roles) == wire::semanticsRoles::dialog + 1);
       s.role = a->role < std::size(roles) ? roles[a->role] : "group";
       packet.isLink = a->role == wire::semanticsRoles::link;
       packet.isSlider = a->role == wire::semanticsRoles::slider;
@@ -574,6 +574,7 @@ public:
       packet.isRadioGroup = a->role == wire::semanticsRoles::radioGroup;
       // Source's closed configuration word packs isLiveRegion at bit 24.
       packet.liveRegion = (a->mergeFlags & (1u << 24)) != 0;
+      packet.blockAccessibilityFocus = (a->flags & wire::semanticsFlags::blockAccessibilityFocus) != 0;
       if(packet.isSlider&&node.control.kind){nh::SemanticRange range;
         range.min=node.control.minimum;range.max=node.control.maximum;range.value=f.properties[node.id.slot].value;
         range.smallChange=node.control.step>0?node.control.step:(node.control.maximum-node.control.minimum)/20;
@@ -594,7 +595,7 @@ public:
       }
       s.enabled = geometry && !(a->flags & wire::semanticsFlags::disabled) &&
                   !(current.editFlags & wire::editFlags::disabled);
-      s.focusable = !(a->flags & wire::semanticsFlags::scopesRoute) &&
+      s.focusable = !packet.blockAccessibilityFocus && !(a->flags & wire::semanticsFlags::scopesRoute) &&
                     ((a->flags & wire::semanticsFlags::focusable) ||
                     (a->actions & wire::semanticsActions::focus));
       s.focused = node.id==focusPeer;

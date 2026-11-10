@@ -89,8 +89,29 @@ export function bindBrowserAppServices(app: BrowserAppWorker) {
           reply('');
           return;
         }
-        if (value.method === 'system-sound' || value.method === 'haptic-feedback')
-          throw new Error('Browser system feedback is unavailable');
+        // Adapted from Flutter engine platform_dispatcher.dart and
+        // safe_browser_api.dart at 71e4717a61786faab4c7aa39825989305ed29e8a.
+        // The original Web embedding acknowledges absent system sounds and
+        // invokes vibration only when the browser exposes that API.
+        if (value.method === 'haptic-feedback') {
+          const durations: Readonly<Record<string, number>> = {
+            'HapticFeedbackType.lightImpact': 10,
+            'HapticFeedbackType.mediumImpact': 20,
+            'HapticFeedbackType.heavyImpact': 30,
+            'HapticFeedbackType.selectionClick': 10,
+            'HapticFeedbackType.successNotification': 20,
+            'HapticFeedbackType.warningNotification': 20,
+            'HapticFeedbackType.errorNotification': 30,
+          };
+          if (typeof navigator.vibrate === 'function')
+            navigator.vibrate(durations[value.text as string] ?? 50);
+          reply('');
+          return;
+        }
+        if (value.method === 'system-sound') {
+          reply('');
+          return;
+        }
         if (!navigator.clipboard) throw new Error('Browser clipboard is unavailable');
         if (value.method === 'clipboard-write') {
           await navigator.clipboard.writeText(value.text as string);

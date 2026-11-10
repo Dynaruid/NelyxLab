@@ -13,6 +13,7 @@
 #include "memory_pressure.hpp"
 #include "rnw/ClipboardModule.h"
 #include "input/WindowsPrecisionTrackpad.h"
+#include "input/PrecisionVelocity.h"
 #include <condition_variable>
 #include <deque>
 #include <fstream>
@@ -56,6 +57,10 @@ struct AppHeapAccount {
   ~AppHeapAccount(){ledger->report(4,1,0);observed=0;}
 };
 struct AppExitSignal{std::atomic<bool>& exited;~AppExitSignal(){exited=true;}};
+struct SamplingGuard {
+  facebook::hermes::IHermesRootAPI* api=nullptr;bool active=false;
+  ~SamplingGuard(){if(active)try{api->disableSamplingProfiler();}catch(...){}}
+};
 struct AppRuntimeRegistration {
   std::mutex& gate;facebook::hermes::HermesRuntime*& current;
   AppRuntimeRegistration(std::mutex& lock,facebook::hermes::HermesRuntime*& slot,facebook::hermes::HermesRuntime* runtime):gate(lock),current(slot){std::lock_guard held(gate);current=runtime;}
@@ -67,9 +72,10 @@ class Host {
   std::vector<uint8_t> dispatch(const std::vector<uint8_t>& bytes,double enqueued=0){
     const auto started=now();DispatchTiming timing;auto result=core.dispatch({bytes.data(),bytes.size()},&timing);
     const auto ended=now();const auto r=reader(result);const auto b=wire::headerBytes;
-    if(result.size()>=b+wire::stateBytes&&r.u16(12)!=wire::opcodes::inspect){
+    const auto opcode=reader(bytes).u16(12); // Responses include the reply bit.
+    if(result.size()>=b+wire::stateBytes&&opcode!=wire::opcodes::inspect){
       std::lock_guard lock(traceMutex);const auto sequence=++traceSequence;
-      traceRing[(sequence-1)%traceRing.size()]={sequence,r.u64(40),(r.u16(12)==wire::opcodes::input?reader(bytes).u64(b):r.u64(b+wire::stateFields::consumedThrough)),r.u64(b+wire::stateFields::document),r.u64(b+wire::stateFields::preparation),r.u64(b+wire::stateFields::submission),r.u64(b+wire::stateFields::publication),r.u16(12),r.u16(14),started,(ended-started)*1000,enqueued?(started-enqueued)*1000:0,timing.lockWaitMs,timing.lockHeldMs};
+      traceRing[(sequence-1)%traceRing.size()]={sequence,r.u64(40),(opcode==wire::opcodes::input&&bytes.size()>=b+8?reader(bytes).u64(b):r.u64(b+wire::stateFields::consumedThrough)),r.u64(b+wire::stateFields::document),r.u64(b+wire::stateFields::preparation),r.u64(b+wire::stateFields::submission),r.u64(b+wire::stateFields::publication),opcode,r.u16(14),started,(ended-started)*1000,enqueued?(started-enqueued)*1000:0,timing.lockWaitMs,timing.lockHeldMs};
     }
     return result;
   }
@@ -104,8 +110,11 @@ class Host {
   std::atomic<bool> appExited{false};
   std::mutex jobsMutex,doneMutex,sceneMutex,wakeMutex,metricsMutex;
   std::condition_variable changed,appChanged;
+  nw::RenderDeadline renderDeadline;
+  void wakeOwners(){renderDeadline.notify();changed.notify_all();}
   uint64_t appWakeRevision=0;
   std::atomic<bool> appNotification{false};
+  std::atomic<uint32_t> profileRequest{0};
   void wakeApp(){ {std::lock_guard lock(wakeMutex);++appWakeRevision;} appChanged.notify_one(); }
   std::mutex notificationMutex;
   std::array<uint64_t,14> notifiedState{};
@@ -139,7 +148,9 @@ class Host {
   std::unique_ptr<nw::Interaction> interaction;
   std::shared_ptr<RNSkia::WindowsPrecisionTrackpad> precision;
   uint64_t precisionPackets=0,precisionRejected=0;
-  double precisionAt=0,precisionVelocity=0;
+  nw::PrecisionVelocity precisionVelocity;
+  double precisionEndVelocity=0;
+  uint64_t precisionEnds=0,precisionMovingEnds=0;
   bool interactionPointer=false;
   std::atomic<bool> interactionDirty{false};
   void postUI(std::function<void()> callback){{std::lock_guard lock(uiMutex);if(uiCallbacks.size()>=256)throw std::runtime_error("UI callback mailbox exceeded");uiCallbacks.push_back(std::move(callback));}PostMessageW(window,WM_APP+3,0,0);}
@@ -159,7 +170,7 @@ class Host {
   void sampleMemoryPressure() {
     if(stopping||closing)return;
     osPressure=memoryMonitor.sample(now());const bool low=osPressure;
-    if(memoryPressure.exchange(low)!=low){++pressureEpoch;contentWake=true;renderWakeRequested=true;changed.notify_all();}
+    if(memoryPressure.exchange(low)!=low){++pressureEpoch;contentWake=true;renderWakeRequested=true;wakeOwners();}
   }
   std::atomic<uint64_t> appHeapBytes{0};
   std::atomic<uint64_t> appAcknowledgedCommands{0},appRejectedFallbacks{0};
@@ -181,11 +192,11 @@ class Host {
        op==wire::opcodes::metrics||op==wire::opcodes::visibility||op==wire::opcodes::preparationResult)notifyState(result);
     return result;}
   static Reader reader(const std::vector<uint8_t>& bytes){return {bytes.data(),bytes.size()};}
-  void notifyError(const std::string& error){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR "<<error<<std::endl;stopping=true;changed.notify_all();wakeApp();PostMessageW(window,WM_CLOSE,0,0);}
+  void notifyError(const std::string& error){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR "<<error<<std::endl;stopping=true;wakeOwners();wakeApp();PostMessageW(window,WM_CLOSE,0,0);}
   void contentLoop(){
     contentThread=GetCurrentThreadId();CoInitializeEx(nullptr,COINIT_MULTITHREADED);
     try{
-      nw::ContentProvider provider(directory+"/assets/font.ttf",directory+"/assets/icudtl.dat",core.memoryLedger());contentReady=true;changed.notify_all();
+      nw::ContentProvider provider(directory+"/assets/font.ttf",directory+"/assets/icudtl.dat",core.memoryLedger());contentReady=true;wakeOwners();
       uint64_t last=0,handledPressure=0;ContentTiming currentTiming;
       while(!stopping){
         if(const auto epoch=pressureEpoch.load();epoch!=handledPressure){provider.setMemoryPressure(memoryPressure);handledPressure=epoch;contentPressureEpoch=epoch;}
@@ -194,14 +205,14 @@ class Host {
         contentWake=false;
         if(has){auto result=dispatch(job.bytes,job.enqueued);
           const auto op=Reader{job.bytes.data(),job.bytes.size()}.u16(12);
-          if(op==wire::opcodes::scroll||op==wire::opcodes::scrollCancel||op==wire::opcodes::listSeek||op==wire::opcodes::gestureReply||op==wire::opcodes::requestAppFrame){renderWakeRequested=true;changed.notify_all();}
+          if(op==wire::opcodes::scroll||op==wire::opcodes::scrollCancel||op==wire::opcodes::listSeek||op==wire::opcodes::gestureReply||op==wire::opcodes::requestAppFrame){renderWakeRequested=true;wakeOwners();}
           if(op==wire::opcodes::fontTransitionBegin||op==wire::opcodes::fontTransitionReady||
-            op==wire::opcodes::fontTransitionCommit||op==wire::opcodes::fontTransitionAbort){renderWakeRequested=true;changed.notify_all();}
+            op==wire::opcodes::fontTransitionCommit||op==wire::opcodes::fontTransitionAbort){renderWakeRequested=true;wakeOwners();}
           if(op==wire::opcodes::transaction){
             interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);
-            if(reader(result).u16(14)==wire::statuses::accepted){renderWakeRequested=true;changed.notify_all();}
+            if(reader(result).u16(14)==wire::statuses::accepted){renderWakeRequested=true;wakeOwners();}
           }
-          if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::openView){metricsPending=true;renderWakeRequested=true;changed.notify_all();}
+          if(Reader{job.bytes.data(),job.bytes.size()}.u16(12)==wire::opcodes::openView){metricsPending=true;renderWakeRequested=true;wakeOwners();}
           auto hold=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());{std::lock_guard lock(doneMutex);done.push_back({job.id,std::move(result),std::move(hold)});}wakeApp();}
         if(connected){
           if(const auto stage=core.fontTransitionSnapshot(1,1)){
@@ -211,7 +222,7 @@ class Host {
                 auto fonts=provider.prepareFont(stage->resource);
                 {std::lock_guard lock(sceneMutex);fontCandidate=std::make_shared<PreparedFont>(PreparedFont{stage->token,stage->resource,std::move(fonts)});}
               }catch(const std::exception& error){reply.u32(4,wire::statuses::invalidValue);std::osyncstream(std::cout)<<"V2_FONT_PREPARATION_ERROR "<<error.what()<<std::endl;}
-              call(wire::opcodes::fontTransitionReady,reply.bytes,false,stage->token);renderWakeRequested=true;changed.notify_all();
+              call(wire::opcodes::fontTransitionReady,reply.bytes,false,stage->token);renderWakeRequested=true;wakeOwners();
             }else if(stage->phase!=wire::fontTransitionPhases::preparing){
               {std::lock_guard lock(sceneMutex);fontCandidate.reset();}provider.trimFontCache();
             }
@@ -246,7 +257,7 @@ class Host {
           }
           if(r.u16(14)==0&&(r.u32(wire::headerBytes+wire::stateFields::flags)&16u)){
             auto p=core.providerSnapshot(1,1);
-            if(p&&p->id!=last){const auto recordStarted=now();attempted=p->id;last=p->id;auto prepared=provider.prepare(*p);currentTiming.recordMs=(now()-recordStarted)*1000;currentTiming.completed=now();{std::lock_guard lock(sceneMutex);candidate=std::move(prepared);}renderWakeRequested=true;changed.notify_all();}
+            if(p&&p->id!=last){const auto recordStarted=now();attempted=p->id;last=p->id;auto prepared=provider.prepare(*p);currentTiming.recordMs=(now()-recordStarted)*1000;currentTiming.completed=now();{std::lock_guard lock(sceneMutex);candidate=std::move(prepared);}renderWakeRequested=true;wakeOwners();}
           }
           } catch(const std::exception& error) {
             currentTiming.failed=true;
@@ -277,7 +288,7 @@ class Host {
       std::osyncstream(std::cout)<<"V2_RENDERER "<<provider.driver()<<std::endl;
       while(!stopping&&!contentReady)std::this_thread::sleep_for(std::chrono::milliseconds(2));
       if(stopping)return;
-      core.connectProvider(true,contentThread,renderThread);connected=true;wakeApp();changed.notify_all();
+      core.connectProvider(true,contentThread,renderThread);connected=true;wakeApp();wakeOwners();
       std::shared_ptr<const nw::Prepared> active,next,pendingPrepared;
       std::shared_ptr<const Frame> pendingFrame;FrameTiming pendingTiming;
       double lastWidth=-1,lastHeight=-1,lastScale=-1;
@@ -306,7 +317,7 @@ class Host {
               stage->phase==wire::fontTransitionPhases::preparing&&!(stage->ready&wire::fontTransitionOwners::render)){
             if(stage->resource!=prepared->resource||(stage->resource&&!prepared->fonts))throw std::runtime_error("Native Render font preparation identity differs");
             Writer reply(8);reply.u32(0,wire::fontTransitionOwners::render);call(wire::opcodes::fontTransitionReady,reply.bytes,false,stage->token);
-            contentWake=true;changed.notify_all();
+            contentWake=true;wakeOwners();
           }}
         if(const auto epoch=pressureEpoch.load();epoch!=handledPressure){provider.setMemoryPressure(memoryPressure);handledPressure=epoch;renderPressureEpoch=epoch;}
         const auto frameStarted=now();const auto display=nw::displayClock(window);
@@ -318,7 +329,7 @@ class Host {
               Writer m(40);m.u64(0,r.u64(wire::headerBytes+wire::stateFields::metrics)+1);m.f64(8,width);m.f64(16,height);m.f64(24,scale);m.u64(32,r.u64(wire::headerBytes+wire::stateFields::lastInput));
               call(wire::opcodes::metrics,m.bytes);lastWidth=width;lastHeight=height;lastScale=scale;
             }
-            Writer v(16);v.u32(0,(visible?1u:0u)|(focused?2u:0u));v.u64(8,r.u64(wire::headerBytes+wire::stateFields::lastInput));call(wire::opcodes::visibility,v.bytes);contentWake=true;changed.notify_all();
+            Writer v(16);v.u32(0,(visible?1u:0u)|(focused?2u:0u));v.u64(8,r.u64(wire::headerBytes+wire::stateFields::lastInput));call(wire::opcodes::visibility,v.bytes);contentWake=true;wakeOwners();
             interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);
           }
         }
@@ -369,17 +380,20 @@ class Host {
           const auto events=call(wire::opcodes::pollEvents);const auto er=reader(events);
           for(uint32_t index=0;index<er.u32(wire::headerBytes+wire::stateFields::eventCount);++index){
             const size_t offset=wire::headerBytes+wire::stateBytes+er.u32(wire::headerFields::count)*wire::nodeBytes+index*wire::eventBytes;
-            if(er.u32(offset)==wire::events::preparationFailed)
+            if(er.u32(offset)==wire::events::preparationFailed){
               std::osyncstream(std::cout)<<"V2_PREPARATION_ERROR Core status="<<er.u32(offset+4)<<" preparation="<<er.u64(offset+8)<<" document="<<er.u64(offset+16)<<std::endl;
+              if(const auto f=core.preparationFailureSnapshot(1,1);f&&f->preparation==er.u64(offset+8))
+                std::osyncstream(std::cout)<<"V2_PREPARATION_CONTEXT {\"ready\":"<<(f->ready?"true":"false")<<",\"node\":"<<f->node.slot<<",\"offset\":"<<f->offset<<",\"requested\":"<<f->requested<<",\"minimum\":"<<f->minimum<<",\"maximum\":"<<f->maximum<<",\"preparedOffset\":"<<f->preparedOffset<<"}"<<std::endl;
+            }
           }
           clock=(sr.u32(wire::headerBytes+wire::stateFields::flags)&128u)!=0;
           deadline=sr.f64(wire::headerBytes+wire::stateFields::nextDeadline);
-          if(sr.u64(wire::headerBytes+wire::stateFields::pendingDocument)){contentWake=true;changed.notify_all();}
+          if(sr.u64(wire::headerBytes+wire::stateFields::pendingDocument)){contentWake=true;wakeOwners();}
         }
         std::unique_lock lock(wakeMutex);
         const auto wake=[this,&handledPressure,&retryAcquire]{return stopping||renderWakeRequested||(metricsPending&&!retryAcquire)||pressureEpoch!=handledPressure;};
-        if(clock||pendingFrame||retryAcquire){const auto display=nw::displayClock(window);const auto target=deadline>0?std::min(display.target,deadline):display.target;changed.wait_for(lock,std::chrono::duration<double>(std::max(0.0,target-now())),wake);}
-        else if(deadline>0)changed.wait_for(lock,std::chrono::duration<double>(std::max(0.001,deadline-now())),wake);
+        if(clock||pendingFrame||retryAcquire){const auto display=nw::displayClock(window);const auto target=deadline>0?std::min(display.target,deadline):display.target;renderDeadline.wait(lock,target,wake);}
+        else if(deadline>0)renderDeadline.wait(lock,deadline,wake);
         else changed.wait(lock,wake);
       }
       provider.close();
@@ -395,7 +409,11 @@ class Host {
       AppHeapAccount appMemory{core.memoryLedger(),appHeapBytes};
       nw::AppParagraphs appText(directory+"/assets/font.ttf",directory+"/assets/icudtl.dat",core.memoryLedger(),
         appDirectory+"/application/assets",false);
-      auto runtime=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withES6BlockScoping(true).withAsyncBreakCheckInEval(true).build());
+      wchar_t profileFlag[2]{};const bool profiling=GetEnvironmentVariableW(L"NELYX_V2_CPU_PROFILE",profileFlag,2)==1&&profileFlag[0]==L'1';
+      auto runtime=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withES6BlockScoping(true).withAsyncBreakCheckInEval(true).withEnableSampleProfiling(profiling).withGCConfig(::hermes::vm::GCConfig::Builder().withShouldRecordStats(profiling).build()).build());
+      SamplingGuard sampling{profiling?jsi::castInterface<facebook::hermes::IHermesRootAPI>(facebook::hermes::makeHermesRootAPI()):nullptr};
+      if(profiling&&!sampling.api)throw std::runtime_error("Hermes sampling interface unavailable");
+      double profileDeadline=0;bool profiled=false;
       AppRuntimeRegistration registration(appRuntimeMutex,appRuntime,runtime.get());
       auto& rt=*runtime;
       appMemory.update(rt);
@@ -425,7 +443,7 @@ class Host {
         if(op==wire::opcodes::edit||op==wire::opcodes::focus||op==wire::opcodes::semanticsAction){uiJobs.push_back({uint32_t(args[0].asNumber()),std::move(bytes),std::move(hold)});PostMessageW(window,WM_APP+3,0,0);}
         else jobs.push_back({uint32_t(args[0].asNumber()),std::move(bytes),std::move(hold)});jobBytes+=length;
         contentWake=true;
-        changed.notify_all();return jsi::Value::undefined();}));
+        wakeOwners();return jsi::Value::undefined();}));
       native.setProperty(rt,"notify",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"notify"),2,[this](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
         if(count>1&&args[1].isObject()){
           const auto execution=args[1].asObject(r);
@@ -443,18 +461,31 @@ class Host {
       rt.global().setProperty(rt,"NelyxV2Native",std::move(native));
       const auto bootstrap=std::string("globalThis.__v2Timers=[];globalThis.setTimeout=(f,m=0)=>{const t={f,at:Date.now()+m};__v2Timers.push(t);return t;};globalThis.clearTimeout=t=>{if(t)t.f=null;};globalThis.__v2Delay=()=>{let d=2147483647;const n=Date.now();for(const t of __v2Timers)if(t.f)d=Math.min(d,Math.max(0,t.at-n));return d;};globalThis.__v2Pump=()=>{const n=Date.now();const q=__v2Timers.splice(0);for(const t of q){if(t.f&&t.at<=n)t.f();else if(t.f)__v2Timers.push(t);}};");
       rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(bootstrap),"v2-timers.js");
-      const auto source=readFile(appDirectory+"/application/app.js");rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::string(source.begin(),source.end())),"application/app.js");rt.drainMicrotasks();
+      const auto source=readFile(appDirectory+"/application/app.hbc");rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::string(source.begin(),source.end())),"application/app.hbc");rt.drainMicrotasks();
       while(!stopping){
         uint64_t observedWake;{std::lock_guard lock(wakeMutex);observedWake=appWakeRevision;}
+        const auto profile=profileRequest.exchange(0);
+        if(profiling&&profile==1&&!profiled){sampling.api->enableSamplingProfiler(250);sampling.active=true;profiled=true;profileDeadline=now()+30;std::osyncstream(std::cout)<<"V2_PROFILE_STARTED"<<std::endl;}
+        if(sampling.active&&(profile==2||now()>=profileDeadline)){
+          sampling.api->disableSamplingProfiler();sampling.active=false;
+          std::ostringstream output;sampling.api->dumpSampledTraceToStream(output);const auto report=output.str();
+          if(report.size()<=8*1024*1024)std::osyncstream(std::cout)<<"V2_PROFILE_BEGIN\n"<<report<<"\nV2_PROFILE_END"<<std::endl;
+          const auto gc=rt.instrumentation().getRecordedGCStats();
+          if(gc.size()<=4*1024*1024)std::osyncstream(std::cout)<<"V2_GC_BEGIN\n"<<gc<<"\nV2_GC_END"<<std::endl;
+        }
         if(appNotification.exchange(false)&&rt.global().hasProperty(rt,"__v2Changed")){rt.global().getPropertyAsFunction(rt,"__v2Changed").call(rt);rt.drainMicrotasks();}
         while(services->deliver(rt))rt.drainMicrotasks();
         if(disposeRequested.exchange(false)){rt.global().getPropertyAsFunction(rt,"__v2Dispose").call(rt);rt.drainMicrotasks();}
         if(appUpdate.exchange(false)&&rt.global().hasProperty(rt,"__v2Update")){rt.global().getPropertyAsFunction(rt,"__v2Update").call(rt);rt.drainMicrotasks();}
-        Job result{};bool has=false;
-        {std::lock_guard lock(doneMutex);if(!done.empty()){result=std::move(done.front());done.pop_front();has=true;}}
-        if(has){auto array=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(result.bytes.size())).getObject(rt);auto buffer=array.getArrayBuffer(rt);std::memcpy(buffer.data(rt),result.bytes.data(),result.bytes.size());rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(result.id),std::move(array));rt.drainMicrotasks();}
+        // Resolve the already-ready bounded mailbox before running continuations.
+        // A commit continuation must not postpone an older input/geometry reply
+        // behind another complete App capture just because it was second in FIFO.
+        std::deque<Job> completed;{std::lock_guard lock(doneMutex);completed.swap(done);}
+        for(auto& result:completed){auto array=rt.global().getPropertyAsFunction(rt,"ArrayBuffer").callAsConstructor(rt,double(result.bytes.size())).getObject(rt);auto buffer=array.getArrayBuffer(rt);std::memcpy(buffer.data(rt),result.bytes.data(),result.bytes.size());rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(result.id),std::move(array));}
+        completed.clear();rt.drainMicrotasks();
         rt.global().getPropertyAsFunction(rt,"__v2Pump").call(rt);rt.drainMicrotasks();appMemory.update(rt);
-        const auto delay=rt.global().getPropertyAsFunction(rt,"__v2Delay").call(rt).asNumber();
+        const auto timerDelay=rt.global().getPropertyAsFunction(rt,"__v2Delay").call(rt).asNumber();
+        const auto delay=sampling.active?std::min(timerDelay,std::max(0.0,(profileDeadline-now())*1000)):timerDelay;
         std::unique_lock lock(wakeMutex);appChanged.wait_for(lock,std::chrono::duration<double,std::milli>(delay),[this,observedWake]{
           if(stopping||disposeRequested||appUpdate||appNotification||appWakeRevision!=observedWake)return true;
           std::lock_guard ready(doneMutex);return !done.empty();
@@ -464,7 +495,7 @@ class Host {
   }
  public:
   Host(std::string directory,std::string appDirectory):directory(std::move(directory)),appDirectory(std::move(appDirectory)){}
-  void bind(HWND value){window=value;interaction=std::make_unique<nw::Interaction>(window,core,[this](uint32_t op,const std::vector<uint8_t>& bytes){return call(op,bytes);},[this](auto callback){postUI(std::move(callback));},[this]{contentWake=true;renderWakeRequested=true;changed.notify_all();},[this]{
+  void bind(HWND value){window=value;interaction=std::make_unique<nw::Interaction>(window,core,[this](uint32_t op,const std::vector<uint8_t>& bytes){return call(op,bytes);},[this](auto callback){postUI(std::move(callback));},[this]{contentWake=true;renderWakeRequested=true;wakeOwners();},[this]{
       const auto id=inputClipboard->begin();
       try{clipboard.captureString([input=inputClipboard,id](std::string value,std::string error){input->complete(id,std::move(value),std::move(error));});}
       catch(...){inputClipboard->complete(id,{},"Input clipboard capture failed");inputClipboard->release(id);throw;}
@@ -493,7 +524,11 @@ class Host {
         if(!interaction)throw std::runtime_error("Accessibility owner is unavailable");
         interaction->tooltip(text);complete({},{});return;
       }
-      if(method=="system-sound"||method=="haptic-feedback")throw std::runtime_error("Windows system feedback is unavailable");
+      // Flutter's pinned Windows platform_handler.cc does not implement
+      // haptics. Preserve NotImplemented for the original OptionalMethodChannel,
+      // rather than turning an optional vibration into a PlatformException.
+      if(method=="haptic-feedback"){complete({},"not-implemented");return;}
+      if(method=="system-sound")throw std::runtime_error("Windows system feedback is unavailable");
       if(method=="clipboard-read-event"){inputClipboard->read(std::stoull(text),std::move(complete));return;}
       if(method=="clipboard-release-event"){inputClipboard->release(std::stoull(text));complete({},{});return;}
       if(method=="clipboard-write"){
@@ -510,11 +545,11 @@ class Host {
     if(interactionDirty.exchange(false)&&interaction){std::shared_ptr<const nw::Prepared> published;{std::lock_guard lock(sceneMutex);published=publishedPrepared;}interaction->sync(std::move(published));}
   }
   void timer(UINT_PTR id){if(interaction)interaction->timer(id);if(id==1)poll();}
-  void metrics(){if(!window)return;RECT r{};GetClientRect(window,&r);std::lock_guard lock(metricsMutex);scale=GetDpiForWindow(window)/96.0;width=IsIconic(window)?0:(r.right-r.left)/scale;height=IsIconic(window)?0:(r.bottom-r.top)/scale;visible=IsWindowVisible(window)&&!IsIconic(window);metricsPending=true;renderWakeRequested=true;changed.notify_all();}
+  void metrics(){if(!window)return;RECT r{};GetClientRect(window,&r);std::lock_guard lock(metricsMutex);scale=GetDpiForWindow(window)/96.0;width=IsIconic(window)?0:(r.right-r.left)/scale;height=IsIconic(window)?0:(r.bottom-r.top)/scale;visible=IsWindowVisible(window)&&!IsIconic(window);metricsPending=true;renderWakeRequested=true;wakeOwners();}
   void focus(bool value){
     bool shown;{std::lock_guard lock(metricsMutex);focused=value;shown=visible;}
     auto bytes=call(wire::opcodes::inspect);auto state=reader(bytes);if(state.u16(14)==wire::statuses::ok){Writer flags(16);flags.u32(0,(shown?1u:0u)|(value?2u:0u));flags.u64(8,state.u64(wire::headerBytes+wire::stateFields::lastInput));call(wire::opcodes::visibility,flags.bytes);}
-    metricsPending=true;renderWakeRequested=true;changed.notify_all();
+    metricsPending=true;renderWakeRequested=true;wakeOwners();
   }
   void update(){if(appReady&&!stopping)appUpdate=true;}
   void pointer(uint32_t phase,double x,double y){
@@ -534,26 +569,27 @@ class Host {
     Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,1);input.u32(28,phase);input.u32(32,wire::sources::engineDriven);input.f64(40,at);input.f64(56,x);input.f64(64,y);input.f64(72,dx);input.f64(80,dy);input.f64(88,pointerVelocity);input.u32(96,1);input.u32(100,dragging?1:0);input.u32(112,1);
     input.u32(36,hover?6u:2u);input.u32(wire::inputFields::kind,wire::pointerKinds::mouse);
     input.u64(wire::inputFields::publication,r.u64(wire::headerBytes+wire::stateFields::publication));
-    call(wire::opcodes::input,input.bytes);renderWakeRequested=true;changed.notify_all();
+    call(wire::opcodes::input,input.bytes);renderWakeRequested=true;wakeOwners();
   }
   void cancelPointer(){if(dragging)pointer(wire::phases::cancel,pointerX,pointerY);}
   void wheel(double delta,double x,double y){
     if(!appReady||stopping)return;auto result=call(wire::opcodes::inspect);auto r=reader(result);if(r.u16(14))return;
-    Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,3);input.u32(28,wire::phases::update);input.u32(32,wire::sources::wheelUnknown);input.f64(40,now());input.f64(56,x);input.f64(64,y);input.f64(80,delta);input.u32(96,1);input.u64(wire::inputFields::publication,r.u64(wire::headerBytes+wire::stateFields::publication));call(wire::opcodes::input,input.bytes);renderWakeRequested=true;changed.notify_all();
+    Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,3);input.u32(28,wire::phases::update);input.u32(32,wire::sources::wheelUnknown);input.f64(40,now());input.f64(56,x);input.f64(64,y);input.f64(80,delta);input.u32(96,1);input.u64(wire::inputFields::publication,r.u64(wire::headerBytes+wire::stateFields::publication));call(wire::opcodes::input,input.bytes);renderWakeRequested=true;wakeOwners();
   }
   bool precisionOwnsWheel()const{return precision&&precision->ownsWheel();}
   void precisionInput(const RNSkia::WindowsPrecisionEvent& event){
     if(!appReady||stopping)return;
-    const auto phase=event.kind=="panZoomStart"?wire::phases::begin:event.kind=="panZoomUpdate"?wire::phases::update:event.kind=="inertiaCancel"?wire::phases::cancel:wire::phases::end;
+    const auto phase=event.kind=="panZoomStart"?wire::phases::begin:event.kind=="panZoomUpdate"?wire::phases::update:(event.kind=="inertiaCancel"||event.kind=="panZoomCancel")?wire::phases::cancel:wire::phases::end;
     auto bytes=call(wire::opcodes::inspect);const auto state=reader(bytes);if(state.u16(14))return;
-    const auto at=now(),elapsed=at-precisionAt;
-    if(phase==wire::phases::begin)precisionVelocity=0;
-    if(phase==wire::phases::update)precisionVelocity=elapsed>0&&elapsed<0.08?-event.deltaY/elapsed:0;
-    if(phase==wire::phases::cancel||elapsed>0.08)precisionVelocity=0;
-    precisionAt=at;
-    Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,event.origin.generation);input.u32(24,2);input.u32(28,phase);input.u32(32,wire::sources::engineDriven);input.f64(40,at);input.f64(56,event.origin.x);input.f64(64,event.origin.y);input.f64(72,-event.deltaX);input.f64(80,-event.deltaY);input.f64(88,precisionVelocity);input.u32(96,1);input.u32(108,3);input.u32(112,2);input.u64(wire::inputFields::publication,state.u64(wire::headerBytes+wire::stateFields::publication));
+    const auto at=event.timestamp/1000;
+    if(phase==wire::phases::begin)precisionVelocity.begin(at);
+    if(phase==wire::phases::update)precisionVelocity.update(at,-event.deltaY);
+    if(phase==wire::phases::cancel)precisionVelocity.cancel();
+    const auto velocity=precisionVelocity.value(at);
+    if(phase==wire::phases::end){++precisionEnds;precisionEndVelocity=velocity;if(std::abs(velocity)>=1)++precisionMovingEnds;}
+    Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,event.origin.generation);input.u32(24,2);input.u32(28,phase);input.u32(32,wire::sources::engineDriven);input.f64(40,at);input.f64(56,event.origin.x);input.f64(64,event.origin.y);input.f64(72,-event.deltaX);input.f64(80,-event.deltaY);input.f64(88,velocity);input.u32(96,1);input.u32(108,3);input.u32(112,2);input.u64(wire::inputFields::publication,state.u64(wire::headerBytes+wire::stateFields::publication));
     auto admitted=call(wire::opcodes::input,input.bytes);if(reader(admitted).u16(14))++precisionRejected;else ++precisionPackets;
-    renderWakeRequested=true;changed.notify_all();
+    renderWakeRequested=true;wakeOwners();
   }
   void poll(){
     ui();
@@ -564,6 +600,7 @@ class Host {
       if(command=="close")PostMessageW(window,WM_CLOSE,0,0);
       else if(command=="stats")stats();
       else if(command=="trace")trace();
+      else if(command=="profile-start"||command=="profile-stop"){profileRequest=command=="profile-start"?1:2;wakeApp();}
     }
   }
   void stats(){auto bytes=call(wire::opcodes::inspect);auto r=reader(bytes);const auto b=wire::headerBytes;
@@ -580,7 +617,7 @@ class Host {
       <<",\"keysAdmitted\":"<<interaction->keysAdmitted<<",\"keysStale\":"<<interaction->keysStale
       <<",\"keysRejected\":"<<interaction->keysRejected<<",\"lastKeyStatus\":"<<interaction->lastKeyStatus
       <<",\"clipboardSnapshots\":"<<inputClipboard->pending()<<"}"<<std::endl;
-    std::osyncstream(std::cout)<<"V2_INPUT_SOURCE {\"source\":\"precision-trackpad-directmanipulation\",\"available\":"<<(precision?"true":"false")<<",\"admitted\":"<<precisionPackets<<",\"rejected\":"<<precisionRejected<<",\"physicalAcceptance\":\"notVerified\"}"<<std::endl;
+    std::osyncstream(std::cout)<<"V2_INPUT_SOURCE {\"source\":\"precision-trackpad-directmanipulation\",\"available\":"<<(precision?"true":"false")<<",\"admitted\":"<<precisionPackets<<",\"rejected\":"<<precisionRejected<<",\"ends\":"<<precisionEnds<<",\"movingEnds\":"<<precisionMovingEnds<<",\"lastEndVelocity\":"<<precisionEndVelocity<<",\"physicalAcceptance\":\"notVerified\"}"<<std::endl;
     std::osyncstream(std::cout)<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"graphicsRecords\":"<<graphicsRecords<<",\"nativeExtensions\":"<<nativeExtensions<<",\"appHeapBytes\":"<<appHeapBytes<<",\"memoryTotal\":"<<r.u64(b+wire::stateFields::memoryTotal)<<",\"memoryPeak\":"<<r.u64(b+wire::stateFields::memoryPeak)<<",\"memoryGpu\":"<<r.u64(b+wire::stateFields::memoryGpu)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbackPolicy\":\"reject-unported\",\"appExecutionObserved\":"<<(appExecutionObserved?"true":"false")<<",\"appAcknowledgedCommands\":"<<appAcknowledgedCommands<<",\"rejectedFallbacks\":"<<(appExecutionObserved?std::to_string(appRejectedFallbacks.load()):"null")<<",\"reusedPictures\":"<<reusedPictures<<",\"reusedParagraphs\":"<<reusedParagraphs<<",\"reusedImages\":"<<reusedImages<<",\"cachedContentBytes\":"<<cachedContentBytes<<",\"paragraphLayouts\":"<<paragraphLayouts<<",\"memoryPressure\":{\"source\":\"windows-resource-notification\",\"osLow\":"<<(osPressure?"true":"false")<<",\"effectiveLow\":"<<(memoryPressure?"true":"false")<<",\"epoch\":"<<pressureEpoch<<",\"contentEpoch\":"<<contentPressureEpoch<<",\"renderEpoch\":"<<renderPressureEpoch<<",\"gpuCacheLimitBytes\":"<<((memoryPressure?4ull:32ull)*1024*1024)<<"},\"surfaceCommit\":null,"<<timingJson()<<"}"<<std::endl;
   }
   bool hasFailed()const{return failed;}
@@ -607,7 +644,7 @@ class Host {
       while(!appDisposed&&!stopping&&now()<deadline){ui();std::this_thread::sleep_for(std::chrono::milliseconds(1));}
       if(!appDisposed&&!stopping){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR App disposal timeout"<<std::endl;}
     }
-    closed=true;stopping=true;changed.notify_all();wakeApp();
+    closed=true;stopping=true;wakeOwners();wakeApp();
     const auto appDeadline=now()+0.25;
     while(!appExited&&now()<appDeadline)std::this_thread::sleep_for(std::chrono::milliseconds(1));
     if(!appExited){std::lock_guard lock(appRuntimeMutex);if(appRuntime){failed=true;std::osyncstream(std::cerr)<<"V2_HOST_ERROR Interrupting stalled App JavaScript"<<std::endl;appRuntime->asyncTriggerTimeout();}}

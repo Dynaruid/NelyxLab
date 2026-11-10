@@ -189,6 +189,8 @@ export type NativeRenderMetadata =
       readonly kind: 'ink';
       readonly entries: readonly NativePaintEntry[];
       readonly absorbHitTest: boolean;
+      /** Includes live features whose reference is temporarily not painted. */
+      readonly dependsOnChildVisibility?: boolean;
     }
   | { readonly kind: 'border'; readonly shape: NativeShape | null };
 type MetadataDirection = 'ltr' | 'rtl' | null;

@@ -83,6 +83,7 @@ export interface OriginalWidgetHostOptions {
   /** The common SDK closes a shared App backend after every service drains. */
   readonly ownsAppText?: boolean;
   readonly binaryMessenger?: BinaryMessenger;
+  readonly platformView?: ViewControllerContext['platformView'];
   /** SDK scopes an OS clipboard snapshot to the original key dispatch. Omit
    * dispatch when discarding a queued key, so its native token still retires. */
   readonly dispatchNativeKey?: (event: EngineEvent, dispatch?: () => void) => void;
@@ -121,9 +122,32 @@ class AppRoot extends StatelessWidget {
  * This bounded first bridge deliberately rejects unported render hooks/services.
  */
 export class OriginalWidgetHost {
+  private readonly timings: {
+    document: string;
+    input: string;
+    started: number;
+    buildMs: number;
+    captureMs: number;
+    sceneMs: number;
+    waitMs: number;
+    completed: number;
+  }[] = [];
+  /** Bounded diagnostics read explicitly at teardown, never serialized per frame. */
+  diagnostics(): Record<string, unknown> {
+    return {
+      domain:
+        typeof performance === 'undefined' ? 'date-milliseconds' : 'app-performance-milliseconds',
+      samples: this.timings.slice(),
+      scene: { ...this.native.counters },
+      capture: { ...this.capture.counters },
+      layoutBuilder: this.builderDiagnostic,
+      retainedBuilderRebuilds: this.retainedBuilderRebuilds,
+    };
+  }
   private readonly capture = new RenderSceneCapture();
   private invalidateRender(render: RenderObject): void {
     this.capture.invalidate(render);
+    if (render instanceof OriginalNativeRender) render.options.onChildrenInvalidated?.();
     this.schedule();
   }
   private readonly native: SceneWriter;
@@ -180,9 +204,11 @@ export class OriginalWidgetHost {
   private readonly gestureBindingLease: Disposable;
   private readonly semantics: OriginalSemanticsBridge;
   private readonly layoutBuilders = new Map<RenderObject, NativeLayoutBuilderConfiguration>();
+  private retainedBuilderRebuilds = 0;
   private readonly slivers = new Map<RenderObject, NativeSliverConfiguration>();
   private layoutBuildKey: string | undefined;
   private answeredLayoutBuild: string | undefined;
+  private builderDiagnostic: Record<string, string | number> | undefined;
 
   constructor(
     readonly view: EngineViewClient,
@@ -195,6 +221,7 @@ export class OriginalWidgetHost {
     if (options.platform) FoundationPlatform.configure(options.platform);
     this.native = new SceneWriter(view, {
       ...options,
+      appObservations: true,
       onInvalidate: () => this.schedule(),
       onState: (state) => {
         this.geometry.observeState(state);
@@ -288,6 +315,7 @@ export class OriginalWidgetHost {
       paths: undefined,
       images: options.appImages?.service,
       binaryMessenger: options.binaryMessenger,
+      platformView: options.platformView,
       resources: this.resources,
       defaultFont: this.defaultFont,
       text,
@@ -511,7 +539,7 @@ export class OriginalWidgetHost {
   private observeLayoutBuilder(state: EngineResponse): void {
     const request = state.layoutBuildRequest;
     const key = request
-      ? `${request.preparation}/${request.id}/${request.node.slot}:${request.node.generation}/${request.revision}`
+      ? `${request.preparation}/${request.id}/${request.document}/${request.metrics}/${request.device}/${state.fontRevision}/${request.node.slot}:${request.node.generation}/${request.revision}`
       : undefined;
     if (key === this.layoutBuildKey) return;
     this.layoutBuildKey = key;
@@ -526,6 +554,14 @@ export class OriginalWidgetHost {
     this.semantics.observeState(state);
     this.observeMetrics(state);
     const request = state.layoutBuildRequest;
+    if (request)
+      this.builderDiagnostic = {
+        request: `${request.preparation}/${request.id}/${request.document}/${request.node.slot}:${request.node.generation}/${request.revision}`,
+        appDocument: String(this.view.documentEpoch),
+        result: 'version-fence',
+        builders: this.layoutBuilders.size,
+        slivers: this.slivers.size,
+      };
     if (
       !request ||
       !state.visible ||
@@ -535,7 +571,10 @@ export class OriginalWidgetHost {
     )
       return;
     const answer = `${request.preparation}/${request.id}/${request.document}/${request.metrics}/${request.device}/${state.fontRevision}/${request.node.slot}:${request.node.generation}/${request.revision}`;
-    if (answer === this.answeredLayoutBuild) return;
+    if (answer === this.answeredLayoutBuild) {
+      if (this.builderDiagnostic) this.builderDiagnostic.result = 'already-answered';
+      return;
+    }
     if (request.list) {
       for (const [render, sliver] of this.slivers) {
         const node = this.keys.get(render)?.currentNode;
@@ -555,10 +594,13 @@ export class OriginalWidgetHost {
           width: request.horizontal.max,
           height: request.vertical.max,
         };
-        if (this.rebuildNativeContent(() => sliver.prepare(request.revision, input)))
-          this.answeredLayoutBuild = answer;
+        const rebuilt = this.rebuildNativeContent(() => sliver.prepare(request.revision, input));
+        if (this.builderDiagnostic)
+          this.builderDiagnostic.result = rebuilt ? 'sliver-built' : 'sliver-declined';
+        if (rebuilt) this.answeredLayoutBuild = answer;
         return;
       }
+      if (this.builderDiagnostic) this.builderDiagnostic.result = 'sliver-owner-not-found';
       return;
     }
     for (const [render, builder] of this.layoutBuilders) {
@@ -581,10 +623,15 @@ export class OriginalWidgetHost {
         height.min ?? 0,
         height.kind === 'finite' ? height.max : Infinity,
       );
-      if (this.rebuildNativeContent(() => builder.rebuild(request.revision, constraints)))
-        this.answeredLayoutBuild = answer;
+      const rebuilt = this.rebuildNativeContent(() =>
+        builder.rebuild(request.revision, constraints),
+      );
+      if (this.builderDiagnostic)
+        this.builderDiagnostic.result = rebuilt ? 'builder-built' : 'builder-declined';
+      if (rebuilt) this.answeredLayoutBuild = answer;
       return;
     }
+    if (this.builderDiagnostic) this.builderDiagnostic.result = 'builder-owner-not-found';
   }
   private rebuildNativeContent(callback: () => boolean): boolean {
     this.building = true;
@@ -702,6 +749,45 @@ export class OriginalWidgetHost {
         extent: row.extent,
       })),
     });
+    if (list.demandBegin === list.begin && list.demandEnd === list.end) return;
+    const leading = list.items.find((row) => row.index === list.demandBegin);
+    // This published cohort already supplies the real viewport and measured
+    // rows. Build the requested cache window directly instead of publishing an
+    // empty window, waiting for Core to ask for it again, and capturing twice.
+    // An in-flight/newer document still uses the authoritative builder request.
+    if (
+      !this.building &&
+      leading &&
+      !this.view.hasPendingTransaction &&
+      snapshot.preparation === 0n &&
+      snapshot.document === snapshot.activeDocument &&
+      snapshot.document === this.view.documentEpoch &&
+      this.slivers.get(render) === sliver
+    ) {
+      if (
+        this.rebuildNativeContent(() =>
+          sliver.prepare(sliver.revision, {
+            width: node.width,
+            height: parent.height,
+            paintExtent: Math.max(0, parent.height - Math.max(0, node.y - parent.offset)),
+            offset,
+            begin: list.demandBegin,
+            end: list.demandEnd,
+            beginOffset: leading.offset,
+            rows: list.items.map((row) => ({
+              index: row.index,
+              token: row.key,
+              offset: row.offset,
+              extent: row.extent,
+            })),
+          }),
+        )
+      ) {
+        this.invalidateRender(render);
+        this.schedule();
+        return;
+      }
+    }
     sliver.requestWindow(sliver.revision, list.demandBegin, list.demandEnd);
   }
   private paragraph(render: RenderParagraph): ReturnType<typeof originalSpanInput> {
@@ -722,8 +808,13 @@ export class OriginalWidgetHost {
     // the child itself. Compare only that small independent input at the edge.
     const input =
       JSON.stringify(parentLayout(render, {}).layout) + `/${listItem?.index}/${listItem?.key}`;
-    return this.capture.node(render, input, count, depth, () =>
-      this.captureNode(render, count, depth, listItem),
+    return this.capture.node(
+      render,
+      input,
+      count,
+      depth,
+      () => this.captureNode(render, count, depth, listItem),
+      (nextCount, nextDepth) => this.node(render, nextCount, nextDepth, listItem),
     );
   }
   private captureNode(
@@ -752,7 +843,8 @@ export class OriginalWidgetHost {
     if (
       tap ||
       layer ||
-      control?.options.semantics ||
+      control?.dynamicPaint ||
+      (control?.options.semantics && !control.cacheableSemantics) ||
       prototype === RenderIndexedSemantics.prototype
     )
       this.capture.dynamic();
@@ -806,6 +898,13 @@ export class OriginalWidgetHost {
       let ancestor: RenderObject | undefined = render,
         index: number | undefined;
       while (ancestor) {
+        if (
+          ancestor instanceof OriginalNativeRender &&
+          ancestor.options.sourceCollectionIndex !== undefined
+        ) {
+          index = ancestor.options.sourceCollectionIndex;
+          break;
+        }
         if (ancestor instanceof OriginalNativeRender && ancestor.options.listItem) {
           index = ancestor.options.listItem.index;
           break;
@@ -968,9 +1067,11 @@ export class OriginalWidgetHost {
         },
       };
     }
-    const children = (control?.children ?? box?.children ?? render.children).map((child) =>
-      this.node(child, count, depth + 1),
-    );
+    const children = (
+      render instanceof OriginalNativeRender && render.options.parkedChildren
+        ? []
+        : (control?.children ?? box?.children ?? render.children)
+    ).map((child) => this.node(child, count, depth + 1));
     const emptyShape = {
       kind: 'rrect' as const,
       radii: Array<number>(8).fill(0),
@@ -1127,6 +1228,17 @@ export class OriginalWidgetHost {
     do {
       this.rerun = false;
       if (!this.desired || this.closed) return;
+      const now = () => (typeof performance === 'undefined' ? Date.now() : performance.now());
+      const timing = {
+        document: '',
+        input: '',
+        started: now(),
+        buildMs: 0,
+        captureMs: 0,
+        sceneMs: 0,
+        waitMs: 0,
+        completed: 0,
+      };
       let notification = this.view.notificationRevision;
       let state = await this.view.inspectState();
       if (this.closed) return;
@@ -1141,11 +1253,13 @@ export class OriginalWidgetHost {
         // the accepted scene. Required Source builders above can still advance
         // that preparation. Replacing it on every App frame starves publication.
         this.inputCheckpoint = true;
+        const waitStarted = now();
         try {
           await this.focusing.finishBuild();
           if (this.closed) return;
           await this.view.waitForChange(notification);
         } finally {
+          timing.waitMs += now() - waitStarted;
           this.inputCheckpoint = false;
         }
         if (this.closed) return;
@@ -1166,22 +1280,63 @@ export class OriginalWidgetHost {
       ++this.capture.counters.passes;
       this.bridgeFailure = undefined;
       this.taps.beginBuild();
+      const retainedBuilders = [...this.layoutBuilders.keys()];
       this.layoutBuilders.clear();
       this.slivers.clear();
+      let captureStarted = now();
       try {
         this.geometry.observeState(state);
         this.layers.observeState(state);
         this.observeMetrics(state);
         scene = withNativeRenderConfiguration(
           () => {
-            const configuration = new AppRoot(this.desired!);
-            if (this.root) this.root.update(configuration);
-            else {
+            const buildStarted = now();
+            // A paint/input invalidation is not a new application Widget.
+            // BuildOwner already marks State and viewport dependents dirty.
+            // Replacing AppRoot here rebuilt its MediaQuery on every capture.
+            if (this.root) {
+              if ((this.root.widget as AppRoot).child !== this.desired)
+                this.root.update(new AppRoot(this.desired!));
+            } else {
+              const configuration = new AppRoot(this.desired!);
               this.root = configuration.createElement();
               this.root.mount(undefined, this.owner);
             }
             this.owner.flushBuild();
             this.root.syncRenderTree();
+            if (
+              state.metrics === this.sceneMetrics &&
+              state.device === this.sceneDevice &&
+              state.fontRevision === this.sceneFontRevision
+            ) {
+              const roots = new Set(this.root.renderObjects);
+              for (const render of retainedBuilders) {
+                if (render.debugDisposed) continue;
+                let root = render;
+                let parked = false;
+                while (root.parent) {
+                  root = root.parent;
+                  if (root instanceof OriginalNativeRender && root.options.parkedChildren)
+                    parked = true;
+                }
+                if (parked || !roots.has(root)) continue;
+                const builder = originalBoxConfiguration(render, (reason) =>
+                  this.unsupported(reason),
+                )?.builder;
+                if (!builder?.built || builder.built.revision === builder.revision) continue;
+                // Rebuild configuration with the last Content-supplied input.
+                // Core still compares built constraints with the actual parent
+                // input before publication, and requests a correction on mismatch.
+                // This batches dirty retained builders instead of one full scene
+                // transaction/Content round trip per unchanged viewport.
+                if (builder.rebuild(builder.revision, builder.built.constraints))
+                  ++this.retainedBuilderRebuilds;
+              }
+              this.owner.flushBuild();
+              this.root.syncRenderTree();
+            }
+            timing.buildMs += now() - buildStarted;
+            captureStarted = now();
             // Canonical builders may catch their own exceptions and build an
             // ErrorWidget. An unported bridge operation still rejects admission.
             if (this.bridgeFailure) throw this.bridgeFailure;
@@ -1226,6 +1381,7 @@ export class OriginalWidgetHost {
         this.capturingFonts = undefined;
         this.capturingImages = undefined;
       }
+      timing.captureMs = now() - captureStarted;
       this.pruneImageOpacity(this.capturingImageRenders!);
       this.capturingImageRenders = undefined;
       const previousFonts = this.sceneFonts,
@@ -1234,6 +1390,7 @@ export class OriginalWidgetHost {
       this.sceneFonts = capturedFonts;
       this.desiredImages = capturedImages;
       const errors: unknown[] = [];
+      const sceneStarted = now();
       try {
         if (this.nativeMounted) await this.native.update(scene);
         else {
@@ -1282,6 +1439,12 @@ export class OriginalWidgetHost {
       if (errors.length === 1) throw errors[0];
       if (errors.length)
         throw new AggregateError(errors, 'Original scene admission/retirement failed');
+      timing.sceneMs = now() - sceneStarted;
+      timing.document = String(this.view.documentEpoch);
+      timing.input = String(state.consumedThrough);
+      timing.completed = now();
+      if (this.timings.length === 128) this.timings.shift();
+      this.timings.push(timing);
       // App desired values remain immediate on NACK. Inactive Elements are
       // finalized only after a known native ACK (or terminal close), never early.
       this.owner.finalizeTree();

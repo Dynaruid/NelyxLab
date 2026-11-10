@@ -7,13 +7,24 @@ import {
 } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext, BuildOwner } from '@nelyx/core/framework/widgets/framework';
 import { SliverMultiBoxAdaptorParentData } from '@nelyx/core/framework/rendering/sliver-multi-box-adaptor';
-import { ListView, CustomScrollView, ScrollView } from '@nelyx/core/framework/widgets/scroll-view';
+import {
+  ListView,
+  GridView,
+  CustomScrollView,
+  ScrollView,
+} from '@nelyx/core/framework/widgets/scroll-view';
+import { originalNativeGrid } from './grid.ts';
 import { SliverToBoxAdapter } from '@nelyx/core/framework/widgets/basic';
 import {
   SliverChildListDelegate,
   SliverChildBuilderDelegate,
 } from '@nelyx/core/framework/widgets/scroll-delegate';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
+import {
+  PageController,
+  PageScrollPhysics,
+  registerNativePagePosition,
+} from '@nelyx/core/framework/widgets/page-view';
 import { ScrollPositionWithSingleContext } from '@nelyx/core/framework/widgets/scroll-position-with-single-context';
 import { ScrollContext } from '@nelyx/core/framework/widgets/scroll-context';
 import {
@@ -51,6 +62,7 @@ import { EngineError } from '../engine-client/client.ts';
 import { protocol as p } from '../engine-client/schema.ts';
 import { OriginalNativeRender, OriginalNativeNode } from './native-node.ts';
 import { nativeSliverConfiguration } from '@nelyx/core/framework/rendering/object';
+import type { RenderObject } from '@nelyx/core/framework/rendering/object';
 
 type Fail = (reason: string) => never;
 /** Track passive Source callbacks only for this native configuration owner. */
@@ -95,6 +107,7 @@ interface Request {
   curve?: ScrollCurve;
   id?: bigint;
   seeking?: boolean;
+  waitingCoverage?: boolean;
   listTarget?: string;
   staleTarget?: string;
   itemRequest?: true;
@@ -127,21 +140,51 @@ class NativePosition extends ScrollPositionWithSingleContext {
   private sending = false;
   private stopped = false;
   private preserveDesired = false;
+  private pageController: PageController | undefined;
+  private pageExtent = 0;
+  readonly initialScrollOffset: number;
   constructor(
     readonly host: Host,
     context: ScrollContext,
     controller: ScrollController,
     physics: ScrollPhysics | null,
+    pageExtent = 0,
   ) {
     super({
       physics: physics ?? new ClampingScrollPhysics(),
       context,
-      initialPixels: controller.initialScrollOffset,
+      initialPixels:
+        controller instanceof PageController
+          ? controller.initialPage * pageExtent
+          : controller.initialScrollOffset,
       keepScrollOffset: controller.keepScrollOffset,
       debugLabel: controller.debugLabel,
     });
-    if (this.pixels !== 0) this.enqueue(this.pixels, 0);
+    this.initialScrollOffset = this.pixels;
+    if (controller instanceof PageController) {
+      this.pageController = controller;
+      this.pageExtent = pageExtent;
+      const position = this;
+      registerNativePagePosition(this, {
+        get page() {
+          return position.pageExtent > 0
+            ? position.pixels / position.pageExtent
+            : position.pageController!.initialPage;
+        },
+        updateController(next) {
+          position.pageController = next;
+        },
+        jumpToPage(page) {
+          position.jumpTo(page * position.pageExtent);
+        },
+        animateToPage(page, options) {
+          return position.animateTo(page * position.pageExtent, options);
+        },
+      });
+    }
+    if (!this.pageController && this.pixels !== 0) this.enqueue(this.pixels, 0);
   }
+
   protected override forcePixels(value: number): void {
     this.correctPixels(value);
     this.notifyListeners();
@@ -242,6 +285,7 @@ class NativePosition extends ScrollPositionWithSingleContext {
       !this.node ||
       !this.request ||
       this.request.id !== undefined ||
+      this.request.waitingCoverage ||
       this.stopped
     )
       return;
@@ -314,8 +358,17 @@ class NativePosition extends ScrollPositionWithSingleContext {
       );
       const coverage = request.prepared?.coverage ?? this.coverage;
       const uncovered = coverage && (target < coverage.minimum || target > coverage.maximum);
-      if (uncovered && request.duration > 0)
+      if (uncovered && request.duration > 0) {
+        // First paint needs only the current page. Its neighbours are prepared
+        // after publication; an early next/previous action waits for that work.
+        if (this.pageController && Math.abs(target - this.pixels) <= this.pageExtent) {
+          request.waitingCoverage = true;
+          delete request.prepared;
+          this.sending = false;
+          return;
+        }
         this.host.fail('scroll-animation-outside-prepared-content');
+      }
       const item = request.item;
       // A jump already at Core's current and requested offset still cancels
       // native activity. It needs no Source seek waiting for an unrelated
@@ -450,6 +503,28 @@ class NativePosition extends ScrollPositionWithSingleContext {
           }
         : undefined;
     this.coverage = viewport.preparedCoverage ?? undefined;
+    if (
+      this.request?.waitingCoverage &&
+      this.coverage &&
+      this.request.target >= this.coverage.minimum &&
+      this.request.target <= this.coverage.maximum
+    ) {
+      delete this.request.waitingCoverage;
+      delete this.request.prepared;
+    }
+    const dimension =
+      this.context.axisDirection === AxisDirection.down ||
+      this.context.axisDirection === AxisDirection.up
+        ? viewport.height
+        : viewport.width;
+    if (this.pageController && this.pageExtent !== dimension) {
+      const page =
+        this.pageExtent > 0
+          ? this.desiredOffset / this.pageExtent
+          : this.pageController.initialPage;
+      this.pageExtent = dimension;
+      if (dimension > 0) this.jumpTo(page * dimension);
+    }
     this.applyViewportDimension(
       this.context.axisDirection === AxisDirection.down ||
         this.context.axisDirection === AxisDirection.up
@@ -470,6 +545,14 @@ class NativePosition extends ScrollPositionWithSingleContext {
   }
   get desiredOffset(): number {
     return this.request?.target ?? this.pixels;
+  }
+  get desiredPage(): number {
+    return this.pageExtent > 0
+      ? this.desiredOffset / this.pageExtent
+      : (this.pageController?.initialPage ?? 0);
+  }
+  get hasNativeViewport(): boolean {
+    return this.node !== undefined;
   }
   cancel(): void {
     ++this.revision;
@@ -542,6 +625,9 @@ abstract class NativeScrollState<W extends NativeScroll> extends State<W> {
       new NativeContext(this.context, this.widget.host.fail, () => this.widget.axisDirection),
       this.controller,
       this.widget.scroll.physics,
+      this.widget instanceof NativeList && this.controller instanceof PageController
+        ? (this.widget.list.itemExtent ?? 0)
+        : 0,
     );
     this.controller.attach(this.position);
   }
@@ -605,10 +691,32 @@ abstract class NativeScrollState<W extends NativeScroll> extends State<W> {
 }
 interface Entry {
   index: number;
+  generation: bigint;
   token: bigint;
   key: Key;
   child: Widget;
   render?: OriginalNativeRender;
+}
+function keepsNativeRowAlive(render: RenderObject | undefined): boolean {
+  if (!render) return false;
+  if (render.parentData instanceof SliverMultiBoxAdaptorParentData && render.parentData.keepAlive)
+    return true;
+  // A regular grid row is a native batching unit. A retained source cell keeps
+  // that row alive without transferring its State to a replacement owner.
+  return (
+    render instanceof OriginalNativeRender &&
+    render.kind === 'grid' &&
+    render.children.some(
+      (cell) =>
+        cell instanceof OriginalNativeRender &&
+        cell.options.keepAliveChildren &&
+        cell.children.some(
+          (child) =>
+            child.parentData instanceof SliverMultiBoxAdaptorParentData &&
+            child.parentData.keepAlive,
+        ),
+    )
+  );
 }
 type EditorBuilder = (
   observe: (node: EngineNodeSnapshot, snapshot: EngineResponse) => void,
@@ -669,6 +777,9 @@ class NativeList extends NativeScroll {
   createState(): NativeListState {
     return new NativeListState();
   }
+  override get axisDirection(): AxisDirection {
+    return this.list.scrollDirection === Axis.horizontal ? AxisDirection.right : AxisDirection.down;
+  }
 }
 class NativeListState extends NativeScrollState<NativeList> {
   private generation = 1n;
@@ -681,6 +792,27 @@ class NativeListState extends NativeScrollState<NativeList> {
   private anchor: { index: number; key: bigint } | undefined;
   private focused: number | undefined;
   private sourceViewport: OriginalNativeRender | undefined;
+  private collectingParked = false;
+  private collectParked = (): void => {
+    if (
+      !this.mounted ||
+      this.collectingParked ||
+      ![...this.entries.values()].some(
+        (entry) =>
+          (entry.index < this.begin || entry.index >= this.end) &&
+          entry.index !== this.focused &&
+          !keepsNativeRowAlive(entry.render?.children[0]),
+      )
+    )
+      return;
+    this.collectingParked = true;
+    // KeepAlive can release during another Source build. Collect after that
+    // build, even if the parked child's animation no longer changes native pixels.
+    void Promise.resolve().then(() => {
+      this.collectingParked = false;
+      if (this.mounted) this.setState(() => {});
+    });
+  };
   private get sourceChildren(): boolean {
     return (
       this.widget.list.childPolicy !== 'legacy' ||
@@ -700,6 +832,9 @@ class NativeListState extends NativeScrollState<NativeList> {
     }
   }
   private reset(): void {
+    const previousCount = this.count,
+      previousBegin = this.begin,
+      previousEnd = this.end;
     this.anchor = undefined;
     if (this.sourceChildren) {
       this.entries.clear();
@@ -710,54 +845,110 @@ class NativeListState extends NativeScrollState<NativeList> {
       delegate instanceof SliverChildListDelegate
         ? delegate.children.length
         : (delegate as SliverChildBuilderDelegate).childCount!;
-    const height = this.context.services.readMetrics().logicalHeight,
+    const height =
+        this.widget.list.scrollDirection === Axis.horizontal
+          ? this.context.services.readMetrics().logicalWidth
+          : this.context.services.readMetrics().logicalHeight,
       extent = this.widget.list.itemExtent!;
-    const size = (this.windowSize = Math.min(
-      32,
-      Math.max(8, Math.ceil((height * 3) / extent) + 4),
-    ));
+    // Until the resized viewport activates, pixels still use the previous
+    // Content extent. Preserve the logical page when choosing its new window.
+    const desiredIndex = Math.floor(
+      this.controller instanceof PageController
+        ? this.position.desiredPage
+        : this.position.desiredOffset / extent,
+    );
+    const size = (this.windowSize =
+      this.controller instanceof PageController
+        ? 4
+        : Math.min(32, Math.max(8, Math.ceil((height * 3) / extent) + 4)));
+    // The first window must already cover PageController.initialPage.
     this.begin =
-      this.entries.size === 0
+      !(this.controller instanceof PageController) && !this.position.hasNativeViewport
         ? 0
-        : Math.max(
-            0,
-            Math.min(Math.floor(this.position.desiredOffset / extent) - 2, this.count - size),
-          );
+        : Math.max(0, Math.min(desiredIndex - 1, this.count - size));
     this.end = Math.min(this.count, this.begin + size);
+    if (
+      this.controller instanceof PageController &&
+      this.position.hasNativeViewport &&
+      previousCount === this.count &&
+      desiredIndex >= previousBegin &&
+      desiredIndex < previousEnd
+    ) {
+      // Header/onPageChanged rebuilds do not invalidate the current prefetch
+      // window. Core's latest demand, rather than a widget rebuild, moves it.
+      this.begin = previousBegin;
+      this.end = previousEnd;
+    }
+    if (this.controller instanceof PageController && !this.position.hasNativeViewport) {
+      // Flutter's PageView starts with the visible page (zero cache extent).
+      // Native neighbours are a later preparation, never a first-paint barrier.
+      this.begin = Math.min(Math.max(0, this.count - 1), desiredIndex);
+      this.end = Math.min(this.count, this.begin + 1);
+    }
   }
   private fill(): void {
     const wanted = new Set<number>();
     for (let index = this.begin; index < this.end; ++index) wanted.add(index);
     for (const entry of this.entries.values())
-      if (
-        entry.index === this.focused ||
-        (entry.render?.children[0]?.parentData instanceof SliverMultiBoxAdaptorParentData &&
-          entry.render.children[0].parentData.keepAlive)
-      )
+      if (entry.index === this.focused || keepsNativeRowAlive(entry.render?.children[0]))
         wanted.add(entry.index);
     if (wanted.size > p.limits.listChildren) this.widget.host.fail('list-keep-alive-budget');
     const previous = new KeyMap<Entry>();
     for (const entry of this.entries.values()) previous.set(entry.key, entry);
     const entries = new Map<number, Entry>();
     for (const index of [...wanted].sort((a, b) => a - b)) {
+      const retained = this.entries.get(index);
+      // Moving the materialized window does not change the source delegate.
+      // Like SliverMultiBoxAdaptorElement, build only newly requested children.
+      // A delegate update increments generation and still rebuilds its children.
+      if (retained?.generation === this.generation) {
+        entries.set(index, retained);
+        continue;
+      }
       const child = this.widget.list.childrenDelegate.build(this.context, index);
       if (!child) return this.widget.host.fail('list-builder-null-before-count');
       const key = child.key ?? new ValueKey(index),
         old = previous.get(key);
-      entries.set(index, { index, key, token: old?.token ?? ++this.token, child });
+      entries.set(index, {
+        index,
+        generation: this.generation,
+        key,
+        token: old?.token ?? ++this.token,
+        child,
+      });
     }
     this.entries = entries;
   }
   private observe = (node: EngineNodeSnapshot, snapshot: EngineResponse): void => {
-    if (!this.mounted || node.list?.generation !== this.generation) return;
+    if (!this.mounted || !node.list) return;
     const list = node.list,
       parent = snapshot.nodes.find(
         (value) =>
           value.node.slot === node.parent.slot && value.node.generation === node.parent.generation,
       );
     if (!parent) return;
+    if (list.generation !== this.generation) {
+      // A pending delegate rebuild can miss coverage after a direction change.
+      // Its published predecessor still owns the live scroll demand. Accept
+      // only that demand for compatible fixed pages; never reuse old anchors,
+      // focus, or geometry across a resize/delegate replacement.
+      if (
+        !(this.controller instanceof PageController) ||
+        list.generation > this.generation ||
+        list.count !== this.count ||
+        list.estimate !== this.widget.list.itemExtent ||
+        !list.fixed
+      )
+        return;
+      this.observeDemand(list.demandBegin, list.demandEnd);
+      return;
+    }
     this.position.observe(parent, node, this.widget.list.itemExtent!);
-    const anchor = list.items.find((row) => row.offset + row.extent > parent.offset - node.y);
+    const anchor = list.items.find(
+      (row) =>
+        row.offset + row.extent >
+        parent.offset - (this.widget.list.scrollDirection === Axis.horizontal ? node.x : node.y),
+    );
     if (anchor) this.anchor = { index: anchor.index, key: anchor.key };
     this.focused = undefined;
     let focus = snapshot.focus
@@ -782,22 +973,26 @@ class NativeListState extends NativeScrollState<NativeList> {
           value.node.generation === focus!.parent.generation,
       );
     }
-    if (list.demandBegin >= this.begin && list.demandEnd <= this.end) return;
-    const begin = Math.min(list.demandBegin, Math.max(0, this.count - this.windowSize)),
+    this.observeDemand(list.demandBegin, list.demandEnd);
+  };
+  private observeDemand(demandBegin: number, demandEnd: number): void {
+    if (demandBegin >= this.begin && demandEnd <= this.end) return;
+    const begin = Math.min(demandBegin, Math.max(0, this.count - this.windowSize)),
       end = Math.min(this.count, begin + this.windowSize);
-    if (list.demandEnd > end)
+    if (demandEnd > end)
       this.widget.host.fail(
-        'list-viewport-budget:' + list.demandBegin + ':' + list.demandEnd + ':' + begin + ':' + end,
+        'list-viewport-budget:' + demandBegin + ':' + demandEnd + ':' + begin + ':' + end,
       );
     this.setState(() => {
       this.begin = begin;
       this.end = end;
     });
-  };
+  }
   override build(): Widget {
     if (this.sourceChildren) return this.buildSource();
     this.fill();
     const extent = this.widget.list.itemExtent!;
+    const horizontal = this.widget.list.scrollDirection === Axis.horizontal;
     return new OriginalNativeNode(
       'scrollViewport',
       [
@@ -811,8 +1006,14 @@ class NativeListState extends NativeScrollState<NativeList> {
                 {
                   key: entry.key,
                   listItem: { index: entry.index, key: entry.token },
+                  onChildrenInvalidated: this.collectParked,
+                  parkedChildren:
+                    (entry.index < this.begin || entry.index >= this.end) &&
+                    entry.index !== this.focused,
                   layout: { childConstraints: 'inherit', enforceBounds: true },
-                  vertical: { kind: 'finite', min: extent, max: extent },
+                  ...(horizontal
+                    ? { horizontal: { kind: 'finite' as const, min: extent, max: extent } }
+                    : { vertical: { kind: 'finite' as const, min: extent, max: extent } }),
                 },
                 (render) => {
                   entry.render = render;
@@ -820,8 +1021,9 @@ class NativeListState extends NativeScrollState<NativeList> {
               ),
           ),
           {
-            layout: { direction: 'vertical' },
+            layout: { direction: horizontal ? 'horizontal' : 'vertical' },
             list: {
+              fixed: true,
               generation: this.generation,
               count: this.count,
               begin: this.begin,
@@ -837,6 +1039,12 @@ class NativeListState extends NativeScrollState<NativeList> {
       ],
       {
         pointerHitTest: 'self',
+        properties: {
+          horizontal,
+          pageSnapping: this.widget.list.physics instanceof PageScrollPhysics,
+          initialScrollOffset:
+            this.controller instanceof PageController ? this.position.initialScrollOffset : 0,
+        },
         onScrollTerminal: (event) => this.position.terminal(event),
         layout: {},
       },
@@ -982,7 +1190,7 @@ function scrollController(
   fail: Fail,
 ): { primary: boolean; controller: ScrollController | null } {
   if (
-    scroll.scrollDirection !== Axis.vertical ||
+    (scroll.scrollDirection !== Axis.vertical && scroll.scrollDirection !== Axis.horizontal) ||
     scroll.reverse ||
     scroll.shrinkWrap ||
     scroll.center ||
@@ -1000,8 +1208,16 @@ function scrollController(
     return fail('list-scroll-options');
   if (scroll.cacheExtent !== null || scroll.scrollCacheExtent !== null)
     return fail('list-cache-extent');
+  const pagePhysics =
+    scroll.physics instanceof PageScrollPhysics &&
+    Object.getPrototypeOf(scroll.physics) === PageScrollPhysics.prototype &&
+    scroll.physics.viewportFraction === 1 &&
+    scroll.physics.parent !== null &&
+    Object.getPrototypeOf(scroll.physics.parent) === ClampingScrollPhysics.prototype &&
+    scroll.physics.parent.parent === null;
   if (
     scroll.physics &&
+    !pagePhysics &&
     (![ClampingScrollPhysics.prototype, AlwaysScrollableScrollPhysics.prototype].includes(
       Object.getPrototypeOf(scroll.physics),
     ) ||
@@ -1013,7 +1229,15 @@ function scrollController(
       (scroll.controller === null &&
         PrimaryScrollController.shouldInherit(context, scroll.scrollDirection)),
     controller = primary ? PrimaryScrollController.maybeOf(context) : scroll.controller;
-  if (controller && controller.createScrollPosition !== sourcePositionFactory)
+  if (
+    controller &&
+    controller.createScrollPosition !== sourcePositionFactory &&
+    !(
+      controller instanceof PageController &&
+      controller.createScrollPosition === PageController.prototype.createScrollPosition &&
+      controller.viewportFraction === 1
+    )
+  )
     return fail('custom-scroll-position-factory');
   return { primary, controller };
 }
@@ -1041,6 +1265,10 @@ export function installOriginalScrolling(
   });
   registerTickerScheduler(owner, scheduler);
   registerNativeWidgetAdapter(owner, 'scroll-view', (widget, context) => {
+    if (Object.getPrototypeOf(widget) === GridView.prototype) {
+      scrollController(widget as GridView, context, fail);
+      return originalNativeGrid(widget as GridView, context, fail);
+    }
     if (Object.getPrototypeOf(widget) === CustomScrollView.prototype) {
       const source = widget as CustomScrollView;
       if (
@@ -1081,6 +1309,8 @@ export function installOriginalScrolling(
     const padding = list.padding?.resolve(context.maybeDependOn(Directionality)?.direction ?? null);
     const sourceChildren =
       list.childPolicy !== 'legacy' || list.extentIndex !== null || list.itemExtent === null;
+    if (sourceChildren && list.scrollDirection !== Axis.vertical)
+      return fail('source-horizontal-list');
     if (
       !sourceChildren &&
       padding &&

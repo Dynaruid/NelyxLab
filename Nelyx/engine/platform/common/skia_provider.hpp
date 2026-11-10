@@ -94,7 +94,8 @@ class ContentProvider {
   static bool samePaint(const Node& a,const Node& b) {
     const auto& x=a.graphics;const auto& y=b.graphics;
     return bool(a.paintPlacement&&a.paintPlacement->unbounded)==bool(b.paintPlacement&&b.paintPlacement->unbounded)&&a.kind==b.kind&&a.color==b.color&&a.radius==b.radius&&a.fontSize==b.fontSize&&
-      a.textDirection==b.textDirection&&a.text==b.text&&a.paragraph==b.paragraph&&a.resource==b.resource&&
+      a.textDirection==b.textDirection&&(a.text==b.text||(a.text&&b.text&&a.text->value==b.text->value))&&
+      (a.paragraph==b.paragraph||(a.paragraph&&b.paragraph&&a.paragraph->value==b.paragraph->value))&&a.resource==b.resource&&
       a.fontResource==b.fontResource&&a.fontRevision==b.fontRevision&&a.imageStyle==b.imageStyle&&a.imagePaint==b.imagePaint&&
       a.properties.width==b.properties.width&&a.properties.height==b.properties.height&&
       a.contentX==b.contentX&&a.contentY==b.contentY&&a.contentWidth==b.contentWidth&&a.contentHeight==b.contentHeight&&
@@ -217,8 +218,10 @@ class ContentProvider {
         }
       }
       const auto memoryBegin=result->memory.size();
+      uint64_t sharedFontBytes=0;
       if(n.kind==wire::kinds::paragraph||n.kind==wire::kinds::editable)if(const auto fonts=fontFor(n)){
         result->memory.push_back(fonts->fontMemory);result->memory.push_back(fonts->cacheMemory);
+        sharedFontBytes=fonts->fontMemory->bytes+fonts->cacheMemory->bytes;
       }
       if(n.resolvedPaint&&!n.resolvedPaint->paths.empty())result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,n.resolvedPaint->paths.size()*256+1024));
       const auto& style=n.graphics;if(style.path||style.shadowColor||style.strokeColor||style.blur||style.transform.a!=1||style.transform.b||style.transform.c||style.transform.d!=1||style.transform.tx||style.transform.ty)++graphicsRecords;
@@ -273,6 +276,10 @@ class ContentProvider {
       result->pictures.emplace(n.id.key(),picture);++pictures;
       uint64_t held=sizeof(CachedPicture);
       for(size_t index=memoryBegin;index<result->memory.size();++index)held+=result->memory[index]->bytes;
+      // Font catalog/cache leases are shared provider allocations, already
+      // charged once to the Ledger. They remain retained in cached.memory but
+      // must not exhaust the per-picture budget once for every paragraph.
+      held-=sharedFontBytes;
       // One bounded generation of immutable CPU records. Active/queued scenes
       // share the leases; deleting a cache entry cannot invalidate their work.
       if(!pressure&&!n.editing&&held<=16*1024*1024-nextCachedBytes) {

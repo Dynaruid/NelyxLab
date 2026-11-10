@@ -36,6 +36,22 @@ function checkFraction(fraction: number): void {
     'Nelyx page viewportFraction must be in (0, 1]',
   );
 }
+/** @internal A native scroll owner supplies commands/observations for the same
+ * PageController. This does not create an App ticker or a second ScrollPosition. */
+export interface NativePagePosition {
+  readonly page: number;
+  updateController(controller: PageController): void;
+  jumpToPage(page: number): void;
+  animateToPage(page: number, options: ViewportAnimationOptions): Promise<void>;
+}
+const nativePagePositions = new WeakMap<ScrollPosition, NativePagePosition>();
+export function registerNativePagePosition(
+  position: ScrollPosition,
+  adapter: NativePagePosition,
+): void {
+  if (nativePagePositions.has(position)) throw new Error('Native page position already registered');
+  nativePagePositions.set(position, adapter);
+}
 export class PageController extends ScrollController {
   readonly initialPage: number;
   readonly keepPage: boolean;
@@ -57,19 +73,28 @@ export class PageController extends ScrollController {
     this.viewportFraction = viewportFraction;
   }
   get page(): number | null {
-    return this.hasClients ? (this.position as PagePosition).page : null;
+    return this.hasClients
+      ? (nativePagePositions.get(this.position)?.page ?? (this.position as PagePosition).page)
+      : null;
   }
   override attach(position: ScrollPosition): void {
     invariant(
-      position instanceof PagePosition,
+      position instanceof PagePosition || nativePagePositions.has(position),
       'invalid-page-position',
       'PageController requires a page scroll position',
     );
     super.attach(position);
-    position.updateController(this);
+    const native = nativePagePositions.get(position);
+    if (native) native.updateController(this);
+    else (position as PagePosition).updateController(this);
   }
   jumpToPage(page: number): void {
     checkPage(page);
+    const native = nativePagePositions.get(this.position);
+    if (native) {
+      native.jumpToPage(page);
+      return;
+    }
     const position = this.position as PagePosition;
     if (!position.hasViewportDimension || position.viewportDimension === 0)
       position.pendingPage = page;
@@ -77,6 +102,8 @@ export class PageController extends ScrollController {
   }
   animateToPage(page: number, options: ViewportAnimationOptions): Promise<void> {
     checkPage(page);
+    const native = nativePagePositions.get(this.position);
+    if (native) return native.animateToPage(page, options);
     const position = this.position as PagePosition;
     if (!position.hasViewportDimension || position.viewportDimension === 0) {
       position.pendingPage = page;

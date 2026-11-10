@@ -94,6 +94,19 @@ export function emitDart(
   function blocked(reason: string, node?: { offset: number }): never {
     throw new BlockedSemantic(reason + (node ? ` @${node.offset}` : ''));
   }
+  function superAdapter(
+    owner: { reference: Reference; superclass?: { constructor: Reference } | null } | undefined,
+  ) {
+    const base = owner?.superclass;
+    if (!owner || !base) return undefined;
+    const specific = recipe.superConstructors?.[owner.reference.id];
+    if (specific) {
+      if (specific.sourceConstructor !== base.constructor.id)
+        blocked('Owned superclass binding must match its exact source constructor');
+      return specific;
+    }
+    return recipe.superConstructors?.[base.constructor.id];
+  }
   function dotted(value: string): ts.Expression {
     const parts = value.split('.');
     return parts
@@ -1896,7 +1909,12 @@ export function emitDart(
     );
   }
   function args(values: Argument[]): ts.Expression[] {
-    if (values.some((v) => v.name !== null)) blocked('Named calls require an explicit adapter');
+    if (values.some((v) => v.name !== null))
+      blocked(
+        'Named calls require an explicit adapter: ' +
+          values.map((v) => v.name ?? '<positional>').join(', '),
+        values[0]?.value,
+      );
     return values.map((v) => argumentValue(v));
   }
   function classArgs(values: Argument[], parameters: Parameter[]): ts.Expression[] {
@@ -2030,7 +2048,9 @@ export function emitDart(
     }
     if (adapter.receiver === 'target') {
       if (!receiver || adapter.kind !== 'call' || !/^[$A-Z_a-z][$\w]*$/.test(adapter.target))
-        blocked('Method adapter requires a receiver, call and simple member name');
+        blocked(
+          'Method adapter requires a receiver, call and simple member name: ' + reference?.id,
+        );
       return f.createCallExpression(
         f.createPropertyAccessExpression(expr(receiver!), adapter.target),
         undefined,
@@ -4381,9 +4401,12 @@ export function emitDart(
           if (
             n.target &&
             adapter?.kind === 'call' &&
-            adapter.receiver === 'first' &&
+            (adapter.receiver === 'first' ||
+              (adapter.receiver === 'target' &&
+                adapter.namedArguments &&
+                /^[$A-Z_a-z][$\w]*$/.test(adapter.target))) &&
             !adapter.typeArguments?.length &&
-            imported.has(adapter.target)
+            (adapter.receiver === 'target' || imported.has(adapter.target))
           ) {
             return evaluateOnce(expr(n.target), (target) => [
               f.createReturnStatement(
@@ -4554,7 +4577,7 @@ export function emitDart(
                 n,
               );
             const base = owner.superclass,
-              host = base && recipe.superConstructors?.[base.constructor.id];
+              host = base && superAdapter(owner);
             if (
               base &&
               (!binding.hostBase ||
@@ -4759,7 +4782,7 @@ export function emitDart(
           if (binding?.policy === 'canonical-immutable-generic-fields') {
             const type = n.constructedType;
             const base = owner?.superclass,
-              host = base && recipe.superConstructors?.[base.constructor.id];
+              host = base && superAdapter(owner);
             if (
               base &&
               (!binding.hostBase ||
@@ -7978,7 +8001,31 @@ export function emitDart(
     ];
   }
   function callableBody(body: Statement, params: Parameter[], storage?: ResolvedType): ts.Block {
-    if (numericValues && body.async)
+    const nonnumericResult = (type: ResolvedType): boolean =>
+      type.kind === 'void' ||
+      (type.kind === 'interface' &&
+        ![
+          'dart:core::Object:CLASS',
+          'dart:core::num:CLASS',
+          'dart:core::int:CLASS',
+          'dart:core::double:CLASS',
+        ].includes(type.reference.id) &&
+        type.arguments.every(nonnumericResult));
+    const hasAwait = (value: unknown): boolean => {
+      if (!value || typeof value !== 'object') return false;
+      if ('kind' in value && value.kind === 'await') return true;
+      return Object.values(value).some((child) =>
+        Array.isArray(child) ? child.some(hasAwait) : hasAwait(child),
+      );
+    };
+    const forwardsNonnumeric =
+      recipe.asyncRuntime?.resultTransfer === 'closed-nonnumeric-forwarding' &&
+      storage?.kind === 'interface' &&
+      storage.reference.id === 'dart:async::Future:CLASS' &&
+      storage.arguments.length === 1 &&
+      nonnumericResult(storage.arguments[0]!) &&
+      !hasAwait(body);
+    if (numericValues && body.async && !forwardsNonnumeric)
       blocked(
         'Numeric erased values across async bodies require Future representation transfer',
         body,
@@ -8370,7 +8417,7 @@ export function emitDart(
         superCall: ts.Statement[] = [];
       if (n.superclass) {
         const base = n.superclass,
-          adapter = recipe.superConstructors?.[base.constructor.id],
+          adapter = superAdapter(n),
           parent = model.parent(n),
           generatedMixin = model.mixinParent(n);
         const typeKey = (type: ResolvedType): string =>

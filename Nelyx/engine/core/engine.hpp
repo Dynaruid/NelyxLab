@@ -16,6 +16,7 @@ struct MeasurementRequest;
 struct InteractionSnapshot;
 struct FontTransition;
 struct EventOverflowInfo;
+struct PreparationFailureInfo;
 struct DispatchTiming { double lockWaitMs=0,lockHeldMs=0; };
 class Engine {
  public:
@@ -30,6 +31,7 @@ class Engine {
   std::shared_ptr<const InteractionSnapshot> interactionSnapshot(uint32_t view,uint32_t generation);
   std::shared_ptr<const FontTransition> fontTransitionSnapshot(uint32_t view,uint32_t generation);
   std::shared_ptr<const EventOverflowInfo> eventOverflowSnapshot(uint32_t view,uint32_t generation);
+  std::shared_ptr<const PreparationFailureInfo> preparationFailureSnapshot(uint32_t view,uint32_t generation);
  private:
   struct State;
   std::unique_ptr<State> state_;

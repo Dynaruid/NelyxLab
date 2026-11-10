@@ -33,38 +33,80 @@ export interface DialogThemeDataOptions {
   readonly constraints?: BoxConstraints | null;
 }
 export class DialogThemeData extends Diagnosticable(class {}) {
-  readonly backgroundColor: Color | null;
+  private readonly _backgroundColor: Color | null;
+  get backgroundColor(): Color | null {
+    return this._backgroundColor;
+  }
   /** @dartType double? */
-  readonly elevation: number | null;
-  readonly shadowColor: Color | null;
-  readonly surfaceTintColor: Color | null;
-  readonly shape: ShapeBorder | null;
-  readonly alignment: AlignmentGeometry | null;
-  readonly titleTextStyle: TextStyle | null;
-  readonly contentTextStyle: TextStyle | null;
-  readonly actionsPadding: EdgeInsetsGeometry | null;
-  readonly iconColor: Color | null;
-  readonly barrierColor: Color | null;
-  readonly insetPadding: EdgeInsets | null;
-  readonly clipBehavior: Clip | null;
-  readonly constraints: BoxConstraints | null;
+  private readonly _elevation: number | null;
+  get elevation(): number | null {
+    return this._elevation;
+  }
+  private readonly _shadowColor: Color | null;
+  get shadowColor(): Color | null {
+    return this._shadowColor;
+  }
+  private readonly _surfaceTintColor: Color | null;
+  get surfaceTintColor(): Color | null {
+    return this._surfaceTintColor;
+  }
+  private readonly _shape: ShapeBorder | null;
+  get shape(): ShapeBorder | null {
+    return this._shape;
+  }
+  private readonly _alignment: AlignmentGeometry | null;
+  get alignment(): AlignmentGeometry | null {
+    return this._alignment;
+  }
+  private readonly _titleTextStyle: TextStyle | null;
+  get titleTextStyle(): TextStyle | null {
+    return this._titleTextStyle;
+  }
+  private readonly _contentTextStyle: TextStyle | null;
+  get contentTextStyle(): TextStyle | null {
+    return this._contentTextStyle;
+  }
+  private readonly _actionsPadding: EdgeInsetsGeometry | null;
+  get actionsPadding(): EdgeInsetsGeometry | null {
+    return this._actionsPadding;
+  }
+  private readonly _iconColor: Color | null;
+  get iconColor(): Color | null {
+    return this._iconColor;
+  }
+  private readonly _barrierColor: Color | null;
+  get barrierColor(): Color | null {
+    return this._barrierColor;
+  }
+  private readonly _insetPadding: EdgeInsets | null;
+  get insetPadding(): EdgeInsets | null {
+    return this._insetPadding;
+  }
+  private readonly _clipBehavior: Clip | null;
+  get clipBehavior(): Clip | null {
+    return this._clipBehavior;
+  }
+  private readonly _constraints: BoxConstraints | null;
+  get constraints(): BoxConstraints | null {
+    return this._constraints;
+  }
   /** @dartParam elevation double? */
   constructor(options: DialogThemeDataOptions = {}) {
     super();
-    this.backgroundColor = options.backgroundColor ?? null;
-    this.elevation = options.elevation ?? null;
-    this.shadowColor = options.shadowColor ?? null;
-    this.surfaceTintColor = options.surfaceTintColor ?? null;
-    this.shape = options.shape ?? null;
-    this.alignment = options.alignment ?? null;
-    this.titleTextStyle = options.titleTextStyle ?? null;
-    this.contentTextStyle = options.contentTextStyle ?? null;
-    this.actionsPadding = options.actionsPadding ?? null;
-    this.iconColor = options.iconColor ?? null;
-    this.barrierColor = options.barrierColor ?? null;
-    this.insetPadding = options.insetPadding ?? null;
-    this.clipBehavior = options.clipBehavior ?? null;
-    this.constraints = options.constraints ?? null;
+    this._backgroundColor = options.backgroundColor ?? null;
+    this._elevation = options.elevation ?? null;
+    this._shadowColor = options.shadowColor ?? null;
+    this._surfaceTintColor = options.surfaceTintColor ?? null;
+    this._shape = options.shape ?? null;
+    this._alignment = options.alignment ?? null;
+    this._titleTextStyle = options.titleTextStyle ?? null;
+    this._contentTextStyle = options.contentTextStyle ?? null;
+    this._actionsPadding = options.actionsPadding ?? null;
+    this._iconColor = options.iconColor ?? null;
+    this._barrierColor = options.barrierColor ?? null;
+    this._insetPadding = options.insetPadding ?? null;
+    this._clipBehavior = options.clipBehavior ?? null;
+    this._constraints = options.constraints ?? null;
     if (new.target === DialogThemeData) Object.freeze(this);
   }
   /** @dartParam elevation double? */

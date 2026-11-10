@@ -168,8 +168,8 @@ export function readSemanticBody(bytes: Uint8Array): SemanticSnapshot {
     order = finite(d.getFloat64(88, true)),
     lengths = [12, 16, 20, 72, 76, 84, 100].map((at) => d.getUint32(at, true));
   if (
-    role > p.semanticsRoles.loadingSpinner ||
-    flags & ~1023 ||
+    role > p.semanticsRoles.dialog ||
+    flags & ~2047 ||
     actions & ~511 ||
     source > 0x7fffffff ||
     configuration > 7 ||

@@ -1,8 +1,10 @@
 # work9-3 — 3부: 구현 순서·통합 검증·공급
 
+> **2026-11-10 종료 — CLOSED / work10 이관.** 현재 실행 계약은 [work10.md](work10.md)이며 원래 의무는 그 문서 §8로 이어받는다. 아래 계획·상태·검증은 종료 전 기록이다. 문서 종료는 제품·호환·성능 완료를 뜻하지 않는다.
+
 > 2026-11-07: 사용자 요청으로 본문의 독립 테스트·감사·실험 명령을 폐기했다. 이전 검증 기록과 미완료 판정은 보존하며, 현행 확인·정리 기준은 [전체 목차의 정리 안내](work9.md)를 따른다.
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-09 KST** · 상태: **host·소스 이식 실행 순서 교정 / Windows·Web PARTIAL**
+작성: **2026-11-05 KST** · 갱신·종료: **2026-11-10 KST** · 문서 상태: **CLOSED / work10 이관** · Windows·Web: **PARTIAL**
 
 > **2026-11-08 사용자 교정:** Windows는 **App SDK 단일 host**이며 독립 `windows-hwnd` target·profile·선택 분기를 제거한다. Native 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 구현 소스를 가져와 수정·사용한다. 실제 이식 없이 자체 구현·사례 참고만 한 결과는 완료가 아니다. W9B-00-H의 App SDK 단일 host·RNW public clipboard와 후속 부분 검증은 [종료한 work9-b](work9-b.md)에 보존한다. **2026-11-09 이후 현재 실행·통합 검증·수락은 [work9-c](work9-c.md)를 따른다.** 전체 native API 이식은 미완료다.
 

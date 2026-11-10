@@ -3,6 +3,7 @@ import { bindNativePublishedGeometry } from '@nelyx/core/framework/rendering/obj
 import type { NativePublishedGeometry, RenderObject } from '@nelyx/core/framework/rendering/object';
 import { fullTransform } from '@nelyx/core/ui/geometry';
 import type { EngineResponse, NodeHandle } from '../engine-client/codec.ts';
+import { observationNode } from '../engine-client/node-index.ts';
 
 /** A single published observation, fenced by native owner, handle and device/metrics. */
 export class OriginalGeometryBridge {
@@ -39,9 +40,7 @@ export class OriginalGeometryBridge {
       !frame.publication
     )
       return undefined;
-    const node = frame.nodes.find(
-      (node) => node.node.slot === handle.slot && node.node.generation === handle.generation,
-    );
+    const node = observationNode(frame, handle);
     if (!node) return undefined;
     return Object.freeze({
       owner: this.owner,

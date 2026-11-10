@@ -38,7 +38,7 @@ export function createPacketTransport(endpoint: PacketEndpoint, timeoutMs = 2000
     if (message.error) request.reject(new Error(message.error));
     else if (
       !(message.bytes instanceof ArrayBuffer) ||
-      message.bytes.byteLength > p.limits.packetBytes
+      message.bytes.byteLength > p.limits.responseBytes
     )
       request.reject(new Error('Invalid packet-port response'));
     else request.resolve(new Uint8Array(message.bytes));

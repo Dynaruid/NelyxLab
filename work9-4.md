@@ -1,8 +1,10 @@
 # work9-4 — 4부: Android·Linux 호스트
 
+> **2026-11-10 종료 — CLOSED / work10 이관.** 현재 실행 계약은 [work10.md](work10.md)이며 후속 플랫폼 의무는 그 문서 §8로 이어받는다. 아래 계획·상태·검증은 종료 전 기록이다. 문서 종료는 플랫폼 이식·공급·수락 완료를 뜻하지 않는다.
+
 > 2026-11-07: 사용자 요청으로 본문의 독립 테스트·감사·실험 명령을 폐기했다. 이전 검증 기록과 미완료 판정은 보존하며, 현행 확인·정리 기준은 [전체 목차의 정리 안내](work9.md)를 따른다.
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-09 KST** · 상태: **RN/RNL 소스 이식 계획 교정 / Android PARTIAL · Linux DEFERRED**
+작성: **2026-11-05 KST** · 갱신·종료: **2026-11-10 KST** · 문서 상태: **CLOSED / work10 이관** · Android **PARTIAL / stale/notVerified** · Linux **DEFERRED**
 
 > **2026-11-08 사용자 교정:** Android 플랫폼 API는 **RN Android**, Linux GTK 플랫폼 API는 **RNL**의 필요한 소스를 실제로 가져와 Nelyx에 맞게 수정·사용한다. 기존 자체 OS 구현 우선·알고리즘/사례 참고만으로 완료하는 방침을 대체한다. 기존 standalone/emulator·공급 기록은 보존하며 RN/RNL 소스 이식 완료와 구분한다. Windows 선행 이식과 당시 Android 회귀·공급은 [종료한 work9-b §3.5](work9-b.md#35-w9b-00-h-구현과-이번-검증)에 보존한다. **2026-11-09 이후 우선 계약·남은 차수와 stale/notVerified는 [work9-c](work9-c.md)를 따른다.** RN/RNL 실제 소스 이식은 미완료다.
 

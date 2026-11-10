@@ -1,5 +1,7 @@
 # work9 — Windows·Web 우선 엔진 v2 구현과 호스트 전환
 
+> **2026-11-10 종료 — CLOSED / work10 이관.** work9 계열 9개 문서의 현재 실행 계약과 잔여 의무는 [work10.md](work10.md)로 이관했다. 아래 계획·구현·검증과 과거의 “현재/다음 시작점”은 종료 기록이다. 제품 전체 PARTIAL·compatible=false·성능 미수락을 유지하며, 문서 종료는 제품 완료를 뜻하지 않는다. 새 시작점은 **W10-00**이다.
+
 > **2026-11-09 실행 문서 이관:** [work9-b.md](work9-b.md)는 **CLOSED / 후속 문서 이관**으로 종료했다. 남은 구현·공급·검증·제품 전환의 현재 실행 계약은 [work9-c.md](work9-c.md)이며 재개점은 **W9C-00: Range/editor 미검증 초안의 compile·실제 소비자 연결**이다. 첫 제품 빌드는 `npm.cmd run build:core`다. 구현은 **PAUSED / PARTIAL**, Source/dist 불일치·API **compatible=false**·물리/display/scanout **notVerified**·두 성능 flag **false**·Android **stale/notVerified**·Linux/Apple **DEFERRED**를 유지한다. 이번 문서 이관에서 제품 build/run을 재개하지 않았다.
 
 > **2026-11-08 W9B-00-H:** Windows v2의 **App SDK 단일 host·CLI/공급/설치 graph**와 **RNW public clipboard 실제 소스 이식**을 구현했다. 플랫폼 API는 **Windows RNW / Android·iOS RN / macOS RNM / Linux RNL**의 필요한 소스를 수정·사용하며, [전체 원본/소비자 대응표](Nelyx/engine/platform/native-api-ports.md)에서 첫 이식과 나머지 직접 구현·미지원 범위를 구분한다. 당시 실행·공급 결과는 [work9-b §3.4–3.5](work9-b.md#34-w9b-00-h--host-단일화플랫폼-소스-이식-착수)에 보존하고 최신 상태·남은 의무는 [work9-c](work9-c.md)를 따른다.
@@ -10,7 +12,7 @@
 
 개발 검증 정리 결과: **파일 504개 삭제**(테스트·fixture 478개, 감사·측정 도구 24개, Testbed 측정 모듈 2개), 루트 npm 명령 **107→20개**. 삭제 파일의 CMake 대상·공급 identity 입력·Android instrumentation·의존성과 현행 안내를 함께 정리했다. `check:types`·`lint`·`format:check`·`git diff --check`, Windows native·두 Wasm profile·Windows App SDK를 포함한 `build:engine-v2`와 현재 공급 identity/전체 파일 hash 확인 PASS. PS1의 미리보기·WhatIf·실제 삭제와 추적/미무시 파일·junction 보호를 임시 저장소에서 확인하고 임시 자료를 회수했으며, 실제 저장소의 잔여 빈 검증 폴더도 정리했다. 이번 정리는 제품 창·브라우저 UI·실기기·물리 입력·표시·성능의 재검증을 포함하지 않는다. 제품 오류·입력·ABI·자원 수명 검사와 내장 진단 API, 공급/build cache·변환 소유권 자료는 유지했다.
 
-작성: **2026-11-05 KST** · 갱신: **2026-11-09 KST** · 상태: **work9-c 재개 대기 / Windows·Web PAUSED·PARTIAL · Android stale/notVerified**
+작성: **2026-11-05 KST** · 갱신·종료: **2026-11-10 KST** · 문서 상태: **CLOSED / work10 이관** · 제품 판정: **PARTIAL · Android stale/notVerified**
 
 [work8 종료 요약](history/26/11/04/work8-summary.md) · [종료 시 API·검증 기록](history/26/11/05/work8-2a-summary.md#현재-구현-현황) · [Flutter 엔진 비교](history/26/11/05/work8-2a-summary.md#flutter-엔진-c-비교)
 
@@ -20,9 +22,11 @@
 
 | 문서 | 역할 | 상태 |
 | --- | --- | --- |
-| [work9-c.md](work9-c.md) | 남은 작업·현재 공급·정확한 재개점·W9C-00–08 실행 계약 | **OPEN / 재개 대기 · 구현 PAUSED / PARTIAL** |
-| [work9-b.md](work9-b.md) | W9B-00/00-H 완료·부분 구현/검증·미검증 Range/editor 초안 기록 | **CLOSED / work9-c 이관** |
-| [work9-a.md](work9-a.md) | 원래 구조 개편 계약과 초기 구현/검증 기록 | **CLOSED / 후속 문서 이관** |
+| [work10.md](work10.md) | 변경분 전달·데이터 공유 개편과 전체 잔여 의무의 현재 실행 계약 | **OPEN / 계획 작성 완료 · 개편 구현 미착수** |
+| [work9-c.md](work9-c.md) | W9C-00 및 날짜 선택기·입력·성능 수정의 부분 검증과 미완료 기록 | **CLOSED / work10 이관** |
+| [work9-b.md](work9-b.md) | W9B-00/00-H 완료·부분 구현/검증·당시 Range/editor 초안 기록 | **CLOSED / 현재 후속 work10** |
+| [work9-a.md](work9-a.md) | 원래 구조 개편 계약과 초기 구현/검증 기록 | **CLOSED / 현재 후속 work10** |
+| work9.md·work9-1.md–work9-5.md | 원래 범위·API·플랫폼·기술/제품 gate와 목차 | **CLOSED / work10 잔여 의무로 이관** |
 
 ## 분할 문서
 

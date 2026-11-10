@@ -30,6 +30,7 @@ type Peer = {
   node: EngineNodeSnapshot;
   publication: bigint;
   value: EditingSnapshot | null;
+  installedValue?: EditingSnapshot;
   composing: boolean;
   ending: boolean;
   compositionStart: number;
@@ -287,13 +288,10 @@ export class EngineV2BrowserInteraction {
       if (scene.status !== p.statuses.ok) return null;
       const current = scene.nodes.find((n) => key(n.node) === key(peer.node.node));
       if (!current) return null;
-      if (
-        (action === 'activate' &&
-          ['x', 'y', 'width', 'height'].some((k) => current[k as 'x'] !== peer.node[k as 'x'])) ||
-        (action === 'activate' &&
-          current.matrix.some((value, index) => value !== peer.node.matrix[index]))
-      )
-        return null;
+      // This is a semantic/keyboard activation, identified by node generation.
+      // A scroll or reflow does not change that target. Core still checks its
+      // current route, enabled state and action source. Canvas pointer ingress
+      // separately retains its collected coordinates/publication geometry.
       const op = action === 'focus' ? p.opcodes.focus : p.opcodes.semanticsAction;
       const data =
         action === 'focus'
@@ -542,7 +540,19 @@ export class EngineV2BrowserInteraction {
     if (peer.value && value.revision < peer.value.revision) return;
     peer.value = value;
     const input = peer.element;
-    if (!isInput(input) || peer.composing) return;
+    if (!isInput(input) || peer.composing || peer.pending) return;
+    // A repeated Core snapshot must not collapse a browser selection whose
+    // asynchronous select event has not reached the input mailbox yet.
+    const installed = peer.installedValue;
+    if (
+      installed?.revision === value.revision &&
+      installed.base === value.base &&
+      installed.extent === value.extent &&
+      installed.text === value.text &&
+      input.value === value.text
+    )
+      return;
+    peer.installedValue = value;
     this.applying = true;
     try {
       if (input.value !== value.text) input.value = value.text;
@@ -682,6 +692,7 @@ export class EngineV2BrowserInteraction {
       'switch',
       'progressbar',
       'progressbar',
+      'dialog',
     ];
     for (const node of state.nodes) {
       const s = node.semantics;
@@ -733,7 +744,15 @@ export class EngineV2BrowserInteraction {
       )
         element.setAttribute('aria-live', 'polite');
       else element.removeAttribute('aria-live');
-      element.setAttribute('aria-label', s.label);
+      const focusBlocked = !!(s.flags & p.semanticsFlags.blockAccessibilityFocus);
+      if (focusBlocked) {
+        element.setAttribute('role', 'presentation');
+        element.removeAttribute('aria-label');
+        element.textContent = element.hasAttribute('aria-live') ? s.label : '';
+      } else {
+        if (element.tagName !== 'TEXTAREA' && element.tagName !== 'INPUT') element.textContent = '';
+        element.setAttribute('aria-label', s.label);
+      }
       element.setAttribute(
         'aria-description',
         [
@@ -753,6 +772,7 @@ export class EngineV2BrowserInteraction {
       element.setAttribute('aria-disabled', String(disabled));
       element.tabIndex =
         !disabled &&
+        !focusBlocked &&
         !(s.flags & p.semanticsFlags.scopesRoute) &&
         (node.editing ||
           s.flags & p.semanticsFlags.focusable ||

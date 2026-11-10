@@ -56,7 +56,7 @@ struct LayoutBuildRequest {
   LayoutConstraints constraints;
   std::optional<List> list;
 };
-struct ScrollLayoutOffset { Handle node; double requested=0; bool manual=false; };
+struct ScrollLayoutOffset { Handle node; double requested=0; bool manual=false; double velocity=0; };
 struct Measurement {
   double width = 0, height = 0, minimum = 0, maximum = 0, baseline = -1;
   std::shared_ptr<const TextGeometry> geometry = nullptr;
@@ -100,6 +100,7 @@ public:
   uint64_t work() const;
   uint64_t reused() const;
   uint64_t imagePaintWork() const;
+  Handle currentNode() const;
 
 private:
   struct State;

@@ -33,6 +33,10 @@ import { protocol as p } from '../engine-client/schema.ts';
 
 export interface OriginalControlConfiguration {
   readonly options: SceneNodeOptions;
+  /** Simple immutable semantics invalidate through the canonical render setters. */
+  readonly cacheableSemantics?: boolean;
+  /** Paint depends on descendant visibility, independently of this node's dirtiness. */
+  readonly dynamicPaint?: boolean;
   readonly kind?: 'stack';
   readonly children?: readonly RenderObject[];
   readonly paint?: readonly NativePaintEntry[];
@@ -198,6 +202,7 @@ export function originalControlConfiguration(
     };
   if (metadata?.kind === 'ink')
     return {
+      dynamicPaint: metadata.dependsOnChildVisibility ?? true,
       options: { pointerHitTest: metadata.absorbHitTest ? 'self' : 'proxy' },
       paint: metadata.entries,
     };
@@ -335,6 +340,10 @@ export function originalControlConfiguration(
     if (properties.readOnly) flags |= p.semanticsFlags.readOnly;
     if (properties.scopesRoute) flags |= p.semanticsFlags.scopesRoute;
     if (properties.namesRoute) flags |= p.semanticsFlags.namesRoute;
+    if (properties.accessibilityFocusBlockType === 'blockNode') {
+      flags |= p.semanticsFlags.blockAccessibilityFocus;
+      flags &= ~p.semanticsFlags.focusable;
+    }
     if (properties.onTap) actions |= p.semanticsActions.activate;
     if (properties.onLongPress) actions |= p.semanticsActions.longPress;
     if (properties.onFocus) actions |= p.semanticsActions.focus;
@@ -342,32 +351,40 @@ export function originalControlConfiguration(
     if (properties.onDecrease) actions |= p.semanticsActions.decrement;
     if (range.actions) actions |= p.semanticsActions.setValue;
     if (properties.customSemanticsActions !== null) actions |= p.semanticsActions.custom;
-    const role = progress
-      ? 'progressBar'
-      : loading
-        ? 'loadingSpinner'
-        : properties.role === SemanticsRole.radioGroup
-          ? 'radioGroup'
-          : properties.inMutuallyExclusiveGroup && properties.checked !== null
-            ? 'radio'
-            : properties.button
-              ? 'button'
-              : properties.link
-                ? 'link'
-                : properties.textField
-                  ? 'textField'
-                  : properties.slider
-                    ? 'slider'
-                    : properties.toggled !== null
-                      ? 'switchControl'
-                      : properties.checked !== null || properties.mixed
-                        ? 'checkbox'
-                        : 'group';
+    const role =
+      properties.role === SemanticsRole.dialog
+        ? 'dialog'
+        : progress
+          ? 'progressBar'
+          : loading
+            ? 'loadingSpinner'
+            : properties.role === SemanticsRole.radioGroup
+              ? 'radioGroup'
+              : properties.inMutuallyExclusiveGroup && properties.checked !== null
+                ? 'radio'
+                : properties.button
+                  ? 'button'
+                  : properties.link
+                    ? 'link'
+                    : properties.textField
+                      ? 'textField'
+                      : properties.slider
+                        ? 'slider'
+                        : properties.toggled !== null
+                          ? 'switchControl'
+                          : properties.checked !== null || properties.mixed
+                            ? 'checkbox'
+                            : 'group';
     const deselect = nativeRadioDeselect(properties.onTap);
     if (role === 'radio' && properties.checked && properties.enabled !== false && deselect)
       actions |= p.semanticsActions.deselect;
     const merge = configuration._nativeMergeConfiguration();
     return {
+      cacheableSemantics:
+        Object.isFrozen(properties) &&
+        !range.range &&
+        !range.actions &&
+        Object.values(properties).every((value) => value === null || typeof value !== 'object'),
       options: {
         ...(merge.annotated
           ? {

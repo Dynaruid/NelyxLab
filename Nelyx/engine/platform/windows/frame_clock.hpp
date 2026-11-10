@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cmath>
 #include <stdexcept>
+#include <mutex>
 
 namespace nelyx::v2::windows {
 inline double qpcFrequency(){
@@ -13,6 +14,38 @@ inline double qpcFrequency(){
   return frequency;
 }
 inline double qpcSeconds(){LARGE_INTEGER value{};if(!QueryPerformanceCounter(&value))throw std::runtime_error("QPC clock unavailable");return double(value.QuadPart)/qpcFrequency();}
+// condition_variable::wait_for uses the system timer quantum on Windows.
+// A 6ms display deadline can therefore wake 10-16ms later. Own a high-resolution
+// timer instead of changing the system-wide timer period or busy-spinning.
+class RenderDeadline {
+  HANDLE wake_=nullptr,timer_=nullptr;
+public:
+  RenderDeadline(){
+    wake_=CreateEventW(nullptr,TRUE,FALSE,nullptr);
+    timer_=CreateWaitableTimerExW(nullptr,nullptr,CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,TIMER_ALL_ACCESS);
+    if(!wake_||!timer_){if(wake_)CloseHandle(wake_);if(timer_)CloseHandle(timer_);throw std::runtime_error("Render deadline handles unavailable");}
+  }
+  ~RenderDeadline(){CloseHandle(timer_);CloseHandle(wake_);}
+  RenderDeadline(const RenderDeadline&)=delete;
+  RenderDeadline& operator=(const RenderDeadline&)=delete;
+  void notify(){SetEvent(wake_);}
+  template<class Predicate> void wait(std::unique_lock<std::mutex>& lock,double target,Predicate ready){
+    while(true){
+      // Reset before checking the authoritative predicate: a producer after
+      // that check leaves the event signaled, so no wake can be lost.
+      ResetEvent(wake_);
+      if(ready())return;
+      const auto remaining=target-qpcSeconds();if(remaining<=0)return;
+      LARGE_INTEGER due{};due.QuadPart=-std::max<LONGLONG>(1,LONGLONG(std::ceil(remaining*10000000)));
+      if(!SetWaitableTimerEx(timer_,&due,0,nullptr,nullptr,nullptr,0))throw std::runtime_error("Render deadline could not be armed");
+      HANDLE handles[]={wake_,timer_};lock.unlock();
+      const auto result=WaitForMultipleObjects(2,handles,FALSE,INFINITE);
+      lock.lock();CancelWaitableTimer(timer_);
+      if(result==WAIT_OBJECT_0+1)return;
+      if(result!=WAIT_OBJECT_0)throw std::runtime_error("Render deadline wait failed");
+    }
+  }
+};
 struct DisplayClockSample {
   bool observed=false;
   HRESULT status=E_PENDING;

@@ -7,6 +7,9 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { build } from 'esbuild';
+import { execute } from './commands.mjs';
+import { windowsHermesPolicy, windowsHermesSyntax } from './windows-hermes-policy.mjs';
+import { nativeCohort } from '@nelyx/sdk/runtime/cohorts';
 import { protocol as p } from '@nelyx/core/v2';
 import { engineV2ImportRoute, engineV2OriginalAppRoute } from './engine-v2-data-api.mjs';
 import {
@@ -107,6 +110,16 @@ export function verifyEngineV2Supply(directory, target, windowsHost) {
       !seen.has('windows-app-sdk/Microsoft.WindowsAppRuntime.dll')
     )
       throw Error('Requested engine v2 host runtime/identity is missing: ' + selected.host);
+    const bytecode = manifest.profiles[selected.profile].appBytecode;
+    if (
+      manifest.hermes !== nativeCohort('windows').engineRevision ||
+      bytecode?.compiler !== 'windows-app-sdk/hermesc.exe' ||
+      bytecode.version !== 99 ||
+      bytecode.entry !== 'application/app.hbc' ||
+      bytecode.policy !== windowsHermesPolicy('optimized', nativeCohort('windows')).id ||
+      !seen.has(bytecode.compiler)
+    )
+      throw Error('Windows App SDK supply lacks the matching optimized Hermes compiler');
     const port = 'windows-app-sdk/sources/rnw/';
     if (
       !manifest.profiles[selected.profile].platformSources?.some(
@@ -268,8 +281,12 @@ export async function buildEngineV2Application(options) {
         format: 'iife',
         platform: target === 'web' ? 'browser' : 'neutral',
         mainFields: target === 'web' ? ['browser', 'module', 'main'] : ['module', 'main'],
-        target: target === 'android' ? 'es2015' : 'es2022',
-        ...(target === 'android' ? { supported: { bigint: true } } : {}),
+        target: target === 'web' ? 'es2022' : 'es2015',
+        ...(target === 'windows'
+          ? { supported: windowsHermesSyntax }
+          : target !== 'web'
+            ? { supported: { bigint: true } }
+            : {}),
         metafile: true,
         logLevel: 'silent',
         plugins: [
@@ -282,6 +299,12 @@ export async function buildEngineV2Application(options) {
                   if (
                     !engineV2ImportRoute(args.path) &&
                     !engineV2OriginalAppRoute(args.path) &&
+                    !(
+                      args.path === '@nelyx/core/internal/framework/rendering/native-grid' &&
+                      fs.existsSync(args.importer) &&
+                      fs.realpathSync(args.importer) ===
+                        fs.realpathSync(path.join(path.dirname(core), '../app/grid.js'))
+                    ) &&
                     !designImport(args.path, args.importer) &&
                     !(
                       args.path === '@nelyx/core/internal/framework/widgets/ticker-scheduler' &&
@@ -380,6 +403,49 @@ export async function buildEngineV2Application(options) {
       bundle = await createBundle(true);
     }
     const coreDirectory = fs.realpathSync(path.resolve(path.dirname(core), '../../..'));
+    let bytecode;
+    if (target === 'windows') {
+      const policy = windowsHermesPolicy('optimized', nativeCohort('windows'));
+      const producer = supply.manifest.profiles['windows-app-sdk'].appBytecode;
+      // Native classes still fail the full Diagnosticable mixin graph in this
+      // Hermes revision. Preserve its qualified inheritance lowering.
+      const javascript = path.join(staged, 'application/app.js');
+      const compilerRequire = createRequire(import.meta.url);
+      const lowered = compilerRequire('@babel/core').transformSync(
+        fs.readFileSync(javascript, 'utf8'),
+        {
+          filename: 'application/app.js',
+          configFile: false,
+          babelrc: false,
+          comments: false,
+          compact: false,
+          plugins: [compilerRequire.resolve('@babel/plugin-transform-classes')],
+        },
+      );
+      if (!lowered?.code) throw Error('Windows class lowering produced no application');
+      fs.writeFileSync(javascript, lowered.code + '\n');
+      await execute(
+        input(supply.root, producer.compiler),
+        [
+          ...policy.flags,
+          '-Xes6-block-scoping',
+          '-emit-binary',
+          '-emit-async-break-check',
+          '-g1',
+          '-out=' + path.join(staged, producer.entry),
+          path.join(staged, 'application/app.js'),
+        ],
+        { cwd: app, timeout: 1200000 },
+      );
+      bytecode = {
+        entry: producer.entry,
+        version: producer.version,
+        policy: policy.id,
+        sourceSha256: hash(javascript),
+        classes: 'babel',
+        syntax: windowsHermesSyntax,
+      };
+    }
     const graph = inspectEngineV2Graph(
       Object.keys(bundle.metafile.inputs).map((file) => path.resolve(file)),
       coreDirectory,
@@ -477,6 +543,7 @@ export async function buildEngineV2Application(options) {
       schema: 'nelyx.app.v2.bundle/1',
       engine: 'v2',
       target,
+      ...(bytecode ? { bytecode } : {}),
       ...(android ? { android } : {}),
       ...(target === 'windows'
         ? { windowsHost: engineV2WindowsHost(options.windowsHost ?? settings.windowsHost).host }
@@ -541,6 +608,20 @@ export function verifyEngineV2Application(directory, target, engineInputs) {
   for (const file of manifest.files)
     if (hash(input(root, file.path)) !== file.sha256)
       throw Error('Application bundle identity mismatch: ' + file.path);
+  if (target === 'windows') {
+    const expected = supply.manifest.profiles['windows-app-sdk'].appBytecode;
+    if (
+      manifest.bytecode?.entry !== expected.entry ||
+      manifest.bytecode?.policy !== expected.policy ||
+      manifest.bytecode?.version !== expected.version ||
+      !manifest.files.some((file) => file.path === expected.entry) ||
+      manifest.bytecode?.classes !== 'babel' ||
+      JSON.stringify(manifest.bytecode?.syntax) !== JSON.stringify(windowsHermesSyntax) ||
+      manifest.bytecode?.sourceSha256 !== hash(input(root, 'application/app.js')) ||
+      fs.readFileSync(input(root, expected.entry)).readUInt32LE(8) !== expected.version
+    )
+      throw Error('Windows optimized App bytecode identity differs; rebuild the application');
+  }
   if (target === 'android') {
     const selected = manifest.android,
       names = new Set(manifest.files.map((file) => file.path));

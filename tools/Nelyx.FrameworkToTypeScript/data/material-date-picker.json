@@ -1,0 +1,135 @@
+{
+  "schema": 1,
+  "upstreamCommit": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "modules": [
+    {
+      "source": "packages/flutter/lib/src/material/date.dart",
+      "sha256": "faea33901237c660f53eca16aec94d97073f375176329eac8521fbe4b5726eb6",
+      "symbols": [
+        "CalendarDelegate",
+        "GregorianCalendarDelegate",
+        "DateUtils",
+        "DatePickerEntryMode",
+        "DatePickerMode",
+        "DateTimeRange"
+      ]
+    },
+    {
+      "source": "packages/flutter/lib/src/material/calendar_date_picker.dart",
+      "sha256": "f318c0cab6f4f61d45e79dea0edbe6f149f31ee659fe4dbd5a2010103d42ad79",
+      "symbols": [
+        "_monthScrollDuration",
+        "_dayPickerRowHeightM2",
+        "_dayPickerRowHeightM3",
+        "_maxDayPickerRowCount",
+        "_maxDayPickerHeightM2",
+        "_maxDayPickerHeightM3",
+        "_monthPickerHorizontalPaddingPortraitM3",
+        "_monthPickerHorizontalPaddingOther",
+        "_yearPickerColumnCount",
+        "_yearPickerPadding",
+        "_yearPickerRowHeight",
+        "_yearPickerRowSpacing",
+        "_subHeaderHeight",
+        "_monthNavButtonsWidth",
+        "_kMaxTextScaleFactor",
+        "_kModeToggleButtonMaxScaleFactor",
+        "_kDayPickerGridPortraitMaxScaleFactor",
+        "_kDayPickerGridLandscapeMaxScaleFactor",
+        "_fontSizeToScale",
+        "CalendarDatePicker",
+        "_CalendarDatePickerState",
+        "_DatePickerModeToggleButton",
+        "_DatePickerModeToggleButtonState",
+        "_MonthPicker",
+        "_MonthPickerState",
+        "_FocusedDate",
+        "_DayPicker",
+        "_DayPickerState",
+        "_Day",
+        "_DayState",
+        "_DayPickerGridDelegate",
+        "YearPicker",
+        "_YearPickerState",
+        "_YearPickerGridDelegate",
+        "_reportAnnouncementError"
+      ]
+    },
+    {
+      "source": "packages/flutter/lib/src/material/input_date_picker_form_field.dart",
+      "sha256": "821a15e00045eea9dfc929a02f7e0428914d02434e9e154b355185b03a711f74",
+      "symbols": [
+        "InputDatePickerFormField",
+        "_InputDatePickerFormFieldState"
+      ]
+    },
+    {
+      "source": "packages/flutter/lib/src/material/date_picker.dart",
+      "sha256": "6d41d7d137cd63a73b0e9eeb2888d51e217c212b49152b4a32795bd630392285",
+      "symbols": [
+        "_calendarPortraitDialogSizeM2",
+        "_calendarPortraitDialogSizeM3",
+        "_calendarLandscapeDialogSize",
+        "_inputPortraitDialogSizeM2",
+        "_inputPortraitDialogSizeM3",
+        "_inputLandscapeDialogSize",
+        "_inputRangeLandscapeDialogSize",
+        "_dialogSizeAnimationDuration",
+        "_inputFormPortraitHeight",
+        "_inputFormLandscapeHeight",
+        "_kMaxTextScaleFactor",
+        "_kMaxRangeTextScaleFactor",
+        "_kMaxHeaderTextScaleFactor",
+        "_kMaxHeaderWithEntryTextScaleFactor",
+        "_kMaxHelpPortraitTextScaleFactor",
+        "_kMaxHelpLandscapeTextScaleFactor",
+        "_fontSizeToScale",
+        "showDatePicker",
+        "DatePickerDialog",
+        "_DatePickerDialogState",
+        "_RestorableDatePickerEntryMode",
+        "_RestorableAutovalidateMode",
+        "_DatePickerHeader"
+      ]
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/form.dart",
+      "sha256": "9d6771d8cabee20dd995dc4921e35481da8ff09acbeca3b73f87382580aac47b",
+      "symbols": [
+        "AutovalidateMode"
+      ]
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/restoration_properties.dart",
+      "sha256": "f39f24d36a49319ad1b7d2638ce128c90f288fb32f03ac95195bbab000ab41a9",
+      "symbols": [
+        "RestorableDateTimeN"
+      ]
+    },
+    {
+      "source": "packages/flutter/lib/src/material/dialog.dart",
+      "sha256": "22c88ffd00e0d7ed125f5f18f8936a7ee97ed808795599e9655e6567a7589fd8",
+      "symbols": [
+        "Dialog",
+        "_DialogDefaultsM2",
+        "_DialogFullscreenDefaultsM3",
+        "_DialogDefaultsM3",
+        "_defaultInsetPadding"
+      ]
+    },
+    {
+      "source": "packages/flutter/lib/src/widgets/spacer.dart",
+      "sha256": "a9976fdb3d621e44ea017543d47168841c0e4a7ac09f01a96a08e4c77a2ef009",
+      "symbols": [
+        "Spacer"
+      ]
+    },
+    {
+      "source": "packages/flutter/lib/src/material/material_localizations.dart",
+      "sha256": "718d08b2aec034b9001e27cf93f7f85458b7e1aa28ed91409f7f86deaf019846",
+      "symbols": [
+        "DefaultMaterialLocalizations"
+      ]
+    }
+  ]
+}

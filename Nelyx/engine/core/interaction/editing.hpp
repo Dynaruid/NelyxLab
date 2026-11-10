@@ -110,7 +110,7 @@ struct SemanticData {
       : lease(ledger, sizeof(SemanticData) + name.size() + description.size() + displayed.size() + increased.size() + decreased.size()+traits.bytes()), role(r), flags(f),
         actions(a), label(std::move(name)), hint(std::move(description)), value(std::move(displayed)), increasedValue(std::move(increased)), decreasedValue(std::move(decreased)), range(numeric),metadata(std::move(traits)) {
     mergeFlags=sourceFlags==UINT32_MAX?defaultMergeFlags(r,f):sourceFlags;
-    declaredRole=sourceFlags==UINT32_MAX?(r==wire::semanticsRoles::radioGroup||r==wire::semanticsRoles::progressBar||r==wire::semanticsRoles::loadingSpinner):bool(configuration&4u);
+    declaredRole=sourceFlags==UINT32_MAX?(r==wire::semanticsRoles::radioGroup||r==wire::semanticsRoles::progressBar||r==wire::semanticsRoles::loadingSpinner||r==wire::semanticsRoles::dialog):bool(configuration&4u);
     explicitRole=sourceFlags==UINT32_MAX?(declaredRole||bool(mergeFlags&((1u<<16)|(1u<<20)|(1u<<23)|(1u<<28)|(1u<<29)|(1u<<30)))):bool(configuration&2u);
   }
 };

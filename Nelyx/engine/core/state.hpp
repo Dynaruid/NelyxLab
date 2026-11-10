@@ -159,6 +159,14 @@ struct Overlay {
   double offset = 0, velocity = 0, start = 0, startVelocity = 0, elapsed = 0;
   uint64_t revision = 0;
   bool ballistic = false;
+  bool pageSpring = false;
+  double pageTarget = 0;
+  void beginBallistic(double speed){
+    ballistic=true;velocity=startVelocity=speed;
+    // Accepted contact deltas still belong to this gesture even when Content
+    // has not caught up. Resume from their destination, not the coverage edge.
+    start=deferred?requested:offset;elapsed=0;
+  }
   uint64_t motion = 0, lastMotion = 0;
   double opacity = 1, motionStart = 1, motionTarget = 1, motionSeconds = 0, motionElapsed = 0;
   uint64_t motionRevision = 0;
@@ -344,6 +352,13 @@ struct EventOverflowInfo {
   uint32_t queue=0,kind=0,status=0,queued=0,pointerPhase=0,pointerFlags=0;
   std::array<uint32_t,wire::events::pointer+1> kinds{};
 };
+struct PreparationFailureInfo {
+  std::shared_ptr<Lease> lease;
+  uint64_t preparation=0,document=0;
+  uint32_t status=0;bool ready=false;
+  Handle node;
+  double offset=0,requested=0,minimum=0,maximum=0,preparedOffset=0;
+};
 struct RawSample { Handle node; std::array<uint8_t,8+wire::inputBytes> bytes{}; };
 RawSample rawSample(const Input&,Handle,uint64_t generation);
 struct CommandResult {
@@ -363,6 +378,7 @@ struct View {
   uint32_t generation;
   bool closed = false, visible = true, focused = true, overflowed = false, dirty = false;
   EventOverflowInfo eventOverflow;
+  PreparationFailureInfo preparationFailure;
   Metrics metrics;
   std::shared_ptr<const Document> document, demand;
   std::unique_ptr<Preparation> preparing;
@@ -464,6 +480,7 @@ struct View {
   void recordEventOverflow(const Event& event,bool interactionQueue);
   void close(uint32_t reason);
   bool endDeferredInput(uint32_t stream,bool cancelPending);
+  void beginScrollBallistic(Handle node,double velocity);
   void cancelStream(uint32_t stream, uint32_t reason);
   void cancelInput(uint32_t reason);
   void requestContent();

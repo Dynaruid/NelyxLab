@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <mutex>
 #include <set>
+#include <unordered_set>
 #include <chrono>
 
 namespace nelyx::v2 {
@@ -53,6 +54,12 @@ std::shared_ptr<const EventOverflowInfo> Engine::eventOverflowSnapshot(uint32_t 
   if(!view||view>=s.views.size()||!s.views[view]||s.views[view]->generation!=generation||!s.views[view]->eventOverflow.queue)return nullptr;
   auto result=std::make_shared<EventOverflowInfo>(s.views[view]->eventOverflow);
   result->lease=std::make_shared<Lease>(s.ledger,sizeof(EventOverflowInfo)+64);return result;
+}
+std::shared_ptr<const PreparationFailureInfo> Engine::preparationFailureSnapshot(uint32_t view,uint32_t generation){
+  auto& s=*state_;std::lock_guard lock(s.mutex);
+  if(!view||view>=s.views.size()||!s.views[view]||s.views[view]->generation!=generation||!s.views[view]->preparationFailure.preparation)return nullptr;
+  auto result=std::make_shared<PreparationFailureInfo>(s.views[view]->preparationFailure);
+  result->lease=std::make_shared<Lease>(s.ledger,sizeof(PreparationFailureInfo)+64);return result;
 }
 std::shared_ptr<const Frame> Engine::frameSnapshot(uint32_t view, uint32_t generation, uint64_t id) {
   auto& s = *state_; std::lock_guard lock(s.mutex);
@@ -189,7 +196,9 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
   uint32_t imageReadOffset=0,imageReadLength=0;
   uint32_t fontReadOffset=0,fontReadLength=0;
   std::vector<Event> events;
-  bool stateOnlyInspection=false;
+  bool stateOnlyInspection=false,appObservation=false;
+  bool selectedLayout=false;
+  std::vector<Handle> layoutSelection;
   try {
     require(packet.length >= wire::headerBytes && packet.length <= wire::limits::packetBytes);
     opcode = packet.u16(wire::headerFields::opcode); viewId = packet.u32(wire::headerFields::view); generation = packet.u32(wire::headerFields::generation); id = packet.u64(wire::headerFields::id);
@@ -202,6 +211,17 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
     if(opcode==wire::opcodes::inspect){
       require(body.length==0||(body.length==4&&body.u32(0)==wire::inspectionFlags::stateOnly));
       stateOnlyInspection=body.length==4;
+    }
+    if(opcode==wire::opcodes::layoutSnapshot||opcode==wire::opcodes::semanticsSnapshot){
+      selectedLayout=opcode==wire::opcodes::layoutSnapshot&&body.length>=8&&body.u32(0)==wire::inspectionFlags::appLayoutSelection;
+      if(selectedLayout){
+        const auto count=body.u32(4);require(count<=wire::limits::nodes&&body.length==8+size_t(count)*8);
+        std::unordered_set<uint64_t> seen;
+        for(uint32_t i=0;i<count;++i){const auto node=handle(body,8+size_t(i)*8);
+          require(node&&node.slot<=wire::limits::nodes&&node.generation&&seen.insert(node.key()).second);
+          layoutSelection.push_back(node);}
+      }else require(body.length==0||(body.length==4&&body.u32(0)==wire::inspectionFlags::appObservation));
+      appObservation=body.length!=0;
     }
     const auto count = packet.u32(wire::headerFields::count);
     require(opcode == wire::opcodes::transaction || count == 0);
@@ -567,7 +587,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
       } else if (opcode == wire::opcodes::layoutQueryCancel) {
         exact(body,0);require(v.query&&v.query->id==id,wire::statuses::notFound);v.cancelQuery(wire::statuses::canceled);
       } else if (opcode == wire::opcodes::layoutSnapshot) {
-        exact(body, 0); require(bool(v.active), wire::statuses::notFound);
+        require(bool(v.active), wire::statuses::notFound);
       } else if (opcode == wire::opcodes::fontRevision) {
         require(body.length==16||body.length==24);
         require(v.fontTransition.phase!=wire::fontTransitionPhases::preparing,wire::statuses::busy);
@@ -588,7 +608,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
         exact(body,8);require(v.document&&v.document->contains(handle(body,0))&&v.editors.contains(handle(body,0).key()),wire::statuses::invalidHandle);
         editTarget=handle(body,0);
       } else if(opcode==wire::opcodes::semanticsSnapshot){
-        exact(body,0);require(bool(v.published),wire::statuses::notFound);frame=&*v.published;
+        exact(body,appObservation?4:0);require(bool(v.published),wire::statuses::notFound);frame=&*v.published;
       } else if(opcode==wire::opcodes::semanticsAction){
         v.semanticAction(body);
       } else if(opcode==wire::opcodes::focusAt||opcode==wire::opcodes::activateAt){
@@ -619,7 +639,11 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
       } else if (opcode == wire::opcodes::tick) {
         exact(body, 8); v.tick(body.f64(0));
       } else if (opcode == wire::opcodes::requestAppFrame) {
-        if(!body.length){v.appFrameRequested=true;v.dirty=true;}
+        // Scheduling a Source callback does not change any pixels. Its later
+        // transaction (or native motion/input) owns paint invalidation. Marking
+        // this dirty republishes the old scene and feeds needless observations
+        // back into App while it is still producing the next scene.
+        if(!body.length){v.appFrameRequested=true;}
         else{exact(body,8);const auto at=body.f64(0);require(at>=0,wire::statuses::invalidValue);v.appFrameDeadline=at;}
       } else if (opcode == wire::opcodes::takeFrame) {
         exact(body, 0); status = v.takeFrame();
@@ -723,6 +747,17 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
   if (rows && !frame) {
     if(editTarget)rowNodes.push_back(&rows->get(editTarget));
     else if (measure) rowNodes.push_back(measure->node.get());
+    else if(selectedLayout){
+      // A Source list observer needs its own layout and its viewport parent.
+      // Missing/recycled handles are omitted from this active cohort, never
+      // resolved by slot alone against a newer document.
+      std::unordered_set<uint64_t> seen;
+      for(const auto node:layoutSelection)if(rows->contains(node)){
+        const auto& value=rows->get(node);
+        if(seen.insert(node.key()).second)rowNodes.push_back(&value);
+        if(value.parent&&seen.insert(value.parent.key()).second)rowNodes.push_back(&rows->get(value.parent));
+      }
+    }
     else for (const auto& slot : rows->nodes) if (slot.value) rowNodes.push_back(slot.value.get());
   }
   struct Blob { uint32_t type; Handle id; Reader data; };
@@ -796,10 +831,11 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
       for(size_t i=0;i<values.size();++i)data.f64(i*8,values[i]);
       addOwned(wire::semanticGeometryBlob,n.id,std::move(data));
     }
-    if(n.snapshot)addOwned(wire::snapshotStyleBlob,n.id,snapshotStyleBytes(*n.snapshot));
+    if(!appObservation&&n.snapshot)addOwned(wire::snapshotStyleBlob,n.id,snapshotStyleBytes(*n.snapshot));
     if(n.layoutBuilder){const auto& builder=*n.layoutBuilder;Writer data(wire::layoutBuilderBytes);
       data.u64(0,builder.revision);data.u64(8,builder.builtRevision);putAxis(data,16,builder.horizontal);putAxis(data,40,builder.vertical);
       addOwned(wire::layoutBuilderBlob,n.id,std::move(data));}
+    if(!appObservation){
     if(n.imageStyle)addOwned(wire::imagePaintBlob,n.id,imagePaintBytes(*n.imageStyle,n.imagePaint.get()));
     if(n.fontResource||n.fontPinned||n.fontRevision!=1){Writer data(24);writeHandle(data,0,n.fontResource?n.fontResource->id:Handle{});
       data.u64(8,n.fontRevision);data.u32(16,n.fontPinned?1u:0u);addOwned(wire::fontBindingBlob,n.id,std::move(data));}
@@ -824,6 +860,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
         for(size_t j=0;j<6;++j)bytes.f64(wire::graphicsBytes+8+i*wire::graphicsPathBytes+j*8,c.values[j]);}
       addOwned(10,n.id,std::move(bytes));
     }
+    }
     const Property* visual=frame&&n.id.slot<frame->properties.size()?&frame->properties[n.id.slot]:nullptr;
     const auto overlay=view?view->overlays.find(n.id.key()):std::map<uint64_t,Overlay>::const_iterator{};
     const double controlValue=visual?visual->value:view&&overlay!=view->overlays.end()?overlay->second.value:n.control.value;
@@ -836,16 +873,16 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
       data.u64(64,c.revision);addOwned(7,n.id,std::move(data));}
     if(n.listGeometry){const auto& list=*n.listGeometry;const size_t header=list.style.fixed||list.style.sequential?72:64;Writer data(header+list.rows.size()*40);
       data.u64(0,list.style.generation);data.u32(8,list.style.count);data.u32(12,list.style.begin);data.u32(16,list.style.end);
-      double offset=0,height=view?view->metrics.height:0,paint=height;
+      double offset=0,height=view?view->metrics.height:0,paint=height,velocity=0;
       if(view&&n.parent&&rows->contains(n.parent)){const auto& parent=rows->get(n.parent);
         const bool horizontal=(parent.properties.flags&1u)!=0;
-        height=horizontal?parent.properties.width:parent.properties.height;const auto scrollOverlay=view->overlays.find(n.parent.key());
-        if(scrollOverlay!=view->overlays.end())offset=scrollOverlay->second.requested-(horizontal?n.properties.x:n.properties.y);
+        height=horizontal?parent.properties.width:parent.properties.height;offset=parent.properties.initialScrollOffset-(horizontal?n.properties.x:n.properties.y);const auto scrollOverlay=view->overlays.find(n.parent.key());
+        if(scrollOverlay!=view->overlays.end()){offset=scrollOverlay->second.requested-(horizontal?n.properties.x:n.properties.y);velocity=scrollOverlay->second.velocity;}
         if(n.layoutBuilder){const double origin=n.properties.y;
           const double requested=list.style.sequential&&list.knownCount<list.style.count?std::max(0.0,offset+origin):
             std::clamp(offset+origin,0.0,std::max(0.0,list.total+parent.layout.top+parent.layout.bottom-height));
           offset=std::max(0.0,requested-origin);paint=std::max(0.0,height-std::max(0.0,origin-requested));}}
-      if(n.layoutBuilder){const auto range=nativeListRange(list.style,&list,std::max(0.0,offset),paint);data.u32(20,range.begin);data.u32(24,range.end);}
+      if(n.layoutBuilder){const auto range=nativeListCacheRange(list.style,&list,std::max(0.0,offset),paint,velocity);data.u32(20,range.begin);data.u32(24,range.end);}
       else {const auto begin=list.indexAt(std::max(0.0,offset-height));
         data.u32(20,begin);data.u32(24,std::min(list.style.count,list.indexAt(offset+height*2)+1));}
       data.u32(28,uint32_t(list.rows.size()));data.f64(32,list.estimate);
@@ -949,7 +986,8 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
     }
   }
   for (const auto& blob : blobs) blobBytes += 24 + (blob.data.length + 7) / 8 * 8;
-  if(wire::headerBytes+wire::stateBytes+(frame?frame->items.size():rowNodes.size())*wire::nodeBytes+events.size()*wire::eventBytes+blobBytes>wire::limits::packetBytes){
+  // A bounded response can include every admitted node, unlike a delta request.
+  if(wire::headerBytes+wire::stateBytes+(frame?frame->items.size():rowNodes.size())*wire::nodeBytes+events.size()*wire::eventBytes+blobBytes>wire::limits::responseBytes){
     status=wire::statuses::budgetExceeded;rows=nullptr;rowNodes.clear();blobs.clear();blobBytes=0;frame=nullptr;
   }
   const auto rowCount = rows ? (frame ? frame->items.size() : rowNodes.size()) : 0;

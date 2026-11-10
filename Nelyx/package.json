@@ -1784,6 +1784,10 @@
       "types": "./dist/foundation/dart-numeric.d.ts",
       "default": "./dist/foundation/dart-numeric.js"
     },
+    "./internal/foundation/dart-numeric-math": {
+      "types": "./dist/foundation/dart-numeric-math.d.ts",
+      "default": "./dist/foundation/dart-numeric-math.js"
+    },
     "./internal/foundation/dart-record": {
       "types": "./dist/foundation/dart-record.d.ts",
       "default": "./dist/foundation/dart-record.js"
@@ -2183,6 +2187,18 @@
     "./internal/framework/rendering/native-snapshot": {
       "types": "./dist/framework/rendering/native-snapshot.d.ts",
       "default": "./dist/framework/rendering/native-snapshot.js"
+    },
+    "./internal/foundation/dart-method-tear-off": {
+      "types": "./dist/foundation/dart-method-tear-off.d.ts",
+      "default": "./dist/foundation/dart-method-tear-off.js"
+    },
+    "./internal/foundation/dart-exceptions": {
+      "types": "./dist/foundation/dart-exceptions.d.ts",
+      "default": "./dist/foundation/dart-exceptions.js"
+    },
+    "./internal/framework/rendering/native-grid": {
+      "types": "./dist/framework/rendering/native-grid.d.ts",
+      "default": "./dist/framework/rendering/native-grid.js"
     }
   },
   "scripts": {

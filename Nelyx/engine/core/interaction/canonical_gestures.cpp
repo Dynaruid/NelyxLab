@@ -181,9 +181,9 @@ void View::canonicalPointer(const Input& packetInput,Stream& stream,bool deferAr
   if(!stream.longSent&&!stream.longCanceled&&(mask&wire::gestures::longPress)){stream.longCanceled=true;emit(wire::gestureKinds::longPressCancel,packetInput.x,packetInput.y);}
   if(!stream.pan&&!stream.dragCanceled&&(mask&dragMask)){stream.dragCanceled=true;emit(wire::gestureKinds::dragCancel,packetInput.x,packetInput.y);}
   if(stream.scroll){
-    bool deferred=false;for(auto& entry:overlays)if(entry.second.deferredStream==index){deferred|=entry.second.deferred;entry.second.deferred=false;entry.second.requested=entry.second.offset;}
-    if(packetInput.phase==wire::phases::end&&stream.pan&&stream.dragAxis==4&&!deferred&&std::abs(packetInput.velocity)>=1){
-      auto& scroll=overlays.at(stream.scroll.key());scroll.ballistic=true;scroll.start=scroll.offset;scroll.startVelocity=packetInput.velocity;scroll.elapsed=0;
+    endDeferredInput(index,packetInput.phase!=wire::phases::end);
+    if(packetInput.phase==wire::phases::end&&stream.pan&&stream.dragAxis==4){
+      beginScrollBallistic(stream.scroll,packetInput.velocity);
     }
   }
   stream.active=false;stream.pointer=false;stream.capturedPublications.fill(nullptr);

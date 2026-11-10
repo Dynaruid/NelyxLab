@@ -7,12 +7,15 @@ export const protocol = {
   'headerBytes': 64,
   'inspectionFlags': {
     'stateOnly': 1,
+    'appObservation': 2,
+    'appLayoutSelection': 4,
   },
   'stateBytes': 744,
   'nodeBytes': 360,
   'eventBytes': 160,
   'inputBytes': 128,
   'layoutBytes': 192,
+  'nodeInitialPropertiesBytes': 72,
   'editorViewportBytes': 24,
   'editorViewportFlags': {
     'expands': 1,
@@ -81,6 +84,7 @@ export const protocol = {
     'depth': 128,
     'commands': 4096,
     'packetBytes': 1048576,
+    'responseBytes': 4194304,
     'sessionBytes': 67108864,
     'resourceBytes': 33554432,
     'resources': 1024,
@@ -116,7 +120,7 @@ export const protocol = {
     'coveragePixelsPerSecond': 2400,
     'coverageViewportsPerSecond': 4,
     'editors': 64,
-    'semanticsNodes': 256,
+    'semanticsNodes': 1024,
     'semanticsTextBytes': 4096,
     'semanticsCustomActions': 64,
     'editHistory': 32,
@@ -267,6 +271,11 @@ export const protocol = {
     'childAnchor': 36,
     'intrinsicSizing': 37,
     'layoutProgram': 38,
+  },
+  'nodePropertyFlags': {
+    'horizontal': 1,
+    'chaining': 2,
+    'pageSnapping': 4,
   },
   'kinds': {
     'box': 1,
@@ -903,6 +912,7 @@ export const protocol = {
     'switchControl': 10,
     'progressBar': 11,
     'loadingSpinner': 12,
+    'dialog': 13,
   },
   'semanticsFlags': {
     'disabled': 1,
@@ -915,6 +925,7 @@ export const protocol = {
     'mergedIntoParent': 128,
     'scopesRoute': 256,
     'namesRoute': 512,
+    'blockAccessibilityFocus': 1024,
   },
   'semanticsActions': {
     'activate': 1,
@@ -1259,5 +1270,5 @@ export const protocol = {
   'keyIdentityTextBytes': 64,
   'keyIdentityEventBlob': 34,
   'keyIdentityEventBytes': 24,
-  'schema': 896476372,
+  'schema': 2570296319,
 } as const;

@@ -196,6 +196,9 @@ try {
       // Explicit declaration extensions also resolve in NodeNext ESM mode.
       // Never fall back to the previously published Core during this build.
       paths: {
+        '@nelyx/core/internal/framework/rendering/native-grid': [
+          path.join(staged, 'framework/rendering/native-grid.d.ts'),
+        ],
         '@nelyx/core/internal/framework/rendering/native-snapshot': [
           path.join(staged, 'framework/rendering/native-snapshot.d.ts'),
         ],

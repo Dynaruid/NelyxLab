@@ -103,8 +103,8 @@ class Device : public std::enable_shared_from_this<Device> {
   bool hasWindow() const;
   void resizeWindow(skgpu::graphite::Recorder*,uint32_t width,uint32_t height);
   void present(skgpu::graphite::Recorder*,SkSurface*);
-  // One asynchronous WSI slot. Completion includes GPU and presentation-resource
-  // retirement, and does not claim physical display/scanout observation.
+  // One asynchronous GPU slot. Presentation resources retire independently per
+  // swapchain image; completion does not claim physical display/scanout.
   bool windowFrameComplete();
   WindowFrameTiming windowFrameTiming() const;
   bool acquireWindowFrame();

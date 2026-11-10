@@ -12,6 +12,13 @@ import type { Size, Offset } from '../../ui/geometry.ts';
 import { invariant } from '../../foundation/errors.ts';
 import { DoubleProperty, EnumProperty } from '../../foundation/diagnostic-properties.ts';
 import type { DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.ts';
+import { registerNativeBoxConfiguration } from '../rendering/native-box.ts';
+import {
+  NativeLayoutBuilder,
+  nativeLayoutExpression as e,
+  nativeLayoutInput as input,
+} from '../rendering/native-layout.ts';
+import type { NativeLayoutProgram, NativeLayoutScalar } from '../rendering/native-layout.ts';
 
 export const OverflowBarAlignment = Object.freeze({
   start: 'start',
@@ -84,6 +91,178 @@ interface Measurement {
 class RenderOverflowBar extends RenderBox {
   private options: OverflowBar;
   private direction: 'ltr' | 'rtl';
+  /** Declare the same measure/overflow/position decisions for Content to execute.
+   * This method never calls a child layout or reads a measured App size. */
+  private nativeProgram(): NativeLayoutProgram {
+    const count = this.children.length,
+      o = this.options,
+      rtl = this.direction === 'rtl';
+    if (count > 14 || !Number.isFinite(o.spacing) || !Number.isFinite(o.overflowSpacing))
+      throw Error('Native OverflowBar budget or spacing');
+    const sum = (values: NativeLayoutScalar[]) =>
+      values.reduce((a, b) => e('add', a, b), 0 as NativeLayoutScalar);
+    const maximum = (values: NativeLayoutScalar[]) =>
+      values.reduce((a, b) => e('max', a, b), 0 as NativeLayoutScalar);
+    const layout = new NativeLayoutBuilder();
+    const sizes = Array.from({ length: count }, (_, index) =>
+      layout.child(index, [0, input.maxWidth, 0, input.maxHeight]),
+    );
+    const childrenWidth = layout.value(sum(sizes.map((s) => s.width))),
+      maxHeight = layout.value(maximum(sizes.map((s) => s.height)));
+    const naturalWidth = layout.value(e('add', childrenWidth, o.spacing * Math.max(0, count - 1)));
+    const overflow = layout.value(e('greater', naturalWidth, input.maxWidth));
+    const width = layout.value(
+      e(
+        'clamp',
+        count === 0
+          ? input.minWidth
+          : e(
+              'select',
+              overflow,
+              input.maxWidth,
+              o.alignment === null ? naturalWidth : input.maxWidth,
+            ),
+        input.minWidth,
+        input.maxWidth,
+      ),
+    );
+    const height = layout.value(
+      e(
+        'clamp',
+        count === 0
+          ? input.minHeight
+          : e(
+              'select',
+              overflow,
+              e('add', sum(sizes.map((s) => s.height)), o.overflowSpacing * Math.max(0, count - 1)),
+              maxHeight,
+            ),
+        input.minHeight,
+        input.maxHeight,
+      ),
+    );
+    layout.size(width, height);
+    let gap: NativeLayoutScalar = o.spacing,
+      lead: NativeLayoutScalar = 0;
+    const free = e('subtract', width, naturalWidth),
+      available = e('subtract', width, childrenWidth);
+    switch (o.alignment) {
+      case 'center':
+        lead = e('divide', free, 2);
+        break;
+      case 'end':
+        lead = free;
+        break;
+      case 'spaceBetween':
+        gap = count > 1 ? e('divide', available, count - 1) : 0;
+        break;
+      case 'spaceAround':
+        gap = count ? e('divide', available, count) : 0;
+        lead = e('divide', gap, 2);
+        break;
+      case 'spaceEvenly':
+        gap = e('divide', available, count + 1);
+        lead = gap;
+        break;
+    }
+    const ys: NativeLayoutScalar[] = [];
+    let horizontal: NativeLayoutScalar = lead;
+    for (let index = 0; index < count; index++) {
+      const size = sizes[index]!,
+        freeCross = e('subtract', input.maxWidth, size.width);
+      const overflowX =
+        o.overflowAlignment === 'center'
+          ? e('divide', freeCross, 2)
+          : (o.overflowAlignment === 'start') !== rtl
+            ? 0
+            : freeCross;
+      const before =
+        o.overflowDirection === VerticalDirection.up
+          ? sizes.slice(index + 1)
+          : sizes.slice(0, index);
+      const y = layout.value(
+        e(
+          'select',
+          overflow,
+          e('add', sum(before.map((s) => s.height)), before.length * o.overflowSpacing),
+          e('divide', e('subtract', maxHeight, size.height), 2),
+        ),
+      );
+      layout.place(
+        index,
+        e(
+          'select',
+          overflow,
+          overflowX,
+          rtl ? e('subtract', e('subtract', width, horizontal), size.width) : horizontal,
+        ),
+        y,
+      );
+      ys.push(y);
+      horizontal = layout.value(e('add', e('add', horizontal, size.width), gap));
+    }
+    const baseline = (
+      kind: 'baseline' | 'ideographicBaseline',
+      has: 'hasBaseline' | 'hasIdeographicBaseline',
+    ) => {
+      const found = maximum(sizes.map((s) => s[has]));
+      const value = sizes.reduce(
+        (current, s, index) =>
+          e('min', current, e('select', s[has], e('add', s[kind], ys[index]!), input.unbounded)),
+        input.unbounded as NativeLayoutScalar,
+      );
+      return { found, value: e('select', found, value, 0) };
+    };
+    const alphabetic = baseline('baseline', 'hasBaseline'),
+      ideographic = baseline('ideographicBaseline', 'hasIdeographicBaseline');
+    layout.baseline(alphabetic.value, alphabetic.found, ideographic.value, ideographic.found);
+    const intrinsic = (dimension: 'Width' | 'Height', max: boolean) => {
+      const builder = new NativeLayoutBuilder();
+      if (dimension === 'Width')
+        builder.result(
+          e(
+            'add',
+            sum(
+              Array.from({ length: count }, (_, index) =>
+                builder.query(index, max ? 'maxWidth' : 'minWidth', input.unbounded),
+              ),
+            ),
+            o.spacing * Math.max(0, count - 1),
+          ),
+        );
+      else {
+        const minimumWidth = e(
+          'add',
+          sum(
+            Array.from({ length: count }, (_, index) =>
+              builder.query(index, 'minWidth', input.unbounded),
+            ),
+          ),
+          o.spacing * Math.max(0, count - 1),
+        );
+        const heights = Array.from({ length: count }, (_, index) =>
+          builder.query(index, max ? 'maxHeight' : 'minHeight', input.extent),
+        );
+        builder.result(
+          e(
+            'select',
+            e('greater', minimumWidth, input.extent),
+            e('add', sum(heights), o.overflowSpacing * Math.max(0, count - 1)),
+            maximum(heights),
+          ),
+        );
+      }
+      return builder.commands;
+    };
+    return {
+      children: count,
+      layout: layout.commands,
+      minWidth: intrinsic('Width', false),
+      maxWidth: intrinsic('Width', true),
+      minHeight: intrinsic('Height', false),
+      maxHeight: intrinsic('Height', true),
+    };
+  }
   constructor(options: OverflowBar, direction: 'ltr' | 'rtl') {
     super();
     this.options = options;
@@ -288,5 +467,23 @@ class RenderOverflowBar extends RenderBox {
       y += childHeight + this.options.overflowSpacing;
     }
     return measured.overflow ? vertical : horizontal;
+  }
+  static {
+    const prototype = RenderOverflowBar.prototype;
+    const methods = [
+      prototype.performLayout,
+      prototype.measure,
+      prototype.positions,
+      prototype.nativeProgram,
+    ];
+    registerNativeBoxConfiguration(prototype, (render, reject) => {
+      if (
+        [render.performLayout, render.measure, render.positions, render.nativeProgram].some(
+          (method, index) => method !== methods[index],
+        )
+      )
+        return reject('custom-overflow-bar-layout');
+      return { kind: 'box', layout: {}, layoutProgram: render.nativeProgram() };
+    });
   }
 }

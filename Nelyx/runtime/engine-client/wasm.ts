@@ -48,7 +48,7 @@ export function createWasmTransport(
         const pointer = module._nelyx_wasm_buffer_data(output),
           length = module._nelyx_wasm_buffer_length(output);
         module._nelyx_wasm_refresh_heap?.();
-        if (length > p.limits.packetBytes || pointer + length > module.HEAPU8.length)
+        if (length > p.limits.responseBytes || pointer + length > module.HEAPU8.length)
           throw new Error('Invalid engine Wasm output bounds');
         return module.HEAPU8.slice(pointer, pointer + length);
       } finally {

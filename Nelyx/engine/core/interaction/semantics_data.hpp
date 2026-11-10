@@ -20,7 +20,7 @@ inline std::shared_ptr<const SemanticData> readSemanticData(const std::shared_pt
   for(uint32_t shift=2;shift<=12;shift+=2)require(((sourceFlags>>shift)&3u)!=3u,wire::statuses::invalidValue);
   const std::array<uint32_t,7> lengths{data.u32(12),data.u32(16),data.u32(20),data.u32(72),data.u32(76),data.u32(84),data.u32(100)};
   size_t total=0;for(const auto length:lengths){require(length<=wire::limits::semanticsTextBytes,wire::statuses::invalidValue);total+=length;}
-  require(role<=wire::semanticsRoles::loadingSpinner&&!(flags&~895u)&&!(actions&~511u)&&
+  require(role<=wire::semanticsRoles::dialog&&!(flags&~1919u)&&!(actions&~511u)&&
     rangeFlags<=3&&rangeFlags!=2&&sortFlags<=3&&sortFlags!=2&&((sortFlags&1u)||!order)&&
     ((sortFlags&2u)||!lengths[6])&&direction<=2&&customCount<=wire::limits::semanticsCustomActions&&
     wire::semanticsBytes+semanticAligned(total)<=data.length,wire::statuses::invalidValue);

@@ -724,17 +724,25 @@ export interface ModuleRecipe {
       }
   >;
   /** Explicit host Future boundary; does not assert Dart Zone or arbitrary Future equivalence. */
-  asyncRuntime?: { policy: 'host-promise'; futureType: string };
+  asyncRuntime?: {
+    policy: 'host-promise';
+    futureType: string;
+    /** Async forwarding without await or erased/numeric result storage. */
+    resultTransfer?: 'closed-nonnumeric-forwarding';
+  };
   /** Runtime adapters must preserve the selected source iteration/mutation contract. */
   iteration?: { policy: 'host-iterable' };
   /** Shared receiver + resolved method cache; preserves add/remove listener equality. */
   methodTearOff?: { bind: string; policy: 'receiver-method-identity' };
-  /** Exact host constructor binding. Host must not read derived fields or call overrides during construction. */
+  /** Exact host constructor binding. An owned class ID may override the default
+   * constructor binding when its sourceConstructor and ordered mixins match.
+   * Host must not read derived fields or call overrides during construction. */
   superConstructors?: Record<
     string,
     {
       target: string;
       policy: 'no-derived-state-observation';
+      sourceConstructor?: string;
       namedArguments?: 'options';
       mixins?: string[];
       baseType?: string;

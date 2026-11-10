@@ -5,6 +5,7 @@ import {
   OrdinalSortKey,
   CustomSemanticsAction,
   SemanticsHintOverrides,
+  AccessibilityFocusBlockType,
 } from '../semantics/semantics.ts';
 import { SemanticsAction } from '../../ui/semantics-action.ts';
 import { SemanticsRole } from '../../ui/semantics.ts';
@@ -64,6 +65,7 @@ const fields = new Set([
   'hintOverrides',
   // Inline placement is validated by the owning paragraph bridge.
   'tagForChildren',
+  'accessibilityFocusBlockType',
 ]);
 /** Source policy capture only; Core assembles fragments and orders published geometry. */
 export function nativeSemanticsMetadata(
@@ -97,10 +99,13 @@ export function nativeSemanticsMetadata(
     properties.role != null &&
     properties.role !== SemanticsRole.none &&
     properties.role !== SemanticsRole.radioGroup &&
+    properties.role !== SemanticsRole.dialog &&
     !progress &&
     !loading
   )
     throw Error('Unsupported native semantics role');
+  if (properties.accessibilityFocusBlockType === AccessibilityFocusBlockType.blockSubtree)
+    throw Error('Native semantics subtree focus blocking is not implemented');
   const configuration = new SemanticsConfiguration();
   describe.call(source, configuration);
   const key = configuration.sortKey;

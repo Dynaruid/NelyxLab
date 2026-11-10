@@ -9,6 +9,12 @@ interface NodeOptions extends SceneNodeOptions {
   readonly key?: Key;
   /** Source box adapters retain their non-box RenderObjects under this owner. */
   readonly sliverChildren?: boolean;
+  /** A source sliver delegate keeps its actual KeepAlive parent-data contract. */
+  readonly keepAliveChildren?: boolean;
+  readonly sourceCollectionIndex?: number;
+  /** Retain the Source element/state while excluding its children from Content. */
+  readonly parkedChildren?: boolean;
+  readonly onChildrenInvalidated?: () => void;
 }
 export interface NativeEditableBody {
   readonly text: NonNullable<SceneNode['text']>;
@@ -27,10 +33,15 @@ export class OriginalNativeRender extends RenderBox<RenderObject> {
     super(kind === 'scrollViewport' || options.sliverChildren ? { childType: RenderObject } : {});
   }
   override setupParentData(child: RenderObject): void {
-    if (this.kind === 'sliver' || this.options.listItem) {
+    if (this.kind === 'sliver' || this.options.listItem || this.options.keepAliveChildren) {
       if (!(child.parentData instanceof SliverMultiBoxAdaptorParentData))
         child.parentData = new SliverMultiBoxAdaptorParentData();
     } else super.setupParentData(child);
+  }
+  override paintsChild(child: RenderObject): boolean {
+    // Ink features inspect the Source ancestor chain even when their State is
+    // kept alive. It must describe the same children as the native projection.
+    return super.paintsChild(child) && !this.options.parkedChildren;
   }
 }
 export class OriginalNativeNode extends MultiChildRenderObjectWidget {

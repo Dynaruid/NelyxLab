@@ -139,11 +139,15 @@ struct LayoutWork::State {
   }
   double requestedOffset(Handle node)const {
     for(const auto& value:offsets)if(value.node==node)return value.requested;
-    return 0;
+    return source->get(node).properties.initialScrollOffset;
   }
   bool manualOffset(Handle node)const {
     for(const auto& value:offsets)if(value.node==node)return value.manual;
     return false;
+  }
+  double scrollVelocity(Handle node)const {
+    for(const auto& value:offsets)if(value.node==node)return value.velocity;
+    return 0;
   }
   LayoutBuildRequest nativeListDemand(const Task& task,const Node& node,const ListGeometry* geometry,bool includeMeasurements) {
     require(stack.size()>1&&stack[stack.size()-2].node==node.parent,wire::statuses::invalidGraph);
@@ -161,7 +165,7 @@ struct LayoutWork::State {
     const double paint=std::max(0.0,height-std::max(0.0,origin-requested));
     // Unknown heights select work only. Materialize the first unknown row,
     // measure it in Content, then extend until the actual viewport is covered.
-    const auto range=nativeListRange(node.list,geometry,offset,paint);
+    const auto range=nativeListCacheRange(node.list,geometry,offset,paint,scrollVelocity(parent.id));
     require(range.begin<=range.end&&range.end-range.begin<=wire::limits::listChildren,wire::statuses::contentUnavailable);
     LayoutBuildRequest request;request.node=source->nodes[node.id.slot].value;
     request.constraints={0,width,0,height};
@@ -505,7 +509,7 @@ struct LayoutWork::State {
       const double actualMain = inset(rowHorizontal ? b.width : b.height,
                                       rowHorizontal ? s.left + s.right : s.top + s.bottom);
       double runOffset = 0, runGap = s.runGap;
-      const bool reverseMain=!grid&&(s.constraintFlags&wire::layoutConstraintFlags::reverseMain);
+      const bool reverseMain=(s.constraintFlags&wire::layoutConstraintFlags::reverseMain);
       const bool reverseCross=!grid&&(s.constraintFlags&wire::layoutConstraintFlags::reverseCross);
       if (grid) {
         double used = rows.empty() ? 0 : s.runGap * (rows.size() - 1);
@@ -519,7 +523,7 @@ struct LayoutWork::State {
         b.contentOverflow=longest>actualMain||across>actualCross;
       }
       for(size_t row=0;row<rows.size();++row){const auto& run=rows[reverseCross?rows.size()-1-row:row];
-        double lead = 0, gap = s.gap;
+        double lead = grid&&reverseMain?actualMain-run.length:0, gap = s.gap;
         if (!grid)
           alignment(s.mainAlign, run.end - run.begin, std::max(0.0, actualMain - run.length),
                     lead, gap,reverseMain);
@@ -1176,7 +1180,23 @@ bool LayoutWork::resumeBuild(std::shared_ptr<const Document> document,
   // Offsets are native input, independent of transaction revisions.
   if(offsets.size()!=s.offsets.size())return false;
   for(const auto& offset:offsets)if(std::none_of(s.offsets.begin(),s.offsets.end(),[&](const auto& old){
-      return old.node==offset.node&&old.requested==offset.requested&&old.manual==offset.manual;}))return false;
+      // A compositor offset does not change this list's width/height or its
+      // already-measured siblings. Retarget only the pending list's viewport;
+      // editor and unrelated viewport changes still require normal restart.
+      const bool ownList=request.list&&offset.node==before.parent&&
+        document->get(offset.node).kind==wire::kinds::scrollViewport;
+      if(!document->contains(offset.node))return false;
+      // A box builder inside a fixed horizontal page has the same constraints
+      // while its ancestor scrolls. Do not discard its reply on every trackpad
+      // sample. Source slivers and editor viewports retain their stricter fence.
+      const auto& viewport=document->get(offset.node);
+      const auto& children=document->children[offset.node.slot];
+      const bool movingPage=!request.list&&viewport.kind==wire::kinds::scrollViewport&&
+        (viewport.properties.flags&wire::nodePropertyFlags::horizontal)&&
+        document->descends(boundary,offset.node)&&children.size()==1&&
+        document->get(children.front()).list.fixed&&!document->get(children.front()).layoutBuilder;
+      return old.node==offset.node&&old.manual==offset.manual&&
+        (old.requested==offset.requested||ownList||movingPage);} ))return false;
   // No siblings, ancestors, root ordering or cross-boundary moves may change.
   // Font/editing snapshots can change without a Source transaction edit.
   for(uint32_t slot=1;slot<=std::max(document->highWater,s.source->highWater);++slot){
@@ -1197,8 +1217,11 @@ bool LayoutWork::resumeBuild(std::shared_ptr<const Document> document,
   // All rejection checks precede mutation. Restart only the answered builder;
   // completed siblings and the parent constraint/placement continuations live on.
   const auto input=s.stack.back().input;const auto index=s.stack.back().parentIndex;
+  s.offsets=offsets;
   s.stack.pop_back();
-  for(auto& task:s.stack)if(task.box)task.box->revision=document->get(task.node).layoutRevision;
+  for(auto& task:s.stack)if(task.box){task.box->revision=document->get(task.node).layoutRevision;
+    if(document->get(task.node).kind==wire::kinds::scrollViewport)
+      task.box->listRequestedOffset=s.requestedOffset(task.node);}
   auto& visits=s.result->tapRegionVisits;
   visits.erase(std::remove_if(visits.begin(),visits.end(),[&](Handle node){
     return !document->contains(node)||s.source->descends(node,boundary);}),visits.end());
@@ -1213,4 +1236,9 @@ bool LayoutWork::resumeBuild(std::shared_ptr<const Document> document,
 uint64_t LayoutWork::work() const { return state_->operations; }
 uint64_t LayoutWork::reused() const { return state_->reused; }
 uint64_t LayoutWork::imagePaintWork() const {return state_->imageWork;}
+Handle LayoutWork::currentNode() const {
+  if(!state_->stack.empty())return state_->stack.back().node;
+  if(!state_->flatten.empty())return state_->flatten.back().box->node;
+  return {};
+}
 } // namespace nelyx::v2

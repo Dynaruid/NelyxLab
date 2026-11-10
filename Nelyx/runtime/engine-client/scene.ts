@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { commands as c, protocol as p, eventValue } from './codec.ts';
+import {
+  commands as c,
+  protocol as p,
+  eventValue,
+  appObservationBody,
+  appLayoutSelectionBody,
+} from './codec.ts';
 import type {
   NodeHandle,
   NodeLayout,
@@ -26,6 +32,7 @@ import type {
   NativeTapRegionOptions,
 } from './codec.ts';
 import { EngineError } from './client.ts';
+import { observationNode } from './node-index.ts';
 import { engineFailures } from './lifecycle.ts';
 import type { EngineViewClient } from './client.ts';
 import type { NativePaintOptions } from './native-paint.ts';
@@ -179,6 +186,7 @@ export class SceneReference {
   /** @internal */ bind(writer: SceneWriter, node: NodeHandle): void {
     if (this.binding && this.binding.writer !== writer)
       throw Error('A scene reference belongs to another writer');
+    if (this.binding?.node === node) return;
     this.binding = { writer, node };
   }
   /** @internal */ release(writer: SceneWriter, node?: NodeHandle): void {
@@ -217,6 +225,8 @@ interface NativeRecord {
   readonly parent: NodeHandle | null;
   readonly children: readonly NodeHandle[];
   readonly config: readonly Uint8Array[];
+  readonly configByKind: ReadonlyMap<number, Uint8Array>;
+  readonly fullyCacheable: boolean;
   readonly configInputs: ReadonlyMap<number, unknown>;
 }
 export interface EngineExecutionSnapshot {
@@ -319,6 +329,7 @@ export class SceneWriter {
   private eventsStarted = false;
   private closed = false;
   private accepted = new Map<string, NativeRecord>();
+  private hovered = new Map<string, GestureEvent>();
   private handles = new Map<SceneReference, { kind: SceneNode['kind']; handle: NodeHandle }>();
   private allocations = new Map<string, { reference: SceneReference; handle: NodeHandle }>();
   private free: NodeHandle[] = [];
@@ -341,14 +352,27 @@ export class SceneWriter {
   private eventRequested = false;
   private eventRunning = false;
   private polling = false;
+  private observationPending: EngineResponse | undefined;
+  private observationRunning: Promise<void> | undefined;
   private focusHandle = '';
   private focusCallback: SceneNodeOptions['onFocusChanged'];
   private semanticPublication: EngineResponse | undefined;
   private semanticState: EngineResponse | undefined;
   private layoutObservation: EngineResponse | undefined;
+  private layoutDemand = 0;
+  private observedLayoutDemand = 0;
   private appGeometryNodes = 0;
   private readonly controlRevisions = new Map<string, bigint>();
   readonly counters = {
+    recordsMs: 0,
+    diffMs: 0,
+    topologyReused: 0,
+    publicationObservations: 0,
+    publicationObservationMs: 0,
+    maxPublicationObservationMs: 0,
+    layoutObservations: 0,
+    layoutObservationMs: 0,
+    maxLayoutObservationMs: 0,
     reusedRecords: 0,
     builds: 0,
     transactions: 0,
@@ -377,6 +401,8 @@ export class SceneWriter {
       onInvalidate?: () => void;
       onError?: (error: unknown) => void;
       pollEvents?: boolean;
+      /** Internal App bridges consume geometry/semantics, not renderer payloads. */
+      appObservations?: boolean;
       /** Core observations share the existing bounded event poll. */
       onState?: (state: EngineResponse) => void;
       onPublication?: (state: EngineResponse) => void;
@@ -448,13 +474,10 @@ export class SceneWriter {
       for (const child of node.children) allocate(child, depth + 1);
     };
     allocate(root, 0);
-    const visit = (
-      node: SceneNode,
-      parent: NodeHandle | null,
-      appGeometry = false,
-    ): NodeHandle[] => {
+    const visit = (node: SceneNode, parent: NodeHandle | null, appGeometry = false): NodeHandle => {
       const h = this.handles.get(node.reference)!.handle,
-        o = node.options;
+        o = node.options,
+        key = id(h);
       appGeometry ||= !!o.appDrivenGeometry;
       if (appGeometry) ++this.appGeometryNodes;
       if (
@@ -464,32 +487,42 @@ export class SceneWriter {
         throw new Error(
           'AppDrivenBoundary requires explicit finite width and height on every node',
         );
-      const children = node.children.flatMap((child) => visit(child, h, appGeometry));
-      const before = this.accepted.get(id(h));
+      const children = node.children.map((child) => visit(child, h, appGeometry));
+      const before = this.accepted.get(key);
       // Resolve executable configuration every time: a retained follower or
       // paint reference may point to a newly allocated native handle. Records
       // with native control revisions likewise require live encoding.
       if (
-        before?.node === node &&
+        before &&
+        (before.node === node ||
+          (retainedConfigurations.has(before.node) &&
+            before.node.options === o &&
+            before.node.text === node.text &&
+            before.node.image === node.image &&
+            before.node.editor === node.editor &&
+            before.node.editorFlags === node.editorFlags &&
+            before.node.maximumLength === node.maximumLength)) &&
         retainedConfigurations.has(node) &&
         before.appGeometry === appGeometry &&
         !o.control &&
-        before.config.every((bytes) => before.configInputs.has(commandKind(bytes)))
+        before.fullyCacheable
       ) {
         const sameParent =
           before.parent === parent ||
           (!!before.parent && !!parent && id(before.parent) === id(parent));
         const sameChildren =
           before.children.length === children.length &&
-          before.children.every((child, index) => id(child) === id(children[index]!));
-        records.set(id(h), sameParent && sameChildren ? before : { ...before, parent, children });
+          before.children.every(
+            (child, index) => child === children[index] || id(child) === id(children[index]!),
+          );
+        records.set(key, sameParent && sameChildren ? before : { ...before, parent, children });
         ++this.counters.reusedRecords;
-        return [h];
+        return h;
       }
-      const previousConfig = new Map(before?.config.map((value) => [commandKind(value), value]));
+      const previousConfig = before?.configByKind;
       const configInputs = new Map<number, unknown>();
       const encode = (kind: number, input: unknown, make: () => Uint8Array): Uint8Array => {
-        const previous = previousConfig.get(kind);
+        const previous = previousConfig?.get(kind);
         if (
           previous &&
           before!.configInputs.has(kind) &&
@@ -524,7 +557,7 @@ export class SceneWriter {
         make: () => Uint8Array,
         input: unknown = enabled,
       ) => {
-        const previous = previousConfig.get(kind);
+        const previous = previousConfig?.get(kind);
         // Never spend a command on an absent default. An explicit reset is
         // retained until ACK; NACK/retry still sees the old immutable bytes.
         if (!enabled && !previous) return;
@@ -682,11 +715,37 @@ export class SceneWriter {
         config.push(
           c.motion(h, o.motion.id, o.motion.revision ?? 0n, o.motion.opacity, o.motion.seconds),
         );
-      records.set(id(h), { node, handle: h, parent, children, config, configInputs, appGeometry });
-      return [h];
+      const configByKind = new Map(config.map((value) => [commandKind(value), value]));
+      // Accepted callback/configuration records do not own the Scene subtree.
+      // Topology is already represented by generational handles. Keeping only
+      // this node's configuration lets relinked ancestors reuse a record without
+      // retaining detached children (including old image/paragraph resources).
+      const ownNode = new SceneNode(
+        node.reference,
+        node.kind,
+        [],
+        node.options,
+        node.text,
+        node.image,
+        node.editor,
+        node.editorFlags,
+        node.maximumLength,
+      );
+      if (retainedConfigurations.has(node)) retainSceneConfiguration(ownNode);
+      records.set(key, {
+        node: ownNode,
+        handle: h,
+        parent,
+        children,
+        config,
+        configByKind,
+        fullyCacheable: config.every((bytes) => configInputs.has(commandKind(bytes))),
+        configInputs,
+        appGeometry,
+      });
+      return h;
     };
-    const roots = visit(root, null);
-    if (roots.length !== 1) throw new Error('SceneWriter requires one render root');
+    visit(root, null);
     return records;
   }
   private diff(desired: Map<string, NativeRecord>): Uint8Array[] {
@@ -697,6 +756,39 @@ export class SceneWriter {
     for (const resource of wantedResources)
       if (!this.acceptedResources.has(resource) && !this.uploadedResources.has(resource))
         changes.push(c.acquireResource(this.resources.get(resource)!, resource.bytes));
+    // Paint-only updates keep the exact handle/parent/child order. Avoid building
+    // a shadow topology, preorder and detach/move indexes for that common case.
+    const sameHandle = (a: NodeHandle | null, b: NodeHandle | null) =>
+      a === b || (!!a && !!b && a.slot === b.slot && a.generation === b.generation);
+    let sameTopology = desired.size === this.accepted.size;
+    if (sameTopology)
+      for (const [key, record] of desired) {
+        const before = this.accepted.get(key);
+        if (
+          !before ||
+          !sameHandle(before.parent, record.parent) ||
+          before.children.length !== record.children.length ||
+          !before.children.every((child, i) => sameHandle(child, record.children[i]!))
+        ) {
+          sameTopology = false;
+          break;
+        }
+      }
+    if (sameTopology) {
+      ++this.counters.topologyReused;
+      for (const [key, record] of desired) {
+        const before = this.accepted.get(key)!;
+        if (before === record) continue;
+        for (const config of record.config) {
+          const previous = before.configByKind.get(commandKind(config));
+          if (!previous || !equalBytes(config, previous)) changes.push(config);
+        }
+      }
+      for (const resource of this.acceptedResources)
+        if (!wantedResources.has(resource))
+          changes.push(c.releaseResource(this.resources.get(resource)!));
+      return changes;
+    }
     const topology = new Map<string, string[]>();
     for (const r of this.accepted.values()) topology.set(id(r.handle), r.children.map(id));
     const detach = (r: NativeRecord) => {
@@ -732,8 +824,8 @@ export class SceneWriter {
       const before = this.accepted.get(id(r.handle));
       let initialFlags = 0;
       if (!before) {
-        const layout = r.config.find((value) => commandKind(value) === p.commands.layout),
-          policy = r.config.find((value) => commandKind(value) === p.commands.eventPolicy);
+        const layout = r.configByKind.get(p.commands.layout),
+          policy = r.configByKind.get(p.commands.eventPolicy);
         if (layout && equalBytes(layout, c.layout(r.handle)))
           initialFlags |= p.nodeCreationFlags.layoutEnabled;
         else if (layout && equalBytes(layout, c.layout(r.handle, { childConstraints: 'inherit' })))
@@ -785,9 +877,9 @@ export class SceneWriter {
             ),
           ];
       r.config.forEach((config) => {
-        const previous = (before?.config ?? initial)?.find(
-          (value) => commandKind(value) === commandKind(config),
-        );
+        const previous = before
+          ? before.configByKind.get(commandKind(config))
+          : initial?.find((value) => commandKind(value) === commandKind(config));
         if (!previous || !equalBytes(config, previous)) changes.push(config);
       });
     }
@@ -860,8 +952,11 @@ export class SceneWriter {
         nextSlot = this.nextSlot,
         resources = new Map(this.resources);
       let desired: Map<string, NativeRecord>;
+      const recordsStarted = typeof performance === 'undefined' ? Date.now() : performance.now();
       try {
         desired = this.records(this.root);
+        this.counters.recordsMs +=
+          (typeof performance === 'undefined' ? Date.now() : performance.now()) - recordsStarted;
         ++this.counters.builds;
       } catch (error) {
         for (const reference of this.handles.keys()) reference.release(this);
@@ -909,7 +1004,10 @@ export class SceneWriter {
           await this.uploadImage(upload);
         }
       }
+      const diffStarted = typeof performance === 'undefined' ? Date.now() : performance.now();
       const changes = this.diff(desired);
+      this.counters.diffMs +=
+        (typeof performance === 'undefined' ? Date.now() : performance.now()) - diffStarted;
       if (changes.length > p.limits.commands) {
         const kinds = new Map<number, number>();
         for (const change of changes) {
@@ -926,6 +1024,17 @@ export class SceneWriter {
         try {
           await this.view.commit(changes);
         } catch (error) {
+          if (error instanceof EngineError && error.status === p.statuses.budgetExceeded) {
+            if (!this.view.hasPendingTransaction) this.pending = undefined;
+            const semantics = [...desired.values()].filter(
+              (record) => record.node.options.semantics !== undefined,
+            ).length;
+            throw new EngineError(
+              error.status,
+              `Scene budget exceeded: nodes=${desired.size}/${p.limits.nodes}, semantics=${semantics}/${p.limits.semanticsNodes}, commands=${changes.length}/${p.limits.commands}, bytes=${changes.reduce((sum, command) => sum + command.byteLength, 0)}/${p.limits.packetBytes}`,
+              error.result,
+            );
+          }
           if (!(error instanceof EngineError) || error.status !== p.statuses.timedOut) {
             if (!this.view.hasPendingTransaction) this.pending = undefined;
             throw error;
@@ -963,6 +1072,12 @@ export class SceneWriter {
       if (before.node.editor !== after?.node.editor) before.node.editor?.detach(this);
       if (!after) {
         this.controlRevisions.delete(key);
+        const hover = this.hovered.get(key);
+        this.hovered.delete(key);
+        // A kept-alive Source subtree may leave the native scene without being
+        // disposed. Core cannot address it after removal, so complete its last
+        // delivered hover before releasing the handle (disposed Sources ignore it).
+        if (hover) before.node.options.onGesture?.({ ...hover, kind: 'mouseExit' });
       }
     }
     for (const [key, allocation] of this.allocations) {
@@ -1037,7 +1152,7 @@ export class SceneWriter {
       frame.publishedDevice !== state.device
     )
       return null;
-    let current = frame.nodes.find((value) => id(value.node) === id(node));
+    let current = observationNode(frame, node);
     for (let depth = 0; current && depth <= p.limits.depth; ++depth) {
       if (current.flags & p.nodeFlags.semanticsBlocked) return null;
       const semantic = current.semantics;
@@ -1051,7 +1166,7 @@ export class SceneWriter {
           : null;
       }
       const parent = current.parent;
-      current = frame.nodes.find((value) => id(value.node) === id(parent));
+      current = observationNode(frame, parent);
     }
     return null;
   }
@@ -1073,99 +1188,159 @@ export class SceneWriter {
     if (this.options.onInputEvent) this.options.onInputEvent(event, perform);
     else perform();
   }
-  async pollEvents(): Promise<void> {
+  async pollEvents(waitForObservation = true): Promise<void> {
     if (this.closed || this.polling) return;
     this.polling = true;
+    let state: EngineResponse;
     try {
       // Drain the bounded input queue before optional scene observations. The
       // latter can be large and must not hold admitted input behind two RPCs.
-      const state = await this.view.pollInteractionEvents();
+      state = await this.view.pollInteractionEvents();
       if (this.closed) return;
+      // A seek can request new children without moving the published offset.
+      // Keep this demand across coalesced polls until geometry is observed.
+      if (state.events.some((event) => event.kind === p.events.needChildren)) ++this.layoutDemand;
       this.semanticState = state;
       this.options.onState?.(state);
       await this.deliverInput(state);
       if (state.interactionCount > 0) this.eventRequested = true;
       if (this.closed) return;
-      let observed = state;
-      const publication = this.semanticPublication;
-      if (
-        this.options.onPublication &&
-        (!publication ||
-          publication.publication !== state.publication ||
-          publication.metrics !== state.metrics ||
-          publication.device !== state.device ||
-          publication.visible !== state.visible ||
-          publication.focused !== state.focused ||
-          publication.focusWork !== state.focusWork ||
-          publication.editingWork !== state.editingWork ||
-          publication.controlWork !== state.controlWork ||
-          publication.consumedThrough !== state.consumedThrough)
-      ) {
-        const publication = await this.view.request(p.opcodes.semanticsSnapshot);
-        if (this.closed) return;
-        observed = publication;
-        if (publication.status === p.statuses.ok) {
-          this.semanticPublication = publication;
-          this.options.onPublication(publication);
-        } else if (publication.status === p.statuses.notFound) this.semanticPublication = undefined;
-        else
-          throw new EngineError(
-            publication.status,
-            'Scene publication observation failed',
-            publication,
-          );
-      }
-      const observers = [...this.accepted.values()].filter((r) => r.node.options.onLayout);
-      const layout = this.layoutObservation;
-      if (
-        observers.length &&
-        (!layout ||
-          layout.activePreparation !== observed.activePreparation ||
-          layout.metrics !== observed.metrics ||
-          layout.device !== observed.device ||
-          layout.publishedDocument !== observed.publishedDocument ||
-          layout.publishedMetrics !== observed.publishedMetrics ||
-          layout.publishedDevice !== observed.publishedDevice ||
-          layout.property !== observed.property ||
-          layout.lastInput !== observed.lastInput ||
-          layout.consumedThrough !== observed.consumedThrough ||
-          layout.focusWork !== observed.focusWork ||
-          layout.editingWork !== observed.editingWork ||
-          layout.controlWork !== observed.controlWork ||
-          layout.fontRevision !== observed.fontRevision ||
-          layout.visible !== observed.visible ||
-          layout.focused !== observed.focused)
-      ) {
-        const snapshot = await this.view.request(p.opcodes.layoutSnapshot);
-        if (this.closed) return;
-        observed = snapshot;
-        // Mount acknowledgement can precede the first activated layout, in
-        // particular during cold native-DPR browser startup. Keep polling
-        // terminal/input events without reporting normal preparation as an error.
-        if (
-          snapshot.status !== p.statuses.ok &&
-          !(
-            snapshot.status === p.statuses.notFound &&
-            snapshot.activeDocument === 0n &&
-            !snapshot.closed
-          )
-        )
-          throw new EngineError(snapshot.status, 'Scene layout observation failed', snapshot);
-        if (snapshot.status === p.statuses.ok) {
-          this.layoutObservation = snapshot;
-          const nodes = new Map(snapshot.nodes.map((node) => [id(node.node), node]));
-          for (const record of observers) {
-            const node = nodes.get(id(record.handle));
-            if (node && !this.closed) record.node.options.onLayout!(node, snapshot);
-          }
-        }
-      }
-      this.semanticState = observed;
-      this.options.onState?.(observed);
-      this.options.onAfterEvents?.();
     } finally {
       this.polling = false;
     }
+    // Input keeps draining while the single observation owner decodes geometry.
+    // Retain only the newest demand, never a queue of obsolete frame snapshots.
+    this.observationPending = state;
+    if (!this.observationRunning) {
+      this.observationRunning = Promise.resolve()
+        .then(async () => {
+          while (this.observationPending && !this.closed) {
+            const pending = this.observationPending;
+            this.observationPending = undefined;
+            await this.observeScene(pending);
+          }
+        })
+        .finally(() => {
+          this.observationRunning = undefined;
+        });
+      void this.observationRunning.catch((error) => {
+        if (!this.closed) this.options.onError?.(error);
+      });
+    }
+    if (waitForObservation) await this.observationRunning;
+  }
+  private async observeScene(state: EngineResponse): Promise<void> {
+    let observed = state;
+    const publication = this.semanticPublication;
+    if (
+      this.options.onPublication &&
+      (!publication ||
+        publication.publication !== state.publication ||
+        publication.metrics !== state.metrics ||
+        publication.device !== state.device ||
+        publication.visible !== state.visible ||
+        publication.focused !== state.focused ||
+        publication.focusWork !== state.focusWork ||
+        publication.editingWork !== state.editingWork ||
+        publication.controlWork !== state.controlWork ||
+        (!this.options.appObservations && publication.consumedThrough !== state.consumedThrough))
+    ) {
+      const started = typeof performance === 'undefined' ? Date.now() : performance.now();
+      const publication = await this.view.request(
+        p.opcodes.semanticsSnapshot,
+        this.options.appObservations ? appObservationBody() : undefined,
+      );
+      const elapsed =
+        (typeof performance === 'undefined' ? Date.now() : performance.now()) - started;
+      ++this.counters.publicationObservations;
+      this.counters.publicationObservationMs += elapsed;
+      this.counters.maxPublicationObservationMs = Math.max(
+        this.counters.maxPublicationObservationMs,
+        elapsed,
+      );
+      if (this.closed) return;
+      observed = publication;
+      if (publication.status === p.statuses.ok) {
+        this.semanticPublication = publication;
+        this.options.onPublication(publication);
+      } else if (publication.status === p.statuses.notFound) this.semanticPublication = undefined;
+      else
+        throw new EngineError(
+          publication.status,
+          'Scene publication observation failed',
+          publication,
+        );
+    }
+    const observers = [...this.accepted.values()].filter((r) => r.node.options.onLayout);
+    const layout = this.layoutObservation;
+    const demand = this.layoutDemand;
+    if (
+      observers.length &&
+      (!layout ||
+        this.observedLayoutDemand !== demand ||
+        layout.activePreparation !== observed.activePreparation ||
+        layout.metrics !== observed.metrics ||
+        layout.device !== observed.device ||
+        layout.publishedDocument !== observed.publishedDocument ||
+        layout.publishedMetrics !== observed.publishedMetrics ||
+        layout.publishedDevice !== observed.publishedDevice ||
+        layout.property !== observed.property ||
+        (!this.options.appObservations &&
+          (layout.lastInput !== observed.lastInput ||
+            layout.consumedThrough !== observed.consumedThrough)) ||
+        layout.focusWork !== observed.focusWork ||
+        layout.editingWork !== observed.editingWork ||
+        layout.controlWork !== observed.controlWork ||
+        layout.fontRevision !== observed.fontRevision ||
+        layout.visible !== observed.visible ||
+        layout.focused !== observed.focused)
+    ) {
+      const started = typeof performance === 'undefined' ? Date.now() : performance.now();
+      const snapshot = await this.view.request(
+        p.opcodes.layoutSnapshot,
+        this.options.appObservations
+          ? appLayoutSelectionBody(observers.map((record) => record.handle))
+          : undefined,
+      );
+      const elapsed =
+        (typeof performance === 'undefined' ? Date.now() : performance.now()) - started;
+      ++this.counters.layoutObservations;
+      this.counters.layoutObservationMs += elapsed;
+      this.counters.maxLayoutObservationMs = Math.max(
+        this.counters.maxLayoutObservationMs,
+        elapsed,
+      );
+      if (this.closed) return;
+      observed = snapshot;
+      // Mount acknowledgement can precede the first activated layout, in
+      // particular during cold native-DPR browser startup. Keep polling
+      // terminal/input events without reporting normal preparation as an error.
+      if (
+        snapshot.status !== p.statuses.ok &&
+        !(
+          snapshot.status === p.statuses.notFound &&
+          snapshot.activeDocument === 0n &&
+          !snapshot.closed
+        )
+      )
+        throw new EngineError(snapshot.status, 'Scene layout observation failed', snapshot);
+      if (snapshot.status === p.statuses.ok) {
+        this.layoutObservation = snapshot;
+        this.observedLayoutDemand = demand;
+        const nodes = new Map(snapshot.nodes.map((node) => [id(node.node), node]));
+        for (const record of observers) {
+          const node = nodes.get(id(record.handle));
+          if (node && !this.closed) record.node.options.onLayout!(node, snapshot);
+        }
+      }
+    }
+    // A newer input poll may already have advanced focus/metrics/control
+    // state. An older observation must not rewind those fences.
+    if (this.semanticState === state) {
+      this.semanticState = observed;
+      this.options.onState?.(observed);
+    }
+    this.options.onAfterEvents?.();
   }
   private async deliverInput(state: EngineResponse): Promise<void> {
     for (const sample of state.gestureRequests) {
@@ -1254,16 +1429,20 @@ export class SceneWriter {
           ([, value]) => value === event.status,
         )?.[0] as GestureEvent['kind'] | undefined;
         if (kind)
-          this.inputEvent(event, record, (current) =>
-            current?.node.options.onGesture?.({
+          this.inputEvent(event, record, (current) => {
+            const gesture: GestureEvent = {
               kind,
               sequence: event.id,
               x: event.x,
               y: event.y,
               value: eventValue(event.detail),
               ...(event.gesture ? { details: event.gesture } : {}),
-            }),
-          );
+            };
+            const key = id(record.handle);
+            if (kind === 'mouseEnter') this.hovered.set(key, gesture);
+            else if (kind === 'mouseExit') this.hovered.delete(key);
+            current?.node.options.onGesture?.(gesture);
+          });
       } else if (event.kind === p.events.editingChanged && record.node.editor) {
         const editing = await this.view.editSnapshot(event.node);
         if (!this.closed)
@@ -1315,7 +1494,7 @@ export class SceneWriter {
       try {
         do {
           this.eventRequested = false;
-          await this.pollEvents();
+          await this.pollEvents(false);
         } while (this.eventRequested && !this.closed);
       } catch (error) {
         if (!this.closed) this.options.onError?.(error);
@@ -1330,6 +1509,7 @@ export class SceneWriter {
     this.unsubscribeChanges?.();
     this.semanticPublication = this.semanticState = undefined;
     this.layoutObservation = undefined;
+    this.observationPending = undefined;
     if (this.eventTimer !== undefined) clearTimeout(this.eventTimer);
     await this.running;
   }
@@ -1372,6 +1552,7 @@ export class SceneWriter {
     this.handles.clear();
     this.allocations.clear();
     this.accepted.clear();
+    this.hovered.clear();
     this.controlRevisions.clear();
     this.focusCallback = undefined;
     this.focusHandle = '';

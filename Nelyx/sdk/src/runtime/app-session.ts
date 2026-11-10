@@ -53,6 +53,7 @@ export interface AppSessionDefinition<T> {
   dispose?(): void | Promise<void>;
 }
 export interface AppSceneHost<T> {
+  diagnostics?(): Record<string, unknown>;
   prepare?(context: EngineV2AppContext): void | Promise<void>;
   mount(root: T): Promise<void>;
   close(): Promise<void>;
@@ -237,6 +238,7 @@ export function launchAppSession<T>(
       ]);
       notify({
         kind: 'app-disposed',
+        diagnostics: widgets.diagnostics?.(),
         assets: assets.execution,
         buffers: buffers.execution,
         images: images.execution,

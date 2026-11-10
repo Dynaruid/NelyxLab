@@ -9,6 +9,8 @@ export type { SemanticProperties, SemanticSnapshot, SemanticCustomAction } from 
 import { layoutProgramBytes } from './layout-program.ts';
 import type { NativeLayoutProgram } from '@nelyx/core/framework/rendering/object';
 import { encodeUtf8, decodeUtf8 } from './utf8.ts';
+import { readObservationRow } from './observation-row.ts';
+import type { ObservationDecodeCache } from './observation-cache.ts';
 import { paragraphOptionsBytes, readParagraphOptions } from './paragraph.ts';
 import { clipStyleBytes, readClipStyle } from './clip.ts';
 import { nativePaintBody, readNativePaint } from './native-paint.ts';
@@ -58,6 +60,10 @@ export interface NodeProperties {
   readonly extent?: keyof typeof p.extents;
   readonly horizontal?: boolean;
   readonly chaining?: boolean;
+  /** Native PageScrollPhysics with viewportFraction=1 and the default spring. */
+  readonly pageSnapping?: boolean;
+  /** Applied by Core only when this viewport generation is first activated. */
+  readonly initialScrollOffset?: number;
 }
 export type AffineMatrix = readonly [number, number, number, number, number, number];
 export type NativeTapRegionOptions =
@@ -318,6 +324,22 @@ function readHandle(v: DataView, offset: number): NodeHandle {
 /** State and pending-work metadata without copying the desired scene. */
 export function stateInspectionBody(): Uint8Array {
   return body(4, (view) => view.setUint32(0, p.inspectionFlags.stateOnly, true));
+}
+/** Geometry, list, focus/editing and semantics without renderer paint payloads. */
+export function appObservationBody(): Uint8Array {
+  return body(4, (view) => view.setUint32(0, p.inspectionFlags.appObservation, true));
+}
+/** Active layout for registered observers plus each observer's direct parent. */
+export function appLayoutSelectionBody(nodes: readonly NodeHandle[]): Uint8Array {
+  if (nodes.length > p.limits.nodes) throw new RangeError('Layout observer budget exceeded');
+  return body(8 + nodes.length * 8, (view) => {
+    view.setUint32(0, p.inspectionFlags.appLayoutSelection, true);
+    view.setUint32(4, nodes.length, true);
+    nodes.forEach((node, index) => {
+      view.setUint32(8 + index * 8, node.slot, true);
+      view.setUint32(12 + index * 8, node.generation, true);
+    });
+  });
 }
 export function packet(
   opcode: number,
@@ -947,10 +969,15 @@ export const commands = {
     return command(
       p.commands.properties,
       node,
-      body(64, (v) => {
+      body(p.nodeInitialPropertiesBytes, (v) => {
+        v.setFloat64(64, finite(value.initialScrollOffset ?? 0), true);
         values.forEach((scalar, i) => v.setFloat64(i * 8, finite(scalar), true));
         v.setUint32(56, p.extents[value.extent ?? 'finite'], true);
-        v.setUint32(60, (value.horizontal ? 1 : 0) | (value.chaining ? 2 : 0), true);
+        v.setUint32(
+          60,
+          (value.horizontal ? 1 : 0) | (value.chaining ? 2 : 0) | (value.pageSnapping ? 4 : 0),
+          true,
+        );
       }),
     );
   },
@@ -1482,8 +1509,15 @@ export interface EngineResponse {
   readonly nodes: readonly EngineNodeSnapshot[];
   readonly events: readonly EngineEvent[];
 }
-export function response(bytes: Uint8Array): EngineResponse {
-  if (bytes.length < p.headerBytes + p.stateBytes || bytes.length > p.limits.packetBytes)
+export function response(
+  bytes: Uint8Array,
+  options: {
+    appObservation?: boolean;
+    observationCache?: ObservationDecodeCache;
+    observationOwner?: string;
+  } = {},
+): EngineResponse {
+  if (bytes.length < p.headerBytes + p.stateBytes || bytes.length > p.limits.responseBytes)
     throw new Error('Malformed engine response length');
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (
@@ -1512,85 +1546,90 @@ export function response(bytes: Uint8Array): EngineResponse {
   const nodes: EngineNodeSnapshot[] = [],
     events: EngineEvent[] = [];
   let cursor = p.headerBytes + p.stateBytes;
+  // Lazy App rows never retain a transport-owned/mutable caller buffer.
+  const observationData =
+    options.appObservation && rows ? new DataView(bytes.slice().buffer) : undefined;
   for (let i = 0; i < rows; ++i, cursor += p.nodeBytes) {
+    if (observationData) {
+      nodes.push(readObservationRow(observationData, cursor, finite));
+      continue;
+    }
     const f = (offset: number) => finite(v.getFloat64(cursor + offset, true));
-    nodes.push(
-      Object.freeze({
-        editing: null,
-        layoutBuilder: null,
-        snapshot: null,
-        imagePaint: null,
-        fontBinding: null,
-        paragraph: null,
-        graphics: null,
-        clipStyle: null,
-        layerComposition: null,
-        nativePaint: null,
-        control: null,
-        list: null,
-        textGeometry: null,
-        semantics: null,
-        semanticTraversal: null,
-        hasFocus: !!(v.getUint32(cursor + 20, true) & 256),
-        caretVisible: !!(v.getUint32(cursor + 20, true) & 512),
-        node: readHandle(v, cursor),
-        kind: v.getUint32(cursor + 8, true),
-        parent: readHandle(v, cursor + 12),
-        flags: v.getUint32(cursor + 20, true),
-        x: f(24),
-        y: f(32),
-        width: f(40),
-        height: f(48),
-        matrix: Object.freeze(
-          Array.from({ length: 6 }, (_, i) => f(p.nodeFields.matrix + i * 8)),
-        ) as unknown as AffineMatrix,
-        bounds: Object.freeze({
-          x: f(p.nodeFields.boundsX),
-          y: f(p.nodeFields.boundsY),
-          width: f(p.nodeFields.boundsWidth),
-          height: f(p.nodeFields.boundsHeight),
-        }),
-        depth: v.getUint32(cursor + p.nodeFields.depth, true),
-        localOpacity: f(p.nodeFields.localOpacity),
-        content: Object.freeze({
-          x: f(p.nodeFields.contentX),
-          y: f(p.nodeFields.contentY),
-          width: f(p.nodeFields.contentWidth),
-          height: f(p.nodeFields.contentHeight),
-        }),
-        offset: f(56),
-        velocity: f(64),
-        scrollRevision: v.getBigUint64(cursor + 72, true),
-        opacity: f(80),
-        motion: v.getBigUint64(cursor + 88, true),
-        color: v.getUint32(cursor + p.nodeFields.color, true),
-        order: v.getUint32(cursor + p.nodeFields.order, true),
-        radius: f(p.nodeFields.radius),
-        fontSize: f(p.nodeFields.fontSize),
-        resource: readHandle(v, cursor + p.nodeFields.resource),
-        baseline: f(p.nodeFields.baseline),
-        layoutRevision: v.getBigUint64(cursor + p.nodeFields.layoutRevision, true),
-        textDirection: v.getUint32(cursor + p.nodeFields.textDirection, true),
-        requestedOffset: f(p.nodeFields.requestedOffset),
-        scrollMinimum: f(p.nodeFields.scrollMinimum),
-        scrollMaximum: f(p.nodeFields.scrollMaximum),
-        deferred: !!(v.getUint32(cursor + 20, true) & 64),
-        preparedCoverage:
-          v.getUint32(cursor + 20, true) & 128
-            ? Object.freeze({
-                minimum: f(p.nodeFields.preparedMinimum),
-                maximum: f(p.nodeFields.preparedMaximum),
-                revision: v.getBigUint64(cursor + p.nodeFields.coverageRevision, true),
-              })
-            : null,
-        clip: Object.freeze({
-          x: f(p.nodeFields.clipX),
-          y: f(p.nodeFields.clipY),
-          width: f(p.nodeFields.clipWidth),
-          height: f(p.nodeFields.clipHeight),
-        }),
+    nodes.push({
+      editing: null,
+      layoutBuilder: null,
+      snapshot: null,
+      imagePaint: null,
+      fontBinding: null,
+      paragraph: null,
+      graphics: null,
+      clipStyle: null,
+      layerComposition: null,
+      nativePaint: null,
+      control: null,
+      list: null,
+      textGeometry: null,
+      semantics: null,
+      semanticTraversal: null,
+      hasFocus: !!(v.getUint32(cursor + 20, true) & 256),
+      caretVisible: !!(v.getUint32(cursor + 20, true) & 512),
+      node: readHandle(v, cursor),
+      kind: v.getUint32(cursor + 8, true),
+      parent: readHandle(v, cursor + 12),
+      flags: v.getUint32(cursor + 20, true),
+      x: f(24),
+      y: f(32),
+      width: f(40),
+      height: f(48),
+      matrix: Object.freeze(
+        Array.from({ length: 6 }, (_, i) => f(p.nodeFields.matrix + i * 8)),
+      ) as unknown as AffineMatrix,
+      bounds: Object.freeze({
+        x: f(p.nodeFields.boundsX),
+        y: f(p.nodeFields.boundsY),
+        width: f(p.nodeFields.boundsWidth),
+        height: f(p.nodeFields.boundsHeight),
       }),
-    );
+      depth: v.getUint32(cursor + p.nodeFields.depth, true),
+      localOpacity: f(p.nodeFields.localOpacity),
+      content: Object.freeze({
+        x: f(p.nodeFields.contentX),
+        y: f(p.nodeFields.contentY),
+        width: f(p.nodeFields.contentWidth),
+        height: f(p.nodeFields.contentHeight),
+      }),
+      offset: f(56),
+      velocity: f(64),
+      scrollRevision: v.getBigUint64(cursor + 72, true),
+      opacity: f(80),
+      motion: v.getBigUint64(cursor + 88, true),
+      color: v.getUint32(cursor + p.nodeFields.color, true),
+      order: v.getUint32(cursor + p.nodeFields.order, true),
+      radius: f(p.nodeFields.radius),
+      fontSize: f(p.nodeFields.fontSize),
+      resource: readHandle(v, cursor + p.nodeFields.resource),
+      baseline: f(p.nodeFields.baseline),
+      layoutRevision: v.getBigUint64(cursor + p.nodeFields.layoutRevision, true),
+      textDirection: v.getUint32(cursor + p.nodeFields.textDirection, true),
+      requestedOffset: f(p.nodeFields.requestedOffset),
+      scrollMinimum: f(p.nodeFields.scrollMinimum),
+      scrollMaximum: f(p.nodeFields.scrollMaximum),
+      deferred: !!(v.getUint32(cursor + 20, true) & 64),
+      preparedCoverage:
+        v.getUint32(cursor + 20, true) & 128
+          ? Object.freeze({
+              minimum: f(p.nodeFields.preparedMinimum),
+              maximum: f(p.nodeFields.preparedMaximum),
+              revision: v.getBigUint64(cursor + p.nodeFields.coverageRevision, true),
+            })
+          : null,
+      clip: Object.freeze({
+        x: f(p.nodeFields.clipX),
+        y: f(p.nodeFields.clipY),
+        width: f(p.nodeFields.clipWidth),
+        height: f(p.nodeFields.clipHeight),
+      }),
+    });
   }
   for (let i = 0; i < eventCount; ++i, cursor += p.eventBytes) {
     const clipboardReadSnapshot =
@@ -1876,18 +1915,28 @@ export function response(bytes: Uint8Array): EngineResponse {
           });
         }),
     );
+  // Group once by the complete generational handle. Scanning every blob for
+  // every node made each publication/layout observation quadratic on Hermes.
+  const nodeKey = (handle: NodeHandle) => `${handle.slot}:${handle.generation}`;
+  const nodeHandles = new Set(nodes.map((node) => nodeKey(node.node)));
+  const nodeBlobs = new Map<string, EngineBlob[]>();
+  for (const blob of blobs) {
+    if (blob.type < 3) continue;
+    const key = nodeKey(blob.handle),
+      group = nodeBlobs.get(key);
+    if (group) group.push(blob);
+    else nodeBlobs.set(key, [blob]);
+  }
   for (const blob of blobs)
     if (
       (blob.type === p.layoutBuilderBlob ||
         blob.type === p.semanticGeometryBlob ||
         blob.type === p.semanticTraversalBlob) &&
-      !nodes.some(
-        (node) =>
-          node.node.slot === blob.handle.slot && node.node.generation === blob.handle.generation,
-      )
+      !nodeHandles.has(nodeKey(blob.handle))
     )
       throw Error('Foreign layout/semantics geometry owner');
-  const enriched = nodes.map((node) => {
+  const enriched = nodes.map((node): EngineNodeSnapshot => {
+    if (observationData && !nodeBlobs.has(nodeKey(node.node))) return Object.freeze(node);
     let semanticGeometry: EngineNodeSnapshot['semanticGeometry'] = null;
     let semanticTraversal: EngineNodeSnapshot['semanticTraversal'] = null;
     let layoutBuilder: LayoutBuilderOptions | null = null;
@@ -1905,13 +1954,7 @@ export function response(bytes: Uint8Array): EngineResponse {
     let graphics: GraphicsSnapshot | null = null,
       clipStyle: ClipStyleSnapshot | null = null,
       paragraph: ParagraphSnapshot | null = null;
-    for (const blob of blobs) {
-      if (
-        blob.handle.slot !== node.node.slot ||
-        blob.handle.generation !== node.node.generation ||
-        blob.type < 3
-      )
-        continue;
+    for (const blob of nodeBlobs.get(nodeKey(node.node)) ?? []) {
       const d = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
         size = blob.bytes.length;
       if (blob.type === p.semanticTraversalBlob) {
@@ -1928,11 +1971,7 @@ export function response(bytes: Uint8Array): EngineResponse {
         if (
           index >= p.limits.semanticsNodes ||
           (!parent.slot && parent.generation) ||
-          (parent.slot &&
-            (!parent.generation ||
-              !nodes.some(
-                (n) => n.node.slot === parent.slot && n.node.generation === parent.generation,
-              )))
+          (parent.slot && (!parent.generation || !nodeHandles.has(nodeKey(parent))))
         )
           throw Error('Foreign semantics traversal parent/index');
         const customSources: { readonly id: number; readonly source: NodeHandle }[] = [];
@@ -1943,10 +1982,7 @@ export function response(bytes: Uint8Array): EngineResponse {
           if (
             d.getUint32(at + 4, true) ||
             customSources.some((entry) => entry.id === id) ||
-            !nodes.some(
-              (entry) =>
-                entry.node.slot === source.slot && entry.node.generation === source.generation,
-            )
+            !nodeHandles.has(nodeKey(source))
           )
             throw Error('Foreign/duplicate semantics custom source');
           customSources.push(Object.freeze({ id, source }));
@@ -2063,7 +2099,13 @@ export function response(bytes: Uint8Array): EngineResponse {
       }
       if (blob.type === 11) {
         if (paragraph) throw Error('Duplicate paragraph options');
-        paragraph = readParagraphOptions(blob.bytes);
+        paragraph = options.observationCache
+          ? options.observationCache.read(
+              `${options.observationOwner}/11/${node.node.slot}:${node.node.generation}`,
+              blob.bytes,
+              readParagraphOptions,
+            )
+          : readParagraphOptions(blob.bytes);
         continue;
       }
       if (blob.type === 10) {
@@ -2141,7 +2183,13 @@ export function response(bytes: Uint8Array): EngineResponse {
       if (blob.type === 3) {
         if (semantics || size < p.semanticsBytes || !(d.getUint32(80, true) & 1))
           throw Error('Invalid semantics blob');
-        semantics = readSemanticBody(blob.bytes);
+        semantics = options.observationCache
+          ? options.observationCache.read(
+              `${options.observationOwner}/3/${node.node.slot}:${node.node.generation}`,
+              blob.bytes,
+              readSemanticBody,
+            )
+          : readSemanticBody(blob.bytes);
       } else if (blob.type === 4) {
         if (editing || size < 48 || d.getUint32(44, true) || size !== 48 + d.getUint32(40, true))
           throw new Error('Invalid editing blob');
@@ -2280,26 +2328,29 @@ export function response(bytes: Uint8Array): EngineResponse {
       (!paintPlacement || fontBinding.fontRevision !== paintPlacement.fontRevision)
     )
       throw Error('Pinned paragraph font revision differs from its recording');
-    return Object.freeze({
-      ...node,
-      layoutBuilder,
-      snapshot,
-      editing,
-      textGeometry,
-      semantics,
-      semanticTraversal,
-      semanticGeometry,
-      list,
-      control,
-      graphics,
-      nativePaint,
-      imagePaint,
-      paintPlacement,
-      fontBinding,
-      layerComposition,
-      clipStyle,
-      paragraph,
-    });
+    // This row is private until response() returns. Enrich it in place and
+    // freeze once instead of copying every base field into a second object.
+    return Object.freeze(
+      Object.assign(node, {
+        layoutBuilder,
+        snapshot,
+        editing,
+        textGeometry,
+        semantics,
+        semanticTraversal,
+        semanticGeometry,
+        list,
+        control,
+        graphics,
+        nativePaint,
+        imagePaint,
+        paintPlacement,
+        fontBinding,
+        layerComposition,
+        clipStyle,
+        paragraph,
+      }),
+    );
   });
   const traversalIndices = new Set<number>();
   for (const node of enriched)

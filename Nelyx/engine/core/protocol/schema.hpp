@@ -2,7 +2,7 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 896476372u;
+inline constexpr uint32_t schema = 2570296319u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
@@ -12,6 +12,7 @@ inline constexpr uint32_t nodeBytes = 360u;
 inline constexpr uint32_t eventBytes = 160u;
 inline constexpr uint32_t inputBytes = 128u;
 inline constexpr uint32_t layoutBytes = 192u;
+inline constexpr uint32_t nodeInitialPropertiesBytes = 72u;
 inline constexpr uint32_t editorViewportBytes = 24u;
 inline constexpr uint32_t scrollCurveHeaderBytes = 8u;
 inline constexpr uint32_t scrollCurveNodeBytes = 64u;
@@ -91,6 +92,8 @@ inline constexpr uint32_t keyIdentityEventBlob = 34u;
 inline constexpr uint32_t keyIdentityEventBytes = 24u;
 namespace inspectionFlags {
 inline constexpr uint32_t stateOnly = 1u;
+inline constexpr uint32_t appObservation = 2u;
+inline constexpr uint32_t appLayoutSelection = 4u;
 }
 namespace editorViewportFlags {
 inline constexpr uint32_t expands = 1u;
@@ -139,6 +142,7 @@ inline constexpr uint32_t nodeBlobs = 15u;
 inline constexpr uint32_t depth = 128u;
 inline constexpr uint32_t commands = 4096u;
 inline constexpr uint32_t packetBytes = 1048576u;
+inline constexpr uint32_t responseBytes = 4194304u;
 inline constexpr uint32_t sessionBytes = 67108864u;
 inline constexpr uint32_t resourceBytes = 33554432u;
 inline constexpr uint32_t resources = 1024u;
@@ -174,7 +178,7 @@ inline constexpr uint32_t layoutOperations = 131072u;
 inline constexpr uint32_t coveragePixelsPerSecond = 2400u;
 inline constexpr uint32_t coverageViewportsPerSecond = 4u;
 inline constexpr uint32_t editors = 64u;
-inline constexpr uint32_t semanticsNodes = 256u;
+inline constexpr uint32_t semanticsNodes = 1024u;
 inline constexpr uint32_t semanticsTextBytes = 4096u;
 inline constexpr uint32_t semanticsCustomActions = 64u;
 inline constexpr uint32_t editHistory = 32u;
@@ -323,6 +327,11 @@ inline constexpr uint32_t tooltipPosition = 35u;
 inline constexpr uint32_t childAnchor = 36u;
 inline constexpr uint32_t intrinsicSizing = 37u;
 inline constexpr uint32_t layoutProgram = 38u;
+}
+namespace nodePropertyFlags {
+inline constexpr uint32_t horizontal = 1u;
+inline constexpr uint32_t chaining = 2u;
+inline constexpr uint32_t pageSnapping = 4u;
 }
 namespace kinds {
 inline constexpr uint32_t box = 1u;
@@ -959,6 +968,7 @@ inline constexpr uint32_t radioGroup = 9u;
 inline constexpr uint32_t switchControl = 10u;
 inline constexpr uint32_t progressBar = 11u;
 inline constexpr uint32_t loadingSpinner = 12u;
+inline constexpr uint32_t dialog = 13u;
 }
 namespace semanticsFlags {
 inline constexpr uint32_t disabled = 1u;
@@ -971,6 +981,7 @@ inline constexpr uint32_t mixed = 64u;
 inline constexpr uint32_t mergedIntoParent = 128u;
 inline constexpr uint32_t scopesRoute = 256u;
 inline constexpr uint32_t namesRoute = 512u;
+inline constexpr uint32_t blockAccessibilityFocus = 1024u;
 }
 namespace semanticsActions {
 inline constexpr uint32_t activate = 1u;

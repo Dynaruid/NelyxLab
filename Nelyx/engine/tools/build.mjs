@@ -162,7 +162,12 @@ function suppliers() {
   )
     throw new Error('Hermes cohort mismatch');
   for (const file of cohort.files.filter((f) =>
-    ['build/lib/hermesvm.dll', 'build/lib/hermesvm.lib', 'build/jsi/jsi.lib'].includes(f.path),
+    [
+      'build/lib/hermesvm.dll',
+      'build/lib/hermesvm.lib',
+      'build/jsi/jsi.lib',
+      'build/bin/hermesc.exe',
+    ].includes(f.path),
   )) {
     if (sha256(path.join(hermes, file.path)) !== file.sha256)
       throw new Error('Hermes identity mismatch: ' + file.path);

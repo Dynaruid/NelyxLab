@@ -321,3 +321,249 @@ Web 자동 실행의 renderer는 **ANGLE SwiftShader**다. 기능·수명 회귀
 여러 independent builder의 동시 range protocol과 v2 `bounded preparation: observed-budget`도 미구현이며 기존 명시적 거부를 유지한다. 첫 방문과 eviction 후 복귀를 resident 수치와 합치지 않는다. 이번 확인은 Demo 대상이며 Gallery·Android 공급/실앱·설치 소비자 전체·IME/UIA 세부 행렬·device-loss 주입·물리 트랙패드·전체 표시 성능을 재수락한 것이 아니다. Android는 공통 Core 변경 미반영 **stale/notVerified**다.
 
 후속 시작점은 현재 `trace`로 cold/resize 및 연속 입력 구간을 별도로 수집하고, §6 P2/P3의 남은 항목을 이어가는 것이다. **compatible=false, performanceAccepted=false, resizePerformanceAccepted=false, physical/display/scanout=notVerified, 전체 PARTIAL**을 유지한다. 원시 trace/스크린샷/검증 browser profile·임시 native executable은 누적 보관하지 않았다. 새로 복구한 `.nelyx/windows-hermes`는 현재 빌드 공급이며 검증 임시 복사본이 아니다.
+
+## 10. 2026-11-10 일반 실행의 클릭·스크롤 지연 후속
+
+### 10.1 재현과 Doroti 비교
+
+사용자가 §2.2의 일반 Windows CLI로 재실행했으며 스크롤과 hover/click이 모두 비슷하게 느리다고 보고했다. 시작 시 source/supply는 §9의 `2416cdf4…`로 일치했다. 오래된 공급만의 문제로 처리하지 않는다. 변경 전 버튼 입력 구간에서 preparation 6의 wall time은 **69.295ms**, 실제 Core step 합계는 **1.492ms**, recording은 **0.760ms**였다. Core CPU 시간만으로 전체 입력 반응을 설명할 수 없었다.
+
+사용자가 언급한 Doroti 최적화는 [공통 엔진 기록](../DorotiLab/history/26/11/01/shared-engine-performance-summary.md)에 확인된다. `InheritedElement` 의존성을 선형 `DartMap`에서 Dictionary/LinkedList로 옮겨 검색·등록·삭제 비용과 알림 순서를 함께 관리했다. Nelyx의 대응 `InheritedElement.dependents`는 이미 JS `Map`이다. 내용 해시만 같으면 무조건 동일하다고 판단하는 최적화는 도입하지 않았다.
+
+대신 Nelyx 응답 해석기가 **각 노드마다 전체 blob을 검색**하고 있었다. SceneWriter에서도 설정 명령 종류를 반복 선형 검색했다. 이 반복 검색과 전체 관측 payload, 장면 캡처/ACK 시간을 함께 수정·계측했다.
+
+### 10.2 반영한 변경
+
+- 응답 blob을 **slot+generation**별 Map으로 한 번 분류한다. semantic owner/parent/source 세대 검증, 중복 blob 거부와 개별 payload 검증을 유지한다. 노드의 기본 필드를 두 번째 객체에 복사하지 않고 내부에서 보강한 뒤 한 번 freeze한다. 반환 노드는 계속 불변이다.
+- `inspectionFlags.appObservation=2`를 추가했다. 명시적으로 선택한 layout/semantics 관측만 renderer용 paint·path·paragraph/font/image style blob을 생략한다. 좌표·부모·게시 cohort·list demand·layout builder·semantics·편집/선택·control·layer composition은 유지한다. 일반 검사와 렌더러의 기본 응답은 그대로다. 알 수 없는 flag는 거부한다.
+- OriginalWidgetHost만 이 경량 관측을 사용한다. 이 경로에서 입력 serial만 달라진 경우 같은 화면을 재복사하지 않는다. 게시 프레임, property, 준비/metrics/device, focus/editing/control 변화는 계속 관측한다. 입력 전달은 별도 interaction queue에서 수행한다.
+- SceneWriter의 명령 종류별 Map을 record와 함께 보관한다. handle/부모/자식 순서가 같은 paint 변경은 전체 구조 이동용 임시 Map을 만들지 않는다. 자식 순서 변경과 실제 재배치는 기존 구조 diff를 사용하며, default reset·자원 acquire/release·ACK 의미를 유지한다.
+- 같은 App root widget이면 AppRoot/MediaQuery를 다시 교체하지 않는다. dirty State와 metrics 의존성의 BuildOwner 갱신은 계속 실행한다. Native picture 비교는 immutable text/paragraph 값이 같으면 포인터 재할당만으로 cache miss가 되지 않게 했다.
+- Windows GPU slot은 GPU 작업 완료 후 반환한다. 각 swapchain image의 present fence/semaphore 수명은 해당 image를 다시 acquire할 때 별도로 확인한다. resize/close drain은 유지한다. GPU 완료와 물리 표시 완료를 동일시하지 않는다.
+- Windows trace가 응답 opcode의 `0x8000` bit를 그대로 사용하던 오류를 수정했다. 이제 요청 opcode로 inspect 제외와 input sequence를 기록한다. 이전 trace의 opcode별 분포를 수정 후 분포와 그대로 합치지 않는다.
+- App에 최근 128개 build/capture/scene/대기 표본과 관측·records/diff 누적 시간을 추가했다. 종료 시에만 직렬화하며 파일 로그를 만들지 않는다. Hermes의 Date fallback과 performance clock을 진단의 domain으로 구분한다. 이는 정확한 OS input→callback 상관계측 전체를 대체하지 않는다.
+
+GPU cache를 128MiB로 선예약한 중간 후보는 기존 GPU 예산과 충돌해 시작에 실패했다. 해당 확대는 철회했고 최종 변경에 포함하지 않는다. 실패 실행은 PASS 표본이 아니다.
+
+### 10.3 통합 검증
+
+최종 engine source/supply는 **`9fb2046a0056407728d224ef12cc35b8b68b7b13910dd27a9e82f1fd60eae07b`**, ABI **2**, schema **3243076890**이다. manifest **355 files**의 SHA-256과 sourceIdentity 일치를 확인했다. Core/SDK 및 native·Windows App SDK·Wasm 두 profile을 빌드하고 Demo Windows/Web을 이 공급으로 다시 번들링했다.
+
+| 검사 | 결과 |
+| --- | --- |
+| `check-event-notifications.mjs` | notification/idle/close, 420-node blob 결합·불변성·중복/세대 거부, topology fast path·순서 변경·reset, App input serial만의 재관측 생략·property/publication 변화 관측 PASS |
+| `check-app-observations.mjs` | 실제 Wasm Core에서 경량/전체 layout·semantics의 좌표·의미 정보·cohort 동일, 기본 paint 응답 보존, 알 수 없는 flag 거부 PASS |
+| `check-frame-reuse.mjs` | semantics 동등성·list batch·paint-only wheel/geometry stale 거부·ledger=0 PASS |
+| Web 두 profile | 클릭 직후 wheel, resident 4회 왕복, 큰 이동·반전, 1280×900 resize, 오류 없음, reservedBytes=0 / workersStopped=true |
+| Windows 일반 CLI 최종 실행 | Filled callback 표시, offset 0→176→184→176, 오류 없음, exit=0 / reservedBytes=0 / memoryTotal=0 / workersJoined=true |
+| Windows 크기 변경 | 동일한 최종 C++/wire 구현에서 1280×729.5 최대화·960×720 복원, 새 layout 표시·종료 확인. 마지막 JS 객체 복사/명령 인덱스 변경 후에는 Web resize만 재확인 |
+| 정적 확인 | Core/SDK 타입·Web host 타입, 변경 TS/JS lint·format·diff 검사 PASS |
+
+최종 Windows resident 왕복에서는 **document=25, layoutWork=8,671, paragraphLayouts=461**이 유지되고 queued=0이었다. 하지만 이 전의 클릭 애니메이션/준비에서는 paragraphLayouts가 **59→329**로 증가했다. native value 비교 보강만으로 모든 문단 재기록이 없어진 것은 아니다.
+
+같은 위치의 Filled 클릭 입력 시퀀스에서, 첫 hover 포함 입력부터 **첫 새 document 게시**까지의 단일 비교 표본은 **173.196→105.350ms**였다. 이는 정확한 click-down→callback 지연이나 화면 scanout, p95가 아니다. 첫 paint 변경 preparation wall time은 **69.295→46.437ms**였다. 최종 App document 8–18 표본은 대부분 **27–34ms**, 한 표본은 **80ms**였다. capture는 **6–10ms**, scene update/ACK는 보통 **12–22ms**였고 39ms 표본이 있었다. 초기화 포함 layout 관측 누적은 **29회/386ms**였으며 publication 관측은 **29회/732ms**, 최대138ms로 긴 표본이 남았다. 관측 계측은 RPC 대기와 JS 해석을 합친 값이다.
+
+따라서 **일부 지연 감소는 관측됐지만 §7의 성능 목표를 충족했다고 판정하지 않는다.** 클릭과 비슷하게 느리다는 사용자 보고를 단순 GPU 시간 개선으로 닫지 않는다. Windows 최대화 직후 검은 오른쪽 영역이 일시 관측됐으며 이후 정상 layout으로 바뀌었다. resize 무깜빡임도 PASS가 아니다. Web은 SwiftShader 기능 검사, Windows 조작은 Computer Use 합성 입력이며 물리 트랙패드는 미측정이다.
+
+### 10.4 수락 범위
+
+§9.4의 dirty subtree 전체 전환, 동적 등록 수명, property revision 분리, 독립 builder batch, observed-budget 준비는 잔여 작업이다. 다음 병목은 dynamic descendant 때문에 전체 조상까지 다시 캡처하는 경로와 full SceneWriter records 구성, 반복 문단 재기록이다. 단순 해시 일치로 lifecycle/callback/font/image 등록을 생략해서는 안 된다. 실제 사용자 트랙패드·표시 간격/scanout 수락도 자동 입력 검사와 구분한다. Android는 새 wire 및 공통 변경 미반영 **stale/notVerified**다. 전체 compatible/performance/resizePerformance 수락은 아직 false다. 이번 소유 native process는 모두 종료했고 raw trace·스크린샷·브라우저 profile은 파일로 누적하지 않았다.
+
+## 11. 2026-11-10 전체 재캡처·문단 재기록 집중 수정
+
+### 11.1 변경한 실행 경로
+
+- `RenderSceneCapture`가 **자기 설정 변경**과 **하위 경로 변경**을 구분한다. 깨끗한 정적 하위 트리는 그대로 사용하고, 동적 자식 또는 dirty 자식이 있는 정적 조상은 자식 Scene 연결만 바꾼다. 동적 tap/layer/semantics/editor/image/font 및 layout/sliver builder는 계속 실행한다. 부모/edge 입력, metrics/device/font context가 달라지면 재캡처한다. 자식 이동/제거·실패 복구·node/depth 예산을 유지한다.
+- 같은 immutable 자체 설정과 동일 handle topology를 가진 SceneWriter record는 identity를 유지한다. record는 자체 설정과 자식 handle만 보관해 제거된 과거 Scene subtree를 붙잡지 않는다. unchanged handle 재바인딩 할당, 자식별 singleton 배열/flatMap, 설정 전체의 반복 cacheability 검사, 불필요한 재연결 Map도 제거했다. **records의 전체 handle 검증/방문 자체를 모두 없앤 것은 아니다.**
+- Native picture cache의 `held` 비용에 공유 font/catalog cache lease가 문단마다 반복 합산되고 있었다. 16MiB picture 예산에서는 같은 문단도 cache에 보존되지 않을 수 있었다. 공유 font lease는 cache entry에 계속 보유하고 unified Ledger에도 계속 회계하지만, 개별 picture 비용에 다시 합산하지 않는다. 실제 전체 메모리 예산이나 16MiB picture 예산을 늘린 변경은 아니다.
+- App 전용 관측의 node geometry/BigInt/배열은 **수치 검증 후 접근 시 생성**한다. 반환 객체는 불변이며 geometry는 독립 복사한 packet을 읽는다. 일반 inspect·renderer 응답은 기존 eager 형태다. 사용하지 않는 수백 개 row의 값을 매번 객체로 만드는 비용을 줄였다.
+
+### 11.2 사용자 보고와 확인한 수치
+
+첫 번째 증분 캡처/폰트 cache 후보(`5b0e389e…`, 접근 시 관측 생성 전)를 사용자가 직접 조작한 뒤 **“약간 개선되었지만 10fps도 안되는 것 같다”**고 보고했다. 이는 측정 FPS가 아닌 사용자 체감 보고이며, 성공 판정으로 바꾸지 않는다. 해당 실행 후반 App 갱신 표본은 **43–114ms**였고, 같은 trace의 Core semantics 관측 처리는 약 **0.5–1.4ms**였다. 이 결과에 따라 App 관측 객체 생성과 records 할당/검색을 추가 수정했다.
+
+최종 일반 Windows CLI의 Filled 클릭·scroll 확인:
+
+| 항목 | §10 공급 | 이번 최종 공급 |
+| --- | --- | --- |
+| 버튼 동작 중 paragraphLayouts | 59→329, 추가 **270** | 59→60, 추가 **1** |
+| 목록 첫 이동 후 paragraphLayouts | 461 | **63**, 필요한 새 내용의 3회 추가 |
+| 캡처 집계 | 28 pass / 7,948 full capture | 31 pass / **2,367 full capture**, 6,497 ancestor relink |
+| SceneWriter records 누적 | 28 builds / 323ms | 31 builds / **196ms**, reusedRecords=9,014 |
+| 종료 | 예약/메모리 0 | 예약/메모리 **0**, workersJoined=true, exit=0 |
+
+pass 수와 실행 중 입력 수가 다르므로 위 누적 시간을 그대로 FPS 개선율로 해석하지 않는다. 최종 App document 8–18 표본은 **20–38ms 및 64ms 한 표본**이었다. capture **4–9ms**, scene update/ACK 대부분 **9–18ms**, 긴 표본33ms. 첫 입력→첫 새 document 게시 단일 표본은 **109.533ms**로 §10의105.350ms보다 개선됐다고 판단할 수 없다. **중복 작업은 크게 줄었으나 표시 지연/60fps 해결은 아직 수락하지 않는다.**
+
+### 11.3 공급과 기능·수명 검증
+
+- 최종 engine source/supply **`874c2c56000c6e39e473db0ee0e0682a2ee0dd826527ec8fd4949ef92da65c6b`**, ABI2 / schema3243076890, 355 files SHA-256 일치. Native/Windows host·Wasm 두 profile 및 Core/SDK 빌드, 최종 Core 반영 후 Windows/Web 앱 재번들링 완료. 마지막 App-only 변경은 동일 engine sourceIdentity를 확인해 엔진 중복 빌드를 생략했다.
+- `check-incremental-capture.mjs`: 동적 효과 실행, 자체 dirty path, 정적 조상 record identity, 과거 자식 Scene 미보유, reparent, edge/context 변경, 실패 후 재시도, node budget PASS.
+- `check-event-notifications.mjs`: 기존 알림/입력/구조 diff 회귀에 더해 420-node eager/lazy 값 동등성, 반환 불변성, 원본 packet 변경 격리, 접근 전 NaN 거부 PASS.
+- `check-app-observations.mjs`: 실제 Wasm의 geometry/semantics/cohort 값 동등성, 기본 renderer payload 보존, 잘못된 flag 거부 PASS. `check-frame-reuse.mjs`: native semantics/list/input/ledger 회귀 PASS.
+- `check-event-web.mjs --extended`: 두 profile에서 click→wheel, resident 왕복, 긴 이동·반전, resize에 이어 **테마 왕복, Navigation/Favorites, 로컬 이미지/Contain, editor 입력, Show all 복귀** PASS. 메뉴 확장 부분은 semantic action이며 물리 입력 검사가 아니다. 두 profile 모두 오류 없음, 예약0/worker 종료. 초기 검사 실패는 tooltip이 aria-description에 있고 label이 병합된 것을 정확히 찾지 못한 selector 실패였으며, 최종 실행과 구분한다.
+- Windows 최종 일반 명령에서 Filled callback 표시, offset0→176, 오류 없음·정상 종료를 확인했다. 동일 C++/관측 구현의 직전 실행에서는 offset176→184→176 동안 문단/layout 수 유지도 확인했다. 최종 App-only allocation 변경 이후 Windows resize/IME 세부 행렬은 다시 실행하지 않았다.
+- 테스트는 20분 제한, 임시 빌드·browser profile은 종료 시 정리한다. raw trace/스크린샷은 파일로 누적하지 않았다. 최종 공급의 별도 데모 창 하나를 사용자 재확인용으로 열어둔다.
+
+### 11.4 남은 성능 범위
+
+전체 records handle 방문, 동적 노드 자신의 매번 구성, publication/layout 관측 왕복, 큰 route/첫 방문 비용이 남는다. 그 결과 및 사용자 실제 입력을 함께 봐야 한다. 내용 hash 일치만으로 callback/font/image 수명을 생략하지 않는다. **performanceAccepted=false / resizePerformanceAccepted=false**, 실제 표시/scanout은 미측정이며 Android 공급은 stale/notVerified다. `5b0e389e…`에 대한 사용자 체감 보고와 최종 `874c2c56…` 앱의 후속 확인을 구분한다.
+
+## 12. 2026-11-10 입력부터 게시까지 전체 경로 재검토
+
+### 12.1 확인한 구조와 수정
+
+사용자 후속 요청: **“근본적인 문제가 뭔지 전체적인 구간들을 검토하고 고쳐줘”**. §11 창에서 사용자가 실제 조작한 후 종료한 기록도 분석했다. App 380 builds에서 records 3,476ms / diff 1,383ms, publication 관측 516회 8,091ms / layout 관측 504회 5,993ms였다. 각 비용의 실행 구간이 겹치므로 합계를 화면 FPS로 환산하지 않는다.
+
+| 구간 | 확인한 문제 | 변경 |
+| --- | --- | --- |
+| Windows App 실행 | 큰 JS 소스를 Hermes runtime compiler로 실행. 최적화 bytecode producer가 v2 일반 경로에 없었음 | 같은 pinned VM의 hermesc를 SHA 검증된 공급에 포함하고 기존 no-CFG 최적화 정책으로 app.hbc 생성·실행. Babel class 변환과 ES6 block scoping을 적용. 앱 manifest에 bytecode/source/policy/version을 결합하고 오래된 JS-only 번들을 거부 |
+| 입력→관측 | pollEvents가 publication/layout RPC를 모두 기다린 뒤 다음 입력을 처리 | 입력 drain과 관측 owner 분리. 관측은 한 건만 진행하고 최신 요구 하나로 합침. 늦은 관측이 최신 입력 state를 덮어쓰지 않음 |
+| list 관측 | 소수 list observer 때문에 전체 노드 layout을 직렬화·디코딩 | appLayoutSelection으로 해당 handle과 직계 부모만 요청. 기본 renderer/full inspection은 유지. 재활용된 generation은 반환하지 않음 |
+| geometry/focus | 동기 조회와 semantics 조상 순회에서 nodes.find를 반복 | snapshot 수명에 결합된 WeakMap 인덱스를 공유하고 generation을 대조 |
+| native 응답→App | 완료된 응답도 하나를 resolve한 뒤 전체 microtask를 실행해 다음 응답을 지연 | 이미 완료된 bounded mailbox를 먼저 resolve한 뒤 continuation 실행 |
+| App frame 요청→게시 | 콜백 예약만으로 dirty=true가 되어 변경 없는 문서도 GPU 제출/게시. 다시 publication 관측과 layout 재관측을 유발 | 콜백 예약과 paint invalidation 분리. AppFrame 이벤트는 계속 전달하지만 실제 transaction/native motion/input이 있을 때만 새 화면 제출 |
+| GPU 완료→게시 | QPC/DWM은 약 6ms 주기이나 condition_variable timed wait는 Windows timer quantum에 영향받음 | 전역 timer period 변경 없이 owner 전용 high-resolution waitable timer와 interrupt event 사용. deadline 전에 입력/종료 신호가 오면 즉시 깨움 |
+
+기존 실패 공급 `1ad8ba38…`의 최초 raw-class HBC는 `Diagnosticable` constructor 오류로 종료했다. 이후 기존 native producer처럼 class 변환을 적용한 실행은 버튼 callback·scroll·정상 종료를 통과했다. 이 중간 실행의 layout 관측 평균은 약 **1.81ms**(108회/195ms)였지만 App document 8–18은 **15–42ms**라서 최종 개선으로 수락하지 않고 timer/mailbox/index 수정까지 진행했다.
+
+native 대기 검사: 3ms 요청 8회씩 비교에서 condition variable 평균 **7.465ms**, high-resolution timer **3.179ms**. deadline 조기 반환 없음, 진행 중 interrupt와 미리 도착한 wake 처리 PASS. 이 수치는 표시 FPS가 아닌 OS 대기 구간 검사다.
+
+### 12.2 통합 검증
+
+최종 공급의 실행 측정과 기능·수명 결과는 아래에 기록한다. 성능 수락은 실제 표시/입력 확인과 분리한다.
+
+- 최종 source/supply **`a0300a429496272d1d5d5859665affa1281a1634ca8b625fe6130e31ea132abc`**, ABI2/schema**3270880734**, **356 files**. sourceIdentity·공급 파일 hash·Windows/Web 앱 manifest 검증 완료. Windows 앱은 HBC99 / no-CFG 정책 / Babel class 변환으로 실행하며, compiler는 CLI 자체 dependency에서 해석한다. JS source SHA는 `11dd05fb7e7725a1ae02e5e2abd3d7ffc6fe22d4ad75851259fa10e0acd7c23e`다.
+- 일반 CLI 최종 실행: Filled callback 표시, scroll **0→176→184→176**, 오류 없음. 작은 왕복 동안 **document38 / layoutWork14,404 / paragraphLayouts63 유지**. 버튼 구간 문단59→60, 첫 목록 이동63으로 기존 cache 수정도 유지된다.
+- 첫 pointer 입력→첫 새 document 게시 **46.715ms**. §11의109.533ms와 동일한 계산 방식의 제한된 단일 표본이며, 물리 click→scanout p95나 FPS 측정은 아니다. 버튼 구간 document8–28의 App 갱신 표본은 **12–30ms**. 전체 실행39 builds, records157ms/diff61ms, publication 관측37회233ms(최대16ms), 선택 layout 관측55회186ms(최대13ms). 입력 수와 pass 수가 다른 실행의 누적 시간을 직접 FPS 비율로 환산하지 않는다.
+- 재게시 제거 직전 `35797023…`의 버튼 trace는 동일 document9를10회 게시했다. 최종 trace는 document9를2회, 이후 게시된 document12–28은 각각1회였다. 실제 native 입력/overlay 변경의 추가 프레임은 유지한다. Frame callback만 요청했을 때 property epoch 불변·takeFrame notFound·AppFrame 이벤트 전달을 실제 Wasm 회귀검사로 별도 입증했다.
+- `check-event-notifications.mjs`: 알림/lost wake/입력 batch·idle·종료, 지연된 geometry와 독립적인 입력 drain, 단일 관측 진행, 이전 응답의 입력 fence 역행 방지, node index generation 대조 PASS.
+- `check-app-observations.mjs`: 전체/projected 값 동등성과 기본 renderer payload, 선택 node+부모, 누락/재활용 handle, 중복/잘못된 flag/잘린 body 거부, callback-only 무재게시 PASS. `check-incremental-capture.mjs`와 native `check-frame-reuse.mjs`도 PASS. 타이머 회귀는 8회씩, 모든 검사20분 제한.
+- **최종 Core 변경 후** Web threaded/single-worker의 `check-event-web.mjs --extended`에서 button→wheel, 기존 항목 왕복, 긴 이동·반전, resize, theme, route, image, editor, 종료 모두 PASS(예약0/worker 종료). Windows 최종에서는 button/scroll/종료를 재검증했다. 직전 동일 native timer/mailbox/HBC 구현의 `35797023…`에서는 최대화·복원·dark theme·drawer·로컬 이미지 표시도 확인했다. 확대 직후 기존 크기의 화면 오른쪽에 검은 영역이 잠깐 나타나므로 resize 표시 성능을 해결했다고 쓰지 않는다.
+- 최종 Windows **exit0 / reservedBytes0 / memoryTotal0 / memoryPeak466,335,730 / workersJoined=true**. 변경 파일 lint/format·diff 검사 완료. 자체 임시 디렉터리와 browser profile은 종료 시 정리했으며 raw trace/스크린샷 파일은 누적하지 않았다.
+
+**수락 경계:** 불필요한 게시→관측 반복과 입력 직렬 대기 등 확인한 구조적 원인은 수정했다. App 전체 records 방문·동적 구성·GC 등의 비용은 남아12–30ms 표본을 보이며, 60fps/실제 트랙패드/scanout 수락은 여전히 별도다. **performanceAccepted=false / resizePerformanceAccepted=false**, Android stale/notVerified를 유지한다. 최신 공급의 초기 화면을 별도 창으로 열어 사용자 재확인에 제공한다.
+
+## 13. 2026-11-10 트랙패드 손 떼기·관성·목록 준비 경계 후속
+
+사용자는 §12의 체감 개선을 확인했지만 스크롤 끊김과 **손을 뗄 때 관성이 거의 없는 현상**을 보고했다. 해당 실제 조작 실행에서 precision-trackpad-directmanipulation 입력679개는 모두 admitted/rejected0이었다. Core의 canceled22와 별개이며, 마지막 App 표본에는34–50ms가 남았다. 입력 미수신으로 단정하지 않는다.
+
+### 13.1 수정
+
+- Host가 마지막 delta/time 한 건으로 속도를 계산해, DirectManipulation의 마지막 0 transform에서 속도를0으로 덮어쓰던 경로를 교체했다. 최대8개/약100ms 위치 이력의 기울기로 추정하고 이벤트 QPC 시각을 쓴다. 실제 움직임이80ms 이상 없으면 관성을 만들지 않으며 반전·동일 시각 묶음·취소를 구분한다.
+- 목록의 준비된 범위 끝에서 normal end가 들어오면 deferred라는 이유로 관성 시작을 생략하던 조건을 제거했다. 이미 수락된 요청 위치에서 관성을 이어간다. 새 행을 기다리는 동안에는 관성 clock/속도를 보존하고, 같은 미반영 delta를 반복 누적하지 않는다. 실제 전체 목록 끝에서는 정지한다.
+- 준비된 내용으로 교체할 때의 anchor 보정을 관성 시작점에도 반영한다. 새 접촉과 명시적인 관성 취소는 남은 이동을 중단한다. Pointer/canonical scroll의 같은 종료 경로도 일치시켰다.
+- Windows 취소를 normal panZoomEnd로 보내던 것을 panZoomCancel로 분리했다. 종료 후 inactive stream의 inertiaCancel도 처리하여 재접촉/취소를 무시하지 않는다.
+- `V2_INPUT_SOURCE`에 ends/movingEnds/lastEndVelocity를 추가했다. 실제 손 떼기 후 속도 전달을 기능 검사와 별도로 확인하기 위한 계측이다.
+
+### 13.2 검증
+
+- 현재 소스와 새 native Core library 각각에서 `check-frame-reuse.mjs` PASS. 일정 속도, 마지막0 transform, 정지 후 손 떼기, 반전, 같은 시각 샘플, 취소, coverage 경계에서 손 떼기, 준비 대기 중 중복 delta 방지, 내용 도착 후 재개, 실제 끝 정지, 새 접촉 정지 및 ledger0을 확인했다. 각 실행20분 제한이며 임시 출력은 finally에서 삭제한다.
+- 빌드·앱 실행과 실제 트랙패드 확인 결과는 아래에 추가한다. 물리 트랙패드 관성을 마우스 휠 주입으로 검증했다고 쓰지 않는다.
+- 최종 engine/supply **`0d0cdfa1534a03792bdd20341df715754dd66a208570be27b1e8dd98830faa4d`**, ABI2/schema3270880734, 356 files. native/Windows App SDK/Wasm 두 profile 빌드 및 Windows/Web 앱 재번들·identity 검증 완료.
+- 새 공급의 App 관측/콜백 무재게시 검사, Web threaded/single-worker의 버튼·wheel·기존 항목 왕복·긴 이동·resize·테마·경로·이미지·편집·종료 통합검사 PASS. 두 Web profile 모두 예약0/worker 종료. 소유 임시 출력은 정리했다.
+- 일반 Windows CLI의 새 창 app-ready/초기 화면/오류 없음 확인. 실제 트랙패드 확인을 요청해 창을 제공했다. 자동 기능 근거와 사용자의 관성·끊김 평가는 분리한다.
+- 요청 후 확인 시 새 실행의 precision admitted/ends/movingEnds는 모두0이었다. 따라서 이 공급의 물리 lift/coasting 체감은 아직 **notVerified**이며 창을 열어둔다. 스크롤 전체 성능/resize 성능 flag는 false를 유지한다.
+- 이후 사용자 실제 확인: **“관성은 생겼지만 끊김이 큼”**, **“60fps로 렌더 되다가 0.5초마다 끊기는 느낌”**. 새 공급에서 admitted315/rejected0, ends24/movingEnds24, lastEndVelocity2196.45를 기록했다. 관성 소실은 사용자 체감 개선을 확인했으며, 전체 부드러움은 미수락이다. 해당 trace의 항목 준비 구간 게시 간격은105.7/153.1/188.1ms인 반면 그 프레임의 Core/GPU 제출·완료 자체는 약11–16ms였다.
+
+## 14. 2026-11-10 주기적인 목록 경계 정지 — 사전 준비 복원
+
+- nativeListRange가 실제 보이는 영역만 반환하고, Source Viewport의 기본 cacheExtent250px를 native 경로가 반영하지 않았다. 그래서 보이는 경계를 넘은 뒤에 App/Content 왕복으로 다음 행을 만들며 주기적으로 기다렸다.
+- nativeListCacheRange를 layout 준비와 App list-demand 관측 양쪽에 적용했다. 우선 실제 viewport를 덮고, 기본250px 앞뒤 범위를 준비한다. 준비 범위가 절반 이하로 줄기 전에 다시 채우고, 기존 범위 안의 작은 스크롤에서는 같은 Source window를 유지한다.
+- 최대128행 budget과 unknown indexed row 최대8개 batch를 유지한다. 뒤쪽 cache 때문에 visible rows가 예산에서 밀리지 않으며, 준비 재개 시 이전 geometry가 이미 수락된 새 window를 되돌리지 않도록 현재 선언을 기준으로 삼는다.
+- native 회귀에서 resident window 유지, 미리 refill, reverse 준비, dense-list visible coverage/budget, empty viewport, unknown measurement batch, 이전 geometry의 window rollback 방지 PASS. 최종 앱 검증은 아래에 추가한다.
+- 최종 source/supply **`ee87662c02e010404fb921c3b7a75f98cf3e2bd95b965f37c03c1dcac13cd681`**, ABI2/schema3270880734,356 files. Native/Windows App SDK/Wasm 두 profile 빌드, Windows/Web 재번들 및 sourceIdentity 확인 완료.
+- 새 library의 frame/list/precision/inertia/ledger 회귀와 App 관측 검사 PASS. Web 두 profile의 긴 이동·반전·기존 항목 왕복·resize·theme·route·image·editor·close 모두 PASS(예약0/worker 종료). 새 물리 확인용 Windows 창을 제공한다. §13의 관성 확인을 이 공급의 주기적 끊김 해결로 확대하지 않는다.
+- 사용자 후속 확인: **“조금 줄었지만 여전히 큼”**. cache 복원만으로 해결되지 않았으며 전체 성능은 미수락이다.
+
+## 15. 2026-11-10 이동 중 builder 준비 재시작과 속도별 선행 준비
+
+- `LayoutWork::resumeBuild`가 offset 하나라도 달라지면 준비 재개를 거부했다. 같은 목록의 App 자식 응답을 기다리는 동안 compositor 스크롤이 움직이는 정상 상황에서도 전체 준비 경로를 다시 탔다. pending list의 자기 viewport 이동만 retarget하여 완료한 형제/부모 작업을 유지한다. 다른 viewport와 manual/editor 변경, generation·constraints·문서 경계 검사 등은 유지한다.
+- Source child 응답 재개 시 최신 native offset/velocity를 전달하고 parent box의 요청 위치도 갱신한다. 테스트는 실제 LayoutWork를 App builder 대기까지 진행시킨 뒤, 다른 viewport/manual 변경 거부 및 자기 viewport0→8 이동의 continuation 성공·다음 요구offset8을 확인한다.
+- 250px 고정 cache만으로 빠른 관성 중100ms 이상인 App/Content 응답을 숨기기 부족했다. 진행 방향에 native 속도×350ms를 선행 준비 힌트로 사용하고 속도×180ms 여유에서 refill한다. 기본250px, 최대 두 viewport,128행/unknown8행 제한을 유지하며 반대 방향의 기본 cache도 유지한다. 예측값은 준비 범위만 선택하며 실제 offset/측정 geometry를 만들지 않는다.
+- 현재 소스 회귀에서 속도 방향별 추가 준비·budget, moving builder continuation/fence, 기존 관성/cancel/coverage·ledger0 PASS. 최종 공급·앱 검증은 아래에 기록한다.
+- 최종 engine/supply **`b00ad6814988010044da3bf03df189cbf32746fd537a0b098151187aa8a3a593`**, ABI2/schema3270880734,356 files. 전체 native/Windows/Wasm 빌드와 Windows/Web 앱 재번들·sourceIdentity 확인 완료. 새 native library의 continuation·관성·cache 회귀, App 관측, Web 두 profile의 전체 extended 검증 모두 PASS(예약0/worker 종료). 별도 Windows 창을 제공해 실제 주기적 정지 평가를 이어간다.
+
+## 16. 2026-11-10 준비 실패 복구와 중복 App 왕복
+
+- §15 사용자 확인은 **“줄었지만 아직 눈에 띔”**이다. 그 실행에서 preparation63/document99가 상태19로 실패했으며 activeDocument96에 머물렀다. 상태19는 `budgetExceeded`다. 이전 `contentUnavailable(19)` 표기는 잘못됐으며 콘텐츠 부족은31이다. 별도로 완성된 준비 범위가 현재 offset을 덮지 않는 activation 분기도 조사했으나, 그 회귀 수정만으로 이 예산 초과의 원인이 해결됐다고 볼 수 없다.
+- 숫자 requested/preparedOffset이 같아도 실제로 필요한 child range가 바뀌면 재준비하도록 했다. 해당 viewport와 조상 캐시를 무효화하여 같은 잘못된 준비 결과를 반복 재사용하지 않는다. 실패 시 preparation/document/offset/coverage 범위를 출력하는 제한된 진단을 추가했다. 실제 LayoutWork와 retargeted-coverage 회귀는 새 native Core에서 통과했다.
+- 현재 native/Windows/Wasm 공급은 **`f546d901a85bcf10835f3e3893527c22b8b2ee863dcf2530ea1b3e255b0f356d`**, ABI2/schema3270880734,356 files. App 관측 검사 및 Web 두 profile의 extended 검사 통과. 일반 Windows 실행 오류0, 종료 exit0/reservedBytes0/memoryTotal0/workersJoined=true였다. 물리 주기적 끊김 수락은 아직 아니다.
+- 환경 변수로 명시적으로 켠 실행에서만 최대30초/250Hz Hermes CPU 샘플을 수집했다. 마우스 휠4회 진단의 GC 최대 pause는3.7699ms였고, App 활성 샘플은 capture/records/child build에 집중됐다. 이 표본을 물리 트랙패드나 FPS 측정으로 바꾸어 해석하지 않는다. 로그와 CPU profile은 메모리에서만 읽었고 파일로 누적하지 않았다.
+- `observeSliver`에서 최신 published document/metrics와 실제 measured leading row를 확인할 수 있으면 그 자료로 다음 child window를 직접 준비한다. 빈 window 게시→Core 재요청→App 재구성 왕복을 줄인다. 진행 중인 transaction/preparation, stale document, 실제 leading row가 없는 경우에는 기존 권위 있는 builder 요청 경로를 유지한다. Web 기존 범위 왕복은 layout/measurement 증가 없이 통과했다. 최신 실제 트랙패드 평가는 **notVerified**다.
+- 후속 사용자 요청으로 날짜 선택기를 추가하다가 **Flutter 원본 그대로 컴파일할 것**으로 요구가 명확해졌다. 임의로 작성한 달력 위젯과 전용 단위 검사는 제거했다. 해당 간이 위젯의 이전 PASS는 원본 날짜 선택기의 근거가 아니다. 원본 변환 작업과 native PageView/GridView 연결을 이어가며, 스크롤의 **performanceAccepted=false / resizePerformanceAccepted=false**를 유지한다.
+
+## 17. 2026-11-10 원본 날짜 선택기와 최초 페이지 준비
+
+- Flutter `71e4717a61786faab4c7aa39825989305ed29e8a`의 9개 라이브러리에서 75개 선언을 analyzer IR로 변환했다. 원본 월/일/연도/입력 상태 로직과 날짜 지역화 본문을 생성하며, 임의 작성 달력을 대체했다. fresh 재생성 비교, 원본 Dart oracle와 compiler 거부 경계 통과. 지원 범위는 Material 3 / 원본 US-English / 단일 날짜 선택기이며 Cupertino·범위 선택기 전체 완료가 아니다.
+- 최초 표시 지연의 확인된 중복은 0번 월 window 준비→Core initial seek→선택 월 window 준비→opacity 노출이었다. Flutter `_PagePosition.applyViewportDimension`의 초기 위치 확정 순서처럼 Content에서 받은 page 폭으로 초기 offset을 선언하고 Core 첫 layout/activation부터 적용한다. 동일 node generation의 후속 선언은 현재 offset을 초기값으로 되돌리지 않는다. 첫 준비는 선택된 월 하나로 한정하고 인접 월 4-page window는 첫 게시 이후 준비한다. 이 준비 중 인접 월 이동은 coverage를 기다린다.
+- 원본 UI에서 확인한 예산 문제도 수정했다: semantics373/기존256 제한을 1024로 조정(초과1025 거부 회귀), full scene 관측이 1MiB를 초과할 때 response 한도를4MiB로 분리(request1MiB 유지). unrelated publication이 진행 중 list seek의 requested offset을 지우지 않게 했다. Core64MiB ledger pressure에서는 입력이 참조하지 않는 과거 publication lookup을 줄이고, 활성 입력이 소유한 snapshot과 최신2개는 보존한다.
+- generated enum의 Dart 동일성 등록으로 원본 Restorable 모드 setter를 연결했다. Web semantic activation은 같은 generation의 현재 Core route를 검사하며, 과거 peer의 화면 위치가 바뀌었다는 이유만으로 클릭을 버리지 않는다. 반복된 편집 snapshot이 아직 mailbox에 도달하지 않은 DOM 선택 영역을 접는 문제도 수정했다.
+- 최종 engine 공급 **`e20cf385e5d743cbc0f2a189be0e7277aea9d079289e85ad819512b5b17ad79b`**, ABI2/schema2570296319. sourceIdentity 일치, native/WindowsAppSDK/single-worker/threaded 빌드, Core/SDK/Material 빌드, 변경 TS lint 및 diff 검사 통과.
+- 최종 native 회귀: first-page-only layout/activation, 동일 generation 재게시 초기화 방지, 기존 PageSpring/가로 pages/RTL grid/semantics, pending seek/history pressure, moving list/precision inertia/frame/lease 검사 PASS. App 관측의 큰 응답·request 제한·flag 거부도 PASS.
+- Web `check-event-web.mjs --extended` 최종 **isolated/plain 모두 PASS**, 원본 월/연도/날짜 선택, 즉시 다음 달, 확인/취소/재개방/잘못된 날짜/윤년 입력, 기존 theme/route/image/editor/scroll/resize 포함. 오류·preparation-error 없음, reservedBytes0/workersStopped=true. 최종 첫 accessible grid는 isolated871ms/plain840ms, dialog는844ms/830ms로 간격27ms/10ms였다. 이는 접근성 게시 관측이며 scanout/물리 클릭 지연 수락으로 바꾸지 않는다.
+- Windows는 사용자 일반 CLI로 실행하여 올바른 초기 월, 취소 후 재개방, 다음 월 표시를 화면에서 확인했다. 종료 exit0/reservedBytes0/memoryTotal0/workersJoined=true, memoryPeak535287900. 별도 UIA 시간 표본은 화면보다 오래된 tree가 반환되어 표시 지연 근거에서 제외했다. Windows 최초 표시의 물리 수치·트랙패드 잔여 끊김은 **notVerified**, **performanceAccepted=false / resizePerformanceAccepted=false** 유지.
+
+- 정리: 이번 검증용 `.nelyx/date-picker-port` 재귀 삭제가 자동 승인 검토의 `blocked by policy`로 거부됐다. 세부 사유는 제공되지 않았고 우회하지 않았다. 관련 process/native 창0, 1,056 files / 647,805,507 bytes 정리 미완료. 현재 dist와 구분한다.
+
+## 18. 2026-11-10 반복 월 이동의 공통 실행 경로 개선
+
+- 사용자 후속 보고는 “트랙패드로 달력을 넘기면 점점 느려짐”이며, 엔진 자체 수정이 필요한지도 물었다. 초기 날짜 표시 개선을 반복 이동의 성능 수락으로 간주하지 않는다.
+- 수정 전 Web 합성 수평 wheel 12회(6회 전진/6회 후진)에서 살아 있는 월4개, Elements5488–5602, nodes2197–2239, builder7개로 유지됐다. Core reserved는 약38.6→43.8MB에서 안정됐다. 이 제한된 표본에서는 선형 누수가 재현되지 않았으나, 월 경계마다 기존 children 재생성과 LayoutBuilder별 전체 scene 왕복이 반복됐다. baseline 전송111회/build122회였다.
+- `runtime/app/scroll.ts`: 동일 delegate generation에서 창 범위만 움직이면 기존 Entry/Widget을 재사용하고 신규 children만 만든다. 실제 delegate 변경은 재빌드한다. `runtime/app/host.ts`: 동일 metrics/device/font에서 dirty retained LayoutBuilder들을 마지막 Content-supplied constraints로 한 준비 안에서 재빌드한다. Core의 실제 parent constraints 비교가 유지되며, 일치하지 않는 결과는 게시하지 않고 새 입력을 요청한다. 앱에서 layout을 계산하는 fallback은 추가하지 않았다.
+- **C++ Core** `protocol/transaction.cpp`: 완료된 box LayoutBuilder의 callback revision만 바뀌고 실제 constraints가 같으면 layoutRevision을 불필요하게 변경하지 않는다. 자식 geometry 변경은 별도로 dirty 전파하고, 입력이 바뀌면 기존대로 재레이아웃한다. native 회귀에서 같은 입력의 measured geometry 재사용과 잘못된 parent constraints 거부를 확인했다.
+- 열린 달력 resize 검사에서 별도 status31(contentUnavailable)/page viewport 준비 범위 실패를 발견했다. App이 이전 폭 기준 pixels를 새 itemExtent로 나누며 잘못된 월 window를 만들던 문제였다. window 선택에 logical page를 사용해 Core anchor와 맞췄다. portrait 전환 뒤 표시 월 유지와 게시 완료를 확인했다.
+- 최종 공급 **`53aaaba2ccee2b728aebad7f35bd0e7cf2c7bcd46c9ecb2bf4797f5fd1139214`**, ABI2/schema2570296319. sourceIdentity 일치, native/WindowsAppSDK/양쪽 Wasm 및 Core/SDK/Windows·Web 앱 빌드 통과. native frame/precision/moving-list/page/grid/cache/lease 검사와 App 관측 검사 PASS.
+- `check-date-scroll-web.mjs`: isolated 12회 전송44회, plain 12회 전송43회(기존111회 대비 약60–61% 감소), 월4개/nodes2197–2239/builders7 유지, Core reserved 약44MB로 bounded. 두 profile 모두 열린 달력 resize와 logical month 유지, 오류 없음, close reservedBytes0/workersStopped=true. 초기 인접 월 prefetch가 끝나기 전의 baseline은 성장으로 오판할 수 있어 App preparation settle 뒤 측정한다.
+- 최종 `check-event-web.mjs --extended` isolated/plain 모두 PASS: 날짜 선택·월/연도·입력·확인/취소/재개방 및 기존 theme/route/editor/image/scroll/resize/종료. 새 native 일반 CLI에서 ready/appGeometryNodes0/rejectedFallbacks0와 원본 달력 표시를 확인하고, 사용자 트랙패드 확인을 위해 창을 열어 두었다.
+- 위 수치는 준비/전송 횟수와 제한된 메모리 관측이다. 모든 Content 작업량 또는 실제 FPS가 같은 비율로 감소했다는 뜻은 아니다. 실제 트랙패드의 누적 지연/scanout 수락은 **notVerified**, **performanceAccepted=false / resizePerformanceAccepted=false** 유지. 이전 임시 root 삭제 거부는 재시도하지 않았으며 이번 검사의 로그/profile archive는 만들지 않았다.
+
+## 19. 2026-11-10 새 월 진입·빠른 다중 월 이동 후속
+
+- 사용자 물리 피드백: 누적 지연은 줄었으나 **새 월 렌더링이 필요할 때와 여러 월을 빠르게 건널 때 버벅임**. §18 자동 검증을 이 잔여 증상의 수락 근거로 쓰지 않는다.
+- 이전 Windows 수동 실행을 정상 종료하고 메모리에 남은 bounded 진단을 확인했다. document228 표본은 build312ms/capture468ms/scene143ms, 완료까지 약1011ms였다. 전체 publication observation 최대1089ms, layout observation 최대1064ms. 종료 status0/reservedBytes0/memoryTotal0/workersJoined=true, memoryPeak604966184. 이 App/RPC 표본은 scanout 지연 또는 순수 GPU 비용이 아니다.
+- C++ `LayoutWork::resumeBuild`: fixed horizontal page 안의 일반 box builder가 답변을 기다릴 때, 조상 viewport의 offset 변화만으로 답변을 버리던 조건을 수정했다. 같은 ancestor/page 구조와 동일한 실제 builder constraints이면 진행 중인 layout continuation을 이어 간다. Source sliver/editor 및 foreign/manual 입력 fence는 유지한다. 회귀에서 이동 중 descendant reply 수락·최신 offset 보존·외부/manual 거부를 확인했다.
+- App `NativeListState.reset`: onPageChanged/월 제목 재빌드 때 현재 logical page를 포함하는 기존 prefetch window를 보존한다. Core demand가 실제 범위를 이동시키며, callback 재빌드가 준비 중인 창을 기본 위치로 되돌리지 않는다. 월 cache는 여전히4개로 bounded이며 용량 한도를 올리지 않았다.
+- 불변·단순 semantics는 canonical setter의 dirty 신호에 따라 재캡처한다. mutable 객체가 있는 semantics와 range는 동적 경로를 유지한다. label/action 변경 후 새 callback이 호출되고, 변경 없는 configuration은 재사용되는 회귀 PASS. Windows 동일 startup8 passes에서 dynamic capture398→68을 관측했으나 이 수치를 월 전환 FPS 개선율로 바꾸어 해석하지 않는다.
+- 최종 공급 **`840c007b00058751c3eaa886874d2432c70dada287f3a99e5038b2d67a21ce30`**, ABI2/schema2570296319. sourceIdentity 일치. native/WindowsAppSDK/Wasm·Core/SDK·앱 빌드, native frame/precision/moving-list/page continuation/cache/lease, incremental capture/semantics, App observation, TS lint/diff 검사 PASS.
+- `check-date-scroll-web.mjs --both --burst`: 각 profile에서 빠른 수평 wheel6회 후 역방향6회, 이어서 열린 달력 resize를 검사했다. 정상 종료/오류 없음, nodes2234–2239/builders7 및 예약 bounded, resize 후 logical month 유지, close reservedBytes0/workersStopped=true. **합성 wheel은 물리 precision trackpad와 동일하지 않다.**
+- 최종 Web extended isolated/plain 모두 PASS(원본 달력의 월/연도/날짜/입력/확인/취소/재개방, 기존 theme/route/image/editor/scroll/resize/close). 일반 Windows CLI ready/appGeometryNodes0/rejectedFallbacks0 확인. 새 창을 사용자 물리 확인에 제공한다. **performanceAccepted=false / resizePerformanceAccepted=false**, 새 월/빠른 다중 월 이동의 최종 체감은 재확인 전이다.
+
+## 20. 2026-11-10 빠른 월 왕복의 실제 오류 종료와 KeepAlive 분리
+
+- §19 사용자 확인은 **“여전히 버벅이고 빠르게 다음 달로 넘기던중 크래시난듯”**이다. 실행 종료 코드1을 확인했다. 최초 preparation69/document73에서 현재 offset40972.8보다 준비 하한41280이 앞서 `contentUnavailable(31)`가 발생했고, 이후 오래된 범위의 준비 실패가 반복됐다. document103에서는 **nodes3451/4096, semantics1028/1024**로 transaction `budgetExceeded(19)`가 발생했다. session 메모리 최대578368052/805306368이므로 이 증거를 일반 메모리 부족이나 GPU 크래시로 분류하지 않는다. 오류 후 종료 정리는 reservedBytes0/memoryTotal0/workersJoined=true였다.
+- `NativeListState`는 화면 밖 KeepAlive 항목을 살아 있는 Source State뿐 아니라 전체 native scene에도 유지했다. 이제 보존된 항목의 wrapper/키/State는 유지하되 화면 밖 자식 geometry·semantics·LayoutBuilder 캡처는 제외한다. 실제 focused 항목은 제외 대상이 아니다. KeepAlive가 해제되면 다음 스크롤까지 기다리지 않고 Source 항목도 정리한다. 사라진 native mouse region의 마지막 전달된 enter에는 exit를 정확히 한 번 전달하여 보존된 Ink hover 상태가 남지 않게 한다. 한도1024는 올리지 않았다.
+- C++ 활성화에서 고정 목록의 늦은 window가 현재 offset을 덮지 못할 때, 같은 viewport/list handle·count·extent인 기존 scene을 유지하고 준비를 superseded로 취소한다. 현재 demand를 App에 재요청하고 같은 낡은 문서를 busy-loop하지 않는다. App은 같은 count/extent의 이전 page generation에서 **demand만** 받으며 anchor/focus/geometry는 재사용하지 않는다. resize·다른 목록 경계는 유지한다.
+- 최종 공급 **`03b6095dabab90803be040ec6fefe179aadc71fb4085207f5669fc04a5d97699`**, ABI2/schema2570296319, sourceIdentity 일치. native/WindowsAppSDK/Wasm·Core/SDK 및 Windows/Web 번들 재생성 완료. 실제 번들에서 `collectingParked`/`onChildrenInvalidated`까지 반영된 것을 확인했다.
+- native 회귀: 늦은 fixed window 취소→needChildren→obsolete 문서 재시도 없음→수정 window 활성화 및 lease0, 기존 frame/precision/list/page/continuation 검사 PASS. App observations 및 incremental capture/semantics/hover terminal 검사 PASS.
+- Web `--precision --burst --reverse --both`: 실제 Core stream phase1/2/3과 x delta/속도를 주고, App update120ms·builder reply60ms 지연을 주입했다. profile별12회 방향 전환 뒤 nodes2197–2239/elements5488–5602/builders7, resize 후 logical month 유지, close reservedBytes0/workersStopped=true. 이는 Windows DirectManipulation 물리 입력이나 FPS 측정이 아니다.
+- `--precision --burst --keep-alive --both`:9–10개 월의 Source KeepAlive를 강제로 유지하며 빠르게 앞뒤 이동했다. Source elements10787–11863을 보존하는 동안 native nodes2202–2249/semantics627–635/builders7로 유지했고 resize·close도 통과했다. 해당 회귀는 Source 보존 자체를 제거해 예산 문제를 숨기는 것을 방지한다.
+- 최종 Web extended isolated/plain 모두 PASS. 중간 번들 검증에서는 `Native scroll failed (27)`가 한 번 관측됐으며, 그 결과를 성공으로 덮지 않는다. 최종 번들에서는 재현되지 않았지만 간헐 list command stale 경로는 후속 물리 실행에서 계속 추적한다. Windows 일반 CLI ready/appGeometryNodes0/rejectedFallbacks0 확인. 이전 확인 창 종료 exit0/reservedBytes0/memoryTotal0/workersJoined=true. 최종 창을 물리 확인에 제공한다.
+- **performanceAccepted=false / resizePerformanceAccepted=false / physicalAcceptance=notVerified**. 이번 결과는 확인된 노드 예산 초과·준비 복구 경로의 수정과 자동 회귀 근거이며, 빠른 다중 월 이동의 체감 해결 판정은 아니다.
+- 최종 Windows 창에서 Selection→Choose date와 November2026→December2026의 실제 그리드/접근성 표시를 확인했다. 입력 중 오류 출력은 없었으며 이 창은 사용자 트랙패드 확인을 위해 열어 두었다. 버튼 한 번의 성공은 빠른 물리 왕복 검증을 대체하지 않는다.
+
+## 21. 2026-11-10 종료 해결 후 남은 앱 CPU·객체 생성 비용
+
+- §20 물리 피드백은 **“종료는 없지만 끊김은 여전함”**이다. 해당 실행은 exit0/reservedBytes0/memoryTotal0/workersJoined=true, memoryPeak616660456이었다. App preparation 표본에는 document184 build293ms/capture511ms/scene152ms, document197 build355ms/capture700ms/scene106ms 등 긴 구간이 남았다. FPS나 scanout 표본으로 환산하지 않는다.
+- 같은 공급을 임시 환경 변수 `NELYX_V2_CPU_PROFILE=1`로 실행하고 stdin의 profile-start/stop으로 최대30초·250Hz 표본을 수집했다. 파일/profile/browser 자료는 누적하지 않고 메모리에서 분석했다. baseline 물리 precision226개/종료22회/거부0. 5329개 CPU 표본에서 root1304, YoungGen GC855, spreadValues474, defNormalProp153, JSI enqueue99였다. native trace의 마지막1024개 dispatch는12ms 초과가 없었고 retained256 frame의 최대 render 작업은30.82ms였다. 전체 실행 분포·화면 FPS는 아니다.
+- Windows ES2015 번들이 객체 spread/rest를 JavaScript 반복 복사 helper로 낮추고 있었다. 고정된 Hermes94aa5e1d/HBC99 compiler+VM의 native CopyDataProperties를 사용하도록 Windows만 syntax 지원을 선언했다. Android/Web 정책은 유지한다. manifest의 bytecode.syntax도 검증하여 이전 생성 정책의 번들을 현재 것으로 수락하지 않는다.
+- 새 `check-hermes-syntax.mjs`는 실제 Hermes VM/DLL와 compiler로 getter·symbol·own/inherited·proto·rest exclusion, 기존 클래스 field/setter/상속·mixin·Reflect.construct·내장 subclass 계약을 검증한다. 같은 연산12000회 비교는 ES2015 helper89–92ms/native spread26ms였으나 달력 FPS 개선율이 아니다. 임시 C++/HBC는 finally에서 정리한다.
+- 객체 복사 최적화만의 물리 피드백은 **“조금 줄었지만 여전히 큼”**. precision545개/종료35회/거부0, 오류 없음. 6012개 표본에서 spread helper는 사라졌지만 root2582/YoungGenGC888/defNormalProp133/enqueue87, builder 재빌드가 여전히 컸다. GC 통계는 전체 runtime 기준이며 서로 다른 입력량의 실행을 단순 비율로 비교하지 않는다.
+- native class/field 경로는 작은 compiler+VM 계약 검사는 통과했지만 전체 앱의 `Diagnosticable(class {})` 초기화에서 `Object is not a constructor`로 실패했다. **해당 변경은 철회하고 Babel 클래스 변환을 복원했다.** 실패 실행은 exit1/reservedBytes0/memoryTotal0/workersJoined=true. 기본 실행에 native class를 남기지 않는다.
+- 반복 App 관측에서 바뀌지 않은 semantics/paragraph blob도 매번 다시 해석하는 경로를 수정 중이다. owner/view generation/node generation/type와 **정확한 바이트 일치**로 검증된 불변 값만 재사용한다. 최대4096개/원본 blob1MiB, 큰 전체 packet 보존 금지, 세션 종료 clear, 변경·잘못된 입력은 재검증한다. 회귀에서 같은 값 identity 재사용, label 변경 반영, 원본 buffer 변경 격리, 재사용 generation 분리, entry/byte 상한, 기존 App 응답/flag 검증 PASS. 최종 공급·번들 검증은 완료 후 아래에 추가한다.
+- 질문 “jsi때문에 병목이 있는거야?”에 대한 현재 근거는 JSI 자체의 호출 진입보다 App 재빌드·장면 변환·관측 데이터 객체 생성/GC가 더 크다는 것이다. JSI를 지나는 데이터 복사/해석 비용까지 없다고 단정하지 않는다. **performanceAccepted=false / resizePerformanceAccepted=false**를 유지한다.
+- 관측 blob 재사용 구현·공급 반영 완료. 전체 query와 App projection 모두 같은 검증된 blob을 공유한다. 실제 pinned VM에서 semantics512개×20회 해석은75ms→58ms, cache hit9728/원본 blob65536bytes였으며 동일 결과를 확인했다. 이는 작은 반복 해석 비교이며 앱 전체 성능 수락이 아니다.
+- 최종 공급 **`dea64e1fb0ab7a415de1659aaf31a132f76ca2263bc8c2d73b7cee9aee001cc3`**, ABI2/schema2570296319. native/WindowsAppSDK/Wasm·Core/SDK·Windows/Web 재빌드 및 source/supply/manifest identity 일치. Windows bytecode JS SHA256=`8bd3c28e8b306a76f21036dedda434a12a2bd4415a9483547e629008cdc13081`, classes=babel, syntax={bigint:true,object-rest-spread:true}.
+- 최종 native frame/precision/list/late-page-coverage/page-layout 회귀, App observation/cache/packet/flag, incremental capture/semantics/terminal, TS lint/diff PASS. Web 두 profile의 지연 precision12회 왕복·열린 달력 resize와 extended 날짜 선택/입력·기존 UI·close 모두 PASS(예약0/worker 종료). 최신 Windows 일반 CLI ready/appGeometryNodes0/rejectedFallbacks0 확인. **이 cache 변경 후 물리 트랙패드 체감은 아직 notVerified**다.
+
+## 22. 2026-11-10 과거 월 연속 스와이프의 잉크 참조 오류
+
+- 사용자 제공 실행 로그에서 **`Native ink reference is not mounted` / exitCode1**을 확인했다. `nativePaintBody`→SceneWriter encode/visit 중 잉크의 reference가 null이었다. document180/active177, failedDocument0, nodes1527, memoryPeak564988165/805306368, precision admitted270/rejected0/ends25였다. 이번 최초 오류는 §20의 semantics 예산 초과와 구분한다. 종료 정리는 status0/reservedBytes0/memoryTotal0/workersJoined=true였다.
+- 화면 밖 page의 Source State는 보존하고 native 자식은 제외했으나, `OriginalNativeRender.paintsChild`는 여전히 true를 반환했다. Material 원본 adapter는 이 Source ancestor 정책으로 잉크 reference의 표시 여부를 판단하므로, 보존된 날짜 셀의 잉크가 제외되지 않았다. `paintsChild`가 native projection의 `parkedChildren`과 같은 표시 정책을 반환하도록 수정했다.
+- 별도로 Material 잉크 설정이 정적 capture로 보관되어, 자손 page의 표시 정책이 바뀌어도 이전 paint reference가 재사용됐다. 살아 있는 잉크 feature가 있을 때만 `dependsOnChildVisibility`/`dynamicPaint`로 설정을 다시 읽는다. 모든 feature가 화면 밖인 동안에도 이 의존성은 유지하며, feature가 없는 Material은 정적 capture를 유지한다. 원본 feature를 임의 dispose하거나 encoder의 잘못된 reference 검사를 완화하지 않는다.
+- 새 `check-ink-parking.mjs`에서 수정 전 **parked child의 paintsChild=true**를 재현했고, 표시 정책만 고친 중간 상태에서도 **retained ink configuration still references a parked cell**을 재현했다. 최종 수정은 live highlight 생성→page 보존/제외→native reference 해제 후 재캡처→동일 Source feature를 살려 둔 채 다시 표시→새 native generation으로 paint 복원까지 PASS. 실제 TS layout/paint는 실행하지 않는다. idle Material 정적 capture도 검사한다.
+- `check-date-scroll-web.mjs --precision --burst --past-only --both`를 추가했다. 각 profile에서 과거 방향 stream24회, update/commit 지연 주입, mouse hover 및 월 제목 변경, 노드/semantics/Element/예약 상한, 열린 달력 resize, 정리를 확인한다. 첫 통합 실행은 두 profile 모두 PASS(닫을 때 reservedBytes0/workersStopped=true). 최종 활성 feature 한정 형태의 공급·번들 검증 결과는 아래에 기록한다.
+- 이번 변경은 App/Source adapter 경로다. C++ 공급은 **dea64e1fb0ab7a415de1659aaf31a132f76ca2263bc8c2d73b7cee9aee001cc3 / ABI2 / schema2570296319**이며 sourceIdentity 일치를 확인했다. 실제 트랙패드 장시간 재확인과 기존 끊김의 성능 수락은 아직 별개다.
+- 최종 Core/SDK/Material 및 Windows/Web 앱 재빌드 완료. Windows bytecode JS SHA256=`60eb73974e438c039e9d9e9205a81778c1bb2157f2020aba7215ec48089813d5`. 두 target의 manifest/supply identity 검증과 실제 번들의 paintsChild/dependsOnChildVisibility/dynamicPaint 반영을 확인했다. 전체 C++ 재빌드는 하지 않았다(해당 공급 소스 변경 없음).
+- 최종 feature 한정 형태의 ink parking/capture/App observation 회귀와 TS lint/diff PASS. Web 두 profile의 past-only24회·resize 및 extended 날짜 선택/입력/확인/취소/재개방·기존 theme/route/image/editor·close 모두 PASS. past-only의 nodes2190–2253/Elements5474–5637/builders7로 bounded, close reservedBytes0/workersStopped=true. Windows 일반 CLI app-ready/appGeometryNodes0/rejectedFallbacks0 확인. 이 자동 증거를 물리 트랙패드·FPS 수락으로 확대하지 않는다.
+- Windows 최종 일반 실행에서 Selection→Choose date의 November2026 실제 그리드/접근성 표시와 오류 출력 없음을 확인했다. 창은 사용자 과거 월 연속 트랙패드 입력을 위해 열어 두었다. §20의 화면 밖 보존 처리에 잉크 표시·capture 의존성을 연결하지 못했던 누락을 보완한 것이다.
+- 사용자 물리 후속: **“이제 종료없이 계속 이동은 되는데 여전히 준비하는데 너무 오래걸림”**. 해당 입력 구간의 종료 재발 없음은 사용자 확인으로 기록한다. 월 준비 지연과 performanceAccepted=false는 유지한다. 후속 FFI/객체 공유 제안은 현재 JSI 경계의 패킷 복사와 TS 재빌드·capture 비용을 구분하여 검토하며, 전면 교체를 구현 완료로 표기하지 않는다.

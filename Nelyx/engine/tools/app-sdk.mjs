@@ -133,6 +133,10 @@ export function buildAppSdkHost({ engineRoot, library, intermediate, output }) {
     path.join(output, 'hermesvm.dll'),
   );
   fs.copyFileSync(
+    path.resolve(engineRoot, '../../.nelyx/windows-hermes/build/bin/hermesc.exe'),
+    path.join(output, 'hermesc.exe'),
+  );
+  fs.copyFileSync(
     path.resolve(engineRoot, '../licenses/FlutterEngine-LICENSE.md'),
     path.join(output, 'licenses/FlutterEngine-LICENSE.md'),
   );
@@ -153,6 +157,12 @@ export function buildAppSdkHost({ engineRoot, library, intermediate, output }) {
     deployment: 'unpackaged-self-contained',
     os: 'windows',
     architecture: 'x64',
+    appBytecode: {
+      compiler: 'windows-app-sdk/hermesc.exe',
+      version: 99,
+      entry: 'application/app.hbc',
+      policy: 'windows-hermes-94aa5e1d-no-cfg-v1',
+    },
     crt: 'MD',
     compiler: env.VCTOOLSVERSION,
     windowsSdk: env.WINDOWSSDKVERSION,

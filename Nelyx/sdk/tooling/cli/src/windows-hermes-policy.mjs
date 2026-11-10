@@ -2,6 +2,12 @@
 // Pinned Hermes 94aa5e1d: SimplifyCFG corrupts branch-specific loop phis.
 // Keep the producer's registered optimization order while omitting that pass
 // and the internal-only LowerBuiltinCallsOptimized pass. Inlining remains off.
+// Qualified against this compiler AND its VM. Preserve native CopyDataProperties
+// instead of allocating ES2015 helper objects. Keep the qualified class pipeline.
+export const windowsHermesSyntax = Object.freeze({
+  bigint: true,
+  'object-rest-spread': true,
+});
 const noCfgPasses = Object.freeze([
   'lowergeneratorfunction',
   'instsimplify',

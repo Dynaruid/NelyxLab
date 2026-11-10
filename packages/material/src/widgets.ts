@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 export { MaterialApp, ThemeMode } from './app.ts';
+export {
+  showDatePicker,
+  DatePickerDialog,
+  CalendarDatePicker,
+  YearPicker,
+  InputDatePickerFormField,
+  DatePickerMode,
+  DatePickerEntryMode,
+  DateUtils,
+  CalendarDelegate,
+  GregorianCalendarDelegate,
+  DateTime,
+} from './date-picker.ts';
 export type { MaterialAppOptions } from './app.ts';
 export { FilledButton } from './filled-button.ts';
 export { TextButton } from './text-button.ts';

@@ -125,7 +125,7 @@ export function launchApp(definition: AppDefinition): void {
           // The common bootstrap installs cleanup before invoking build().
           // Admit the App backend before user FontLoader/build callbacks run.
           if (!definition.services) {
-            services = createAppServices(onError);
+            services = createAppServices(onError, view.owner.view);
             backend = await text();
             if (backend.images?.snapshot().version !== 2)
               throw Error('Required App image scene service version 2 is unavailable');
@@ -142,6 +142,7 @@ export function launchApp(definition: AppDefinition): void {
                   appImages: images,
                   ownsAppText: false,
                   binaryMessenger: services!.binaryMessenger,
+                  platformView: services!.platformView,
                   dispatchNativeKey: services!.dispatchNativeKey,
                   semanticsEvent: (node, type) => services!.semanticsEvent(node, type),
                 }),
@@ -164,6 +165,7 @@ export function launchApp(definition: AppDefinition): void {
       return host;
     };
     return {
+      diagnostics: () => host?.diagnostics() ?? {},
       prepare: async (context) => {
         await prepare(context);
       },

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { RenderObject } from '@nelyx/core/framework/rendering/object';
 import { protocol as p } from '../engine-client/schema.ts';
-import { retainSceneConfiguration } from '../engine-client/scene.ts';
-import type { SceneNode } from '../engine-client/scene.ts';
+import { retainSceneConfiguration, SceneNode } from '../engine-client/scene.ts';
 
+type Count = { value: number };
+type Refresh = (count: Count, depth: number) => SceneNode;
+type Child = { scene: SceneNode; refresh: Refresh; depth: number; count: number };
 type Entry = {
   scene: SceneNode;
   parent: RenderObject | undefined;
@@ -11,18 +13,30 @@ type Entry = {
   context: string;
   count: number;
   height: number;
+  dynamic: boolean;
+  hasDynamic: boolean;
+  children: readonly Child[];
+};
+type CaptureFrame = {
+  depth: number;
+  deepest: number;
+  dynamic: boolean;
+  hasDynamic: boolean;
+  children: Child[];
 };
 
-/** Retains configuration, never layout/paint output. Invalidation walks the
- * ancestor path even though native-owned Source objects never flush TS layout.
- * Dynamic ownership boundaries opt out and propagate that decision upward. */
+/** Configuration cache with independently dirty nodes and descendant edges.
+ * Dynamic owners still execute their registration/retirement work each pass;
+ * static ancestors only reconnect changed child scenes. */
 export class RenderSceneCapture {
   private entries = new WeakMap<RenderObject, Entry>();
   private dirty = new WeakSet<RenderObject>();
-  private frames: { reusable: boolean; deepest: number }[] = [];
+  private localDirty = new WeakSet<RenderObject>();
+  private frames: CaptureFrame[] = [];
   context = '';
-  readonly counters = { captured: 0, reused: 0, passes: 0 };
+  readonly counters = { captured: 0, reused: 0, relinked: 0, dynamic: 0, passes: 0 };
   invalidate(render: RenderObject): void {
+    this.localDirty.add(render);
     for (let at: RenderObject | undefined = render, depth = 0; at; at = at.parent) {
       if (++depth > p.limits.depth) throw Error('Native capture parent depth exceeded');
       if (this.dirty.has(at)) break;
@@ -31,64 +45,126 @@ export class RenderSceneCapture {
   }
   dynamic(): void {
     const frame = this.frames.at(-1);
-    if (frame) frame.reusable = false;
+    if (frame) frame.dynamic = frame.hasDynamic = true;
   }
   node(
     render: RenderObject,
     input: string,
-    count: { value: number },
+    count: Count,
+    depth: number,
+    build: () => SceneNode,
+    refresh: Refresh,
+  ): SceneNode {
+    const parent = this.frames.at(-1),
+      before = count.value;
+    const scene = this.read(render, input, count, depth, build);
+    const entry = this.entries.get(render)!;
+    if (parent) {
+      parent.children.push({
+        scene,
+        refresh,
+        depth: depth - parent.depth,
+        count: count.value - before,
+      });
+      parent.deepest = Math.max(parent.deepest, depth + entry.height);
+      parent.hasDynamic ||= entry.hasDynamic;
+    }
+    return scene;
+  }
+  private read(
+    render: RenderObject,
+    input: string,
+    count: Count,
     depth: number,
     build: () => SceneNode,
   ): SceneNode {
-    const parent = this.frames.at(-1),
-      entry = this.entries.get(render);
-    if (
+    const entry = this.entries.get(render);
+    const valid =
       !render.debugDisposed &&
       entry &&
-      !this.dirty.has(render) &&
       entry.parent === render.parent &&
       entry.input === input &&
-      entry.context === this.context
-    ) {
+      entry.context === this.context;
+    if (valid && !this.dirty.has(render) && !entry.hasDynamic) {
       if (count.value + entry.count >= p.limits.nodes || depth + entry.height >= p.limits.depth)
         throw Error('Native capture node/depth budget exceeded');
       count.value += entry.count;
       this.counters.reused += entry.count;
-      if (parent) parent.deepest = Math.max(parent.deepest, depth + entry.height);
       return entry.scene;
     }
+    const reconnect = valid && !entry.dynamic && !this.localDirty.has(render);
     this.dirty.delete(render);
-    const before = count.value,
-      frame = { reusable: true, deepest: depth };
+    this.localDirty.delete(render);
+    const before = count.value;
+    const frame: CaptureFrame = {
+      depth,
+      deepest: depth,
+      dynamic: false,
+      hasDynamic: false,
+      children: [],
+    };
     this.frames.push(frame);
-    ++this.counters.captured;
     try {
-      const scene = build();
-      if (frame.reusable) {
-        retainSceneConfiguration(scene);
-        this.entries.set(render, {
-          scene,
-          parent: render.parent,
-          input,
-          context: this.context,
-          count: count.value - before,
-          height: frame.deepest - depth,
-        });
-      } else this.entries.delete(render);
+      let scene: SceneNode;
+      if (reconnect) {
+        // Synthetic paint nodes are owned by this configuration; render-child
+        // subtrees account for their own node/depth limits during refresh.
+        count.value += entry.count - entry.children.reduce((sum, child) => sum + child.count, 0);
+        if (count.value >= p.limits.nodes || depth >= p.limits.depth)
+          throw Error('Native capture node/depth budget exceeded');
+        const old = entry.scene;
+        let children: SceneNode[] | undefined;
+        for (const child of entry.children) {
+          const next = child.refresh(count, depth + child.depth);
+          if (next !== child.scene) {
+            const index = old.children.indexOf(child.scene);
+            if (index < 0) throw Error('Native capture child edge is absent');
+            children ??= old.children.slice();
+            children[index] = next;
+          }
+        }
+        scene = children
+          ? new SceneNode(
+              old.reference,
+              old.kind,
+              children,
+              old.options,
+              old.text,
+              old.image,
+              old.editor,
+              old.editorFlags,
+              old.maximumLength,
+            )
+          : old;
+        ++this.counters.relinked;
+      } else {
+        ++this.counters.captured;
+        scene = build();
+      }
+      if (!frame.dynamic) retainSceneConfiguration(scene);
+      else ++this.counters.dynamic;
+      this.entries.set(render, {
+        scene,
+        parent: render.parent,
+        input,
+        context: this.context,
+        count: count.value - before,
+        height: frame.deepest - depth,
+        dynamic: frame.dynamic,
+        hasDynamic: frame.hasDynamic,
+        children: frame.children,
+      });
       return scene;
     } catch (error) {
       this.entries.delete(render);
       throw error;
     } finally {
       this.frames.pop();
-      if (parent) {
-        parent.reusable &&= frame.reusable;
-        parent.deepest = Math.max(parent.deepest, frame.deepest);
-      }
     }
   }
   clear(): void {
     this.entries = new WeakMap();
     this.dirty = new WeakSet();
+    this.localDirty = new WeakSet();
   }
 }

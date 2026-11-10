@@ -224,12 +224,14 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       if (data.length == wire::nodeAttachedCreationBytes)
         attach(h, handle(data, wire::nodeCreationFields::parent), data.u32(wire::nodeCreationFields::index), false);
     } else if (op == wire::commands::properties) {
-      require(data.length == 64);
+      require(data.length == 64 || data.length == wire::nodeInitialPropertiesBytes);
       Properties p{data.f64(0), data.f64(8), data.f64(16), data.f64(24), data.f64(32),
-        data.f64(40), data.f64(48), data.u32(56), data.u32(60)};
+        data.f64(40), data.f64(48), data.u32(56), data.u32(60),
+        data.length == wire::nodeInitialPropertiesBytes ? data.f64(64) : 0};
       require(p.width >= 0 && p.height >= 0 && p.opacity >= 0 && p.opacity <= 1 &&
         p.extent <= wire::extents::unbounded &&
-        (p.extent == wire::extents::unbounded ? p.maximum == 0 : p.minimum <= p.maximum) && (p.flags & ~3u) == 0,
+        (p.initialScrollOffset == 0 || d->get(h).kind == wire::kinds::scrollViewport) &&
+        (p.extent == wire::extents::unbounded ? p.maximum == 0 : p.minimum <= p.maximum) && (p.flags & ~7u) == 0 && (!(p.flags&wire::nodePropertyFlags::pageSnapping)||d->get(h).kind==wire::kinds::scrollViewport),
         wire::statuses::invalidValue);
       const auto& previous = d->get(h).properties;
       const bool changed = previous.x != p.x || previous.y != p.y ||
@@ -504,7 +506,8 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       require(!layoutFlags||s.enabled,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::childMask)||proxy,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::enforceBounds)||proxy||kind==wire::kinds::image,wire::statuses::capabilityMissing);
-      require(!(layoutFlags&(wire::layoutConstraintFlags::reverseMain|wire::layoutConstraintFlags::reverseCross))||kind==wire::kinds::flex||kind==wire::kinds::wrap,wire::statuses::capabilityMissing);
+      require(!(layoutFlags&(wire::layoutConstraintFlags::reverseMain|wire::layoutConstraintFlags::reverseCross))||kind==wire::kinds::flex||kind==wire::kinds::wrap||
+        (kind==wire::kinds::grid&&!(layoutFlags&wire::layoutConstraintFlags::reverseCross)),wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::shrinkUnboundedMain)||kind==wire::kinds::flex,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::alignment)||proxy,wire::statuses::capabilityMissing);
       require(!(layoutFlags&wire::layoutConstraintFlags::alignmentSizing)||
@@ -538,7 +541,14 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
       if(!value.builtRevision)for(size_t at=16;at<data.length;++at)require(data.data[at]==0,wire::statuses::invalidValue);
       const auto& prior=d->get(h).layoutBuilder;
       require(!prior||value.revision>=prior->revision,wire::statuses::stale);
-      edit(h)->layoutBuilder=value;
+        // A completed callback revision is metadata when its Content input is
+        // unchanged. Child mutations dirty their own paths independently. Keep
+        // measured geometry instead of relaying out every retained calendar.
+        const auto sameAxis=[](const Axis& a,const Axis& b){return a.tag==b.tag&&a.min==b.min&&a.max==b.max;};
+        const bool sameInput=d->get(h).kind==wire::kinds::box&&prior&&
+          prior->builtRevision==prior->revision&&value.builtRevision==value.revision&&
+          sameAxis(prior->horizontal,value.horizontal)&&sameAxis(prior->vertical,value.vertical);
+        edit(h,!sameInput)->layoutBuilder=value;
     } else if (op == wire::commands::snapshot) {
       const auto value=readSnapshotStyle(data);
       const auto& node=d->get(h);

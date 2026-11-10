@@ -14,6 +14,7 @@ import {
   stateInspectionBody,
   writeHandle,
 } from './codec.ts';
+import { ObservationDecodeCache } from './observation-cache.ts';
 import type { EngineResponse, PacketOwner } from './codec.ts';
 import { protocol as p } from './schema.ts';
 import { drainEngineOwners } from './lifecycle.ts';
@@ -94,6 +95,7 @@ function checked(
   return result;
 }
 export class EngineClient {
+  private readonly observationCache = new ObservationDecodeCache();
   private changeRevision = 0;
   private readonly changes = new Set<() => void>();
   private unsubscribeChanges: (() => void) | undefined;
@@ -204,7 +206,18 @@ export class EngineClient {
     const work = Promise.resolve()
       .then(() => this.transport.exchange(owned))
       .then((received) => {
-        const result = response(received);
+        const appObservation =
+          (expected.opcode === p.opcodes.layoutSnapshot ||
+            expected.opcode === p.opcodes.semanticsSnapshot) &&
+          owned.length >= p.headerBytes + 4 &&
+          (sent.getUint32(p.headerBytes, true) === p.inspectionFlags.appObservation ||
+            (expected.opcode === p.opcodes.layoutSnapshot &&
+              sent.getUint32(p.headerBytes, true) === p.inspectionFlags.appLayoutSelection));
+        const result = response(received, {
+          appObservation,
+          observationCache: this.observationCache,
+          observationOwner: `${expected.view}:${expected.generation}`,
+        });
         if (
           result.owner.session !== expected.session ||
           result.owner.app !== expected.app ||
@@ -288,6 +301,7 @@ export class EngineClient {
     this.closing.clear();
     for (const view of this.views) view.sessionClosed();
     this.views.clear();
+    this.observationCache.clear();
     resourceSlots.get(this)?.clear();
     resourceSlots.delete(this);
     this.unsubscribeChanges?.();

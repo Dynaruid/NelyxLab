@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+import { observationNode } from '../engine-client/node-index.ts';
 import {
   StatefulWidget,
   State,
@@ -230,11 +231,7 @@ export class OriginalFocusBridge {
   private geometry(binding: Binding): { rect: Rect; offset: Offset } {
     const handle = binding.render && this.handle(binding.render),
       frame = this.publication;
-    const node =
-      handle &&
-      frame?.nodes.find(
-        (n) => n.node.slot === handle.slot && n.node.generation === handle.generation,
-      );
+    const node = handle && frame && observationNode(frame, handle);
     if (!binding.active || this.closed || !this.geometryReady() || !node)
       throw Error('Original native focus geometry is not currently published');
     return {

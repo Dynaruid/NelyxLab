@@ -9,6 +9,8 @@ import { PlatformMessageConnection } from './platform-messages.ts';
 import { invokeClipboardService } from './clipboard-service.ts';
 import { JSONMethodCodec, StandardMessageCodec } from '@nelyx/core/services/message-codecs';
 import type { EngineEvent, NodeHandle } from '@nelyx/core/engine';
+import { PlatformDispatcher } from '@nelyx/core/ui/platform-dispatcher';
+import type { PlatformViewRegistration } from '@nelyx/core/ui/platform-dispatcher';
 
 import {
   appServicesVersion,
@@ -30,7 +32,7 @@ type WorkerScope = {
   removeEventListener(type: 'message', callback: (event: MessageEvent<ServiceReply>) => void): void;
 };
 /** One App messenger and one bounded OS transport. Native/DOM objects stay on UI. */
-export function createAppServices(onError: (error: unknown) => void) {
+export function createAppServices(onError: (error: unknown) => void, viewId = 0) {
   const environment = globalThis as unknown as {
     NelyxV2Native?: NativeAppServices;
     __v2ServiceReply?: ((id: number, text: string, error?: string) => void) | undefined;
@@ -64,7 +66,9 @@ export function createAppServices(onError: (error: unknown) => void) {
     }
     pending.delete(id);
     heldBytes -= request.bytes;
-    if (error) request.reject(new PlatformException({ code: 'platform-error', message: error }));
+    if (error === 'not-implemented') request.reject(new MissingPluginException());
+    else if (error)
+      request.reject(new PlatformException({ code: 'platform-error', message: error }));
     else {
       try {
         validateAppServiceText(text);
@@ -117,18 +121,27 @@ export function createAppServices(onError: (error: unknown) => void) {
   const accessibilityCodec = new StandardMessageCodec();
   port.register('flutter/accessibility', async (data) => {
     const value = accessibilityCodec.decodeMessage(data);
-    if (!(value instanceof Map) || value.get('type') !== 'tooltip' || value.size !== 2)
+    if (
+      !(value instanceof Map) ||
+      !['tooltip', 'announce'].includes(String(value.get('type'))) ||
+      value.size !== 2
+    )
       throw new MissingPluginException('App accessibility event is unavailable');
     const payload = value.get('data');
+    const announce = value.get('type') === 'announce';
     if (
       !(payload instanceof Map) ||
-      payload.size !== 1 ||
+      payload.size !== (announce ? 3 : 1) ||
+      (announce &&
+        (payload.get('viewId') !== viewId || ![0, 1].includes(payload.get('textDirection')))) ||
       typeof payload.get('message') !== 'string'
     )
       throw new PlatformException({
         code: 'invalid-arguments',
-        message: 'Invalid tooltip semantics event',
+        message: 'Invalid or unsupported polite accessibility event',
       });
+    // Both original events use the existing polite announcement transport:
+    // RNW announceForAccessibility on Windows and the live status node on Web.
     await call('accessibility-tooltip', payload.get('message'));
     return accessibilityCodec.encodeMessage(null);
   });
@@ -188,8 +201,10 @@ export function createAppServices(onError: (error: unknown) => void) {
         throw new MissingPluginException('App OS channel is unavailable: ' + channel);
     },
   });
+  let viewRegistration: PlatformViewRegistration | undefined;
   const stop = () => {
     if (stopped) return;
+    viewRegistration?.dispose();
     messages.stop();
     stopped = true;
     if (native) native.stopAppServices();
@@ -212,6 +227,9 @@ export function createAppServices(onError: (error: unknown) => void) {
     })());
   try {
     messages.attach();
+    viewRegistration = PlatformDispatcher.forMessenger(
+      messages.binaryMessenger,
+    ).registerViewIdentity(viewId, { implicit: true, isLive: () => !stopped });
   } catch (error) {
     stop();
     void close().catch(onError);
@@ -219,6 +237,7 @@ export function createAppServices(onError: (error: unknown) => void) {
   }
   return {
     binaryMessenger: messages.binaryMessenger,
+    platformView: viewRegistration!.view,
     dispatchNativeKey: (event: EngineEvent, dispatch?: () => void): void => {
       const snapshot = event.clipboardReadSnapshot ?? 0n,
         previous = clipboardReadSnapshot;

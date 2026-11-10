@@ -452,8 +452,13 @@ Handle View::target(double x,double y,const Frame* snapshot)const {
   for(auto it=frame->items.rbegin();it!=frame->items.rend();++it){
     const auto& node=geometry.get(it->node);
     if((it->opacity<=0&&!(node.policy&wire::eventPolicies::canonicalHitTest))||!frame->allows(node.id)||!frame->hit(*it,x,y))continue;
+    Handle first;
     for(const Node* current=&node;current;current=current->parent?&geometry.get(current->parent):nullptr)
-      if(current->kind==wire::kinds::scrollViewport||current->editorViewport.enabled)return current->id;
+      if(current->kind==wire::kinds::scrollViewport||current->editorViewport.enabled){
+        if(!first)first=current->id;
+        if(current->properties.extent==wire::extents::unbounded||current->properties.maximum-current->properties.minimum>1e-6)return current->id;
+      }
+    if(first)return first;
   }return {};
 }
 }

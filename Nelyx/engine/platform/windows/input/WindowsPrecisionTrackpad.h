@@ -72,7 +72,7 @@ public:
     trace("cancel");
     const bool active=needsUpdate(),end=running,cancelInertia=inertia;
     running=inertia=interacting=resetting=false;disarm();
-    if(end)send("panZoomEnd");if(cancelInertia)send("inertiaCancel");origin.reset();
+    if(end)send("panZoomCancel");if(cancelInertia)send("inertiaCancel");origin.reset();
     if(available&&active){
       // Retire native contacts too: otherwise a new contact can remain in the
       // old RUNNING viewport without another start callback after cancellation.

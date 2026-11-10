@@ -362,17 +362,21 @@ struct Device::Impl {
     context->checkAsyncWorkCompletion();
     if(gpuFailed)throw std::runtime_error("Asynchronous window GPU work failed");
     if(gpuPending)return false;
+    bool resourcesComplete=true;
     for(auto& image:windowImages)if(image.pending){
       const auto result=api.get<PFN_vkGetFenceStatus>("vkGetFenceStatus")(api.device,image.presented);
-      if(result==VK_NOT_READY)return false;
+      if(result==VK_NOT_READY){resourcesComplete=false;continue;}
       checked(result,"Vulkan presentation resource status");image.pending=false;
     }
-    if(windowRecording)windowTiming.resourcesObservedMs=elapsedMs(windowSubmitted);
+    // A presentation fence owns the swapchain image/semaphore, not the
+    // offscreen source or the App/Prepared leases after GPU completion.
+    if(windowRecording&&resourcesComplete)windowTiming.resourcesObservedMs=elapsedMs(windowSubmitted);
     windowRecording.reset();return true;
   }
   bool acquireWindowFrame(){
-    if(!swapchain||acquiredIndex!=UINT32_MAX)throw std::runtime_error("Invalid asynchronous window acquisition");
+    if(!swapchain)throw std::runtime_error("Invalid asynchronous window acquisition");
     if(!windowFrameComplete())return false;
+    if(acquiredIndex==UINT32_MAX){
     windowTiming={};const auto started=std::chrono::steady_clock::now();
     checked(api.get<PFN_vkResetFences>("vkResetFences")(api.device,1,&acquireFence),"reset acquire fence");
     const auto result=api.get<PFN_vkAcquireNextImageKHR>("vkAcquireNextImageKHR")(api.device,swapchain,0,acquiredSemaphore,acquireFence,&acquiredIndex);
@@ -381,6 +385,13 @@ struct Device::Impl {
     if(result==VK_ERROR_OUT_OF_DATE_KHR){acquiredIndex=UINT32_MAX;throw SurfaceChanged("Vulkan swapchain changed before acquisition");}
     if(result!=VK_SUBOPTIMAL_KHR)checked(result,"vkAcquireNextImageKHR");
     acquirePending=true;
+    }
+    // Reuse only this acquired image's presentation fence. A busy fence keeps
+    // the acquisition reserved; the next tick retries without acquiring twice.
+    auto& image=windowImages.at(acquiredIndex);
+    if(image.pending){const auto result=api.get<PFN_vkGetFenceStatus>("vkGetFenceStatus")(api.device,image.presented);
+      if(result==VK_NOT_READY)return false;
+      checked(result,"Acquired image presentation resource status");image.pending=false;}
     return true;
   }
   void releaseWindow(skgpu::graphite::Recorder* recorder){

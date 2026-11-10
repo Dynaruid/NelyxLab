@@ -40,6 +40,7 @@ try {
           queued: s?.queued,
           layout: String(s?.layoutWork),
           measure: d?.['content-stats']?.counters.measurements,
+          preparationError: d?.['preparation-error'],
         };
       });
     try {
@@ -56,7 +57,27 @@ try {
         () => __nelyxV2.surface.diagnostics['render-stats'].scrollOffsets[0] >= 430,
       );
       console.log(profile, 'click-then-wheel admitted');
-      await page.waitForTimeout(500);
+      // Finish the click animation and initial prefetch before measuring reuse.
+      await page.waitForFunction(() => {
+        const s = __nelyxV2.surface.diagnostics['render-stats']?.state;
+        if (
+          !s ||
+          s.preparation ||
+          s.document !== s.publishedDocument ||
+          s.renderWake ||
+          s.nextDeadline !== null
+        ) {
+          delete globalThis.__warmObservation;
+          return false;
+        }
+        const key = `${s.document}/${s.layoutWork}`;
+        const previous = globalThis.__warmObservation;
+        if (!previous || previous.key !== key) {
+          globalThis.__warmObservation = { key, at: performance.now() };
+          return false;
+        }
+        return performance.now() - previous.at >= 250;
+      });
       const before = await info();
       for (const delta of [20, -20, 20, -20]) {
         const old = (await info()).offset[0];
@@ -84,7 +105,175 @@ try {
         const s = __nelyxV2.surface.diagnostics['render-stats'].state;
         return s.viewport.width === 1280 && s.publishedMetrics === s.metrics;
       });
+      if (process.argv.includes('--extended')) {
+        // Exercise registration lifetimes under retained static ancestors.
+        // These are semantic actions, separate from the physical-pointer smoke above.
+        const named = (name) =>
+          page
+            .locator(
+              `[aria-label=${JSON.stringify(name)}], [aria-description=${JSON.stringify(name)}]`,
+            )
+            .first();
+        const activate = (name) => named(name).evaluate((el) => el.click());
+        await activate('Switch to dark mode');
+        await named('Switch to light mode').waitFor();
+        await activate('Switch to light mode');
+        await named('Switch to dark mode').waitFor();
+        for (const group of ['Navigation', 'Selection', 'Images', 'Text inputs']) {
+          await activate('Explore components');
+          await activate(group);
+          await page.getByRole('button', { name: 'Show all', exact: true }).waitFor();
+          if (group === 'Navigation') {
+            await activate('Favorites');
+            await page.waitForFunction(() =>
+              document.querySelector('[aria-label*="Favorites selected"]'),
+            );
+          }
+          if (group === 'Selection') {
+            const idle = () =>
+              page.waitForFunction(() => {
+                const s = __nelyxV2.surface.diagnostics['render-stats']?.state;
+                return (
+                  s &&
+                  !s.renderWake &&
+                  !s.preparation &&
+                  s.document === s.publishedDocument &&
+                  s.nextDeadline === null
+                );
+              });
+            const year = new Date().getFullYear(),
+              month = new Date().getMonth();
+            const monthName = (year, month) =>
+              new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(
+                new Date(year, month, 1),
+              );
+            const title = () => page.getByRole('button', { name: /^Select year/ });
+            const day = (year, month, date) =>
+              page.getByRole('button', {
+                name: new RegExp(
+                  '^' +
+                    date +
+                    ', ' +
+                    new Intl.DateTimeFormat('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                      .format(new Date(year, month, date))
+                      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+                ),
+              });
+            const dateOpenStarted = performance.now();
+            await activate('Choose date');
+            await page.getByRole('dialog').waitFor();
+            const dateDialogMs = performance.now() - dateOpenStarted;
+            await title().waitFor();
+            await day(year, month, new Date().getDate()).waitFor();
+            console.log(profile, 'date first accessible grid', {
+              dialogMs: Math.round(dateDialogMs),
+              gridMs: Math.round(performance.now() - dateOpenStarted),
+            });
+            // Act on the first visible grid, including while neighbours prepare.
+            await activate('Next month');
+            await page
+              .getByRole('button', {
+                name: new RegExp('^Select year\\s+' + monthName(year, month + 1)),
+              })
+              .waitFor();
+            await idle();
+            await activate('Previous month');
+            await page
+              .getByRole('button', {
+                name: new RegExp('^Select year\\s+' + monthName(year, month)),
+              })
+              .waitFor();
+            await idle();
+            await title().evaluate((el) => el.click());
+            await activate(String(year + 1));
+            await day(year + 1, month, 15).waitFor();
+            await idle();
+            const selected = `${year + 1}-${String(month + 1).padStart(2, '0')}-15`;
+            await day(year + 1, month, 15).evaluate((el) => el.click());
+            await page.waitForFunction(() =>
+              document.querySelector('[role="button"][aria-label^="15, "][aria-selected="true"]'),
+            );
+            await activate('OK');
+            await named('Selected date: ' + selected).waitFor();
+            await page.getByRole('dialog').waitFor({ state: 'detached' });
+            await activate('Choose date');
+            await day(year + 1, month, 15).waitFor();
+            await idle();
+            assert.equal(await day(year + 1, month, 15).getAttribute('aria-selected'), 'true');
+            await activate('Previous month');
+            await idle();
+            await activate('Cancel');
+            await page.getByRole('dialog').waitFor({ state: 'detached' });
+            await named('Choose date').waitFor();
+            await activate('Choose date');
+            await day(year + 1, month, 15).waitFor();
+            await idle();
+            assert.equal(await day(year + 1, month, 15).getAttribute('aria-selected'), 'true');
+            await activate('Switch to input');
+            const dateField = page.getByRole('textbox');
+            const editDate = async (text) => {
+              const before = await page.evaluate(
+                () => __nelyxV2.surface.diagnostics.interaction.edits,
+              );
+              await dateField.fill(text);
+              await page.waitForFunction(
+                (previous) => __nelyxV2.surface.diagnostics.interaction.edits > previous,
+                before,
+              );
+              await page.evaluate(() => {
+                delete globalThis.__dateEditingSettled;
+              });
+              await page.waitForFunction(() => {
+                const s = __nelyxV2.surface.diagnostics['render-stats'].state;
+                if (s.preparation || s.document !== s.publishedDocument) {
+                  delete globalThis.__dateEditingSettled;
+                  return false;
+                }
+                const key = `${s.document}/${s.layoutWork}`,
+                  previous = globalThis.__dateEditingSettled;
+                if (!previous || previous.key !== key) {
+                  globalThis.__dateEditingSettled = { key, at: performance.now() };
+                  return false;
+                }
+                return performance.now() - previous.at >= 150;
+              });
+              assert.equal(await dateField.inputValue(), text);
+            };
+            await editDate('02/30/2024');
+            await activate('OK');
+            await named('Invalid format.').waitFor();
+            await editDate('02/29/2024');
+            await activate('OK');
+            await named('Selected date: 2024-02-29').waitFor();
+            await page.getByRole('dialog').waitFor({ state: 'detached' });
+            console.log(
+              profile,
+              'original date picker month/year/day, confirm/cancel/reopen and input validation PASS',
+            );
+          }
+          if (group === 'Images') {
+            await page.waitForFunction(
+              () => __nelyxV2.surface.diagnostics['content-stats']?.counters.images > 0,
+            );
+            await activate('Contain');
+          }
+          if (group === 'Text inputs') {
+            const field = page.getByRole('textbox').first();
+            await field.fill('capture');
+            assert.equal(await field.inputValue(), 'capture');
+          }
+          await activate('Show all');
+          await page.getByRole('button', { name: 'Filled', exact: true }).waitFor();
+        }
+        console.log(profile, 'theme, route, image and editor lifetimes PASS');
+      }
       assert.deepEqual((await info()).errors, []);
+      assert.equal((await info()).preparationError, undefined);
       assert.deepEqual(errors, []);
       const closed = await page.evaluate(() => __nelyxV2.close());
       assert.equal(closed.reservedBytes, 0);
@@ -95,6 +284,19 @@ try {
       });
     } catch (e) {
       console.log(profile, 'FAILED', await info());
+      console.log(
+        'Current semantic labels',
+        await page.locator('[aria-label]').evaluateAll((nodes) =>
+          nodes
+            .map((n) => ({
+              role: n.getAttribute('role'),
+              label: n.getAttribute('aria-label'),
+              hint: n.getAttribute('aria-description'),
+            }))
+            .filter((n) => n.label || n.hint)
+            .slice(0, 60),
+        ),
+      );
       throw e;
     } finally {
       await context.close();

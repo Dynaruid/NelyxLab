@@ -177,6 +177,7 @@ registerNativeRenderMetadata(MaterialInkRender.prototype, (source) => {
   };
   return {
     kind: 'ink',
+    dependsOnChildVisibility: source.features.length !== 0,
     absorbHitTest: source.absorbHitTest,
     entries: entries.length
       ? [

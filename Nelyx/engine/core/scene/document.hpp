@@ -44,6 +44,7 @@ struct Properties {
   double x = 0, y = 0, width = 0, height = 0, opacity = 1;
   double minimum = 0, maximum = 0;
   uint32_t extent = wire::extents::finite, flags = 0;
+  double initialScrollOffset = 0;
   bool operator==(const Properties&) const = default;
 };
 struct Motion {
