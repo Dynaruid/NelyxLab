@@ -12,8 +12,12 @@ const command = (op: number, node: NodeHandle, payload: Uint8Array = new Uint8Ar
   bytes.set(payload, 16);
   return bytes;
 };
-const equal = (a: Uint8Array, b: Uint8Array) =>
-  a.length === b.length && a.every((value, index) => value === b[index]);
+function equal(a: Uint8Array, b: Uint8Array): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; ++i) if (a[i] !== b[i]) return false;
+  return true;
+}
 type Entry = { handle: NodeHandle; kind: number; bytes: Uint8Array; hash: string; uses: number };
 export type SceneBlobPlan = {
   readonly commands: readonly Uint8Array[];

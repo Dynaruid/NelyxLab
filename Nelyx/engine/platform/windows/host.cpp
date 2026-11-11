@@ -99,10 +99,17 @@ class Host {
   std::shared_ptr<ResponseBackingStats> responseBacking=std::make_shared<ResponseBackingStats>();
   struct Trace {uint64_t sequence=0,request=0,input=0,document=0,preparation=0,submission=0,publication=0;uint32_t opcode=0,status=0;double started=0,elapsedMs=0,queueMs=0,lockWaitMs=0,lockHeldMs=0;};
   std::mutex traceMutex;std::array<Trace,1024> traceRing{};uint64_t traceSequence=0;
-  std::vector<uint8_t> dispatch(const std::vector<uint8_t>& bytes,double enqueued=0){
-    const auto started=now();DispatchTiming timing;auto result=core.dispatch({bytes.data(),bytes.size()},&timing);
+  std::atomic<uint64_t> nativeFrameReplies{0},nativeFrameReplyBytes{0},nativeFrameNodes{0};
+  std::vector<uint8_t> dispatch(const std::vector<uint8_t>& bytes,double enqueued=0,std::shared_ptr<const Frame>* nativeFrame=nullptr){
+    const auto started=now();DispatchTiming timing;
+    const auto opcode=reader(bytes).u16(12);
+    const auto sequence=opcode==wire::opcodes::input&&bytes.size()>=wire::headerBytes+8?reader(bytes).u64(wire::headerBytes):0;
+    RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::CoreDispatchBegin,1,0,sequence,opcode,0);
+    auto result=nativeFrame?core.dispatchNativeFrame({bytes.data(),bytes.size()},*nativeFrame,&timing):core.dispatch({bytes.data(),bytes.size()},&timing);
     const auto ended=now();const auto r=reader(result);const auto b=wire::headerBytes;
-    const auto opcode=reader(bytes).u16(12); // Responses include the reply bit.
+    RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::CoreDispatchEnd,1,0,sequence,opcode,(ended-started)*1000);
+    if(sequence)RNSkia::windowsInputTrace(r.u16(14)?RNSkia::WindowsInputStage::CoreDrop:RNSkia::WindowsInputStage::CoreQueued,1,0,sequence,r.u16(14),(ended-started)*1000,true);
+    if(nativeFrame&&*nativeFrame){++nativeFrameReplies;nativeFrameReplyBytes+=result.size();nativeFrameNodes+=(*nativeFrame)->items.size();}
     if(result.size()>=b+wire::stateBytes&&opcode!=wire::opcodes::inspect){
       std::lock_guard lock(traceMutex);const auto sequence=++traceSequence;
       traceRing[(sequence-1)%traceRing.size()]={sequence,r.u64(40),(opcode==wire::opcodes::input&&bytes.size()>=b+8?reader(bytes).u64(b):r.u64(b+wire::stateFields::consumedThrough)),r.u64(b+wire::stateFields::document),r.u64(b+wire::stateFields::preparation),r.u64(b+wire::stateFields::submission),r.u64(b+wire::stateFields::publication),opcode,r.u16(14),started,(ended-started)*1000,enqueued?(started-enqueued)*1000:0,timing.lockWaitMs,timing.lockHeldMs};
@@ -178,7 +185,10 @@ class Host {
   std::unique_ptr<nw::Interaction> interaction;
   std::shared_ptr<RNSkia::WindowsPrecisionTrackpad> precision;
   uint64_t precisionPackets=0,precisionRejected=0;
-  nw::PrecisionVelocity precisionVelocity;
+  uint64_t injectedPrecisionPackets=0,injectedPrecisionRejected=0;
+  std::optional<RNSkia::WindowsPrecisionPoint> injectedPrecision;
+  bool scrollDiagnostics=false;
+  nw::PrecisionPanVelocity precisionVelocity;
   double precisionEndVelocity=0;
   uint64_t precisionEnds=0,precisionMovingEnds=0;
   bool interactionPointer=false;
@@ -330,12 +340,22 @@ class Host {
         bool retryAcquire=false;
         if(pendingFrame&&provider.complete()){
           const auto frame=pendingFrame;const auto id=frame->id;
+          RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::GpuComplete,1,frame->scene->metrics.epoch,pendingTiming.input,double(id),0,true);
           Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(16,1);call(wire::opcodes::releaseFrame,release.bytes);
           const auto publicationStarted=now();Writer publication(24);publication.u64(0,id);publication.u64(8,frame->device);
           const auto published=call(wire::opcodes::publish,publication.bytes);const auto state=reader(published);
           pendingTiming.publicationMs=(now()-publicationStarted)*1000;pendingTiming.completed=now();pendingTiming.publication=state.u64(wire::headerBytes+wire::stateFields::publication);
           {std::lock_guard lock(timingMutex);pendingTiming.gpu=provider.timing();frameTiming=pendingTiming;frameSamples[frameSampleCount++%frameSamples.size()]=pendingTiming;}
           if(state.u16(14)==wire::statuses::ok){
+            RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::SurfaceUpdated,1,frame->scene->metrics.epoch,pendingTiming.input,double(id),double(frame->scene->document->epoch),true);
+            if(scrollDiagnostics){unsigned count=0;for(const auto& item:frame->items){
+              if(frame->scene->document->get(item.node).kind!=wire::kinds::scrollViewport)continue;
+              const auto& property=frame->properties[item.node.slot];
+              // Diagnostic FrameRetired records tag the viewport handle in
+              // surface and carry its displayed/requested logical offsets.
+              RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::FrameRetired,1,item.node.key(),pendingTiming.input,property.offset,property.requested,true);
+              if(++count==16)break;
+            }}
             {std::lock_guard lock(sceneMutex);publishedPrepared=pendingPrepared;}
             interactionDirty=true;PostMessageW(window,WM_APP+3,0,0);
             publishedWidth=frame->scene->metrics.width;publishedHeight=frame->scene->metrics.height;
@@ -394,12 +414,14 @@ class Host {
           // older submitted cohort until its independent retirement.
           if(next&&next->id==sr.u64(wire::headerBytes+wire::stateFields::activePreparation)){active=std::move(next);next.reset();}
           if(!pendingFrame){
-          auto result=call(wire::opcodes::takeFrame);auto r=reader(result);const auto coreElapsedMs=(now()-coreStarted)*1000;
+          std::shared_ptr<const Frame> acquired;
+          auto result=dispatch(makePacket(wire::opcodes::takeFrame),0,&acquired);auto r=reader(result);const auto coreElapsedMs=(now()-coreStarted)*1000;
           const auto frameStatus=r.u16(14);
           if(frameStatus!=wire::statuses::ok&&frameStatus!=wire::statuses::notFound&&frameStatus!=wire::statuses::busy&&frameStatus!=wire::statuses::closed&&frameStatus!=wire::statuses::contentUnavailable)
             throw std::runtime_error("Core frame response rejected: "+std::to_string(frameStatus));
           if(r.u16(14)==0){
-            const auto id=r.u64(wire::headerBytes+wire::stateFields::submission);auto frame=core.frameSnapshot(1,1,id);
+            const auto id=r.u64(wire::headerBytes+wire::stateFields::submission);auto frame=std::move(acquired);
+            if(!frame||frame->id!=id)throw std::runtime_error("Native frame delivery identity differs");
             bool firstScroll=true;for(const auto& item:frame->items)if(frame->scene->document->get(item.node).kind==wire::kinds::scrollViewport){if(firstScroll){scrollOffset=frame->properties[item.node.slot].offset;firstScroll=false;}else lazyOffset=frame->properties[item.node.slot].offset;}
             if(next&&next->id==frame->scene->preparation){active=std::move(next);next.reset();}
             if(!active||active->id!=frame->scene->preparation)throw std::runtime_error("Native active preparation resource is missing");
@@ -407,7 +429,8 @@ class Host {
             try{drawn=provider.draw(frame,active);}catch(...){Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(20,1);call(wire::opcodes::releaseFrame,release.bytes);throw;}
             rendered=provider.draws;
             if(!drawn){Writer release(24);release.u64(0,id);release.u64(8,frame->device);release.u32(20,1);call(wire::opcodes::releaseFrame,release.bytes);retryAcquire=true;if(provider.needsMetrics)metricsPending=true;}
-            else {pendingFrame=frame;pendingPrepared=active;pendingTiming={display,frameStarted,coreElapsedMs,provider.recordAndBackingElapsedMs,provider.submitElapsedMs,0,0,id,frame->scene->document->epoch,0,r.u64(wire::headerBytes+wire::stateFields::consumedThrough)};}
+            else {pendingFrame=frame;pendingPrepared=active;pendingTiming={display,frameStarted,coreElapsedMs,provider.recordAndBackingElapsedMs,provider.submitElapsedMs,0,0,id,frame->scene->document->epoch,0,r.u64(wire::headerBytes+wire::stateFields::consumedThrough)};
+              RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::FrameSubmitted,1,frame->scene->metrics.epoch,pendingTiming.input,double(id),provider.recordAndBackingElapsedMs+provider.submitElapsedMs,true);}
           }
           }
           const auto events=call(wire::opcodes::pollEvents);const auto er=reader(events);
@@ -498,6 +521,8 @@ class Host {
       rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(bootstrap),"v2-timers.js");
       const auto source=readFile(appDirectory+"/application/app.hbc");rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::string(source.begin(),source.end())),"application/app.hbc");rt.drainMicrotasks();
       while(!stopping){
+        const auto turnStarted=now();
+        RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::JsFrameBegin,1,0,0,0,0);
         uint64_t observedWake;{std::lock_guard lock(wakeMutex);observedWake=appWakeRevision;}
         const auto profile=profileRequest.exchange(0);
         if(profiling&&profile==1&&!profiled){sampling.api->enableSamplingProfiler(250);sampling.active=true;profiled=true;profileDeadline=now()+30;std::osyncstream(std::cout)<<"V2_PROFILE_STARTED"<<std::endl;}
@@ -508,10 +533,6 @@ class Host {
           const auto gc=rt.instrumentation().getRecordedGCStats();
           if(gc.size()<=4*1024*1024)std::osyncstream(std::cout)<<"V2_GC_BEGIN\n"<<gc<<"\nV2_GC_END"<<std::endl;
         }
-        if(appNotification.exchange(false)&&rt.global().hasProperty(rt,"__v2Changed")){rt.global().getPropertyAsFunction(rt,"__v2Changed").call(rt);rt.drainMicrotasks();}
-        while(services->deliver(rt))rt.drainMicrotasks();
-        if(disposeRequested.exchange(false)){rt.global().getPropertyAsFunction(rt,"__v2Dispose").call(rt);rt.drainMicrotasks();}
-        if(appUpdate.exchange(false)&&rt.global().hasProperty(rt,"__v2Update")){rt.global().getPropertyAsFunction(rt,"__v2Update").call(rt);rt.drainMicrotasks();}
         // Resolve the already-ready bounded mailbox before running continuations.
         // A commit continuation must not postpone an older input/geometry reply
         // behind another complete App capture just because it was second in FIFO.
@@ -520,7 +541,17 @@ class Host {
           buffer.setExternalMemoryPressure(rt,holder->size());holder->creditGc();
           rt.global().getPropertyAsFunction(rt,"__v2Resolve").call(rt,double(id),std::move(buffer));}
         completed.clear();rt.drainMicrotasks();
+        // Hermes at the pinned revision ignores maxMicrotasksHint. Do not
+        // pretend that passing a hint preempts one long continuation. Retire
+        // ready engine replies first, and bound service batches across turns.
+        const auto serviceStarted=now();unsigned delivered=0;
+        while(delivered<8&&now()-serviceStarted<.004&&services->deliver(rt))++delivered;
+        if(delivered){rt.drainMicrotasks();wakeApp();}
+        if(appNotification.exchange(false)&&rt.global().hasProperty(rt,"__v2Changed")){rt.global().getPropertyAsFunction(rt,"__v2Changed").call(rt);rt.drainMicrotasks();}
+        if(disposeRequested.exchange(false)){rt.global().getPropertyAsFunction(rt,"__v2Dispose").call(rt);rt.drainMicrotasks();}
+        if(appUpdate.exchange(false)&&rt.global().hasProperty(rt,"__v2Update")){rt.global().getPropertyAsFunction(rt,"__v2Update").call(rt);rt.drainMicrotasks();}
         rt.global().getPropertyAsFunction(rt,"__v2Pump").call(rt);rt.drainMicrotasks();appMemory.update(rt);
+        RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::JsFrameEnd,1,0,0,delivered,(now()-turnStarted)*1000);
         const auto timerDelay=rt.global().getPropertyAsFunction(rt,"__v2Delay").call(rt).asNumber();
         const auto delay=sampling.active?std::min(timerDelay,std::max(0.0,(profileDeadline-now())*1000)):timerDelay;
         std::unique_lock lock(wakeMutex);appChanged.wait_for(lock,std::chrono::duration<double,std::milli>(delay),[this,observedWake]{
@@ -531,7 +562,9 @@ class Host {
     }catch(const std::exception& error){notifyError(std::string("App owner: ")+error.what());}
   }
  public:
-  Host(std::string directory,std::string appDirectory):directory(std::move(directory)),appDirectory(std::move(appDirectory)){}
+  Host(std::string directory,std::string appDirectory):directory(std::move(directory)),appDirectory(std::move(appDirectory)){
+    wchar_t value[2]{};scrollDiagnostics=GetEnvironmentVariableW(L"NELYX_WINDOWS_SCROLL_DIAGNOSTICS",value,2)==1&&value[0]==L'1';
+  }
   void bind(HWND value){window=value;interaction=std::make_unique<nw::Interaction>(window,core,[this](uint32_t op,const std::vector<uint8_t>& bytes){return call(op,bytes);},[this](auto callback){postUI(std::move(callback));},[this]{contentWake=true;renderWakeRequested=true;wakeOwners();},[this]{
       const auto id=inputClipboard->begin();
       try{clipboard.captureString([input=inputClipboard,id](std::string value,std::string error){input->complete(id,std::move(value),std::move(error));});}
@@ -595,6 +628,7 @@ class Host {
     if(interactionPointer){interaction->point(phase,x,y);if(phase==wire::phases::end||phase==wire::phases::cancel)interactionPointer=false;return;}
     const bool hover=phase==wire::phases::update&&!dragging;
     if(phase!=wire::phases::begin&&!dragging&&!hover)return;
+    RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::NativeInput,1,0,inputSequence+1,1,phase,true);
     auto state=call(wire::opcodes::inspect);auto r=reader(state);if(r.u16(14))return;
     const auto at=now(),dt=std::max(0.001,at-pointerAt);
     const auto dx=phase==wire::phases::update?pointerX-x:0,dy=phase==wire::phases::update?pointerY-y:0;
@@ -610,22 +644,27 @@ class Host {
   }
   void cancelPointer(){if(dragging)pointer(wire::phases::cancel,pointerX,pointerY);}
   void wheel(double delta,double x,double y){
-    if(!appReady||stopping)return;auto result=call(wire::opcodes::inspect);auto r=reader(result);if(r.u16(14))return;
+    if(!appReady||stopping)return;
+    RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::NativeInput,1,0,inputSequence+1,3,delta,true);
+    auto result=call(wire::opcodes::inspect);auto r=reader(result);if(r.u16(14))return;
     Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,r.u64(wire::headerBytes+wire::stateFields::metrics));input.u32(24,3);input.u32(28,wire::phases::update);input.u32(32,wire::sources::wheelUnknown);input.f64(40,now());input.f64(56,x);input.f64(64,y);input.f64(80,delta);input.u32(96,1);input.u64(wire::inputFields::publication,r.u64(wire::headerBytes+wire::stateFields::publication));call(wire::opcodes::input,input.bytes);renderWakeRequested=true;wakeOwners();
   }
   bool precisionOwnsWheel()const{return precision&&precision->ownsWheel();}
-  void precisionInput(const RNSkia::WindowsPrecisionEvent& event){
+  void precisionInput(const RNSkia::WindowsPrecisionEvent& event,bool injected=false){
     if(!appReady||stopping)return;
     const auto phase=event.kind=="panZoomStart"?wire::phases::begin:event.kind=="panZoomUpdate"?wire::phases::update:(event.kind=="inertiaCancel"||event.kind=="panZoomCancel")?wire::phases::cancel:wire::phases::end;
+    RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::NativeInput,1,event.origin.generation,inputSequence+1,injected?4:2,phase,true);
     auto bytes=call(wire::opcodes::inspect);const auto state=reader(bytes);if(state.u16(14))return;
     const auto at=event.timestamp/1000;
     if(phase==wire::phases::begin)precisionVelocity.begin(at);
-    if(phase==wire::phases::update)precisionVelocity.update(at,-event.deltaY);
+    if(phase==wire::phases::update)precisionVelocity.update(at,-event.deltaX,-event.deltaY);
     if(phase==wire::phases::cancel)precisionVelocity.cancel();
     const auto velocity=precisionVelocity.value(at);
-    if(phase==wire::phases::end){++precisionEnds;precisionEndVelocity=velocity;if(std::abs(velocity)>=1)++precisionMovingEnds;}
+    if(phase==wire::phases::end&&!injected){++precisionEnds;precisionEndVelocity=velocity;if(std::abs(velocity)>=1)++precisionMovingEnds;}
     Writer input(wire::inputBytes);input.u64(0,++inputSequence);input.u64(8,event.origin.generation);input.u32(24,2);input.u32(28,phase);input.u32(32,wire::sources::engineDriven);input.f64(40,at);input.f64(56,event.origin.x);input.f64(64,event.origin.y);input.f64(72,-event.deltaX);input.f64(80,-event.deltaY);input.f64(88,velocity);input.u32(96,1);input.u32(108,3);input.u32(112,2);input.u64(wire::inputFields::publication,state.u64(wire::headerBytes+wire::stateFields::publication));
-    auto admitted=call(wire::opcodes::input,input.bytes);if(reader(admitted).u16(14))++precisionRejected;else ++precisionPackets;
+    auto admitted=call(wire::opcodes::input,input.bytes);
+    if(injected){if(reader(admitted).u16(14))++injectedPrecisionRejected;else ++injectedPrecisionPackets;}
+    else {if(reader(admitted).u16(14))++precisionRejected;else ++precisionPackets;}
     renderWakeRequested=true;wakeOwners();
   }
   void poll(){
@@ -637,9 +676,30 @@ class Host {
       if(command=="close")PostMessageW(window,WM_CLOSE,0,0);
       else if(command=="stats")stats();
       else if(command=="trace")trace();
+      else if(command=="precision"&&scrollDiagnostics){
+        std::string phase;double x=0,y=0,dx=0,dy=0;in>>phase>>x>>y>>dx>>dy;
+        if(!in||!std::isfinite(x)||!std::isfinite(y)||!std::isfinite(dx)||!std::isfinite(dy)||
+            std::abs(dx)>4096||std::abs(dy)>4096||!appReady||closing)throw std::runtime_error("Invalid injected precision sample");
+        if(phase=="start"){
+          if(injectedPrecision||(precision&&precision->ownsWheel()))throw std::runtime_error("Precision stream is already active");
+          RECT rect{};GetClientRect(window,&rect);const double dpi=GetDpiForWindow(window)/96.0;
+          if(x<0||y<0||x*dpi>=rect.right||y*dpi>=rect.bottom)throw std::runtime_error("Injected precision origin is outside the client");
+          const auto state=call(wire::opcodes::inspect);
+          injectedPrecision=RNSkia::WindowsPrecisionPoint{x,y,dpi,reader(state).u64(wire::headerBytes+wire::stateFields::metrics)};
+        }
+        if(!injectedPrecision||(phase!="start"&&phase!="update"&&phase!="end"&&phase!="cancel"))throw std::runtime_error("Injected precision phase is unavailable");
+        double timestamp=now();double supplied=0;
+        if(in>>supplied){if(!std::isfinite(supplied)||supplied>timestamp+.001||supplied<timestamp-10)throw std::runtime_error("Invalid injected precision timestamp");timestamp=supplied;}
+        precisionInput({phase=="start"?"panZoomStart":phase=="update"?"panZoomUpdate":phase=="end"?"panZoomEnd":"panZoomCancel",*injectedPrecision,0,0,0,dx,dy,1,timestamp*1000},true);
+        if(phase=="end"||phase=="cancel")injectedPrecision.reset();
+        std::osyncstream(std::cout)<<"V2_INJECTED_PRECISION {\"input\":"<<inputSequence<<",\"phase\":\""<<phase<<"\",\"at\":"<<std::setprecision(17)<<now()<<"}"<<std::endl;
+      }
       else if(command=="profile-start"||command=="profile-stop"){profileRequest=command=="profile-start"?1:2;wakeApp();}
     }
   }
+  // The diagnostic writer wakes the UI owner after writing one stdin sample.
+  // A 60Hz injected stream must not be quantized by the ordinary Win32 timer.
+  void diagnosticPoll(){if(scrollDiagnostics&&!closing&&!closed)poll();}
   void stats(){auto bytes=call(wire::opcodes::inspect);auto r=reader(bytes);const auto b=wire::headerBytes;
     std::osyncstream(std::cout)<<"V2_CORE_STATE {\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)
       <<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)
@@ -655,6 +715,7 @@ class Host {
       <<",\"keysRejected\":"<<interaction->keysRejected<<",\"lastKeyStatus\":"<<interaction->lastKeyStatus
       <<",\"clipboardSnapshots\":"<<inputClipboard->pending()<<"}"<<std::endl;
     std::osyncstream(std::cout)<<"V2_INPUT_SOURCE {\"source\":\"precision-trackpad-directmanipulation\",\"available\":"<<(precision?"true":"false")<<",\"admitted\":"<<precisionPackets<<",\"rejected\":"<<precisionRejected<<",\"ends\":"<<precisionEnds<<",\"movingEnds\":"<<precisionMovingEnds<<",\"lastEndVelocity\":"<<precisionEndVelocity<<",\"physicalAcceptance\":\"notVerified\"}"<<std::endl;
+    std::osyncstream(std::cout)<<"V2_NATIVE_DELIVERY {\"frames\":"<<nativeFrameReplies<<",\"replyBytes\":"<<nativeFrameReplyBytes<<",\"nativeNodes\":"<<nativeFrameNodes<<",\"serializedFrameRows\":0,\"injectedPrecisionAdmitted\":"<<injectedPrecisionPackets<<",\"injectedPrecisionRejected\":"<<injectedPrecisionRejected<<"}"<<std::endl;
     std::osyncstream(std::cout)<<"V2_STATS {\"appReady\":"<<(appReady?"true":"false")<<",\"uiThread\":"<<uiThread<<",\"appThread\":"<<appThread<<",\"contentThread\":"<<contentThread<<",\"renderThread\":"<<renderThread<<",\"frames\":"<<rendered<<",\"scrollOffset\":"<<scrollOffset<<",\"lazyOffset\":"<<lazyOffset<<",\"nodeCount\":"<<r.u32(b+wire::stateFields::nodeCount)<<",\"width\":"<<publishedWidth<<",\"height\":"<<publishedHeight<<",\"visible\":"<<((r.u32(b+wire::stateFields::flags)&2u)?"true":"false")<<",\"paragraphs\":"<<paragraphs<<",\"images\":"<<images<<",\"pictures\":"<<pictures<<",\"consumed\":"<<r.u64(b+wire::stateFields::consumed)<<",\"received\":"<<r.u64(b+wire::stateFields::received)<<",\"queued\":"<<r.u32(b+wire::stateFields::queued)<<",\"layoutWork\":"<<r.u64(b+wire::stateFields::layoutWork)<<",\"layoutReused\":"<<r.u64(b+wire::stateFields::layoutReused)<<",\"graphicsRecords\":"<<graphicsRecords<<",\"nativeExtensions\":"<<nativeExtensions<<",\"appHeapBytes\":"<<appHeapBytes<<",\"memoryTotal\":"<<r.u64(b+wire::stateFields::memoryTotal)<<",\"memoryPeak\":"<<r.u64(b+wire::stateFields::memoryPeak)<<",\"memoryGpu\":"<<r.u64(b+wire::stateFields::memoryGpu)<<",\"nativeCommands\":"<<r.u64(b+wire::stateFields::transactionWork)<<",\"ticks\":"<<r.u64(b+wire::stateFields::ticks)<<",\"document\":"<<r.u64(b+wire::stateFields::document)<<",\"activeDocument\":"<<r.u64(b+wire::stateFields::activeDocument)<<",\"preparation\":"<<r.u64(b+wire::stateFields::preparation)<<",\"pendingDocument\":"<<r.u64(b+wire::stateFields::pendingDocument)<<",\"metrics\":"<<r.u64(b+wire::stateFields::metrics)<<",\"contentWork\":"<<r.u64(b+wire::stateFields::contentWork)<<",\"editingWork\":"<<r.u64(b+wire::stateFields::editingWork)<<",\"semanticsWork\":"<<r.u64(b+wire::stateFields::semanticsWork)<<",\"queryWork\":"<<r.u64(b+wire::stateFields::queryWork)<<",\"gestureWork\":"<<r.u64(b+wire::stateFields::gestureWork)<<",\"controlWork\":"<<r.u64(b+wire::stateFields::controlWork)<<",\"fallbackPolicy\":\"reject-unported\",\"appExecutionObserved\":"<<(appExecutionObserved?"true":"false")<<",\"appAcknowledgedCommands\":"<<appAcknowledgedCommands<<",\"rejectedFallbacks\":"<<(appExecutionObserved?std::to_string(appRejectedFallbacks.load()):"null")<<",\"reusedPictures\":"<<reusedPictures<<",\"reusedParagraphs\":"<<reusedParagraphs<<",\"reusedImages\":"<<reusedImages<<",\"cachedContentBytes\":"<<cachedContentBytes<<",\"paragraphLayouts\":"<<paragraphLayouts<<",\"memoryPressure\":{\"source\":\"windows-resource-notification\",\"osLow\":"<<(osPressure?"true":"false")<<",\"effectiveLow\":"<<(memoryPressure?"true":"false")<<",\"epoch\":"<<pressureEpoch<<",\"contentEpoch\":"<<contentPressureEpoch<<",\"renderEpoch\":"<<renderPressureEpoch<<",\"gpuCacheLimitBytes\":"<<((memoryPressure?4ull:32ull)*1024*1024)<<"},\"surfaceCommit\":null,"<<timingJson()<<"}"<<std::endl;
   }
   bool hasFailed()const{return failed;}
@@ -705,6 +766,7 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
     case WM_DPICHANGED:{const auto* bounds=reinterpret_cast<const RECT*>(l);SetWindowPos(window,nullptr,bounds->left,bounds->top,bounds->right-bounds->left,bounds->bottom-bounds->top,SWP_NOACTIVATE|SWP_NOZORDER);host->metrics();return 0;}
     case WM_SETFOCUS:host->focus(true);return 0;case WM_KILLFOCUS:host->focus(false);return 0;
     case WM_APP+3:host->ui();return 0;
+    case WM_APP+5:host->diagnosticPoll();return 0;
     case WM_GETOBJECT:if(l==UiaRootObjectId)return host->object(w,l);break;
     case WM_SYSKEYDOWN:case WM_KEYDOWN:if(host->keydown(w,l))return 0;if(w=='U'&&nw::rnw::keyDown(VK_CONTROL)){host->update();return 0;}break;
     case WM_SYSKEYUP:case WM_KEYUP:if(host->keyup(w,l))return 0;break;

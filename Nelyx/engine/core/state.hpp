@@ -174,6 +174,9 @@ struct Overlay {
   uint64_t motionRevision = 0;
   bool motionDone = false;
   double requested = 0;
+  // Preserve accepted contact distance beyond the bounded next preparation
+  // target. This scalar does not enlarge a Source window or an input queue.
+  double deferredContactDelta = 0;
   bool deferred = false, needSent = false;
   uint32_t deferredStream = 0;
   uint64_t coverageRevision = 0;

@@ -19,6 +19,7 @@ import { PageStorage } from './page-storage.ts';
 import { ScrollBehavior, ScrollConfiguration } from './scroll-configuration.ts';
 import { NotificationListener } from './notification-listener.ts';
 import { ScrollUpdateNotification } from './scroll-notification.ts';
+import { SliverChildBuilderDelegate } from './scroll-delegate.ts';
 import type { NullableIndexedWidgetBuilder } from './scroll-delegate.ts';
 import type { ViewportAnimationOptions } from '../rendering/viewport-offset.ts';
 
@@ -232,6 +233,7 @@ export interface PageViewOptions extends WidgetOptions {
 export class PageView extends StatefulWidget {
   readonly itemBuilder: NullableIndexedWidgetBuilder;
   readonly itemCount: number;
+  readonly childrenDelegate: SliverChildBuilderDelegate;
   constructor(
     readonly options: PageViewOptions = {},
     builder?: { readonly itemBuilder: NullableIndexedWidgetBuilder; readonly itemCount: number },
@@ -241,6 +243,9 @@ export class PageView extends StatefulWidget {
     this.itemBuilder = builder?.itemBuilder ?? ((_context, index) => children[index] ?? null);
     this.itemCount = builder?.itemCount ?? children.length;
     checkPage(this.itemCount);
+    this.childrenDelegate = new SliverChildBuilderDelegate(this.itemBuilder, {
+      childCount: this.itemCount,
+    });
   }
   static builder(
     options: Omit<PageViewOptions, 'children'> & {
@@ -301,7 +306,7 @@ class PageViewState extends State<PageView> {
         },
         child: new ScrollConfiguration({
           behavior: new ScrollBehavior().copyWith({ scrollbars: false, overscroll: false }),
-          child: ListView.builder({
+          child: ListView.custom({
             controller: this.controller,
             scrollDirection: axis,
             reverse: options.reverse ?? false,
@@ -317,8 +322,8 @@ class PageViewState extends State<PageView> {
                 ? EdgeInsets.symmetric({ horizontal: padding })
                 : EdgeInsets.symmetric({ vertical: padding }),
             itemExtent: extent,
-            itemCount: this.widget.itemCount,
-            itemBuilder: this.widget.itemBuilder,
+            semanticChildCount: this.widget.itemCount,
+            childrenDelegate: this.widget.childrenDelegate,
           }),
         }),
       });

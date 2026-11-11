@@ -963,3 +963,41 @@ Windows 앱은 정상 종료했고 Web 진단도 사용자의 Windows 한정 지
 새 [work10-a1.md](work10-a1.md)를 Windows 후속 실행 계획으로 작성했다. **코드 분석 → 확인된 원인과 소비자 수정 묶음 → PowerShell 기반 Windows 조작·통합 확인** 순서다. Computer Use를 사용하지 않으며, 자동 wheel/drag·주입 precision과 사용자 물리 트랙패드 결과를 구분한다. 현재 공급 메타데이터의 연결은 `840b22465d0759c7df1032095b7e1935e2ddd23163f733f5ef43612f2d1a447e`, ABI2/schema313408118이다. 이 차수에서는 메타데이터와 소스를 읽고 계획만 작성했으며 전체 hash/실행 공급 검증·새 제품 코드 수정·빌드·앱 실행을 하지 않았다.
 
 work10은 상위 데이터 공유·소유권 계약과 §8 의무를 유지한다. W10-00/06/07과 제품 성능은 계속 **PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`다. 정확한 다음 작업은 work10-a1의 **W10A1-00 상세 소스 감사와 첫 수정 묶음**이다.
+
+## 25. 2026-11-11 work10-a1 구현과 Windows 연속60Hz 결과 — PARTIAL
+
+[work10-a1 §7–12](work10-a1.md#7-2026-11-11-상세-감사와-구현)에 실제 구현·공급·실패/완료 범위를 기록했다. Windows Render가 버리던 전체 frame wire 직렬화를 native 불변 reader 경로로 대체하고 ledger/실패 rollback을 연결했다. interaction snapshot 재사용, App ready mailbox 우선 전달·service batch, Source viewport의 build/문서 fence와 수평 precision velocity를 보강했다. Core는 coverage 중 한 viewport 준비 상한 밖의 접수 거리를 scalar로 보존해 lift까지 잇는다. JSI·Widget/State·기존 Source capture/publication fence·GPU reader 수명과 ABI2/schema313408118은 유지했다.
+
+현재 source/engine/App 공급은 **`67f326f469c5f71f02674d84144be8fb6ce889aefbfebeda428ae31ae2fe5f5c`**다. engine356/App10 files hash 연결, 최종 native library의 frame/semantics/coverage/page/reader/quota/lease 및 TS의 page/Source/ACK/publication fence 검사 PASS. 일반 CLI와 PowerShell/C#/Win32/UIA만 사용했다. Computer Use는 사용하지 않았다. Android 재빌드·실행과 Web 제품 UI 수락은 이번 Windows 결과에 포함하지 않는다.
+
+60Hz update360개를6초 동안 보내 **2026-11→2027-11의12개월**을 trace 켬/끔 각1회 관찰했고, start/end 포함362개 모두 접수·소비·거부0이었다. 현재 공급의 버튼·precision·OS mouse drag 왕복, cancel·resize·날짜 확정·정상 close를 확인했다.12월 첫 열13/20/27도 실제 창 캡처에서 확인했다. 종료는 status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0이다.
+
+그러나 trace 켠 연속 구간에서 게시 gap 최대**575.537ms**, ≥500ms **3회**가 남았다. Core 호출 최대13.055ms·record/submit3.480ms·submit→관측 GPU 완료10.408ms와 구분된다. App/Source build·capture·scene의 긴 작업이 남으며, ring 끈 실행은 게시 gap을 측정하지 않았다. 기능 PASS와 주기적 멈춤 제거 실패를 구분한다. work10-a1과 W10-00/06/07·§8은 계속 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**다. 다음 소스 지점은 work10-a1 §12의 Source LayoutBuilder·delegate/window·Scene 준비 비용이다.
+
+## 26. 2026-11-11 work10-a1 추가 개편과 최신 결과 — PARTIAL
+
+사용자의 **더 넓게 개편하고 수정하라는 추가 요청**에 따라 [work10-a1 §13–16](work10-a1.md#13-추가-요청에-따른-더-넓은-개편)에 새 설계·구현·검증을 기록했다. layout/publication 관찰을 client와 writer 모두 역할별로 분리하고, PageView delegate와 NativeList geometry/child 수명을 분리했다. capture의 typed 역방향 의존성 및 동기 Source build 안의 반복 전파 합치기, 공유 cohort index, 내부 Scene 구성 경로, pinned VM에서 검증한 native async를 연결했다. Core legacy list는 기존4페이지/한 viewport 상한 안에서500ms 준비 힌트와 resident 유지·deferred 제외를 적용한다. JSI·Source callback·Core 권위·Source/ACK/publication fence와 ABI/schema는 유지했다.
+
+최신 engine/source는 **`38eeb446989f07c884c5f8be944fa96566a74238d09a4e8aac847cac98926cc2`**, App JS **`11bff42a…`**/HBC **`41d947f5…`**다. 현재 파일 hash·실행 owner를 검증했고, native/TS/Core Wasm/Hermes 회귀와 Windows 달력 왕복·선택·resize·close가 PASS했다. 연속60Hz360 update/6,000.571ms에서 start/end 포함362개 전량 접수·소비, 거부0, **2026-11→2027-11의12개월**과 날짜 확정도 PASS했다. 정상 종료 status0/reserved0/memory0/workersJoined=true/exit0이다. Android 공급 갱신·실행 및 다른 플랫폼 제품 UI는 notVerified다.
+
+그러나 같은 활성 구간의 **게시 gap563.731ms, 게시된 offset 진행 gap617.656ms, ≥500ms 각각1회**로 **syntheticStallGoal=FAIL**이다. 약2.5/3.5/5초의 공백은 doc49→52/54→57/59→62 전환과 연관됐으며, App turn520.091ms와 Core 개별 호출12.274ms·record/submit5.642ms·관측 GPU 완료12.284ms를 구분한다. 준비 힌트와 반복 전파 합침을 성능 해결로 선언하지 않는다. W10-00/06/07·§8과 work10-a1은 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout notVerified다. 다음 개편은 work10-a1 §16의 **Source가 소유한 kind별 불변 payload를 capture와 SceneWriter가 공유해 재정규화/중간 구성을 줄이는 경계**다.
+
+## 27. 2026-11-12 기본 명령 공유와 바이트 비교 — PARTIAL
+
+[work10-a1 §17](work10-a1.md#17-2026-11-12-기본-명령-공유와-바이트-비교-개편)의 후속 아이디어를 적용했다. 새 노드마다 비교용 기본 패킷을 재인코딩하던 경로를8개 고정 template로 공유하고, Scene/blob/observation 바이트별 JS callback을 인덱스 순회로 대체했다. 생성 기본값 비교에서만 destination handle을 제외하며 기존 record/generation 및 blob 충돌 비교는 전체 바이트를 유지한다. 재인코딩0회·non-default 보존, 실제 Hermes/배포 ESM, incremental/observation/full oracle·Source/ACK/게시/close 회귀와 빌드/type/lint 검사가 PASS했다.
+
+현재 engine/source는 `974192113590c65bd6991598cefca3b2426a06abd65664f67970956ede7b8918`, App JS `c5f7293e…`, 현재 HBC `1dbbd5dc…`이다. 같은 JS의60Hz12개월 실행은362개 전량 접수/소비·거부0, 월 이동/날짜 확정/resize/close PASS였지만 게시576.029ms·offset576.016ms 공백이 남아 syntheticStallGoal=FAIL이다. 준비 창 교체를 페이지 callback 경계에 합치는 별도 실험은 실제 offset 공백1,022.372ms로 악화되어 코드와 전용 fixture를 철회했다. 복원된 JS hash 일치와 현재 공급의 버튼/precision/OS drag 왕복·선택/resize/close를 다시 확인했다. work10-a1과 성능 수락은 계속 IN PROGRESS / PARTIAL, compatible=false, performanceAccepted=false이며 physical/display/scanout은 notVerified다. §16의 Source payload 공유 후속 범위는 남아 있다.
+
+
+## 28. 2026-11-12 추가 실험과 기본 명령/날짜 조회 할당 제거 — PARTIAL
+
+[work10-a1 §18](work10-a1.md#18-2026-11-12-추가-실험-기본-명령-지연-생성과-날짜-조회-할당-제거)에 추가 실험을 기록했다. 압축 Source 스냅샷은 전체 정지와 처리 비용 개선이 확인되지 않아 철회했다. 대신 Source 기본 명령8개를 records 단계부터 공유하고 실제 전송 때 현재 slot/generation을 붙이도록 바꿨다. 공개 producer와 바이트 oracle, 기본값 복원·NACK/재시도·generation 재사용을 검증했다. 공통 DateTime 값은 private civil Date를 재사용해 년/월/일/요일 조회의 Date 생성을 없앴으며, 가변 복사본·DST/윤년/시간대 변경 및 실제 Hermes 의미를 보존했다. Source callback·Core 권위·준비 창·ACK/게시/수명 fence는 유지했다.
+
+engine/source는 `974192113590c65bd6991598cefca3b2426a06abd65664f67970956ede7b8918`, 최신 App JS `da791e913cba58366c5b57e7be17b23ae3c868ed631dbbfcb1b235969df596bd`, HBC `f502caa3a80fbca1ea70de996c3145a368647a240a6fcb7bc79cff39f080b160`이다. 최신60Hz12개월은360 update/6,000.572ms·start/end 포함362개 전량 접수/소비·거부0, 월/header/grid/날짜 확정·resize·close PASS다. 별도 버튼·precision·OS drag 왕복도 PASS했다. 그러나 게시522.686ms/offset522.612ms, ≥500ms 각각2회로 syntheticStallGoal=FAIL이다. 기본 명령 공유 hit96,758건은 순수 절감 건수와 구분하며, 단일 실행 최대값의 차이를 개선율로 만들지 않는다. 정상 종료 status0/reserved0/memory0/workersJoined=true/exit0과 파일 정리를 확인했다. work10-a1은 IN PROGRESS / PARTIAL, compatible=false, performanceAccepted=false, resizePerformanceAccepted=false이며 물리 입력·표시/scanout 수락과 §16의 일반 payload 공유 후속 범위는 남는다.
+
+
+## 29. 2026-11-12 Flutter 원본 기반 Source 요청·자식 재사용 보강 — PARTIAL
+
+[work10-a1 §19](work10-a1.md#19-2026-11-12-flutter-원본-대조와-source-요청자식-재사용-보강)에 Flutter engine/framework revision `a2886f44205b1c46388a1e17e4e75d0a71541edf`의 원본 링크·대조·검증을 기록했다. Animator의 build 시작 시 요청 소비 원리를 Source 대기 중 발생한 중복 rerun에 적용했고, Element.updateChildren의 일치 prefix 재사용으로 불필요한 기존 자식 색인을 줄였다. Sliver의 범위 소유권에 맞춰 PageView 헤더 갱신이 늦은 desiredPage로 Core 요청 창을 되돌리지 않게 했다. 최신 metrics/device/font 요청, ACK/게시 후 invalidation, callback·slot·Key/KeepAlive·Core input/layout 권위와 게시/수명 fence는 유지한다.
+
+현재 engine/source는 `974192113590c65bd6991598cefca3b2426a06abd65664f67970956ede7b8918`, App JS `716f79a659914bf4be4c5dc276c228c2bfd16cd0d86d142f6607ad0195245dc1`, HBC `2a51ebda3f91353dbe58bbd37fa1e180b9c113be027e078c6c48e840f7d1f09b`다. Source/ACK/metrics/게시·key/reconcile·page/Ink 회귀와 빌드/type/lint가 PASS했다. 현재60Hz12개월은362개 전량 접수/소비·거부0, 월/선택/resize/close PASS지만 게시539.352ms/offset539.351ms, ≥500ms 각각1회로 syntheticStallGoal=FAIL이다. 준비 창 보강 카운터는 실제 실행0회로, 현재 정지의 원인이나 개선으로 인정하지 않는다. 직전 번들의 All 목록+달력과 현재 번들의 짧은 달력은 PASS했다. source/supply hash와 정상 close/임시 상태 회수를 확인했으며 전체 성능·물리/표시/scanout 수락은 여전히 IN PROGRESS / PARTIAL, compatible=false, performanceAccepted=false, resizePerformanceAccepted=false다.

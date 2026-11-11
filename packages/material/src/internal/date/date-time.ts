@@ -13,6 +13,10 @@ export function castDateArgumentError(value: unknown): DateArgumentError {
   if (!isDateArgumentError(value)) throw new TypeError('Expected date ArgumentError');
   return value;
 }
+// DateTime owns one civil-date reader. Never expose it: toDate() still returns
+// an independent mutable copy. Date getters continue consulting the host time
+// zone, including a zone change after this immutable value was constructed.
+const civilDates = new WeakMap<DateTime, Date>();
 export class DateTime {
   static readonly january = 1;
   static readonly february = 2;
@@ -31,6 +35,7 @@ export class DateTime {
     if (!Number.isFinite(value.getTime()))
       throw new DateArgumentError('DateTime is outside the host date range');
     this.epoch = value.getTime();
+    civilDates.set(this, value);
     captureDartType(this, dateTimeType);
     Object.freeze(this);
   }
@@ -39,10 +44,11 @@ export class DateTime {
   }
   static fromMillisecondsSinceEpoch(value: number): DateTime {
     checkedInteger(value);
-    if (!Number.isFinite(new Date(value).getTime()))
-      throw new DateArgumentError('Invalid DateTime epoch');
+    const civil = new Date(value);
+    if (!Number.isFinite(civil.getTime())) throw new DateArgumentError('Invalid DateTime epoch');
     const date = Object.create(DateTime.prototype) as DateTime;
     Object.defineProperty(date, 'epoch', { value, enumerable: false });
+    civilDates.set(date, civil);
     captureDartType(date, dateTimeType);
     Object.freeze(date);
     return date;
@@ -54,16 +60,16 @@ export class DateTime {
     return new Date(this.epoch);
   }
   get year(): number {
-    return this.toDate().getFullYear();
+    return civilDates.get(this)!.getFullYear();
   }
   get month(): number {
-    return this.toDate().getMonth() + 1;
+    return civilDates.get(this)!.getMonth() + 1;
   }
   get day(): number {
-    return this.toDate().getDate();
+    return civilDates.get(this)!.getDate();
   }
   get weekday(): number {
-    return this.toDate().getDay() || 7;
+    return civilDates.get(this)!.getDay() || 7;
   }
   get millisecondsSinceEpoch(): number {
     return this.epoch;

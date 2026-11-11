@@ -4,8 +4,12 @@ import type { EngineBlob, EngineNodeSnapshot, NodeHandle } from './codec.ts';
 import { observationBacking, compactObservationRows } from './observation-row.ts';
 
 const key = (node: NodeHandle) => `${node.slot}:${node.generation}`;
-const same = (a: Uint8Array, b: Uint8Array) =>
-  a.length === b.length && a.every((value, index) => value === b[index]);
+function same(a: Uint8Array, b: Uint8Array): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; ++i) if (a[i] !== b[i]) return false;
+  return true;
+}
 export class ObservationGapError extends Error {}
 export interface ProviderFrameCohort {
   readonly submission: bigint;

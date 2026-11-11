@@ -10,6 +10,7 @@ try {
       loader: 'ts',
       contents: `
       import assert from 'node:assert/strict';
+      import {commands as creationCommands} from './Nelyx/runtime/engine-client/codec.ts';
       import { RenderSceneCapture } from './Nelyx/runtime/app/capture.ts';
       import { SceneNode, SceneReference, SceneWriter, retainSceneConfiguration } from './Nelyx/runtime/engine-client/scene.ts';
       import { protocol as p } from './Nelyx/runtime/engine-client/schema.ts';
@@ -95,6 +96,47 @@ try {
       project(durableRoot);durable.commit([durableRoot]);
       assert.deepEqual([...durable.bindings('font').keys()],[3]);
       durable.clear();assert.equal(durable.bindings('font').size,0);
+      {
+        const typed=new RenderSceneCapture(),target=render('typed-target'),index=render('index'),live=render('live-consumer');
+        const root=render('typed-root',[target,index,live]),built=new Map();
+        const project=(r,count={value:0},depth=0)=>typed.node(r,'',count,depth,()=>{
+          built.set(r,(built.get(r)??0)+1);++count.value;
+          if(r===index)typed.dependOn(target,['children','layout']);
+          if(r===live)typed.dependOn(target);
+          return new SceneNode(r.reference,'stack',r.children.map(child=>project(child,count,depth+1)));
+        },(count,depth)=>project(r,count,depth));
+        const commit=()=>{project(root);typed.commit([root]);};commit();
+        typed.invalidate(target,'paint');commit();
+        assert.equal(built.get(index),1,'Ancestor repaint rebuilt a collection index');
+        assert.equal(built.get(live),2,'Unrestricted live dependency lost a paint change');
+        typed.invalidate(target,'children');commit();
+        assert.equal(built.get(index),2,'Collection topology failed to invalidate its index');
+        root.children=[index,live];typed.invalidate(root,'children');commit();commit();
+        assert.equal(built.get(index),3,'Target retirement bypassed the reference generation fence');
+        typed.clear();
+      }
+      {
+        const batched=new RenderSceneCapture(),target=render('batch-target'),consumer=render('batch-consumer'),indirect=render('batch-indirect');
+        const root=render('batch-root',[target,consumer,indirect]);let value=0,setters=0;
+        const project=(r,count={value:0},depth=0)=>batched.node(r,'',count,depth,()=>{
+          ++count.value;if(r===consumer)batched.dependOn(target);if(r===indirect)batched.dependOn(consumer);
+          return new SceneNode(r.reference,'stack',r.children.map(child=>project(child,count,depth+1)),{color:value});
+        },(count,depth)=>project(r,count,depth));
+        const commit=()=>{const scene=project(root);batched.commit([root]);return scene;};commit();
+        batched.batchInvalidations(()=>{
+          for(const next of [1,2]){value=next;++setters;batched.invalidate(target,'paint');batched.invalidate(target,'layout');}
+          batched.batchInvalidations(()=>batched.invalidate(target,'paint'));
+          assert.throws(()=>project(root),/cannot run inside a Source build batch/);
+          assert.throws(()=>batched.commit([root]),/cannot commit inside a Source build batch/);
+        });
+        const scene=commit();assert.equal(setters,2,'Source setter/callback was skipped');
+        assert(scene.children.every(child=>child.options.color===2),'Transitive consumers missed final batched values');
+        assert(batched.counters.coalescedInvalidations>=3,'Repeated dependency work did not coalesce');
+        assert.throws(()=>batched.batchInvalidations(()=>{value=3;batched.invalidate(target,'paint');throw Error('build failed');}),/build failed/);
+        assert(commit().children.every(child=>child.options.color===3),'Throwing build retained its invalidation batch');
+        value=4;batched.invalidate(target,'paint');assert(commit().children.every(child=>child.options.color===4),'Later capture lost an ordinary invalidation');
+        batched.clear();
+      }
       const builderCapture=new RenderSceneCapture(),builderRender:any=new LayoutBuilder(()=>null as any).createRenderObject({} as any),builderReference=new SceneReference();
       builderRender._updateCallback(()=>{});
       claimNativeRenderObject(builderRender,{},kind=>builderCapture.invalidate(builderRender,kind));
@@ -225,6 +267,52 @@ try {
       assert.equal(inflightCommands.length,3,'ACK overwrote a modification made in flight');
       assert.equal([...inFlight.accepted.values()][0].node.options.color,2);
       const closedWriter:any=new SceneWriter({close:async()=>{}},{pollEvents:false});
+      {
+        const writer:any=new SceneWriter({}, {pollEvents:false,retainedScene:true});
+        writer.nextSlot=37;
+        const desired=writer.records(new SceneNode(new SceneReference(),'stack',[
+          new SceneNode(new SceneReference(),'box',[],{layout:{childConstraints:'inherit'},pointerHitTest:'self'}),
+          new SceneNode(new SceneReference(),'box',[],{properties:{width:42},color:0xff123456,layout:false}),
+        ]));
+        const names=['properties','paint','constraints','layout','eventPolicy'],saved=new Map();let encodes=0,commands;
+        try {
+          for(const name of names){const original=creationCommands[name];saved.set(name,original);creationCommands[name]=(...args)=>{++encodes;return original(...args);};}
+          commands=writer.diff(desired);
+        } finally {for(const [name,original] of saved)creationCommands[name]=original;}
+        assert.equal(encodes,0,'Creation diff re-encoded defaults per node');
+        assert.equal(commands.filter(bytes=>new DataView(bytes.buffer,bytes.byteOffset).getUint16(0,true)===p.commands.properties).length,1,'Default matching lost a non-default width or emitted default properties');
+        assert.equal(commands.filter(bytes=>new DataView(bytes.buffer,bytes.byteOffset).getUint16(0,true)===p.commands.paint).length,1,'Default matching lost non-default paint');
+      }
+      {
+        const writes=[[],[]],reject=[false,false];
+        const writers=writes.map((output,i)=>new SceneWriter({commit:async commands=>{
+          if(reject[i])throw Error('default NACK');output.push(commands.map(bytes=>Buffer.from(bytes).toString('hex')));
+        }},{pollEvents:false,retainedScene:true}) as any);
+        for(const writer of writers)writer.nextSlot=37;
+        const roots=writers.map(()=>new SceneReference()),children=writers.map(()=>[new SceneReference(),new SceneReference()]);
+        const scene=(i,mode,keep=true)=>{
+          const node=(ref,kind,kids=[],options={})=>{const value=new SceneNode(ref,kind,kids,options);if(i)retainSceneConfiguration(value);return value;};
+          const changed=mode===1?{properties:{width:42},color:0xff123456,layout:{gap:7},horizontal:{kind:'finite',min:2,max:50},pointerHitTest:'self'}:{};
+          return node(roots[i],'stack',keep?[
+            node(children[i][0],'box',[],changed),
+            node(children[i][1],'box',[],{layout:mode===1?false:{childConstraints:'inherit'}}),
+          ]:[]);
+        };
+        for(const [mode,keep,nack] of [[0,true,false],[1,true,false],[0,true,true],[0,true,false],[0,false,false],[1,true,false],[0,true,false]]){
+          for(let i=0;i<2;++i){reject[i]=nack;if(nack)await assert.rejects(writers[i].update(scene(i,mode,keep)),/default NACK/);else await writers[i].update(scene(i,mode,keep));}
+          assert.deepEqual(writes[1],writes[0],'Shared defaults changed wire bytes, destination generation, reset or NACK retry');
+        }
+        assert(writers[1].counters.sharedDefaultConfigs>0,'Source never shared a default command');
+        assert.equal(writers[0].counters.sharedDefaultConfigs,0,'Public producers entered the Source default path');
+        assert.equal(children[1][0].currentNode.generation,2,'Default reset did not exercise slot generation reuse');
+        const counts=new Map(),originals=new Map();
+        try {
+          for(const name of ['properties','paint','constraints','layout','eventPolicy']){const original=creationCommands[name];originals.set(name,original);creationCommands[name]=(...args)=>{counts.set(name,(counts.get(name)??0)+1);return original(...args);};}
+          const writer:any=new SceneWriter({}, {pollEvents:false,retainedScene:true});writer.nextSlot=81;
+          const leaf=new SceneNode(new SceneReference(),'box');retainSceneConfiguration(leaf);
+          writer.records(leaf);assert.equal([...counts.values()].reduce((a,b)=>a+b,0),0,'Source defaults encoded per-node packets');
+        } finally {for(const [name,original] of originals)creationCommands[name]=original;}
+      }
       closedWriter.adopt(closedWriter.records(new SceneNode(new SceneReference(),'box',[],{onLayout:()=>{}})),[]);
       assert.equal(closedWriter.layoutObservers.size,1);
       await closedWriter.close();

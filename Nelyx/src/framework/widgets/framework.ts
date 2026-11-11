@@ -1312,20 +1312,43 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
             );
           (keys ??= new KeyMap<boolean>()).set(widget.key, true);
         }
+      // Flutter Element.updateChildren first consumes matching children in
+      // declaration order, before indexing the unmatched remainder. Stable
+      // sibling groups need no old-key map or retirement set. Check ownership
+      // at each step: a preceding callback may retake a later GlobalKey child.
+      // Reference: flutter/flutter a2886f44205b1c46388a1e17e4e75d0a71541edf,
+      // packages/flutter/lib/src/widgets/framework.dart, updateChildren.
+      let first = 0;
+      while (first < previous.length && first < widgets.length) {
+        const child = previous[first]!,
+          widget = widgets[first]!;
+        if (child.parent !== this || !Widget.canUpdate(child.widget, widget)) break;
+        if (widget.key instanceof GlobalKey) this.owner.reserve(widget.key, this);
+        const slot = this.slotForChild(first, next.at(-1));
+        next.push(child);
+        if (!sameSlot(child.slot, slot)) this.updateSlotForChild(child, slot);
+        if (child.widget !== widget) child.update(widget);
+        ++first;
+      }
+      if (first === previous.length && first === widgets.length) return next;
       let keyed: KeyMap<Element> | undefined;
-      for (const child of previous)
+      let remaining: Set<Element> | undefined;
+      for (let index = first; index < previous.length; ++index) {
+        const child = previous[index]!;
+        if (child.parent !== this) continue;
+        (remaining ??= new Set()).add(child);
         if (child.widget.key) (keyed ??= new KeyMap<Element>()).set(child.widget.key, child);
-      const remaining = new Set(previous);
-      for (let index = 0; index < widgets.length; index++) {
+      }
+      for (let index = first; index < widgets.length; index++) {
         const widget = widgets[index]!;
         if (widget.key instanceof GlobalKey) this.owner.reserve(widget.key, this);
         const slot = this.slotForChild(index, next.at(-1));
         let child = widget.key ? keyed?.get(widget.key) : previous[index];
-        if (!child || !remaining.has(child) || !Widget.canUpdate(child.widget, widget))
+        if (!child || !remaining?.has(child) || !Widget.canUpdate(child.widget, widget))
           child = undefined;
-        if (child) remaining.delete(child);
+        if (child) remaining!.delete(child);
         else {
-          if (widgets.length === 1) {
+          if (widgets.length === 1 && remaining) {
             for (const old of remaining) if (old.parent === this) this.owner.deactivateChild(old);
             remaining.clear();
           }
@@ -1341,7 +1364,8 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
           child.mount(this, this.owner, slot);
         }
       }
-      this.owner.deactivateChildren([...remaining].filter((child) => child.parent === this));
+      if (remaining?.size)
+        this.owner.deactivateChildren([...remaining].filter((child) => child.parent === this));
       return next;
     } catch (error) {
       const errors: unknown[] = [error];

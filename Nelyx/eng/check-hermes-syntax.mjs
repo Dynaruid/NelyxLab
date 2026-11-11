@@ -46,9 +46,10 @@ try {
     #include <sstream>
     int main(int argc,char** argv){try{
       if(argc!=2)return 2;
-      auto rt=facebook::hermes::makeHermesRuntime();
+      auto rt=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withES6BlockScoping(true).build());
       std::ifstream file(argv[1],std::ios::binary);std::stringstream data;data<<file.rdbuf();
       rt->evaluateJavaScript(std::make_shared<facebook::jsi::StringBuffer>(data.str()),"syntax.hbc");
+      rt->drainMicrotasks();
       std::cout<<rt->global().getProperty(*rt,"result").getString(*rt).utf8(*rt)<<"\\n";
     }catch(const std::exception& e){std::cerr<<e.what()<<"\\n";return 1;}return 0;}
   `,
@@ -104,7 +105,26 @@ try {
       const b={...a,...{i:9},...{j:10},...{k:11},...{l:12},...{m:13},...{n:14},...{o:15}};
       const {a:leading,...tail}=b;sum+=leading+tail.o+new Child().next;
     }
-    globalThis.result=JSON.stringify({sum,elapsedMs:Date.now()-started});
+    const elapsedMs=Date.now()-started;
+    async function continuations() {
+      const order=[];let reads=0;
+      const receiver={base:7,async method(v){await 0;return this.base+v;}};
+      const arrow=function(v){return (async()=>{await 0;return this.base+arguments[0];})();};
+      check(await receiver.method(5)===12&&await arrow.call(receiver,6)===13,'async receiver/arrow arguments');
+      const adopted=await {get then(){++reads;return resolve=>resolve(17);}};
+      check(adopted===17&&reads===1,'await thenable adoption');
+      async function failure(){try{await Promise.reject(19);}catch(error){order.push(error);}finally{await 0;order.push(23);}return 29;}
+      check(await failure()===29&&order.join(',')==='19,23','async catch/finally/return');
+      class AsyncBase {async value(){await 0;return 31;}}
+      class AsyncChild extends AsyncBase {async value(){return (await super.value())+1;}}
+      check(await new AsyncChild().value()===32,'async super');
+      let synchronous=true;const pending=(async()=>{await 0;check(!synchronous,'await must suspend');})();
+      synchronous=false;await pending;
+      const values=await Promise.all([receiver.method(3),receiver.method(4)]);
+      check(values.join(',')==='10,11','async concurrent completion');
+      globalThis.result=JSON.stringify({sum,elapsedMs});
+    }
+    continuations();
   `;
   const outputs = {};
   for (const [name, supported] of [
@@ -116,7 +136,10 @@ try {
       { target: 'es2015', supported, format: 'iife' },
     ).code;
     if (name === 'native')
-      assert(!/__spreadValues|__spreadProps/.test(code), 'Qualified syntax was lowered again');
+      assert(
+        !/__spreadValues|__spreadProps|__async/.test(code),
+        'Qualified syntax was lowered again',
+      );
     const sourceFile = path.join(temporary, name + '.js'),
       bytecode = path.join(temporary, name + '.hbc');
     const lowered = compilerRequire('@babel/core').transformSync(code, {
@@ -133,11 +156,15 @@ try {
       bytecode,
       sourceFile,
     ]);
-    outputs[name] = JSON.parse(run(path.join(temporary, 'check.exe'), [bytecode]));
+    try {
+      outputs[name] = JSON.parse(run(path.join(temporary, 'check.exe'), [bytecode]));
+    } catch (error) {
+      throw Error(name + ': ' + error.message);
+    }
   }
   assert.equal(outputs.native.sum, outputs.lowered.sum);
   console.log(
-    'Pinned compiler + VM spread/rest/symbol/getter/proto and class field semantics PASS.',
+    'Pinned compiler + VM spread/rest/symbol/getter/proto, async and class field semantics PASS.',
     outputs,
   );
   const cachedFixture = buildSync({
@@ -147,6 +174,32 @@ try {
       contents: `
     import {ObservationDecodeCache} from './Nelyx/runtime/engine-client/observation-cache.ts';
     import {semanticBody,readSemanticBody} from './Nelyx/runtime/engine-client/semantics.ts';
+    import {SceneNode,SceneReference,SceneWriter,sceneConfiguration,retainSceneConfiguration} from './Nelyx/dist/v2/engine-client/scene.js';
+    import {protocol as p} from './Nelyx/dist/v2/engine-client/schema.js';
+    import {DateTime} from './packages/material/dist/internal/date/date-time.js';
+    const writer=new SceneWriter({}, {pollEvents:false,retainedScene:true});writer.nextSlot=37;
+    const desired=writer.records(new SceneNode(new SceneReference(),'stack',[
+      new SceneNode(new SceneReference(),'box',[],{layout:{childConstraints:'inherit'},pointerHitTest:'self'}),
+      new SceneNode(new SceneReference(),'box',[],{properties:{width:42},color:0xff123456,layout:false}),
+    ]));
+    const changes=writer.diff(desired),kind=bytes=>new DataView(bytes.buffer,bytes.byteOffset).getUint16(0,true);
+    if(changes.filter(bytes=>kind(bytes)===p.commands.properties).length!==1||changes.filter(bytes=>kind(bytes)===p.commands.paint).length!==1)throw Error('Hermes creation default comparison differs');
+    const sourceWriter=new SceneWriter({}, {pollEvents:false,retainedScene:true});sourceWriter.nextSlot=51;
+    const sourceRef=new SceneReference(),source=options=>{const node=sceneConfiguration(sourceRef,'box',[],options);retainSceneConfiguration(node);return node;};
+    sourceWriter.adopt(sourceWriter.records(source({color:0xff123456})),[]);
+    const resets=sourceWriter.diff(sourceWriter.records(source({}))),paintReset=resets.find(bytes=>kind(bytes)===p.commands.paint);
+    if(!paintReset||new DataView(paintReset.buffer,paintReset.byteOffset).getUint32(8,true)!==sourceRef.currentNode.slot||!sourceWriter.counters.sharedDefaultConfigs)throw Error('Hermes shared default reset lost its destination');
+    const date=new DateTime(2024,2,29),dateCopy=date.toDate();dateCopy.setTime(0);
+    if(date.year!==2024||date.month!==2||date.day!==29||!DateTime.fromMillisecondsSinceEpoch(date.millisecondsSinceEpoch).equals(date))throw Error('Hermes civil date reader or mutable-copy isolation differs');
+    const reference=new SceneReference(),ordinary=new SceneNode(reference,'box'),direct=sceneConfiguration(reference,'box');
+    if(!(direct instanceof SceneNode)||Object.getPrototypeOf(direct)!==Object.getPrototypeOf(ordinary)||JSON.stringify(Object.getOwnPropertyDescriptors(direct))!==JSON.stringify(Object.getOwnPropertyDescriptors(ordinary)))throw Error('Source configuration differs from public constructor');
+    let setterCalls=0;Object.defineProperty(SceneNode.prototype,'editorFlags',{configurable:true,set(value){++setterCalls;}});
+    try{if(new SceneNode(reference,'box').editorFlags!==0||setterCalls)throw Error('Public field definition invoked an inherited setter');if(sceneConfiguration(reference,'box').editorFlags!==0||setterCalls)throw Error('Source field definition invoked an inherited setter');}finally{delete SceneNode.prototype.editorFlags;}
+    let beginScene=Date.now(),sceneSum=0;
+    for(let i=0;i<2000;++i)sceneSum+=new SceneNode(reference,'box').maximumLength;
+    const sceneConstructorMs=Date.now()-beginScene;beginScene=Date.now();
+    for(let i=0;i<2000;++i)sceneSum-=sceneConfiguration(reference,'box').maximumLength;
+    const sceneConfigurationMs=Date.now()-beginScene;if(sceneSum)throw Error('Source configuration values differ');
     const bodies=Array.from({length:512},(_,i)=>semanticBody({role:'button',label:'Day '+i}));
     const cache=new ObservationDecodeCache();let plainSum=0,cachedSum=0;
     let begin=Date.now();
@@ -155,13 +208,14 @@ try {
     for(let frame=0;frame<20;++frame)for(let i=0;i<bodies.length;++i)cachedSum+=cache.read('view1/'+i,bodies[i],readSemanticBody).label.length;
     const cachedMs=Date.now()-begin;
     if(plainSum!==cachedSum||cache.counters.hits!==19*512)throw Error('Observation decode cache differs');
-    globalThis.result=JSON.stringify({plainMs,cachedMs,hits:cache.counters.hits,bytes:cache.byteLength});
+    globalThis.result=JSON.stringify({plainMs,cachedMs,hits:cache.counters.hits,bytes:cache.byteLength,sceneConstructorMs,sceneConfigurationMs});
   `,
     },
     bundle: true,
     write: false,
     platform: 'neutral',
     format: 'iife',
+    tsconfigRaw: { compilerOptions: { useDefineForClassFields: true } },
     target: 'es2015',
     supported: windowsHermesSyntax,
     logLevel: 'silent',

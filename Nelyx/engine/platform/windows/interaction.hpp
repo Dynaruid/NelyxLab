@@ -430,13 +430,15 @@ public:
     return result;
   }
   void sync(std::shared_ptr<const Prepared> publication = nullptr) {
+    const bool changedPreparation=publication&&publication!=prepared;
     if (publication)
       prepared = std::move(publication);
     if (closed || syncing)
       return;
-    auto next = engine.interactionSnapshot(1, 1);
+    auto next = engine.interactionSnapshot(1, 1, snapshot);
     if (!next)
       return;
+    if(next==snapshot&&!changedPreparation)return;
     snapshot = next;
     syncing = true;
     struct Reset {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { RenderObject, NativeRenderChange } from '@nelyx/core/framework/rendering/object';
 import { protocol as p } from '../engine-client/schema.ts';
-import { retainSceneConfiguration, SceneNode } from '../engine-client/scene.ts';
+import { retainSceneConfiguration, SceneNode, sceneConfiguration } from '../engine-client/scene.ts';
 
 type Count = { value: number };
 type Refresh = (count: Count, depth: number) => SceneNode;
@@ -13,6 +13,15 @@ type Child = {
   count: number;
 };
 type Uses = Map<string, Map<unknown, unknown>>;
+const changeBits: Record<NativeRenderChange, number> = {
+  children: 1,
+  layout: 2,
+  paint: 4,
+  semantics: 8,
+  interaction: 16,
+  resource: 32,
+};
+type Dependencies = Map<RenderObject, number>;
 type Entry = {
   scene: SceneNode;
   parent: RenderObject | undefined;
@@ -24,7 +33,7 @@ type Entry = {
   hasDynamic: boolean;
   children: readonly Child[];
   uses: Uses;
-  dependencies: ReadonlySet<RenderObject>;
+  dependencies: ReadonlyMap<RenderObject, number>;
   revision: Readonly<Partial<Record<NativeRenderChange, number>>>;
 };
 type CaptureFrame = {
@@ -34,7 +43,7 @@ type CaptureFrame = {
   hasDynamic: boolean;
   children: Child[];
   uses: Uses;
-  dependencies: Set<RenderObject>;
+  dependencies: Dependencies;
 };
 
 /** Configuration cache with independently dirty nodes and descendant edges.
@@ -48,11 +57,12 @@ export class RenderSceneCapture {
   private readonly active = new Map<RenderObject, Entry>();
   private roots = new Set<RenderObject>();
   private readonly parents = new Map<RenderObject, RenderObject | undefined>();
-  private readonly consumers = new Map<RenderObject, Set<RenderObject>>();
+  private readonly consumers = new Map<RenderObject, Map<RenderObject, number>>();
   private readonly registrations = new Map<string, Map<unknown, Map<RenderObject, unknown>>>();
   private readonly values = new Map<string, Map<unknown, unknown>>();
   private readonly channelRevisions = new Map<string, number>();
   private revisions = new WeakMap<RenderObject, Partial<Record<NativeRenderChange, number>>>();
+  private invalidationBatch: WeakMap<RenderObject, number> | undefined;
   context = '';
   readonly counters = {
     captured: 0,
@@ -64,7 +74,21 @@ export class RenderSceneCapture {
     retired: 0,
     registrationEdits: 0,
     dependencyInvalidations: 0,
+    coalescedInvalidations: 0,
   };
+  /** Source build is synchronous and capture follows only after it finishes.
+   * Coalesce repeated dependency walks within that boundary; every canonical
+   * setter/callback still runs, and the following capture reads final values.
+   * Never extend this scope across a capture or an asynchronous owner wait. */
+  batchInvalidations<T>(callback: () => T): T {
+    if (this.invalidationBatch) return callback();
+    this.invalidationBatch = new WeakMap();
+    try {
+      return callback();
+    } finally {
+      this.invalidationBatch = undefined;
+    }
+  }
   invalidate(
     render: RenderObject,
     kind: NativeRenderChange = 'layout',
@@ -75,13 +99,22 @@ export class RenderSceneCapture {
     let revision = this.revisions.get(render);
     if (!revision) this.revisions.set(render, (revision = {}));
     revision[kind] = (revision[kind] ?? 0) + 1;
+    if (this.invalidationBatch) {
+      const mask = this.invalidationBatch.get(render) ?? 0;
+      if (mask & changeBits[kind]) {
+        ++this.counters.coalescedInvalidations;
+        return;
+      }
+      this.invalidationBatch.set(render, mask | changeBits[kind]);
+    }
     this.localDirty.add(render);
     for (let at: RenderObject | undefined = render, depth = 0; at; at = at.parent) {
       if (++depth > p.limits.depth) throw Error('Native capture parent depth exceeded');
       if (this.dirty.has(at)) break;
       this.dirty.add(at);
     }
-    for (const consumer of this.consumers.get(render) ?? []) {
+    for (const [consumer, mask] of this.consumers.get(render) ?? []) {
+      if (!(mask & changeBits[kind])) continue;
       ++this.counters.dependencyInvalidations;
       this.invalidate(consumer, kind, visited);
     }
@@ -110,8 +143,11 @@ export class RenderSceneCapture {
     }
     return this.bindings<K, V>(channel).get(key);
   }
-  dependOn(render: RenderObject): void {
-    this.frames.at(-1)?.dependencies.add(render);
+  dependOn(render: RenderObject, changes?: readonly NativeRenderChange[]): void {
+    const dependencies = this.frames.at(-1)?.dependencies;
+    if (!dependencies) return;
+    const mask = changes ? changes.reduce((bits, kind) => bits | changeBits[kind], 0) : 63;
+    dependencies.set(render, (dependencies.get(render) ?? 0) | mask);
   }
   private register(render: RenderObject, entry: Entry, add: boolean): void {
     for (const [channel, uses] of entry.uses) {
@@ -133,11 +169,11 @@ export class RenderSceneCapture {
         this.channelRevisions.set(channel, this.bindingRevision(channel) + 1);
       }
     }
-    for (const target of entry.dependencies) {
+    for (const [target, mask] of entry.dependencies) {
       let owners = this.consumers.get(target);
       if (add) {
-        if (!owners) this.consumers.set(target, (owners = new Set()));
-        owners.add(render);
+        if (!owners) this.consumers.set(target, (owners = new Map()));
+        owners.set(render, mask);
       } else {
         owners?.delete(render);
         if (!owners?.size) this.consumers.delete(target);
@@ -147,6 +183,8 @@ export class RenderSceneCapture {
   /** Commit the desired projection. Only changed edges and removed subtrees
    * are visited; a reused subtree retains all its registrations in O(1). */
   commit(roots: readonly RenderObject[]): void {
+    if (this.invalidationBatch)
+      throw Error('Native projection cannot commit inside a Source build batch');
     const nextRoots = new Set(roots),
       candidates = new Set(this.roots);
     const visit = (render: RenderObject, parent?: RenderObject): void => {
@@ -192,7 +230,9 @@ export class RenderSceneCapture {
       // Reference encoders still resolve the current handle at commit. Mark
       // their Source owners too, so the next projection cannot reuse a stale
       // configuration after this target parks or changes generations.
-      for (const owner of this.consumers.get(render) ?? []) this.invalidate(owner);
+      // Retirement invalidates every reference consumer, regardless of which
+      // changes it observes while the target is alive. Its handle may recycle.
+      for (const [owner] of this.consumers.get(render) ?? []) this.invalidate(owner);
       for (const child of entry.children) retire(child.render);
     };
     for (const render of candidates) retire(render);
@@ -215,6 +255,8 @@ export class RenderSceneCapture {
     build: () => SceneNode,
     refresh: Refresh,
   ): SceneNode {
+    if (this.invalidationBatch)
+      throw Error('Native capture cannot run inside a Source build batch');
     const parent = this.frames.at(-1),
       before = count.value;
     const scene = this.read(render, input, count, depth, build);
@@ -264,7 +306,7 @@ export class RenderSceneCapture {
       hasDynamic: false,
       children: [],
       uses: reconnect ? entry.uses : new Map(),
-      dependencies: reconnect ? (entry.dependencies as Set<RenderObject>) : new Set(),
+      dependencies: reconnect ? (entry.dependencies as Dependencies) : new Map(),
     };
     this.frames.push(frame);
     try {
@@ -287,7 +329,7 @@ export class RenderSceneCapture {
           }
         }
         scene = children
-          ? new SceneNode(
+          ? sceneConfiguration(
               old.reference,
               old.kind,
               children,

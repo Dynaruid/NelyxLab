@@ -24,16 +24,22 @@ class Engine {
   ~Engine();
   std::shared_ptr<Ledger> memoryLedger() const;
   std::vector<uint8_t> dispatch(Reader packet,DispatchTiming* timing=nullptr);
+  // In-process Render delivery: the normal takeFrame admission/state reply,
+  // with an immutable, ledger-backed reader instead of serialized paint rows.
+  // This is not a wire mode and is never exposed through the C/JS transport.
+  std::vector<uint8_t> dispatchNativeFrame(Reader packet,std::shared_ptr<const Frame>& frame,DispatchTiming* timing=nullptr);
   void connectProvider(bool independent, uint64_t contentOwner, uint64_t renderOwner);
   std::shared_ptr<const Preparation> providerSnapshot(uint32_t view, uint32_t generation);
   std::shared_ptr<const MeasurementRequest> measurementSnapshot(uint32_t view, uint32_t generation);
   std::shared_ptr<const Frame> frameSnapshot(uint32_t view, uint32_t generation, uint64_t id);
-  std::shared_ptr<const InteractionSnapshot> interactionSnapshot(uint32_t view,uint32_t generation);
+  std::shared_ptr<const InteractionSnapshot> interactionSnapshot(uint32_t view,uint32_t generation,
+    const std::shared_ptr<const InteractionSnapshot>& previous=nullptr);
   std::shared_ptr<const FontTransition> fontTransitionSnapshot(uint32_t view,uint32_t generation);
   std::shared_ptr<const EventOverflowInfo> eventOverflowSnapshot(uint32_t view,uint32_t generation);
   std::shared_ptr<const PreparationFailureInfo> preparationFailureSnapshot(uint32_t view,uint32_t generation);
  private:
   struct State;
   std::unique_ptr<State> state_;
+  std::vector<uint8_t> dispatchImpl(Reader packet,DispatchTiming* timing,std::shared_ptr<const Frame>* nativeFrame);
 };
 }

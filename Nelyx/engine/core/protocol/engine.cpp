@@ -10,6 +10,17 @@
 #include <chrono>
 
 namespace nelyx::v2 {
+namespace {
+std::shared_ptr<const Frame> copyNativeFrame(const Frame& frame,const std::shared_ptr<Ledger>& ledger){
+  // Reserve before copying. Each native reader owns its actual vector storage
+  // independently of the mutable submission's release/publication flags.
+  auto memory=std::make_shared<Lease>(ledger,sizeof(Frame)+frame.properties.size()*sizeof(Property)+
+    frame.items.size()*sizeof(DrawItem)+frame.clips.size()*sizeof(ClipShape)+frame.hitRegions.size()*sizeof(HitRegionShape)+
+    frame.semantics.size()*sizeof(FrameSemantics)+(frame.observationRows.size()+frame.itemBySlot.size())*sizeof(uint32_t)+
+    frame.observationRemoved.size()*sizeof(Handle));
+  auto result=std::make_shared<Frame>(frame);result->snapshotLease=std::move(memory);return result;
+}
+}
 struct Engine::State {
   std::mutex mutex;
   uint32_t session, app;
@@ -68,7 +79,7 @@ std::shared_ptr<const Frame> Engine::frameSnapshot(uint32_t view, uint32_t gener
     wire::statuses::invalidHandle);
   const auto& frames = s.views[view]->frames;
   const auto it = frames.find(id); require(it != frames.end(), wire::statuses::stale);
-  return std::make_shared<const Frame>(it->second);
+  return copyNativeFrame(it->second,s.ledger);
 }
 std::shared_ptr<const MeasurementRequest> Engine::measurementSnapshot(uint32_t view, uint32_t generation) {
   auto& s = *state_; std::lock_guard lock(s.mutex);
@@ -81,11 +92,21 @@ std::shared_ptr<const MeasurementRequest> Engine::measurementSnapshot(uint32_t v
   return request;
 }
 
-std::shared_ptr<const InteractionSnapshot> Engine::interactionSnapshot(uint32_t view,uint32_t generation) {
+std::shared_ptr<const InteractionSnapshot> Engine::interactionSnapshot(uint32_t view,uint32_t generation,
+    const std::shared_ptr<const InteractionSnapshot>& previous) {
   auto& s=*state_;std::lock_guard lock(s.mutex);
   if(!view||view>=s.views.size()||!s.views[view]||s.views[view]->generation!=generation)return nullptr;
   const auto& v=*s.views[view];if(v.closed||!v.published)return nullptr;
   const auto& frame=*v.published;
+  if(previous&&previous->frame.scene==frame.scene&&previous->frame.id==frame.id&&previous->document==v.document&&
+      previous->focus==v.focusNode&&previous->session==v.focusSession&&previous->visible==v.visible&&
+      previous->metrics.epoch==v.metrics.epoch&&previous->metrics.device==v.metrics.device&&
+      previous->metrics.width==v.metrics.width&&previous->metrics.height==v.metrics.height&&previous->metrics.scale==v.metrics.scale&&
+      previous->editors.size()==v.editors.size()){
+    bool same=true;for(const auto& [key,editor]:v.editors){const auto old=previous->editors.find(key);
+      if(old==previous->editors.end()||old->second!=editor->value){same=false;break;}}
+    if(same)return previous;
+  }
   auto held=std::make_shared<Lease>(s.ledger,sizeof(InteractionSnapshot)+frame.properties.size()*sizeof(Property)+
     frame.items.size()*sizeof(DrawItem)+frame.clips.size()*sizeof(ClipShape)+frame.hitRegions.size()*sizeof(HitRegionShape)+
     frame.semantics.size()*sizeof(FrameSemantics)+(frame.observationRows.capacity()+frame.itemBySlot.capacity())*sizeof(uint32_t)+frame.observationRemoved.capacity()*sizeof(Handle)+v.editors.size()*(sizeof(std::pair<const uint64_t,std::shared_ptr<const EditingValue>>)+64));
@@ -172,6 +193,12 @@ void nodeRow(Writer& w, size_t p, const Node& n, const Property* o, uint32_t fla
 }
 
 std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
+  return dispatchImpl(packet,timing,nullptr);
+}
+std::vector<uint8_t> Engine::dispatchNativeFrame(Reader packet,std::shared_ptr<const Frame>& frame,DispatchTiming* timing){
+  frame.reset();return dispatchImpl(packet,timing,&frame);
+}
+std::vector<uint8_t> Engine::dispatchImpl(Reader packet,DispatchTiming* timing,std::shared_ptr<const Frame>* nativeFrame) {
   auto& s = *state_;
   using Clock=std::chrono::steady_clock;
   auto lockAt=timing?Clock::now():Clock::time_point{};
@@ -218,6 +245,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
       packet.u32(wire::headerFields::schema) == wire::schema, wire::statuses::incompatible);
     require(packet.u32(wire::headerFields::session) == s.session && packet.u32(wire::headerFields::app) == s.app, wire::statuses::staleGeneration);
     const auto body = packet.slice(wire::headerBytes, packet.length - wire::headerBytes);
+    if(nativeFrame)require(opcode==wire::opcodes::takeFrame&&body.length==0,wire::statuses::invalidValue);
     if(opcode==wire::opcodes::inspect){
       require(body.length==0||(body.length==4&&body.u32(0)==wire::inspectionFlags::stateOnly));
       stateOnlyInspection=body.length==4;
@@ -781,7 +809,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
   const MeasurementRequest* measure=measureStorage?&*measureStorage:nullptr;
   const Document* measureDocument=measure&&view->query&&view->query->preparation==view->measurePreparation()?
     view->query->document.get():measure&&view->preparing?view->preparing->document.get():nullptr;
-  const Document* rows = frame ? frame->scene->document.get() :
+  const Document* rows = frame ? (nativeFrame?nullptr:frame->scene->document.get()) :
     editTarget&&view?view->document.get():
     status == wire::statuses::ok && opcode == wire::opcodes::layoutSnapshot && view && view->active ? view->active->document.get() :
     measureDocument ? measureDocument :
@@ -864,8 +892,8 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
       else rowNodes.push_back(entry.value.get());
     }
   }
-  const auto frameRowCount=frame?(partialObservation?frameRows.size():frame->items.size()):0;
-  const auto forFrameRows=[&](const auto& visit){if(!frame||reusedObservation)return;
+  const auto frameRowCount=frame&&rows?(partialObservation?frameRows.size():frame->items.size()):0;
+  const auto forFrameRows=[&](const auto& visit){if(!frame||!rows||reusedObservation)return;
     if(partialObservation)for(const auto index:frameRows)visit(frame->items.at(index));
     else for(const auto& item:frame->items)visit(item);};
   if (rows && !frame && !reusedObservation&&!partialObservation) {
@@ -1015,18 +1043,18 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
       data.u64(64,c.revision);addOwned(7,n.id,std::move(data));}
     if(!providerObservation&&n.listGeometry){const auto& list=*n.listGeometry;const size_t header=list.style.fixed||list.style.sequential?72:64;Writer data(header+list.rows.size()*40);
       data.u64(0,list.style.generation);data.u32(8,list.style.count);data.u32(12,list.style.begin);data.u32(16,list.style.end);
-      double offset=0,height=view?view->metrics.height:0,paint=height,velocity=0;
+      double offset=0,height=view?view->metrics.height:0,paint=height,velocity=0;bool deferred=false;
       if(view&&n.parent&&rows->contains(n.parent)){const auto& parent=rows->get(n.parent);
         const bool horizontal=(parent.properties.flags&1u)!=0;
         height=horizontal?parent.properties.width:parent.properties.height;offset=parent.properties.initialScrollOffset-(horizontal?n.properties.x:n.properties.y);const auto scrollOverlay=view->overlays.find(n.parent.key());
-        if(scrollOverlay!=view->overlays.end()){offset=scrollOverlay->second.requested-(horizontal?n.properties.x:n.properties.y);velocity=scrollOverlay->second.velocity;}
+        if(scrollOverlay!=view->overlays.end()){offset=scrollOverlay->second.requested-(horizontal?n.properties.x:n.properties.y);velocity=scrollOverlay->second.velocity;deferred=scrollOverlay->second.deferred;}
         if(n.layoutBuilder){const double origin=n.properties.y;
           const double requested=list.style.sequential&&list.knownCount<list.style.count?std::max(0.0,offset+origin):
             std::clamp(offset+origin,0.0,std::max(0.0,list.total+parent.layout.top+parent.layout.bottom-height));
           offset=std::max(0.0,requested-origin);paint=std::max(0.0,height-std::max(0.0,origin-requested));}}
       if(n.layoutBuilder){const auto range=nativeListCacheRange(list.style,&list,std::max(0.0,offset),paint,velocity);data.u32(20,range.begin);data.u32(24,range.end);}
-      else {const auto begin=list.indexAt(std::max(0.0,offset-height));
-        data.u32(20,begin);data.u32(24,std::min(list.style.count,list.indexAt(offset+height*2)+1));}
+      else {const auto range=legacyListCacheRange(list,offset,height,velocity,deferred);
+        data.u32(20,range.begin);data.u32(24,range.end);}
       data.u32(28,uint32_t(list.rows.size()));data.f64(32,list.estimate);
       data.f64(40,list.total);data.f64(48,list.begin);data.f64(56,list.end);
       if(header==72)data.u32(64,list.style.fixed?wire::listFlags::fixedExtent:wire::listFlags::sequential);
@@ -1334,6 +1362,14 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
     }
   }
   unissuedFrame.issued=status==wire::statuses::ok;
+  if(nativeFrame&&frame&&status==wire::statuses::ok){
+    // A quota failure must cancel an unissued submission just like a rejected
+    // wire reply. The caller never owns a frame that could not be delivered.
+    unissuedFrame.issued=false;
+    try{*nativeFrame=copyNativeFrame(*frame,s.ledger);unissuedFrame.issued=true;}
+    catch(const Error& error){unissuedFrame.retire();response.u16(wire::headerFields::status,uint16_t(error.status));
+      response.u32(b+wire::stateFields::holds,uint32_t(view->frames.size()));}
+  }
   return std::move(response.bytes);
 }
 }

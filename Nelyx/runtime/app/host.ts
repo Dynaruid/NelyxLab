@@ -40,10 +40,16 @@ import { RenderConstrainedBox } from '@nelyx/core/framework/rendering/boxes';
 import type { ViewControllerContext } from '@nelyx/core/hosting/runtime';
 import type { BinaryMessenger } from '@nelyx/core/services/binary-messenger';
 import type { ViewMetrics, ResourceId, TextLayoutService } from '@nelyx/core/ui/types';
-import { SceneReference, SceneNode, SceneWriter } from '../engine-client/scene.ts';
+import {
+  SceneReference,
+  SceneNode,
+  SceneWriter,
+  sceneConfiguration,
+} from '../engine-client/scene.ts';
 import type { EngineExecutionSnapshot, SceneNodeOptions } from '../engine-client/scene.ts';
 import type { EngineViewClient } from '../engine-client/client.ts';
 import { protocol as p } from '../engine-client/schema.ts';
+import { observationNode } from '../engine-client/node-index.ts';
 import type { EngineEvent, EngineResponse, EngineNodeSnapshot } from '../engine-client/codec.ts';
 import type { NodeHandle } from '../engine-client/codec.ts';
 import { drainEngineOwners } from '../engine-client/lifecycle.ts';
@@ -74,6 +80,8 @@ import { OriginalSemanticsBridge } from './semantics.ts';
 import { OriginalTapRegions } from './tap-regions.ts';
 import { RenderSceneCapture } from './capture.ts';
 import { retainSceneConfiguration } from '../engine-client/scene.ts';
+
+const collectionChanges: readonly NativeRenderChange[] = ['children', 'layout'];
 
 export interface OriginalWidgetHostOptions {
   readonly platform?: FoundationPlatformEnvironment;
@@ -151,6 +159,7 @@ export class OriginalWidgetHost {
       capture: { ...this.capture.counters },
       layoutBuilder: this.builderDiagnostic,
       retainedBuilderRebuilds: this.retainedBuilderRebuilds,
+      scrolling: { ...this.scrolling.counters },
     };
   }
   private readonly capture = new RenderSceneCapture();
@@ -368,6 +377,7 @@ export class OriginalWidgetHost {
       view,
       (reason) => this.unsupported(reason),
       (error) => options.onError?.(error),
+      () => !this.building && !this.closed,
     );
     this.fontScope = systemFonts ? { systemFonts, scheduler: this.scrolling.scheduler } : null;
     if (options.appImages) {
@@ -657,8 +667,10 @@ export class OriginalWidgetHost {
     this.building = true;
     this.bridgeFailure = undefined;
     try {
-      const rebuilt = withNativeRenderConfiguration(callback, (operation) =>
-        this.unsupported('synchronous-render-' + operation),
+      const rebuilt = this.capture.batchInvalidations(() =>
+        withNativeRenderConfiguration(callback, (operation) =>
+          this.unsupported('synchronous-render-' + operation),
+        ),
       );
       if (this.bridgeFailure) throw this.bridgeFailure;
       if (rebuilt) this.rerun = true;
@@ -702,7 +714,7 @@ export class OriginalWidgetHost {
     ].map((child) =>
       this.node(child.render, count, depth + 1, { index: child.index, key: child.token }),
     );
-    return new SceneNode(key, 'sliver', children, {
+    return sceneConfiguration(key, 'sliver', children, {
       layout: { direction: 'vertical' },
       pointerHitTest: 'deferToChild',
       list: {
@@ -748,10 +760,7 @@ export class OriginalWidgetHost {
       snapshot.publishedDocument !== snapshot.activeDocument
     )
       return;
-    const parent = snapshot.nodes.find(
-      (value) =>
-        value.node.slot === node.parent.slot && value.node.generation === node.parent.generation,
-    );
+    const parent = observationNode(snapshot, node.parent);
     if (!parent || parent.kind !== p.kinds.scrollViewport) return;
     const offset = Math.max(0, parent.offset - node.y);
     sliver.observe(sliver.revision, {
@@ -914,7 +923,9 @@ export class OriginalWidgetHost {
       let ancestor: RenderObject | undefined = render,
         index: number | undefined;
       while (ancestor) {
-        this.capture.dependOn(ancestor);
+        // The index follows Source collection/parent configuration. An Ink or
+        // opacity repaint on an ancestor cannot change that index.
+        this.capture.dependOn(ancestor, collectionChanges);
         if (
           ancestor instanceof OriginalNativeRender &&
           ancestor.options.sourceCollectionIndex !== undefined
@@ -1147,7 +1158,7 @@ export class OriginalWidgetHost {
           this.capture.bind('fonts', fontBinding.fontRevision, fontBinding.fontRevision);
         paragraphIndex++;
         children.push(
-          new SceneNode(
+          sceneConfiguration(
             key,
             'paragraph',
             [],
@@ -1194,7 +1205,7 @@ export class OriginalWidgetHost {
         ],
       };
     this.taps.retain(render);
-    return new SceneNode(
+    return sceneConfiguration(
       key,
       kind,
       children,
@@ -1296,6 +1307,17 @@ export class OriginalWidgetHost {
         if (this.closed) return;
         await this.rebuildFromContent(state);
       }
+      // Like Animator::BeginFrame consuming a scheduled frame, the imminent
+      // synchronous Source build includes invalidations received while awaiting
+      // state/Content. They do not need another capture after this one. Keep a
+      // newer cohort's demand, and never consume invalidations arriving during
+      // capture, an ACK, publication, retirement or the input checkpoint.
+      if (
+        state.metrics >= this.metricsEpoch &&
+        state.device >= this.deviceEpoch &&
+        state.fontRevision >= (this.textService?.fontRevision ?? 0n)
+      )
+        this.rerun = false;
       let scene: SceneNode;
       const capturedFonts = new Map<bigint, AppParagraphFontLease>();
       const capturedImages = new Set<string>(),
@@ -1313,67 +1335,69 @@ export class OriginalWidgetHost {
         this.observeMetrics(state);
         scene = withNativeRenderConfiguration(
           () => {
-            const buildStarted = now();
-            // A paint/input invalidation is not a new application Widget.
-            // BuildOwner already marks State and viewport dependents dirty.
-            // Replacing AppRoot here rebuilt its MediaQuery on every capture.
-            if (this.root) {
-              if ((this.root.widget as AppRoot).child !== this.desired)
-                this.root.update(new AppRoot(this.desired!));
-            } else {
-              const configuration = new AppRoot(this.desired!);
-              this.root = configuration.createElement();
-              this.root.mount(undefined, this.owner);
-            }
-            this.owner.flushBuild();
-            this.root.syncRenderTree();
-            if (
-              state.metrics === this.sceneMetrics &&
-              state.device === this.sceneDevice &&
-              state.fontRevision === this.sceneFontRevision
-            ) {
-              const roots = new Set(this.root.renderObjects);
-              // Capture registrations are renewed independently; Map insertion
-              // order is not render ancestry. Like Flutter's layout flush,
-              // update ancestors before descendants that consume their Widget
-              // configuration, otherwise a later parent dirties an answered child.
-              retainedBuilders.sort((a, b) => a.depth - b.depth);
-              for (const render of retainedBuilders) {
-                if (render.debugDisposed) continue;
-                let root = render;
-                let parked = false;
-                while (root.parent) {
-                  root = root.parent;
-                  if (root instanceof OriginalNativeRender && root.options.parkedChildren)
-                    parked = true;
-                }
-                if (parked || !roots.has(root)) continue;
-                const builder = originalBoxConfiguration(render, (reason) =>
-                  this.unsupported(reason),
-                )?.builder;
-                if (!builder?.built || builder.built.revision === builder.revision) continue;
-                // Rebuild configuration with the last Content-supplied input.
-                // Core still compares built constraints with the actual parent
-                // input before publication, and requests a correction on mismatch.
-                // This batches dirty retained builders instead of one full scene
-                // transaction/Content round trip per unchanged viewport.
-                if (builder.rebuild(builder.revision, builder.built.constraints))
-                  ++this.retainedBuilderRebuilds;
+            this.capture.batchInvalidations(() => {
+              const buildStarted = now();
+              // A paint/input invalidation is not a new application Widget.
+              // BuildOwner already marks State and viewport dependents dirty.
+              // Replacing AppRoot here rebuilt its MediaQuery on every capture.
+              if (this.root) {
+                if ((this.root.widget as AppRoot).child !== this.desired)
+                  this.root.update(new AppRoot(this.desired!));
+              } else {
+                const configuration = new AppRoot(this.desired!);
+                this.root = configuration.createElement();
+                this.root.mount(undefined, this.owner);
               }
               this.owner.flushBuild();
               this.root.syncRenderTree();
-            }
-            timing.buildMs += now() - buildStarted;
+              if (
+                state.metrics === this.sceneMetrics &&
+                state.device === this.sceneDevice &&
+                state.fontRevision === this.sceneFontRevision
+              ) {
+                const roots = new Set(this.root.renderObjects);
+                // Capture registrations are renewed independently; Map insertion
+                // order is not render ancestry. Like Flutter's layout flush,
+                // update ancestors before descendants that consume their Widget
+                // configuration, otherwise a later parent dirties an answered child.
+                retainedBuilders.sort((a, b) => a.depth - b.depth);
+                for (const render of retainedBuilders) {
+                  if (render.debugDisposed) continue;
+                  let root = render;
+                  let parked = false;
+                  while (root.parent) {
+                    root = root.parent;
+                    if (root instanceof OriginalNativeRender && root.options.parkedChildren)
+                      parked = true;
+                  }
+                  if (parked || !roots.has(root)) continue;
+                  const builder = originalBoxConfiguration(render, (reason) =>
+                    this.unsupported(reason),
+                  )?.builder;
+                  if (!builder?.built || builder.built.revision === builder.revision) continue;
+                  // Rebuild configuration with the last Content-supplied input.
+                  // Core still compares built constraints with the actual parent
+                  // input before publication, and requests a correction on mismatch.
+                  // This batches dirty retained builders instead of one full scene
+                  // transaction/Content round trip per unchanged viewport.
+                  if (builder.rebuild(builder.revision, builder.built.constraints))
+                    ++this.retainedBuilderRebuilds;
+                }
+                this.owner.flushBuild();
+                this.root.syncRenderTree();
+              }
+              timing.buildMs += now() - buildStarted;
+            });
             captureStarted = now();
             // Canonical builders may catch their own exceptions and build an
             // ErrorWidget. An unported bridge operation still rejects admission.
             if (this.bridgeFailure) throw this.bridgeFailure;
             this.layers.begin();
             const count = { value: 0 };
-            return new SceneNode(
+            return sceneConfiguration(
               this.sceneRoot,
               'stack',
-              this.root.renderObjects.map((render) => this.node(render, count)),
+              this.root!.renderObjects.map((render) => this.node(render, count)),
               {
                 canonicalKeyboard: true,
                 pointerHitTest: 'self',

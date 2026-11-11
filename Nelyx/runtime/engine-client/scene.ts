@@ -204,6 +204,35 @@ export class SceneNode {
     readonly maximumLength: number = p.limits.textBytes,
   ) {}
 }
+/** @internal Fixed Source configuration has the same own fields/prototype as
+ * SceneNode. Its empty public constructor adds no policy; constructing the
+ * owned record directly avoids one lowered class-field helper per field on
+ * Hermes. Public producers retain their normal constructor and validation. */
+export function sceneConfiguration(
+  reference: SceneReference,
+  kind: keyof typeof p.kinds,
+  children: readonly SceneNode[] = [],
+  options: SceneNodeOptions = {},
+  text?: SceneText,
+  image?: ImageResource,
+  editor?: EditingController,
+  editorFlags = 0,
+  maximumLength: number = p.limits.textBytes,
+): SceneNode {
+  const node = {
+    __proto__: SceneNode.prototype,
+    reference,
+    kind,
+    children,
+    options,
+    text,
+    image,
+    editor,
+    editorFlags,
+    maximumLength,
+  };
+  return node;
+}
 const retainedConfigurations = new WeakSet<SceneNode>();
 /** @internal Source capture owns invalidation and immutable configuration
  * identity. Public SceneNode producers still get mutation-safe input diffing. */
@@ -318,8 +347,120 @@ export interface EngineExecutionSnapshot {
   readonly rejectedFallbacks: number;
   readonly rejectionReasons: Readonly<Record<string, number>>;
 }
-const equalBytes = (a: Uint8Array, b: Uint8Array) =>
-  a === b || (a.length === b.length && a.every((n, i) => n === b[i]));
+function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; ++i) if (a[i] !== b[i]) return false;
+  return true;
+}
+// Creation defaults are handle-independent. Encode them once, then compare
+// header/body while excluding only the destination handle at bytes 8..15.
+// Accepted records may use it only with a private shared template and after
+// diff has selected the same generational record. Never compare references this way.
+const defaultHandle = { slot: 1, generation: 1 };
+const defaultProperties = c.properties(defaultHandle, {});
+const defaultPaint = c.paint(defaultHandle, 0);
+const defaultConstraints = c.constraints(
+  defaultHandle,
+  { kind: 'unbounded' },
+  { kind: 'unbounded' },
+);
+const defaultLayouts = [
+  c.layout(defaultHandle, { enabled: false, childConstraints: 'loose' }),
+  c.layout(defaultHandle),
+  c.layout(defaultHandle, { childConstraints: 'inherit' }),
+];
+const defaultPolicies = [
+  c.eventPolicy(defaultHandle, 0),
+  c.eventPolicy(defaultHandle, p.eventPolicies.canonicalHitTest),
+];
+function sameCreationDefault(value: Uint8Array, template: Uint8Array): boolean {
+  if (value === template) return true;
+  if (value.length !== template.length) return false;
+  for (let i = 0; i < value.length; ++i) {
+    if (i === 8) i = 16;
+    if (value[i] !== template[i]) return false;
+  }
+  return true;
+}
+function creationDefault(kind: number, flags: number): Uint8Array | undefined {
+  switch (kind) {
+    case p.commands.properties:
+      return defaultProperties;
+    case p.commands.paint:
+      return defaultPaint;
+    case p.commands.constraints:
+      return defaultConstraints;
+    case p.commands.layout:
+      return defaultLayouts[
+        flags & p.nodeCreationFlags.layoutEnabled
+          ? flags & p.nodeCreationFlags.inheritChildConstraints
+            ? 2
+            : 1
+          : 0
+      ];
+    case p.commands.eventPolicy:
+      return defaultPolicies[flags & p.nodeCreationFlags.canonicalHitTest ? 1 : 0];
+    default:
+      return undefined;
+  }
+}
+// Fixed Source defaults share an immutable command and comparison input. The
+// placeholder destination never leaves this module: only commands actually
+// emitted by diff receive the current generational handle. The pool is fixed,
+// not a cache of arbitrary producer data or detached nodes.
+const sharedDefaults = new Map<number, readonly { input: unknown; bytes: Uint8Array }[]>([
+  [
+    p.commands.properties,
+    [
+      { input: undefined, bytes: defaultProperties },
+      { input: {}, bytes: defaultProperties },
+    ],
+  ],
+  [
+    p.commands.paint,
+    [
+      { input: [undefined, undefined], bytes: defaultPaint },
+      { input: [0, undefined], bytes: defaultPaint },
+    ],
+  ],
+  [p.commands.constraints, [{ input: [undefined, undefined], bytes: defaultConstraints }]],
+  [
+    p.commands.layout,
+    [
+      { input: {}, bytes: defaultLayouts[1]! },
+      { input: { childConstraints: 'inherit' }, bytes: defaultLayouts[2]! },
+      { input: { enabled: false }, bytes: defaultLayouts[0]! },
+    ],
+  ],
+  [
+    p.commands.eventPolicy,
+    [
+      { input: 0, bytes: defaultPolicies[0]! },
+      { input: p.eventPolicies.canonicalHitTest, bytes: defaultPolicies[1]! },
+    ],
+  ],
+]);
+const sharedDefaultCommands = new Set([
+  defaultProperties,
+  defaultPaint,
+  defaultConstraints,
+  ...defaultLayouts,
+  ...defaultPolicies,
+]);
+function sameRecordConfig(a: Uint8Array, b: Uint8Array): boolean {
+  return sharedDefaultCommands.has(a) || sharedDefaultCommands.has(b)
+    ? sameCreationDefault(a, b)
+    : equalBytes(a, b);
+}
+function addressedConfig(config: Uint8Array, handle: NodeHandle): Uint8Array {
+  if (!sharedDefaultCommands.has(config)) return config;
+  const bytes = config.slice();
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  view.setUint32(8, handle.slot, true);
+  view.setUint32(12, handle.generation, true);
+  return bytes;
+}
 const uncacheableInput = Symbol('uncacheable scene input');
 /** Keep independent data snapshots. Reusing a mutable options object must not
  * hide a later change; executable/accessor values always run through encoding. */
@@ -378,6 +519,10 @@ function sameConfigInput(value: unknown, captured: unknown): boolean {
 }
 
 /** ACK-based engine document writer shared by all App producers. */
+type ObservationLane = {
+  pending: EngineResponse | undefined;
+  running: Promise<void> | undefined;
+};
 export class SceneWriter {
   get hasPendingImageResources(): boolean {
     return (
@@ -448,8 +593,10 @@ export class SceneWriter {
   private eventRequested = false;
   private eventRunning = false;
   private polling = false;
-  private observationPending: EngineResponse | undefined;
-  private observationRunning: Promise<void> | undefined;
+  private readonly observationLanes: Record<'layout' | 'publication', ObservationLane> = {
+    layout: { pending: undefined, running: undefined },
+    publication: { pending: undefined, running: undefined },
+  };
   private focusHandle = '';
   private focusCallback: SceneNodeOptions['onFocusChanged'];
   private semanticPublication: EngineResponse | undefined;
@@ -467,6 +614,7 @@ export class SceneWriter {
     blobReferencedBytes: 0,
     blobRetainedBytes: 0,
     recordsMs: 0,
+    sharedDefaultConfigs: 0,
     diffMs: 0,
     topologyReused: 0,
     publicationObservations: 0,
@@ -692,8 +840,18 @@ export class SceneWriter {
         return h;
       }
       const previousConfig = before?.configByKind;
+      const owned = retainedConfigurations.has(node);
       const configInputs = new Map<number, unknown>();
       const encode = (kind: number, input: unknown, make: () => Uint8Array): Uint8Array => {
+        const defaults = owned ? sharedDefaults.get(kind) : undefined;
+        if (defaults) {
+          for (const shared of defaults) {
+            if (!sameConfigInput(input, shared.input)) continue;
+            configInputs.set(kind, shared.input);
+            ++this.counters.sharedDefaultConfigs;
+            return shared.bytes;
+          }
+        }
         const previous = previousConfig?.get(kind);
         if (
           previous &&
@@ -893,7 +1051,7 @@ export class SceneWriter {
       // Topology is already represented by generational handles. Keeping only
       // this node's configuration lets relinked ancestors reuse a record without
       // retaining detached children (including old image/paragraph resources).
-      const ownNode = new SceneNode(
+      const ownNode = sceneConfiguration(
         node.reference,
         node.kind,
         [],
@@ -976,7 +1134,8 @@ export class SceneWriter {
         if (before === record) continue;
         for (const config of record.config) {
           const previous = before.configByKind.get(commandKind(config));
-          if (!previous || !equalBytes(config, previous)) changes.push(config);
+          if (!previous || !sameRecordConfig(config, previous))
+            changes.push(addressedConfig(config, record.handle));
         }
       }
       for (const resource of this.acceptedResources)
@@ -1063,12 +1222,12 @@ export class SceneWriter {
       if (!before) {
         const layout = r.configByKind.get(p.commands.layout),
           policy = r.configByKind.get(p.commands.eventPolicy);
-        if (layout && equalBytes(layout, c.layout(r.handle)))
+        if (layout && sameCreationDefault(layout, defaultLayouts[1]!))
           initialFlags |= p.nodeCreationFlags.layoutEnabled;
-        else if (layout && equalBytes(layout, c.layout(r.handle, { childConstraints: 'inherit' })))
+        else if (layout && sameCreationDefault(layout, defaultLayouts[2]!))
           initialFlags |=
             p.nodeCreationFlags.layoutEnabled | p.nodeCreationFlags.inheritChildConstraints;
-        if (policy && equalBytes(policy, c.eventPolicy(r.handle, p.eventPolicies.canonicalHitTest)))
+        if (policy && sameCreationDefault(policy, defaultPolicies[1]!))
           initialFlags |= p.nodeCreationFlags.canonicalHitTest;
         creationFlags.set(id(r.handle), initialFlags);
         const siblings = r.parent ? siblingsOf(r.parent) : undefined,
@@ -1095,30 +1254,17 @@ export class SceneWriter {
       // Creation already establishes these exact Core defaults. Keep their
       // immutable records for later resets, while omitting redundant writes
       // from the atomic transaction (large route replacement uses this path).
-      const initial = before
-        ? undefined
-        : [
-            c.properties(r.handle, {}),
-            c.paint(r.handle, 0),
-            c.constraints(r.handle, { kind: 'unbounded' }, { kind: 'unbounded' }),
-            c.layout(r.handle, {
-              enabled: !!(initialFlags & p.nodeCreationFlags.layoutEnabled),
-              childConstraints:
-                initialFlags & p.nodeCreationFlags.inheritChildConstraints ? 'inherit' : 'loose',
-            }),
-            c.eventPolicy(
-              r.handle,
-              initialFlags & p.nodeCreationFlags.canonicalHitTest
-                ? p.eventPolicies.canonicalHitTest
-                : 0,
-            ),
-          ];
-      r.config.forEach((config) => {
+      for (const config of r.config) {
+        const kind = commandKind(config);
         const previous = before
-          ? before.configByKind.get(commandKind(config))
-          : initial?.find((value) => commandKind(value) === commandKind(config));
-        if (!previous || !equalBytes(config, previous)) changes.push(config);
-      });
+          ? before.configByKind.get(kind)
+          : creationDefault(kind, initialFlags);
+        if (
+          !previous ||
+          !(before ? sameRecordConfig(config, previous) : sameCreationDefault(config, previous))
+        )
+          changes.push(addressedConfig(config, r.handle));
+      }
     }
     // Every parent exists. Populate siblings in declaration order against the
     // topology produced by preceding moves, including cross-parent moves.
@@ -1523,36 +1669,40 @@ export class SceneWriter {
     } finally {
       this.polling = false;
     }
-    // Input keeps draining while the single observation owner decodes geometry.
-    // Retain only the newest demand, never a queue of obsolete frame snapshots.
-    this.observationPending = state;
-    const observation = this.drainObservations();
-    if (waitForObservation) await observation;
+    // Two consistency roles, each with one in-flight read and one newest
+    // demand. A large published tree never queues ahead of selected Source
+    // layout. Their base/version sequences remain independent in the client.
+    this.observationLanes.layout.pending = state;
+    this.observationLanes.publication.pending = state;
+    const layout = this.drainObservations('layout');
+    const publication = this.drainObservations('publication');
+    if (waitForObservation) await Promise.all([layout, publication]);
   }
-  private drainObservations(): Promise<void> {
-    if (!this.observationRunning) {
-      this.observationRunning = Promise.resolve()
+  private drainObservations(kind: 'layout' | 'publication'): Promise<void> {
+    const lane = this.observationLanes[kind];
+    if (!lane.running) {
+      lane.running = Promise.resolve()
         .then(async () => {
-          while (this.observationPending && !this.closed) {
-            const pending = this.observationPending;
-            this.observationPending = undefined;
-            await this.observeScene(pending);
+          while (lane.pending && !this.closed) {
+            const pending = lane.pending;
+            lane.pending = undefined;
+            if (kind === 'layout') await this.observeLayout(pending);
+            else await this.observeScene(pending);
           }
         })
         .finally(() => {
-          this.observationRunning = undefined;
+          lane.running = undefined;
         })
         .then(() => {
-          // The last poll can complete after the drain's while condition,
-          // while the old promise still owns this slot. It must not strand a
-          // route-removal publication until another event happens to arrive.
-          if (this.observationPending && !this.closed) return this.drainObservations();
+          // Completion can race the last poll after the loop's final check.
+          // Preserve that last demand without waiting for another OS input.
+          if (lane.pending && !this.closed) return this.drainObservations(kind);
         });
-      void this.observationRunning.catch((error) => {
+      void lane.running.catch((error) => {
         if (!this.closed) this.options.onError?.(error);
       });
     }
-    return this.observationRunning;
+    return lane.running;
   }
   private async observeScene(state: EngineResponse): Promise<void> {
     let observed = state;
@@ -1595,6 +1745,16 @@ export class SceneWriter {
           publication,
         );
     }
+    // A newer input poll may already have advanced focus/metrics/control
+    // state. An older observation must not rewind those fences.
+    if (this.semanticState === state) {
+      this.semanticState = observed;
+      this.options.onState?.(observed);
+    }
+    this.options.onAfterEvents?.();
+  }
+  private async observeLayout(state: EngineResponse): Promise<void> {
+    let observed = state;
     const observers = [...this.layoutObservers.values()];
     const layout = this.layoutObservation;
     const demand = this.layoutDemand;
@@ -1651,10 +1811,16 @@ export class SceneWriter {
       if (snapshot.status === p.statuses.ok) {
         this.layoutObservation = snapshot;
         this.observedLayoutDemand = demand;
-        const nodes = new Map(snapshot.nodes.map((node) => [id(node.node), node]));
         for (const record of observers) {
-          const node = nodes.get(id(record.handle));
-          if (node && !this.closed) record.node.options.onLayout!(node, snapshot);
+          const node = observationNode(snapshot, record.handle);
+          const current = this.accepted.get(id(record.handle));
+          if (
+            node &&
+            !this.closed &&
+            current?.node.reference === record.node.reference &&
+            current.node.options.onLayout === record.node.options.onLayout
+          )
+            record.node.options.onLayout!(node, snapshot);
         }
       }
     }
@@ -1835,7 +2001,8 @@ export class SceneWriter {
     this.unsubscribeChanges?.();
     this.semanticPublication = this.semanticState = undefined;
     this.layoutObservation = undefined;
-    this.observationPending = undefined;
+    this.observationLanes.layout.pending = undefined;
+    this.observationLanes.publication.pending = undefined;
     if (this.eventTimer !== undefined) clearTimeout(this.eventTimer);
     await this.running;
   }

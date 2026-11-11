@@ -9,7 +9,8 @@ export function observationNode(
 ): EngineNodeSnapshot | undefined {
   let index = indexes.get(frame);
   if (!index) {
-    index = new Map(frame.nodes.map((node) => [node.node.slot, node]));
+    index = new Map();
+    for (const node of frame.nodes) index.set(node.node.slot, node);
     indexes.set(frame, index);
   }
   const node = index.get(handle.slot);

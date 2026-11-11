@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { protocol as p } from './codec.ts';
+import { observationNode } from './node-index.ts';
 import type { EngineNodeSnapshot, EngineResponse } from './codec.ts';
 import { State, StatefulWidget, NodeWidget, ScrollView, Box, Text, ValueKey } from './widgets.ts';
 import type { Widget, NodeOptions } from './widgets.ts';
@@ -296,9 +297,7 @@ export class ListViewState extends State<ListView> {
   private observe = (node: EngineNodeSnapshot, snapshot: EngineResponse): void => {
     const list = node.list;
     if (!list || list.generation !== this.generation) return;
-    const parent = snapshot.nodes.find(
-      (n) => n.node.slot === node.parent.slot && n.node.generation === node.parent.generation,
-    );
+    const parent = observationNode(snapshot, node.parent);
     if (parent) this.observed = { viewport: parent.node, list: node.node };
     const anchor = list.items.find(
       (r) =>
@@ -312,11 +311,7 @@ export class ListViewState extends State<ListView> {
     this.focusedIndex = undefined;
     this.focusedKey = undefined;
     if (snapshot.focus) {
-      let current = snapshot.nodes.find(
-        (n) =>
-          n.node.slot === snapshot.focus!.node.slot &&
-          n.node.generation === snapshot.focus!.node.generation,
-      );
+      let current = observationNode(snapshot, snapshot.focus.node);
       for (let depth = 0; current && depth <= p.limits.depth; ++depth) {
         const row = list.items.find(
           (r) =>
@@ -327,11 +322,7 @@ export class ListViewState extends State<ListView> {
           this.focusedKey = this.widget.items.itemKey(row.index);
           break;
         }
-        current = snapshot.nodes.find(
-          (n) =>
-            n.node.slot === current!.parent.slot &&
-            n.node.generation === current!.parent.generation,
-        );
+        current = observationNode(snapshot, current.parent);
       }
     }
     if (list.demandBegin >= this.begin && list.demandEnd <= this.end) return;

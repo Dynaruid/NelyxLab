@@ -46,6 +46,36 @@ struct ListGeometry {
   }
 };
 struct NativeListRange { uint32_t begin=0,end=0; double beginOffset=0; };
+/** Fixed legacy lists retain the same three-viewport demand span. Shift that
+ * span by a bounded velocity hint so Source can answer before visible coverage
+ * runs out. This chooses preparation only, never a displayed/requested offset.
+ * Even at the one-viewport lead limit the actual viewport remains inside it. */
+inline NativeListRange legacyListCacheRange(const ListGeometry& geometry,double offset,double paint,double velocity=0,bool deferred=false) {
+  require(std::isfinite(offset)&&std::isfinite(paint)&&paint>=0&&std::isfinite(velocity),wire::statuses::invalidValue);
+  // A deferred contact already places requested up to one viewport ahead of
+  // the displayed offset. Keep its full trailing margin, otherwise the next
+  // Source window could exclude the still-displayed page and fail activation.
+  // A complete Source build/capture/ACK turn can take roughly half a second
+  // on the qualified Windows graph. Keep that preparation lead within the
+  // existing trailing viewport; no extra rows or speculative offset are added.
+  constexpr double sourceTurnaroundSeconds=.5;
+  const double lead=deferred?0:std::clamp(velocity*sourceTurnaroundSeconds,-paint,paint);
+  const double target=std::max(0.0,offset+lead);
+  const uint32_t begin=geometry.indexAt(std::max(0.0,target-paint));
+  const uint32_t last=geometry.indexAt(target+paint*2);
+  const uint32_t end=std::min(geometry.style.count,last+uint32_t(last<geometry.style.count));
+  const auto& previous=geometry.style;
+  // The idle/receding side of a hint is not a coverage miss. Retain a complete
+  // resident window while it covers the requested viewport and the moving
+  // edge. This avoids rebuilding the previous month when velocity pauses or
+  // loses its lookahead at contact end. A real reversal extends its own edge.
+  const bool resident=previous.end>previous.begin&&previous.end-previous.begin>=end-begin&&
+    geometry.prefix(previous.begin)<=std::max(0.0,offset)&&
+    geometry.prefix(previous.end)>=std::min(geometry.total,std::max(0.0,offset)+paint);
+  if(resident&&(velocity==0||(velocity>0&&end<=previous.end)||(velocity<0&&begin>=previous.begin)))
+    return {previous.begin,previous.end,geometry.prefix(previous.begin)};
+  return {begin,end,geometry.prefix(begin)};
+}
 inline NativeListRange nativeListRange(const ListStyle& style,const ListGeometry* geometry,double offset,double paint) {
   require(std::isfinite(offset)&&offset>=0&&std::isfinite(paint)&&paint>=0,wire::statuses::invalidValue);
   if(geometry&&(geometry->style.count!=style.count||geometry->style.generation!=style.generation))geometry=nullptr;

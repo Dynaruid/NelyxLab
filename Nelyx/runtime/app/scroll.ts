@@ -14,6 +14,7 @@ import {
   ScrollView,
 } from '@nelyx/core/framework/widgets/scroll-view';
 import { originalNativeGrid } from './grid.ts';
+import { observationNode } from '../engine-client/node-index.ts';
 import { SliverToBoxAdapter } from '@nelyx/core/framework/widgets/basic';
 import {
   SliverChildListDelegate,
@@ -88,6 +89,8 @@ interface Host {
   view: EngineViewClient;
   fail: Fail;
   error(error: unknown): void;
+  canDispatch?(): boolean;
+  counters?: { preservedRequestedWindows: number };
 }
 class NativeActivity extends ScrollActivity {
   get shouldIgnorePointer(): boolean {
@@ -125,6 +128,7 @@ interface Request {
 class NativePosition extends ScrollPositionWithSingleContext {
   private request: Request | undefined;
   private node: NodeHandle | undefined;
+  private nodeDocument = 0n;
   private list:
     | {
         node: NodeHandle;
@@ -286,6 +290,9 @@ class NativePosition extends ScrollPositionWithSingleContext {
       !this.request ||
       this.request.id !== undefined ||
       this.request.waitingCoverage ||
+      this.host.canDispatch?.() === false ||
+      this.host.view.hasPendingTransaction ||
+      this.nodeDocument !== this.host.view.documentEpoch ||
       this.stopped
     )
       return;
@@ -305,13 +312,8 @@ class NativePosition extends ScrollPositionWithSingleContext {
         .observeApp(p.opcodes.layoutSnapshot, [list.node])
         .then((snapshot) => {
           if (this.stopped || this.request !== request) return;
-          const viewport = snapshot.nodes.find(
-            (value) => value.node.slot === node.slot && value.node.generation === node.generation,
-          );
-          const sliver = snapshot.nodes.find(
-            (value) =>
-              value.node.slot === list.node.slot && value.node.generation === list.node.generation,
-          );
+          const viewport = observationNode(snapshot, node);
+          const sliver = observationNode(snapshot, list.node);
           if (
             !viewport?.preparedCoverage ||
             !sliver?.list ||
@@ -487,9 +489,15 @@ class NativePosition extends ScrollPositionWithSingleContext {
     viewport: EngineNodeSnapshot,
     sliver: EngineNodeSnapshot | null,
     extent: number | null,
+    document: bigint,
   ): void {
     if (this.stopped) return;
     this.node = viewport.node;
+    // A retained controller can outlive the render viewport from the last
+    // publication (for example, filtering the gallery). Do not send its old
+    // handle behind a transaction that already replaced that viewport. Only
+    // this owner's next observation binds the command to its new generation.
+    this.nodeDocument = document;
     const list = sliver?.list;
     this.list =
       sliver && list
@@ -753,7 +761,7 @@ class NativeEditorScrollState extends NativeScrollState<NativeEditorScroll> {
           snapshot.publishedDevice === snapshot.device &&
           snapshot.publishedDocument === snapshot.activeDocument
         )
-          this.position.observe(node, null, null);
+          this.position.observe(node, null, null, snapshot.activeDocument);
       },
       (event) => this.position.terminal(event),
     );
@@ -787,6 +795,7 @@ class NativeList extends NativeScroll {
 }
 class NativeListState extends NativeScrollState<NativeList> {
   private generation = 1n;
+  private delegateGeneration = 1n;
   private token = 0n;
   private entries = new Map<number, Entry>();
   private begin = 0;
@@ -831,7 +840,24 @@ class NativeListState extends NativeScrollState<NativeList> {
   override didUpdateWidget(old: NativeList): void {
     super.didUpdateWidget(old);
     if (old.list !== this.widget.list) {
-      ++this.generation;
+      const before = old.list,
+        after = this.widget.list;
+      const delegateChanged =
+        before.childrenDelegate !== after.childrenDelegate &&
+        (before.childrenDelegate.constructor !== after.childrenDelegate.constructor ||
+          after.childrenDelegate.shouldRebuild(before.childrenDelegate));
+      if (delegateChanged) ++this.delegateGeneration;
+      // Child configuration and native geometry have different lifetimes. A
+      // constraint-only PageView rebuild updates wrappers/metrics without
+      // invoking its retained delegate for every resident child again.
+      if (
+        delegateChanged ||
+        before.itemExtent !== after.itemExtent ||
+        before.scrollDirection !== after.scrollDirection ||
+        before.reverse !== after.reverse ||
+        before.childrenDelegate.estimatedChildCount !== after.childrenDelegate.estimatedChildCount
+      )
+        ++this.generation;
       this.reset();
     }
   }
@@ -875,11 +901,20 @@ class NativeListState extends NativeScrollState<NativeList> {
       this.controller instanceof PageController &&
       this.position.hasNativeViewport &&
       previousCount === this.count &&
-      desiredIndex >= previousBegin &&
-      desiredIndex < previousEnd
+      previousBegin >= 0 &&
+      previousEnd > previousBegin &&
+      previousEnd <= this.count
     ) {
-      // Header/onPageChanged rebuilds do not invalidate the current prefetch
-      // window. Core's latest demand, rather than a widget rebuild, moves it.
+      // Like SliverMultiBoxAdaptorElement.performRebuild, a Widget update
+      // refreshes existing children; layout owns the materialized range.
+      // desiredPage may still describe a delayed publication outside a newer
+      // requested window. Never let that header rebuild roll the window back.
+      // Core demand still handles explicit jumps, reversals and coverage misses.
+      if (
+        (desiredIndex < previousBegin || desiredIndex >= previousEnd) &&
+        this.widget.host.counters
+      )
+        ++this.widget.host.counters.preservedRequestedWindows;
       this.begin = previousBegin;
       this.end = previousEnd;
     }
@@ -905,7 +940,7 @@ class NativeListState extends NativeScrollState<NativeList> {
       // Moving the materialized window does not change the source delegate.
       // Like SliverMultiBoxAdaptorElement, build only newly requested children.
       // A delegate update increments generation and still rebuilds its children.
-      if (retained?.generation === this.generation) {
+      if (retained?.generation === this.delegateGeneration) {
         entries.set(index, retained);
         continue;
       }
@@ -915,7 +950,7 @@ class NativeListState extends NativeScrollState<NativeList> {
         old = previous.get(key);
       entries.set(index, {
         index,
-        generation: this.generation,
+        generation: this.delegateGeneration,
         key,
         token: old?.token ?? ++this.token,
         child,
@@ -926,10 +961,7 @@ class NativeListState extends NativeScrollState<NativeList> {
   private observe = (node: EngineNodeSnapshot, snapshot: EngineResponse): void => {
     if (!this.mounted || !node.list) return;
     const list = node.list,
-      parent = snapshot.nodes.find(
-        (value) =>
-          value.node.slot === node.parent.slot && value.node.generation === node.parent.generation,
-      );
+      parent = observationNode(snapshot, node.parent);
     if (!parent) return;
     if (list.generation !== this.generation) {
       // A pending delegate rebuild can miss coverage after a direction change.
@@ -947,7 +979,7 @@ class NativeListState extends NativeScrollState<NativeList> {
       this.observeDemand(list.demandBegin, list.demandEnd, parent, list);
       return;
     }
-    this.position.observe(parent, node, this.widget.list.itemExtent!);
+    this.position.observe(parent, node, this.widget.list.itemExtent!, snapshot.activeDocument);
     const anchor = list.items.find(
       (row) =>
         row.offset + row.extent >
@@ -955,13 +987,7 @@ class NativeListState extends NativeScrollState<NativeList> {
     );
     if (anchor) this.anchor = { index: anchor.index, key: anchor.key };
     this.focused = undefined;
-    let focus = snapshot.focus
-      ? snapshot.nodes.find(
-          (value) =>
-            value.node.slot === snapshot.focus!.node.slot &&
-            value.node.generation === snapshot.focus!.node.generation,
-        )
-      : undefined;
+    let focus = snapshot.focus ? observationNode(snapshot, snapshot.focus.node) : undefined;
     for (let depth = 0; focus && depth < p.limits.depth; ++depth) {
       const row = list.items.find(
         (value) =>
@@ -971,11 +997,7 @@ class NativeListState extends NativeScrollState<NativeList> {
         this.focused = row.index;
         break;
       }
-      focus = snapshot.nodes.find(
-        (value) =>
-          value.node.slot === focus!.parent.slot &&
-          value.node.generation === focus!.parent.generation,
-      );
+      focus = observationNode(snapshot, focus.parent);
     }
     this.observeDemand(list.demandBegin, list.demandEnd, parent, list);
   };
@@ -1149,7 +1171,7 @@ class NativeListState extends NativeScrollState<NativeList> {
       node.layoutBuilder?.revision !== config.revision
     )
       return;
-    this.position.observe(viewport, node, this.widget.list.itemExtent);
+    this.position.observe(viewport, node, this.widget.list.itemExtent, snapshot.activeDocument);
     const request = config.takeRequest?.();
     if (request) this.position.seekItem(request.index, request.offset);
   };
@@ -1192,7 +1214,7 @@ class NativeBoxScrollState extends NativeScrollState<NativeBoxScroll> {
             snapshot.publishedDevice === snapshot.device &&
             snapshot.publishedDocument === snapshot.activeDocument
           )
-            this.position.observe(viewport, null, null);
+            this.position.observe(viewport, null, null, snapshot.activeDocument);
         },
         onScrollTerminal: (event) => this.position.terminal(event),
       },
@@ -1269,8 +1291,10 @@ export function installOriginalScrolling(
   view: EngineViewClient,
   fail: Fail,
   error: (error: unknown) => void,
+  canDispatch: () => boolean = () => true,
 ): {
   readonly scheduler: FrameScheduler;
+  readonly counters: Readonly<{ preservedRequestedWindows: number }>;
   now(): number;
   frame(at: number): void;
   visible(value: boolean): void;
@@ -1280,6 +1304,7 @@ export function installOriginalScrolling(
 } {
   let coreOrigin: number | undefined,
     appOrigin = 0;
+  const counters = { preservedRequestedWindows: 0 };
   const now = () => (typeof performance === 'undefined' ? Date.now() : performance.now());
   const scheduler = new NativeFrameScheduler({ now }, () => {
     void view.request(p.opcodes.requestAppFrame).catch((cause) => {
@@ -1307,7 +1332,7 @@ export function installOriginalScrolling(
       )
         return fail('custom-scroll-slivers');
       const { primary, controller } = scrollController(source, context, fail),
-        result = new NativeBoxScroll(source, { view, fail, error }, controller);
+        result = new NativeBoxScroll(source, { view, fail, error, canDispatch }, controller);
       return primary && controller ? PrimaryScrollController.none({ child: result }) : result;
     }
     if (Object.getPrototypeOf(widget) !== ListView.prototype)
@@ -1359,11 +1384,12 @@ export function installOriginalScrolling(
       (list.semanticChildCount !== null && list.semanticChildCount !== count)
     )
       return fail('list-count-or-semantics');
-    const result = new NativeList(list, { view, fail, error }, controller);
+    const result = new NativeList(list, { view, fail, error, canDispatch, counters }, controller);
     return primary && controller ? PrimaryScrollController.none({ child: result }) : result;
   });
   return {
     scheduler,
+    counters,
     finishBuild: () => scheduler.finishBuild(),
     now,
     postFrame: (callback) => {

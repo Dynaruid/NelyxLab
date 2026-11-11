@@ -70,19 +70,43 @@ try {
       packet.setUint32(blobStart + 12, 2, true);
       assert.throws(() => response(observation), /Foreign layout/);
       const turn = () => new Promise(resolve => setImmediate(resolve));
-      {
+      for(const role of ['layout','publication']) {
         const observed={events:[],gestureRequests:[],interactionCount:0};
         const host=new SceneWriter({pollInteractionEvents:async()=>observed} as any,{pollEvents:false}) as any;
         let pending,inject=false,visits=0;
-        Object.defineProperty(host,'observationPending',{
+        const lane=host.observationLanes[role];
+        Object.defineProperty(lane,'pending',{
           get(){if(!pending&&inject){inject=false;queueMicrotask(()=>{pending=observed;});}return pending;},
           set(value){pending=value;},
         });
-        host.observeScene=async()=>{if(++visits===1)inject=true;};
+        host[role==='layout'?'observeLayout':'observeScene']=async()=>{if(++visits===1)inject=true;};
         await host.pollEvents();await turn();
         assert.equal(visits,2,'observation completion stranded the final publication');
-        assert.equal(host.observationRunning,undefined);
+        assert.equal(lane.running,undefined);
         assert.equal(pending,undefined);
+      }
+      {
+        const streams=new Map(),calls=[];let releasePublication;
+        const client={observationStream(_owner,op){
+          if(!streams.has(op))streams.set(op,{version:0n,counters:{resyncs:0}});
+          return streams.get(op);
+        }};
+        const view=new EngineViewClient(client as any,{session:1,app:1,view:1,generation:1});
+        view.request=async(op,bytes)=>{
+          const stream=client.observationStream(view.owner,op);
+          calls.push({op,base:new DataView(bytes.buffer,bytes.byteOffset).getBigUint64(8,true)});
+          if(op===p.opcodes.semanticsSnapshot&&calls.filter(c=>c.op===op).length===1)
+            await new Promise(resolve=>{releasePublication=resolve;});
+          ++stream.version;return {status:p.statuses.ok};
+        };
+        const published=view.observeApp(p.opcodes.semanticsSnapshot);await turn();
+        const nextPublication=view.observeApp(p.opcodes.semanticsSnapshot);
+        const selected=view.observeApp(p.opcodes.layoutSnapshot,[{slot:1,generation:1}]);
+        await selected;
+        assert.equal(calls.length,2,'Published observation held a separate active-layout role');
+        assert.deepEqual(calls.map(c=>c.base),[0n,0n]);
+        releasePublication();await published;await nextPublication;
+        assert.deepEqual(calls.map(c=>c.base),[0n,0n,1n],'Same-role request used an unacknowledged delta base');
       }
       // A final callback can land after perform's last loop condition but
       // before the owner promise clears. This models route retirement in the
@@ -221,6 +245,27 @@ try {
       assert.equal(states.at(-1),3,'old geometry must not rewind a newer input fence');
       assert.equal(snapshotRequests,1,'same publication demands must coalesce');
       await slow.stop();
+      {
+        let releasePublication,reads=0,layoutRequests=0,layoutCallbacks=0;
+        let state={...observationState,property:10n,lastInput:10n};
+        const independent=new SceneWriter({pollInteractionEvents:async()=>state,
+          observeApp:async(op)=>{
+            if(op===p.opcodes.layoutSnapshot){++layoutRequests;return state;}
+            ++reads;return new Promise(resolve=>{releasePublication=resolve;});
+          }} as any,{appObservations:true,pollEvents:false,onPublication:()=>{}}) as any;
+        const ref=new SceneReference(),callback=()=>++layoutCallbacks;
+        independent.adopt(independent.records(new SceneNode(ref,'box',[],{onLayout:callback})),[]);
+        await independent.pollEvents(false);await turn();
+        assert.equal(reads,1);assert.equal(layoutCallbacks,1);
+        state={...state,property:11n,lastInput:11n};
+        await independent.pollEvents(false);await turn();
+        assert.equal(layoutRequests,2,'Source layout waited behind an unrelated published tree');
+        assert.equal(layoutCallbacks,2);assert.equal(reads,1,'Publication demand grew an RPC queue');
+        await independent.stop();releasePublication(state);await turn();
+        assert.equal(layoutCallbacks,2,'Stopped owner received an observation callback');
+        assert.equal(independent.observationLanes.layout.pending,undefined);
+        assert.equal(independent.observationLanes.publication.pending,undefined);
+      }
       console.log('Notification transport, lost wake, coalescing, queue drain, idle and close checks passed.');
     `,
     },

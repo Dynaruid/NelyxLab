@@ -415,7 +415,10 @@ export class EngineClient {
   }
 }
 export class EngineViewClient {
-  private observationTail: Promise<void> = Promise.resolve();
+  // Active layout and published semantics own independent native dictionaries.
+  // Serialize bases within a role; a suspended publication read must not hold
+  // the selected layout needed to answer Content's next Source request.
+  private readonly observationTails = new Map<number, Promise<void>>();
   /** Full immutable row snapshots reconstructed from versioned native deltas.
    * Layout uses the active cohort; semantics uses the published cohort. */
   observeApp(
@@ -429,7 +432,7 @@ export class EngineViewClient {
     const nodes = selection?.map((node) => Object.freeze({ ...node })) ?? [];
     if (nodes.length > p.limits.nodes)
       return Promise.reject(new RangeError('Observation selection budget exceeded'));
-    const work = this.observationTail.then(async () => {
+    const work = (this.observationTails.get(opcode) ?? Promise.resolve()).then(async () => {
       const stream = this.client.observationStream(this.owner, opcode);
       for (let attempt = 0; attempt < 2; ++attempt) {
         const data = body(16 + nodes.length * 8, (view) => {
@@ -453,9 +456,12 @@ export class EngineViewClient {
       }
       throw Error('Observation resync failed');
     });
-    this.observationTail = work.then(
-      () => {},
-      () => {},
+    this.observationTails.set(
+      opcode,
+      work.then(
+        () => {},
+        () => {},
+      ),
     );
     return work;
   }

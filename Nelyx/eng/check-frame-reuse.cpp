@@ -13,7 +13,35 @@ void checkTransactionSharing();
 void checkMaterialization();
 void checkLivePaintActivation();
 void checkProviderAdmission();
+void checkNativeFrameDelivery();
 static void check(bool value,const char* message){if(!value)throw std::runtime_error(message);}
+static void legacyPreparationLead(){
+  auto ledger=std::make_shared<Ledger>();
+  ListGeometry geometry(ledger,ListStyle{1,100,9,13,344,true});geometry.updateEstimate();geometry.total=geometry.prefix(geometry.style.count);
+  const double offset=10.4*344,paint=344;
+  const auto idle=legacyListCacheRange(geometry,offset,paint);
+  const auto forward=legacyListCacheRange(geometry,offset,paint,688);
+  const auto reverse=legacyListCacheRange(geometry,offset,paint,-688);
+  check(idle.begin==9&&idle.end==13,"Idle legacy range changed");
+  check(forward.begin==10&&forward.end==14,"Forward Source demand did not lead contact");
+  check(reverse.begin==8&&reverse.end==12,"Reverse Source demand did not lead contact");
+  const auto early=legacyListCacheRange(geometry,10.05*paint,paint,688);
+  check(early.begin==10&&early.end==14,"Source demand did not cover the measured turnaround before the page callback");
+  for(const double velocity:{-1e12,-688.0,0.0,688.0,1e12})for(const double at:{0.0,offset,99.0*344}){
+    const auto range=legacyListCacheRange(geometry,at,paint,velocity);
+    check(range.end-range.begin<=4,"Preparation hint enlarged the page window");
+    check(geometry.prefix(range.begin)<=at&&geometry.prefix(range.end)>=std::min(geometry.total,at+paint),"Preparation hint excluded the actual viewport");
+    check(range.begin<=range.end&&range.end<=geometry.style.count,"Preparation hint exceeded finite extent");
+  }
+  geometry.style.begin=10;geometry.style.end=14;
+  const auto paused=legacyListCacheRange(geometry,offset,paint);
+  check(paused.begin==10&&paused.end==14,"Velocity reset rolled a complete resident window backward");
+  const auto reversing=legacyListCacheRange(geometry,offset,paint,-688);
+  check(reversing.begin==8&&reversing.end==12,"Resident window suppressed real reversal demand");
+  const auto deferred=legacyListCacheRange(geometry,13*paint,paint,688,true);
+  check(deferred.begin<=12&&deferred.end>=14,"Predicted Source window excluded the deferred displayed viewport");
+  std::cout<<"Legacy preparation: bounded lead, resident hysteresis, deferred displayed coverage, reverse/reset/finite extent PASS\n";
+}
 static void inputFrameIndex(){
   auto ledger=std::make_shared<Ledger>();
   for(const uint32_t count:{64u,2048u}){
@@ -85,6 +113,7 @@ static void inputFrameIndex(){
 static void run(){
   inputFrameIndex();
   checkProviderAdmission();
+  checkNativeFrameDelivery();
   checkTransactionSharing();
   checkMaterialization();
   checkLivePaintActivation();
@@ -203,6 +232,14 @@ static void precisionVelocity(){
   value.cancel();check(value.value(2.1)==0,"canceled contact retained velocity");
   value.begin(3);value.update(3.016,4);value.update(3.016,4);value.update(3.032,8);
   check(std::abs(value.value(3.032)-500)<.01,"coalesced timestamps changed velocity");
+  windows::PrecisionPanVelocity pan;pan.begin(4);
+  pan.update(4.016,8,0);pan.update(4.032,8,0);
+  check(std::abs(pan.value(4.032)-500)<.01,"Horizontal precision motion lost its velocity/prefetch hint");
+  pan.update(4.048,0,0);check(pan.value(4.05)>100,"Horizontal final zero erased lift velocity");
+  check(pan.value(4.14)==0,"Horizontal stationary contact retained stale momentum");
+  pan.begin(5);pan.update(5.016,0,-8);pan.update(5.032,0,-8);
+  check(std::abs(pan.value(5.032)+500)<.01,"Vertical precision velocity changed");
+  pan.cancel();check(pan.value(5.032)==0,"Two-axis precision cancellation retained momentum");
 }
 static void ballisticCoverage(){
   auto ledger=std::make_shared<Ledger>();
@@ -241,6 +278,48 @@ static void ballisticCoverage(){
   check(ledger->bytes==0,"ballistic coverage leases remain");
   std::cout<<"Precision velocity and lift/stall/resume/cancel/boundary inertia checks PASS.\n";
 }
+static void deferredContactDistance(){
+  auto ledger=std::make_shared<Ledger>();
+  {
+    View view(1,ledger);auto document=std::make_shared<Document>(ledger);document->epoch=1;
+    auto viewport=std::make_shared<Node>(ledger);viewport->id={1,1};viewport->kind=wire::kinds::scrollViewport;
+    viewport->properties.width=200;viewport->properties.height=100;viewport->properties.maximum=1000;
+    viewport->coverage={1,0,100,true};document->nodes.edit(1).value=viewport;
+    document->count=document->highWater=1;
+    auto scene=std::make_shared<Scene>();scene->document=document;scene->metrics={1,1,200,100,1};
+    view.document=document;view.active=scene;
+    auto& overlay=view.overlays[viewport->id.key()];overlay.node=viewport->id;overlay.offset=overlay.requested=90;
+    auto& stream=view.streams[2];stream.active=true;stream.target=viewport->id;
+    for(int i=0;i<20;++i){
+      view.applyDelta(viewport->id,20,2);
+      check(overlay.requested-overlay.offset<=100,"contact preparation exceeded one viewport");
+      check(overlay.requested+overlay.deferredContactDelta==90+(i+1)*20,"coverage clamp discarded admitted contact distance");
+    }
+    check(overlay.offset==100&&overlay.deferredContactDelta>0,"contact backlog fixture did not reach coverage");
+    viewport->coverage.maximum=500;view.advanceDeferred(1.0/60);
+    view.advanceDeferred(1.0/60);
+    check(overlay.offset>100&&std::abs(overlay.requested+overlay.deferredContactDelta-490)<1e-6,
+      "coverage catch-up duplicated or lost contact distance");
+    view.endDeferredInput(2,false);
+    check(overlay.requested==490&&overlay.deferredContactDelta==0&&!overlay.deferredStream,
+      "lift discarded buffered contact distance");
+    overlay.offset=overlay.requested=90;overlay.deferred=false;viewport->coverage.maximum=100;
+    for(int i=0;i<20;++i)view.applyDelta(viewport->id,20,2);
+    view.applyDelta(viewport->id,-20,2);
+    check(overlay.offset==80&&overlay.requested==80&&overlay.deferredContactDelta==0,
+      "reversal replayed a forward contact backlog");
+    for(int i=0;i<20;++i)view.applyDelta(viewport->id,20,2);
+    view.cancelStream(2,wire::statuses::canceled);
+    check(!overlay.deferred&&overlay.requested==overlay.offset&&overlay.deferredContactDelta==0,
+      "cancel retained buffered contact distance");
+    stream.active=true;overlay.offset=overlay.requested=90;
+    for(int i=0;i<20;++i)view.applyDelta(viewport->id,100,2);
+    check(overlay.requested+overlay.deferredContactDelta==1000,"contact backlog exceeded finite content bounds");
+    view.close(wire::statuses::closed);
+  }
+  check(ledger->bytes==0,"deferred contact distance leaked leases");
+  std::cout<<"Delayed coverage preserves contact distance with bounded preparation, lift, reversal, cancel and extent PASS.\n";
+}
 static void movingBuilder(){
   auto ledger=std::make_shared<Ledger>();
   {
@@ -270,4 +349,4 @@ void checkMovingList();
 void checkRetargetedCoverage();
 void checkLatePageCoverage();
 void checkDateLayout();
-int main(){std::cout.setf(std::ios::unitbuf);try{run();deadlines();precisionVelocity();ballisticCoverage();movingBuilder();checkMovingList();checkRetargetedCoverage();checkLatePageCoverage();checkDateLayout();return 0;}catch(const std::exception& e){std::cerr<<e.what()<<"\n";}catch(const Error& e){std::cerr<<"Core status="<<e.status<<"\n";}return 1;}
+int main(){std::cout.setf(std::ios::unitbuf);try{run();deadlines();precisionVelocity();legacyPreparationLead();ballisticCoverage();deferredContactDistance();movingBuilder();checkMovingList();checkRetargetedCoverage();checkLatePageCoverage();checkDateLayout();return 0;}catch(const std::exception& e){std::cerr<<e.what()<<"\n";}catch(const Error& e){std::cerr<<"Core status="<<e.status<<"\n";}return 1;}

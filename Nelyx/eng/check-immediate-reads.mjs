@@ -138,7 +138,7 @@ try {
           // capture. It must replace the earlier desired Widget without an
           // ACK for the obsolete configuration.
           await app.update(new Align(new SizedBox(10,10)));
-          const beforeCommits=commits;
+          const beforeCommits=commits, beforeCaptures=app.diagnostics().samplesThrough;
           let injected=false,reentrant;
           view.inspectState=async()=>{
             const state=await inspectState();
@@ -148,9 +148,23 @@ try {
           await app.update(new Align(new SizedBox(22,13)));await reentrant;
           view.inspectState=inspectState;
           assert.equal(commits-beforeCommits,1,'Obsolete desired Widget was committed');
+          assert.equal(app.diagnostics().samplesThrough-beforeCaptures,1,'Pre-capture demand caused a redundant Source pass');
           const captured=await core(p.opcodes.layoutSnapshot);
           assert(captured.nodes.some(node=>node.width===45&&node.height===21),
             'The update received before capture was lost');
+          // A newer metrics cohort arriving after inspect is not consumed by
+          // a capture based on that older state. Keep its follow-up pass.
+          const beforeCohort=app.diagnostics().samplesThrough;let newer=false;
+          view.inspectState=async()=>{
+            const old=await inspectState();
+            if(!newer){newer=true;fields.setBigUint64(0,old.metrics+1n,true);
+              await core(p.opcodes.metrics,metrics);app.observeMetrics(await inspectState());app.schedule();}
+            return old;
+          };
+          await app.update(new Align(new SizedBox(46,22)));
+          view.inspectState=inspectState;
+          assert.equal(app.diagnostics().samplesThrough-beforeCohort,2,'Newer metrics demand was consumed by an old capture cohort');
+          assert.equal(app.sceneMetrics,(await inspectState()).metrics,'Capture did not advance to the latest metrics cohort');
           // Hold a real acquired/released Frame before publication. The
           // App must retain the publication fence used by Source
           // page observations, as well as the pending Content barrier above.

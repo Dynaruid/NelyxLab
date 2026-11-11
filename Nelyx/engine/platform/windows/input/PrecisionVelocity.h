@@ -37,4 +37,17 @@ public:
   }
   void cancel(){count_=0;moved_=false;}
 };
+// A horizontal month/page gesture needs the same velocity/prefetch contract
+// as a vertical list. Sampling only deltaY silently reports zero for it.
+class PrecisionPanVelocity {
+  PrecisionVelocity horizontal_,vertical_;
+public:
+  void begin(double at){horizontal_.begin(at);vertical_.begin(at);}
+  void update(double at,double dx,double dy){horizontal_.update(at,dx);vertical_.update(at,dy);}
+  double value(double at)const{
+    const auto x=horizontal_.value(at),y=vertical_.value(at);
+    return std::abs(x)>std::abs(y)?x:y;
+  }
+  void cancel(){horizontal_.cancel();vertical_.cancel();}
+};
 }

@@ -24,7 +24,7 @@ void View::finishCommand(uint64_t id, uint32_t status) {
   const auto& c = it->second;
   const auto overlay = overlays.find(c.node.key());
   if((c.list||status!=wire::statuses::ok)&&overlay!=overlays.end()) {
-    overlay->second.requested=overlay->second.offset;overlay->second.needSent=false;
+    overlay->second.requested=overlay->second.offset;overlay->second.deferredContactDelta=0;overlay->second.needSent=false;
     if(document&&document->contains(c.node)&&document->get(c.node).editorViewport.enabled)requestContent();
   }
   event({wire::events::scrollTerminal, status, id, document ? document->epoch : 0,
@@ -41,6 +41,12 @@ bool View::endDeferredInput(uint32_t stream,bool cancelPending) {
     // A normal end keeps the accepted destination until Content covers it.
     // Canceling it here strands reverse scrolling at the cache's leading edge.
     if(cancelPending){overlay.deferred=false;overlay.requested=overlay.offset;}
+    else if(overlay.deferredContactDelta!=0){
+      // Contact preparation stays within one viewport while the finger moves.
+      // After lift, the existing destination activation may catch up directly.
+      overlay.requested+=overlay.deferredContactDelta;overlay.needSent=false;
+    }
+    overlay.deferredContactDelta=0;
   }
   return deferred;
 }
@@ -74,7 +80,7 @@ void View::cancelInput(uint32_t reason) {
   for (uint32_t i = 1; i <= wire::limits::streams; ++i) cancelStream(i, reason);
   for (auto& entry : overlays) {
     auto& overlay=entry.second;overlay.ballistic=false;overlay.velocity=0;
-    overlay.deferred=false;overlay.requested=overlay.offset;overlay.deferredStream=0;overlay.needSent=false;
+    overlay.deferred=false;overlay.requested=overlay.offset;overlay.deferredContactDelta=0;overlay.deferredStream=0;overlay.needSent=false;
   }
   hoverNode={};lastTap={};mouseRegionCount=0;mouseKnown=false;for(auto& entry:overlays)entry.second.hovered=false;
 }
@@ -704,7 +710,7 @@ void View::applyDelta(Handle h, double delta, uint32_t stream,const Frame* snaps
       if(remainder){if(!geometry)return;const auto local=geometry->delta(h,remainder->x,remainder->y);delta=(n.properties.flags&1u)?local.x:local.y;if(std::abs(delta)<1e-12)return;}
       auto& o = overlays.at(h.key());
       if (o.deferred && (o.requested-o.offset)*delta < 0) {
-        o.deferred = false; o.requested = o.offset; o.needSent = false;
+        o.deferred = false; o.requested = o.offset; o.deferredContactDelta=0; o.needSent = false;
       }
       const auto target = std::clamp(o.offset + delta, -1e12, 1e12);
       const auto extentOffset = n.properties.extent == wire::extents::unbounded ?
@@ -714,12 +720,13 @@ void View::applyDelta(Handle h, double delta, uint32_t stream,const Frame* snaps
       const auto offset = n.coverage.enabled ? std::clamp(extentOffset,n.coverage.minimum,n.coverage.maximum) : extentOffset;
       const bool unavailable = offset != extentOffset;
       const double viewport = (n.properties.flags & 1u) ? n.properties.width : n.properties.height;
-      double requested = std::clamp((o.deferred ? o.requested : o.offset)+delta,-1e12,1e12);
+      double requested = std::clamp((o.deferred ? o.requested : o.offset)+o.deferredContactDelta+delta,-1e12,1e12);
       requested = n.properties.extent == wire::extents::unbounded ? std::max(n.properties.minimum,requested) :
         std::clamp(requested,n.properties.minimum,n.properties.maximum);
       const auto applied = offset - o.offset;
       if (applied != 0) { o.offset = offset; o.revision = next(o.revision); dirty = true; }
       o.requested = stream ? std::clamp(requested,o.offset-viewport,o.offset+viewport) : requested;
+      o.deferredContactDelta=stream?requested-o.requested:0;
       o.deferred = o.requested != o.offset;
       o.deferredStream = o.deferred ? stream : 0;
       if (unavailable) {
@@ -742,10 +749,17 @@ void View::advanceDeferred(double dt) {
     if (!o.deferred) continue;
     observeOverlay(o.node);
     if ((o.deferredStream && !streams[o.deferredStream].active) || !active->document->contains(o.node)) {
-      o.deferred = false; o.requested = o.offset; continue;
+      o.deferred = false; o.requested = o.offset; o.deferredContactDelta=0; continue;
     }
     const auto& n = active->document->get(o.node);
     const double viewport = (n.properties.flags & 1u) ? n.properties.width : n.properties.height;
+    if(o.deferredContactDelta!=0){
+      const double total=n.properties.extent==wire::extents::unbounded?
+        std::max(n.properties.minimum,o.requested+o.deferredContactDelta):
+        std::clamp(o.requested+o.deferredContactDelta,n.properties.minimum,n.properties.maximum);
+      o.requested=std::clamp(total,o.offset-viewport,o.offset+viewport);
+      o.deferredContactDelta=total-o.requested;
+    }
     const double limit = std::min(double(wire::limits::coveragePixelsPerSecond),
       viewport*wire::limits::coverageViewportsPerSecond)*std::min(dt,1.0/60);
     const double goal = n.coverage.enabled ? std::clamp(o.requested,n.coverage.minimum,n.coverage.maximum) : o.requested;
@@ -754,7 +768,7 @@ void View::advanceDeferred(double dt) {
     // while Content extends coverage, then apply the available part directly.
     const double value = o.deferredStream ? o.offset+std::clamp(goal-o.offset,-limit,limit) : goal;
     if (value != o.offset) { o.offset=value;o.revision=next(o.revision);dirty=true; }
-    if (o.offset == o.requested) { o.deferred=false;o.deferredStream=0; }
+    if (o.offset == o.requested && o.deferredContactDelta==0) { o.deferred=false;o.deferredStream=0; }
   }
 }
 uint32_t View::scroll(Reader r, uint64_t id) {
@@ -849,7 +863,7 @@ void View::processInput(Input p) {
     stream.active = true; stream.target = p.target; stream.source = p.source;
     auto& o = overlays.at(p.target.key()); o.ballistic = false; o.velocity = 0;
     if(p.source==wire::sources::engineDriven||!o.deferred||o.deferredStream){
-      o.deferred=false;o.requested=o.offset;o.deferredStream=0;
+      o.deferred=false;o.requested=o.offset;o.deferredContactDelta=0;o.deferredStream=0;
     }
     for (auto it = commands.begin(); it != commands.end();) {
       const auto command = it++;
@@ -875,7 +889,7 @@ void View::processInput(Input p) {
     if (p.phase == wire::phases::end && p.source == wire::sources::engineDriven) {
       beginScrollBallistic(stream.target,p.velocity);
     } else { o.ballistic = false; o.velocity = 0;
-      if(p.phase==wire::phases::cancel){o.deferred=false;o.requested=o.offset;o.needSent=false;}
+      if(p.phase==wire::phases::cancel){o.deferred=false;o.requested=o.offset;o.deferredContactDelta=0;o.needSent=false;}
     }
   }
   if (p.source != wire::sources::engineDriven) stream.active = false;
