@@ -435,3 +435,116 @@ ObservationStream은 provider module graph에도 포함되므로 App만 빌드�
 영구 로그·캡처·profile·설치본은 만들지 않았고 이번 실행의 Core/engine/App build staging 및 native 검사 임시 디렉터리를 회수했다. 현재 dist와 실행 전부터 있던 cache는 보존한다. 이번 수정은 **취소된 준비를 영구히 기다리는 기능 결함·대체 범위 요청 억제·precision fling 기본 상한 누락**을 처리했다. §19의12개월 ≥500ms 정지나 전체 물리/표시/scanout 성능을 통과로 바꾸지 않는다. 전체 work10-a1은 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`를 유지한다.
 
 **다음 실행점:** 현재 공급을 유지한 채 §16의 Source build→capture→SceneWriter 비용과 새 월의 여러 LayoutBuilder 응답/ACK 왕복을 줄이는 개편으로 이어간다. 이번 실제 입력 불능을 단순 성능 정지와 다시 혼동하지 않는다. 다음 변경은 `host.ts`의 retained builder 갱신/Source pass, `scroll.ts`의 bounded 월 창 교체, `scene.ts`의 records/diff/관찰 경계를 대조하고 사용자 물리 결과를 다시 확인한다. 게시 fence 생략·callback/200ms animation 단축·준비 창 무제한 확대는 적용하지 않는다.
+
+## 21. 2026-11-12 Source 불변 payload와 콜백의 수명 분리
+
+문서의 최신 §20을 기준으로 검토했다. 입력 불능 복구를 다시 구현하지 않고, §16에 남은 capture→SceneWriter의 반복 구성을 수정했다. **주기적 멈춤 자체는 아직 해결하지 못했다.**
+
+### 21.1 확인한 반복 경로와 수정
+
+- [capture.ts](Nelyx/runtime/app/capture.ts)는 자손만 바뀐 경우 기존 options를 공유했지만, 로컬 invalidation으로 다시 구성한 노드는 값이 같아도 새 options/text를 만들었다. [scene.ts](Nelyx/runtime/engine-client/scene.ts)는 그때 명령마다 기본값/이전 입력 비교, 스냅샷, config 배열/Map 구성을 반복했다. 새 Source 콜백의 identity가 바뀌는 것과 wire 데이터가 바뀌는 것을 분리하지 못한 경로다.
+- Source가 소유한 순수 데이터의 독립 스냅샷과 identity를 이전 capture에 연결했다. 값이 같으면 accepted 명령 배열과 입력 스냅샷을 공유하되 **콜백 record는 새 options로 갱신**한다. `onRawInput/onPointerSample/appControlled`의 존재 여부는 native event-policy 비트이므로 데이터 비교에 포함한다. topology·generational handle·image/editor identity도 기존 조건으로 검사한다.
+- capture에서 만든 중첩 스냅샷을 명령 입력 스냅샷에도 공유한다. raw 가변 객체를 accepted 입력으로 저장하지 않는다. 보관은 SceneNode 수명에 묶인 WeakMap이며 전역 payload 색인이나 과거 scene 보관소를 추가하지 않았다.
+- 공개 producer의 가변 입력은 기존 경로를 유지한다. accessor·실행형 reference·불투명 객체가 있는 Source도 보수적 인코딩을 유지한다. ACK/NACK, 기존 게시 대기, 취소된 준비 복구, callback/shouldRebuild, 200ms animation, 4페이지 창과 자원 회수 fence는 바꾸지 않았다. kind별 모든 payload 투영이나 중간 SceneNode 제거를 완료한 변경은 아니다.
+
+### 21.2 검증과 현재 공급
+
+[check-incremental-capture.mjs](Nelyx/eng/check-incremental-capture.mjs)에 같은 데이터/새 콜백의 명령·입력 스냅샷 재사용과 최신 콜백 실행, 중첩 Source 값 변경 후 이전 accepted 스냅샷의 격리, NACK/재시도, event-policy 설정/해제, 실행형 layer reference의 갱신을 추가했다. 공개 producer를 oracle로 **전체 전송 바이트가 동일**한지 비교해 PASS했다. 기존 reparent/parking/generation/in-flight journal 검사도 PASS다. [check-hermes-syntax.mjs](Nelyx/eng/check-hermes-syntax.mjs)는 배포 ESM과 pinned compiler/VM에서 같은 payload의 명령 재사용·최신 콜백을 확인했다.
+
+실제 Core의 취소된 페이지 준비→대체 Source→게시 회복, real pending Content/미게시 frame fence, page observation/resize/explicit command, child reconciliation 회귀가 PASS했다. Core ESM/declaration/type·Windows App 빌드, 변경 파일 lint/format·diff 검사도 확인했다. 검사는 기존 **20분 timeout**을 사용했다. Core/native는 바꾸지 않았으며 sourceIdentity가 기존 공급과 동일함을 확인해 불필요하게 재빌드하지 않았다.
+
+현재 engine/source는 **`ac5e1ec0ec761df28aef25ff6622c560ac85f26a2ecd9512ffb49129e903cb3d`**, ABI2/schema313408118이다. App JS는 **`c65362b386153abbf0d9e42c197ca04333afc84e551ea598bed91decaffa92f3`**, HBC는 **`cd25516d62fea79eedcd8197aa5a5546d33c951a04fac963315fab70d8d0bba4`**다. 각 실행에서 engine356/App10 files·실제 PID/HWND/DPI192 연결을 검증했다.
+
+| Windows 검사 | 결과와 한계 |
+| --- | --- |
+| 첫 payload 구현의12개월 | 기능 PASS지만 게시/offset **571.300/571.303ms**, 각각 ≥500ms1회로 FAIL. capture와 명령 입력의 중복 스냅샷이 남아 있어 위 공유를 추가했다. 현재 공급의 결과가 아니다. |
+| **현재 공급의60Hz12개월** | update360/6,000.406ms, start/end 포함362개 접수·소비·거부0. **2026-11→2027-11**, cancel·resize·2027-11-15 확정·close PASS. 그러나 게시/offset **671.062/671.085ms**, 각각 ≥100/250/500/1000ms **3/3/1/0**, **syntheticStallGoal=FAIL**. 실행별 차이를 개선율로 제시하지 않는다. |
+| 같은 활성 구간/Source 비용 | App turn429.964ms, Core 개별 호출 최대8.232ms, record/submit4.052ms, 관측 GPU 완료12.662ms. 전체103 Source passes의 build/capture/scene 최대200/192/196ms, records1,179ms/diff582ms. 서로 다른 구간·중첩 최대값을 합산하지 않는다. 반복 스냅샷 제거를 전체 성능 개선으로 간주하지 않는다. |
+| **현재 공급의All** | 목록4구간, 버튼·precision·OS drag 왕복·cancel·resize·2026-11-15 확정·close PASS. 목록 게시 최대36.827/36.849/49.117/43.080ms, warm reverse layout/paragraph 증가0. 달력5구간 최대41.271/65.854/41.960/36.566/42.828ms, 모두 ≥100ms0. 짧은 시나리오의 PASS는12개월 FAIL을 대체하지 않는다. |
+| **현재 공급의CalendarReverse** | 처음부터 **2026-11→2026-09**, 별도 cancel/resize 없이 **2026-09-15** 확정 PASS.60Hz60 update,62개 접수·소비·거부0, 게시/offset84.904/84.906ms, ≥100ms0. 실제 물리 트랙패드 재확인은 아니다. |
+| 수집/종료 | 모든 실행 ringLost0/outputDropped0, status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0. 현재12개월 peak562,196,656 bytes, All579,656,881 bytes, Reverse537,509,236 bytes. 소유 프로세스·mapping·timer는 finally로 회수했다. |
+
+새 설치본·캡처·profile·receipt/history·archive는 만들지 않았다. Hermes 검사 임시 폴더와 App staging/이전 dist가 남지 않았음을 확인했고 도구 출력 임시 파일도 읽은 뒤 삭제했다. 현재 dist와 기존 cache는 보존했다. Android/Web 제품 UI·실제 픽셀·물리 트랙패드·scanout은 이번에 검증하지 않았다.
+
+**잔여 범위:** 동등한 Source 데이터의 재구성을 줄였지만, 실제12개월에 ≥500ms 정지가 남으므로 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`를 유지한다. 긴 Widget/LayoutBuilder build와 새 월의 여러 준비/ACK 왕복은 여전히 남는다. 현재 수정의 정확성·재사용 검사와 사용자 체감 멈춤의 해결 판정을 분리한다.
+
+## 22. 2026-11-12 빠른 물리 이동 정체와 PageView 논리 위치 분리
+
+사용자는 §21 공급을 일반 CLI로 실행해 달력을 과거로12개월 이상 빠르게 이동하다 정체가 커지고 종료됐다고 보고했다. 제공한 마지막 출력의 `V2 native mailbox closed`는 native `stopping`이 설정된 **뒤**에 발생하는 후속 오류다. Core는 status0/reserved0/memory0/workersJoined=true로 회수됐고 CLI exit1이었다. 이 출력만으로 OOM·GPU crash·payload 공유를 최초 원인으로 확정하지 않는다.
+
+### 22.1 실제 입력 추적과 필수 Source 응답
+
+- 같은 §21 공급의 과거24개월/60Hz 연속 합성 입력은 기능·선택·close PASS였지만 게시687.218ms/≥500ms6회였다. **사용자의 빠른 반복 접촉을 재현하는 검사는 아니었다.**
+- 사용자가 직접 조작한 첫 추적에서 입력 거부/큐 적체 없이 `document77/active53/published53`, 이어 `document129/active94/published94`처럼 새 Source 문서만 교체되고 이전 게시가 유지되는 정체를 확인했다. 수신된 물리 입력을 포함하는 게시 공백은 최대4,375.819ms였다. 이 실행은 오류 없이 정상 close했다. bounded 수집 한도를 넘은 ringLost16,920이 있어 전체 구간 무유실이나 정확한 빈도를 주장하지 않는다.
+- [host.ts](Nelyx/runtime/app/host.ts)의 필수 LayoutBuilder/sliver 응답과 일반 Widget build를 분리해, 응답을 먼저 게시하는 실험도 했다. 그러나 명시적으로 더 최신 root가 도착하면 기존 Source 결과를 대체하는 것은 정상 supersession이다. 모든 이전 응답의 선행 게시를 요구한 첫 fixture는 과도한 조건이었으며 최종 계약으로 채택하지 않았다.
+- 이 Source 우선 게시만 적용한 공급(`7f3d7487…`/`da6d226f…`)의 과거24개월은 기능 PASS지만 게시849.607ms/≥500ms9회였다. 두 번째 물리 추적도 오류 없이 종료했으나 사용자가 **“빠르면 막히고 천천히 하면 된다”**고 확인했고, 수신 입력을 포함한 게시 공백2,890.622ms가 남았다.
+- **Source 우선 게시 flag/추가 pass는 철회**하고 기존 host의 callback·일반 build 합치기를 유지한다. 실제 Core 회귀는 accepted callback이 실행되면서도 제거된 예전 root를 잠깐 게시하지 않고 최신 desired Widget을 반영하는지 검사한다. 아래 채택 변경은 Core 위치/완성 checkpoint/관찰 wake와 실제 필요한 PageView 자식 범위다.
+
+### 22.2 Flutter 구조 대조와 속도 문턱 제거
+
+공식 Flutter **`a2886f44205b1c46388a1e17e4e75d0a71541edf`**의 [ScrollPositionWithSingleContext.applyUserOffset/goBallistic](https://github.com/flutter/flutter/blob/a2886f44205b1c46388a1e17e4e75d0a71541edf/packages/flutter/lib/src/widgets/scroll_position_with_single_context.dart), [Windows DirectManipulation](https://github.com/flutter/flutter/blob/a2886f44205b1c46388a1e17e4e75d0a71541edf/engine/src/flutter/shell/platform/windows/direct_manipulation.cc), [bounded frame Pipeline](https://github.com/flutter/flutter/blob/a2886f44205b1c46388a1e17e4e75d0a71541edf/engine/src/flutter/shell/common/pipeline.h)을 대조했다. Flutter의 scroll position은 입력/physics의 권위이며, 준비된 자식 범위가 입력 위치의 진행 속도를 정하지 않는다. 완성한 frame은 유한 pipeline에서 소비하며 새 입력이 도착했다는 이유만으로 모든 완성 frame을 버리지 않는다. [DragGestureRecognizer](https://github.com/flutter/flutter/blob/a2886f44205b1c46388a1e17e4e75d0a71541edf/packages/flutter/lib/src/gestures/monodrag.dart)의 fling 상한은 손을 뗀 뒤의 physics와 구분한다.
+
+[scheduler.cpp](Nelyx/engine/core/scheduler/scheduler.cpp)의 기존 PageView 경로에는 다음 **실제 진행 문턱**이 있었다. contact의 다음 준비 target을 표시 위치에서 한 viewport로 제한하고, 준비 후 catch-up에도 최대4 viewport/s·2,400px/s를 적용했다. 새 접촉은 미표시 target을 이전 표시 edge로 되돌렸고, page spring clock도 coverage가 없으면 멈췄다. 이는 단순 prefetch hint나 원래 fling physics와 다른 제한이다.
+
+이번 변경은 **pageSnapping PageView의 논리 위치와 표시 가능한 위치를 분리**한다.
+
+- 모든 접수 delta를 논리 `requested`에 누적한다. 빠른 입력·반전·재접촉에서 한 viewport target이나 별도 replay debt로 자르지 않는다. 실제 finite content extent와 숫자 검증은 유지한다.
+- 표시 edge에서 막혀 `offset`이 같아도 `requested`가 변하면 observation property epoch를 갱신한다. 기존 App layout 관찰은 입력 번호만 바뀌는 poll을 생략하므로, 이 wake가 없으면 Source가 새 논리 목적지를 제때 보지 못했다. 원래 Core 회귀에 이 logical-only invalidation도 추가했다.
+- 화면은 완성된 cohort의 coverage 안에서만 표시한다. 새 준비가 현재 논리 목적지를 덮으면 그 준비와 offset을 함께 활성화한다. 입력이 더 진행됐더라도 **이전 표시 위치와 최신 논리 목적지 사이에서 실제 전진하는 완성 checkpoint**는 표시하고, 남은 논리 목적지는 유지한다. 모든 준비를 버리고 손가락이 느려질 때까지 기다리는 starvation을 막는다. 반대 방향/목적지를 지나친 window, 잘못된 generation·metrics, 빈 자식·미완료 GPU 자원은 통과시키지 않는다.
+- 준비된 목적지는 pixels/s의 별도 재생 단계 없이 반영한다. page spring은 표시 edge가 아닌 논리 위치를 기준으로 시간을 진행한다. inertia cancel은 이후 관성을 멈추되 이미 접수한 논리 이동까지 버리지 않는다. 전체 input cancel/focus·metrics 수명 경계는 유지한다.
+- [Flutter PageView.build/scrollCacheExtent](https://github.com/flutter/flutter/blob/a2886f44205b1c46388a1e17e4e75d0a71541edf/packages/flutter/lib/src/widgets/page_view.dart)의 기본 visible-page 준비도 적용한다. 기존 Core의3-viewport demand와 Source의 무조건4페이지 확장이 필수 표시 페이지를 이웃3개의 LayoutBuilder/ACK 뒤에 묶었다. Core가 계산한 실제 visible1페이지/경계의2페이지만 필수 demand로 보내고 Source는 이를4개로 부풀리지 않는다. 이미 범위를 덮는 resident 자식·Key/KeepAlive는 재사용하며 기존4페이지 **상한**은 유지한다. TS에서 layout을 추측하거나 별도 optional 준비 queue를 추가하지 않는다.
+- 일반 가변 목록의 기존 coverage/anchor 경로와 Source4페이지 상한은 그대로다. 기본8,000px/s **release fling** 상한도 유지한다. 입력을 일정 속도 이하로 요구하는 새로운 기준값이나 cache/window 확대는 추가하지 않는다. wire/ABI/schema를 변경하지 않는다.
+
+### 22.3 회귀와 실행 확인
+
+[check-frame-reuse.cpp](Nelyx/eng/check-frame-reuse.cpp)의 빠른 contact 회귀는 기존 library에서 **`fast page contact was throttled to a viewport-sized preparation target`**으로 실패했다. 수정 library에서는 동일 접수 거리·반전·반복 접촉·1ms의 준비 후 catch-up·coverage 대기 중 spring clock·inertia cancel·lease 회수를 통과했다. [check-moving-list.cpp](Nelyx/eng/check-moving-list.cpp)는 접촉 중 떨어진 새4페이지 창으로의 원자적 활성화, 잘못된 방향 준비의 거절, 중간 checkpoint의 실제 전진과 남은 논리 목적지 보존을 검사한다. 중간 checkpoint를 막은 library는 **`a completed page checkpoint starved behind newer input`**으로 실패해 단순 최종 목적지 점프만으로 끝내지 않았다.
+
+[check-page-observation.mjs](Nelyx/eng/check-page-observation.mjs)의 visible-page 회귀는 이전 Source가10–11 demand를10–14로 확장해 **`A required single page synchronously built unrelated prefetch neighbours`**로 실패했다. 수정 후1/2페이지의 정확한 범위와 이미 덮는 resident 이웃의 재사용을 확인했다. 기존 delegate shouldRebuild·resize·명령/취소 복구 fence 검사도 유지한다. native range 회귀는 큰 양/음/0 velocity에서도 같은 실제 visible1/2페이지를 선택하는지 검사한다.
+
+[check-windows-scroll.ps1](Nelyx/eng/check-windows-scroll.ps1)에 음수24개월 입력과 `CalendarFast`를 추가했다. 후자는 이동 중 lift·즉시 재접촉12회를 사용하고 중간 settle/cancel/resize 없이12개월 이상 과거 이동 후 날짜를 확정한다. 기존 stationary-lift60Hz 검사는 남긴다. 합성 입력을 실제 물리 입력으로 표기하지 않는다. 새 Core/native/Windows host와 현재 App 공급의 통합 결과를 아래에 기록한다.
+
+검사 도구도 보강했다. 기존 offset gap 집계가 마지막 실제 이동 뒤의 활성 입력 tail을 빼고, 최종 목표는 게시 gap만 검사하는 결함이 있었다. 같은 화면을 계속 게시하는 것만으로 PASS할 수 있어 선행/후행 offset 공백을 포함하고 게시/표시 offset **둘 중 하나라도 ≥500ms면 FAIL**로 판정한다. 실제1초 동안 게시만61회·offset 변화0인 fixture가 이 차이를 검증한다. 중간 `e6caf969…`의 빠른 입력 실행에서 출력된 게시 기반 PASS는 최종 성능 수락으로 사용하지 않는다.
+
+### 22.4 현재 공급과 자동 종료의 구분
+
+현재 engine/source는 **`6cc748fb852932ffa9526c086be0593b02ad2df4229ab3734a1e4dc8d416b9f8`**, ABI2/schema313408118, App JS **`a39f0d0feb3e32348f42c1e493e36d34c8cece565f5f2c6a1483158ef7832daa`**, HBC **`6fe44647eb9f33164af1379a7389ea372be86e122853c132de7d7266a6f927d3`**다. sourceIdentity와 engine356/App10 files·실제 PID/HWND/DPI192 연결을 검증했다. native/Windows host/두 Wasm 공급과 Core ESM·declaration/type 및 App 번들을 갱신했다.
+
+| 현재 공급 검사 | 결과와 한계 |
+| --- | --- |
+| `CalendarFast` | moving lift/재접촉12회, update96개와 begin/end 포함120개 접수·소비·거부0. 약2,217.172ms에 **2026-11→2024-11**, 중간 cancel/resize 없이 **2024-11-15** 선택·확정·정상 close PASS. |
+| 같은 활성 구간의 실제 표시 진행 | 게시 최대82.420ms지만 **offset 진행 공백1,041ms/≥500ms2회**가 남아 보강한 판정은 **syntheticStallGoal=FAIL**이다. 계속 같은 화면을 게시한 것을 이동으로 세지 않는다. App turn119.339ms와 별개의 단계다. |
+| 사용자 물리 재확인 | 실제 precision129개가 수집됐고 입력/준비 오류 없이 종료했다. 수신 입력을 포함한 게시 공백의 수집 최댓값120.869ms, App turn235.930ms였다. 표시 offset 지연·전체 물리 성능 수락을 이 게시 수치로 대신하지 않는다. |
+| **이번 창이 닫힌 이유** | 진단 실행을 감싼 helper가 **준비 후30초에 stop event를 설정**했고, 검사 스크립트가 `close`를 보내 정상 종료했다. **exitCode0/status0/reservedBytes0/memoryTotal0/workersJoined=true**, ringLost0/outputDropped0, `WINDOWS_SCROLL_FAILURE`·host/preparation error 없음. 사용자가 처음 크래시로 인식했으나 이번 종료는 자동 종료다. 앞서 일반 CLI에서 보고한 **exit1/mailbox closed**의 최초 원인이 해결됐다는 증거는 아니다. |
+
+현재 fast/물리 실행의 전체 peak는500,073,091/522,546,629 bytes다. 소유 앱·mapping·timer와 native/Hermes/App staging은 회수하고 현재 dist만 남긴다. 이번 실제 입력 검사의30초 timer는 외부 진단 wrapper에만 있었으며 일반 CLI 앱에 자동 종료를 추가하지 않았다.
+
+**잔여 판정:** 입력 속도에 따른 PageView 준비 target/replay 제한과 강제 이웃 준비는 제거했지만 빠른 합성 이동에서 실제 offset 정지가 남는다. 따라서 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 표시/scanout notVerified를 유지한다. 이번 자동 종료를 크래시 재현으로 기록하거나 이전 일반 CLI exit1을 해결 완료로 처리하지 않는다.
+
+## 23. 2026-11-12 접촉 중 실시간 오프셋과 비동기 PageView coverage
+
+사용자는 현재 공급에서 **“이동은 되는데 트랙패드 제스처에 따른 실시간 오프셋이동은 안 된다”**고 확인했다. 최종 월 도달·게시 횟수와 손가락을 따라가는 접촉 중 표시를 분리해 검사했다.
+
+### 23.1 확인한 원인과 수정
+
+- §22의 visible-only 처리를 모든 settled PageView에 적용한 것은 Flutter의 **동기 viewport layout**을 비동기 Source/Content에 그대로 대입한 오류였다. 한 페이지밖에 없으면 `coverage.minimum == coverage.maximum`이 되어 첫 delta를 받아도 화면을 움직일 완성된 이웃 픽셀이 없다. 입력은 접수돼 `requested`에 쌓이지만 준비 완료 뒤 따라잡는다.
+- 새 `CalendarContact` 검사는600ms/36 update의0.4페이지 이동을 양방향으로 주입하고, 각 게시 프레임의 `consumedThrough`까지 누적된 실제 입력 delta와 **표시 offset**을 비교한다. 기존 공급은 첫 방향에서 update36개 전량 접수, active frame37개/서로 다른 offset26개였어도 최대 **42.044px** 불일치로 실패했다. 최종 목적지나 frame 수만 검사하면 놓치는 접촉 중 지연이다.
+- [list.hpp](Nelyx/engine/core/layout/list.hpp)는 최초1페이지 게시 뒤 기존 layout 관찰/demand 경로에서 현재 중심 페이지와 양쪽 이웃을 준비한다. 평상시3페이지, 기존4페이지 상한 내 resident 창을 재사용하며 반 페이지를 넘으면 다음 경계 준비를 요청한다. Source가 자체적으로4페이지로 부풀리거나, 새 큐·속도별 조건을 추가하지 않는다.
+- 실제 coverage miss/먼 목적지/빠른 backlog는 계속 필요한 visible1/2페이지부터 회복한다. 이미 준비된 표시 범위를 무시하거나 미완료 자식을 통과시키지 않는다. first-paint를 이웃 준비로 막지 않고, 기존 완성 프레임의 fractional transform은 App ACK/새 문서 준비와 독립적으로 진행한다. 일반 목록·fling/animation·callback·generation·metrics/GPU fence는 유지한다.
+
+[check-date-layout.cpp](Nelyx/eng/check-date-layout.cpp)는 완성된 양쪽 이웃이 있는 PageView에서 별도 Source preparation을 일부러 미완료로 유지한 채, 매 fractional delta와 반전 뒤 실제 frame을 release/publish한다. 게시 offset과 현재 페이지 draw matrix의 translation이 누적 입력과 정확히 같고, 미완료 cohort를 활성화하지 않는지 검사한다. native range 검사는 velocity의 크기/방향과 무관한 contact-ready 범위와 coverage miss의 visible-only 범위를 구분한다. 기존 native 묶음과 함께 검사한다.
+
+### 23.2 현재 공급·실행 결과와 사용자 확인
+
+현재 engine/source는 **`5002c814e1e6ad73aa6e09fb3213b7f64e9bb776ff4ba2793467923b730ca269`**, ABI2/schema313408118이다. App JS는 **`a39f0d0feb3e32348f42c1e493e36d34c8cece565f5f2c6a1483158ef7832daa`**, HBC는 **`e9a7ccd134310e9333ba8c146fe4cc853c7e3fd49920c780dc378a60d636b45e`**다. engine356/App10 files·현재 sourceIdentity와 실행 PID/HWND/DPI192 연결을 검증했다. native/Windows host/두 Wasm 공급과 Windows App 번들을 갱신했다. ABI/wire·App JS는 바꾸지 않았다.
+
+| 검사 | 현재 관측 결과와 한계 |
+| --- | --- |
+| **양방향0.4페이지/0.8페이지 접촉** | 각600ms/36 update. 마지막 네 구간에서 실제 서로 다른 게시 offset **34/34/35/35개**, consumed delta와 표시 offset의 최대 오차 **0.000001px 미만**, 입력 수신→게시 최대 **17.567/17.324/18.348/19.881ms**.0.8페이지는 반 페이지 callback·header 갱신을 넘으며 왕복한다. 단순 최종 월이나 frame 수가 아닌, 각 frame의 consumedThrough와 누적 delta를 대조했다. scanout/하드웨어 latency는 아니다. |
+| **12개월/6초 연속 과거 이동** |360 update·begin/end 포함362개 접수·소비·거부0, **2026-11→2025-11**, cancel·resize·2025-11-15 확정·close PASS. 게시 gap43.927ms지만 실제 offset 공백 **363ms**, ≥100/250/500/1000ms **11/8/0/0**다. ≥500ms 기준만 통과했으며 연속 추종 전체 완료는 아니다. |
+| **빠른 재접촉12회/24개월** | 약2,248.766ms/120개 접수·소비·거부0, **2026-11→2024-11**, 선택·close PASS. 게시86.723ms와 별개로 **offset 공백741ms/≥500ms2회**, `syntheticStallGoal=FAIL`이다. |
+| **사용자 물리 결과** | 사용자가 **“연속적으로 움직이다가 빠르게 넘기다가 점점 끊기듯 움직임, 연속적이 아닌 최종 월로 바로 바뀜”**이라고 확인했다. 일반 접촉의 추종 복구와 빠른 입력의 backlog/최종 월 점프가 남는 것을 구분한다. 해결 완료로 표시하지 않는다. |
+| 물리 진단 종료의 구분 | 실제 precision229개/거부0, App turn386.862ms가 수집됐다. 이후 창이 비표시 상태인 동안 UIA `Peers` 호출이 실패해 helper는 exit1이었지만, **native 앱은 exit0/status0/reserved0/memory0/workersJoined=true**, peak556,766,729 bytes로 정상 회수됐다. 앱 crash 증거로 분류하지 않는다. memory ring65,536개 한도 도달로 전체 물리 구간의 무유실/최대 offset 지연은 notVerified다. |
+
+current native frame/reader/quota/lease·순수 fractional draw transform·page spring/RTL/date·late preparation 회귀, 실제 Core의 Source/ACK/publication/취소 복구, Source window/delegate/resize/명령 회귀와 Core type 검사가 PASS했다. 검사별20분 timeout·PowerShell parser·diff 검사를 적용했다. 각 앱의 mapping/timer/process, 검사 임시 폴더와 App staging/이전 dist를 회수했고 물리 trace의 임시 도구 출력도 삭제했다. 현재 dist와 기존 사용자 cache는 보존했다. 다른 플랫폼 제품 UI 검증으로 확대하지 않는다.
+
+**남은 핵심:** prepared 범위 안에서는 입력마다 fractional offset/transform을 게시하지만, 빠른 입력이 새 월의 Source/Content 준비를 앞지르면 coverage edge에 머문 뒤 완성된 checkpoint/최종 월로 이동한다. 사용자의 최신 물리 결과가 바로 이 미해결 범위다. 이를 보간 animation·stale 성공·coverage 무시·무제한 page cache로 숨기지 않는다. **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`를 유지한다. 다음 구현은 새 월의 필수 LayoutBuilder/자식 구성·capture·ACK 왕복을 줄여 실제 준비 throughput을 확보해야 한다. 작은 resident 왕복 PASS를 빠른 월 이동의 완료로 바꾸지 않는다.

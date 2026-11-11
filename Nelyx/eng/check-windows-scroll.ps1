@@ -5,8 +5,8 @@
 [CmdletBinding()]
 param(
   [string]$App = '',
-  [ValidateSet('All','List','Calendar','CalendarReverse','Manual')][string]$Scenario = 'All',
-  [ValidateRange(0,24)][int]$RapidMonths = 0,
+  [ValidateSet('All','List','Calendar','CalendarReverse','CalendarFast','CalendarContact','Manual')][string]$Scenario = 'All',
+  [ValidateRange(-24,24)][int]$RapidMonths = 0,
   [ValidateSet(0,60)][int]$PrecisionHz = 0,
   [switch]$CpuProfile,
   [switch]$NoTrace,
@@ -18,6 +18,7 @@ $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if (!$App) { $App=Join-Path $root 'sample/nelyx-demo-app/engine-v2' }
 $App = (Resolve-Path -LiteralPath $App).Path
 if($CpuProfile -and $PrecisionHz -ne 60){throw '-CpuProfile requires -PrecisionHz 60.'}
+if($RapidMonths -lt 0 -and $PrecisionHz -ne 60){throw 'Backward -RapidMonths requires -PrecisionHz 60.'}
 if ($PSVersionTable.PSEdition -ne 'Desktop') { throw 'Use powershell.exe (Windows PowerShell 5.1) for the native UIA assemblies.' }
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, WindowsBase, System.Drawing
 $references = @('System.dll','System.Core.dll','System.Drawing.dll',
@@ -161,12 +162,13 @@ function Record-Segment([string]$Name,[string]$Source,$Sent,[double]$Started,[do
   }
   $viewports=@($records | Where-Object {$_.Stage -eq 28} | Group-Object Surface | ForEach-Object {
     $rows=@($_.Group); $minimum=[double]::PositiveInfinity; $maximum=[double]::NegativeInfinity; $deferred=0.0
-    $spans=New-Object 'Collections.Generic.List[double]'; $progressAt=$rows[0].At; $offset=$rows[0].A
+    $spans=New-Object 'Collections.Generic.List[double]'; $progressAt=$Sent[0]; $offset=$rows[0].A
     foreach($r in $rows){
       $minimum=[Math]::Min($minimum,$r.A);$maximum=[Math]::Max($maximum,$r.A);$deferred=[Math]::Max($deferred,[Math]::Abs($r.B-$r.A))
-      if([Math]::Abs($r.A-$offset) -gt 0.01){$spans.Add(($r.At-$progressAt)*1000);$progressAt=$r.At;$offset=$r.A}
+      if([Math]::Abs($r.A-$offset) -gt 0.01){$spans.Add([Math]::Max(0,($r.At-$progressAt)*1000));$progressAt=$r.At;$offset=$r.A}
     }
     if($maximum-$minimum -gt 0.01 -or $deferred -gt 0.01){
+      $spans.Add([Math]::Max(0,($Sent[-1]-$progressAt)*1000))
       [pscustomobject]@{handle=$_.Name; from=$rows[0].A; to=$rows[-1].A; range=($maximum-$minimum); maxDeferred=$deferred; displayedOffsetGaps=(Gap-Summary $spans)}
     }
   })
@@ -319,6 +321,62 @@ function Precision60-Months([int]$Count) {
   if($observed -ne $Count){throw 'Continuous precision input did not reach the requested month count.'}
   if($script:delivery.injectedPrecisionAdmitted-$admitted -ne $samples+2 -or $script:delivery.injectedPrecisionRejected -ne 0){throw 'Continuous precision input lost a start/update/end sample.'}
 }
+function Precision-FastMonths {
+  $first=Calendar; $rect=[Nelyx.ScrollCheck.Desktop]::Client($window); $dpi=[Nelyx.ScrollCheck.Desktop]::GetDpiForWindow($window)/96.0
+  $origin=$first.days[[int]($first.days.Count/2)]; $viewport=[Nelyx.ScrollCheck.Desktop]::PageViewport($window,$origin.Name)
+  $x=($origin.X+$origin.Width/2-$rect.Left)/$dpi; $y=($origin.Y+$origin.Height/2-$rect.Top)/$dpi
+  $width=$viewport.Width/$dpi; $before=Get-Stats; $admitted=$script:delivery.injectedPrecisionAdmitted
+  $sent=New-Object 'Collections.Generic.List[double]'; $started=[Nelyx.ScrollCheck.Desktop]::Now; $ended=$started
+  for($stroke=0;$stroke -lt 12;++$stroke){
+    # Lift while moving and immediately recontact, unlike the distance-only
+    # scenario's stationary lift. Do not settle or rebuild between strokes.
+    $task=$runner.Precision60($x,$y,8,$width/4,$false)
+    while(!$task.IsCompleted){Pause 10}
+    $injection=$task.Result; $sent.AddRange([double[]]$injection.Sent); $ended=$injection.Ended; Pause 40
+  }
+  Settle; $after=Get-Stats
+  Record-Segment 'fast-backward-contacts' 'injected-precision-fast-contacts' $sent.ToArray() $started $ended $before $after
+  $last=Calendar; $observed=($last.date.Year-$first.date.Year)*12+$last.date.Month-$first.date.Month
+  Write-Output ('WINDOWS_SCROLL_FAST_MONTHS '+([ordered]@{strokes=12;updates=$sent.Count;logicalContactMonths=-24;
+    observedMonths=$observed;first=$first.name;last=$last.name;activeMs=($ended-$started)*1000;
+    admitted=($script:delivery.injectedPrecisionAdmitted-$admitted);rejected=$script:delivery.injectedPrecisionRejected;
+    release='moving';physicalTrackpad='notVerified'}|ConvertTo-Json -Compress))
+  if($observed -gt -12){throw 'Fast backward contacts failed to progress beyond twelve months.'}
+  if($script:delivery.injectedPrecisionAdmitted-$admitted -ne 120 -or $script:delivery.injectedPrecisionRejected -ne 0){throw 'Fast contacts lost a start/update/end sample.'}
+}
+function Precision-LiveContact {
+    $first=Calendar; $rect=[Nelyx.ScrollCheck.Desktop]::Client($window); $dpi=[Nelyx.ScrollCheck.Desktop]::GetDpiForWindow($window)/96.0
+    $peer=$first.days[[int]($first.days.Count/2)]; $viewport=[Nelyx.ScrollCheck.Desktop]::PageViewport($window,$peer.Name)
+    $x=($peer.X+$peer.Width/2-$rect.Left)/$dpi; $y=($peer.Y+$peer.Height/2-$rect.Top)/$dpi; $width=$viewport.Width/$dpi
+    foreach($fraction in @(0.4,0.8)){
+    foreach($direction in @(1,-1)){
+      $month=Calendar
+      $before=Get-Stats; Pump
+      $baseline=@($script:events|Where-Object {$_.Stage -eq 28 -and $_.A -gt $width}|Select-Object -Last 1)
+      if($baseline.Count -ne 1){throw 'Live contact has no published page-offset baseline.'}
+      $handle=$baseline[0].Surface; $offset=$baseline[0].A; $dx=$direction*$width*$fraction/36
+      $task=$runner.Precision60($x,$y,36,$dx)
+      while(!$task.IsCompleted){Pause 10}
+      $injection=$task.Result; Pause 200; $after=Get-Stats
+      $received=@($script:events|Where-Object {$_.Stage -eq 7 -and $_.A -eq 4 -and $_.B -eq 2 -and $_.At -ge $injection.Started -and $_.At -le $injection.Ended+0.1})
+      $frames=@($script:events|Where-Object {$_.Stage -eq 28 -and $_.Surface -eq $handle -and $_.At -ge $injection.Started -and $_.At -le $injection.Ended})
+      $errors=New-Object 'Collections.Generic.List[double]'; $latencies=New-Object 'Collections.Generic.List[double]'; $offsets=New-Object 'Collections.Generic.HashSet[double]'
+      foreach($frame in $frames){
+        $through=@($received|Where-Object {$_.Input -le $frame.Input})
+        $expected=$offset-$dx*$through.Count
+        if($through.Count){$latencies.Add(($frame.At-$through[-1].At)*1000)}
+        $errors.Add([Math]::Abs($frame.A-$expected)); $null=$offsets.Add([Math]::Round($frame.A,3))
+      }
+      $maximum=if($errors.Count){($errors|Measure-Object -Maximum).Maximum}else{[double]::PositiveInfinity}
+      $latency=if($latencies.Count){($latencies|Measure-Object -Maximum).Maximum}else{[double]::PositiveInfinity}
+      Write-Output ('WINDOWS_SCROLL_LIVE_CONTACT '+([ordered]@{direction=$direction;fraction=$fraction;updates=$received.Count;activeFrames=$frames.Count;
+        distinctOffsets=$offsets.Count;maximumConsumedOffsetError=$maximum;maximumInputToPublicationMs=$latency;acceptedDelta=(-$dx*$received.Count);
+        baseline=$offset;physicalTrackpad='notVerified';scanout='notVerified'}|ConvertTo-Json -Compress))
+      if($received.Count -ne 36 -or $frames.Count -lt 12 -or $offsets.Count -lt 12 -or $maximum -gt 0.01 -or $latency -ge 100){throw 'Contact pixels did not continuously follow consumed precision deltas.'}
+      Settle; $null=Wait-Month ($month.date.AddMonths(-$direction*[int][Math]::Round($fraction)))
+    }
+    }
+}
 function Write-Diagnostics {
   if($script:appDiagnostics){
     $d=$script:appDiagnostics
@@ -412,7 +470,11 @@ try {
   if ($Scenario -ne 'List' -and $Scenario -ne 'Manual') {
     Click-Peer '^Explore components$'; Click-Peer '^Selection$'; Click-Peer '^Choose date$'; Settle
     $first=Calendar; Capture 'calendar-initial'
-    if($Scenario -eq 'CalendarReverse'){
+    if($Scenario -eq 'CalendarContact'){
+      Precision-LiveContact; $next=Calendar; $precisionNext=$next
+    } elseif($Scenario -eq 'CalendarFast'){
+      Precision-FastMonths; $next=Calendar; $precisionNext=$next
+    } elseif($Scenario -eq 'CalendarReverse'){
       # Reproduce the first gesture on a fresh picker, before any button or
       # forward movement has prepared neighbouring months. Select immediately
       # afterwards: cancel/resize must not conceal a stuck input/Source owner.
@@ -432,7 +494,7 @@ try {
       if ((Wait-Month $first.date).date -ne $first.date) { throw 'Injected precision reversal did not restore the calendar month.' }
       Drag-Month 'mouse-drag-next' 1; Drag-Month 'mouse-drag-reverse' -1
     }
-    if($Scenario -ne 'CalendarReverse'){
+    if($Scenario -ne 'CalendarReverse' -and $Scenario -ne 'CalendarFast'){
       Precision-Segment 'precision-cancel' -2 'cancel'
       $beforeResize=Calendar
       [Nelyx.ScrollCheck.Desktop]::Resize($window,80); Settle
@@ -456,7 +518,8 @@ try {
   $lost=if($mapping){$mapping.Overwritten+$mapping.Unstable+$script:eventDrops}else{0}
   $longDispatch=@(); $longQueue=@(); $longLock=@()
   if ($script:trace) { $longDispatch=@($script:trace.samples | ForEach-Object {$_.elapsedMs}); $longQueue=@($script:trace.samples | ForEach-Object {$_.queueMs}); $longLock=@($script:trace.samples | ForEach-Object {$_.lockHeldMs}) }
-  $stalls=@($script:segments | Where-Object { $_.driverTimingUsable -and $_.publicationGaps.ge500 -gt 0 })
+  $stalls=@($script:segments | Where-Object { $_.driverTimingUsable -and
+    ($_.publicationGaps.ge500 -gt 0 -or @($_.viewportProgress | Where-Object {$_.displayedOffsetGaps.ge500 -gt 0}).Count -gt 0) })
   $usable=$Scenario -ne 'Manual' -and !$NoTrace -and $lost -eq 0 -and $runner.Dropped -eq 0
   Write-Output ('WINDOWS_SCROLL_RESULT '+([ordered]@{ functional=$(if($Scenario -eq 'Manual'){'notVerified'}else{'PASS'}); syntheticStallGoal= $(if(!$usable){'notVerified'}elseif($stalls.Count){'FAIL'}else{'PASS'});
     nativeDelivery=$script:delivery; dispatch=(Gap-Summary $longDispatch); contentQueue=(Gap-Summary $longQueue); coreLockHeld=(Gap-Summary $longLock);

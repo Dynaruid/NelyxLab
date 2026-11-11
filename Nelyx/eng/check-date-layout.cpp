@@ -96,6 +96,42 @@ void checkDateLayout(){
   }
   {
     auto document=std::make_shared<Document>(ledger);document->epoch=1;
+    auto viewport=addDateNode(document,1,wire::kinds::scrollViewport);viewport->layout.enabled=true;
+    viewport->properties.flags=wire::nodePropertyFlags::horizontal|wire::nodePropertyFlags::pageSnapping;
+    viewport->properties.initialScrollOffset=50*360;
+    auto list=addDateNode(document,2,wire::kinds::sliver,viewport->id);list->layout.enabled=true;list->layout.direction=0;
+    list->list={1,100,49,52,360,true,false};
+    for(uint32_t index=49;index<52;++index){auto child=addDateNode(document,index-46,wire::kinds::box,list->id);
+      child->properties.width=360;child->properties.height=280;child->item={index,index+1};}
+    auto layout=std::make_shared<LayoutWork>(document,360,280,1,1,nullptr,std::vector<ScrollLayoutOffset>{});
+    bool complete=false;for(int step=0;step<20&&!complete;++step)complete=layout->step(10000);
+    requireDate(complete,"Contact-ready page layout did not finish");
+    View view(1,ledger);view.metrics={1,1,360,280,1};view.document=document;
+    view.preparing=std::make_unique<Preparation>();view.preparing->id=1;view.preparing->document=layout->document();
+    view.preparing->metrics=view.metrics;view.preparing->ready=view.preparing->providerReady=true;view.activate();
+    const auto publish=[&]{requireDate(view.takeFrame()==wire::statuses::ok,"Live contact did not produce a frame");
+      const auto id=view.nextSubmission;view.releaseFrame(id,1,true,false);view.publish(id,1,0);};publish();
+    // A suspended, unrelated Source cohort must not gate resident movement.
+    view.preparing=std::make_unique<Preparation>();view.preparing->document=layout->document();view.preparing->metrics=view.metrics;
+    auto& stream=view.streams[2];stream.active=true;stream.target=viewport->id;stream.source=wire::sources::engineDriven;
+    double offset=18000;uint64_t sequence=0;
+    for(const double delta:{-3.5,-7.25,-40.5,15.25,36.0,27.75,-27.75}){
+      Input input{};input.sequence=++sequence;input.metrics=1;input.stream=2;input.source=wire::sources::engineDriven;
+      input.phase=wire::phases::update;input.target=viewport->id;input.snapshot=view.published;input.dx=delta;
+      view.processInput(input);offset+=delta;view.tick(double(sequence)/60);publish();
+      const auto& property=view.published->properties[viewport->id.slot];
+      requireDate(std::abs(property.offset-offset)<1e-9&&!property.deferred,
+        "Published page offset did not follow every fractional contact delta");
+      const auto item=std::find_if(view.published->items.begin(),view.published->items.end(),[](const auto& item){return item.node==Handle{4,1};});
+      requireDate(item!=view.published->items.end()&&std::abs(item->world.tx-(18000-offset))<1e-9,
+        "Page draw transform did not follow the published fractional offset");
+      requireDate(view.active->preparation==1&&view.preparing&&!view.preparing->ready,
+        "Resident input waited for or consumed an unfinished Source cohort");
+    }
+    view.close(wire::statuses::closed);
+  }
+  {
+    auto document=std::make_shared<Document>(ledger);document->epoch=1;
     for(uint32_t i=0;i<373;++i){auto node=addDateNode(document,i+1,wire::kinds::box);node->semantics=std::make_shared<SemanticData>(ledger,wire::semanticsRoles::group,0,0,"date","","","","",SemanticRangeData{});}
     Resources resources{};const auto installed=transact(document,resources,{nullptr,0},0);
     requireDate(installed.document->count==373,"Original calendar semantics were rejected below the node budget");

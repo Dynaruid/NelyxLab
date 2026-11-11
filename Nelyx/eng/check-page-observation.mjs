@@ -111,6 +111,16 @@ try {
         assert.deepEqual([pages.begin,pages.end],[17,21],
           'Canceled page preparation left its replacement demand suppressed as in-flight');
         assert.equal(builds,4);assert.equal(host.counters.recoveredCanceledWindows,1);
+        Object.assign(pages,{begin:0,end:1});
+        pages.observeDemand(10,11,{deferred:true});
+        assert.deepEqual([pages.begin,pages.end],[10,11],
+          'A required single page synchronously built unrelated prefetch neighbours');
+        pages.observeDemand(10,12,{deferred:true});
+        assert.deepEqual([pages.begin,pages.end],[10,12],
+          'A fractional PageView did not retain both visible pages');
+        pages.observeDemand(10,11,{deferred:true});
+        assert.deepEqual([pages.begin,pages.end],[10,12],
+          'A covered page demand churned its resident neighbour');
         host.view.documentEpoch=1n;
         pageController.dispose();
         const retainedPage=new PageController({initialPage:10});let childBuilds=0;

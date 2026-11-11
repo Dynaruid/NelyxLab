@@ -353,7 +353,7 @@ export class RenderSceneCapture {
         const renderChildren = new Set(frame.children.map((child) => child.scene));
         const retain = (node: SceneNode): void => {
           if (node !== scene && renderChildren.has(node)) return;
-          retainSceneConfiguration(node);
+          retainSceneConfiguration(node, node === scene ? entry?.scene : undefined);
           for (const child of node.children) retain(child);
         };
         retain(scene);

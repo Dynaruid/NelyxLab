@@ -81,6 +81,9 @@ namespace Nelyx.ScrollCheck {
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
     static string Number(double value) { return value.ToString("R", System.Globalization.CultureInfo.InvariantCulture); }
     public Task<Injection> Precision60(double x, double y, int samples, double dx) {
+      return Precision60(x, y, samples, dx, true);
+    }
+    public Task<Injection> Precision60(double x, double y, int samples, double dx, bool stopBeforeLift) {
       if (window == IntPtr.Zero || samples < 1 || samples > 1800 || (precisionTask != null && !precisionTask.IsCompleted))
         throw new InvalidOperationException("60Hz precision injection is unavailable or unbounded");
       cancelPrecision = 0;
@@ -106,9 +109,11 @@ namespace Nelyx.ScrollCheck {
           result.Ended = Desktop.Now;
           // Stop movement before lifting so the requested distance is measured
           // separately from an additional page selected by release momentum.
-          long liftDelay = -1000000;
-          if (!SetWaitableTimer(timer, ref liftDelay, 0, IntPtr.Zero, IntPtr.Zero, false) || WaitForSingleObject(timer, 20000) != 0)
-            throw new InvalidOperationException("Precision lift timer failed");
+          if (stopBeforeLift) {
+            long liftDelay = -1000000;
+            if (!SetWaitableTimer(timer, ref liftDelay, 0, IntPtr.Zero, IntPtr.Zero, false) || WaitForSingleObject(timer, 20000) != 0)
+              throw new InvalidOperationException("Precision lift timer failed");
+          }
           Send("precision end 0 0 0 0 " + Number(Desktop.Now)); return result;
         } finally { CloseHandle(timer); }
       });

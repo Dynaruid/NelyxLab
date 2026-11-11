@@ -1043,9 +1043,10 @@ std::vector<uint8_t> Engine::dispatchImpl(Reader packet,DispatchTiming* timing,s
       data.u64(64,c.revision);addOwned(7,n.id,std::move(data));}
     if(!providerObservation&&n.listGeometry){const auto& list=*n.listGeometry;const size_t header=list.style.fixed||list.style.sequential?72:64;Writer data(header+list.rows.size()*40);
       data.u64(0,list.style.generation);data.u32(8,list.style.count);data.u32(12,list.style.begin);data.u32(16,list.style.end);
-      double offset=0,height=view?view->metrics.height:0,paint=height,velocity=0;bool deferred=false;
+      double offset=0,height=view?view->metrics.height:0,paint=height,velocity=0;bool deferred=false,page=false;
       if(view&&n.parent&&rows->contains(n.parent)){const auto& parent=rows->get(n.parent);
         const bool horizontal=(parent.properties.flags&1u)!=0;
+        page=(parent.properties.flags&wire::nodePropertyFlags::pageSnapping)!=0;
         height=horizontal?parent.properties.width:parent.properties.height;offset=parent.properties.initialScrollOffset-(horizontal?n.properties.x:n.properties.y);const auto scrollOverlay=view->overlays.find(n.parent.key());
         if(scrollOverlay!=view->overlays.end()){offset=scrollOverlay->second.requested-(horizontal?n.properties.x:n.properties.y);velocity=scrollOverlay->second.velocity;deferred=scrollOverlay->second.deferred;}
         if(n.layoutBuilder){const double origin=n.properties.y;
@@ -1053,7 +1054,7 @@ std::vector<uint8_t> Engine::dispatchImpl(Reader packet,DispatchTiming* timing,s
             std::clamp(offset+origin,0.0,std::max(0.0,list.total+parent.layout.top+parent.layout.bottom-height));
           offset=std::max(0.0,requested-origin);paint=std::max(0.0,height-std::max(0.0,origin-requested));}}
       if(n.layoutBuilder){const auto range=nativeListCacheRange(list.style,&list,std::max(0.0,offset),paint,velocity);data.u32(20,range.begin);data.u32(24,range.end);}
-      else {const auto range=legacyListCacheRange(list,offset,height,velocity,deferred);
+      else {const auto range=legacyListCacheRange(list,offset,height,velocity,deferred,page);
         data.u32(20,range.begin);data.u32(24,range.end);}
       data.u32(28,uint32_t(list.rows.size()));data.f64(32,list.estimate);
       data.f64(40,list.total);data.f64(48,list.begin);data.f64(56,list.end);

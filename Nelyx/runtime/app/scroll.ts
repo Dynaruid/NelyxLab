@@ -1038,8 +1038,14 @@ class NativeListState extends NativeScrollState<NativeList> {
         if (this.widget.host.counters) ++this.widget.host.counters.recoveredCanceledWindows;
       }
     }
-    const begin = Math.min(demandBegin, Math.max(0, this.count - this.windowSize)),
-      end = Math.min(this.count, begin + this.windowSize);
+    const page = this.controller instanceof PageController,
+      begin = page ? demandBegin : Math.min(demandBegin, Math.max(0, this.count - this.windowSize)),
+      end = Math.min(
+        this.count,
+        page
+          ? Math.min(Math.max(demandEnd, begin + 1), begin + this.windowSize)
+          : begin + this.windowSize,
+      );
     if (demandEnd > end)
       this.widget.host.fail(
         'list-viewport-budget:' + demandBegin + ':' + demandEnd + ':' + begin + ':' + end,

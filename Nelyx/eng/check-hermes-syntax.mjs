@@ -189,6 +189,16 @@ try {
     sourceWriter.adopt(sourceWriter.records(source({color:0xff123456})),[]);
     const resets=sourceWriter.diff(sourceWriter.records(source({}))),paintReset=resets.find(bytes=>kind(bytes)===p.commands.paint);
     if(!paintReset||new DataView(paintReset.buffer,paintReset.byteOffset).getUint32(8,true)!==sourceRef.currentNode.slot||!sourceWriter.counters.sharedDefaultConfigs)throw Error('Hermes shared default reset lost its destination');
+    const payloadRef=new SceneReference(),payloadWriter=new SceneWriter({}, {pollEvents:false,retainedScene:true});let action=0;
+    const initialPayload=sceneConfiguration(payloadRef,'box',[],{layout:{gap:7},onAction:()=>{action=1;}});
+    retainSceneConfiguration(initialPayload);payloadWriter.adopt(payloadWriter.records(initialPayload),[]);
+    const initialRecord=Array.from(payloadWriter.accepted.values())[0];
+    const updatedPayload=sceneConfiguration(payloadRef,'box',[],{layout:{gap:7},onAction:()=>{action=2;}});
+    retainSceneConfiguration(updatedPayload,initialPayload);
+    const updatedRecords=payloadWriter.records(updatedPayload),updatedRecord=Array.from(updatedRecords.values())[0];
+    if(updatedRecord.config!==initialRecord.config||payloadWriter.diff(updatedRecords).length)throw Error('Hermes equal Source payload repeated command configuration');
+    payloadWriter.adopt(updatedRecords,[]);Array.from(payloadWriter.accepted.values())[0].node.options.onAction('activate');
+    if(action!==2)throw Error('Hermes payload reuse retained an old callback');
     const date=new DateTime(2024,2,29),dateCopy=date.toDate();dateCopy.setTime(0);
     if(date.year!==2024||date.month!==2||date.day!==29||!DateTime.fromMillisecondsSinceEpoch(date.millisecondsSinceEpoch).equals(date))throw Error('Hermes civil date reader or mutable-copy isolation differs');
     const reference=new SceneReference(),ordinary=new SceneNode(reference,'box'),direct=sceneConfiguration(reference,'box');

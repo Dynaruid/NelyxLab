@@ -40,6 +40,17 @@ static void legacyPreparationLead(){
   check(reversing.begin==8&&reversing.end==12,"Resident window suppressed real reversal demand");
   const auto deferred=legacyListCacheRange(geometry,13*paint,paint,688,true);
   check(deferred.begin<=12&&deferred.end>=14,"Predicted Source window excluded the deferred displayed viewport");
+  for(const double velocity:{-1e12,0.0,1e12}){
+    const auto single=legacyListCacheRange(geometry,10*paint,paint,velocity,true,true);
+    const auto partial=legacyListCacheRange(geometry,offset,paint,velocity,true,true);
+    check(single.begin==10&&single.end==11,"PageView's required range included unrelated prefetch pages");
+    check(partial.begin==10&&partial.end==12,"Fractional page coverage did not include both visible pages");
+    geometry.style.begin=10;geometry.style.end=11;
+    const auto ready=legacyListCacheRange(geometry,10*paint,paint,velocity,false,true);
+    check(ready.begin==9&&ready.end==12,"A published page has no prepared pixels for a bidirectional contact");
+    const auto moving=legacyListCacheRange(geometry,10.6*paint,paint,velocity,false,true);
+    check(moving.begin==10&&moving.end==13,"Adjacent page preparation did not follow the fractional viewport");
+  }
   std::cout<<"Legacy preparation: bounded lead, resident hysteresis, deferred displayed coverage, reverse/reset/finite extent PASS\n";
 }
 static void inputFrameIndex(){
@@ -357,8 +368,52 @@ static void movingBuilder(){
   check(ledger->bytes==0,"moving builder leases remain");
   std::cout<<"Moving list builder continuation and viewport fences PASS.\n";
 }
+static void pageLogicalPosition(){
+    auto ledger=std::make_shared<Ledger>();
+    {
+      View view(1,ledger);auto document=std::make_shared<Document>(ledger);document->epoch=1;
+      auto viewport=std::make_shared<Node>(ledger);viewport->id={1,1};viewport->kind=wire::kinds::scrollViewport;
+      viewport->properties.width=200;viewport->properties.height=100;viewport->properties.maximum=2000;
+      viewport->properties.flags=wire::nodePropertyFlags::pageSnapping;viewport->coverage={1,0,100,true};
+      auto child=std::make_shared<Node>(ledger);child->id={2,1};child->parent=viewport->id;child->kind=wire::kinds::box;
+      child->properties.width=200;child->properties.height=2100;
+      document->nodes.edit(1).value=viewport;document->nodes.edit(2).value=child;
+      document->children.set(0,{viewport->id});document->children.set(1,{child->id});document->count=document->highWater=2;
+      auto scene=std::make_shared<Scene>();scene->document=document;scene->metrics={1,1,200,100,1};
+      view.document=document;view.active=scene;view.metrics=scene->metrics;view.time=1;view.hasTime=true;
+      auto& overlay=view.overlays[viewport->id.key()];overlay.node=viewport->id;overlay.offset=overlay.requested=90;
+      const auto publish=[&]{auto frame=std::make_shared<Frame>();frame->id=1;frame->device=1;frame->scene=scene;
+        frame->properties.resize(3);frame->properties[1].offset=overlay.offset;view.makeDrawItems(*frame);view.published=frame;};publish();
+      auto& stream=view.streams[2];stream.active=true;stream.target=viewport->id;stream.source=wire::sources::engineDriven;
+      Input input{};input.metrics=1;input.stream=2;input.source=wire::sources::engineDriven;input.target=viewport->id;
+      input.snapshot=view.published;input.phase=wire::phases::update;input.dy=20;input.velocity=1200;
+      for(int i=0;i<20;++i){++input.sequence;view.processInput(input);}
+      check(overlay.offset==100&&overlay.requested==490&&overlay.deferredContactDelta==0,
+        "fast page contact was throttled to a viewport-sized preparation target");
+      view.dirty=false;input.dy=-20;++input.sequence;view.processInput(input);
+      check(overlay.requested==470&&overlay.offset==100,"page reversal discarded accepted logical position");
+      check(view.dirty,"blocked page demand changed without invalidating the observation property epoch");
+      input.phase=wire::phases::end;input.velocity=0;++input.sequence;view.processInput(input);
+      input.phase=wire::phases::begin;++input.sequence;view.processInput(input);
+      check(overlay.requested==470&&overlay.deferred,"a new page contact reset pending logical position to the displayed edge");
+      viewport->coverage.maximum=1000;view.advanceDeferred(1.0/1000);
+      check(overlay.offset==470&&!overlay.deferred,"ready page coverage was replayed through a pixels-per-second speed gate");
+      viewport->coverage.maximum=500;input.phase=wire::phases::update;input.dy=300;++input.sequence;view.processInput(input);
+      input.phase=wire::phases::end;input.velocity=1200;++input.sequence;view.processInput(input);
+      view.tick(1.016);const double first=overlay.requested;view.tick(1.032);
+      check(overlay.elapsed>0&&overlay.requested!=first,"page ballistic clock stopped while Source was preparing");
+      input.phase=wire::phases::cancel;++input.sequence;view.processInput(input);
+      check(!overlay.ballistic&&overlay.velocity==0&&overlay.deferred&&overlay.requested>overlay.offset,
+        "page inertia cancellation discarded already accepted logical distance");
+      viewport->coverage.maximum=2000;view.advanceDeferred(1.0/1000);
+      check(!overlay.deferred&&overlay.offset==overlay.requested,"canceled page inertia stranded accepted contact distance");
+      view.close(wire::statuses::closed);
+    }
+    check(ledger->bytes==0,"page logical position leaked leases");
+    std::cout<<"Page logical position: fast input, reversal, repeated contacts, ready coverage, ballistic clock and inertia cancel PASS.\n";
+  }
 void checkMovingList();
 void checkRetargetedCoverage();
 void checkLatePageCoverage();
 void checkDateLayout();
-int main(){std::cout.setf(std::ios::unitbuf);try{run();deadlines();precisionVelocity();legacyPreparationLead();ballisticCoverage();deferredContactDistance();movingBuilder();checkMovingList();checkRetargetedCoverage();checkLatePageCoverage();checkDateLayout();return 0;}catch(const std::exception& e){std::cerr<<e.what()<<"\n";}catch(const Error& e){std::cerr<<"Core status="<<e.status<<"\n";}return 1;}
+int main(){std::cout.setf(std::ios::unitbuf);try{run();deadlines();precisionVelocity();legacyPreparationLead();ballisticCoverage();deferredContactDistance();pageLogicalPosition();movingBuilder();checkMovingList();checkRetargetedCoverage();checkLatePageCoverage();checkDateLayout();return 0;}catch(const std::exception& e){std::cerr<<e.what()<<"\n";}catch(const Error& e){std::cerr<<"Core status="<<e.status<<"\n";}return 1;}

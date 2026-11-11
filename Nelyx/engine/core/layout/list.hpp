@@ -46,15 +46,31 @@ struct ListGeometry {
   }
 };
 struct NativeListRange { uint32_t begin=0,end=0; double beginOffset=0; };
+inline NativeListRange nativeListRange(const ListStyle& style,const ListGeometry* geometry,double offset,double paint);
 /** Fixed legacy lists retain the same three-viewport demand span. Shift that
  * span by a bounded velocity hint so Source can answer before visible coverage
  * runs out. This chooses preparation only, never a displayed/requested offset.
  * Even at the one-viewport lead limit the actual viewport remains inside it. */
-inline NativeListRange legacyListCacheRange(const ListGeometry& geometry,double offset,double paint,double velocity=0,bool deferred=false) {
+inline NativeListRange legacyListCacheRange(const ListGeometry& geometry,double offset,double paint,double velocity=0,bool deferred=false,bool page=false) {
   require(std::isfinite(offset)&&std::isfinite(paint)&&paint>=0&&std::isfinite(velocity),wire::statuses::invalidValue);
-  // A deferred contact already places requested up to one viewport ahead of
-  // the displayed offset. Keep its full trailing margin, otherwise the next
-  // Source window could exclude the still-displayed page and fail activation.
+  if(page){
+    const auto visible=nativeListRange(geometry.style,&geometry,std::max(0.0,offset),paint);
+    // Source/Content are asynchronous here, unlike Flutter's synchronous
+    // viewport layout. After first paint retain an adjacent page on each side
+    // so a contact has real prepared pixels to move. A coverage miss still
+    // requests only its visible destination, never blocks on extra neighbours.
+    if(deferred||!paint||visible.begin==visible.end)return visible;
+    const auto center=std::min(geometry.indexAt(std::max(0.0,offset)+paint/2),geometry.style.count-1);
+    const auto begin=std::min(visible.begin,center?center-1:0);
+    const auto end=std::max(visible.end,std::min(geometry.style.count,center+2));
+    const auto& previous=geometry.style;
+    if(previous.begin<=begin&&previous.end>=end&&previous.end-previous.begin<=4)
+      return {previous.begin,previous.end,geometry.prefix(previous.begin)};
+    return {begin,end,geometry.prefix(begin)};
+  }
+  // A deferred offset is already Core's accepted destination. Do not apply a
+  // second velocity prediction. Page contacts can be beyond the displayed
+  // cohort; activation validates coverage of their current logical target.
   // A complete Source build/capture/ACK turn can take roughly half a second
   // on the qualified Windows graph. Keep that preparation lead within the
   // existing trailing viewport; no extra rows or speculative offset are added.

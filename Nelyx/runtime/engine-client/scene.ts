@@ -234,10 +234,61 @@ export function sceneConfiguration(
   return node;
 }
 const retainedConfigurations = new WeakSet<SceneNode>();
+type RetainedPayload = {
+  readonly identity: unknown;
+  readonly inputs: WeakMap<object, unknown>;
+};
+const retainedPayloads = new WeakMap<SceneNode, RetainedPayload>();
+const sourceCallbacks = new Set([
+  'onTapRegion',
+  'onKey',
+  'onScrollTerminal',
+  'onRawInput',
+  'onPointerSample',
+  'onRawGap',
+  'appControlled',
+  'onFocusChanged',
+  'onGesture',
+  'onValue',
+  'onLayout',
+  'onAction',
+]);
 /** @internal Source capture owns invalidation and immutable configuration
  * identity. Public SceneNode producers still get mutation-safe input diffing. */
-export function retainSceneConfiguration(node: SceneNode): void {
+export function retainSceneConfiguration(node: SceneNode, previous?: SceneNode): void {
+  if (retainedConfigurations.has(node)) return;
   retainedConfigurations.add(node);
+  const before = previous && retainedPayloads.get(previous);
+  if (before && previous?.options === node.options && previous.text === node.text) {
+    retainedPayloads.set(node, before);
+    return;
+  }
+  const options = node.options;
+  if (
+    Object.getPrototypeOf(options) !== Object.prototype &&
+    Object.getPrototypeOf(options) !== null
+  )
+    return;
+  const data: Record<string, unknown> = Object.create(null);
+  data.onRawInput = false;
+  data.onPointerSample = false;
+  data.appControlled = false;
+  for (const key of Object.getOwnPropertyNames(options)) {
+    const descriptor = Object.getOwnPropertyDescriptor(options, key)!;
+    if (!('value' in descriptor)) return;
+    if (key === 'onRawInput' || key === 'onPointerSample' || key === 'appControlled')
+      data[key] = !!descriptor.value;
+    else if (!sourceCallbacks.has(key)) data[key] = descriptor.value;
+  }
+  // These callbacks also select native event-policy bits. Their identities
+  // stay in the callback record, but their presence belongs to the wire data.
+  const input = { options: data, text: node.text };
+  const inputs = new WeakMap<object, unknown>();
+  const identity =
+    before && sameConfigInput(input, before.identity, inputs)
+      ? before.identity
+      : captureConfigInput(input, new Set(), inputs);
+  if (identity !== uncacheableInput) retainedPayloads.set(node, { identity, inputs });
 }
 function id(h: NodeHandle): string {
   return `${h.slot}:${h.generation}`;
@@ -464,9 +515,14 @@ function addressedConfig(config: Uint8Array, handle: NodeHandle): Uint8Array {
 const uncacheableInput = Symbol('uncacheable scene input');
 /** Keep independent data snapshots. Reusing a mutable options object must not
  * hide a later change; executable/accessor values always run through encoding. */
-function captureConfigInput(value: unknown, parents = new Set<object>()): unknown {
+function captureConfigInput(
+  value: unknown,
+  parents = new Set<object>(),
+  inputs?: WeakMap<object, unknown>,
+): unknown {
   if (value === null || typeof value !== 'object')
     return typeof value === 'function' || typeof value === 'symbol' ? uncacheableInput : value;
+  if (inputs?.has(value)) return inputs.get(value);
   const array = Array.isArray(value);
   if (
     (!array &&
@@ -480,15 +536,20 @@ function captureConfigInput(value: unknown, parents = new Set<object>()): unknow
   for (const key of Object.keys(value)) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
     if (!('value' in descriptor)) return uncacheableInput;
-    const captured = captureConfigInput(descriptor.value, parents);
+    const captured = captureConfigInput(descriptor.value, parents, inputs);
     if (captured === uncacheableInput) return uncacheableInput;
     (copy as Record<string, unknown>)[key] = captured;
   }
   if (array) (copy as unknown[]).length = value.length;
   parents.delete(value);
+  inputs?.set(value, copy);
   return copy;
 }
-function sameConfigInput(value: unknown, captured: unknown): boolean {
+function sameConfigInput(
+  value: unknown,
+  captured: unknown,
+  inputs?: WeakMap<object, unknown>,
+): boolean {
   if (Object.is(value, captured)) return true;
   if (!value || !captured || typeof value !== 'object' || typeof captured !== 'object')
     return false;
@@ -511,10 +572,11 @@ function sameConfigInput(value: unknown, captured: unknown): boolean {
     if (
       !('value' in descriptor) ||
       !Object.hasOwn(captured, key) ||
-      !sameConfigInput(descriptor.value, (captured as Record<string, unknown>)[key])
+      !sameConfigInput(descriptor.value, (captured as Record<string, unknown>)[key], inputs)
     )
       return false;
   }
+  inputs?.set(value, captured);
   return true;
 }
 
@@ -807,6 +869,7 @@ export class SceneWriter {
         });
       };
       const before = this.accepted.get(key);
+      const payload = retainedPayloads.get(node);
       // Resolve executable configuration every time: a retained follower or
       // paint reference may point to a newly allocated native handle. Records
       // with native control revisions likewise require live encoding.
@@ -814,8 +877,9 @@ export class SceneWriter {
         before &&
         (before.node === node ||
           (retainedConfigurations.has(before.node) &&
-            before.node.options === o &&
-            before.node.text === node.text &&
+            ((before.node.options === o && before.node.text === node.text) ||
+              (payload !== undefined &&
+                retainedPayloads.get(before.node)?.identity === payload.identity)) &&
             before.node.image === node.image &&
             before.node.editor === node.editor &&
             before.node.editorFlags === node.editorFlags &&
@@ -833,7 +897,26 @@ export class SceneWriter {
           before.children.every(
             (child, index) => child === children[index] || id(child) === id(children[index]!),
           );
-        const record = sameParent && sameChildren ? before : { ...before, parent, children };
+        let ownNode = before.node;
+        if (ownNode.options !== o || ownNode.text !== node.text) {
+          ownNode = sceneConfiguration(
+            node.reference,
+            node.kind,
+            [],
+            o,
+            node.text,
+            node.image,
+            node.editor,
+            node.editorFlags,
+            node.maximumLength,
+          );
+          retainedConfigurations.add(ownNode);
+          if (payload !== undefined) retainedPayloads.set(ownNode, payload);
+        }
+        const record =
+          sameParent && sameChildren && ownNode === before.node
+            ? before
+            : { ...before, node: ownNode, parent, children };
         records.set(key, record);
         retainSubtree(record);
         ++this.counters.reusedRecords;
@@ -862,7 +945,7 @@ export class SceneWriter {
           return previous;
         }
         const bytes = make();
-        const captured = captureConfigInput(input);
+        const captured = captureConfigInput(input, new Set(), payload?.inputs);
         if (captured !== uncacheableInput) configInputs.set(kind, captured);
         return bytes;
       };
@@ -1062,7 +1145,10 @@ export class SceneWriter {
         node.editorFlags,
         node.maximumLength,
       );
-      if (retainedConfigurations.has(node)) retainSceneConfiguration(ownNode);
+      if (retainedConfigurations.has(node)) {
+        retainedConfigurations.add(ownNode);
+        if (payload !== undefined) retainedPayloads.set(ownNode, payload);
+      }
       const record: NativeRecord = {
         node: ownNode,
         handle: h,

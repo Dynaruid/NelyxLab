@@ -395,16 +395,25 @@ static double activationOffset(const View& view,const Document& document,const N
         const auto offset=seekOffset(document,command,false);if(offset)return *offset;}
   const double anchored=anchoredOffset(view,document,viewport,before);
   const auto overlay=view.overlays.find(viewport.id.key());
-  if(overlay!=view.overlays.end()&&overlay->second.deferred&&!overlay->second.deferredStream){
+  if(overlay!=view.overlays.end()&&overlay->second.deferred&&
+      (!overlay->second.deferredStream||(viewport.properties.flags&wire::nodePropertyFlags::pageSnapping))){
     const auto& pending=overlay->second;
     const double requested=viewport.properties.extent==wire::extents::unbounded?
       std::max(viewport.properties.minimum,pending.requested+anchored-before):
       std::clamp(pending.requested+anchored-before,viewport.properties.minimum,viewport.properties.maximum);
     // A bounded Source window may begin beyond the old coverage edge. Once
-    // its wheel destination is prepared, activate there instead of replacing
+    // its logical destination is prepared, activate there instead of replacing
     // that destination with the no-longer-covered old compositor offset.
     if(!viewport.coverage.enabled||(requested>=viewport.coverage.minimum&&requested<=viewport.coverage.maximum))
       return requested;
+    if(viewport.properties.flags&wire::nodePropertyFlags::pageSnapping){
+      // A completed bounded cohort may precede newer input, like a queued
+      // Flutter frame. Publish real progress toward the current logical target
+      // instead of starving every frame until the finger becomes slow/idle.
+      const double covered=std::clamp(requested,viewport.coverage.minimum,viewport.coverage.maximum);
+      if((requested<anchored&&covered<anchored&&covered>=requested)||
+          (requested>anchored&&covered>anchored&&covered<=requested))return covered;
+    }
   }
   return anchored;
 }
@@ -560,7 +569,7 @@ void View::activate() {
       const auto offset = n.properties.extent == wire::extents::unbounded ?
         std::max(n.properties.minimum, anchored) :
         std::clamp(anchored, n.properties.minimum, n.properties.maximum);
-      const double correction=o.deferred&&!o.deferredStream?
+      const double correction=o.deferred&&(!o.deferredStream||(n.properties.flags&wire::nodePropertyFlags::pageSnapping))?
         anchoredOffset(*this,*p.document,n,o.offset)-o.offset:offset-o.offset;
       if(o.ballistic){o.start+=correction;if(o.pageSpring)o.pageTarget+=correction;}
       if (offset != o.offset) { o.offset = offset; o.revision = next(o.revision); }
@@ -574,6 +583,7 @@ void View::activate() {
         o.requested = n.properties.extent == wire::extents::unbounded ? std::max(n.properties.minimum,o.requested+correction) :
           std::clamp(o.requested+correction,n.properties.minimum,n.properties.maximum);
         o.deferred = o.requested != o.offset;
+        if(!o.deferred)o.deferredStream=0;
       } else if(pendingSeek){
         // An unrelated publication may arrive while App builds the destination.
         // Keep the seek's demand; resetting it to the old visible offset makes
@@ -714,10 +724,15 @@ void View::applyDelta(Handle h, double delta, uint32_t stream,const Frame* snaps
       observeOverlay(h);
       if(remainder){if(!geometry)return;const auto local=geometry->delta(h,remainder->x,remainder->y);delta=(n.properties.flags&1u)?local.x:local.y;if(std::abs(delta)<1e-12)return;}
       auto& o = overlays.at(h.key());
-      if (o.deferred && (o.requested-o.offset)*delta < 0) {
+      const auto previousRequested=o.requested;
+      const bool page=(n.properties.flags&wire::nodePropertyFlags::pageSnapping)!=0;
+      if (!page && o.deferred && (o.requested-o.offset)*delta < 0) {
         o.deferred = false; o.requested = o.offset; o.deferredContactDelta=0; o.needSent = false;
       }
-      const auto target = std::clamp(o.offset + delta, -1e12, 1e12);
+      // Page position follows every admitted delta, independently of the
+      // materialized window. Only displayed pixels are coverage-constrained.
+      const auto position=page&&o.deferred?o.requested:o.offset;
+      const auto target = std::clamp(position + delta, -1e12, 1e12);
       const auto extentOffset = n.properties.extent == wire::extents::unbounded ?
         std::max(n.properties.minimum, target) :
         std::clamp(target, n.properties.minimum, n.properties.maximum);
@@ -730,15 +745,16 @@ void View::applyDelta(Handle h, double delta, uint32_t stream,const Frame* snaps
         std::clamp(requested,n.properties.minimum,n.properties.maximum);
       const auto applied = offset - o.offset;
       if (applied != 0) { o.offset = offset; o.revision = next(o.revision); dirty = true; }
-      o.requested = stream ? std::clamp(requested,o.offset-viewport,o.offset+viewport) : requested;
-      o.deferredContactDelta=stream?requested-o.requested:0;
+      o.requested = stream&&!page ? std::clamp(requested,o.offset-viewport,o.offset+viewport) : requested;
+      o.deferredContactDelta=stream&&!page?requested-o.requested:0;
       o.deferred = o.requested != o.offset;
       o.deferredStream = o.deferred ? stream : 0;
+      if(o.requested!=previousRequested)dirty=true;
       if (unavailable) {
         if (o.deferred) ++coverageDeferred;
         needContent(n,o,stream); return;
       }
-      delta -= applied;
+      delta -= page?extentOffset-position:applied;
       if (delta == 0 || !(n.properties.flags & 2u) || n.properties.extent != wire::extents::finite) return;
       if(!geometry)return;const auto item=std::find_if(geometry->items.begin(),geometry->items.end(),[&](const auto& candidate){return candidate.node==h;});if(item==geometry->items.end())return;
       const bool horizontal=(n.properties.flags&1u)!=0;remainder=Point{delta*(horizontal?item->world.a:item->world.c),delta*(horizontal?item->world.b:item->world.d)};
@@ -757,6 +773,7 @@ void View::advanceDeferred(double dt) {
       o.deferred = false; o.requested = o.offset; o.deferredContactDelta=0; continue;
     }
     const auto& n = active->document->get(o.node);
+    const bool page=(n.properties.flags&wire::nodePropertyFlags::pageSnapping)!=0;
     const double viewport = (n.properties.flags & 1u) ? n.properties.width : n.properties.height;
     if(o.deferredContactDelta!=0){
       const double total=n.properties.extent==wire::extents::unbounded?
@@ -771,7 +788,7 @@ void View::advanceDeferred(double dt) {
     if(goal!=o.requested)needContent(n,o,o.deferredStream);
     // A wheel packet has no continuing pointer stream. Retain its destination
     // while Content extends coverage, then apply the available part directly.
-    const double value = o.deferredStream ? o.offset+std::clamp(goal-o.offset,-limit,limit) : goal;
+    const double value = o.deferredStream&&!page ? o.offset+std::clamp(goal-o.offset,-limit,limit) : goal;
     if (value != o.offset) { o.offset=value;o.revision=next(o.revision);dirty=true; }
     if (o.offset == o.requested && o.deferredContactDelta==0) { o.deferred=false;o.deferredStream=0; }
   }
@@ -867,8 +884,11 @@ void View::processInput(Input p) {
   if (p.phase == wire::phases::begin || (!stream.active && p.source != wire::sources::engineDriven)) {
     stream.active = true; stream.target = p.target; stream.source = p.source;
     auto& o = overlays.at(p.target.key()); o.ballistic = false; o.velocity = 0;
-    if(p.source==wire::sources::engineDriven||!o.deferred||o.deferredStream){
+    const bool page=(active->document->get(p.target).properties.flags&wire::nodePropertyFlags::pageSnapping)!=0;
+    if(!page&&(p.source==wire::sources::engineDriven||!o.deferred||o.deferredStream)){
       o.deferred=false;o.requested=o.offset;o.deferredContactDelta=0;o.deferredStream=0;
+    }else if(page&&o.deferred){
+      o.deferredStream=p.stream;o.needSent=false;
     }
     for (auto it = commands.begin(); it != commands.end();) {
       const auto command = it++;
@@ -890,11 +910,12 @@ void View::processInput(Input p) {
     o.velocity = p.velocity;
   } else if (p.phase == wire::phases::end || p.phase == wire::phases::cancel) {
     stream.active = false;
-    endDeferredInput(p.stream,p.phase==wire::phases::cancel);
+    const bool page=(active->document->get(stream.target).properties.flags&wire::nodePropertyFlags::pageSnapping)!=0;
+    endDeferredInput(p.stream,p.phase==wire::phases::cancel&&!page);
     if (p.phase == wire::phases::end && p.source == wire::sources::engineDriven) {
       beginScrollBallistic(stream.target,p.velocity);
     } else { o.ballistic = false; o.velocity = 0;
-      if(p.phase==wire::phases::cancel){o.deferred=false;o.requested=o.offset;o.deferredContactDelta=0;o.needSent=false;}
+      if(p.phase==wire::phases::cancel&&!page){o.deferred=false;o.requested=o.offset;o.deferredContactDelta=0;o.needSent=false;}
     }
   }
   if (p.source != wire::sources::engineDriven) stream.active = false;
@@ -964,19 +985,20 @@ void View::tick(double now) {
     auto& o = entry.second;
     if(o.ballistic||(o.motion&&!o.motionDone)||active->document->get(o.node).control.kind==wire::controlKinds::activity)observeOverlay(o.node);
     if(active->document->get(o.node).control.kind==wire::controlKinds::activity&&(!published||published->allows(o.node))){o.value=std::fmod(time,1.0);dirty=true;}
-    if (o.ballistic && !o.deferred) {
-      // A temporary cache boundary is not the end of the scroll extent.
-      // Keep the velocity/clock while Content prepares the accepted target.
-      // Advancing an absolute friction target against a blocked offset would
-      // repeatedly accumulate the same missing delta in requested.
+    const bool page=(active->document->get(o.node).properties.flags&wire::nodePropertyFlags::pageSnapping)!=0;
+    if (o.ballistic && (!o.deferred||page)) {
+      // Non-page friction pauses at missing coverage. Page springs instead
+      // sample against the logical position, never the blocked display edge,
+      // so each missing delta is accumulated only once as time advances.
       o.elapsed += dt;
-      const auto previous = o.offset;
+      const auto previous = page&&o.deferred?o.requested:o.offset;
       const auto sample=o.pageSpring?PageSpring::sample(o.start,o.pageTarget,o.startVelocity,o.elapsed):
         std::pair<double,double>{Friction::position(o.start,o.startVelocity,o.elapsed),Friction::velocity(o.startVelocity,o.elapsed)};
       const bool done=o.pageSpring?std::abs(sample.first-o.pageTarget)<1/metrics.scale&&std::abs(sample.second)<20/metrics.scale:std::abs(sample.second)<1;
-      applyDelta(o.node,(done&&o.pageSpring?o.pageTarget:sample.first)-o.offset);
+      applyDelta(o.node,(done&&o.pageSpring?o.pageTarget:sample.first)-previous);
       o.velocity=sample.second;
-      if ((done&&!o.deferred) || (!o.deferred && o.offset == previous && dt > 0)) {
+      const auto current=page&&o.deferred?o.requested:o.offset;
+      if ((done&&(!o.deferred||page)) || ((!o.deferred||page) && current == previous && dt > 0)) {
         o.ballistic = false; o.velocity = 0;
       }
     }

@@ -91,7 +91,7 @@ try {
         }
         const client=await EngineClient.connect(createWasmTransport(module)),view=await client.openView(1);
         const app=new OriginalWidgetHost(view,{pollEvents:false,onError:error=>{throw error;}}) as any;
-        let commits=0,clock=0,builderCalls=0,holdPublication=false,heldPublication,onCommit,checkPending=false;
+        let commits=0,clock=0,builderCalls=0,holdPublication=false,heldPublication,onCommit,checkPending=false,onLayoutRequest,onPublished;
         const inspectState=view.inspectState.bind(view),commit=view.commit.bind(view);
         const core=async(op,data?)=>{
           const result=await view.request(op,data);
@@ -109,7 +109,10 @@ try {
           }
           for(let step=0;step<16;++step){
             const state=await core(p.opcodes.contentStep,new Uint8Array(new Uint32Array([p.limits.contentPerStep,0]).buffer));
-            if(state.layoutBuildPending)return receipt;
+            if(state.layoutBuildPending){
+              if(onLayoutRequest){const callback=onLayoutRequest;onLayoutRequest=undefined;callback();}
+              return receipt;
+            }
             if(!state.preparation||state.preparationReady)break;
           }
           await core(p.opcodes.tick,new Uint8Array(new Float64Array([++clock]).buffer));
@@ -117,7 +120,10 @@ try {
           fields.setBigUint64(0,frame.submission,true);fields.setBigUint64(8,frame.device,true);
           await core(p.opcodes.releaseFrame,done);
           if(holdPublication)heldPublication=done;
-          else await core(p.opcodes.publish,done);
+          else {
+            await core(p.opcodes.publish,done);
+            if(onPublished){const callback=onPublished;onPublished=undefined;await callback();}
+          }
           if(onCommit){const callback=onCommit;onCommit=undefined;callback();}
           return receipt;
         };
@@ -136,6 +142,28 @@ try {
           const settled=await inspectState();assert.equal(settled.document,settled.publishedDocument);
           assert.equal(settled.preparation,0n);
           console.log('App passes: ACK invalidation preserved, manual Source request/constraints, publication and close PASS.');
+          // An explicit newer root may supersede an accepted Source request.
+          // Execute the required callback, but do not flash the removed tree
+          // or force an extra publication before the latest desired Widget.
+          let queuedUpdate,sourcePublications=0,supersededBuilderCalls=0;
+          onLayoutRequest=()=>{queuedUpdate=app.update(new Align(new SizedBox(49,19)));};
+          onPublished=async()=>{
+            const source=await core(p.opcodes.layoutSnapshot);
+            assert(!source.nodes.some(node=>node.layoutBuilder),
+              'A superseded Source reply flashed before the newer desired Widget');
+            assert(source.nodes.some(node=>node.width===49&&node.height===19),
+              'The latest desired Widget was blocked behind an obsolete Source publication');
+            ++sourcePublications;
+          };
+          await app.update(new Align(new LayoutBuilder(()=>{++supersededBuilderCalls;return new SizedBox(39,23);})));
+          assert(queuedUpdate,'Fixture did not queue ordinary Widget work during Source preparation');
+          await queuedUpdate;assert.equal(sourcePublications,1);
+          assert.equal(supersededBuilderCalls,1,'Supersession skipped the accepted Source callback');
+          const afterSource=await core(p.opcodes.layoutSnapshot);
+          assert(afterSource.nodes.some(node=>node.width===49&&node.height===19),
+            'Superseding a Source reply lost the queued Widget update');
+          assert.equal(afterSource.document,afterSource.publishedDocument);
+          console.log('Superseded Source reply: required callback completes without flashing an obsolete tree or losing the latest desired Widget PASS.');
           // A real update arriving during the state RPC belongs to this
           // capture. It must replace the earlier desired Widget without an
           // ACK for the obsolete configuration.

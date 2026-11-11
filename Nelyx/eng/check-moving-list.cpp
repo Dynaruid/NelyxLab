@@ -10,7 +10,7 @@ void checkLatePageCoverage(){
     const Handle viewport{1,1},listId{2,1};
     const auto make=[&](uint64_t epoch,uint32_t begin){
       auto doc=std::make_shared<Document>(ledger);doc->epoch=epoch;
-      auto parent=std::make_shared<Node>(ledger);parent->id=viewport;parent->kind=wire::kinds::scrollViewport;parent->layout.enabled=true;parent->layout.direction=1;
+      auto parent=std::make_shared<Node>(ledger);parent->id=viewport;parent->kind=wire::kinds::scrollViewport;parent->layout.enabled=true;parent->layout.direction=1;parent->properties.flags=wire::nodePropertyFlags::pageSnapping;
       auto list=std::make_shared<Node>(ledger);list->id=listId;list->parent=viewport;list->kind=wire::kinds::sliver;list->layout.enabled=true;list->layout.direction=1;list->list={epoch,100,begin,begin+4,20,true,false};
       doc->nodes.edit(1).value=parent;doc->nodes.edit(2).value=list;doc->children.set(0,{viewport});doc->children.set(1,{listId});doc->count=2;doc->highWater=2;
       for(uint32_t i=begin;i<begin+4;++i){auto child=std::make_shared<Node>(ledger);child->id={3+i,1};child->parent=listId;child->kind=wire::kinds::box;child->properties.width=200;child->properties.height=20;child->item={i,i+1};doc->nodes.edit(3+i).value=child;doc->children.append(2,child->id);++doc->count;doc->highWater=3+i;}
@@ -40,6 +40,19 @@ void checkLatePageCoverage(){
     prepare(make(3,9));
     if(!view.active||view.active->document->epoch!=3||view.failedDocument)
       throw std::runtime_error("corrected page window did not recover");
+    view.streams[2].active=true;view.streams[2].target=viewport;
+    view.applyDelta(viewport,600,2);prepare(make(4,39));
+    if(!view.active||view.active->document->epoch!=4||offset.offset!=800||offset.requested!=800||offset.deferred)
+      throw std::runtime_error("prepared page destination did not activate during the contact");
+    view.applyDelta(viewport,600,2);prepare(make(5,30));
+    if(view.active->document->epoch!=4||view.failedDocument||!offset.deferred||offset.requested!=1400)
+      throw std::runtime_error("obsolete page coverage replaced the latest logical destination");
+    prepare(make(6,50));
+    if(view.active->document->epoch!=6||offset.offset!=1060||offset.requested!=1400||!offset.deferred)
+      throw std::runtime_error("a completed page checkpoint starved behind newer input");
+    prepare(make(7,69));
+    if(view.active->document->epoch!=7||offset.offset!=1400||offset.requested!=1400||offset.deferred)
+      throw std::runtime_error("latest page destination did not recover after an obsolete preparation");
     view.close(wire::statuses::closed);
   }
   if(ledger->bytes)throw std::runtime_error("late page recovery leaked leases");

@@ -268,6 +268,56 @@ try {
       assert.equal([...inFlight.accepted.values()][0].node.options.color,2);
       const closedWriter:any=new SceneWriter({close:async()=>{}},{pollEvents:false});
       {
+        const projections=new RenderSceneCapture(),r=render('payload-owner'),actions=[];
+        const padding={left:8,top:4,right:8,bottom:4};
+        let revision=0,mode=0,liveReference=false,reject=false;
+        const writes=[[],[]],writers=writes.map(output=>new SceneWriter({subscribeRaw:async()=>{},commit:async commands=>{
+          if(reject)throw Error('payload NACK');output.push(commands.map(bytes=>Buffer.from(bytes).toString('hex')));
+        }},{pollEvents:false,retainedScene:true}) as any);
+        const publicReference=new SceneReference();
+        const options=()=>({
+          layout:{padding},
+          semantics:{role:'button',label:mode?'changed':'same'},
+          onAction:()=>actions.push(revision),
+          ...(mode===2?{onRawInput:()=>{}}:{}),
+          ...(liveReference?{layerLink:()=>({kind:'leader',offset:{x:revision,y:0}})}:{}),
+        });
+        const project=()=>projections.node(r,'',{value:0},0,()=>{
+          const callbackRevision=revision,o=options();o.onAction=()=>actions.push(callbackRevision);
+          return new SceneNode(r.reference,'box',[],o);
+        },()=>project());
+        const update=async()=>{
+          const scene=project();projections.commit([r]);
+          const publicScene=new SceneNode(publicReference,'box',[],options());
+          for(const [index,node] of [[0,publicScene],[1,scene]]){
+            if(reject)await assert.rejects(writers[index].update(node),/payload NACK/);
+            else await writers[index].update(node);
+          }
+          assert.deepEqual(writes[1],writes[0],'Owned payload reuse changed full wire bytes');
+        };
+        await update();const initial=[...writers[1].accepted.values()][0];
+        revision=1;projections.invalidate(r,'semantics');await update();
+        const latest=[...writers[1].accepted.values()][0];
+        assert.equal(latest.config,initial.config,'Equal Source data rebuilt command payloads for a new callback');
+        assert.equal(latest.configInputs,initial.configInputs,'Equal Source data repeated command input snapshots');
+        latest.node.options.onAction('activate');assert.deepEqual(actions,[1],'Payload reuse kept an old callback');
+        assert.equal(latest.node.children.length,0,'Payload callback record retained a Scene subtree');
+        padding.left=12;projections.invalidate(r,'layout');await update();
+        const changedLayout=[...writers[1].accepted.values()][0];
+        assert.notEqual(changedLayout.config,latest.config,'A new capture reused an old nested Source payload');
+        assert.equal(latest.configInputs.get(p.commands.layout).padding.left,8,'Source mutation changed an accepted input snapshot');
+        mode=1;revision=2;projections.invalidate(r,'semantics');reject=true;await update();
+        assert.equal([...writers[1].accepted.values()][0],changedLayout,'NACK adopted unaccepted payload callbacks');
+        reject=false;await update();
+        mode=2;revision=3;projections.invalidate(r,'interaction');await update();
+        mode=0;revision=4;projections.invalidate(r,'interaction');await update();
+        liveReference=true;revision=5;projections.invalidate(r);await update();
+        const live=[...writers[1].accepted.values()][0];
+        revision=6;projections.invalidate(r);await update();
+        assert.notEqual([...writers[1].accepted.values()][0].config,live.config,'Executable reference entered the immutable payload shortcut');
+        projections.clear();
+      }
+      {
         const writer:any=new SceneWriter({}, {pollEvents:false,retainedScene:true});
         writer.nextSlot=37;
         const desired=writer.records(new SceneNode(new SceneReference(),'stack',[
