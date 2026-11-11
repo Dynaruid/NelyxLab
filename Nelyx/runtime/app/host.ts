@@ -1252,6 +1252,14 @@ export class OriginalWidgetHost {
       state.viewport.height > 0 &&
       state.document > state.publishedDocument &&
       state.failedDocument < state.document &&
+      // A reversed/canceled scroll can retire an obsolete page preparation
+      // and request a replacement Source window while keeping the old scene.
+      // That accepted document has no remaining publisher. Let Source answer
+      // the new demand; keep waiting for queued/preparing Content and for an
+      // activated scene whose frame has not been published yet.
+      (state.pendingDocument !== 0n ||
+        state.preparation !== 0n ||
+        state.activeDocument >= state.document) &&
       state.metrics === this.sceneMetrics &&
       state.device === this.sceneDevice &&
       state.fontRevision === this.sceneFontRevision &&

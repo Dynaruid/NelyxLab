@@ -273,10 +273,22 @@ static void ballisticCoverage(){
     check(!overlay.ballistic,"true content boundary did not stop inertia");
     overlay.beginBallistic(-600);input.phase=wire::phases::begin;input.sequence=4;view.processInput(input);
     check(!overlay.ballistic,"new contact did not stop old inertia");
+    viewport->properties.flags=wire::nodePropertyFlags::pageSnapping;
+    overlay.offset=overlay.requested=930;
+    input.phase=wire::phases::end;input.sequence=5;input.velocity=-56435.6;view.processInput(input);
+    check(overlay.startVelocity==-8000&&overlay.velocity==-8000&&overlay.pageTarget==900,
+      "precision lift bypassed the default maximum fling velocity");
+    check(overlay.offset==930&&overlay.requested==930&&overlay.start==930,
+      "fling admission changed accepted contact distance");
+    input.phase=wire::phases::begin;input.sequence=6;view.processInput(input);
+    input.phase=wire::phases::update;input.sequence=7;input.dy=10;input.velocity=56435.6;view.processInput(input);
+    check(overlay.offset==940&&overlay.requested==940,"fling limit discarded a contact update");
+    input.phase=wire::phases::end;input.sequence=8;view.processInput(input);
+    check(overlay.startVelocity==8000&&overlay.pageTarget==1000,"positive precision fling was not bounded");
     view.close(wire::statuses::closed);
   }
   check(ledger->bytes==0,"ballistic coverage leases remain");
-  std::cout<<"Precision velocity and lift/stall/resume/cancel/boundary inertia checks PASS.\n";
+  std::cout<<"Precision velocity and lift/stall/resume/cancel/boundary/default-fling-limit checks PASS.\n";
 }
 static void deferredContactDistance(){
   auto ledger=std::make_shared<Ledger>();

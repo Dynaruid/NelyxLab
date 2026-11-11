@@ -5,6 +5,11 @@
 namespace nelyx::v2 {
 void View::beginScrollBallistic(Handle node,double velocity) {
   if(!active||!active->document->contains(node))return;
+  // Native scroll supports the default Clamping/PageScrollPhysics contract.
+  // Precision input bypasses the canonical drag recognizer, so apply its
+  // kMaxFlingVelocity here too. Keep contact deltas and prefetch hints intact;
+  // only the released fling is bounded, before choosing/sampling its spring.
+  velocity=std::clamp(velocity,-8000.0,8000.0);
   auto& overlay=overlays.at(node.key());const auto& properties=active->document->get(node).properties;
   overlay.beginBallistic(velocity);overlay.pageSpring=false;
   const double extent=(properties.flags&1u)?properties.width:properties.height;

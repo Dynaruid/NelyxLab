@@ -5,7 +5,7 @@
 [CmdletBinding()]
 param(
   [string]$App = '',
-  [ValidateSet('All','List','Calendar')][string]$Scenario = 'All',
+  [ValidateSet('All','List','Calendar','CalendarReverse','Manual')][string]$Scenario = 'All',
   [ValidateRange(0,24)][int]$RapidMonths = 0,
   [ValidateSet(0,60)][int]$PrecisionHz = 0,
   [switch]$CpuProfile,
@@ -41,6 +41,8 @@ $script:eventDrops = 0; $script:appReady = $false
 $script:lastLines = New-Object 'Collections.Generic.Queue[string]'
 $script:segments = New-Object 'Collections.Generic.List[object]'
 $script:deadline = [Nelyx.ScrollCheck.Desktop]::Now + 1200
+$script:physicalInput = $null
+$manualStop = $null
 function Pump {
   foreach ($line in $runner.Take()) {
     if ($line -eq 'V2_PROFILE_BEGIN' -or $line -eq 'V2_GC_BEGIN') {
@@ -64,6 +66,7 @@ function Pump {
     $script:lastLines.Enqueue($line.Substring(0,[Math]::Min(500,$line.Length)))
     if ($line.StartsWith('V2_STATS ')) { $script:stats = $line.Substring(9) | ConvertFrom-Json; ++$script:statsRevision }
     elseif ($line.StartsWith('V2_CORE_STATE ')) { $script:coreState = $line.Substring(14) | ConvertFrom-Json }
+    elseif ($line.StartsWith('V2_INPUT_SOURCE ')) { $script:physicalInput = $line.Substring(16) | ConvertFrom-Json }
     elseif ($line.StartsWith('V2_NATIVE_DELIVERY ')) { $script:delivery = $line.Substring(19) | ConvertFrom-Json }
     elseif ($line.StartsWith('V2_TRACE ')) { $script:trace = $line.Substring(9) | ConvertFrom-Json }
     elseif ($line.StartsWith('V2_CLOSED ')) { $script:closed = $line.Substring(10) | ConvertFrom-Json }
@@ -291,12 +294,12 @@ function Rapid-Months([int]$Count) {
     physicalTrackpad='notVerified'; scanout='notVerified' } | ConvertTo-Json -Compress -Depth 5))
 }
 function Precision60-Months([int]$Count) {
-  if($Count -lt 1){throw '60Hz month injection requires -RapidMonths 1..24.'}
+  if($Count -eq 0 -or [Math]::Abs($Count) -gt 24){throw '60Hz month injection requires 1..24 months in either direction.'}
   $first=Calendar; $rect=[Nelyx.ScrollCheck.Desktop]::Client($window); $dpi=[Nelyx.ScrollCheck.Desktop]::GetDpiForWindow($window)/96.0
   $origin=$first.days[[int]($first.days.Count/2)]
   $viewport=[Nelyx.ScrollCheck.Desktop]::PageViewport($window,$origin.Name)
   $x=($origin.X+$origin.Width/2-$rect.Left)/$dpi; $y=($origin.Y+$origin.Height/2-$rect.Top)/$dpi
-  $width=$viewport.Width/$dpi; $samples=$Count*30; $dx=-$width*$Count/$samples
+  $width=$viewport.Width/$dpi; $samples=[Math]::Abs($Count)*30; $dx=-$width*$Count/$samples
   $before=Get-Stats; $admitted=$script:delivery.injectedPrecisionAdmitted
   if($CpuProfile){$runner.Send('profile-start');Pause 80}
   $task=$runner.Precision60($x,$y,$samples,$dx)
@@ -366,16 +369,55 @@ try {
   Write-Output ('WINDOWS_SCROLL_IDENTITY '+([ordered]@{ supply=$identity; cliPid=$runner.Process.Id; appPid=$native.Id;
     appStartedUtc=$native.StartTime.ToUniversalTime().ToString('o'); hwnd=$window.ToInt64(); dpi=[Nelyx.ScrollCheck.Desktop]::GetDpiForWindow($window) } | ConvertTo-Json -Compress -Depth 5))
   Settle
-  if ($Scenario -ne 'Calendar') {
+  if ($Scenario -eq 'All' -or $Scenario -eq 'List') {
     Wheel-Segment 'warm-forward' 16 -30; Settle
     Wheel-Segment 'warm-reverse' 16 30; Settle
     Wheel-Segment 'new-region' 48 -120; Settle
     Wheel-Segment 'revisit-reverse' 48 120; Settle
   }
-  if ($Scenario -ne 'List') {
+  if ($Scenario -eq 'Manual') {
+    Click-Peer '^Explore components$'; Click-Peer '^Selection$'; Click-Peer '^Choose date$'; Settle
+    $stopName='Local\NelyxScrollCheck.Stop.'+$PID
+    $manualStop=New-Object Threading.EventWaitHandle($false,[Threading.EventResetMode]::ManualReset,$stopName)
+    Write-Output ('WINDOWS_SCROLL_MANUAL_READY '+([ordered]@{stopEvent=$stopName;appPid=$native.Id;hwnd=$window.ToInt64();calendar=(Calendar).name}|ConvertTo-Json -Compress))
+    do {
+      Pause 2000; $manualStats=Get-Stats
+      Write-Output ('WINDOWS_SCROLL_MANUAL_STATE '+([ordered]@{state=$script:coreState;physical=$script:physicalInput;
+        received=$manualStats.received;consumed=$manualStats.consumed;queued=$manualStats.queued;frames=$manualStats.frames;
+        memory=$manualStats.memoryTotal;errors=@($script:errors.ToArray())}|ConvertTo-Json -Compress -Depth 5))
+    } while(!$manualStop.WaitOne(0))
+    $physical=@($script:events|Where-Object {$_.Stage -eq 7 -and $_.A -eq 2})
+    if($physical.Count){
+      $firstPhysical=$physical[0].At; $lastPhysical=$physical[-1].At
+      $during=@($script:events|Where-Object {$_.At -ge $firstPhysical -and $_.At -le $lastPhysical})
+      $frames=@($during|Where-Object {$_.Stage -eq 27}); $pauses=New-Object 'Collections.Generic.List[object]'
+      for($i=1;$i -lt $frames.Count;++$i){
+        $before=$frames[$i-1]; $after=$frames[$i]; $gap=($after.At-$before.At)*1000
+        if($gap -lt 100){continue}
+        $received=@($physical|Where-Object {$_.At -gt $before.At -and $_.At -le $after.At})
+        if(!$received.Count){continue}
+        $pauses.Add([pscustomobject]@{elapsedMs=$gap;physicalSamples=$received.Count;
+          inputSpanMs=($received[-1].At-$received[0].At)*1000;beforeDocument=$before.B;afterDocument=$after.B})
+      }
+      # These are native reception/publication intervals, not hardware sample
+      # times or scanout. inputSpanMs makes idle inside a frame gap explicit.
+      Write-Output ('WINDOWS_SCROLL_MANUAL_TIMING '+([ordered]@{physicalSamples=$physical.Count;
+        appTurns=(Gap-Summary @($during|Where-Object {$_.Stage -eq 21}|ForEach-Object {$_.B}));
+        publicationPauses=@($pauses|Sort-Object elapsedMs -Descending|Select-Object -First 12);
+        scanout='notVerified';performanceAccepted=$false}|ConvertTo-Json -Compress -Depth 5))
+    }
+    Write-Output ('WINDOWS_SCROLL_MANUAL_INPUT '+(@($script:events|Where-Object {$_.Stage -ge 2 -and $_.Stage -le 14}|Select-Object -Last 120)|ConvertTo-Json -Compress -Depth 4))
+    Write-Output ('WINDOWS_SCROLL_MANUAL_PEERS '+(@([Nelyx.ScrollCheck.Desktop]::Peers($window))|ConvertTo-Json -Compress -Depth 3))
+  }
+  if ($Scenario -ne 'List' -and $Scenario -ne 'Manual') {
     Click-Peer '^Explore components$'; Click-Peer '^Selection$'; Click-Peer '^Choose date$'; Settle
     $first=Calendar; Capture 'calendar-initial'
-    if($PrecisionHz -eq 60){
+    if($Scenario -eq 'CalendarReverse'){
+      # Reproduce the first gesture on a fresh picker, before any button or
+      # forward movement has prepared neighbouring months. Select immediately
+      # afterwards: cancel/resize must not conceal a stuck input/Source owner.
+      Precision60-Months -2; $next=Calendar; $precisionNext=$next
+    } elseif($PrecisionHz -eq 60){
       Precision60-Months $RapidMonths; $first=Calendar; $next=$first; $precisionNext=$first
     } else {
       if($RapidMonths -gt 0){Rapid-Months $RapidMonths; $first=Calendar}
@@ -390,11 +432,13 @@ try {
       if ((Wait-Month $first.date).date -ne $first.date) { throw 'Injected precision reversal did not restore the calendar month.' }
       Drag-Month 'mouse-drag-next' 1; Drag-Month 'mouse-drag-reverse' -1
     }
-    Precision-Segment 'precision-cancel' -2 'cancel'
-    $beforeResize=Calendar
-    [Nelyx.ScrollCheck.Desktop]::Resize($window,80); Settle
-    if ((Calendar).date -ne $beforeResize.date) { throw 'Resize lost the calendar month anchor.' }
-    [Nelyx.ScrollCheck.Desktop]::Resize($window,-80); Settle
+    if($Scenario -ne 'CalendarReverse'){
+      Precision-Segment 'precision-cancel' -2 'cancel'
+      $beforeResize=Calendar
+      [Nelyx.ScrollCheck.Desktop]::Resize($window,80); Settle
+      if ((Calendar).date -ne $beforeResize.date) { throw 'Resize lost the calendar month anchor.' }
+      [Nelyx.ScrollCheck.Desktop]::Resize($window,-80); Settle
+    }
     $final=Calendar; $fifteen=@($final.days | Where-Object { $_.Name -match '^15,' })[0]
     [Nelyx.ScrollCheck.Desktop]::Click($window,$fifteen); Pause 200; Capture 'calendar-selected'
     Click-Peer '^OK$'; Settle
@@ -413,8 +457,8 @@ try {
   $longDispatch=@(); $longQueue=@(); $longLock=@()
   if ($script:trace) { $longDispatch=@($script:trace.samples | ForEach-Object {$_.elapsedMs}); $longQueue=@($script:trace.samples | ForEach-Object {$_.queueMs}); $longLock=@($script:trace.samples | ForEach-Object {$_.lockHeldMs}) }
   $stalls=@($script:segments | Where-Object { $_.driverTimingUsable -and $_.publicationGaps.ge500 -gt 0 })
-  $usable=!$NoTrace -and $lost -eq 0 -and $runner.Dropped -eq 0
-  Write-Output ('WINDOWS_SCROLL_RESULT '+([ordered]@{ functional='PASS'; syntheticStallGoal= $(if(!$usable){'notVerified'}elseif($stalls.Count){'FAIL'}else{'PASS'});
+  $usable=$Scenario -ne 'Manual' -and !$NoTrace -and $lost -eq 0 -and $runner.Dropped -eq 0
+  Write-Output ('WINDOWS_SCROLL_RESULT '+([ordered]@{ functional=$(if($Scenario -eq 'Manual'){'notVerified'}else{'PASS'}); syntheticStallGoal= $(if(!$usable){'notVerified'}elseif($stalls.Count){'FAIL'}else{'PASS'});
     nativeDelivery=$script:delivery; dispatch=(Gap-Summary $longDispatch); contentQueue=(Gap-Summary $longQueue); coreLockHeld=(Gap-Summary $longLock);
     contentTiming=$finalStats.contentTiming; ringLost=$lost; outputDropped=$runner.Dropped;
     ringThrough=$(if($mapping){$mapping.Through}else{0}); traceOverwritten=$(if($script:trace){$script:trace.overwritten}else{0});
@@ -428,6 +472,7 @@ try {
     observedEvents=$script:events.Count; outputDropped=$(if($runner){$runner.Dropped}else{0}) } | ConvertTo-Json -Compress -Depth 4))
   throw
 } finally {
+  if($manualStop){$manualStop.Dispose()}
   # Only the CLI and native PID created above are eligible for cleanup. No
   # process-name kill, user window cleanup or computed recursive deletion.
   if ($runner) {

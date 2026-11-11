@@ -26,6 +26,8 @@ try {
         import {EngineClient} from '../../../runtime/engine-client/client.ts';
         import {createWasmTransport} from '../../../runtime/engine-client/wasm.ts';
         import {OriginalWidgetHost} from '../../../runtime/app/host.ts';
+        import {OriginalNativeNode} from '../../../runtime/app/native-node.ts';
+        import {ValueKey} from '@nelyx/core/foundation/key';
         import {Align,SizedBox} from '@nelyx/core/framework/widgets/basic';
         import {LayoutBuilder} from '@nelyx/core/framework/widgets/layout-builder';
         const factory=(await import(pathToFileURL(path.resolve(process.argv[2]??'Nelyx/engine/dist/single-worker/engine.mjs')).href)).default;
@@ -190,6 +192,43 @@ try {
           assert.equal(activated.publishedDocument,activated.document);
           assert.equal(activated.preparation,0n);assert.equal(activated.pendingDocument,0n);
           console.log('App updates: pre-capture desired Widget retained, ACK update retained, real pending Content and publication fences preserved PASS.');
+          // A late fixed-page window can be canceled by Core after a reversal.
+          // Exercise the real activation rejection, then let the same Source
+          // host replace that document without waiting for an impossible frame.
+          holdPublication=false;
+          const pages=(begin)=>new OriginalNativeNode('scrollViewport',[
+            new OriginalNativeNode('sliver',Array.from({length:4},(_,i)=>{
+              const index=begin+i;
+              return new OriginalNativeNode('box',[],{key:new ValueKey(index),
+                listItem:{index,key:BigInt(index+1)},layout:false,properties:{width:100,height:60}});
+            }),{layout:{direction:'vertical'},list:{fixed:true,generation:1n,count:100,
+              begin,end:begin+4,estimate:60}}),
+          ],{layout:{},properties:{initialScrollOffset:600}});
+          await app.update(pages(9));
+          const beforeObsolete=await inspectState();
+          assert.equal(beforeObsolete.document,beforeObsolete.publishedDocument);
+          await app.update(pages(12));
+          const obsolete=await inspectState();
+          assert(obsolete.document>obsolete.activeDocument,'Fixture did not cancel its obsolete page window');
+          assert.equal(obsolete.activeDocument,beforeObsolete.activeDocument);
+          assert.equal(obsolete.publishedDocument,beforeObsolete.publishedDocument);
+          assert.equal(obsolete.pendingDocument,0n);assert.equal(obsolete.preparation,0n);
+          assert.equal(obsolete.failedDocument,0n,'Obsolete coverage was treated as a failed document');
+          const terminal=await core(p.opcodes.pollEvents);
+          assert(terminal.events.some(event=>event.kind===p.events.preparationCanceled&&event.status===p.statuses.superseded),
+            'The real Core did not cancel the obsolete preparation');
+          view.waitForChange=async()=>{throw Error('Source waited for a canceled page document with no remaining publisher');};
+          try { await app.update(pages(9)); }
+          finally { view.waitForChange=waitForChange; }
+          const recovered=await inspectState();
+          assert(recovered.document>obsolete.document);
+          assert.equal(recovered.document,recovered.activeDocument);
+          assert.equal(recovered.document,recovered.publishedDocument);
+          assert.equal(recovered.preparation,0n);assert.equal(recovered.pendingDocument,0n);
+          await app.update(new Align(new SizedBox(32,18)));
+          const afterRecovery=await inspectState();
+          assert.equal(afterRecovery.document,afterRecovery.publishedDocument,'Subsequent App update remained blocked');
+          console.log('Canceled page preparation: real Core superseded terminal, Source replacement and subsequent publication recover without dropping live Content/publication fences PASS.');
         } finally {
           await app.close();await view.close();await client.close();
         }

@@ -143,7 +143,7 @@ PowerShell이 물리 트랙패드 접촉을 만들어낸다고 가정하지 않�
 - [ ] 연속12개월의 ≥500ms 정지를 제거했다.
 - [ ] 사용자가 실제 트랙패드의 주기적 멈춤 제거를 확인했다.
 
-**현재 실행점:** 최신 변경과 결과는 **§19**, 남은 개편 경계는 **§16과 §19의 잔여 범위**다. §7–12는 첫 묶음, §14–15는 이전 공급의 결과다. 합성 기능 확인을 물리 트랙패드의 멈춤 해결로 확대하지 않는다.
+**현재 실행점:** 날짜 선택기 입력 불능의 실제 재현·수정은 **§20**, 이전 성능 개편의 잔여 경계는 **§16과 §19의 잔여 범위**다. §7–12는 첫 묶음, §14–19는 이전 공급의 결과다. 합성 기능 확인을 물리 트랙패드의 멈춤 해결로 확대하지 않는다.
 
 ## 7. 2026-11-11 상세 감사와 구현
 
@@ -395,3 +395,43 @@ ObservationStream은 provider module graph에도 포함되므로 App만 빌드�
 이번 단계에서 캡처/profile/로그 파일을 만들지 않았고 진단 출력은 기존 bounded 수집기를 사용했다. 소유 프로세스·mapping·timer는 finally로 닫았으며 build staging/검사 임시 폴더의 잔류 없음과 현재 dist 보존을 확인했다. 최신 변경의 ordinary list 분기는 동일하므로 직전 All의 목록을 반복하지 않고 바뀐 PageView를 현재 공급에서 재검증했다. Android/Web 제품 UI와 실제 픽셀·물리 트랙패드·scanout은 이번에 검증하지 않았다.
 
 **잔여 범위:** Flutter 원본의 요청 합치기/자식 재사용/범위 소유권을 적용했으나, 월 경계의 긴 Source build·capture·Scene 준비는 여전히 남는다. 이전523ms, 중간558ms, 최신539ms의 실행별 차이를 개선율로 주장하지 않는다. 전체 작업은 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**다. §16의 kind별 불변 payload 공유와 필수 LayoutBuilder 응답 이후의 반복 구성 경계가 계속 남으며, 별도 optional 준비 큐·게시 fence 생략·callback/animation 단축으로 이를 우회하지 않는다.
+
+## 20. 2026-11-12 실제 트랙패드 월 이동 뒤 날짜 선택 불능
+
+사용자가 **“datepicker에서 바로 트랙패드로 과거 두 달 정도 이동하려 했는데 이동이 안 되고 그때부터 날짜 선택도 안 된다”**고 보고했고, 이어 직접 조작하면서 추적할 것을 요청했다. 기존 공급을 먼저 실행해 실제 DirectManipulation 입력과 Core 상태를 PowerShell로 관측했다.
+
+### 20.1 재현과 원인
+
+- 기존 App `716f79a6…` / `2a51ebda…`의 새 `CalendarReverse` 합성 시나리오는 처음 연 달력에서 버튼이나 선행 이동 없이 **2026-11→2026-09**, 즉시 **2026-09-15** 선택·확정을 통과했다. 느린 합성 입력만으로 사용자 문제가 재현되지 않았으며 이를 해결 근거로 쓰지 않았다.
+- 같은 공급의 **사용자 물리 트랙패드 실행**에서는 실제 precision185개 접수·거부0, 종료12회가 관측됐다. 이후 **document73 / activeDocument58 / publishedDocument58 / pendingDocument0 / preparation0 / failedDocument0** 상태가 반복됐다. 창의 월은 October2026에 남았고, 후속 입력은 계속 수신됐지만 canceled87까지 증가했다. injected precision은0이며 ringLost0/outputDropped0이었다. 물리 입력 미수신이나 GC 한 번의 지연으로 설명하지 않는다.
+- Core의 `View::activate`는 늦게 완성된 fixed-page 창이 현재 표시 위치를 덮지 못하면 `preparationCanceled/superseded`를 보내고 준비를 폐기한다. 이전 scene을 유지하며 `needChildren`으로 새 Source 창을 요청하는 정상 경로다. 그러나 `OriginalWidgetHost.waitForContent`는 **accepted document > published document**만으로 해당 문서의 게시를 계속 기다렸다. 이미 준비가 취소돼 그 문서를 게시할 owner가 없는데도 새 Source 응답을 막아, 월/header/grid 갱신과 이후 날짜 선택이 진행되지 않았다.
+
+### 20.2 수정과 회귀
+
+- [host.ts](Nelyx/runtime/app/host.ts)의 게시 대기는 **pending Content 또는 준비가 남아 있거나, 해당 문서가 이미 활성화되어 게시를 기다리는 경우**에 유지한다. accepted document보다 active document가 오래됐고 pending/preparation이 모두0이면, 취소된 문서의 게시 대신 새 Source 준비를 진행한다. 실제 준비 중인 문서·LayoutBuilder 요청·활성화 후 미게시 frame·metrics/device/font fence·ACK/retirement는 보존한다. 시간 경과나 모든 stale을 성공 처리하는 우회가 아니다.
+- 첫 수정의 물리 재확인에서 사용자는 **“이동은 되지만 일시적으로 멈춤이 발생하고1초 정도 뒤에 갱신됨”**이라고 보고했다. 추적상 document93까지 게시가 회복됐지만, 이어진 빠른 접촉 후 **document104 / active95 / published95 / pending0 / preparation0**이 남았다. [scroll.ts](Nelyx/runtime/app/scroll.ts)의 `observeDemand`가 취소된 요청 창을 여전히 in-flight로 취급해 이전 게시 scene의 대체 범위 요청을 무시했다. 최신 accepted document 관찰이 준비 취소 상태를 증명하고 전송 중 transaction도 없을 때만 이 범위 fence를 해제한다. 이전 관찰·Source 미제출 변경·실제 pending/preparation은 계속 보호한다. `recoveredCanceledWindows` 카운터로 실제 발동을 구분한다.
+- 같은 물리 실행은 release velocity **-56,435.6px/s**를 기록했다. 지원하는 기본 Clamping/PageScrollPhysics와 canonical drag recognizer는 최대 fling 속도8,000px/s를 사용하지만 precision 경로는 이를 거치지 않았다. [scheduler.cpp](Nelyx/engine/core/scheduler/scheduler.cpp)의 `beginScrollBallistic`에서 기존 기본 상한을 적용한다. 손가락의 입력 delta·누적 이동 거리·준비 hint는 유지하고 손을 뗀 뒤 spring/friction 초기 속도만 제한한다. 과도한 spring overshoot가 반복해서 다른 월 준비를 요청하는 경로를 줄이기 위한 수정이며, 이것만으로1초 지연 해결을 확정하지 않는다.
+- [check-immediate-reads.mjs](Nelyx/eng/check-immediate-reads.mjs)에 실제 Core와 동일 App host로 고정 페이지9–13을 게시한 뒤, 현재 위치를 덮지 않는12–16 준비를 취소시키는 회귀를 추가했다. 실제 `superseded` terminal과 document/active/published 분리를 확인하고, 후속 Source 창9–13과 다음 일반 Widget 갱신이 게시되는지 검증한다. 메모리 내에서 **수정 전 대기 조건만 복원하면 `Source waited for a canceled page document with no remaining publisher`로 실패**하고 현재 코드는 PASS한다. 기존 real pending Content·acquire/release 뒤 미게시 frame의 대기 검사도 함께 PASS했다.
+- `check-page-observation.mjs`의 취소된 창 요청 fixture는 수정 전18–22를 유지해 실패하고 수정 후17–21로 복구한다. pending Content·준비 중·이전 document·활성 문서·전송 중 transaction에서는 새 창을 되돌리지 않는 검사도 PASS한다. `check-frame-reuse.cpp`에는 실제 Core input end로 ±56,435.6px/s를 전달해 default fling 상한·page target·contact delta 보존을 검증하는 회귀를 추가했으며, 이전 native 공급은 해당 상한 검사에서 실패했다.
+- page observation·explicit controller/resize anchor, notification/lost wake, child reconciliation 검사와 Core ESM/declaration/type 빌드, 변경 TS/검사 파일 lint/format, PowerShell parser를 통과했다. 모든 검사는20분 timeout을 사용한다. 후속 Core fling 수정은 native/single-worker/threaded와 Windows App SDK host를 포함한 현재 engine 공급 및 App 번들로 다시 빌드했다. 새 native library의 `check-frame-reuse` 전체 묶음이 PASS했고 새 공급의 실제 Core를 이용한 Source 복구·게시 fence 검사도 PASS했다. 공급에 포함된 Web 산출물 빌드는 Web 제품 UI 검증이 아니다.
+- [check-windows-scroll.ps1](Nelyx/eng/check-windows-scroll.ps1)에 `CalendarReverse`와 `Manual`을 추가했다. 전자는 처음부터 과거 두 달 이동 후 cancel/resize로 회복시키기 전에 날짜를 확정한다. 후자는 실제 입력·Core 상태를 메모리에서 수집하고2초마다 상태를 읽으며, 출력한 `Local\NelyxScrollCheck.Stop.<helperPid>` event로 종료한다. 수동 실행 자체를 functional/성능 PASS로 표시하지 않는다. 기존20분 상한·bounded ring·finally 회수를 유지한다.
+
+### 20.3 현재 공급과 Windows 확인
+
+최종 engine/source는 **`ac5e1ec0ec761df28aef25ff6622c560ac85f26a2ecd9512ffb49129e903cb3d`**, ABI2/schema313408118이다. App JS는 **`5baad8b21d2709714e15a29364c602ff9c6fafb67b354bbe9c35ffb5bb13dd1d`**, HBC는 **`6e8347c7565880dbbe2c38496cf195728f59127055dc6b48f81297c57bde6dea`**다. 재빌드 뒤 sourceIdentity·engine356/App10 files·실제 PID/HWND/DPI192 연결을 검증했다. 아래 직전 공급은 host 대기 수정만 반영한 engine `97419211…`, App JS `bcbf54c3…` / HBC `77944aca…`이며 최종 공급 결과와 구분한다.
+
+| 공급·검사 | 결과와 한계 |
+| --- | --- |
+| 직전 공급 / 짧은 `Calendar` 전체 기능 | 버튼 next/previous, precision next/reverse/cancel, OS mouse drag next/reverse, resize anchor, **2026-11-15** 선택·확정 PASS. 다섯 활성 구간 게시 gap 최대49.348/53.999/49.412/48.658/53.464ms, 각 ≥100ms0. |
+| 직전 공급 / 처음부터 과거 두 달 | `CalendarReverse`의60Hz60 update, start/end 포함62개 접수·소비·거부0. **2026-11→2026-09**, 별도 cancel/resize 없이 **2026-09-15** 선택·확정 PASS. 활성 게시 최대267.009ms, ≥500ms0. 이 구간은 수정 전 공급에서도 통과했으므로 결함 재현의 대체 증거가 아니다. |
+| 직전 공급 / 물리 재확인 | 사용자 보고는 월 이동 가능·약1초 뒤 갱신이다. precision221개 접수·거부0, 이후 document104/active95/published95의 범위 요청 억제를 발견해 두 번째 수정과 fling 상한을 추가했다. **이 공급을 문제 해결로 판정하지 않는다.** |
+| 이전 실행 종료·회수 | 위 두 합성 실행 및 수정 전/첫 수정 물리 실행 모두 ringLost0/outputDropped0, status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0. |
+| 최종 공급 / `Calendar` 전체 기능 | 버튼·precision·OS drag 왕복, cancel, resize, **2026-11-15** 선택·확정 PASS. 다섯 활성 구간 게시 gap 최대66.129/60.917/49.062/37.795/42.096ms, 각 ≥100ms0. 이 느린 기능 시나리오에서는 `recoveredCanceledWindows=0`이었다. |
+| 최종 공급 / 사용자 물리 확인 | 사용자가 **“이동·선택은 되지만 약1초 멈춤이 남습니다”**라고 확인했다. 실제 precision206개 접수·거부0, 종료19회, injected0. 최종 **document117=active117=published117**, pending0/preparation0/failed0, 전체 received447=consumed447/canceled0이다. `recoveredCanceledWindows=1`로 새 복구 경로가 실제 발동했다. 날짜 선택 기능 회복에 대한 사용자 확인과 지연 미해결을 구분한다. |
+| 최종 공급 / 물리 지연 | 물리 입력 구간 App turn 최대**502.046ms**. 게시 doc51→57 공백**1,081.727ms** 안에 실제 입력33개가1,036.616ms에 걸쳐 들어왔고, doc104→108 공백**1,013.961ms**에는20개/599.171ms가 있었다. doc59→76 공백3,299.560ms도48개/2,129.723ms의 입력을 포함한다. 간격 전체를 연속 하드웨어 접촉이나 scanout 정지로 바꾸지 않으며, **사용자의 약1초 지연 보고를 해결 완료로 처리하지 않는다.** |
+| 최종 공급 / Source 비용 |119 Source passes/117 transactions, build/capture/scene 각각 최대188/115/269ms, 완료한 pass의 wait 최대38ms. layout/publication 관찰 최대530/529ms는 비동기 대기까지 포함하며 서로 합산하지 않는다. 긴 Source 구성·캡처·Scene 갱신과 여러 준비/ACK 왕복 비용이 여전히 남는다. |
+| 최종 공급 / 종료·회수 | 자동 Calendar와 물리 실행 모두 ringLost0/outputDropped0, status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0. 물리 실행 전체 memoryPeak580240140 bytes. 두 실행의 소유 창·프로세스·mapping·timer를 정상 종료했다. |
+
+영구 로그·캡처·profile·설치본은 만들지 않았고 이번 실행의 Core/engine/App build staging 및 native 검사 임시 디렉터리를 회수했다. 현재 dist와 실행 전부터 있던 cache는 보존한다. 이번 수정은 **취소된 준비를 영구히 기다리는 기능 결함·대체 범위 요청 억제·precision fling 기본 상한 누락**을 처리했다. §19의12개월 ≥500ms 정지나 전체 물리/표시/scanout 성능을 통과로 바꾸지 않는다. 전체 work10-a1은 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`를 유지한다.
+
+**다음 실행점:** 현재 공급을 유지한 채 §16의 Source build→capture→SceneWriter 비용과 새 월의 여러 LayoutBuilder 응답/ACK 왕복을 줄이는 개편으로 이어간다. 이번 실제 입력 불능을 단순 성능 정지와 다시 혼동하지 않는다. 다음 변경은 `host.ts`의 retained builder 갱신/Source pass, `scroll.ts`의 bounded 월 창 교체, `scene.ts`의 records/diff/관찰 경계를 대조하고 사용자 물리 결과를 다시 확인한다. 게시 fence 생략·callback/200ms animation 단축·준비 창 무제한 확대는 적용하지 않는다.

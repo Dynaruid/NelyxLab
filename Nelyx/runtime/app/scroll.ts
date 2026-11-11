@@ -90,7 +90,7 @@ interface Host {
   fail: Fail;
   error(error: unknown): void;
   canDispatch?(): boolean;
-  counters?: { preservedRequestedWindows: number };
+  counters?: { preservedRequestedWindows: number; recoveredCanceledWindows: number };
 }
 class NativeActivity extends ScrollActivity {
   get shouldIgnorePointer(): boolean {
@@ -976,7 +976,7 @@ class NativeListState extends NativeScrollState<NativeList> {
         !list.fixed
       )
         return;
-      this.observeDemand(list.demandBegin, list.demandEnd, parent, list);
+      this.observeDemand(list.demandBegin, list.demandEnd, parent, list, snapshot);
       return;
     }
     this.position.observe(parent, node, this.widget.list.itemExtent!, snapshot.activeDocument);
@@ -999,13 +999,14 @@ class NativeListState extends NativeScrollState<NativeList> {
       }
       focus = observationNode(snapshot, focus.parent);
     }
-    this.observeDemand(list.demandBegin, list.demandEnd, parent, list);
+    this.observeDemand(list.demandBegin, list.demandEnd, parent, list, snapshot);
   };
   private observeDemand(
     demandBegin: number,
     demandEnd: number,
     viewport?: EngineNodeSnapshot,
     materialized?: { readonly begin: number; readonly end: number },
+    snapshot?: EngineResponse,
   ): void {
     if (demandBegin >= this.begin && demandEnd <= this.end) return;
     const coverage = viewport?.preparedCoverage;
@@ -1019,8 +1020,23 @@ class NativeListState extends NativeScrollState<NativeList> {
       // A late observation still describes its own materialized window. It
       // must not undo a new window that Source has already requested while
       // that transaction/preparation is in flight. Real misses bypass this.
-      if (materialized && (materialized.begin !== this.begin || materialized.end !== this.end))
-        return;
+      if (materialized && (materialized.begin !== this.begin || materialized.end !== this.end)) {
+        const view = this.widget.host.view;
+        // Core can cancel a late page window and retain its published
+        // predecessor. That predecessor now requests replacement children;
+        // the canceled window no longer owns an in-flight preparation. Only
+        // a current accepted observation may release this range fence.
+        if (
+          !snapshot ||
+          view.hasPendingTransaction ||
+          snapshot.document !== view.documentEpoch ||
+          snapshot.document <= snapshot.activeDocument ||
+          snapshot.pendingDocument !== 0n ||
+          snapshot.preparation !== 0n
+        )
+          return;
+        if (this.widget.host.counters) ++this.widget.host.counters.recoveredCanceledWindows;
+      }
     }
     const begin = Math.min(demandBegin, Math.max(0, this.count - this.windowSize)),
       end = Math.min(this.count, begin + this.windowSize);
@@ -1294,7 +1310,10 @@ export function installOriginalScrolling(
   canDispatch: () => boolean = () => true,
 ): {
   readonly scheduler: FrameScheduler;
-  readonly counters: Readonly<{ preservedRequestedWindows: number }>;
+  readonly counters: Readonly<{
+    preservedRequestedWindows: number;
+    recoveredCanceledWindows: number;
+  }>;
   now(): number;
   frame(at: number): void;
   visible(value: boolean): void;
@@ -1304,7 +1323,7 @@ export function installOriginalScrolling(
 } {
   let coreOrigin: number | undefined,
     appOrigin = 0;
-  const counters = { preservedRequestedWindows: 0 };
+  const counters = { preservedRequestedWindows: 0, recoveredCanceledWindows: 0 };
   const now = () => (typeof performance === 'undefined' ? Date.now() : performance.now());
   const scheduler = new NativeFrameScheduler({ now }, () => {
     void view.request(p.opcodes.requestAppFrame).catch((cause) => {

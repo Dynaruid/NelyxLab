@@ -93,6 +93,25 @@ try {
         pages.observeDemand(16,20,covered,{begin:19,end:23});assert.equal(builds,2,'An uncovered destination waited for a window cohort');
         pages.position.desiredOffset=1900;
         pages.observeDemand(15,19,{...covered,deferred:true},{begin:19,end:23});assert.equal(builds,3,'A visible coverage miss was deferred');
+        const abandoned={document:2n,activeDocument:1n,pendingDocument:0n,preparation:0n};
+        host.view.documentEpoch=2n;host.counters={preservedRequestedWindows:0,recoveredCanceledWindows:0};
+        Object.assign(pages,{begin:18,end:22});
+        for(const snapshot of [
+          {...abandoned,pendingDocument:2n},
+          {...abandoned,preparation:5n},
+          {...abandoned,document:1n},
+          {...abandoned,activeDocument:2n},
+        ])pages.observeDemand(17,21,covered,{begin:19,end:23},snapshot);
+        assert.equal(builds,3,'An old observation or live preparation rolled back the requested window');
+        host.view.hasPendingTransaction=true;
+        pages.observeDemand(17,21,covered,{begin:19,end:23},abandoned);
+        assert.equal(builds,3,'A pending transaction lost its requested window');
+        host.view.hasPendingTransaction=false;
+        pages.observeDemand(17,21,covered,{begin:19,end:23},abandoned);
+        assert.deepEqual([pages.begin,pages.end],[17,21],
+          'Canceled page preparation left its replacement demand suppressed as in-flight');
+        assert.equal(builds,4);assert.equal(host.counters.recoveredCanceledWindows,1);
+        host.view.documentEpoch=1n;
         pageController.dispose();
         const retainedPage=new PageController({initialPage:10});let childBuilds=0;
         const delegate=new SliverChildBuilderDelegate(()=>{++childBuilds;return SizedBox.shrink();},{childCount:100});
