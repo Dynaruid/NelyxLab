@@ -501,6 +501,7 @@ struct View {
   void cancelStream(uint32_t stream, uint32_t reason);
   void cancelInput(uint32_t reason);
   void requestContent();
+  bool activateRetainedUpdate(const Installed&);
   void contentStep(uint32_t quota);
   uint32_t startQuery(Reader,uint64_t);
   void queryStep(uint32_t);

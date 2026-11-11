@@ -33,6 +33,8 @@ try {
     path.join(import.meta.dirname, 'check-moving-list.cpp'),
     path.join(import.meta.dirname, 'check-date-layout.cpp'),
     path.join(import.meta.dirname, 'check-transaction-sharing.cpp'),
+    path.join(import.meta.dirname, 'check-materialization.cpp'),
+    path.join(import.meta.dirname, 'check-live-paint-activation.cpp'),
     path.resolve(
       process.argv.slice(2).find((arg) => arg.endsWith('.lib')) ??
         path.join(root, 'Nelyx/engine/dist/native/nelyx_engine_v2.lib'),

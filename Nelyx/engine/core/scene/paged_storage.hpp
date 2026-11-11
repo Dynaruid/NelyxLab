@@ -28,6 +28,10 @@ public:
   uint64_t pageCopies=0,directoryCopies=0;
   explicit PagedStorage(std::shared_ptr<Ledger> owner):ledger(std::move(owner)){}
   PagedStorage(const PagedStorage& table):ledger(table.ledger),directories(table.directories){}
+  PagedStorage& operator=(const PagedStorage& table){
+    if(this!=&table){ledger=table.ledger;directories=table.directories;pageCopies=directoryCopies=0;}
+    return *this;
+  }
   size_t size()const{return Count;}
   const T& operator[](size_t index)const {
     const auto& directory=directories.at(index/PageSize/Fanout);

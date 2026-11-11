@@ -35,6 +35,14 @@
 #include "nelyx_skia/paragraph_queries.h"
 
 namespace nelyx::v2::native {
+// Layout/clip/opacity owners still participate in traversal, but do not need
+// a recorded Picture when paintShape and paintNative have no work. Keep path
+// preparation and all paragraph/image/native paint on their existing paths.
+inline bool emptyOwnPicture(const Node& node) {
+  return node.kind!=wire::kinds::paragraph&&node.kind!=wire::kinds::editable&&
+    node.kind!=wire::kinds::image&&(!node.nativePaint||node.nativePaint->frameDependent||node.nativePaint->entries.empty())&&!node.graphics.path&&
+    !(node.color>>24)&&!node.graphics.shadowColor&&!node.graphics.strokeColor;
+}
 struct Prepared {
   std::vector<std::shared_ptr<ExternalLease>> memory;
   struct EditorParagraph {
@@ -200,6 +208,7 @@ class ContentProvider {
     using namespace skia::textlayout;
     for (const auto& slot : p.document->nodes) if (slot.value) {
       const auto& n = *slot.value;
+      if(emptyOwnPicture(n))continue;
       const auto previous=recorded.find(n.id.key());
       if(!n.editing&&previous!=recorded.end()) {
         const auto& cached=*previous->second;
@@ -388,18 +397,21 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
         if(n.graphics.blur>0)layer.setImageFilter(SkImageFilters::Blur(float(n.graphics.blur),float(n.graphics.blur),SkTileMode::kDecal,nullptr));
         canvas->saveLayer(nullptr,&layer);}
       if(const auto mask=nativeLinearMask(item.paint.get())){const auto bounds=nativeMaskBounds(*mask);canvas->clipRect(bounds,false);canvas->saveLayer(&bounds,nullptr);}
-      const auto found=prepared.pictures.find(item.node.key());if(found==prepared.pictures.end())throw std::runtime_error("Native prepared generation missing");
+      const auto found=prepared.pictures.find(item.node.key());
+      if(found==prepared.pictures.end()&&!emptyOwnPicture(n))throw std::runtime_error("Native prepared generation missing");
       const auto geometry=frame.focusNode==n.id?n.textGeometry:nullptr;
       const auto rect=[&](const TextRect& r,SkColor color){SkPaint paint;paint.setColor(color);canvas->drawRect(SkRect::MakeXYWH(float(r.x),float(r.y),float(r.width),float(r.height)),paint);};
       if(geometry)for(const auto& r:geometry->selection)rect(r,0x663582f6);
       // Opacity and blur already wrap the subtree above. A default paint here
       // adds an isolation layer and changes overlapping strut glyph rounding.
+      if(found!=prepared.pictures.end()) {
 #if defined(_WIN32) && defined(SK_GRAPHITE) && !defined(SK_ENABLE_OPTIMIZE_SIZE)
       if(n.nativePaint&&std::any_of(n.nativePaint->entries.begin(),n.nativePaint->entries.end(),[](const auto& e){return e.kind==wire::nativePaintKinds::elevationShadow;})){
         NativeShadowReplayCanvas replay(*canvas);replay.drawPicture(found->second);
       }else
 #endif
       canvas->drawPicture(found->second);
+      }
       drawPaint(item,false);
       if(n.control.kind){const auto& c=n.control;const auto& state=frame.properties[n.id.slot];SkPaint paint;paint.setAntiAlias(true);
         const auto color=[&](uint32_t argb){paint.setColor(argb);paint.setAlphaf(paint.getAlphaf()*(c.disabled?0.4f:1.f));};

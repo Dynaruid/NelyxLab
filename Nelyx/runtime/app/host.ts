@@ -1333,6 +1333,11 @@ export class OriginalWidgetHost {
               state.fontRevision === this.sceneFontRevision
             ) {
               const roots = new Set(this.root.renderObjects);
+              // Capture registrations are renewed independently; Map insertion
+              // order is not render ancestry. Like Flutter's layout flush,
+              // update ancestors before descendants that consume their Widget
+              // configuration, otherwise a later parent dirties an answered child.
+              retainedBuilders.sort((a, b) => a.depth - b.depth);
               for (const render of retainedBuilders) {
                 if (render.debugDisposed) continue;
                 let root = render;

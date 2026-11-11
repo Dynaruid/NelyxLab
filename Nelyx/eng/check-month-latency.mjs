@@ -27,6 +27,21 @@ try {
     try {
       page = await context.newPage();
       page.setDefaultTimeout(15000);
+      if (process.argv.includes('--full-pictures'))
+        await page.route(/\/(owner|coordinator)\.js$/, async (route) => {
+          const response = await route.fetch(),
+            original = await response.text();
+          const marker = 'function emptyOwnPicture(node) {';
+          assert.equal(
+            original.split(marker).length,
+            2,
+            'Full picture oracle requires the provider predicate',
+          );
+          await route.fulfill({
+            response,
+            body: original.replace(marker, marker + ' return false;'),
+          });
+        });
       if (process.argv.includes('--stages'))
         await page.addInitScript(() => {
           const NativeWorker = globalThis.Worker;
@@ -177,6 +192,7 @@ try {
           const adopt = host.native.adopt;
           host.native.adopt = function (desired, changes) {
             const kinds = {};
+            const paints = [];
             for (const command of changes) {
               const kind = new DataView(
                 command.buffer,
@@ -184,6 +200,15 @@ try {
                 command.byteLength,
               ).getUint16(0, true);
               kinds[kind] = (kinds[kind] ?? 0) + 1;
+              const bytes = new DataView(command.buffer, command.byteOffset, command.byteLength);
+              if (kind === 27 || (kind === 40 && bytes.getUint32(24, true) === 27)) {
+                const id = bytes.getUint32(8, true) + ':' + bytes.getUint32(12, true);
+                paints.push({
+                  id,
+                  before: this.accepted.get(id)?.node.options.nativePaint?.map((p) => p.kind),
+                  after: desired.get(id)?.node.options.nativePaint?.map((p) => p.kind),
+                });
+              }
             }
             record({
               kind: 'adopt',
@@ -191,6 +216,7 @@ try {
               nodes: desired.size,
               commands: changes.length,
               kinds,
+              paints,
             });
             return adopt.call(this, desired, changes);
           };
@@ -260,6 +286,7 @@ try {
               year: 'numeric',
             }).format(new Date(date.getFullYear(), date.getMonth(), value)),
         );
+        const settleStarted = performance.now();
         const readyMs = await page.getByRole('button', { name: /^Select year/ }).evaluate(
           (header, { month, days, direction }) =>
             new Promise((resolve, reject) => {
@@ -304,6 +331,7 @@ try {
           { month, days, direction },
         );
         await settle();
+        const settledMs = performance.now() - settleStarted;
         const current = await snapshot();
         const provider = await providerCounters();
         const render = await renderCounters();
@@ -338,6 +366,7 @@ try {
           month,
           direction,
           readyMs,
+          settledMs,
           appPasses: app.length,
           appDurations,
           scene: delta,
@@ -352,6 +381,8 @@ try {
               'avoidedPictureCopyBytes',
               'paragraphLayouts',
               'reusedPictures',
+              'pictures',
+              'emptyPicturesSkipped',
               'livePaintKeysSkipped',
             ].map((key) => [key, (provider[key] ?? 0) - (previousProvider[key] ?? 0)]),
           ),
@@ -423,6 +454,9 @@ try {
           {
             profile,
             source: application.supply.manifest.sourceSha256,
+            pictureMode: process.argv.includes('--full-pictures')
+              ? 'full-recording-oracle'
+              : 'empty-elision',
             condition:
               '960x720 DPR1 headless; font/assets ready; sequential navigation with normal bounded adjacent preparation; App/Core/Main projection settled between samples; no injected delay' +
               (profiler ? '; CPU profiling enabled: diagnostic only' : ''),

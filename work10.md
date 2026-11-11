@@ -1,10 +1,10 @@
 # work10 — 변경분 전달·데이터 공유 중심의 엔진 v2 개편
 
-작성·갱신: **2026-11-11 KST** · 문서 상태: **OPEN / 구현 진행** · work10 구현: **PARTIAL / 현재 결과는 §14** · 제품 전체: **PARTIAL**
+작성·갱신: **2026-11-11 KST** · 문서 상태: **OPEN / 구현 진행** · work10 구현: **PARTIAL / 현재 결과는 §17** · 제품 전체: **PARTIAL**
 
 사용자 요청에 따라 `work9.md`, `work9-1.md`, `work9-2.md`, `work9-3.md`, `work9-4.md`, `work9-5.md`, `work9-a.md`, `work9-b.md`, `work9-c.md`를 **CLOSED / work10 이관**으로 종료한다. 이 문서가 이후의 실행 계약이다. 이전 문서의 구현·검증 기록과 체크박스는 당시 근거로 보존하며, 문서 종료를 미완료 기능·호환·성능·제품 전환의 완료로 해석하지 않는다. 남은 의무는 §8에 대응시킨다.
 
-최초 작성은 **현재 소스·공급 메타데이터 검토와 계획 작성**까지였다. 이후 사용자 요청으로 제품 코드·공급·앱 검증을 진행했다. §11–13은 이전 구현 차수의 기록이고, **현재 결과·공급·미완료 범위는 §14가 대체한다.** 아래 §2.1의 최초 공급과 과거 문서의 결과를 현재 공급의 검증으로 확대하지 않는다.
+최초 작성은 **현재 소스·공급 메타데이터 검토와 계획 작성**까지였다. 이후 사용자 요청으로 제품 코드·공급·앱 검증을 진행했다. §11–15는 이전 구현 차수의 기록이고, **현재 결과·공급·미완료 범위는 §16이 대체한다.** 아래 §2.1의 최초 공급과 과거 문서의 결과를 현재 공급의 검증으로 확대하지 않는다.
 
 ## 1. 목표와 설계 결정
 
@@ -569,3 +569,139 @@ paint-only native 관찰의 추가 증분 경로는 Frame의 기존 생성 방�
 - 임시 설치본/archive·browser context·검사 Windows 창·5556 emulator·build staging을 회수했다. 사용자 Pixel_5/5554의 PID15884, 기존 `.nelyx/date-picker-port`와 `engine-vTz0Je`, 현재 dist와 실제 build cache는 유지했다. CPU profile·trace·receipt/history 사본을 남기지 않았다.
 
 **판정과 다음 경계:** 일반 관찰의 추가 전체 후보 생성과 모달 완료/ACK 누락은 해당 회귀 범위에서 수정했고, 이번에는 Web 중복 관찰/DOM 설치와 공통 semantic/생성 깊이 탐색을 줄였다. 새 월은 여전히 수백 ms다. 다음 구현점은 Source builder·새 이웃 범위의 준비를 visible 게시와 연결해 추적하고, provider의 전체 preparation/frame 응답·그림 준비를 줄이는 것이다. 위에서 제거한 geometry 실험의 1-step 결과를 최종 성능 근거로 복사하지 않는다. W10-06/제품 전체는 **OPEN / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`이며 cold/warm/evicted·물리 입력·표시·scanout·사용자 체감과 §8 의무는 남았다.
+
+## 15. Flutter 대조 — LayoutBuilder 예약과 빈 그림 준비 제거
+
+### 15.1 소스 대조와 재현
+
+사용자가 `work10`의 남은 문제를 Flutter 소스와 현재 구조부터 다시 검토하고, 필요한 엔진 수정도 진행하도록 요청했다. 저장소의 Flutter snapshot에서 다음 경로를 읽었다. 최신 upstream 전체 동작이나 별도 Flutter 실행과의 성능 비교를 주장하지 않는다.
+
+- [calendar_date_picker.dart](reference/flutter-master/packages/flutter/lib/src/material/calendar_date_picker.dart)의 `_MonthPickerState`는 원래 `PageView.builder`로 월을 만든다. [page_view.dart](reference/flutter-master/packages/flutter/lib/src/widgets/page_view.dart)는 기본 implicit scrolling이 꺼진 경우 cache extent 0을 사용한다. Nelyx의 최초 visible page 후 인접 4개 page 준비는 별도의 native 정책이다.
+- [layout_builder.dart](reference/flutter-master/packages/flutter/lib/src/widgets/layout_builder.dart)는 dirty scope를 frame의 layout callback에서 처리한다. Nelyx는 C++ Content 요청에 답하면서 App frame 밖에서도 같은 scope를 처리한다.
+- [proxy_box.dart](reference/flutter-master/packages/flutter/lib/src/rendering/proxy_box.dart)의 기본 `RenderProxyBoxMixin.paint`는 자식에게 paint를 넘긴다. Nelyx native/Web provider는 자체 paint가 없는 owner에도 개별 빈 Picture를 기록·보관·전달했다.
+
+현재 공급의 `check-month-latency --flow --stages`에서 작은 paint 게시 → 새 월 Source builder 요청/응답 → 후속 builder/paint 게시 패턴을 확인했다. 진단 실행 각 18개에서 중앙값 threaded658.6ms/single-worker651.5ms였으나 hook이 있는 실행이므로 최종 일반 실행의 성능 비교 기준으로 쓰지 않는다.
+
+### 15.2 구현
+
+1. [layout-builder.ts](Nelyx/src/framework/widgets/layout-builder.ts): native Content가 deferred frame보다 먼저 scope를 처리하면, 처리할 작업의 기존 frame callback을 builder 실행 **전에** 취소한다. 이후 새로 예약된 작업은 유지한다. `_needsBuild`/constraints 비교와 실제 사용자 builder 호출 규칙은 유지한다. [check-layout-builder-scheduling.mjs](Nelyx/eng/check-layout-builder-scheduling.mjs)에서 수정 전 **이미 답변한 작업의 frame callback 1개 잔존**을 재현했다. 수정 후 동일 constraints에서 dirty descendant만 처리, stale frame의 revision 재증가 없음, 후속 invalidation과 unmount를 확인했다.
+2. [native provider](Nelyx/engine/platform/common/skia_provider.hpp)와 [CanvasKit provider](Nelyx/engine/render/canvaskit-web/provider.ts): paragraph/editable/image/nativePaint/path와 색상·shadow·stroke가 없는 owner는 빈 Picture를 만들지 않는다. paint가 다시 생기면 기존 경로로 기록한다. tree/topology, transform, clip, opacity/blur, controls, 자식/foreground/Snapshot, semantics/input geometry는 그대로 처리한다. 실제 paint가 필요한 노드에서 준비 그림이 빠진 오류는 여전히 거부한다. wire/ABI를 바꾸거나 JS fallback을 추가하지 않았다.
+3. Web `emptyPicturesSkipped`와 `check-month-latency --full-pictures`를 추가했다. full-recording oracle은 **테스트가 로드한 owner/coordinator 스크립트에서만** 생략 판정을 끈다. 제품 설정이나 별도 엔진 경로는 없다. 서명된 App paragraph 모듈은 수정하지 않는다.
+
+### 15.3 픽셀·기능·수명 검증
+
+- [check-empty-pictures-web.mjs](Nelyx/eng/check-empty-pictures-web.mjs): 동일 공급에서 full recording과 empty elision을 비교했다. 960×720 DPR1 gallery, 열린 달력, 이전 월, 720×960 resize의 **Canvas PNG bytes가 각 profile의 4개 장면 모두 동일**했다. resize는 요구 viewport와 `metrics===publishedMetrics`, App/Core idle까지 확인한다. initial/resize 후 합계 Picture 생성은 threaded **5608→696**, single-worker **5609→696**이었다. 비동기 준비 횟수는 실행별로 달라질 수 있으므로 이를 FPS 개선율로 환산하지 않는다. PNG는 메모리에서 비교하고 파일로 남기지 않았다.
+- `check-live-paint-reuse`: static/live paint 재사용, paint→empty→paint, empty owner의 전송 참조0·캐시 credit0, 실제 missing paint 거부 PASS. `check-prepared-reuse`의 quota/reuse fixture는 이제 실제 색상이 있는 노드를 쓴다. 기존 그림/폰트 base identity·quota rollback·independent reader·retirement PASS. `check-render-clip`의 clip/edge shadow/foreground/Snapshot 균형 PASS.
+- `check-layout-builder-scheduling`, `check-incremental-capture`, native `check-frame-reuse` 묶음 PASS. native 묶음에는 frame/semantics oracle·lease, precision velocity, moving/reversing list·늦은 builder·coverage retry·page/grid·transaction 공유가 포함된다.
+- `check-event-web --extended` 양 profile의 날짜 월/년/일·확인/취소/재개방·입력 검증, warm 추가 layout/measurement 없음, theme/route/image/editor PASS. `check-date-scroll-web --precision --burst --past-only --both`는 **각 24회** 지연 주입 과거 월 이동과 resize PASS. 모든 검사 close는 reservedBytes0/workersStopped=true. 합성 precision 입력을 실제 Windows trackpad 증거로 확대하지 않는다.
+- 전체 `check:types`, 변경 파일 lint·format, schema/빌드 및 diff 검사 PASS. 전체 repository lint는 이번에 재실행하지 않았으며 §14의 generated DatePicker 경고를 해결했다고 주장하지 않는다.
+
+### 15.4 최종 시간 표본과 남은 작업
+
+동일 최종 공급에서 full-recording oracle과 empty elision을 순차 실행했다. 조건은 기존 960×720 DPR1 headless, font/assets 준비, App/Core/Main settle, 원본 200ms animation을 포함한 semantics click→게시된 header와 interactive 1/15/말일이다. 각 방식·profile **3개**이며 CPU/flow hook과 지연 주입은 껐다. 다른 owned build/앱은 종료했고 사용자 Pixel_5/5554는 유지했다. 아래는 소표본 진단이며 제품 p95나 고립된 인과 개선율이 아니다.
+
+| profile | full recording 3개(ms) | empty elision 3개(ms) | 중앙값 full→elision |
+| --- | --- | --- | --- |
+| threaded | 521.0, 415.7, 582.4 | 588.2, 401.7, 516.2 | 521.0→516.2ms |
+| single-worker | 491.8, 464.4, 569.0 | 471.2, 435.5, 443.4 | 491.8→443.4ms |
+
+월별 새 Picture는 full394/419/409개에서 elision40/41/42개로 줄었지만, **App 5–6 passes, transaction5–6회, 완료 Content 준비3–4회**가 남았다. layout의 전체 준비71–78 step과 새 월113–118 step, provider preparationScene/full frame 응답과 Source 요청·게시 왕복도 남는다. 빈 그림 제거와 stale callback 수정만으로 지연 전체를 해결하지 못했다.
+
+**다음 구현점:** 현재 표시 월/header의 게시가 새 이웃 월의 Source builder 응답과 함께 막히는 구간을 분리해 검증한다. visible coverage·focus/KeepAlive·Ink·방향 반전·resize 세대를 보존하면서, 인접 준비를 visible 게시의 필수 조건에서 분리하는 것이 우선이다. 동시에 provider preparation/frame의 전체 직렬화·decode를 줄인다. 이전 §14에서 철회한 geometry 재사용 실험을 복원하거나 callback을 임의 native 코드로 바꾸지 않았다. §8 API/도구/후속 OS 의무도 닫지 않는다.
+
+### 15.5 공급·Windows 범위·정리
+
+- 현재 engine source/Windows·Web·Android manifest: **`96b7f4b9004c436d30c94c9a5959f2e800f2b58866d82f8c497112b1697d179e`**, ABI2/schema3789315557. native/Windows App SDK/양쪽 Wasm, Android arm64-v8a/x86_64 빌드 완료. sourceIdentity와 Windows/Web356 files·Android42 files의 전체 hash를 대조했다. Android는 이번에 **공급 compile/hash까지만** 검증했으며 새 APK 설치·기기 실행은 하지 않았다.
+- Core 패키지와 Windows/Web Demo 앱을 재빌드하고 앱 manifest/hash를 검증했다. Web JS=`17e48d60bca237ceffcd6fa6327cd1582ff6be943c7a2864933a0d74811d4c25`, Windows JS=`1c672a568c4aca670ac278d534626553b4dc743476c0a3970ba5947098f8bdc9`, Windows HBC=`49da40b571a566867f85795c8f4b2785f12b45d61b2e7a8eae1ccd74dc95a799`.
+- Windows 일반 CLI pipe 실행은 app-ready/document8/commands1362, appGeometryNodes0/rejectedFallbacks0, visible960×720·rendered5·pictures80, 정상 close **status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0**를 확인했다. 그러나 이번 실행은 Computer Use의 앱/창 목록에서 target window를 찾지 못했으므로 **Windows 달력 실제 조작·시각 검증은 notVerified**다. 같은 소스의 Web 픽셀 oracle을 native 픽셀 증거로 쓰지 않는다.
+- 별도 최초 tty 실행은 close/콘솔 요청에도 세션이 끝나지 않아 이번에 만든 해당 host/부모 PID만 강제 정리했다. 그 실행의 정상 close를 PASS로 기록하지 않는다. 검증용 Windows 프로세스가 남지 않았음을 확인했다. Web context/서버, 빌드 staging, 테스트 임시 경로는 회수했고 기존 `engine-vTz0Je`, 사용자 emulator와 현재 dist는 유지했다. trace/profile/PNG/archive를 누적하지 않았다.
+
+**현재 판정:** 두 구조적 낭비의 수정과 위 회귀 범위는 완료. W10-06/제품 전체는 **OPEN / PARTIAL**, 새 월 초기100ms 목표 미달, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`. 물리 입력/표시/scanout·사용자 체감 수락은 **notVerified**다.
+
+## 16. Core geometry 구조 공유·부모 우선 builder 처리
+
+### 16.1 최종으로 유지한 구조 변경
+
+사용자의 “더 근본적인 구조” 요청에 따라 일반 Source builder 처리와 C++ layout 결과 반영 경로를 변경했다. 날짜 선택기 전용 분기나 cache 용량 증가는 없다. Flutter의 [PipelineOwner.flushLayout](reference/flutter-master/packages/flutter/lib/src/rendering/object.dart)의 부모 우선 처리와 §15의 PageView/layout callback 경계를 대조했다.
+
+- **부모 우선 LayoutBuilder 처리.** [host.ts](Nelyx/runtime/app/host.ts)는 retained builder를 현재 render depth로 정렬한다. 부분 capture의 등록 갱신 때문에 Map 삽입 순서는 ancestry와 달라질 수 있었다. 자식을 먼저 답변하고 뒤의 부모 callback이 다시 dirty로 만드는 순서를 제거한다. 실제 C++ constraints 검증과 generation/parked/분리된 render 거부는 유지한다.
+- **C++ 불변 geometry 공유.** [layout.cpp](Nelyx/engine/core/layout/layout.cpp)·[layout.hpp](Nelyx/engine/core/layout/layout.hpp)는 기존 LayoutWork의 flatten 단계에서 이전 결과를 공유한다. exact source Node identity, LayoutBox identity, local placement/scale/hidden, scale/font cohort가 모두 일치해야 한다. source·결과·layout 참조와 배치 값만 한 세대의 `LayoutOutput`에 보관하고 ledger에 포함한다. scrollViewport의 epoch별 coverage, editor viewport, image placement, nativePaint와 paintPlacement는 기존 계산 경로를 쓴다. 현재 document의 paint 참조 해석·graphics validation과 전체 tree 방문은 계속 수행한다. **§14에서 철회한 별도 PaintUpdate/geometry 우회 파이프라인을 복원한 것이 아니다.**
+- [check-month-latency.mjs](Nelyx/eng/check-month-latency.mjs)에 visible `readyMs`와 별도로 test-runner clock의 `settledMs`를 남긴다. 후자는 click 요청 전부터 App/Core/Main 준비 완료까지이며 RPC overhead를 포함한다. 두 시간은 다른 clock domain의 duration이므로 내부 stage 합산에 사용하지 않는다.
+
+### 16.2 실험 후 제거한 표시/선행 준비 분리 큐
+
+Core coverage 밖의 필수 요청은 즉시 처리하고, 이미 목적지가 준비된 PageView의 이웃 확장을 별도 큐에 보관하는 구조를 구현했다. publication·입력 mailbox·notification revision·cohort·owner 수명 fence를 검사하고 새 이웃 builder를 barrier에서 멈춘 동안 현재 월 header/15일이 게시되는 것을 양 Web profile에서 확인했다. 이를 통해 현재 구조에서도 표시와 이웃 준비의 인과 분리는 가능함을 확인했다.
+
+그러나 같은 engine 공급에서 즉시 준비 oracle과 분리 큐를 비교한 각3개 최종 표본은 다음과 같았다. 960×720 DPR1 headless, font/assets 준비, 원본200ms animation 포함, 순차 이동, CPU/flow hook과 지연 주입 없이 측정했다. 다른 owned 검사/빌드는 종료했고 사용자 emulator는 유지했다. 작은 순차 표본이며 제품 p95나 고립된 개선율이 아니다.
+
+| profile | 표시 중앙값: 즉시→분리 | 전체 준비 중앙값: 즉시→분리 | transaction / App passes |
+| --- | --- | --- | --- |
+| threaded | 404.5→404.9ms | 565.6→822.8ms | 5 / 5–6 → 8 / 8–9 |
+| single-worker | 407.5→360.4ms | 558.0→786.9ms | 5 / 6 → 7–8 / 8–9 |
+
+**threaded의 표시 개선을 입증하지 못했고 전체 준비는 확실히 늘어났다.** 이미 commit된 optional preparation을 새 foreground가 중단·교체하지 못하는 단일 Content 경로에서, 순서만 나누면 추가 transaction과 전체 준비가 생긴다. 빠른 연속 이동에 유리하다는 근거가 없으므로 큐와 admission/idle hooks, 실험 전용 검사와 `--eager-prefetch`/`--hold-prefetch` 옵션을 최종 코드에서 제거했다. 별도 기능 flag나 휴면 엔진 경로를 남기지 않았다. 위 barrier 증거는 **제거한 실험**의 결과이지 현재 기능이 아니다.
+
+중간 큐 구현에서는 single-worker year 선택 후 day 표시를15초 안에 확인하지 못한 실행도 한 번 있었다. diagnostic 재실행과 modal cycle4회씩은 통과했으나 정확한 원인을 확정하지 않는다. 별도로 확인한 semantic 입력/mailbox 우선순위와 notification race도 보강했지만, 해당 큐 전체를 철회했으므로 이 보강을 최종 제품 수정으로 열거하지 않는다. 원래 테스트의 대기 시간을 늘리거나 첫 grid 조작을 늦추지 않았다.
+
+### 16.3 최종 검증과 범위
+
+- [check-materialization.cpp](Nelyx/eng/check-materialization.cpp): 자식64/2048개에서 한 노드의 paint 변경 시 **나머지64/2048개(부모 포함)의 실제 geometry Node pointer 공유**를 확인했다. 전체 materialization oracle 값 일치, 기존 reader 불변, parent placement·resize·scale/font·slot generation 변경과 최종 ledger0 PASS. 기존 native frame/semantics·precision·moving/reversing list·builder continuation·coverage retry·page/grid·transaction 공유 검사도 최종 library에서 PASS했다.
+- 최종 Wasm의 App observation/full projection·1MiB 초과 응답·요청 범위/flag 검사 PASS. geometry 공유는 새 query/관찰 프로토콜을 추가하지 않는다.
+- engine source/Windows·Web·Android manifest **`fe28f8068f2eff0d2c7183679f224086ad3a73d44e0229edd36cf88929607630`**, ABI2/schema3789315557. native/Windows App SDK/양쪽 Wasm와 Android arm64-v8a/x86_64 빌드, sourceIdentity와 Windows/Web356 files·Android42 files hash 대조 PASS. Android는 공급 compile/hash 범위이며 이번 APK 설치/기기 실행은 **notVerified**다.
+- Core/Windows/Web 앱은 큐 철회 후 다시 빌드했다. Web JS=`3241da15fd41ebcb78446eadecf28fd96b3b830bc33b3a6442e6509a83bbeacd`, Windows JS=`eab1c11e25c461b077d2c0b5226ff70d972ce0c9cf121eacaa7d8a03337edc88`, HBC=`4f5f8647b9debe8ce277854a886adc85c612efe4cebec08cd95f0f43b24ea365`. 두 앱 manifest 및 공급 전체 hash를 최종 재검증했다.
+- 큐를 제거한 **최종 Web extended 양 profile**의 날짜 month/year/day·확인/취소/재개방·입력, theme/route/image/editor와 warm 추가 layout/measurement 없음 PASS. 최종 precision 왕복 각12회 및 열린 달력 resize PASS. 이동 중 nodes2197–2243/builders7, resize 뒤 threaded2315/plain2324, timeouts0이며 모든 close는 reservedBytes0/workersStopped=true다. 제거한 큐의 barrier/KeepAlive 결과를 최종 코드의 검사로 복사하지 않는다.
+- **최종 Windows 일반 CLI** app-ready와 정상 종료 status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0 PASS. 실제 달력 조작·물리 trackpad·native 픽셀/scanout은 이번에도 notVerified다.
+- 전체 types, 변경 파일 lint/format, diff 검사와 최종 설치 tarball 소비자의 alias 없는 strict 선언·scene/공유 transaction·정상 close PASS. 전체 repository lint의 기존 generated DatePicker 경고를 해결했다고 주장하지 않는다.
+- 이번 소유의 build staging, native 검사/설치 소비자 임시 경로·archive, browser context/server, Windows 실행을 회수했다. 기존 `engine-vTz0Je`와 사용자 Pixel_5/5554는 유지했다. trace/profile/receipt/PNG를 저장하지 않았다.
+
+### 16.4 판정과 다음 구현점
+
+큐 철회 후 최종 번들의 추가 시간 확인은 같은960×720 DPR1 조건에서 profile별3개다. threaded 표시 **592.0/457.7/440.5ms**(중앙457.7), 전체 준비 **701.1/644.6/636.2ms**; single-worker 표시 **468.5/415.9/436.1ms**(중앙436.1), 전체 준비 **630.8/585.4/625.3ms**였다. transaction은 월마다5회, App5–6 passes로 돌아왔다. 이는 별도 순차 소표본이며 §15 대비 개선율·제품 p95·물리 표시 성능으로 해석하지 않는다. **월 지연 전체 해결을 입증하지 못했다.**
+
+**최종 유지 범위는 부모 우선 builder 처리와 기존 Core LayoutWork 내부의 불변 geometry 구조 공유**다. 전체 tree 방문, provider preparation/frame의 전체 직렬화·decode와 Source 왕복은 남아 있다. geometry 공유의 객체 복제 감소를 월 전환 latency 개선율로 환산하지 않는다.
+
+다음 구조 변경은 부분 준비를 더 많은 전체 document 게시로 바꾸지 않는 방식이어야 한다. 특히 metadata ACK와 실제 geometry/paint 변경의 분리, provider의 변경분 준비, 이미 시작한 낮은 우선순위 작업의 안전한 중단·교체를 함께 설계·검증해야 한다. `waitForContent`를 무조건 없애거나 부족한 coverage를 표시하는 우회는 하지 않는다. cold/warm/evicted, Windows 실제 달력/trackpad·native 픽셀·표시/scanout 및 §8 의무도 남는다.
+
+W10-06/제품 전체는 **OPEN / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**다.
+
+## 17. 2026-11-11 재준비가 필요 없는 변경의 활성화 분리
+
+추가 “고쳐줘” 요청에 따라 §16의 반복 준비를 수정했다. Flutter의 [RenderObject.markNeedsPaint](reference/flutter-master/packages/flutter/lib/src/rendering/object.dart)와 `PipelineOwner.flushPaint`를 대조했다. paint dirty와 layout dirty를 구분하는 원칙을 현재 Core/Prepared 수명 계약에 적용했다. 날짜 선택기 callback이나 원본200ms animation은 변경하지 않았다.
+
+### 17.1 구현
+
+- `transact`가 nativePaint/blob 변경 및 **완료된 동일 constraints의 box LayoutBuilder metadata**로만 구성된 transaction의 변경 핸들을 기록한다. 정적 paint·트리·기하 변경이 섞이거나 builder가 미완료/다른 constraints이면 기존 Content 준비를 유지한다. 원래 wire·graph/graphics 검증과 generation 규칙은 유지한다.
+- `View::activateRetainedUpdate`는 active document가 직전 accepted document와 일치하고 metrics/device/font가 같으며 demand/preparing/pending layout이 없을 때만 기존 **preparation ID·layout·renderer 리소스**를 공유한다. materialized geometry에서 변경 노드만 복제하고 nativePaint/완료 metadata를 갱신한다. Source의 미배치 좌표로 덮어쓰지 않는다. 새 scene/document revision을 만들지만 publication과 표시 완료는 정상 Render 경로에서만 발생한다.
+- paint 변경은 기존/신규 stream이 비어 있거나 frame-dependent인 save/restore/clip/ripple/highlight로만 구성될 때 허용한다. physical/path/hitRegion, 크기 상속, paintPlacement, 정적 그림은 전체 준비를 거친다. 이전 Frame/Scene/Picture reader는 불변이며 live expression을 새 geometry에서 검증한다. 메모리/평가 실패는 기존 Content 경로로 돌아간다. 전체 transaction 검증과 frame 순회가 사라졌다는 뜻은 아니다.
+- Native/Web의 빈 base Picture 판정을 live paint까지 확장했다. live paint는 원래 frame draw에서 실행하므로 빈 base 기록은 필요 없다. 정적 그림이 필요한 노드의 missing-generation 오류는 계속 검출한다.
+- Web ContentActor는 accepted transaction 응답의 Core `renderWake`를 RenderActor에 전달한다. 준비를 재사용할 때 새 Content candidate가 없어도 demand frame clock을 깨운다. Windows host에는 기존 accepted transaction wake가 있다. Web 픽셀 검사에서 active만 앞서고 published가 멈춘 문제가 이 누락을 밝혔으며, 대기 시간을 늘리지 않고 연결을 수정했다.
+
+§14의 철회한 광범위한 geometry/paint 우회와 달리, 이 경로는 layout 변경을 처리하지 않고 현재 준비와 동일한 리소스 집합만 공유한다. cache 용량 증가, 선행 준비 큐, 임의 callback 지연, 날짜 전용 분기는 없다.
+
+### 17.2 검증
+
+- [check-live-paint-activation.cpp](Nelyx/eng/check-live-paint-activation.cpp): wire transaction의 live paint 활성화/제거, 전체 준비 paint 결과와 byte 동등성, 이전 reader 불변, metrics/font/demand fence, 정적 paint fallback, 동일 constraints metadata의 materialized 크기 보존, 변경 constraints·미완료 builder·혼합 정적 paint 거부, 최종 ledger0 PASS. 최종 native library에서 기존 frame/semantics·materialization64/2048·precision·moving list·coverage·page/grid 검사도 PASS.
+- App observation/full projection·1MiB 초과 응답·flag 검사, static/live/empty Picture 전환 및 missing paint 거부, Prepared64/2048 credit·quota rollback·exact base·독립 reader·retirement 검사 PASS. 전체 types, Web host build typecheck, 변경 TS/MJS lint/format, diff check PASS.
+- **최종 Web extended 양 profile**: month/year/day, 확인·취소·재개방·입력, theme/route/image/editor, warm 추가 layout/measurement 없음 PASS. 최종 precision 왕복 각12회 및 열린 달력 resize PASS, timeouts0, close reservedBytes0/workersStopped=true.
+- **픽셀 oracle 양 profile PASS**: test-only full recording과 empty/live base elision의 갤러리·달력·월 이동·resize canvas PNG bytes가 같았다. 기록 Picture 수는 full5607/5608, elision639였다. 해당 시나리오의 누적 카운터이며 latency 개선율이 아니다. Oracle 대기 시간15초는 유지했고 Render wake 누락으로 실패했던 검사가 수정 후 통과했다.
+- native/Windows App SDK/Web threaded·single-worker 및 Android arm64-v8a/x86_64 빌드 PASS. 최종 source/manifest **`3b988d902d36f1c71206a2b735805addbad5ff337d44ca1ba5ab4a4383fc2418`**, ABI2/schema3789315557. Windows/Web 공급356 files, Android42 files hash와 sourceIdentity 대조 PASS. Android APK/기기 실행은 이번 차수 **notVerified**다.
+- 최종 Windows/Web 앱 재빌드 및 manifest 검증 PASS. Web JS=`3241da15fd41ebcb78446eadecf28fd96b3b830bc33b3a6442e6509a83bbeacd`, Windows JS=`eab1c11e25c461b077d2c0b5226ff70d972ce0c9cf121eacaa7d8a03337edc88`, HBC=`514522b1e66667a23b7f121daf346ce5b88d79532c4641a8856b0a941399d127`.
+- **최종 Windows 일반 CLI** app-ready, close status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0 PASS. 실제 달력 입력·물리 trackpad·native 픽셀·표시/scanout은 이번에도 **notVerified**다.
+- 이번 소유 build staging/이전 dist, native 검사 임시 폴더, browser/server와 Windows 프로세스는 회수했다. 기존 `engine-vTz0Je`와 사용자 emulator는 유지했다. 검증 로그·trace·PNG·receipt를 파일로 누적하지 않았다.
+
+### 17.3 인과와 시간 결과
+
+수정 전 공급의 flow/stage 1회에서는 잉크 시작 문서42(71steps), 새 달 문서44(113steps), 후속 문서45(79steps), 잉크 제거 문서46(71steps)의 **완료된 전체 Content 준비4회**가 관찰되었다. 최종 공급의 별도 flow/stage 각1회는 threaded 문서47와 single-worker 문서44의 **완료 준비 각1회(116steps)**만 기록했다. 그 전후의 잉크·동일 constraints metadata 문서는 기존 preparation ID를 공유했다. 신규 월 Source 요청을 만들기 위해 시작했다가 후속 transaction으로 교체되는 작업까지 1회뿐이라는 뜻은 아니다. 전체 transaction은5–7회로 남는다.
+
+다른 owned 빌드/검사를 종료한 뒤 flow/stage hook 없이960×720 DPR1 headless, font/assets 준비, 원본200ms animation을 유지하고 순차 이동3개씩 측정했다. `readyMs`는 browser clock의 programmatic semantic click→header와1/15/말일 게시, `settledMs`는 runner clock의 click 요청 전→App/Core/Main 준비 완료다. 서로 다른 clock을 합산하지 않는다.
+
+| profile | 표시 readyMs (3개) | 전체 준비 settledMs (3개) | transaction / App passes |
+| --- | --- | --- | --- |
+| threaded | 493.5 / 412.9 / 406.5 | 565.5 / 543.2 / 515.1 | 5 / 6, 6 / 7, 6 / 7 |
+| single-worker | 524.1 / 451.2 / 434.8 | 581.3 / 559.5 / 555.4 | 6 / 7, 7 / 8, 6 / 7 |
+
+반복 준비 제거는 소스·계측으로 확인했다. 다만 §16의 별도 표본과 이3개를 통제된 A/B 개선율이나 제품 p95로 해석하지 않는다. **표시 지연은 여전히 약0.4–0.5초이며 전체 해결/성능 수락을 선언하지 않는다.** Source callback·capture/commit 왕복, 변경 달의 layout/paragraph 준비, full validation/frame 순회가 남는다.
+
+다음 재개점은 최종 공급에서 월 header state 변경부터 첫 Source 신규 월 요청까지의 App build/scene/wait 경로를 추적하고 요청·게시 경계를 줄이는 것이다. 원래 animation, callback 순서, coverage와 기존 reader의 수명은 보존한다. Windows 실제 달력/trackpad와 native 픽셀·표시/scanout 수락도 남는다.
+
+W10-06/제품 전체는 **OPEN / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**다.

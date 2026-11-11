@@ -204,6 +204,7 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
   std::unordered_map<uint32_t,std::vector<Handle>> childEdits;
   bool paintOnly=current->graphValidated&&count>0;
   bool localOnly=paintOnly;
+  bool retainedOnly=paintOnly;
   const auto edit = [&](Handle h, bool layout = true, bool configuration = true) {
     const auto& original = d->get(h);
     auto& copy=edits[h.slot];
@@ -257,6 +258,9 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
     const auto h = handle(body, position + 8);
     require(length >= 16 && length % 8 == 0 && (flags & ~1u) == 0);
     const auto data = body.slice(position + 16, length - 16);
+    retainedOnly=retainedOnly&&(op==wire::commands::nativePaint||op==wire::commands::releaseBlob||op==wire::commands::layoutBuilder||
+      (op==wire::commands::registerBlob&&data.length>=8&&data.u32(0)==wire::commands::nativePaint)||
+      (op==wire::commands::useBlob&&data.length>=12&&data.u32(8)==wire::commands::nativePaint));
     position += length;
     if(op==wire::commands::registerBlob){
       require(data.length>=8&&data.u32(4)==data.length-8,wire::statuses::invalidValue);
@@ -624,7 +628,7 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
           s.left==0&&s.top==0&&s.right==0&&s.bottom==0&&s.mainSize==0&&s.mainAlign==0&&s.crossAlign==0&&s.alignmentX==0&&s.alignmentY==0),wire::statuses::capabilityMissing);
       edit(h)->layout = s;
     } else if (op == wire::commands::layoutBuilder) {
-      if(data.length==0){if(d->get(h).layoutBuilder)edit(h)->layoutBuilder.reset();continue;}
+      if(data.length==0){retainedOnly=false;if(d->get(h).layoutBuilder)edit(h)->layoutBuilder.reset();continue;}
       require(data.length==wire::layoutBuilderBytes,wire::statuses::invalidValue);
       LayoutBuilderStyle value{data.u64(0),data.u64(8),axis(data.slice(16,24)),axis(data.slice(40,24))};
       require(value.revision&&value.builtRevision<=value.revision&&value.horizontal.tag!=wire::bounds::expand&&
@@ -639,6 +643,7 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
         const bool sameInput=d->get(h).kind==wire::kinds::box&&prior&&
           prior->builtRevision==prior->revision&&value.builtRevision==value.revision&&
           sameAxis(prior->horizontal,value.horizontal)&&sameAxis(prior->vertical,value.vertical);
+        retainedOnly=retainedOnly&&sameInput;
         edit(h,!sameInput)->layoutBuilder=value;
     } else if (op == wire::commands::snapshot) {
       const auto value=readSnapshotStyle(data);
@@ -724,6 +729,8 @@ Installed transact(const std::shared_ptr<const Document>& current, const Resourc
     const auto id = d->nodes[slot].value->id;
     edit(id, false, false)->layoutRevision = d->epoch;
   }
-  return {std::move(d), std::move(staged)};
+  std::vector<Handle> retainedUpdates;
+  if(retainedOnly)for(const auto& [slot,node]:edits)retainedUpdates.push_back(node->id);
+  return {std::move(d), std::move(staged),std::move(retainedUpdates)};
 }
 }

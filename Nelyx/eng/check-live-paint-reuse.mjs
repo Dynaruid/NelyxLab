@@ -45,8 +45,24 @@ try {
         provider.prepareInner(scene(changed,true),false,()=>{},[]);const livePictures=provider.counters.pictures,live=scene(first,true);
         provider.prepareInner(live,false,()=>{},[]);assert.equal(provider.counters.pictures,livePictures,'Live-only values rebuilt the separately recorded base Picture');
         provider.drawPaint(canvas,new Map(),new Map(),live.nodes[0],1,false);assert.equal(colors.at(-1)[0],0x12,'Reused base Picture suppressed the current live paint');
+        const emptyNode={...first.nodes[0],nativePaint:undefined,color:0,graphics:undefined};
+        const emptyScene=()=>({...scene(first,false),nodes:[emptyNode]});
+        const beforeEmpty=provider.counters.pictures,skippedEmpty=provider.counters.emptyPicturesSkipped;
+        for(let pass=0;pass<2;++pass){
+          const packet=provider.prepareInner(emptyScene(),false,()=>{},[]);
+          assert.equal(packet.pictures.length,0,'Layout-only owner allocated a Picture');
+          assert.equal(packet.reused?.length??0,0,'Layout-only owner transferred a picture reference');
+          assert.equal(provider.recorded.size,0,'Paint-to-empty transition retained the old picture');
+        }
+        assert.equal(provider.counters.pictures,beforeEmpty);
+        assert.equal(provider.counters.emptyPicturesSkipped-skippedEmpty,2);
+        assert.equal(credit,0,'Empty owners retained picture cache credit');
+        provider.drawItem(canvas,new Map(),new Map(),emptyNode,1);
+        assert.throws(()=>provider.drawItem(canvas,new Map(),new Map(),first.nodes[0],1),/Prepared node generation missing/,'A real missing painted node must still fail');
+        provider.prepareInner(scene(first,false),false,()=>{},[]);
+        assert.equal(provider.counters.pictures,beforeEmpty+1,'Empty-to-painted transition failed to record');
         provider.trimCache();assert.equal(credit,0);
-        console.log('Live paint reuse: static changes rebuild the Picture, live-only changes reuse its base and draw the current value; cache credit drains to zero PASS.');
+        console.log('Picture preparation: static/live paint reuse, empty owner elision, paint-to-empty-to-paint, missing paint rejection and zero cache credit PASS.');
       }finally{await client.close();}
       `,
     },

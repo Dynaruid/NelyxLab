@@ -10,9 +10,13 @@
 #include <stdexcept>
 using namespace nelyx::v2;
 void checkTransactionSharing();
+void checkMaterialization();
+void checkLivePaintActivation();
 static void check(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 static void run(){
   checkTransactionSharing();
+  checkMaterialization();
+  checkLivePaintActivation();
   auto ledger=std::make_shared<Ledger>();
   {
     View view(1,ledger);

@@ -296,6 +296,16 @@ export class ContentActor {
       p.headerFields.opcode,
       true,
     );
+    // A transaction can activate live paint/metadata using the current prepared
+    // resources. It must wake Render without waiting for a Content candidate.
+    if (opcode === p.opcodes.transaction && result.byteLength >= p.headerBytes + p.stateBytes) {
+      const state = new DataView(result.buffer, result.byteOffset, result.byteLength);
+      if (
+        state.getUint16(p.headerFields.status, true) === p.statuses.accepted &&
+        state.getUint32(p.headerBytes + p.stateFields.flags, true) & 128
+      )
+        this.post({ kind: 'render-wake' });
+    }
     if (
       [
         p.opcodes.fontTransitionBegin,

@@ -487,6 +487,7 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
           }
           auto result = std::make_shared<Result>(s.ledger, id, packet);
           v.results.push_back(result); v.resultBytes += packet.length; v.lastTransaction = id;
+          bool retainedActivated=false;
           try {
             require(packet.u64(wire::headerFields::base) == v.document->epoch, wire::statuses::baseConflict);
             const auto original = v.document;
@@ -502,12 +503,16 @@ std::vector<uint8_t> Engine::dispatch(Reader packet,DispatchTiming* timing) {
               wire::statuses::closed);
             require(resourceRevision == s.resourceRevision, wire::statuses::busy);
             v.installEditors(installed.document);
+            // This is optional reuse. Allocation/evaluation failure follows the
+            // ordinary bounded Content path without changing transaction status.
+            try {retainedActivated=v.activateRetainedUpdate(installed);}
+            catch(const Error&) {} catch(const std::bad_alloc&) {}
             v.document = std::move(installed.document); s.resources = std::move(installed.resources);
             ++s.resourceRevision; v.transactionWork += count;
             status = wire::statuses::accepted; resultEpoch = v.document->epoch;
           } catch (const Error& error) { status = error.status; }
           result->status = status; result->epoch = resultEpoch;
-          if (status == wire::statuses::accepted) v.requestContent();
+          if (status == wire::statuses::accepted&&!retainedActivated) v.requestContent();
         }
       } else if (opcode == wire::opcodes::queryResult) {
         exact(body, 0);

@@ -65,16 +65,25 @@ struct Measurement {
   std::shared_ptr<const ParagraphGeometry> placeholders = nullptr;
 };
 struct LayoutOutput {
+  // A single completed generation of pre-paint geometry. Paint references are
+  // still resolved against the new document, never against an old global tree.
+  struct Materialized {
+    std::shared_ptr<const Node> source, value;
+    std::shared_ptr<const LayoutBox> box;
+    double x=0,y=0,scaleX=1,scaleY=1;
+    bool hidden=false;
+  };
   Lease lease;
   double scale;
   uint64_t fontRevision;
   std::vector<std::shared_ptr<const LayoutBox>> boxes;
+  std::vector<Materialized> materialized;
   // Source TapRegion.layout unregisters/registers after its child, including
   // when that region's own box can reuse the previous layout result.
   std::vector<Handle> tapRegionVisits;
   LayoutOutput(const std::shared_ptr<Ledger> &ledger, double dpi, uint64_t font)
-      : lease(ledger, sizeof(LayoutOutput) + (wire::limits::nodes + 1) * (sizeof(boxes[0])+sizeof(Handle))),
-        scale(dpi), fontRevision(font), boxes(wire::limits::nodes + 1) {tapRegionVisits.reserve(wire::limits::nodes);}
+      : lease(ledger, sizeof(LayoutOutput) + (wire::limits::nodes + 1) * (sizeof(boxes[0])+sizeof(Handle)+sizeof(Materialized))),
+        scale(dpi), fontRevision(font), boxes(wire::limits::nodes + 1),materialized(wire::limits::nodes+1) {tapRegionVisits.reserve(wire::limits::nodes);}
 };
 // This continuation never calls an App callback or a provider. Each step does
 // finite tree work and returns while a versioned measurement is outstanding.

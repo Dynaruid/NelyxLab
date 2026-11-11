@@ -60,6 +60,20 @@ export interface ProviderFont {
   family: string;
   bytes: Uint8Array;
 }
+// This only elides the owner's empty recording. Its children, clips, opacity,
+// filters, controls, hit geometry and semantics still use normal traversal.
+function emptyOwnPicture(node: EngineNodeSnapshot): boolean {
+  return (
+    node.kind !== p.kinds.paragraph &&
+    node.kind !== p.kinds.editable &&
+    node.kind !== p.kinds.image &&
+    (!node.nativePaint?.length || !!(node.flags & p.nodeFlags.livePaint)) &&
+    !node.graphics?.hasPath &&
+    !(node.color >>> 24) &&
+    !node.graphics?.shadow?.color &&
+    !node.graphics?.stroke?.color
+  );
+}
 export interface AppImmutableData {
   readonly length: number;
   copyForImage(offset?: number, length?: number): Uint8Array;
@@ -363,6 +377,7 @@ export class CanvasKitProvider {
     paragraphs: 0,
     images: 0,
     pictures: 0,
+    emptyPicturesSkipped: 0,
     imports: 0,
     draws: 0,
     clipCulledNodes: 0,
@@ -1561,6 +1576,10 @@ export class CanvasKitProvider {
         }
       }
       for (const node of scene.nodes) {
+        if (emptyOwnPicture(node)) {
+          ++this.counters.emptyPicturesSkipped;
+          continue;
+        }
         let paintKey = '';
         if (node.flags & p.nodeFlags.livePaint) {
           // Render executes this paint from the current frame. Its changing
@@ -2598,7 +2617,7 @@ export class CanvasKitProvider {
   ): void {
     if (item.width <= 0 || item.height <= 0) return;
     const picture = table.get(key(item.node));
-    if (!picture) throw new Error('Prepared node generation missing');
+    if (!picture && !emptyOwnPicture(item)) throw new Error('Prepared node generation missing');
     const geometry =
       item.hasFocus && item.textGeometry?.revision === item.editing?.revision
         ? item.textGeometry
@@ -2617,7 +2636,7 @@ export class CanvasKitProvider {
       }
     };
     if (geometry) for (const rect of geometry.selection) paintTextRect(rect, 0x663582f6);
-    canvas.drawPicture(picture);
+    if (picture) canvas.drawPicture(picture);
     this.drawPaint(canvas, table, nodes, item, scale, false);
     if (item.control) paintControl(this.ck, canvas, item.control, item.width, item.height, 1);
     if (geometry && item.caretVisible && item.editing?.base === item.editing?.extent)

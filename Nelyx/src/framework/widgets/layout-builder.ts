@@ -189,6 +189,11 @@ class _LayoutBuilderElement<I> extends SingleChildRenderObjectElement {
     return this.built ? [this.built] : [];
   }
   private readonly _rebuildWithConstraints = (_constraints: Constraints): void => {
+    // Native Content can flush this scope before its deferred App frame. That
+    // frame only requested the work we are about to consume; leaving it queued
+    // would invalidate the completed builder and require another transaction.
+    // Cancel before building so new work scheduled during the callback survives.
+    if (isNativeRenderObject(this.renderObject)) this.cancelDeferred();
     const info = this.renderObject.layoutInfo,
       needs = this._needsBuild || !sameLayoutInfo(info, this._previousLayoutInfo);
     this.owner.buildScope(

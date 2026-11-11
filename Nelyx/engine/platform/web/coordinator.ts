@@ -169,6 +169,9 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
   } else if (kind === 'content-wake') {
     if (content) content.kick();
     else contentWorker?.postMessage({ kind: 'v2-wake' });
+  } else if (kind === 'render-wake') {
+    if (render) render.kick();
+    else renderWorker?.postMessage({ kind: 'v2-wake' });
   } else if (kind === 'owner-stopped') {
     stopped.add(Number(value.role));
     stats({

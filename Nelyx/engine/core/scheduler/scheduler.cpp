@@ -112,6 +112,54 @@ void View::requestContent() {
     event({wire::events::skipped, wire::statuses::superseded, 0, demand->epoch, document->epoch});
   demand = document;
 }
+bool View::activateRetainedUpdate(const Installed& update) {
+  // A paint revision may share the prepared base only when it cannot alter
+  // layout, hit geometry, paths, topology, or a recorded static paint stream.
+  if(update.retainedUpdates.empty()||!active||preparing||demand||pendingLayoutCache||
+      active->document->epoch!=document->epoch||active->metrics.epoch!=metrics.epoch||
+      active->metrics.device!=metrics.device||active->fontRevision!=fontRevision)return false;
+  const auto live=[](const std::shared_ptr<const NativePaint>& paint){
+    if(!paint||paint->entries.empty())return true;
+    if(!paint->frameDependent)return false;
+    for(const auto& e:paint->entries){
+      if(e.flags&16u)return false; // Inherited paint size changes materialization.
+      if(e.kind!=wire::nativePaintKinds::save&&e.kind!=wire::nativePaintKinds::restore&&
+          e.kind!=wire::nativePaintKinds::clip&&e.kind!=wire::nativePaintKinds::ripple&&
+          e.kind!=wire::nativePaintKinds::highlight)return false;
+    }
+    return true;
+  };
+  for(const auto id:update.retainedUpdates){
+    if(!active->document->contains(id))return false;
+    const auto& before=active->document->get(id);const auto& after=update.document->get(id);
+    if(before.nativePaint!=after.nativePaint&&
+        (before.paintPlacement||after.paintPlacement||!live(before.nativePaint)||!live(after.nativePaint)))return false;
+  }
+  auto geometry=std::make_shared<Document>(*active->document);
+  geometry->epoch=update.document->epoch;geometry->framePaintGeometry=update.document->framePaintGeometry;
+  geometry->blobs=update.document->blobs;geometry->blobCount=update.document->blobCount;
+  geometry->blobBytes=update.document->blobBytes;
+  for(const auto id:update.retainedUpdates){
+    auto node=std::make_shared<Node>(geometry->get(id));const auto& source=update.document->get(id);
+    if(node->nativePaint!=source.nativePaint){node->nativePaint=source.nativePaint;node->resolvedPaint.reset();}
+    node->layoutBuilder=source.layoutBuilder;
+    node->configurationRevision=source.configurationRevision;
+    geometry->nodes.edit(id.slot).value=std::move(node);
+  }
+  auto scene=std::make_shared<Scene>(*active);scene->document=std::move(geometry);scene->epoch=next(nextScene);
+  // Validate live expression evaluation before replacing any active state.
+  Lease scratch(lease.ledger,sizeof(Frame)+(scene->document->highWater+1)*(sizeof(Property)+sizeof(uint32_t))+
+    scene->document->count*(sizeof(DrawItem)+sizeof(ClipShape)+sizeof(HitRegionShape)));
+  Frame check;check.scene=scene;check.properties.resize(scene->document->highWater+1);
+  for(const auto& slot:scene->document->nodes)if(slot.value){auto& property=check.properties[slot.value->id.slot];
+    property.opacity=1;const auto old=overlays.find(slot.value->id.key());
+    if(old!=overlays.end())property.offset=old->second.offset;}
+  makeDrawItems(check);
+  for(const auto id:update.retainedUpdates)observations[0].mark(id);
+  active=std::move(scene);nextScene=active->epoch;++activated;dirty=true;
+  event({wire::events::activated,wire::statuses::ok,active->preparation,active->document->epoch,active->epoch});
+  return true;
+}
 void View::failPreparation(uint64_t id, uint32_t reason) {
   require(preparing && preparing->id == id, wire::statuses::stale);
   if(preparationFailure.preparation!=id)preparationFailure={};

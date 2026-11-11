@@ -272,6 +272,8 @@ Handle canonicalFocusPeer(const Document&,Handle);
 struct Installed {
   std::shared_ptr<const Document> document;
   Resources resources;
+  // Native paint, completed same-input builder metadata, and blob bookkeeping.
+  std::vector<Handle> retainedUpdates;
 };
 Installed transact(const std::shared_ptr<const Document>&, const Resources&, Reader, uint32_t);
 void validateGraphics(const Document&);

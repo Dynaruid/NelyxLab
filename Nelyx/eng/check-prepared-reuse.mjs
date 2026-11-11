@@ -17,13 +17,14 @@ try {
         const source=Object.create(CanvasKitProvider.prototype) as any;
         const scene={preparation:1n,activePreparation:0n,preparationDocument:1n,metrics:1n,device:1n,fontRevision:1n,
           blobs:[],nodes:Array.from({length:count},(_,i)=>({node:{slot:i+1,generation:1},kind:p.kinds.box,
-            width:20,height:20,color:0,radius:0,fontSize:14,flags:0}))};
+            width:20,height:20,color:0xff123456,radius:0,fontSize:14,flags:0}))};
         Object.assign(source,{recorded:new Map(),preparedRecords:new Map(),measurePreparation:0n,
           measuredParagraphs:new Map(),paragraphCollections:new Map(),regularTypefaces:new Map(),
           nextRecordToken:0,pictureOwners:new Map(),resourceFonts:new Map(),
-          ck:{PictureRecorder:class {beginRecording(){return {};}
+          ck:{PictureRecorder:class {beginRecording(){return {drawRRect(){}};}
             finishRecordingAsPicture(){return {serialize:()=>new Uint8Array([1,2,3]),delete(){}};}delete(){}},
-            Paint:class {setAntiAlias(){}delete(){}},XYWHRect:()=>new Float32Array(4)},
+            Paint:class {setAntiAlias(){}setColor(){}delete(){}},XYWHRect:()=>new Float32Array(4),
+            Color:(...values)=>values,RRectXY:(rect)=>rect},
           counters:new Proxy({},{get:(target,key)=>target[key]??0,set:(target,key,value)=>{target[key]=value;return true;}}),
           budget:{reserve(_kind,bytes){credit+=bytes;return()=>{credit-=bytes;};}},
           holdFontEntries:()=>()=>{},

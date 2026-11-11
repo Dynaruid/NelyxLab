@@ -91,6 +91,7 @@ struct LayoutWork::State {
   std::shared_ptr<const Document> source;
   std::shared_ptr<Document> derived;
   std::shared_ptr<const LayoutOutput> previous;
+  std::shared_ptr<const LayoutOutput> materializationBase;
   std::shared_ptr<LayoutOutput> result;
   std::vector<ScrollLayoutOffset> offsets;
   std::array<bool,wire::limits::nodes+1> nativeInputChanged{};
@@ -123,6 +124,7 @@ struct LayoutWork::State {
     roots.reserve(source->children[0].size());
     if (previous && (previous->scale != scale || previous->fontRevision != font))
       previous.reset();
+    materializationBase=previous;
     if(previous)for(const auto& slot:source->nodes)if(slot.value){const auto& cached=previous->boxes[slot.value->id.slot];
       if(cached&&cached->node==slot.value->id)result->boxes[slot.value->id.slot]=cached;}
     if(previous)for(const auto& slot:source->nodes)if(slot.value&&slot.value->kind==wire::kinds::sliver&&slot.value->layoutBuilder&&slot.value->parent){
@@ -630,6 +632,19 @@ struct LayoutWork::State {
       const auto f = flatten.back();
       flatten.pop_back();
       const auto &original = source->get(f.box->node);
+      const bool cacheable=!queryRoot&&original.kind!=wire::kinds::scrollViewport&&
+        !original.editorViewport.enabled&&!original.imageStyle&&!original.nativePaint&&!original.paintPlacement;
+      const auto sourceNode=source->nodes[original.id.slot].value;
+      const auto* cached=cacheable&&materializationBase?&materializationBase->materialized[original.id.slot]:nullptr;
+      if(cached&&cached->source==sourceNode&&cached->box==f.box&&cached->x==f.x&&cached->y==f.y&&
+          cached->scaleX==f.scaleX&&cached->scaleY==f.scaleY&&cached->hidden==f.hidden&&cached->value){
+        derived->nodes.edit(original.id.slot).value=cached->value;
+        result->materialized[original.id.slot]=*cached;
+        result->boxes[original.id.slot]=f.box;
+        for(const auto& child:f.box->children)
+          flatten.push_back({child.box,child.x,child.y,f.hidden||!child.visible,child.scaleX,child.scaleY});
+        return;
+      }
       auto n = std::make_shared<Node>(original);
       if(original.layout.enabled){const auto constraints=resolve(original,f.box->input);
         n->paintBoundedWidth=std::isfinite(constraints.maxWidth);
@@ -690,6 +705,7 @@ struct LayoutWork::State {
           require(n->coverage.minimum<=n->coverage.maximum,wire::statuses::contentUnavailable);}
       }
       derived->nodes.edit(n->id.slot).value = n;
+      if(cacheable)result->materialized[n->id.slot]={sourceNode,n,f.box,f.x,f.y,f.scaleX,f.scaleY,f.hidden};
       result->boxes[n->id.slot] = f.box;
       for (const auto &child : f.box->children)
         flatten.push_back({child.box, child.x, child.y, f.hidden||!child.visible,child.scaleX,child.scaleY});
