@@ -1,10 +1,10 @@
 # work10 — 변경분 전달·데이터 공유 중심의 엔진 v2 개편
 
-작성·갱신: **2026-11-11 KST** · 문서 상태: **PAUSED / 중간 마무리** · work10 구현: **PARTIAL / 현재 인계는 §22** · 제품 전체: **PARTIAL**
+작성·갱신: **2026-11-11 KST** · 문서 상태: **OPEN / Windows 후속은 work10-a1** · work10 구현: **PARTIAL / 현재 인계는 §24** · 제품 전체: **PARTIAL**
 
 사용자 요청에 따라 `work9.md`, `work9-1.md`, `work9-2.md`, `work9-3.md`, `work9-4.md`, `work9-5.md`, `work9-a.md`, `work9-b.md`, `work9-c.md`를 **CLOSED / work10 이관**으로 종료한다. 이 문서가 이후의 실행 계약이다. 이전 문서의 구현·검증 기록과 체크박스는 당시 근거로 보존하며, 문서 종료를 미완료 기능·호환·성능·제품 전환의 완료로 해석하지 않는다. 남은 의무는 §8에 대응시킨다.
 
-최초 작성은 **현재 소스·공급 메타데이터 검토와 계획 작성**까지였다. 이후 사용자 요청으로 제품 코드·공급·앱 검증을 진행했다. §11–21은 이전 구현 차수의 기록이고, **현재 구현·검증 진행·미완료 범위는 §22가 대체한다.** 아래 §2.1의 최초 공급과 과거 문서의 결과를 현재 공급의 검증으로 확대하지 않는다.
+최초 작성은 **현재 소스·공급 메타데이터 검토와 계획 작성**까지였다. 이후 사용자 요청으로 제품 코드·공급·앱 검증을 진행했다. §11–23은 이전 차수의 기록이며, **현재 Windows 실행 계획은 [work10-a1.md](work10-a1.md), 인계는 §24다.** 코드에서 원인을 찾아 수정한 다음 PowerShell로 Windows를 조작·확인한다. 이 문서의 기본 소유권·데이터 공유 계약과 §8 의무는 유지한다. 아래 §2.1의 최초 공급과 과거 문서의 결과를 현재 공급의 검증으로 확대하지 않는다.
 
 ## 1. 목표와 설계 결정
 
@@ -258,7 +258,7 @@ node .\Nelyx\sdk\tooling\cli\src\main.mjs run --engine v2 --app .\sample\nelyx-d
 
 ## 9. 실행 명령·공급·정리 규칙
 
-아래는 **변경 범위에 맞춰 선택할 명령**이다. 최초 계획 작성에서는 실행하지 않았으며 현재 실행 결과는 §22에 기록한다. Core 선언이 다음 구현을 막을 때만 먼저 공급하고, 전체 build/install/run은 챕터 끝에 모은다.
+아래는 **변경 범위에 맞춰 선택할 명령**이다. 최초 계획 작성에서는 실행하지 않았다. 현재 Windows 후속은 [work10-a1.md](work10-a1.md)의 코드 분석·수정 후 PowerShell 확인 순서를 따른다. 아래 Web 명령을 Windows 후속의 필수 선행 검사로 실행하지 않는다. Core 선언이 다음 구현을 막을 때만 먼저 공급하고, 전체 build/install/run은 챕터 끝에 모은다.
 
 ```powershell
 # Core 소스·선언이 바뀐 경우
@@ -299,9 +299,9 @@ node .\Nelyx\eng\check-date-scroll-web.mjs --precision --burst --past-only --bot
 - [ ] W10-07 같은 공급의 설치/기능/복구/종료와 실제 물리/표시/체감 결과를 각각 판정했다.
 - [ ] W10-R01–R08의 남은 의무를 각 대상 범위에서 완료하거나 명시적인 지원 계약으로 확정했다.
 
-**현재는 사용자 요청으로 PAUSED / PARTIAL이며 정확한 인계는 §22다.** §11–21의 당시 미착수 항목을 다시 시작하지 않는다. Content/Render delta·메모리 수명 수정은 유지하고 Source 후속 실험은 철회했다. 마지막 기준 App 재확인의 DPR2 `Native scroll failed (27=stale)`가 미해결이다. Source 신규 월/callback 준비·실제 물리/표시 성능 수락과 §8의 잔여 의무를 구분한다.
+**현재 Windows 후속은 [work10-a1.md](work10-a1.md) / READY이며 work10 전체는 PARTIAL이다.** 사용자는 재빌드·실행 후에도 트랙패드 스크롤에 주기적인 약1초 멈춤을 보고했다. 코드 분석·수정 우선, PowerShell 조작 확인을 적용한다. Content/Render delta·메모리 수명 수정과 Source 후속 실험 철회는 유지한다. Windows 표시 오류와 과거 DPR2 `Native scroll failed (27=stale)`의 해결을 새 보고로 간주하지 않는다. Source 신규 월/callback 준비·실제 물리/표시 성능 수락과 §8의 잔여 의무를 구분한다.
 
-**재개 요청 예:** `work10.md §22의 DPR2 Native scroll stale와 Windows 달력 불일치 진단부터 이어서 진행해줘. Source 실험은 철회한 상태를 유지하고 JSI·원본 DatePicker·controller/callback 순서와 준비/게시 fence를 보존해줘.`
+**후속 작업 기준:** `work10-a1.md W10A1-00에서 현재 코드의 입력·Source/Content·Render/GPU 정체 경계를 먼저 분석하고 관련 수정을 묶어 구현한다. 그 뒤 Windows만 PowerShell로 조작·확인하며 Computer Use를 사용하지 않는다. JSI·원본 DatePicker·controller/callback 순서와 준비/게시 fence를 보존한다.`
 
 **최초 문서 확인 기록:** 당시 work10의 40개 링크 중 로컬 경로·앵커의 존재, code fence, 구현 챕터 8개·잔여 의무 8개 묶음, 종료 문서 9개의 이관 안내와 Core source identity 불변을 확인했다. 당시에는 제품 테스트·빌드·실행을 포함하지 않았다. 이후 제품 변경은 §11의 새 공급으로 구분한다.
 
@@ -931,3 +931,35 @@ ready는 browser clock의 programmatic semantic click→게시 header·1/15/말�
 3. 최종 Windows 앱의 일반 CLI에서 첫 달력의 정렬·현재 월/인접 월·버튼·OS drag·선택/확정·정상 종료를 다시 확인한다. **Source capture/게시 대기 실험을 복원하지 않는다.** 그다음 신규 월/header/callback 왕복을 줄이는 다음 구조를 검토한다.
 
 현재는 **PAUSED / PARTIAL**이다. 월 전체는 §21 진단에서 약0.4–0.5초이며 목표100ms·물리/표시/scanout·사용자 성능 수락을 충족했다고 판정하지 않는다. W10-00/06/07과 §8 의무는 남는다. `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**를 유지한다.
+
+## 23. 2026-11-11 Windows native 소스 수정 — 실행 검증 중단
+
+사용자는 **“윈도우로만 테스트해서 문제를 해결하자”**, 이어 **“검증 대신 코드를 보고 고쳐줘”**라고 지시했다. 실행 중인 Windows 진단 빌드를 중단하고 소스 수정으로 전환했다. 이번 최종 수정 뒤 빌드·앱 실행·테스트는 하지 않았다.
+
+### 23.1 관측과 소스에서 확인한 문제
+
+지시 전 Windows 일반 CLI 앱에서 11월→12월 이동 후 첫 열의 `13/20/27` 앞자리 잘림을 관측했다. 이전 월로 돌아오면 해당 열은 정상으로 보였다. 게시된 `13` 문단의 world x는 약406.05, clip은 `[392,239,328,242]`, 폭은 약18.76이었다. 접근성 날짜·월 제목은 맞았으므로, 접근성 목록이나 Core 좌표가 정상이라는 사실만으로 표시 오류 해결을 판정하지 않는다. 이 자료만으로 GPU·문단·clip 중 단일 원인을 확정하지 않았다.
+
+소스 검토에서 native 재생이 Core의 빈 paint clip을 무시하고 화면 밖 월의 하위 Picture까지 방문하는 경로를 확인했다. Windows의 layer/path 예약도 이 내용을 포함했고 mask 예약은 별도 전체 순회였다. 또 참조 문단은 opacity1·blur0에서도 `SkPaint`를 전달해 불필요한 격리 레이어를 만들었고, 측정 문단 캐시는 font revision과 실제 준비의 소속을 충분히 구분하지 않았다.
+
+### 23.2 수정한 코드
+
+- [공통 native provider](Nelyx/engine/platform/common/skia_provider.hpp)에 `skipPreparedSubtree`를 추가했다. 일반 재생에서는 빈 paint clip의 subtree를 생략하고, 자기 clip 이전에 그리는 physical shadow는 보존한다. Snapshot 캡처·변환된 live 재생에서는 기존 화면의 clip 좌표로 생략하지 않고 대상 canvas에서 clip을 다시 적용한다.
+- [Windows provider](Nelyx/engine/platform/windows/skia_provider.hpp)의 path/layer/mask 예약도 같은 생략 조건을 사용한다. Snapshot 내부는 별도 좌표계에서 그릴 수 있으므로 예약을 보존한다. 변환 전 위치로 mask 예약을0으로 계산하지 않도록 보수적인 device backing을 잡는다. 기존 Snapshot 캡처의 mask scratch 예약도 유지한다.
+- 참조 문단은 opacity와 blur가 실제로 필요할 때만 paint를 전달한다. 측정 캐시에 `fontRevision`을 포함하고, 현재 준비와 다른 preparation의 측정 캐시는 Picture 준비 전에 폐기한다.
+
+JSI·wire/schema·Widget/State·DatePicker 생성 소스·Source capture/게시 fence는 바꾸지 않았다. 임시 `paint-inspect`/CPU raster 진단은 최종 소스에서 제거했고 `host.cpp`의 최종 변경은 없다. 공통 native header의 Android 영향은 별도 미확인이다.
+
+### 23.3 공급·정리·남은 범위
+
+현재 dist와 Windows 앱은 **최종 소스 수정 전 진단 빌드**이며, manifest의 공급 연결은 `768552b596d2997ed9603f9574950d37fff90760bbd90f4a0eddf9f0985d7440`이다. 이 값은 최종 소스 identity가 아니다. 최종 변경의 재빌드·공급 갱신·설치 소비·Windows 표시/성능 확인을 했다고 해석하지 않는다. Windows 날짜 잘림과 과거 `stale` scroll은 **해결 확인 전 / notVerified**이며, 월 전체100ms·사용자 체감·물리/display/scanout 수락도 남는다. W10-06/07과 §8을 완료로 바꾸지 않는다. `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`를 유지한다.
+
+Windows 앱은 정상 종료했고 Web 진단도 사용자의 Windows 한정 지시 때 닫았다. 마지막 빌드의 owned Node/MSBuild/compiler는 중단했다. 중단된 `.tmp/w10-windows-guCeXo`에는 `build`·`host`만 남았고 현재 dist의 교체 전 backup은 없다. 이 폴더 삭제는 **자동 승인 검토가 blocked by policy로 거부**했으므로 우회하지 않았다. 검증 로그·PNG·receipt·독립 소비자 설치본은 새로 보관하지 않았다.
+
+## 24. 2026-11-11 사용자 재확인과 work10-a1 후속 계획
+
+사용자는 안내한 재빌드·Windows 일반 CLI 실행 뒤에도 **트랙패드 스크롤 중 주기적으로 약1초 멈춤**을 보고했다. 약1초는 보고된 멈춤 지속시간이며 발생 간격은 미측정이다. §23의 소스 변경을 성능 해결로 판정하지 않는다.
+
+새 [work10-a1.md](work10-a1.md)를 Windows 후속 실행 계획으로 작성했다. **코드 분석 → 확인된 원인과 소비자 수정 묶음 → PowerShell 기반 Windows 조작·통합 확인** 순서다. Computer Use를 사용하지 않으며, 자동 wheel/drag·주입 precision과 사용자 물리 트랙패드 결과를 구분한다. 현재 공급 메타데이터의 연결은 `840b22465d0759c7df1032095b7e1935e2ddd23163f733f5ef43612f2d1a447e`, ABI2/schema313408118이다. 이 차수에서는 메타데이터와 소스를 읽고 계획만 작성했으며 전체 hash/실행 공급 검증·새 제품 코드 수정·빌드·앱 실행을 하지 않았다.
+
+work10은 상위 데이터 공유·소유권 계약과 §8 의무를 유지한다. W10-00/06/07과 제품 성능은 계속 **PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`다. 정확한 다음 작업은 work10-a1의 **W10A1-00 상세 소스 감사와 첫 수정 묶음**이다.

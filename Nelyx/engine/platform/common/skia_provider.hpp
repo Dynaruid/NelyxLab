@@ -43,6 +43,15 @@ inline bool emptyOwnPicture(const Node& node) {
     node.kind!=wire::kinds::image&&(!node.nativePaint||node.nativePaint->frameDependent||node.nativePaint->entries.empty())&&!node.graphics.path&&
     !(node.color>>24)&&!node.graphics.shadowColor&&!node.graphics.strokeColor;
 }
+inline bool skipPreparedSubtree(const DrawItem& item,const Node& node,bool sceneClip=true) {
+  if(node.paintOwner||item.opacity<=0||!item.world.inverse())return true;
+  // Core's paint clip excludes descendants. A physical shadow is painted
+  // before the node's own clip and can still reach the parent viewport.
+  // Snapshot capture/replay uses another coordinate space and its own clips.
+  const auto physical=node.physicalPaint();
+  return sceneClip&&(item.clip.width<=0||item.clip.height<=0)&&
+    !(physical&&physical->elevation>0&&(physical->shadowColor>>24));
+}
 struct Prepared {
   std::vector<std::shared_ptr<ExternalLease>> memory;
   struct EditorParagraph {
@@ -87,6 +96,7 @@ class ContentProvider {
     uint32_t direction;
     std::shared_ptr<const ParagraphData> options;
     std::shared_ptr<const Resource> fontResource;
+    uint64_t fontRevision;
     std::unique_ptr<skia::textlayout::Paragraph> paragraph;
   };
   std::map<uint64_t, CachedParagraph> measured;
@@ -115,7 +125,7 @@ class ContentProvider {
     if(n.paintPlacement&&n.paintPlacement->unbounded)width=INFINITY;
     const auto old = measured.find(n.id.key());
     if (old != measured.end() && old->second.text == n.text && old->second.size == n.fontSize &&
-        old->second.width == width && old->second.color == n.color && old->second.direction == n.textDirection&&old->second.options==n.paragraph&&old->second.fontResource==n.fontResource) {
+        old->second.width == width && old->second.color == n.color && old->second.direction == n.textDirection&&old->second.options==n.paragraph&&old->second.fontResource==n.fontResource&&old->second.fontRevision==n.fontRevision) {
       auto paragraph = std::move(old->second.paragraph); measured.erase(old); return paragraph;
     }
     auto text = n.text ? n.text->value : std::string{};
@@ -185,7 +195,7 @@ class ContentProvider {
       }
       result.geometry=std::make_shared<TextGeometry>(n.lease.ledger,e.revision,caret,std::move(selection));
     }
-    measured.insert_or_assign(n.id.key(), CachedParagraph{std::move(measurementMemory),n.text,n.fontSize,(n.paintPlacement&&n.paintPlacement->unbounded)?INFINITY:width,n.color,n.textDirection,n.paragraph,n.fontResource,std::move(paragraph)});
+    measured.insert_or_assign(n.id.key(), CachedParagraph{std::move(measurementMemory),n.text,n.fontSize,(n.paintPlacement&&n.paintPlacement->unbounded)?INFINITY:width,n.color,n.textDirection,n.paragraph,n.fontResource,n.fontRevision,std::move(paragraph)});
     return result;
   }
   ContentProvider(const std::string& font,const std::string& icu,std::shared_ptr<Ledger> book)
@@ -194,6 +204,7 @@ class ContentProvider {
     paragraphLayouts=paragraphProvider.layouts;
   }
   std::shared_ptr<const Prepared> prepare(const Preparation& p) {
+    if(measurePreparation!=p.id)discardMeasurements();
     ExternalLease staging(ledger,1,4,wire::limits::resourceBytes);
     auto result = std::make_shared<Prepared>();result->id=p.id;result->metrics=p.metrics.epoch;result->device=p.metrics.device;
     result->memory.push_back(std::make_shared<ExternalLease>(ledger,1,2,p.document->count*sizeof(size_t)));
@@ -350,17 +361,20 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
     ExternalLease traversalMemory(frame.scene->document->lease.ledger,2,2,frame.items.size()*(sizeof(size_t)*2+48));
     const auto& ends=prepared.subtreeEnds;
     if(ends.size()!=frame.items.size())throw std::runtime_error("Prepared draw topology differs");
-    std::function<void(SkCanvas*,size_t,size_t,Affine,double)> drawRange;
-    drawRange=[&](SkCanvas* target,size_t begin,size_t end,Affine overrideMatrix,double pixelScale){
+    std::function<void(SkCanvas*,size_t,size_t,Affine,double,bool)> drawRange;
+    drawRange=[&](SkCanvas* target,size_t begin,size_t end,Affine overrideMatrix,double pixelScale,bool sceneClip){
     auto* canvas=target;const auto baseDepth=begin<end?frame.items[begin].depth:0;
     const auto drawPaint=[&](const DrawItem& item,bool foreground){const auto& n=frame.scene->document->get(item.node);
       SkPaint paint;paint.setAntiAlias(true);paintFrameNative(canvas,n,item,paint,pixelScale,foreground,[&](Handle reference){
         const auto& resource=frame.scene->document->get(reference);const auto found=prepared.pictures.find(reference.key());
         if(resource.paintOwner!=item.node||found==prepared.pictures.end())throw std::runtime_error("Native prepared paragraph generation missing");
         if(frame.properties[reference.slot].opacity<=0)return;
-        SkPaint alpha;alpha.setAlphaf(float(frame.properties[reference.slot].opacity));
-        if(resource.graphics.blur>0)alpha.setImageFilter(SkImageFilters::Blur(float(resource.graphics.blur),float(resource.graphics.blur),SkTileMode::kDecal,nullptr));
-        canvas->drawPicture(found->second,nullptr,&alpha);
+        const auto opacity=frame.properties[reference.slot].opacity;
+        if(opacity<1||resource.graphics.blur>0){
+          SkPaint alpha;alpha.setAlphaf(float(opacity));
+          if(resource.graphics.blur>0)alpha.setImageFilter(SkImageFilters::Blur(float(resource.graphics.blur),float(resource.graphics.blur),SkTileMode::kDecal,nullptr));
+          canvas->drawPicture(found->second,nullptr,&alpha);
+        }else canvas->drawPicture(found->second);
       },&paintCounts);
     };
     struct Saved {int count;const DrawItem* item;};std::vector<Saved> saves;
@@ -370,7 +384,7 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
     for(size_t index=begin;index<end;++index){const auto& item=frame.items[index];
       while(saves.size()>item.depth-baseDepth)finish();
       const auto& n=frame.scene->document->get(item.node);
-      if(n.paintOwner||item.opacity<=0||!item.world.inverse()){index=ends[index]-1;continue;}
+      if(skipPreparedSubtree(item,n,sceneClip)){index=ends[index]-1;continue;}
       const int saved=canvas->getSaveCount();canvas->save();saves.push_back({saved,&item});
       const auto m=overrideMatrix*item.world;
       canvas->setMatrix(SkMatrix::MakeAll(float(m.a*pixelScale),float(m.c*pixelScale),float(m.tx*pixelScale),float(m.b*pixelScale),float(m.d*pixelScale),float(m.ty*pixelScale),0,0,1));
@@ -451,7 +465,7 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
             if(source.snapshot&&source.snapshot->live.opacity<1)++layers;
           }
           snapshots.capture(decision,n.id,n.lease.ledger,[&](SkCanvas* recording){
-            drawRange(recording,index+1,ends[index],*item.world.inverse(),decision.ratio);
+            drawRange(recording,index+1,ends[index],*item.world.inverse(),decision.ratio,false);
           },uint64_t(decision.pixelWidth)*decision.pixelHeight*4*layers);
         }
         if(decision.background){SkPaint background;background.setColor(decision.background);
@@ -466,13 +480,16 @@ inline void drawPreparedFrame(SkCanvas* canvas,const Frame& frame,const Prepared
             SkSamplingOptions(SkFilterMode::kLinear,SkMipmapMode::kLinear),&paint,SkCanvas::kStrict_SrcRectConstraint);
         } else if(decision.boxWidth>0&&decision.boxHeight>0&&decision.opacity>0) {
           if(decision.opacity<1){SkPaint paint;paint.setAlphaf(float(decision.opacity));canvas->saveLayer(nullptr,&paint);}
-          drawRange(canvas,index+1,ends[index],overrideMatrix*item.world*transform*(*item.world.inverse()),pixelScale);
+          // Snapshot's transform changes the live scene's coordinate space.
+          // Rebuild clips on the target canvas rather than culling with the
+          // original publication's untransformed clip rectangles.
+          drawRange(canvas,index+1,ends[index],overrideMatrix*item.world*transform*(*item.world.inverse()),pixelScale,false);
         }
         index=ends[index]-1;
       }
     }
     while(!saves.empty())finish();
     };
-    drawRange(canvas,0,frame.items.size(),{},scale);
+    drawRange(canvas,0,frame.items.size(),{},scale,true);
 }
 }

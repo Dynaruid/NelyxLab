@@ -64,13 +64,22 @@ class RenderProvider {
     }
     if(!device->acquireWindowFrame())return false;
     slot=std::make_unique<FrameSlot>();slot->frame=std::move(frameOwner);slot->prepared=std::move(preparedOwner);
-    uint64_t pathBytes=0,layerBytes=0;for(const auto& item:frame.items){const auto& n=frame.scene->document->get(item.node);
+    if(prepared.subtreeEnds.size()!=frame.items.size())throw std::runtime_error("Prepared draw topology differs");
+    size_t snapshotEnd=0;
+    uint64_t pathBytes=0,layerBytes=0;for(size_t index=0;index<frame.items.size();++index){
+      const auto& item=frame.items[index];const auto& n=frame.scene->document->get(item.node);
+      const bool sceneClip=index>=snapshotEnd;
+      if(skipPreparedSubtree(item,n,sceneClip)){index=prepared.subtreeEnds[index]-1;continue;}
+      // A Snapshot can paint descendants outside their original scene clip.
+      // Retain their reservations for capture and transformed live replay.
+      if(n.snapshot)snapshotEnd=std::max(snapshotEnd,prepared.subtreeEnds[index]);
       if(item.paint)pathBytes+=item.paint->paths.size()*256+1024;
-      if(item.opacity<=0||!item.world.inverse())continue;
       if(frame.properties[n.id.slot].opacity<1||n.graphics.blur>0)layerBytes+=uint64_t(w)*h*4*(n.graphics.blur>0?3:1);
       if(n.snapshot&&n.snapshot->live.opacity<1)layerBytes+=uint64_t(w)*h*4;
-      if(item.flags&wire::nodeFlags::clipSaveLayer)layerBytes+=uint64_t(w)*h*4;}
-    for(const auto& item:frame.items)layerBytes+=nativeMaskLayerBytes(item,scale,w,h);
+      if(item.flags&wire::nodeFlags::clipSaveLayer)layerBytes+=uint64_t(w)*h*4;
+      // A transformed Snapshot may move a mask into view. Its original world
+      // bounds cannot prove that the live layer allocates no device pixels.
+      layerBytes+=!sceneClip&&nativeLinearMask(item.paint.get())?uint64_t(w)*h*4:nativeMaskLayerBytes(item,scale,w,h);}
     slot->paths=std::make_unique<ExternalLease>(ledger,2,2,pathBytes);
     slot->layers=std::make_unique<ExternalLease>(ledger,2,3,layerBytes);
     drawPreparedFrame(surface->getCanvas(),frame,prepared,scale,paintCounts,snapshots);
