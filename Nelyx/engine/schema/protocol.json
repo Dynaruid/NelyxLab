@@ -10,9 +10,12 @@
     "appLayoutSelection": 4,
     "appObservationDelta": 8,
     "appLayoutDelta": 16,
-    "browserObservation": 32
+    "browserObservation": 32,
+    "providerFrameDelta": 64,
+    "providerPreparationDelta": 128
   },
   "stateBytes": 832,
+  "memoryReportHeadroomBytes": 24,
   "nodeBytes": 360,
   "eventBytes": 160,
   "inputBytes": 128,
@@ -1292,5 +1295,9 @@
   "observationDeltaBlob": 35,
   "observationReferencesBlob": 36,
   "observationRegistrationBlob": 37,
-  "observationDeltaBytes": 176
+  "observationDeltaBytes": 176,
+  "providerFrameBlob": 38,
+  "providerFrameBytes": 64,
+  "providerPreparationBlob": 39,
+  "providerPreparationBytes": 64
 }

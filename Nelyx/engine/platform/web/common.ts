@@ -38,6 +38,21 @@ export function endpoint(port: MessagePort): PacketEndpoint {
     close: () => port.close(),
   };
 }
+/** Only fixed-size state/input reads may bypass provider owner queues. Core
+ * still validates the full packet and serializes access to its authoritative
+ * state. Full scene inspection must remain on its normal owner. */
+export function isImmediateRead(bytes: Uint8Array): boolean {
+  if (bytes.length < p.headerBytes) return false;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+    opcode = view.getUint16(p.headerFields.opcode, true);
+  return (
+    ((opcode === p.opcodes.pollInteractionEvents || opcode === p.opcodes.pollRaw) &&
+      bytes.length === p.headerBytes) ||
+    (opcode === p.opcodes.inspect &&
+      bytes.length === p.headerBytes + 4 &&
+      view.getUint32(p.headerBytes, true) === p.inspectionFlags.stateOnly)
+  );
+}
 export function exchange(module: BrowserModule, engine: number, bytes: Uint8Array): Uint8Array {
   if (bytes.length > p.limits.packetBytes) throw new Error('Engine packet budget exceeded');
   const op =

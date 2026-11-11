@@ -8,7 +8,15 @@ import { CanvasKitProvider, canvasKitSupply } from '../../render/canvaskit-web/p
 import type { PreparedPictures, WebManifest } from '../../render/canvaskit-web/provider.ts';
 import { ContentActor, RenderActor, preparedTransfers } from './actors.ts';
 import type { Viewport } from './actors.ts';
-import { exchange, failure, script, verified, sessionOwner, forgetHeapReport } from './common.ts';
+import {
+  exchange,
+  failure,
+  script,
+  verified,
+  sessionOwner,
+  forgetHeapReport,
+  isImmediateRead,
+} from './common.ts';
 import type { BrowserModule } from './common.ts';
 import { ProviderBudget } from './memory.ts';
 
@@ -166,6 +174,16 @@ function actorMessage(value: Record<string, unknown>, transfer: ArrayBuffer[] = 
       );
   } else if (kind === 'prepared-released') {
     contentWorker!.postMessage({ kind: 'v2-release-prepared', preparation: value.preparation });
+  } else if (kind === 'surface-resized') {
+    if (typeof value.metrics !== 'bigint' || typeof value.device !== 'bigint')
+      throw Error('Invalid surface cohort');
+    if (content) content.surfaceResized(value.metrics, value.device);
+    else
+      contentWorker?.postMessage({
+        kind: 'v2-surface-resized',
+        metrics: value.metrics,
+        device: value.device,
+      });
   } else if (kind === 'content-wake') {
     if (content) content.kick();
     else contentWorker?.postMessage({ kind: 'v2-wake' });
@@ -287,10 +305,11 @@ async function initialize(message: {
       module._free(configuration);
     }
   } else {
-    provider = await CanvasKitProvider.load(root, new ProviderBudget(module, engine, 1));
+    const providerBudget = new ProviderBudget(module, engine, 1);
+    provider = await CanvasKitProvider.load(root, providerBudget);
     contentThread = renderThread = module._nelyx_host_thread_id();
-    content = new ContentActor(module, engine, provider, actorMessage, true);
-    render = new RenderActor(module, engine, provider, actorMessage);
+    content = new ContentActor(module, engine, provider, actorMessage, true, providerBudget);
+    render = new RenderActor(module, engine, provider, actorMessage, providerBudget);
     render.attach(initialCanvas, viewport, initialClock);
     initialCanvas = undefined;
     initialClock = undefined;
@@ -403,9 +422,15 @@ function route(port: ClientPort, message: { kind: string; id: number; bytes: Arr
     scope.postMessage({ kind: 'ui-packet', id: ticket, bytes: message.bytes }, [message.bytes]);
     return;
   }
-  if (profile === 'single-worker') {
+  const immediateRead = isImmediateRead(bytes);
+  if (immediateRead || profile === 'single-worker') {
     try {
-      const result = (contentOps.has(op) ? content! : render!).packet(bytes);
+      // A status/Source request must not wait for CanvasKit draw/record work
+      // on either pthread owner. This module shares Core's synchronized state;
+      // provider resources and all changing operations retain their owner.
+      const result = immediateRead
+        ? exchange(module, engine, bytes)
+        : (contentOps.has(op) ? content! : render!).packet(bytes);
       complete({ id: ticket, bytes: result.buffer });
     } catch (error) {
       complete({ id: ticket, error: failure(error) });
@@ -533,6 +558,8 @@ scope.addEventListener('message', (event) => {
         throw new Error('Memory pressure control credit/value rejected');
       if (provider) {
         provider.setMemoryPressure(message.low);
+        render?.pressure(message.low);
+        content?.pressure(message.low);
         post({
           kind: 'memory-pressure',
           revision: message.revision,
@@ -540,7 +567,14 @@ scope.addEventListener('message', (event) => {
             revision: message.revision,
             low: message.low,
             source: message.source,
-            owners: [{ role: 'combined', counters: { ...provider.counters } }],
+            owners: [
+              {
+                role: 'combined',
+                counters: { ...provider.counters },
+                preparationStream: content?.preparationSnapshot,
+                frameStream: render?.frameSnapshot,
+              },
+            ],
           },
         });
       } else {

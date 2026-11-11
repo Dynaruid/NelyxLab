@@ -17,6 +17,9 @@ import type { BrowserModule } from './common.ts';
 import { DemandFrameClock } from './frame-clock.ts';
 import type { FrameClockSample } from './frame-clock.ts';
 import { FontPreparation } from './font-preparation.ts';
+import { ProviderFrames } from './provider-frames.ts';
+import { ProviderPreparations } from './provider-preparations.ts';
+import type { ProviderMemoryBudget } from './memory.ts';
 
 export type Viewport = {
   width: number;
@@ -61,6 +64,7 @@ export function preparedTransfers(packet: PreparedPictures): ArrayBuffer[] {
   ];
 }
 export class ContentActor {
+  private readonly preparations: ProviderPreparations;
   private readonly notifyChange = changeNotifier((value) => this.post(value));
   private readonly fontPreparation: FontPreparation;
   private scheduled = false;
@@ -69,6 +73,8 @@ export class ContentActor {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private pumping = false;
   private timingPreparation = 0n;
+  private surfaceMetrics = 0n;
+  private surfaceDevice = 0n;
   private timing = {
     startedAtMs: 0,
     steps: 0,
@@ -82,11 +88,24 @@ export class ContentActor {
     private provider: CanvasKitProvider,
     private post: ActorPost,
     private sharedOwner: boolean,
+    budget: ProviderMemoryBudget,
   ) {
+    this.preparations = new ProviderPreparations(module, engine, budget);
     this.fontPreparation = new FontPreparation(module, engine, provider, 'content', post);
   }
   checkFonts(): void {
     this.fontPreparation.check();
+  }
+  get preparationSnapshot() {
+    return this.preparations.diagnostics;
+  }
+  surfaceResized(metrics: bigint, device: bigint): void {
+    if (this.stopped) return;
+    const state = request(this.module, this.engine, p.opcodes.inspect, stateInspectionBody());
+    if (state.metrics !== metrics || state.device !== device) return;
+    this.surfaceMetrics = metrics;
+    this.surfaceDevice = device;
+    this.preparations.endResize();
   }
   kick(): void {
     if (this.stopped || this.scheduled) return;
@@ -175,6 +194,8 @@ export class ContentActor {
         body(8, (v) => v.setUint32(0, p.limits.contentPerStep, true)),
       );
       if (state.status !== p.statuses.ok || state.closed) return;
+      if (state.metrics !== this.surfaceMetrics || state.device !== this.surfaceDevice)
+        this.preparations.beginResize();
       this.notifyChange(state);
       if (state.preparation !== this.timingPreparation) {
         this.timingPreparation = state.preparation;
@@ -219,44 +240,52 @@ export class ContentActor {
         this.kick();
       } else if (state.preparationReady && state.preparation !== this.last) {
         const recordStart = performance.now();
-        const scene = request(this.module, this.engine, p.opcodes.preparationScene);
-        if (scene.status !== p.statuses.ok)
-          throw new Error('Preparation snapshot rejected (' + scene.status + ')');
-        this.last = scene.preparation;
-        attempt = { id: scene.preparation, metrics: scene.metrics, device: scene.device };
-        const resources = this.resources(scene);
-        let packet: PreparedPictures;
+        attempt = { id: state.preparation, metrics: state.metrics, device: state.device };
+        const acquired = this.preparations.acquire();
         try {
-          packet = this.provider.prepare(resources.scene, this.sharedOwner);
+          const scene = acquired.scene;
+          if (scene.status !== p.statuses.ok)
+            throw new Error('Preparation snapshot rejected (' + scene.status + ')');
+          this.last = scene.preparation;
+          attempt = { id: scene.preparation, metrics: scene.metrics, device: scene.device };
+          const resources = this.resources(scene);
+          let packet: PreparedPictures;
+          try {
+            packet = this.provider.prepare(resources.scene, this.sharedOwner);
+          } finally {
+            resources.release();
+          }
+          this.timing.recordElapsedMs = performance.now() - recordStart;
+          try {
+            this.post(
+              { kind: 'prepared', packet },
+              this.sharedOwner ? [] : preparedTransfers(packet),
+            );
+          } catch (error) {
+            this.provider.releasePacket(packet.preparation);
+            this.provider.retireExcept(scene.activePreparation);
+            throw error;
+          }
+          acquired.release();
+          this.post({
+            kind: 'content-stats',
+            preparationStream: this.preparations.diagnostics,
+            counters: { ...this.provider.counters },
+            textCapabilities: this.provider.textCapabilities,
+            timing: {
+              domain: 'owner-performance',
+              timeOriginMs: performance.timeOrigin,
+              ...this.timing,
+              completedAtMs: performance.now(),
+              preparation: scene.preparation,
+              document: scene.document,
+              nativeContentWork: scene.contentWork,
+              nativeLayoutWork: scene.layoutWork,
+            },
+          });
         } finally {
-          resources.release();
+          acquired.release();
         }
-        this.timing.recordElapsedMs = performance.now() - recordStart;
-        try {
-          this.post(
-            { kind: 'prepared', packet },
-            this.sharedOwner ? [] : preparedTransfers(packet),
-          );
-        } catch (error) {
-          this.provider.releasePacket(packet.preparation);
-          this.provider.retireExcept(scene.activePreparation);
-          throw error;
-        }
-        this.post({
-          kind: 'content-stats',
-          counters: { ...this.provider.counters },
-          textCapabilities: this.provider.textCapabilities,
-          timing: {
-            domain: 'owner-performance',
-            timeOriginMs: performance.timeOrigin,
-            ...this.timing,
-            completedAtMs: performance.now(),
-            preparation: scene.preparation,
-            document: scene.document,
-            nativeContentWork: scene.contentWork,
-            nativeLayoutWork: scene.layoutWork,
-          },
-        });
       } else if (
         (!state.preparationReady && state.preparation && !state.layoutBuildPending) ||
         state.layoutQuery?.status === p.statuses.pending
@@ -270,6 +299,16 @@ export class ContentActor {
       }
       const state = request(this.module, this.engine, p.opcodes.inspect, stateInspectionBody());
       this.provider.discardMeasurements();
+      if (
+        attempt &&
+        (state.closed ||
+          (state.preparation !== attempt.id && state.measurePreparation !== attempt.id) ||
+          state.metrics !== attempt.metrics ||
+          state.device !== attempt.device)
+      ) {
+        this.kick();
+        return;
+      }
       const failed = attempt ?? {
         id: state.measurePreparation || state.preparation,
         metrics: state.metrics,
@@ -286,7 +325,11 @@ export class ContentActor {
             v.setBigUint64(16, failed.device, true);
           }),
         );
-      this.post({ kind: 'preparation-error', message: failure(error) });
+      this.post({
+        kind: 'preparation-error',
+        message: failure(error),
+        preparationStream: this.preparations.diagnostics,
+      });
       this.kick();
     }
   }
@@ -333,9 +376,14 @@ export class ContentActor {
     this.stopped = true;
     this.fontPreparation.stop();
     if (this.timer !== undefined) clearTimeout(this.timer);
+    this.preparations.close();
+  }
+  pressure(low: boolean): void {
+    this.preparations.pressure(low);
   }
 }
 export class RenderActor {
+  private readonly frames: ProviderFrames;
   private readonly notifyChange = changeNotifier((value) => this.post(value));
   private readonly fontPreparation: FontPreparation;
   private stopped = false;
@@ -344,6 +392,8 @@ export class RenderActor {
   private wanted = false;
   private wakeAt: number | undefined;
   private candidate = 0n;
+  private drawnMetrics = 0n;
+  private drawnDevice = 0n;
   private viewport: Viewport = { width: 0, height: 0, scale: 1, visible: true, focused: true };
   private cppMetrics = '';
   private last: EngineResponse | undefined;
@@ -354,7 +404,9 @@ export class RenderActor {
     private engine: number,
     private provider: CanvasKitProvider,
     private post: ActorPost,
+    budget: ProviderMemoryBudget,
   ) {
+    this.frames = new ProviderFrames(module, engine, budget);
     this.fontPreparation = new FontPreparation(module, engine, provider, 'render', post);
     provider.bindSnapshots((frame, phase, node, token) => {
       const result = request(
@@ -388,6 +440,9 @@ export class RenderActor {
   get clockSnapshot(): FrameClockSample {
     return this.clock.snapshot;
   }
+  get frameSnapshot() {
+    return this.frames.diagnostics;
+  }
   attach(canvas: OffscreenCanvas, viewport: Viewport, clockPort?: MessagePort): void {
     if (clockPort) this.clock.connect(clockPort);
     this.provider.attach(canvas);
@@ -415,6 +470,7 @@ export class RenderActor {
         }),
       );
       if (result.status !== p.statuses.ok) throw new Error('Metrics rejected: ' + result.status);
+      this.frames.beginResize();
       this.cppMetrics = identity;
       this.post({ kind: 'content-wake' });
     }
@@ -551,54 +607,38 @@ export class RenderActor {
     let drawElapsedMs = 0,
       publicationElapsedMs = 0,
       submission: bigint | null = null;
-    const frame = request(this.module, this.engine, p.opcodes.takeFrame);
-    if (
-      frame.status !== p.statuses.ok &&
-      frame.status !== p.statuses.notFound &&
-      frame.status !== p.statuses.busy &&
-      frame.status !== p.statuses.closed &&
-      frame.status !== p.statuses.contentUnavailable
-    )
-      throw Error('Core frame response rejected: ' + frame.status);
-    if (frame.status === p.statuses.ok) {
-      submission = frame.submission;
-      this.offsets = frame.nodes
-        .filter((n) => n.kind === p.kinds.scrollViewport)
-        .map((n) => n.offset);
-      let drawn = false;
-      try {
-        const drawStart = performance.now();
-        this.provider.draw(frame, this.viewport.width, this.viewport.height, this.viewport.scale);
-        drawElapsedMs = performance.now() - drawStart;
-        drawn = true;
-        // Provider flush is submission, with its public resource-retention
-        // contract. No GPU-complete receipt is invented for WebGL.
-        request(
-          this.module,
-          this.engine,
-          p.opcodes.releaseFrame,
-          body(24, (v) => {
-            v.setBigUint64(0, frame.submission, true);
-            v.setBigUint64(8, frame.device, true);
-          }),
-        );
-        const publicationStart = performance.now();
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        if (!this.stopped)
-          state = request(
-            this.module,
-            this.engine,
-            p.opcodes.publish,
-            body(24, (v) => {
-              v.setBigUint64(0, frame.submission, true);
-              v.setBigUint64(8, frame.device, true);
-            }),
-          );
-        publicationElapsedMs = performance.now() - publicationStart;
-        if (this.candidate === frame.activePreparation) this.candidate = 0n;
-        this.provider.retireExcept(frame.activePreparation, this.candidate);
-      } finally {
-        if (!drawn)
+    const acquired = this.frames.acquire(),
+      frame = acquired.frame;
+    try {
+      if (
+        frame.status !== p.statuses.ok &&
+        frame.status !== p.statuses.notFound &&
+        frame.status !== p.statuses.busy &&
+        frame.status !== p.statuses.closed &&
+        frame.status !== p.statuses.contentUnavailable
+      )
+        throw Error('Core frame response rejected: ' + frame.status);
+      if (frame.status === p.statuses.ok) {
+        submission = frame.submission;
+        this.offsets = frame.nodes
+          .filter((n) => n.kind === p.kinds.scrollViewport)
+          .map((n) => n.offset);
+        let drawn = false;
+        try {
+          const drawStart = performance.now();
+          this.provider.draw(frame, this.viewport.width, this.viewport.height, this.viewport.scale);
+          this.frames.endResize();
+          if (this.drawnMetrics !== frame.metrics || this.drawnDevice !== frame.device) {
+            this.drawnMetrics = frame.metrics;
+            this.drawnDevice = frame.device;
+            // draw() has replaced the backing and returned its old credit.
+            // This is neither GPU completion nor a presentation receipt.
+            this.post({ kind: 'surface-resized', metrics: frame.metrics, device: frame.device });
+          }
+          drawElapsedMs = performance.now() - drawStart;
+          drawn = true;
+          // Provider flush is submission, with its public resource-retention
+          // contract. No GPU-complete receipt is invented for WebGL.
           request(
             this.module,
             this.engine,
@@ -606,36 +646,66 @@ export class RenderActor {
             body(24, (v) => {
               v.setBigUint64(0, frame.submission, true);
               v.setBigUint64(8, frame.device, true);
-              v.setUint32(20, 1, true);
             }),
           );
+          const publicationStart = performance.now();
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          if (!this.stopped)
+            state = request(
+              this.module,
+              this.engine,
+              p.opcodes.publish,
+              body(24, (v) => {
+                v.setBigUint64(0, frame.submission, true);
+                v.setBigUint64(8, frame.device, true);
+              }),
+            );
+          publicationElapsedMs = performance.now() - publicationStart;
+          if (this.candidate === frame.activePreparation) this.candidate = 0n;
+          this.provider.retireExcept(frame.activePreparation, this.candidate);
+        } finally {
+          if (!drawn)
+            request(
+              this.module,
+              this.engine,
+              p.opcodes.releaseFrame,
+              body(24, (v) => {
+                v.setBigUint64(0, frame.submission, true);
+                v.setBigUint64(8, frame.device, true);
+                v.setUint32(20, 1, true);
+              }),
+            );
+        }
       }
+      this.last = state;
+      const events = request(this.module, this.engine, p.opcodes.pollEvents);
+      this.notifyChange(state);
+      if (submission !== null)
+        this.publishedTiming = {
+          domain: 'owner-performance',
+          timeOriginMs: performance.timeOrigin,
+          startedAtMs,
+          tickElapsedMs: tickEndMs - startedAtMs,
+          drawAndSubmitElapsedMs: drawElapsedMs,
+          publicationElapsedMs,
+          completedAtMs: performance.now(),
+          submission,
+          document: state.activeDocument,
+          publication: state.publication,
+          metrics: state.metrics,
+          consumedThrough: state.consumedThrough,
+          build: 'unobserved',
+          scanout: 'unobserved',
+        };
+      acquired.release();
+      this.report(state, clock, events.events);
+      if (state.pendingDocument) this.post({ kind: 'content-wake' });
+      if (state.renderWake) this.kick(this.clock.source === 'timer-fallback' ? 16 : 0);
+      if (state.nextDeadline !== null)
+        this.kick(Math.max(0, (state.nextDeadline - performance.now() / 1000) * 1000));
+    } finally {
+      acquired.release();
     }
-    this.last = state;
-    const events = request(this.module, this.engine, p.opcodes.pollEvents);
-    this.notifyChange(state);
-    if (submission !== null)
-      this.publishedTiming = {
-        domain: 'owner-performance',
-        timeOriginMs: performance.timeOrigin,
-        startedAtMs,
-        tickElapsedMs: tickEndMs - startedAtMs,
-        drawAndSubmitElapsedMs: drawElapsedMs,
-        publicationElapsedMs,
-        completedAtMs: performance.now(),
-        submission,
-        document: state.activeDocument,
-        publication: state.publication,
-        metrics: state.metrics,
-        consumedThrough: state.consumedThrough,
-        build: 'unobserved',
-        scanout: 'unobserved',
-      };
-    this.report(state, clock, events.events);
-    if (state.pendingDocument) this.post({ kind: 'content-wake' });
-    if (state.renderWake) this.kick(this.clock.source === 'timer-fallback' ? 16 : 0);
-    if (state.nextDeadline !== null)
-      this.kick(Math.max(0, (state.nextDeadline - performance.now() / 1000) * 1000));
   }
   private report(
     state: EngineResponse,
@@ -654,12 +724,17 @@ export class RenderActor {
       gpuComplete: 'unobserved',
       frameClock,
       timing: this.publishedTiming ?? null,
+      frameStream: this.frames.diagnostics,
     });
+  }
+  pressure(low: boolean): void {
+    this.frames.pressure(low);
   }
   async stop(): Promise<void> {
     this.stopped = true;
     this.clock.close();
     await this.running;
+    this.frames.close();
     this.fontPreparation.stop();
     this.post({ kind: 'render-stopped', state: this.last, frameClock: this.clock.snapshot });
   }

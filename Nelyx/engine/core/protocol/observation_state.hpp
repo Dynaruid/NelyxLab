@@ -44,4 +44,11 @@ struct ObservationState {
   void clear(){indexLease.reset();version=0;rows.clear();order.clear();selection.clear();slots.fill({});clean();
     decltype(pending) empty(pending.get_allocator());pending.swap(empty);bytes=0;}
 };
+// Provider subscriptions are optional. Native/full-frame consumers must not
+// reserve a second slot dictionary merely because the Web delta role exists.
+struct ProviderObservationState final : ObservationState {
+  Lease lease;
+  explicit ProviderObservationState(const std::shared_ptr<Ledger>& ledger)
+    :ObservationState(ledger),lease(ledger,sizeof(ProviderObservationState)){}
+};
 }

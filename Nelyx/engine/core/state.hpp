@@ -248,13 +248,18 @@ struct Frame {
   void resolveRoute(const Frame* previous,uint64_t sequence,const std::shared_ptr<Ledger>& ledger);
   bool sameInputGeometry(const Frame& other, Handle node) const;
   bool sharesInputGeometry(const Frame& other) const;
+  const DrawItem* item(Handle node)const {
+    if(node.slot>=itemBySlot.size())return nullptr;
+    const auto index=itemBySlot[node.slot];
+    return index<items.size()&&items[index].node==node?&items[index]:nullptr;
+  }
   std::optional<Point> local(Handle node,double x,double y)const {
-    for(const auto& item:items)if(item.node==node){const auto inverse=item.world.inverse();
+    if(const auto* value=item(node)){const auto inverse=value->world.inverse();
       if(inverse)return inverse->map({x,y});return {};}
     return {};
   }
   Point delta(Handle node,double dx,double dy)const {
-    for(const auto& item:items)if(item.node==node){const auto inverse=item.world.inverse();
+    if(const auto* value=item(node)){const auto inverse=value->world.inverse();
       if(inverse){const auto p=inverse->map({dx,dy}),zero=inverse->map({0,0});return {p.x-zero.x,p.y-zero.y};}}
     return {};
   }
@@ -380,8 +385,17 @@ struct FontTransition {
   uint32_t phase=0,ready=0,failedOwner=0,failedStatus=0;
 };
 struct View {
+  struct PreparationObservation final : ObservationState {
+    using Nodes=decltype(Document::nodes);
+    Lease lease;
+    Nodes::WeakSnapshot pages;
+    explicit PreparationObservation(const std::shared_ptr<Ledger>& ledger)
+      :ObservationState(ledger),lease(ledger,sizeof(PreparationObservation)+Nodes::weakSnapshotBytes){}
+  };
   Lease lease;
   std::array<ObservationState,2> observations;
+  std::unique_ptr<ProviderObservationState> providerFrames;
+  std::unique_ptr<PreparationObservation> providerPreparations;
   uint64_t observationSequence=0,observationBlobSequence=0;
   // Current overlay metadata can change before a frame is published. Only
   // this viewport and its list consumers depend on requested/velocity values.

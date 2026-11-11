@@ -36,11 +36,17 @@ struct Ledger {
   void release(uint64_t count,bool resource) {
     std::lock_guard lock(gate);bytes-=count;if(resource)resourceBytes-=count;
   }
-  void report(uint32_t owner,uint32_t kind,uint64_t count,bool draining=false) {
-    require(owner<external.size()&&kind<external[0].size()&&count<=wire::limits::unifiedBytes,wire::statuses::invalidValue);
+  void report(uint32_t owner,uint32_t kind,uint64_t count,bool draining=false,uint64_t headroom=0) {
+    require(owner<external.size()&&kind<external[0].size()&&count<=wire::limits::unifiedBytes&&
+      headroom<=wire::limits::unifiedBytes,wire::statuses::invalidValue);
     std::lock_guard lock(gate);auto& entry=external[owner][kind];const auto before=entry;entry=count;
     if(draining&&count>before){entry=before;throw Error{wire::statuses::closed};}
-    try{check(bytes.load());}catch(...){entry=before;throw;}
+    try{
+      if(headroom){const auto value=snapshotLocked(bytes.load());
+        if(value.total>wire::limits::unifiedBytes||headroom>wire::limits::unifiedBytes-value.total){
+          ++rejected;throw Error{wire::statuses::budgetExceeded};}}
+      check(bytes.load());
+    }catch(...){entry=before;throw;}
   }
   void adjust(uint32_t owner,uint32_t kind,uint64_t count,bool release) {
     std::lock_guard lock(gate);auto& entry=external.at(owner).at(kind);const auto before=entry;

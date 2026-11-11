@@ -39,6 +39,9 @@ try {
       assert.equal(decodeCache.readRegistered('view3/blob1',restored,readSemanticBody),restoredValue);
       assert.equal(decodeCache.counters.misses,misses,'The committed private registration was decoded again');
       decodeCache.clear();
+      const retiredCache=new ObservationDecodeCache(4096,8),oldBytes=semanticBody({role:'button',label:'old'}),currentBytes=semanticBody({role:'button',label:'current'}),otherBytes=semanticBody({role:'button',label:'other'});
+      const oldValue=retiredCache.readRegistered('content/1',oldBytes,readSemanticBody),currentValue=retiredCache.readRegistered('content/2',currentBytes,readSemanticBody),otherValue=retiredCache.readRegistered('render/1',otherBytes,readSemanticBody),nestedValue=retiredCache.readRegistered('content/sub/1',otherBytes,readSemanticBody);
+      assert.equal(retiredCache.retainRegistered('content',[2n]),1);assert.equal(retiredCache.size,3);assert.equal(oldValue.label,'old','Retiring a cache holder mutated an old reader');assert.equal(retiredCache.readRegistered('content/2',currentBytes,readSemanticBody),currentValue);assert.equal(retiredCache.readRegistered('render/1',otherBytes,readSemanticBody),otherValue,'Retirement crossed owner scopes');assert.equal(retiredCache.readRegistered('content/sub/1',otherBytes,readSemanticBody),nestedValue,'Retirement crossed nested owner scopes');assert.equal(retiredCache.retainRegistered('content',[]),1);assert.equal(retiredCache.size,2);retiredCache.clear();assert.equal(retiredCache.byteLength,0);
       const client = await EngineClient.connect(createWasmTransport(await factory()));
       try {
         const view = await client.openView(1);

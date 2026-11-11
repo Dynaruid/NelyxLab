@@ -15,12 +15,91 @@ const timeout = setTimeout(() => {
 }, 1200000);
 try {
   for (const profile of process.argv.includes('--plain') ? ['plain'] : ['isolated', 'plain']) {
-    const context = await browser.newContext({ viewport: { width: 960, height: 720 } });
+    const scale = process.argv.includes('--dpr2') ? 2 : 1;
+    const context = await browser.newContext({
+      viewport: { width: 960, height: 720 },
+      deviceScaleFactor: scale,
+    });
     const page = await context.newPage();
+    // This Chromium/CDP runner emits half the requested wheel delta at DPR2.
+    // Calibrated on an independent canvas: request logical CSS pixel motion.
+    const wheel = (delta) => page.mouse.wheel(0, delta * scale);
     page.setDefaultTimeout(15000);
     const errors = [];
+    const intercept = (pattern, handler) =>
+      page.route(pattern, async (route) => {
+        try {
+          await handler(route);
+        } catch (error) {
+          errors.push(String(error));
+          await route.abort().catch(() => {});
+        }
+      });
+    if (process.argv.includes('--full-provider-frames'))
+      await intercept(/\/(owner|coordinator)\.js$/, async (route) => {
+        const fetched = await route.fetch(),
+          original = await fetched.text(),
+          marker = 'deltaEnabled = true;';
+        assert.equal(original.split(marker).length, 2, 'Provider frame oracle hook missing');
+        await route.fulfill({
+          response: fetched,
+          body: original.replace(marker, 'deltaEnabled = false;'),
+        });
+      });
     if (process.argv.includes('--diagnose'))
-      await page.route('**/application/app.js', async (route) => {
+      await intercept('**/application/main.js', async (route) => {
+        const fetched = await route.fetch(),
+          original = await fetched.text(),
+          marker = 'throw new Error("Engine input rejected: " + state.status);';
+        assert.equal(original.split(marker).length, 2, 'Input diagnostic rejection hook missing');
+        const start = original.indexOf('async dispatch(peer, action) {'),
+          end = original.indexOf('    async customAction(', start);
+        assert(start >= 0 && end > start, 'Semantic dispatch diagnostic hook missing');
+        let method = original.slice(start, end);
+        const current = method.match(/const (\w+) = scene\.nodes\.find\(/)?.[1];
+        assert(current, 'Semantic target diagnostic hook missing');
+        method = method.replace(
+          'async dispatch(peer, action) {',
+          `async dispatch(peer, action) {
+          const audit={action,name:peer.element.getAttribute('aria-label')||peer.element.getAttribute('aria-description'),
+            connected:peer.element.isConnected,node:peer.node.node,publication:String(peer.publication),attempts:[]},
+            history=globalThis.__semanticAttempts??=[];
+          if(history.length===64)history.shift();history.push(audit);`,
+        );
+        method = method.replace(
+          new RegExp(`if \\(!${current}\\)\\s+return null;`),
+          `if(!${current}){audit.attempts.push({missing:true,publication:String(scene.publication),
+            matches:scene.nodes.filter(n=>(n.semantics?.label||n.semantics?.hint)===audit.name).slice(0,4)
+              .map(n=>({node:n.node,actions:n.semantics.actions,flags:n.semantics.flags}))});return null;}`,
+        );
+        const result = 'const result = response(await this.exchange(packet(op, owner, data)));';
+        assert.equal(method.split(result).length, 2, 'Semantic result diagnostic hook missing');
+        method = method.replace(
+          result,
+          `${result}audit.attempts.push({status:result.status,
+          publication:String(scene.publication),node:${current}.node,actions:${current}.semantics?.actions,
+          flags:${current}.semantics?.flags});`,
+        );
+        const instrumented = original.slice(0, start) + method + original.slice(end);
+        await route.fulfill({
+          response: fetched,
+          body: instrumented.replace(
+            marker,
+            `{
+            const failures = globalThis.__engineInputFailures ??= [];
+            if (failures.length === 32) failures.shift();
+            failures.push({status:state.status,phase:value.phase,hover:value.hover,
+              collectedPublication:String(value.publication),collectedMetrics:String(value.collectedMetrics),
+              publication:String(state.publication),metrics:String(state.metrics),device:String(state.device),
+              document:String(state.document),publishedDocument:String(state.publishedDocument),
+              visible:state.visible,focused:state.focused,received:String(state.received),consumed:String(state.consumed)});
+            ${marker}
+          }`,
+          ),
+        });
+      });
+    if (process.argv.includes('--diagnose'))
+      await intercept('**/application/app.js', async (route) => {
         const response = await route.fetch(),
           body = (await response.text()).replace(
             /hosts\.set\(view, (host\d*)\);/,
@@ -41,7 +120,13 @@ try {
           published: String(s?.publishedDocument),
           preparation: String(s?.preparation),
           pending: String(s?.pendingDocument),
+          visible: s?.visible,
+          focused: s?.focused,
+          browserFocused: document.hasFocus(),
           input: globalThis.__nelyxV2?.surface.inputStats,
+          inputFailures: globalThis.__engineInputFailures,
+          semanticAttempts: globalThis.__semanticAttempts,
+          clickTargets: globalThis.__clickTargets,
           interaction: d?.interaction,
           received: String(s?.received),
           consumed: String(s?.consumed),
@@ -51,6 +136,8 @@ try {
           layout: String(s?.layoutWork),
           measure: d?.['content-stats']?.counters.measurements,
           preparationError: d?.['preparation-error'],
+          frameStream: d?.['render-stats']?.frameStream,
+          preparationStream: d?.['content-stats']?.preparationStream,
         };
       });
     try {
@@ -88,6 +175,7 @@ try {
               return h.routeTokens.get(token);
             };
             const visit = (element) => {
+              if (!element) return;
               const controller = element.state?.widget?.controller;
               if (element.state?.transitionOwner && controller)
                 controller.observeTransitions((event) => {
@@ -109,11 +197,24 @@ try {
           });
       console.log(profile, 'ready');
       assert((await info()).ready);
+      assert.equal(
+        await page.evaluate(
+          () => __nelyxV2.surface.diagnostics['render-stats'].state.viewport.scale,
+        ),
+        scale,
+      );
+      // This scenario sends OS-style pointer samples. Wait for the button's
+      // publication and Core focus acknowledgement before collecting them.
+      await page.bringToFront();
+      await page.getByRole('button', { name: 'Filled', exact: true }).waitFor();
+      await page.waitForFunction(
+        () => document.hasFocus() && __nelyxV2.surface.diagnostics['render-stats']?.state.focused,
+      );
       await page.mouse.click(202, 226);
       await page.waitForFunction(() => document.querySelector('[aria-label="Filled pressed"]'));
       console.log(profile, 'clicked');
       await page.mouse.move(800, 400);
-      await page.mouse.wheel(0, 440);
+      await wheel(440);
       await page.waitForFunction(
         () => __nelyxV2.surface.diagnostics['render-stats'].scrollOffsets[0] >= 430,
       );
@@ -142,7 +243,7 @@ try {
       const before = await info();
       for (const delta of [20, -20, 20, -20]) {
         const old = (await info()).offset[0];
-        await page.mouse.wheel(0, delta);
+        await wheel(delta);
         await page.waitForFunction(
           (target) =>
             Math.abs(__nelyxV2.surface.diagnostics['render-stats'].scrollOffsets[0] - target) < 1,
@@ -153,11 +254,79 @@ try {
       console.log(profile, 'warm', { before, after });
       assert.equal(after.layout, before.layout);
       assert.equal(after.measure, before.measure);
-      await page.mouse.wheel(0, 2000);
+      if (process.argv.includes('--pressure')) {
+        const stream = () =>
+          page.evaluate(() => __nelyxV2.surface.diagnostics['render-stats'].frameStream);
+        const retained = await stream();
+        const preparation = (await info()).preparationStream;
+        assert(retained.deltas > 0, 'Warm frames did not use the provider delta stream');
+        assert(retained.reservedBytes > 0, 'Provider rows have no capacity credit');
+        assert.equal(retained.fallbacks, 0);
+        assert(preparation.scenes > 0, 'Content did not acquire a preparation scene');
+        assert(preparation.reservedBytes > 0, 'Preparation rows have no capacity credit');
+        assert.equal(preparation.fallbacks, 0);
+        await page.evaluate(() => __nelyxV2.surface.setMemoryPressure(true));
+        await page.waitForFunction(
+          () => __nelyxV2.surface.diagnostics['memory-pressure']?.low === true,
+        );
+        const preparationEvicted = await page.evaluate(
+          () =>
+            __nelyxV2.surface.diagnostics['memory-pressure'].owners.find(
+              (owner) => owner.preparationStream,
+            ).preparationStream,
+        );
+        for (const key of [
+          'retainedBytes',
+          'decodeBytes',
+          'reservedBytes',
+          'retiredBytes',
+          'readers',
+        ])
+          assert.equal(preparationEvicted[key], 0, 'Preparation pressure retained ' + key);
+        const old = (await info()).offset[0];
+        await wheel(20);
+        await page.waitForFunction((target) => {
+          const d = __nelyxV2.surface.diagnostics['render-stats'];
+          return (
+            Math.abs(d.scrollOffsets[0] - target) < 1 &&
+            d.frameStream.reservedBytes === 0 &&
+            d.frameStream.retiredBytes === 0 &&
+            d.frameStream.readers === 0
+          );
+        }, old + 20);
+        const evicted = await stream();
+        assert.equal(evicted.retainedBytes, 0);
+        await page.evaluate(() => __nelyxV2.surface.setMemoryPressure(false));
+        await page.waitForFunction(
+          () => __nelyxV2.surface.diagnostics['memory-pressure']?.low === false,
+        );
+        await wheel(-20);
+        await page.waitForFunction(
+          ({ target, fulls }) => {
+            const d = __nelyxV2.surface.diagnostics['render-stats'];
+            return (
+              Math.abs(d.scrollOffsets[0] - target) < 1 &&
+              d.frameStream.fulls > fulls &&
+              d.frameStream.reservedBytes > 0 &&
+              d.frameStream.retiredBytes === 0
+            );
+          },
+          { target: old, fulls: retained.fulls },
+        );
+        const resumed = await stream();
+        assert.equal(resumed.fallbacks, 0);
+        console.log(profile, 'provider pressure eviction, live rendering and full resync PASS', {
+          before: retained,
+          evicted,
+          resumed,
+          preparationEvicted,
+        });
+      }
+      await wheel(2000);
       await page.waitForFunction(
         () => __nelyxV2.surface.diagnostics['render-stats'].scrollOffsets[0] > 1000,
       );
-      await page.mouse.wheel(0, -3500);
+      await wheel(-3500);
       await page.waitForFunction(
         () => __nelyxV2.surface.diagnostics['render-stats'].scrollOffsets[0] === 0,
       );
@@ -182,7 +351,20 @@ try {
         await named('Switch to dark mode').waitFor();
         for (const group of ['Navigation', 'Selection', 'Images', 'Text inputs']) {
           await activate('Explore components');
-          await activate(group);
+          // Gallery headings have the same labels before the drawer publishes.
+          // Wait for its actionable peer rather than clicking the first text.
+          await page.getByRole('button', { name: group, exact: true }).evaluate((el) => {
+            const history = (globalThis.__clickTargets ??= []);
+            if (history.length === 16) history.shift();
+            history.push({
+              name: el.getAttribute('aria-label'),
+              node: el.getAttribute('data-nelyx-node'),
+              connected: el.isConnected,
+              disabled: el.getAttribute('aria-disabled'),
+              tag: el.tagName,
+            });
+            el.click();
+          });
           await page.getByRole('button', { name: 'Show all', exact: true }).waitFor();
           if (group === 'Navigation') {
             await activate('Favorites');
@@ -342,12 +524,46 @@ try {
       assert.deepEqual((await info()).errors, []);
       assert.equal((await info()).preparationError, undefined);
       assert.deepEqual(errors, []);
+      const frameStream = (await info()).frameStream;
+      const preparationStream = (await info()).preparationStream;
+      assert(frameStream.resizeFrames >= 2, 'Initial and resized GPU backings were not exercised');
+      assert.equal(frameStream.retiredBytes, 0);
+      assert.equal(frameStream.readers, 0);
+      assert(frameStream.fallbacks <= (scale === 1 ? 0 : 1), 'Frame fallback was not bounded');
+      if (frameStream.fallbacks) {
+        assert.equal(frameStream.reservedBytes, 0);
+        assert.equal(frameStream.retainedBytes, 0);
+        assert.equal(frameStream.decodeBytes, 0);
+      }
+      assert.equal(preparationStream.retiredBytes, 0);
+      assert.equal(preparationStream.readers, 0);
+      assert(
+        preparationStream.resizeScenes >= 2,
+        'Content was not suspended across surface replacement',
+      );
+      assert(
+        preparationStream.fallbacks <= (scale === 1 ? 0 : 1),
+        'Preparation fallback was not bounded',
+      );
+      if (preparationStream.fallbacks) {
+        assert.equal(preparationStream.reservedBytes, 0);
+        assert.equal(preparationStream.retainedBytes, 0);
+        assert.equal(preparationStream.decodeBytes, 0);
+      }
+      if (process.argv.includes('--extended')) {
+        assert(preparationStream.deltas > 0, 'Content did not use its delta dictionary');
+        if (process.argv.includes('--pressure') && !preparationStream.fallbacks)
+          assert(preparationStream.fulls > 1, 'Content did not fully resync after pressure');
+      }
       const closed = await page.evaluate(() => __nelyxV2.close());
       assert.equal(closed.reservedBytes, 0);
       assert.equal(closed.workersStopped, true);
       console.log(profile, 'PASS', {
         reservedBytes: closed.reservedBytes,
         workersStopped: closed.workersStopped,
+        scale,
+        frameStream,
+        preparationStream,
       });
     } catch (e) {
       console.log(profile, 'FAILED', JSON.stringify(await info()));
@@ -362,6 +578,7 @@ try {
                   if (!h) return null;
                   const routes = [];
                   const visit = (element) => {
+                    if (!element) return;
                     const owner = element.state?.transitionOwner;
                     if (owner)
                       routes.push({

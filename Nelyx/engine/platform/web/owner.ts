@@ -14,13 +14,14 @@ export async function boot(
   root: string,
 ): Promise<void> {
   const scope = globalThis as unknown as DedicatedWorkerGlobalScope;
-  const provider = await CanvasKitProvider.load(root, new ProviderBudget(module, engine, role));
+  const budget = new ProviderBudget(module, engine, role);
+  const provider = await CanvasKitProvider.load(root, budget);
   const post = (value: Record<string, unknown>, transfer: ArrayBuffer[] = []) =>
     scope.postMessage({ kind: 'nelyx-v2-owner', role, ...value }, transfer);
   const actor =
     role === 1
-      ? new ContentActor(module, engine, provider, post, false)
-      : new RenderActor(module, engine, provider, post);
+      ? new ContentActor(module, engine, provider, post, false, budget)
+      : new RenderActor(module, engine, provider, post, budget);
   scope.addEventListener('message', (event: MessageEvent) => {
     const message = event.data as {
       kind: string;
@@ -32,6 +33,8 @@ export async function boot(
       viewport?: Viewport;
       low?: boolean;
       revision?: number;
+      metrics?: bigint;
+      device?: bigint;
     };
     if (!message.kind?.startsWith('v2-')) return;
     void (async () => {
@@ -45,6 +48,10 @@ export async function boot(
           actor.kick();
         } else if (message.kind === 'v2-font-check') {
           actor.checkFonts();
+        } else if (message.kind === 'v2-surface-resized' && actor instanceof ContentActor) {
+          if (typeof message.metrics !== 'bigint' || typeof message.device !== 'bigint')
+            throw Error('Invalid surface cohort');
+          actor.surfaceResized(message.metrics, message.device);
         } else if (message.kind === 'v2-viewport' && actor instanceof RenderActor) {
           actor.update(message.viewport!);
         } else if (message.kind === 'v2-attach' && actor instanceof RenderActor) {
@@ -62,11 +69,15 @@ export async function boot(
           if (typeof message.low !== 'boolean' || !Number.isSafeInteger(message.revision))
             throw new Error('Invalid memory pressure control');
           provider.setMemoryPressure(message.low);
+          actor.pressure(message.low);
           post({
             kind: 'memory-pressure',
             low: message.low,
             revision: message.revision,
             counters: { ...provider.counters },
+            ...(actor instanceof ContentActor
+              ? { preparationStream: actor.preparationSnapshot }
+              : { frameStream: actor.frameSnapshot }),
           });
         } else if (message.kind === 'v2-halt') {
           await actor.stop();

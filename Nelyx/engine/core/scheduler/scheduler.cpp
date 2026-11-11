@@ -88,6 +88,8 @@ void View::close(uint32_t reason) {
   closed = true;
   snapshots.clear();
   for(auto& observation:observations)observation.clear();
+  providerFrames.reset();
+  providerPreparations.reset();
   if(fontUpload){fontUpload.reset();fontUploadStatus=3;}
   if(imageUpload){imageUpload.reset();imageUploadStatus=3;}
   if(fontTransition.phase==wire::fontTransitionPhases::preparing){

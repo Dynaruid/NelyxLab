@@ -18,6 +18,22 @@ export class ObservationDecodeCache {
   get size(): number {
     return this.entries.size;
   }
+  /** The owner has committed a dictionary. Old snapshots keep their decoded
+   * values directly; retired IDs need no extra cache holder. */
+  retainRegistered(owner: string, registrations: Iterable<bigint>): number {
+    const prefix = `registered/${owner}`,
+      live = new Set([...registrations].map(String));
+    let removed = 0;
+    for (const [id, entry] of this.entries) {
+      const separator = id.lastIndexOf('/');
+      if (id.slice(0, separator) === prefix && !live.has(id.slice(separator + 1))) {
+        this.entries.delete(id);
+        this.bytes -= entry.bytes.length;
+        ++removed;
+      }
+    }
+    return removed;
+  }
   /** Only owner-scoped registrations that have already passed exact ID/bytes
    * validation may use this path. Eviction remains an explicit cache miss. */
   readRegistered<T>(key: string, bytes: Uint8Array, decode: (bytes: Uint8Array) => T): T {

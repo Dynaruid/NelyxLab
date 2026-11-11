@@ -1418,7 +1418,8 @@ export class CanvasKitProvider {
     }
     if (node.kind !== p.kinds.paragraph && node.kind !== p.kinds.editable)
       throw new Error('Unsupported provider measurement');
-    const text = decodeUtf8(scene.blobs.find((b) => b.type === 1)?.bytes ?? new Uint8Array());
+    const text =
+      node.text ?? decodeUtf8(scene.blobs.find((b) => b.type === 1)?.bytes ?? new Uint8Array());
     const paragraph = this.paragraph(node, text, node.flags & 32 ? Infinity : node.width);
     let retained = false;
     try {
@@ -1537,8 +1538,13 @@ export class CanvasKitProvider {
       scene.blobs.filter((b) => b.type === 2).map((b) => [key(b.handle), b.bytes]),
     );
     const texts = new Map(
-      scene.blobs.filter((b) => b.type === 1).map((b) => [key(b.handle), decodeUtf8(b.bytes)]),
+      scene.nodes
+        .filter((node) => node.text !== undefined)
+        .map((node) => [key(node.node), node.text!]),
     );
+    for (const blob of scene.blobs)
+      if (blob.type === 1 && !texts.has(key(blob.handle)))
+        texts.set(key(blob.handle), decodeUtf8(blob.bytes));
     const packet: PreparedPictures = {
       preparation: scene.preparation,
       document: scene.preparationDocument,

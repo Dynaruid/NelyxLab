@@ -20,7 +20,10 @@ inline std::array<uint64_t,20> observationSignature(const View& v,bool semantics
     v.semanticsWork,0,0,v.focusSession,v.caretRevision,uint64_t(v.caretVisible),
     uint64_t(v.visible),uint64_t(v.focused),v.active?v.active->metrics.epoch:0,v.published?v.published->scene->metrics.epoch:0};
 }
-inline bool observationNodeBlob(uint32_t type){
+enum class ObservationRole { app,frame,preparation };
+inline bool observationNodeBlob(uint32_t type,ObservationRole role=ObservationRole::app){
+  if(role!=ObservationRole::app)return (role==ObservationRole::preparation&&type==1)||type==4||type==5||type==7||(type>=10&&type<=15)||
+    type==wire::fontBindingBlob||type==wire::imagePaintBlob||type==wire::snapshotStyleBlob;
   return (type>=3&&type<=7)||type==wire::layerCompositionBlob||type==wire::layoutBuilderBlob||
     type==wire::semanticGeometryBlob||type==wire::semanticTraversalBlob;
 }
@@ -35,7 +38,7 @@ inline bool observationPatch(const ObservationState& cache,const std::array<uint
 // reader. Unknown bases request a full resync with the same owner generation.
 inline std::vector<uint8_t> observationPacket(View& view,ObservationState& cache,Writer& full,uint64_t base,
     const std::array<uint64_t,20>& signature,const std::vector<Handle>& selection,bool reused,bool partial,
-    std::vector<Handle> partialOrder,std::vector<Handle> removed){
+    std::vector<Handle> partialOrder,std::vector<Handle> removed,ObservationRole role=ObservationRole::app){
   Reader input{full.bytes.data(),full.bytes.size()};
   const auto state=wire::headerBytes,begin=state+wire::stateBytes;
   const auto count=input.u32(wire::headerFields::count),eventCount=input.u32(state+wire::stateFields::eventCount);
@@ -50,7 +53,7 @@ inline std::vector<uint8_t> observationPacket(View& view,ObservationState& cache
     const auto type=input.u32(cursor);const auto owner=handle(input,cursor+8);
     const auto length=input.u32(cursor+16);const auto stride=24+(size_t(length)+7)/8*8;
     const auto data=input.slice(cursor+24,length);
-    if(!reused&&owner&&observationNodeBlob(type)){
+    if(!reused&&owner&&observationNodeBlob(type,role)){
       std::shared_ptr<const ObservationBlob> blob;
       const auto previous=cache.rows.find(owner.key());
       if(previous!=cache.rows.end())for(const auto& candidate:previous->second->blobs)

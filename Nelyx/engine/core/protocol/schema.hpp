@@ -2,12 +2,13 @@
 #pragma once
 #include <cstdint>
 namespace nelyx::v2::wire {
-inline constexpr uint32_t schema = 3789315557u;
+inline constexpr uint32_t schema = 313408118u;
 inline constexpr uint32_t abiMajor = 2u;
 inline constexpr uint32_t abiMinor = 0u;
 inline constexpr uint32_t magic = 844647502u;
 inline constexpr uint32_t headerBytes = 64u;
 inline constexpr uint32_t stateBytes = 832u;
+inline constexpr uint32_t memoryReportHeadroomBytes = 24u;
 inline constexpr uint32_t nodeBytes = 360u;
 inline constexpr uint32_t eventBytes = 160u;
 inline constexpr uint32_t inputBytes = 128u;
@@ -94,6 +95,10 @@ inline constexpr uint32_t observationDeltaBlob = 35u;
 inline constexpr uint32_t observationReferencesBlob = 36u;
 inline constexpr uint32_t observationRegistrationBlob = 37u;
 inline constexpr uint32_t observationDeltaBytes = 176u;
+inline constexpr uint32_t providerFrameBlob = 38u;
+inline constexpr uint32_t providerFrameBytes = 64u;
+inline constexpr uint32_t providerPreparationBlob = 39u;
+inline constexpr uint32_t providerPreparationBytes = 64u;
 namespace inspectionFlags {
 inline constexpr uint32_t stateOnly = 1u;
 inline constexpr uint32_t appObservation = 2u;
@@ -101,6 +106,8 @@ inline constexpr uint32_t appLayoutSelection = 4u;
 inline constexpr uint32_t appObservationDelta = 8u;
 inline constexpr uint32_t appLayoutDelta = 16u;
 inline constexpr uint32_t browserObservation = 32u;
+inline constexpr uint32_t providerFrameDelta = 64u;
+inline constexpr uint32_t providerPreparationDelta = 128u;
 }
 namespace editorViewportFlags {
 inline constexpr uint32_t expands = 1u;

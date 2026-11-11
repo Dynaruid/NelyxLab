@@ -12,8 +12,79 @@ using namespace nelyx::v2;
 void checkTransactionSharing();
 void checkMaterialization();
 void checkLivePaintActivation();
+void checkProviderAdmission();
 static void check(bool value,const char* message){if(!value)throw std::runtime_error(message);}
+static void inputFrameIndex(){
+  auto ledger=std::make_shared<Ledger>();
+  for(const uint32_t count:{64u,2048u}){
+    // View contains bounded input tables and is heap-owned in the engine.
+    // Do the same here instead of nesting it under run's own View stack frame.
+    auto ownedView=std::make_unique<View>(1,ledger);auto& view=*ownedView;
+    auto document=std::make_shared<Document>(ledger);
+    for(uint32_t i=0;i<count;++i){
+      auto node=std::make_shared<Node>(ledger);node->id={i*2+1,1};
+      node->parent=i?Handle{(std::min(i,8u)-1)*2+1,1}:Handle{};
+      node->kind=wire::kinds::box;node->properties={2,3,30,20};
+      if(i==0)node->paintTransform={1.5,.2,.1,2,12,18};
+      if(i==count-1)node->policy=wire::eventPolicies::observeRaw;
+      document->nodes.edit(node->id.slot).value=node;
+      document->children.append(node->parent.slot,node->id);
+    }
+    document->count=count;document->highWater=count*2-1;
+    auto scene=std::make_shared<Scene>();scene->document=document;scene->metrics={1,1,800,600,1};
+    const auto frameFor=[&](const std::shared_ptr<const Scene>& input){
+      Frame frame;frame.scene=input;frame.device=1;frame.properties.resize(input->document->highWater+1);
+      view.makeDrawItems(frame);return frame;
+    };
+    const auto first=frameFor(scene);
+    // The old linear lookup is the oracle, including sparse/missing slots and
+    // transforms. The retained table must never alias another generation.
+    for(uint32_t slot=0;slot<=document->highWater+1;++slot){
+      const Handle node{slot,1};const DrawItem* slow=nullptr;
+      for(const auto& item:first.items)if(item.node==node){slow=&item;break;}
+      check(first.item(node)==slow,"Frame index differs from linear lookup");
+      check(!first.item({slot,2}),"Frame index accepted a foreign generation");
+      const auto local=first.local(node,130,80);const auto delta=first.delta(node,12,-7);
+      const auto inverse=slow?slow->world.inverse():std::optional<Affine>{};
+      check(bool(local)==bool(inverse),"Indexed local point presence differs");
+      if(inverse){const auto expected=inverse->map({130,80}),a=inverse->map({12,-7}),b=inverse->map({0,0});
+        check(local->x==expected.x&&local->y==expected.y&&delta.x==a.x-b.x&&delta.y==a.y-b.y,"Indexed input transform differs");}
+      else check(delta.x==0&&delta.y==0,"Missing input target produced a delta");
+    }
+    const Handle target{document->highWater,1};
+    auto changedDocument=std::make_shared<Document>(*document);
+    auto paint=std::make_shared<Node>(document->get(target));paint->color=0xff123456;
+    changedDocument->nodes.edit(target.slot).value=paint;
+    auto changedScene=std::make_shared<Scene>(*scene);changedScene->document=changedDocument;
+    auto changed=frameFor(changedScene);
+    check(first.sameInputGeometry(changed,target)&&first.sharesInputGeometry(changed),"Paint-only input geometry was rejected");
+    auto ancestorDocument=std::make_shared<Document>(*changedDocument);
+    auto ancestor=std::make_shared<Node>(document->get({3,1}));++ancestor->properties.width;
+    ancestorDocument->nodes.edit(3).value=ancestor;
+    auto ancestorScene=std::make_shared<Scene>(*scene);ancestorScene->document=ancestorDocument;changed=frameFor(ancestorScene);
+    check(!first.sameInputGeometry(changed,target)&&!first.sharesInputGeometry(changed),"Changed ancestor accepted old input geometry");
+    auto recycled=std::make_shared<Document>(*changedDocument);
+    auto replacement=std::make_shared<Node>(*paint);replacement->id.generation=2;
+    recycled->nodes.edit(target.slot).value=replacement;
+    auto children=recycled->children[replacement->parent.slot];children.back()=replacement->id;
+    recycled->children.set(replacement->parent.slot,std::move(children));
+    auto recycledScene=std::make_shared<Scene>(*scene);recycledScene->document=recycled;changed=frameFor(recycledScene);
+    check(first.item(target)&&!first.item(replacement->id)&&!changed.item(target)&&changed.item(replacement->id),"Snapshot index lost its generation fence");
+    check(!first.sameInputGeometry(changed,target)&&!first.sharesInputGeometry(changed),"Recycled target accepted old input geometry");
+    auto singular=first;singular.items.back().world={0,0,0,0,0,0};
+    check(!singular.local(target,0,0)&&singular.delta(target,1,1).x==0&&singular.delta(target,1,1).y==0,"Singular input transform was inverted");
+    auto foreign=first;++foreign.device;check(!first.sameInputGeometry(foreign,target)&&!first.sharesInputGeometry(foreign),"Device input fence was lost");
+    auto metrics=std::make_shared<Scene>(*scene);++metrics->metrics.epoch;foreign=frameFor(metrics);
+    check(!first.sameInputGeometry(foreign,target)&&!first.sharesInputGeometry(foreign),"Metrics input fence was lost");
+    check(!first.item({wire::limits::nodes+1,1}),"Out-of-range frame index was read");
+    view.close(wire::statuses::closed);
+  }
+  check(ledger->bytes==0,"Input frame index retained snapshot leases");
+  std::cout<<"Input frame index 64/2048, linear oracle, sparse/generation, ancestor/metrics/device, transforms and leases PASS.\n";
+}
 static void run(){
+  inputFrameIndex();
+  checkProviderAdmission();
   checkTransactionSharing();
   checkMaterialization();
   checkLivePaintActivation();
@@ -199,4 +270,4 @@ void checkMovingList();
 void checkRetargetedCoverage();
 void checkLatePageCoverage();
 void checkDateLayout();
-int main(){try{run();deadlines();precisionVelocity();ballisticCoverage();movingBuilder();checkMovingList();checkRetargetedCoverage();checkLatePageCoverage();checkDateLayout();return 0;}catch(const std::exception& e){std::cerr<<e.what()<<"\n";}catch(const Error& e){std::cerr<<"Core status="<<e.status<<"\n";}return 1;}
+int main(){std::cout.setf(std::ios::unitbuf);try{run();deadlines();precisionVelocity();ballisticCoverage();movingBuilder();checkMovingList();checkRetargetedCoverage();checkLatePageCoverage();checkDateLayout();return 0;}catch(const std::exception& e){std::cerr<<e.what()<<"\n";}catch(const Error& e){std::cerr<<"Core status="<<e.status<<"\n";}return 1;}

@@ -1,10 +1,10 @@
 # work10 — 변경분 전달·데이터 공유 중심의 엔진 v2 개편
 
-작성·갱신: **2026-11-11 KST** · 문서 상태: **OPEN / 구현 진행** · work10 구현: **PARTIAL / 현재 결과는 §17** · 제품 전체: **PARTIAL**
+작성·갱신: **2026-11-11 KST** · 문서 상태: **PAUSED / 중간 마무리** · work10 구현: **PARTIAL / 현재 인계는 §22** · 제품 전체: **PARTIAL**
 
 사용자 요청에 따라 `work9.md`, `work9-1.md`, `work9-2.md`, `work9-3.md`, `work9-4.md`, `work9-5.md`, `work9-a.md`, `work9-b.md`, `work9-c.md`를 **CLOSED / work10 이관**으로 종료한다. 이 문서가 이후의 실행 계약이다. 이전 문서의 구현·검증 기록과 체크박스는 당시 근거로 보존하며, 문서 종료를 미완료 기능·호환·성능·제품 전환의 완료로 해석하지 않는다. 남은 의무는 §8에 대응시킨다.
 
-최초 작성은 **현재 소스·공급 메타데이터 검토와 계획 작성**까지였다. 이후 사용자 요청으로 제품 코드·공급·앱 검증을 진행했다. §11–15는 이전 구현 차수의 기록이고, **현재 결과·공급·미완료 범위는 §16이 대체한다.** 아래 §2.1의 최초 공급과 과거 문서의 결과를 현재 공급의 검증으로 확대하지 않는다.
+최초 작성은 **현재 소스·공급 메타데이터 검토와 계획 작성**까지였다. 이후 사용자 요청으로 제품 코드·공급·앱 검증을 진행했다. §11–21은 이전 구현 차수의 기록이고, **현재 구현·검증 진행·미완료 범위는 §22가 대체한다.** 아래 §2.1의 최초 공급과 과거 문서의 결과를 현재 공급의 검증으로 확대하지 않는다.
 
 ## 1. 목표와 설계 결정
 
@@ -258,7 +258,7 @@ node .\Nelyx\sdk\tooling\cli\src\main.mjs run --engine v2 --app .\sample\nelyx-d
 
 ## 9. 실행 명령·공급·정리 규칙
 
-아래는 **변경 범위에 맞춰 선택할 명령**이다. 최초 계획 작성에서는 실행하지 않았으며 현재 실행 결과는 §13에 기록한다. Core 선언이 다음 구현을 막을 때만 먼저 공급하고, 전체 build/install/run은 챕터 끝에 모은다.
+아래는 **변경 범위에 맞춰 선택할 명령**이다. 최초 계획 작성에서는 실행하지 않았으며 현재 실행 결과는 §22에 기록한다. Core 선언이 다음 구현을 막을 때만 먼저 공급하고, 전체 build/install/run은 챕터 끝에 모은다.
 
 ```powershell
 # Core 소스·선언이 바뀐 경우
@@ -299,9 +299,9 @@ node .\Nelyx\eng\check-date-scroll-web.mjs --precision --burst --past-only --bot
 - [ ] W10-07 같은 공급의 설치/기능/복구/종료와 실제 물리/표시/체감 결과를 각각 판정했다.
 - [ ] W10-R01–R08의 남은 의무를 각 대상 범위에서 완료하거나 명시적인 지원 계약으로 확정했다.
 
-**현재 남은 실행 범위는 §13이다.** §11.5–12의 당시 미착수 항목을 다시 시작하지 않는다. 일반 관찰 후보 생성과 async 완료 경계의 알림 누락을 수정했으며, 새 월의 준비/그리기 중복을 줄였다. 최종 공급의 실제 시간·물리/표시 성능 수락과 §8의 잔여 의무를 구분한다.
+**현재는 사용자 요청으로 PAUSED / PARTIAL이며 정확한 인계는 §22다.** §11–21의 당시 미착수 항목을 다시 시작하지 않는다. Content/Render delta·메모리 수명 수정은 유지하고 Source 후속 실험은 철회했다. 마지막 기준 App 재확인의 DPR2 `Native scroll failed (27=stale)`가 미해결이다. Source 신규 월/callback 준비·실제 물리/표시 성능 수락과 §8의 잔여 의무를 구분한다.
 
-**재개 요청 예:** `work10.md §13의 새 월 잔여 시간과 물리/표시 검증부터 이어서 진행해줘. JSI·원본 DatePicker·controller/callback 순서를 유지하고 cold/warm/evicted 조건을 나눠 확인해줘.`
+**재개 요청 예:** `work10.md §22의 DPR2 Native scroll stale와 Windows 달력 불일치 진단부터 이어서 진행해줘. Source 실험은 철회한 상태를 유지하고 JSI·원본 DatePicker·controller/callback 순서와 준비/게시 fence를 보존해줘.`
 
 **최초 문서 확인 기록:** 당시 work10의 40개 링크 중 로컬 경로·앵커의 존재, code fence, 구현 챕터 8개·잔여 의무 8개 묶음, 종료 문서 9개의 이관 안내와 Core source identity 불변을 확인했다. 당시에는 제품 테스트·빌드·실행을 포함하지 않았다. 이후 제품 변경은 §11의 새 공급으로 구분한다.
 
@@ -705,3 +705,229 @@ W10-06/제품 전체는 **OPEN / PARTIAL**, `compatible=false`, `performanceAcce
 다음 재개점은 최종 공급에서 월 header state 변경부터 첫 Source 신규 월 요청까지의 App build/scene/wait 경로를 추적하고 요청·게시 경계를 줄이는 것이다. 원래 animation, callback 순서, coverage와 기존 reader의 수명은 보존한다. Windows 실제 달력/trackpad와 native 픽셀·표시/scanout 수락도 남는다.
 
 W10-06/제품 전체는 **OPEN / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**다.
+
+## 18. 2026-11-11 상태·입력 조회와 provider 큐의 분리
+
+추가 goal 요청에서 §17의 최종 공급 `3b988d90…`과 현재 sourceIdentity 일치, 깨끗한 작업 트리에서 시작했다. Web single-worker의 font/assets 준비 후 960×720 DPR1 과거 월 18회 이동은 ready 중앙 **428.2ms**, 최대 **512.7ms**, timeouts0·close reservedBytes0/workersStopped=true였다. 이 수치는 원본 200ms animation을 포함한 programmatic semantic click→게시 header·1/15/말일 관측이며 물리 표시 지연이 아니다.
+
+### 18.1 원인과 구현
+
+- `check-month-latency --flow`에 `inspectState`·입력 checkpoint·Source 처리의 시작/종료를 추가했다. 상세 후속 1회에서 작은 `inspectState`가 **27.7–47.8ms** 대기했다. 이 시간은 조회 RPC의 App wall time이며 Core lock 보유 시간이나 GPU 실행 시간으로 해석하지 않는다. 기존 App `build/capture/scene/wait` 합계 밖에 이 대기가 있었다.
+- Web [coordinator.ts](Nelyx/engine/platform/web/coordinator.ts)와 [common.ts](Nelyx/engine/platform/web/common.ts)는 정확한 크기의 state-only inspect·interaction/raw polling을 provider mailbox 앞에서 직접 Core에 전달한다. Core mutex·전체 packet/owner/schema 검증·기존 pending credit·응답 transfer는 유지한다. 전체 scene inspect·관찰·변경 명령과 provider 자원은 원래 owner에 남는다. threaded의 Render draw/Content record 큐를 작은 조회가 기다리지 않는다. single-worker의 동기 provider 작업 중간에 JS 실행을 선점한다는 뜻은 아니다.
+- Windows [host.cpp](Nelyx/engine/platform/windows/host.cpp)는 기존 App owner의 bounded input 조회 경로에 state-only inspect를 연결한다. Content 작업 큐를 거치지 않지만 Core 잠금은 그대로다. 기존 response holder/ExternalLease와 done mailbox를 사용한다. JSI Runtime/Value를 다른 worker에서 사용하지 않는다.
+- App의 연속 pass 사이 조회 생략도 실험했으나 **철회했다.** Source 응답이 원래 월 변경 callback보다 앞서 별도 commit으로 나뉘면서 완료 준비가 늘어났다. 최종 App build/checkpoint/Source 처리 순서는 §17과 같다. 조회 대기 감소만으로 월 전체 개선을 선언하지 않는다.
+- 상태 조회는 변경 명령의 ACK를 대신하지 않는다. 미완료 transaction 뒤의 조회는 이전 accepted document를 반환할 수 있으며 호출자는 해당 transaction의 receipt를 기다린다. 응답을 캐시하거나 publication 완료를 만들어 내지 않는다. 날짜 선택기 원본·callback 순서·animation·coverage는 변경하지 않았다.
+
+### 18.2 공급과 검증
+
+- [check-immediate-reads.mjs](Nelyx/eng/check-immediate-reads.mjs): 실제 coordinator route와 Core, 멈춘 Render/Content mailbox에서 상태·입력 조회 진행, 변경 ACK 전/후의 최신 문서, owner/schema 거부, 전체/잘못된 크기의 조회 분리, pending credit 회수·close PASS. 실제 OriginalWidgetHost/Core에서 ACK 중 무효화 보존, 불필요한 추가 transaction0, 수동 polling의 LayoutBuilder constraints·완료·게시·close PASS.
+- 전체 `check:types`, Web host typecheck, event notification/완료 경계, Wasm exchange의 heap 성장·실패·quota·owned output 검사 PASS.
+- Windows App SDK/Web single-worker·threaded 및 Android arm64-v8a/x86_64 빌드 PASS. 최종 engine source/manifest **`6c06a1503ac4396f56394a6b8bc4b572fc99064050874e22bc5f72307981bc3f`**, ABI2/schema3789315557. Windows/Web356 files·Android42 files의 hash와 sourceIdentity 대조 PASS. wire/ABI 변경은 없다. Android APK·기기 실행은 이번 차수 **notVerified**다.
+- 최종 native library의 materialization64/2048·live paint/full frame oracle·이전 reader·frame semantics·moving/reversing list·coverage·page/grid·종료 ledger 검사 PASS. 독립 설치 소비자의 strict 선언·scene/shared transaction·정상 close PASS.
+- 첫 후보 앱에서 Web extended 양 profile의 month/year/day·입력·확인/취소/재개방·theme/route/image/editor, warm 추가 layout/measurement 없음 PASS. 지연 주입 precision/burst/past-only 각24회 및 열린 달력 resize도 월 유지·timeouts0·close reservedBytes0/workersStopped=true PASS. 후보의 Windows 일반 CLI에서도 실제 이전 월 버튼·OS drag로 November→October→September, 15일 선택·확인 결과 `Selected date: 2026-09-15`, UIA와 화면을 확인했다. 정상 close status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0이었다. OS 주입 입력을 물리 trackpad로 해석하지 않는다.
+- App 실험 철회 후 최종 Web·Windows 앱 재빌드와 manifest 전 파일 hash 확인 PASS. Web JS=`3241da15fd41ebcb78446eadecf28fd96b3b830bc33b3a6442e6509a83bbeacd`, Windows JS=`eab1c11e25c461b077d2c0b5226ff70d972ce0c9cf121eacaa7d8a03337edc88`, HBC=`73dab55ff28bb9e8ca0e3ce0ca4a932dba58bf308e058cfec907c2039693ae70`다. App JS는 §17과 같으며 host 공급이 바뀌었다.
+- **최종 Web**의 진단 extended 양 profile은 month/year/day·입력·확인/취소/재개방·theme/route/image/editor·warm layout/measurement 불변·close PASS. 최종 precision/burst/past-only 각24회와 resize 월 유지, builders7·timeouts0·close reservedBytes0/workersStopped=true PASS. 지연 주입·병렬 기능 검사의 elapsed는 latency 수치로 사용하지 않는다.
+- **최종 Windows 일반 CLI**에서도 이전 월→October 15 선택·확인과 결과 `Selected date: 2026-10-15`를 실제 UIA·화면에서 확인했다. appGeometryNodes0/rejectedFallbacks0, transport timeouts0/pending0/retiredBytes0, close status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0 PASS. 두 번의 owned Windows 창을 모두 닫았다.
+- 최종 병렬 검사 한 번은 초기 pointer의 collected3/dispatched1/rejected2 뒤 15초 timeout으로 실패했다. 당시 거부 코드·focus를 기록하지 않아 원인은 **미확정**이다. 이후 원래 조건의 별도 `--diagnose`는 양 profile PASS였다. 진단에 수집/응답 publication·metrics·거부 코드·browser/Core focus를 추가하고, pointer 검사 전에 실제 버튼 게시와 foreground/Core focus ACK를 확인하도록 했다. 이 조건의 최종 양 profile도 PASS지만 최초 실패가 영구 해결됐다는 판정은 하지 않는다. timeout/입력 성공 assertion을 없애지 않았다.
+- 변경 파일 lint·전체 format·schema/diff 검사 PASS. 전체 repository lint는 기존 생성 DatePicker의 미사용 매개변수4개 때문에 실패한다. 생성 원본을 고치거나 경고를 숨기지 않았다. build staging/이전 dist·독립 설치본/archive·owned browser/server·Windows 실행은 회수했고, 기존 `engine-vTz0Je`와 이전 profile·사용자 emulator는 유지했다. 검증 로그/trace/receipt/PNG는 파일로 누적하지 않았다.
+
+### 18.3 같은 공급의 분리 비교와 남은 병목
+
+다른 owned 빌드/검사와 Windows 앱을 끝낸 뒤 같은 engine·중간 앱 번들에서 route hook만 바꾸고, 960×720 DPR1·font/assets 준비·원본200ms animation·순차3개 이동씩 비교했다. 두 요인은 조회 큐 분리와 App checkpoint 조회 생략이다. flow/stage hook을 켠 진단 표본이며, 순차 소표본의 개선율·제품 p95를 주장하지 않는다. 조회 시간 집계에는 runner의 settle 조회도 포함된다.
+
+| profile / 경로 | readyMs 3개 | 완료 Content 준비 수 |
+| --- | --- | --- |
+| threaded / 기존 조회 큐·기존 App checkpoint | 474.2 / 504.3 / 401.5 | 1 / 2 / 1 |
+| threaded / **조회 큐 분리만 유지할 동작** | 429.3 / 385.7 / 535.3 | 1 / 1 / 2 |
+| single-worker / 기존 조회 큐·기존 App checkpoint | 448.5 / 425.9 / 420.8 | 1 / 1 / 1 |
+| single-worker / **조회 큐 분리만 유지할 동작** | 448.1 / 417.0 / 432.0 | 1 / 1 / 1 |
+
+threaded의 전체 상태 조회 최대 대기는 기존40.9ms→큐 분리만20.5ms, 중앙1.78→0.74ms였다. 이는 Core lock 시간·입력→표시 latency가 아니다. single-worker는 provider와 같은 JS owner를 쓰므로 선점 효과를 주장하지 않는다. **월 ready 전체 개선은 입증하지 못했다.**
+
+조회 큐 분리와 App 조회 생략을 함께 켠 threaded 표본은 ready537.4/501.3/515.6ms, 완료 준비2/2/2였다. 기존 큐에서 App 생략만 켠 경우에도2/1/2였다. 추가 반복으로 평균을 맞추지 않고 App 변경을 철회했다. 최종 운영 경로에는 해당 분기나 대체 App 큐가 없다. 조회 분리는 진행을 막는 provider mailbox를 제거하는 범위로 한정한다.
+
+`check-month-latency --baseline-reads`는 최종 앱을 그대로 둔 채 Web provider 큐만 되돌리는 비교 경로다. route hook 검증 실패도 abort 후 정상 finally로 정리하도록 보강했다. 첫 비교 hook 초기화 실패 때 남았던 이번 실행의 browser profile 하나는 경로·생성 시각·process 종료를 확인하고 삭제했으며 이전 profile은 건드리지 않았다.
+
+모든 owned 빌드·검사·Windows 실행을 끝낸 최종 앱에서 flow/stage hook 없이 같은960×720 DPR1 조건으로 순차3개를 추가 확인했다. threaded ready **544.3/472.7/477.0ms**, settled **600.1/534.8/534.1ms**; single-worker ready **441.4/442.3/426.9ms**, settled **548.3/544.5/581.0ms**였다. transaction5–7회/App5–7 passes, timeouts0·정상 close였다. ready는 browser clock의 click→게시 header·1/15/말일, settled는 별도 runner clock의 요청 전→App/Core/Main idle이며 합산하지 않는다. **여전히 약0.4–0.5초이며 목표100ms나 사용자 성능 완료 기준은 충족하지 못했다.**
+
+다음 첫 확인은 위 초기 pointer 거부의 원인을 새 bounded 진단으로 확정하는 것이다. 이후 **Source 신규 달 준비와 월 변경 callback의 동시 진행**, 변경 header/metadata의 국소 준비, provider preparation/frame 전체 직렬화·decode 비용을 줄인다. 기존 Source callback 순서·animation·coverage를 보존하면서 작업 단위를 줄여야 한다. cold/warm/evicted의 현재 공급 기준선, 물리 trackpad·표시/scanout 수락 및 §8의 의무도 남는다.
+
+W10-00/06/07 및 §8의 전체 의무는 **OPEN / PARTIAL**이다. `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 trackpad·display/scanout·제품 성능 수락 **notVerified**를 유지한다.
+
+## 19. 2026-11-11 프레임 입력 인덱스 재사용과 provider 전달 비용 분리
+
+§18의 작은 조회 큐 분리는 유지했다. 이번 제품 변경은 Core의 입력 좌표·이전 프레임 비교가 이미 보유한 draw-item 인덱스를 사용하도록 한 것이다. Source callback/animation, App checkpoint와 Web provider의 eager decode는 변경하지 않았다.
+
+### 19.1 구현과 정확성
+
+- [state.hpp](Nelyx/engine/core/state.hpp)의 `Frame::item`은 기존 `itemBySlot`을 읽고 index 범위와 전체 `(slot,generation)`을 확인한다. `local`·`delta`의 전체 items 검색을 이 조회로 바꿨다. 좌표/벡터의 역행렬 계산과 singular/missing 처리 의미는 같다.
+- [frame.cpp](Nelyx/engine/core/scene/frame.cpp)의 `sameInputGeometry`도 두 Frame의 기존 인덱스를 사용한다. 노드·조상·clip/transform·device/metrics 비교는 유지한다. draw-item 검색 부분은 전체 노드 수×깊이에서 깊이에 비례하게 줄었고, 좌표 조회는 상수 개의 인덱스 접근이 됐다. 실제 input→표시 p95 개선을 측정했다는 뜻은 아니다.
+- publication의 `sharesInputGeometry`는 같은 인덱스를 재사용해 매번 만들던 별도 pointer table을 제거했다. 조상 matching table과 원래의 parent-first 전체 비교는 유지하므로 이 함수 전체가 O(1)이 된 것은 아니다. 새 cache·holder·예약 메모리·wire/ABI 변경은 없다. 기존 Frame 인덱스는 이미 snapshot ledger에 포함돼 있다.
+- [check-frame-reuse.cpp](Nelyx/eng/check-frame-reuse.cpp)에 실제 Core `makeDrawItems` 기반 **64/2048노드**의 선형 조회 oracle, sparse/없는 slot, 다른 generation, local/delta transform, singular, paint-only snapshot·조상 변경·metrics/device·재사용 slot·이전 reader와 ledger 회수 검사를 추가했다. 전체 native frame/list/materialization/live paint/coverage/page/grid 검사와 함께 PASS했다.
+
+### 19.2 전달/디코딩 계측과 채택하지 않은 변경
+
+[check-month-latency.mjs](Nelyx/eng/check-month-latency.mjs)의 `--wire`는 해당 실행의 worker request에만 hook을 넣어 opcode별 encode·`exchange`·decode·응답 bytes와 실제 provider draw 호출을 따로 합산한다. `exchange`에는 Wasm 복사·Core mutex/dispatch·heap 보고가 함께 들어가며 이 값을 C++ 실행 시간이나 GPU 시간으로 단정하지 않는다. 동기 owner clock의 구간이고 worker 사이 wall time·ready와 합산하지 않는다. 누적 history 파일 없이 매 sample에서 회수하는 bounded opcode 집계다.
+
+같은 최종 공급, 960×720 DPR1·font/assets 준비·원본200ms animation·순차 월 이동2개씩에서 eager/lazy row prototype을 비교했다. lazy prototype은 기존 `readObservationRow`의 eager scalar 검증을 유지하고 객체/BigInt 생성만 소비 시점으로 미룬 **검사 hook**이다. 제품에는 적용하지 않았다.
+
+| profile / row 처리 | takeFrame 응답 decode 합계 ms (각 월) | draw 합계 ms (호출 수) |
+| --- | --- | --- |
+| threaded / 운영 eager | 85.4 / 73.4 | 68.0 (7) / 51.9 (9) |
+| threaded / lazy prototype | 74.0 / 56.7 | 109.1 (8) / 94.6 (8) |
+| single-worker / 운영 eager | 121.8 / 109.3 | 49.7 (9) / 59.3 (11) |
+| single-worker / lazy prototype | 57.4 / 67.3 | 79.2 (7) / 92.9 (9) |
+
+구체적인 프레임 수·transaction 수가 달라 통제된 개선율·p95를 계산하지 않는다. 실제 draw에 getter/memo 생성 비용이 옮겨가고 ready도 개선이 일관되지 않아 채택하지 않았다. 단순 lazy 전환으로 provider의 반복 작업이 사라진다는 가정을 폐기했다. 추가 반복으로 평균을 맞추지 않았다. 운영 eager의 월별 `takeFrame` 응답은 이 표본에서 **8.2–12.8MB**, 별도 `preparationScene`은 준비1회당 약 **1.17MB**였다. full frame 전달/객체 재생성이 실제 후속 대상이다.
+
+`--baseline-reads`와 `--full-pictures`를 함께 쓸 때 겹친 route handler가 앞선 hook을 무시할 수 있어 한 handler에서 순서대로 조합하도록 고쳤다. 세 flag를 같이 켠 single-worker 1회에서 두 oracle 표기·wire 집계·timeouts0·정상 close를 확인했다. route hook은 각 marker가 정확히 하나인지 검사하고 실패하면 abort/cleanup한다.
+
+### 19.3 현재 공급·앱 검증과 실패 구분
+
+- 최종 engine source/manifest **`7f8c7f087f54abf6e8628a71ed037eedcc79dbc1ae617e7195a6e9c6755154cb`**, ABI2/schema3789315557. Windows App SDK/Web threaded·single-worker·native와 Android arm64-v8a/x86_64 빌드 PASS. sourceIdentity와 Windows/Web356 files·Android42 files, 재빌드한 Web/Windows 앱의 전체 manifest hash·공급 연결 대조 PASS. Android APK·기기 실행은 이번 차수 **notVerified**다.
+- 현재 Wasm의 coordinator immediate read/owner·schema·ACK·manual Source/close, heap 성장·quota·owned copy·회수와 lost wake/알림/완료 검사 PASS. 현재 공급을 사용하는 독립 설치 소비자의 strict 선언·scene/shared transaction·정상 close PASS.
+- §18 초기 pointer 거부는 해당 §18 공급 앱에서 foreground 대기 조건을 뺀 시작 직후 클릭4회(각 profile2회)로 재현되지 않았다. 모두 collected/dispatched/consumed3, input rejected0이었다. **원인 미확정은 유지**하고 focus 또는 `latest` 상태 순서 문제를 확인된 제품 결함으로 고치지 않았다.
+- 이번 첫 Web extended는 drawer 선택 후 Show all 대기에서 실패했다. `activate(group)`의 label-only `.first()`는 drawer 게시 전에 같은 label의 갤러리 텍스트를 클릭할 수 있었다. 실패의 App action trace에는 drawer 그룹 action이 없고 drawer는 그대로였다. 역할이 button인 peer를 기다리도록 extended/month/date-scroll 검사를 고쳤다. timeout·완료 assertion을 완화하거나 재클릭하지 않았다. 이 수정은 앞선 pointer 거부의 해결 근거가 아니다.
+- 수정한 검사의 **최종 Web 양 profile**은 pointer click/wheel·warm layout/measurement 불변·month/year/day·확인/취소/재개방/입력·theme/route/image/editor PASS. 지연 주입 precision/burst/past-only 각24회와 열린 달력 resize 월 유지·builders7·정상 close reservedBytes0/workersStopped=true PASS. 병렬 기능 검사의 시간은 latency 근거로 쓰지 않는다.
+- **최종 Windows 일반 CLI**에서 OS 좌표 입력으로 drawer→Selection→달력, 이전 월 버튼 November→October, OS drag→September, 15일 선택·확인 결과 **`Selected date: 2026-09-15`**를 UIA 텍스트와 실제 화면에서 확인했다. 종료 status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0, transport pending0/retiredBytes0/timeouts0이었다. UIA element click은 helper의 `coordinate input geometry is unavailable`로 실패해 좌표 입력을 사용했다. UIA invoke/실제 reader 수락은 별도로 남는다. 이 입력은 물리 trackpad 검증이 아니다.
+- 기본 sandbox에서 띄운 첫 Windows 실행은 Computer Use inventory에 보이지 않아 중단하고 process 종료를 확인했다. 그 실행을 정상 종료 수락 근거로 쓰지 않는다. 같은 앱을 사용자 desktop에서 다시 실행해 위 UI/정상 close를 확인했고 owned 창은 모두 닫았다. 현재 dist/cache 외의 staging·이전 출력·설치 소비자·browser/server·profile·로그/trace/PNG를 남기지 않았다. 변경 파일 lint·전체 format1741 files·schema/diff 검사 PASS. 전체 lint는 §18과 같은 기존 생성 DatePicker 미사용 매개변수4건으로 실패했고 미해결이다.
+
+### 19.4 다음 구현 경계
+
+다음은 **Web Content/Render의 provider 전용 frame/preparation delta**를 기존 retained Frame/Scene과 observation 기반으로 연결하는 것이다. App의 layout/semantics journal을 소비하거나 입력/terminal 이벤트와 합치지 않는다. candidate Frame의 실제 cohort와 마지막 전달/게시 Frame을 구분하고, frame 취소·늦은 응답·base gap·metrics/device/font 교체·메모리 퇴거에는 bounded full resync를 제공한다. `Frame::observationRows`는 published predecessor 기준이므로 마지막 전송본과 다를 때 그대로 delta로 사용하면 안 된다. nativePaint/paragraph/blob 수명·owner/ID 검증·실패 rollback·provider close까지 함께 설계한다. full payload를 매번 비교한 뒤 숨기는 별도 cache를 목표 구조로 삼지 않는다.
+
+Source 신규 달 요청과 월 변경 callback의 동시 진행·국소 header/metadata 준비, cold/warm/evicted 기준선, 실제 물리/표시/scanout 수락도 남는다. §18의 조회 큐 분리와 이번 인덱스만으로 월 전체 개선이나 100ms 목표 달성을 선언하지 않는다. W10-00/06/07 및 §8의 전체 의무는 계속 **OPEN / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**다.
+
+## 20. 2026-11-11 Render 전용 프레임 delta와 provider 수명
+
+§19에서 확인한 Web `takeFrame`의 전체 재전송·decode를 줄였다. 기존 Core Frame의 변경 후보와 observation의 불변 row/blob 등록을 Render owner에 연결했다. App의 layout/semantics 구독과 분리한 경로이며, **Content `preparationScene`의 delta는 아직 구현하지 않았다.** Source callback·원본 animation·App checkpoint·coverage 정책은 유지한다.
+
+### 20.1 구현과 오류 경계
+
+- [engine.cpp](Nelyx/engine/core/protocol/engine.cpp)는 `takeFrame`의 선택적 16-byte 요청으로 provider delta를 제공한다. 빈 body는 기존 전체 응답이다. candidate의 submission/document/metrics/device/font/preparation/property와 **기반 published publication**을 별도 64-byte blob에 담아 accepted/active/published envelope와 대조한다. ABI2, **schema476475942**로 갱신했다. 이전 schema 공급과 혼합하지 않는다.
+- 변경분은 [frame.cpp](Nelyx/engine/core/scene/frame.cpp)의 실제 Frame journal을 사용한다. 마지막 전달본이 journal의 published predecessor와 일치할 때만 국소 row를 직렬화한다. order/tombstone·세대 핸들·이전/현재 focus peer를 반영한다. 다른 노드의 geometry를 참조하는 frame-dependent paint도 후보에 포함한다. 일반 update에서 전체 payload를 만든 뒤 비교해 숨기는 캐시를 추가하지 않았다. geometry 이동으로 영향을 받는 실제 descendant와 동적 paint의 작업은 남는다.
+- 취소된 전달본·건너뛴 base·metrics/device/font 교체에는 명시적인 full resync를 보낸다. Render에 불필요한 semantics/list/LayoutBuilder projection은 전송하지 않으며 App·UIA·ARIA의 기존 구독은 보존한다. paragraph/font/image/native paint·graphics/layer/snapshot/control/editor의 Render metadata는 유지한다.
+- [provider-frames.ts](Nelyx/engine/platform/web/provider-frames.ts)는 현재 Web의 고정 view owner/generation에 eager immutable row와 검증된 blob decode를 보관한다. Wasm view를 붙잡거나 lazy getter 비용을 draw로 옮기지 않는다. base gap은 실제 acquired frame을 실패 반환하고 한 번만 재동기화한다. 잘못된 cohort는 거부하며, Core 사전 또는 provider 용량 한도 초과에는 같은 Core의 전체 응답 경로를 사용하고 fallback을 센다.
+- [actors.ts](Nelyx/engine/platform/web/actors.ts)와 두 Web owner는 같은 `ProviderBudget`으로 캐시 용량 **37,748,736 bytes**를 예약한다. wire·사전·decoded 값·교체 scratch의 보수적인 capacity credit이며 JS GC/RSS 실측값이 아니다. 압력으로 캐시를 퇴거해도 진행 중 frame reader의 credit은 reader 반환까지 retired 상태로 보존한다. `stop`은 실행 중 frame을 기다린 뒤 구독을 닫는다.
+- 추가 DPR2 검사에서 960×720→1280×900 resize의 기존/새 GPU backing 동시 예약이 캐시 credit과 겹쳐 실패했다. 같은 공급의 전체 frame oracle은 통과했다. metrics 변경 시 사전을 퇴거하고 surface 교체 frame에는 전체 응답을 사용한 뒤 delta를 재개하도록 고쳤다. 진행 중 reader credit·session 한도·GPU backing 교체 전 예약은 유지했다. `resizeFrames`와 실제 budget fallback은 별도로 센다.
+- Core의 provider 사전은 [observation_state.hpp](Nelyx/engine/core/protocol/observation_state.hpp)의 **요청 시 할당되는 ledger-backed 객체**다. native/full-frame 소비자에는 추가 slot 사전을 만들지 않는다. 퇴거·view/session close에서 객체까지 회수한다. 첫 고정 내장 구현은 `View` 크기를 늘려 native date fixture의 Windows 기본 stack을 초과했다. 이를 optional 소유권으로 고치고 테스트도 실제 엔진처럼 새 index fixture의 View를 heap에 두었다. stack 크기를 늘려 검사를 통과시키지 않았다.
+- encode/사전 quota 오류로 전달되지 않은 acquired Frame은 RAII로 회수하고 오류 응답의 holds도 갱신한다. [codec.ts](Nelyx/runtime/engine-client/codec.ts)는 device 교체로 published reader가 없는 상태의 envelope publication0을, 계속 증가하는 publication counter와 혼동하지 않도록 고쳤다. candidate cohort 검증은 stream 설치 전에 수행한다.
+
+### 20.2 최종 공급과 통합 검증
+
+- 최종 source/manifest **`9a1ad23d647947af5f91a659a5c4e661164776917f284210e638ec53659ad5b4`**, ABI2/schema476475942. native·Windows App SDK·Web single-worker/threaded와 Android arm64-v8a/x86_64 빌드 PASS. 현재 sourceIdentity와 Windows/Web **356 files**, Android **42 files** 전체 hash 대조 PASS. Android APK·기기 실행은 이번 차수 **notVerified**, Linux·Apple은 **DEFERRED**다.
+- [check-provider-frames.mjs](Nelyx/eng/check-provider-frames.mjs): 실제 Wasm Core **64/2048노드**의 전체 eager Frame oracle, 작은 paint 변경의 rowVisits/changedRows≤2, 미변경 객체 재사용·이전 reader 불변, App semantics 구독 격리, geometry/참조 paint/order/removal/slot 재사용 PASS. 취소·주입한 base gap·잘못된 candidate cohort·metrics/device/font 교체·퇴거 후 full resync·진행 중 reader credit·budget 거부와 close PASS. **4000노드 사전 quota 초과**에서도 미전달 holds0·bounded 전체 fallback·종료 예약0 PASS.
+- 기존 App observation/불변 ID/quota, coordinator의 작은 조회·owner/schema·ACK·manual Source, Wasm heap 성장·owned copy·오류/quota·회수 검사 PASS. 최종 native Frame input index/materialization64/2048·live paint oracle·semantics·moving/reversing list·coverage·page spring/RTL grid/date·ledger 검사 PASS. 현재 Core의 독립 설치 소비자 strict 선언·scene/shared transaction·정상 close PASS.
+- 전체 `check:types`, Web host typecheck, 현재 Core의 codec/observation/schema source map 대조 PASS. 최종 Web·Windows 앱을 재빌드하고 전 파일 manifest hash·공급 연결 대조 PASS. Web JS=`395b6b63c638be5c24393b0bd0fc9f16c876d60fcfc75b517deaa159a41fc35d`, Windows JS=`fae4ec9ea0e73540246ed3b97763e388b11009639ba7a69fff186c46bf0fd687`, HBC=`7ec7f30bb3f986960bd63d372fb75f604d437a902a84f25fa31b559a3f86d544`다.
+- 최종 Web 양 profile의 extended 입력·warm 추가 layout/measurement 없음·month/year/day·확인/취소/재개방/입력·theme/route/image/editor PASS. `--pressure`에서 delta 사용·fallback0·예약 credit을 확인하고, low 압력 후 캐시/예약/retired/readers0에서도 실제 scroll 진행, 해제 후 full resync·재예약·fallback0 PASS. 최종 지연 주입 precision/burst/past-only 각24회와 열린 달력 resize의 논리 월 유지·builders7·timeouts0·close reservedBytes0/workersStopped=true PASS.
+- **최종 DPR2 양 profile**도 pressure·960×720→1280×900 resize·날짜 선택/확인·정상 close PASS. threaded는 확대 후 optional cache 예약 실패를 fallback1로 기록하고 전체 frame 경로를 유지했으며, single-worker는 fallback0으로 delta를 계속 사용했다. 마지막 retiredBytes/readers0·close 예약0이었다. 최초 DPR2 wheel assertion 실패는 독립 canvas에서도 CDP 요청440→DOM delta220으로 재현되어 runner의 CSS pixel 입력 배율을 교정했다. 제품의 wheel 정규화나 완료 assertion을 바꾸지 않았다.
+- **최종 Windows 일반 CLI**에서 OS 좌표 입력으로 drawer→Selection→달력, OS drag November→October, 15일 선택·확인 결과 **`Selected date: 2026-10-15`**를 UIA와 실제 화면에서 확인했다. 직전 후보의 버튼→October·drag→September·9월15일 확인과 구분한다. 최종 close status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0, transport pending0/retiredBytes0/timeouts0이었다. 실행 process·창 종료를 확인했다. 이는 물리 trackpad·UIA invoke·display/scanout 수락 근거가 아니다.
+- 첫 최종 비용 비교의 delta 측은 **측정 시작 전** drawer Selection 선택 뒤 `Choose date`를 찾지 못해 실패했다. 당시 action 경로를 기록하지 않아 원인은 미확정이며 해당 비교를 성능 근거에서 제외했다. [check-month-latency.mjs](Nelyx/eng/check-month-latency.mjs)에 최대16개 초기 semantic action/실제 callback 실행과 실패 시 Core/Main 상태·현재 버튼·provider 상태 진단을 추가했다. 이 hook은 월 측정 전에 원래 callback으로 복원한다. 진단 추가 후 아래 양 profile/양 경로 비교는 완료했지만 최초 불발의 해결을 선언하지 않는다. close 예약0·workersStopped=true 및 임시 browser 회수는 실패 실행에서도 확인했다.
+- 전체 format1743 files·schema/diff·변경 JS/TS13 files lint PASS. 전체 repository lint는 기존 생성 DatePicker의 미사용 매개변수4건으로 실패하며 미해결이다. 이전의 초기 pointer 거부 원인 미확정도 유지한다. owned staging·이전 출력·설치본·browser/server/profile·Windows process/창 회수를 확인했고, 기존 `engine-vTz0Je`·이전 profile·사용자 emulator는 유지했다. 검증 로그/trace/receipt/PNG는 파일로 누적하지 않았다.
+
+### 20.3 같은 공급의 전체 응답 비교
+
+다른 owned 실행·빌드·기능 검사를 끝낸 뒤 최종 앱에서 `--full-provider-frames` oracle과 운영 delta를 순서대로 비교했다. 각 profile당 과거 월 이동2개, 960×720 DPR1·font/assets 준비·원본200ms animation·sample 사이 App/Core/Main settle 조건이다. `--wire`의 encode/exchange/decode/draw hook을 켠 **진단 소표본**이다. App pass/transaction이 달라 통제된 개선율·제품 p95를 계산하지 않는다.
+
+| profile / 전달 경로 | 월별 takeFrame 응답 MB (10⁶ bytes) | 월별 decode 합계 ms | draw 합계 ms (호출 수) | readyMs |
+| --- | --- | --- | --- | --- |
+| threaded / 전체 oracle | 9.35 / 10.48 | 87.4 / 87.0 | 53.8 (8) / 46.9 (9) | 413.8 / 473.8 |
+| threaded / **운영 delta** | 4.47 / 3.80 | 50.1 / 32.0 | 52.0 (9) / 45.2 (8) | 490.0 / 478.1 |
+| single-worker / 전체 oracle | 8.18 / 11.64 | 78.6 / 93.8 | 49.1 (7) / 49.2 (10) | 517.3 / 410.4 |
+| single-worker / **운영 delta** | 4.44 / 5.01 | 46.6 / 47.6 | 56.6 (9) / 52.0 (11) | 441.7 / 400.0 |
+
+운영 sample은 full resync0·base resync0·fallback0, 실제 delta8–11개였고, stream `retainedBytes` 관측234,280 bytes·예약37,748,736 bytes·retired0이었다. 모든 비교의 timeouts0·close reservedBytes0/workersStopped=true다. bytes와 반복 eager decode는 줄었으며 §19 lazy prototype처럼 draw에 객체 생성 비용을 넘기지 않았다. 다만 운영 `exchange` 합계는 약56–68ms이며 전체 경로보다 일관되게 줄지 않았고, **월 ready 전체의 일관된 개선은 입증하지 못했다.** Core의 변경 geometry·사전 조정과 실제 draw 작업은 남는다. 별도 Content `preparationScene`은 준비1회당 약1.17MB, 월별1–2회 전달·decode 합계8.5–23.1ms였다. 이 구간의 반복 전달도 다음 대상이다.
+
+ready는 programmatic semantic click→게시 header와1/15/말일 관측이고, wire/draw는 해당 owner clock의 누적 구간이다. GPU 완료·물리 입력→표시·scanout 시간으로 합산하지 않는다.
+
+### 20.4 다음 실행 지점과 미수락
+
+다음 첫 확인은 새 bounded setup 진단으로 초기 Selection→Choose date 불발을 제한된 횟수에서 재현하는 것이다. 실패가 재현되면 거부/미전달/Source callback 미실행을 구분해 고친다. 그다음 구현은 **Content `preparationScene`의 provider 전용 delta·불변 configuration 재사용**이다. Render frame 구독과 App 구독의 base/소유권을 섞지 않고, 실제 preparation candidate·취소/교체·font/image/paragraph 자원·provider record reader·압력/close까지 같은 수명 계약으로 묶는다. 새 캐시가 GPU 교체의 메모리 여유를 잠식하지 않도록 함께 검증한다. 이 차수의 Render 전달량 감소만으로 Content 준비나 Source build가 개선됐다고 판정하지 않는다.
+
+Source 신규 달 요청과 월 변경 callback의 동시 진행, 국소 header/metadata 준비, cold/warm/evicted 현재 공급 기준선, 물리 trackpad·display/scanout·사용자 성능 수락과 §8의 후속 의무도 남는다. **W10-00/06/07 및 §8은 OPEN / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**를 유지한다.
+
+## 21. 2026-11-11 Content 준비 delta와 두 provider의 메모리 회계
+
+### 21.1 구현한 경로와 수명
+
+- [engine.cpp](Nelyx/engine/core/protocol/engine.cpp)의 `preparationScene`에 선택적 16-byte provider delta 요청과 명시적 퇴거를 연결했다. 빈 body는 기존 전체 응답이다. 별도 64-byte blob은 실제 preparation/document/metrics/device/font, **사전의 이전 전달 preparation/document**, 비교한 slot 수를 담는다. accepted/active/published와 사전의 기반을 혼동하지 않으며 codec 검증 뒤에만 구독을 설치한다. working headroom을 포함한 memory report의 선택적24-byte 요청을 추가해 ABI2/**schema313408118**로 갱신했다. 기존16-byte report는 유지한다.
+- [paged_storage.hpp](Nelyx/engine/core/scene/paged_storage.hpp)의 weak page identity와 수정 세대를 이용해 같은 페이지는 생략하고 변경된 64-slot block을 비교한다. active Scene을 바꾼 live paint 뒤에도 이전 전달 사전의 기반을 찾으며 Document/Scene/Node를 붙잡지 않는다. 만료되거나 제자리 수정된 페이지는 보수적으로 해당 block 전체를 후보로 삼는다. weak 참조로 남을 수 있는 allocation의 용량도 ledger에 예약한다. 검사에서 찾은 제자리 수정 누락을 page revision 비교로 고쳤다.
+- [provider-preparations.ts](Nelyx/engine/platform/web/provider-preparations.ts)는 App·Render와 별도 구독, immutable ID decode cache, eager immutable row와 reader credit을 가진다. text를 검증된 `node.text`로 한 번 decode하고 [CanvasKit provider](Nelyx/engine/render/canvaskit-web/provider.ts)가 이를 사용한다. image는 준비 candidate가 소유한 bounded resource read를 사용한다. semantics/list/LayoutBuilder 투영은 Content에서 제외한다. resource descriptor 수집과 공급자의 record 작업까지 모두 O(changes)가 됐다는 주장은 하지 않는다.
+- 두 구독의 decode cache도 commit된 사전의 live ID에 맞춰 회수한다. 사전에서 이미 퇴거된 ID를 LRU 한도까지 보관하던 여분의 holder를 제거한다. 현재 ID의 재사용과 이전 reader가 직접 가진 불변 값은 유지하며 다른 owner의 항목을 지우지 않는다.
+- 폐기된 전달 candidate 뒤의 새 준비, 순서·tombstone·세대 교체, metrics/device/font 변경, 잘못된 base와 candidate cohort, pressure/close를 각각 처리한다. base gap은 한 번만 full resync하고 quota 거부는 기존 전체 응답으로 복구한다. Core의 선택적 사전 할당도 dispatch 오류 경계 안에서 수행해 정상적인 budget 응답을 반환한다.
+- 두 provider에 고정 37,748,736-byte pool을 각각 추가한 첫 구성은 실제 font staging과 충돌했다. [memory.ts](Nelyx/engine/platform/web/memory.ts)는 현재 row·사전·decode bytes와 들어오는 packet을 사용해 **8× wire bytes + row당 1024 bytes**의 보수적 용량을 decode 전에 예약한다. 이는 GC/RSS 실측값이 아니다. 큰 화면의 최대 예약을 작은 화면에서도 계속 유지하던 문제도 고쳤다. reader가 없을 때 기존/새 데이터의 유효한 상한으로 축소하며, Core의 한 번의 absolute report로 예약을 원자 변경한다. 성장 거부는 이전 값과 반환 크기를 보존한다. reader가 살아 있으면 축소하지 않고 퇴거 뒤에도 반환까지 retired credit을 유지한다.
+- 캐시 사용·증가 승인에는 현재 Core heap의25%와 최대 응답2개, viewport 크기의 GPU layer1개를 위한 working headroom도 검사한다. pinned Emscripten의 일반 geometric 증가20%보다 큰 여유다. [memory.hpp](Nelyx/engine/core/memory.hpp)의 전역 lock 안에서 실제 cache credit과 함께 한 번에 승인하며, 여유 자체를 임시 live account로 올리지 않는다. 부족하면 같은 Core의 전체 응답으로 복구하고 fallback을 센다. 모든 임의 resource/GPU 요청의 성공을 보장하는 계약은 아니다. 오래된 Content 응답을 처리하는 중 candidate/metrics/device가 교체되면 새 candidate의 준비 실패로 보고하지 않는 경계도 추가했다.
+- DPR2 resize에서는 Content 캐시가 기존/새 GPU backing의 동시 예약과 겹쳤다. Content는 새 metrics/device를 관측하면 사전을 비우고 전체 준비 응답을 사용한다. Core의 새 metrics Frame은 해당 Content 준비 뒤에만 나올 수 있다. Render가 동기 `draw()`의 backing 교체를 마친 뒤 보내는 `surface-resized`를 두 owner 경로로 전달하며, Content는 현재 Core metrics/device와 일치할 때만 delta를 재개한다. 이 통지는 GPU 완료·표시·scanout receipt가 아니다.
+
+### 21.2 최종 공급과 통합 검증
+
+- 실제 Wasm Core **64/2048노드**의 전체 eager 준비 oracle, shared-page 후보 제한, text·image bytes, 이전 reader 불변성, App/Render 구독 격리, order/removal/recycling, 실제 폐기된 candidate 뒤의 새 preparation, base gap·잘못된 cohort·global 변경·pressure·surface 교체·close 검사 PASS. fixture는 준비 document가 accepted document와 같은지 확인한다. **4000노드 사전 quota**의 bounded 전체 fallback과 close PASS.
+- 실제 Core의 provider credit 증가/감소·quota rollback·중복 반환, **headroom의 단일 report·미충전·peak rollback·동시 승인**, 두 provider의 용량 성장 거부와 진행 중 reader credit 유지 PASS. native C API의 선택적 준비 proof 할당 거부는 structured budget 응답·holds0·사용 가능한 candidate·close 예약0을 확인했다. weak page의 만료·제자리 수정·마지막 부분 page, Frame/materialization/live paint·list/date·ledger 회귀도 통과했다. 이전 reader가 가진 decoded 값은 유지하면서 retired ID만 회수하고 nested owner를 침범하지 않는 검사도 PASS했다.
+- 최종 source/manifest **`b485396759f98b9a74c006c7ed0e67c1f52073a9e70601fef342aa4f56c2befc`**, ABI2/**schema313408118**. native·Windows App SDK·Web single-worker/threaded와 Android arm64-v8a/x86_64 빌드 PASS. 현재 sourceIdentity와 Windows/Web **356 files**, Android **42 files** 전체 hash 대조 PASS. Android APK·기기 실행은 이번 차수 **notVerified**, Linux·Apple은 **DEFERRED**다.
+- Core ESM/선언/source map·Web/Windows 앱을 갱신하고 앱 manifest 전 파일·공급 연결 대조 PASS. Web JS=`9712726b07aafecf0f047ebda7d77dccfa43002d69a3649e684c3c23f44738de`, Windows JS=`f0206f7edc0a7419e9208bad6e3df30d866f8980d23cb623a61c2d0498fd6d55`, HBC=`d46d611df8e8e7ec4df319b1f63593ff82433416f0c1e9c6b48d929bb94e92a2`다. 기존 App observation/불변 ID/quota·즉시 조회·Wasm heap/owned copy와 현재 패키지의 독립 설치 소비자 strict 선언·scene/shared transaction·close PASS.
+- 최종 **DPR2 두 profile**의 warm 추가 layout/measure 없음, pressure 퇴거·재동기화, 960×720→1280×900 resize, 날짜 확인·복합 화면 이동·정상 종료 PASS. threaded는 여유 부족 시 Frame/Content 캐시를 각각 한 번 퇴거하고 전체 응답으로 진행했으며 single-worker는 양쪽 fallback0으로 delta를 유지했다. 두 경우의 마지막 readers/retired0·close reservedBytes0/workersStopped=true다. 중간 공급의 GPU backing·잔여 decode holder·heap 증가 실패는 위 수명·headroom 수정 전 결과이며 최종 통과로 복사하지 않는다.
+- 최종 **DPR1 두 profile**의 extended/pressure·month/year/day·확인/취소/재개방/입력·theme/route/image/editor PASS. 양쪽 cache fallback0·reader/retired0이었다. 지연 주입 precision/burst/past-only 각24회와 열린 달력 resize의 논리 월 유지·builders7·timeouts0·close 예약0/workersStopped=true도 PASS했다. 병렬 기능 검사의 elapsed는 성능 근거로 쓰지 않는다.
+- 첫 최종 DPR1 실행은 drawer의 Navigation을 선택한 뒤 Show all을 찾지 못했다. Core/App 오류·준비 실패·fallback은 없었고 drawer가 남았다. Main actions와 App callback trace에도 Navigation 실행이 없었다. [check-event-web.mjs](Nelyx/eng/check-event-web.mjs)의 선택적 `--diagnose`에 DOM target의 연결/핸들과 semantic snapshot·응답을 최대64건만 기록하도록 추가했다. 같은 공급의 다음 진단 실행은 두 profile 모두 완료해 **최초 미전달 원인은 미확정**이다. 재클릭·대기 시간 확대·callback 재생으로 숨기지 않았다. 이전 Selection→Choose date 및 초기 pointer 거부와 같은 원인이라고 단정하지 않는다.
+- **최종 Windows 일반 CLI**에서 OS 좌표 입력으로 drawer→Selection→달력, 이전 월 버튼 November→October, OS drag→September, 15일 선택·확인 결과 **`Selected date: 2026-09-15`**를 UIA와 실제 화면에서 확인했다. close status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0, transport pending0/retiredBytes0/timeouts0이었다. owned process와 창 종료를 확인했다. 물리 trackpad·UIA invoke·display/scanout 수락 근거는 아니다.
+- 전체 workspace types·Web host types·format1745 files·schema/diff·변경 JS/TS20 files lint PASS. 전체 repository lint의 기존 생성 DatePicker 미사용 매개변수4건은 미해결이다. owned 임시 설치/native 검사·browser/server/profile·staging/이전 dist·Windows 창/process를 회수했고 기존 `engine-vTz0Je`와 사용자 emulator는 유지했다. 로그·trace·receipt·PNG는 파일로 누적하지 않았다.
+
+### 21.3 같은 공급의 전체 준비 응답 비교
+
+위 빌드·기능 검사·Windows 실행을 끝낸 같은 앱에서 `check-month-latency.mjs --both --steps 2 --wire --stages`를 전체 준비 oracle(`--full-provider-preparations`)과 운영 delta 순서로 비교했다. **Render는 양쪽 모두 같은 delta 경로**다. 960×720 DPR1 headless·font/assets 준비·원본200ms animation·순차 과거 월2개씩·sample 사이 App/Core/Main settle 조건이다. wire/stage hook을 켠 진단 소표본이며 개선율·제품 p95로 해석하지 않는다.
+
+| profile / 준비 전달 | 월별 preparationScene MB (10⁶ bytes) | 월별 decode 합계 ms | Content record 합계 ms | readyMs |
+| --- | --- | --- | --- | --- |
+| threaded / 전체 oracle | 2.334 / 2.344 | 21.86 / 19.60 | 38.61 / 42.91 | 533.8 / 449.7 |
+| threaded / **운영 delta** | 0.250 / 0.260 | 4.25 / 3.59 | 25.22 / 16.61 | 461.2 / 440.6 |
+| single-worker / 전체 oracle | 1.167 / 1.172 | 10.90 / 9.60 | 19.60 / 19.00 | 523.3 / 402.7 |
+| single-worker / **운영 delta** | 0.223 / 0.233 | 5.80 / 2.60 | 14.00 / 9.70 | 523.5 / 403.2 |
+
+threaded는 준비2회, single-worker는1회씩이었다. 운영 sample의 full/base resync/fallback0, 실제 delta1–2개, rowVisits664–797·changedRows478–566, **comparedSlots2304–4608**이었다. 월/header/delegate 변경은 많은 page를 바꾸므로 전체 월 준비가 변경 노드 수에만 비례한다는 결론을 내리지 않는다. `retainedBytes` 약249,899·Content capacity credit12.79–14.39MB·readers/retired0이었다. 모든 비교의 timeouts0·close reservedBytes0/workersStopped=true다.
+
+반복 전달·decode와 Content record는 줄었지만 **single-worker의 ready는 사실상 같고, 월 전체의 일관된 지연 개선은 입증하지 못했다.** App passes6–8회, build/capture/scene 왕복과 Core layout·Frame 작업이 남는다. Render draw 합계는 threaded oracle56.55/46.44ms·delta54.20/45.50ms, single-worker oracle53.60/46.90ms·delta58.70/49.60ms였다. frame 수8–11개가 달라 draw 개선율을 계산하지 않는다.
+
+ready는 browser clock의 programmatic semantic click→게시 header·1/15/말일이다. wire와 Content record/draw는 각 owner clock의 겹치는 구간이며 합산하지 않는다. working headroom report의 모든 RPC 비용이 opcode21 wire hook에 포함되는 것은 아니다. 전체 ready에는 실제 운영 경로가 포함된다. GPU 완료·물리 입력→표시·scanout은 측정하지 않았다.
+
+### 21.4 정확한 다음 구현과 미수락
+
+다음은 **Source 신규 월 요청과 월 변경 callback의 동시 진행·국소 header/metadata 준비**다. [host.ts](Nelyx/runtime/app/host.ts)의 `perform`/`rebuildFromContent`·input checkpoint와 [scroll.ts](Nelyx/runtime/app/scroll.ts)의 page demand·delegate generation을 현재 공급에서 추적한다. 원래 callback/controller 순서·200ms animation·coverage·focus/KeepAlive·Ink·방향 반전·resize fence를 유지한다. §16에서 제거한 분리 큐를 그대로 복원하거나 `waitForContent`를 무조건 해제하지 않는다. 먼저 새 월/header 변경→첫 필수 Source 요청→문서 ACK→Content 준비의 인과를 좁힌 뒤 같은 단위의 구현과 통합 검증을 묶는다.
+
+초기 semantic 입력 미전달의 bounded 진단, cold/warm/evicted 현재 공급 기준선, 실제 물리/표시/scanout·사용자 성능 수락과 §8도 남는다. **W10-00/06/07 및 §8은 OPEN / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**다.
+
+## 22. 2026-11-11 Source 후속 실험 철회와 검증 보강 — PAUSED / PARTIAL 인계
+
+현재 공급의 bounded flow 추적에서 이미 active인 잉크 문서도 Render 게시를 기다리는 구간과 신규 월의 Source LayoutBuilder 왕복을 확인했다. active이며 Content 작업이 없는 문서의 게시 대기를 줄이는 조건, 상태 조회·대기 중 받은 `rerun`을 capture 직전에 소비하는 조건을 각각 실험했다. App의 빈 pass는 줄일 수 있었지만 Windows 실제 창에서 달력 grid가 옆으로 밀리고 인접 월·header와 grid의 월 불일치를 관측했다. 자동 Web extended·연속 월 검사가 통과했다는 이유로 이 후보를 수락하지 않았다.
+
+**두 변경을 모두 철회했다.** `host.ts`의 최종 diff는 없으며 `--content-barrier-only`·`--publication-barrier`·`--loop-invalidation-oracle` hook과 후보 앱도 남기지 않는다. Source callback/controller 순서·준비와 게시 fence를 §21 기준으로 복원했다. native 관측 중 Computer Use가 사용자 입력 감지를 알렸고 사용자는 자동 검증 계속을 선택했다. 이 사실과 별개로 정확한 인과는 아직 미확정이므로 후보 변경만을 확정 원인으로 쓰지 않는다. 후보 앱의 메모리/worker/transport 정상 종료는 확인했지만 기능/성능 수락 근거에서는 제외한다.
+
+유지한 변경은 검증 보강이다. [check-immediate-reads.mjs](Nelyx/eng/check-immediate-reads.mjs)의 실제 Core fixture는 inspect RPC 중 도착한 새 Widget이 이전 desired의 ACK 없이 **45×21 실제 geometry**로 반영됨을 확인한다. ACK 중 invalidation, 실제 pending Content와 acquired/released Frame의 publication 대기가 보존되는지도 검사한다. 기존 manual Source builder·lost wake·최종 completion invalidation·semantic ACK·알림/close 회귀와 함께 PASS했다. configuration `inspect`와 실제 `layoutSnapshot` geometry를 구분한다.
+
+[check-date-scroll-web.mjs](Nelyx/eng/check-date-scroll-web.mjs)는 App/Core와 Main publication이 동기화된 뒤 현재 월의 모든 날짜가 정확히 한 번씩 나오고 인접 월이 남지 않는지도 확인한다. 정상 ARIA 제목의 줄바꿈을 반영하며 대기/재클릭으로 제품 완료 조건을 완화하지 않았다. 철회 전 후보의 강화된 Web precision/burst/past-only 양 profile 각24회·resize도 통과했으나, 이를 최종 기준 App의 새 검증으로 확대하지 않는다.
+
+### 22.1 중간 마무리 시점의 실제 공급
+
+사용자가 **“일단 중간 마무리해줘”**라고 요청해 새 구현·검증 확장을 중단했다. 작업 트리는 보존했고 commit/reset/stash는 하지 않았다. `runtime/app/host.ts`의 diff는 없다. 두 Source 실험과 전용 oracle flag는 제거한 상태다. 현재 기능 변경은 §21의 Content/Render delta·immutable decode 재사용·원자적 capacity/headroom 승인·resize/취소/퇴거 수명이다.
+
+- engine/Android source와 manifest는 **`b485396759f98b9a74c006c7ed0e67c1f52073a9e70601fef342aa4f56c2befc`**, ABI2/**schema313408118**다. §21 공급의356/42 files를 최종 hash 대조했다. Source 실험 철회는 engine graph를 바꾸지 않아 불필요한 engine/Android 재빌드는 하지 않았다.
+- 실험 철회 뒤 Core ESM/선언/source map·Web/Windows 앱을 다시 빌드했다. 전 파일 app manifest와 공급 연결 대조 PASS. **Web JS=`9712726b07aafecf0f047ebda7d77dccfa43002d69a3649e684c3c23f44738de`**, **Windows JS=`f0206f7edc0a7419e9208bad6e3df30d866f8980d23cb623a61c2d0498fd6d55`**로 §21 JS와 같다. 현재 **HBC=`c8c325a205a98890a248c8d2d2bfd3bafb92c71deedd3391cec29baf40b6fdde`**는 재생성본이며 §21 실행 HBC와 구분한다.
+- 실제 Core의 기존·추가 immediate read/Source/ACK/publication fence 검사는 철회한 source에서 PASS했다. §21의 provider oracle·메모리/quota·native/관찰·설치 소비·타입 근거는 해당 범위로 보존한다. 마지막 재빌드 뒤 별도 설치 소비자·Windows 실제 실행을 새로 반복하지는 않았다.
+
+### 22.2 마지막 재확인 결과와 미해결
+
+중단 전에 시작된 마지막 Web batch는 **DPR1 두 profile extended/pressure PASS** 후 **DPR2 threaded에서 실패**하고 종료했다. DPR2는 warm·pressure 퇴거/복구·resize와 복합 날짜 확인까지 진행했고, 최종 errors 검사에 **`Native scroll failed (27)`**가 남았다. 현재 schema에서27은 **`stale`**다. 당시 document/published212·preparation/pending/queued0, input collected/dispatched13·rejected0, Frame/Content fallback 각각1·readers/retired/reserved0이었다. displayed result는 `Selected date: 2027-11-15`였다. 준비 오류·메모리 한도 초과로 확인된 실패가 아니며, 정확한 scroll request/list generation·퇴거/닫기 인과는 아직 미확정이다.
+
+이 실패 때문에 **마지막 DPR2 single-worker와 강화한 최종 기준 App의 precision/burst/past-only/resize는 실행하지 못했다**. 앞선 §21의 같은 JS 기능 PASS나 철회한 Source 후보의 각24회 PASS를 이 마지막 batch의 통과로 복사하지 않는다. Source 후보 Windows에서 관측한 월/header/grid 불일치도 최종 복원 App에서 재현 여부를 확인하지 못했으므로 해결을 선언하지 않는다. 현재 HBC의 Windows UI/정상 종료는 **notVerified**다. §21 HBC의 OS 입력·9월15일 확인·정상 close와 후보 HBC의 정상 close는 각각 당시 근거다.
+
+### 22.3 정리와 정확한 재개점
+
+중간 마무리 정합성 검사에서 전체 format1745 files·변경 JS/TS20 files lint·`git diff --check`·Source 실험 diff 없음 PASS. 전체 repository lint의 기존 생성 DatePicker 미사용 매개변수4건은 별도 미해결로 유지한다.
+
+진행 중이던 batch는 실패 후 자체 `finally`로 browser context·browser·server를 닫았다. 실제 process 목록과 Computer Use inventory에서 owned 검사 runner·Playwright browser·Nelyx Windows process/창이 남지 않음을 확인했다. `.tmp`는 비었고 staging/이전 dist/독립 설치본/검증 로그·trace·receipt·PNG를 누적하지 않았다. 현재 dist·공급 cache와 기존 `engine-vTz0Je`, `.nelyx/android-v2`·`date-picker-port`·`windows-hermes`, 사용자 emulator는 보존했다.
+
+재개 시 **현재 manifest와 App hash부터 대조하고** 다음을 수행한다.
+
+1. `node Nelyx/eng/check-event-web.mjs --dpr2 --extended --date-confirm-only --pressure --diagnose`의 한 번의 bounded 추적으로 마지막 `stale` scroll의 request ID·target handle·list generation·document·terminal/dispose 순서를 확인한다. [scroll.ts](Nelyx/runtime/app/scroll.ts)의 `NativePosition.send`/`terminal`/`retryStale`를 우선 대조하되 모든 stale를 무시하거나 callback을 재생하지 않는다.
+2. 필요한 수정과 관련 국소 검증을 묶은 뒤 같은 공급의 DPR2 두 profile, 강화한 `check-date-scroll-web.mjs --both --precision --burst --past-only`와 resize를 확인한다. `--diagnose`의 초기 semantic 미전달도 별도 원인 미확정으로 유지한다.
+3. 최종 Windows 앱의 일반 CLI에서 첫 달력의 정렬·현재 월/인접 월·버튼·OS drag·선택/확정·정상 종료를 다시 확인한다. **Source capture/게시 대기 실험을 복원하지 않는다.** 그다음 신규 월/header/callback 왕복을 줄이는 다음 구조를 검토한다.
+
+현재는 **PAUSED / PARTIAL**이다. 월 전체는 §21 진단에서 약0.4–0.5초이며 목표100ms·물리/표시/scanout·사용자 성능 수락을 충족했다고 판정하지 않는다. W10-00/06/07과 §8 의무는 남는다. `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**를 유지한다.

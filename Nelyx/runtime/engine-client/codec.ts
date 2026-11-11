@@ -1285,6 +1285,8 @@ export interface LayerCompositionSnapshot {
   readonly linkedOffset: { readonly x: number; readonly y: number };
 }
 export interface EngineNodeSnapshot {
+  /** Validated immutable text when supplied by a preparation or measurement. */
+  readonly text?: string;
   readonly layoutBuilder: LayoutBuilderOptions | null;
   readonly snapshot: NativeSnapshotConfiguration | null;
   readonly imagePaint: ImagePaintSnapshot | null;
@@ -1764,6 +1766,8 @@ export function response(
         p.observationDeltaBlob,
         p.observationReferencesBlob,
         p.observationRegistrationBlob,
+        p.providerFrameBlob,
+        p.providerPreparationBlob,
       ].includes(type) ||
       stride > bytes.length - cursor ||
       v.getUint32(cursor + 4, true) ||
@@ -1816,10 +1820,46 @@ export function response(
       published.document !== u64(p.stateFields.publishedDocument) ||
       published.metrics !== u64(p.stateFields.publishedMetrics) ||
       published.device !== u64(p.stateFields.publishedDevice) ||
-      published.publication !== u64(p.stateFields.publication)
+      // Device loss can retire the published reader while preserving the
+      // monotonic publication counter. An absent cohort has no publication.
+      published.publication !==
+        (u64(p.stateFields.publishedMetrics) ? u64(p.stateFields.publication) : 0n)
     )
       throw Error('Observation metadata/rows have different consistency cohorts');
+    const frame = observation.metadata.frame;
+    if (
+      frame &&
+      (v.getUint16(p.headerFields.opcode, true) !== (p.opcodes.takeFrame | 0x8000) ||
+        frame.submission !== u64(p.stateFields.submission) ||
+        frame.document !== active.document ||
+        frame.metrics !== active.metrics ||
+        frame.device !== active.device ||
+        frame.font !== active.font ||
+        frame.preparation !== active.preparation ||
+        frame.property !== u64(p.stateFields.property) ||
+        frame.basedOn !== published.publication)
+    )
+      throw Error('Provider candidate/active/published cohorts differ');
   }
+  if (observation?.metadata.preparation) {
+    const candidate = observation.metadata.preparation;
+    if (
+      v.getUint16(p.headerFields.opcode, true) !== (p.opcodes.preparationScene | 0x8000) ||
+      candidate.preparation !== u64(p.stateFields.preparation) ||
+      candidate.document !== u64(p.stateFields.preparationDocument) ||
+      candidate.metrics !== u64(p.stateFields.metrics) ||
+      candidate.device !== u64(p.stateFields.device) ||
+      candidate.font !== u64(p.stateFields.fontRevision)
+    )
+      throw Error('Provider preparation/active cohorts differ');
+  }
+  if (
+    !observation &&
+    blobs.some(
+      (blob) => blob.type === p.providerFrameBlob || blob.type === p.providerPreparationBlob,
+    )
+  )
+    throw Error('Provider frame requires its own subscription');
   const decodeBlob = <T>(blob: EngineBlob, decode: (bytes: Uint8Array) => T): T => {
     const cache = options.observationCache;
     if (!cache) return decode(blob.bytes);
@@ -2006,7 +2046,9 @@ export function response(
   const nodeHandles = observation?.handles ?? new Set(nodes.map((node) => nodeKey(node.node)));
   const nodeBlobs = new Map<string, EngineBlob[]>();
   for (const blob of blobs) {
-    if (blob.type < 3) continue;
+    if (blob.type < 3 && blob.type !== 1) continue;
+    if (blob.type === 1 && !nodeHandles.has(nodeKey(blob.handle)))
+      throw Error('Foreign preparation text owner');
     const key = nodeKey(blob.handle),
       group = nodeBlobs.get(key);
     if (group) group.push(blob);
@@ -2035,6 +2077,7 @@ export function response(
     let paintPlacement: PaintPlacementOptions | null = null;
     let fontBinding: FontResourceBinding | null = null;
     let nativePaint: readonly NativePaintSnapshot[] | null = null;
+    let text: string | undefined;
     let layerComposition: LayerCompositionSnapshot | null = null;
     let graphics: GraphicsSnapshot | null = null,
       clipStyle: ClipStyleSnapshot | null = null,
@@ -2042,6 +2085,11 @@ export function response(
     for (const blob of nodeBlobs.get(nodeKey(node.node)) ?? []) {
       const d = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength),
         size = blob.bytes.length;
+      if (blob.type === 1) {
+        if (text !== undefined || size > p.limits.textBytes)
+          throw Error('Invalid preparation text');
+        text = decodeBlob(blob, decodeUtf8);
+      }
       if (blob.type === p.semanticTraversalBlob) {
         if (semanticTraversal || size < p.semanticTraversalBytes || d.getBigUint64(16, true))
           throw Error('Invalid semantics traversal');
@@ -2174,7 +2222,7 @@ export function response(
       }
       if (blob.type === 13) {
         if (nativePaint) throw Error('Duplicate native paint snapshot');
-        nativePaint = readNativePaint(blob.bytes);
+        nativePaint = decodeBlob(blob, readNativePaint);
       }
       if (blob.type === 12) {
         if (clipStyle || node.kind !== p.kinds.clip)
@@ -2405,6 +2453,7 @@ export function response(
     // freeze once instead of copying every base field into a second object.
     return Object.freeze(
       Object.assign(node, {
+        ...(text === undefined ? {} : { text }),
         layoutBuilder,
         snapshot,
         editing,

@@ -8,6 +8,34 @@ Writer command(uint32_t op,Handle h,size_t bytes){Writer result(16+bytes);result
   result.u32(4,uint32_t(result.bytes.size()));writeHandle(result,8,h);return result;}
 }
 void checkTransactionSharing(){
+  {
+    auto ledger=std::make_shared<Ledger>();
+    {
+      using Values=PagedStorage<std::shared_ptr<const uint32_t>,130>;
+      auto before=std::make_unique<Values>(ledger);
+      auto value=std::make_shared<const uint32_t>(7);
+      const std::weak_ptr<const uint32_t> reader=value;
+      before->edit(2)=value;before->edit(129)=std::make_shared<const uint32_t>(9);
+      Lease proofCredit(ledger,sizeof(Values::WeakSnapshot)+Values::weakSnapshotBytes);
+      auto proof=before->weakSnapshot();Values after(*before);
+      verify(after.visitDifferences(proof,[](size_t,const auto&,const auto*){})==0,
+        "Shared page identities visited unchanged slots");
+      after.edit(2)=std::make_shared<const uint32_t>(8);
+      bool compared=false;
+      verify(after.visitDifferences(proof,[&](size_t index,const auto& current,const auto* previous){
+        if(index==2){compared=previous&&*previous==value&&*current==8;}})==64&&compared,
+        "Live page proof did not compare its bounded changed block");
+      before.reset();value.reset();
+      verify(reader.expired(),"Weak page proof retained an old value holder");
+      verify(after.visitDifferences(proof,[](size_t,const auto&,const auto* previous){
+        verify(!previous,"Expired page unexpectedly retained its prior values");})==64,
+        "Expired page proof did not conservatively visit its bounded block");
+      after.edit(129)=std::make_shared<const uint32_t>(10);
+      verify(after.visitDifferences(proof,[](size_t,const auto&,const auto*){})==66,
+        "Partial final page exceeded its slot capacity");
+    }
+    verify(ledger->bytes==0,"Weak page proof storage credit did not drain");
+  }
   for(const uint32_t unrelated:{64u,2048u}){
     auto ledger=std::make_shared<Ledger>();
     {

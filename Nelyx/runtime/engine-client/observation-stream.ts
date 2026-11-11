@@ -7,6 +7,26 @@ const key = (node: NodeHandle) => `${node.slot}:${node.generation}`;
 const same = (a: Uint8Array, b: Uint8Array) =>
   a.length === b.length && a.every((value, index) => value === b[index]);
 export class ObservationGapError extends Error {}
+export interface ProviderFrameCohort {
+  readonly submission: bigint;
+  readonly document: bigint;
+  readonly metrics: bigint;
+  readonly device: bigint;
+  readonly font: bigint;
+  readonly preparation: bigint;
+  readonly property: bigint;
+  readonly basedOn: bigint;
+}
+export interface ProviderPreparationCohort {
+  readonly preparation: bigint;
+  readonly document: bigint;
+  readonly metrics: bigint;
+  readonly device: bigint;
+  readonly font: bigint;
+  readonly basedOn: bigint;
+  readonly comparedSlots: bigint;
+  readonly baseDocument: bigint;
+}
 export interface ObservationDelta {
   readonly base: bigint;
   readonly version: bigint;
@@ -16,6 +36,8 @@ export interface ObservationDelta {
   readonly registeredBlobs: number;
   readonly rowVisits: number;
   readonly retainedBytes: bigint;
+  readonly frame?: Readonly<ProviderFrameCohort>;
+  readonly preparation?: Readonly<ProviderPreparationCohort>;
   readonly cohorts: Readonly<{
     accepted: Readonly<{ document: bigint; metrics: bigint; device: bigint; font: bigint }>;
     active: Readonly<{
@@ -40,7 +62,9 @@ type RegisteredBlob = EngineBlob & { readonly registration: bigint };
 /** One owner/generation and consistency role. Cached rows are immutable public
  * snapshots; dictionary bytes are private and never exposed to callers. */
 export class ObservationStream {
+  constructor(private readonly role: 'app' | 'provider-frame' | 'provider-preparation' = 'app') {}
   version = 0n;
+  private previousPreparation: Readonly<ProviderPreparationCohort> | undefined;
   private rows = new Map<string, EngineNodeSnapshot>();
   private references = new Map<string, readonly bigint[]>();
   private dictionary = new Map<bigint, RegisteredBlob>();
@@ -67,6 +91,9 @@ export class ObservationStream {
     for (const data of this.backingGroups.keys()) bytes += data.byteLength;
     for (const blob of this.dictionary.values()) bytes += blob.bytes.length;
     return bytes;
+  }
+  registeredIds(): IterableIterator<bigint> {
+    return this.dictionary.keys();
   }
   private detachRow(node: EngineNodeSnapshot, affected: Set<DataView>): void {
     const data = this.rowGroups.get(node);
@@ -159,6 +186,74 @@ export class ObservationStream {
         device: d.getBigUint64(at + 16, true),
         font: d.getBigUint64(at + 24, true),
       });
+    const frameBlobs = wireBlobs.filter((blob) => blob.type === p.providerFrameBlob);
+    const preparationBlobs = wireBlobs.filter((blob) => blob.type === p.providerPreparationBlob);
+    if (
+      frameBlobs.length !== (this.role === 'provider-frame' ? 1 : 0) ||
+      preparationBlobs.length !== (this.role === 'provider-preparation' ? 1 : 0)
+    )
+      throw Error('Observation consistency role differs');
+    let frame: Readonly<ProviderFrameCohort> | undefined;
+    if (frameBlobs.length) {
+      const blob = frameBlobs[0]!;
+      if (blob.handle.slot || blob.handle.generation || blob.bytes.length !== p.providerFrameBytes)
+        throw Error('Invalid provider frame cohort');
+      const data = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength);
+      frame = Object.freeze({
+        submission: data.getBigUint64(0, true),
+        document: data.getBigUint64(8, true),
+        metrics: data.getBigUint64(16, true),
+        device: data.getBigUint64(24, true),
+        font: data.getBigUint64(32, true),
+        preparation: data.getBigUint64(40, true),
+        property: data.getBigUint64(48, true),
+        basedOn: data.getBigUint64(56, true),
+      });
+      if (
+        !frame.submission ||
+        !frame.metrics ||
+        !frame.device ||
+        !frame.font ||
+        frame.basedOn >= frame.submission
+      )
+        throw Error('Invalid provider frame identity');
+    }
+    let preparation: Readonly<ProviderPreparationCohort> | undefined;
+    if (preparationBlobs.length) {
+      const blob = preparationBlobs[0]!;
+      if (
+        blob.handle.slot ||
+        blob.handle.generation ||
+        blob.bytes.length !== p.providerPreparationBytes
+      )
+        throw Error('Invalid provider preparation cohort');
+      const data = new DataView(blob.bytes.buffer, blob.bytes.byteOffset, blob.bytes.byteLength);
+      preparation = Object.freeze({
+        preparation: data.getBigUint64(0, true),
+        document: data.getBigUint64(8, true),
+        metrics: data.getBigUint64(16, true),
+        device: data.getBigUint64(24, true),
+        font: data.getBigUint64(32, true),
+        basedOn: data.getBigUint64(40, true),
+        comparedSlots: data.getBigUint64(48, true),
+        baseDocument: data.getBigUint64(56, true),
+      });
+      if (
+        !preparation.preparation ||
+        !preparation.metrics ||
+        !preparation.device ||
+        !preparation.font ||
+        preparation.basedOn > preparation.preparation ||
+        preparation.comparedSlots > BigInt(p.limits.nodes + 1)
+      )
+        throw Error('Invalid provider preparation identity');
+      if (
+        !full &&
+        (preparation.basedOn !== this.previousPreparation?.preparation ||
+          preparation.baseDocument !== this.previousPreparation.document)
+      )
+        throw new ObservationGapError('Preparation dictionary candidate gap; full resync required');
+    }
     const cohorts = Object.freeze({
       accepted: cohort(48),
       active: Object.freeze({ ...cohort(80), preparation: d.getBigUint64(112, true) }),
@@ -204,6 +299,8 @@ export class ObservationStream {
         rowVisits: d.getUint32(28, true),
         retainedBytes: d.getBigUint64(40, true),
         cohorts,
+        ...(frame ? { frame } : {}),
+        ...(preparation ? { preparation } : {}),
       });
       return {
         metadata,
@@ -211,6 +308,7 @@ export class ObservationStream {
         handles: this.handles,
         merge: () => this.current,
         commit: () => {
+          this.previousPreparation = preparation;
           ++this.counters.deltas;
           ++this.counters.unchanged;
         },
@@ -242,17 +340,33 @@ export class ObservationStream {
           length !== blob.bytes.length - 16 ||
           !blob.handle.slot ||
           !blob.handle.generation ||
-          !(
-            (type >= 3 && type <= 7) ||
-            (
-              [
-                p.layerCompositionBlob,
-                p.layoutBuilderBlob,
-                p.semanticGeometryBlob,
-                p.semanticTraversalBlob,
-              ] as readonly number[]
-            ).includes(type)
-          )
+          !(this.role !== 'app'
+            ? (
+                [
+                  ...(this.role === 'provider-preparation' ? [1] : []),
+                  4,
+                  5,
+                  7,
+                  10,
+                  11,
+                  12,
+                  13,
+                  p.layerCompositionBlob,
+                  p.paintPlacementBlob,
+                  p.fontBindingBlob,
+                  p.imagePaintBlob,
+                  p.snapshotStyleBlob,
+                ] as readonly number[]
+              ).includes(type)
+            : (type >= 3 && type <= 7) ||
+              (
+                [
+                  p.layerCompositionBlob,
+                  p.layoutBuilderBlob,
+                  p.semanticGeometryBlob,
+                  p.semanticTraversalBlob,
+                ] as readonly number[]
+              ).includes(type))
         )
           throw Error('Invalid immutable observation registration');
         const bytes = blob.bytes.subarray(16),
@@ -326,6 +440,8 @@ export class ObservationStream {
       rowVisits: d.getUint32(28, true),
       retainedBytes: d.getBigUint64(40, true),
       cohorts,
+      ...(frame ? { frame } : {}),
+      ...(preparation ? { preparation } : {}),
     });
     let merged: readonly EngineNodeSnapshot[] | undefined;
     let nextRows: Map<string, EngineNodeSnapshot> | undefined;
@@ -372,6 +488,7 @@ export class ObservationStream {
         this.handles = members;
         this.current = merged;
         this.version = version;
+        this.previousPreparation = preparation;
         ++this.counters[full ? 'fulls' : 'deltas'];
         if (!changes.length && !removed.length) ++this.counters.unchanged;
         this.counters.rowWrappers += changes.length;
@@ -382,6 +499,7 @@ export class ObservationStream {
   }
   clear(): void {
     this.version = 0n;
+    this.previousPreparation = undefined;
     this.highId = 0n;
     this.handles.clear();
     this.backingGroups.clear();

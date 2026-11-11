@@ -316,9 +316,8 @@ bool Frame::sameInputGeometry(const Frame& other, Handle node)const {
     if(!scene->document->contains(node)||!other.scene->document->contains(node))return false;
     const auto& a=scene->document->get(node);const auto& b=other.scene->document->get(node);
     if(!sameInputNode(a,b))return false;
-    const auto left=std::find_if(items.begin(),items.end(),[&](const auto& item){return item.node==node;});
-    const auto right=std::find_if(other.items.begin(),other.items.end(),[&](const auto& item){return item.node==node;});
-    if(left==items.end()||right==other.items.end()||!sameInputItem(*left,*right))return false;
+    const auto* left=item(node);const auto* right=other.item(node);
+    if(!left||!right||!sameInputItem(*left,*right))return false;
     node=a.parent;
   }
   return !node;
@@ -327,13 +326,11 @@ bool Frame::sharesInputGeometry(const Frame& other)const {
   if(device!=other.device||scene->metrics.epoch!=other.scene->metrics.epoch)return false;
   // Draw items are parent-first. Compare each node/ancestor once rather than
   // doing a full target/ancestor scan for every possible input target.
-  std::array<const DrawItem*,wire::limits::nodes+1> nextItems{};
   std::array<bool,wire::limits::nodes+1> matching{};
-  for(const auto& item:other.items)nextItems[item.node.slot]=&item;
   for(const auto& item:items){
     const auto& a=scene->document->get(item.node);
-    const auto* next=nextItems[item.node.slot];
-    if(!next||next->node!=item.node||(a.parent&&!matching[a.parent.slot])||
+    const auto* next=other.item(item.node);
+    if(!next||(a.parent&&!matching[a.parent.slot])||
         !sameInputItem(item,*next)||!sameInputNode(a,other.scene->document->get(item.node)))continue;
     matching[item.node.slot]=true;
     if(other.allows(item.node)&&((a.policy&7u)||a.gestures||a.control.kind||a.kind==wire::kinds::scrollViewport||
@@ -461,7 +458,10 @@ void View::makeDrawItems(Frame& f)const {
     if(!changed){const auto oldIndex=observed->itemBySlot[node.id.slot];
       changed=oldIndex==UINT32_MAX||!sameObservationNode(node,observed->scene->document->get(node.id))||
         !sameObservationItem(f.items.back(),observed->items[oldIndex])||!sameObservationProperty(property,observed->properties[node.id.slot]);}
-    if(changed)f.observationRows.push_back(index);
+    // Frame-dependent paint can reference another node whose geometry moved
+    // while this item's own box stayed fixed. Its resolved program belongs to
+    // this frame; provider deltas must refresh it as well as ordinary geometry.
+    if(changed||f.items.back().paint)f.observationRows.push_back(index);
     if(link.role==1&&!offstage&&!hidden)leaders[node.id.slot]=&f.items.back();
     if((node.policy&4u)&&alpha>0&&!offstage)f.modalRoot=node.id;
     if(node.kind==wire::kinds::scrollViewport)

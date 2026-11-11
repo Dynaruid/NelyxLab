@@ -467,7 +467,9 @@ class Host {
         if(op==wire::opcodes::memoryReport)throw jsi::JSError(r,"Memory reports are host-only");
         // These bounded reads run on the App owner, outside the Content job
         // schedule. They still serialize with Core's authoritative input state.
-        if(op==wire::opcodes::pollInteractionEvents||op==wire::opcodes::pollRaw){
+        const bool immediateRead=((op==wire::opcodes::pollInteractionEvents||op==wire::opcodes::pollRaw)&&length==wire::headerBytes)||
+          (op==wire::opcodes::inspect&&length==wire::headerBytes+4&&Reader{bytes.data(),bytes.size()}.u32(wire::headerBytes)==wire::inspectionFlags::stateOnly);
+        if(immediateRead){
           lock.unlock();
           auto result=dispatch(bytes);auto responseMemory=std::make_shared<ExternalLease>(core.memoryLedger(),3,5,result.size());
           {std::lock_guard ready(doneMutex);done.push_back({uint32_t(args[0].asNumber()),std::move(result),std::move(responseMemory)});}

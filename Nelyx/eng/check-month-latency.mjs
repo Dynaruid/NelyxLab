@@ -7,6 +7,12 @@ import {
 } from '../sdk/tooling/cli/src/engine-v2-runner.mjs';
 const application = verifyEngineV2Application('sample/nelyx-demo-app/engine-v2/dist/v2-web', 'web');
 const server = createEngineV2Server(application);
+const providerReads = process.argv.includes('--baseline-reads');
+const fullPictures = process.argv.includes('--full-pictures');
+const wireDiagnostics = process.argv.includes('--wire');
+const lazyProviderRows = process.argv.includes('--lazy-provider-rows');
+const fullProviderFrames = process.argv.includes('--full-provider-frames') || lazyProviderRows;
+const fullProviderPreparations = process.argv.includes('--full-provider-preparations');
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const browser = await chromium.launch({ headless: true });
 const watchdog = setTimeout(() => {
@@ -27,20 +33,158 @@ try {
     try {
       page = await context.newPage();
       page.setDefaultTimeout(15000);
-      if (process.argv.includes('--full-pictures'))
-        await page.route(/\/(owner|coordinator)\.js$/, async (route) => {
+      const errors = [];
+      const intercept = (pattern, handler) =>
+        page.route(pattern, async (route) => {
+          try {
+            await handler(route);
+          } catch (error) {
+            errors.push(String(error));
+            await route.abort().catch(() => {});
+          }
+        });
+      // Same-supply diagnostic oracle: restore the former provider queues
+      // without retaining another engine/application copy or changing App work.
+      if (
+        providerReads ||
+        fullPictures ||
+        wireDiagnostics ||
+        fullProviderFrames ||
+        fullProviderPreparations
+      )
+        await intercept(/\/(owner|coordinator)\.js$/, async (route) => {
           const response = await route.fetch(),
             original = await response.text();
-          const marker = 'function emptyOwnPicture(node) {';
-          assert.equal(
-            original.split(marker).length,
-            2,
-            'Full picture oracle requires the provider predicate',
-          );
-          await route.fulfill({
-            response,
-            body: original.replace(marker, marker + ' return false;'),
-          });
+          let body = original;
+          if (fullProviderFrames) {
+            const marker = 'deltaEnabled = true;';
+            assert.equal(body.split(marker).length, 2, 'Provider frame mode hook must be unique');
+            body = body.replace(marker, 'deltaEnabled = false;');
+          }
+          if (fullProviderPreparations) {
+            const marker = 'preparationDeltaEnabled = true;';
+            assert.equal(
+              body.split(marker).length,
+              2,
+              'Provider preparation mode hook must be unique',
+            );
+            body = body.replace(marker, 'preparationDeltaEnabled = false;');
+          }
+          // Compose hooks in one response: overlapping route handlers would
+          // silently discard earlier ablations when flags are combined.
+          if (providerReads && route.request().url().endsWith('/coordinator.js')) {
+            const marker = 'const immediateRead = isImmediateRead(bytes);';
+            assert.equal(body.split(marker).length, 2, 'Immediate read routing must be unique');
+            body = body.replace(marker, 'const immediateRead = false;');
+          }
+          if (fullPictures) {
+            const marker = 'function emptyOwnPicture(node) {';
+            assert.equal(
+              body.split(marker).length,
+              2,
+              'Full picture oracle requires the provider predicate',
+            );
+            body = body.replace(marker, marker + ' return false;');
+          }
+          if (wireDiagnostics || lazyProviderRows) {
+            const marker =
+              /return response\(exchange\((module\d*), (engine\d*), packet\(op, owner, data, id\)\)\);/g;
+            assert.equal(
+              [...body.matchAll(marker)].length,
+              1,
+              'Provider request hook must be unique',
+            );
+            body = body.replace(
+              marker,
+              (_text, module, engine) => `
+              const wireStarted=performance.now(), input=packet(op, owner, data, id),
+                wireEncoded=performance.now(), output=exchange(${module}, ${engine}, input),
+                wireDispatched=performance.now(), result=response(output${lazyProviderRows ? ',{appObservation:true,ownedObservation:true}' : ''}), wireDecoded=performance.now();
+              const operations=globalThis.__monthWire??=Object.create(null),
+                row=operations[op]??={calls:0,inputBytes:0,outputBytes:0,encodeMs:0,exchangeMs:0,decodeMs:0,maxExchangeMs:0,maxDecodeMs:0};
+              ++row.calls;row.inputBytes+=input.length;row.outputBytes+=output.length;
+              row.encodeMs+=wireEncoded-wireStarted;row.exchangeMs+=wireDispatched-wireEncoded;
+              row.decodeMs+=wireDecoded-wireDispatched;
+              row.maxExchangeMs=Math.max(row.maxExchangeMs,wireDispatched-wireEncoded);
+              row.maxDecodeMs=Math.max(row.maxDecodeMs,wireDecoded-wireDispatched);
+              return result;`,
+            );
+          }
+          if (wireDiagnostics) {
+            const exchangeMarker =
+              /const output = exchange\(this\.module, this\.engine, packet\((\w+)\.opcodes\.takeFrame, owner, data\)\);/g;
+            assert.equal(
+              [...body.matchAll(exchangeMarker)].length,
+              1,
+              'Provider frame exchange hook must be unique',
+            );
+            body = body.replace(
+              exchangeMarker,
+              (_text, schema) => `
+              const frameWireStarted=performance.now(), frameInput=packet(${schema}.opcodes.takeFrame, owner, data),
+                frameWireEncoded=performance.now(), output=exchange(this.module,this.engine,frameInput),
+                frameWireExchanged=performance.now(), frameOperations=globalThis.__monthWire??=Object.create(null),
+                frameRow=frameOperations[${schema}.opcodes.takeFrame]??={calls:0,inputBytes:0,outputBytes:0,encodeMs:0,exchangeMs:0,decodeMs:0,maxExchangeMs:0,maxDecodeMs:0};
+              ++frameRow.calls;frameRow.inputBytes+=frameInput.length;frameRow.outputBytes+=output.length;
+              frameRow.encodeMs+=frameWireEncoded-frameWireStarted;frameRow.exchangeMs+=frameWireExchanged-frameWireEncoded;
+              frameRow.maxExchangeMs=Math.max(frameRow.maxExchangeMs,frameWireExchanged-frameWireEncoded);`,
+            );
+            const decodeMarker =
+              /frame = response\(output, \{[\s\S]*?observationOwner: "provider-frame\/1:1:1:1"\s*\}\);/g;
+            assert.equal(
+              [...body.matchAll(decodeMarker)].length,
+              1,
+              'Provider frame decode hook must be unique',
+            );
+            body = body.replace(
+              decodeMarker,
+              (text) => `const frameDecodeStarted=performance.now();${text}
+              const frameDecodeElapsed=performance.now()-frameDecodeStarted;
+              frameRow.decodeMs+=frameDecodeElapsed;frameRow.maxDecodeMs=Math.max(frameRow.maxDecodeMs,frameDecodeElapsed);`,
+            );
+            const preparationExchange =
+              /const output = exchange\(\s*this\.module,\s*this\.engine,\s*packet\((\w+)\.opcodes\.preparationScene, owner, data\)\s*\);/g;
+            assert.equal(
+              [...body.matchAll(preparationExchange)].length,
+              1,
+              'Preparation exchange hook must be unique',
+            );
+            body = body.replace(
+              preparationExchange,
+              (_text, schema) =>
+                `const prepStarted=performance.now(),prepInput=packet(${schema}.opcodes.preparationScene,owner,data),
+              prepEncoded=performance.now(),output=exchange(this.module,this.engine,prepInput),prepExchanged=performance.now(),
+              prepOperations=globalThis.__monthWire??=Object.create(null),
+              prepRow=prepOperations[${schema}.opcodes.preparationScene]??={calls:0,inputBytes:0,outputBytes:0,encodeMs:0,exchangeMs:0,decodeMs:0,maxExchangeMs:0,maxDecodeMs:0};
+              ++prepRow.calls;prepRow.inputBytes+=prepInput.length;prepRow.outputBytes+=output.length;
+              prepRow.encodeMs+=prepEncoded-prepStarted;prepRow.exchangeMs+=prepExchanged-prepEncoded;
+              prepRow.maxExchangeMs=Math.max(prepRow.maxExchangeMs,prepExchanged-prepEncoded);`,
+            );
+            const preparationDecode =
+              /scene = response\(output, \{[\s\S]*?observationOwner: "provider-preparation\/1:1:1:1"\s*\}\);/g;
+            assert.equal(
+              [...body.matchAll(preparationDecode)].length,
+              1,
+              'Preparation decode hook must be unique',
+            );
+            body = body.replace(
+              preparationDecode,
+              (text) => `const prepDecodeStarted=performance.now();${text}
+              const prepElapsed=performance.now()-prepDecodeStarted;prepRow.decodeMs+=prepElapsed;
+              prepRow.maxDecodeMs=Math.max(prepRow.maxDecodeMs,prepElapsed);`,
+            );
+            const marker =
+              'this.provider.draw(frame, this.viewport.width, this.viewport.height, this.viewport.scale);';
+            assert.equal(body.split(marker).length, 2, 'Provider draw hook must be unique');
+            body = body.replace(
+              marker,
+              `const monthDrawStarted=performance.now();${marker}
+              const monthDrawElapsed=performance.now()-monthDrawStarted,
+                monthDraw=globalThis.__monthDraw??={calls:0,elapsedMs:0,maxMs:0};
+              ++monthDraw.calls;monthDraw.elapsedMs+=monthDrawElapsed;monthDraw.maxMs=Math.max(monthDraw.maxMs,monthDrawElapsed);`,
+            );
+          }
+          await route.fulfill({ response, body });
         });
       if (process.argv.includes('--stages'))
         await page.addInitScript(() => {
@@ -65,9 +209,8 @@ try {
             }
           };
         });
-      const errors = [];
       page.on('pageerror', (error) => errors.push(error.message));
-      await page.route('**/application/main.js', async (route) => {
+      await intercept('**/application/main.js', async (route) => {
         const response = await route.fetch(),
           original = await response.text();
         const marker = 'this.layer.dataset.nelyxV2Semantics = "";';
@@ -77,7 +220,7 @@ try {
           body: original.replace(marker, marker + ' globalThis.__monthInteraction = this;'),
         });
       });
-      await page.route('**/application/app.js', async (route) => {
+      await intercept('**/application/app.js', async (route) => {
         const response = await route.fetch(),
           original = await response.text();
         const instrumented = original.replace(
@@ -89,6 +232,32 @@ try {
       });
       await page.goto(`http://127.0.0.1:${server.address().port}/${profile}/`);
       await page.waitForFunction(() => __nelyxV2?.ready || __nelyxV2?.errors.length);
+      const worker = page.workers().find((worker) => worker.url().includes('/application/app.js'));
+      assert(worker);
+      await worker.evaluate(() => {
+        const h = globalThis.__monthHost,
+          action = h.native.options.onSemanticAction;
+        h.monthSetupActions = [];
+        h.monthRestoreActions = () => {
+          h.native.options.onSemanticAction = action;
+        };
+        h.native.options.onSemanticAction = (event, perform) => {
+          const source = event.semanticSource ?? event.node;
+          const record = h.native.accepted.get(source.slot + ':' + source.generation);
+          const row = {
+            node: source,
+            label: record?.node.options.semantics?.label,
+            publication: String(event.id),
+            invoked: false,
+          };
+          if (h.monthSetupActions.length === 16) h.monthSetupActions.shift();
+          h.monthSetupActions.push(row);
+          action(event, () => {
+            row.invoked = true;
+            perform();
+          });
+        };
+      });
       const click = (label) =>
         page
           .locator(
@@ -97,11 +266,10 @@ try {
           .first()
           .evaluate((e) => e.click());
       await click('Explore components');
-      await click('Selection');
+      await page.getByRole('button', { name: 'Selection', exact: true }).evaluate((e) => e.click());
       await click('Choose date');
       await page.getByRole('button', { name: /^15, / }).waitFor();
-      const worker = page.workers().find((worker) => worker.url().includes('/application/app.js'));
-      assert(worker);
+      await worker.evaluate(() => __monthHost.monthRestoreActions());
       const settleApp = () =>
         worker.evaluate(async () => {
           const host = globalThis.__monthHost,
@@ -153,6 +321,22 @@ try {
         throw Error('App/Core/Main publication did not settle');
       };
       await settle();
+      const wireSamples = async () =>
+        (
+          await Promise.all(
+            page.workers().map(async (owner) => ({
+              url: owner.url(),
+              ...(await owner.evaluate(() => {
+                const operations = globalThis.__monthWire,
+                  draw = globalThis.__monthDraw;
+                globalThis.__monthWire = Object.create(null);
+                globalThis.__monthDraw = undefined;
+                return { timeOriginMs: performance.timeOrigin, operations, draw };
+              })),
+            })),
+          )
+        ).filter((owner) => owner.operations && Object.keys(owner.operations).length);
+      if (wireDiagnostics) await wireSamples();
       if (process.argv.includes('--flow'))
         await worker.evaluate(() => {
           const host = globalThis.__monthHost;
@@ -163,11 +347,13 @@ try {
           };
           const rebuild = host.rebuildFromContent;
           host.rebuildFromContent = async function (observed) {
+            const started = performance.now();
             const state = observed ?? (await this.view.inspectState());
             await rebuild.call(this, state);
             const request = state.layoutBuildRequest;
             record({
               kind: 'source',
+              started,
               document: state.document,
               active: state.activeDocument,
               published: state.publishedDocument,
@@ -189,6 +375,20 @@ try {
               rerun: this.rerun,
             });
           };
+          for (const [target, method] of [
+            [host.view, 'inspectState'],
+            [host.focusing, 'finishBuild'],
+          ]) {
+            const original = target[method];
+            target[method] = async function (...args) {
+              const started = performance.now();
+              try {
+                return await original.apply(this, args);
+              } finally {
+                record({ kind: method, started });
+              }
+            };
+          }
           const adopt = host.native.adopt;
           host.native.adopt = function (desired, changes) {
             const kinds = {};
@@ -262,6 +462,16 @@ try {
           ...globalThis.__nelyxV2.surface.diagnostics['render-stats']?.counters,
         }));
       let previousRender = await renderCounters();
+      const frameCounters = () =>
+        page.evaluate(() => ({
+          ...__nelyxV2.surface.diagnostics['render-stats']?.frameStream,
+        }));
+      let previousFrames = await frameCounters();
+      const preparationCounters = () =>
+        page.evaluate(
+          () => __nelyxV2.surface.diagnostics['content-stats']?.preparationStream ?? {},
+        );
+      let previousPreparations = await preparationCounters();
       const mainCounters = () =>
         page.evaluate(() => ({ ...__nelyxV2.surface.diagnostics.interaction }));
       let previousMain = await mainCounters();
@@ -335,6 +545,8 @@ try {
         const current = await snapshot();
         const provider = await providerCounters();
         const render = await renderCounters();
+        const frames = await frameCounters();
+        const preparationStream = await preparationCounters();
         const main = await mainCounters();
         const from = previous.samplesThrough,
           to = current.samplesThrough;
@@ -392,6 +604,56 @@ try {
               (render[key] ?? 0) - (previousRender[key] ?? 0),
             ]),
           ),
+          frameStream: {
+            ...Object.fromEntries(
+              [
+                'frames',
+                'responseBytes',
+                'rowVisits',
+                'changedRows',
+                'fulls',
+                'deltas',
+                'registrations',
+                'registrationCopyBytes',
+                'resyncs',
+                'fallbacks',
+              ].map((key) => [key, (frames[key] ?? 0) - (previousFrames[key] ?? 0)]),
+            ),
+            retainedBytes: frames.retainedBytes,
+            reservedBytes: frames.reservedBytes,
+            retiredBytes: frames.retiredBytes,
+          },
+          preparationStream: {
+            ...Object.fromEntries(
+              [
+                'scenes',
+                'responseBytes',
+                'rowVisits',
+                'changedRows',
+                'comparedSlots',
+                'fulls',
+                'deltas',
+                'registrations',
+                'registrationCopyBytes',
+                'resyncs',
+                'fallbacks',
+                'decodeHits',
+                'decodeMisses',
+                'emptyScenes',
+                'capacityGrowths',
+                'capacityShrinks',
+                'resizeScenes',
+                'decodeRetired',
+              ].map((key) => [
+                key,
+                (preparationStream[key] ?? 0) - (previousPreparations[key] ?? 0),
+              ]),
+            ),
+            retainedBytes: preparationStream.retainedBytes,
+            reservedBytes: preparationStream.reservedBytes,
+            retiredBytes: preparationStream.retiredBytes,
+            readers: preparationStream.readers,
+          },
           main: Object.fromEntries(
             Object.keys(main)
               .filter((key) => typeof main[key] === 'number')
@@ -402,6 +664,7 @@ try {
                 content: await page.evaluate(() => globalThis.__monthStages.splice(0)),
               }
             : {}),
+          ...(wireDiagnostics ? { wire: await wireSamples() } : {}),
           ...(process.argv.includes('--flow')
             ? {
                 flow: await worker.evaluate(() =>
@@ -418,6 +681,8 @@ try {
         previous = current;
         previousProvider = provider;
         previousRender = render;
+        previousFrames = frames;
+        previousPreparations = preparationStream;
         previousMain = main;
       }
       const sorted = samples.map((s) => s.readyMs).sort((a, b) => a - b),
@@ -453,13 +718,18 @@ try {
         JSON.stringify(
           {
             profile,
+            readsMode: providerReads ? 'provider-queues' : 'immediate',
             source: application.supply.manifest.sourceSha256,
-            pictureMode: process.argv.includes('--full-pictures')
-              ? 'full-recording-oracle'
-              : 'empty-elision',
+            pictureMode: fullPictures ? 'full-recording-oracle' : 'empty-elision',
+            wireDiagnostics,
+            providerRows: lazyProviderRows ? 'lazy-prototype' : 'eager',
+            frameMode: fullProviderFrames ? 'full-oracle' : 'provider-delta',
+            preparationMode: fullProviderPreparations ? 'full-oracle' : 'provider-delta',
             condition:
               '960x720 DPR1 headless; font/assets ready; sequential navigation with normal bounded adjacent preparation; App/Core/Main projection settled between samples; no injected delay' +
-              (profiler ? '; CPU profiling enabled: diagnostic only' : ''),
+              (profiler || wireDiagnostics || lazyProviderRows
+                ? '; profiling enabled: diagnostic only'
+                : ''),
             clock:
               'browser-performance programmatic semantics click to published header and interactive days 1/15/last via MutationObserver; App durations use a separate worker clock and overlap',
             count: samples.length,
@@ -475,6 +745,42 @@ try {
       );
       assert.deepEqual(errors, []);
       assert.deepEqual(await page.evaluate(() => __nelyxV2.errors), []);
+    } catch (error) {
+      if (page) {
+        console.log(
+          'MONTH_FAILURE',
+          await page
+            .evaluate(() => {
+              const d = globalThis.__nelyxV2?.surface?.diagnostics,
+                s = d?.['render-stats']?.state;
+              return JSON.stringify(
+                {
+                  errors: globalThis.__nelyxV2?.errors,
+                  interaction: d?.interaction,
+                  document: s?.document,
+                  published: s?.publishedDocument,
+                  preparation: s?.preparation,
+                  focused: s?.focused,
+                  visible: s?.visible,
+                  browserFocused: document.hasFocus(),
+                  frameStream: d?.['render-stats']?.frameStream,
+                  preparationError: d?.['preparation-error'],
+                  buttons: [...document.querySelectorAll('[role="button"]')]
+                    .slice(0, 48)
+                    .map((e) => [e.getAttribute('aria-label'), e.getAttribute('aria-description')]),
+                },
+                (_, value) => (typeof value === 'bigint' ? String(value) : value),
+              );
+            })
+            .catch(String),
+        );
+        const app = page.workers().find((w) => w.url().includes('/application/app.js'));
+        console.log(
+          'MONTH_SETUP_ACTIONS',
+          await app?.evaluate(() => globalThis.__monthHost?.monthSetupActions).catch(String),
+        );
+      }
+      throw error;
     } finally {
       await profiler?.close();
       if (page)

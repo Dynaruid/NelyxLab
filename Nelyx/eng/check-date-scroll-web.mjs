@@ -41,6 +41,16 @@ try {
       assert.notEqual(instrumented, original, 'Host instrumentation point missing');
       await route.fulfill({ response, body: instrumented });
     });
+    await page.route('**/application/main.js', async (route) => {
+      const response = await route.fetch(),
+        original = await response.text(),
+        marker = 'this.layer.dataset.nelyxV2Semantics = "";';
+      assert.equal(original.split(marker).length, 2, 'Calendar Main owner hook must be unique');
+      await route.fulfill({
+        response,
+        body: original.replace(marker, marker + ' globalThis.__dateScrollInteraction=this;'),
+      });
+    });
     try {
       await page.goto(`http://127.0.0.1:${server.address().port}/${profile}/`);
       await page.waitForFunction(() => __nelyxV2?.ready || __nelyxV2?.errors.length);
@@ -52,7 +62,9 @@ try {
           .first()
           .evaluate((e) => e.click());
       await activate('Explore components');
-      await activate('Selection');
+      await page
+        .getByRole('button', { name: 'Selection', exact: true })
+        .evaluate((el) => el.click());
       await activate('Choose date');
       await page.getByRole('button', { name: /^1, / }).waitFor();
       const idle = () =>
@@ -87,7 +99,7 @@ try {
             return update(scene);
           };
         });
-      const settled = () =>
+      const settleApp = () =>
         worker.evaluate(async () => {
           const h = globalThis.__dateScrollHost,
             start = performance.now();
@@ -105,13 +117,56 @@ try {
               h.native.layoutObservation?.metrics === s.metrics &&
               h.native.layoutObservation?.activePreparation === s.activePreparation
             )
-              return;
+              return String(s.publication);
             await new Promise((resolve) => setTimeout(resolve, 50));
           }
           throw Error('Calendar App preparation did not settle');
         });
+      const settled = async () => {
+        const publication = await settleApp();
+        await page.waitForFunction((expected) => {
+          const owner = globalThis.__dateScrollInteraction;
+          return (
+            owner &&
+            !owner.syncing &&
+            !owner.wanted &&
+            owner.queued === 0 &&
+            owner.publication >= BigInt(expected)
+          );
+        }, publication);
+      };
+      const checkGrid = async () => {
+        await settled();
+        const title = await page
+          .getByRole('button', { name: /^Select year/ })
+          .getAttribute('aria-label');
+        const match = /^Select year\s+([A-Za-z]+) (\d{4})$/.exec(title);
+        assert(match, title);
+        const month = new Date(`${match[1]} 1, ${match[2]}`),
+          count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate(),
+          labels = await page
+            .getByRole('button', { name: /^\d+, [A-Za-z]+, [A-Za-z]+ \d+, \d{4}/ })
+            .evaluateAll((elements) =>
+              elements.map((element) => element.getAttribute('aria-label')),
+            );
+        assert.equal(
+          labels.length,
+          count,
+          'Settled calendar exposes a partial adjacent month: ' + labels.join('; '),
+        );
+        const days = labels.map((label) => {
+          const day = /^(\d+), [A-Za-z]+, ([A-Za-z]+) (\d+), (\d{4})(?:, .*)?$/.exec(label);
+          assert(day && day[1] === day[3] && day[2] === match[1] && day[4] === match[2], label);
+          return Number(day[1]);
+        });
+        assert.deepEqual(
+          days.sort((a, b) => a - b),
+          Array.from({ length: count }, (_, i) => i + 1),
+        );
+      };
       await settled();
       const sample = async (step, elapsedMs) => {
+        await checkGrid();
         const value = await worker.evaluate(async () => {
           const h = globalThis.__dateScrollHost,
             s = await h.view.inspectState();
