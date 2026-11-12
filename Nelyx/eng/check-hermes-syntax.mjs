@@ -174,7 +174,7 @@ try {
       contents: `
     import {ObservationDecodeCache} from './Nelyx/runtime/engine-client/observation-cache.ts';
     import {semanticBody,readSemanticBody} from './Nelyx/runtime/engine-client/semantics.ts';
-    import {SceneNode,SceneReference,SceneWriter,sceneConfiguration,retainSceneConfiguration} from './Nelyx/dist/v2/engine-client/scene.js';
+    import {SceneNode,SceneReference,SceneWriter,sceneConfiguration,retainSceneConfiguration,immutableSceneData} from './Nelyx/dist/v2/engine-client/scene.js';
     import {protocol as p} from './Nelyx/dist/v2/engine-client/schema.js';
     import {DateTime} from './packages/material/dist/internal/date/date-time.js';
     const writer=new SceneWriter({}, {pollEvents:false,retainedScene:true});writer.nextSlot=37;
@@ -189,6 +189,11 @@ try {
     sourceWriter.adopt(sourceWriter.records(source({color:0xff123456})),[]);
     const resets=sourceWriter.diff(sourceWriter.records(source({}))),paintReset=resets.find(bytes=>kind(bytes)===p.commands.paint);
     if(!paintReset||new DataView(paintReset.buffer,paintReset.byteOffset).getUint32(8,true)!==sourceRef.currentNode.slot||!sourceWriter.counters.sharedDefaultConfigs)throw Error('Hermes shared default reset lost its destination');
+    const mutablePolicy={commands:[{values:[7,11]}]},ownedPolicy=immutableSceneData(mutablePolicy);
+    mutablePolicy.commands[0].values[0]=19;
+    if(ownedPolicy.commands[0].values[0]!==7||!Object.isFrozen(ownedPolicy.commands[0].values)||immutableSceneData(ownedPolicy)!==ownedPolicy)throw Error('Hermes immutable policy copied a shared value or retained a mutable producer alias');
+    let accessorRuns=0,refused=false;try{immutableSceneData({get value(){++accessorRuns;return 1;}});}catch{refused=true;}
+    if(!refused||accessorRuns)throw Error('Hermes immutable policy evaluated an accessor');
     const payloadRef=new SceneReference(),payloadWriter=new SceneWriter({}, {pollEvents:false,retainedScene:true});let action=0;
     const initialPayload=sceneConfiguration(payloadRef,'box',[],{layout:{gap:7},onAction:()=>{action=1;}});
     retainSceneConfiguration(initialPayload);payloadWriter.adopt(payloadWriter.records(initialPayload),[]);

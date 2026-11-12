@@ -27,8 +27,19 @@ const radius = 28;
 /** @dartType double */
 const rangeElevation = 0;
 export class DatePickerDefaultsM3 extends DatePickerThemeData {
-  private cachedTheme: ThemeData | null = null;
-  constructor(private readonly context: BuildContext) {
+  private cachedTheme: ThemeData | null;
+  private readonly colors = new Map<keyof ThemeData['colorScheme'], Color>();
+  private dayForeground: WidgetStateProperty<Color | null> | undefined;
+  private dayBackground: WidgetStateProperty<Color | null> | undefined;
+  private dayOverlay: WidgetStateProperty<Color | null> | undefined;
+  private todayForeground: WidgetStateProperty<Color | null> | undefined;
+  private yearForeground: WidgetStateProperty<Color | null> | undefined;
+  private yearBackground: WidgetStateProperty<Color | null> | undefined;
+  private yearOverlay: WidgetStateProperty<Color | null> | undefined;
+  constructor(
+    private readonly context: BuildContext | null,
+    theme: ThemeData | null = null,
+  ) {
     super({
       elevation,
       shape: new RoundedRectangleBorder({ borderRadius: BorderRadius.circular(radius) }),
@@ -43,14 +54,19 @@ export class DatePickerDefaultsM3 extends DatePickerThemeData {
       rangePickerElevation: rangeElevation,
       rangePickerShape: new RoundedRectangleBorder(),
     });
+    if (!context && !theme)
+      throw new TypeError('Date defaults require a context or resolved theme');
+    this.cachedTheme = theme;
   }
   private get theme(): ThemeData {
-    return (this.cachedTheme ??= Theme.of(this.context));
+    return (this.cachedTheme ??= Theme.of(this.context!));
   }
   private role(name: keyof typeof this.theme.colorScheme): Color {
     const value = this.theme.colorScheme[name];
     if (typeof value !== 'number') throw new TypeError('Expected a source color role');
-    return new Color(value);
+    let color = this.colors.get(name);
+    if (!color) this.colors.set(name, (color = new Color(value)));
+    return color;
   }
   override get backgroundColor() {
     return this.role('surfaceContainerHigh');
@@ -97,18 +113,18 @@ export class DatePickerDefaultsM3 extends DatePickerThemeData {
     return this.theme.textTheme.bodyLarge;
   }
   override get dayForegroundColor() {
-    return colorProperty((states) =>
+    return (this.dayForeground ??= colorProperty((states) =>
       states.contains(WidgetState.selected)
         ? this.role('onPrimary')
         : states.contains(WidgetState.disabled)
           ? this.role('onSurface').withOpacity(0.38)
           : this.role('onSurface'),
-    );
+    ));
   }
   override get dayBackgroundColor() {
-    return colorProperty((states) =>
+    return (this.dayBackground ??= colorProperty((states) =>
       states.contains(WidgetState.selected) ? this.role('primary') : null,
-    );
+    ));
   }
   private overlay(
     states: DartSet<WidgetState>,
@@ -121,16 +137,16 @@ export class DatePickerDefaultsM3 extends DatePickerThemeData {
     return null;
   }
   override get dayOverlayColor() {
-    return colorProperty((states) => this.overlay(states));
+    return (this.dayOverlay ??= colorProperty((states) => this.overlay(states)));
   }
   override get todayForegroundColor() {
-    return colorProperty((states) =>
+    return (this.todayForeground ??= colorProperty((states) =>
       states.contains(WidgetState.selected)
         ? this.role('onPrimary')
         : states.contains(WidgetState.disabled)
           ? this.role('primary').withOpacity(0.38)
           : this.role('primary'),
-    );
+    ));
   }
   override get todayBackgroundColor() {
     return this.dayBackgroundColor;
@@ -142,21 +158,21 @@ export class DatePickerDefaultsM3 extends DatePickerThemeData {
     return this.theme.textTheme.bodyLarge;
   }
   override get yearForegroundColor() {
-    return colorProperty((states) =>
+    return (this.yearForeground ??= colorProperty((states) =>
       states.contains(WidgetState.selected)
         ? this.role('onPrimary')
         : states.contains(WidgetState.disabled)
           ? this.role('onSurfaceVariant').withOpacity(0.38)
           : this.role('onSurfaceVariant'),
-    );
+    ));
   }
   override get yearBackgroundColor() {
-    return colorProperty((states) =>
+    return (this.yearBackground ??= colorProperty((states) =>
       states.contains(WidgetState.selected) ? this.role('primary') : null,
-    );
+    ));
   }
   override get yearOverlayColor() {
-    return colorProperty((states) => this.overlay(states));
+    return (this.yearOverlay ??= colorProperty((states) => this.overlay(states)));
   }
   override get rangePickerShadowColor() {
     return Colors.transparent;

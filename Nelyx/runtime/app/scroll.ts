@@ -740,8 +740,9 @@ class NativeEditorScroll extends NativeScroll {
     controller: ScrollController | null,
     readonly direction: AxisDirection,
     readonly builder: EditorBuilder,
+    physics: ScrollPhysics | null = null,
   ) {
-    super({ physics: null }, host, controller);
+    super({ physics }, host, controller);
   }
   override get axisDirection(): AxisDirection {
     return this.direction;
@@ -1339,8 +1340,18 @@ export function installOriginalScrolling(
   registerTickerScheduler(owner, scheduler);
   registerNativeWidgetAdapter(owner, 'scroll-view', (widget, context) => {
     if (Object.getPrototypeOf(widget) === GridView.prototype) {
-      scrollController(widget as GridView, context, fail);
-      return originalNativeGrid(widget as GridView, context, fail);
+      const grid = widget as GridView;
+      const { primary, controller } = scrollController(grid, context, fail);
+      return originalNativeGrid(grid, context, fail, (builder) => {
+        const result = new NativeEditorScroll(
+          { view, fail, error, canDispatch },
+          controller,
+          AxisDirection.down,
+          builder,
+          grid.physics,
+        );
+        return primary && controller ? PrimaryScrollController.none({ child: result }) : result;
+      });
     }
     if (Object.getPrototypeOf(widget) === CustomScrollView.prototype) {
       const source = widget as CustomScrollView;

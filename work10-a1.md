@@ -140,10 +140,10 @@ PowerShell이 물리 트랙패드 접촉을 만들어낸다고 가정하지 않�
 - [x] W10A1-05 PowerShell 조작·bounded 수집 경로를 구성했다.
 - [x] W10A1-06 현재 공급의 Windows 기능·성능·수명 결과와 실패 범위를 기록했다.
 - [x] 추가 요청의 관찰 역할·delegate 수명·typed 의존성/동기 build batch·Core 준비 창 개편과 소비자 검증을 수행했다(§13–15).
-- [ ] 연속12개월의 ≥500ms 정지를 제거했다.
+- [x] 현재 공급의 짧은 연속12개월·빠른24개월 합성 표본에서 ≥500ms0회를 확인했다(§24). 전체 물리 성능 수락은 아래 항목과 구분한다.
 - [ ] 사용자가 실제 트랙패드의 주기적 멈춤 제거를 확인했다.
 
-**현재 실행점:** 날짜 선택기 입력 불능의 실제 재현·수정은 **§20**, 이전 성능 개편의 잔여 경계는 **§16과 §19의 잔여 범위**다. §7–12는 첫 묶음, §14–19는 이전 공급의 결과다. 합성 기능 확인을 물리 트랙패드의 멈춤 해결로 확대하지 않는다.
+**현재 실행점:** 최신 구현·공급·실험 결과는 **§24**다. 격자의 필수 Source 왕복과 반복 할당을 줄였고 현재 합성 표본의 ≥500ms 기준은 통과했다. 빠른 이동의 짧은 끊김·표시 backlog와 사용자 물리 확인은 남는다. §20의 입력 불능 복구, §22–23의 논리 위치·접촉 추종 수정은 보존한다. §7–23은 각 이전 공급의 결과이며 현재 성능을 대신하지 않는다.
 
 ## 7. 2026-11-11 상세 감사와 구현
 
@@ -548,3 +548,70 @@ ObservationStream은 provider module graph에도 포함되므로 App만 빌드�
 current native frame/reader/quota/lease·순수 fractional draw transform·page spring/RTL/date·late preparation 회귀, 실제 Core의 Source/ACK/publication/취소 복구, Source window/delegate/resize/명령 회귀와 Core type 검사가 PASS했다. 검사별20분 timeout·PowerShell parser·diff 검사를 적용했다. 각 앱의 mapping/timer/process, 검사 임시 폴더와 App staging/이전 dist를 회수했고 물리 trace의 임시 도구 출력도 삭제했다. 현재 dist와 기존 사용자 cache는 보존했다. 다른 플랫폼 제품 UI 검증으로 확대하지 않는다.
 
 **남은 핵심:** prepared 범위 안에서는 입력마다 fractional offset/transform을 게시하지만, 빠른 입력이 새 월의 Source/Content 준비를 앞지르면 coverage edge에 머문 뒤 완성된 checkpoint/최종 월로 이동한다. 사용자의 최신 물리 결과가 바로 이 미해결 범위다. 이를 보간 animation·stale 성공·coverage 무시·무제한 page cache로 숨기지 않는다. **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`를 유지한다. 다음 구현은 새 월의 필수 LayoutBuilder/자식 구성·capture·ACK 왕복을 줄여 실제 준비 throughput을 확보해야 한다. 작은 resident 왕복 PASS를 빠른 월 이동의 완료로 바꾸지 않는다.
+
+## 24. 2026-11-12 새 월 격자의 Source 왕복과 반복 할당 제거
+
+### 24.1 연구·진단과 구현 범위
+
+§23 공급에서 짧은 CPU/GC 진단을 한 번 수집했다. 입력362개가 전량 접수·소비되고 거부0이어도 표시 offset 공백616ms와 ≥500ms4회가 남았다. Core 개별 호출 최대9.075ms, App turn336.375ms, Source120 pass의 build/capture/scene 최대226/206/127ms였다. GC는 진단 구간10.375초 중 누적1.460초·최대 pause31.748ms·총 할당 약1.224GB였다. **하나의 GC가1초 멈춤이라는 증거가 아니며**, profile 표본과 아래 비프로파일 표본으로 개선율을 계산하지 않는다.
+
+날짜 생성기의 실제 pin은 Flutter **`71e4717a61786faab4c7aa39825989305ed29e8a`**다. [원본 `_DayPickerGridDelegate.getLayout`](https://github.com/flutter/flutter/blob/71e4717a61786faab4c7aa39825989305ed29e8a/packages/flutter/lib/src/material/calendar_date_picker.dart#L1241)과 생성된 TS를 대조했다. 이 격자는7열, 행 높이 `min(테마·문자 배율의 행 높이, 실제 viewport 높이/7)`이므로 모든 유한 날짜 자식이 viewport 안에 들어간다. 원본 Dart의 정규화 SHA `f318c0cab6f4f61d45e79dea0edbe6f149f31ee659fe4dbd5a2010103d42ad79`도 생성기 manifest와 대조했다. §19에서 조사한 다른 framework pin을 날짜 생성기의 pin으로 혼동하지 않는다.
+
+- [native-grid.ts](Nelyx/src/framework/rendering/native-grid.ts)와 날짜 생성기/생성 TS의 **명시적 원본 delegate 등록**에 이 숫자 정책을 연결했다. delegate의 `getLayout`/`shouldRelayout` 재정의, 큰 격자·lazy delegate를 임의로 일반화하지 않는다.
+- [grid.ts](Nelyx/runtime/app/grid.ts)는 현재 정책이 증명하는 작은 `SliverChildListDelegate`만 기존 Core layout program으로 내린다. 실제 Content viewport에서 행 높이·셀 폭·RTL 위치를 계산하며, 원본 날짜 Widget/Element/State·Key·KeepAlive와 callback은 그대로 구성한다. 격자용 **LayoutBuilder 응답 뒤 다시 행 ListView를 구성하던 왕복**이 필요 없어졌다. 일반 격자는 기존 경로를 유지한다.
+- [transaction.cpp](Nelyx/engine/core/protocol/transaction.cpp)는 기존 layout program을 **content 자식이 정확히1개인 scrollViewport**에도 허용한다. child limit·builder/다른 layout 속성 제약을 완화하지 않는다. ABI2/schema313408118과 wire 명령은 동일하다. [scroll.ts](Nelyx/runtime/app/scroll.ts)의 기존 controller/position 수명 경로가 격자의 실제 physics·primary controller를 계속 소유한다.
+- 숫자 program은 GridView Element별 **현재 정책1개**만 WeakMap으로 공유한다. [scene.ts](Nelyx/runtime/engine-client/scene.ts)의 내부 `immutableSceneData`는 독립적인 순수 데이터 사본을 깊게 동결한 뒤 태그한다. 이후 capture에서 이 값의 재복사를 생략한다. 가변 공개 producer·callback·accessor·cycle은 이 신뢰 경로에 들어가지 않는다. 월 이력/scene cache나 resident page 상한을 늘리지 않는다.
+- [DatePickerTheme.defaults](packages/material/src/date-picker-theme.ts)는 해석된 ThemeData별 기본값을 공유한다. **매 caller마다 `Theme.of`를 호출해 상속 의존성을 등록**하고, 최초 Element/context를 테마 수명만큼 붙잡지 않는다. [기본값](packages/material/src/internal/theme/date-picker-defaults.ts)의 불변 Color와 상태 resolver를 재사용하되 selected/disabled/hover/focus/pressed의 **해석 결과**를 캐시하지 않는다.
+
+JSI와 TS/Core/host 권위, App/Content/Render/UI owner, 기존200ms page animation, 최대4페이지 준비 상한, coverage·ACK·generation·metrics·GPU/수명 fence는 유지한다.
+
+### 24.2 중간 실험과 관찰 경계
+
+각 구현 묶음 뒤 짧은 합성 입력을 한 번씩 검사했다. 실패 표본을 통과 표본으로 덮지 않는다.
+
+| 중간 App 공급 | 실제 표시 offset 관측과 기능 결과 |
+| --- | --- |
+| 격자 왕복 제거, JS `5ca83bae…` | 빠른 재접촉24개월은 최대416ms/≥500ms0, 선택·close PASS. 연속12개월은554ms/≥500ms3회, 기능 PASS·정지 목표 FAIL. |
+| Element별 불변 program 공유, JS `873885e6…` | 연속12개월228ms/≥500ms0. 빠른 재접촉은692ms/≥500ms1회가 실제로 남았고, 이후 header/grid assertion도 실패했다. 이 실행 전체는 PASS가 아니다. |
+| 테마 기본값 공유까지 적용, engine `fbe87f59386504ca35e2062e9cb48946bab493cbb64446403a5130caa22a8c5a`, JS `3f1a0dab7a5dde419b06e3390509fe5be6d032221076ef6aaeec7564b024e045`, HBC `af06e5d96e31ce3cda69ddce9b27778e06f5328dfca998f08185556d58995b78` | 연속12개월209ms/≥100·250·500·1000ms **10/0/0/0**, 빠른24개월374ms/**7/5/0/0**. 입력 각각362/120개 전량 접수·소비·거부0, 월 이동·날짜 선택·정상 close PASS. 이 결과는 아래 클립 수정 전 공급의 결과다. |
+
+검사 도구에서도 두 관찰 경계를 보강했다. Core spring의 논리 시간이 끝났어도 **마지막 실제 게시의 displayed/requested offset이 다르면 settled로 처리하지 않는다.** header와 날짜는 같은 UIA peer collection에서 읽는다. 대기 상한·입력 재전송·활성 구간의 gap 집계·500ms 판정 기준은 그대로다.692ms 정지를 도구 문제로 돌리지 않는다.
+
+클립 정책 수정 전 공급의 `All`은 목록4구간과 버튼·precision·OS drag 왕복·cancel·resize·날짜 확정·close를 통과했다. 목록 offset 공백 최대38/39/49/40ms, 짧은 precision/drag 구간은45/49/38/48/49ms, 모두 ≥100ms0이었다. 축소 캡처에서 첫 열의 앞자리 잘림을 의심했으나, **이후 원본 픽셀 계수와 최근접 확대에서 정상 글자가 확인되어 잘림 재현 판정을 철회했다.** UIA의 완전한 날짜 label과 실제 픽셀, 축소 이미지 판독을 구분해야 한다.
+
+격자만 분리한 실제 Core 실험과 임시 Windows 진단에서 문단의 실제 bounds/clip도 정상이었다. 진단 출력/별도 host는 성능·제품 통과 증거로 사용하지 않는다. 출력 부하가 추가된 진단1회는 precision1개 거부로 실패했으므로 통과 표본에서 제외했다. 진단용 빌드/host 실패를 정식 공급의 크래시로 세지 않는다.
+
+추가 소스 대조에서 스크롤 어댑터는 `Clip.hardEdge`만 허용하지만 Core의 기본 사각 scrollViewport는 그 flag를 내보내지 않아 native/Web가 AA clip을 선택하는 불일치를 확인했다. [frame.cpp](Nelyx/engine/core/scene/frame.cpp)는 **기본 사각 viewport**에 hard-edge flag를 전달한다. 둥근/path/physical clip의 기존 정책과 clip 영역 자체를 보존한다. 이 정합성 수정을 글자 잘림의 원인 수정이라고 주장하지 않는다.
+
+잘못 판독한 잘림 가정에서 시작한 문단 Picture의 unbounded cull/direct playback 실험은 **근거가 없어 소스와 공급에서 철회**했다. 기존 Skia 문단 준비/캐시/재생을 보존한다. 실제 정상 캡처의23/24 앞자리 픽셀은146/153개였고, 동일 메모리 이미지에서 앞자리만 제거한 음성 대조군은0개였다. 새 화면 픽셀 검사는 같은 앞자리의 첫 열/이웃 날짜를 한 화면에서 비교하며 정상/의도적 누락 대조군을 구분했다. 캡처와 대조군을 수정 결과처럼 혼용하지 않는다.
+
+### 24.3 최종 공급·통합 검증
+
+현재 source/engine은 **`d900a3719162f865b9672ee7a2fd532a8e7790dc2514077965e5d29f90b321d9`**, ABI2/schema313408118이다. App JS는 **`3f1a0dab7a5dde419b06e3390509fe5be6d032221076ef6aaeec7564b024e045`**, HBC는 **`302c88e15d7f1e63ebcaf6168cd561c2d6101976af1e222dafd78e8fe23b0bfb`**다. 진단 코드를 제거한 Core/material dist, native/두 Wasm/Windows App SDK 공급과 Windows App을 빌드했다. engine356/App10 files와 각 실행 PID/HWND/DPI192 연결을 검증했다. 아래 마지막 네 실행은 모두 이 동일한 공급이다.
+
+| 최종 Windows 검사 | 관측 결과와 한계 |
+| --- | --- |
+| **Calendar 전체 기능·픽셀** | 버튼 next/previous, precision·OS mouse drag 왕복, cancel, resize, **2026-11-15** 선택·확정·close PASS. 다섯 활성 구간의 실제 offset 공백 최대 **53/42/48/42/44ms**, 각각 ≥100ms0. 첫 열22/29 앞자리146/146 pixels, 같은 앞자리 이웃150/145로 PASS. 실제 초기/다음 달/선택 캡처를 검토했고,12월20/27의 앞자리도 각각146 pixels로 확인했다. 전체 제품의 픽셀 동등성 판정은 아니다. |
+| **양방향0.4·0.8페이지 접촉** | 각600ms/36 update, 실제 서로 다른 게시 offset **35/35/35/35개**. frame의 consumedThrough와 누적 delta를 대조한 최대 오차 **0.000001px 미만**, 수신→게시 최대 **26.336/17.441/17.947/19.010ms**.0.8페이지는 헤더/callback 경계를 넘는다. 물리 latency/scanout 검사가 아니다. 별도 cancel·resize·날짜 확정·close PASS. |
+| **60Hz 연속 과거12개월** |360 update/6,000.416ms, begin/end 포함 **362개 접수·소비·거부0**. **2026-11→2025-11**, cancel·resize·2025-11-15 확정·close PASS. 실제 offset 공백 **279ms**, ≥100/250/500/1000ms **10/2/0/0**. 게시 gap35.413ms와 구분한다. `syntheticStallGoal=PASS`지만 매 입력의 연속 표시 완료는 아니다. 첫 열16/23 픽셀134/146, 이웃132/150으로 PASS. |
+| 같은 연속 실행의 단계 비용 | 활성 App turn364.554ms, Core 개별 호출9.801ms, record/submit5.301ms, 관측 GPU 완료12.474ms. 전체128 Source pass의 build/capture/scene 최대198/150/177ms, wait114ms. 서로 다른 단계·구간의 최대값을 합산하지 않는다. |
+| **빠른 재접촉12회/과거24개월** |2,218.868ms/ **120개 접수·소비·거부0**, **2026-11→2024-11**,2024-11-15 확정·close PASS. 활성 구간에는118개가 수신되고 terminal은 경계 밖에 있다. 실제 offset 공백 **403ms**, ≥100/250/500/1000ms **7/4/0/0**, 게시 gap94.460ms. `syntheticStallGoal=PASS`지만 활성 구간의 표시/논리 위치 차이 최대 **2,752px**가 남아 있다. 마지막 월 일치만으로 입력을 즉시 추종했다고 판정하지 않는다. 첫 열10/17/24 픽셀134/134/146, 이웃132/132/150으로 PASS. |
+| 같은 빠른 실행의 단계 비용 | 활성 App turn362.271ms, Core 개별 호출6.558ms, record/submit6.197ms, 관측 GPU 완료13.010ms. 전체59 Source pass의 build/capture/scene 최대178/91/153ms, wait17ms. |
+| **최종 All의 범위** | 직전 동일 공급의 All은 목록4구간을 완료했고 실제 offset 공백50/41/38/52ms·각 ≥100ms0이었다. 이후 달력 선택 뒤 새 픽셀 검사 함수의 PowerShell 배열식 오류로 helper가 실패했다. **이 All 전체는 PASS로 기록하지 않는다.** 식을 고쳐2024/2025/2026년 날짜 조합 검사를 통과한 뒤, 위 별도 Calendar에서 전체 달력 기능·픽셀·확정·close를 통과했다. 완료된 목록 검사를 다시 반복하지 않았다. |
+| 수집·종료 | 위 마지막 네 실행 모두 ringLost0/outputDropped0, **status0/reservedBytes0/memoryTotal0/workersJoined=true/exitCode0**. memoryPeak는 Calendar551,921,798 / contact540,506,596 / 연속547,185,754 / 빠른531,798,470 bytes다. bounded Source 진단은 Calendar167 pass 중 최근128개, contact204 중 최근128개이며 overwritten39/76을 전체 구간 무유실로 바꾸지 않는다. |
+
+현재 소스의 native frame/reader/quota/lease·precision/velocity/fast-contact·moving/variable list·page spring/RTL/date 회귀를 통과했다. 실제 Core의 새 격자, Source/ACK/publication/취소 복구, page observation·LayoutBuilder scheduling·child reconciliation·notification/lost-wake, 날짜 기본값·incremental capture·pinned Hermes/배포 ESM 회귀도 PASS했다. 변경 TS/MJS의 formatter와 일반 소스 lint, PowerShell parser, diff 검사를 확인했다. 생성 날짜 파일의 기존 unused-parameter 경고3개는 이번 변경과 무관하며 전체 저장소 lint 통과를 주장하지 않는다.
+
+각 검사는20분 timeout을 사용했다. 소유 앱·helper·mapping·timer를 정상 종료했고 정식 소스/dist의 진단 코드를 제거했다. Core/정식 engine/App의 교체 staging·이전 dist와 검사 자체의 임시 폴더는 finally로 회수했다. 현재 dist와 실행 전부터 있던 사용자 cache는 보존했다.
+
+**추가 진단 폴더 정리 차단:** `.nelyx/viewport-grid-review-c18d66d9`의 캡처·분리 Core probe·별도 Windows 진단 host/intermediate는 남아 있다. 소유 프로세스 부재와 workspace 안의 실제 절대 경로·비링크를 확인했으나 자동 승인 검토가 삭제 명령을 **`blocked by policy`로 거부**했다. 검증/프로세스 확인을 분리한 고정 `-LiteralPath` 삭제도 거부됐다. 더 구체적인 사유는 반환되지 않았으며 다른 API/셸로 우회하지 않았다. 제품 실행/성능 실패와 이 정리 차단을 구분한다.
+
+### 24.4 판정 경계
+
+현재까지 격자·기본값·capture 회귀와 기존 Source/ACK/publication/취소 복구·page observation·LayoutBuilder scheduling·child reconciliation·notification/lost-wake·Hermes 검사는 통과했다. 새 격자 검사는 원본 `getLayout`을 oracle로 DPR2/resize/문자 배율/RTL/부분 행/빈 격자,1 transaction·격자 builder reply0, keyed State/update/controller, program 불변성 및 잘못된 다중 content viewport의 원자적 거부를 검사한다. 날짜 기본값 검사는 light/dark 교체와9개 상태 조합, caller별 테마 의존성·context 비보유를 대조한다.
+
+날짜 생성기 전체 `--check`는 설치된 Dart3.12.2와 분석 package의 언어3.13 요구 차이로 실행하지 못했다. SDK/package 언어 제약을 임의 변경하지 않았다. 대신 생성기의 adapter template을 TS AST로 추출해 formatter 출력과 생성 TS suffix의 일치를 검사하고, pinned Dart SHA를 검증했다. 이를 전체 Dart 분석/재생성 PASS로 기록하지 않는다.
+
+현재 짧은 합성 표본에서는 연속12개월·빠른24개월 모두 ≥500ms0회다. 그러나 **100–403ms 끊김과 빠른 접촉 중 표시 backlog**, Source의 긴 build/capture/scene turn이 남는다. 사용자 물리 트랙패드·연속 표시/scanout 수락을 얻지 않았으므로 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**를 유지한다. Android native 공급 재빌드·제품 실행과 Web 제품 UI 검증으로 확대하지 않는다.
+
+**다음 실행점:** 현재 공급으로 사용자의 실제 빠른 왕복/재접촉을 확인하고, 정체가 남으면 같은 수신→Source 구성/캡처/Scene→coverage 게시 인과를 대조한다. 구현 후속은 긴 날짜 Widget 구성·capture/records와 제한된 월 교체의 처리량이며, 이번에 제거한 격자 LayoutBuilder 왕복을 다시 도입하지 않는다. 최종 월만 확인하거나 page cache 확대·보간 animation·coverage/fence 생략으로 backlog를 숨기지 않는다.

@@ -10,6 +10,9 @@ namespace nelyx::v2 {
 namespace {
 uint32_t childLimit(const Node& node) {
   if(node.kind==wire::kinds::paragraph&&node.paragraph&&node.paragraph->value.inlineChildren())return wire::limits::paragraphPlaceholders;
+  // A declarative viewport program may size its one content child, but must
+  // not relax the scroll/coverage ownership contract to multiple children.
+  if(node.kind==wire::kinds::scrollViewport)return 1;
   if(node.layoutProgram)return node.layoutProgram->children;
   switch (node.kind) {
     case wire::kinds::paragraph: case wire::kinds::image: case wire::kinds::editable: case wire::kinds::path: return 0;
@@ -19,7 +22,8 @@ uint32_t childLimit(const Node& node) {
   }
 }
 void validateLocal(const Document& d,const Node& n) {
-    if(n.layoutProgram)require((n.kind==wire::kinds::box||n.kind==wire::kinds::stack)&&n.layout.enabled&&
+    if(n.layoutProgram)require((n.kind==wire::kinds::box||n.kind==wire::kinds::stack||
+      (n.kind==wire::kinds::scrollViewport&&n.layoutProgram->children==1))&&n.layout.enabled&&
       !n.childAnchor&&!n.intrinsicSizing&&!n.layoutBuilder&&!n.snapshot&&!n.tooltipPosition&&!n.paintOwner&&
       n.layout.constraintFlags==0&&!n.layout.left&&!n.layout.top&&!n.layout.right&&!n.layout.bottom&&
       !n.layout.mainSize&&!n.layout.mainAlign&&!n.layout.crossAlign&&!n.properties.width&&!n.properties.height,wire::statuses::invalidGraph);

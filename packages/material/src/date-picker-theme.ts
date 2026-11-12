@@ -7,6 +7,8 @@ import { DatePickerThemeData } from './date-picker-theme-data.ts';
 export { DatePickerThemeData } from './date-picker-theme-data.ts';
 export type { DatePickerThemeDataOptions } from './date-picker-theme-data.ts';
 import { DatePickerDefaultsM3 } from './internal/theme/date-picker-defaults.ts';
+import type { ThemeData } from './theme-data.ts';
+const defaults = new WeakMap<ThemeData, DatePickerDefaultsM3>();
 export class DatePickerTheme extends InheritedTheme {
   readonly data: DatePickerThemeData;
   constructor(data: DatePickerThemeData, child: Widget, options: WidgetOptions = {}) {
@@ -22,7 +24,13 @@ export class DatePickerTheme extends InheritedTheme {
     return DatePickerTheme.maybeOf(context) ?? Theme.of(context).datePickerTheme;
   }
   static defaults(context: BuildContext): DatePickerThemeData {
-    return new DatePickerDefaultsM3(context);
+    // Register each caller's inherited dependencies even when the immutable
+    // defaults are shared. The value retains only ThemeData, never the first
+    // calendar Element/context for the lifetime of an application theme.
+    const theme = Theme.of(context);
+    let result = defaults.get(theme);
+    if (!result) defaults.set(theme, (result = new DatePickerDefaultsM3(null, theme)));
+    return result;
   }
   wrap(_context: BuildContext, child: Widget): Widget {
     return new DatePickerTheme(this.data, child);

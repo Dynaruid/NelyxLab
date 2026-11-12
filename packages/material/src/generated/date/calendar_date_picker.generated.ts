@@ -2849,5 +2849,21 @@ export function _reportAnnouncementError(exception: {}, stack: SourceStackTrace)
 import { registerDateFocusedType } from '../../internal/date/source-host.ts';
 import { registerNativeRegularGridDelegate } from '@nelyx/core/internal/framework/rendering/native-grid';
 registerDateFocusedType(_FocusedDate);
-registerNativeRegularGridDelegate(_DayPickerGridDelegate.prototype);
+// Exact lowering of _DayPickerGridDelegate.getLayout above. Context controls
+// numeric policy; actual viewport dimensions and tile placement stay in Core.
+registerNativeRegularGridDelegate(_DayPickerGridDelegate.prototype, (delegate) => {
+  const textScaleFactor =
+    MediaQuery.textScalerOf(delegate.context).clamp({ maxScaleFactor: 3 }).scale(_fontSizeToScale) /
+    _fontSizeToScale;
+  const rowHeight =
+    SourceDateTheme.of(delegate.context).useMaterial3 &&
+    scrollbarRawObjectEquals(dateOrientationOf(delegate.context), 'portrait')
+      ? _dayPickerRowHeightM3
+      : _dayPickerRowHeightM2;
+  return {
+    columns: DateTime.daysPerWeek,
+    rows: _maxDayPickerRowCount + 1,
+    maximumRowExtent: textScaleFactor > 1.3 ? (textScaleFactor - 1) * 30 + rowHeight : rowHeight,
+  };
+});
 registerNativeRegularGridDelegate(_YearPickerGridDelegate.prototype);

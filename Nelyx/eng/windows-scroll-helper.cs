@@ -302,6 +302,32 @@ namespace Nelyx.ScrollCheck {
         rect.Right - rect.Left + delta, rect.Bottom - rect.Top, 0x2 | 0x4 | 0x10)) throw new InvalidOperationException("Resize failed");
     }
     public static void Close(IntPtr window) { PostMessage(window, 0x10, IntPtr.Zero, IntPtr.Zero); }
+    static int FirstDigitInk(Bitmap bitmap, Rect client, Peer peer) {
+      var x = peer.X - client.Left; var y = peer.Y - client.Top;
+      if (peer.Width < 8 || peer.Height < 8 || x < 0 || y < 0 || x + peer.Width > bitmap.Width + 1 || y + peer.Height > bitmap.Height + 1)
+        throw new InvalidOperationException("Calendar pixel peer is outside the client");
+      var background = bitmap.GetPixel((int)x + 2, (int)y + 2);
+      int left = (int)Math.Round(x + peer.Width * .21), right = (int)Math.Round(x + peer.Width * .48);
+      int top = (int)Math.Round(y + peer.Height * .20), bottom = (int)Math.Round(y + peer.Height * .80), ink = 0;
+      for (int row = top; row < bottom; ++row) for (int column = left; column < right; ++column) {
+        var pixel = bitmap.GetPixel(column, row);
+        if (Math.Abs(pixel.R-background.R) + Math.Abs(pixel.G-background.G) + Math.Abs(pixel.B-background.B) > 100) ++ink;
+      }
+      return ink;
+    }
+    // Pair a first-column day with another unselected day having the same
+    // leading numeral. Count only its left glyph on one actual screen image;
+    // this catches partial text that a complete UIA label cannot detect.
+    public static int[] CalendarFirstDigits(IntPtr window, Peer[] pairs) {
+      if (pairs.Length == 0 || pairs.Length > 12 || pairs.Length % 2 != 0)
+        throw new InvalidOperationException("Invalid bounded calendar pixel pairs");
+      var client = Client(window); var counts = new int[pairs.Length];
+      using (var bitmap = new Bitmap(client.Right-client.Left, client.Bottom-client.Top)) {
+        using (var graphics = Graphics.FromImage(bitmap)) graphics.CopyFromScreen(client.Left, client.Top, 0, 0, bitmap.Size);
+        for (int index = 0; index < pairs.Length; ++index) counts[index] = FirstDigitInk(bitmap, client, pairs[index]);
+      }
+      return counts;
+    }
     public static void Capture(IntPtr window, string file) {
       var rect = Client(window);
       using (var bitmap = new Bitmap(rect.Right - rect.Left, rect.Bottom - rect.Top)) {

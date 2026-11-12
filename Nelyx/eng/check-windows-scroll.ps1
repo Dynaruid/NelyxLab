@@ -100,9 +100,22 @@ function Settle {
     Pause 150; $s = Get-Stats
     # A published document can still be in a Core page spring. Its header can
     # already name the destination while only part of that page is visible.
-    if ($s.document -eq $s.activeDocument -and $s.document -eq $script:coreState.publishedDocument -and $s.pendingDocument -eq 0 -and $s.preparation -eq 0 -and $s.queued -eq 0 -and ($script:coreState.flags -band 128) -eq 0) { return }
+    if ($s.document -eq $s.activeDocument -and $s.document -eq $script:coreState.publishedDocument -and $s.pendingDocument -eq 0 -and $s.preparation -eq 0 -and $s.queued -eq 0 -and ($script:coreState.flags -band 128) -eq 0 -and (Test-PublishedScrollSettled)) { return }
   }
   throw ('Windows did not settle: ' + ($s | ConvertTo-Json -Compress -Depth 6))
+}
+function Test-PublishedScrollSettled {
+  if (!$mapping) { return $true }
+  # A page spring can finish its logical clock while Source is still building
+  # missing coverage. Core has no render wake at that instant. Its last actual
+  # publication still records different displayed/requested offsets. Do not
+  # declare that checkpoint settled; active-input gap accounting is unchanged.
+  for ($i=$script:events.Count-1; $i -ge 0; --$i) {
+    $r=$script:events[$i]
+    if ($r.Stage -eq 27) { break }
+    if ($r.Stage -eq 28 -and [Math]::Abs($r.A-$r.B) -gt 0.01) { return $false }
+  }
+  return $true
 }
 function Wait-Peer([string]$Pattern,[string]$Role='') {
   $until = [Nelyx.ScrollCheck.Desktop]::Now + 15
@@ -202,10 +215,14 @@ function Wheel-Segment([string]$Name,[int]$Count,[int]$Delta) {
 }
 $monthPattern='January|February|March|April|May|June|July|August|September|October|November|December'
 function Calendar {
-  $header=Wait-Peer ('('+$monthPattern+') [0-9]{4}')
+  $null=Wait-Peer ('('+$monthPattern+') [0-9]{4}')
+  # Header and days must come from the same cached UIA collection. Separate
+  # calls can observe opposite sides of a new month publication.
+  $peers=[Nelyx.ScrollCheck.Desktop]::Peers($window)
+  $header=@($peers | Where-Object { !$_.Offscreen -and ($_.Name -match ('('+$monthPattern+') [0-9]{4}') -or $_.Help -match ('('+$monthPattern+') [0-9]{4}')) })[0]
   $headerName=[regex]::Match(($header.Name+' '+$header.Help),'('+$monthPattern+') [0-9]{4}').Value
   $date=[DateTime]::ParseExact($headerName,'MMMM yyyy',[Globalization.CultureInfo]::InvariantCulture)
-  $days=@([Nelyx.ScrollCheck.Desktop]::Peers($window) | Where-Object { $_.Role -eq 'ControlType.Button' -and !$_.Offscreen -and $_.Name -match '^\d{1,2},' })
+  $days=@($peers | Where-Object { $_.Role -eq 'ControlType.Button' -and !$_.Offscreen -and $_.Name -match '^\d{1,2},' })
   $current=@($days | Where-Object { $_.Name -match ([regex]::Escape($date.ToString('MMMM',[Globalization.CultureInfo]::InvariantCulture))+'\s+\d{1,2},?\s+'+$date.Year) })
   $numbers=@($current | ForEach-Object { [int]([regex]::Match($_.Name,'^\d{1,2}').Value) } | Sort-Object -Unique)
   $expected=[DateTime]::DaysInMonth($date.Year,$date.Month)
@@ -229,6 +246,27 @@ function Wait-Month([DateTime]$Expected) {
     Pause 80
   } while([Nelyx.ScrollCheck.Desktop]::Now -lt $until)
   throw ('The admitted month action did not reach '+$name)
+}
+function Assert-CalendarPixels($Calendar) {
+  $pairs=New-Object 'Collections.Generic.List[Nelyx.ScrollCheck.Peer]'
+  $days=New-Object 'Collections.Generic.List[int]'
+  $today=[DateTime]::Today
+  for($day=10;$day -le [DateTime]::DaysInMonth($Calendar.date.Year,$Calendar.date.Month);++$day){
+    $date=$Calendar.date.AddDays($day-1)
+    if($date.DayOfWeek -ne [DayOfWeek]::Sunday -or $day -eq 15 -or $date -eq $today){continue}
+    $references=@(@(($day+1),($day-1))|Where-Object {$_ -le $Calendar.days.Count -and [int][Math]::Floor($_/10) -eq [int][Math]::Floor($day/10) -and $_ -ne 15 -and $Calendar.date.AddDays($_-1) -ne $today})
+    if(!$references.Count){continue}
+    $reference=$references[0]
+    $pairs.Add(@($Calendar.days|Where-Object {$_.Name -match ('^'+$day+',')})[0])
+    $pairs.Add(@($Calendar.days|Where-Object {$_.Name -match ('^'+$reference+',')})[0]);$days.Add($day)
+  }
+  if(!$pairs.Count){Write-Output 'WINDOWS_SCROLL_CALENDAR_PIXELS notVerified: no comparable unselected first-column numerals';return}
+  $ink=[Nelyx.ScrollCheck.Desktop]::CalendarFirstDigits($window,$pairs.ToArray())
+  $checks=@(for($i=0;$i -lt $days.Count;++$i){[pscustomobject]@{day=$days[$i];ink=$ink[$i*2];referenceInk=$ink[$i*2+1]}})
+  Write-Output ('WINDOWS_SCROLL_CALENDAR_PIXELS '+($checks|ConvertTo-Json -Compress))
+  foreach($check in $checks){
+    if($check.referenceInk -lt 10 -or $check.ink -lt $check.referenceInk*0.55){throw ('Calendar leading numeral is clipped: '+($check|ConvertTo-Json -Compress))}
+  }
 }
 function Precision-Segment([string]$Name,[double]$Dx,[string]$Terminal='end') {
   $calendar=Calendar; $rect=[Nelyx.ScrollCheck.Desktop]::Client($window); $dpi=[Nelyx.ScrollCheck.Desktop]::GetDpiForWindow($window)/96.0
@@ -502,7 +540,13 @@ try {
       [Nelyx.ScrollCheck.Desktop]::Resize($window,-80); Settle
     }
     $final=Calendar; $fifteen=@($final.days | Where-Object { $_.Name -match '^15,' })[0]
-    [Nelyx.ScrollCheck.Desktop]::Click($window,$fifteen); Pause 200; Capture 'calendar-selected'
+    [Nelyx.ScrollCheck.Desktop]::Click($window,$fifteen); Pause 200
+    # The selection callback can still be on App while Core is idle. Observe
+    # the selected-date header before exporting a selected-state capture or
+    # confirming it. This wait is outside every active-input timing segment.
+    $selectedHeader=$final.date.AddDays(14).ToString('ddd, MMM d',[Globalization.CultureInfo]::InvariantCulture)
+    $null=Wait-Peer ('^Select date\s+'+[regex]::Escape($selectedHeader)+'$') 'Group'
+    Settle; Assert-CalendarPixels (Calendar); Capture 'calendar-selected'
     Click-Peer '^OK$'; Settle
     $selected=$final.date.AddDays(14).ToString('yyyy-MM-dd')
     $null=Wait-Peer ('Selected date: '+[regex]::Escape($selected))

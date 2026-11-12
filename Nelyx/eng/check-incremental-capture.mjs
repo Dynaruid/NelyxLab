@@ -12,7 +12,7 @@ try {
       import assert from 'node:assert/strict';
       import {commands as creationCommands} from './Nelyx/runtime/engine-client/codec.ts';
       import { RenderSceneCapture } from './Nelyx/runtime/app/capture.ts';
-      import { SceneNode, SceneReference, SceneWriter, retainSceneConfiguration } from './Nelyx/runtime/engine-client/scene.ts';
+      import { SceneNode, SceneReference, SceneWriter, retainSceneConfiguration, immutableSceneData } from './Nelyx/runtime/engine-client/scene.ts';
       import { protocol as p } from './Nelyx/runtime/engine-client/schema.ts';
       import { originalControlConfiguration } from './Nelyx/runtime/app/controls.ts';
       import { RenderSemanticsAnnotations } from '@nelyx/core/framework/rendering/semantics-annotations';
@@ -184,6 +184,16 @@ try {
       assert.deepEqual(terminalEvents,['mouseEnter','mouseExit'],
         'A retained Source removed from Content needs exactly one terminal hover exit');
       assert.equal(terminalWriter.hovered.size,0);
+      const mutablePolicy={layout:[{kind:'size',values:[10,20]}]};
+      const immutablePolicy=immutableSceneData(mutablePolicy);
+      assert.notEqual(immutablePolicy,mutablePolicy);
+      mutablePolicy.layout[0].values[0]=99;
+      assert.equal(immutablePolicy.layout[0].values[0],10,'Immutable policy retained a mutable producer alias');
+      assert(Object.isFrozen(immutablePolicy)&&Object.isFrozen(immutablePolicy.layout)&&Object.isFrozen(immutablePolicy.layout[0].values));
+      assert.equal(immutableSceneData(immutablePolicy),immutablePolicy,'Already owned immutable data was copied again');
+      assert.throws(()=>immutableSceneData({get value(){throw Error('getter ran');}}),/plain data/);
+      assert.throws(()=>immutableSceneData({callback:()=>{}}),/plain data/);
+      const cycle:any={};cycle.self=cycle;assert.throws(()=>immutableSceneData(cycle),/plain data/);
       const stable = (reference, children=[], color=0) => {
         const scene=new SceneNode(reference,'stack',children,{color});
         retainSceneConfiguration(scene);return scene;

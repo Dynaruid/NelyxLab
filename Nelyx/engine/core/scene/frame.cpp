@@ -434,7 +434,11 @@ void View::makeDrawItems(Frame& f)const {
           shape.radii=normalizedRadii(radii,shape.bounds.width,shape.bounds.height);}}
       head=uint32_t(f.clips.size());
     }
-    const bool hardEdge=(overflowClip&&node.layout.overflowClipBehavior<=wire::clipBehaviors::hardEdge)||(physical&&physical->clip==1)||(styledClip&&node.clipStyle->behavior==wire::clipBehaviors::hardEdge);
+    // The source scrolling adapters admit Clip.hardEdge only. A default,
+    // rectangular viewport must carry that policy through native/Web replay;
+    // rounded/path and physical clips retain their own explicit behavior.
+    const bool viewportHardEdge=node.kind==wire::kinds::scrollViewport&&node.radius==0&&!node.graphics.path&&!physical;
+    const bool hardEdge=viewportHardEdge||(overflowClip&&node.layout.overflowClipBehavior<=wire::clipBehaviors::hardEdge)||(physical&&physical->clip==1)||(styledClip&&node.clipStyle->behavior==wire::clipBehaviors::hardEdge);
     const bool saveLayer=clips&&((overflowClip&&node.layout.overflowClipBehavior==wire::clipBehaviors::antiAliasWithSaveLayer)||
       (!overflowClip&&((physical&&physical->clip==3)||(styledClip&&node.clipStyle->behavior==wire::clipBehaviors::antiAliasWithSaveLayer))));
     f.items.push_back({node.id,world.tx,world.ty,offstage?0:alpha,clip,world,bounds,head,depth,

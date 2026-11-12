@@ -239,6 +239,22 @@ type RetainedPayload = {
   readonly inputs: WeakMap<object, unknown>;
 };
 const retainedPayloads = new WeakMap<SceneNode, RetainedPayload>();
+const immutableSceneValues = new WeakSet<object>();
+/** @internal Own an independent, deeply immutable data value. Source modules
+ * may share compiled numeric policy between configurations without repeatedly
+ * snapshotting it. Mutable/public producer inputs keep their usual checks. */
+export function immutableSceneData<T>(value: T): T {
+  const captured = captureConfigInput(value);
+  if (captured === uncacheableInput) throw Error('Scene data must contain only plain data');
+  const seal = (data: unknown): void => {
+    if (!data || typeof data !== 'object' || immutableSceneValues.has(data)) return;
+    for (const key of Object.keys(data)) seal((data as Record<string, unknown>)[key]);
+    Object.freeze(data);
+    immutableSceneValues.add(data);
+  };
+  seal(captured);
+  return captured as T;
+}
 const sourceCallbacks = new Set([
   'onTapRegion',
   'onKey',
@@ -522,6 +538,7 @@ function captureConfigInput(
 ): unknown {
   if (value === null || typeof value !== 'object')
     return typeof value === 'function' || typeof value === 'symbol' ? uncacheableInput : value;
+  if (immutableSceneValues.has(value)) return value;
   if (inputs?.has(value)) return inputs.get(value);
   const array = Array.isArray(value);
   if (

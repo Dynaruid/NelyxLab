@@ -7,9 +7,102 @@ import { SliverConstraints, GrowthDirection } from '@nelyx/core/framework/render
 import { ScrollDirection } from '@nelyx/core/framework/rendering/viewport-offset';
 import { Axis, AxisDirection } from '@nelyx/core/framework/painting/basic-types';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
-import { nativeRegularGridLayout } from '@nelyx/core/internal/framework/rendering/native-grid';
+import {
+  nativeRegularGridLayout,
+  nativeViewportGridPolicy,
+} from '@nelyx/core/internal/framework/rendering/native-grid';
+import {
+  nativeLayoutInput as input,
+  nativeLayoutExpression as expression,
+} from '@nelyx/core/framework/rendering/object';
+import type {
+  NativeLayoutProgram,
+  NativeLayoutCommand,
+} from '@nelyx/core/framework/rendering/object';
+import type { NativeViewportGridPolicy } from '@nelyx/core/internal/framework/rendering/native-grid';
+import { SliverChildListDelegate } from '@nelyx/core/framework/widgets/scroll-delegate';
+import { protocol as p } from '../engine-client/schema.ts';
+import type { EngineNodeSnapshot, EngineResponse, EngineEvent } from '../engine-client/codec.ts';
 import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { OriginalNativeNode } from './native-node.ts';
+import { immutableSceneData } from '../engine-client/scene.ts';
+
+const unsupportedQuery: NativeLayoutProgram['minWidth'] = [
+  { kind: 'assert', values: [0] },
+  { kind: 'result', values: [0] },
+];
+function program(children: number, layout: NativeLayoutProgram['layout']): NativeLayoutProgram {
+  return {
+    children,
+    layout,
+    minWidth: unsupportedQuery,
+    maxWidth: unsupportedQuery,
+    minHeight: unsupportedQuery,
+    maxHeight: unsupportedQuery,
+  };
+}
+/** Two Content programs share the viewport extent through tight child bounds.
+ * No Source constraints, measurement, or provisional LayoutBuilder reply. */
+export function viewportGridPrograms(
+  policy: NativeViewportGridPolicy,
+  count: number,
+  rtl: boolean,
+) {
+  const { columns, rows, maximumRowExtent } = policy;
+  const rowCount = Math.ceil(count / columns);
+  const extent = expression('min', maximumRowExtent, expression('divide', input.maxHeight, rows));
+  const height = expression('multiply', extent, rowCount);
+  const viewport = program(1, [
+    { kind: 'assert', values: [expression('finite', input.maxWidth)] },
+    { kind: 'assert', values: [expression('finite', input.maxHeight)] },
+    {
+      kind: 'layout',
+      child: 0,
+      target: 0,
+      values: [input.maxWidth, input.maxWidth, height, height],
+    },
+    { kind: 'position', child: 0, values: [0, 0] },
+    { kind: 'size', values: [input.maxWidth, input.maxHeight] },
+  ]);
+  const width = expression('divide', input.maxWidth, columns);
+  const tileHeight = rowCount ? expression('divide', input.maxHeight, rowCount) : 0;
+  const layout: NativeLayoutCommand[] = [];
+  for (let index = 0; index < count; index++) {
+    const column = rtl ? columns - 1 - (index % columns) : index % columns;
+    // A completed child's measurements are unused. Reuse six scratch registers
+    // instead of spending the variable budget on each cell.
+    layout.push(
+      { kind: 'layout', child: index, target: 0, values: [width, width, tileHeight, tileHeight] },
+      {
+        kind: 'position',
+        child: index,
+        values: [
+          expression('multiply', width, column),
+          expression('multiply', tileHeight, Math.floor(index / columns)),
+        ],
+      },
+    );
+  }
+  layout.push({ kind: 'size', values: [input.maxWidth, input.maxHeight] });
+  return immutableSceneData({ viewport, tiles: program(count, layout) });
+}
+
+// One current numeric policy per original GridView Element, never a page or
+// historical-scene cache. Count/theme/direction changes replace that value.
+const viewportPrograms = new WeakMap<
+  BuildContext,
+  {
+    key: string;
+    programs: ReturnType<typeof viewportGridPrograms>;
+  }
+>();
+
+type ViewportGridOwner = (
+  build: (
+    observe: (node: EngineNodeSnapshot, snapshot: EngineResponse) => void,
+    terminal: (event: EngineEvent) => void,
+  ) => Widget,
+) => Widget;
 
 /** Regular source grids reuse the bounded native list owner by rows. LayoutBuilder
  * receives Content constraints; the original delegate derives tile parameters.
@@ -18,6 +111,7 @@ export function originalNativeGrid(
   grid: GridView,
   context: BuildContext,
   fail: (reason: string) => never,
+  viewportOwner?: ViewportGridOwner,
 ): Widget {
   if (
     grid.scrollDirection !== Axis.vertical ||
@@ -38,6 +132,52 @@ export function originalNativeGrid(
   const direction = Directionality.of(context);
   const padding =
     grid.padding?.resolve(direction) ?? MediaQuery.maybePaddingOf(context) ?? EdgeInsets.zero;
+  // A finite source list and an explicit fitted-grid policy prove that every
+  // child is visible. Large/lazy grids keep their bounded row materialization.
+  const fitted =
+    viewportOwner &&
+    count <= p.limits.layoutProgramChildren &&
+    Object.getPrototypeOf(grid.childrenDelegate) === SliverChildListDelegate.prototype
+      ? nativeViewportGridPolicy(grid.gridDelegate, count)
+      : undefined;
+  if (fitted) {
+    const key = `${fitted.columns}/${fitted.rows}/${fitted.maximumRowExtent}/${count}/${direction}`;
+    let current = viewportPrograms.get(context);
+    if (current?.key !== key) {
+      current = { key, programs: viewportGridPrograms(fitted, count, direction === 'rtl') };
+      viewportPrograms.set(context, current);
+    }
+    const programs = current.programs;
+    return new Padding(
+      padding,
+      viewportOwner!((observe, terminal) => {
+        const children: Widget[] = [];
+        for (let index = 0; index < count; index++) {
+          const child = grid.childrenDelegate.build(context, index);
+          if (!child) return fail('native-grid-null-before-count');
+          children.push(
+            new OriginalNativeNode('box', [child], {
+              ...(child.key ? { key: child.key } : {}),
+              keepAliveChildren: true,
+              sourceCollectionIndex: index,
+              layout: { childConstraints: 'inherit' },
+            }),
+          );
+        }
+        return new OriginalNativeNode(
+          'scrollViewport',
+          [new OriginalNativeNode('box', children, { layout: {}, layoutProgram: programs.tiles })],
+          {
+            pointerHitTest: 'self',
+            layout: {},
+            layoutProgram: programs.viewport,
+            onLayout: observe,
+            onScrollTerminal: terminal,
+          },
+        );
+      }),
+    );
+  }
   return new Padding(
     padding,
     new LayoutBuilder((_rowContext, bounds) => {
