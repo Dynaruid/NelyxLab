@@ -5,7 +5,7 @@ export const compilerProvenancePolicy = 'nelyx.sh-class-ranges/v1';
 export const compilerClassSpillPolicy = 'nelyx.hbc-class-spill/v1';
 /** Preserve class source ranges and the HBC class opcode's output order.
  * The latter fixes spilling an unused home object over its constructor. */
-export function patchStaticHermesCompiler(source) {
+export function patchStaticHermesCompiler(source, { upstreamClassSpill = false } = {}) {
   const files = [
     'lib/IRGen/ESTreeIRGen-legacy-class.cpp',
     'lib/IRGen/ESTreeIRGen-func.cpp',
@@ -17,6 +17,20 @@ export function patchStaticHermesCompiler(source) {
       original = fs.readFileSync(file, 'utf8');
     let text = original.replaceAll('\r\n', '\n');
     if (relative.endsWith('Passes.cpp')) {
+      if (upstreamClassSpill) {
+        const operands = text.indexOf('for (int i = 0, e = inst.getNumOperands();');
+        const output = text.indexOf('if (replaceWithOutputSpill) {', operands);
+        if (
+          operands < 0 ||
+          output < operands ||
+          !text.includes('if (!replaceWithOutputSpill || store.first != &inst)') ||
+          text.includes('replaceWithFirstSpill') ||
+          text.includes('Nelyx HBC class spill output order')
+        )
+          throw Error('Pinned upstream Hermes class spill fix differs');
+        // The stable release already fixes the output ordering. Do not patch it.
+        continue;
+      }
       const marker = '          // Nelyx HBC class spill output order v1\n';
       const loop = '          for (auto store : toSpill) {';
       const guard = '            if (!replaceWithFirstSpill)\n              continue;';

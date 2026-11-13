@@ -6,17 +6,16 @@ import { execute } from './commands.mjs';
 import { sha256, localFile } from './files.mjs';
 import { nativeHermesSourceTree as sourceTree } from './windows-native-hermes-source.mjs';
 import { openNativeBuildCache } from './native-build-cache.mjs';
-import {
-  windowsCompilerEnvironment,
-  windowsStaticHermesPin,
-  refreshWindowsCmakeTools,
-} from './windows-static-hermes.mjs';
-import {
-  patchStaticHermesCompiler,
-  compilerClassSpillPolicy,
-} from './static-hermes-compiler-patch.mjs';
+import { windowsCompilerEnvironment, refreshWindowsCmakeTools } from './windows-static-hermes.mjs';
+import { windowsNativeHermesPin } from './windows-native-hermes-pin.mjs';
+import { patchStaticHermesCompiler } from './static-hermes-compiler-patch.mjs';
 import { windowsHermesPolicy } from './windows-hermes-policy.mjs';
-import { nativeCohort } from '@nelyx/sdk/runtime/cohorts';
+import { windowsNativeHermesCohort } from '@nelyx/sdk/runtime/cohorts';
+import {
+  prepareWindowsNativeIcu,
+  verifyWindowsNativeIcu,
+  windowsNativeIcuRuntimeFiles,
+} from './windows-native-icu.mjs';
 const timeout = 1_200_000;
 const producer = () =>
   createHash('sha256')
@@ -24,6 +23,8 @@ const producer = () =>
       JSON.stringify(
         [
           'windows-native-hermes-toolchain.mjs',
+          'windows-native-hermes-pin.mjs',
+          'windows-native-icu.mjs',
           'static-hermes-compiler-patch.mjs',
           'windows-hermes-policy.mjs',
           'windows-static-hermes.mjs',
@@ -33,6 +34,9 @@ const producer = () =>
     )
     .digest('hex');
 const names = [
+  windowsNativeHermesPin.icu.archive,
+  ...windowsNativeHermesPin.icu.files.map((file) => 'icu/' + file.path),
+  ...windowsNativeIcuRuntimeFiles.flatMap((file) => ['build/bin/' + file, 'build/lib/' + file]),
   'hermes-source.tar.gz',
   'build/lib/hermesvm.dll',
   'build/lib/hermesvm.lib',
@@ -49,6 +53,7 @@ const names = [
   'source/lib/IRGen/ESTreeIRGen-func.cpp',
   'source/lib/BCGen/SH/SH.cpp',
   'source/lib/BCGen/HBC/Passes.cpp',
+  'source/lib/CMakeLists.txt',
   'source/cmake/modules/Hermes.cmake',
   'source/API/jsi/jsi/CMakeLists.txt',
   'source/lib/InternalJavaScript/CMakeLists.txt',
@@ -67,16 +72,20 @@ export function verifyNativeHermes(directory) {
   if (
     manifest.schema !== 'nelyx.native-hermes-toolchain/v3' ||
     manifest.producerSha256 !== producer() ||
-    manifest.revision !== windowsStaticHermesPin.revision ||
-    manifest.sourceSha256 !== windowsStaticHermesPin.sourceSha256 ||
-    manifest.jsi !== 21 ||
+    manifest.release !== windowsNativeHermesPin.version ||
+    manifest.revision !== windowsNativeHermesPin.revision ||
+    manifest.sourceSha256 !== windowsNativeHermesPin.sourceSha256 ||
+    manifest.jsi !== windowsNativeHermesPin.jsi ||
+    manifest.jsiHeaderSha256 !== windowsNativeHermesPin.jsiHeaderSha256 ||
     manifest.bytecodeVersion !== 99 ||
     manifest.heap !== 'HEAP_HV_64' ||
     manifest.crt !== 'MD' ||
-    manifest.compilerClassSpill !== compilerClassSpillPolicy ||
+    manifest.compilerClassSpill !== windowsNativeHermesPin.compilerClassSpill ||
+    manifest.icu?.version !== windowsNativeHermesPin.icu.version ||
+    manifest.icu.archiveSha256 !== windowsNativeHermesPin.icu.archiveSha256 ||
     manifest.internalJavaScript?.mode !== 'native' ||
     manifest.internalJavaScript.compilerPolicy !==
-      windowsHermesPolicy('optimized', nativeCohort('windows')).id ||
+      windowsHermesPolicy('optimized', windowsNativeHermesCohort()).id ||
     manifest.debugger !== false ||
     manifest.jit !== false
   )
@@ -88,6 +97,13 @@ export function verifyNativeHermes(directory) {
   )
     throw Error('Native Hermes toolchain inventory differs');
   verifyFiles(directory, manifest);
+  verifyWindowsNativeIcu(directory);
+  if (
+    !fs
+      .readFileSync(path.join(directory, 'build/CMakeCache.txt'), 'utf8')
+      .includes('HERMES_ENABLE_INTL:BOOL=ON')
+  )
+    throw Error('Native Hermes must preserve the Windows Intl implementation');
   if (sourceTree(path.join(directory, 'source')) !== manifest.sourceTreeSha256)
     throw Error('Native Hermes source tree changed');
   return { directory, manifest, sha256: sha256(path.join(directory, 'native-hermes.json')) };
@@ -117,19 +133,20 @@ export async function prepareNativeHermes({ directory, signal } = {}) {
       source = path.join(directory, 'source'),
       build = path.join(directory, 'build'),
       env = windowsCompilerEnvironment();
+    const icu = await prepareWindowsNativeIcu(directory, { env, signal });
     if (!fs.existsSync(archive)) {
-      const response = await fetch(windowsStaticHermesPin.sourceUrl, {
+      const response = await fetch(windowsNativeHermesPin.sourceUrl, {
         signal: signal
           ? AbortSignal.any([signal, AbortSignal.timeout(120000)])
           : AbortSignal.timeout(120000),
       });
       if (!response.ok) throw Error('Native Hermes source HTTP ' + response.status);
       const bytes = Buffer.from(await response.arrayBuffer());
-      if (createHash('sha256').update(bytes).digest('hex') !== windowsStaticHermesPin.sourceSha256)
+      if (createHash('sha256').update(bytes).digest('hex') !== windowsNativeHermesPin.sourceSha256)
         throw Error('Native Hermes archive differs');
       fs.writeFileSync(archive, bytes);
     }
-    if (sha256(archive) !== windowsStaticHermesPin.sourceSha256)
+    if (sha256(archive) !== windowsNativeHermesPin.sourceSha256)
       throw Error('Native Hermes archive differs');
     if (!fs.existsSync(path.join(source, 'CMakeLists.txt'))) {
       fs.mkdirSync(source, { recursive: true });
@@ -185,6 +202,14 @@ export async function prepareNativeHermes({ directory, signal } = {}) {
         '-DHERMES_ENABLE_DEBUGGER=OFF',
         '-DHERMES_ENABLE_TEST_SUITE=OFF',
         '-DHERMES_ENABLE_CORE_EXTENSIONS=ON',
+        '-DHERMES_ENABLE_INTL=ON',
+        '-DHERMES_ENABLE_WIN10_ICU_FALLBACK=OFF',
+        '-DHERMES_USE_STATIC_ICU=OFF',
+        '-DICU_ROOT=' + icu,
+        '-DICU_INCLUDE_DIR=' + path.join(icu, 'include'),
+        '-DICU_UC_LIBRARY_RELEASE=' + path.join(icu, 'lib64/icuuc.lib'),
+        '-DICU_I18N_LIBRARY_RELEASE=' + path.join(icu, 'lib64/icuin.lib'),
+        '-DICU_DATA_LIBRARY_RELEASE=' + path.join(icu, 'lib64/icudt.lib'),
         '-DHERMESVM_HEAP_HV_MODE=HEAP_HV_64',
         '-DHERMESVM_ALLOW_JIT=0',
         '-DHERMESVM_INTERNAL_JAVASCRIPT_NATIVE=ON',
@@ -199,18 +224,24 @@ export async function prepareNativeHermes({ directory, signal } = {}) {
     );
     if (sourceTree(source) !== sourceTreeSha256)
       throw Error('Native Hermes source changed during compilation');
-    const policy = windowsHermesPolicy('optimized', nativeCohort('windows'));
+    const policy = windowsHermesPolicy('optimized', windowsNativeHermesCohort());
     const manifest = {
       schema: 'nelyx.native-hermes-toolchain/v3',
       producerSha256: producer(),
-      revision: windowsStaticHermesPin.revision,
-      sourceSha256: windowsStaticHermesPin.sourceSha256,
+      release: windowsNativeHermesPin.version,
+      revision: windowsNativeHermesPin.revision,
+      sourceSha256: windowsNativeHermesPin.sourceSha256,
       sourceTreeSha256,
       bytecodeVersion: 99,
-      jsi: 21,
+      jsi: windowsNativeHermesPin.jsi,
+      jsiHeaderSha256: windowsNativeHermesPin.jsiHeaderSha256,
       heap: 'HEAP_HV_64',
       crt: 'MD',
-      compilerClassSpill: compilerClassSpillPolicy,
+      compilerClassSpill: windowsNativeHermesPin.compilerClassSpill,
+      icu: {
+        version: windowsNativeHermesPin.icu.version,
+        archiveSha256: windowsNativeHermesPin.icu.archiveSha256,
+      },
       internalJavaScript: {
         mode: 'native',
         compilerPolicy: policy.id,
@@ -230,7 +261,22 @@ function write(file, text) {
   if (fs.readFileSync(file, 'utf8') !== text) fs.writeFileSync(file, text);
 }
 function patchSource(source) {
-  patchStaticHermesCompiler(source);
+  if (sha256(path.join(source, 'API/jsi/jsi/jsi.h')) !== windowsNativeHermesPin.jsiHeaderSha256)
+    throw Error('Pinned upstream Hermes JSI header differs');
+  patchStaticHermesCompiler(source, { upstreamClassSpill: true });
+  // Upstream's MSVC whole-archive option uses a target name as a filename.
+  // Resolve the actual archive path, as the Windows fork does for DLL links.
+  const libraries = path.join(source, 'lib/CMakeLists.txt');
+  let libraryText = fs.readFileSync(libraries, 'utf8');
+  for (const target of ['hermesvm', 'hermesvmlean']) {
+    const original = `target_link_options(${target} PRIVATE /WHOLEARCHIVE:${target}_a)`;
+    const replacement = `target_link_options(${target} PRIVATE "LINKER:/WHOLEARCHIVE:$<TARGET_FILE:${target}_a>")`;
+    if (libraryText.split(original).length === 2)
+      libraryText = libraryText.replace(original, replacement);
+    else if (!libraryText.includes(replacement))
+      throw Error('Pinned Hermes Windows whole-archive link changed');
+  }
+  write(libraries, libraryText);
   const flags = path.join(source, 'cmake/modules/Hermes.cmake');
   let text = fs.readFileSync(flags, 'utf8');
   const begin = text.indexOf('function(hermes_update_cxx_flags name)'),
@@ -245,19 +291,26 @@ function patchSource(source) {
         'if (GCC_COMPATIBLE AND NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")',
       ) +
     text.slice(end);
+  // clang-cl has MSVC predefined macros. Match the Windows supplier's guard:
+  // upstream LLVM headers intentionally test undefined GNU macros on Windows.
+  text = text.replace(
+    'macro(hermes_enable_werror_undef)\n  if (GCC_COMPATIBLE)',
+    'macro(hermes_enable_werror_undef)\n  if (GCC_COMPATIBLE AND NOT CLANG_CL)',
+  );
   write(flags, text);
   // The pinned Windows module otherwise overrides the requested /MD cohort
   // with hybrid /MT. Respect the explicit runtime selected by this supplier.
   const windows = path.join(source, 'cmake/modules/HermesWindows.cmake');
-  write(
-    windows,
-    fs
-      .readFileSync(windows, 'utf8')
-      .replace(
-        'if(NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")',
-        'if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")',
-      ),
-  );
+  if (fs.existsSync(windows))
+    write(
+      windows,
+      fs
+        .readFileSync(windows, 'utf8')
+        .replace(
+          'if(NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")',
+          'if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")',
+        ),
+    );
   // Direct C++ host entry points must be present in hermesvm.dll's import
   // library, including the public RuntimeConfig/CrashManager destructors.
   for (const [relative, target] of [
@@ -283,7 +336,7 @@ function patchSource(source) {
       '\nif(MSVC)\n  target_compile_options(jsi PRIVATE /EHsc)\nendif()\n',
   );
   const internal = path.join(source, 'lib/InternalJavaScript/CMakeLists.txt'),
-    policy = windowsHermesPolicy('optimized', nativeCohort('windows'));
+    policy = windowsHermesPolicy('optimized', windowsNativeHermesCohort());
   let internalText = fs.readFileSync(internal, 'utf8');
   const command = /COMMAND \$\{shermes_EXE\} .* -g0 -w -emit-c -exported-unit=internal_unit/;
   if (!command.test(internalText)) throw Error('Pinned Hermes native builtins command differs');

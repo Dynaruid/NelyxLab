@@ -10,7 +10,8 @@ import { runTypeScriptCompiler } from '../../sdk/tooling/contracts/src/typescrip
 import { windowsCompilerEnvironment } from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
 import { buildAppSdkHost } from './app-sdk.mjs';
 import { checkWebRuntime } from '../../skia/eng/prepare-web-runtime.mjs';
-import { compilerClassSpillPolicy } from '../../sdk/tooling/cli/src/static-hermes-compiler-patch.mjs';
+import { windowsNativeHermesPin } from '../../sdk/tooling/cli/src/windows-native-hermes-pin.mjs';
+import { verifyNativeHermes } from '../../sdk/tooling/cli/src/windows-native-hermes-toolchain.mjs';
 
 export const engineRoot = path.resolve(import.meta.dirname, '..');
 export const timeout = 1_200_000;
@@ -155,12 +156,12 @@ function suppliers() {
       throw new Error('Skia identity mismatch: ' + name);
   }
   const hermes = path.resolve(engineRoot, '../../.nelyx/windows-hermes');
-  const cohort = JSON.parse(fs.readFileSync(path.join(hermes, 'native-hermes.json')));
+  const { manifest: cohort } = verifyNativeHermes(hermes);
   if (
-    cohort.revision !== '94aa5e1d40a4ce99df79d951cbe45310ec40680c' ||
-    cohort.jsi !== 21 ||
+    cohort.revision !== windowsNativeHermesPin.revision ||
+    cohort.jsi !== windowsNativeHermesPin.jsi ||
     cohort.crt !== 'MD' ||
-    cohort.compilerClassSpill !== compilerClassSpillPolicy
+    cohort.compilerClassSpill !== windowsNativeHermesPin.compilerClassSpill
   )
     throw new Error('Hermes cohort mismatch');
   const spillSource = 'source/lib/BCGen/HBC/Passes.cpp';
@@ -213,6 +214,8 @@ export function sourceIdentity() {
     '../sdk/tooling/cli/src/windows-static-hermes.mjs',
     '../sdk/tooling/cli/src/static-hermes-compiler-patch.mjs',
     '../sdk/tooling/cli/src/windows-native-hermes-toolchain.mjs',
+    '../sdk/tooling/cli/src/windows-native-hermes-pin.mjs',
+    '../sdk/tooling/cli/src/windows-native-icu.mjs',
     '../sdk/tooling/cli/src/windows-native-hermes.mjs',
     '../sdk/tooling/cli/src/windows-hermes-policy.mjs',
     ...['core', 'bindings', 'include', 'schema', 'tools', 'platform', 'render'].flatMap((dir) =>

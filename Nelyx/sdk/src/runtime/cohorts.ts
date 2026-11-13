@@ -151,6 +151,21 @@ export function windowsJscCohort(): ProviderCohort {
   );
 }
 
+/** Direct Windows hosts build their compiler, VM and JSI from one stable release.
+ * The RNW package cohort below continues to describe the stock RNW binary. */
+export function windowsNativeHermesCohort(): ProviderCohort {
+  return validateCohort(
+    {
+      ...nativeCohort('windows'),
+      id: 'windows-hermes-260318099.0.7',
+      engineVersion: '260318099.0.7',
+      engineRevision: 'b464dba92ad87bcfb77fae381a49a2394d9836d9',
+      bytecodeVersion: 99,
+    },
+    'windows',
+  );
+}
+
 /** Exact source cohorts; their declaration does not qualify native execution. */
 export function nativeCohort(target: ReactNativePlatform, legacyAndroid = false): ProviderCohort {
   if (legacyAndroid && target !== 'android')

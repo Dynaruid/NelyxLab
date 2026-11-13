@@ -5,7 +5,7 @@ import { buildStaticAotMetroBundle } from './windows-static-aot.mjs';
 import { compileHermesImage } from './windows-hermes-image.mjs';
 import { windowsTypedHermesPolicy } from './windows-typed-hermes-policy.mjs';
 import { windowsHermesPolicy } from './windows-hermes-policy.mjs';
-import { nativeCohort } from '@nelyx/sdk/runtime/cohorts';
+import { windowsNativeHermesCohort } from '@nelyx/sdk/runtime/cohorts';
 import { bindNativeCoverage, verifyFrontendPlan } from '@nelyx/static-aot/execution-plan';
 import { verifyTypePolicy } from '@nelyx/static-aot/type-policy';
 import { sha256, localFile } from './files.mjs';
@@ -39,7 +39,7 @@ export async function buildNativeAot({
     nativeHost: true,
   });
   const typedSource = path.join(stage, 'index.windows.typed.ts'),
-    cohort = nativeCohort('windows'),
+    cohort = windowsNativeHermesCohort(),
     policy = windowsTypedHermesPolicy(cohort);
   const nativePlan = {
     schema: 'nelyx.native-shunit-plan/v1',

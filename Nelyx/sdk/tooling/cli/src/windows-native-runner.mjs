@@ -31,7 +31,9 @@ function commonRoot(paths) {
 import { execute } from './commands.mjs';
 import { windowsCompilerEnvironment } from './windows-static-hermes.mjs';
 import { windowsHermesPolicy } from './windows-hermes-policy.mjs';
-import { nativeCohort } from '@nelyx/sdk/runtime/cohorts';
+import { windowsNativeHermesCohort } from '@nelyx/sdk/runtime/cohorts';
+import { windowsNativeHermesPin } from './windows-native-hermes-pin.mjs';
+import { windowsNativeIcuRuntimeFiles } from './windows-native-icu.mjs';
 import { openNativeBuildCache } from './native-build-cache.mjs';
 const load = createRequire(import.meta.url);
 const { getDefaultConfig, mergeConfig } = load('metro-config');
@@ -92,8 +94,18 @@ export async function buildNativeApplication({
     fs.mkdirSync(currentStage);
     stage = currentStage;
     if (fs.existsSync(directory)) assertReplaceable(directory);
-    for (const name of ['NelyxHermesHost.exe', 'hermesvm.dll', 'native-host.json'])
+    for (const name of [
+      'NelyxHermesHost.exe',
+      'hermesvm.dll',
+      ...windowsNativeIcuRuntimeFiles,
+      'native-host.json',
+    ])
       fs.copyFileSync(path.join(host.directory, name), path.join(stage, name));
+    fs.mkdirSync(path.join(stage, 'licenses'));
+    fs.copyFileSync(
+      path.join(checked.directory, 'icu/LICENSE'),
+      path.join(stage, 'licenses/Unicode-ICU-LICENSE.txt'),
+    );
     fs.mkdirSync(path.join(stage, 'Assets'));
     const assets = config.assets.map((asset) => {
       const source = path.resolve(app, asset.path);
@@ -167,7 +179,7 @@ export async function buildNativeApplication({
         },
       },
     });
-    const policy = windowsHermesPolicy('optimized', nativeCohort('windows'));
+    const policy = windowsHermesPolicy('optimized', windowsNativeHermesCohort());
     let bundle = 'app.hbc',
       nativeFunctions = null,
       aot;
@@ -383,7 +395,7 @@ export function verifyNativePackage(directory) {
   if (
     manifest.schema !== 'nelyx.native-hermes-package/v1' ||
     !['bytecode', 'static-aot'].includes(manifest.mode) ||
-    manifest.revision !== '94aa5e1d40a4ce99df79d951cbe45310ec40680c' ||
+    manifest.revision !== windowsNativeHermesPin.revision ||
     manifest.bundle !== (manifest.mode === 'bytecode' ? 'app.hbc' : 'NelyxApp.aot.dll') ||
     (manifest.mode === 'static-aot' &&
       (!Number.isSafeInteger(manifest.nativeFunctions) || manifest.nativeFunctions < 1))
@@ -401,6 +413,8 @@ export function verifyNativePackage(directory) {
   const host = JSON.parse(fs.readFileSync(localFile(directory, 'native-host.json'), 'utf8'));
   if (
     host.schema !== 'nelyx.native-hermes-host/v1' ||
+    host.jsi !== windowsNativeHermesPin.jsi ||
+    host.jsiHeaderSha256 !== windowsNativeHermesPin.jsiHeaderSha256 ||
     host.toolchainSha256 !== manifest.toolchainSha256 ||
     host.sourceSha256 !== manifest.sourceSha256
   )

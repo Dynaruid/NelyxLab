@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Pinned Hermes 94aa5e1d: SimplifyCFG corrupts branch-specific loop phis.
+import { windowsNativeHermesPin } from './windows-native-hermes-pin.mjs';
+// Stock RNW compatibility only: Hermes 94aa5e1d corrupts loop phis in SimplifyCFG.
 // Keep the producer's registered optimization order while omitting that pass
 // and the internal-only LowerBuiltinCallsOptimized pass. Inlining remains off.
 // Qualified against this compiler AND its VM. Preserve native CopyDataProperties
 // instead of allocating ES2015 helper objects. Native async uses the VM's
 // Promise/continuation machinery. Native classes require the supplier's HBC
-// class-spill output-order patch; the policy identity rejects earlier supplies.
+// class-spill output-order patch; its policy identity rejects earlier supplies.
 export const windowsHermesSyntax = Object.freeze({
   bigint: true,
   'object-rest-spread': true,
@@ -66,10 +67,32 @@ const profiles = Object.freeze({
     flags: Object.freeze(['-O', '-fno-inline', '-Xcustom-opt=' + noCfgPasses.join(',')]),
   }),
 });
+// Direct hosts use the stable upstream compiler/VM and its standard pipeline.
+const nativeProfiles = Object.freeze({
+  debug: Object.freeze({
+    id: 'windows-hermes-260318099.0.7-debug-v1',
+    profile: 'debug',
+    flags: Object.freeze(['-Og']),
+  }),
+  optimized: Object.freeze({
+    id: 'windows-hermes-260318099.0.7-optimized-v1',
+    profile: 'optimized',
+    flags: Object.freeze(['-O']),
+  }),
+});
 /** An explicit optimized profile never applies to an unqualified engine revision. */
 export function windowsHermesPolicy(profile = 'debug', cohort) {
   if (profile !== 'debug' && profile !== 'optimized')
     throw new TypeError('Choose Windows --hermes-profile debug or optimized');
+  if (
+    cohort?.engine === 'hermes' &&
+    cohort.engineVersion === windowsNativeHermesPin.version &&
+    cohort.engineRevision === windowsNativeHermesPin.revision &&
+    cohort.bytecodeVersion === windowsNativeHermesPin.bytecodeVersion &&
+    cohort.framework === 'react-native-windows' &&
+    cohort.frameworkVersion === '0.83.2'
+  )
+    return nativeProfiles[profile];
   if (
     cohort?.engine !== 'hermes' ||
     cohort.engineVersion !== '1.0.0' ||

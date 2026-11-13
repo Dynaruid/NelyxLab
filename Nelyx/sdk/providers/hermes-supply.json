@@ -23,6 +23,27 @@
       "source": "https://raw.githubusercontent.com/facebook/hermes/e0fc67142ec0763c6b6153ca2bf96df815539782/include/hermes/BCGen/HBC/BytecodeVersion.h",
       "sourceSha256": "57bca47d019a0f7a8f3f6ce194d568abb9fa7ba5042e12d09ec8a95a51186622"
     },
+    "windows-native": {
+      "engineVersion": "260318099.0.7",
+      "engineRevision": "b464dba92ad87bcfb77fae381a49a2394d9836d9",
+      "bytecodeVersion": 99,
+      "source": "https://raw.githubusercontent.com/meta/hermes/b464dba92ad87bcfb77fae381a49a2394d9836d9/include/hermes/BCGen/HBC/BytecodeVersion.h",
+      "sourceSha256": "fbfe74875ec6f01b5cf9221acdad0261e979172121ef5fee3f0816aa9d3686af",
+      "supplier": {
+        "name": "meta/hermes",
+        "version": "hermes-v260318099.0.7",
+        "sourceArchive": "https://codeload.github.com/meta/hermes/tar.gz/b464dba92ad87bcfb77fae381a49a2394d9836d9",
+        "archiveSha256": "57cc6880783cdcd2ca25db49be5332671ca7d358c22ebfe08ff354ff131ed6d6",
+        "jsi": "same-source-hermes-iruntime",
+        "compilerClassSpill": "upstream-5423909e212d9464ebf70633a02a61b9e43963df",
+        "icu": {
+          "version": "79.1",
+          "source": "https://github.com/unicode-org/icu/releases/download/release-79.1/icu4c-79.1-Win64-MSVC2026.zip",
+          "archiveSha256": "c4ae1cbadb4187007f76f8b1bcf3a10deb699395ab3c74df01362bfdfa0f1ac2"
+        },
+        "scope": "direct Windows hosts; compiler, VM and JSI rebuilt together"
+      }
+    },
     "windows": {
       "engineVersion": "1.0.0",
       "engineRevision": "94aa5e1d40a4ce99df79d951cbe45310ec40680c",
@@ -52,6 +73,7 @@
     "macos": "upstream-0.14.1",
     "linux": "linux"
   },
+  "directWindows": "windows-native",
   "legacyAndroid": "upstream-0.14.0",
   "limits": [
     "Apple native execution excluded by user; source/compiler inspection only",

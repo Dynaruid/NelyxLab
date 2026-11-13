@@ -10,20 +10,27 @@ import {
   windowsHermesPolicy,
   windowsHermesSyntax,
 } from '../sdk/tooling/cli/src/windows-hermes-policy.mjs';
-import { nativeCohort } from '@nelyx/sdk/runtime/cohorts';
+import { windowsNativeHermesCohort } from '@nelyx/sdk/runtime/cohorts';
 import { textStyleApplyReference } from './text-style-apply-reference.mjs';
 const root = path.resolve(import.meta.dirname, '../..');
 const parent = path.join(root, '.nelyx');
 const temporary = fs.mkdtempSync(path.join(parent, 'hermes-syntax-'));
 if (!temporary.startsWith(parent + path.sep)) throw Error('Temporary check escaped its owner');
 const hermes = path.join(root, '.nelyx/windows-hermes');
-const supply = path.join(root, 'Nelyx/engine/dist/windows-app-sdk');
+const toolchainOnly = process.argv.includes('--toolchain-only');
+const supply = toolchainOnly
+  ? path.join(hermes, 'build/bin')
+  : path.join(root, 'Nelyx/engine/dist/windows-app-sdk');
 const env = windowsCompilerEnvironment();
 const compilerRequire = createRequire(
   path.join(root, 'Nelyx/sdk/tooling/cli/src/engine-v2-runner.mjs'),
 );
 const pathKey = Object.keys(env).find((k) => k.toLowerCase() === 'path') ?? 'PATH';
-env[pathKey] = supply + path.delimiter + env[pathKey];
+env[pathKey] =
+  (toolchainOnly ? path.join(hermes, 'build/lib') + path.delimiter : '') +
+  supply +
+  path.delimiter +
+  env[pathKey];
 const run = (command, args) => {
   const result = spawnSync(command, args, {
     cwd: temporary,
@@ -93,7 +100,7 @@ try {
     for (const profile of ['debug', 'optimized']) {
       const bytecode = path.join(temporary, 'application-init-' + profile + '.hbc');
       run(path.join(supply, 'hermesc.exe'), [
-        ...windowsHermesPolicy(profile, nativeCohort('windows')).flags,
+        ...windowsHermesPolicy(profile, windowsNativeHermesCohort()).flags,
         '-Xes6-block-scoping',
         '-emit-binary',
         '-out',
@@ -119,12 +126,16 @@ try {
       const Explicit=diagnostic(class {constructor(){}});
       const first=new Implicit(),second=new Explicit();
       check(first.describe()==='value'&&second.describe()==='value','wide-register class constructor/home-object spill');
+      const Named=class NamedClass {constructor(value){this.value=value;}static create(value){return new NamedClass(value);}};
+      check(typeof Named==='function'&&Named.create(1234).value===1234,'wide-register named class constructor spill');
       globalThis.spillObserve(${liveNames.join(',')});
     })();
     delete globalThis.spillValue;delete globalThis.spillObserve;
   `;
   const fixture = `
     const check=(ok,message)=>{if(!ok)throw Error(message);};
+    check(typeof Intl==='object'&&typeof Intl.DateTimeFormat==='function'&&typeof Intl.NumberFormat==='function','native Intl availability');
+    check(new Intl.DateTimeFormat('en-US',{year:'numeric',month:'long',day:'numeric',timeZone:'UTC'}).format(new Date(Date.UTC(2026,10,15)))==='November 15, 2026','native Intl date formatting');
     const symbol=Symbol('key');let reads=0,setters=0;
     const source=Object.create({inherited:3});
     Object.defineProperties(source,{value:{enumerable:true,get(){++reads;return 7;}},hidden:{value:9},__proto__:{value:null}});
@@ -230,7 +241,7 @@ try {
     run(path.join(supply, 'hermesc.exe'), [
       ...windowsHermesPolicy(
         process.argv.includes('--debug-classes') ? 'debug' : 'optimized',
-        nativeCohort('windows'),
+        windowsNativeHermesCohort(),
       ).flags,
       '-Xes6-block-scoping',
       '-emit-binary',
@@ -391,7 +402,7 @@ try {
   run(path.join(supply, 'hermesc.exe'), [
     ...windowsHermesPolicy(
       process.argv.includes('--debug-classes') ? 'debug' : 'optimized',
-      nativeCohort('windows'),
+      windowsNativeHermesCohort(),
     ).flags,
     '-Xes6-block-scoping',
     '-emit-binary',

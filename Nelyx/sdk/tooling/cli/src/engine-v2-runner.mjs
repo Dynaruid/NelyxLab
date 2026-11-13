@@ -9,7 +9,8 @@ import { spawn } from 'node:child_process';
 import { build } from 'esbuild';
 import { execute } from './commands.mjs';
 import { windowsHermesPolicy, windowsHermesSyntax } from './windows-hermes-policy.mjs';
-import { nativeCohort } from '@nelyx/sdk/runtime/cohorts';
+import { windowsNativeHermesCohort } from '@nelyx/sdk/runtime/cohorts';
+import { windowsNativeHermesPin } from './windows-native-hermes-pin.mjs';
 import { protocol as p } from '@nelyx/core/v2';
 import { engineV2ImportRoute, engineV2OriginalAppRoute } from './engine-v2-data-api.mjs';
 import {
@@ -112,11 +113,12 @@ export function verifyEngineV2Supply(directory, target, windowsHost) {
       throw Error('Requested engine v2 host runtime/identity is missing: ' + selected.host);
     const bytecode = manifest.profiles[selected.profile].appBytecode;
     if (
-      manifest.hermes !== nativeCohort('windows').engineRevision ||
+      manifest.hermes !== windowsNativeHermesCohort().engineRevision ||
       bytecode?.compiler !== 'windows-app-sdk/hermesc.exe' ||
       bytecode.version !== 99 ||
       bytecode.entry !== 'application/app.hbc' ||
-      bytecode.policy !== windowsHermesPolicy('optimized', nativeCohort('windows')).id ||
+      bytecode.policy !== windowsHermesPolicy('optimized', windowsNativeHermesCohort()).id ||
+      bytecode.release !== windowsNativeHermesPin.version ||
       !seen.has(bytecode.compiler)
     )
       throw Error('Windows App SDK supply lacks the matching optimized Hermes compiler');
@@ -405,11 +407,10 @@ export async function buildEngineV2Application(options) {
     const coreDirectory = fs.realpathSync(path.resolve(path.dirname(core), '../../..'));
     let bytecode;
     if (target === 'windows') {
-      const policy = windowsHermesPolicy('optimized', nativeCohort('windows'));
+      const policy = windowsHermesPolicy('optimized', windowsNativeHermesCohort());
       const producer = supply.manifest.profiles['windows-app-sdk'].appBytecode;
-      // The supplier fixes HBC spilling a class's unused home object over its
-      // constructor. Keep native inheritance/new.target instead of allocating
-      // Babel Reflect.construct helpers for every source constructor call.
+      // The stable upstream compiler fixes class spill ordering. Preserve its
+      // native inheritance/new.target in the matching compiler and VM supply.
       const javascript = path.join(staged, 'application/app.js');
       await execute(
         input(supply.root, producer.compiler),
@@ -429,7 +430,8 @@ export async function buildEngineV2Application(options) {
         version: producer.version,
         policy: policy.id,
         sourceSha256: hash(javascript),
-        classes: 'native-spill-v1',
+        release: windowsNativeHermesPin.version,
+        classes: windowsNativeHermesPin.classes,
         syntax: windowsHermesSyntax,
       };
     }
@@ -602,7 +604,8 @@ export function verifyEngineV2Application(directory, target, engineInputs) {
       manifest.bytecode?.policy !== expected.policy ||
       manifest.bytecode?.version !== expected.version ||
       !manifest.files.some((file) => file.path === expected.entry) ||
-      manifest.bytecode?.classes !== 'native-spill-v1' ||
+      manifest.bytecode?.release !== expected.release ||
+      manifest.bytecode?.classes !== windowsNativeHermesPin.classes ||
       JSON.stringify(manifest.bytecode?.syntax) !== JSON.stringify(windowsHermesSyntax) ||
       manifest.bytecode?.sourceSha256 !== hash(input(root, 'application/app.js')) ||
       fs.readFileSync(input(root, expected.entry)).readUInt32LE(8) !== expected.version

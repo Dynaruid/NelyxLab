@@ -7,6 +7,11 @@ import { execute } from './commands.mjs';
 import { sha256, fileTree } from './files.mjs';
 import { windowsCompilerEnvironment } from './windows-static-hermes.mjs';
 import { prepareNativeHermes } from './windows-native-hermes-toolchain.mjs';
+import { windowsNativeHermesPin } from './windows-native-hermes-pin.mjs';
+import {
+  copyWindowsNativeIcuRuntime,
+  windowsNativeIcuRuntimeFiles,
+} from './windows-native-icu.mjs';
 import { openNativeBuildCache } from './native-build-cache.mjs';
 import { assertInstalledSupply } from '@nelyx/metro/installed-supply';
 const timeout = 1_200_000;
@@ -200,6 +205,7 @@ export async function buildNativeHost({ app, engineInputs, nativeInputs, output,
     });
     if (sourceDigest(sdk, skia) !== sourceSha256)
       throw Error('Native host sources changed during compilation');
+    copyWindowsNativeIcuRuntime(checked.directory, build);
     const manifest = {
       schema: 'nelyx.native-hermes-host/v1',
       sourceSha256,
@@ -208,12 +214,15 @@ export async function buildNativeHost({ app, engineInputs, nativeInputs, output,
       configuration: 'Release',
       architecture: 'x64',
       crt: 'MD',
-      jsi: 21,
+      jsi: windowsNativeHermesPin.jsi,
+      jsiHeaderSha256: windowsNativeHermesPin.jsiHeaderSha256,
       host: 'native-hermes',
-      files: ['NelyxHermesHost.exe', 'hermesvm.dll'].map((name) => ({
-        path: name,
-        sha256: sha256(path.join(build, name)),
-      })),
+      files: ['NelyxHermesHost.exe', 'hermesvm.dll', ...windowsNativeIcuRuntimeFiles].map(
+        (name) => ({
+          path: name,
+          sha256: sha256(path.join(build, name)),
+        }),
+      ),
     };
     fs.writeFileSync(
       path.join(build, 'native-host.json'),

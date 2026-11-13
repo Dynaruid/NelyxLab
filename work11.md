@@ -2,9 +2,9 @@
 
 작성·갱신: **2026-11-13 KST** · 상태: **PAUSED / PARTIAL** · 대상: [work10-a1](work10-a1.md)의 빠른 월 이동 정체
 
-**중간 마무리:** 사용자의 “일단 중간 마무리하자” 요청으로 새 구현을 중단했다. 현재 공급과 작업 트리를 보존하며, 검증된 범위와 미완료·재개 지점은 **§18**이다. 자동 재개하지 않는다.
+**중간 마무리:** 전체 성능 작업은 사용자의 중간 마무리 요청에 따라 **PAUSED / PARTIAL**을 유지한다. 후속 “최신 버전으로 바꿔줘” 요청으로 Windows 직접 Hermes 공급 전환만 완료했다. 현재 공급·검증은 **§19**, 나머지 미완료 의무는 **§18.2와 §19.4**에 있다.
 
-**실행 현황:** 사용자의 전체 작업 요청으로 §11의 중단 상태에서 재개했다. 공통 모듈·binding 참조·Source 값 구성과 §16의 날짜/연도 helper 정적 결합에 이어, §17에서 원래 builder와 자손 갱신·render commit 비용을 분리하고 Hermes 클래스 spill 오류를 수정했다. 원본 Flutter의 페이지 진행도·허용오차에 맞춰 fixed-page resize anchor도 보완했다. 현재 Windows 네 시나리오와 두 Web profile의 월 왕복·resize·실제 연도 선택 기능은 **PASS**다. Windows `All / 12개월 / 60Hz` 이동 게시 지연은 **97.825/167.275ms**, offset 정체 최대 **177ms**, 빠른 24개월 정체 최대 **313ms**로 **W11 성능 FAIL**이다. **시스템 Dart 3.12.2의 기본 `dart`로 전체 생성 비교 75/75·원본 oracle PASS**를 유지한다. 현재 공급·검증은 **§17.5**, 이번 중단과 재개 지점은 **§18**, 이전 공급은 §12–16과 §17.3, 과거 중단 기록은 §11에서 구분한다.
+**실행 현황:** §17까지 공통 모듈·binding 참조·Source 값 구성, 날짜/연도 helper 정적 결합, builder/자손/render commit 비용 분리와 fixed-page resize anchor를 반영했다. §19에서 Windows compiler·VM·JSI를 공식 안정 **Hermes 260318099.0.7**로 함께 갱신하고 engine·Demo/Testbed의 Windows/Web 공급을 재생성했다. 최신 Windows `All / 12개월 / 60Hz`, 빠른 역방향 24개월, NoTrace의 기능·실제 연도/날짜 선택·정상 종료는 **PASS**다. 이동 게시 지연 p95/최대 **66.916/122.494ms**, offset 정체 최대 **127ms**, 빠른 역방향 정체 최대 **278ms**로 **W11 성능 FAIL**은 남는다. 생성기는 §16의 **시스템 Dart 3.12.2 / 75/75·원본 oracle PASS** 근거를 유지한다. 현재 공급은 **§19**, 원래 중단·미완료 의무는 **§18**, 전환 전 Windows/Web 기능·resize 근거는 **§17.5**, 이전 공급은 §11–17에서 구분한다.
 
 **제안:** 먼저 **접근성의 Source 구성·App 관찰·Core 조립·Windows UIA 갱신 비용을 분리**하고, 구조·속성이 그대로인 스크롤에서 반복되는 목록·문자열·사각형 재구성을 줄인다. 이 제한된 개편 뒤에도 새 월 준비가 느리면, 원래 TS Widget/Element/State를 실행한 뒤 그 결과를 capture 트리와 Scene 기록으로 반복 변환하는 구조를 **생성 시 정한 투영 절차와 실행 시 유지하는 RenderBinding 기록**으로 바꾼다. 생성된 Source 코드의 불필요한 중간 표현도 함께 줄인다. 준비 창을 늘리는 대신 **같은 원본 의미를 더 적은 작업으로 준비**하는 것이 목적이다.
 
@@ -406,7 +406,7 @@ W11-00A에서 확인한 비용에 해당하는 부분만 묶어서 구현한다.
 - [ ] W11-04 **PARTIAL** — §17.5 최종 Windows 네 시나리오·실제 연도 선택, 양쪽 Web profile 월 왕복/resize/연도 선택 기능 PASS / 연속·빠른 이동 성능 FAIL. Core의 양축·확대/축소·부분/정수 페이지·일반 목록 anchor 회귀 PASS. 같은 Core의 독립 설치 검증은 §15에 있다. demand→coverage-ready는 notVerified다.
 - [ ] W11-05 **PARTIAL** — 기존 실행 계약과 남은 owner를 갱신했다. 사용자 물리 입력·전체 display/scanout·resize 성능은 미검증이다.
 
-**현재 실행 계약:** 사용자 중간 마무리 요청으로 **PAUSED / PARTIAL**이다. §18에서 재개 범위를 고정한다. §17.5의 최종 anchor 공급과 §17.3의 첫 native-class 공급, §11–16의 이전 공급을 구분한다. 직접 모듈 데이터와 binding 참조까지 확장했지만 전체 render setter의 필드별 journal 완료로 설명하지 않는다. generated constructor 일괄 변경이나 원본 Widget/State/콜백 생략으로 지연을 숨기지 않는다. 사용자 물리 확인·전체 display/scanout은 별도 미검증이다.
+**현재 실행 계약:** 전체 성능 작업은 **PAUSED / PARTIAL**이다. 후속 요청의 Windows Hermes 전환은 §19에서 완료했으며, 재개 시 §19의 현재 identity를 먼저 확인하고 §18.2의 남은 의무를 이어간다. §17.5의 이전 anchor 공급과 §17.3의 첫 native-class 공급, §11–16의 이전 공급을 구분한다. 직접 모듈 데이터와 binding 참조까지 확장했지만 전체 render setter의 필드별 journal 완료로 설명하지 않는다. generated constructor 일괄 변경이나 원본 Widget/State/콜백 생략으로 지연을 숨기지 않는다. 사용자 물리 확인·전체 display/scanout은 별도 미검증이다.
 
 ## 11. 2026-11-13 구현·측정 기록
 
@@ -899,3 +899,54 @@ Web threaded·single-worker 모두 **6개월 전진/6개월 복귀·header/전�
 - **재발 방지·확인:** 실수로 추적되던 루트 `vc140.pdb`를 이동하고 `.gitignore`에 `*.pdb`를 추가했다. 현재 Windows/Web App과 engine의 모든 manifest 파일 무결성·ABI/schema·source identity 검사를 통과했으며 공급 hash는 §18.1의 `7801b118…66f1`, Windows는 `classes=native-spill-v1`을 유지한다. 제품 구현·기능/성능 테스트는 추가 실행하지 않았다.
 
 이 정리는 후속 파일 관리 요청의 범위이며 `work11` 목표를 재개하지 않는다. **PAUSED / PARTIAL**과 §18.2의 미완료 의무를 유지한다.
+
+## 19. 최신 안정 Hermes 공급으로 전환
+
+2026-11-13 사용자의 **“최신 버전으로 바꿔줘”** 요청으로 Windows 직접 Hermes 공급을 갱신한다. 이번 범위는 `work11`의 Windows App SDK와 직접 native host가 사용하는 compiler·VM·JSI의 같은 소스 전환이다. 다른 플랫폼과 stock RNW/Node-API 실험 공급은 각각의 기존 공급 계약으로 구분한다. §18.2의 나머지 성능·소비자 의무를 완료했다고 확대하지 않는다.
+
+### 19.1 릴리스와 코드 변경
+
+- 공식 안정 태그 **`hermes-v260318099.0.7`**, commit **`b464dba92ad87bcfb77fae381a49a2394d9836d9`**를 GitHub의 현재 태그와 대조했다. [고정 소스](https://github.com/meta/hermes/tree/hermes-v260318099.0.7), [공식 spill 수정](https://github.com/meta/hermes/commit/5423909e212d9464ebf70633a02a61b9e43963df).
+- 공식 소스 archive SHA-256은 **`57cc6880783cdcd2ca25db49be5332671ca7d358c22ebfe08ff354ff131ed6d6`**, HBC **99**다. 새 JSI는 `IRuntime` 인터페이스를 포함하므로 기존 RNW JSI 21 바이너리와 같다고 표시하지 않고, 같은 소스의 header·library를 함께 빌드한다.
+- [직접 공급 pin](Nelyx/sdk/tooling/cli/src/windows-native-hermes-pin.mjs), [SDK 직접 cohort](Nelyx/sdk/src/runtime/cohorts.ts), [native compiler/VM 준비](Nelyx/sdk/tooling/cli/src/windows-native-hermes-toolchain.mjs), engine/App manifest와 직접 native runner의 공급 검증을 연결했다. 이전 공급을 새 공급으로 오인하지 않도록 release·revision·JSI header·upstream spill 정책을 검사한다.
+- 최신 공급의 `Passes.cpp`에는 Nelyx spill 수정을 덧붙이지 않는다. 원본의 constructor-last 순서와 결과 사용자 연결을 검사하고 그대로 사용한다. 원래 stock RNW 컴파일러의 패치·우회 정책은 해당 구형 공급 전용으로 남긴다.
+- 최신 compiler의 표준 `-O`로 실제 전체 App 초기화와 언어/Source 의미 회귀를 통과했다. 최신 직접 공급에서는 이전 `SimplifyCFG` 제외·inline 제외를 제거하며, stock RNW 구형 공급은 기존 정책을 유지한다. field lowering과 원본 Source 의미는 이번 전환의 별도 최적화로 변경하지 않는다.
+- Meta 원본을 Windows clang-cl로 빌드하는 데 필요한 MSVC flag 분기·GNU macro 경고 guard와 DLL whole-archive의 실제 library 경로를 연결했다. 기존 `/MD`·DLL export·JSI 예외 소유권·SH source-range provenance 보완은 유지한다. compiler/VM/JSI는 모두 같은 고정 소스에서 빌드한다.
+- Intl의 날짜·로케일 기능을 유지하기 위해 [공식 ICU 79.1 Windows SDK](https://github.com/unicode-org/icu/releases/tag/release-79.1)를 사용한다. 공식 asset digest **`c4ae1cbadb4187007f76f8b1bcf3a10deb699395ab3c74df01362bfdfa0f1ac2`**, 전체 header tree·import library·세 runtime DLL을 고정하고 package에 DLL과 Unicode 라이선스를 포함한다. Windows 기본 ICU fallback은 끈다.
+
+### 19.2 공급 교체와 검증 완료
+
+공식 archive에 현재 Windows/provenance 보완을 적용한 소스를 새로 풀어 전체 tree와 대조한 뒤 compiler·VM·JSI를 재빌드했다. 현재 toolchain은 **v3 / HBC 99 / HEAP_HV_64 / MD / JIT·debugger OFF / Intl ON**이다. `hermesc --version` 내부 banner는 여전히 `1.0.0`이므로 릴리스는 위 태그·commit과 아래 실제 바이너리 hash로 식별한다.
+
+| 현재 항목 | SHA-256 |
+| --- | --- |
+| engine source·Windows/Web 공급 | `9e03625ee2e2ce1f5f2d5099a387b44033f966805d6753ffdba02caeeb4b1e26` |
+| native toolchain manifest | `0f1a80b47ba07d3d4c1f1a20b29e41040525280d26d00f2c35d48c5dfc3e88bf` |
+| 실제 공급 hermesc.exe | `040a27bb1d148c283da1a1431f3a60086f7fdc0fcda86a61c6d4a1313b85609b` |
+| 실제 공급 hermesvm.dll | `30355a6c02a3e76a79c11370fbf2695bb32567fa59d31c5ff1986dd30ba20081` |
+| Demo App JS | `1e0b6051a60bbd6d60e8f62cc261ad1a2f86344887e03d1f5ad13a3b2b5eca06` |
+| Demo App HBC | `1a6cad3248ee532beb5b1bdd2ac0e8f78959833efaad1d46fe1c3c475d70fd7f` |
+| Testbed App JS | `24ac3a842b2b1ff030c473c5cbbf73cb4efd5c756de311f5a928e2f3686a7170` |
+| Testbed App HBC | `d37ff7f48fb45fea1186bdb52fae84d51441ae3e7a5e09db09c1f532bd20d347` |
+
+- **언어·실제 App 초기화 PASS:** 650개 live value 아래 익명·명명 class/constructor spill, 상속·mixin·`new.target`·반환 객체·field descriptor/실행 순서, spread/rest·symbol/getter/proto·async, Intl 날짜 format와 실제 Core/Source 의미를 검사했다. 실제 전체 Demo App module initialization은 **debug/optimized 모두 PASS**다. toolchain에서 먼저 확인한 뒤 새 engine의 실제 배포 compiler/VM으로 다시 통과했다.
+- **빌드·정합성 PASS:** SDK ESM/declaration, SDK/CLI 타입, 변경 TS/MJS lint·formatting, stale supplier 거부, engine native/single-worker/threaded 및 Windows App SDK host, 두 sample의 Windows/Web App 빌드·전체 manifest 무결성을 통과했다. Windows App은 **`classes=native-upstream-v1` / `windows-hermes-260318099.0.7-optimized-v1`**이다. 마지막에 현재 source identity와 네 App의 공급 identity가 모두 위 engine hash에 일치함을 다시 확인했다.
+- **직접 native host C++ 호환 PASS:** 같은 새 JSI로 Skia binding과 host를 임시 빌드해 23단계 compile/link를 통과했다. 이 임시 출력은 `finally`에서 회수했다. 직접 host의 전체 App·static-AOT 실행을 검증한 것으로 확대하지 않는다.
+
+### 19.3 최신 Windows 기능과 성능 관찰
+
+각 검사는 20분 상한을 사용했고, 같은 현재 Demo App을 재빌드 없이 세 번 실행했다. 모든 실행에서 실제 연도/날짜 선택, UIA header·전체 날짜와 정상 종료를 통과했다. `status=0`, `workersJoined=true`, 종료 후 `reservedBytes=memoryTotal=0`이며 소유 CLI/App도 종료했다.
+
+| 실행 | 기능 | 이동 게시 p95/최대 | offset 정체 최대 / ≥100ms |
+| --- | --- | --- | --- |
+| All · 12개월 · 60Hz · YearMode | PASS | 66.916 / 122.494ms | 127ms / 4회 |
+| CalendarFast · 역방향 24개월 · YearMode | PASS | notVerified | 278ms / 11회 |
+| All · 12개월 · 60Hz · YearMode · NoTrace | PASS | notVerified | notVerified |
+
+첫 실행의 360개 입력은 누락 없이 모두 반영됐다. traced 두 실행의 ring 손실과 output drop은 0이며, ≥500ms synthetic stall 기준은 PASS지만 **100ms offset 및 W11 성능 기준은 FAIL**이다. §17.5보다 낮은 관측값이지만 이 단일 관찰로 개선율이나 upstream 수정만의 효과를 확정하지 않는다. NoTrace는 기능 검사이며 성능 수치로 사용하지 않는다.
+
+### 19.4 정리와 남은 범위
+
+최신 Hermes 전환은 **완료**했다. 교체용 이전 toolchain과 일회성 upgrade helper, source 비교·C++ host·engine/App staging은 회수했다. 처음 sandbox에서 남았던 이전 공급의 Android 생성 보고서 1개도 경로·잔여 inventory를 확인한 뒤 회수했다. 현재 toolchain의 고정 Hermes 소스 archive·추출 소스·build, ICU SDK archive·headers·libraries·DLL과 현재 dist는 필요한 공급 입력으로 유지한다. 기존 사용자 `.tmp`와 다른 플랫폼 공급은 건드리지 않았다. commit은 만들지 않았다.
+
+전체 `work11`은 **PAUSED / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`를 유지한다. 재개 시 위 현재 identity부터 확인한다. §18.2의 전체 setter별 dirty journal/adapter, Source owner별 비용과 direct projection 대조, demand→coverage 인과 연결, 실제 UIA 소비자·원본 visual·물리 입력·display/scanout·resize 성능 의무는 남는다. 이번 전환에서 Web UI·직접 host 전체 App/static-AOT 실행이나 native instance-field 최적화를 새로 수락하지 않았다.

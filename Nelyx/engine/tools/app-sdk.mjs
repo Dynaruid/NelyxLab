@@ -5,7 +5,9 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { windowsCompilerEnvironment } from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
 import { windowsHermesPolicy } from '../../sdk/tooling/cli/src/windows-hermes-policy.mjs';
-import { nativeCohort } from '@nelyx/sdk/runtime/cohorts';
+import { windowsNativeHermesCohort } from '@nelyx/sdk/runtime/cohorts';
+import { windowsNativeHermesPin } from '../../sdk/tooling/cli/src/windows-native-hermes-pin.mjs';
+import { copyWindowsNativeIcuRuntime } from '../../sdk/tooling/cli/src/windows-native-icu.mjs';
 
 export const windowsAppSdkVersion = '1.8.260508005';
 function supplyRnwPort(engineRoot, output) {
@@ -138,6 +140,12 @@ export function buildAppSdkHost({ engineRoot, library, intermediate, output }) {
     path.resolve(engineRoot, '../../.nelyx/windows-hermes/build/bin/hermesc.exe'),
     path.join(output, 'hermesc.exe'),
   );
+  const hermes = path.resolve(engineRoot, '../../.nelyx/windows-hermes');
+  copyWindowsNativeIcuRuntime(hermes, output);
+  fs.copyFileSync(
+    path.join(hermes, 'icu/LICENSE'),
+    path.join(output, 'licenses/Unicode-ICU-LICENSE.txt'),
+  );
   fs.copyFileSync(
     path.resolve(engineRoot, '../licenses/FlutterEngine-LICENSE.md'),
     path.join(output, 'licenses/FlutterEngine-LICENSE.md'),
@@ -162,8 +170,9 @@ export function buildAppSdkHost({ engineRoot, library, intermediate, output }) {
     appBytecode: {
       compiler: 'windows-app-sdk/hermesc.exe',
       version: 99,
+      release: windowsNativeHermesPin.version,
       entry: 'application/app.hbc',
-      policy: windowsHermesPolicy('optimized', nativeCohort('windows')).id,
+      policy: windowsHermesPolicy('optimized', windowsNativeHermesCohort()).id,
     },
     crt: 'MD',
     compiler: env.VCTOOLSVERSION,
