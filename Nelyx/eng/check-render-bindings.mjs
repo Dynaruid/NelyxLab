@@ -12,9 +12,15 @@ try {
       loader: 'ts',
       contents: `
         import assert from 'node:assert/strict';
-        import {SceneNode,SceneReference,SceneWriter,RenderBinding,renderBindingConfiguration,retainSceneConfiguration} from './Nelyx/runtime/engine-client/scene.ts';
+        import {SceneNode,SceneReference,SceneWriter,RenderBinding,renderBindingConfiguration,retainSceneConfiguration,sceneReferenceHandle,sceneReferenceConfiguration} from './Nelyx/runtime/engine-client/scene.ts';
         import {protocol as p} from './Nelyx/runtime/engine-client/schema.ts';
+        import {commands as codecs} from './Nelyx/runtime/engine-client/codec.ts';
         import {RenderSceneCapture} from './Nelyx/runtime/app/capture.ts';
+        import {RenderSemanticsAnnotations} from '@nelyx/core/framework/rendering/semantics-annotations';
+        import {SemanticsProperties} from '@nelyx/core/framework/semantics/semantics';
+        import {originalControlConfiguration} from './Nelyx/runtime/app/controls.ts';
+        import {OriginalNativeNode,sourceNativeNode,sourceNativeBindingOptions} from './Nelyx/runtime/app/native-node.ts';
+        import {ObjectKey} from '@nelyx/core/foundation/key';
         const writes=[[],[]],refs=[0,1].map(()=>Array.from({length:5},()=>new SceneReference()));
         let reject=false,revision=0;const actions=[];
         const writers:any[]=writes.map(output=>new SceneWriter({
@@ -23,7 +29,7 @@ try {
         for(const writer of writers)writer.nextSlot=37;
         function make(i,mode,keep=true){
           const node=(at,kind,kids=[],options={},text?)=>{
-            const binding=i?renderBindingConfiguration(refs[i][at],kind,kids,options,text):undefined;
+            const binding=i?renderBindingConfiguration(refs[i][at],kind,kids,options,text,true):undefined;
             const result=binding??new SceneNode(refs[i][at],kind,kids,options,text);
             if(i&&!binding)retainSceneConfiguration(result);return result;
           };
@@ -46,6 +52,67 @@ try {
         bindingRecord.node.options.onAction();assert.equal(actions.at(-1),revision);
         assert.equal(bindingRecord.configInputs.size,0,'Direct binding rebuilt generic input snapshots');
         assert.equal(bindingRecord.node.children.length,0,'Accepted binding retained a projection subtree');
+        {
+          const original={...codecs},encoded=[];
+          for(const name of ['paint','layout','semantics','graphics','text','eventPolicy'])
+            codecs[name]=function(...args){encoded.push(name);return Reflect.apply(original[name],this,args);};
+          try {
+            const reference=new SceneReference(),counts={partEncodes:0,partReuses:0},actions=[];
+            const writer:any=new SceneWriter({commit:async()=>{}} as any,{pollEvents:false,retainedScene:true});
+            const padding={left:4},matrix=[1,0,0,1,0,0];
+            const project=(color,label,callback)=>renderBindingConfiguration(reference,'box',[],{
+              color,layout:{padding},graphics:{transform:matrix},semantics:{role:'button',label},onAction:()=>actions.push(callback)
+            },undefined,true,counts)!;
+            await writer.mount(project(7,'day',1));encoded.length=0;
+            await writer.update(project(7,'day',2));
+            assert.deepEqual(encoded,['layout','semantics','graphics'],'Scalar journal probed or cached structured input');
+            [...writer.accepted.values()][0].node.options.onAction();assert.deepEqual(actions,[2]);
+            assert(counts.partReuses>=1,'Scalar journal did not reuse its paint part');
+            encoded.length=0;const paint=project(9,'day',3);assert.deepEqual(encoded,['paint','layout','semantics','graphics']);await writer.update(paint);
+            encoded.length=0;const semantic=project(9,'next',4);assert(!encoded.includes('paint'));assert(encoded.includes('semantics'));await writer.update(semantic);
+            padding.left=8;encoded.length=0;const layout=project(9,'next',5);assert(encoded.includes('layout'),'Mutable input alias hid a layout edit');await writer.update(layout);
+            matrix[4]=12;encoded.length=0;const graphics=project(9,'next',6);assert(encoded.includes('graphics'),'Nested array alias hid a graphics edit');await writer.update(graphics);
+            encoded.length=0;
+            assert.throws(()=>renderBindingConfiguration(reference,'box',[],{layout:{gap:NaN},semantics:{role:'button',label:'bad'}},undefined,true,counts));
+            encoded.length=0;project(9,'next',7);assert(!encoded.includes('paint'),'Failed Source encoding installed its partial journal');
+            const textRef=new SceneReference(),textCounts={partEncodes:0,partReuses:0};
+            const text=(value)=>renderBindingConfiguration(textRef,'paragraph',[],{}, {value,size:14,color:0xff123456,direction:'ltr'},false,textCounts)!;
+            text('15');encoded.length=0;text('15');assert(!encoded.includes('text'),'Same paragraph text repeated UTF-8 encoding');
+            encoded.length=0;text('16');assert(encoded.includes('text'),'Text change was lost by the scalar part journal');
+            const hidden={};Object.defineProperty(hidden,'gap',{value:3,enumerable:false,writable:true});
+            renderBindingConfiguration(reference,'box',[],{layout:hidden},undefined,true,counts);
+            encoded.length=0;renderBindingConfiguration(reference,'box',[],{layout:hidden},undefined,true,counts);
+            assert(encoded.includes('layout'),'Structured input was cached by the scalar journal');
+            hidden.gap=4;encoded.length=0;renderBindingConfiguration(reference,'box',[],{layout:hidden},undefined,true,counts);
+            assert(encoded.includes('layout'),'Non-enumerable field alias hid a layout edit');
+            let visits=0;class ForeignArray extends Array {forEach(callback){++visits;return super.forEach(callback);}}
+            const foreign=new ForeignArray(1,0,0,1,0,0);
+            renderBindingConfiguration(reference,'box',[],{graphics:{transform:foreign}},undefined,true,counts);
+            const beforeVisits=visits;renderBindingConfiguration(reference,'box',[],{graphics:{transform:foreign}},undefined,true,counts);
+            assert.equal(visits,beforeVisits+1,'Array subclass encoder protocol was cached');
+            let reads=0;const input={get gap(){++reads;return 5;}};
+            original.layout({slot:0,generation:0},input);const expectedReads=reads;reads=0;
+            renderBindingConfiguration(reference,'box',[],{layout:input},undefined,true,counts);
+            assert.equal(reads,expectedReads,'Opaque/accessor input was read by a journal probe');
+            reads=0;renderBindingConfiguration(reference,'box',[],{layout:input},undefined,true,counts);
+            assert.equal(reads,expectedReads,'Opaque/accessor input was cached');
+          } finally {for(const name of Object.keys(original))codecs[name]=original[name];}
+        }
+        {
+          const reference=new SceneReference(),events=[];
+          const writer:any=new SceneWriter({commit:async()=>{}} as any,{pollEvents:false,retainedScene:true});
+          const project=(value,callback)=>renderBindingConfiguration(reference,'box',[],{color:value,semantics:{role:'button',label:'day'},onAction:()=>events.push(callback)})!;
+          await writer.mount(project(7,1));
+          const before=[...writer.accepted.values()][0],reuses=writer.counters.bindingProgramReuses;
+          await writer.update(project(7,2));
+          const next=[...writer.accepted.values()][0];
+          assert.equal(next.config,before.config,'Equal sealed command bodies rebuilt the accepted program');
+          assert(writer.counters.bindingProgramReuses>reuses,'Callback-only binding did not reuse its program');
+          assert.notEqual(next.node.options,before.node.options,'New callback record was discarded');
+          next.node.options.onAction();assert.deepEqual(events,[2]);
+          await writer.update(project(9,3));await writer.update(project(7,4));
+          [...writer.accepted.values()][0].node.options.onAction();assert.deepEqual(events,[2,4]);
+        }
         // Mutable producer values are sealed to command bytes at Source completion.
         const mutable={left:5},ref=new SceneReference(),writer:any=new SceneWriter({}, {pollEvents:false,retainedScene:true});
         const frozen=renderBindingConfiguration(ref,'box',[],{layout:{padding:mutable}})!;
@@ -95,7 +162,135 @@ try {
           assert.equal(changes.at(-1).length,1,'Child-only reconnect lost retained parent configuration');
           assert.equal(new DataView(changes.at(-1)[0].buffer).getUint16(0,true),p.commands.paint);
         }
-        console.log('Render bindings: reference wire bytes, resets, adapter transitions, callbacks, reparent, generation, NACK, sealed input and in-flight ACK PASS');
+        {
+          const output=[[],[]],refs=[0,1].map(()=>Array.from({length:4},()=>new SceneReference()));
+          const writers:any[]=output.map(writes=>new SceneWriter({commit:async commands=>writes.push(commands.map(bytes=>Buffer.from(bytes).toString('hex')))} as any,{pollEvents:false,retainedScene:true}));
+          const shape={kind:'rrect',radii:[0,0,0,0,0,0,0,0],strokeWidth:0,strokeColor:0,strokeAlign:0};
+          const project=(index,target)=>{
+            const node=(at,kind,children,options)=>index?renderBindingConfiguration(refs[index][at],kind,children,options)!:new SceneNode(refs[index][at],kind,children,options);
+            return node(0,'stack',[
+              node(1,'box',[],{nativePaint:[{kind:'highlight',reference:index?sceneReferenceHandle(refs[index][target]):()=>refs[index][target].currentNode,color:0xff123456,shape}]}),
+              node(2,'box',[],{}),node(3,'box',[],{})
+            ],{});
+          };
+          for(const target of [2,2,3,3,2]){
+            for(let index=0;index<2;index++)await writers[index].update(project(index,target));
+            assert.deepEqual(output[1],output[0],'Equal placeholder bytes merged distinct reference targets');
+          }
+        }
+        {
+          const output=[[],[]],references=[0,1].map(()=>Array.from({length:4},()=>new SceneReference()));
+          const shape={kind:'rrect',radii:[0,0,0,0,0,0,0,0],strokeWidth:0,strokeColor:0,strokeAlign:0};
+          let nack=false;
+          const targets:any[]=output.map(bytes=>new SceneWriter({commit:async next=>{if(nack)throw Error('reference NACK');bytes.push(next.map(b=>Buffer.from(b).toString('hex')))}} as any,{pollEvents:false,retainedScene:true}));
+          targets.forEach(writer=>writer.nextSlot=97);
+          const project=(index,mode)=>{
+            const node=(at,kind,children,options)=>{
+              const binding=index?renderBindingConfiguration(references[index][at],kind,children,options):undefined;
+              if(binding)return binding;
+              if(index)sceneReferenceConfiguration(options);
+              return new SceneNode(references[index][at],kind,children,options);
+            };
+            const ref=index?sceneReferenceHandle(references[index][2]):()=>references[index][2].currentNode;
+            const options:any=mode===1?{}:mode===4?{paintPlacement:{fontRevision:1n,width:10,height:12,baseline:8,rect:[0,0,10,12],reference:ref}}:{nativePaint:[{kind:'highlight',reference:ref,color:0xff123456,shape}]};
+            if(mode===5)options.control={kind:'button'};
+            const painter=node(1,mode===4?'paragraph':'box',[],options);
+            const target=mode===1?[]:[node(2,mode===3?'stack':'box',[],{color:mode})];
+            // The painted target appears after its consumer: allocation must precede resolution.
+            return node(0,'stack',[painter,...target],{});
+          };
+          for(const mode of [0,0,1,0,3,0,4,5,0]){
+            for(let index=0;index<2;index++)await targets[index].update(project(index,mode));
+            assert.deepEqual(output[1],output[0],'Cross-binding reference bytes or recycled generation differed');
+          }
+          nack=true;
+          for(let index=0;index<2;index++)await assert.rejects(targets[index].update(project(index,3)),/reference NACK/);
+          nack=false;
+          for(let index=0;index<2;index++)await targets[index].update(project(index,3));
+          assert.deepEqual(output[1],output[0],'NACK changed reference binding replay');
+          const previous=output[1].length;
+          await targets[1].update(project(1,3));assert.equal(output[1].length,previous,'Unchanged reference emitted commands');
+        }
+        {
+          let invoked=0;
+          const render=new RenderSemanticsAnnotations({properties:new SemanticsProperties({label:'day',button:true,selected:true,onTap:()=>invoked++})});
+          const metadata=originalControlConfiguration(render,reason=>{throw Error(reason)})!;
+          assert.equal(metadata.directData,true);
+          const options={layout:{childConstraints:'inherit'},...metadata.options,pointerHitTest:'proxy'};
+          const oracle:any=new SceneWriter({}, {pollEvents:false,retainedScene:true}),direct:any=new SceneWriter({}, {pollEvents:false,retainedScene:true});
+          oracle.nextSlot=direct.nextSlot=71;
+          const expected=oracle.records(new SceneNode(new SceneReference(),'box',[],options as any));
+          const binding=renderBindingConfiguration(new SceneReference(),'box',[],options as any,undefined,true)!;
+          assert(binding);const actual=direct.records(binding);
+          assert.deepEqual(direct.diff(actual),oracle.diff(expected),'Closed module semantics data changed wire fields');
+          [...actual.values()][0].node.options.onAction('activate');assert.equal(invoked,1);
+        }
+        {
+          const actions=[],focus=[],key=new ObjectKey({});
+          const options={key,layout:{childConstraints:'inherit' as const},nativeFocus:{enabled:true,skipTraversal:false},onFocusChanged:(value)=>focus.push(value),canonicalGestures:true,gestures:p.gestures.tap,onGesture:()=>actions.push(1)};
+          const source=sourceNativeNode('box',[],options),render=source.createRenderObject();
+          assert.equal(source.key,key,'Projection changed the original Widget key');
+          const wire=sourceNativeBindingOptions(render)!;
+          assert(wire);assert(!Object.hasOwn(wire,'key'));
+          const targets:any[]=[0,1].map(()=>new SceneWriter({}, {pollEvents:false,retainedScene:true}));
+          targets.forEach(writer=>writer.nextSlot=113);
+          const expected=targets[0].records(new SceneNode(new SceneReference(),'box',[],options));
+          const actual=targets[1].records(renderBindingConfiguration(new SceneReference(),'box',[],wire)!);
+          assert.deepEqual(targets[1].diff(actual),targets[0].diff(expected),'Focus/Gesture Source projection changed wire fields');
+          const record=[...actual.values()][0];record.node.options.onGesture({});record.node.options.onFocusChanged(true);
+          assert.deepEqual(actions,[1]);assert.deepEqual(focus,[true]);
+          const next=sourceNativeNode('box',[],{...options,gestures:0,onGesture:()=>actions.push(2)});
+          next.updateRenderObject(null as any,render);
+          const nextWire=sourceNativeBindingOptions(render)!;nextWire.onGesture!({} as any);
+          assert.equal(nextWire.gestures,0);assert.deepEqual(actions,[1,2]);
+          // Updating the same render from an ordinary producer revokes the capability.
+          let reads=0;
+          const ordinary=new OriginalNativeNode('box',[],{get color(){reads++;return 7}});
+          ordinary.updateRenderObject(null as any,render);
+          assert.equal(sourceNativeBindingOptions(render),undefined);assert.equal(reads,0,'Ordinary producer was probed');
+          const ordinaryRender=ordinary.createRenderObject();
+          assert.equal(sourceNativeBindingOptions(ordinaryRender),undefined);ordinaryRender.dispose();
+          render.dispose();
+        }
+        {
+          const output=[[],[]],refs=[0,1].map(()=>Array.from({length:5},()=>new SceneReference()));
+          let nack=false,sequence=0;
+          const targets:any[]=output.map(writes=>new SceneWriter({commit:async commands=>{if(nack)throw Error('dependency NACK');writes.push(commands.map(bytes=>Buffer.from(bytes).toString('hex')))}} as any,{pollEvents:false,retainedScene:true}));
+          targets.forEach(writer=>writer.nextSlot=149);
+          const shape={kind:'rrect',radii:[0,0,0,0,0,0,0,0],strokeWidth:0,strokeColor:0,strokeAlign:0};
+          const makeNode=(index,at,kind,children,options)=>{
+            const binding=index?renderBindingConfiguration(refs[index][at],kind,children,options):undefined;
+            if(binding)return binding;
+            const node=new SceneNode(refs[index][at],kind,children,options);retainSceneConfiguration(node);return node;
+          };
+          const consumers=[0,1].map(index=>makeNode(index,1,'box',[
+            makeNode(index,2,'box',[],{nativePaint:[{kind:'highlight',reference:index?sceneReferenceHandle(refs[index][3]):()=>refs[index][3].currentNode,color:0xff112233,shape}]})
+          ],{}));
+          const project=(index,mode)=>makeNode(index,0,'stack',mode===2?[]:[
+            consumers[index],makeNode(index,3,mode===1?'stack':'box',[],{}),
+            ...(mode===3?[makeNode(index,4,'box',[],{color:9})]:[])
+          ],{color:sequence});
+          for(const mode of [0,0,3,1,0,2,0,1]){
+            const beforeVisits=targets[1].counters.recordVisits,beforeReuses=targets[1].counters.referenceSubtreeReuses;
+            for(let index=0;index<2;index++)await targets[index].update(project(index,mode));
+            assert.deepEqual(output[1],output[0],'Retained dependency validation changed reference bytes/generations');
+            if(sequence===1){
+              assert(targets[1].counters.recordVisits-beforeVisits<=2,'Stable reference subtree was fully traversed');
+              assert(targets[1].counters.referenceSubtreeReuses>beforeReuses);
+            }
+            if(mode===3)assert(targets[1].counters.referenceSubtreeReuses>beforeReuses,'Unrelated handle allocation invalidated every reference subtree');
+            sequence++;
+          }
+          const accepted=[...targets[1].accepted.values()],immutable=accepted.map(record=>record.config.map(bytes=>Buffer.from(bytes).toString('hex')));
+          nack=true;
+          for(let index=0;index<2;index++)await assert.rejects(targets[index].update(project(index,0)),/dependency NACK/);
+          accepted.forEach((record,index)=>assert.deepEqual(record.config.map(bytes=>Buffer.from(bytes).toString('hex')),immutable[index]));
+          nack=false;
+          for(let index=0;index<2;index++)await targets[index].update(project(index,0));
+          assert.deepEqual(output[1],output[0],'Dependency-bearing subtree did not recover after NACK');
+          assert(targets[1].counters.referenceDependencyChecks>0);
+        }
+        console.log('Render bindings: reference wire bytes, resets, adapter transitions, callbacks, reparent, generation, NACK, sealed input, cross-binding fixups, closed semantics data, Source focus/gesture capability and in-flight ACK PASS');
       `,
     },
     bundle: true,

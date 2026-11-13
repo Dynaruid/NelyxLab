@@ -23,6 +23,33 @@ export interface NativeEditableBody {
   readonly maximumLength: number;
 }
 type NativeKind = SceneNode['kind'];
+const sourceNodes = new WeakSet<OriginalNativeNode>();
+const sourceRenders = new WeakSet<OriginalNativeRender>();
+/** @internal Only fixed adapters that own their options opt into projection.
+ * Ordinary native producers keep their mutable/accessor encoder contract. */
+export function sourceNativeNode(
+  kind: NativeKind,
+  children: readonly Widget[],
+  options: NodeOptions,
+  capture?: (render: OriginalNativeRender) => void,
+): OriginalNativeNode {
+  const node = new OriginalNativeNode(kind, children, options, capture);
+  sourceNodes.add(node);
+  return node;
+}
+/** @internal The exact Source adapter can project its owned wire fields.
+ * The Widget key remains on the original Widget/RenderObject path only. */
+export function sourceNativeBindingOptions(
+  render: OriginalNativeRender,
+): SceneNodeOptions | undefined {
+  if (
+    !sourceRenders.has(render) ||
+    Object.getPrototypeOf(render) !== OriginalNativeRender.prototype
+  )
+    return;
+  const { key: _, ...options } = render.options;
+  return options;
+}
 /** Native configuration only. No Source layout/paint override runs on App. */
 export class OriginalNativeRender extends RenderBox<RenderObject> {
   constructor(
@@ -56,6 +83,7 @@ export class OriginalNativeNode extends MultiChildRenderObjectWidget {
   }
   createRenderObject(): OriginalNativeRender {
     const render = new OriginalNativeRender(this.kind, this.options, this.editable);
+    if (sourceNodes.has(this)) sourceRenders.add(render);
     this.capture?.(render);
     return render;
   }
@@ -64,6 +92,8 @@ export class OriginalNativeNode extends MultiChildRenderObjectWidget {
     node.kind = this.kind;
     node.options = this.options;
     node.editable = this.editable;
+    if (sourceNodes.has(this)) sourceRenders.add(node);
+    else sourceRenders.delete(node);
     // This bridge has no TS PipelineOwner. Retained scene capture must still
     // observe native configuration/callback replacement on the render object.
     node.markNeedsLayout();

@@ -121,6 +121,7 @@ _ReSharper*/
 **/native/**/*.xcframework/
 *.ilk
 *.exp
+*.pdb
 
 # Logs, traces, crash dumps, and profiling sessions
 **/[Ll]ogs/

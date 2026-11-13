@@ -460,6 +460,23 @@ try {
         'Resize changed the logical month',
       );
       await sample('resized', 0);
+      if (process.argv.includes('--year-mode')) {
+        const year = /\b(\d{4})\b/.exec(monthBeforeResize)?.[1];
+        assert(year, 'Calendar header has no year');
+        await page.getByRole('button', { name: /^Select year/ }).click();
+        await idle();
+        const selectedYear = page.getByRole('button', { name: year, exact: true }).first();
+        await selectedYear.waitFor();
+        await selectedYear.click();
+        await idle();
+        await page.getByRole('button', { name: /^15, / }).first().waitFor();
+        assert.equal(
+          await page.getByRole('button', { name: /^Select year/ }).getAttribute('aria-label'),
+          monthBeforeResize,
+          'Year selection changed the original selected month',
+        );
+        console.log(JSON.stringify({ profile, yearPicker: 'PASS', year }));
+      }
       assert.deepEqual(errors, []);
     } catch (error) {
       const worker = page.workers().find((w) => w.url().includes('/application/app.js'));

@@ -28,7 +28,7 @@ import {
   LongPressEndDetails,
 } from '@nelyx/core/framework/gestures/long-press';
 import { Velocity } from '@nelyx/core/framework/gestures/velocity-tracker';
-import { OriginalNativeNode } from './native-node.ts';
+import { sourceNativeNode } from './native-node.ts';
 import type { EngineEvent, GestureEvent, GestureDetails } from '../engine-client/codec.ts';
 import { protocol as p } from '../engine-client/schema.ts';
 import { installOriginalRawGestures } from './raw-gesture.ts';
@@ -225,7 +225,7 @@ export function installOriginalGestures(owner: BuildOwner, fail: (reason: string
         if (pan) invoke('onDragEnd', data.velocityX, data.velocityY);
       } else if (event.kind === 'dragCancel') invoke(prefix + 'Cancel');
     };
-    return new OriginalNativeNode('box', source.child ? [source.child] : [], {
+    return sourceNativeNode('box', source.child ? [source.child] : [], {
       layout: { childConstraints: 'inherit' },
       pointerHitTest: behavior === 1 ? 'self' : behavior === 2 ? 'translucent' : 'deferToChild',
       canonicalGestures: true,

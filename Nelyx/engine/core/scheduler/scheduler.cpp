@@ -336,7 +336,8 @@ static double anchoredOffset(const View& view,const Document& nextDocument,const
   const bool horizontal=(viewport.properties.flags&1u)!=0;
   const double previousOrigin=horizontal?previous.properties.x:previous.properties.y;
   const double currentOrigin=horizontal?current.properties.x:current.properties.y;
-  const double size=horizontal?viewport.properties.width:viewport.properties.height;
+  const auto& oldViewport=old.get(viewport.id);
+  const double size=horizontal?oldViewport.properties.width:oldViewport.properties.height;
   const double at=before-previousOrigin;
   const ListRow* anchor=nullptr;const ListRow* replacement=nullptr;double nearest=1e12;bool anchoredVisible=false;
   for(const auto& row:previous.listGeometry->rows){
@@ -348,7 +349,23 @@ static double anchoredOffset(const View& view,const Document& nextDocument,const
       anchor=&row;replacement=&candidate;nearest=distance;anchoredVisible=visible;
     }
   }
-  if(anchor)return before+(replacement->offset+currentOrigin)-(anchor->offset+previousOrigin);
+  if(anchor){
+    if((viewport.properties.flags&wire::nodePropertyFlags::pageSnapping)&&
+        previous.list.fixed&&current.list.fixed&&previous.list.estimate>0&&current.list.estimate>0&&
+        previous.list.estimate!=current.list.estimate){
+      // A page resize preserves its fractional page, rather than the old
+      // number of pixels inside a row. At a floating-point boundary either
+      // adjacent key can be selected; both must map to the same new boundary.
+      const double oldExtent=previous.list.estimate,newExtent=current.list.estimate;
+      double fraction=(at-anchor->offset)/oldExtent;
+      // Flutter _PagePosition.getPageFromPixels normalizes integer pages in
+      // page units with foundation/constants.dart's precisionErrorTolerance.
+      const double nearestPage=std::round(fraction);
+      if(std::abs(fraction-nearestPage)<1e-10)fraction=nearestPage;
+      return currentOrigin+replacement->offset+fraction*newExtent;
+    }
+    return before+(replacement->offset+currentOrigin)-(anchor->offset+previousOrigin);
+  }
   if(previous.list.generation!=current.list.generation){
     if(!current.list.count)return 0;
     for(const auto& row:previous.listGeometry->rows)if(row.offset+row.extent>at){
@@ -653,6 +670,17 @@ uint32_t View::enqueue(Input p) {
       const auto hit=target(p.x,p.y,p.snapshot.get());
       geometryCurrent=hit&&hit==target(p.x,p.y,published.get())&&
         p.snapshot->sameInputGeometry(*published,hit);
+    }else if(!(p.flags&2u)&&p.source==wire::sources::engineDriven){
+      // Precision pan/zoom uses a captured scroll target, not a pointer path.
+      // A new Source page may publish between the host's inspect and enqueue.
+      // Preserve that contact only if its actual viewport and ancestor geometry
+      // still match; replacing unrelated descendants does not discard a delta
+      // or the terminal lift. Metrics/device/deletion fences remain unchanged.
+      const auto hit=p.phase!=wire::phases::begin&&stream.active&&!stream.pointer&&stream.source==p.source
+        ?stream.target:target(p.x,p.y,p.snapshot.get());
+      geometryCurrent=hit&&published->allows(hit)&&
+        (p.phase!=wire::phases::begin||hit==target(p.x,p.y,published.get()))&&
+        p.snapshot->sameInputGeometry(*published,hit);
     }else if(p.flags&2u){
       const Input* queuedBegin=nullptr;
       if(p.phase!=wire::phases::begin&&!(p.flags&4u))
@@ -918,7 +946,15 @@ void View::processInput(Input p) {
       if(p.phase==wire::phases::cancel&&!page){o.deferred=false;o.requested=o.offset;o.deferredContactDelta=0;o.needSent=false;}
     }
   }
-  if (p.source != wire::sources::engineDriven) stream.active = false;
+  if (p.source != wire::sources::engineDriven) {
+    stream.active = false;
+    // Source ScrollPositionWithSingleContext.pointerScroll ends a wheel update
+    // with goBallistic(0). PageScrollPhysics must therefore settle fractional
+    // wheel positions too; only a live precision contact waits for its lift.
+    if(p.phase==wire::phases::update&&
+        (active->document->get(stream.target).properties.flags&wire::nodePropertyFlags::pageSnapping))
+      beginScrollBallistic(stream.target,0);
+  }
 }
 void View::tick(double now) {
   require(now >= 0 && (!hasTime || now >= time), wire::statuses::invalidValue);

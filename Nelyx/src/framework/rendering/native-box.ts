@@ -111,14 +111,25 @@ export interface NativeLayoutBuilderConfiguration {
 type Reject = (reason: string) => never;
 type Reader<T extends object> = (render: T, reject: Reject) => NativeBoxConfiguration;
 const readers = new WeakMap<object, Reader<object>>();
+const dataReaders = new WeakMap<object, Reader<object>>();
 
 /** @internal Each canonical module registers its own exact configuration identity. */
 export function registerNativeBoxConfiguration<T extends object>(
   prototype: T,
   reader: Reader<T>,
+  directData = false,
 ): void {
   if (readers.has(prototype)) throw Error('Native box configuration is already registered');
   readers.set(prototype, reader as Reader<object>);
+  if (directData) dataReaders.set(prototype, reader as Reader<object>);
+}
+/** @internal Opted-in module data has no paint callbacks or handle references.
+ * The App seals it directly into commands; custom subclasses remain adapters. */
+export function nativeBoxDataConfiguration(
+  render: object,
+  reject: Reject,
+): NativeBoxConfiguration | undefined {
+  return dataReaders.get(Object.getPrototypeOf(render))?.(render, reject);
 }
 /** @internal Inherited registration never admits an unregistered user render subclass. */
 export function nativeBoxConfiguration(

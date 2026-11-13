@@ -1,6 +1,10 @@
 # work10-a1 — Windows 트랙패드 주기적 멈춤: 코드 분석·수정 우선
 
-작성: **2026-11-11 KST** · 상태: **IN PROGRESS / PARTIAL** · 상위 계약: [work10.md](work10.md) · 성능 판정: **PARTIAL / performanceAccepted=false**
+작성: **2026-11-11 KST** · 상태: **PAUSED / PARTIAL** · 상위 계약: [work10.md](work10.md) · 성능 판정: **PARTIAL / performanceAccepted=false**
+
+**2026-11-13 중간 마무리:** 사용자 요청으로 새 작업을 중단했다. 현재 공급·검증 경계·미완료와 재개 순서는 [work11 §18](work11.md#18-중간-마무리와-재개-지점)에 보존하며 자동 재개하지 않는다.
+
+**2026-11-13 후속:** 새 월 Source/직접 투영은 [work11 §12](work11.md#12-2026-11-13-재개-구현과-현재-공급-검증), 참조 dependency·Source 준비 경계는 [§13](work11.md#13-참조-dependency-재사용과-source-준비-경계), TextStyle 값 구성·program 공유는 [§14](work11.md#14-textstyle-값-구성과-sealed-program-공유), 스칼라 명령 인수 재사용·철회한 후보는 [§15](work11.md#15-스칼라-명령-인수-재사용과-구조화된-기록-후보-철회)에서 이어간다. 날짜/연도 helper 결합은 [§16](work11.md#16-날짜와-연도-생성-코드의-지역-helper-정적-결합), 현재 Source 자손 비용·Hermes 클래스 공급과 fixed-page resize 수정/재검증은 [§17](work11.md#17-source-하위-트리-비용과-hermes-클래스-생성-수정)에서 구분한다. 아래 §24는 이전 공급의 근거이며 새 공급 검증으로 재사용하지 않는다.
 
 ## 1. 이번 작업의 기준
 

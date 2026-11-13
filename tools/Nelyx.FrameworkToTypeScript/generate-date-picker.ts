@@ -1183,8 +1183,31 @@ for (const source of new Set(ir.records.map((r: any) => r.source))) {
     local.genericFunctionValues = { policy: 'checked-generic-function-type-witness' };
     delete local.numericFunctions;
   }
-  if (source.endsWith('/calendar_date_picker.dart'))
+  if (source.endsWith('/calendar_date_picker.dart')) {
     local.lexicalNullReads = { policy: 'single-local-property-read' };
+    local.localFunctionInlining = {
+      policy: 'checked-local-function-beta-reduction',
+      methods: rows
+        .filter((row: any) => row.ir?.kind === 'class')
+        .flatMap((row: any) =>
+          row.ir.methods
+            .filter(
+              (method: any) =>
+                (row.ir.name === '_DayState' && method.name === 'build') ||
+                (row.ir.name === '_YearPickerState' && method.name === '_buildYearItem'),
+            )
+            .map((method: any) => method.reference.id),
+        ),
+    };
+    local.imports.finalFieldProtector = '@nelyx/core/internal/ui/value-math';
+    local.finalFieldLayouts = {
+      policy: 'compiled-final-field-layout',
+      factory: 'finalFieldProtector',
+      classes: rows
+        .filter((row: any) => row.ir?.kind === 'class')
+        .map((row: any) => row.ir.reference.id),
+    };
+  }
   local.adapters = { ...recipe.adapters };
   local.memberBindings = { ...recipe.memberBindings };
   for (const row of ir.records)

@@ -11,7 +11,7 @@ import type {
 } from '../../ui/types.ts';
 import { textOffset } from '../../ui/text.ts';
 import { StringAttribute } from '../../ui/string-attribute.ts';
-import { protect, finalFieldProtector, fixed } from '../../ui/value-math.ts';
+import { protect, finalFieldProtector, ownFieldInitializer, fixed } from '../../ui/value-math.ts';
 import { objectRuntimeType } from '../../foundation/object.ts';
 import { FoundationBuildMode } from '../../foundation/constants.ts';
 import {
@@ -605,7 +605,7 @@ export interface SemanticsPropertiesOptions {
   readonly maxValue?: string | null;
   readonly minValue?: string | null;
 }
-const protectSemanticsProperties = finalFieldProtector([
+const semanticsPropertyFields = [
   'enabled',
   'checked',
   'mixed',
@@ -684,88 +684,208 @@ const protectSemanticsProperties = finalFieldProtector([
   'inputType',
   'maxValue',
   'minValue',
-]);
+] as const;
+const initializeSemanticsProperties = ownFieldInitializer(semanticsPropertyFields);
+const protectSemanticsProperties = finalFieldProtector(semanticsPropertyFields);
+function validateSemanticsProperties(value: SemanticsProperties): void {
+  if (FoundationBuildMode.debug) {
+    for (const name of ['label', 'value', 'increasedValue', 'decreasedValue', 'hint'] as const) {
+      const attributed = ('attributed' + name[0]!.toUpperCase() + name.slice(1)) as
+        | 'attributedLabel'
+        | 'attributedValue'
+        | 'attributedIncreasedValue'
+        | 'attributedDecreasedValue'
+        | 'attributedHint';
+      invariant(
+        value[name] === null || value[attributed] === null,
+        'conflicting-semantics-text',
+        'Only one of ' + name + ' or ' + attributed + ' should be provided',
+      );
+    }
+    invariant(
+      value.headingLevel === null || (value.headingLevel > 0 && value.headingLevel <= 6),
+      'invalid-semantics-heading',
+      'Heading level must be between 1 and 6',
+    );
+    invariant(
+      value.linkUrl === null || (value.link ?? false),
+      'invalid-semantics-link',
+      'If linkUrl is set then link must be true',
+    );
+  }
+}
+/** @internal Construct the exact base value from a fixed Source schema.
+ * DiagnosticableTree has no instance state or construction effects. The public
+ * constructor/subclass path remains independent; no Source object is shared. */
+export function sourceSemanticsProperties(
+  options: SemanticsPropertiesOptions = {},
+): SemanticsProperties {
+  const value = {
+    __proto__: SemanticsProperties.prototype,
+    enabled: options.enabled ?? null,
+    checked: options.checked ?? null,
+    mixed: options.mixed ?? null,
+    expanded: options.expanded ?? null,
+    toggled: options.toggled ?? null,
+    selected: options.selected ?? null,
+    button: options.button ?? null,
+    link: options.link ?? null,
+    header: options.header ?? null,
+    textField: options.textField ?? null,
+    slider: options.slider ?? null,
+    keyboardKey: options.keyboardKey ?? null,
+    readOnly: options.readOnly ?? null,
+    focusable: options.focusable ?? null,
+    focused: options.focused ?? null,
+    accessibilityFocusBlockType: options.accessibilityFocusBlockType ?? null,
+    inMutuallyExclusiveGroup: options.inMutuallyExclusiveGroup ?? null,
+    hidden: options.hidden ?? null,
+    obscured: options.obscured ?? null,
+    multiline: options.multiline ?? null,
+    scopesRoute: options.scopesRoute ?? null,
+    namesRoute: options.namesRoute ?? null,
+    image: options.image ?? null,
+    liveRegion: options.liveRegion ?? null,
+    isRequired: options.isRequired ?? null,
+    maxValueLength: options.maxValueLength ?? null,
+    currentValueLength: options.currentValueLength ?? null,
+    identifier: options.identifier ?? null,
+    traversalParentIdentifier: options.traversalParentIdentifier ?? null,
+    traversalChildIdentifier: options.traversalChildIdentifier ?? null,
+    label: options.label ?? null,
+    attributedLabel: options.attributedLabel ?? null,
+    value: options.value ?? null,
+    attributedValue: options.attributedValue ?? null,
+    increasedValue: options.increasedValue ?? null,
+    attributedIncreasedValue: options.attributedIncreasedValue ?? null,
+    decreasedValue: options.decreasedValue ?? null,
+    attributedDecreasedValue: options.attributedDecreasedValue ?? null,
+    hint: options.hint ?? null,
+    attributedHint: options.attributedHint ?? null,
+    tooltip: options.tooltip ?? null,
+    headingLevel: options.headingLevel ?? null,
+    hintOverrides: options.hintOverrides ?? null,
+    textDirection: options.textDirection ?? null,
+    sortKey: options.sortKey ?? null,
+    tagForChildren: options.tagForChildren ?? null,
+    linkUrl: options.linkUrl ?? null,
+    onTap: options.onTap ?? null,
+    onLongPress: options.onLongPress ?? null,
+    onScrollLeft: options.onScrollLeft ?? null,
+    onScrollRight: options.onScrollRight ?? null,
+    onScrollUp: options.onScrollUp ?? null,
+    onScrollDown: options.onScrollDown ?? null,
+    onIncrease: options.onIncrease ?? null,
+    onDecrease: options.onDecrease ?? null,
+    onCopy: options.onCopy ?? null,
+    onCut: options.onCut ?? null,
+    onPaste: options.onPaste ?? null,
+    onMoveCursorForwardByCharacter: options.onMoveCursorForwardByCharacter ?? null,
+    onMoveCursorBackwardByCharacter: options.onMoveCursorBackwardByCharacter ?? null,
+    onMoveCursorForwardByWord: options.onMoveCursorForwardByWord ?? null,
+    onMoveCursorBackwardByWord: options.onMoveCursorBackwardByWord ?? null,
+    onSetSelection: options.onSetSelection ?? null,
+    onSetText: options.onSetText ?? null,
+    onDidGainAccessibilityFocus: options.onDidGainAccessibilityFocus ?? null,
+    onDidLoseAccessibilityFocus: options.onDidLoseAccessibilityFocus ?? null,
+    onFocus: options.onFocus ?? null,
+    onDismiss: options.onDismiss ?? null,
+    onExpand: options.onExpand ?? null,
+    onCollapse: options.onCollapse ?? null,
+    customSemanticsActions: options.customSemanticsActions ?? null,
+    role: options.role ?? null,
+    controlsNodes: options.controlsNodes ?? null,
+    validationResult: options.validationResult ?? SemanticsValidationResult.none,
+    hitTestBehavior: options.hitTestBehavior ?? null,
+    inputType: options.inputType ?? null,
+    maxValue: options.maxValue ?? null,
+    minValue: options.minValue ?? null,
+  } as unknown as SemanticsProperties;
+  validateSemanticsProperties(value);
+  return Object.freeze(value);
+}
 export class SemanticsProperties extends DiagnosticableTree {
-  readonly enabled: boolean | null;
-  readonly checked: boolean | null;
-  readonly mixed: boolean | null;
-  readonly expanded: boolean | null;
-  readonly toggled: boolean | null;
-  readonly selected: boolean | null;
-  readonly button: boolean | null;
-  readonly link: boolean | null;
-  readonly header: boolean | null;
-  readonly textField: boolean | null;
-  readonly slider: boolean | null;
-  readonly keyboardKey: boolean | null;
-  readonly readOnly: boolean | null;
-  readonly focusable: boolean | null;
-  readonly focused: boolean | null;
-  readonly accessibilityFocusBlockType: AccessibilityFocusBlockType | null;
-  readonly inMutuallyExclusiveGroup: boolean | null;
-  readonly hidden: boolean | null;
-  readonly obscured: boolean | null;
-  readonly multiline: boolean | null;
-  readonly scopesRoute: boolean | null;
-  readonly namesRoute: boolean | null;
-  readonly image: boolean | null;
-  readonly liveRegion: boolean | null;
-  readonly isRequired: boolean | null;
-  readonly maxValueLength: number | null;
-  readonly currentValueLength: number | null;
-  readonly identifier: string | null;
-  readonly traversalParentIdentifier: unknown | null;
-  readonly traversalChildIdentifier: unknown | null;
-  readonly label: string | null;
-  readonly attributedLabel: AttributedString | null;
-  readonly value: string | null;
-  readonly attributedValue: AttributedString | null;
-  readonly increasedValue: string | null;
-  readonly attributedIncreasedValue: AttributedString | null;
-  readonly decreasedValue: string | null;
-  readonly attributedDecreasedValue: AttributedString | null;
-  readonly hint: string | null;
-  readonly attributedHint: AttributedString | null;
-  readonly tooltip: string | null;
-  readonly headingLevel: number | null;
-  readonly hintOverrides: SemanticsHintOverrides | null;
-  readonly textDirection: 'ltr' | 'rtl' | null;
-  readonly sortKey: SemanticsSortKey | null;
-  readonly tagForChildren: SemanticsTag | null;
-  readonly linkUrl: string | null;
-  readonly onTap: (() => void) | null;
-  readonly onLongPress: (() => void) | null;
-  readonly onScrollLeft: (() => void) | null;
-  readonly onScrollRight: (() => void) | null;
-  readonly onScrollUp: (() => void) | null;
-  readonly onScrollDown: (() => void) | null;
-  readonly onIncrease: (() => void) | null;
-  readonly onDecrease: (() => void) | null;
-  readonly onCopy: (() => void) | null;
-  readonly onCut: (() => void) | null;
-  readonly onPaste: (() => void) | null;
-  readonly onMoveCursorForwardByCharacter: MoveCursorHandler | null;
-  readonly onMoveCursorBackwardByCharacter: MoveCursorHandler | null;
-  readonly onMoveCursorForwardByWord: MoveCursorHandler | null;
-  readonly onMoveCursorBackwardByWord: MoveCursorHandler | null;
-  readonly onSetSelection: SetSelectionHandler | null;
-  readonly onSetText: SetTextHandler | null;
-  readonly onDidGainAccessibilityFocus: (() => void) | null;
-  readonly onDidLoseAccessibilityFocus: (() => void) | null;
-  readonly onFocus: (() => void) | null;
-  readonly onDismiss: (() => void) | null;
-  readonly onExpand: (() => void) | null;
-  readonly onCollapse: (() => void) | null;
-  readonly customSemanticsActions: Map<CustomSemanticsAction, () => void> | null;
-  readonly role: SemanticsRole | null;
-  readonly controlsNodes: Set<string> | null;
-  readonly validationResult: SemanticsValidationResult;
-  readonly hitTestBehavior: SemanticsHitTestBehavior | null;
-  readonly inputType: SemanticsInputType | null;
-  readonly maxValue: string | null;
-  readonly minValue: string | null;
+  declare readonly enabled: boolean | null;
+  declare readonly checked: boolean | null;
+  declare readonly mixed: boolean | null;
+  declare readonly expanded: boolean | null;
+  declare readonly toggled: boolean | null;
+  declare readonly selected: boolean | null;
+  declare readonly button: boolean | null;
+  declare readonly link: boolean | null;
+  declare readonly header: boolean | null;
+  declare readonly textField: boolean | null;
+  declare readonly slider: boolean | null;
+  declare readonly keyboardKey: boolean | null;
+  declare readonly readOnly: boolean | null;
+  declare readonly focusable: boolean | null;
+  declare readonly focused: boolean | null;
+  declare readonly accessibilityFocusBlockType: AccessibilityFocusBlockType | null;
+  declare readonly inMutuallyExclusiveGroup: boolean | null;
+  declare readonly hidden: boolean | null;
+  declare readonly obscured: boolean | null;
+  declare readonly multiline: boolean | null;
+  declare readonly scopesRoute: boolean | null;
+  declare readonly namesRoute: boolean | null;
+  declare readonly image: boolean | null;
+  declare readonly liveRegion: boolean | null;
+  declare readonly isRequired: boolean | null;
+  declare readonly maxValueLength: number | null;
+  declare readonly currentValueLength: number | null;
+  declare readonly identifier: string | null;
+  declare readonly traversalParentIdentifier: unknown | null;
+  declare readonly traversalChildIdentifier: unknown | null;
+  declare readonly label: string | null;
+  declare readonly attributedLabel: AttributedString | null;
+  declare readonly value: string | null;
+  declare readonly attributedValue: AttributedString | null;
+  declare readonly increasedValue: string | null;
+  declare readonly attributedIncreasedValue: AttributedString | null;
+  declare readonly decreasedValue: string | null;
+  declare readonly attributedDecreasedValue: AttributedString | null;
+  declare readonly hint: string | null;
+  declare readonly attributedHint: AttributedString | null;
+  declare readonly tooltip: string | null;
+  declare readonly headingLevel: number | null;
+  declare readonly hintOverrides: SemanticsHintOverrides | null;
+  declare readonly textDirection: 'ltr' | 'rtl' | null;
+  declare readonly sortKey: SemanticsSortKey | null;
+  declare readonly tagForChildren: SemanticsTag | null;
+  declare readonly linkUrl: string | null;
+  declare readonly onTap: (() => void) | null;
+  declare readonly onLongPress: (() => void) | null;
+  declare readonly onScrollLeft: (() => void) | null;
+  declare readonly onScrollRight: (() => void) | null;
+  declare readonly onScrollUp: (() => void) | null;
+  declare readonly onScrollDown: (() => void) | null;
+  declare readonly onIncrease: (() => void) | null;
+  declare readonly onDecrease: (() => void) | null;
+  declare readonly onCopy: (() => void) | null;
+  declare readonly onCut: (() => void) | null;
+  declare readonly onPaste: (() => void) | null;
+  declare readonly onMoveCursorForwardByCharacter: MoveCursorHandler | null;
+  declare readonly onMoveCursorBackwardByCharacter: MoveCursorHandler | null;
+  declare readonly onMoveCursorForwardByWord: MoveCursorHandler | null;
+  declare readonly onMoveCursorBackwardByWord: MoveCursorHandler | null;
+  declare readonly onSetSelection: SetSelectionHandler | null;
+  declare readonly onSetText: SetTextHandler | null;
+  declare readonly onDidGainAccessibilityFocus: (() => void) | null;
+  declare readonly onDidLoseAccessibilityFocus: (() => void) | null;
+  declare readonly onFocus: (() => void) | null;
+  declare readonly onDismiss: (() => void) | null;
+  declare readonly onExpand: (() => void) | null;
+  declare readonly onCollapse: (() => void) | null;
+  declare readonly customSemanticsActions: Map<CustomSemanticsAction, () => void> | null;
+  declare readonly role: SemanticsRole | null;
+  declare readonly controlsNodes: Set<string> | null;
+  declare readonly validationResult: SemanticsValidationResult;
+  declare readonly hitTestBehavior: SemanticsHitTestBehavior | null;
+  declare readonly inputType: SemanticsInputType | null;
+  declare readonly maxValue: string | null;
+  declare readonly minValue: string | null;
   constructor(options: SemanticsPropertiesOptions = {}) {
     super();
+    initializeSemanticsProperties(this);
     this.enabled = options.enabled ?? null;
     this.checked = options.checked ?? null;
     this.mixed = options.mixed ?? null;
@@ -844,31 +964,7 @@ export class SemanticsProperties extends DiagnosticableTree {
     this.inputType = options.inputType ?? null;
     this.maxValue = options.maxValue ?? null;
     this.minValue = options.minValue ?? null;
-    if (FoundationBuildMode.debug) {
-      for (const name of ['label', 'value', 'increasedValue', 'decreasedValue', 'hint'] as const) {
-        const attributed = ('attributed' + name[0]!.toUpperCase() + name.slice(1)) as
-          | 'attributedLabel'
-          | 'attributedValue'
-          | 'attributedIncreasedValue'
-          | 'attributedDecreasedValue'
-          | 'attributedHint';
-        invariant(
-          this[name] === null || this[attributed] === null,
-          'conflicting-semantics-text',
-          'Only one of ' + name + ' or ' + attributed + ' should be provided',
-        );
-      }
-      invariant(
-        this.headingLevel === null || (this.headingLevel > 0 && this.headingLevel <= 6),
-        'invalid-semantics-heading',
-        'Heading level must be between 1 and 6',
-      );
-      invariant(
-        this.linkUrl === null || (this.link ?? false),
-        'invalid-semantics-link',
-        'If linkUrl is set then link must be true',
-      );
-    }
+    validateSemanticsProperties(this);
     // Base value construction is complete. Shallow freezing keeps collection
     // aliasing while avoiding a descriptor conversion for every final field.
     // Derived values remain extensible until their own constructor has run.

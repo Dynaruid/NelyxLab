@@ -412,7 +412,7 @@ export class TextStyle extends Diagnosticable(class {}) {
     }
     const modified = (value: number | null, factor: number, delta: number) =>
       value === null ? null : value * factor + delta;
-    return new TextStyle({
+    return TextStyle.fromAppliedOptions({
       ...this.options(),
       color: this.foreground === null ? (o.color ?? this.color) : null,
       backgroundColor:
@@ -450,6 +450,140 @@ export class TextStyle extends Diagnosticable(class {}) {
       debugLabel:
         FoundationBuildMode.debug && this.debugLabel !== null ? `(${this.debugLabel}).apply` : null,
     });
+  }
+  /** The apply call has evaluated its public receivers/options already. Build
+   * its exact base value with the same constructor reads and validation, without
+   * defining each undefined class field before immediately replacing it. Keep
+   * the public constructor independent, including subclass initialization. */
+  private static fromAppliedOptions(o: TextStyleOptions): TextStyle {
+    if (
+      Object.getPrototypeOf(TextStyle) !== ordinaryTextStyleParent ||
+      Object.getPrototypeOf(ordinaryTextStyleParent) !== ordinaryTextStyleRoot
+    )
+      return new TextStyle(o);
+    const inherit = o.inherit ?? true;
+    invariant(
+      typeof inherit === 'boolean',
+      'invalid-text-style',
+      'TextStyle inherit must be boolean',
+    );
+    const color = o.color ?? null,
+      backgroundColor = o.backgroundColor ?? null,
+      packageName = o.package ?? null,
+      fontFamily =
+        packageName === null
+          ? (o.fontFamily ?? null)
+          : `packages/${packageName}/${o.fontFamily ?? null}`,
+      rawFontFamily =
+        packageName === null ? fontFamily : fontFamily!.slice(`packages/${packageName}/`.length),
+      rawFontFamilyFallback = o.fontFamilyFallback
+        ? Object.freeze([...o.fontFamilyFallback])
+        : null,
+      fontSize = o.fontSize ?? null,
+      fontWeight = o.fontWeight ?? null,
+      fontStyle = o.fontStyle ?? null,
+      letterSpacing = o.letterSpacing ?? null,
+      wordSpacing = o.wordSpacing ?? null,
+      textBaseline = o.textBaseline ?? null,
+      height = o.height ?? null,
+      leadingDistribution = o.leadingDistribution ?? null,
+      locale = o.locale ?? null,
+      foreground = o.foreground ?? null,
+      background = o.background ?? null;
+    invariant(
+      (foreground === null || foreground instanceof Paint) &&
+        (background === null || background instanceof Paint),
+      'invalid-text-style',
+      'Text foreground/background must be Paint',
+    );
+    if (FoundationBuildMode.debug) {
+      assertPaintColors(color, foreground, backgroundColor, background);
+      invariant(
+        height === null || !Number.isNaN(height),
+        'invalid-text-style',
+        'TextStyle.height must not be NaN',
+      );
+    }
+    const shadows = o.shadows
+        ? Object.freeze(
+            o.shadows.map((s) =>
+              Object.freeze(
+                new Shadow({
+                  color: s.color,
+                  offset: { x: s.offset.x, y: s.offset.y },
+                  blurRadius: s.blurRadius,
+                }),
+              ),
+            ),
+          )
+        : null,
+      fontFeatures = o.fontFeatures ? Object.freeze([...o.fontFeatures]) : null,
+      fontVariations = o.fontVariations ? Object.freeze([...o.fontVariations]) : null,
+      decoration = o.decoration ?? null,
+      decorationColor = o.decorationColor ?? null,
+      decorationThickness = o.decorationThickness ?? null,
+      decorationStyle = o.decorationStyle ?? null,
+      debugLabel = o.debugLabel ?? null,
+      overflow = o.overflow ?? null;
+    invariant(
+      packageName === null || (typeof packageName === 'string' && !packageName.includes('\0')),
+      'invalid-text-style',
+      'Invalid font package',
+    );
+    invariant(
+      debugLabel === null || typeof debugLabel === 'string',
+      'invalid-text-style',
+      'Invalid debug label',
+    );
+    invariant(
+      overflow === null || ['clip', 'fade', 'ellipsis', 'visible'].includes(overflow),
+      'invalid-text-style',
+      'Invalid text overflow',
+    );
+    // Field order matches the public class declarations, rather than the
+    // constructor's assignment order (package and feature lists differ).
+    const value = {
+      __proto__: TextStyle.prototype,
+      inherit,
+      color,
+      backgroundColor,
+      fontFamily,
+      rawFontFamily,
+      rawFontFamilyFallback,
+      packageName,
+      fontSize,
+      fontWeight,
+      fontStyle,
+      letterSpacing,
+      wordSpacing,
+      textBaseline,
+      height,
+      leadingDistribution,
+      locale,
+      foreground,
+      background,
+      shadows,
+      decoration,
+      decorationColor,
+      decorationThickness,
+      decorationStyle,
+      fontFeatures,
+      fontVariations,
+      debugLabel,
+      overflow,
+    } as unknown as TextStyle;
+    const run = TextStyle.snapshotRunStyle(value, TextScaler.noScaling);
+    if (
+      foreground === null &&
+      background === null &&
+      isOwnedTypographyValue(fontWeight) &&
+      isOwnedTypographyValue(decoration) &&
+      fontFeatures?.every(isOwnedTypographyValue) !== false &&
+      fontVariations?.every(isOwnedTypographyValue) !== false
+    )
+      unscaledRuns.set(value, run);
+    Object.freeze(value);
+    return value;
   }
   merge(other: TextStyle | null | undefined): TextStyle {
     if (!other) return this;
@@ -919,6 +1053,8 @@ export function lerpFontVariations(
   return result;
 }
 
+const ordinaryTextStyleParent = Object.getPrototypeOf(TextStyle) as object;
+const ordinaryTextStyleRoot = Object.getPrototypeOf(ordinaryTextStyleParent) as object | null;
 const ordinaryCopyWith = TextStyle.prototype.copyWith;
 const ordinaryStyleOptions = Object.getOwnPropertyDescriptor(TextStyle.prototype, 'options')!.value;
 const ordinaryFamilyFallback = Object.getOwnPropertyDescriptor(

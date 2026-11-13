@@ -4,6 +4,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { windowsCompilerEnvironment } from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
+import { windowsHermesPolicy } from '../../sdk/tooling/cli/src/windows-hermes-policy.mjs';
+import { nativeCohort } from '@nelyx/sdk/runtime/cohorts';
 
 export const windowsAppSdkVersion = '1.8.260508005';
 function supplyRnwPort(engineRoot, output) {
@@ -161,7 +163,7 @@ export function buildAppSdkHost({ engineRoot, library, intermediate, output }) {
       compiler: 'windows-app-sdk/hermesc.exe',
       version: 99,
       entry: 'application/app.hbc',
-      policy: 'windows-hermes-94aa5e1d-no-cfg-v1',
+      policy: windowsHermesPolicy('optimized', nativeCohort('windows')).id,
     },
     crt: 'MD',
     compiler: env.VCTOOLSVERSION,

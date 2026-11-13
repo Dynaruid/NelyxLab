@@ -6,6 +6,8 @@ import {
 } from '@nelyx/core/framework/widgets/framework';
 import type { Element, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { MediaQuery, mediaFromView } from '@nelyx/core/framework/widgets/app-data';
+import { nativeLayoutBuilderCosts } from '@nelyx/core/framework/widgets/layout-builder';
+import type { NativeLayoutBuilderCosts } from '@nelyx/core/framework/widgets/layout-builder';
 import {
   RenderBox,
   claimNativeRenderObject,
@@ -13,6 +15,7 @@ import {
   bindNativeSystemFonts,
   withNativeRenderConfiguration,
   nativeSliverConfiguration,
+  nativeBoxDataConfiguration,
 } from '@nelyx/core/framework/rendering/object';
 import type {
   RenderObject,
@@ -46,6 +49,9 @@ import {
   SceneWriter,
   sceneConfiguration,
   renderBindingConfiguration,
+  boxRenderBindingConfiguration,
+  sceneReferenceHandle,
+  sceneReferenceConfiguration,
 } from '../engine-client/scene.ts';
 import type { EngineExecutionSnapshot, SceneNodeOptions } from '../engine-client/scene.ts';
 import type { EngineViewClient } from '../engine-client/client.ts';
@@ -55,8 +61,8 @@ import type { EngineEvent, EngineResponse, EngineNodeSnapshot } from '../engine-
 import type { NodeHandle } from '../engine-client/codec.ts';
 import { drainEngineOwners } from '../engine-client/lifecycle.ts';
 import { installOriginalScrolling } from './scroll.ts';
-import { bounds, originalBoxConfiguration, parentLayout } from './layout.ts';
-import { OriginalNativeRender } from './native-node.ts';
+import { bounds, originalBoxConfiguration, parentLayout, parentLayoutFields } from './layout.ts';
+import { OriginalNativeRender, sourceNativeBindingOptions } from './native-node.ts';
 import { installOriginalGestures } from './gesture.ts';
 import { originalControlConfiguration } from './controls.ts';
 import { OriginalFocusBridge } from './focus.ts';
@@ -83,6 +89,15 @@ import { RenderSceneCapture } from './capture.ts';
 import { retainSceneConfiguration } from '../engine-client/scene.ts';
 
 const collectionChanges: readonly NativeRenderChange[] = ['children', 'layout'];
+const appTimestamp = () => (typeof performance === 'undefined' ? Date.now() : performance.now());
+type SourcePreparation = {
+  readonly sequence: number;
+  readonly kind: 'sliver-request' | 'box-request' | 'observed-window';
+  readonly request: string;
+  readonly started: number;
+  readonly elapsedMs: number;
+  readonly result: 'built' | 'declined' | 'failed';
+};
 
 export interface OriginalWidgetHostOptions {
   readonly platform?: FoundationPlatformEnvironment;
@@ -142,9 +157,21 @@ export class OriginalWidgetHost {
     input: string;
     started: number;
     buildMs: number;
+    retainedBuilderMs: number;
+    retainedBuilderCosts: NativeLayoutBuilderCosts;
+    sourceThrough: number;
     captureMs: number;
     sceneMs: number;
     waitMs: number;
+    projection: {
+      created: number;
+      captured: number;
+      module: number;
+      bindings: number;
+      adapters: number;
+      partEncodes: number;
+      partReuses: number;
+    };
     completed: number;
   }[] = [];
   /** Bounded diagnostics read explicitly at teardown, never serialized per frame. */
@@ -160,15 +187,34 @@ export class OriginalWidgetHost {
       capture: { ...this.capture.counters },
       layoutBuilder: this.builderDiagnostic,
       retainedBuilderRebuilds: this.retainedBuilderRebuilds,
+      layoutBuilderCosts: nativeLayoutBuilderCosts(this.owner),
       scrolling: { ...this.scrolling.counters },
       semantics: { ...this.semantics.counters, ...this.semanticsProjection },
       projection: { ...this.projectionCounters },
+      sourcePreparation: {
+        ...this.sourcePreparationCounters,
+        samplesThrough: this.sourcePreparationSequence,
+        samplesOverwritten: Math.max(
+          0,
+          this.sourcePreparationSequence - this.sourcePreparations.length,
+        ),
+        samples: this.sourcePreparations.slice(),
+      },
     };
   }
   private readonly capture = new RenderSceneCapture();
   private readonly semanticsProjection = { metadataCalls: 0, metadataMs: 0 };
-  private readonly projectionCounters = { bindings: 0, adapters: 0 };
+  private readonly projectionCounters = {
+    moduleBindings: 0,
+    bindings: 0,
+    adapters: 0,
+    partEncodes: 0,
+    partReuses: 0,
+  };
   private timingSamples = 0;
+  private readonly sourcePreparations: SourcePreparation[] = [];
+  private sourcePreparationSequence = 0;
+  private readonly sourcePreparationCounters = { calls: 0, elapsedMs: 0, maxMs: 0 };
   private invalidateRender(render: RenderObject, kind?: NativeRenderChange): void {
     this.capture.invalidate(render, kind);
     if (render instanceof OriginalNativeRender) render.options.onChildrenInvalidated?.();
@@ -623,7 +669,11 @@ export class OriginalWidgetHost {
           width: request.horizontal.max,
           height: request.vertical.max,
         };
-        const rebuilt = this.rebuildNativeContent(() => sliver.prepare(request.revision, input));
+        const rebuilt = this.rebuildNativeContent(
+          () => sliver.prepare(request.revision, input),
+          'sliver-request',
+          answer,
+        );
         if (this.builderDiagnostic)
           this.builderDiagnostic.result = rebuilt ? 'sliver-built' : 'sliver-declined';
         if (rebuilt) {
@@ -655,8 +705,10 @@ export class OriginalWidgetHost {
         height.min ?? 0,
         height.kind === 'finite' ? height.max : Infinity,
       );
-      const rebuilt = this.rebuildNativeContent(() =>
-        builder.rebuild(request.revision, constraints),
+      const rebuilt = this.rebuildNativeContent(
+        () => builder.rebuild(request.revision, constraints),
+        'box-request',
+        answer,
       );
       if (this.builderDiagnostic)
         this.builderDiagnostic.result = rebuilt ? 'builder-built' : 'builder-declined';
@@ -668,7 +720,13 @@ export class OriginalWidgetHost {
     }
     if (this.builderDiagnostic) this.builderDiagnostic.result = 'builder-owner-not-found';
   }
-  private rebuildNativeContent(callback: () => boolean): boolean {
+  private rebuildNativeContent(
+    callback: () => boolean,
+    kind: SourcePreparation['kind'],
+    request: string,
+  ): boolean {
+    const started = appTimestamp();
+    let result: SourcePreparation['result'] = 'failed';
     this.building = true;
     this.bridgeFailure = undefined;
     try {
@@ -679,9 +737,26 @@ export class OriginalWidgetHost {
       );
       if (this.bridgeFailure) throw this.bridgeFailure;
       if (rebuilt) this.rerun = true;
+      result = rebuilt ? 'built' : 'declined';
       return rebuilt;
     } finally {
       this.building = false;
+      const elapsedMs = appTimestamp() - started;
+      ++this.sourcePreparationCounters.calls;
+      this.sourcePreparationCounters.elapsedMs += elapsedMs;
+      this.sourcePreparationCounters.maxMs = Math.max(
+        this.sourcePreparationCounters.maxMs,
+        elapsedMs,
+      );
+      if (this.sourcePreparations.length === 128) this.sourcePreparations.shift();
+      this.sourcePreparations.push({
+        sequence: ++this.sourcePreparationSequence,
+        kind,
+        request,
+        started,
+        elapsedMs,
+        result,
+      });
     }
   }
   private sliverNode(
@@ -799,22 +874,25 @@ export class OriginalWidgetHost {
       this.capture.binding('slivers', render) === sliver
     ) {
       if (
-        this.rebuildNativeContent(() =>
-          sliver.prepare(sliver.revision, {
-            width: node.width,
-            height: parent.height,
-            paintExtent: Math.max(0, parent.height - Math.max(0, node.y - parent.offset)),
-            offset,
-            begin: list.demandBegin,
-            end: list.demandEnd,
-            beginOffset: leading.offset,
-            rows: list.items.map((row) => ({
-              index: row.index,
-              token: row.key,
-              offset: row.offset,
-              extent: row.extent,
-            })),
-          }),
+        this.rebuildNativeContent(
+          () =>
+            sliver.prepare(sliver.revision, {
+              width: node.width,
+              height: parent.height,
+              paintExtent: Math.max(0, parent.height - Math.max(0, node.y - parent.offset)),
+              offset,
+              begin: list.demandBegin,
+              end: list.demandEnd,
+              beginOffset: leading.offset,
+              rows: list.items.map((row) => ({
+                index: row.index,
+                token: row.key,
+                offset: row.offset,
+                extent: row.extent,
+              })),
+            }),
+          'observed-window',
+          `${snapshot.publication}/${snapshot.publishedDocument}/${sliver.revision}/${list.generation}/${list.demandBegin}:${list.demandEnd}`,
         )
       ) {
         this.invalidateRender(render);
@@ -908,6 +986,27 @@ export class OriginalWidgetHost {
     let text: SceneNode['text'];
     let image: SceneNode['image'];
     let editable: OriginalNativeRender['editable'];
+    let sourceBinding: SceneNodeOptions | undefined;
+    const module =
+      !control && !layer
+        ? nativeBoxDataConfiguration(render, (reason) => this.unsupported(reason))
+        : undefined;
+    if (module) {
+      const key = this.bindRender(render),
+        layout = parentLayoutFields(render, module.layout);
+      if (!layout) return this.unsupported('direct-module-layout');
+      const children = render.children.map((child) => this.node(child, count, depth + 1));
+      ++this.projectionCounters.bindings;
+      ++this.projectionCounters.moduleBindings;
+      return boxRenderBindingConfiguration(
+        key,
+        children,
+        module,
+        layout,
+        listItem,
+        this.projectionCounters,
+      );
+    }
     const box =
       control ||
       layer ||
@@ -919,7 +1018,8 @@ export class OriginalWidgetHost {
     if (prototype === OriginalNativeRender.prototype) {
       const source = render as OriginalNativeRender;
       kind = source.kind;
-      options = source.options;
+      sourceBinding = sourceNativeBindingOptions(source);
+      options = sourceBinding ?? source.options;
       editable = source.editable;
       if (editable) this.capture.dynamic();
       if (editable) text = editable.text;
@@ -1077,25 +1177,7 @@ export class OriginalWidgetHost {
           : {}),
       };
     } else return this.unsupported('custom-or-unported-render-object:' + render.constructor.name);
-    claimNativeRenderObject(render, this, (kind) => this.invalidateRender(render, kind));
-    bindNativeSemanticsEvents(render, this, (event) => {
-      if (this.closed) return;
-      if (!['tap', 'longPress', 'focus'].includes(event.type) || event.getDataMap().size)
-        return this.unsupported('native-semantics-event:' + event.type);
-      const handle = this.keys.get(render)?.currentNode,
-        target = handle ? this.native.semanticsTarget(handle) : null;
-      if (!target) return;
-      if (!this.options.semanticsEvent) return this.unsupported('native-semantics-event-owner');
-      void this.options
-        .semanticsEvent(target, event.type as 'tap' | 'longPress' | 'focus')
-        .catch((error) => {
-          if (!this.closed) this.options.onError?.(error);
-        });
-    });
-    if (this.fontScope) bindNativeSystemFonts(render, this, this.fontScope, this.fontsLive);
-    this.geometry.bind(render);
-    let key = this.keys.get(render);
-    if (!key) this.keys.set(render, (key = new SceneReference()));
+    const key = this.bindRender(render);
     options = parentLayout(render, options);
     if (box?.tooltipPosition) {
       const placement = box.tooltipPosition;
@@ -1138,7 +1220,7 @@ export class OriginalWidgetHost {
           return {
             ...paint,
             ...(reference
-              ? { reference: () => this.keys.get(reference)?.currentNode ?? null }
+              ? { reference: sceneReferenceHandle(this.renderReference(reference)) }
               : {}),
           };
         }
@@ -1168,37 +1250,50 @@ export class OriginalWidgetHost {
         if (fontBinding)
           this.capture.bind('fonts', fontBinding.fontRevision, fontBinding.fontRevision);
         paragraphIndex++;
-        children.push(
-          sceneConfiguration(
-            key,
-            'paragraph',
-            [],
-            {
-              layout: { paintChild: true },
-              pointerHitTest: 'deferToChild',
-              horizontal: { kind: 'finite', min: captured.width, max: captured.width },
-              paragraph: { ...paragraph, ...(height === null ? {} : { height }) },
-              ...(fontBinding ? { paragraphFont: fontBinding } : {}),
-              paintPlacement: {
-                ...expected,
-                ...(entry.reference
-                  ? { reference: () => this.keys.get(entry.reference!)?.currentNode ?? null }
-                  : {}),
-                rect:
-                  entry.geometry?.kind === 'program'
-                    ? entry.geometry.rect
-                    : [entry.x ?? 0, entry.y ?? 0, captured.width, captured.height],
-              },
-            },
-            {
-              value: input.text,
-              size: input.fontSize,
-              color: input.color,
-              direction: input.textDirection ? 'rtl' : 'ltr',
-            },
-          ),
+        const paragraphConfiguration: SceneNodeOptions = sceneReferenceConfiguration({
+          layout: { paintChild: true },
+          pointerHitTest: 'deferToChild',
+          horizontal: { kind: 'finite', min: captured.width, max: captured.width },
+          paragraph: { ...paragraph, ...(height === null ? {} : { height }) },
+          ...(fontBinding ? { paragraphFont: fontBinding } : {}),
+          paintPlacement: {
+            ...expected,
+            ...(entry.reference
+              ? { reference: sceneReferenceHandle(this.renderReference(entry.reference)) }
+              : {}),
+            rect:
+              entry.geometry?.kind === 'program'
+                ? entry.geometry.rect
+                : [entry.x ?? 0, entry.y ?? 0, captured.width, captured.height],
+          },
+        });
+        const paragraphText = {
+          value: input.text,
+          size: input.fontSize,
+          color: input.color,
+          direction: input.textDirection ? ('rtl' as const) : ('ltr' as const),
+        };
+        const binding = renderBindingConfiguration(
+          key,
+          'paragraph',
+          [],
+          paragraphConfiguration,
+          paragraphText,
+          false,
+          this.projectionCounters,
         );
-        return { kind: 'paragraph', reference: () => key.currentNode, color: 0, shape: emptyShape };
+        if (binding) ++this.projectionCounters.bindings;
+        else ++this.projectionCounters.adapters;
+        children.push(
+          binding ??
+            sceneConfiguration(key, 'paragraph', [], paragraphConfiguration, paragraphText),
+        );
+        return {
+          kind: 'paragraph',
+          reference: sceneReferenceHandle(key),
+          color: 0,
+          shape: emptyShape,
+        };
       });
     };
     const foreground = control?.foreground ?? box?.foreground;
@@ -1222,10 +1317,20 @@ export class OriginalWidgetHost {
       pointerHitTest:
         options.pointerHitTest ?? (paragraph ? ('self' as const) : ('proxy' as const)),
     };
+    if (control?.paint || box?.paint || foreground?.length)
+      sceneReferenceConfiguration(configuration);
     // Module capabilities decide the path; raw public/native producers and
     // executable dependencies continue through the existing capture adapter.
-    if (prototype !== OriginalNativeRender.prototype && !image && !editable) {
-      const binding = renderBindingConfiguration(key, kind, children, configuration, text);
+    if ((prototype !== OriginalNativeRender.prototype || sourceBinding) && !image && !editable) {
+      const binding = renderBindingConfiguration(
+        key,
+        kind,
+        children,
+        configuration,
+        text,
+        control?.directData,
+        this.projectionCounters,
+      );
       if (binding) {
         ++this.projectionCounters.bindings;
         return binding;
@@ -1243,6 +1348,31 @@ export class OriginalWidgetHost {
       editable?.flags,
       editable?.maximumLength,
     );
+  }
+  private bindRender(render: RenderObject): SceneReference {
+    claimNativeRenderObject(render, this, (kind) => this.invalidateRender(render, kind));
+    bindNativeSemanticsEvents(render, this, (event) => {
+      if (this.closed) return;
+      if (!['tap', 'longPress', 'focus'].includes(event.type) || event.getDataMap().size)
+        return this.unsupported('native-semantics-event:' + event.type);
+      const handle = this.keys.get(render)?.currentNode,
+        target = handle ? this.native.semanticsTarget(handle) : null;
+      if (!target) return;
+      if (!this.options.semanticsEvent) return this.unsupported('native-semantics-event-owner');
+      void this.options
+        .semanticsEvent(target, event.type as 'tap' | 'longPress' | 'focus')
+        .catch((error) => {
+          if (!this.closed) this.options.onError?.(error);
+        });
+    });
+    if (this.fontScope) bindNativeSystemFonts(render, this, this.fontScope, this.fontsLive);
+    this.geometry.bind(render);
+    return this.renderReference(render);
+  }
+  private renderReference(render: RenderObject): SceneReference {
+    let key = this.keys.get(render);
+    if (!key) this.keys.set(render, (key = new SceneReference()));
+    return key;
   }
   flush(): Promise<void> {
     this.ensure();
@@ -1298,15 +1428,36 @@ export class OriginalWidgetHost {
     do {
       this.rerun = false;
       if (!this.desired || this.closed) return;
-      const now = () => (typeof performance === 'undefined' ? Date.now() : performance.now());
+      const now = appTimestamp;
       const timing = {
         document: '',
         input: '',
         started: now(),
         buildMs: 0,
+        retainedBuilderMs: 0,
+        retainedBuilderCosts: {
+          calls: 0,
+          builds: 0,
+          callbackMs: 0,
+          rebuildMs: 0,
+          descendantMs: 0,
+          renderCommitMs: 0,
+          scopeMs: 0,
+          syncMs: 0,
+        },
+        sourceThrough: 0,
         captureMs: 0,
         sceneMs: 0,
         waitMs: 0,
+        projection: {
+          created: 0,
+          captured: 0,
+          module: 0,
+          bindings: 0,
+          adapters: 0,
+          partEncodes: 0,
+          partReuses: 0,
+        },
         completed: 0,
       };
       let notification = this.view.notificationRevision;
@@ -1360,6 +1511,9 @@ export class OriginalWidgetHost {
       this.taps.beginBuild();
       const retainedBuilders = [...this.layoutBuilders.keys()];
       let captureStarted = now();
+      const capturedBefore = this.capture.counters.captured,
+        createdBefore = this.capture.counters.created,
+        projectionBefore = { ...this.projectionCounters };
       try {
         this.geometry.observeState(state);
         this.layers.observeState(state);
@@ -1392,6 +1546,8 @@ export class OriginalWidgetHost {
                 // update ancestors before descendants that consume their Widget
                 // configuration, otherwise a later parent dirties an answered child.
                 retainedBuilders.sort((a, b) => a.depth - b.depth);
+                const retainedStarted = now();
+                const costsBefore = nativeLayoutBuilderCosts(this.owner);
                 for (const render of retainedBuilders) {
                   if (render.debugDisposed) continue;
                   let root = render;
@@ -1414,6 +1570,12 @@ export class OriginalWidgetHost {
                   if (builder.rebuild(builder.revision, builder.built.constraints))
                     ++this.retainedBuilderRebuilds;
                 }
+                timing.retainedBuilderMs += now() - retainedStarted;
+                const costsAfter = nativeLayoutBuilderCosts(this.owner);
+                for (const key of Object.keys(
+                  timing.retainedBuilderCosts,
+                ) as (keyof NativeLayoutBuilderCosts)[])
+                  timing.retainedBuilderCosts[key] += costsAfter[key] - costsBefore[key];
                 this.owner.flushBuild();
                 this.root.syncRenderTree();
               }
@@ -1466,6 +1628,18 @@ export class OriginalWidgetHost {
         this.building = false;
       }
       timing.captureMs = now() - captureStarted;
+      // Only preparations completed before this sealed capture belong to its
+      // Source cohort. Later work during an ACK belongs to a following pass.
+      timing.sourceThrough = this.sourcePreparationSequence;
+      timing.projection = {
+        created: this.capture.counters.created - createdBefore,
+        captured: this.capture.counters.captured - capturedBefore,
+        module: this.projectionCounters.moduleBindings - projectionBefore.moduleBindings,
+        bindings: this.projectionCounters.bindings - projectionBefore.bindings,
+        adapters: this.projectionCounters.adapters - projectionBefore.adapters,
+        partEncodes: this.projectionCounters.partEncodes - projectionBefore.partEncodes,
+        partReuses: this.projectionCounters.partReuses - projectionBefore.partReuses,
+      };
       retainSceneConfiguration(scene);
       try {
         this.capture.commit(this.root!.renderObjects);

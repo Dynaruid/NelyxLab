@@ -22,6 +22,7 @@ console.log(
     appFiles: bundle.manifest.files.length,
     appJsSha256: bundle.manifest.files.find((file) => file.path === 'application/app.js').sha256,
     appHbcSha256: bundle.manifest.files.find((file) => file.path === 'application/app.hbc').sha256,
+    appClasses: bundle.manifest.bytecode.classes,
     executable: path.join(supply.root, engineV2WindowsHost().executable),
     bundle: bundle.root,
   }),

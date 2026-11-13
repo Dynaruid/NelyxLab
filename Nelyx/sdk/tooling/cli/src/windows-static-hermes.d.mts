@@ -47,6 +47,11 @@ export declare const staticHermesBootstrap: string;
 export declare const staticHermesBridgeSha256: () => string;
 export declare function patchStaticHermesRuntime(source: string): string;
 export declare function windowsCompilerEnvironment(): Record<string, string | undefined>;
+/** Refresh missing MSVC tools in CMake's generated compiler metadata. */
+export declare function refreshWindowsCmakeTools(
+  build: string,
+  env: Record<string, string | undefined>,
+): void;
 export declare function verifyWindowsStaticHermes(directory: string): StaticHermesToolchain;
 export declare function prepareWindowsStaticHermes(options?: {
   readonly output?: string;

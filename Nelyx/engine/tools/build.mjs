@@ -10,6 +10,7 @@ import { runTypeScriptCompiler } from '../../sdk/tooling/contracts/src/typescrip
 import { windowsCompilerEnvironment } from '../../sdk/tooling/cli/src/windows-static-hermes.mjs';
 import { buildAppSdkHost } from './app-sdk.mjs';
 import { checkWebRuntime } from '../../skia/eng/prepare-web-runtime.mjs';
+import { compilerClassSpillPolicy } from '../../sdk/tooling/cli/src/static-hermes-compiler-patch.mjs';
 
 export const engineRoot = path.resolve(import.meta.dirname, '..');
 export const timeout = 1_200_000;
@@ -158,15 +159,20 @@ function suppliers() {
   if (
     cohort.revision !== '94aa5e1d40a4ce99df79d951cbe45310ec40680c' ||
     cohort.jsi !== 21 ||
-    cohort.crt !== 'MD'
+    cohort.crt !== 'MD' ||
+    cohort.compilerClassSpill !== compilerClassSpillPolicy
   )
     throw new Error('Hermes cohort mismatch');
+  const spillSource = 'source/lib/BCGen/HBC/Passes.cpp';
+  if (!cohort.files.some((file) => file.path === spillSource))
+    throw new Error('Hermes supplier has no qualified class spill compiler');
   for (const file of cohort.files.filter((f) =>
     [
       'build/lib/hermesvm.dll',
       'build/lib/hermesvm.lib',
       'build/jsi/jsi.lib',
       'build/bin/hermesc.exe',
+      spillSource,
     ].includes(f.path),
   )) {
     if (sha256(path.join(hermes, file.path)) !== file.sha256)
@@ -205,6 +211,10 @@ export function sourceIdentity() {
     '../sdk/tooling/contracts/src/typescript-compiler.cjs',
     '../sdk/tooling/contracts/package.json',
     '../sdk/tooling/cli/src/windows-static-hermes.mjs',
+    '../sdk/tooling/cli/src/static-hermes-compiler-patch.mjs',
+    '../sdk/tooling/cli/src/windows-native-hermes-toolchain.mjs',
+    '../sdk/tooling/cli/src/windows-native-hermes.mjs',
+    '../sdk/tooling/cli/src/windows-hermes-policy.mjs',
     ...['core', 'bindings', 'include', 'schema', 'tools', 'platform', 'render'].flatMap((dir) =>
       tree(
         path.join(engineRoot, dir),

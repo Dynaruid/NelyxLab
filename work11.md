@@ -1,14 +1,16 @@
 # work11 — 새 월 준비를 위한 Source 실행·렌더 투영의 결합
 
-작성: **2026-11-13 KST** · 상태: **PAUSED / PARTIAL** · 대상: [work10-a1](work10-a1.md)의 빠른 월 이동 정체
+작성·갱신: **2026-11-13 KST** · 상태: **PAUSED / PARTIAL** · 대상: [work10-a1](work10-a1.md)의 빠른 월 이동 정체
 
-**실행 현황:** 사용자 요청으로 새 구현·추가 검사를 중단했다. App 접근성 rect resolver, A–D 최소 계측, 공통 render 모듈의 봉인된 직접 명령 입력과 좁은 생성기 specialization을 구현했다. 최종 공급의 Windows `All / 12개월 / 60Hz`는 **기능 PASS / W11 성능 FAIL**이며, 실제 이동 게시 지연 p95/최대 **267.118/417.732ms**, offset 정체 최대 **424ms**다. 진행 중이던 검사는 정상 종료했고 소유 앱·worker·임시 SDK를 회수했다. 변경은 보존하며 **자동 재개하지 않는다.** 현재 구현·공급·검증 범위와 재개 지점은 **§11**에 기록한다.
+**중간 마무리:** 사용자의 “일단 중간 마무리하자” 요청으로 새 구현을 중단했다. 현재 공급과 작업 트리를 보존하며, 검증된 범위와 미완료·재개 지점은 **§18**이다. 자동 재개하지 않는다.
+
+**실행 현황:** 사용자의 전체 작업 요청으로 §11의 중단 상태에서 재개했다. 공통 모듈·binding 참조·Source 값 구성과 §16의 날짜/연도 helper 정적 결합에 이어, §17에서 원래 builder와 자손 갱신·render commit 비용을 분리하고 Hermes 클래스 spill 오류를 수정했다. 원본 Flutter의 페이지 진행도·허용오차에 맞춰 fixed-page resize anchor도 보완했다. 현재 Windows 네 시나리오와 두 Web profile의 월 왕복·resize·실제 연도 선택 기능은 **PASS**다. Windows `All / 12개월 / 60Hz` 이동 게시 지연은 **97.825/167.275ms**, offset 정체 최대 **177ms**, 빠른 24개월 정체 최대 **313ms**로 **W11 성능 FAIL**이다. **시스템 Dart 3.12.2의 기본 `dart`로 전체 생성 비교 75/75·원본 oracle PASS**를 유지한다. 현재 공급·검증은 **§17.5**, 이번 중단과 재개 지점은 **§18**, 이전 공급은 §12–16과 §17.3, 과거 중단 기록은 §11에서 구분한다.
 
 **제안:** 먼저 **접근성의 Source 구성·App 관찰·Core 조립·Windows UIA 갱신 비용을 분리**하고, 구조·속성이 그대로인 스크롤에서 반복되는 목록·문자열·사각형 재구성을 줄인다. 이 제한된 개편 뒤에도 새 월 준비가 느리면, 원래 TS Widget/Element/State를 실행한 뒤 그 결과를 capture 트리와 Scene 기록으로 반복 변환하는 구조를 **생성 시 정한 투영 절차와 실행 시 유지하는 RenderBinding 기록**으로 바꾼다. 생성된 Source 코드의 불필요한 중간 표현도 함께 줄인다. 준비 창을 늘리는 대신 **같은 원본 의미를 더 적은 작업으로 준비**하는 것이 목적이다.
 
 **접근성 검토 반영:** 설계 단계에서 §2.1–2.4의 소스 근거·소비자·개편 계약을 추가하고 **W11-00A/00B의 비용 분리와 접근성 증분 갱신을 먼저 수행**하도록 순서를 바꿨다. 이후 §11의 실제 실행에서는 App refresh와 Core/UIA 갱신보다 긴 Source build/capture/scene이 남았다. 접근성을 403ms 정체의 주원인으로 확정하지 않는다.
 
-§1–9는 새 아이디어·설계·구현 계획이며 그 안의 목표는 달성값이 아니다. [work10-a1 §24](work10-a1.md#24-2026-11-12-새-월-격자의-source-왕복과-반복-할당-제거)의 결과는 이전 실행 기록으로 보존하고, 이번에 다시 확인한 공급과 실행은 §11에서 구분한다. 기존 문서를 종료하거나 이미 구현한 기능을 초기화하지 않는다. 기존 실행 계약은 [work10](work10.md)과 [work10-a1](work10-a1.md)에 남긴다.
+§1–9는 새 아이디어·설계·구현 계획이며 그 안의 목표는 달성값이 아니다. [work10-a1 §24](work10-a1.md#24-2026-11-12-새-월-격자의-source-왕복과-반복-할당-제거)의 결과는 이전 실행 기록으로 보존하고, 이번 재개 공급과 실행은 §12–17에서 구분한다. 기존 문서를 종료하거나 이미 구현한 기능을 초기화하지 않는다. 기존 실행 계약은 [work10](work10.md)과 [work10-a1](work10-a1.md)에 남긴다.
 
 제품 판정은 **PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 사용자 물리 입력·전체 display/scanout 수락 **notVerified**를 유지한다.
 
@@ -325,7 +327,7 @@ W11-00A에서 확인한 비용에 해당하는 부분만 묶어서 구현한다.
 
 **완료/중단:** 동일 cold 월의 Source 필수 비용·projection 비용·할당량을 따로 비교한다. 올바른 직접 projection 후에도 원본 Source가 예산을 압도하거나 specialization이 유의미한 비용을 제거하지 못하면 **설계 효용 PARTIAL/미입증**으로 기록한다. 임의 객체·callback 생략으로 진행하지 않고 남은 실제 hot path를 근거로 설계를 재검토한다.
 
-날짜 생성기 전체 분석/재생성은 요구 언어 버전을 만족하는 Dart SDK로 실행해야 한다. 이전 §24의 Dart 3.12.2/분석 package 3.13 불일치를 해결하지 않은 상태의 TS suffix 비교는 전체 generator 검증을 대체하지 않는다. 설치·환경 변경을 문서 작성 단계에서 실행하지는 않는다.
+날짜 생성기 전체 분석/재생성은 요구 언어 버전을 만족하는 Dart SDK로 실행해야 한다. §12에서 도구 프로젝트의 과도한 SDK 하한을 `>=3.12.0`으로 조정했고, analyzer 14.4.0과 lockfile을 유지한 채 시스템 Dart 3.12.2로 전체 `--check --verify`를 통과했다. TS suffix 비교로 전체 generator 검증을 대체하지 않는다. 별도 dev SDK나 전역 SDK/PATH 변경은 필요하지 않다.
 
 ### W11-03 — 달력 전체와 일반 소비자 연결
 
@@ -396,15 +398,15 @@ W11-00A에서 확인한 비용에 해당하는 부분만 묶어서 구현한다.
 - [x] 원본 의미 보존, 직접 투영, 생성기 specialization, 단계별 반증·검증 기준 설계.
 - [x] 접근성 A–D 경계, 기존 재사용, TapRegion/게시 관찰 의존성, UIA delta의 전체 복원 경로를 소스로 확인하고 선행 계획에 반영.
 - [x] W11-00 대표 경로·최소 입증 범위 고정. §11의 공통 모듈·혼합 adapter·wire oracle 및 성능 반증 기준.
-- [ ] W11-00A **PARTIAL** — metadata/App/Core/UIA 계측과 현재 실행. Source constructor/label formatting 단독 비용 및 비청취 조건은 미분리.
-- [ ] W11-00B **기능 PASS / 성능 PARTIAL** — App의 중복 목록·Map 재구성 제거. Core/UIA 전면 개편은 측정 근거가 없어 보류.
-- [ ] W11-01 **PARTIAL** — 공통 모듈의 봉인된 명령을 기존 checkpoint/RecordPatch로 전달. 전체 필드별 dirty binding journal은 미구현.
-- [ ] W11-02 **PARTIAL** — analyzer가 증명한 local receiver의 null-aware property 13개 정적 지점을 좁게 최적화. 전체 regenerate/check/75개 선언 및 원본 Dart oracle PASS. 필수 Source 비용 분리·추가 specialization은 미완료.
-- [ ] W11-03 **PARTIAL** — 공통 render 모듈·달력 및 Key/Ink/capture 회귀 PASS. 모든 모듈·synthetic 의존성·UIA 소비자 통합은 미완료.
-- [ ] W11-04 **PARTIAL** — 최종 공급의 Windows All 기능 PASS / 연속 이동 성능 FAIL. 최종 공급의 빠른 24개월·0.4/0.8페이지 접촉·수정 후 NoTrace 재검사는 미실행.
-- [ ] W11-05 사용자 물리 확인·기존 실행 계약 갱신.
+- [ ] W11-00A **PARTIAL** — metadata/App/Core/UIA·Source CPU/GC·명시적 준비 callback에 이어 원래 builder/즉시 rebuild/dirty 자손/render commit을 구분했다. 긴 build는 주로 자손 처리에 남는다. constructor/label formatting 단독 비용 및 비청취 조건은 미분리.
+- [ ] W11-00B **기능 PASS / 성능 PARTIAL** — App의 중복 목록·Map 재구성 제거, Source Semantics 생성 최적화와 독립 의미 비교 PASS. Core/UIA 전면 개편은 현재 측정 근거로 선택하지 않았다.
+- [ ] W11-01 **PARTIAL** — 공통 박스 9종의 module data, Ink/paragraph 참조와 내부 Focus/Gesture의 봉인 명령을 같은 checkpoint/RecordPatch로 전달. 참조 대상 slot/generation과 accepted 소유 record를 검증해 retained subtree를 재사용하고, 같은 sealed program은 callback record와 독립적으로 공유한다. 스칼라 인수의 같은 명령은 인코더 실행 전 재사용하지만 전체 필드별 dirty binding journal은 미구현.
+- [ ] W11-02 **설계 효용 PARTIAL** — null-aware/final-field schema·날짜/연도 지역 helper 결합과 Source `TextStyle.apply`를 구현·대조했다. 시스템 Dart 75/75·원본 oracle 및 실제 생성 식의 효과 비교 PASS. Hermes class spill을 고쳐 원래 constructor·상속·`new.target`를 native JS class로 실행하는 실제 App을 검증했다. Source build와 필수 실행·할당의 owner별 독립 분리는 여전히 미달/미완료다.
+- [ ] W11-03 **PARTIAL** — 공통 목록/버튼·달력, Key/Ink/참조·취소 복구 회귀 PASS. §17.3 동일 pass의 binding/adapter **715/132**를 확인했다. 모든 render 모듈·UIA 실제 소비자의 통합 완료는 아니다.
+- [ ] W11-04 **PARTIAL** — §17.5 최종 Windows 네 시나리오·실제 연도 선택, 양쪽 Web profile 월 왕복/resize/연도 선택 기능 PASS / 연속·빠른 이동 성능 FAIL. Core의 양축·확대/축소·부분/정수 페이지·일반 목록 anchor 회귀 PASS. 같은 Core의 독립 설치 검증은 §15에 있다. demand→coverage-ready는 notVerified다.
+- [ ] W11-05 **PARTIAL** — 기존 실행 계약과 남은 owner를 갱신했다. 사용자 물리 입력·전체 display/scanout·resize 성능은 미검증이다.
 
-**중단 및 재개 계약:** 현재는 **PAUSED / PARTIAL**이며 자동 재개하지 않는다. 사용자가 재개를 요청하면 §11.6의 순서로 현재 diff·공급을 재확인하고 남은 Source 생성과 capture/records, 미지원 모듈의 비용을 분리한다. 공통 직접 입력은 시작점이며, 기존 capture traversal과 module options 구성까지 제거한 전체 journal로 설명하지 않는다. generated constructor 일괄 변경이나 원본 객체/콜백 생략으로 지연을 숨기지 않는다. 사용자 물리 확인·전체 display/scanout은 별도 미검증이다.
+**현재 실행 계약:** 사용자 중간 마무리 요청으로 **PAUSED / PARTIAL**이다. §18에서 재개 범위를 고정한다. §17.5의 최종 anchor 공급과 §17.3의 첫 native-class 공급, §11–16의 이전 공급을 구분한다. 직접 모듈 데이터와 binding 참조까지 확장했지만 전체 render setter의 필드별 journal 완료로 설명하지 않는다. generated constructor 일괄 변경이나 원본 Widget/State/콜백 생략으로 지연을 숨기지 않는다. 사용자 물리 확인·전체 display/scanout은 별도 미검증이다.
 
 ## 11. 2026-11-13 구현·측정 기록
 
@@ -452,7 +454,7 @@ W11-00A에서 확인한 비용에 해당하는 부분만 묶어서 구현한다.
 
 [달력 generated TS](packages/material/src/generated/date/calendar_date_picker.generated.ts)는 pinned 원본 분석으로 **전체 재생성**했다. day/year theme와 `_FocusedDate.maybeOf`의 정적 IIFE 13개 지점을 줄였고 [생성 문서](packages/material/src/generated/date/README.md)에 적용 경계를 기록했다. [검증기](tools/Nelyx.FrameworkToTypeScript/verify-date-picker.ts)는 실제 `_DayState` selector의 기존/새 출력에 null·undefined·getter·Proxy·throw differential fixture와 잘못된 정책 거부를 추가했다. 이 좁은 변환이 긴 월 준비를 해결했다는 성능 증거는 없다.
 
-기본 Dart는 3.12.2이고 analyzer는 `>=3.13.0-0`을 요구한다. 공식 archive와 SHA256을 대조한 **임시 Dart 3.14.0-296.0.dev**로 전체 `--write`, Material build, `--check --verify`를 수행했다. **75/75 declarations, errors 0**, 원본 Dart 날짜/localization oracle **12 dates / 11 inputs / 4 decimal cases PASS**다. 전역 SDK·PATH는 변경하지 않았고 임시 SDK·download·helper는 성공/실패의 finally에서 삭제했다.
+당시 기본 Dart는 3.12.2이고 **도구 프로젝트의 pubspec**이 `>=3.13.0-0`을 요구했다. 공식 archive와 SHA256을 대조한 **임시 Dart 3.14.0-296.0.dev**로 전체 `--write`, Material build, `--check --verify`를 수행했다. **75/75 declarations, errors 0**, 원본 Dart 날짜/localization oracle **12 dates / 11 inputs / 4 decimal cases PASS**다. 전역 SDK·PATH는 변경하지 않았고 임시 SDK·download·helper는 성공/실패의 finally에서 삭제했다. analyzer 자체의 요구로 적었던 설명은 §12에서 정정한다.
 
 - [새 semantics 검사](Nelyx/eng/check-semantics-publication.mjs): 기존 eager rect oracle, lazy index 1회 공유, 같은 publication의 Rect identity, semanticGeometry/clip/숨김·삭제·generation, publication/metrics/device/visibility, stale action·legacy alias·공개 child/source ID·close PASS. cache는 현재 publication에서 조회된 유효 Rect만 보유한다.
 - [직접 binding 검사](Nelyx/eng/check-render-bindings.mjs): 같은 handle 순서의 reference wire bytes, optional reset·adapter 전환, 새 callback/event bits, reparent·generation, NACK, mutable 값의 명령 봉인, 이전 bytes 불변, in-flight ACK 중 새 update, 자식 변경 시 부모 program 보존 PASS. fake ACK fixture의 범위이며 실제 UIA 재진입·TextPattern oracle을 대체하지 않는다.
@@ -492,3 +494,408 @@ W11-00A에서 확인한 비용에 해당하는 부분만 묶어서 구현한다.
 5. UIA 비청취·실행 중 client 접속, native Invoke/custom action·editor TextPattern/paragraph lease·재진입, Web/Android 제품 실행과 사용자 물리 트랙패드·전체 display/scanout·resize 성능을 각각 검증한다. Windows scoped PASS를 전체 호환으로 확대하지 않는다.
 
 최종 상태는 **PAUSED / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`다. 실제 기능 회귀 PASS와 연속 표시 성능 FAIL, 아직 실행하지 않은 소비자/물리 수락을 구분한다.
+
+## 12. 2026-11-13 재개 구현과 현재 공급 검증
+
+### 12.1 공통 모듈 데이터와 참조를 기존 writer에 연결
+
+재개 시 `git status --short`는 비어 있었다. §11의 Source/capture/writer와 공급을 읽은 뒤 관련 변경을 묶어 구현하고 통합 검증했다.
+
+- [native-box](Nelyx/src/framework/rendering/native-box.ts)의 명시적 data capability를 [boxes](Nelyx/src/framework/rendering/boxes.ts)의 Proxy/Constrained/Padding/Positioned/Align/Flex/Stack/Clip/Transform 9종에 연결했다. 해당 종류는 module data에서 codec으로 바로 봉인하며 중간 BoxConfiguration/Scene options와 descriptor eligibility 순회를 만들지 않는다. custom subclass는 capability를 상속하지 않는다. 부모 Flex/positioned 필드는 [layout](Nelyx/runtime/app/layout.ts)의 같은 함수로 양 경로에 적용한다.
+- [SceneWriter](Nelyx/runtime/engine-client/scene.ts)는 봉인된 command body를 accepted 기록에서도 재사용하고 실제 diff 명령에만 목적지 handle을 연결한다. cold 기록마다 수행하던 명령 복제와 정렬을 줄였다. optional reset이 추가될 때만 순서를 다시 맞춘다. NACK·불확정 ACK·in-flight update는 기존 checkpoint와 terminal 계약을 따른다.
+- Ink와 synthetic paragraph의 render 참조는 임의 콜백 대신 [host](Nelyx/runtime/app/host.ts)가 소유한 binding token으로 봉인한다. writer는 기존 두 단계 handle 배정 뒤 참조를 해석한다. 대상 generation 변경·재부착·NACK에서 이전 bytes를 수정하지 않는다. 참조를 가진 기록은 보수적으로 재검증하며, generic adapter에 token이 연결될 때도 해석한다. 공개 Scene producer의 accessor 읽기 순서는 바꾸지 않는다.
+- [capture](Nelyx/runtime/app/capture.ts)는 실제 소비하지 않던 revision 사본과 보통의 부모에서 필요 없던 synthetic subtree Set/순회를 제거했다. 실제 synthetic 노드와 dependency·registration·parking·retirement·abort 처리는 유지한다. pass마다 created/captured/module/binding/adapter 횟수를 기록해 전체 누적치를 cold 월 적용률로 오인하지 않게 했다.
+- [SemanticsProperties](Nelyx/src/framework/semantics/semantics.ts)의 78개 빈 own field 정의를 고정 schema의 `Object.defineProperties` 호출로 묶었다. 값 읽기·할당·final 보호·base freeze·subclass 확장 시점은 그대로다. inherited setter를 호출하는 단순 대입 변환은 사용하지 않았다.
+
+모든 render setter를 필드별로 기록하는 완전한 journal은 아니다. 일부 adapter/module options, dirty ancestor 재연결과 writer record 순회가 남는다. 이전 generic 경로와 병렬 transaction 상태 기계를 추가하지 않았다.
+
+### 12.2 생성기와 시스템 Dart
+
+[생성 recipe](tools/Nelyx.FrameworkToTypeScript/generate-date-picker.ts)와 [emitter](tools/Nelyx.FrameworkToTypeScript/src/dart-emitter.ts)에 선택한 Source owner의 final-field descriptor schema를 모듈 초기화 때 한 번 만드는 정책을 추가했다. 원래 constructor 입력 평가·필드 할당·보호 위치를 유지하며, Widget/State/FocusNode·callback을 재사용하거나 생략하지 않는다. 생성 TS를 수작업으로 바꾸지 않고 pinned 원본 전체에서 재생성했다.
+
+[compiler oracle](tools/Nelyx.FrameworkToTypeScript/verify-date-picker.ts)은 기존/새 `_Day` constructor의 descriptor·입력 getter 순서·callback·subclass 필드·final 보호를 대조하고 잘못된 정책·owner·factory를 거부한다. 기존 lexical null-read oracle도 유지했다.
+
+사용자의 **시스템 Dart SDK 사용 요청**을 반영했다. 원인은 analyzer 14.4.0 자체가 아니라 [도구 pubspec](tools/Nelyx.FrameworkToTypeScript/dart/pubspec.yaml)의 `>=3.13.0-0` 하한이었다. 이를 `>=3.12.0 <4.0.0`으로 맞췄다. 기본 `dart`는 **3.12.2**이며 `dart pub get --enforce-lockfile`을 통과했다. 의존성 버전·hash와 tracked lockfile 변경은 **0**이다. 기본 `dart`로 전체 `--check --verify`가 **75/75, errors 0**, 원본 Dart oracle **12 dates / 11 inputs / 4 decimal cases PASS**다. [실행 README](packages/material/src/generated/date/README.md)도 기본 시스템 명령으로 갱신했다.
+
+초기 임시 SDK 다운로드/실행/정리 묶음 명령은 자동 승인 검토에서 두 번 거부됐고 구체 사유가 제공되지 않았다. 두 명령은 실행되지 않아 새 SDK나 다운로드 파일을 만들지 않았다. 이후 이미 있던 `.nelyx/date-picker-port/dart-sdk` 3.14를 발견해 첫 전체 재생성에 사용했지만, 최종 전체 비교/oracle은 위 시스템 3.12.2로 다시 수행했다. 기존 SDK는 이번 소유물이 아니므로 정리하지 않았다. 전역 SDK/PATH는 변경하지 않았다.
+
+### 12.3 통합에서 드러난 입력·월 정합성 수정
+
+첫 중간 공급 `ee67b9b8… / 7131a43e…`의 Windows All은 목록 4구간 뒤 precision 샘플 하나가 거부돼 실패했다. 그 구간의 offset 공백 193ms를 유효한 최종 성능 개선값으로 사용하지 않는다.
+
+[Core enqueue](Nelyx/engine/core/scheduler/scheduler.cpp)는 host inspect와 input enqueue 사이에 Source document가 게시되면, pointer와 wheel에는 실제 geometry 호환성을 검사하면서 precision stream에는 그 경로를 적용하지 않았다. 실제 scroll target과 조상의 geometry가 같은 contact의 begin/update/lift만 계속 받도록 고쳤다. metrics/device/삭제/geometry 변경은 계속 거부한다. 추가한 [native oracle](Nelyx/eng/check-frame-reuse.cpp)은 **이전 library에서 precision begin 경합으로 FAIL**, 새 library에서 위 contact와 거부 fence를 통과했다.
+
+첫 Web threaded 실행은 멈춘 뒤 두 인접 월의 날짜 59개를 노출해 실패했다. 원본 [pointerScroll](Nelyx/src/framework/widgets/scroll-position-with-single-context.ts)은 휠 갱신 뒤 `goBallistic(0)`을 실행하지만 Core가 이를 빠뜨렸다. 원래 PageScrollPhysics의 기존 spring을 호출하도록 연결했다. live precision contact는 lift까지 기다리는 동작을 유지한다. 이는 성능 수치를 맞추는 새 animation이 아니라 원본 휠 종료 의미의 복구다. fractional wheel의 zero-velocity spring과 완전한 page 정착을 native oracle에 추가했다.
+
+### 12.4 제1 중간 공급과 검증
+
+source/engine identity는 `820c61ccede47473f812bb469ca433a74fe4204b8ee48d2f84bcd92d21c6e625`, ABI 2/schema 313408118이다. native·single-worker·threaded·Windows App SDK를 재빌드했다. engine 356 / App 10 files, JS `410f7b93af0d0852874ab01899368f184dc40163a3187334be8ed3b809c4dc07`, HBC `d86d6655082d837f90b90648cc62c20026b520a6c21e52af096b815b1c6ec87d`를 실제 실행과 연결했다. 아래는 §12.6의 Source factory/Focus/Gesture 확장 전 중간 공급이며 최신 번들로 표현하지 않는다.
+
+- Core ESM/declaration/strict type와 Material build, generator tooling type, 변경 TS/MJS lint/format, 독립 설치 Core의 strict 선언·package-only import·commit·공유 transaction·close PASS.
+- 공통 박스 **27개 reference wire 비교**(RTL·제약·Flex/positioned parent), direct/generic adapter 전환, optional reset, 새 callback/event bits, forward Ink/paragraph 참조·generation·NACK·in-flight ACK·이전 bytes 불변 PASS.
+- incremental capture/journal·실제 pending Content·superseded Source reply·취소 후 복구·publication fence, published semantics rect/stale action/alias, GlobalKey·충돌 Key·slot/lifecycle, Ink parking·복구, 원본 fitted grid/DPR/RTL/resize와 날짜 기본값/상태 resolver PASS.
+- pinned Hermes compiler/VM에서 own-field descriptor·setter·subclass·불변성과 실제 배포 ESM 경계 PASS. 생성기 75개 선언과 원본 oracle은 별도 위 시스템 Dart 결과다.
+- 현재 native library의 frame semantics·input geometry/metrics/device·precision/coverage/reversal/spring·날짜/RTL·lease 회귀 PASS.
+- 현재 Web 앱의 **threaded(`isolated`)와 single-worker(`plain`)** 각각 12개월 왕복·header/날짜 전체·resize·메모리/Element/node 증가 제한·오류 없음 PASS. 두 context 모두 `reservedBytes=0`, `workersStopped=true`로 종료했다. 첫 Web 실패를 이 최종 결과로 대체하되 공급을 구분한다.
+
+이 공급의 Windows `All / 12개월 / 60Hz`(PID 44576 / CLI 17128 / HWND 2099536 / DPI 192):
+
+| 항목 | 실제 결과 |
+| --- | --- |
+| 기능 | 목록 4구간, 2026-11→2027-11, precision cancel, resize, header/all days, `2027-11-15` 선택과 정상 close **PASS** |
+| 연속 입력 | 360 update/6,000.401ms, start/end 포함 **362 admitted / rejected 0**, driver lateness 최대 0.986ms |
+| 이동 반영 | **360/360**, 누락 0, 요청 궤적 오차 약 `1.75e-10px`; 수신→실제 이동 게시 p95/최대 **185.287/280.813ms**, ≥100ms 71개 / ≥250ms 3개로 **FAIL** |
+| offset 진행 | 공백 최대 **285ms**, ≥100ms 11회 / ≥250ms 2회. backlog 최대 **172px**. publication gap 최대 42.311ms와 별개 |
+| 활성 App | turn p95/최대 **331.311/376.952ms**. 마지막 128 pass의 build/capture/scene 최대 **189/206/134ms**는 서로 다른 pass·중첩 구간이므로 합산하지 않음 |
+| 종료·수집 | ringLost/outputDropped 0; exit/status 0, reservedBytes/memoryTotal 0, workersJoined/appExited true. bounded traceOverwritten 14,602와 App samplesOverwritten 96을 전 구간 무유실로 바꾸지 않음 |
+
+같은 Source pass의 한 예(`document=156`, `input=374`)는 created/captured **383/838**, module/binding/adapter **71/514/324**, build/capture/scene **189/111/86ms**다. 이는 실제 해당 pass의 비용 분리이며 cold 월 1개만의 모든 constructor 비용이나 전체 새 월들의 적용률은 아니다. 필수 Source와 남은 투영 비용이 여전히 한 refresh를 크게 넘는다. §6의 목표를 낮추거나 cache/입력 제한으로 통과시키지 않는다.
+
+같은 중간 공급의 빠른 이동·contact·NoTrace·CPU 표본은 §12.5, 이후 최신 공급은 §12.6에서 구분한다. `coverageReadyGoal`은 실제 demand revision→coverage-ready 연결이 없으므로 **notVerified**다. Windows 기능 PASS와 성능 FAIL, Web 기능 PASS를 제품 전체 호환·물리 입력·display/scanout·resize 성능 수락으로 확대하지 않는다.
+
+### 12.5 중간 공급의 추가 시나리오와 원인 분리
+
+모두 §12.4의 동일 JS/HBC이고 native engine은 같다. profiling 유무가 다른 실행으로 개선율을 계산하지 않는다.
+
+| 시나리오 | 기능·수집 | 성능 경계 |
+| --- | --- | --- |
+| 빠른 24개월 역방향 / PID 10196, CLI 11952, HWND 920402 | 12 contacts, 96 updates/120 packets 전량 접수·거부 0, 약 2,209.862ms, 2026-11→2024-11, 15일 선택/close PASS | offset 공백 최대 **527ms**, ≥100/250/500ms **6/4/1회**, backlog **3,440px**, App turn 최대 **398.250ms**. W11 및 기존 500ms 경보 FAIL |
+| 0.4/0.8페이지 양방향 / PID 38576, CLI 13948, HWND 2427174 | 각 36 updates, 180 packets 전량 접수·거부 0, cancel/선택/close PASS. 게시/서로 다른 offset 각각 37/36, 35/35, 35/35, 35/35 | 수신→게시 최대 **27.097/18.179/15.318/16.695ms**, consumed offset 오차 `<8.74e-11px`. resident contact 의미 PASS이며 새 월 준비 전체 성능 수락은 아님 |
+| All/12개월/60Hz/NoTrace / PID 18828, CLI 47448, HWND 1444628 | 362 packets 접수·거부 0, 약 6,000.099ms, 목록·12개월·cancel/resize/날짜/close PASS | trace-disabled이므로 movement/offset 성능 **notVerified**. 기본 종료 diagnostics까지 모두 꺼진 실행으로 설명하지 않음 |
+| Calendar/12개월/60Hz/CPU profile / PID 32952, CLI 27392, HWND 133438 | 362 packets 전량 접수, 기능/close PASS, CPU 1,265 samples | 계측 실행의 지연 **597.870/700.616ms FAIL**. 비계측 시간과 비교하지 않음 |
+
+위 실행들은 정상 종료에서 reservedBytes/memoryTotal 0, workersJoined/appExited true를 확인했다. CPU self 표본에는 GC young **250**, `__defNormalProp` **55**, native `Object.defineProperties` **29**, `captureNode` **12**가 있었다. inclusive 표본은 `withNativeRenderConfiguration` **489**, `batchInvalidations` **450**, `buildScope` **449**, node/capture **299**였다. 함수별 exclusive 합처럼 더하지 않는다. GC 통계 9.858초의 누적 GC 1.380초/최대 pause 27.733ms/할당 약 1.178GB는 Source 구성과 할당을 추가로 줄일 근거이며, 단일 GC가 수백 ms 정체의 원인이라는 증거는 아니다.
+
+### 12.6 Source 값 생성과 내부 Focus/Gesture의 직접 binding
+
+- [Source Semantics factory](Nelyx/src/framework/semantics/semantics.ts)는 정확한 base 값만 고정 객체 schema로 새로 구성한다. 78개 own field의 순서·기본값·prototype·검증·freeze는 공개 생성자와 같다. 비어 있는 DiagnosticableTree 생성 이외의 사용자 생성자나 subclass를 생략하지 않는다. [Semantics Widget](Nelyx/src/framework/widgets/semantics.ts)의 기존 두 생성 위치만 연결했고 명시적으로 전달한 properties는 유지한다.
+- [의미 비교](Nelyx/eng/check-semantics-construction.mjs)는 모든 descriptor, Proxy getter/예외 순서, callback/collection alias, debug assertion, inherited setter, subclass 및 Widget 연결을 대조한다. 실제 배포 Core의 pinned Hermes compiler/VM에서도 공개/Source factory의 prototype·descriptor와 subclass 확장을 확인했다.
+- [내부 native node](Nelyx/runtime/app/native-node.ts)의 명시적 Source factory를 [Focus](Nelyx/runtime/app/focus.ts)와 [Gesture](Nelyx/runtime/app/gesture.ts)에만 연결했다. Widget/RenderObject와 Key·원본 recognizer·callback 수명은 같다. wire에서 사용하지 않는 Widget key만 투영 입력에서 제외하고 같은 writer에 봉인한다. 일반 producer로 update하면 capability를 해제하며 generic accessor 경로를 유지한다. editor/viewport/sliver 등 미지원 kind는 기존 adapter를 사용한다.
+- [binding oracle](Nelyx/eng/check-render-bindings.mjs)은 실제 Source factory의 wire bytes, Focus/Gesture event-policy와 callback, Key 유지, callback 교체와 capability 해제·일반 producer getter 무실행을 확인한다. incremental capture, 실제 pending Content·superseded/cancel 복구, Ink parking도 재검사했다. 전체 `npm.cmd run check:types`와 변경 파일 lint PASS다.
+
+Semantics factory만 반영한 제2 중간 공급 JS `2c418317b360ffae6a3900d572874d38f69a0e34d6aa226c0752bf95d8727273` / HBC `bd94346004be10a337f1e82eec49d8a72649944890ceeb6943ea4e59930b0b20`의 All은 PID 32044/CLI 6236/HWND 1837436에서 기능 PASS, 이동 p95/최대 **164.797/231.738ms**, offset 최대 **236ms**로 여전히 FAIL이었다. 두 Web profile도 기능/회수 PASS다. 이 공급의 수치를 다음 최신 공급과 섞지 않는다.
+
+**§12 최종 공급:** engine identity/ABI/schema는 §12.4와 같고 이후 native 변경은 없다. Core와 Windows/Web 앱을 재빌드했다. Windows JS `71e4a33597c4b05c4532230c9cf6b622068c8b9b8fcef263081ade80a208ee35`, HBC `9884e292903228d3007de6063bc3a9edbf0c0449a585e9d30f49d2bab2f818e9`, engine 356/App 10 files, Windows 892/Web 891 modules다. 이 공급 뒤의 현재 결과는 §13에 있다.
+
+§12 최종 All/12개월/60Hz(PID **4280**, CLI **42928**, HWND **4327756**, DPI **192**):
+
+| 항목 | 결과 |
+| --- | --- |
+| 기능 | 목록 4구간, 2026-11→2027-11, precision cancel, resize, header/날짜 전체와 `2027-11-15` 선택, 정상 close **PASS** |
+| 연속 입력 | 360 updates/6,000.584ms, begin/end 포함 **362 admitted/rejected 0**, driver lateness 최대 **0.627ms** |
+| 실제 이동 게시 | **360/360**, missing 0, 궤적 오차 약 `1.89e-10px`, 지연 p95/최대 **156.544/262.225ms**, ≥100/250ms **42/1개** → **FAIL** |
+| offset 진행 | 공백 최대 **266ms**, ≥100/250ms **8/1회**, backlog **160.533px**. publication gap 최대 **36.208ms**와 다름 |
+| 활성 App | turn p95/최대 **280.853/384.562ms**. 보존한 128 pass의 build/capture/scene 최대 **174/205/119ms**, 서로 다른 pass·중첩 구간이므로 합산하지 않음 |
+| 수집 | App samplesThrough **225**, 보존 128/overwritten **97**. bounded diagnostics를 전체 pass 전수라고 부르지 않음 |
+
+동일 pass `document=151/input=401`은 created/captured **381/838**, module/bindings/adapters **72/707/131**, build/capture/scene **174/113/102ms**다. 이전 제1 중간 공급의 예와 달리 지원하는 Focus/Gesture도 binding으로 통과하지만, 이 두 pass를 통제된 동일 월 A/B 비교나 전체 cold 생성 적용률로 설명하지 않는다. 실제 필요한 Source build 하나만으로도 60Hz 한 refresh를 크게 넘는다.
+
+### 12.7 §12 공급의 추가 통합과 남은 경계
+
+모두 §12.6의 JS/HBC이며 매 실행의 PID/HWND를 확인했다. 다음 §13 공급과 구분한다.
+
+| 시나리오 | 실제 결과 |
+| --- | --- |
+| 빠른 24개월 역방향 / PID 14812, CLI 34204, HWND 2689406 | 약 **2,227.000ms**, 12 contacts/96 updates, **120 admitted/rejected 0**, 2026-11→2024-11, 15일 선택·close **PASS**. 활성 구간 received 118은 경계 밖 begin/end와 전체 접수 120을 구분한다. offset 공백 최대 **528ms**, ≥100/250/500ms **8/3/1회**, backlog **2,408px**로 **W11 및 기존 500ms 경보 FAIL**. App turn 최대 **299.686ms**, 전체 App samples 63개/overwrite 0 |
+| 0.4/0.8페이지 양방향 / PID 17080, CLI 13344, HWND 2754942 | 각 36 updates, **180 admitted/rejected 0**, cancel/resize/날짜·close **PASS**. 게시/서로 다른 offset은 39/36, 35/35, 35/35, 35/35. 수신→게시 최대 **30.037/12.311/12.884/18.743ms**, consumed offset 최대 오차 `<8.74e-11px`. 준비된 범위의 이동 의미 PASS이며 새 월 전체 성능 수락은 아님 |
+| Calendar/12개월/60Hz/NoTrace / PID 39240, CLI 45972, HWND 1509784 | 약 **6,000.601ms**, **362 admitted/rejected 0**, 12개월·cancel/resize/header/날짜 선택·close **PASS**. driver lateness 최대 **0.573ms**. trace-disabled이므로 movement/offset/전체 W11 성능 **notVerified**. 기본 diagnostics는 계속 켜져 있음 |
+
+Fast/contact/NoTrace는 ringLost/outputDropped **0**, 정상 exit/status **0**, reservedBytes/memoryTotal **0**, workersJoined/appExited **true**다. peak bytes는 각각 **511,470,486 / 523,103,467 / 527,773,593**이며 서로 다른 시나리오의 메모리를 한 상한 증명으로 합치지 않는다. bounded trace overwritten **5,035/7,657/9,529**는 원인 진단의 전수 수집을 뜻하지 않는다. NoTrace의 ringThrough 0을 0ms 지연으로 해석하지 않는다.
+
+최신 Web `check-date-scroll-web.mjs --both`도 **PASS**다. threaded(`isolated`)와 single-worker(`plain`) 각각 12개월 왕복·header/날짜 전체·resize·Element/node 증가 제한·오류 없음과 정상 회수를 확인했다. 두 profile 모두 nodes/elements **1,787/4,455 → 왕복 뒤 1,787/4,455 → resize 1,877/4,545**, builders 3이며, 종료 reservedBytes **0**/workersStopped **true**다. 이는 Web 기능·수명 검증이고 Windows Hermes 표시 지연의 수락 근거는 아니다. 최신 Core의 독립 설치 strict 선언·package-only imports·scene commit·shared transaction·close도 다시 **PASS**했다. 변경 TS/MJS 22개 lint/format과 `git diff --check` PASS이며 저장소 전체 lint PASS로 확대하지 않는다.
+
+**판정과 다음 실행점:** W11의 기능 구현은 확장됐지만 전체 목표는 **IN PROGRESS / PARTIAL**이다. §7 W11-02의 중단 기준대로, 원본 Source build 자체가 예산을 압도하고 현재 specialization·직접 binding만으로 표시 목표를 달성하지 못한 사실을 **설계 효용 PARTIAL**로 기록한다. 최대 4페이지 정책·원본 Widget/State/Key/FocusNode·callback·속도·애니메이션 시간을 바꿔 수치를 맞추지 않았다.
+
+1. [생성기](tools/Nelyx.FrameworkToTypeScript/src/dart-emitter.ts), [value-math](Nelyx/src/ui/value-math.ts), [framework](Nelyx/src/framework/widgets/framework.ts), [날짜 원본 생성](packages/material/src/generated/date/calendar_date_picker.generated.ts)의 **필수 constructor/lifecycle/label formatting과 불필요한 표현·할당을 독립적으로 구분**하는 것이 다음 Source 작업이다. 현재의 base Semantics factory/선택 owner schema를 모든 생성자에 일괄 적용하지 않는다. Source 구간이 여전히 길면 writer만 추가 개편해 전체 목표 완료로 기록하지 않는다.
+2. [host/capture](Nelyx/runtime/app/host.ts)와 각 render 모듈은 **전체 setter→field journal과 남은 adapter**, synthetic/reference dependency를 이어서 검토한다. 최신 동일 pass의 131 adapters를 전체 구현 완료나 모두 불필요한 경로라고 부르지 않는다.
+3. **demand revision→Source pass→Content ready→최초 해당 이동 게시** 연결이 빠져 있어 coverage-ready p95/최대는 notVerified다. 이미 측정한 이동 latency FAIL과 구분하고 다음 계측은 기존 bounded trace를 확장한다.
+4. UIA 비청취/늦은 접속·native Invoke/custom action·TextPattern/paragraph lease·재진입, 원본 캡처 visual review와 물리 트랙패드·전체 display/scanout·resize 성능은 미검증이다. Android 연결 장치가 없어 제품 실행을 수행하지 않았으며 Linux/Apple 의무도 이 Windows/Web 결과로 종료하지 않는다.
+
+원본 캡처/임시 정리 묶음 명령은 자동 승인 검토에서 거부돼 실행되지 않았고 구체 사유는 제공되지 않았다. `.nelyx/work11-visual`은 생성하지 않았다. 픽셀 ink 표본 PASS를 전체 원본 캡처 검토나 물리 scanout PASS로 대체하지 않는다.
+
+제품 상태는 `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**다. 전체 작업을 완료 처리하거나 자의적으로 PAUSED로 바꾸지 않는다. 사용자의 변경과 기존 SDK/과거 디렉터리는 보존하고, 이번 소유 test process·임시 consumer·browser context·staging만 회수한다. 검증 로그·프로필·SDK 사본은 추가 보관하지 않는다.
+
+## 13. 참조 dependency 재사용과 Source 준비 경계
+
+### 13.1 채택하지 않은 Source 후보
+
+§12의 구현·회귀·공급을 유지한 채 현재 diff와 코드부터 대조했다.
+
+- Element base의 23개 필드를 고정 descriptor layout으로 묶는 후보는 own-field 순서·descriptor·상속 setter·fresh children·subclass 검사를 통과했다. 그러나 pinned Hermes의 2,000개 constructor 비교는 기존 **12ms / 후보 11ms**여서 유의미한 Source 절감 근거가 부족했다. 후보와 전용 fixture를 철회했고 `framework.ts`는 이 후보 전 코드다.
+- 내부 Focus/Gesture의 scalar revision을 구분해 같은 필드/새 callback에서 같은 명령 program을 공유하는 후보도 구현했다. 실제 모듈의 필드 변경/wire 비교·callback 교체·상태 수명·부모 입력/global context와 abort guard는 통과했다. 그러나 다음 참조 재사용과 함께 실행한 공급의 All은 기능 PASS, 이동 p95/최대 **343.376/588.674ms**, offset 최대 **588ms**로 악화됐다. 객체 동결·revision 관리가 Source에 추가돼 있었으나 이 결합 실행만으로 그 비용을 전체 악화의 단독 원인으로 확정하지 않는다. Source revision 후보·추가 동결·API·전용 fixture를 철회하고 참조 재사용을 분리해 검증한다. 원본 Widget/State·공개 native producer를 생략하는 변환은 남기지 않았다.
+
+철회 공급은 engine §12.4와 동일, JS `179c3597b3838535dac7e9c74ad76c2ab56aa59d39e6e10acaac3dcc929c6866`, HBC `196bddc262f8de0b222f9d1ea449ceea4b4d0c89974ebc98d2de2db80e22c74c`, PID 43528/CLI 45132/HWND 4000034/DPI 192다. 362 packets 접수·거부 0, 이동 360/360·궤적 오차 `<1.82e-10px`, ringLost/outputDropped 0이었다. 관측 Source build/capture/scene 최대 **239/244/166ms**, dependency 검사/참조 subtree 재사용 **701/171**은 각각의 구간/작업량이며 개선율로 바꾸지 않는다. 정상 exit/status 0, reservedBytes/memoryTotal 0, workersJoined/appExited true였다.
+
+### 13.2 같은 writer의 참조 dependency 재사용
+
+[SceneWriter](Nelyx/runtime/engine-client/scene.ts)는 sealed binding의 nativePaint/paintPlacement 대상마다 slot/generation을 독립 값으로 보존한다. 이전처럼 임의 실행형 참조를 cacheable로 분류하지 않는다. handle 배정을 먼저 끝내고 현재 대상과 비교한 뒤, 해당 참조와 소유 record가 일치하면 불변 subtree를 재사용한다. 대상의 kind/generation 변경·parking/재부착은 기존 명령 경로에서 다시 해석한다.
+
+자손별 참조 Map을 조상마다 전량 복제하지 않는다. 단일 자식 dependency는 공유하고 여러 자식은 불변 연결로 묶으며, 한 records pass의 검증 결과만 memoize한다. `referenceDependencyChecks/referenceSubtreeReuses`로 실제 사용을 구분한다. Core wire·scheduler·coverage·ACK/checkpoint·quota/graph 검증은 변경하지 않았다.
+
+새 differential oracle는 stable 참조 subtree의 전체 record 순회 생략, 무관한 handle 추가, forward 참조의 대상 kind/generation 변경, 양쪽 parking과 NACK 재시도의 wire를 비교한다. 첫 NACK fixture가 실패해 **거부된 자손의 참조 정보가 자신의 record는 동일한 부모 cache에 섞이는 경우**를 찾았다. dependency의 소유 record도 현재 accepted registry와 동일해야 재사용하도록 고쳤고, 재시도 wire 및 이전 accepted bytes 불변을 통과했다. candidate의 데이터 일치와 ACK를 받은 소유권을 합치지 않는다.
+
+### 13.3 기존 build 측정 밖의 Source 준비 기록
+
+코드상 `rebuildFromContent`의 필수 builder/sliver callback은 기존 `timing.buildMs` 전에 실행하거나 게시 관찰에서 실행될 수 있다. 그 시간을 Source build의 독립 전수 시간으로 설명할 수 없으므로 [host](Nelyx/runtime/app/host.ts)의 기존 diagnostics에 보완했다.
+
+- `sourcePreparation`은 box/sliver 요청과 관찰된 window 준비의 request identity·시작/경과·built/declined/failed를 **128개 bounded 표본**과 누적 합/최대로 구분한다. 결과의 built는 Source callback 결과이며 Core ready/publication/ACK 수락이 아니다.
+- 각 capture의 `sourceThrough`는 그 봉인 전에 끝난 준비 sequence를 기록한다. ACK 대기 중 뒤늦게 수행한 준비를 앞선 capture의 Source 결과로 합치지 않는다. 기존 build 안의 retained builder 비용도 `retainedBuilderMs`로 구분하며 build의 하위 구간이므로 더하지 않는다.
+- [PowerShell 검사](Nelyx/eng/check-windows-scroll.ps1)는 같은 domain과 표본 overwrite를 표시한다. [실제 Core 요청 회귀](Nelyx/eng/check-immediate-reads.mjs)는 원래 constraints/callback·요청 identity와 다음 capture 연결을 함께 확인한다. 별도 수집기·프로필 파일·history JSON은 만들지 않는다.
+
+이 연결은 App에서 실행한 준비의 범위다. native demand 수신 시간과 실제 coverage-ready·최초 이동 publication까지의 전 경계 지연을 입증한 것은 아니므로 `coverageReadyGoal`은 계속 notVerified다.
+
+### 13.4 §13 공급의 통합 결과와 다음 Source owner
+
+철회한 두 Source 후보를 제거한 뒤 현재 Core·Windows/Web 앱을 재빌드했다. native identity는 `820c61ccede47473f812bb469ca433a74fe4204b8ee48d2f84bcd92d21c6e625`, ABI 2/schema 313408118, engine 356/App 10 files로 §12.4와 같다. 이후 native 변경은 없다. Windows JS는 `c96ad368c69f5fb3f2ecca75697b2d9cfdad49bc84f0b550c3a10e4ea985cba0`, HBC는 `cbadba9bab0d3c035f3711b827c68b92f1c9ad0a657e6cf502876de390c5e557`, Windows/Web는 892/891 modules다.
+
+| 현재 공급 시나리오 | 기능·입력 | 표시·성능 경계 |
+| --- | --- | --- |
+| All / 12개월 / 60Hz / PID 48376, CLI 5084, HWND 592478, DPI 192 | 목록 4구간, 2026-11→2027-11, cancel/resize/header/전체 날짜/15일 선택/close **PASS**. 360 updates/6,000.291ms, **362 admitted/rejected 0**, driver lateness 최대 0.696ms | 이동 **360/360**, missing 0, 궤적 오차 `<1.75e-10px`. 지연 p95/최대 **134.058/185.246ms**, ≥100ms 41개로 **FAIL**. offset 공백 최대 **194ms**, ≥100/250ms 10/0회, backlog 114.667px. publication gap 33.979ms와 구분 |
+| 빠른 24개월 역방향 / PID 12676, CLI 46120, HWND 3869366, DPI 192 | 12 contacts/96 updates/120 packets 전량 접수, 거부 0, 약 2,220.817ms, 2026-11→2024-11, 15일 선택/close **PASS**. 활성 received 118과 전체 접수 120의 경계는 별개 | offset 공백 최대 **364ms**, ≥100/250/500ms 9/3/0회, backlog 2,064px. **W11 FAIL**, 이전 500ms 경보만 PASS. App turn p95/최대 172.725/323.703ms |
+| 0.4/0.8페이지 양방향 / PID 47644, CLI 17464, HWND 4327798, DPI 192 | 각 36 updates, **180 admitted/rejected 0**, cancel/resize/선택/close **PASS**. 게시/서로 다른 offset은 39/36, 35/35, 35/35, 35/35 | 수신→게시 최대 **31.323/13.937/14.466/14.670ms**, consumed offset 오차 `<8.74e-11px`. resident contact 의미 PASS이며 새 월 전체 성능은 notVerified |
+| Calendar / 12개월 / 60Hz / NoTrace / PID 38232, CLI 47656, HWND 6490328, DPI 192 | **362 admitted/rejected 0**, 약 6,000.221ms, 12개월/cancel/resize/header/전체 날짜/선택/close **PASS**, driver lateness 최대 0.607ms | trace-disabled이므로 movement/offset/W11 성능은 **notVerified**. 기본 App/native diagnostics까지 모두 꺼진 실행은 아님 |
+
+All의 활성 App turn p95/최대는 **296.190/338.789ms**다. 최근 128 pass에서 build/capture/scene 최대 **167/181/125ms**, 그 build 하위 retained builder p95/최대 **144/167ms**를 관측했다. 동일 pass `document=157/input=462`는 build/**retained**/capture/scene **154/154/92/125ms**, created/captured 375/834, module/bindings/adapters 70/702/132, `sourceThrough=76`이었다. 다른 긴 pass `document=149/input=340`도 build/**retained** **167/167ms**였다. 서로 다른 최대값이나 하위 구간을 더해 한 월의 비용으로 만들지 않는다.
+
+연속 cold 월 진행의 긴 pass들에서 `sourceThrough=76`이 유지됐다. 따라서 이번의 긴 build는 별도 box/sliver 준비 callback만의 시간이 아니라 **기존 retained builder와 그 안의 BuildOwner scope**에 있다. 이 scope는 원래 builder 호출 외에도 dirty 자손의 build/reconcile과 render commit을 포함한다. 167ms 전체를 날짜 constructor나 label formatting의 단독 비용으로 확정하지 않는다. All의 명시적 Source 준비는 전체 87 calls/누적 589ms/최대 56ms, 보존 87개/overwrite 0이었다. Fast는 31 calls/291ms/최대 55ms, build/capture/scene 최대 163/128/89ms이고 retained builder 최대도 163ms였다.
+
+참조 dependency 검사/subtree 재사용은 All **966/234**, Fast **177/38**, contact **863/179**였다. 이는 같은 writer가 실제 그 경로를 사용한 증거다. 기록 전체의 누적량·서로 다른 실행의 시간으로 cold 월만의 적용률이나 통제된 개선율을 계산하지 않는다. All의 App samplesThrough 236/overwrite 108과 bounded traceOverwritten 15,034도 전체 전수 수집을 뜻하지 않는다.
+
+네 Windows 실행은 모두 exit/status 0, reservedBytes/memoryTotal 0, workersJoined/appExited true, ringLost/outputDropped 0으로 종료했다. peak bytes는 All/Fast/contact/NoTrace 각각 **530,892,858 / 504,071,926 / 526,236,618 / 529,531,445**다. 개별 실행의 회수 결과이며 전체 제품의 장기 메모리 상한 증명으로 확대하지 않는다.
+
+현재 Web의 threaded(`isolated`)·single-worker(`plain`)도 각각 **12개월 왕복/header/전체 날짜/resize/Element·node 증가 제한/오류 없음 PASS**다. 양쪽 nodes/elements는 1,787/4,455 → 왕복 뒤 1,787/4,455 → resize 1,877/4,545, builders 3이었다. 두 context의 종료 reservedBytes 0/workersStopped true를 확인했다. 현재 설치 Core의 strict 선언·package-only import·commit·공유 transaction·clean close, pinned Hermes compiler/VM과 실제 배포 ESM 경계도 PASS다. 최신 Source의 root `check:types`, binding/NACK·incremental capture·실제 pending Content/취소 복구·Ink·semantics·공통 박스 wire·page observation 회귀와 변경 파일 lint/format을 통과했다.
+
+**이어갈 구현 경계:** [host의 retained builder loop](Nelyx/runtime/app/host.ts), [LayoutBuilder의 `_rebuildWithConstraints`](Nelyx/src/framework/widgets/layout-builder.ts), [BuildOwner scope](Nelyx/src/framework/widgets/framework.ts), [native window Source](Nelyx/runtime/app/scroll.ts)를 먼저 분석한다. `updateShouldRebuild=true`와 dirty 자손·원래 callback 실행은 유지한다. native-owned render의 paint/semantics 무효화가 반복해서 부모를 걷는 경로도 후보지만, 현재 virtual getter/hook·paintVersion 의미를 생략하는 변경은 적용하지 않았다. blob journal의 prepare는 동기 wire 구성이고 `sceneMs`에는 ACK 대기도 포함되므로, 전체 scene 시간을 직렬 blob RPC 비용으로 오인하지 않는다.
+
+전체 setter→field journal과 남은 adapter, demand revision→Source→coverage-ready→최초 이동 게시 연결, UIA 늦은 접속/실제 action·TextPattern·재진입, 원본 visual review와 물리 입력·display/scanout·resize 성능 및 다른 플랫폼 의무는 남아 있다. 상태는 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`다. 현재 dist와 사용자 변경·기존 SDK는 보존했고 소유 임시 검사 폴더/설치본/browser context/process는 회수했다. 별도 검증 로그·SDK 사본·history JSON을 보관하지 않는다.
+
+## 14. TextStyle 값 구성과 sealed program 공유
+
+### 14.1 필수 apply 실행과 값 구성의 분리
+
+[TextStyle](Nelyx/src/framework/painting/text-style.ts)의 공개 `apply` 입력 평가·산술·검증은 유지했다. 반환할 정확한 base 값만 고정 schema로 새로 구성한다. 공개 생성자의 **27개 undefined own-field 정의 후 값 재할당**을 이 내부 경로에서 반복하지 않는다. `copyWith`·공개 생성자·subclass 생성은 기존 경로다. Widget/State/FocusNode·날짜 predicate·resolver·callback과 새 TextStyle의 identity를 생략하거나 공유하지 않는다.
+
+필드 순서는 constructor 대입 순서가 아닌 원래 선언 순서와 같다. package의 null family 표현, fallback/features/variations 배열 복사, Shadow 재구성, Paint identity, snapshot validation·capture 판정·freeze를 보존했다. 비어 있는 Diagnosticable 상속 constructor가 교체되면 두 단계 parent identity guard가 공개 생성자로 돌아간다.
+
+[독립 비교](Nelyx/eng/check-text-style-construction.mjs)는 같은 apply 프로토콜을 기존 공개 생성자로 수행한 값을 기준으로 전체 field/descriptor/prototype, fresh 배열/Shadow, debug/release 오류, delta/package, Paint 변경, receiver/options Proxy와 중첩 collection getter, throw identity/순서, subclass·교체 superclass를 대조한다. [기준 apply 추출](Nelyx/eng/text-style-apply-reference.mjs)은 새 고정 schema를 호출하지 않는다. [실제 배포 Core의 pinned Hermes 검사](Nelyx/eng/check-hermes-syntax.mjs)도 descriptor·새 값·subclass 및 2,000회 결과를 통과했다. 최종 fixture 시간은 공개 constructor 경로 **22ms / 내부 값 구성 12ms**다. 이 제한된 구성 비교를 새 월 전체의 개선율이나 목표 달성으로 사용하지 않는다.
+
+### 14.2 callback과 독립적인 같은 program의 재사용
+
+[writer의 binding 봉인](Nelyx/runtime/engine-client/scene.ts)에서 Source reference마다 최근 **하나의 destination-free immutable program**만 유지한다. 같은 kind·명령 수·본문과 각 fixup의 reference/offset이 같을 때만 공유한다. 다른 참조를 같은 placeholder bytes라는 이유로 합치지 않는다. 새 children과 callback record는 매번 따로 봉인하며, 원래 writer의 accepted/checkpoint/ACK/NACK·generation 관리가 그대로 적용된다.
+
+이는 Source Focus/Gesture의 추가 revision·동결을 철회한 §13.1 후보와 다르다. Source Widget·options에 새 상태를 붙이지 않고, 이미 생성한 private 명령을 비교한다. [oracle](Nelyx/eng/check-render-bindings.mjs)은 같은 필드/새 callback에서 accepted config 재사용과 새 callback 실행, 변경 후 복귀, 서로 다른 cross-node 참조, NACK/in-flight와 이전 bytes 불변을 확인한다. capture·encoder 작업 자체는 여전히 남아 있으며 전체 setter→field journal 완료는 아니다.
+
+### 14.3 현재 공급의 통합과 성능 반증
+
+현재 Core와 Windows/Web 앱을 재빌드했다. native identity/ABI/schema는 §13과 같고 이후 native 수정은 없다. Windows JS `3ce623bd8388024110448a071ca01ce5b1d23b20dcdfc1282faefe45bff08ac5`, HBC `55e2ae1d2e290450cf50ec07d644864f11da080b319c43d23f9a469508f96d53`, engine 356/App 10 files다.
+
+| 시나리오·실행 identity | 기능·입력 | 표시·성능 경계 |
+| --- | --- | --- |
+| All / 12개월 / 60Hz / PID 33304, CLI 27216, HWND 4983586, DPI 192 | 목록 4구간, 2026-11→2027-11, cancel/resize/header/전체 날짜/15일 선택/close **PASS**. 360 updates/6,000.180ms, **362 admitted/rejected 0**, driver lateness 최대 12.340ms | 이동 **360/360**, missing 0, 궤적 오차 `<1.68e-10px`. 지연 p95/최대 **122.580/187.507ms**, ≥100ms 33개 → **FAIL**. offset 공백 최대 **194ms**, ≥100/250ms 9/0회, backlog 114.667px. publication gap 35.219ms와 별개 |
+| 빠른 24개월 역방향 / PID 18528, CLI 45140, HWND 4917542, DPI 192 | 12 contacts/96 updates, **120 admitted/rejected 0**, 약 2,206.483ms, 2026-11→2024-11·15일 선택/close **PASS**. 활성 received 118은 경계 밖 begin/end와 구분 | offset 공백 최대 **357ms**, ≥100/250/500ms 8/4/0회, backlog 2,236px. **W11 FAIL**, 이전 500ms 경보만 PASS. App turn p95/최대 264.681/318.527ms |
+| 0.4/0.8페이지 양방향 / PID 25356, CLI 34236, HWND 2688768, DPI 192 | 각 36 updates, **180 admitted/rejected 0**, cancel/resize/header/날짜 선택/close **PASS**. 게시/서로 다른 offset 38/35, 35/35, 35/35, 35/35 | 수신→게시 최대 **33.575/14.148/13.899/14.176ms**, consumed offset 오차 `<8.74e-11px`. resident contact 의미 PASS이며 새 월 전체 성능은 notVerified |
+| Calendar / 12개월 / 60Hz / NoTrace / PID 14940, CLI 17276, HWND 7014616, DPI 192 | **362 admitted/rejected 0**, 약 6,000.337ms, 12개월/cancel/resize/header/전체 날짜/선택/close **PASS**, driver lateness 최대 0.774ms | trace-disabled이므로 movement/offset/W11 성능 **notVerified**. 기본 diagnostics는 켜져 있고 0개 trace 표본을 0ms 지연으로 해석하지 않음 |
+
+All의 활성 App turn p95/최대 **287.861/333.404ms**다. 최근 128 pass의 build/capture/scene 최대는 **158/214/180ms**이며 서로 다른·중첩 구간이므로 합산하지 않는다. 동일 pass `document=140/input=402`는 build/retained/capture/scene **158/158/104/77ms**, created/captured **381/838**, module/binding/adapter **72/707/131**, `sourceThrough=70`이다. Fast의 전체 60 pass에는 build/capture/scene 최대 **164/107/85ms**, retained 최대 **164ms**가 남았다. NoTrace도 보존 구간의 build 최대 **183ms**였다. 값 구성·program 공유만으로 필수 Source 비용이 해결됐다고 판정하지 않는다.
+
+All의 writer `bindingRecords/bindingProgramReuses`는 **44,587/36,564**, `bindingCommands` **46,143**, reference dependency 검사/subtree 재사용 **898/219**, records/diff 누적 **872/590ms**다. same-pass 제거량은 oracle로 확인하며, 이 실행 전체의 누적치를 cold 월 적용률이나 이전 실행 대비 통제된 개선율로 계산하지 않는다. App samplesThrough **223**, 보존 128/overwrite **95**, bounded trace overwritten **14,627**이다.
+
+네 Windows 실행은 모두 exit/status 0, reservedBytes/memoryTotal 0, workersJoined/appExited true, ringLost/outputDropped 0으로 종료했다. peak bytes All/Fast/contact/NoTrace는 각각 **529,042,733 / 510,525,207 / 524,874,059 / 526,223,505**다. 이 기능·회수 결과를 전체 제품의 물리 입력·scanout·장기 메모리 상한 수락으로 확대하지 않는다.
+
+현재 Source의 root `check:types`, TextStyle 독립 의미 비교, 공통 박스 27개 wire, binding/참조/NACK, incremental capture, 실제 pending Content·superseded/cancel 복구, Ink parking, 게시 semantics, page observation·LayoutBuilder scheduling과 pinned Hermes를 통과했다. 변경 TS/MJS **26개** lint/format도 PASS다. 생성기/생성 TS/의존성 lockfile은 §12의 시스템 Dart 검증 후 바꾸지 않았으며 그 SDK 지원 계약을 유지한다.
+
+현재 Web의 threaded(`isolated`)와 single-worker(`plain`)도 각각 12개월 왕복/header/전체 날짜/resize·Element/node 증가 제한·오류 없음 **PASS**다. 두 profile 모두 nodes/elements **1,787/4,455 → 왕복 뒤 1,787/4,455 → resize 1,877/4,545**, builders 3이며, 종료 reservedBytes **0**/workersStopped **true**를 확인했다. 독립 설치 Core의 strict 선언·package-only import·commit·공유 transaction·clean close도 **PASS**다. 모든 소유 검사 process/consumer/browser context·Hermes 임시 출력·이전 dist/staging은 회수했고 현재 dist와 기존 사용자 SDK/디렉터리는 보존했다.
+
+### 14.4 남은 구현 경계
+
+상태는 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`다. 같은 callback/State·최대 4페이지 resident 정책·입력 속도와 애니메이션 시간은 유지했다. 전체 필드별 binding journal, 남은 adapter, Source의 필수 constructor/lifecycle/label formatting과 불필요한 표현 분리, demand→coverage-ready 연결, UIA 실제 소비자/관찰 조건, 원본 visual review·물리/display/scanout·resize 성능 및 다른 플랫폼 의무가 남아 있다.
+
+다음 Source 분석은 retained LayoutBuilder의 **원래 callback과 scope dirty 자손 flush**를 구분하고, 현재 Windows 배포의 Babel 상속 helper가 반복하는 constructor/할당 비용을 함께 검토한다. pinned Hermes의 전체 Diagnosticable mixin graph가 native class에서 실패한다는 기존 공급 계약이 있으므로, native class로 일괄 전환하거나 `new.target`·교체 superclass·사용자 hook을 무시하는 loose lowering은 적용하지 않았다. 작은 값 factory의 microbenchmark만으로 긴 Source turn 전체가 해결된 것처럼 계속 확장하지 않는다. 검증 로그·SDK/profile/consumer 사본을 별도 보관하지 않는다.
+
+## 15. 스칼라 명령 인수 재사용과 구조화된 기록 후보 철회
+
+### 15.1 채택한 구현과 보존 계약
+
+[scene.ts](Nelyx/runtime/engine-client/scene.ts)의 직접 binding은 paint·text·gesture·event-policy의 내부 인수 중 **동결된 목적지 placeholder와 원시값만** 보유한다. 같은 reference·종류·명령에서 인수 길이와 각 `Object.is`가 같으면 인코더를 생략한다. 텍스트는 direction을 포함한 스칼라 인수로 비교하므로 같은 문자열의 UTF-8 생성도 생략한다. 실제 명령 body는 §14의 목적지 없는 sealed program에 남고, 변경분의 handle 해석·native transaction은 기존 writer가 맡는다.
+
+이 기록은 live Source reference당 최근 한 묶음이다. 새로운 종류·값·제거된 optional command는 현재 config로 반영하며, 자식 연결·callback은 매번 현재 Source 결과를 사용한다. encoder 예외로 끝난 구성은 최근 기록을 설치하지 않는다. native NACK 뒤에도 Source 값과 ACK 상태는 같은 것으로 취급하지 않으며 기존 accepted diff·세대 복구를 유지한다. 공개 Scene producer의 capture/비교는 바꾸지 않았다.
+
+**객체·배열·접근자·실행형 참조는 추가 기록·재귀 probe 없이 기존 codec을 실행한다.** `closedData`여도 중첩 객체를 raw identity로 재사용하지 않는다. Source setter revision이나 전체 `O(M+E)` journal의 완료가 아니며, 새 월의 필수 첫 인코딩도 남는다. [host.ts](Nelyx/runtime/app/host.ts)의 기존 bounded pass 진단에 `partEncodes/partReuses`를 연결했다. 두 수치는 위 스칼라 후보 명령만 집계하며 모든 객체 명령의 인코딩 횟수가 아니다.
+
+[wire oracle](Nelyx/eng/check-render-bindings.mjs)은 structured Source와 공개 Scene의 전체 bytes, NACK/복귀·adapter 전환·참조/세대·콜백을 비교한다. 같은 paint/text 인수의 실제 codec 호출 생략, paint 변경, 실패 후 이전 기록 보존, 중첩 배열/비열거 필드 변경, 사용자 Array subclass 실행, 접근자 호출 횟수도 PASS다. pinned compiler/VM의 **실제 배포 ESM**에서도 같은 스칼라 인코딩 **1회/재사용 1회**, wire 변경 0·새 callback 실행을 확인했다.
+
+### 15.2 철회한 후보
+
+첫 후보는 명령별 구조화된 인수 tree를 복사·비교했다. Windows JS `d927ac5766121105925f4ab5979eae9d88b53767c3624170b394d8c2dfb8ae1f` / HBC `5fee86039cdd56466417cc25e287374a51ee2d2c7f382d81efe3475e2fd97c23`, All PID 34376에서 기능은 PASS였지만 이동 지연 p95/최대 **223.983/324.844ms**, offset 정체 최대 **333ms**, backlog **206.4px**였다. codec 17,379회 생략은 표시 성능 개선 증거가 아니었다.
+
+다음 후보는 tree 사본 대신 flat key와 순차 비교를 사용했다. Windows JS `b9c6389945b5cbc0fefe2f4cbf183f718c72bc11819c50e7552d1b84b93f8fb6` / HBC `5386743839f2bb9882a03e3f8823fdc8ed29bf3336d6be997676986c21ebf5af`, All PID 25012에서 기능 PASS, 이동 지연 **153.034/243.259ms**였다. 이전 §14 공급 대비 효용을 입증하지 못했고 새 reference에 key를 만드는 추가 작업도 남았다. **두 구조화된 기록 후보는 소스에서 제거했으며 현재 공급이 아니다.** 서로 다른 실행의 retained build·native 비용도 달라 이 차이 전체를 기록 방식 하나의 원인으로 확정하지 않는다. 두 실행은 exit/status 0·reserved/memory 0·workersJoined/appExited true로 회수했다.
+
+### 15.3 현재 공급과 통합 결과
+
+현재 native/source identity는 **`820c61ccede47473f812bb469ca433a74fe4204b8ee48d2f84bcd92d21c6e625`**, ABI **2** / schema **313408118**, engine **356** / App **10** files다. Windows JS **`544524698bf02fe8fd80cce10152ba5ff320e656790ab5f21d67b4394973ff67`**, HBC **`bd206728bc50f2ecf2586e825a74a1c1686c64d59f424f3bec63c444f7ad7260`**, Web JS **`03fc2a793e859f6031d07006f81892349eccbc9f2e7be4d7f6de8ed1184e1347`**로 빌드·실행을 연결했다. §14와 달리 스칼라 인코더 전 재사용을 포함한 공급이다.
+
+| 실행 / 실제 owner | 기능·입력 | 표시 추종과 판정 |
+| --- | --- | --- |
+| All / 12개월 / 60Hz / PID 38488, CLI 15532, HWND 2623950, DPI 192 | 목록 4구간, 2026-11→2027-11·cancel/resize/header/전체 날짜/15일 선택/close **PASS**. 360 updates/6,000.385ms, **362 admitted / rejected 0**, driver lateness 최대 1.026ms | **360/360 반영**, missing 0, 오차 `<1.75e-10px`. 지연 p95/최대 **137.194/204.138ms**, ≥100/250ms 37/0개로 **FAIL**. offset 정체 최대 **211ms**, ≥100/250ms 9/0회, backlog 126.133px. publication gap 최대 36.577ms와 구분 |
+| 빠른 24개월 역방향 / PID 428, CLI 24628, HWND 1377120, DPI 192 | 12 contacts/96 updates/120 packets 전량 접수·거부 0, 약 2,199.279ms, 2026-11→2024-11·15일 선택/close **PASS** | offset 정체 최대 **381ms**, ≥100/250/500ms 7/4/0회, backlog **2,408px**. **W11 FAIL**, 이전 500ms 경보만 PASS. App turn p95/최대 263.177/336.972ms |
+| 0.4/0.8페이지 양방향 / PID 26400, CLI 35344, HWND 1706540, DPI 192 | 각 36 updates, **180 admitted / rejected 0**, cancel/resize/header/날짜 선택/close **PASS**. 게시/서로 다른 offset 40/36, 35/35, 35/35, 35/35 | 수신→게시 최대 **27.052/13.455/13.399/12.942ms**, consumed offset 오차 `<8.74e-11px`. resident 접촉 의미 PASS이며 새 월 전체 성능은 notVerified |
+| Calendar / 12개월 / 60Hz / NoTrace / PID 32140, CLI 49200, HWND 5507460, DPI 192 | **362 admitted / rejected 0**, 약 6,000.146ms, 12개월·cancel/resize/header/전체 날짜/선택/close **PASS**, driver lateness 최대 4.182ms | trace-disabled이므로 movement/offset/W11 성능 **notVerified**. 기본 App/native 진단까지 모두 꺼진 실행은 아님 |
+
+All의 활성 App turn p95/최대는 **280.183/364.432ms**다. 최근 128 pass의 build/capture/scene 최대 **191/210/136ms**는 서로 다른·중첩 구간이므로 합산하지 않는다. 동일 pass `document=154/input=462`는 build/retained/capture/scene **191/191/97/94ms**, created/captured **375/834**, module/binding/adapter **70/702/132**, 스칼라 encode/reuse **292/424**, `sourceThrough=76`이다. Source 준비 ring은 **85 calls/누적 559ms/최대 55ms**, overwrite 0이며 긴 cold pass에서 그 sequence가 유지됐다. Fast retained builder 최대 **183ms**, NoTrace **179ms**도 남는다. Source retained build/scope가 여전히 예산을 압도한다.
+
+All 전체의 스칼라 `partEncodes/partReuses`는 **6,079/12,062**, `bindingRecords/bindingProgramReuses` **44,661/36,645**, records/diff 누적 **830/609ms**다. 이는 실제 인코더 생략과 프로그램 공유의 발동 근거이며 cold 생성 비용·이전 공급 대비 개선율은 아니다. App samplesThrough **234/overwrite 106**, bounded trace overwritten **14,844**를 기록했다. 기능은 통과했지만 §14보다 표시 성능이 개선됐다고 판정하지 않는다.
+
+네 Windows 실행 모두 exit/status 0, reservedBytes/memoryTotal 0, workersJoined/appExited true, ringLost/outputDropped 0으로 종료했다. peak bytes All/Fast/contact/NoTrace는 **528,978,951 / 511,206,812 / 524,486,130 / 525,998,827**이다. 사용자가 기존에 보유한 SDK/디렉터리를 제거했다는 뜻은 아니다.
+
+전체 root `check:types`, binding/공통 박스 27개 wire, 실제 Core pending Content·superseded/cancel 복구, incremental capture/journal, Ink parking, 게시 semantics·page observation·LayoutBuilder scheduling, pinned Hermes와 독립 설치 Core strict 선언/package-only import/commit/공유 transaction/clean close **PASS**다. 구현 TS/MJS **26개** lint/format PASS다. 생성 TS까지 포함한 lint는 기존의 미사용 매개변수 경고 **3개**가 남으며 이를 전체 lint PASS로 기록하지 않는다. 생성기·생성 TS·lockfile은 §12 이후 추가 변경하지 않았고, 기본 시스템 `dart --version`의 **3.12.2**와 `>=3.12.0 <4.0.0` 제약을 다시 확인했다. 전체 75/75·원본 oracle PASS는 §12의 실행이며 이번 단계에서 불필요하게 반복하지 않았다.
+
+Web threaded(`isolated`)·single-worker(`plain`) 모두 **6개월 전진·6개월 복귀, 총 12회 월 이동**, header/전체 날짜/resize·Element/node 증가 제한·오류 없음 **PASS**다. 각 nodes/elements는 **1,787/4,455 → 왕복 후 1,787/4,455 → resize 1,877/4,545**, builders 3이고 종료 reservedBytes **0**/workersStopped **true**다. 검증용 consumer/Hermes 출력/browser context·소유 process와 build staging은 회수했으며 현재 dist만 남겼다.
+
+### 15.4 남은 작업과 다음 실행점
+
+전체 작업은 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`다. 현재 공급의 기능 PASS와 스칼라 인코더 생략으로 전체 작업을 완료 처리하지 않는다. 입력 속도·animation·최대 4페이지 resident 정책·원본 callback/State를 유지했다.
+
+다음은 같은 owner가 새 월의 필수 Source 실행과 module projection을 중복 구성하는 실제 경계를 줄이는 작업이다. **범용 mutable 값 캐시나 작은 값 factory를 계속 추가하는 것**으로 대신하지 않는다. retained builder의 원래 callback과 자손 flush·reconcile·render commit을 구분하고, 생성기에서는 `_DayState.build`의 local `resolve/effectiveValue/getProperty` 중 escape하지 않는 호출의 정적 결합을 검토한다. overlay callback으로 escape하는 helper와 사용자 resolver 호출·null fallback 순서, 반복 `this.widget.isToday` 읽기를 임의로 합치지 않는다. Babel class lowering도 `new.target`·교체 superclass·전체 mixin 의미가 보존되는 범위만 검토한다. 이번에 두 변환을 구현한 것은 아니다.
+
+전체 setter→필드 journal·남은 adapter, demand→coverage-ready의 같은 request/pass/준비 identity 연결, UIA 늦은 client/query/청취·TextPattern·재진입과 원본 visual review·사용자 물리 입력/display/scanout·resize 성능·다른 플랫폼 의무가 남아 있다. 이전 capture/정리의 자동 승인 거부를 해결하거나 우회했다고 주장하지 않는다. 로그·receipt·SDK/profile/설치본·history JSON을 누적 보관하지 않는다.
+
+## 16. 날짜와 연도 생성 코드의 지역 helper 정적 결합
+
+### 16.1 구현과 효과 보존
+
+§3.4의 `resolve/effectiveValue/getProperty` 경계를 [생성기](tools/Nelyx.FrameworkToTypeScript/generate-date-picker.ts)와 [emitter](tools/Nelyx.FrameworkToTypeScript/src/dart-emitter.ts)에 연결했다. [local-functions.ts](tools/Nelyx.FrameworkToTypeScript/src/local-functions.ts)는 정상 Dart ABI emission 이후 TypeScript 심볼로 선언·사용처·lexical receiver를 검사한다. recipe는 원본 analyzer identity로 `_DayState.build`와 `_YearPickerState._buildYearItem` 두 method를 선택한다. Source pin과 normalized hash는 그대로이며 생성 TS를 직접 편집하지 않았다. 이 분석은 생성할 때만 실행한다.
+
+대상은 단일 return의 final 지역 arrow이며 함수 값의 모든 사용이 직접 호출이어야 한다. 별도 owner로 넘긴 함수 identity, shadowed free variable, 다른 `this` scope, TDZ 이전 호출, spread/default/rest·formal parameter 쓰기·type query·eval 등 증명하지 못한 형태는 기존 코드로 남긴다. 인수의 효과는 순서대로 한 번 평가하고, 전달된 가변 binding과 중복되는 효과식은 독립 지역 값으로 묶는다. 사용되지 않게 된 witness도 `void`로 원래 시점에 평가한다. 중간의 순수한 literal null만 `??` 연쇄에서 제거하며 마지막 null과 실행형 읽기/호출은 보존한다. 타입 전용으로만 쓰던 미사용 import는 제거하고 값 import의 초기화는 유지한다.
+
+두 method의 helper 정의 **4개**와 해당 selector closure/call을 직접 식으로 결합했다. **사용자 WidgetStateProperty.resolve와 fallback은 계속 실행**한다. `this.widget.isToday`의 반복 읽기를 합치지 않으며 첫 resolver가 null을 돌려준 뒤의 fallback 시점도 같다. overlay의 외부 callback 자체는 남고 그 안의 원래 식은 나중에 callback이 호출될 때 실행된다. Widget/State/FocusNode/controller·theme 의존성·날짜 label·실제 callback이나 constructor를 생략/공유하지 않았다.
+
+[효과 oracle](tools/Nelyx.FrameworkToTypeScript/verify-local-functions.ts)은 독립 예제뿐 아니라 **baseline emitter와 새 emitter의 실제 날짜/연도 값 계산 식**을 추출해 비교한다. theme Proxy/getter, resolver receiver·states, null/undefined fallback, witness/getter/resolver 예외 identity, states-controller write, 나중 overlay 호출과 변하는 isToday getter가 같다. 외부로 넘긴 함수 identity, 반복 효과 인수, mutable parameter, shorthand 결과, 연산자 우선순위, free/global 이름 가림, 다른 receiver·TDZ·eval·spread 거부도 확인했다. IR에서 벗어난 임의의 Dart 전체 함수 inlining을 지원한다고 주장하지 않는다.
+
+시스템 Dart **3.12.2**의 최종 `--check --verify`는 **75/75, errors 0**, 원본 Dart date/localization oracle **12 dates / 11 inputs / 4 decimal cases PASS**다. 이 단계의 새 생성 출력까지 다시 분석·비교했다. compiler 정책 오류/누락·중복 method 거부, generator TS 타입 검사, root `check:types`, Material ESM/선언 빌드와 구현 TS/MJS **29개** lint/format도 PASS다. 생성 TS 전체 lint에는 기존 unused parameter **3개**만 남아 있어 전체 lint PASS로 부르지 않는다.
+
+### 16.2 현재 공급과 실제 통합
+
+native/source는 **`820c61ccede47473f812bb469ca433a74fe4204b8ee48d2f84bcd92d21c6e625`**, ABI **2** / schema **313408118**, engine **356** / App **10** files다. 현재 Windows JS **`512f1f40a8c65ef8d39fd6d92dfa9825a866bc690911bbdc558d3b2823c83931`**, HBC **`a3a01c74a4aacf9730c983b6246b1bbf273df3ce57a875d9d449bc5fe7d6f831`**, Web JS **`ac4324d05b07885ac43f5b5e125eb87fde8a538c2aead354286040574823c647`**다. Core/Material의 Source inputs와 두 App bundle identity도 최종 상태로 확인했다. §15 공급과 섞지 않는다.
+
+| 실행 / 실제 owner | 기능·입력 | 표시 추종과 판정 |
+| --- | --- | --- |
+| All / 12개월 / 60Hz / PID 38648, CLI 48220, HWND 2099508, DPI 192 | 목록 4구간, 2026-11→2027-11·cancel/resize/header/전체 날짜/15일 선택/close **PASS**. 360 updates/6,000.334ms, **362 admitted / rejected 0**, driver lateness 최대 0.573ms | **360/360 반영**, missing 0, 오차 `<1.75e-10px`. 지연 p95/최대 **116.612/199.790ms**, ≥100/250ms 28/0개로 **FAIL**. offset 정체 최대 **205ms**, ≥100/250ms 10/0회, backlog **126.133px**. publication gap 최대 36.326ms와 구분 |
+| 빠른 24개월 역방향 / PID 43876, CLI 15356, HWND 2820010, DPI 192 | 12 contacts/96 updates/120 packets 전량 접수·거부 0, 약 2,225.376ms, 2026-11→2024-11·15일 선택/close **PASS** | offset 정체 최대 **344ms**, ≥100/250/500ms 8/4/0회, backlog **2,064px**. **W11 FAIL**, 이전 500ms 경보만 PASS. App turn p95/최대 218.006/280.357ms |
+| 0.4/0.8페이지 양방향 / PID 9108, CLI 34692, HWND 6817766, DPI 192 | 각 36 updates, **180 admitted / rejected 0**, cancel/resize/header/날짜 선택/close **PASS**. 게시/서로 다른 offset 40/36, 35/35, 35/35, 35/35 | 수신→게시 최대 **32.716/12.509/13.437/12.190ms**, consumed offset 오차 `<8.74e-11px`. resident 접촉 의미 PASS이며 새 월 전체 성능은 notVerified |
+| Calendar / 12개월 / 60Hz / NoTrace / PID 44768, CLI 10744, HWND 2427188, DPI 192 | **362 admitted / rejected 0**, 약 6,000.541ms, 12개월·cancel/resize/header/전체 날짜/선택/close **PASS**, driver lateness 최대 2.177ms | trace-disabled이므로 movement/offset/W11 성능 **notVerified**. 기본 App/native 진단까지 모두 꺼진 실행은 아님 |
+
+All 활성 App turn p95/최대 **268.852/350.521ms**다. 최근 128 pass의 build/capture/scene 최대는 **160/196/106ms**이며 서로 다른·중첩 구간이므로 합산하지 않는다. 같은 `document=145/input=401` pass는 build/retained/capture/scene **151/151/94/69ms**, created/captured **381/838**, module/binding/adapter **72/707/131**, 스칼라 encode/reuse **292/430**, `sourceThrough=74`다. 명시적 Source 준비 **83 calls/누적 574ms/최대 59ms**, overwrite 0과 별개로 긴 retained scope가 남았다. Fast retained 최대 **199ms**, NoTrace **156ms**도 남는다. 이 시간 전체를 helper나 원래 builder callback 하나의 비용으로 확정하지 않는다.
+
+§15 대비 All의 p95는 낮아졌지만 최대 지연·offset 정체와 backlog 목표는 미달이다. 서로 다른 실행의 작은 차이로 통제된 개선율을 주장하지 않으며, **지역 함수 제거의 확인과 새 월 처리량 목표 달성을 구분**한다. Widget/Element 전체 allocation 표본과 직접 projection을 끈 독립 성능 비교도 미실행이다. All App samplesThrough **234/overwrite 106**, bounded trace overwritten **14,603**이며 전체 pass 전수 수집으로 부르지 않는다.
+
+네 Windows 실행은 모두 exit/status 0·reservedBytes/memoryTotal 0·workersJoined/appExited true·ringLost/outputDropped 0으로 회수했다. peak bytes All/Fast/contact/NoTrace는 **529,914,056 / 506,374,633 / 524,027,593 / 530,773,467**이다.
+
+[Web 검사](Nelyx/eng/check-date-scroll-web.mjs)의 threaded(`isolated`)·single-worker(`plain`) 모두 6개월 전진·6개월 복귀와 header/전체 날짜/resize·증가 제한·오류 없음 PASS다. **추가 `--year-mode`로 실제 연도 화면 진입 → 2026 선택 → 원래 월/날짜 화면 복귀도 두 profile PASS**다. 연도 전환 전 왕복/resize의 nodes/elements는 각각 **1,787/4,455 → 1,787/4,455 → 1,877/4,545**, builders 3이었다. 연도 전환 이후의 별도 장기 증가 검사는 아니다. 양쪽 종료 reservedBytes **0**/workersStopped **true**를 확인했다. 같은 Core의 독립 설치 검증은 §15에 있으며 이번에는 바뀐 Material과 실제 App을 재검증했다. 소유 process·임시 분석/oracle·browser context·이전 dist/staging 잔류 없이 현재 dist와 기존 사용자 디렉터리만 보존했다.
+
+### 16.3 남은 구현과 다음 실행점
+
+전체 작업은 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`다. W11-02의 명시된 helper 결합은 구현했으나 필수 Source 객체 생성·build/reconcile와 capture/scene이 여전히 예산을 넘는다. 전체 필드별 setter journal·남은 adapter, demand→coverage-ready identity 연결, UIA 실제 소비자/관찰 조건과 원본 visual·사용자 물리/display/scanout·resize 성능·다른 플랫폼 의무는 남는다.
+
+다음에는 retained builder의 원래 callback과 dirty 자손 build/reconcile·render commit을 현재 소스의 실제 호출 경계로 나눈다. 지역 함수 제거를 같은 값의 cache·추가 factory로 반복 확장하지 않는다. Babel 상속 helper의 반복 allocation도 여전히 검토 대상이며 `new.target`·교체 superclass·전체 mixin 의미를 잃는 lowering으로 바꾸지 않는다. 구조화된 payload 기록 후보를 다시 도입하거나 원본 Widget/State·사용자 callback·4페이지 resident 상한·입력/animation을 바꿔 통과시키지 않는다. capture/정리 자동 승인 거부를 해결하거나 우회했다는 주장도 하지 않는다.
+
+## 17. Source 하위 트리 비용과 Hermes 클래스 생성 수정
+
+### 17.1 실제 builder 호출과 하위 요소 갱신을 분리
+
+[LayoutBuilder](Nelyx/src/framework/widgets/layout-builder.ts)에 owner 수명의 스칼라 카운터를 추가하고 [BuildOwner](Nelyx/src/framework/widgets/framework.ts)의 dirty flush와 render commit을 나눴다. 원래 callback, 즉시 element rebuild, dirty 자손 처리, render commit, 전체 scope, 마지막 sync를 기존 bounded App pass에 연결한다. callback과 즉시 rebuild는 descendant 시간에서 제외하며 scope에는 포함된다. 원래 builder 실행·예외 복구·deferred frame 취소·새 invalidation 순서는 유지한다. 스냅샷은 불변이고 별도 이력 파일은 생성하지 않는다.
+
+첫 비용 분리 공급은 native/source `820c61cc…`, JS `3c597401…`, HBC `34120974…`였다. All PID **768** / CLI **21752** / HWND **7931878** / DPI **192**, 기능 PASS·362/0, 360/360 이동 반영·missing 0, 지연 p95/최대 **116.822/182.017ms**, offset 정체 최대 **190ms**·≥100ms **10회**, backlog **114.667px**로 성능 FAIL이었다. 같은 `document=143/input=367` pass의 retained **157ms** 중 callback/즉시 rebuild는 **0/0ms**, 전체 scope는 **156ms**였다. 이 결과는 원래 builder 하나의 계산보다 scope 안의 하위 작업이 비싸다는 증거이며, 전체를 constructor 비용으로 확정하지 않는다.
+
+### 17.2 큰 함수의 클래스 spill 오류를 고친 공급
+
+native class의 작은 Core 그래프는 통과했지만 실제 App은 `SliverGeometry extends Diagnosticable(class {})` 초기화에서 `Object is not a constructor`로 실패했다. 빈 base에 명시적 생성자를 넣은 후보도 같은 오류로 실패했고 철회했다. 같은 전체 App의 debug 컴파일은 통과하고 optimized 컴파일은 실패했다.
+
+pinned Hermes의 IR·spill 코드를 대조했다. 큰 함수에서 생성자와 사용하지 않는 home object가 같은 높은 레지스터 **r615**를 공유할 수 있다. `CreateClass`는 home object를 먼저, 생성자를 마지막에 쓰지만 기존 spill은 생성자를 r615에 저장한 뒤 home object로 덮어썼다. [공급 패치](Nelyx/sdk/tooling/cli/src/static-hermes-compiler-patch.mjs)는 클래스의 주 결과를 마지막에 spill하고 결과 사용자를 그 spill에 연결한다. source archive/pin·JSI **21**·HBC **99**를 유지하며 `compilerClassSpill=nelyx.hbc-class-spill/v1`을 공급에 기록한다. [엔진 공급 검사](Nelyx/engine/tools/build.mjs)는 이 정책과 실제 패치 파일·compiler/VM hash를 확인한다.
+
+[Windows App 빌드](Nelyx/sdk/tooling/cli/src/engine-v2-runner.mjs)는 이 공급에서 native class를 유지하고 `classes=native-spill-v1`, compiler policy `windows-hermes-94aa5e1d-no-cfg-class-spill-v2`를 요구한다. 원래 constructor·상속·field 실행은 유지하면서 반복 Babel 상속 helper 실행을 제거했다. 준비 중 발견한 CMake의 삭제된 MSVC **14.51** 경로도 현재 **14.52.37025** 도구로 갱신한다. 실제 공급 compiler/VM hash는 각각 `ed4d44de…` / `3d14f41d…`다.
+
+[pinned VM 검사](Nelyx/eng/check-hermes-syntax.mjs)는 실제 배포 Core의 값·descriptor·subclass·LayoutBuilder와 native async/spread/rest를 통과했다. 별도 `new.target`, 교체 superclass, super가 반환하는 객체와 field 순서, class의 일반 함수 호출 거부도 PASS다. 650개 live value 사례와 별도로 **실제 전체 App module initialization을 debug/optimized 모두 실행해 PASS**했다. 작은 그래프 통과만으로 제품 공급을 채택하지 않는다.
+
+### 17.3 첫 native-class 공급의 실제 결과
+
+이 절의 공급은 source **`5af8cb078b1b1cf21e3e4e323db6159093818562dd7d580192425daf1713f9f4`**, ABI **2** / schema **313408118**, engine **356** / App **10** files, Windows JS **`1e0b6051a60bbd6d60e8f62cc261ad1a2f86344887e03d1f5ad13a3b2b5eca06`**, HBC **`535f5dc4d4e3f460fe19a4431d721cd25dd20241be11368a2f322d90a7c1e303`**다. 아래 Web resize 수정 전의 공급으로 구분한다.
+
+| 실행 / 실제 owner | 기능과 표시 결과 |
+| --- | --- |
+| All / 12개월 / 60Hz / PID 44336, CLI 4524, HWND 2951410, DPI 192 | 목록 4구간·2026-11→2027-11·cancel/resize·전체 날짜·**실제 연도 화면에서 2027 선택 후 월 복귀**·15일 확정·close PASS. 360 updates/6,000.124ms, main **362 admitted/rejected 0**, driver lateness 최대 **0.818ms**. **360/360 반영**, missing 0, 오차 `<1.82e-10px`. 지연 **96.078/179.872ms**, ≥100ms **14개**로 FAIL. offset 정체 최대 **189ms**, ≥100ms **6회**, backlog **114.667px**. App turn p95/최대 **52.731/334.680ms** |
+| 빠른 24개월 역방향 / PID 34192, CLI 14212, HWND 3934500, DPI 192 | **120/0**, 2,207.646ms, 2026-11→2024-11·날짜 확정·close PASS. offset 정체 최대 **322ms**, ≥100/250/500ms **9/4/0회**, backlog **2,064px**로 W11 FAIL. App turn **248.097/284.263ms** |
+| 0.4/0.8페이지 양방향 / PID 23220, CLI 20876, HWND 8259558, DPI 192 | **180/0**, 각 36 updates·cancel/resize·선택·close PASS. 게시/서로 다른 offset **38/36, 35/35, 35/35, 35/35**, 반영 지연 최대 **26.362/14.025/13.569/14.525ms**, 오차 `<8.74e-11px`. resident contact 의미 PASS |
+| Calendar / 12개월 / 60Hz / NoTrace / PID 37684, CLI 14852, HWND 4065226, DPI 192 | main **362/0**, 6,000.582ms, 날짜/resize/close PASS. driver lateness 최대 **2.938ms**. trace-disabled이므로 movement/offset/W11 성능은 **notVerified**이며 기본 App/native diagnostics는 계속 켜져 있음 |
+
+All의 같은 `document=151/input=431`은 build/retained **134/134ms**, callback/즉시 rebuild/descendant/render commit/scope/sync **0/0/129/4/133/0ms**, capture/scene **93/129ms**, created/captured **398/847**, module/binding/adapter **76/715/132**, scalar encode/reuse **301/424**, `sourceThrough=74`다. 최근 128 pass의 build/capture/scene 최대 **134/211/129ms**는 연도 전환·resize까지 포함한 서로 다른 pass의 최대이며 합산하지 않는다. Source 준비 **83 calls/592ms/최대 50ms/overwrite 0**, builder 전체 **84 calls/31 builds**, descendant/render commit 누적 **2,249/83ms**다. constructor helper 제거는 확인했지만 남은 하위 요소 갱신을 해결하지 못했다. toolset 재빌드·추가 계측·실행별 pass 수 차이도 있으므로 이전 공급과 통제된 개선율을 주장하지 않는다.
+
+네 실행은 exit/status **0**, reservedBytes/memoryTotal **0**, workersJoined/appExited **true**, ringLost/outputDropped **0**으로 종료했다. peak bytes는 All/Fast/contact/NoTrace **527,400,608 / 511,571,166 / 524,214,243 / 527,264,135**다. All bounded App samplesThrough/overwrite **247/119**, trace overwritten **15,658**이며 전수 pass 수집으로 부르지 않는다.
+
+### 17.4 Web resize에서 드러난 anchor 수정 — 재검증 진행 중
+
+같은 공급의 Web threaded(`isolated`)는 월 왕복·resize·2026 연도 선택 PASS였다. single-worker(`plain`)는 월 왕복 후 resize에서 **November 2026과 October 2026의 61개 날짜**가 함께 노출돼 실패했다. 종료는 양쪽 reservedBytes **0** / workersStopped **true**였다. 이 실패를 재실행으로 지우거나 Web 전체 PASS로 기록하지 않는다.
+
+[Core anchor](Nelyx/engine/core/scheduler/scheduler.cpp)는 이전 행의 미세한 겹침을 anchor로 선택할 수 있는데, 페이지 크기가 344→360으로 바뀌어도 그 행 안의 이전 픽셀 위치를 유지했다. 관측된 **46,784px**는 기대 페이지 경계 **46,800px**보다 16px 앞선 값으로 이 계산과 일치한다. 수정은 이전 viewport의 크기로 가시 행을 고르고, snapping fixed page의 span 변경에는 선언된 fixed extent로 상대 진행도를 보존한다. 고정 pin의 [Flutter `_PagePosition`](https://github.com/flutter/flutter/blob/71e4717a61786faab4c7aa39825989305ed29e8a/packages/flutter/lib/src/widgets/page_view.dart#L376-L464)과 대조해 정수 페이지 근처의 오차를 **페이지 단위 `precisionErrorTolerance=1e-10`**로 정규화한다. 일반 목록의 pixel anchor는 유지한다.
+
+[회귀 검사](Nelyx/eng/check-frame-reuse.cpp)에 양축·확대/축소·부분 페이지/경계 오차·일반 목록을 추가했다. 첫 후보는 측정된 row extent를 비율로 사용해 경계 oracle가 실패했고, fixed page의 선언 extent와 원본의 페이지 단위 허용오차를 사용하도록 보완했다. 최종 native/Web 공급을 다시 빌드했고 **§17.5에서 Core 회귀와 실제 제품 경로를 재검증**했다. §17.3의 이전 공급과 구분한다.
+
+v3 준비 경로를 잘못 선택한 실행은 자체 finally로 임시 소스 대조 디렉터리와 owner lock을 회수했다. 별도의 중단·임시 복사본/아카이브 삭제 명령은 자동 승인 검토에서 `blocked by policy`로 거부됐고 재실행하지 않았다. pinned 소스 아카이브는 현재 toolchain cache에 남아 있다. 기존 사용자 디렉터리와 2026-11-08의 engine cache는 보존한다.
+
+이 절 시점에는 후속 공급 재검증을 진행 중이었다. 최종 기능 회귀 결과와 남은 전체 의무는 §17.5–17.6에서 구분한다.
+
+### 17.5 최종 fixed-page anchor 공급 검증
+
+현재 source/supply는 **`7801b11834650c11ecc6a6a737176ddcabb30390b3b24f177ab693f426e066f1`**, ABI **2** / schema **313408118**, engine **356** / App **10** files다. Windows JS는 §17.3과 같은 **`1e0b6051a60bbd6d60e8f62cc261ad1a2f86344887e03d1f5ad13a3b2b5eca06`**, 새 HBC **`7a244537ffae82c45bf750a26edb9691433dad165b0e29851320f866dd4c16f1`**, Web JS **`a2091add13aa21d603060374328ea74e6d3d4a958aeee1b781059693d3755d41`**다. 두 App identity와 Core/Material Source inputs를 최종 확인했다. 원본 생성기 검증은 바뀌지 않은 §16의 시스템 Dart **3.12.2 / 75/75·원본 oracle PASS**다.
+
+최종 native library의 frame oracle는 양축 grow/shrink·129.5/130/정수 근처 페이지·일반 목록의 pixel anchor, 원본 page spring·RTL/date grid·native frame/semantics·generation/lease·Source 지연/취소/반전·coverage 재요청을 모두 PASS했다. 원본의 허용오차 안에 있는 `130-5e-11` 페이지도 정확한 새 정수 경계로 복원한다. 이 검사는 사용자 물리 resize나 scanout 성능 수락은 아니다.
+
+| 실행 / 실제 owner · DPI 192 | 기능과 표시 결과 |
+| --- | --- |
+| All / 12개월 / 60Hz / PID 15512, CLI 20924, HWND 4458736 | 목록 4구간·2026-11→2027-11·cancel/resize/header/전체 날짜·실제 연도 선택 2027→원래 월·15일 확정·close PASS. 360 updates/6,000.237ms, main **362/0**, driver lateness 최대 **0.756ms**. **360/360 반영**, missing 0, 오차 `<1.68e-10px`. 지연 p95/최대 **97.825/167.275ms**, ≥100/250ms **17/0개**로 FAIL. offset 정체 최대 **177ms**, ≥100/250ms **8/0회**, backlog **103.200px**. App turn **257.708/379.728ms** |
+| 빠른 24개월 역방향 / PID 26652, CLI 38984, HWND 3278786 | **120/0**, 2,213.518ms, 2026-11→2024-11·15일 확정·close PASS. offset 정체 최대 **313ms**, ≥100/250/500ms **11/1/0회**, backlog **1,376px**, App turn **150.571/266.807ms**로 W11 FAIL |
+| 0.4/0.8페이지 양방향 / PID 35400, CLI 4268, HWND 4917486 | **180/0**, 각 36 updates·cancel/resize·날짜 확정·close PASS. 게시/서로 다른 offset **39/36, 35/35, 35/35, 35/35**, 반영 지연 최대 **21.734/14.017/15.034/14.239ms**, 오차 `<8.74e-11px`. resident contact 의미 PASS |
+| Calendar / 12개월 / 60Hz / NoTrace / PID 26248, CLI 37912, HWND 3278864 | main **362/0**, 6,000.137ms, 12개월·cancel/resize·날짜 확정·close PASS. driver lateness 최대 **1.803ms**. movement/offset/W11 성능은 trace-disabled로 notVerified이며 기본 diagnostics는 활성 |
+
+같은 cold pass `document=160/input=428`의 build/retained **178/178ms**, callback/즉시 rebuild/descendant/render commit/scope/sync **0/0/173/4/177/0ms**, capture/scene **101/88ms**, created/captured **398/847**, module/binding/adapter **76/715/132**, scalar encode/reuse **301/424**, `sourceThrough=76`다. Source 하위 요소 갱신의 긴 동기 구간이 남았다. 최근 128 pass의 build/capture/scene 최대는 **178/189/165ms**로 서로 다른 pass다. Source 준비 **87 calls/588ms/최대 52ms/overwrite 0**, builder **84 calls/31 builds**, descendant/render commit 누적 **2,339/98ms**다. All bounded App samplesThrough/overwrite **248/120**, native trace overwritten **15,844**와 실제 입력 ring loss **0**을 구분한다.
+
+네 Windows 실행은 exit/status **0**, reservedBytes/memoryTotal **0**, workersJoined/appExited **true**, ringLost/outputDropped **0**으로 종료했다. peak bytes All/Fast/contact/NoTrace는 **526,098,173 / 511,188,510 / 524,202,912 / 528,920,927**이다.
+
+Web threaded·single-worker 모두 **6개월 전진/6개월 복귀·header/전체 날짜·resize·성장 제한·2026 연도 선택·오류 없음 PASS**다. 양쪽 nodes/elements는 **1,787/4,455 → 1,787/4,455 → 1,877/4,545**, builders **3**이며 연도 전환 전의 왕복/resize 관찰 범위다. 이후 장기 증가 검사로 확대하지 않는다. 양쪽 종료 reservedBytes **0** / workersStopped **true**, 소유 Windows test process·browser context·App staging·이번 engine staging 회수를 확인했다. §17.4의 수동 정리 거부와 남은 현재 toolchain archive는 별개로 보존한다.
+
+### 17.6 남은 Source 비용과 다음 실행점
+
+§17 검증을 마쳤을 때 판정은 **IN PROGRESS / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`였다. fixed-page resize 기능 회귀는 통과했지만 연속/빠른 이동 성능 목표는 계속 FAIL이다. full setter journal·남은 adapter, demand→coverage-ready 인과, UIA 실제 소비자/관찰 조건, 원본 visual·물리/display/scanout·다른 플랫폼 의무는 남는다.
+
+다음 Source 후보는 Windows App에서 각 필드마다 실행되는 esbuild `__publicField`와 pinned Hermes의 표준 instance-field initializer를 대조하는 것이다. 현재 배포는 class 문법만 native로 유지하고 field는 ES2015 helper로 내린다. compiler 소스는 필드 정의와 초기화 호출을 별도로 제공한다. 먼저 field descriptor·상속 setter·반환 객체·computed key·순서/예외·`new.target`·전체 App 의미를 확인하고, 같은 공급에서 필수 Source 객체를 모두 실행한 비용을 비교한다. 아직 native field 채택이나 성능 개선을 구현·입증한 것은 아니다. 과거 generic constructor schema·mutable 결과 cache를 반복 도입하거나 원본 constructor/사용자 callback·4페이지 resident 정책·입력/animation을 생략하지 않는다.
+
+## 18. 중간 마무리와 재개 지점
+
+### 18.1 PAUSED / PARTIAL — 보존한 상태
+
+2026-11-13 사용자의 **“일단 중간 마무리하자”** 요청으로 중단했다. source 변경·현재 dist·미커밋 작업 트리를 보존하며 commit/reset/별도 archive를 만들지 않았다. 이 중간 마무리에서 제품 구현·통합 테스트를 추가하지 않았고, 공급 identity와 Source 정합성만 read-only로 확인했다.
+
+중단 직전 read-only 확인으로 현재 engine source와 Windows/Web 공급이 모두 **`7801b11834650c11ecc6a6a737176ddcabb30390b3b24f177ab693f426e066f1`**에 일치하고, §17.5의 App JS/HBC identity와 Core/Material Source inputs가 유효함을 확인했다. Windows는 **`classes=native-spill-v1`**이며 native instance field 전환은 적용하지 않았다.
+
+- **구현·검증 완료 범위:** 공통 module/binding 참조와 Source 값 구성, 날짜/연도 helper 정적 결합, 실제 builder/자손/render commit 비용 분리, Hermes class spill 수정, 원본 Flutter의 페이지 진행도·허용오차에 맞춘 fixed-page resize anchor. 세부 범위와 이전 공급은 §12–17에서 구분한다.
+- **기능 검증 PASS:** §17.5 Windows All·빠른 24개월·양방향 접촉·NoTrace, 양쪽 Web profile의 월 왕복/resize/실제 연도 선택, Core frame/anchor·coverage/취소/반전·lease 회귀. 루트/CLI 타입, 구현 lint, 43개 TS/MJS/MTS formatting, `git diff --check`도 통과했다. 생성기는 §16의 **시스템 Dart 3.12.2 / 75/75·원본 oracle PASS**를 유지한다.
+- **성능 미달:** 최신 60Hz 12개월의 이동 게시 p95/최대 **97.825/167.275ms**, offset 정체 최대 **177ms**·≥100ms **8회**. 빠른 24개월 정체 최대 **313ms**·≥100ms **11회**. 같은 cold pass의 자손 처리 **173ms**, render commit **4ms**이며 이를 constructor 단독 비용으로 확정하지 않는다.
+- **회수·보존:** 소유 Windows host/checker와 Web 검사 프로세스가 남아 있지 않다. 이번 App/engine staging은 회수했으며 현재 dist와 기존 사용자 디렉터리·2026-11-08 engine cache는 보존한다. §17.4에서 자동 승인 검토가 거부한 수동 정리 명령은 재시도하지 않았다. 현재 Hermes toolchain의 pinned 소스 아카이브는 남아 있다.
+
+### 18.2 재개 순서와 미완료 의무
+
+1. §17.5 identity와 현 diff를 다시 확인한다. 다음 후보인 **표준 instance-field initializer**는 compiler의 `DefineOwnProperty`와 초기화 호출 코드까지 읽은 **분석 단계**다. 지원 flag·제품 코드·효과 oracle·성능 비교는 아직 추가하지 않았다. descriptor·setter·반환 객체·computed key·실행/예외 순서·`new.target`·전체 App 의미를 먼저 보존하고, 실제 공급에서 효용을 확인한 뒤 채택 여부를 정한다.
+2. **전체 render setter별 dirty journal과 남은 adapter**, 원본 Source 필수 실행/할당의 owner별 독립 분리, direct projection을 끈 성능 비교를 완료해야 한다. 작은 값 factory·mutable cache·원본 constructor/callback 생략으로 대체하지 않는다.
+3. **demand revision→Source pass→Content ready→최초 실제 이동 게시**의 bounded 인과 연결과 coverage-ready p95/최대가 남는다. 이미 측정한 이동 지연 FAIL을 이 미검증 값과 혼동하지 않는다.
+4. **실제 UIA 소비자와 관찰 조건**, 원본 visual 검토·사용자 물리 입력·display/scanout·resize 성능, [work10 §8](work10.md#8-work9-종료와-잔여-의무-이관)의 다른 API/플랫폼·제품 전환 의무는 남는다. Windows/Web 기능 PASS를 이 범위의 완료로 확대하지 않는다.
+
+최종 중단 상태는 **PAUSED / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**다. 사용자가 재개를 요청하기 전까지 새 작업을 시작하거나 자동 재개하지 않는다.
+
+### 18.3 후속 요청에 따른 구형 출력·일회성 검사 정리
+
+2026-11-13 사용자의 구버전·불필요한 테스트 정리와 `.tmp` 이동 요청으로, 현재 실행 경로와 소스 참조를 대조한 뒤 **38개 경로 / 118,708개 파일 / 19,804,584,445 bytes(18.44 GiB)**를 `.tmp/obsolete/<원래 경로>`로 이동했다. 복사본이나 압축 archive를 추가하지 않았으며, 이동 전후 파일 수·용량이 모두 일치하고 원래 경로가 사라졌음을 확인했다. 전체 목록은 [삭제 대기 자료](.tmp/README.md)에 있다. 이동만으로 디스크 공간이 반환되지는 않으며, 사용자가 이 자료를 영구 삭제할 수 있도록 `.tmp`에 모았다.
+
+- **이동:** `.nelyx/date-picker-port`의 초기 생성기 probe·생성 사본·별도 Dart dev SDK, `.nelyx/viewport-grid-review-c18d66d9`의 일회성 시각 검사·이전 host 사본, `Nelyx/engine/.cache/engine-vTz0Je`의 중단된 staging, 구형 Demo/Testbed의 `.nelyx` 설치·실행 사본과 Android/Windows/Metro 빌드 출력, 루트 CMake 출력·로그·PDB. 이미 `.tmp`에 있던 `w10-windows-guCeXo`는 새 복사 없이 유지했다.
+- **유지:** 현재 `Nelyx/engine/dist`·`dist-android`, package/App dist, 시스템 Dart, 현재 Hermes source/build/pinned archive, Android v2 입력, Skia 공급 cache, reference 원본, 원래 소스와 작업 이력. `Nelyx/eng/check-*`와 생성기 `verify-*`는 현재 소스/계약의 회귀 검사이므로 제거하지 않았다. 구형 runner의 소스·명령도 남아 있으며 해당 runner를 다시 사용하려면 필요한 준비/빌드를 다시 수행해야 한다.
+- **재발 방지·확인:** 실수로 추적되던 루트 `vc140.pdb`를 이동하고 `.gitignore`에 `*.pdb`를 추가했다. 현재 Windows/Web App과 engine의 모든 manifest 파일 무결성·ABI/schema·source identity 검사를 통과했으며 공급 hash는 §18.1의 `7801b118…66f1`, Windows는 `classes=native-spill-v1`을 유지한다. 제품 구현·기능/성능 테스트는 추가 실행하지 않았다.
+
+이 정리는 후속 파일 관리 요청의 범위이며 `work11` 목표를 재개하지 않는다. **PAUSED / PARTIAL**과 §18.2의 미완료 의무를 유지한다.

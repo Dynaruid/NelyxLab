@@ -2,19 +2,45 @@
 import fs from 'node:fs';
 import path from 'node:path';
 export const compilerProvenancePolicy = 'nelyx.sh-class-ranges/v1';
-/** Preserve source ranges already owned by the compiler's class lowering.
- * No runtime representation, optimizer pass or source semantics change. */
+export const compilerClassSpillPolicy = 'nelyx.hbc-class-spill/v1';
+/** Preserve class source ranges and the HBC class opcode's output order.
+ * The latter fixes spilling an unused home object over its constructor. */
 export function patchStaticHermesCompiler(source) {
   const files = [
     'lib/IRGen/ESTreeIRGen-legacy-class.cpp',
     'lib/IRGen/ESTreeIRGen-func.cpp',
     'lib/BCGen/SH/SH.cpp',
+    'lib/BCGen/HBC/Passes.cpp',
   ];
   for (const relative of files) {
     const file = path.join(source, relative),
       original = fs.readFileSync(file, 'utf8');
     let text = original.replaceAll('\r\n', '\n');
-    if (relative.endsWith('SH.cpp')) {
+    if (relative.endsWith('Passes.cpp')) {
+      const marker = '          // Nelyx HBC class spill output order v1\n';
+      const loop = '          for (auto store : toSpill) {';
+      const guard = '            if (!replaceWithFirstSpill)\n              continue;';
+      const replacement =
+        marker +
+        '          // CreateClass writes its home object first and constructor last.\n' +
+        '          // They may share a register when the home object is unused.\n' +
+        '          // Spilling must preserve that order, including result users.\n' +
+        '          const bool classResultLast =\n' +
+        '              llvh::isa<CreateClassInst>(&inst) && replaceWithFirstSpill &&\n' +
+        '              toSpill.size() > 1;\n' +
+        '          for (size_t spill = 0; spill < toSpill.size(); ++spill) {\n' +
+        '            auto store = toSpill[\n' +
+        '                classResultLast ? (spill + 1) % toSpill.size() : spill];';
+      const replacementGuard =
+        '            if (!replaceWithFirstSpill || store.first != &inst)\n              continue;';
+      if (!text.includes(marker)) {
+        if (text.split(loop).length !== 2 || text.split(guard).length !== 2)
+          throw Error('Pinned HBC class spill anchors changed');
+        text = text.replace(loop, replacement).replace(guard, replacementGuard);
+      } else if (!text.includes(replacement) || !text.includes(replacementGuard)) {
+        throw Error('Pinned HBC class spill patch differs');
+      }
+    } else if (relative.endsWith('SH.cpp')) {
       const marker = '  // Nelyx SH native source range v1\n';
       if (!text.includes(marker)) {
         const anchor = '  OS << "// ";\n  srcMgr.dumpCoords(OS, F.getSourceRange().Start);';

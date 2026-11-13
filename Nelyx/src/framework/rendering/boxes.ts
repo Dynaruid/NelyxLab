@@ -2749,125 +2749,159 @@ RenderObject._registerSemanticsGeometryPrototype(
   RenderAligningShiftedBox.prototype,
 );
 
-registerNativeBoxConfiguration(RenderProxyBox.prototype, () => ({
-  kind: 'box',
-  layout: { childConstraints: 'inherit' },
-}));
-registerNativeBoxConfiguration(RenderConstrainedBox.prototype, (render) => ({
-  kind: 'box',
-  layout: { childConstraints: 'inherit', enforceBounds: true },
-  constraints: render.additionalConstraints,
-}));
-registerNativeBoxConfiguration(RenderPadding.prototype, (render) => ({
-  kind: 'box',
-  layout: {
-    childConstraints: 'inherit',
-    padding: render.padding.resolve(render.textDirection),
-  },
-}));
-for (const prototype of [RenderPositionedBox.prototype, RenderAlign.prototype])
-  registerNativeBoxConfiguration(prototype, (render) => {
-    const alignment = render.alignment.resolve(render.textDirection ?? 'ltr'),
-      widthFactor = render.widthFactor ?? (render.shrink ? 1 : undefined),
-      heightFactor = render.heightFactor ?? (render.shrink ? 1 : undefined);
-    return {
-      kind: 'box',
-      layout: {
-        alignment: { x: alignment.x, y: alignment.y },
-        alignmentSizing: true,
-        ...(widthFactor === undefined ? {} : { widthFactor }),
-        ...(heightFactor === undefined ? {} : { heightFactor }),
-      },
-    };
-  });
-registerNativeBoxConfiguration(RenderFlex.prototype, (render, reject) => {
-  if (render.items.length) return reject('flex-legacy-items');
-  const horizontal = render.direction === 'horizontal';
-  if (horizontal && render.crossAxisAlignment === 'baseline' && render.textBaseline === null)
-    return reject('flex-missing-baseline');
-  if (
-    render.textDirection === null &&
-    ((horizontal &&
-      (render.children.length > 1 ||
-        render.mainAxisAlignment === 'start' ||
-        render.mainAxisAlignment === 'end')) ||
-      (!horizontal &&
-        (render.crossAxisAlignment === 'start' || render.crossAxisAlignment === 'end')))
-  )
-    return reject('flex-missing-text-direction');
-  return {
-    kind: 'flex',
-    layout: {
-      direction: render.direction,
-      mainSize: render.mainAxisSize,
-      mainAlign: render.mainAxisAlignment,
-      crossAlign:
-        !horizontal && render.crossAxisAlignment === 'baseline'
-          ? 'start'
-          : render.crossAxisAlignment,
-      ...(horizontal && render.crossAxisAlignment === 'baseline'
-        ? { textBaseline: render.textBaseline! }
-        : {}),
-      gap: render.spacing,
-      reverseMain: horizontal ? render.textDirection === 'rtl' : render.verticalDirection === 'up',
-      reverseCross: horizontal
-        ? render.verticalDirection === 'up'
-        : render.crossAxisAlignment !== 'baseline' && render.textDirection === 'rtl',
-      shrinkUnboundedMain: true,
-      clipOverflow: render.clipBehavior === 'hardEdge',
-    },
-  };
-});
-registerNativeBoxConfiguration(RenderStack.prototype, (render) => {
-  const alignment = render.alignment.resolve(render.textDirection);
-  return {
-    kind: 'stack',
-    layout: {
-      childConstraints:
-        render.fit === 'expand' ? 'expand' : render.fit === 'passthrough' ? 'inherit' : 'loose',
-      alignment: { x: alignment.x, y: alignment.y },
-      expandEmpty: true,
-      canonicalStack: true,
-      clipOverflow: render.clipBehavior !== 'none',
-      overflowClipBehavior: render.clipBehavior,
-    },
-  };
-});
-registerNativeBoxConfiguration(RenderClip.prototype, (render) => ({
-  kind: 'clip',
-  layout: { childConstraints: 'inherit', enforceBounds: true },
-  constraints: render.additionalConstraints,
-}));
-registerNativeBoxConfiguration(RenderTransform.prototype, (render, reject) => {
-  if (!render.transformHitTests) return reject('transform-hit-tests-disabled');
-  if (render.filterQuality !== null) return reject('transform-filter-quality');
-  const matrix = render.matrix;
-  if (
-    matrix.length === 16 &&
-    (matrix[2] !== 0 ||
-      matrix[3] !== 0 ||
-      matrix[6] !== 0 ||
-      matrix[7] !== 0 ||
-      matrix[8] !== 0 ||
-      matrix[9] !== 0 ||
-      matrix[10] !== 1 ||
-      matrix[11] !== 0 ||
-      matrix[14] !== 0 ||
-      matrix[15] !== 1)
-  )
-    return reject('transform-non-affine');
-  const alignment = render.alignment?.resolve(render.textDirection);
-  return {
-    kind: 'transform',
+registerNativeBoxConfiguration(
+  RenderProxyBox.prototype,
+  () => ({
+    kind: 'box',
+    layout: { childConstraints: 'inherit' },
+  }),
+  true,
+);
+registerNativeBoxConfiguration(
+  RenderConstrainedBox.prototype,
+  (render) => ({
+    kind: 'box',
     layout: { childConstraints: 'inherit', enforceBounds: true },
     constraints: render.additionalConstraints,
-    graphics: {
-      transform:
-        matrix.length === 6
-          ? [matrix[0]!, matrix[1]!, matrix[2]!, matrix[3]!, matrix[4]!, matrix[5]!]
-          : [matrix[0]!, matrix[1]!, matrix[4]!, matrix[5]!, matrix[12]!, matrix[13]!],
-      ...(render.origin ? { origin: { x: render.origin.x, y: render.origin.y } } : {}),
-      ...(alignment ? { alignment: { x: alignment.x, y: alignment.y } } : {}),
+  }),
+  true,
+);
+registerNativeBoxConfiguration(
+  RenderPadding.prototype,
+  (render) => ({
+    kind: 'box',
+    layout: {
+      childConstraints: 'inherit',
+      padding: render.padding.resolve(render.textDirection),
     },
-  };
-});
+  }),
+  true,
+);
+for (const prototype of [RenderPositionedBox.prototype, RenderAlign.prototype])
+  registerNativeBoxConfiguration(
+    prototype,
+    (render) => {
+      const alignment = render.alignment.resolve(render.textDirection ?? 'ltr'),
+        widthFactor = render.widthFactor ?? (render.shrink ? 1 : undefined),
+        heightFactor = render.heightFactor ?? (render.shrink ? 1 : undefined);
+      return {
+        kind: 'box',
+        layout: {
+          alignment: { x: alignment.x, y: alignment.y },
+          alignmentSizing: true,
+          ...(widthFactor === undefined ? {} : { widthFactor }),
+          ...(heightFactor === undefined ? {} : { heightFactor }),
+        },
+      };
+    },
+    true,
+  );
+registerNativeBoxConfiguration(
+  RenderFlex.prototype,
+  (render, reject) => {
+    if (render.items.length) return reject('flex-legacy-items');
+    const horizontal = render.direction === 'horizontal';
+    if (horizontal && render.crossAxisAlignment === 'baseline' && render.textBaseline === null)
+      return reject('flex-missing-baseline');
+    if (
+      render.textDirection === null &&
+      ((horizontal &&
+        (render.children.length > 1 ||
+          render.mainAxisAlignment === 'start' ||
+          render.mainAxisAlignment === 'end')) ||
+        (!horizontal &&
+          (render.crossAxisAlignment === 'start' || render.crossAxisAlignment === 'end')))
+    )
+      return reject('flex-missing-text-direction');
+    return {
+      kind: 'flex',
+      layout: {
+        direction: render.direction,
+        mainSize: render.mainAxisSize,
+        mainAlign: render.mainAxisAlignment,
+        crossAlign:
+          !horizontal && render.crossAxisAlignment === 'baseline'
+            ? 'start'
+            : render.crossAxisAlignment,
+        ...(horizontal && render.crossAxisAlignment === 'baseline'
+          ? { textBaseline: render.textBaseline! }
+          : {}),
+        gap: render.spacing,
+        reverseMain: horizontal
+          ? render.textDirection === 'rtl'
+          : render.verticalDirection === 'up',
+        reverseCross: horizontal
+          ? render.verticalDirection === 'up'
+          : render.crossAxisAlignment !== 'baseline' && render.textDirection === 'rtl',
+        shrinkUnboundedMain: true,
+        clipOverflow: render.clipBehavior === 'hardEdge',
+      },
+    };
+  },
+  true,
+);
+registerNativeBoxConfiguration(
+  RenderStack.prototype,
+  (render) => {
+    const alignment = render.alignment.resolve(render.textDirection);
+    return {
+      kind: 'stack',
+      layout: {
+        childConstraints:
+          render.fit === 'expand' ? 'expand' : render.fit === 'passthrough' ? 'inherit' : 'loose',
+        alignment: { x: alignment.x, y: alignment.y },
+        expandEmpty: true,
+        canonicalStack: true,
+        clipOverflow: render.clipBehavior !== 'none',
+        overflowClipBehavior: render.clipBehavior,
+      },
+    };
+  },
+  true,
+);
+registerNativeBoxConfiguration(
+  RenderClip.prototype,
+  (render) => ({
+    kind: 'clip',
+    layout: { childConstraints: 'inherit', enforceBounds: true },
+    constraints: render.additionalConstraints,
+  }),
+  true,
+);
+registerNativeBoxConfiguration(
+  RenderTransform.prototype,
+  (render, reject) => {
+    if (!render.transformHitTests) return reject('transform-hit-tests-disabled');
+    if (render.filterQuality !== null) return reject('transform-filter-quality');
+    const matrix = render.matrix;
+    if (
+      matrix.length === 16 &&
+      (matrix[2] !== 0 ||
+        matrix[3] !== 0 ||
+        matrix[6] !== 0 ||
+        matrix[7] !== 0 ||
+        matrix[8] !== 0 ||
+        matrix[9] !== 0 ||
+        matrix[10] !== 1 ||
+        matrix[11] !== 0 ||
+        matrix[14] !== 0 ||
+        matrix[15] !== 1)
+    )
+      return reject('transform-non-affine');
+    const alignment = render.alignment?.resolve(render.textDirection);
+    return {
+      kind: 'transform',
+      layout: { childConstraints: 'inherit', enforceBounds: true },
+      constraints: render.additionalConstraints,
+      graphics: {
+        transform:
+          matrix.length === 6
+            ? [matrix[0]!, matrix[1]!, matrix[2]!, matrix[3]!, matrix[4]!, matrix[5]!]
+            : [matrix[0]!, matrix[1]!, matrix[4]!, matrix[5]!, matrix[12]!, matrix[13]!],
+        ...(render.origin ? { origin: { x: render.origin.x, y: render.origin.y } } : {}),
+        ...(alignment ? { alignment: { x: alignment.x, y: alignment.y } } : {}),
+      },
+    };
+  },
+  true,
+);

@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { emitDart } from './src/dart-emitter.ts';
 import ts from 'typescript';
+import { protect, finalFieldProtector } from '../../Nelyx/src/ui/value-math.ts';
+import { verifyLocalFunctions, verifyGeneratedLocalFunctions } from './verify-local-functions.ts';
 export function verifyDateCompiler(declarations: any[], recipe: any): void {
   if (recipe.source.endsWith('/date_picker.dart')) {
     const rejected = structuredClone(recipe);
@@ -30,9 +32,127 @@ export function verifyDateCompiler(declarations: any[], recipe: any): void {
     assert.throws(() => emitDart(invalid, recipe), /Future representation transfer/);
   }
   if (recipe.source.endsWith('/calendar_date_picker.dart')) {
+    if (recipe.localFunctionInlining) {
+      verifyLocalFunctions();
+      assert.equal(recipe.localFunctionInlining.methods.length, 2);
+      const baseline = { ...recipe };
+      delete baseline.localFunctionInlining;
+      const original = emitDart(declarations, baseline),
+        specialized = emitDart(declarations, recipe);
+      const helpers = (code: string) =>
+        (code.match(/const (effectiveValue|resolve)\s*:/g) ?? []).length;
+      assert.equal(helpers(original), 4);
+      assert.equal(helpers(specialized), 0, 'Pinned day/year helper closures were not removed');
+      verifyGeneratedLocalFunctions(original, specialized);
+      for (const invalid of [
+        { ...recipe.localFunctionInlining, policy: 'unchecked' },
+        { ...recipe.localFunctionInlining, methods: ['missing-method'] },
+        {
+          ...recipe.localFunctionInlining,
+          methods: [
+            recipe.localFunctionInlining.methods[0],
+            recipe.localFunctionInlining.methods[0],
+          ],
+        },
+      ])
+        assert.throws(
+          () => emitDart(declarations, { ...recipe, localFunctionInlining: invalid }),
+          /local function inlining policy/,
+        );
+    }
+    if (recipe.finalFieldLayouts) {
+      const baseline = { ...recipe };
+      delete baseline.finalFieldLayouts;
+      const makeDay = (code: string) => {
+        const file = ts.createSourceFile(
+          'day.ts',
+          code,
+          ts.ScriptTarget.Latest,
+          true,
+          ts.ScriptKind.TS,
+        );
+        const owner = file.statements.find(
+          (node) => ts.isClassDeclaration(node) && node.name?.text === '_Day',
+        );
+        assert(owner, 'Missing original day constructor');
+        const layouts = file.statements.filter(
+          (node) =>
+            ts.isVariableStatement(node) &&
+            node.declarationList.declarations.some(
+              (declaration) =>
+                declaration.initializer &&
+                ts.isCallExpression(declaration.initializer) &&
+                ts.isIdentifier(declaration.initializer.expression) &&
+                declaration.initializer.expression.text === recipe.finalFieldLayouts.factory,
+            ),
+        );
+        const text = ts.transpileModule(
+          [...layouts, owner].map((node) => node.getText(file).replace(/^export /, '')).join('\n'),
+          { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } },
+        ).outputText;
+        class Host {
+          key: unknown;
+          constructor(options: { key: unknown }) {
+            this.key = options.key;
+          }
+        }
+        return Function(
+          'protect',
+          recipe.finalFieldLayouts.factory,
+          'ScrollbarStatefulHost',
+          text + '\nreturn _Day;',
+        )(protect, finalFieldProtector, Host);
+      };
+      const original = makeDay(emitDart(declarations, baseline)),
+        specialized = makeDay(emitDart(declarations, recipe)),
+        day = {},
+        focusNode = {},
+        calendarDelegate = {},
+        calls: unknown[] = [],
+        onChanged = (value: unknown) => calls.push(value),
+        reads: string[] = [];
+      const input = () => ({
+        get key() {
+          reads.push('key');
+          return null;
+        },
+        isDisabled: false,
+        isSelectedDay: true,
+        isToday: false,
+        onChanged,
+        focusNode,
+        calendarDelegate,
+      });
+      const before = new original(day, input()),
+        after = new specialized(day, input());
+      assert.deepEqual(
+        Object.getOwnPropertyDescriptors(after),
+        Object.getOwnPropertyDescriptors(before),
+      );
+      assert.deepEqual(reads, ['key', 'key']);
+      after.onChanged(after.day);
+      assert.deepEqual(calls, [day]);
+      class Extended extends specialized {
+        extra = 17;
+      }
+      assert.equal(new Extended(day, input()).extra, 17);
+      assert.throws(() => {
+        after.day = {};
+      }, TypeError);
+      for (const invalid of [
+        { ...recipe.finalFieldLayouts, policy: 'unknown' },
+        { ...recipe.finalFieldLayouts, classes: ['missing-owner'] },
+        { ...recipe.finalFieldLayouts, factory: 'missingFactory' },
+      ])
+        assert.throws(
+          () => emitDart(declarations, { ...recipe, finalFieldLayouts: invalid }),
+          /final-field layout policy/,
+        );
+    }
     if (recipe.lexicalNullReads) {
       const baseline = { ...recipe };
       delete baseline.lexicalNullReads;
+      delete baseline.localFunctionInlining;
       const selector = (code: string) => {
         const file = ts.createSourceFile(
           'selector.ts',
@@ -64,8 +184,10 @@ export function verifyDateCompiler(declarations: any[], recipe: any): void {
           compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
         }).outputText;
       };
+      const current = { ...recipe };
+      delete current.localFunctionInlining;
       const original = selector(emitDart(declarations, baseline)),
-        specialized = selector(emitDart(declarations, recipe));
+        specialized = selector(emitDart(declarations, current));
       assert(
         original.includes('=>') && original !== specialized,
         'Lexical null-read specialization did not remove an IIFE',

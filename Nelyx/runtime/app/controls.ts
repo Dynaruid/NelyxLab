@@ -33,6 +33,8 @@ import type { SceneNodeOptions } from '../engine-client/scene.ts';
 import { protocol as p } from '../engine-client/schema.ts';
 
 export interface OriginalControlConfiguration {
+  /** Exact module output has already copied scalar metadata and action data. */
+  readonly directData?: boolean;
   readonly options: SceneNodeOptions;
   /** Simple immutable semantics invalidate through the canonical render setters. */
   readonly cacheableSemantics?: boolean;
@@ -400,6 +402,7 @@ export function originalControlConfiguration(
       actions |= p.semanticsActions.deselect;
     const merge = configuration._nativeMergeConfiguration();
     return {
+      directData: true,
       cacheableSemantics:
         Object.isFrozen(properties) &&
         !range.range &&

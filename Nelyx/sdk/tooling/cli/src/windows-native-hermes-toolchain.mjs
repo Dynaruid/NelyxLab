@@ -6,8 +6,15 @@ import { execute } from './commands.mjs';
 import { sha256, localFile } from './files.mjs';
 import { nativeHermesSourceTree as sourceTree } from './windows-native-hermes-source.mjs';
 import { openNativeBuildCache } from './native-build-cache.mjs';
-import { windowsCompilerEnvironment, windowsStaticHermesPin } from './windows-static-hermes.mjs';
-import { patchStaticHermesCompiler } from './static-hermes-compiler-patch.mjs';
+import {
+  windowsCompilerEnvironment,
+  windowsStaticHermesPin,
+  refreshWindowsCmakeTools,
+} from './windows-static-hermes.mjs';
+import {
+  patchStaticHermesCompiler,
+  compilerClassSpillPolicy,
+} from './static-hermes-compiler-patch.mjs';
 import { windowsHermesPolicy } from './windows-hermes-policy.mjs';
 import { nativeCohort } from '@nelyx/sdk/runtime/cohorts';
 const timeout = 1_200_000;
@@ -41,6 +48,7 @@ const names = [
   'source/lib/IRGen/ESTreeIRGen-legacy-class.cpp',
   'source/lib/IRGen/ESTreeIRGen-func.cpp',
   'source/lib/BCGen/SH/SH.cpp',
+  'source/lib/BCGen/HBC/Passes.cpp',
   'source/cmake/modules/Hermes.cmake',
   'source/API/jsi/jsi/CMakeLists.txt',
   'source/lib/InternalJavaScript/CMakeLists.txt',
@@ -65,6 +73,7 @@ export function verifyNativeHermes(directory) {
     manifest.bytecodeVersion !== 99 ||
     manifest.heap !== 'HEAP_HV_64' ||
     manifest.crt !== 'MD' ||
+    manifest.compilerClassSpill !== compilerClassSpillPolicy ||
     manifest.internalJavaScript?.mode !== 'native' ||
     manifest.internalJavaScript.compilerPolicy !==
       windowsHermesPolicy('optimized', nativeCohort('windows')).id ||
@@ -156,6 +165,9 @@ export async function prepareNativeHermes({ directory, signal } = {}) {
     }
     /* oxlint-enable no-unsafe-finally */
     const clang = path.join(process.env.ProgramFiles, 'LLVM/bin/clang-cl.exe');
+    const assembler = path.join(env.VCTOOLSINSTALLDIR, 'bin/Hostx64/x64/ml64.exe');
+    if (!fs.existsSync(assembler)) throw Error('Current MSVC x64 assembler is unavailable');
+    refreshWindowsCmakeTools(build, env);
     await execute(
       'cmake',
       [
@@ -168,6 +180,7 @@ export async function prepareNativeHermes({ directory, signal } = {}) {
         '-DCMAKE_BUILD_TYPE=Release',
         `-DCMAKE_C_COMPILER=${clang}`,
         `-DCMAKE_CXX_COMPILER=${clang}`,
+        `-DCMAKE_ASM_MASM_COMPILER=${assembler}`,
         '-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL',
         '-DHERMES_ENABLE_DEBUGGER=OFF',
         '-DHERMES_ENABLE_TEST_SUITE=OFF',
@@ -197,6 +210,7 @@ export async function prepareNativeHermes({ directory, signal } = {}) {
       jsi: 21,
       heap: 'HEAP_HV_64',
       crt: 'MD',
+      compilerClassSpill: compilerClassSpillPolicy,
       internalJavaScript: {
         mode: 'native',
         compilerPolicy: policy.id,

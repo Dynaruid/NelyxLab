@@ -152,10 +152,10 @@ import { dateOutlinedBorderCopyWith } from '../../internal/date/source-paint.ts'
 import { dateText } from '../../internal/date/source-paint.ts';
 import { dateNextPage } from '../../internal/date/source-host.ts';
 import { datePreviousPage } from '../../internal/date/source-host.ts';
+import { finalFieldProtector } from '@nelyx/core/internal/ui/value-math';
 import type { ScrollbarTextDirection } from '@nelyx/core/internal/framework/widgets/scrollbar-painter-source-adapter';
 import type { ScrollbarSourceList } from '@nelyx/core/internal/framework/widgets/scrollbar-painter-source-adapter';
 import type { BuildContext } from '@nelyx/core/framework/widgets/framework';
-import type { DartTypeWitness } from '@nelyx/core/internal/foundation/dart-type-witness';
 import type { DartInt } from '@nelyx/core/internal/foundation/dart-numeric';
 import type { Orientation } from '@nelyx/core/framework/widgets/orientation-builder';
 import type { ShortcutActivator } from '@nelyx/core/framework/widgets/shortcuts';
@@ -254,6 +254,17 @@ export const _kDayPickerGridLandscapeMaxScaleFactor: number = 1.5;
  * @dartTypeOrigin explicit
  */
 export const _fontSizeToScale: number = 14;
+const _dartTemporary0 = finalFieldProtector([
+  'initialDate',
+  'firstDate',
+  'lastDate',
+  'currentDate',
+  'onDateChanged',
+  'onDisplayedMonthChanged',
+  'initialCalendarMode',
+  'selectableDayPredicate',
+  'calendarDelegate',
+]);
 export class CalendarDatePicker extends ScrollbarStatefulHost {
   readonly initialDate: DateTime | null;
   readonly firstDate: DateTime;
@@ -307,17 +318,7 @@ export class CalendarDatePicker extends ScrollbarStatefulHost {
     this.initialCalendarMode = _initialField2;
     this.selectableDayPredicate = _initialField3;
     this.calendarDelegate = _initialField4;
-    protect(this, [
-      'initialDate',
-      'firstDate',
-      'lastDate',
-      'currentDate',
-      'onDateChanged',
-      'onDisplayedMonthChanged',
-      'initialCalendarMode',
-      'selectableDayPredicate',
-      'calendarDelegate',
-    ]);
+    _dartTemporary0(this);
     if (FoundationBuildMode.debug)
       invariant(
         !this.lastDate.isBefore(this.firstDate),
@@ -328,30 +329,30 @@ export class CalendarDatePicker extends ScrollbarStatefulHost {
       invariant(
         this.initialDate === null ||
           !(() => {
-            const _dartTemporary0 = this.initialDate;
-            if (_dartTemporary0 === null)
+            const _dartTemporary1 = this.initialDate;
+            if (_dartTemporary1 === null)
               throw new TypeError('Null check operator used on a null value');
-            return _dartTemporary0!;
+            return _dartTemporary1!;
           })().isBefore(this.firstDate),
         'generated-source-assert',
         `initialDate ${(() => {
-          const _dartTemporary1 = this.initialDate;
-          return _dartTemporary1 === null ? 'null' : dartValueString(_dartTemporary1);
+          const _dartTemporary2 = this.initialDate;
+          return _dartTemporary2 === null ? 'null' : dartValueString(_dartTemporary2);
         })()} must be on or after firstDate ${dartValueString(this.firstDate)}.`,
       );
     if (FoundationBuildMode.debug)
       invariant(
         this.initialDate === null ||
           !(() => {
-            const _dartTemporary2 = this.initialDate;
-            if (_dartTemporary2 === null)
+            const _dartTemporary3 = this.initialDate;
+            if (_dartTemporary3 === null)
               throw new TypeError('Null check operator used on a null value');
-            return _dartTemporary2!;
+            return _dartTemporary3!;
           })().isAfter(this.lastDate),
         'generated-source-assert',
         `initialDate ${(() => {
-          const _dartTemporary3 = this.initialDate;
-          return _dartTemporary3 === null ? 'null' : dartValueString(_dartTemporary3);
+          const _dartTemporary4 = this.initialDate;
+          return _dartTemporary4 === null ? 'null' : dartValueString(_dartTemporary4);
         })()} must be on or before lastDate ${dartValueString(this.lastDate)}.`,
       );
     if (FoundationBuildMode.debug)
@@ -359,22 +360,22 @@ export class CalendarDatePicker extends ScrollbarStatefulHost {
         this.selectableDayPredicate === null ||
           this.initialDate === null ||
           (() => {
-            const _dartTemporary4 = this.selectableDayPredicate;
-            if (_dartTemporary4 === null)
+            const _dartTemporary5 = this.selectableDayPredicate;
+            if (_dartTemporary5 === null)
               throw new TypeError('Null check operator used on a null value');
-            return _dartTemporary4!;
+            return _dartTemporary5!;
           })()(
             (() => {
-              const _dartTemporary5 = this.initialDate;
-              if (_dartTemporary5 === null)
+              const _dartTemporary6 = this.initialDate;
+              if (_dartTemporary6 === null)
                 throw new TypeError('Null check operator used on a null value');
-              return _dartTemporary5!;
+              return _dartTemporary6!;
             })(),
           ),
         'generated-source-assert',
         `Provided initialDate ${(() => {
-          const _dartTemporary6 = this.initialDate;
-          return _dartTemporary6 === null ? 'null' : dartValueString(_dartTemporary6);
+          const _dartTemporary7 = this.initialDate;
+          return _dartTemporary7 === null ? 'null' : dartValueString(_dartTemporary7);
         })()} must satisfy provided selectableDayPredicate.`,
       );
   }
@@ -382,6 +383,10 @@ export class CalendarDatePicker extends ScrollbarStatefulHost {
     return new _CalendarDatePickerState();
   }
 }
+const _dartTemporary8 = finalFieldProtector([
+  '_dart_e3418b5381fd4ff8_monthPickerKey',
+  '_dart_e3418b5381fd4ff8_yearPickerKey',
+]);
 export class _CalendarDatePickerState extends State<CalendarDatePicker> {
   _dart_e3418b5381fd4ff8_announcedInitialDate: boolean;
   _dart_e3418b5381fd4ff8_announcementText: string;
@@ -463,10 +468,7 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
     this._dart_e3418b5381fd4ff8_selectedDate = null;
     this._dart_e3418b5381fd4ff8_monthPickerKey = _initialField2;
     this._dart_e3418b5381fd4ff8_yearPickerKey = _initialField3;
-    protect(this, [
-      '_dart_e3418b5381fd4ff8_monthPickerKey',
-      '_dart_e3418b5381fd4ff8_yearPickerKey',
-    ]);
+    _dartTemporary8(this);
   }
   override initState(): void {
     void super.initState();
@@ -521,10 +523,10 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
       void this._dart_e3418b5381fd4ff8_announce(
         `${this._dart_e3418b5381fd4ff8_localizations.formatFullDate(
           (() => {
-            const _dartTemporary7 = this._dart_e3418b5381fd4ff8_selectedDate;
-            if (_dartTemporary7 === null)
+            const _dartTemporary9 = this._dart_e3418b5381fd4ff8_selectedDate;
+            if (_dartTemporary9 === null)
               throw new TypeError('Null check operator used on a null value');
-            return _dartTemporary7!;
+            return _dartTemporary9!;
           })(),
         )}${semanticLabelSuffix}`,
       );
@@ -566,18 +568,18 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
     void this.setState((): void => {
       void (this._dart_e3418b5381fd4ff8_mode = mode);
       {
-        const _dartTemporary9 = this._dart_e3418b5381fd4ff8_selectedDate;
-        const _dartTemporary10 = (() => {
-          if (!isDartType<DateTime>(_dartTemporary9, dateTimeType)) return null;
-          const selected: DateTime = _dartTemporary9 as DateTime;
+        const _dartTemporary11 = this._dart_e3418b5381fd4ff8_selectedDate;
+        const _dartTemporary12 = (() => {
+          if (!isDartType<DateTime>(_dartTemporary11, dateTimeType)) return null;
+          const selected: DateTime = _dartTemporary11 as DateTime;
           return { ['selected']: selected };
         })();
-        if (_dartTemporary10 !== null) {
-          const selected: DateTime = _dartTemporary10['selected'];
+        if (_dartTemporary12 !== null) {
+          const selected: DateTime = _dartTemporary12['selected'];
           {
             const message: string = (() => {
-              const _dartTemporary8 = mode;
-              switch (_dartTemporary8) {
+              const _dartTemporary10 = mode;
+              switch (_dartTemporary10) {
                 case DatePickerMode.day:
                   return this.widget.calendarDelegate.formatMonthYear(
                     selected,
@@ -612,9 +614,9 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
             checkedInteger(date.month),
           ));
         void (() => {
-          const _dartTemporary11 = this.widget.onDisplayedMonthChanged;
-          if (_dartTemporary11 === null) return null;
-          return _dartTemporary11!(this._dart_e3418b5381fd4ff8_currentDisplayedMonthDate);
+          const _dartTemporary13 = this.widget.onDisplayedMonthChanged;
+          if (_dartTemporary13 === null) return null;
+          return _dartTemporary13!(this._dart_e3418b5381fd4ff8_currentDisplayedMonthDate);
         })();
       }
     });
@@ -641,8 +643,8 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
           boxSourceDartInt(
             checkedInteger(
               (() => {
-                const _dartTemporary12 = this._dart_e3418b5381fd4ff8_selectedDate;
-                return _dartTemporary12 === null ? null : _dartTemporary12.day;
+                const _dartTemporary14 = this._dart_e3418b5381fd4ff8_selectedDate;
+                return _dartTemporary14 === null ? null : _dartTemporary14.day;
               })() ?? 1,
             ),
           ),
@@ -667,10 +669,10 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
         void (this._dart_e3418b5381fd4ff8_selectedDate = value);
         void this.widget.onDateChanged(
           (() => {
-            const _dartTemporary13 = this._dart_e3418b5381fd4ff8_selectedDate;
-            if (_dartTemporary13 === null)
+            const _dartTemporary15 = this._dart_e3418b5381fd4ff8_selectedDate;
+            if (_dartTemporary15 === null)
               throw new TypeError('Null check operator used on a null value');
-            return _dartTemporary13!;
+            return _dartTemporary15!;
           })(),
         );
       }
@@ -682,10 +684,10 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
       void (this._dart_e3418b5381fd4ff8_selectedDate = value);
       void this.widget.onDateChanged(
         (() => {
-          const _dartTemporary14 = this._dart_e3418b5381fd4ff8_selectedDate;
-          if (_dartTemporary14 === null)
+          const _dartTemporary16 = this._dart_e3418b5381fd4ff8_selectedDate;
+          if (_dartTemporary16 === null)
             throw new TypeError('Null check operator used on a null value');
-          return _dartTemporary14!;
+          return _dartTemporary16!;
         })(),
       );
       switch (SourceDateTheme.of(this.context).platform) {
@@ -704,10 +706,10 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
               View.of(this.context),
               `${this._dart_e3418b5381fd4ff8_localizations.selectedDateLabel} ${this.widget.calendarDelegate.formatFullDate(
                 (() => {
-                  const _dartTemporary15 = this._dart_e3418b5381fd4ff8_selectedDate;
-                  if (_dartTemporary15 === null)
+                  const _dartTemporary17 = this._dart_e3418b5381fd4ff8_selectedDate;
+                  if (_dartTemporary17 === null)
                     throw new TypeError('Null check operator used on a null value');
-                  return _dartTemporary15!;
+                  return _dartTemporary17!;
                 })(),
                 this._dart_e3418b5381fd4ff8_localizations,
               )}${semanticLabelSuffix}`,
@@ -730,9 +732,9 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
   _dart_e3418b5381fd4ff8_isSelectable(date: DateTime): boolean {
     return (
       (() => {
-        const _dartTemporary16 = this.widget.selectableDayPredicate;
-        if (_dartTemporary16 === null) return null;
-        return _dartTemporary16!(date);
+        const _dartTemporary18 = this.widget.selectableDayPredicate;
+        if (_dartTemporary18 === null) return null;
+        return _dartTemporary18!(date);
       })() ?? true
     );
   }
@@ -825,10 +827,10 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
     });
     return dateStack({
       children: (() => {
-        const _dartTemporary17: Widget[] = [];
-        if (dateMaybeSupportsAnnounceOf(context) ?? false) _dartTemporary17.push(picker);
+        const _dartTemporary19: Widget[] = [];
+        if (dateMaybeSupportsAnnounceOf(context) ?? false) _dartTemporary19.push(picker);
         else
-          _dartTemporary17.push(
+          _dartTemporary19.push(
             new Semantics({
               container: true,
               liveRegion: true,
@@ -837,7 +839,7 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
               child: picker,
             }),
           );
-        _dartTemporary17.push(
+        _dartTemporary19.push(
           dateClampedTextScaling({
             maxScaleFactor: _kModeToggleButtonMaxScaleFactor,
             child: new _DatePickerModeToggleButton({
@@ -849,8 +851,8 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
               onTitlePressed: (): void => {
                 void this._dart_e3418b5381fd4ff8_handleModeChanged(
                   (() => {
-                    const _dartTemporary18 = this._dart_e3418b5381fd4ff8_mode;
-                    switch (_dartTemporary18) {
+                    const _dartTemporary20 = this._dart_e3418b5381fd4ff8_mode;
+                    switch (_dartTemporary20) {
                       case DatePickerMode.day:
                         return DatePickerMode.year;
                       case DatePickerMode.year:
@@ -864,11 +866,12 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
             }),
           }),
         );
-        return _dartTemporary17;
+        return _dartTemporary19;
       })(),
     });
   }
 }
+const _dartTemporary21 = finalFieldProtector(['mode', 'title', 'onTitlePressed']);
 export class _DatePickerModeToggleButton extends ScrollbarStatefulHost {
   readonly mode: DatePickerMode;
   readonly title: string;
@@ -889,7 +892,7 @@ export class _DatePickerModeToggleButton extends ScrollbarStatefulHost {
     this.mode = _initialField0;
     this.title = _initialField1;
     this.onTitlePressed = _initialField2;
-    protect(this, ['mode', 'title', 'onTitlePressed']);
+    _dartTemporary21(this);
   }
   override createState(): _DatePickerModeToggleButtonState {
     return new _DatePickerModeToggleButtonState();
@@ -946,13 +949,13 @@ export class _DatePickerModeToggleButtonState extends SingleTickerProviderStateM
       datePickerTheme.subHeaderForegroundColor ?? defaults.subHeaderForegroundColor;
     const buttonTextColor: Color | null =
       (() => {
-        const _dartTemporary19 = datePickerTheme.toggleButtonTextStyle;
-        return _dartTemporary19 === null ? null : dateTextStyleColor(_dartTemporary19);
+        const _dartTemporary22 = datePickerTheme.toggleButtonTextStyle;
+        return _dartTemporary22 === null ? null : dateTextStyleColor(_dartTemporary22);
       })() ??
       datePickerTheme.subHeaderForegroundColor ??
       (() => {
-        const _dartTemporary20 = defaults.toggleButtonTextStyle;
-        return _dartTemporary20 === null ? null : dateTextStyleColor(_dartTemporary20);
+        const _dartTemporary23 = defaults.toggleButtonTextStyle;
+        return _dartTemporary23 === null ? null : dateTextStyleColor(_dartTemporary23);
       })();
     return dateSizedBox({
       height: _subHeaderHeight,
@@ -960,8 +963,8 @@ export class _DatePickerModeToggleButtonState extends SingleTickerProviderStateM
         padding: constDateEdgeInsetsDirectionalOnly(EdgeInsetsDirectional, { start: 16, end: 4 }),
         child: dateRow({
           children: (() => {
-            const _dartTemporary21: Widget[] = [];
-            _dartTemporary21.push(
+            const _dartTemporary24: Widget[] = [];
+            _dartTemporary24.push(
               dateFlexible({
                 child: new Semantics({
                   label: MaterialLocalizations.of(context).selectYearSemanticsLabel,
@@ -979,10 +982,10 @@ export class _DatePickerModeToggleButtonState extends SingleTickerProviderStateM
                               child: dateText(this.widget.title, {
                                 overflow: TextOverflow.ellipsis,
                                 style: (() => {
-                                  const _dartTemporary22 = buttonTextStyle;
-                                  return _dartTemporary22 === null
+                                  const _dartTemporary25 = buttonTextStyle;
+                                  return _dartTemporary25 === null
                                     ? null
-                                    : dateTextStyleApply(_dartTemporary22, {
+                                    : dateTextStyleApply(_dartTemporary25, {
                                         color: buttonTextColor,
                                       });
                                 })(),
@@ -1003,8 +1006,8 @@ export class _DatePickerModeToggleButtonState extends SingleTickerProviderStateM
               }),
             );
             if (scrollbarRawObjectEquals(this.widget.mode, DatePickerMode.day))
-              _dartTemporary21.push(constDateSizedBox(SizedBox, { width: _monthNavButtonsWidth }));
-            return _dartTemporary21;
+              _dartTemporary24.push(constDateSizedBox(SizedBox, { width: _monthNavButtonsWidth }));
+            return _dartTemporary24;
           })(),
         }),
       }),
@@ -1015,6 +1018,17 @@ export class _DatePickerModeToggleButtonState extends SingleTickerProviderStateM
     void super.dispose();
   }
 }
+const _dartTemporary26 = finalFieldProtector([
+  'initialMonth',
+  'currentDate',
+  'firstDate',
+  'lastDate',
+  'selectedDate',
+  'onChanged',
+  'onDisplayedMonthChanged',
+  'selectableDayPredicate',
+  'calendarDelegate',
+]);
 export class _MonthPicker extends ScrollbarStatefulHost {
   readonly initialMonth: DateTime;
   readonly currentDate: DateTime;
@@ -1085,22 +1099,13 @@ export class _MonthPicker extends ScrollbarStatefulHost {
     this.onDisplayedMonthChanged = _initialField6;
     this.selectableDayPredicate = _initialField8;
     this.calendarDelegate = _initialField7;
-    protect(this, [
-      'initialMonth',
-      'currentDate',
-      'firstDate',
-      'lastDate',
-      'selectedDate',
-      'onChanged',
-      'onDisplayedMonthChanged',
-      'selectableDayPredicate',
-      'calendarDelegate',
-    ]);
+    _dartTemporary26(this);
   }
   override createState(): _MonthPickerState {
     return new _MonthPickerState();
   }
 }
+const _dartTemporary27 = finalFieldProtector(['_dart_e3418b5381fd4ff8_pageViewKey']);
 export class _MonthPickerState extends State<_MonthPicker> {
   readonly _dart_e3418b5381fd4ff8_pageViewKey: GlobalKey<State<StatefulWidget>>;
   _dart_e3418b5381fd4ff8_announcementText: string;
@@ -1194,7 +1199,7 @@ export class _MonthPickerState extends State<_MonthPicker> {
     this._dart_e3418b5381fd4ff8_shortcutMap = null;
     this._dart_e3418b5381fd4ff8_actionMap = null;
     this._dart_e3418b5381fd4ff8_focusedDay = null;
-    protect(this, ['_dart_e3418b5381fd4ff8_pageViewKey']);
+    _dartTemporary27(this);
   }
   override initState(): void {
     void super.initState();
@@ -1226,23 +1231,23 @@ export class _MonthPickerState extends State<_MonthPicker> {
       ],
     ]));
     void (this._dart_e3418b5381fd4ff8_actionMap = (() => {
-      const _dartTemporary24 = NextFocusIntent;
-      const _dartTemporary25 = dateNextFocusIntentAction({
+      const _dartTemporary29 = NextFocusIntent;
+      const _dartTemporary30 = dateNextFocusIntentAction({
         onInvoke: dartMethodTearOff(this, this._dart_e3418b5381fd4ff8_handleGridNextFocus),
       });
-      const _dartTemporary26 = PreviousFocusIntent;
-      const _dartTemporary27 = datePreviousFocusIntentAction({
+      const _dartTemporary31 = PreviousFocusIntent;
+      const _dartTemporary32 = datePreviousFocusIntentAction({
         onInvoke: dartMethodTearOff(this, this._dart_e3418b5381fd4ff8_handleGridPreviousFocus),
       });
-      const _dartTemporary28 = DirectionalFocusIntent;
-      const _dartTemporary29 = dateDirectionalFocusIntentAction({
+      const _dartTemporary33 = DirectionalFocusIntent;
+      const _dartTemporary34 = dateDirectionalFocusIntentAction({
         onInvoke: dartMethodTearOff(this, this._dart_e3418b5381fd4ff8_handleDirectionFocus),
       });
-      const _dartTemporary23 = dateTypeActionMap();
-      _dartTemporary23.set(_dartTemporary24, _dartTemporary25);
-      _dartTemporary23.set(_dartTemporary26, _dartTemporary27);
-      _dartTemporary23.set(_dartTemporary28, _dartTemporary29);
-      return _dartTemporary23;
+      const _dartTemporary28 = dateTypeActionMap();
+      _dartTemporary28.set(_dartTemporary29, _dartTemporary30);
+      _dartTemporary28.set(_dartTemporary31, _dartTemporary32);
+      _dartTemporary28.set(_dartTemporary33, _dartTemporary34);
+      return _dartTemporary28;
     })());
     void (this._dart_e3418b5381fd4ff8_dayGridFocus = new FocusNode({ debugLabel: 'Day Grid' }));
   }
@@ -1307,10 +1312,10 @@ export class _MonthPickerState extends State<_MonthPicker> {
               this._dart_e3418b5381fd4ff8_currentMonth,
               checkedInteger(
                 (() => {
-                  const _dartTemporary30 = this._dart_e3418b5381fd4ff8_focusedDay;
-                  if (_dartTemporary30 === null)
+                  const _dartTemporary35 = this._dart_e3418b5381fd4ff8_focusedDay;
+                  if (_dartTemporary35 === null)
                     throw new TypeError('Null check operator used on a null value');
-                  return _dartTemporary30!;
+                  return _dartTemporary35!;
                 })().day,
               ),
             ));
@@ -1357,15 +1362,14 @@ export class _MonthPickerState extends State<_MonthPicker> {
       let /**
          * @dartType int
          * @dartTypeOrigin inferred
-         */
-        day: number = 1;
+         */ day: number = 1;
       checkedInteger(day) <= checkedInteger(daysInMonth);
       checkedInteger(
         (() => {
-          const _dartTemporary31 = checkedInteger(day);
-          const _dartTemporary32 = checkedInteger(_dartTemporary31 + 1);
-          day = _dartTemporary32;
-          return _dartTemporary31;
+          const _dartTemporary36 = checkedInteger(day);
+          const _dartTemporary37 = checkedInteger(_dartTemporary36 + 1);
+          day = _dartTemporary37;
+          return _dartTemporary36;
         })(),
       )
     ) {
@@ -1485,10 +1489,10 @@ export class _MonthPickerState extends State<_MonthPicker> {
     void this.setState((): void => {
       const nextDate: DateTime | null = this._dart_e3418b5381fd4ff8_nextDateInDirection(
         (() => {
-          const _dartTemporary33 = this._dart_e3418b5381fd4ff8_focusedDay;
-          if (_dartTemporary33 === null)
+          const _dartTemporary38 = this._dart_e3418b5381fd4ff8_focusedDay;
+          if (_dartTemporary38 === null)
             throw new TypeError('Null check operator used on a null value');
-          return _dartTemporary33!;
+          return _dartTemporary38!;
         })(),
         intent.direction,
       );
@@ -1502,10 +1506,10 @@ export class _MonthPickerState extends State<_MonthPicker> {
         ) {
           void this._dart_e3418b5381fd4ff8_showMonth(
             (() => {
-              const _dartTemporary34 = this._dart_e3418b5381fd4ff8_focusedDay;
-              if (_dartTemporary34 === null)
+              const _dartTemporary39 = this._dart_e3418b5381fd4ff8_focusedDay;
+              if (_dartTemporary39 === null)
                 throw new TypeError('Null check operator used on a null value');
-              return _dartTemporary34!;
+              return _dartTemporary39!;
             })(),
           );
         }
@@ -1529,16 +1533,16 @@ export class _MonthPickerState extends State<_MonthPicker> {
     }
     return checkedInteger(
       (() => {
-        const _dartTemporary36 = (() => {
-          const _dartTemporary35 = dateMapGet(
+        const _dartTemporary41 = (() => {
+          const _dartTemporary40 = dateMapGet(
             _MonthPickerState._dart_e3418b5381fd4ff8_directionOffset,
             traversalDirection,
           );
-          return _dartTemporary35 === null ? null : castSourceDartInt(_dartTemporary35);
+          return _dartTemporary40 === null ? null : castSourceDartInt(_dartTemporary40);
         })();
-        if (_dartTemporary36 === null)
+        if (_dartTemporary41 === null)
           throw new TypeError('Null check operator used on a null value');
-        return _dartTemporary36!;
+        return _dartTemporary41!;
       })(),
     );
   }
@@ -1565,9 +1569,9 @@ export class _MonthPickerState extends State<_MonthPicker> {
   _dart_e3418b5381fd4ff8_isSelectable(date: DateTime): boolean {
     return (
       (() => {
-        const _dartTemporary37 = this.widget.selectableDayPredicate;
-        if (_dartTemporary37 === null) return null;
-        return _dartTemporary37!(date);
+        const _dartTemporary42 = this.widget.selectableDayPredicate;
+        if (_dartTemporary42 === null) return null;
+        return _dartTemporary42!(date);
       })() ?? true
     );
   }
@@ -1693,6 +1697,7 @@ export class _MonthPickerState extends State<_MonthPicker> {
   }
 }
 protect(_MonthPickerState, ['_dart_e3418b5381fd4ff8_directionOffset']);
+const _dartTemporary43 = finalFieldProtector(['calendarDelegate', 'date']);
 export class _FocusedDate extends SourceInheritedHost {
   readonly calendarDelegate: CalendarDelegate<DateTime>;
   readonly date: DateTime | null;
@@ -1710,7 +1715,7 @@ export class _FocusedDate extends SourceInheritedHost {
     super({ child: child });
     this.calendarDelegate = _initialField0;
     this.date = _initialField1;
-    protect(this, ['calendarDelegate', 'date']);
+    _dartTemporary43(this);
   }
   override updateShouldNotify(oldWidget: _FocusedDate): boolean {
     if (!(oldWidget instanceof _FocusedDate))
@@ -1722,6 +1727,16 @@ export class _FocusedDate extends SourceInheritedHost {
     return focusedDate === null ? null : focusedDate.date;
   }
 }
+const _dartTemporary45 = finalFieldProtector([
+  'selectedDate',
+  'currentDate',
+  'onChanged',
+  'firstDate',
+  'lastDate',
+  'displayedMonth',
+  'selectableDayPredicate',
+  'calendarDelegate',
+]);
 export class _DayPicker extends ScrollbarStatefulHost {
   readonly selectedDate: DateTime | null;
   readonly currentDate: DateTime;
@@ -1787,16 +1802,7 @@ export class _DayPicker extends ScrollbarStatefulHost {
     this.displayedMonth = _initialField1;
     this.selectableDayPredicate = _initialField7;
     this.calendarDelegate = _initialField6;
-    protect(this, [
-      'selectedDate',
-      'currentDate',
-      'onChanged',
-      'firstDate',
-      'lastDate',
-      'displayedMonth',
-      'selectableDayPredicate',
-      'calendarDelegate',
-    ]);
+    _dartTemporary45(this);
   }
   override createState(): _DayPickerState {
     return new _DayPickerState();
@@ -1859,8 +1865,8 @@ export class _DayPickerState extends State<_DayPicker> {
     }
   }
   override dispose(): void {
-    for (const _dartTemporary39 of this._dart_e3418b5381fd4ff8_dayFocusNodes) {
-      const node: FocusNode = _dartTemporary39;
+    for (const _dartTemporary46 of this._dart_e3418b5381fd4ff8_dayFocusNodes) {
+      const node: FocusNode = _dartTemporary46;
       {
         void node.dispose();
       }
@@ -1876,8 +1882,7 @@ export class _DayPickerState extends State<_DayPicker> {
       let /**
          * @dartType int
          * @dartTypeOrigin explicit
-         */
-        i: number = checkedInteger(localizations.firstDayOfWeekIndex);
+         */ i: number = checkedInteger(localizations.firstDayOfWeekIndex);
       checkedInteger(result.length) < checkedInteger(DateTime.daysPerWeek);
       checkedInteger(
         (i = checkedInteger(
@@ -1945,10 +1950,10 @@ export class _DayPickerState extends State<_DayPicker> {
     while (checkedInteger(day) < checkedInteger(daysInMonth)) {
       void checkedInteger(
         (() => {
-          const _dartTemporary40 = checkedInteger(day);
-          const _dartTemporary41 = checkedInteger(_dartTemporary40 + 1);
-          day = _dartTemporary41;
-          return _dartTemporary40;
+          const _dartTemporary47 = checkedInteger(day);
+          const _dartTemporary48 = checkedInteger(_dartTemporary47 + 1);
+          day = _dartTemporary48;
+          return _dartTemporary47;
         })(),
       );
       if (checkedInteger(day) < 1) {
@@ -1964,10 +1969,10 @@ export class _DayPickerState extends State<_DayPicker> {
           dayToBuild.isBefore(this.widget.firstDate) ||
           (this.widget.selectableDayPredicate !== null &&
             !(() => {
-              const _dartTemporary42 = this.widget.selectableDayPredicate;
-              if (_dartTemporary42 === null)
+              const _dartTemporary49 = this.widget.selectableDayPredicate;
+              if (_dartTemporary49 === null)
                 throw new TypeError('Null check operator used on a null value');
-              return _dartTemporary42!;
+              return _dartTemporary49!;
             })()(dayToBuild));
         const isSelectedDay: boolean = this.widget.calendarDelegate.isSameDay(
           this.widget.selectedDate,
@@ -2017,6 +2022,15 @@ export class _DayPickerState extends State<_DayPicker> {
     });
   }
 }
+const _dartTemporary50 = finalFieldProtector([
+  'day',
+  'isDisabled',
+  'isSelectedDay',
+  'isToday',
+  'onChanged',
+  'focusNode',
+  'calendarDelegate',
+]);
 export class _Day extends ScrollbarStatefulHost {
   readonly day: DateTime;
   readonly isDisabled: boolean;
@@ -2060,139 +2074,120 @@ export class _Day extends ScrollbarStatefulHost {
     this.onChanged = _initialField4;
     this.focusNode = _initialField5;
     this.calendarDelegate = _initialField6;
-    protect(this, [
-      'day',
-      'isDisabled',
-      'isSelectedDay',
-      'isToday',
-      'onChanged',
-      'focusNode',
-      'calendarDelegate',
-    ]);
+    _dartTemporary50(this);
   }
   override createState(): State<_Day> {
     return new _DayState();
   }
 }
+const _dartTemporary51 = finalFieldProtector(['_dart_e3418b5381fd4ff8_statesController']);
 export class _DayState extends State<_Day> {
   readonly _dart_e3418b5381fd4ff8_statesController: WidgetStatesController;
   constructor() {
     const _initialField0 = new WidgetStatesController();
     super();
     this._dart_e3418b5381fd4ff8_statesController = _initialField0;
-    protect(this, ['_dart_e3418b5381fd4ff8_statesController']);
+    _dartTemporary51(this);
   }
   override build(context: BuildContext): Widget {
     const defaults: DatePickerThemeData = DatePickerTheme.defaults(context);
     const datePickerTheme: DatePickerThemeData = DatePickerTheme.of(context);
     const dayStyle: TextStyle | null = datePickerTheme.dayStyle ?? defaults.dayStyle;
-    const effectiveValue: <T extends {} | null>(
-      _dartTemporary43: DartTypeWitness<T>,
-      argument0: (argument0: DatePickerThemeData | null) => T | null,
-    ) => T | null = <T extends {} | null>(
-      _dartTemporary44: DartTypeWitness<T>,
-      getProperty: (argument0: DatePickerThemeData | null) => T | null,
-    ): T | null => {
-      return getProperty(datePickerTheme) ?? getProperty(defaults);
-    };
-    const resolve: <T extends {} | null>(
-      _dartTemporary45: DartTypeWitness<T>,
-      argument0: (argument0: DatePickerThemeData | null) => WidgetStateProperty<T> | null,
-      argument1: DartSet<WidgetState>,
-    ) => T | null = <T extends {} | null>(
-      _dartTemporary46: DartTypeWitness<T>,
-      getProperty: (argument0: DatePickerThemeData | null) => WidgetStateProperty<T> | null,
-      states: DartSet<WidgetState>,
-    ): T | null => {
-      return effectiveValue<T>(_dartTemporary46, (theme: DatePickerThemeData | null): T | null => {
-        return getProperty(theme)?.resolve(states) ?? null;
-      });
-    };
     const localizations: MaterialLocalizations = MaterialLocalizations.of(context);
     const semanticLabelSuffix: string = this.widget.isToday
       ? `, ${localizations.currentDateLabel}`
       : '';
     const states: DartSet<WidgetState> = (() => {
-      const _dartTemporary47 = emptyWidgetStateSet();
-      if (this.widget.isDisabled) _dartTemporary47.add(WidgetState.disabled);
-      if (this.widget.isSelectedDay) _dartTemporary47.add(WidgetState.selected);
-      return _dartTemporary47;
+      const _dartTemporary56 = emptyWidgetStateSet();
+      if (this.widget.isDisabled) _dartTemporary56.add(WidgetState.disabled);
+      if (this.widget.isSelectedDay) _dartTemporary56.add(WidgetState.selected);
+      return _dartTemporary56;
     })();
     void (this._dart_e3418b5381fd4ff8_statesController.value = states);
-    const dayForegroundColor: Color | null = resolve<Color | null>(
-      nullableDartType<Color>(sourceColorType),
-      (theme: DatePickerThemeData | null): WidgetStateProperty<Color | null> | null => {
-        return this.widget.isToday
-          ? theme === null
+    const dayForegroundColor: Color | null =
+      (void nullableDartType<Color>(sourceColorType),
+      (this.widget.isToday
+        ? datePickerTheme === null
+          ? null
+          : datePickerTheme.todayForegroundColor
+        : datePickerTheme === null
+          ? null
+          : datePickerTheme.dayForegroundColor
+      )?.resolve(states) ??
+        (this.widget.isToday
+          ? defaults === null
             ? null
-            : theme.todayForegroundColor
-          : theme === null
+            : defaults.todayForegroundColor
+          : defaults === null
             ? null
-            : theme.dayForegroundColor;
-      },
-      states,
-    );
-    const dayBackgroundColor: Color | null = resolve<Color | null>(
-      nullableDartType<Color>(sourceColorType),
-      (theme: DatePickerThemeData | null): WidgetStateProperty<Color | null> | null => {
-        return this.widget.isToday
-          ? theme === null
+            : defaults.dayForegroundColor
+        )?.resolve(states) ??
+        null);
+    const dayBackgroundColor: Color | null =
+      (void nullableDartType<Color>(sourceColorType),
+      (this.widget.isToday
+        ? datePickerTheme === null
+          ? null
+          : datePickerTheme.todayBackgroundColor
+        : datePickerTheme === null
+          ? null
+          : datePickerTheme.dayBackgroundColor
+      )?.resolve(states) ??
+        (this.widget.isToday
+          ? defaults === null
             ? null
-            : theme.todayBackgroundColor
-          : theme === null
+            : defaults.todayBackgroundColor
+          : defaults === null
             ? null
-            : theme.dayBackgroundColor;
-      },
-      states,
-    );
+            : defaults.dayBackgroundColor
+        )?.resolve(states) ??
+        null);
     const dayOverlayColor: WidgetStateProperty<Color | null> =
       WidgetStateProperty.resolveWith<Color | null>(
         nullableDartType<Color>(sourceColorType),
         (states: DartSet<WidgetState>): Color | null => {
-          return effectiveValue<Color>(
-            sourceColorType,
-            (theme: DatePickerThemeData | null): Color | null => {
-              return (theme === null ? null : theme.dayOverlayColor)?.resolve(states) ?? null;
-            },
+          return (
+            void sourceColorType,
+            (datePickerTheme === null ? null : datePickerTheme.dayOverlayColor)?.resolve(states) ??
+              (defaults === null ? null : defaults.dayOverlayColor)?.resolve(states) ??
+              null
           );
         },
       );
     const dayShape: OutlinedBorder = (() => {
-      const _dartTemporary54 = resolve<OutlinedBorder | null>(
-        nullableDartType<OutlinedBorder>(sourceOutlinedBorderType),
-        (theme: DatePickerThemeData | null): WidgetStateProperty<OutlinedBorder | null> | null => {
-          return theme === null ? null : theme.dayShape;
-        },
-        states,
-      );
-      if (_dartTemporary54 === null)
+      const _dartTemporary63 =
+        (void nullableDartType<OutlinedBorder>(sourceOutlinedBorderType),
+        (datePickerTheme === null ? null : datePickerTheme.dayShape)?.resolve(states) ??
+          (defaults === null ? null : defaults.dayShape)?.resolve(states) ??
+          null);
+      if (_dartTemporary63 === null)
         throw new TypeError('Null check operator used on a null value');
-      return _dartTemporary54!;
+      return _dartTemporary63!;
     })();
     const hasCustomBorderColor: boolean =
       datePickerTheme.todayBorder !== null &&
       dateBorderSideColor(
         (() => {
-          const _dartTemporary55 = datePickerTheme.todayBorder;
-          if (_dartTemporary55 === null)
+          const _dartTemporary64 = datePickerTheme.todayBorder;
+          if (_dartTemporary64 === null)
             throw new TypeError('Null check operator used on a null value');
-          return _dartTemporary55!;
+          return _dartTemporary64!;
         })(),
       ).opacity !== 0;
     const todayBorderSide: BorderSide = hasCustomBorderColor
       ? (() => {
-          const _dartTemporary56 = datePickerTheme.todayBorder;
-          if (_dartTemporary56 === null)
+          const _dartTemporary65 = datePickerTheme.todayBorder;
+          if (_dartTemporary65 === null)
             throw new TypeError('Null check operator used on a null value');
-          return _dartTemporary56!;
+          return _dartTemporary65!;
         })()
       : dateBorderSideCopyWith(
           datePickerTheme.todayBorder ??
             (() => {
-              const _dartTemporary57 = defaults.todayBorder;
-              if (_dartTemporary57 === null)
+              const _dartTemporary66 = defaults.todayBorder;
+              if (_dartTemporary66 === null)
                 throw new TypeError('Null check operator used on a null value');
-              return _dartTemporary57!;
+              return _dartTemporary66!;
             })(),
           { color: dayForegroundColor },
         );
@@ -2207,10 +2202,10 @@ export class _DayState extends State<_Day> {
       child: dateCenter({
         child: dateText(localizations.formatDecimal(checkedInteger(this.widget.day.day)), {
           style: (() => {
-            const _dartTemporary58 = dayStyle;
-            return _dartTemporary58 === null
+            const _dartTemporary67 = dayStyle;
+            return _dartTemporary67 === null
               ? null
-              : dateTextStyleApply(_dartTemporary58, { color: dayForegroundColor });
+              : dateTextStyleApply(_dartTemporary67, { color: dayForegroundColor });
           })(),
         }),
       }),
@@ -2253,13 +2248,14 @@ export class _DayState extends State<_Day> {
     void super.dispose();
   }
 }
+const _dartTemporary68 = finalFieldProtector(['context']);
 export class _DayPickerGridDelegate extends SliverGridDelegate {
   readonly context: BuildContext;
   constructor(context: BuildContext) {
     const _initialField0 = context;
     super();
     this.context = _initialField0;
-    protect(this, ['context']);
+    _dartTemporary68(this);
   }
   override getLayout(constraints: SliverConstraints): SliverGridLayout {
     /**
@@ -2323,6 +2319,15 @@ export class _DayPickerGridDelegate extends SliverGridDelegate {
     return false;
   }
 }
+const _dartTemporary69 = finalFieldProtector([
+  'currentDate',
+  'firstDate',
+  'lastDate',
+  'selectedDate',
+  'onChanged',
+  'dragStartBehavior',
+  'calendarDelegate',
+]);
 export class YearPicker extends ScrollbarStatefulHost {
   readonly currentDate: DateTime;
   readonly firstDate: DateTime;
@@ -2373,20 +2378,13 @@ export class YearPicker extends ScrollbarStatefulHost {
     this.onChanged = _initialField3;
     this.dragStartBehavior = _initialField4;
     this.calendarDelegate = _initialField5;
-    protect(this, [
-      'currentDate',
-      'firstDate',
-      'lastDate',
-      'selectedDate',
-      'onChanged',
-      'dragStartBehavior',
-      'calendarDelegate',
-    ]);
+    _dartTemporary69(this);
   }
   override createState(): State<YearPicker> {
     return new _YearPickerState();
   }
 }
+const _dartTemporary70 = finalFieldProtector(['_dart_e3418b5381fd4ff8_statesController']);
 export class _YearPickerState extends State<YearPicker> {
   _dart_e3418b5381fd4ff8_scrollController: ScrollController | null;
   readonly _dart_e3418b5381fd4ff8_statesController: WidgetStatesController;
@@ -2400,7 +2398,7 @@ export class _YearPickerState extends State<YearPicker> {
     super();
     this._dart_e3418b5381fd4ff8_scrollController = null;
     this._dart_e3418b5381fd4ff8_statesController = _initialField0;
-    protect(this, ['_dart_e3418b5381fd4ff8_statesController']);
+    _dartTemporary70(this);
   }
   override initState(): void {
     void super.initState();
@@ -2421,26 +2419,26 @@ export class _YearPickerState extends State<YearPicker> {
     void super.didUpdateWidget(oldWidget);
     if (
       !(() => {
-        const _dartTemporary59 = this.widget.selectedDate;
-        const _dartTemporary60 = oldWidget.selectedDate;
-        return _dartTemporary59 === null || _dartTemporary60 === null
-          ? _dartTemporary59 === _dartTemporary60
-          : _dartTemporary59.equals(_dartTemporary60);
+        const _dartTemporary71 = this.widget.selectedDate;
+        const _dartTemporary72 = oldWidget.selectedDate;
+        return _dartTemporary71 === null || _dartTemporary72 === null
+          ? _dartTemporary71 === _dartTemporary72
+          : _dartTemporary71.equals(_dartTemporary72);
       })() &&
       this.widget.selectedDate !== null
     ) {
       void (() => {
-        const _dartTemporary62 = this._dart_e3418b5381fd4ff8_scrollController;
-        if (_dartTemporary62 === null)
+        const _dartTemporary74 = this._dart_e3418b5381fd4ff8_scrollController;
+        if (_dartTemporary74 === null)
           throw new TypeError('Null check operator used on a null value');
-        return _dartTemporary62!;
+        return _dartTemporary74!;
       })().jumpTo(
         this._dart_e3418b5381fd4ff8_scrollOffsetForYear(
           (() => {
-            const _dartTemporary61 = this.widget.selectedDate;
-            if (_dartTemporary61 === null)
+            const _dartTemporary73 = this.widget.selectedDate;
+            if (_dartTemporary73 === null)
               throw new TypeError('Null check operator used on a null value');
-            return _dartTemporary61!;
+            return _dartTemporary73!;
           })(),
         ),
       );
@@ -2483,28 +2481,6 @@ export class _YearPickerState extends State<YearPicker> {
     checkedInteger(index);
     const datePickerTheme: DatePickerThemeData = DatePickerTheme.of(context);
     const defaults: DatePickerThemeData = DatePickerTheme.defaults(context);
-    const effectiveValue: <T extends {} | null>(
-      _dartTemporary63: DartTypeWitness<T>,
-      argument0: (argument0: DatePickerThemeData | null) => T | null,
-    ) => T | null = <T extends {} | null>(
-      _dartTemporary64: DartTypeWitness<T>,
-      getProperty: (argument0: DatePickerThemeData | null) => T | null,
-    ): T | null => {
-      return getProperty(datePickerTheme) ?? getProperty(defaults);
-    };
-    const resolve: <T extends {} | null>(
-      _dartTemporary65: DartTypeWitness<T>,
-      argument0: (argument0: DatePickerThemeData | null) => WidgetStateProperty<T> | null,
-      argument1: DartSet<WidgetState>,
-    ) => T | null = <T extends {} | null>(
-      _dartTemporary66: DartTypeWitness<T>,
-      getProperty: (argument0: DatePickerThemeData | null) => WidgetStateProperty<T> | null,
-      states: DartSet<WidgetState>,
-    ): T | null => {
-      return effectiveValue<T>(_dartTemporary66, (theme: DatePickerThemeData | null): T | null => {
-        return getProperty(theme)?.resolve(states) ?? null;
-      });
-    };
     /**
      * @dartType double
      * @dartTypeOrigin explicit
@@ -2543,8 +2519,8 @@ export class _YearPickerState extends State<YearPicker> {
     const isSelected: boolean =
       checkedInteger(year) ===
       (() => {
-        const _dartTemporary67 = this.widget.selectedDate;
-        return _dartTemporary67 === null ? null : _dartTemporary67.year;
+        const _dartTemporary79 = this.widget.selectedDate;
+        return _dartTemporary79 === null ? null : _dartTemporary79.year;
       })();
     const isCurrentYear: boolean =
       checkedInteger(year) === checkedInteger(this.widget.currentDate.year);
@@ -2562,60 +2538,70 @@ export class _YearPickerState extends State<YearPicker> {
      */
     const decorationWidth: number = 72 * textScaleFactor;
     const states: DartSet<WidgetState> = (() => {
-      const _dartTemporary68 = emptyWidgetStateSet();
-      if (isDisabled) _dartTemporary68.add(WidgetState.disabled);
-      if (isSelected) _dartTemporary68.add(WidgetState.selected);
-      return _dartTemporary68;
+      const _dartTemporary80 = emptyWidgetStateSet();
+      if (isDisabled) _dartTemporary80.add(WidgetState.disabled);
+      if (isSelected) _dartTemporary80.add(WidgetState.selected);
+      return _dartTemporary80;
     })();
-    const textColor: Color | null = resolve<Color | null>(
-      nullableDartType<Color>(sourceColorType),
-      (theme: DatePickerThemeData | null): WidgetStateProperty<Color | null> | null => {
-        return isCurrentYear
-          ? theme === null
+    const textColor: Color | null =
+      (void nullableDartType<Color>(sourceColorType),
+      (isCurrentYear
+        ? datePickerTheme === null
+          ? null
+          : datePickerTheme.todayForegroundColor
+        : datePickerTheme === null
+          ? null
+          : datePickerTheme.yearForegroundColor
+      )?.resolve(states) ??
+        (isCurrentYear
+          ? defaults === null
             ? null
-            : theme.todayForegroundColor
-          : theme === null
+            : defaults.todayForegroundColor
+          : defaults === null
             ? null
-            : theme.yearForegroundColor;
-      },
-      states,
-    );
-    const background: Color | null = resolve<Color | null>(
-      nullableDartType<Color>(sourceColorType),
-      (theme: DatePickerThemeData | null): WidgetStateProperty<Color | null> | null => {
-        return isCurrentYear
-          ? theme === null
+            : defaults.yearForegroundColor
+        )?.resolve(states) ??
+        null);
+    const background: Color | null =
+      (void nullableDartType<Color>(sourceColorType),
+      (isCurrentYear
+        ? datePickerTheme === null
+          ? null
+          : datePickerTheme.todayBackgroundColor
+        : datePickerTheme === null
+          ? null
+          : datePickerTheme.yearBackgroundColor
+      )?.resolve(states) ??
+        (isCurrentYear
+          ? defaults === null
             ? null
-            : theme.todayBackgroundColor
-          : theme === null
+            : defaults.todayBackgroundColor
+          : defaults === null
             ? null
-            : theme.yearBackgroundColor;
-      },
-      states,
-    );
+            : defaults.yearBackgroundColor
+        )?.resolve(states) ??
+        null);
     const overlayColor: WidgetStateProperty<Color | null> =
       WidgetStateProperty.resolveWith<Color | null>(
         nullableDartType<Color>(sourceColorType),
         (states: DartSet<WidgetState>): Color | null => {
-          return effectiveValue<Color>(
-            sourceColorType,
-            (theme: DatePickerThemeData | null): Color | null => {
-              return (theme === null ? null : theme.yearOverlayColor)?.resolve(states) ?? null;
-            },
+          return (
+            void sourceColorType,
+            (datePickerTheme === null ? null : datePickerTheme.yearOverlayColor)?.resolve(states) ??
+              (defaults === null ? null : defaults.yearOverlayColor)?.resolve(states) ??
+              null
           );
         },
       );
     const yearShape: OutlinedBorder = (() => {
-      const _dartTemporary75 = resolve<OutlinedBorder | null>(
-        nullableDartType<OutlinedBorder>(sourceOutlinedBorderType),
-        (theme: DatePickerThemeData | null): WidgetStateProperty<OutlinedBorder | null> | null => {
-          return theme === null ? null : theme.yearShape;
-        },
-        states,
-      );
-      if (_dartTemporary75 === null)
+      const _dartTemporary87 =
+        (void nullableDartType<OutlinedBorder>(sourceOutlinedBorderType),
+        (datePickerTheme === null ? null : datePickerTheme.yearShape)?.resolve(states) ??
+          (defaults === null ? null : defaults.yearShape)?.resolve(states) ??
+          null);
+      if (_dartTemporary87 === null)
         throw new TypeError('Null check operator used on a null value');
-      return _dartTemporary75!;
+      return _dartTemporary87!;
     })();
     let borderSide: BorderSide | null = null;
     if (isCurrentYear) {
@@ -2629,10 +2615,10 @@ export class _YearPickerState extends State<YearPicker> {
       shape: dateOutlinedBorderCopyWith(yearShape, { side: borderSide }),
     });
     const itemStyle: TextStyle | null = (() => {
-      const _dartTemporary76 = datePickerTheme.yearStyle ?? defaults.yearStyle;
-      return _dartTemporary76 === null
+      const _dartTemporary88 = datePickerTheme.yearStyle ?? defaults.yearStyle;
+      return _dartTemporary88 === null
         ? null
-        : dateTextStyleApply(_dartTemporary76, { color: textColor });
+        : dateTextStyleApply(_dartTemporary88, { color: textColor });
     })();
     const localizations: MaterialLocalizations = MaterialLocalizations.of(context);
     let yearItem: Widget = dateCenter({
@@ -2657,8 +2643,8 @@ export class _YearPickerState extends State<YearPicker> {
         checkedInteger(year),
         checkedInteger(
           (() => {
-            const _dartTemporary77 = this.widget.selectedDate;
-            return _dartTemporary77 === null ? null : _dartTemporary77.month;
+            const _dartTemporary89 = this.widget.selectedDate;
+            return _dartTemporary89 === null ? null : _dartTemporary89.month;
           })() ?? checkedInteger(DateTime.january),
         ),
       );
@@ -2746,13 +2732,14 @@ export class _YearPickerState extends State<YearPicker> {
   }
 }
 protect(_YearPickerState, ['minYears']);
+const _dartTemporary90 = finalFieldProtector(['context']);
 export class _YearPickerGridDelegate extends SliverGridDelegate {
   readonly context: BuildContext;
   constructor(context: BuildContext) {
     const _initialField0 = context;
     super();
     this.context = _initialField0;
-    protect(this, ['context']);
+    _dartTemporary90(this);
   }
   override getLayout(constraints: SliverConstraints): SliverGridLayout {
     /**

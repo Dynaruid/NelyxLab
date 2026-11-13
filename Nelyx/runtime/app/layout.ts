@@ -6,6 +6,7 @@ import type { BoxConstraints } from '@nelyx/core/framework/rendering/constraints
 import type { SceneNode, SceneNodeOptions } from '../engine-client/scene.ts';
 import type { AxisBound } from '../engine-client/codec.ts';
 import type { NativeLayoutBuilderConfiguration } from '@nelyx/core/framework/rendering/object';
+import type { NodeLayout } from '../engine-client/codec.ts';
 
 function axis(min: number, max: number): AxisBound {
   if (min === Infinity && max === Infinity) return { kind: 'expand' };
@@ -102,23 +103,26 @@ export function originalBoxConfiguration(
   };
 }
 export function parentLayout(render: RenderObject, options: SceneNodeOptions): SceneNodeOptions {
+  const layout = parentLayoutFields(render, options.layout);
+  return layout === undefined || layout === options.layout ? options : { ...options, layout };
+}
+/** Parent-owned edge fields apply to both adapters and direct module commands. */
+export function parentLayoutFields(
+  render: RenderObject,
+  layout?: NodeLayout | false,
+): NodeLayout | false | undefined {
   const data = render.parentData;
   if (data instanceof StackParentData && data.isPositioned)
     return {
-      ...options,
-      layout: {
-        ...options.layout,
-        positioned: {
-          ...(data.left === undefined ? {} : { left: data.left }),
-          ...(data.top === undefined ? {} : { top: data.top }),
-          ...(data.right === undefined ? {} : { right: data.right }),
-          ...(data.bottom === undefined ? {} : { bottom: data.bottom }),
-          ...(data.width === undefined ? {} : { width: data.width }),
-          ...(data.height === undefined ? {} : { height: data.height }),
-        },
+      ...layout,
+      positioned: {
+        ...(data.left === undefined ? {} : { left: data.left }),
+        ...(data.top === undefined ? {} : { top: data.top }),
+        ...(data.right === undefined ? {} : { right: data.right }),
+        ...(data.bottom === undefined ? {} : { bottom: data.bottom }),
+        ...(data.width === undefined ? {} : { width: data.width }),
+        ...(data.height === undefined ? {} : { height: data.height }),
       },
     };
-  return data instanceof FlexParentData
-    ? { ...options, layout: { ...options.layout, flex: data.flex, fit: data.fit } }
-    : options;
+  return data instanceof FlexParentData ? { ...layout, flex: data.flex, fit: data.fit } : layout;
 }

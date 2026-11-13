@@ -4,7 +4,8 @@
 // and the internal-only LowerBuiltinCallsOptimized pass. Inlining remains off.
 // Qualified against this compiler AND its VM. Preserve native CopyDataProperties
 // instead of allocating ES2015 helper objects. Native async uses the VM's
-// Promise/continuation machinery. Keep the qualified class pipeline.
+// Promise/continuation machinery. Native classes require the supplier's HBC
+// class-spill output-order patch; the policy identity rejects earlier supplies.
 export const windowsHermesSyntax = Object.freeze({
   bigint: true,
   'object-rest-spread': true,
@@ -60,7 +61,7 @@ const profiles = Object.freeze({
     flags: Object.freeze(['-Og']),
   }),
   optimized: Object.freeze({
-    id: 'windows-hermes-94aa5e1d-no-cfg-v1',
+    id: 'windows-hermes-94aa5e1d-no-cfg-class-spill-v2',
     profile: 'optimized',
     flags: Object.freeze(['-O', '-fno-inline', '-Xcustom-opt=' + noCfgPasses.join(',')]),
   }),

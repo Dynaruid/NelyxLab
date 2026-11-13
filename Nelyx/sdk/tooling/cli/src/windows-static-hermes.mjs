@@ -167,6 +167,39 @@ function capture(file, args, options = {}) {
     throw Error(String(result.error ?? result.stderr ?? result.status));
   return result.stdout;
 }
+/** CMake reloads normal compiler variables from these generated files after
+ * reading -D cache entries. Refresh missing MSVC tools after a VS update. */
+export function refreshWindowsCmakeTools(build, env) {
+  const files = path.join(build, 'CMakeFiles');
+  if (!fs.existsSync(files)) return;
+  const tools = {
+    CMAKE_ASM_MASM_COMPILER: 'ml64.exe',
+    CMAKE_LINKER_LINK: 'link.exe',
+  };
+  for (const version of fs.readdirSync(files, { withFileTypes: true })) {
+    if (!version.isDirectory() || !/^\d+\.\d+(?:\.\d+)?$/.test(version.name)) continue;
+    for (const name of [
+      'CMakeCCompiler.cmake',
+      'CMakeCXXCompiler.cmake',
+      'CMakeASM_MASMCompiler.cmake',
+    ]) {
+      const file = path.join(files, version.name, name);
+      if (!fs.existsSync(file)) continue;
+      const original = fs.readFileSync(file, 'utf8');
+      const updated = original.replace(
+        /^set\((CMAKE_ASM_MASM_COMPILER|CMAKE_LINKER_LINK) "([^"]*)"\)/gm,
+        (line, variable, previous) => {
+          if (fs.existsSync(previous)) return line;
+          const current = path.join(env.VCTOOLSINSTALLDIR, 'bin/Hostx64/x64', tools[variable]);
+          if (!fs.existsSync(current))
+            throw Error('Current MSVC tool is unavailable: ' + tools[variable]);
+          return 'set(' + variable + ' "' + current.replaceAll('\\', '/') + '")';
+        },
+      );
+      if (updated !== original) fs.writeFileSync(file, updated);
+    }
+  }
+}
 export function windowsCompilerEnvironment() {
   if (process.platform !== 'win32' || process.arch !== 'x64')
     throw Error('Static Hermes experiment requires Windows x64');

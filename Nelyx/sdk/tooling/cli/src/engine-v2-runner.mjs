@@ -407,23 +407,10 @@ export async function buildEngineV2Application(options) {
     if (target === 'windows') {
       const policy = windowsHermesPolicy('optimized', nativeCohort('windows'));
       const producer = supply.manifest.profiles['windows-app-sdk'].appBytecode;
-      // Native classes still fail the full Diagnosticable mixin graph in this
-      // Hermes revision. Preserve its qualified inheritance lowering.
+      // The supplier fixes HBC spilling a class's unused home object over its
+      // constructor. Keep native inheritance/new.target instead of allocating
+      // Babel Reflect.construct helpers for every source constructor call.
       const javascript = path.join(staged, 'application/app.js');
-      const compilerRequire = createRequire(import.meta.url);
-      const lowered = compilerRequire('@babel/core').transformSync(
-        fs.readFileSync(javascript, 'utf8'),
-        {
-          filename: 'application/app.js',
-          configFile: false,
-          babelrc: false,
-          comments: false,
-          compact: false,
-          plugins: [compilerRequire.resolve('@babel/plugin-transform-classes')],
-        },
-      );
-      if (!lowered?.code) throw Error('Windows class lowering produced no application');
-      fs.writeFileSync(javascript, lowered.code + '\n');
       await execute(
         input(supply.root, producer.compiler),
         [
@@ -442,7 +429,7 @@ export async function buildEngineV2Application(options) {
         version: producer.version,
         policy: policy.id,
         sourceSha256: hash(javascript),
-        classes: 'babel',
+        classes: 'native-spill-v1',
         syntax: windowsHermesSyntax,
       };
     }
@@ -615,7 +602,7 @@ export function verifyEngineV2Application(directory, target, engineInputs) {
       manifest.bytecode?.policy !== expected.policy ||
       manifest.bytecode?.version !== expected.version ||
       !manifest.files.some((file) => file.path === expected.entry) ||
-      manifest.bytecode?.classes !== 'babel' ||
+      manifest.bytecode?.classes !== 'native-spill-v1' ||
       JSON.stringify(manifest.bytecode?.syntax) !== JSON.stringify(windowsHermesSyntax) ||
       manifest.bytecode?.sourceSha256 !== hash(input(root, 'application/app.js')) ||
       fs.readFileSync(input(root, expected.entry)).readUInt32LE(8) !== expected.version

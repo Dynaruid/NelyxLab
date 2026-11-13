@@ -141,6 +141,12 @@ try {
           assert.equal(view.hasPendingTransaction,false);
           const settled=await inspectState();assert.equal(settled.document,settled.publishedDocument);
           assert.equal(settled.preparation,0n);
+          const preparation=app.diagnostics().sourcePreparation;
+          assert(preparation.calls>0&&preparation.samplesThrough>=preparation.samples.length);
+          const answered=preparation.samples.find(sample=>sample.kind==='box-request'&&sample.result==='built');
+          assert(answered&&answered.request.split('/').length===8,'Source callback timing lost its exact request identity');
+          assert(app.diagnostics().samples.some(sample=>sample.sourceThrough>=answered.sequence),'Sealed capture did not identify its completed Source preparations');
+          assert(app.diagnostics().samples.every(sample=>sample.retainedBuilderMs<=sample.buildMs),'Retained Source cost was reported outside its enclosing build');
           console.log('App passes: ACK invalidation preserved, manual Source request/constraints, publication and close PASS.');
           // An explicit newer root may supersede an accepted Source request.
           // Execute the required callback, but do not flash the removed tree

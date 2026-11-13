@@ -36,6 +36,7 @@ import type { ImageStyleOptions } from './image-style.ts';
 import type { NativeSnapshotConfiguration } from './snapshot.ts';
 import type { LayoutBuilderOptions } from './layout-builder.ts';
 import type { NativeLayoutProgram } from '@nelyx/core/framework/rendering/object';
+import type { NativeBoxConfiguration } from '@nelyx/core/framework/rendering/object';
 export class ImageResource {
   readonly bytes: Uint8Array;
   constructor(bytes: Uint8Array) {
@@ -248,7 +249,126 @@ export class RenderBinding implements SceneNode {
   declare readonly maximumLength: number;
 }
 const bindingPrograms = new WeakMap<SceneNode, readonly Uint8Array[]>();
-const bindingKinds = new Set<SceneNode['kind']>(['box', 'stack', 'paragraph', 'clip']);
+// One private, destination-free program per live Source reference. Callback
+// records and child edges still belong to each newly sealed configuration.
+const recentBindingPrograms = new WeakMap<
+  SceneReference,
+  {
+    readonly kind: SceneNode['kind'];
+    readonly program: readonly Uint8Array[];
+    readonly parts: readonly BindingPart[];
+  }
+>();
+type BindingPart = {
+  readonly kind: number;
+  readonly key: readonly unknown[];
+  readonly bytes: Uint8Array;
+};
+export interface RenderBindingProjectionCounters {
+  partEncodes: number;
+  partReuses: number;
+}
+type BindingPartJournal = {
+  readonly previous: readonly BindingPart[] | undefined;
+  readonly parts: BindingPart[];
+  readonly counters: RenderBindingProjectionCounters | undefined;
+};
+function bindingPartJournal(
+  reference: SceneReference,
+  kind: SceneNode['kind'],
+  counters?: RenderBindingProjectionCounters,
+): BindingPartJournal {
+  const before = recentBindingPrograms.get(reference);
+  return {
+    previous: before?.kind === kind ? before.parts : undefined,
+    parts: [],
+    counters,
+  };
+}
+function sameBindingPartInput(args: readonly unknown[], before: BindingPart): boolean {
+  if (args.length !== before.key.length) return false;
+  for (let index = 0; index < args.length; ++index)
+    if (!Object.is(args[index], before.key[index])) return false;
+  return true;
+}
+/** Field parts are Source values, never a second native/ACK registry. A failed
+ * encode does not install a candidate journal. Keep live references and opaque
+ * receivers on their ordinary encoder path. Public Scene inputs do not use it. */
+function bindingPart<T extends unknown[]>(
+  journal: BindingPartJournal,
+  kind: number,
+  args: T,
+  encode: (...args: T) => Uint8Array,
+): Uint8Array {
+  let scalar = true;
+  for (let index = 1; index < args.length; ++index) {
+    const value = args[index];
+    if (
+      value !== null &&
+      (typeof value === 'object' || typeof value === 'function' || typeof value === 'symbol')
+    ) {
+      scalar = false;
+      break;
+    }
+  }
+  const before = scalar ? journal.previous?.find((part) => part.kind === kind) : undefined;
+  if (before && sameBindingPartInput(args, before)) {
+    journal.parts.push(before);
+    if (journal.counters) ++journal.counters.partReuses;
+    return before.bytes;
+  }
+  if (journal.counters) ++journal.counters.partEncodes;
+  const bytes = Reflect.apply(encode, c, args);
+  // This internal argument tuple owns only scalar values and the frozen
+  // destination placeholder. Objects/arrays keep their ordinary codec path;
+  // no extra graph probe, clone, revision or freezing is needed to retain it.
+  if (scalar) journal.parts.push({ kind, key: args, bytes });
+  return bytes;
+}
+// A sealed command owns its body, but not a destination. Only diff addresses
+// commands that actually change the document. Accepted records can therefore
+// retain these same bodies through NACK recovery and handle regeneration.
+const bindingTemplates = new WeakSet<Uint8Array>();
+type BindingFixup = { readonly offset: number; readonly reference: SceneReference };
+const bindingFixups = new WeakMap<Uint8Array, readonly BindingFixup[]>();
+const referenceTokens = new WeakMap<object, SceneReference>();
+const referenceHandles = new WeakMap<SceneReference, NodeHandle>();
+const sourceReferenceOptions = new WeakSet<SceneNodeOptions>();
+/** @internal Only host-built adapter options may contain binding tokens.
+ * Public mutable/accessor producers keep the original encoder read sequence. */
+export function sceneReferenceConfiguration<T extends SceneNodeOptions>(options: T): T {
+  sourceReferenceOptions.add(options);
+  return options;
+}
+/** @internal A data-only reference to a Source binding. The placeholder never
+ * reaches Core: the writer resolves it after allocating the whole batch. */
+export function sceneReferenceHandle(reference: SceneReference): NodeHandle {
+  let token = referenceHandles.get(reference);
+  if (!token) {
+    token = Object.freeze({ slot: 1, generation: 1 });
+    referenceHandles.set(reference, token);
+    referenceTokens.set(token, reference);
+  }
+  return token;
+}
+function resolveSceneHandle(
+  value: NativePaintOptions['reference'],
+): NativePaintOptions['reference'] {
+  if (value && typeof value === 'object') {
+    const reference = referenceTokens.get(value);
+    if (reference) return () => reference.currentNode;
+  }
+  return value;
+}
+const bindingKinds = new Set<SceneNode['kind']>([
+  'box',
+  'stack',
+  'paragraph',
+  'clip',
+  'flex',
+  'wrap',
+  'transform',
+]);
 const bindingFields = new Set([
   'properties',
   'color',
@@ -278,13 +398,29 @@ const bindingFields = new Set([
   'canonicalKeyboard',
   'semanticsPolicy',
   'pointerBlock',
+  'paintPlacement',
+  'layerLink',
+  'tapRegion',
+  'snapshot',
+  'layoutBuilder',
+  'tooltipPosition',
+  'childAnchor',
+  'intrinsicSizing',
 ]);
-const unboundHandle = { slot: 0, generation: 0 };
+const unboundHandle = Object.freeze({ slot: 0, generation: 0 });
+const encodeBindingText = (
+  handle: NodeHandle,
+  value: string,
+  size: number,
+  color: number,
+  direction: 'ltr' | 'rtl',
+): Uint8Array => c.text(handle, value, size, color, { direction });
 /** Inspect descriptors before reading a value: an accessor/subclass/executable
  * reference uses the existing adapter without executing an eligibility probe.
  * Mutable plain data is encoded now, so later writes cannot change this batch. */
 function bindingData(value: unknown, ancestors?: Set<object>): boolean {
   if (value === null || typeof value !== 'object') return typeof value !== 'function';
+  if (referenceTokens.has(value)) return true;
   if (immutableSceneValues.has(value)) return true;
   ancestors ??= new Set<object>();
   if (ancestors.has(value)) return false;
@@ -313,24 +449,42 @@ export function renderBindingConfiguration(
   children: readonly SceneNode[],
   options: SceneNodeOptions,
   text?: SceneText,
+  closedData = false,
+  counters?: RenderBindingProjectionCounters,
 ): RenderBinding | undefined {
   if (!bindingKinds.has(kind)) return;
-  const prototype = Object.getPrototypeOf(options);
-  if (prototype !== Object.prototype && prototype !== null) return;
-  const callbacks: Record<string, unknown> = {};
-  for (const key of Reflect.ownKeys(options)) {
-    if (typeof key !== 'string') return;
-    const descriptor = Object.getOwnPropertyDescriptor(options, key)!;
-    if (!('value' in descriptor)) return;
-    if (sourceCallbacks.has(key)) callbacks[key] = descriptor.value;
-    else if (!bindingFields.has(key) || !bindingData(descriptor.value)) return;
+  if (!closedData) {
+    const prototype = Object.getPrototypeOf(options);
+    if (prototype !== Object.prototype && prototype !== null) return;
   }
-  if (!bindingData(text)) return;
+  const callbacks: Record<string, unknown> = {};
+  for (const key of closedData ? Object.keys(options) : Reflect.ownKeys(options)) {
+    if (typeof key !== 'string') return;
+    let value: unknown;
+    if (closedData) value = (options as Record<string, unknown>)[key];
+    else {
+      const descriptor = Object.getOwnPropertyDescriptor(options, key)!;
+      if (!('value' in descriptor)) return;
+      value = descriptor.value;
+    }
+    if (sourceCallbacks.has(key)) callbacks[key] = value;
+    else if (!bindingFields.has(key) || (!closedData && !bindingData(value))) return;
+  }
+  if (!closedData && !bindingData(text)) return;
   // Native paint can carry cross-node handles as well as live closures. Both
   // require the existing dependency/handle-resolution path after allocation.
-  if (options.nativePaint?.some((entry) => entry.reference !== undefined)) return;
+  if (
+    options.nativePaint?.some(
+      (entry) =>
+        entry.reference !== undefined &&
+        (typeof entry.reference !== 'object' || !referenceTokens.has(entry.reference)),
+    )
+  )
+    return;
+  if (typeof options.layerLink === 'function' || typeof options.tapRegion === 'function') return;
   const o = options,
-    h = unboundHandle;
+    h = unboundHandle,
+    journal = bindingPartJournal(reference, kind, counters);
   const layout = o.layout === false ? { enabled: false } : o.layout;
   const layoutDefault =
     layout === undefined
@@ -345,7 +499,7 @@ export function renderBindingConfiguration(
     o.properties === undefined ? defaultProperties : c.properties(h, o.properties),
     Object.is(o.color ?? 0, 0) && Object.is(o.radius ?? 0, 0)
       ? defaultPaint
-      : c.paint(h, o.color ?? 0, o.radius ?? 0),
+      : bindingPart(journal, p.commands.paint, [h, o.color ?? 0, o.radius ?? 0], c.paint),
     layoutDefault ?? c.layout(h, layout ?? {}),
     o.horizontal === undefined && o.vertical === undefined
       ? defaultConstraints
@@ -356,7 +510,14 @@ export function renderBindingConfiguration(
         ),
   ];
   if (text)
-    config.push(c.text(h, text.value, text.size, text.color, { direction: text.direction }));
+    config.push(
+      bindingPart(
+        journal,
+        p.commands.text,
+        [h, text.value, text.size, text.color, text.direction],
+        encodeBindingText,
+      ),
+    );
   if (kind === 'paragraph')
     config.push(c.paragraphOptions(h, o.paragraph ?? null), c.paragraphFont(h, o.paragraphFont));
   else if (o.paragraph || o.paragraphFont) return;
@@ -364,17 +525,86 @@ export function renderBindingConfiguration(
   else if (o.clipStyle) return;
   if (o.semantics) config.push(c.semantics(h, o.semantics));
   if (o.graphics) config.push(c.graphics(h, o.graphics));
-  if (o.nativePaint?.length) config.push(c.nativePaint(h, o.nativePaint));
+  if (o.nativePaint?.length) {
+    const command = c.nativePaint(h, o.nativePaint),
+      fixups: BindingFixup[] = [];
+    o.nativePaint.forEach((entry, index) => {
+      const reference =
+        entry.reference && typeof entry.reference === 'object'
+          ? referenceTokens.get(entry.reference)
+          : undefined;
+      if (reference)
+        fixups.push({
+          offset: 16 + p.nativePaintHeaderBytes + index * p.nativePaintBytes + 16,
+          reference,
+        });
+    });
+    if (fixups.length) bindingFixups.set(command, fixups);
+    config.push(command);
+  }
+  if (o.paintPlacement) {
+    const command = c.paintPlacement(h, o.paintPlacement),
+      target = o.paintPlacement.reference,
+      reference = target && typeof target === 'object' ? referenceTokens.get(target) : undefined;
+    if (reference) bindingFixups.set(command, [{ offset: 16 + 32, reference }]);
+    config.push(command);
+  }
+  if (o.layerLink && typeof o.layerLink !== 'function') config.push(c.layerLink(h, o.layerLink));
+  if (o.tapRegion && typeof o.tapRegion !== 'function') config.push(c.tapRegion(h, o.tapRegion));
+  if (o.snapshot) config.push(c.snapshot(h, o.snapshot));
+  if (o.layoutBuilder) config.push(c.layoutBuilder(h, o.layoutBuilder));
+  if (o.tooltipPosition) config.push(c.tooltipPosition(h, o.tooltipPosition));
+  if (o.childAnchor) config.push(c.childAnchor(h, o.childAnchor));
+  if (o.intrinsicSizing) config.push(c.intrinsicSizing(h, o.intrinsicSizing));
   if (o.layoutProgram) config.push(c.layoutProgram(h, o.layoutProgram));
   if (o.listItem) config.push(c.listItem(h, o.listItem));
-  if (o.gestures) config.push(c.gesture(h, o.gestures, o.gestureDevices));
+  if (o.gestures)
+    config.push(
+      bindingPart(journal, p.commands.gesture, [h, o.gestures, o.gestureDevices], c.gesture),
+    );
   config.push(
     policy === 0
       ? defaultPolicies[0]!
       : policy === p.eventPolicies.canonicalHitTest
         ? defaultPolicies[1]!
-        : c.eventPolicy(h, policy),
+        : bindingPart(journal, p.commands.eventPolicy, [h, policy], c.eventPolicy),
   );
+  return sealRenderBinding(reference, kind, children, callbacks, config, journal.parts);
+}
+function sealRenderBinding(
+  reference: SceneReference,
+  kind: SceneNode['kind'],
+  children: readonly SceneNode[],
+  callbacks: SceneNodeOptions,
+  config: readonly Uint8Array[],
+  parts: readonly BindingPart[],
+): RenderBinding {
+  for (const command of config) bindingTemplates.add(command);
+  const previous = recentBindingPrograms.get(reference);
+  const same =
+    previous?.kind === kind &&
+    previous.program.length === config.length &&
+    config.every((command, index) => {
+      const before = previous.program[index]!;
+      if (command === before) return true;
+      const fixups = bindingFixups.get(command),
+        oldFixups = bindingFixups.get(before);
+      return (
+        fixups?.length === oldFixups?.length &&
+        (!fixups ||
+          fixups.every(
+            (fixup, at) =>
+              fixup.offset === oldFixups![at]!.offset &&
+              fixup.reference === oldFixups![at]!.reference,
+          )) &&
+        sameRecordConfig(command, before)
+      );
+    });
+  const program = same ? previous.program : config;
+  const sameParts =
+    previous?.parts.length === parts.length &&
+    parts.every((part, index) => part === previous.parts[index]);
+  if (!same || !sameParts) recentBindingPrograms.set(reference, { kind, program, parts });
   const binding = Object.freeze({
     __proto__: RenderBinding.prototype,
     reference,
@@ -387,9 +617,81 @@ export function renderBindingConfiguration(
     editorFlags: 0,
     maximumLength: p.limits.textBytes,
   }) as RenderBinding;
-  bindingPrograms.set(binding, config);
+  bindingPrograms.set(binding, program);
   retainedConfigurations.add(binding);
   return binding;
+}
+/** @internal A canonical module's opted-in data goes straight to the codecs.
+ * No Scene options, descriptor eligibility walk, or generic input snapshot is
+ * built. This capability is separate from mutable/public Scene producers. */
+export function boxRenderBindingConfiguration(
+  reference: SceneReference,
+  children: readonly SceneNode[],
+  source: NativeBoxConfiguration,
+  layout: NodeLayout,
+  listItem?: SceneNodeOptions['listItem'],
+  counters?: RenderBindingProjectionCounters,
+): RenderBinding {
+  if (
+    source.paint ||
+    source.foreground ||
+    source.children ||
+    source.layoutBuilder ||
+    source.tooltipPosition ||
+    source.snapshot
+  )
+    throw Error('Direct box data capability contains executable or synthetic work');
+  const h = unboundHandle,
+    journal = bindingPartJournal(reference, source.kind, counters),
+    constraint = source.constraints;
+  const axis = (min: number, max: number): AxisBound =>
+    min === Infinity && max === Infinity
+      ? { kind: 'expand' }
+      : max === Infinity
+        ? { kind: 'unbounded', min }
+        : { kind: 'finite', min, max };
+  const config = [
+    source.opacity === undefined ? defaultProperties : c.properties(h, { opacity: source.opacity }),
+    Object.is(source.color ?? 0, 0)
+      ? defaultPaint
+      : bindingPart(journal, p.commands.paint, [h, source.color!], c.paint),
+    Object.keys(layout).length === 1 && layout.childConstraints === 'inherit'
+      ? defaultLayouts[2]!
+      : c.layout(h, layout),
+    constraint
+      ? c.constraints(
+          h,
+          axis(constraint.minWidth, constraint.maxWidth),
+          axis(constraint.minHeight, constraint.maxHeight),
+        )
+      : defaultConstraints,
+  ];
+  if (source.kind === 'clip') config.push(c.clipStyle(h, source.clipStyle ?? null));
+  if (source.semantics) config.push(c.semantics(h, source.semantics));
+  if (source.graphics) config.push(c.graphics(h, source.graphics));
+  if (source.childAnchor) config.push(c.childAnchor(h, source.childAnchor));
+  if (source.intrinsicSizing) config.push(c.intrinsicSizing(h, source.intrinsicSizing));
+  if (source.layoutProgram) config.push(c.layoutProgram(h, source.layoutProgram));
+  if (listItem) config.push(c.listItem(h, listItem));
+  const policy = sceneEventPolicy({
+    pointerHitTest: source.hitTest ?? 'proxy',
+    pointerBlock: source.pointerBlock,
+    semanticsPolicy: source.semanticsPolicy,
+    onPointerSample: source.onPointerSample,
+  });
+  config.push(
+    policy === p.eventPolicies.canonicalHitTest
+      ? defaultPolicies[1]!
+      : bindingPart(journal, p.commands.eventPolicy, [h, policy], c.eventPolicy),
+  );
+  return sealRenderBinding(
+    reference,
+    source.kind,
+    children,
+    source.onPointerSample ? { onPointerSample: source.onPointerSample } : {},
+    config,
+    journal.parts,
+  );
 }
 /** @internal Reconnect changed edges without re-projecting retained fields. */
 export function relinkRenderBinding(
@@ -512,7 +814,9 @@ const sourceCallbacks = new Set([
   'onLayout',
   'onAction',
 ]);
-function sceneEventPolicy(o: SceneNodeOptions): number {
+function sceneEventPolicy(o: {
+  readonly [K in keyof SceneNodeOptions]?: SceneNodeOptions[K] | undefined;
+}): number {
   return (
     (o.onRawInput ? p.eventPolicies.observeRaw : 0) |
     (o.appControlled ? p.eventPolicies.appControlled : 0) |
@@ -599,6 +903,12 @@ interface NativeRecord {
   readonly configInputs: ReadonlyMap<number, unknown>;
 }
 const recordBindingPrograms = new WeakMap<NativeRecord, readonly Uint8Array[]>();
+type BindingTarget = {
+  readonly reference: SceneReference;
+  readonly slot: number;
+  readonly generation: number;
+};
+const recordBindingTargets = new WeakMap<NativeRecord, readonly BindingTarget[]>();
 /** A transaction's private write set over the accepted registry. The base is
  * changed only after a terminal ACK; in-flight edits never mutate it. */
 class RecordPatch {
@@ -680,6 +990,14 @@ type RetainedSubtree = {
   height: number;
   geometry: number;
   cacheable: boolean;
+  dependencies: RetainedDependencies | undefined;
+};
+// Persistent concatenation shares single-child dependency groups. No ancestor
+// copies a whole descendant reference map; one batch memoizes validation.
+type RetainedDependencies = {
+  readonly targets?: readonly BindingTarget[];
+  readonly owner?: NativeRecord;
+  readonly children?: readonly RetainedDependencies[];
 };
 export interface EngineExecutionSnapshot {
   readonly selected: 'engine-v2-cpp';
@@ -794,12 +1112,15 @@ const sharedDefaultCommands = new Set([
   ...defaultPolicies,
 ]);
 function sameRecordConfig(a: Uint8Array, b: Uint8Array): boolean {
-  return sharedDefaultCommands.has(a) || sharedDefaultCommands.has(b)
+  return bindingTemplates.has(a) ||
+    bindingTemplates.has(b) ||
+    sharedDefaultCommands.has(a) ||
+    sharedDefaultCommands.has(b)
     ? sameCreationDefault(a, b)
     : equalBytes(a, b);
 }
 function addressedConfig(config: Uint8Array, handle: NodeHandle): Uint8Array {
-  if (!sharedDefaultCommands.has(config)) return config;
+  if (!bindingTemplates.has(config) && !sharedDefaultCommands.has(config)) return config;
   const bytes = config.slice();
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   view.setUint32(8, handle.slot, true);
@@ -816,6 +1137,7 @@ function captureConfigInput(
 ): unknown {
   if (value === null || typeof value !== 'object')
     return typeof value === 'function' || typeof value === 'symbol' ? uncacheableInput : value;
+  if (referenceTokens.has(value)) return uncacheableInput;
   if (immutableSceneValues.has(value)) return value;
   if (inputs?.has(value)) return inputs.get(value);
   const array = Array.isArray(value);
@@ -861,7 +1183,8 @@ function sameConfigInput(
   )
     return false;
   const keys = Object.keys(value);
-  if (keys.length !== Object.keys(captured).length) return false;
+  const capturedKeys = Object.keys(captured);
+  if (keys.length !== capturedKeys.length) return false;
   for (const key of keys) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
     if (
@@ -994,6 +1317,8 @@ export class SceneWriter {
     bindingRecords: 0,
     bindingCommands: 0,
     bindingProgramReuses: 0,
+    referenceDependencyChecks: 0,
+    referenceSubtreeReuses: 0,
     fullRecordBuilds: 0,
     topologyRecords: 0,
     creationDepthVisits: 0,
@@ -1084,13 +1409,29 @@ export class SceneWriter {
       : new Map<string, NativeRecord>();
     if (!(records instanceof RecordPatch)) ++this.counters.fullRecordBuilds;
     const seen = new Set<SceneReference>();
-    const reusable = (node: SceneNode): RetainedSubtree | undefined => {
+    const checkedDependencies = new Map<RetainedDependencies, boolean>();
+    const validDependencies = (dependencies: RetainedDependencies): boolean => {
+      const checked = checkedDependencies.get(dependencies);
+      if (checked !== undefined) return checked;
+      const valid = dependencies.targets
+        ? this.accepted.get(id(dependencies.owner!.handle)) === dependencies.owner &&
+          dependencies.targets.every((target) => {
+            ++this.counters.referenceDependencyChecks;
+            const handle = this.handles.get(target.reference)?.handle;
+            return handle?.slot === target.slot && handle.generation === target.generation;
+          })
+        : dependencies.children!.every(validDependencies);
+      checkedDependencies.set(dependencies, valid);
+      return valid;
+    };
+    const reusable = (node: SceneNode, allocating = false): RetainedSubtree | undefined => {
       if (!(records instanceof RecordPatch) || !retainedConfigurations.has(node)) return;
       const cached = this.retainedSubtrees.get(node);
       if (
         cached?.cacheable &&
         this.handles.get(node.reference)?.handle === cached.record.handle &&
-        this.accepted.get(id(cached.record.handle)) === cached.record
+        this.accepted.get(id(cached.record.handle)) === cached.record &&
+        (allocating || !cached.dependencies || validDependencies(cached.dependencies))
       )
         return cached;
     };
@@ -1100,7 +1441,9 @@ export class SceneWriter {
       if (seen.has(node.reference)) throw Error('Duplicate scene reference');
       seen.add(node.reference);
       ++this.counters.allocatedVisits;
-      if (reusable(node)) return;
+      // Destination allocation precedes dependency validation. A target later
+      // in this batch may change kind/generation outside this retained subtree.
+      if (reusable(node, true)) return;
       let binding = this.handles.get(node.reference);
       if (!binding || binding.kind !== node.kind) {
         const handle = this.allocate();
@@ -1139,6 +1482,7 @@ export class SceneWriter {
         this.retainedSubtrees.set(node, { ...cached, record });
         this.appGeometryNodes += cached.geometry;
         this.counters.skippedSubtreeNodes += cached.count;
+        if (cached.dependencies) ++this.counters.referenceSubtreeReuses;
         return h;
       }
       ++this.counters.recordVisits;
@@ -1153,6 +1497,11 @@ export class SceneWriter {
       const children = node.children.map((child) => visit(child, h, appGeometry, depth + 1));
       const retainSubtree = (record: NativeRecord): void => {
         const descendants = node.children.map((child) => this.retainedSubtrees.get(child)!);
+        const targets = recordBindingTargets.get(record);
+        let dependencies: RetainedDependencies[] | undefined;
+        if (targets?.length) dependencies = [{ targets, owner: record }];
+        for (const child of descendants)
+          if (child.dependencies) (dependencies ??= []).push(child.dependencies);
         this.retainedSubtrees.set(node, {
           record,
           count: 1 + descendants.reduce((sum, child) => sum + child.count, 0),
@@ -1161,39 +1510,60 @@ export class SceneWriter {
             Number(appGeometry) + descendants.reduce((sum, child) => sum + child.geometry, 0),
           cacheable:
             retainedConfigurations.has(node) &&
-            record.fullyCacheable &&
+            (record.fullyCacheable || targets !== undefined) &&
             !o.control &&
             descendants.every((child) => child.cacheable),
+          dependencies:
+            dependencies?.length === 1
+              ? dependencies[0]
+              : dependencies
+                ? { children: dependencies }
+                : undefined,
         });
       };
       const before = this.accepted.get(key);
       const program = bindingPrograms.get(node);
       if (program) {
         if (appGeometry) throw Error('Direct render binding requires Core-owned geometry');
-        const reused = before && recordBindingPrograms.get(before) === program;
+        const references = program.some((command) => bindingFixups.has(command));
+        const reused = before && !references && recordBindingPrograms.get(before) === program;
         const projected = reused
           ? undefined
           : program.map((template) => {
-              if (sharedDefaultCommands.has(template)) return template;
-              const bytes = template.slice(),
-                view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-              view.setUint32(8, h.slot, true);
-              view.setUint32(12, h.generation, true);
-              const previous = before?.configByKind.get(commandKind(bytes));
-              return previous && equalBytes(previous, bytes) ? previous : bytes;
+              const fixups = bindingFixups.get(template);
+              if (fixups) {
+                const bytes = template.slice(),
+                  view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+                for (const fixup of fixups) {
+                  const target = this.handles.get(fixup.reference)?.handle;
+                  if (!target) throw Error('Direct render reference is not mounted');
+                  view.setUint32(fixup.offset, target.slot, true);
+                  view.setUint32(fixup.offset + 4, target.generation, true);
+                }
+                bindingTemplates.add(bytes);
+                const previous = before?.configByKind.get(commandKind(bytes));
+                return previous && sameRecordConfig(previous, bytes) ? previous : bytes;
+              }
+              const previous = before?.configByKind.get(commandKind(template));
+              return previous && sameRecordConfig(previous, template) ? previous : template;
             });
         const config = projected ?? before!.config;
-        if (projected) {
+        if (projected && before) {
+          let resetAdded = false;
           const present = new Set(projected.map(commandKind));
-          for (const [kind, previous] of before?.configByKind ?? []) {
+          for (const [kind, previous] of before.configByKind) {
             if (present.has(kind)) continue;
             const reset = bindingReset(kind, h);
-            if (reset && !equalBytes(previous, reset)) projected.push(reset);
+            if (reset && !sameRecordConfig(previous, reset)) {
+              projected.push(reset);
+              resetAdded = true;
+            }
           }
-          projected.sort(
-            (a, b) =>
-              bindingCommandOrder.get(commandKind(a))! - bindingCommandOrder.get(commandKind(b))!,
-          );
+          if (resetAdded)
+            projected.sort(
+              (a, b) =>
+                bindingCommandOrder.get(commandKind(a))! - bindingCommandOrder.get(commandKind(b))!,
+            );
         }
         // Accepted bindings own only their callback record and handle edges.
         // The sealed program is private; patching a provisional handle above
@@ -1232,11 +1602,24 @@ export class SceneWriter {
                 configByKind: reused
                   ? before.configByKind
                   : new Map(config.map((bytes) => [commandKind(bytes), bytes])),
-                fullyCacheable: true,
+                fullyCacheable: !references,
                 configInputs: reused ? before.configInputs : new Map(),
                 appGeometry: false,
               };
         recordBindingPrograms.set(record, program);
+        if (references) {
+          const targets: BindingTarget[] = [];
+          for (const command of program)
+            for (const fixup of bindingFixups.get(command) ?? []) {
+              const handle = this.handles.get(fixup.reference)!.handle;
+              targets.push({
+                reference: fixup.reference,
+                slot: handle.slot,
+                generation: handle.generation,
+              });
+            }
+          recordBindingTargets.set(record, targets);
+        }
         records.set(key, record);
         retainSubtree(record);
         ++this.counters.bindingRecords;
@@ -1402,11 +1785,30 @@ export class SceneWriter {
       optional(
         p.commands.nativePaint,
         o.nativePaint?.length,
-        () => c.nativePaint(h, o.nativePaint),
+        () =>
+          c.nativePaint(
+            h,
+            sourceReferenceOptions.has(o)
+              ? o.nativePaint?.map((entry) => {
+                  const reference = resolveSceneHandle(entry.reference);
+                  return reference === undefined || reference === entry.reference
+                    ? entry
+                    : { ...entry, reference };
+                })
+              : o.nativePaint,
+          ),
         o.nativePaint,
       );
       optional(p.commands.paintPlacement, o.paintPlacement, () =>
-        c.paintPlacement(h, o.paintPlacement),
+        c.paintPlacement(
+          h,
+          sourceReferenceOptions.has(o) && o.paintPlacement?.reference
+            ? {
+                ...o.paintPlacement,
+                reference: resolveSceneHandle(o.paintPlacement.reference)!,
+              }
+            : o.paintPlacement,
+        ),
       );
       optional(p.commands.layerLink, o.layerLink, () =>
         c.layerLink(h, typeof o.layerLink === 'function' ? o.layerLink() : o.layerLink),

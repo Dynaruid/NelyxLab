@@ -10,6 +10,7 @@ param(
   [ValidateSet(0,60)][int]$PrecisionHz = 0,
   [switch]$CpuProfile,
   [switch]$NoTrace,
+  [switch]$YearMode,
   [string]$CaptureDirectory = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -470,6 +471,17 @@ function Write-Diagnostics {
       scene=(Gap-Summary @($d.samples|ForEach-Object{$_.sceneMs}));wait=(Gap-Summary @($d.samples|ForEach-Object{$_.waitMs}));
       slowest=@($d.samples|Sort-Object {($_.completed-$_.started)} -Descending|Select-Object -First 5);captureCounters=$d.capture;sceneCounters=$d.scene;scrollCounters=$(if($d.PSObject.Properties['scrolling']){$d.scrolling}else{$null});semantics=$(if($d.PSObject.Properties['semantics']){$d.semantics}else{$null});projection=$(if($d.PSObject.Properties['projection']){$d.projection}else{$null})
     }|ConvertTo-Json -Compress -Depth 8))
+    if($d.PSObject.Properties['sourcePreparation']){
+      $source=$d.sourcePreparation
+      Write-Output ('WINDOWS_SCROLL_SOURCE '+([ordered]@{domain=$d.domain;calls=$source.calls;
+        elapsedMs=$source.elapsedMs;maxMs=$source.maxMs;samplesThrough=$source.samplesThrough;
+        samplesOverwritten=$source.samplesOverwritten;
+        retainedBuilders=(Gap-Summary @($d.samples|ForEach-Object{$_.retainedBuilderMs}));
+        builderCosts=$(if($d.PSObject.Properties['layoutBuilderCosts']){$d.layoutBuilderCosts}else{$null});
+        slowest=@($source.samples|Sort-Object elapsedMs -Descending|Select-Object -First 5);
+        recent=@($source.samples|Select-Object -Last 5)
+      }|ConvertTo-Json -Compress -Depth 7))
+    }
   }
   if($CpuProfile){
     if(!$script:profile){Write-Output 'WINDOWS_SCROLL_CPU missing';return}
@@ -585,6 +597,14 @@ try {
       [Nelyx.ScrollCheck.Desktop]::Resize($window,80); Settle
       if ((Calendar).date -ne $beforeResize.date) { throw 'Resize lost the calendar month anchor.' }
       [Nelyx.ScrollCheck.Desktop]::Resize($window,-80); Settle
+    }
+    if($YearMode){
+      $yearMonth=Calendar
+      Click-Peer '^Select year' 'Button'
+      Click-Peer ('^'+$yearMonth.date.Year+'$') 'Button'
+      $restored=Wait-Month $yearMonth.date
+      if($restored.date -ne $yearMonth.date){throw 'Year selection lost the calendar month anchor.'}
+      Write-Output ('WINDOWS_SCROLL_YEAR_PICKER '+([ordered]@{functional='PASS';year=$yearMonth.date.Year;month=$restored.name}|ConvertTo-Json -Compress))
     }
     $final=Calendar; $fifteen=@($final.days | Where-Object { $_.Name -match '^15,' })[0]
     [Nelyx.ScrollCheck.Desktop]::Click($window,$fifteen); Pause 200

@@ -786,6 +786,12 @@ export interface ModuleRecipe {
   /** A proven lexical local and one immediate property read need no IIFE.
    * Strict null behavior, accessor evaluation and unknown receivers stay intact. */
   lexicalNullReads?: { policy: 'single-local-property-read' };
+  /** Final local arrows whose value is only used by direct calls. Keep argument
+   * effects and lexical bindings; never inline an externally supplied resolver. */
+  localFunctionInlining?: { policy: 'checked-local-function-beta-reduction'; methods: string[] };
+  /** Compile a fixed final-field descriptor layout once for selected owners.
+   * Constructor evaluation, assignments, and the point of sealing are unchanged. */
+  finalFieldLayouts?: { policy: 'compiled-final-field-layout'; factory: string; classes: string[] };
   /** Positional, non-const records. Structural equality and named fields are separate. */
   records?: {
     type: string;

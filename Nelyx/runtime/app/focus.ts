@@ -18,7 +18,7 @@ import { Rect } from '@nelyx/core/ui/rect';
 import { ObjectKey } from '@nelyx/core/foundation/key';
 import { Offset } from '@nelyx/core/ui/offset';
 import type { KeyEvent } from '@nelyx/core/ui/input';
-import { OriginalNativeNode } from './native-node.ts';
+import { sourceNativeNode } from './native-node.ts';
 import { OriginalNativeRender } from './native-node.ts';
 import type { EngineEvent, EngineResponse, NodeHandle } from '../engine-client/codec.ts';
 import type { EngineViewClient } from '../engine-client/client.ts';
@@ -518,7 +518,7 @@ class FocusBoundaryState extends State<FocusBoundary> {
     const binding = this.bind(),
       node = this.widget.source.node,
       bridge = this.widget.bridge;
-    return new OriginalNativeNode(
+    return sourceNativeNode(
       'box',
       [this.widget.source.child],
       {

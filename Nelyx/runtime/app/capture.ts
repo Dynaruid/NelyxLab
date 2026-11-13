@@ -39,7 +39,6 @@ type Entry = {
   children: readonly Child[];
   uses: Uses;
   dependencies: ReadonlyMap<RenderObject, number>;
-  revision: Readonly<Partial<Record<NativeRenderChange, number>>>;
 };
 type CaptureFrame = {
   depth: number;
@@ -66,11 +65,11 @@ export class RenderSceneCapture {
   private readonly registrations = new Map<string, Map<unknown, Map<RenderObject, unknown>>>();
   private readonly values = new Map<string, Map<unknown, unknown>>();
   private readonly channelRevisions = new Map<string, number>();
-  private revisions = new WeakMap<RenderObject, Partial<Record<NativeRenderChange, number>>>();
   private invalidationBatch: WeakMap<RenderObject, number> | undefined;
   context = '';
   readonly counters = {
     captured: 0,
+    created: 0,
     reused: 0,
     relinked: 0,
     dynamic: 0,
@@ -101,9 +100,6 @@ export class RenderSceneCapture {
   ): void {
     if (visited.has(render)) return;
     visited.add(render);
-    let revision = this.revisions.get(render);
-    if (!revision) this.revisions.set(render, (revision = {}));
-    revision[kind] = (revision[kind] ?? 0) + 1;
     if (this.invalidationBatch) {
       const mask = this.invalidationBatch.get(render) ?? 0;
       if (mask & changeBits[kind]) {
@@ -350,19 +346,26 @@ export class RenderSceneCapture {
         ++this.counters.relinked;
       } else {
         ++this.counters.captured;
+        if (!entry) ++this.counters.created;
         scene = build();
       }
       if (!frame.dynamic) {
+        retainSceneConfiguration(scene, entry?.scene);
         // Paint/inline projections are owned by this Source configuration too.
         // Stop at render-child boundaries: their owners decide independently
         // whether live references/control policies can retain configuration.
-        const renderChildren = new Set(frame.children.map((child) => child.scene));
-        const retain = (node: SceneNode): void => {
-          if (node !== scene && renderChildren.has(node)) return;
-          retainSceneConfiguration(node, node === scene ? entry?.scene : undefined);
-          for (const child of node.children) retain(child);
-        };
-        retain(scene);
+        if (
+          scene.children.length !== frame.children.length ||
+          frame.children.some((child, index) => child.scene !== scene.children[index])
+        ) {
+          const renderChildren = new Set(frame.children.map((child) => child.scene));
+          const retain = (node: SceneNode): void => {
+            if (renderChildren.has(node)) return;
+            retainSceneConfiguration(node);
+            for (const child of node.children) retain(child);
+          };
+          for (const child of scene.children) retain(child);
+        }
       } else ++this.counters.dynamic;
       this.entries.set(render, {
         scene,
@@ -376,7 +379,6 @@ export class RenderSceneCapture {
         children: frame.children,
         uses: frame.uses,
         dependencies: frame.dependencies,
-        revision: Object.freeze({ ...this.revisions.get(render) }),
       });
       return scene;
     } catch (error) {
@@ -390,7 +392,6 @@ export class RenderSceneCapture {
     this.entries = new WeakMap();
     this.dirty = new WeakSet();
     this.localDirty = new WeakSet();
-    this.revisions = new WeakMap();
     this.active.clear();
     this.roots.clear();
     this.parents.clear();

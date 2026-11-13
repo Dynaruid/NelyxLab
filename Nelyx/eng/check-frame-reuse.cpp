@@ -8,6 +8,7 @@
 #include <condition_variable>
 #include <iostream>
 #include <stdexcept>
+#include <cmath>
 using namespace nelyx::v2;
 void checkTransactionSharing();
 void checkMaterialization();
@@ -209,9 +210,25 @@ static void run(){
     Input wheel{};wheel.sequence=1;wheel.metrics=1;wheel.stream=1;wheel.phase=wire::phases::update;
     wheel.source=wire::sources::wheelUnknown;wheel.x=50;wheel.y=60;wheel.dy=20;wheel.publication=1;
     check(view.enqueue(wheel)==wire::statuses::ok,"paint-only document replacement dropped wheel input");
+    Input precision=wheel;precision.source=wire::sources::engineDriven;precision.stream=2;
+    precision.sequence=2;precision.phase=wire::phases::begin;
+    check(view.enqueue(precision)==wire::statuses::ok,"paint-only publication race dropped precision begin");
+    auto& precisionStream=view.streams[2];precisionStream.active=true;precisionStream.pointer=false;
+    precisionStream.source=precision.source;precisionStream.target={2,1};
+    precision.sequence=3;precision.phase=wire::phases::update;
+    check(view.enqueue(precision)==wire::statuses::ok,"new Source publication dropped captured precision delta");
+    precision.sequence=4;precision.phase=wire::phases::end;
+    check(view.enqueue(precision)==wire::statuses::ok,"new Source publication dropped captured precision lift");
+    precision.sequence=5;precision.metrics=2;
+    check(view.enqueue(precision)==wire::statuses::stale,"precision continuation bypassed metrics fence");
+    precision.sequence=6;precision.metrics=1;++newFrame->device;
+    check(view.enqueue(precision)==wire::statuses::stale,"precision continuation bypassed device fence");
+    --newFrame->device;
     for(auto& item:newFrame->items)if(item.node.slot==2)item.world.tx+=20;
-    wheel.sequence=2;
+    wheel.sequence=7;
     check(view.enqueue(wheel)==wire::statuses::stale,"changed viewport accepted stale wheel geometry");
+    precision.sequence=8;
+    check(view.enqueue(precision)==wire::statuses::stale,"changed viewport accepted stale precision geometry");
     view.close(wire::statuses::closed);
   }
   check(ledger->bytes==0,"frame/list leases remain");
@@ -296,6 +313,14 @@ static void ballisticCoverage(){
     check(overlay.offset==940&&overlay.requested==940,"fling limit discarded a contact update");
     input.phase=wire::phases::end;input.sequence=8;view.processInput(input);
     check(overlay.startVelocity==8000&&overlay.pageTarget==1000,"positive precision fling was not bounded");
+    input.source=wire::sources::wheelUnknown;input.stream=3;input.phase=wire::phases::update;
+    input.sequence=9;input.dy=-30;input.velocity=900;view.processInput(input);
+    check(overlay.offset==910&&overlay.requested==910&&overlay.ballistic&&
+      overlay.startVelocity==0&&overlay.pageTarget==900,
+      "fractional PageView wheel input did not follow Source pointerScroll goBallistic(0)");
+    view.tick(3);
+    check(std::abs(overlay.offset-900)<.001&&!overlay.ballistic,
+      "fractional PageView wheel input did not settle to the complete page");
     view.close(wire::statuses::closed);
   }
   check(ledger->bytes==0,"ballistic coverage leases remain");
@@ -368,6 +393,41 @@ static void movingBuilder(){
   check(ledger->bytes==0,"moving builder leases remain");
   std::cout<<"Moving list builder continuation and viewport fences PASS.\n";
 }
+static void pageResizeAnchor(){
+  auto ledger=std::make_shared<Ledger>();
+  for(const bool horizontal:{false,true})for(const bool page:{false,true})
+    for(const double extent:{320.0,360.0})for(const double fraction:{129.5,130.0,130.0-5e-11}){
+      View view(1,ledger);const Handle viewport{1,1},listId{2,1};
+      const auto geometry=[&](uint64_t epoch,double size){
+        auto doc=std::make_shared<Document>(ledger);doc->epoch=epoch;
+        auto parent=std::make_shared<Node>(ledger);parent->id=viewport;parent->kind=wire::kinds::scrollViewport;
+        parent->properties.width=horizontal?size:200;parent->properties.height=horizontal?100:size;
+        parent->properties.maximum=252*size;parent->properties.flags=(horizontal?1u:0u)|(page?wire::nodePropertyFlags::pageSnapping:0u);
+        auto child=std::make_shared<Node>(ledger);child->id=listId;child->parent=viewport;child->kind=wire::kinds::sliver;
+        child->properties.width=horizontal?252*size:200;child->properties.height=horizontal?100:252*size;
+        child->list={1,252,129,132,size,true,false};
+        auto rows=std::make_shared<ListGeometry>(ledger,child->list);
+        for(uint32_t index=129;index<132;++index)rows->rows.push_back({{},index,index+1,index*size,size+(epoch==1&&index==129?1e-9:0)});
+        rows->total=252*size;child->listGeometry=rows;
+        doc->nodes.edit(1).value=parent;doc->nodes.edit(2).value=child;doc->children.set(0,{viewport});doc->children.set(1,{listId});doc->count=doc->highWater=2;
+        return doc;
+      };
+      auto old=geometry(1,344);auto next=geometry(2,extent);
+      auto active=std::make_shared<Scene>();active->document=old;active->metrics={1,1,200,100,1};view.active=active;
+      view.metrics={2,1,200,100,1};view.document=next;
+      auto& offset=view.overlays[viewport.key()];offset.node=viewport;offset.offset=offset.requested=fraction*344;
+      view.preparing=std::make_unique<Preparation>();view.preparing->id=2;view.preparing->document=next;view.preparing->metrics=view.metrics;
+      view.preparing->ready=view.preparing->providerReady=true;view.activate();
+      const double expected=page?(fraction>129.9?130.0:129.5)*extent:129*extent+(fraction-129)*344;
+      check(view.active&&view.active->document->epoch==2,"resized page did not activate");
+      check(std::abs(offset.offset-expected)<1e-8&&offset.offset==offset.requested,
+        "resize changed fractional page or ordinary list pixel anchor");
+      if(page&&fraction>129.9)check(offset.offset==130*extent,"page boundary roundoff exposed an adjacent page after resize");
+      view.close(wire::statuses::closed);
+    }
+  check(ledger->bytes==0,"page resize anchor leaked leases");
+  std::cout<<"Page resize: both axes, grow/shrink, fractional/boundary roundoff and ordinary pixel anchors PASS.\n";
+}
 static void pageLogicalPosition(){
     auto ledger=std::make_shared<Ledger>();
     {
@@ -416,4 +476,4 @@ void checkMovingList();
 void checkRetargetedCoverage();
 void checkLatePageCoverage();
 void checkDateLayout();
-int main(){std::cout.setf(std::ios::unitbuf);try{run();deadlines();precisionVelocity();legacyPreparationLead();ballisticCoverage();deferredContactDistance();pageLogicalPosition();movingBuilder();checkMovingList();checkRetargetedCoverage();checkLatePageCoverage();checkDateLayout();return 0;}catch(const std::exception& e){std::cerr<<e.what()<<"\n";}catch(const Error& e){std::cerr<<"Core status="<<e.status<<"\n";}return 1;}
+int main(){std::cout.setf(std::ios::unitbuf);try{run();deadlines();precisionVelocity();legacyPreparationLead();ballisticCoverage();deferredContactDistance();pageLogicalPosition();pageResizeAnchor();movingBuilder();checkMovingList();checkRetargetedCoverage();checkLatePageCoverage();checkDateLayout();return 0;}catch(const std::exception& e){std::cerr<<e.what()<<"\n";}catch(const Error& e){std::cerr<<"Core status="<<e.status<<"\n";}return 1;}

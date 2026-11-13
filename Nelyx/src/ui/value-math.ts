@@ -70,6 +70,28 @@ const finalValueDescriptor: PropertyDescriptor = Object.freeze({
   writable: false,
   configurable: false,
 });
+/** Batch the standard undefined public-field definitions of a reviewed class.
+ * Define own data properties before evaluating constructor inputs, just like
+ * native class fields. Inherited setters and non-writable properties are not
+ * consulted. Values and final protection still run in their original order. */
+export function ownFieldInitializer(keys: readonly string[]): (target: object) => void {
+  const descriptor = Object.freeze({
+    value: undefined,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+  const descriptors: PropertyDescriptorMap = Object.create(null);
+  for (const key of keys) {
+    if (Object.hasOwn(descriptors, key) || /^(0|[1-9][0-9]*)$/.test(key))
+      throw Error('Own field layout requires unique non-numeric names');
+    descriptors[key] = descriptor;
+  }
+  Object.freeze(descriptors);
+  return (target) => {
+    Object.defineProperties(target, descriptors);
+  };
+}
 export function protect(target: object, keys: readonly string[]): void {
   for (const key of keys) Object.defineProperty(target, key, finalValueDescriptor);
 }

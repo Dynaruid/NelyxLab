@@ -11,7 +11,7 @@ try {
       contents: `
 import assert from 'node:assert/strict';
 import {BuildOwner} from './Nelyx/src/framework/widgets/framework.ts';
-import {LayoutBuilder} from './Nelyx/src/framework/widgets/layout-builder.ts';
+import {LayoutBuilder,nativeLayoutBuilderCosts} from './Nelyx/src/framework/widgets/layout-builder.ts';
 import {SizedBox} from './Nelyx/src/framework/widgets/basic.ts';
 import {BoxConstraints} from './Nelyx/src/framework/rendering/constraints.ts';
 import {claimNativeRenderObject} from './Nelyx/src/framework/rendering/object.ts';
@@ -27,9 +27,15 @@ const render=element.renderObject;
 claimNativeRenderObject(render,{},()=>{});
 const constraints=BoxConstraints.tight({width:100,height:60});
 const answer=()=>{const config=render.nativeBuilderConfiguration();assert(config.rebuild(config.revision,constraints));};
+const originalCosts=nativeLayoutBuilderCosts(owner);
+assert.equal(originalCosts.calls,0);assert(Object.isFrozen(originalCosts));
 try {
   answer();
   assert.equal(builds,1);
+  const firstCosts=nativeLayoutBuilderCosts(owner);
+  assert.equal(firstCosts.calls,1);assert.equal(firstCosts.builds,1);
+  assert(firstCosts.scopeMs>=firstCosts.callbackMs+firstCosts.rebuildMs);
+  assert(firstCosts.scopeMs+0.01>=firstCosts.callbackMs+firstCosts.rebuildMs+firstCosts.descendantMs+firstCosts.renderCommitMs);
   // A dirty descendant schedules the LayoutBuilder's isolated build scope in
   // idle. Content can answer it before the scheduled App frame arrives.
   element.children[0].markNeedsBuild();
@@ -40,6 +46,8 @@ try {
   scheduler.beginFrame(16);scheduler.endFrame();
   assert.equal(render.nativeBuilderConfiguration().revision,completed.revision,'Stale frame re-invalidated a completed builder');
   assert.equal(builds,1,'Same constraints rebuilt the builder instead of its dirty descendant');
+  assert.equal(nativeLayoutBuilderCosts(owner).builds,1,'A dirty-scope flush was counted as an original builder call');
+  assert.equal(firstCosts.calls,1,'A diagnostics snapshot changed after later work');
   // Fresh work after that answer must still schedule and advance normally.
   element.children[0].markNeedsBuild();
   assert.equal(scheduler.transientCallbackCount,1);
@@ -48,6 +56,8 @@ try {
   answer();
   element.markNeedsBuild();answer();
   assert.equal(builds,2,'A real builder invalidation was lost');
+  const costs=nativeLayoutBuilderCosts(owner);assert.equal(costs.calls,4);assert.equal(costs.builds,2);
+  assert(costs.scopeMs>=costs.callbackMs+costs.rebuildMs);assert.equal(originalCosts.calls,0);
   element.children[0].markNeedsBuild();
   assert.equal(scheduler.transientCallbackCount,1);
 } finally {

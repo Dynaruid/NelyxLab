@@ -24,6 +24,7 @@ import { ClassModel, BlockedSemantic, privateName } from './class-model.ts';
 import { lowerGenerativeRedirects } from './constructor-redirects.ts';
 import { lowerSourceMixinApplications } from './mixin-applications.ts';
 import { createNullishCoalescing } from './nullish-coalescing.ts';
+import { inlineLocalFunctions } from './local-functions.ts';
 export { BlockedSemantic } from './class-model.ts';
 const f = ts.factory,
   exported = [f.createModifier(ts.SyntaxKind.ExportKeyword)];
@@ -96,6 +97,37 @@ export function emitDart(
   }
   if (recipe.lexicalNullReads && recipe.lexicalNullReads.policy !== 'single-local-property-read')
     blocked('Unknown lexical null-read specialization policy');
+  if (
+    recipe.localFunctionInlining &&
+    (recipe.localFunctionInlining.policy !== 'checked-local-function-beta-reduction' ||
+      new Set(recipe.localFunctionInlining.methods).size !==
+        recipe.localFunctionInlining.methods.length ||
+      recipe.localFunctionInlining.methods.some(
+        (id) =>
+          !declarations.some(
+            (owner) =>
+              owner.kind === 'class' &&
+              owner.methods?.some(
+                (method) =>
+                  method.reference.id === id && !!method.body && !method.getter && !method.setter,
+              ),
+          ),
+      ))
+  )
+    blocked('Invalid local function inlining policy');
+  if (
+    recipe.finalFieldLayouts &&
+    (recipe.finalFieldLayouts.policy !== 'compiled-final-field-layout' ||
+      !imported.has(recipe.finalFieldLayouts.factory) ||
+      new Set(recipe.finalFieldLayouts.classes).size !== recipe.finalFieldLayouts.classes.length ||
+      recipe.finalFieldLayouts.classes.some(
+        (id) =>
+          !declarations.some(
+            (declaration) => declaration.kind === 'class' && declaration.reference.id === id,
+          ),
+      ))
+  )
+    blocked('Invalid compiled final-field layout policy');
   function superAdapter(
     owner: { reference: Reference; superclass?: { constructor: Reference } | null } | undefined,
   ) {
@@ -9010,16 +9042,22 @@ export function emitDart(
               ),
             );
       const finals = instanceFields.filter((field) => field.final && !field.late);
+      const finalLayout =
+        !factoryOnly && finals.length && recipe.finalFieldLayouts?.classes.includes(n.reference.id)
+          ? temporary()
+          : undefined;
       const immutable =
         !factoryOnly && finals.length
           ? [
               f.createExpressionStatement(
-                f.createCallExpression(f.createIdentifier('protect'), undefined, [
-                  f.createThis(),
-                  f.createArrayLiteralExpression(
-                    finals.map((field) => f.createStringLiteral(storageName(field))),
-                  ),
-                ]),
+                finalLayout
+                  ? f.createCallExpression(finalLayout, undefined, [f.createThis()])
+                  : f.createCallExpression(f.createIdentifier('protect'), undefined, [
+                      f.createThis(),
+                      f.createArrayLiteralExpression(
+                        finals.map((field) => f.createStringLiteral(storageName(field))),
+                      ),
+                    ]),
               ),
             ]
           : [];
@@ -9554,7 +9592,33 @@ export function emitDart(
           staticContext = previousStatic;
         }
       }
-      return [declaration, ...protectStatic, ...sealStatic, ...exports];
+      const layoutDeclaration = finalLayout
+        ? [
+            f.createVariableStatement(
+              undefined,
+              f.createVariableDeclarationList(
+                [
+                  f.createVariableDeclaration(
+                    finalLayout,
+                    undefined,
+                    undefined,
+                    f.createCallExpression(
+                      f.createIdentifier(recipe.finalFieldLayouts!.factory),
+                      undefined,
+                      [
+                        f.createArrayLiteralExpression(
+                          finals.map((field) => f.createStringLiteral(storageName(field))),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                ts.NodeFlags.Const,
+              ),
+            ),
+          ]
+        : [];
+      return [...layoutDeclaration, declaration, ...protectStatic, ...sealStatic, ...exports];
     } finally {
       typeParameters.clear();
       for (const [id, value] of oldTypes) typeParameters.set(id, value);
@@ -11165,7 +11229,7 @@ export function emitDart(
     f.createToken(ts.SyntaxKind.EndOfFileToken),
     ts.NodeFlags.None,
   );
-  return (
+  const output =
     '// SPDX-License-Identifier: BSD-3-Clause\n// Copyright 2014 The Flutter Authors. All rights reserved.\n// Generated from ' +
     recipe.source +
     '; SHA256 ' +
@@ -11181,6 +11245,20 @@ export function emitDart(
           input.source.replaceAll('\r\n', '\n').trimEnd() +
           '\n',
       )
-      .join('')
+      .join('');
+  if (!recipe.localFunctionInlining) return output;
+  const selected = new Set(recipe.localFunctionInlining.methods);
+  return inlineLocalFunctions(
+    output,
+    declarations.flatMap((owner) =>
+      owner.kind === 'class'
+        ? (owner.methods ?? [])
+            .filter((method) => selected.has(method.reference.id))
+            .map((method) => ({
+              owner: name(owner.name),
+              method: memberName(method.name, method.reference),
+            }))
+        : [],
+    ),
   );
 }

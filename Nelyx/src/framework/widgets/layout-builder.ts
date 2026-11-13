@@ -25,6 +25,37 @@ import {
 import type { BuildContext, BuildOwner, Element, WidgetOptions } from './framework.ts';
 import type { FrameScheduler } from '../scheduler/scheduler.ts';
 import { tickerScheduler } from './ticker-scheduler.ts';
+export interface NativeLayoutBuilderCosts {
+  calls: number;
+  builds: number;
+  callbackMs: number;
+  rebuildMs: number;
+  descendantMs: number;
+  renderCommitMs: number;
+  scopeMs: number;
+  syncMs: number;
+}
+const nativeBuilderCosts = new WeakMap<BuildOwner, NativeLayoutBuilderCosts>();
+const emptyBuilderCosts = Object.freeze({
+  calls: 0,
+  builds: 0,
+  callbackMs: 0,
+  rebuildMs: 0,
+  descendantMs: 0,
+  renderCommitMs: 0,
+  scopeMs: 0,
+  syncMs: 0,
+});
+const nativeBuilderNow = () => {
+  const clock = (globalThis as unknown as { performance?: { now(): number } }).performance;
+  return clock ? clock.now() : Date.now();
+};
+/** @internal Owner-lifetime counters only. scopeMs contains callback/rebuild;
+ * it also includes the owner's remaining dirty work and render commit. */
+export function nativeLayoutBuilderCosts(owner: BuildOwner): Readonly<NativeLayoutBuilderCosts> {
+  const costs = nativeBuilderCosts.get(owner);
+  return costs ? Object.freeze({ ...costs }) : emptyBuilderCosts;
+}
 export type LayoutWidgetBuilder = (context: BuildContext, constraints: BoxConstraints) => Widget;
 export interface AbstractLayoutBuilderRender<
   I,
@@ -193,44 +224,81 @@ class _LayoutBuilderElement<I> extends SingleChildRenderObjectElement {
     // frame only requested the work we are about to consume; leaving it queued
     // would invalidate the completed builder and require another transaction.
     // Cancel before building so new work scheduled during the callback survives.
-    if (isNativeRenderObject(this.renderObject)) this.cancelDeferred();
+    const native = isNativeRenderObject(this.renderObject);
+    if (native) this.cancelDeferred();
     const info = this.renderObject.layoutInfo,
       needs = this._needsBuild || !sameLayoutInfo(info, this._previousLayoutInfo);
-    this.owner.buildScope(
-      this,
-      needs
-        ? () => {
-            let built: Widget;
-            try {
-              built = (this.widget as AbstractLayoutBuilder<I>).builder(this, info);
-              invariant(
-                built instanceof Widget,
-                'invalid-layout-builder-result',
-                'Builder must synchronously return a Widget',
-              );
-            } catch (exception) {
-              built = this.buildErrorWidget(exception);
-            }
-            try {
-              this.built = built;
-              this.dirty = true;
-              this.rebuild();
-            } catch (exception) {
-              this.built = this.buildErrorWidget(exception);
-              try {
-                this.owner.deactivateChildren(this.children);
-              } catch {}
-              this.children = [];
-              this.dirty = true;
-              this.rebuild();
-            } finally {
-              this._needsBuild = false;
-              this._previousLayoutInfo = info;
-            }
-          }
-        : undefined,
-    );
-    this.syncRenderTree();
+    let callbackMs = 0,
+      rebuildMs = 0,
+      scopeMs = 0,
+      syncMs = 0;
+    const scopeCosts = native ? { dirtyFlushMs: 0, renderCommitMs: 0 } : undefined;
+    const scopeStarted = native ? nativeBuilderNow() : 0;
+    try {
+      try {
+        this.owner.buildScope(
+          this,
+          needs
+            ? () => {
+                let built: Widget;
+                const callbackStarted = native ? nativeBuilderNow() : 0;
+                try {
+                  built = (this.widget as AbstractLayoutBuilder<I>).builder(this, info);
+                  invariant(
+                    built instanceof Widget,
+                    'invalid-layout-builder-result',
+                    'Builder must synchronously return a Widget',
+                  );
+                } catch (exception) {
+                  built = this.buildErrorWidget(exception);
+                } finally {
+                  if (native) callbackMs += nativeBuilderNow() - callbackStarted;
+                }
+                const rebuildStarted = native ? nativeBuilderNow() : 0;
+                try {
+                  this.built = built;
+                  this.dirty = true;
+                  this.rebuild();
+                } catch (exception) {
+                  this.built = this.buildErrorWidget(exception);
+                  try {
+                    this.owner.deactivateChildren(this.children);
+                  } catch {}
+                  this.children = [];
+                  this.dirty = true;
+                  this.rebuild();
+                } finally {
+                  this._needsBuild = false;
+                  this._previousLayoutInfo = info;
+                  if (native) rebuildMs += nativeBuilderNow() - rebuildStarted;
+                }
+              }
+            : undefined,
+          scopeCosts,
+        );
+      } finally {
+        if (native) scopeMs = nativeBuilderNow() - scopeStarted;
+      }
+      const syncStarted = native ? nativeBuilderNow() : 0;
+      try {
+        this.syncRenderTree();
+      } finally {
+        if (native) syncMs = nativeBuilderNow() - syncStarted;
+      }
+    } finally {
+      if (native) {
+        let costs = nativeBuilderCosts.get(this.owner);
+        if (!costs) nativeBuilderCosts.set(this.owner, (costs = { ...emptyBuilderCosts }));
+        ++costs.calls;
+        if (needs) ++costs.builds;
+        costs.callbackMs += callbackMs;
+        costs.rebuildMs += rebuildMs;
+        costs.descendantMs += Math.max(0, scopeCosts!.dirtyFlushMs - callbackMs - rebuildMs);
+        costs.renderCommitMs += scopeCosts!.renderCommitMs;
+        costs.scopeMs += scopeMs;
+        costs.syncMs += syncMs;
+      }
+    }
   };
   override deactivate(): void {
     this.cancelDeferred();

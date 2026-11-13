@@ -174,7 +174,11 @@ export function bindNativePublishedGeometry(
   nativeGeometryReaders.set(render, read);
 }
 export { registerNativeRenderMetadata, nativeRenderMetadata, nativeShape } from './native-paint.ts';
-export { nativeBoxConfiguration, registerNativeBoxConfiguration } from './native-box.ts';
+export {
+  nativeBoxConfiguration,
+  nativeBoxDataConfiguration,
+  registerNativeBoxConfiguration,
+} from './native-box.ts';
 export type { NativeLayoutBuilderConfiguration, NativeBoxConfiguration } from './native-box.ts';
 export { NativeLayoutBuilder, nativeLayoutExpression, nativeLayoutInput } from './native-layout.ts';
 export type {

@@ -37,14 +37,30 @@ system sounds. Windows' `shell/platform/windows/platform_handler.cc` leaves
 haptics unimplemented; its response reaches the original OptionalMethodChannel.
 This does not claim a Windows hardware haptics implementation.
 
-From the repository root, with Bun and a Dart SDK satisfying `dart/pubspec.yaml`
-(validated with Dart 3.14.0-296.0.dev):
+The calendar recipe also compiles each selected owner's final-field descriptor
+layout once with `finalFieldProtector`. Constructors still evaluate every input,
+assign every field, and seal at the same point. Source State, FocusNode and
+callbacks are never shared. Constructor/descriptor/subclass differential checks
+run with the compiler oracle.
+
+For `_DayState.build` and `_YearPickerState._buildYearItem`, the recipe also
+combines final local helper calls using resolved TypeScript symbols after the
+Dart ABI has been emitted and checked. Only direct uses qualify; function values
+that escape retain their identity. Argument effects, type-witness evaluation,
+lexical receivers, null fallback, mutable bindings and delayed overlay callbacks
+keep their original order. The compiler oracle compares the actual generated
+day/year value expressions with the original helpers, including user getters,
+resolvers and exceptions. No runtime AST analysis or resolver-result cache is used.
+
+From the repository root, with Bun and the system Dart SDK (validated with
+Dart 3.12.2; minimum 3.12). Dependency versions and hashes remain locked:
 
 ```powershell
-bun tools/Nelyx.FrameworkToTypeScript/generate-date-picker.ts --write --source reference/flutter-master --dart <dart.exe>
+dart pub get --directory tools/Nelyx.FrameworkToTypeScript/dart --enforce-lockfile
+bun tools/Nelyx.FrameworkToTypeScript/generate-date-picker.ts --write --source reference/flutter-master
 npm.cmd run build:core
 npm.cmd run build --workspace @nelyx/material
-bun tools/Nelyx.FrameworkToTypeScript/generate-date-picker.ts --check --verify --source reference/flutter-master --dart <dart.exe>
+bun tools/Nelyx.FrameworkToTypeScript/generate-date-picker.ts --check --verify --source reference/flutter-master
 ```
 
 `--check` re-analyzes the original files and compares current generated output.

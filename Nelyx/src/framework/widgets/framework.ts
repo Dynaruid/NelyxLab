@@ -38,6 +38,11 @@ import type { Disposable } from '../../foundation/disposable.ts';
 import type { Listenable } from '../../foundation/notifier.ts';
 import { FocusScope } from './focus.ts';
 import { initializeElementType } from './widget-class-identity.ts';
+
+const buildScopeTimestamp = () => {
+  const clock = (globalThis as unknown as { performance?: { now(): number } }).performance;
+  return clock ? clock.now() : Date.now();
+};
 import type { FocusManagerOptions } from './focus.ts';
 import { GlobalKey } from './global-key.ts';
 import type { KeyEvent } from '../../ui/input.ts';
@@ -752,16 +757,26 @@ export class BuildOwner {
     this.flushScope(this.defaultBuildScope);
   }
   /** Rebuild the context's isolated scope during an authorized layout callback. */
-  buildScope(context: Element, callback?: () => void): void {
+  buildScope(
+    context: Element,
+    callback?: () => void,
+    /** @internal Optional native builder stage accounting. */
+    costs?: { dirtyFlushMs: number; renderCommitMs: number },
+  ): void {
     if (!(context.active && context.owner === this))
       invariant(
         false,
         'invalid-build-scope-root',
         'Build scope requires an active context in this owner',
       );
-    this.flushScope(context.buildScope, context, callback);
+    this.flushScope(context.buildScope, context, callback, costs);
   }
-  private flushScope(scope: BuildScope, context?: Element, callback?: () => void): void {
+  private flushScope(
+    scope: BuildScope,
+    context?: Element,
+    callback?: () => void,
+    costs?: { dirtyFlushMs: number; renderCommitMs: number },
+  ): void {
     assertOutsideRenderPaint();
     if (!(!this.building && !this.disposed))
       invariant(false, 'reentrant-build', 'BuildOwner is already building or closed');
@@ -769,6 +784,8 @@ export class BuildOwner {
     this.currentElement = context;
     let failed = false,
       failure: unknown;
+    const now = costs ? buildScopeTimestamp : undefined;
+    const dirtyStarted = now?.() ?? 0;
     try {
       scope._flushDirtyElements(
         (element) => {
@@ -795,15 +812,19 @@ export class BuildOwner {
       failed = true;
       failure = error;
     } finally {
+      if (costs) costs.dirtyFlushMs += now!() - dirtyStarted;
       this.currentElement = undefined;
       this.building = false;
     }
+    const commitStarted = now?.() ?? 0;
     try {
       this.flushRenderTree();
     } catch (error) {
       if (failed)
         throw new AggregateError([failure, error], 'Build and render owner commit failed');
       throw error;
+    } finally {
+      if (costs) costs.renderCommitMs += now!() - commitStarted;
     }
     if (failed) throw failure;
   }

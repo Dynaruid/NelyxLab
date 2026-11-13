@@ -22,6 +22,7 @@ import {
   SemanticsTag,
   SemanticsConfiguration,
   SemanticsProperties,
+  sourceSemanticsProperties,
   SemanticsHintOverrides,
 } from '../semantics/semantics.ts';
 import type { SemanticsSortKey, SemanticsPropertiesOptions } from '../semantics/semantics.ts';
@@ -167,7 +168,7 @@ export class Semantics extends _SemanticsBase {
         container: annotations.container ?? (host ? host.role !== 'text' : false),
         explicitChildNodes: host?.role === 'list',
         excludeSemantics: host?.excludeChildren ?? false,
-        properties: new SemanticsProperties({
+        properties: sourceSemanticsProperties({
           tagForChildren: annotations.tagForChildren ?? null,
           sortKey: annotations.sortKey ?? null,
         }),
@@ -176,7 +177,7 @@ export class Semantics extends _SemanticsBase {
     else
       configuration = {
         ...first,
-        properties: new SemanticsProperties({
+        properties: sourceSemanticsProperties({
           ...first,
           hintOverrides:
             first.onTapHint != null || first.onLongPressHint != null

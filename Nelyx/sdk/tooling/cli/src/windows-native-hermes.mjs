@@ -3,8 +3,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execute } from './commands.mjs';
-import { windowsCompilerEnvironment, windowsStaticHermesPin } from './windows-static-hermes.mjs';
-import { patchStaticHermesCompiler } from './static-hermes-compiler-patch.mjs';
+import {
+  windowsCompilerEnvironment,
+  windowsStaticHermesPin,
+  refreshWindowsCmakeTools,
+} from './windows-static-hermes.mjs';
+import {
+  patchStaticHermesCompiler,
+  compilerClassSpillPolicy,
+} from './static-hermes-compiler-patch.mjs';
 
 const timeout = 1_200_000;
 const digest = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -74,6 +81,9 @@ export async function prepareNativeHermes({ directory, signal } = {}) {
       '\n' + marker + '\nif(MSVC)\n  target_compile_options(jsi PRIVATE /EHsc)\nendif()\n',
     );
   const clang = path.join(process.env.ProgramFiles, 'LLVM/bin/clang-cl.exe');
+  const assembler = path.join(env.VCTOOLSINSTALLDIR, 'bin/Hostx64/x64/ml64.exe');
+  if (!fs.existsSync(assembler)) throw Error('Current MSVC x64 assembler is unavailable');
+  refreshWindowsCmakeTools(build, env);
   await execute(
     'cmake',
     [
@@ -86,6 +96,7 @@ export async function prepareNativeHermes({ directory, signal } = {}) {
       '-DCMAKE_BUILD_TYPE=Release',
       '-DCMAKE_C_COMPILER=' + clang,
       '-DCMAKE_CXX_COMPILER=' + clang,
+      '-DCMAKE_ASM_MASM_COMPILER=' + assembler,
       '-DCMAKE_CXX_FLAGS=/DCREATE_SHARED_LIBRARY',
       '-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL',
       '-DHERMES_ENABLE_DEBUGGER=OFF',
@@ -115,6 +126,7 @@ export async function prepareNativeHermes({ directory, signal } = {}) {
   const manifest = {
     schema: 'nelyx.native-hermes-toolchain/v1',
     ...nativeHermesPin,
+    compilerClassSpill: compilerClassSpillPolicy,
     internalJavaScript: 'native',
     debugger: false,
     jit: false,
