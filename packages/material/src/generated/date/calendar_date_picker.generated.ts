@@ -1719,10 +1719,7 @@ export class _FocusedDate extends SourceInheritedHost {
   }
   static maybeOf(context: BuildContext): DateTime | null {
     const focusedDate: _FocusedDate | null = dateDependOnFocusedDate(context);
-    return (() => {
-      const _dartTemporary38 = focusedDate;
-      return _dartTemporary38 === null ? null : _dartTemporary38.date;
-    })();
+    return focusedDate === null ? null : focusedDate.date;
   }
 }
 export class _DayPicker extends ScrollbarStatefulHost {
@@ -2126,14 +2123,12 @@ export class _DayState extends State<_Day> {
       nullableDartType<Color>(sourceColorType),
       (theme: DatePickerThemeData | null): WidgetStateProperty<Color | null> | null => {
         return this.widget.isToday
-          ? (() => {
-              const _dartTemporary48 = theme;
-              return _dartTemporary48 === null ? null : _dartTemporary48.todayForegroundColor;
-            })()
-          : (() => {
-              const _dartTemporary49 = theme;
-              return _dartTemporary49 === null ? null : _dartTemporary49.dayForegroundColor;
-            })();
+          ? theme === null
+            ? null
+            : theme.todayForegroundColor
+          : theme === null
+            ? null
+            : theme.dayForegroundColor;
       },
       states,
     );
@@ -2141,14 +2136,12 @@ export class _DayState extends State<_Day> {
       nullableDartType<Color>(sourceColorType),
       (theme: DatePickerThemeData | null): WidgetStateProperty<Color | null> | null => {
         return this.widget.isToday
-          ? (() => {
-              const _dartTemporary50 = theme;
-              return _dartTemporary50 === null ? null : _dartTemporary50.todayBackgroundColor;
-            })()
-          : (() => {
-              const _dartTemporary51 = theme;
-              return _dartTemporary51 === null ? null : _dartTemporary51.dayBackgroundColor;
-            })();
+          ? theme === null
+            ? null
+            : theme.todayBackgroundColor
+          : theme === null
+            ? null
+            : theme.dayBackgroundColor;
       },
       states,
     );
@@ -2159,12 +2152,7 @@ export class _DayState extends State<_Day> {
           return effectiveValue<Color>(
             sourceColorType,
             (theme: DatePickerThemeData | null): Color | null => {
-              return (
-                (() => {
-                  const _dartTemporary52 = theme;
-                  return _dartTemporary52 === null ? null : _dartTemporary52.dayOverlayColor;
-                })()?.resolve(states) ?? null
-              );
+              return (theme === null ? null : theme.dayOverlayColor)?.resolve(states) ?? null;
             },
           );
         },
@@ -2173,10 +2161,7 @@ export class _DayState extends State<_Day> {
       const _dartTemporary54 = resolve<OutlinedBorder | null>(
         nullableDartType<OutlinedBorder>(sourceOutlinedBorderType),
         (theme: DatePickerThemeData | null): WidgetStateProperty<OutlinedBorder | null> | null => {
-          return (() => {
-            const _dartTemporary53 = theme;
-            return _dartTemporary53 === null ? null : _dartTemporary53.dayShape;
-          })();
+          return theme === null ? null : theme.dayShape;
         },
         states,
       );
@@ -2586,14 +2571,12 @@ export class _YearPickerState extends State<YearPicker> {
       nullableDartType<Color>(sourceColorType),
       (theme: DatePickerThemeData | null): WidgetStateProperty<Color | null> | null => {
         return isCurrentYear
-          ? (() => {
-              const _dartTemporary69 = theme;
-              return _dartTemporary69 === null ? null : _dartTemporary69.todayForegroundColor;
-            })()
-          : (() => {
-              const _dartTemporary70 = theme;
-              return _dartTemporary70 === null ? null : _dartTemporary70.yearForegroundColor;
-            })();
+          ? theme === null
+            ? null
+            : theme.todayForegroundColor
+          : theme === null
+            ? null
+            : theme.yearForegroundColor;
       },
       states,
     );
@@ -2601,14 +2584,12 @@ export class _YearPickerState extends State<YearPicker> {
       nullableDartType<Color>(sourceColorType),
       (theme: DatePickerThemeData | null): WidgetStateProperty<Color | null> | null => {
         return isCurrentYear
-          ? (() => {
-              const _dartTemporary71 = theme;
-              return _dartTemporary71 === null ? null : _dartTemporary71.todayBackgroundColor;
-            })()
-          : (() => {
-              const _dartTemporary72 = theme;
-              return _dartTemporary72 === null ? null : _dartTemporary72.yearBackgroundColor;
-            })();
+          ? theme === null
+            ? null
+            : theme.todayBackgroundColor
+          : theme === null
+            ? null
+            : theme.yearBackgroundColor;
       },
       states,
     );
@@ -2619,12 +2600,7 @@ export class _YearPickerState extends State<YearPicker> {
           return effectiveValue<Color>(
             sourceColorType,
             (theme: DatePickerThemeData | null): Color | null => {
-              return (
-                (() => {
-                  const _dartTemporary73 = theme;
-                  return _dartTemporary73 === null ? null : _dartTemporary73.yearOverlayColor;
-                })()?.resolve(states) ?? null
-              );
+              return (theme === null ? null : theme.yearOverlayColor)?.resolve(states) ?? null;
             },
           );
         },
@@ -2633,10 +2609,7 @@ export class _YearPickerState extends State<YearPicker> {
       const _dartTemporary75 = resolve<OutlinedBorder | null>(
         nullableDartType<OutlinedBorder>(sourceOutlinedBorderType),
         (theme: DatePickerThemeData | null): WidgetStateProperty<OutlinedBorder | null> | null => {
-          return (() => {
-            const _dartTemporary74 = theme;
-            return _dartTemporary74 === null ? null : _dartTemporary74.yearShape;
-          })();
+          return theme === null ? null : theme.yearShape;
         },
         states,
       );

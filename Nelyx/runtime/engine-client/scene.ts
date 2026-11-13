@@ -233,6 +233,249 @@ export function sceneConfiguration(
   };
   return node;
 }
+/** @internal A sealed Source binding, with commands captured by its module's
+ * fixed projection procedure. It carries edges/callbacks, not a Scene options
+ * tree. Native handles are still allocated by the writer's normal checkpoint. */
+export class RenderBinding implements SceneNode {
+  declare readonly reference: SceneReference;
+  declare readonly kind: SceneNode['kind'];
+  declare readonly children: readonly SceneNode[];
+  declare readonly options: SceneNodeOptions;
+  declare readonly text: undefined;
+  declare readonly image: undefined;
+  declare readonly editor: undefined;
+  declare readonly editorFlags: number;
+  declare readonly maximumLength: number;
+}
+const bindingPrograms = new WeakMap<SceneNode, readonly Uint8Array[]>();
+const bindingKinds = new Set<SceneNode['kind']>(['box', 'stack', 'paragraph', 'clip']);
+const bindingFields = new Set([
+  'properties',
+  'color',
+  'radius',
+  'layout',
+  'horizontal',
+  'vertical',
+  'paragraph',
+  'paragraphFont',
+  'clipStyle',
+  'semantics',
+  'graphics',
+  'nativePaint',
+  'listItem',
+  'gestures',
+  'gestureDevices',
+  'layoutProgram',
+  'modal',
+  'pointerHitTest',
+  'canonicalGestures',
+  'dragStartDown',
+  'freePan',
+  'dragThreshold',
+  'mouseRegion',
+  'roundedHitTest',
+  'nativeFocus',
+  'canonicalKeyboard',
+  'semanticsPolicy',
+  'pointerBlock',
+]);
+const unboundHandle = { slot: 0, generation: 0 };
+/** Inspect descriptors before reading a value: an accessor/subclass/executable
+ * reference uses the existing adapter without executing an eligibility probe.
+ * Mutable plain data is encoded now, so later writes cannot change this batch. */
+function bindingData(value: unknown, ancestors?: Set<object>): boolean {
+  if (value === null || typeof value !== 'object') return typeof value !== 'function';
+  if (immutableSceneValues.has(value)) return true;
+  ancestors ??= new Set<object>();
+  if (ancestors.has(value)) return false;
+  const array = Array.isArray(value),
+    prototype = Object.getPrototypeOf(value);
+  if (prototype !== (array ? Array.prototype : Object.prototype) && prototype !== null)
+    return false;
+  ancestors.add(value);
+  try {
+    for (const key of Reflect.ownKeys(value)) {
+      if (array && key === 'length') continue;
+      if (typeof key !== 'string') return false;
+      const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
+      if (!('value' in descriptor) || !bindingData(descriptor.value, ancestors)) return false;
+    }
+    return true;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+/** @internal Fixed common render-module projection. Unsupported capabilities
+ * return undefined; the public Scene producer keeps its full mutable semantics. */
+export function renderBindingConfiguration(
+  reference: SceneReference,
+  kind: SceneNode['kind'],
+  children: readonly SceneNode[],
+  options: SceneNodeOptions,
+  text?: SceneText,
+): RenderBinding | undefined {
+  if (!bindingKinds.has(kind)) return;
+  const prototype = Object.getPrototypeOf(options);
+  if (prototype !== Object.prototype && prototype !== null) return;
+  const callbacks: Record<string, unknown> = {};
+  for (const key of Reflect.ownKeys(options)) {
+    if (typeof key !== 'string') return;
+    const descriptor = Object.getOwnPropertyDescriptor(options, key)!;
+    if (!('value' in descriptor)) return;
+    if (sourceCallbacks.has(key)) callbacks[key] = descriptor.value;
+    else if (!bindingFields.has(key) || !bindingData(descriptor.value)) return;
+  }
+  if (!bindingData(text)) return;
+  // Native paint can carry cross-node handles as well as live closures. Both
+  // require the existing dependency/handle-resolution path after allocation.
+  if (options.nativePaint?.some((entry) => entry.reference !== undefined)) return;
+  const o = options,
+    h = unboundHandle;
+  const layout = o.layout === false ? { enabled: false } : o.layout;
+  const layoutDefault =
+    layout === undefined
+      ? defaultLayouts[1]
+      : Object.keys(layout).length === 1 && layout.childConstraints === 'inherit'
+        ? defaultLayouts[2]
+        : Object.keys(layout).length === 1 && layout.enabled === false
+          ? defaultLayouts[0]
+          : undefined;
+  const policy = sceneEventPolicy(o);
+  const config = [
+    o.properties === undefined ? defaultProperties : c.properties(h, o.properties),
+    Object.is(o.color ?? 0, 0) && Object.is(o.radius ?? 0, 0)
+      ? defaultPaint
+      : c.paint(h, o.color ?? 0, o.radius ?? 0),
+    layoutDefault ?? c.layout(h, layout ?? {}),
+    o.horizontal === undefined && o.vertical === undefined
+      ? defaultConstraints
+      : c.constraints(
+          h,
+          o.horizontal ?? { kind: 'unbounded' },
+          o.vertical ?? { kind: 'unbounded' },
+        ),
+  ];
+  if (text)
+    config.push(c.text(h, text.value, text.size, text.color, { direction: text.direction }));
+  if (kind === 'paragraph')
+    config.push(c.paragraphOptions(h, o.paragraph ?? null), c.paragraphFont(h, o.paragraphFont));
+  else if (o.paragraph || o.paragraphFont) return;
+  if (kind === 'clip') config.push(c.clipStyle(h, o.clipStyle ?? null));
+  else if (o.clipStyle) return;
+  if (o.semantics) config.push(c.semantics(h, o.semantics));
+  if (o.graphics) config.push(c.graphics(h, o.graphics));
+  if (o.nativePaint?.length) config.push(c.nativePaint(h, o.nativePaint));
+  if (o.layoutProgram) config.push(c.layoutProgram(h, o.layoutProgram));
+  if (o.listItem) config.push(c.listItem(h, o.listItem));
+  if (o.gestures) config.push(c.gesture(h, o.gestures, o.gestureDevices));
+  config.push(
+    policy === 0
+      ? defaultPolicies[0]!
+      : policy === p.eventPolicies.canonicalHitTest
+        ? defaultPolicies[1]!
+        : c.eventPolicy(h, policy),
+  );
+  const binding = Object.freeze({
+    __proto__: RenderBinding.prototype,
+    reference,
+    kind,
+    children: Object.freeze(children.slice()),
+    options: Object.freeze(callbacks),
+    text: undefined,
+    image: undefined,
+    editor: undefined,
+    editorFlags: 0,
+    maximumLength: p.limits.textBytes,
+  }) as RenderBinding;
+  bindingPrograms.set(binding, config);
+  retainedConfigurations.add(binding);
+  return binding;
+}
+/** @internal Reconnect changed edges without re-projecting retained fields. */
+export function relinkRenderBinding(
+  node: SceneNode,
+  children: readonly SceneNode[],
+): RenderBinding | undefined {
+  const program = bindingPrograms.get(node);
+  if (!program) return;
+  const next = Object.freeze({
+    __proto__: RenderBinding.prototype,
+    reference: node.reference,
+    kind: node.kind,
+    children: Object.freeze(children.slice()),
+    options: node.options,
+    text: undefined,
+    image: undefined,
+    editor: undefined,
+    editorFlags: 0,
+    maximumLength: p.limits.textBytes,
+  }) as RenderBinding;
+  bindingPrograms.set(next, program);
+  retainedConfigurations.add(next);
+  return next;
+}
+function bindingReset(kind: number, handle: NodeHandle): Uint8Array | undefined {
+  switch (kind) {
+    case p.commands.semantics:
+      return c.semantics(handle, null);
+    case p.commands.graphics:
+      return c.graphics(handle, undefined);
+    case p.commands.nativePaint:
+      return c.nativePaint(handle, undefined);
+    case p.commands.listItem:
+      return c.listItem(handle, null);
+    case p.commands.gesture:
+      return c.gesture(handle, 0, undefined);
+    case p.commands.layoutProgram:
+      return c.layoutProgram(handle, undefined);
+    case p.commands.paintPlacement:
+      return c.paintPlacement(handle, undefined);
+    case p.commands.layerLink:
+      return c.layerLink(handle, undefined);
+    case p.commands.tapRegion:
+      return c.tapRegion(handle, undefined);
+    case p.commands.snapshot:
+      return c.snapshot(handle, undefined);
+    case p.commands.layoutBuilder:
+      return c.layoutBuilder(handle, undefined);
+    case p.commands.tooltipPosition:
+      return c.tooltipPosition(handle, undefined);
+    case p.commands.childAnchor:
+      return c.childAnchor(handle, undefined);
+    case p.commands.intrinsicSizing:
+      return c.intrinsicSizing(handle, undefined);
+    case p.commands.control:
+      return c.control(handle, null);
+  }
+}
+const bindingCommandOrder = new Map<number, number>(
+  [
+    p.commands.properties,
+    p.commands.paint,
+    p.commands.layout,
+    p.commands.constraints,
+    p.commands.text,
+    p.commands.paragraphOptions,
+    p.commands.paragraphFont,
+    p.commands.clipStyle,
+    p.commands.semantics,
+    p.commands.graphics,
+    p.commands.nativePaint,
+    p.commands.paintPlacement,
+    p.commands.layerLink,
+    p.commands.tapRegion,
+    p.commands.snapshot,
+    p.commands.layoutBuilder,
+    p.commands.tooltipPosition,
+    p.commands.childAnchor,
+    p.commands.intrinsicSizing,
+    p.commands.layoutProgram,
+    p.commands.listItem,
+    p.commands.gesture,
+    p.commands.control,
+    p.commands.eventPolicy,
+  ].map((kind, index) => [kind, index]),
+);
 const retainedConfigurations = new WeakSet<SceneNode>();
 type RetainedPayload = {
   readonly identity: unknown;
@@ -269,6 +512,40 @@ const sourceCallbacks = new Set([
   'onLayout',
   'onAction',
 ]);
+function sceneEventPolicy(o: SceneNodeOptions): number {
+  return (
+    (o.onRawInput ? p.eventPolicies.observeRaw : 0) |
+    (o.appControlled ? p.eventPolicies.appControlled : 0) |
+    (o.modal ? p.eventPolicies.modal : 0) |
+    (o.pointerHitTest ? p.eventPolicies.canonicalHitTest : 0) |
+    (o.canonicalGestures ? p.eventPolicies.canonicalGestures : 0) |
+    (o.dragStartDown ? p.eventPolicies.dragStartDown : 0) |
+    (o.freePan ? p.eventPolicies.freePan : 0) |
+    (o.dragThreshold ? p.eventPolicies.dragThreshold : 0) |
+    (o.mouseRegion ? p.eventPolicies.mouseRegion : 0) |
+    (o.onPointerSample ? p.eventPolicies.pointerListener : 0) |
+    (o.mouseRegion?.opaque ? p.eventPolicies.mouseOpaque : 0) |
+    (o.mouseRegion?.exclusive ? p.eventPolicies.exclusiveMouseRegion : 0) |
+    (o.roundedHitTest ? p.eventPolicies.roundedHitTest : 0) |
+    (o.nativeFocus ? p.eventPolicies.focusOwner : 0) |
+    (o.nativeFocus?.enabled ? p.eventPolicies.focusEnabled : 0) |
+    (o.nativeFocus?.skipTraversal ? p.eventPolicies.skipTraversal : 0) |
+    (o.canonicalKeyboard ? p.eventPolicies.canonicalKeyboard : 0) |
+    (o.semanticsPolicy?.boundary ? p.eventPolicies.semanticsBoundary : 0) |
+    (o.semanticsPolicy?.blockPrevious ? p.eventPolicies.blockPreviousSemantics : 0) |
+    (o.semanticsPolicy?.mergeDescendants ? p.eventPolicies.mergeSemanticsDescendants : 0) |
+    (o.semanticsPolicy?.mergeIntoParent ? p.eventPolicies.mergeSemanticsIntoParent : 0) |
+    (o.semanticsPolicy?.excludeChildren ? p.eventPolicies.excludeChildSemantics : 0) |
+    (o.semanticsPolicy?.blockActions ? p.eventPolicies.blockSemanticActions : 0) |
+    (o.semanticsPolicy?.explicitChildren ? p.eventPolicies.explicitChildSemantics : 0) |
+    (o.semanticsPolicy?.forceMergeDescendants ? p.eventPolicies.forceMergeSemantics : 0) |
+    (o.pointerBlock === 'ignore' ? p.eventPolicies.ignorePointer : 0) |
+    (o.pointerBlock === 'absorb' ? p.eventPolicies.absorbPointer : 0) |
+    (o.pointerHitTest === 'self' ? p.eventPolicies.hitTestSelf : 0) |
+    (o.pointerHitTest === 'deferToChild' ? p.eventPolicies.deferToChild : 0) |
+    (o.pointerHitTest === 'translucent' ? p.eventPolicies.translucent : 0)
+  );
+}
 /** @internal Source capture owns invalidation and immutable configuration
  * identity. Public SceneNode producers still get mutation-safe input diffing. */
 export function retainSceneConfiguration(node: SceneNode, previous?: SceneNode): void {
@@ -321,6 +598,7 @@ interface NativeRecord {
   readonly fullyCacheable: boolean;
   readonly configInputs: ReadonlyMap<number, unknown>;
 }
+const recordBindingPrograms = new WeakMap<NativeRecord, readonly Uint8Array[]>();
 /** A transaction's private write set over the accepted registry. The base is
  * changed only after a terminal ACK; in-flight edits never mutate it. */
 class RecordPatch {
@@ -713,6 +991,9 @@ export class SceneWriter {
     recordVisits: 0,
     skippedSubtreeNodes: 0,
     journalRecords: 0,
+    bindingRecords: 0,
+    bindingCommands: 0,
+    bindingProgramReuses: 0,
     fullRecordBuilds: 0,
     topologyRecords: 0,
     creationDepthVisits: 0,
@@ -886,6 +1167,83 @@ export class SceneWriter {
         });
       };
       const before = this.accepted.get(key);
+      const program = bindingPrograms.get(node);
+      if (program) {
+        if (appGeometry) throw Error('Direct render binding requires Core-owned geometry');
+        const reused = before && recordBindingPrograms.get(before) === program;
+        const projected = reused
+          ? undefined
+          : program.map((template) => {
+              if (sharedDefaultCommands.has(template)) return template;
+              const bytes = template.slice(),
+                view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+              view.setUint32(8, h.slot, true);
+              view.setUint32(12, h.generation, true);
+              const previous = before?.configByKind.get(commandKind(bytes));
+              return previous && equalBytes(previous, bytes) ? previous : bytes;
+            });
+        const config = projected ?? before!.config;
+        if (projected) {
+          const present = new Set(projected.map(commandKind));
+          for (const [kind, previous] of before?.configByKind ?? []) {
+            if (present.has(kind)) continue;
+            const reset = bindingReset(kind, h);
+            if (reset && !equalBytes(previous, reset)) projected.push(reset);
+          }
+          projected.sort(
+            (a, b) =>
+              bindingCommandOrder.get(commandKind(a))! - bindingCommandOrder.get(commandKind(b))!,
+          );
+        }
+        // Accepted bindings own only their callback record and handle edges.
+        // The sealed program is private; patching a provisional handle above
+        // never mutates an accepted/in-flight command or the Source batch.
+        const ownNode =
+          reused && before.node.options === node.options
+            ? before.node
+            : (Object.freeze({
+                __proto__: RenderBinding.prototype,
+                reference: node.reference,
+                kind: node.kind,
+                children: Object.freeze([]),
+                options: node.options,
+                text: undefined,
+                image: undefined,
+                editor: undefined,
+                editorFlags: 0,
+                maximumLength: p.limits.textBytes,
+              }) as RenderBinding);
+        retainedConfigurations.add(ownNode);
+        const sameEdges =
+          reused &&
+          ((!before.parent && !parent) ||
+            (before.parent && parent && id(before.parent) === id(parent))) &&
+          before.children.length === children.length &&
+          before.children.every((child, index) => id(child) === id(children[index]!));
+        const record: NativeRecord =
+          sameEdges && ownNode === before.node
+            ? before
+            : {
+                node: ownNode,
+                handle: h,
+                parent,
+                children,
+                config,
+                configByKind: reused
+                  ? before.configByKind
+                  : new Map(config.map((bytes) => [commandKind(bytes), bytes])),
+                fullyCacheable: true,
+                configInputs: reused ? before.configInputs : new Map(),
+                appGeometry: false,
+              };
+        recordBindingPrograms.set(record, program);
+        records.set(key, record);
+        retainSubtree(record);
+        ++this.counters.bindingRecords;
+        if (reused) ++this.counters.bindingProgramReuses;
+        else this.counters.bindingCommands += config.length;
+        return h;
+      }
       const payload = retainedPayloads.get(node);
       // Resolve executable configuration every time: a retained follower or
       // paint reference may point to a newly allocated native handle. Records
@@ -1090,37 +1448,7 @@ export class SceneWriter {
         ? { ...o.control, revision: o.control.revision ?? this.controlRevisions.get(id(h)) ?? 0n }
         : null;
       optional(p.commands.control, control, () => c.control(h, control));
-      const eventPolicy =
-        (o.onRawInput ? p.eventPolicies.observeRaw : 0) |
-        (o.appControlled ? p.eventPolicies.appControlled : 0) |
-        (o.modal ? p.eventPolicies.modal : 0) |
-        (o.pointerHitTest ? p.eventPolicies.canonicalHitTest : 0) |
-        (o.canonicalGestures ? p.eventPolicies.canonicalGestures : 0) |
-        (o.dragStartDown ? p.eventPolicies.dragStartDown : 0) |
-        (o.freePan ? p.eventPolicies.freePan : 0) |
-        (o.dragThreshold ? p.eventPolicies.dragThreshold : 0) |
-        (o.mouseRegion ? p.eventPolicies.mouseRegion : 0) |
-        (o.onPointerSample ? p.eventPolicies.pointerListener : 0) |
-        (o.mouseRegion?.opaque ? p.eventPolicies.mouseOpaque : 0) |
-        (o.mouseRegion?.exclusive ? p.eventPolicies.exclusiveMouseRegion : 0) |
-        (o.roundedHitTest ? p.eventPolicies.roundedHitTest : 0) |
-        (o.nativeFocus ? p.eventPolicies.focusOwner : 0) |
-        (o.nativeFocus?.enabled ? p.eventPolicies.focusEnabled : 0) |
-        (o.nativeFocus?.skipTraversal ? p.eventPolicies.skipTraversal : 0) |
-        (o.canonicalKeyboard ? p.eventPolicies.canonicalKeyboard : 0) |
-        (o.semanticsPolicy?.boundary ? p.eventPolicies.semanticsBoundary : 0) |
-        (o.semanticsPolicy?.blockPrevious ? p.eventPolicies.blockPreviousSemantics : 0) |
-        (o.semanticsPolicy?.mergeDescendants ? p.eventPolicies.mergeSemanticsDescendants : 0) |
-        (o.semanticsPolicy?.mergeIntoParent ? p.eventPolicies.mergeSemanticsIntoParent : 0) |
-        (o.semanticsPolicy?.excludeChildren ? p.eventPolicies.excludeChildSemantics : 0) |
-        (o.semanticsPolicy?.blockActions ? p.eventPolicies.blockSemanticActions : 0) |
-        (o.semanticsPolicy?.explicitChildren ? p.eventPolicies.explicitChildSemantics : 0) |
-        (o.semanticsPolicy?.forceMergeDescendants ? p.eventPolicies.forceMergeSemantics : 0) |
-        (o.pointerBlock === 'ignore' ? p.eventPolicies.ignorePointer : 0) |
-        (o.pointerBlock === 'absorb' ? p.eventPolicies.absorbPointer : 0) |
-        (o.pointerHitTest === 'self' ? p.eventPolicies.hitTestSelf : 0) |
-        (o.pointerHitTest === 'deferToChild' ? p.eventPolicies.deferToChild : 0) |
-        (o.pointerHitTest === 'translucent' ? p.eventPolicies.translucent : 0);
+      const eventPolicy = sceneEventPolicy(o);
       config.push(encode(p.commands.eventPolicy, eventPolicy, () => c.eventPolicy(h, eventPolicy)));
       if (node.kind === 'image') {
         let resource = node.image ? this.resources.get(node.image) : undefined;

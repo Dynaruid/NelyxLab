@@ -9,6 +9,7 @@
 #include "rnw/KeyboardUtils.h"
 #include "rnw/AccessibilityInfoModule.h"
 #include <set>
+#include <chrono>
 
 namespace nelyx::v2::windows {
 namespace nh = ::Nelyx::NativeHermes;
@@ -333,6 +334,12 @@ class Interaction {
 
 public:
   uint64_t publications = 0, nativeEdits = 0;
+  struct SemanticsTiming {
+    uint64_t syncs=0,skipped=0,packets=0,strings=0,peersCreated=0,peersReused=0,listening=0;
+    uint64_t observedFrame=0,coreFrames=0,assemblies=0,copies=0,sorts=0;
+    double packetMs=0,maxPacketMs=0,sortMs=0,providerMs=0,maxProviderMs=0,notificationsMs=0;
+    double assemblyMs=0,copyMs=0,orderCheckMs=0,orderMs=0;
+  } semanticsTiming;
   uint64_t characters = 0, charactersApplied = 0, charactersUnavailable = 0,
            charactersStale = 0, charactersBusy = 0, charactersLimited = 0;
   uint64_t keysAdmitted = 0, keysStale = 0, keysRejected = 0;
@@ -438,7 +445,7 @@ public:
     auto next = engine.interactionSnapshot(1, 1, snapshot);
     if (!next)
       return;
-    if(next==snapshot&&!changedPreparation)return;
+    if(next==snapshot&&!changedPreparation){++semanticsTiming.skipped;return;}
     snapshot = next;
     syncing = true;
     struct Reset {
@@ -517,6 +524,15 @@ public:
       if (!focused.empty())
         editors->execute(command(focused, "focus"));
     }
+    const auto semanticStarted=std::chrono::steady_clock::now();
+    ++semanticsTiming.syncs;
+    if(semanticsTiming.observedFrame!=f.id){
+      semanticsTiming.observedFrame=f.id;++semanticsTiming.coreFrames;
+      const auto& t=f.semanticsTiming;
+      semanticsTiming.assemblies+=!t.reused;semanticsTiming.copies+=t.reused;semanticsTiming.sorts+=!t.orderReused;
+      semanticsTiming.assemblyMs+=t.assemblyMs;semanticsTiming.copyMs+=t.copyMs;
+      semanticsTiming.orderCheckMs+=t.orderCheckMs;semanticsTiming.orderMs+=t.orderMs;
+    }
     std::vector<nh::SemanticPacket> packets;
     const auto focusPeer=f.focusPeer(next->focus);
     std::map<uint64_t, int> indices;
@@ -590,10 +606,12 @@ public:
       packet.name = wide(a->label);
       packet.tooltip = wide(a->hint);
       packet.automationId = wide(a->metadata.identifier.empty()?s.id:a->metadata.identifier);
+      semanticsTiming.strings+=3+(!a->value.empty()||a->range.enabled);
       packet.traversal=f.semantics[node.id.slot].traversal;
       packet.paintOrder=uint32_t(&item-f.items.data());
       for(const auto& action:a->metadata.custom)if(action.hintOverride&&!action.hint.empty()){
         if(!packet.tooltip.empty())packet.tooltip+=L"\n";packet.tooltip+=wide(action.hint);
+        ++semanticsTiming.strings;
       }
       s.enabled = geometry && !(a->flags & wire::semanticsFlags::disabled) &&
                   !(current.editFlags & wire::editFlags::disabled);
@@ -657,7 +675,9 @@ public:
       indices[node.id.key()] = int(packets.size());
       packets.push_back(std::move(packet));
     }
+    const auto sortStarted=std::chrono::steady_clock::now();
     std::stable_sort(packets.begin(),packets.end(),[](const auto& a,const auto& b){return a.traversal<b.traversal;});
+    semanticsTiming.sortMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-sortStarted).count();
     indices.clear();std::vector<nh::SemanticPacket> accessible;
     for(auto& packet:packets){const Handle node{uint32_t(packet.snapshot.source),uint32_t(packet.snapshot.source>>32)};
       auto parent=f.semantics[node.slot].parent;while(parent&&!indices.contains(parent.key()))parent=f.semantics[parent.slot].parent;
@@ -670,12 +690,21 @@ public:
         peer.snapshot.id=target.snapshot.id+"/action/"+std::to_string(action.id);peer.snapshot.role="button";
         peer.snapshot.focused=false;peer.snapshot.focusable=false;peer.snapshot.canActivate=true;peer.snapshot.text.reset();peer.snapshot.paragraph.reset();
         peer.name=wide(action.label.empty()?action.hint:action.label);peer.tooltip=wide(action.hint);
+        semanticsTiming.strings+=2;
         peer.automationId=target.automationId+L"/action/"+std::to_wstring(action.id);peer.parent=index;
         accessible.push_back(std::move(peer));
       }
     }
+    semanticsTiming.packets+=accessible.size();
+    const auto packetMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-semanticStarted).count();
+    semanticsTiming.packetMs+=packetMs;semanticsTiming.maxPacketMs=std::max(semanticsTiming.maxPacketMs,packetMs);
+    const auto providerStarted=std::chrono::steady_clock::now();
     semantics->publish(std::move(accessible), preparedFrame ? std::weak_ptr<void>(preparedFrame->context)
                                                          : std::weak_ptr<void>(context));
+    const auto providerMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-providerStarted).count();
+    semanticsTiming.providerMs+=providerMs;semanticsTiming.maxProviderMs=std::max(semanticsTiming.maxProviderMs,providerMs);
+    semanticsTiming.peersCreated=semantics->diagnostics.created;semanticsTiming.peersReused=semantics->diagnostics.reused;
+    semanticsTiming.listening=semantics->diagnostics.listening;semanticsTiming.notificationsMs=semantics->diagnostics.notificationsMs;
     if(geometry&&next->visible&&f.route.sequence>routeSequence){
       routeSequence=f.route.sequence;
       if(f.route.scope&&f.route.label)semantics->announce(wide(f.route.label->label));

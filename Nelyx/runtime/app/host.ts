@@ -45,6 +45,7 @@ import {
   SceneNode,
   SceneWriter,
   sceneConfiguration,
+  renderBindingConfiguration,
 } from '../engine-client/scene.ts';
 import type { EngineExecutionSnapshot, SceneNodeOptions } from '../engine-client/scene.ts';
 import type { EngineViewClient } from '../engine-client/client.ts';
@@ -160,9 +161,13 @@ export class OriginalWidgetHost {
       layoutBuilder: this.builderDiagnostic,
       retainedBuilderRebuilds: this.retainedBuilderRebuilds,
       scrolling: { ...this.scrolling.counters },
+      semantics: { ...this.semantics.counters, ...this.semanticsProjection },
+      projection: { ...this.projectionCounters },
     };
   }
   private readonly capture = new RenderSceneCapture();
+  private readonly semanticsProjection = { metadataCalls: 0, metadataMs: 0 };
+  private readonly projectionCounters = { bindings: 0, adapters: 0 };
   private timingSamples = 0;
   private invalidateRender(render: RenderObject, kind?: NativeRenderChange): void {
     this.capture.invalidate(render, kind);
@@ -866,7 +871,13 @@ export class OriginalWidgetHost {
     const prototype: unknown = Object.getPrototypeOf(render),
       paragraph = prototype === RenderParagraph.prototype;
     const tap = this.taps.configuration(render),
-      control = tap ?? originalControlConfiguration(render, (reason) => this.unsupported(reason)),
+      control =
+        tap ??
+        originalControlConfiguration(
+          render,
+          (reason) => this.unsupported(reason),
+          this.semanticsProjection,
+        ),
       layer = this.layers.configuration(render, (binding) =>
         this.capture.bind('layers', render, binding),
       );
@@ -1205,15 +1216,27 @@ export class OriginalWidgetHost {
         ],
       };
     this.taps.retain(render);
+    const configuration = {
+      ...options,
+      ...(listItem ? { listItem } : {}),
+      pointerHitTest:
+        options.pointerHitTest ?? (paragraph ? ('self' as const) : ('proxy' as const)),
+    };
+    // Module capabilities decide the path; raw public/native producers and
+    // executable dependencies continue through the existing capture adapter.
+    if (prototype !== OriginalNativeRender.prototype && !image && !editable) {
+      const binding = renderBindingConfiguration(key, kind, children, configuration, text);
+      if (binding) {
+        ++this.projectionCounters.bindings;
+        return binding;
+      }
+    }
+    ++this.projectionCounters.adapters;
     return sceneConfiguration(
       key,
       kind,
       children,
-      {
-        ...options,
-        ...(listItem ? { listItem } : {}),
-        pointerHitTest: options.pointerHitTest ?? (paragraph ? 'self' : 'proxy'),
-      },
+      configuration,
       text,
       image,
       editable?.editor,

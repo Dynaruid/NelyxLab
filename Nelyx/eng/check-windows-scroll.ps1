@@ -36,11 +36,13 @@ $runner = $null; $native = $null; $mapping = $null; $window = [IntPtr]::Zero
 $script:stats = $null; $script:coreState = $null; $script:statsRevision = 0; $script:delivery = $null; $script:trace = $null
 $script:closed = $null; $script:errors = New-Object 'Collections.Generic.List[string]'
 $script:appDiagnostics = $null; $script:profile = $null; $script:gc = $null
+$script:semanticsDiagnostics = $null
 $script:profileBlock = ''; $script:profileText = New-Object Text.StringBuilder
 $script:events = New-Object 'Collections.Generic.List[Nelyx.ScrollCheck.Record]'
 $script:eventDrops = 0; $script:appReady = $false
 $script:lastLines = New-Object 'Collections.Generic.Queue[string]'
 $script:segments = New-Object 'Collections.Generic.List[object]'
+$script:movementChecks = New-Object 'Collections.Generic.List[object]'
 $script:deadline = [Nelyx.ScrollCheck.Desktop]::Now + 1200
 $script:physicalInput = $null
 $manualStop = $null
@@ -70,6 +72,7 @@ function Pump {
     elseif ($line.StartsWith('V2_INPUT_SOURCE ')) { $script:physicalInput = $line.Substring(16) | ConvertFrom-Json }
     elseif ($line.StartsWith('V2_NATIVE_DELIVERY ')) { $script:delivery = $line.Substring(19) | ConvertFrom-Json }
     elseif ($line.StartsWith('V2_TRACE ')) { $script:trace = $line.Substring(9) | ConvertFrom-Json }
+    elseif ($line.StartsWith('V2_SEMANTICS ')) { $script:semanticsDiagnostics = $line.Substring(13) | ConvertFrom-Json }
     elseif ($line.StartsWith('V2_CLOSED ')) { $script:closed = $line.Substring(10) | ConvertFrom-Json }
     elseif ($line.StartsWith('V2_APP {"kind":"app-disposed"')) { $script:appDiagnostics=($line.Substring(7)|ConvertFrom-Json).diagnostics }
     elseif ($line -match 'V2_HOST_ERROR|V2_PREPARATION_ERROR|"kind":"app-error"') {
@@ -139,13 +142,52 @@ function Capture([string]$Name) {
 function Gap-Summary($Values) {
   $array = @($Values); $maximum = 0.0
   foreach ($v in $array) { $maximum = [Math]::Max($maximum,[double]$v) }
-  return [ordered]@{ count=$array.Count; maxMs=[Math]::Round($maximum,3);
+  $ordered=@($array|Sort-Object); $p95=if($ordered.Count){[double]$ordered[[int][Math]::Ceiling($ordered.Count*0.95)-1]}else{0.0}
+  return [ordered]@{ count=$array.Count; p95Ms=[Math]::Round($p95,3); maxMs=[Math]::Round($maximum,3);
     ge100=@($array | Where-Object { $_ -ge 100 }).Count; ge250=@($array | Where-Object { $_ -ge 250 }).Count;
     ge500=@($array | Where-Object { $_ -ge 500 }).Count; ge1000=@($array | Where-Object { $_ -ge 1000 }).Count }
 }
 function Gaps($Records) {
   $previous = $null
   foreach ($r in $Records) { if ($null -ne $previous) { ($r.At - $previous.At)*1000 }; $previous=$r }
+}
+function Record-ContinuousMovement($Injection,[double]$Dx,[int]$Samples) {
+  # This oracle is limited to this fixture's fixed-width LTR page trajectory.
+  # Receipt/consumption alone is insufficient: find the first actual published
+  # offset which has reached each sample's expected position. Include the tail
+  # after contact; querying UIA happens only after active input has ended.
+  $result=[ordered]@{trajectory='fixed-page-ltr';samples=$Samples;goal='notVerified';reason='trace-disabled'}
+  if(!$NoTrace){
+    $inputs=@($script:events|Where-Object {$_.Stage -eq 7 -and $_.A -eq 4 -and $_.B -eq 2 -and $_.At -ge $Injection.Started -and $_.At -le $Injection.Ended+0.1})
+    $groups=@($script:events|Where-Object {$_.Stage -eq 28 -and $_.At -ge $Injection.Started}|Group-Object Surface|ForEach-Object {
+      $rows=@($_.Group);$range=($rows|Measure-Object A -Maximum -Minimum)
+      [pscustomobject]@{handle=$_.Name;rows=$rows;range=($range.Maximum-$range.Minimum)}
+    }|Sort-Object range -Descending)
+    $baseline=@();if($groups.Count){$handle=$groups[0].handle;$baseline=@($script:events|Where-Object {$_.Stage -eq 28 -and [string]$_.Surface -eq $handle -and $_.At -lt $Injection.Started}|Select-Object -Last 1)}
+    $result.reason='incomplete-input-or-viewport'
+    if($inputs.Count -eq $Samples -and $baseline.Count -eq 1 -and $Dx -ne 0){
+      $frames=@($groups[0].rows);$direction=[Math]::Sign(-$Dx)
+      $latencies=New-Object 'Collections.Generic.List[double]';$missing=0;$requestedError=0.0
+      foreach($frame in $frames){
+        $through=@($inputs|Where-Object {$_.Input -le $frame.Input}).Count
+        $expected=$baseline[0].A-$Dx*$through
+        $requestedError=[Math]::Max($requestedError,[Math]::Abs($frame.B-$expected))
+      }
+      for($i=0;$i -lt $inputs.Count;++$i){
+        $receivedSample=$inputs[$i];$expected=$baseline[0].A-$Dx*($i+1)
+        $reflected=@($frames|Where-Object {$_.At -ge $receivedSample.At -and $_.Input -ge $receivedSample.Input -and ($_.A-$expected)*$direction -ge -0.01}|Select-Object -First 1)
+        if($reflected.Count){$latencies.Add(($reflected[0].At-$receivedSample.At)*1000)}else{++$missing}
+      }
+      $summary=Gap-Summary $latencies
+      $result.reflected=$latencies.Count;$result.missing=$missing;$result.requestedTrajectoryErrorPx=$requestedError;$result.latency=$summary
+      $result.reason='incomplete-movement-or-trajectory'
+      if($missing -eq 0 -and $requestedError -lt 0.01){
+        $result.reason='complete';$result.goal=if($summary.p95Ms -le (2000.0/60) -and $summary.maxMs -le (4000.0/60)){'PASS'}else{'FAIL'}
+      }
+    }
+  }
+  $script:movementChecks.Add([pscustomobject]$result)
+  Write-Output ('WINDOWS_SCROLL_MOVEMENT '+($result|ConvertTo-Json -Compress -Depth 5))
 }
 function Record-Segment([string]$Name,[string]$Source,$Sent,[double]$Started,[double]$Ended,$Before,$After) {
   $records = @($script:events | Where-Object { $_.At -ge $Started -and $_.At -le $Ended })
@@ -348,7 +390,10 @@ function Precision60-Months([int]$Count) {
   if($CpuProfile){$runner.Send('profile-stop');Pause 120}
   Pause 150; Settle; $after=Get-Stats
   Record-Segment 'continuous-months-60hz' 'injected-precision-60hz' $injection.Sent $injection.Started $injection.Ended $before $after
-  $last=Calendar; Capture 'calendar-60hz-last'
+  # Core can be idle while the final admitted onPageChanged is still on App.
+  # NoTrace also lacks the published-offset settle oracle. Wait for the known
+  # requested month after recording active gaps; do not resend or delay input.
+  $last=Wait-Month ($first.date.AddMonths($Count)); Capture 'calendar-60hz-last'
   $observed=($last.date.Year-$first.date.Year)*12+$last.date.Month-$first.date.Month
   Write-Output ('WINDOWS_SCROLL_PRECISION_60HZ '+([ordered]@{ requestedMonths=$Count; observedMonths=$observed; first=$first.name; last=$last.name;
     requestedHz=60; samples=$injection.Samples; activeMs=($injection.Ended-$injection.Started)*1000;
@@ -358,6 +403,7 @@ function Precision60-Months([int]$Count) {
     physicalTrackpad='notVerified'; renderingFps='notMeasured'; scanout='notVerified' } | ConvertTo-Json -Compress -Depth 5))
   if($observed -ne $Count){throw 'Continuous precision input did not reach the requested month count.'}
   if($script:delivery.injectedPrecisionAdmitted-$admitted -ne $samples+2 -or $script:delivery.injectedPrecisionRejected -ne 0){throw 'Continuous precision input lost a start/update/end sample.'}
+  Record-ContinuousMovement $injection $dx $samples
 }
 function Precision-FastMonths {
   $first=Calendar; $rect=[Nelyx.ScrollCheck.Desktop]::Client($window); $dpi=[Nelyx.ScrollCheck.Desktop]::GetDpiForWindow($window)/96.0
@@ -416,12 +462,13 @@ function Precision-LiveContact {
     }
 }
 function Write-Diagnostics {
+  if($script:semanticsDiagnostics){Write-Output ('WINDOWS_SCROLL_SEMANTICS '+($script:semanticsDiagnostics|ConvertTo-Json -Compress))}
   if($script:appDiagnostics){
     $d=$script:appDiagnostics
     Write-Output ('WINDOWS_SCROLL_APP '+([ordered]@{samplesThrough=$d.samplesThrough;samplesOverwritten=$d.samplesOverwritten;
       build=(Gap-Summary @($d.samples|ForEach-Object{$_.buildMs}));capture=(Gap-Summary @($d.samples|ForEach-Object{$_.captureMs}));
       scene=(Gap-Summary @($d.samples|ForEach-Object{$_.sceneMs}));wait=(Gap-Summary @($d.samples|ForEach-Object{$_.waitMs}));
-      slowest=@($d.samples|Sort-Object {($_.completed-$_.started)} -Descending|Select-Object -First 5);captureCounters=$d.capture;sceneCounters=$d.scene;scrollCounters=$(if($d.PSObject.Properties['scrolling']){$d.scrolling}else{$null})
+      slowest=@($d.samples|Sort-Object {($_.completed-$_.started)} -Descending|Select-Object -First 5);captureCounters=$d.capture;sceneCounters=$d.scene;scrollCounters=$(if($d.PSObject.Properties['scrolling']){$d.scrolling}else{$null});semantics=$(if($d.PSObject.Properties['semantics']){$d.semantics}else{$null});projection=$(if($d.PSObject.Properties['projection']){$d.projection}else{$null})
     }|ConvertTo-Json -Compress -Depth 8))
   }
   if($CpuProfile){
@@ -565,7 +612,14 @@ try {
   $stalls=@($script:segments | Where-Object { $_.driverTimingUsable -and
     ($_.publicationGaps.ge500 -gt 0 -or @($_.viewportProgress | Where-Object {$_.displayedOffsetGaps.ge500 -gt 0}).Count -gt 0) })
   $usable=$Scenario -ne 'Manual' -and !$NoTrace -and $lost -eq 0 -and $runner.Dropped -eq 0
+  $offsetSegments=@($script:segments|Where-Object {$_.source -in @('injected-precision-60hz','injected-precision-fast-contacts')})
+  $offsetStalls=@($offsetSegments|Where-Object {@($_.viewportProgress|Where-Object {$_.displayedOffsetGaps.ge100 -gt 0}).Count -gt 0})
+  $offsetUsable=$usable -and $offsetSegments.Count -gt 0 -and @($offsetSegments|Where-Object {!$_.driverTimingUsable -or @($_.viewportProgress).Count -eq 0}).Count -eq 0
+  $offsetGoal=if(!$offsetUsable){'notVerified'}elseif($offsetStalls.Count){'FAIL'}else{'PASS'}
+  $movementGoal=if(!$offsetUsable -or !$script:movementChecks.Count -or @($script:movementChecks|Where-Object {$_.goal -eq 'notVerified'}).Count){'notVerified'}elseif(@($script:movementChecks|Where-Object {$_.goal -eq 'FAIL'}).Count){'FAIL'}else{'PASS'}
   Write-Output ('WINDOWS_SCROLL_RESULT '+([ordered]@{ functional=$(if($Scenario -eq 'Manual'){'notVerified'}else{'PASS'}); syntheticStallGoal= $(if(!$usable){'notVerified'}elseif($stalls.Count){'FAIL'}else{'PASS'});
+    offsetStallGoal100ms=$offsetGoal; w11PerformanceGoal=$(if($offsetGoal -eq 'FAIL' -or $movementGoal -eq 'FAIL'){'FAIL'}else{'notVerified'});
+    movementLatencyGoal=$movementGoal; coverageReadyGoal='notVerified';
     nativeDelivery=$script:delivery; dispatch=(Gap-Summary $longDispatch); contentQueue=(Gap-Summary $longQueue); coreLockHeld=(Gap-Summary $longLock);
     contentTiming=$finalStats.contentTiming; ringLost=$lost; outputDropped=$runner.Dropped;
     ringThrough=$(if($mapping){$mapping.Through}else{0}); traceOverwritten=$(if($script:trace){$script:trace.overwritten}else{0});
@@ -594,6 +648,7 @@ try {
     foreach($line in $runner.Take()){
       if($line.StartsWith('V2_CLOSED ')){$script:closed=$line.Substring(10)|ConvertFrom-Json}
       elseif($line.StartsWith('V2_APP {"kind":"app-disposed"')){$script:appDiagnostics=($line.Substring(7)|ConvertFrom-Json).diagnostics}
+      elseif($line.StartsWith('V2_SEMANTICS ')){$script:semanticsDiagnostics=$line.Substring(13)|ConvertFrom-Json}
     }
     Write-Output ('WINDOWS_SCROLL_CLEANUP '+([ordered]@{exitCode=$runner.Process.ExitCode;closed=$script:closed;appExited=$(if($native){$native.HasExited}else{$null})}|ConvertTo-Json -Compress -Depth 4))
     if ($mapping) { $mapping.Dispose() }

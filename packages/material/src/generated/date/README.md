@@ -14,6 +14,10 @@ The range-picker UI and Cupertino picker are outside this input manifest.
 Core-owned focus, navigation, editing and restoration. The current public theme
 is Material 3; date messages use the original US-English default localization.
 No handwritten calendar substitutes for the generated calendar widget.
+The calendar recipe specializes analyzer-proven lexical nullable receivers with
+one immediate property read into strict-null conditionals. It removes their
+temporary IIFEs while retaining getter/Proxy reads, errors, type witnesses and
+user state resolvers. Other receiver expressions keep single-evaluation lowering.
 Generated enum constants register their Dart identity equality/hash policy; the
 restorable mode setters use that same policy. Form membership and text editing
 use the existing Core Form/TextFormField contract through constructor adapters.

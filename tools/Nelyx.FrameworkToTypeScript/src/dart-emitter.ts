@@ -94,6 +94,8 @@ export function emitDart(
   function blocked(reason: string, node?: { offset: number }): never {
     throw new BlockedSemantic(reason + (node ? ` @${node.offset}` : ''));
   }
+  if (recipe.lexicalNullReads && recipe.lexicalNullReads.policy !== 'single-local-property-read')
+    blocked('Unknown lexical null-read specialization policy');
   function superAdapter(
     owner: { reference: Reference; superclass?: { constructor: Reference } | null } | undefined,
   ) {
@@ -3409,6 +3411,44 @@ export function emitDart(
         }
         if (n.reference && witnessMethods.has(n.reference.id))
           blocked('Generic method witness tear-off requires an explicit function-value ABI', n);
+        if (
+          n.nullAware &&
+          !lvalue &&
+          recipe.lexicalNullReads &&
+          n.target.kind === 'identifier' &&
+          n.target.reference?.local
+        ) {
+          const target = expr(n.target);
+          if (ts.isIdentifier(target)) {
+            const read = rawExpr({
+              ...n,
+              nullAware: false,
+              targetType: n.targetType.replace(/\?$/, ''),
+            });
+            // A bare lexical read cannot invoke user code. The second read is
+            // immediately the receiver of the one property access, before its
+            // getter can run. Calls, indices, late storage, getters as receiver
+            // and type/adaptation checks retain the existing evaluateOnce path.
+            if (
+              ts.isPropertyAccessExpression(read) &&
+              ts.isIdentifier(read.expression) &&
+              read.expression.text === target.text
+            ) {
+              temporary(); // Keep later generated temporary identities stable.
+              return f.createConditionalExpression(
+                f.createBinaryExpression(
+                  target,
+                  ts.SyntaxKind.EqualsEqualsEqualsToken,
+                  f.createNull(),
+                ),
+                undefined,
+                f.createNull(),
+                undefined,
+                read,
+              );
+            }
+          }
+        }
         if (n.nullAware)
           return evaluateOnce(expr(n.target), (target) => [
             f.createReturnStatement(

@@ -783,6 +783,9 @@ export interface ModuleRecipe {
     policy: 'checked-late-instance';
   };
   lateLocals?: { create: string; policy: 'checked-late-local' };
+  /** A proven lexical local and one immediate property read need no IIFE.
+   * Strict null behavior, accessor evaluation and unknown receivers stay intact. */
+  lexicalNullReads?: { policy: 'single-local-property-read' };
   /** Positional, non-const records. Structural equality and named fields are separate. */
   records?: {
     type: string;

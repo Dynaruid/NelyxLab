@@ -6,10 +6,14 @@ import type { FrameScheduler } from '@nelyx/core/framework/scheduler/scheduler';
 import { PlatformDispatcher } from '@nelyx/core/ui/platform-dispatcher';
 import { SemanticsAction, SemanticsActionEvent } from '@nelyx/core/ui/semantics-action';
 import { intersect } from '@nelyx/core/ui/geometry';
-import type { SemanticsNode } from '@nelyx/core/ui/types';
 import type { Disposable } from '@nelyx/core/foundation/disposable';
-import type { EngineEvent, EngineResponse } from '../engine-client/codec.ts';
+import type { Rect } from '@nelyx/core/ui/types';
+import type { EngineEvent, EngineResponse, EngineNodeSnapshot } from '../engine-client/codec.ts';
 import { protocol as p } from '../engine-client/schema.ts';
+import { observationNode } from '../engine-client/node-index.ts';
+
+const now = () => (typeof performance === 'undefined' ? Date.now() : performance.now());
+const noRect = () => null;
 
 const sourceActions = new Map<number, SemanticsAction>([
   [p.semanticsActions.activate, SemanticsAction.tap],
@@ -33,6 +37,17 @@ export class OriginalSemanticsBridge {
   private boundPublication = 0n;
   private stopped = false;
   private closed = false;
+  readonly counters = {
+    publications: 0,
+    invalidations: 0,
+    refreshMs: 0,
+    maxRefreshMs: 0,
+    rectQueries: 0,
+    resolvedRects: 0,
+    queryMs: 0,
+    visitedPublicationNodes: 0,
+    temporarySemanticsNodes: 0,
+  };
   constructor(
     private readonly viewId: number,
     owner: BuildOwner,
@@ -89,37 +104,55 @@ export class OriginalSemanticsBridge {
     if (this.stopped) return;
     const publication = this.current ? this.frame!.publication : 0n;
     if (publication === this.boundPublication) return;
-    const nodes: SemanticsNode[] = [];
+    const started = now();
     if (publication) {
       this.handle ??= this.binding.ensureSemantics();
-      for (const node of this.frame!.nodes) {
-        const semantic = node.semantics;
-        if (!semantic || semantic.flags & p.semanticsFlags.hidden) continue;
-        const bounds = intersect(node.semanticGeometry?.bounds ?? node.bounds, node.clip);
-        if (bounds.width <= 0 || bounds.height <= 0) continue;
-        // SemanticsBinding consumes ids and actual published rectangles. The
-        // richer native roles/actions remain owned by the engine/host tree.
-        nodes.push({
-          id: `${node.node.slot}:${node.node.generation}`,
-          role:
-            semantic.role === p.semanticsRoles.textField
-              ? 'text-field'
-              : semantic.role === p.semanticsRoles.text
-                ? 'text'
-                : semantic.actions & p.semanticsActions.activate
-                  ? 'button'
-                  : 'group',
-          name: semantic.label,
-          enabled: !(semantic.flags & p.semanticsFlags.disabled),
-          bounds,
-        });
-      }
+      // Geometry/focus/layers already share this cohort's generation-checked
+      // index. No semantics list or eager rectangle Map is needed by App.
+      const frame = this.frame!;
+      let queriedRects: Map<EngineNodeSnapshot, Rect> | undefined;
+      this.binding._updateViewSemanticsRectResolver(
+        this.viewId,
+        (id) => {
+          const queryStarted = now();
+          ++this.counters.rectQueries;
+          try {
+            if (typeof id !== 'string') return null;
+            const match = /^(0|[1-9]\d*):(0|[1-9]\d*)$/.exec(id);
+            if (!match) return null;
+            const slot = Number(match[1]),
+              generation = Number(match[2]);
+            if (slot > 0xffffffff || generation > 0xffffffff) return null;
+            const node = observationNode(frame, { slot, generation });
+            if (!node?.semantics || node.semantics.flags & p.semanticsFlags.hidden) return null;
+            const queried = queriedRects?.get(node);
+            if (queried) {
+              ++this.counters.resolvedRects;
+              return queried;
+            }
+            const bounds = intersect(node.semanticGeometry?.bounds ?? node.bounds, node.clip);
+            if (bounds.width <= 0 || bounds.height <= 0) return null;
+            ++this.counters.resolvedRects;
+            const rect = Object.freeze(bounds);
+            (queriedRects ??= new Map()).set(node, rect);
+            return rect;
+          } finally {
+            this.counters.queryMs += now() - queryStarted;
+          }
+        },
+        this.legacyViewId,
+      );
+      ++this.counters.publications;
     } else {
       this.handle?.dispose();
       this.handle = undefined;
+      this.binding._updateViewSemanticsRectResolver(this.viewId, noRect, this.legacyViewId);
+      ++this.counters.invalidations;
     }
-    this.binding.updateViewSemantics(this.viewId, nodes, this.legacyViewId);
     this.boundPublication = publication;
+    const elapsed = now() - started;
+    this.counters.refreshMs += elapsed;
+    this.counters.maxRefreshMs = Math.max(this.counters.maxRefreshMs, elapsed);
   }
   action(event: EngineEvent, perform: () => void): void {
     if (this.stopped) return;
@@ -131,7 +164,7 @@ export class OriginalSemanticsBridge {
       return;
     }
     if (!this.current || event.id !== this.frame!.publication) {
-      this.binding.updateViewSemantics(this.viewId, [], this.legacyViewId);
+      this.binding._updateViewSemanticsRectResolver(this.viewId, noRect, this.legacyViewId);
       this.boundPublication = 0n;
     }
     try {

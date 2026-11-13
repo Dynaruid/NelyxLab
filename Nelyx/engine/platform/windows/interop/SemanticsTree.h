@@ -4,6 +4,7 @@
 #include "SemanticsTextProvider.h"
 #include <set>
 #include <limits>
+#include <chrono>
 namespace Nelyx::NativeHermes {
 using Microsoft::WRL::ComPtr;
 namespace WS=WindowsSemantics;
@@ -50,6 +51,7 @@ public:
 };
 class SemanticsTree final:public std::enable_shared_from_this<SemanticsTree>{
 public:
+  struct Diagnostics {uint64_t created=0,reused=0,listening=0;double notificationsMs=0;} diagnostics;
   struct Action{std::string id,kind;uint64_t source=0,commit=0;std::optional<WS::TextAction> text;std::optional<double> value;std::optional<uint32_t> customAction;};
   struct Node{SemanticPacket packet;ComPtr<SemanticsPeer> peer;std::shared_ptr<WS::TextDocument> document;ComPtr<WS::TextProvider> text;};
   static std::shared_ptr<SemanticsTree> create(HWND window,std::function<void(Action)> dispatch,std::function<void(std::function<void()>)> defer){auto value=std::shared_ptr<SemanticsTree>(new SemanticsTree(window,std::move(dispatch),std::move(defer)));value->root=Microsoft::WRL::Make<SemanticsPeer>();value->root->tree=value;value->root->hostWindow=window;value->root->runtimeId=++value->next;return value;}
@@ -81,6 +83,7 @@ public:
       if(p.canDeselect&&(!p.isRadio||!p.selected.value_or(false)||!p.snapshot.canActivate))throw std::runtime_error("Invalid native semantics deselection");
       if(p.snapshot.text){WS::TextDocument::validate(*p.snapshot.text);auto old=nodes.find(p.snapshot.id);if(old!=nodes.end()&&old->second.document&&old->second.packet.snapshot.source==p.snapshot.source&&old->second.packet.snapshot.text->generation==p.snapshot.text->generation)WS::TextDocument::validateTransition(*old->second.document->read(false),*p.snapshot.text);}
       nextOrder.push_back(p.snapshot.id);}
+    if(UiaClientsAreListening())++diagnostics.listening;
     struct Properties{std::wstring name,automationId,tooltip;std::optional<std::wstring> value;std::optional<bool> selected,checked;bool focused=false,enabled=true;std::optional<SemanticRange> range;bool mixed=false,liveRegion=false;};
     struct Notification{ComPtr<SemanticsPeer> peer;std::optional<Properties> previous;std::string id;WS::TextChanges text;};std::vector<Notification> notifications;const bool listening=UiaClientsAreListening();if(listening)notifications.reserve(packets.size());
     std::vector<ComPtr<SemanticsPeer>> retired;
@@ -90,6 +93,7 @@ public:
     for(auto& packet:packets){const auto id=packet.snapshot.id;const auto source=packet.snapshot.source;auto found=nodes.find(id);
       if(found!=nodes.end()&&(found->second.packet.customAction!=packet.customAction||found->second.packet.actionTarget!=packet.actionTarget||(packet.customAction&&(found->second.packet.name!=packet.name||found->second.packet.tooltip!=packet.tooltip))||found->second.packet.snapshot.source!=source||found->second.packet.snapshot.role!=packet.snapshot.role||found->second.packet.isSlider!=packet.isSlider||found->second.packet.isRadio!=packet.isRadio||found->second.packet.isRadioGroup!=packet.isRadioGroup||(packet.snapshot.text&&found->second.packet.snapshot.text&&packet.snapshot.text->generation!=found->second.packet.snapshot.text->generation))){retired.push_back(found->second.peer);if(found->second.document)found->second.document->retire();nodes.erase(found);structure=true;}
       auto& node=nodes[id];if(node.peer&&node.packet.parent!=packet.parent)structure=true;Notification notification;if(listening){notification.id=id;if(node.peer){auto const& p=node.packet;notification.previous=Properties{p.name,p.automationId,p.tooltip,p.value,p.selected,p.checked,p.snapshot.focused,p.snapshot.enabled,p.range,p.mixed,p.liveRegion};}}if(!node.peer){node.peer=Microsoft::WRL::Make<SemanticsPeer>();node.peer->tree=shared_from_this();node.peer->id=id;node.peer->runtimeId=++next;}if(listening)notification.peer=node.peer;
+      if(notification.previous||node.packet.snapshot.source==source)++diagnostics.reused;else ++diagnostics.created;
       auto& snapshot=packet.snapshot;
       if(snapshot.text){
         auto weak=weak_from_this();WS::ParagraphScreenMapping mapping;mapping.context=context;
@@ -105,6 +109,7 @@ public:
     }
     // UIA can re-enter a provider while receiving an event. Notify only after
     // the complete validated tree has acquired the new commit.
+    const auto notificationsStarted=std::chrono::steady_clock::now();
     for(auto const& event:notifications){auto& node=read(event.id);if(node.text)node.text->notify(event.text);if(!UiaClientsAreListening())continue;
       auto property=[&](PROPERTYID id,VARIANT before,VARIANT after){UiaRaiseAutomationPropertyChangedEvent(event.peer.Get(),id,before,after);};
       auto boolean=[&](PROPERTYID id,bool before,bool after){if(before==after)return;VARIANT a{},b{};a.vt=b.vt=VT_BOOL;a.boolVal=before?VARIANT_TRUE:VARIANT_FALSE;b.boolVal=after?VARIANT_TRUE:VARIANT_FALSE;property(id,a,b);};
@@ -122,6 +127,7 @@ public:
     }
     if(structure&&UiaClientsAreListening())UiaRaiseStructureChangedEvent(root.Get(),StructureChangeType_ChildrenInvalidated,nullptr,0);
     disconnect(std::move(retired));
+    diagnostics.notificationsMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-notificationsStarted).count();
   }
   void close(){if(closed)return;ui();std::vector<ComPtr<SemanticsPeer>> retired;retired.reserve(nodes.size()+1);for(auto& [id,node]:nodes){retired.push_back(node.peer);if(node.document)node.document->retire();}retired.push_back(root);nodes.clear();order.clear();dispatch={};closed=true;disconnect(std::move(retired));}
   HWND window;DWORD owner;bool closed=false;int next=0;uint64_t coordinates=0,viewport=0,surface=0,commit=0;std::vector<std::string> order;std::map<std::string,Node> nodes;ComPtr<SemanticsPeer> root;

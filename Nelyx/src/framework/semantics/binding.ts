@@ -71,7 +71,7 @@ export class SemanticsBinding {
   private enabledNotificationDepth = 0;
   private readonly enabledListeners: { listener: () => void; callback: () => void }[] = [];
   private live = true;
-  private readonly viewRects = new Map<number | string, Map<number | string, Rect>>();
+  private readonly viewRects = new Map<number | string, (nodeId: number | string) => Rect | null>();
   constructor(private readonly options: SemanticsBindingOptions = {}) {
     const dispatcher = options.dispatcher;
     if (!this.accessibilityEnabled || !dispatcher) return;
@@ -210,14 +210,28 @@ export class SemanticsBinding {
       for (const child of node.children ?? []) visit(child);
     };
     for (const node of nodes) visit(node);
-    this.viewRects.set(viewId, rects);
-    if (legacyViewId !== undefined) this.viewRects.set(legacyViewId, rects);
+    this._updateViewSemanticsRectResolver(
+      viewId,
+      (nodeId) => rects.get(nodeId) ?? null,
+      legacyViewId,
+    );
+  }
+  /** @internal Native Views resolve immutable published rectangles through their
+   * existing observation index. Replacing a publication releases its resolver. */
+  _updateViewSemanticsRectResolver(
+    viewId: number | string,
+    resolve: (nodeId: number | string) => Rect | null,
+    legacyViewId?: number | string,
+  ): void {
+    if (!this.live || !this.accessibilityEnabled) return;
+    this.viewRects.set(viewId, resolve);
+    if (legacyViewId !== undefined) this.viewRects.set(legacyViewId, resolve);
   }
   getRectOfSemanticsNodeInViewCoordinates(
     viewId: number | string,
     nodeId: number | string,
   ): Rect | null {
-    return this.viewRects.get(viewId)?.get(nodeId) ?? null;
+    return this.viewRects.get(viewId)?.(nodeId) ?? null;
   }
   get semanticsEnabled(): boolean {
     if (!this.live) return false;

@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { RenderObject, NativeRenderChange } from '@nelyx/core/framework/rendering/object';
 import { protocol as p } from '../engine-client/schema.ts';
-import { retainSceneConfiguration, SceneNode, sceneConfiguration } from '../engine-client/scene.ts';
+import {
+  retainSceneConfiguration,
+  SceneNode,
+  sceneConfiguration,
+  relinkRenderBinding,
+} from '../engine-client/scene.ts';
 
 type Count = { value: number };
 type Refresh = (count: Count, depth: number) => SceneNode;
@@ -329,7 +334,8 @@ export class RenderSceneCapture {
           }
         }
         scene = children
-          ? sceneConfiguration(
+          ? (relinkRenderBinding(old, children) ??
+            sceneConfiguration(
               old.reference,
               old.kind,
               children,
@@ -339,7 +345,7 @@ export class RenderSceneCapture {
               old.editor,
               old.editorFlags,
               old.maximumLength,
-            )
+            ))
           : old;
         ++this.counters.relinked;
       } else {

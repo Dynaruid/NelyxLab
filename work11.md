@@ -1,12 +1,14 @@
 # work11 — 새 월 준비를 위한 Source 실행·렌더 투영의 결합
 
-작성: **2026-11-13 KST** · 상태: **DESIGN / 구현 미착수** · 대상: [work10-a1](work10-a1.md)의 빠른 월 이동 정체
+작성: **2026-11-13 KST** · 상태: **PAUSED / PARTIAL** · 대상: [work10-a1](work10-a1.md)의 빠른 월 이동 정체
+
+**실행 현황:** 사용자 요청으로 새 구현·추가 검사를 중단했다. App 접근성 rect resolver, A–D 최소 계측, 공통 render 모듈의 봉인된 직접 명령 입력과 좁은 생성기 specialization을 구현했다. 최종 공급의 Windows `All / 12개월 / 60Hz`는 **기능 PASS / W11 성능 FAIL**이며, 실제 이동 게시 지연 p95/최대 **267.118/417.732ms**, offset 정체 최대 **424ms**다. 진행 중이던 검사는 정상 종료했고 소유 앱·worker·임시 SDK를 회수했다. 변경은 보존하며 **자동 재개하지 않는다.** 현재 구현·공급·검증 범위와 재개 지점은 **§11**에 기록한다.
 
 **제안:** 먼저 **접근성의 Source 구성·App 관찰·Core 조립·Windows UIA 갱신 비용을 분리**하고, 구조·속성이 그대로인 스크롤에서 반복되는 목록·문자열·사각형 재구성을 줄인다. 이 제한된 개편 뒤에도 새 월 준비가 느리면, 원래 TS Widget/Element/State를 실행한 뒤 그 결과를 capture 트리와 Scene 기록으로 반복 변환하는 구조를 **생성 시 정한 투영 절차와 실행 시 유지하는 RenderBinding 기록**으로 바꾼다. 생성된 Source 코드의 불필요한 중간 표현도 함께 줄인다. 준비 창을 늘리는 대신 **같은 원본 의미를 더 적은 작업으로 준비**하는 것이 목적이다.
 
-**접근성 검토 반영:** 접근성은 구체적인 비용 후보지만 403ms 정체의 주원인으로 확정되지 않았다. §2.1–2.4에 소스 근거·소비자·개편 계약을 추가하고, 기존 대규모 투영 개편보다 **W11-00A/00B의 비용 분리와 접근성 증분 갱신을 먼저 수행**하도록 순서를 바꿨다. 이번 추가 작업도 문서·소스 검토에 한정하며 A/B 실행이나 제품 변경을 수행하지 않았다.
+**접근성 검토 반영:** 설계 단계에서 §2.1–2.4의 소스 근거·소비자·개편 계약을 추가하고 **W11-00A/00B의 비용 분리와 접근성 증분 갱신을 먼저 수행**하도록 순서를 바꿨다. 이후 §11의 실제 실행에서는 App refresh와 Core/UIA 갱신보다 긴 Source build/capture/scene이 남았다. 접근성을 403ms 정체의 주원인으로 확정하지 않는다.
 
-이 문서는 요청에 따른 새 아이디어·설계·구현 계획이다. 제품 코드 수정·빌드·앱 실행·새 성능 측정은 수행하지 않았다. [work10-a1 §24](work10-a1.md#24-2026-11-12-새-월-격자의-source-왕복과-반복-할당-제거)의 결과는 이전 실행 기록이며, 이번에 현재 공급의 전체 hash나 실행 PID까지 재검증한 결과가 아니다. 기존 문서를 종료하거나 이미 구현한 기능을 초기화하지 않는다. 기존 실행 계약은 [work10](work10.md)과 [work10-a1](work10-a1.md)에 남기고, 이 문서는 후속 구현 설계로 연결한다.
+§1–9는 새 아이디어·설계·구현 계획이며 그 안의 목표는 달성값이 아니다. [work10-a1 §24](work10-a1.md#24-2026-11-12-새-월-격자의-source-왕복과-반복-할당-제거)의 결과는 이전 실행 기록으로 보존하고, 이번에 다시 확인한 공급과 실행은 §11에서 구분한다. 기존 문서를 종료하거나 이미 구현한 기능을 초기화하지 않는다. 기존 실행 계약은 [work10](work10.md)과 [work10-a1](work10-a1.md)에 남긴다.
 
 제품 판정은 **PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 사용자 물리 입력·전체 display/scanout 수락 **notVerified**를 유지한다.
 
@@ -393,13 +395,100 @@ W11-00A에서 확인한 비용에 해당하는 부분만 묶어서 구현한다.
 - [x] 최신 문제 기록과 현재 Source/capture/writer/scroll/grid 구조 대조.
 - [x] 원본 의미 보존, 직접 투영, 생성기 specialization, 단계별 반증·검증 기준 설계.
 - [x] 접근성 A–D 경계, 기존 재사용, TapRegion/게시 관찰 의존성, UIA delta의 전체 복원 경로를 소스로 확인하고 선행 계획에 반영.
-- [ ] W11-00 대표 경로·최소 입증 범위 고정.
-- [ ] W11-00A 접근성 단계 비용과 실제 소비자·관찰 조건 분리.
-- [ ] W11-00B 확인된 접근성 반복 구성의 증분 갱신·회귀 검증.
-- [ ] W11-01 직접 RenderBinding → 기존 writer 연결.
-- [ ] W11-02 생성기 specialization과 필수 Source 비용 판정.
-- [ ] W11-03 달력·일반 소비자 통합.
-- [ ] W11-04 공급·기능·연속 표시 통합 확인.
+- [x] W11-00 대표 경로·최소 입증 범위 고정. §11의 공통 모듈·혼합 adapter·wire oracle 및 성능 반증 기준.
+- [ ] W11-00A **PARTIAL** — metadata/App/Core/UIA 계측과 현재 실행. Source constructor/label formatting 단독 비용 및 비청취 조건은 미분리.
+- [ ] W11-00B **기능 PASS / 성능 PARTIAL** — App의 중복 목록·Map 재구성 제거. Core/UIA 전면 개편은 측정 근거가 없어 보류.
+- [ ] W11-01 **PARTIAL** — 공통 모듈의 봉인된 명령을 기존 checkpoint/RecordPatch로 전달. 전체 필드별 dirty binding journal은 미구현.
+- [ ] W11-02 **PARTIAL** — analyzer가 증명한 local receiver의 null-aware property 13개 정적 지점을 좁게 최적화. 전체 regenerate/check/75개 선언 및 원본 Dart oracle PASS. 필수 Source 비용 분리·추가 specialization은 미완료.
+- [ ] W11-03 **PARTIAL** — 공통 render 모듈·달력 및 Key/Ink/capture 회귀 PASS. 모든 모듈·synthetic 의존성·UIA 소비자 통합은 미완료.
+- [ ] W11-04 **PARTIAL** — 최종 공급의 Windows All 기능 PASS / 연속 이동 성능 FAIL. 최종 공급의 빠른 24개월·0.4/0.8페이지 접촉·수정 후 NoTrace 재검사는 미실행.
 - [ ] W11-05 사용자 물리 확인·기존 실행 계약 갱신.
 
-**다음 구현 시작점:** W11-00/00A에서 [OriginalSemanticsBridge.refresh](Nelyx/runtime/app/semantics.ts) → [SemanticsBinding.updateViewSemantics](Nelyx/src/framework/semantics/binding.ts)의 중복 변환과 [Windows Interaction.sync](Nelyx/engine/platform/windows/interaction.hpp) → [SemanticsTree.publish/update](Nelyx/engine/platform/windows/interop/SemanticsTree.h)의 전체 packet 재구성을 우선 대조한다. 새 월의 Source Semantics 생성/metadata 비용도 함께 분리한다. 확인된 경계부터 W11-00B로 수정하고, 남은 지연이 Source/capture/records에 있으면 기존 W11-01–03으로 이어간다. **접근성 원인 확정·수정·A/B·성능 검증은 아직 하지 않았다.** 과거 §24의 짧은 합성 PASS를 새 설계의 근거 없는 성능 완료로 승격하지 않는다.
+**중단 및 재개 계약:** 현재는 **PAUSED / PARTIAL**이며 자동 재개하지 않는다. 사용자가 재개를 요청하면 §11.6의 순서로 현재 diff·공급을 재확인하고 남은 Source 생성과 capture/records, 미지원 모듈의 비용을 분리한다. 공통 직접 입력은 시작점이며, 기존 capture traversal과 module options 구성까지 제거한 전체 journal로 설명하지 않는다. generated constructor 일괄 변경이나 원본 객체/콜백 생략으로 지연을 숨기지 않는다. 사용자 물리 확인·전체 display/scanout은 별도 미검증이다.
+
+## 11. 2026-11-13 구현·측정 기록
+
+### 11.1 대표 경로·소비자와 구현 경계
+
+시작 시 `git status --short`가 비어 있었고, 원본 날짜 → Element/State → render metadata → capture → writer → Content → publication 경로를 다시 읽었다. source/engine `d900a3719162f865b9672ee7a2fd532a8e7790dc2514077965e5d29f90b321d9`, App JS `3f1a0dab7a5dde419b06e3390509fe5be6d032221076ef6aaeec7564b024e045`, HBC `302c88e15d7f1e63ebcaf6168cd561c2d6101976af1e222dafd78e8fe23b0bfb`, engine 356 / App 10 files를 현재 파일로 확인했다. 과거 표를 baseline으로 복사하지 않고 이 공급을 다시 실행했다.
+
+- [App bridge](Nelyx/runtime/app/semantics.ts)는 임시 `SemanticsNode[]`와 게시별 전량 rect Map을 만들지 않는다. 현재 immutable publication과 기존 [observation index](Nelyx/runtime/engine-client/node-index.ts)를 묶은 동기 resolver를 [binding](Nelyx/src/framework/semantics/binding.ts)에 설치한다. 첫 query의 index 구성은 기존 geometry/focus 소비자와 공유하고 query마다 다시 순회하지 않는다. 공개 `updateViewSemantics`의 tree·child/source ID·legacy view alias API는 유지한다.
+- publication/metrics/device/visibility/close mismatch, 숨김·clip 밖·삭제·다른 generation은 null을 반환한다. 반환한 Rect는 freeze하고 이후 게시에서 제자리 변경하지 않는다. stop/close는 resolver를 버린다. stale action listener 동안 rect를 비우고 기존 action dispatch 후 현재 게시로 복원한다. transport의 publication 관찰과 geometry/layers/focus/editing/TapRegion 소비자는 유지한다.
+- [공통 직접 투영](Nelyx/runtime/engine-client/scene.ts)의 `RenderBinding`은 box/stack/paragraph/clip 중 닫힌 data configuration을 기존 codec으로 봉인한다. native handle은 기존 writer checkpoint에서 배정하고 명령의 목적지에 연결한다. 공개 `SceneNode` producer는 기존 mutable/accessor 경로를 사용한다. callback은 App record에 남고 callback 교체와 event-policy 변경을 구분한다.
+- native paint의 다른 node 참조, 실행형 payload, control/editor/image·builder 등 미지원 capability는 기존 adapter로 남긴다. raw `OriginalNativeRender`를 직접 입력으로 잘못 분류하지 않는다. [capture 재연결](Nelyx/runtime/app/capture.ts)은 자식만 바뀌면 부모의 봉인된 program을 공유한다. 같은 program의 accepted config/command는 다시 복제하지 않는다. handle generation 변경은 이전 in-flight bytes를 수정하지 않는다.
+- 새 transaction/queue/renderer·month cache는 추가하지 않았다. 원본 Widget/State/Key/FocusNode·predicate·resolver·lifecycle 실행, 최대 4페이지 준비 정책, Core layout program과 accepted/prepared/published/retired fence는 유지한다.
+
+**남은 구조 비용:** Source module이 만들던 options와 capture의 부모/자식 순회는 아직 남는다. 직접 지원 영역에서 SceneNode 및 generic input snapshot을 줄였지만, render setter부터 필드별로 기록하는 전체 `O(M+E)` journal과 모든 synthetic/Ink 의존성을 완성한 것은 아니다. `bindingRecords`, `bindingCommands`, `bindingProgramReuses`, `projection.bindings/adapters`로 실제 경로를 구분한다.
+
+### 11.2 접근성 비용을 분리한 결과
+
+계측은 기존 App 종료 diagnostics와 Windows stats 출력에 넣었다. constructor마다 타이머를 추가하지 않았다. [controls](Nelyx/runtime/app/controls.ts)는 native Semantics metadata 구성 횟수/경과 시간을 집계하고, App refresh/query, [Core frame](Nelyx/engine/core/scene/frame.cpp)은 assembly/copy/order-check/order, [Windows Interaction](Nelyx/engine/platform/windows/interaction.hpp)과 [UIA tree](Nelyx/engine/platform/windows/interop/SemanticsTree.h)는 packet/sort/provider/notification과 peer 생성/재사용·청취 여부를 분리한다. UI에서 관찰한 Core frame의 집계이며 폐기된 모든 frame의 전수 시간은 아니다. elapsed 시간은 owner 대기를 포함할 수 있고 App 정수 ms의 0을 무비용으로 해석하지 않는다.
+
+직접 입력 첫 표본의 전체 실행 집계:
+
+| 경계 | 관측 | 해석 |
+| --- | --- | --- |
+| A / metadata | 2,353회, 누적 99ms | capture에 포함된 하위 비용. Source SemanticsProperties 생성·label formatting 전체의 독립 시간은 아니다. |
+| B / App | 유효 publication 44회, refresh 누적/최대 1/1ms, rect query 0, 전량 순회·임시 SemanticsNode 0 | 이 실행에서 사각형 query 수요가 없었으므로 게시마다 만들던 목록이 필요하지 않았다. 실제 query 의미는 별도 differential fixture로 검증했다. |
+| C / 관찰된 frame | assembly 31회/9.314ms, copy 107회/3.809ms, order-check 5.507ms, sort 34회/2.967ms | 같은 scene 재사용을 보존했다. 서로 다른 frame의 누적 비용을 한 새 월의 latency로 쓰지 않는다. |
+| D / Windows | sync 200회, packet 누적/최대 90.931/1.365ms, provider 27.564/3.108ms, notification 9.658ms, peer 생성/재사용 605/10,653 | notification은 provider 하위 구간이다. 합산하지 않는다. 모든 sync에서 UIA 청취가 관측돼 비청취 조건으로 보고하지 않는다. |
+
+이 표본은 **Source build/capture/scene에 남은 긴 구간보다 Core/UIA 단계가 작다**는 조사 근거다. Windows provider 전면 재작성이나 접근성 전체 skip을 선택하지 않았다. Source 접근성 constructor와 나머지 Widget 생성의 비중은 추가 분리가 필요하다. 실시간 UIA polling은 초기 위치/시나리오 후의 기능 query와 구분했고, 빠른 활성 입력 구간에는 UIA polling을 넣지 않았다.
+
+### 11.3 기준선과 중간 후보 — 최종 공급 결과와 구분
+
+| 공급/입력 | 관측과 판정 |
+| --- | --- |
+| 시작 공급, 빠른 24개월 | PID 27060 / HWND 3607306 / DPI 192. 12회 재접촉, 120개 전량 접수·소비, 거부 0, 2026-11→2024-11 및 15일 선택·close PASS. 활성 App turn 최대 341.413ms, 표시 offset 공백 최대 383ms / ≥100ms 6회 / ≥250ms 5회, 최대 backlog 2,580px. 기존 500ms 경보 PASS가 W11 목표 PASS는 아니다. |
+| App resolver+계측, 직접 입력 전 | engine `fcd5e7cff95859ed988fb3689c7c4672faadfc666bb20746a4db1d5ec6d33d40`, JS `8b1b0ab99808c118676b7de1fc4a3df7675227cdfbafd2d9f385e34f988afd69`, HBC `9c8f5563fe876025a6892c9be4c2351772f1ac725ca411e06bab762308acd2b2`. 기능/close PASS지만 driver gap 110.760ms가 있어 성능 비교는 **notVerified**. raw offset 공백 723ms를 통과값이나 개선율로 쓰지 않는다. |
+| 같은 공급의 CPU/GC 진단 1회 | 1,243 CPU samples. GC 표본 314개, `__defNormalProp` self 47개, Source build/capture stack이 관측됐다. GC 통계 구간 8.832초의 누적 GC 1.725초, 최대 pause 약 27.351ms, 총 할당 약 1.427GB. 단일 GC가 긴 정체의 원인이라는 증거가 아니며 비프로파일 실행과 개선율을 계산하지 않는다. |
+| 직접 입력 첫 표본 | 같은 engine, JS `59fcb25265b0e279d775732414dfe0b64784c39389fbcbbe8acf9ad86fb623ab`, HBC `d8076b4dea4c6a02e8ed6857650c744876bf939cd92a16da2bec3d2d301dcaf7`. PID 46420 / HWND 1771984 / DPI 192. 120개 전량 접수·소비·거부 0, 24개월 이동·15일 선택·close PASS. driver 최대 77.757ms, offset 최대 364ms / ≥100ms 7회 / ≥250ms 5회, backlog 2,408px로 **W11 FAIL**. Source build/capture/scene의 각 최대 141/111/121ms는 서로 다른 pass일 수 있어 합산하지 않는다. |
+
+첫 직접 표본의 전체 captureNode 반환은 binding 7,149 / adapter 3,462였고 writer는 binding record 14,497회를 처리했다. startup·기존 월·새 월이 섞인 실행 집계이며 cold 월만의 적용률이 아니다. 이후 자식 재연결에서 같은 program의 명령을 다시 복제하지 않도록 보완했으므로 위 JS/HBC와 시간은 그 보완 전 중간 결과다.
+
+### 11.4 좁은 생성기 변경과 검증 범위
+
+[body IR](tools/Nelyx.FrameworkToTypeScript/src/body-ir.ts)과 [Dart emitter](tools/Nelyx.FrameworkToTypeScript/src/dart-emitter.ts)에 선택적 `single-local-property-read` 정책을 추가하고 [날짜 생성 recipe](tools/Nelyx.FrameworkToTypeScript/generate-date-picker.ts)에만 적용했다. analyzer가 local identifier receiver임을 증명하고 출력도 단순 identifier/property인 null-aware 읽기를 엄격한 null 조건식으로 출력한다. 효과가 불명확한 receiver·late 값·호출식은 기존 evaluate-once 경로를 유지한다. getter/Proxy property read 1회, `undefined`의 TypeError, throw identity·임시 변수 순서는 보존한다. 일반 constructor·상태 resolver·generic helper를 일괄 생략하지 않았다.
+
+[달력 generated TS](packages/material/src/generated/date/calendar_date_picker.generated.ts)는 pinned 원본 분석으로 **전체 재생성**했다. day/year theme와 `_FocusedDate.maybeOf`의 정적 IIFE 13개 지점을 줄였고 [생성 문서](packages/material/src/generated/date/README.md)에 적용 경계를 기록했다. [검증기](tools/Nelyx.FrameworkToTypeScript/verify-date-picker.ts)는 실제 `_DayState` selector의 기존/새 출력에 null·undefined·getter·Proxy·throw differential fixture와 잘못된 정책 거부를 추가했다. 이 좁은 변환이 긴 월 준비를 해결했다는 성능 증거는 없다.
+
+기본 Dart는 3.12.2이고 analyzer는 `>=3.13.0-0`을 요구한다. 공식 archive와 SHA256을 대조한 **임시 Dart 3.14.0-296.0.dev**로 전체 `--write`, Material build, `--check --verify`를 수행했다. **75/75 declarations, errors 0**, 원본 Dart 날짜/localization oracle **12 dates / 11 inputs / 4 decimal cases PASS**다. 전역 SDK·PATH는 변경하지 않았고 임시 SDK·download·helper는 성공/실패의 finally에서 삭제했다.
+
+- [새 semantics 검사](Nelyx/eng/check-semantics-publication.mjs): 기존 eager rect oracle, lazy index 1회 공유, 같은 publication의 Rect identity, semanticGeometry/clip/숨김·삭제·generation, publication/metrics/device/visibility, stale action·legacy alias·공개 child/source ID·close PASS. cache는 현재 publication에서 조회된 유효 Rect만 보유한다.
+- [직접 binding 검사](Nelyx/eng/check-render-bindings.mjs): 같은 handle 순서의 reference wire bytes, optional reset·adapter 전환, 새 callback/event bits, reparent·generation, NACK, mutable 값의 명령 봉인, 이전 bytes 불변, in-flight ACK 중 새 update, 자식 변경 시 부모 program 보존 PASS. fake ACK fixture의 범위이며 실제 UIA 재진입·TextPattern oracle을 대체하지 않는다.
+- [이동 게시 판정 검사](Nelyx/eng/check-scroll-movement.mjs): 실제 반영과 입력 소비만 된 상태의 구분, 200ms backlog의 FAIL, 누락된 frame/input·궤적 불일치·NoTrace의 notVerified를 6개 결정적 fixture로 확인했다. 알려진 고정 폭 LTR 궤적에 한정하며 범용 gesture/물리 scanout oracle로 확대하지 않는다.
+- 기존 incremental capture/journal, immediate reads의 실제 Core pending Content·취소 후 복구·publication fence, 재생성 후 날짜 기본값/상태 resolver, GlobalKey·충돌 Key·slot/lifecycle 및 Ink parking/복구 검사 PASS. native frame semantics equivalence·날짜 격자/RTL·빠른 반전·coverage·generation·lease/종료 회귀도 현재 native library로 PASS. 모든 검사는 20분 timeout을 사용한다.
+- Core ESM/declaration/strict type, native/두 Wasm/Windows App SDK 공급, 생성기 tooling type, Material 및 실제 pinned Hermes 앱 번들 빌드 PASS. 변경 파일 lint/format과 diff 검사를 수행했다. 공통 TS 변경의 Web/Android 제품 실행을 완료한 뜻은 아니다.
+
+### 11.5 최종 공급의 통합 실행 — 기능 PASS / 성능 FAIL
+
+최종 [Windows 검사](Nelyx/eng/check-windows-scroll.ps1)는 `-Scenario All -RapidMonths 12 -PrecisionHz 60`으로 실행했다. 임시 SDK 작업과 빌드를 끝낸 뒤 시작했고 사용자 중단 요청 당시 이미 진행 중이던 실행만 정상 종료·회수했다. engine `fcd5e7cff95859ed988fb3689c7c4672faadfc666bb20746a4db1d5ec6d33d40`, ABI 2/schema 313408118, engine 356 / App 10 files, App JS `54c1ce4d2d7320eb2907c6c63d4d0bc69bc4feb55afb280f5786667b268971f3`, HBC `42aa28e51db1c0bc003d36e9292fa983c35842467771339d448491b672f606ab`다. PID 49060 / CLI 18304 / HWND 2228962 / DPI 192로 실제 실행 공급을 연결했다.
+
+| 범위 | 최종 공급의 관측과 판정 |
+| --- | --- |
+| 기능 | 일반 목록 warm 정방향/역방향·새 영역·재방문 4구간, 연속 2026-11→2027-11 12개월, precision cancel, resize 후 달력 header/all days 및 `2027-11-15` 선택·close **PASS**. 픽셀 잉크 표본은 출력했으나 전체 원본 캡처의 시각 수락은 미완료다. |
+| 연속 60Hz 입력 | 360 samples / 6,000.303ms, driver gap p95/최대 17.048/17.161ms, lateness 최대 0.754ms. 연속 입력 362개 접수·거부 0, 실제 월 이동 12개월. 활성 App turn p95/최대 341.282/407.606ms. |
+| 실제 이동 게시 | 고정 폭 LTR의 입력별 목표 offset을 실제 게시 offset과 consumedThrough로 대조했다. 360/360 반영, 누락 0, 요청 궤적 오차 약 `1.67e-10px`. 수신→실제 이동 게시 p95/최대 **267.118/417.732ms**, ≥100ms 88개 / ≥250ms 23개로 **FAIL**. display publication의 관측이며 물리 scanout은 아니다. |
+| 표시 offset 진행 | 활성 연속 구간 공백 최대 **424ms**, ≥100ms 9회 / ≥250ms 4회, 표시/논리 차이 최대 약 **263.733px**. 게시 gap 최대 40.266ms와 구분한다. |
+| 전체 결과 | `functional=PASS`, 이전 `syntheticStallGoal=PASS`, `offsetStallGoal100ms=FAIL`, `movementLatencyGoal=FAIL`, `w11PerformanceGoal=FAIL`, `coverageReadyGoal=notVerified`, `performanceAccepted=false`. |
+| 종료 | exit 0, closed status 0, reservedBytes 0, memoryTotal 0, workersJoined true, appExited true. ringLost/outputDropped 0. bounded traceOverwritten 12,820은 전체 실행의 누적값이며 입력별 반영 판정은 해당 구간의 완전성을 별도로 확인했다. |
+
+마지막 App timing buffer는 192 samples 중 최근 128개를 보유했고 64개가 교체됐다. 그 범위에서 build/capture/scene 최대 **192/199/148ms**, publication observation 최대 **409ms**, layout observation 최대 **380ms**다. 서로 다른 pass와 중첩 구간이므로 합산하지 않는다. 전체 집계에서 projection binding/adapter **14,311/7,698**, writer bindingRecords **37,791**, bindingProgramReuses **23,480**이다. startup·새 월·기존 월이 섞인 누적 횟수이므로 cold 월 적용률이 아니다. 필수 Source 생성·module options·capture traversal·관찰 소비의 긴 구간이 남았다.
+
+접근성 최종 집계는 A metadata **4,565회/207ms**, B publication **278회**, refresh 누적/최대 **18/1ms**, rect query·전량 방문·임시 SemanticsNode **0**이다. C 관찰 frame **624개**, assembly/copy **79/545회**, 누적 **22.639/22.972ms**, order-check/order **39.162/21.378ms**다. D sync **762회**, packet 누적/최대 **450.032/2.170ms**, provider **144.991/9.506ms**, 그 안의 notification **54.417ms**, peer 생성/재사용 **644/56,133**이다. 모든 sync에서 청취가 관측됐으므로 비청취 환경의 비용으로 해석하지 않는다. 이 누적값으로 단일 새 월이나 전체 정체의 원인을 확정하지 않는다.
+
+**중간 실패와 미재검사:** 최종 generator 변경 전 JS `6066fc1a…` / HBC `004731f…`의 `All / 12개월 / NoTrace`는 목록 4구간 뒤 header/grid 월 불일치로 실패했다. Core idle이 최종 App `onPageChanged` 처리 완료를 보장하지 않아, 활성 측정 종료 후 목표 월을 `Wait-Month`로 기다리도록 검사 경계를 보완했다. 그 뒤 traced Calendar와 위 최종 traced All은 통과했지만 **수정 후 NoTrace 재검사는 미실행**이다. 최종 공급의 CalendarFast 24개월, CalendarContact 0.4/0.8페이지도 미실행이며 이전 공급의 결과로 대체하지 않는다.
+
+### 11.6 PAUSED / PARTIAL — 보존 상태와 재개 지점
+
+사용자의 **외출에 따른 중간 마무리 요청**으로 새 구현·추가 검사를 멈췄다. 위 최종 실행을 정상 종료하고 소유 App/CLI PID의 종료를 별도로 확인했다. 임시 SDK·download·검사용 helper와 소유 Windows 자원은 회수했다. 현재 소스 변경과 회귀 검사, 현재 dist는 보존하며 commit/reset·과거 설치본/trace/archive 누적은 하지 않았다. **사용자의 재개 요청 전에는 자동으로 계속하지 않는다.**
+
+재개 시 다음 순서로 이어간다.
+
+1. 현재 diff·source/dist/실행 JS·HBC identity를 다시 대조한다. §11.5는 중단 시점의 공급이며 이후 편집된 공급의 검증으로 옮겨 쓰지 않는다.
+2. cold 월별 필수 Source constructor·SemanticsProperties/label formatting과 번역 helper·module options·capture/records·publication/layout observation 비용을 분리한다. 현재 binding/adapter 누적 횟수를 cold 적용률로 사용하지 않는다.
+3. 남은 RenderBinding owner/part/dependency와 지원 모듈을 완성하고, 기존 checkpoint/ACK/NACK/timeout 및 synthetic/Ink 의존성을 보존한다. 현재 pilot은 필드별 전체 `O(M+E)` journal 완료가 아니다. 생성기 최적화도 증명 가능한 좁은 패턴만 확장하고 전체 regenerate/oracle을 다시 적용한다.
+4. 변경을 묶은 뒤 최종 공급의 빠른 24개월·0.4/0.8페이지 접촉·NoTrace를 포함해 필요한 기능/표시 검사를 수행한다. 100ms offset 정체 0회, 이동 게시 p95 2T/최대 4T, demand→coverage-ready 연결을 별도로 판정한다. 이번 p95/최대는 측정된 **FAIL**이고 demand→coverage-ready는 **notVerified**다.
+5. UIA 비청취·실행 중 client 접속, native Invoke/custom action·editor TextPattern/paragraph lease·재진입, Web/Android 제품 실행과 사용자 물리 트랙패드·전체 display/scanout·resize 성능을 각각 검증한다. Windows scoped PASS를 전체 호환으로 확대하지 않는다.
+
+최종 상태는 **PAUSED / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`다. 실제 기능 회귀 PASS와 연속 표시 성능 FAIL, 아직 실행하지 않은 소비자/물리 수락을 구분한다.

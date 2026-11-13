@@ -248,6 +248,10 @@ struct Frame {
   std::vector<ClipShape> clips;
   std::vector<HitRegionShape> hitRegions;
   std::vector<FrameSemantics> semantics;
+  struct SemanticsTiming {
+    double assemblyMs=0,copyMs=0,orderCheckMs=0,orderMs=0;
+    bool reused=false,orderReused=false;
+  } semanticsTiming;
   void resolveRoute(const Frame* previous,uint64_t sequence,const std::shared_ptr<Ledger>& ledger);
   bool sameInputGeometry(const Frame& other, Handle node) const;
   bool sharesInputGeometry(const Frame& other) const;

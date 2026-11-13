@@ -1183,6 +1183,8 @@ for (const source of new Set(ir.records.map((r: any) => r.source))) {
     local.genericFunctionValues = { policy: 'checked-generic-function-type-witness' };
     delete local.numericFunctions;
   }
+  if (source.endsWith('/calendar_date_picker.dart'))
+    local.lexicalNullReads = { policy: 'single-local-property-read' };
   local.adapters = { ...recipe.adapters };
   local.memberBindings = { ...recipe.memberBindings };
   for (const row of ir.records)

@@ -21,6 +21,7 @@ import { Offset } from '@nelyx/core/ui/offset';
 import { PointerDeviceKind } from '@nelyx/core/ui/pointer';
 import { SemanticsRole } from '@nelyx/core/ui/semantics';
 import { SemanticsAction } from '@nelyx/core/ui/semantics-action';
+import { RenderSemanticsAnnotations } from '@nelyx/core/framework/rendering/semantics-annotations';
 import {
   PointerEnterEvent,
   PointerExitEvent,
@@ -43,6 +44,10 @@ export interface OriginalControlConfiguration {
   readonly paint?: readonly NativePaintEntry[];
   readonly foreground?: readonly NativePaintEntry[];
 }
+export interface SemanticsProjectionDiagnostics {
+  metadataCalls: number;
+  metadataMs: number;
+}
 function invoke(callback: (() => void) | null | undefined): void {
   try {
     callback?.();
@@ -54,6 +59,7 @@ function invoke(callback: (() => void) | null | undefined): void {
 export function originalControlConfiguration(
   render: RenderObject,
   fail: (reason: string) => never,
+  diagnostics?: SemanticsProjectionDiagnostics,
 ): OriginalControlConfiguration | undefined {
   const prototype = Object.getPrototypeOf(render);
   if (prototype === RenderPhysicalShape.prototype || prototype === RenderPhysicalModel.prototype) {
@@ -138,12 +144,24 @@ export function originalControlConfiguration(
     };
   }
   let metadata;
+  const measured = diagnostics && render instanceof RenderSemanticsAnnotations;
+  const started = measured
+    ? typeof performance === 'undefined'
+      ? Date.now()
+      : performance.now()
+    : 0;
   try {
     metadata = nativeRenderMetadata(render);
   } catch (error) {
     return fail(
       'native-render-configuration:' + render.constructor.name + ':' + String(error).slice(0, 256),
     );
+  } finally {
+    if (measured) {
+      ++diagnostics.metadataCalls;
+      diagnostics.metadataMs +=
+        (typeof performance === 'undefined' ? Date.now() : performance.now()) - started;
+    }
   }
   if (metadata?.kind === 'overlay') {
     if (metadata.clip !== 'none' && metadata.clip !== 'hardEdge')

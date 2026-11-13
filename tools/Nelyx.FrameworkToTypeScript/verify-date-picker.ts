@@ -4,6 +4,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { emitDart } from './src/dart-emitter.ts';
+import ts from 'typescript';
 export function verifyDateCompiler(declarations: any[], recipe: any): void {
   if (recipe.source.endsWith('/date_picker.dart')) {
     const rejected = structuredClone(recipe);
@@ -29,6 +30,87 @@ export function verifyDateCompiler(declarations: any[], recipe: any): void {
     assert.throws(() => emitDart(invalid, recipe), /Future representation transfer/);
   }
   if (recipe.source.endsWith('/calendar_date_picker.dart')) {
+    if (recipe.lexicalNullReads) {
+      const baseline = { ...recipe };
+      delete baseline.lexicalNullReads;
+      const selector = (code: string) => {
+        const file = ts.createSourceFile(
+          'selector.ts',
+          code,
+          ts.ScriptTarget.Latest,
+          true,
+          ts.ScriptKind.TS,
+        );
+        let found: ts.ArrowFunction | undefined;
+        const visit = (node: ts.Node) => {
+          if (
+            ts.isArrowFunction(node) &&
+            node.parameters.length === 1 &&
+            node.parameters[0]!.name.getText(file) === 'theme' &&
+            node.body.getText(file).includes('.dayShape')
+          ) {
+            found ??= node;
+            return;
+          }
+          ts.forEachChild(node, visit);
+        };
+        const owner = file.statements.find(
+          (node) => ts.isClassDeclaration(node) && node.name?.text === '_DayState',
+        );
+        assert(owner, 'Missing original day-state owner');
+        visit(owner);
+        assert(found, 'Missing original dayShape selector');
+        return ts.transpileModule('const selector = (' + found.getText(file) + ');', {
+          compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+        }).outputText;
+      };
+      const original = selector(emitDart(declarations, baseline)),
+        specialized = selector(emitDart(declarations, recipe));
+      assert(
+        original.includes('=>') && original !== specialized,
+        'Lexical null-read specialization did not remove an IIFE',
+      );
+      for (const code of [original, specialized]) {
+        const read = Function(code + '\nreturn selector;')();
+        assert.equal(read(null), null);
+        assert.throws(() => read(undefined), TypeError);
+        const effects: string[] = [],
+          value = {};
+        assert.equal(
+          read({
+            get dayShape() {
+              effects.push('get');
+              return value;
+            },
+          }),
+          value,
+        );
+        assert.deepEqual(effects, ['get']);
+        const failure = new Error('source getter');
+        assert.throws(
+          () =>
+            read({
+              get dayShape() {
+                throw failure;
+              },
+            }),
+          (error) => error === failure,
+        );
+        const proxy = new Proxy(
+          { dayShape: value },
+          {
+            get(target, key, receiver) {
+              effects.push(String(key));
+              return Reflect.get(target, key, receiver);
+            },
+          },
+        );
+        assert.equal(read(proxy), value);
+        assert.deepEqual(effects, ['get', 'dayShape']);
+      }
+      const invalid = { ...recipe, lexicalNullReads: { policy: 'unchecked-optional-chain' } };
+      assert.throws(() => emitDart(declarations, invalid), /Unknown lexical null-read/);
+    }
     const state = declarations.find((d: any) => d.name === '_DatePickerModeToggleButtonState');
     assert(state?.mixins?.length);
     const invalid = structuredClone(recipe);

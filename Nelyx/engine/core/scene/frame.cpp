@@ -2,6 +2,7 @@
 #include "../state.hpp"
 #include <algorithm>
 #include <functional>
+#include <chrono>
 #include "semantics_order.hpp"
 namespace nelyx::v2 {
 namespace {
@@ -477,8 +478,13 @@ void View::makeDrawItems(Frame& f)const {
   // Semantic text/custom-action merging is a document operation. Scroll and
   // control properties still get fresh geometry and visibility above.
   const auto* previous=published&&published->scene==f.scene?published.get():nullptr;
+  const auto semanticStarted=std::chrono::steady_clock::now();
+  f.semanticsTiming={};f.semanticsTiming.reused=previous!=nullptr;
   if(previous)f.semantics=previous->semantics;
   else makeSemantics(f,lease.ledger);
+  const auto orderedStarted=std::chrono::steady_clock::now();
+  const auto compositionMs=std::chrono::duration<double,std::milli>(orderedStarted-semanticStarted).count();
+  if(previous)f.semanticsTiming.copyMs=compositionMs;else f.semanticsTiming.assemblyMs=compositionMs;
   bool sameOrder=previous&&previous->items.size()==f.items.size()&&previous->modalRoot==f.modalRoot;
   if(sameOrder){
     Lease scratch(lease.ledger,(geometry.highWater+1)*sizeof(std::optional<Point>));
@@ -499,9 +505,13 @@ void View::makeDrawItems(Frame& f)const {
       translation=delta;
     }
   }
+  const auto orderChecked=std::chrono::steady_clock::now();
+  f.semanticsTiming.orderCheckMs=std::chrono::duration<double,std::milli>(orderChecked-orderedStarted).count();
+  f.semanticsTiming.orderReused=sameOrder;
   if(!sameOrder){
     for(auto& semantic:f.semantics){semantic.parent={};semantic.traversal=UINT32_MAX;}
     orderSemantics(f,lease.ledger);
+    f.semanticsTiming.orderMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-orderChecked).count();
   }
 }
 Handle View::target(double x,double y,const Frame* snapshot)const {
