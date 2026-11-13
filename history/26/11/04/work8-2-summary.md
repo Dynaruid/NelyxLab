@@ -47,6 +47,6 @@ Budget 거부·취소·교체·device generation·close에서 이전 scene/surfa
 
 초기 §13에는 동기 pixels/editing/geometry를 비동기 command/snapshot으로 바꾸는 안이 있었지만, 후속 사용자 기준은 **원래 공개 API 전체의 생성자·동작 호환**이다. Cached snapshot·이름 alias·미이식 import 거부나 AppDrivenBoundary만으로 그 기준을 충족했다고 세지 않는다.
 
-원래 Widget/Element/State/GlobalKey/context·parent-data·RenderObject, 전체 layout/gesture/editing/rich text/font/locale/paint/custom hook·디자인·SDK API와 전체 platform/package 소비 조합을 [work9](../../../../work9.md)로 이월했다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리/표시 `notVerified`를 유지한다.
+원래 Widget/Element/State/GlobalKey/context·parent-data·RenderObject, 전체 layout/gesture/editing/rich text/font/locale/paint/custom hook·디자인·SDK API와 전체 platform/package 소비 조합을 [work9](../05/work9-summary.md)로 이월했다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리/표시 `notVerified`를 유지한다.
 
 [보관 목차](work8-summary.md) · [1부](work8-1-summary.md) · [2a 최종 기록](../05/work8-2a-summary.md) · [3부](work8-3-summary.md)

@@ -54,4 +54,4 @@ OS가 해결한 wheel/momentum과 engine friction을 중복 실행하지 않는�
 
 전체 API/gesture/physics·motion graph·Android port·물리 IME/reader·scanout·성능은 미완료였다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/표시 `notVerified`와 선행 work7의 물리 재확인 대기를 유지한다.
 
-[보관 목차](work8-summary.md) · [2부](work8-2-summary.md) · [후속 work9](../../../../work9.md)
+[보관 목차](work8-summary.md) · [2부](work8-2-summary.md) · [후속 work9](../05/work9-summary.md)

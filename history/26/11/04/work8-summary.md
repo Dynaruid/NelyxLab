@@ -43,6 +43,6 @@ Web은 Emscripten threaded와 non-shared single-worker를 별도 빌드한다. �
 | 엔진 보강 | Canvas/Paint·rich paragraph 표현력, preparation 간 Picture/paragraph/image 재사용, display 연동 clock, cache/damage·animated/texture/platform view·semantics·OS pressure |
 | 물리·성능/P5 | 실제 일반 실행과 입력 source별 조작·display/scanout·지속 frame/resize·메모리 수락 |
 
-현재 진행 문서는 [work9](../../../../work9.md)다. Windows **Windows App SDK**, Linux **GTK4**, macOS **AppKit**의 host 계획과 모바일 RN 소스 선별 재사용·Web DOM/Worker 유지 방침은 work9에서 관리한다. 이는 닫힌 work8의 새 구현 실적으로 소급하지 않는다.
+당시 후속 [work9](../05/work9-summary.md)의 Windows **Windows App SDK**, Linux **GTK4**, macOS **AppKit** host 계획과 모바일 RN 소스 재사용·Web DOM/Worker 방침은 보관 요약으로 이관했다. 이후 실제 소스 이식 교정과 잔여 의무도 그 요약에서 연결한다. 이는 닫힌 work8의 새 구현 실적으로 소급하지 않는다.
 
-[이력 목록](../../../README.md) · [후속 계획](../../../../work9.md)
+[이력 목록](../../../README.md) · [후속 work9 기록](../05/work9-summary.md)

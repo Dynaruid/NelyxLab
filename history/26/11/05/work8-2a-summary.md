@@ -4,7 +4,7 @@
 
 문서: **CLOSED / SUPERSEDED** · 구현: **PARTIAL / 전체 API 호환 gate FAIL / npm 종료 원인 미확정**. 마지막 구현 현황·동작/공급 수치와 미커밋 Flutter 비교를 보존하고, 그 이전 재검토 중 핵심 실패·조사 경계를 요약했다. 본문 수치·‘현재’는 당시 기록이며 이번 보관에서 runtime/API audit/hash·성능을 재검증하지 않았다.
 
-[보관 목차](../04/work8-summary.md) · [2부](../04/work8-2-summary.md) · [3부](../04/work8-3-summary.md) · [후속 work9](../../../../work9.md)
+[보관 목차](../04/work8-summary.md) · [2부](../04/work8-2-summary.md) · [3부](../04/work8-3-summary.md) · [후속 work9](work9-summary.md)
 
 ## 현재 구현 현황
 
@@ -57,7 +57,7 @@ P1의 기존 Widget/Element/State/GlobalKey/BuildContext/Inherited/parent-data �
 
 P4의 Android/Apple/Linux host·generation reload와 전체 package/API/platform 조합, process/GPU의 불투명한 peak 통제는 남는다. P5의 물리 IME/reader/trackpad·display/scanout·성능도 별도 수락이다. `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리/display `notVerified`를 유지한다. npm 종료 원인은 미확정이며 아래의 과거 두 실패를 새 통과 기록으로 취소하지 않는다.
 
-이후 구현·소스/공급 확인·기능/성능 gate는 [work9](../../../../work9.md)에서 관리한다. 아래 Flutter 비교의 독립 작업 축과 P1–P5 미완료를 유지하고 API scope 축소·이름 alias·TS fallback으로 완료시키지 않는다.
+이후 구현·소스/공급 확인·기능/성능 gate를 이어받은 [work9](work9-summary.md)는 날짜별 요약으로 보관했다. 아래 Flutter 비교의 독립 작업 축과 P1–P5 미완료를 유지하고 API scope 축소·이름 alias·TS fallback으로 완료시키지 않는다.
 
 ## Flutter 엔진 C++ 비교
 
@@ -120,4 +120,4 @@ Archive 소비자의 npm install 자식 프로세스가 과거 **두 번**, 출�
 | npm | **fixture 보완 후 통과 / 근본 원인 미확정** |
 | Native 성능·물리 입력/display | **notVerified / false**. 실제 일반 실행·실기기 입력과 display 관측을 별도로 요구 |
 
-`performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 IME/reader/trackpad·display/scanout `notVerified`를 [work9](../../../../work9.md)로 이월했다. 소스 비교·문서 검사나 자동 수치로 이 상태를 승격하지 않는다.
+`performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 IME/reader/trackpad·display/scanout `notVerified`를 [work9](work9-summary.md)로 이월했다. 소스 비교·문서 검사나 자동 수치로 이 상태를 승격하지 않는다.

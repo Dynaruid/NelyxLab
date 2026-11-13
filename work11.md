@@ -1,6 +1,6 @@
 # work11 — 새 월 준비를 위한 Source 실행·렌더 투영의 결합
 
-작성·갱신: **2026-11-13 KST** · 상태: **PAUSED / PARTIAL** · 대상: [work10-a1](work10-a1.md)의 빠른 월 이동 정체
+작성·갱신: **2026-11-13 KST** · 상태: **PAUSED / PARTIAL** · 대상: [work10-a1 보관 요약](history/26/11/11/work10-a1-summary.md)의 빠른 월 이동 정체
 
 **중간 마무리:** 전체 성능 작업은 사용자의 중간 마무리 요청에 따라 **PAUSED / PARTIAL**을 유지한다. 후속 “최신 버전으로 바꿔줘” 요청으로 Windows 직접 Hermes 공급 전환만 완료했다. 현재 공급·검증은 **§19**, 나머지 미완료 의무는 **§18.2와 §19.4**에 있다.
 
@@ -10,7 +10,7 @@
 
 **접근성 검토 반영:** 설계 단계에서 §2.1–2.4의 소스 근거·소비자·개편 계약을 추가하고 **W11-00A/00B의 비용 분리와 접근성 증분 갱신을 먼저 수행**하도록 순서를 바꿨다. 이후 §11의 실제 실행에서는 App refresh와 Core/UIA 갱신보다 긴 Source build/capture/scene이 남았다. 접근성을 403ms 정체의 주원인으로 확정하지 않는다.
 
-§1–9는 새 아이디어·설계·구현 계획이며 그 안의 목표는 달성값이 아니다. [work10-a1 §24](work10-a1.md#24-2026-11-12-새-월-격자의-source-왕복과-반복-할당-제거)의 결과는 이전 실행 기록으로 보존하고, 이번 재개 공급과 실행은 §12–17에서 구분한다. 기존 문서를 종료하거나 이미 구현한 기능을 초기화하지 않는다. 기존 실행 계약은 [work10](work10.md)과 [work10-a1](work10-a1.md)에 남긴다.
+§1–9는 새 아이디어·설계·구현 계획이며 그 안의 목표는 달성값이 아니다. [work10-a1 원문 §24의 보관 요약](history/26/11/11/work10-a1-summary.md#새-월-격자의-source-왕복과-반복-할당-제거)은 이전 실행 기록이며 이번 재개 공급과 실행은 §12–17에서 구분한다. 이미 구현한 기능을 초기화하지 않는다. 기존 실행 계약은 [work10 요약](history/26/11/11/work10-summary.md)과 [work10-a1 요약](history/26/11/11/work10-a1-summary.md)에 보존하고 요청된 루트 원문은 삭제했다.
 
 제품 판정은 **PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 사용자 물리 입력·전체 display/scanout 수락 **notVerified**를 유지한다.
 
@@ -26,7 +26,7 @@
 | 같은 실행의 native 관측 | Core 개별 호출 최대 9.801/6.558ms, record/submit 5.301/6.197ms, 관측 GPU 완료 12.474/13.010ms | 이 표본은 Source 우선 조사 근거다. Core·GPU가 모든 실행에서 병목이 아니라는 증명은 아니다. |
 | resident 범위의 0.4·0.8페이지 접촉 | frame의 consumedThrough와 누적 delta 대조 오차 0.000001px 미만. 수신→게시 최대 17.441–26.336ms | 준비된 내용의 fractional 이동은 이미 가능하다. 새 월의 준비를 앞지르는 순간을 해결해야 한다. |
 
-위 수치는 모두 [work10-a1 §24.3](work10-a1.md#243-최종-공급통합-검증)의 기록이다. ≥500ms 0회는 이전 정지 목표의 부분 진전이며, 100–403ms 정체와 backlog의 해결이 아니다. GC 누적량과 짧은 pause의 이전 진단도 단일 GC가 긴 정지의 원인이라는 증거로 사용하지 않는다.
+위 수치는 모두 [work10-a1 원문 §24.3의 보관 요약](history/26/11/11/work10-a1-summary.md#최종-공급과-windows-통합-검증)의 기록이다. ≥500ms 0회는 이전 정지 목표의 부분 진전이며, 100–403ms 정체와 backlog의 해결이 아니다. GC 누적량과 짧은 pause의 이전 진단도 단일 GC가 긴 정지의 원인이라는 증거로 사용하지 않는다.
 
 ### 1.2 근본적인 구조 가설: 소비 속도보다 비싼 새 내용 생산
 
@@ -52,7 +52,7 @@
 | [scroll.ts](Nelyx/runtime/app/scroll.ts)의 `NativeListState` | retained entry, delegate generation, Key/KeepAlive, Core demand, 취소된 창 복구가 있다. | 기존 자식 재사용 정책을 보존한다. 새 달을 이전 달의 State로 재활용하지 않는다. |
 | [grid.ts](Nelyx/runtime/app/grid.ts)·[native-grid.ts](Nelyx/src/framework/rendering/native-grid.ts) | 제한된 원본 격자는 Content의 실제 viewport를 사용하는 숫자 layout program으로 실행된다. Element별 현재 program을 공유한다. | 이 계약을 보존한다. 제거된 격자 LayoutBuilder 왕복을 다시 만들지 않는다. |
 
-[work10](work10.md)도 직접 변경 기록과 중간 트리 제거를 목표로 했다. 따라서 **직접 journal이라는 발상 자체를 새로운 성과처럼 포장하지 않는다.** 이번의 추가 제안은 그 목표를 새 월의 cold 생성까지 적용하기 위해 **생성기 specialization, 모듈별 투영 절차, writer의 직접 입력 경로**를 한 묶음으로 설계하는 것이다. 단순 payload 공유 이후에도 남은 작업을 실제로 없애는 데 초점을 둔다.
+[work10](history/26/11/11/work10-summary.md)도 직접 변경 기록과 중간 트리 제거를 목표로 했다. 따라서 **직접 journal이라는 발상 자체를 새로운 성과처럼 포장하지 않는다.** 이번의 추가 제안은 그 목표를 새 월의 cold 생성까지 적용하기 위해 **생성기 specialization, 모듈별 투영 절차, writer의 직접 입력 경로**를 한 묶음으로 설계하는 것이다. 단순 payload 공유 이후에도 남은 작업을 실제로 없애는 데 초점을 둔다.
 
 ### 2.1 접근성 비용을 네 경계로 나눠 확인했다
 
@@ -352,7 +352,7 @@ W11-00A에서 확인한 비용에 해당하는 부분만 묶어서 구현한다.
 
 - 사용자의 빠른 왕복·재접촉에서 체감 끊김·날짜 선택·반전·정상 close를 확인한다. 자동 검사는 물리 결과를 대신하지 않는다.
 - 미해결 문제와 다음 파일/조건을 기존 문서에 연결한다. 문서 상태 변경을 구현·전체 제품 완료로 해석하지 않는다.
-- [work10 §8](work10.md#8-work9-종료와-잔여-의무-이관)의 다른 API·플랫폼·제품 전환 의무는 그대로 유지한다.
+- [work10 원문 §8의 잔여 의무 요약](history/26/11/11/work10-summary.md#work9-잔여-의무-이관)의 다른 API·플랫폼·제품 전환 의무는 그대로 유지한다.
 
 ## 8. 반드시 통과해야 할 검증
 
@@ -886,7 +886,7 @@ Web threaded·single-worker 모두 **6개월 전진/6개월 복귀·header/전�
 1. §17.5 identity와 현 diff를 다시 확인한다. 다음 후보인 **표준 instance-field initializer**는 compiler의 `DefineOwnProperty`와 초기화 호출 코드까지 읽은 **분석 단계**다. 지원 flag·제품 코드·효과 oracle·성능 비교는 아직 추가하지 않았다. descriptor·setter·반환 객체·computed key·실행/예외 순서·`new.target`·전체 App 의미를 먼저 보존하고, 실제 공급에서 효용을 확인한 뒤 채택 여부를 정한다.
 2. **전체 render setter별 dirty journal과 남은 adapter**, 원본 Source 필수 실행/할당의 owner별 독립 분리, direct projection을 끈 성능 비교를 완료해야 한다. 작은 값 factory·mutable cache·원본 constructor/callback 생략으로 대체하지 않는다.
 3. **demand revision→Source pass→Content ready→최초 실제 이동 게시**의 bounded 인과 연결과 coverage-ready p95/최대가 남는다. 이미 측정한 이동 지연 FAIL을 이 미검증 값과 혼동하지 않는다.
-4. **실제 UIA 소비자와 관찰 조건**, 원본 visual 검토·사용자 물리 입력·display/scanout·resize 성능, [work10 §8](work10.md#8-work9-종료와-잔여-의무-이관)의 다른 API/플랫폼·제품 전환 의무는 남는다. Windows/Web 기능 PASS를 이 범위의 완료로 확대하지 않는다.
+4. **실제 UIA 소비자와 관찰 조건**, 원본 visual 검토·사용자 물리 입력·display/scanout·resize 성능, [work10 원문 §8의 잔여 의무 요약](history/26/11/11/work10-summary.md#work9-잔여-의무-이관)의 다른 API/플랫폼·제품 전환 의무는 남는다. Windows/Web 기능 PASS를 이 범위의 완료로 확대하지 않는다.
 
 최종 중단 상태는 **PAUSED / PARTIAL**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, physical/display/scanout **notVerified**다. 사용자가 재개를 요청하기 전까지 새 작업을 시작하거나 자동 재개하지 않는다.
 

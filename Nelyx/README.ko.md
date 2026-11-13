@@ -20,7 +20,7 @@ Workspace의 `tsc`는 `@typescript/native` alias의 native TypeScript 7.0.2를 �
 - Web: `npm.cmd run run:engine-v2:web` 후 `http://127.0.0.1:8192/isolated/`에서 threaded 자동 선택, `/plain/`에서 비격리 single-worker 자동 선택을 확인합니다. `?profile=threaded`는 격리가 필요하며 명시 요구·자산/ABI 오류는 TS renderer 전환 없이 실패합니다. 정적 배포에는 CLI의 `pack --engine v2 --target web` 출력을 사용하고 격리 route의 worker/asset에 일관된 COOP/COEP headers를 제공해야 합니다.
 - 개발 확인: `npm.cmd run check:types`, `npm.cmd run lint`, `npm.cmd run format:check`와 위 제품 빌드·실행 명령을 사용합니다. 독립 회귀 테스트와 API 감사 도구는 2026-11-07 사용자 요청으로 제거했습니다.
 
-Windows/threaded Web은 독립 Content/Render owner를 연결합니다. Single-worker는 협력 실행이며 `contentIndependent=false`입니다. Testbed는 v2 Widget/State/Key로 선언하고 C++ layout·intrinsic/dry query·편집 document·semantics를 사용합니다. Arabic/Hebrew fallback·color emoji를 공급합니다. 전체 Widget/Material/Cupertino API·gesture·Android는 **PARTIAL**이며 실제 IME/reader·trackpad/FPS 수락은 별도입니다. [work8 구현 기록](../history/26/11/04/work8-2-summary.md#이번-작업의-구현검증-현황)과 [work9 잔여 계획](../work9.md)을 참고하세요.
+Windows/threaded Web은 독립 Content/Render owner를 연결합니다. Single-worker는 협력 실행이며 `contentIndependent=false`입니다. Testbed는 v2 Widget/State/Key로 선언하고 C++ layout·intrinsic/dry query·편집 document·semantics를 사용합니다. Arabic/Hebrew fallback·color emoji를 공급합니다. 전체 Widget/Material/Cupertino API·gesture·Android는 **PARTIAL**이며 실제 IME/reader·trackpad/FPS 수락은 별도입니다. [work8 구현 기록](../history/26/11/04/work8-2-summary.md#이번-작업의-구현검증-현황)과 [work9 보관 요약](../history/26/11/05/work9-summary.md)을 참고하세요.
 
 Client는 승인 document와 scene 활성화를 구별합니다. ACK timeout 뒤에는 보관한 bytes의 `queryCommitResult()` 또는 `retryCommit()`을 사용하며 이미 승인된 변경을 취소한 것으로 간주하지 않습니다. Provider frame hold가 남으면 close는 `busy`를 반환하므로 host가 먼저 회수해야 합니다. `reservedBytes`는 내부 reservation이며 process RSS나 별도 GPU/provider heap의 합계가 아닙니다.
 
@@ -45,7 +45,7 @@ v2 `ImageResource` 경로는 큰 encoded 이미지를 256 KiB chunk로 나누며
 
 `EditingController('초깃값')`를 `EditableText`에 부착한 뒤 `refresh()`로 revision을 받고 `edit({kind:'replace',revision,text,base,extent,policy})`로 조건부 수정합니다. Text/selection/composing은 Core가 보유하고 undo/redo를 제공합니다. 같은 handle의 초깃값을 바꾸지 말고 편집 명령을 사용하세요. OS/browser composing 종료 전 App replacement는 거부될 수 있습니다. `semanticsSnapshot()`은 게시 world geometry와 최신 비시각 편집 값을 구별하며, `focus()`/`semanticAction()`은 게시 ID·focus session·node 세대를 검사합니다. Windows는 TSF/UIA, Web은 `dom-textarea/aria`를 연결합니다. 실제 IME 후보창·전체 keyboard/clipboard/reader 조합은 미검증입니다.
 
-원래 `Semantics`의 identifier·정규 `OrdinalSortKey` 그룹·`customSemanticsActions`를 Windows/Web bridge에 연결했습니다. Core가 최종 geometry로 게시 의미 트리의 순서를 정하고, Windows는 AutomationId·가상 Invoke 항목, Web은 ARIA ownership·접근성 action 버튼으로 전달합니다. 저수준 client는 `semanticAction(node, publication, 'custom', 0n, action.id)`를 호출합니다. 임의 sort-key subclass는 아직 지원하지 않습니다. Windows 외부 UIA Invoke·reader 음성 검증은 남아 있으며 [work9-b](../work9-b.md)에 범위를 기록합니다.
+원래 `Semantics`의 identifier·정규 `OrdinalSortKey` 그룹·`customSemanticsActions`를 Windows/Web bridge에 연결했습니다. Core가 최종 geometry로 게시 의미 트리의 순서를 정하고, Windows는 AutomationId·가상 Invoke 항목, Web은 ARIA ownership·접근성 action 버튼으로 전달합니다. 저수준 client는 `semanticAction(node, publication, 'custom', 0n, action.id)`를 호출합니다. 임의 sort-key subclass는 아직 지원하지 않습니다. Windows 외부 UIA Invoke·reader 음성 검증은 남아 있으며 [work9-b 보관 요약](../history/26/11/09/work9-b-summary.md)에 범위를 보존합니다.
 
 정규 keyboard 입력은 host가 관측한 `key/code/location`을 Core publication 검사 뒤 Source Focus/HardwareKeyboard로 전달합니다. Web은 DOM identity를 보존하고 Windows는 수정한 RNW table과 WM_KEY scan/extended 필드를 소비합니다. 저수준 `keyBody(publication, virtualCode, down, modifiers, repeat, clipboardSnapshot, {key, code, location})`는 상한이 있는 UTF-8 identity를 받으며 기존 숫자 packet도 유지합니다. Resize/focus 경계에서 준비되지 않은 관측은 거부합니다. Windows layout별 label·dead key·물리 장치 수락은 PARTIAL입니다. Demo → Text inputs → Test keyboard에서 Source 키 콜백을 볼 수 있습니다. 방향이 다른 semantics label/hint 병합도 Source의 방향 embedding을 보존합니다.
 
@@ -79,9 +79,9 @@ Editor의 명시적인 `commit`/`cancel` replacement는 host의 실제 compositi
 
 `WidgetHost.execution`은 ACK를 받은 native 명령/transaction·App geometry 선언·fallback 거부 횟수와 이유를 보고합니다. ACK 전에는 `observed=false`이며, C++ `transactionWork` 및 해당 장면의 실제 layout/paint 작업과 대조합니다. 미지원 Widget은 `fallbackPolicy: 'reject-unported'`로 실패합니다. 빌드 manifest의 `routing`에는 실제 검사한 import graph가 있습니다. 종전의 고정 `fallbacks=0`을 대신하며 성능·display 수락과는 구별합니다.
 
-일반 entry·자산·단독 패키지는 [SDK runner 안내](sdk/README.ko.md#일반-v2-프로젝트)를 따릅니다. 허용한 기존 value API는 원래 source/생성자를 재사용합니다. 독립 API 감사 도구는 제거했으며 기존 전체 Widget/RenderObject/디자인/SDK API 호환성은 계속 미완료입니다. [work9 API 호환 계획](../work9-2.md#8-기존-공개-api-호환-작업)과 [work8 기록](../history/26/11/05/work8-2a-summary.md#현재-구현-현황)을 참고하세요.
+일반 entry·자산·단독 패키지는 [SDK runner 안내](sdk/README.ko.md#일반-v2-프로젝트)를 따릅니다. 허용한 기존 value API는 원래 source/생성자를 재사용합니다. 독립 API 감사 도구는 제거했으며 기존 전체 Widget/RenderObject/디자인/SDK API 호환성은 계속 미완료입니다. [work9 API 호환 보관 요약](../history/26/11/05/work9-2-summary.md#공개-api-호환과-소유권)과 [work8 기록](../history/26/11/05/work8-2a-summary.md#현재-구현-현황)을 참고하세요.
 
-일반 App은 `@nelyx/sdk/app`과 원래 Widget/Element/State 클래스를 사용합니다. Box/Flex/Stack·정렬/padding·clip·transform·RepaintBoundary·ColoredBox는 각 Core 모듈에서 native 설정을 제공합니다. Scene compiler는 정확히 등록한 prototype의 설정을 읽으며 TS layout/paint/hit-test를 실행하거나 미등록 render subclass를 허용하지 않습니다. Paragraph/image와 다른 render 계열의 잔여 이관은 [work9-b](../work9-b.md)에서 관리합니다.
+일반 App은 `@nelyx/sdk/app`과 원래 Widget/Element/State 클래스를 사용합니다. Box/Flex/Stack·정렬/padding·clip·transform·RepaintBoundary·ColoredBox는 각 Core 모듈에서 native 설정을 제공합니다. Scene compiler는 정확히 등록한 prototype의 설정을 읽으며 TS layout/paint/hit-test를 실행하거나 미등록 render subclass를 허용하지 않습니다. Paragraph/image와 다른 render 계열의 잔여 이관은 [work9-b 보관 요약](../history/26/11/09/work9-b-summary.md)에 보존합니다.
 
 ## 모듈
 

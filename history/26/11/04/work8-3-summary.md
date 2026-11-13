@@ -65,6 +65,6 @@ Native/threaded의 제품 평가는 같은 모니터·해상도·배율·창 크
 
 Source·ABI·runtime/compiler·Skia/CanvasKit·SDK·설치본·실행 bundle identity와 장면 안의 실제 C++ 작업을 대조한다. 작업0/notObserved·고정 fallback0·선택 옵션·build graph만으로 실행/성능을 인정하지 않는다. 테스트 timeout은 **20분**, 검증 임시·이전 dist/staging·설치본/receipt/log는 finally에서 정리하고 현재 공급만 유지한다.
 
-최종 W8는 **PARTIAL**, API gate **FAIL**, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/표시 `notVerified`였다. [work9](../../../../work9.md)의 단계·대상별 gate가 이후 진행 기준이다.
+최종 W8는 **PARTIAL**, API gate **FAIL**, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/표시 `notVerified`였다. 후속 [work9](../05/work9-summary.md)의 단계·대상별 gate와 이월 경계를 보관 요약에 보존했다.
 
 [보관 목차](work8-summary.md) · [2부](work8-2-summary.md) · [2a 최종 기록](../05/work8-2a-summary.md)
