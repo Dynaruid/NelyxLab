@@ -84,8 +84,21 @@ namespace Nelyx.ScrollCheck {
       return Precision60(x, y, samples, dx, true);
     }
     public Task<Injection> Precision60(double x, double y, int samples, double dx, bool stopBeforeLift) {
+      return Precision60(x, y, samples, dx, stopBeforeLift, 1);
+    }
+    // Scale the trajectory's clock, preserving its sample count and distance.
+    // The render/display target remains 60 Hz; 3x means 180 input updates/sec.
+    public Task<Injection> Precision60(double x, double y, int samples, double dx, bool stopBeforeLift, int speed) {
+      return PrecisionSequence(x, y, samples, dx, stopBeforeLift, speed, 0);
+    }
+    public Task<Injection> PrecisionReverse(double x, double y, int samplesPerLeg, double dx, int speed) {
+      if (samplesPerLeg < 1 || samplesPerLeg > 900) throw new ArgumentOutOfRangeException("samplesPerLeg");
+      return PrecisionSequence(x, y, samplesPerLeg * 2, dx, true, speed, samplesPerLeg);
+    }
+    Task<Injection> PrecisionSequence(double x, double y, int samples, double dx, bool stopBeforeLift, int speed, int reverseAt) {
       if (window == IntPtr.Zero || samples < 1 || samples > 1800 || (precisionTask != null && !precisionTask.IsCompleted))
         throw new InvalidOperationException("60Hz precision injection is unavailable or unbounded");
+      if (speed != 1 && speed != 3) throw new ArgumentOutOfRangeException("speed");
       cancelPrecision = 0;
       precisionTask = Task.Factory.StartNew(delegate {
         var result = new Injection { Sent = new double[samples], Lateness = new double[samples] };
@@ -96,7 +109,7 @@ namespace Nelyx.ScrollCheck {
           Send("precision start " + Number(x) + " " + Number(y) + " 0 0 " + Number(result.Started));
           for (var i = 0; i < samples; ++i) {
             if (Volatile.Read(ref cancelPrecision) != 0) throw new OperationCanceledException("Precision injection stopped");
-            var target = result.Started + (i + 1) / 60.0;
+            var target = result.Started + (i + 1) / (60.0 * speed);
             var remaining = target - Desktop.Now;
             if (remaining > 0) {
               long due = -Math.Max(1, (long)Math.Ceiling(remaining * 10000000));
@@ -104,7 +117,8 @@ namespace Nelyx.ScrollCheck {
                 throw new InvalidOperationException("60Hz precision input timer failed");
             }
             var at = Desktop.Now; result.Sent[i] = at; result.Lateness[i] = Math.Max(0, (at - target) * 1000);
-            Send("precision update 0 0 " + Number(dx) + " 0 " + Number(at)); ++result.Samples;
+            var delta = reverseAt > 0 && i >= reverseAt ? -dx : dx;
+            Send("precision update 0 0 " + Number(delta) + " 0 " + Number(at)); ++result.Samples;
           }
           result.Ended = Desktop.Now;
           // Stop movement before lifting so the requested distance is measured

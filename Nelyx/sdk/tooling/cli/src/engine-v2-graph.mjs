@@ -167,6 +167,7 @@ export function inspectEngineV2Graph(inputs, coreDirectory, metadata = {}) {
         implementation === 'app.js' ||
         implementation === 'engine.js' ||
         implementation === 'runtime/app-session.js' ||
+        implementation === 'runtime/source-clock.js' ||
         (originalApp &&
           /^runtime\/(app-services|clipboard-service|platform-messages|plugin-port)\.js$/.test(
             implementation,

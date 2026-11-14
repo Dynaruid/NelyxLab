@@ -5,7 +5,12 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { emitDart } from './src/dart-emitter.ts';
 import ts from 'typescript';
-import { protect, finalFieldProtector } from '../../Nelyx/src/ui/value-math.ts';
+import {
+  protect,
+  finalFieldProtector,
+  checkedInteger,
+  modulo,
+} from '../../Nelyx/src/ui/value-math.ts';
 import { verifyLocalFunctions, verifyGeneratedLocalFunctions } from './verify-local-functions.ts';
 export function verifyDateCompiler(declarations: any[], recipe: any): void {
   if (recipe.source.endsWith('/date_picker.dart')) {
@@ -32,6 +37,119 @@ export function verifyDateCompiler(declarations: any[], recipe: any): void {
     assert.throws(() => emitDart(invalid, recipe), /Future representation transfer/);
   }
   if (recipe.source.endsWith('/calendar_date_picker.dart')) {
+    if (recipe.integerGuardFolding) {
+      const baseline = { ...recipe };
+      delete baseline.integerGuardFolding;
+      const original = emitDart(declarations, baseline),
+        specialized = emitDart(declarations, recipe);
+      assert(
+        (specialized.match(/checkedInteger\(/g) ?? []).length <
+          (original.match(/checkedInteger\(/g) ?? []).length,
+        'Adjacent guard folding removed no generated checks',
+      );
+      const header = (code: string, effects: string[], counts: { guards: number }) => {
+        const file = ts.createSourceFile(
+          'header.ts',
+          code,
+          ts.ScriptTarget.Latest,
+          true,
+          ts.ScriptKind.TS,
+        );
+        const owner = file.statements.find(
+          (node) => ts.isClassDeclaration(node) && node.name?.text === '_DayPickerState',
+        ) as ts.ClassDeclaration;
+        const method = owner.members.find(
+          (node) => ts.isMethodDeclaration(node) && node.name.getText(file).endsWith('dayHeaders'),
+        ) as ts.MethodDeclaration;
+        assert(method, 'Missing pinned day-header source');
+        const text = ts.transpileModule(
+          'class Header {' + method.getText(file) + '}\nreturn new Header();',
+          {
+            compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+          },
+        ).outputText;
+        class Excluded {
+          constructor(readonly options: unknown) {}
+        }
+        const instance = Function(
+          'checkedInteger',
+          'modulo',
+          'DateTime',
+          'dateListAt',
+          'dateListAdd',
+          'ExcludeSemantics',
+          'dateCenter',
+          'dateText',
+          text,
+        )(
+          (value: number) => {
+            ++counts.guards;
+            return checkedInteger(value);
+          },
+          modulo,
+          { daysPerWeek: 7 },
+          (values: unknown[], index: number) => values[index],
+          (values: unknown[], value: unknown) => values.push(value),
+          Excluded,
+          (value: unknown) => value,
+          (value: unknown, style: unknown) => ({ value, style }),
+        );
+        const name = Object.getOwnPropertyNames(Object.getPrototypeOf(instance)).find((name) =>
+          name.endsWith('dayHeaders'),
+        )!;
+        return (start: number, sentinel?: object) =>
+          instance[name](null, {
+            get firstDayOfWeekIndex() {
+              effects.push('first');
+              return start;
+            },
+            get narrowWeekdays() {
+              effects.push('weekdays');
+              return new Proxy(['S', 'M', 'T', 'W', 'T', 'F', 'S'], {
+                get(target, key, receiver) {
+                  effects.push(String(key));
+                  if (sentinel && key === '2') throw sentinel;
+                  return Reflect.get(target, key, receiver);
+                },
+              });
+            },
+          });
+      };
+      for (const start of [0, 1, 6]) {
+        const a: string[] = [],
+          b: string[] = [],
+          ca = { guards: 0 },
+          cb = { guards: 0 };
+        const before = header(original, a, ca)(start),
+          after = header(specialized, b, cb)(start);
+        assert.equal(JSON.stringify(after), JSON.stringify(before));
+        assert.deepEqual(b, a);
+        assert(cb.guards < ca.guards, 'Pinned header executed the same redundant integer guards');
+      }
+      for (const source of [original, specialized]) {
+        const effects: string[] = [],
+          read = header(source, effects, { guards: 0 }),
+          sentinel = { reason: 'weekday getter' };
+        assert.throws(
+          () => read(0, sentinel),
+          (error) => error === sentinel,
+        );
+        for (const invalid of [NaN, Infinity, 0.5, Number.MAX_SAFE_INTEGER + 1])
+          assert.throws(() => read(invalid));
+      }
+      assert.throws(
+        () => emitDart(declarations, { ...recipe, integerGuardFolding: { policy: 'unchecked' } }),
+        /integer guard folding policy/,
+      );
+      assert.throws(
+        () =>
+          emitDart(declarations, {
+            ...recipe,
+            imports: { ...recipe.imports, checkedInteger: 'user-adapter' },
+          }),
+        /integer guard folding policy/,
+      );
+    }
     if (recipe.localFunctionInlining) {
       verifyLocalFunctions();
       assert.equal(recipe.localFunctionInlining.methods.length, 2);

@@ -129,6 +129,7 @@ for (const key of [
 recipe.importEmission = { policy: 'used-identifiers' };
 delete recipe.methodTypeWitnesses;
 recipe.sourceFlow = { policy: 'resolved-source-flow' };
+recipe.integerGuardFolding = { policy: 'adjacent-canonical-integer-guards' };
 recipe.iteration = { policy: 'host-iterable' };
 recipe.constantConstructors = old.constantConstructors;
 recipe.typeBindings[

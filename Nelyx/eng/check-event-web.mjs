@@ -153,7 +153,11 @@ try {
             const action = h.native.options.onSemanticAction;
             h.native.options.onSemanticAction = (event, perform) => {
               const source = event.semanticSource ?? event.node;
-              const record = h.native.accepted.get(source.slot + ':' + source.generation);
+              const record = [...h.native.accepted.values()].find(
+                (candidate) =>
+                  candidate.handle.slot === source.slot &&
+                  candidate.handle.generation === source.generation,
+              );
               const row = {
                 node: event.node,
                 source,

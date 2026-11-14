@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { RenderObject, NativeRenderChange } from '@nelyx/core/framework/rendering/object';
+import { nativeRenderFields } from '@nelyx/core/framework/rendering/object';
 import { protocol as p } from '../engine-client/schema.ts';
 import {
   retainSceneConfiguration,
@@ -10,10 +11,26 @@ import {
 
 type Count = { value: number };
 type Refresh = (count: Count, depth: number) => SceneNode;
-type Child = {
+type Build = (fields: number, previous: SceneNode | undefined, initial: boolean) => SceneNode;
+/** One host supplies these methods for its lifetime. Child records retain only
+ * their edge input; reading a reused node needs no new build/refresh closure. */
+export interface RenderSceneProjection<Input> {
+  build(
+    render: RenderObject,
+    count: Count,
+    depth: number,
+    input: Input | undefined,
+    fields: number,
+    previous: SceneNode | undefined,
+    initial: boolean,
+  ): SceneNode;
+  refresh(render: RenderObject, count: Count, depth: number, input: Input | undefined): SceneNode;
+}
+type Child<Input> = {
   render: RenderObject;
   scene: SceneNode;
-  refresh: Refresh;
+  refresh: Refresh | undefined;
+  input?: Input | undefined;
   depth: number;
   count: number;
 };
@@ -27,7 +44,11 @@ const changeBits: Record<NativeRenderChange, number> = {
   resource: 32,
 };
 type Dependencies = Map<RenderObject, number>;
-type Entry = {
+// Most owners have neither registrations nor cross-owner dependencies. These
+// sentinels are never mutated; allocate a private map only at its first write.
+const emptyUses: Uses = new Map();
+const emptyDependencies: Dependencies = new Map();
+type Entry<Input> = {
   scene: SceneNode;
   parent: RenderObject | undefined;
   input: string;
@@ -36,16 +57,16 @@ type Entry = {
   height: number;
   dynamic: boolean;
   hasDynamic: boolean;
-  children: readonly Child[];
+  children: readonly Child<Input>[];
   uses: Uses;
   dependencies: ReadonlyMap<RenderObject, number>;
 };
-type CaptureFrame = {
+type CaptureFrame<Input> = {
   depth: number;
   deepest: number;
   dynamic: boolean;
   hasDynamic: boolean;
-  children: Child[];
+  children: Child<Input>[];
   uses: Uses;
   dependencies: Dependencies;
 };
@@ -53,12 +74,13 @@ type CaptureFrame = {
 /** Configuration cache with independently dirty nodes and descendant edges.
  * Dynamic owners still execute their registration/retirement work each pass;
  * static ancestors only reconnect changed child scenes. */
-export class RenderSceneCapture {
-  private entries = new WeakMap<RenderObject, Entry>();
+export class RenderSceneCapture<Input = unknown> {
+  private entries = new WeakMap<RenderObject, Entry<Input>>();
   private dirty = new WeakSet<RenderObject>();
   private localDirty = new WeakSet<RenderObject>();
-  private frames: CaptureFrame[] = [];
-  private readonly active = new Map<RenderObject, Entry>();
+  private fields = new WeakMap<RenderObject, number>();
+  private frames: CaptureFrame<Input>[] = [];
+  private readonly active = new Map<RenderObject, Entry<Input>>();
   private roots = new Set<RenderObject>();
   private readonly parents = new Map<RenderObject, RenderObject | undefined>();
   private readonly consumers = new Map<RenderObject, Map<RenderObject, number>>();
@@ -79,7 +101,11 @@ export class RenderSceneCapture {
     registrationEdits: 0,
     dependencyInvalidations: 0,
     coalescedInvalidations: 0,
+    fullCaptures: 0,
+    fieldCaptures: 0,
+    captureMaps: 0,
   };
+  constructor(private readonly projection?: RenderSceneProjection<Input>) {}
   /** Source build is synchronous and capture follows only after it finishes.
    * Coalesce repeated dependency walks within that boundary; every canonical
    * setter/callback still runs, and the following capture reads final values.
@@ -96,10 +122,14 @@ export class RenderSceneCapture {
   invalidate(
     render: RenderObject,
     kind: NativeRenderChange = 'layout',
-    visited = new Set<RenderObject>(),
+    visited?: Set<RenderObject>,
+    fields: number = nativeRenderFields.all,
   ): void {
-    if (visited.has(render)) return;
-    visited.add(render);
+    if (visited?.has(render)) return;
+    visited?.add(render);
+    // Accumulate before coalescing the dependency walk: two setters can change
+    // different commands in the same coarse invalidation category.
+    this.fields.set(render, (this.fields.get(render) ?? 0) | fields);
     if (this.invalidationBatch) {
       const mask = this.invalidationBatch.get(render) ?? 0;
       if (mask & changeBits[kind]) {
@@ -114,7 +144,13 @@ export class RenderSceneCapture {
       if (this.dirty.has(at)) break;
       this.dirty.add(at);
     }
-    for (const [consumer, mask] of this.consumers.get(render) ?? []) {
+    const consumers = this.consumers.get(render);
+    if (!consumers?.size) return;
+    if (!visited) {
+      visited = new Set();
+      visited.add(render);
+    }
+    for (const [consumer, mask] of consumers) {
       if (!(mask & changeBits[kind])) continue;
       ++this.counters.dependencyInvalidations;
       this.invalidate(consumer, kind, visited);
@@ -125,8 +161,15 @@ export class RenderSceneCapture {
   bind(channel: string, key: unknown, value: unknown): void {
     const frame = this.frames.at(-1);
     if (!frame) throw Error('Capture registration has no owner');
+    if (frame.uses === emptyUses) {
+      frame.uses = new Map();
+      ++this.counters.captureMaps;
+    }
     let uses = frame.uses.get(channel);
-    if (!uses) frame.uses.set(channel, (uses = new Map()));
+    if (!uses) {
+      frame.uses.set(channel, (uses = new Map()));
+      ++this.counters.captureMaps;
+    }
     uses.set(key, value);
   }
   bindings<K, V>(channel: string): ReadonlyMap<K, V> {
@@ -145,12 +188,17 @@ export class RenderSceneCapture {
     return this.bindings<K, V>(channel).get(key);
   }
   dependOn(render: RenderObject, changes?: readonly NativeRenderChange[]): void {
-    const dependencies = this.frames.at(-1)?.dependencies;
-    if (!dependencies) return;
+    const frame = this.frames.at(-1);
+    if (!frame) return;
+    if (frame.dependencies === emptyDependencies) {
+      frame.dependencies = new Map();
+      ++this.counters.captureMaps;
+    }
+    const dependencies = frame.dependencies;
     const mask = changes ? changes.reduce((bits, kind) => bits | changeBits[kind], 0) : 63;
     dependencies.set(render, (dependencies.get(render) ?? 0) | mask);
   }
-  private register(render: RenderObject, entry: Entry, add: boolean): void {
+  private register(render: RenderObject, entry: Entry<Input>, add: boolean): void {
     for (const [channel, uses] of entry.uses) {
       let keys = this.registrations.get(channel);
       if (!keys) this.registrations.set(channel, (keys = new Map()));
@@ -197,9 +245,14 @@ export class RenderSceneCapture {
       if (previous) {
         if (previous.uses !== next.uses || previous.dependencies !== next.dependencies)
           this.register(render, previous, false);
-        const children = new Set(next.children.map((child) => child.render));
-        for (const child of previous.children)
-          if (!children.has(child.render)) candidates.add(child.render);
+        if (
+          previous.children.length !== next.children.length ||
+          previous.children.some((child, index) => child.render !== next.children[index]!.render)
+        ) {
+          const children = new Set(next.children.map((child) => child.render));
+          for (const child of previous.children)
+            if (!children.has(child.render)) candidates.add(child.render);
+        }
       } else ++this.counters.activated;
       this.active.set(render, next);
       if (!previous || previous.uses !== next.uses || previous.dependencies !== next.dependencies)
@@ -253,23 +306,30 @@ export class RenderSceneCapture {
     input: string,
     count: Count,
     depth: number,
-    build: () => SceneNode,
-    refresh: Refresh,
+    build: Build | undefined,
+    refresh: Refresh | undefined,
+    edgeInput?: Input,
   ): SceneNode {
+    if (!build && !this.projection) throw Error('Native capture has no host projection');
     if (this.invalidationBatch)
       throw Error('Native capture cannot run inside a Source build batch');
     const parent = this.frames.at(-1),
       before = count.value;
-    const scene = this.read(render, input, count, depth, build);
+    const scene = this.read(render, input, count, depth, build, edgeInput);
     const entry = this.entries.get(render)!;
     if (parent) {
-      parent.children.push({
-        render,
-        scene,
-        refresh,
-        depth: depth - parent.depth,
-        count: count.value - before,
-      });
+      parent.children.push(
+        refresh
+          ? { render, scene, refresh, depth: depth - parent.depth, count: count.value - before }
+          : {
+              render,
+              scene,
+              refresh,
+              input: edgeInput,
+              depth: depth - parent.depth,
+              count: count.value - before,
+            },
+      );
       parent.deepest = Math.max(parent.deepest, depth + entry.height);
       parent.hasDynamic ||= entry.hasDynamic;
     }
@@ -280,7 +340,8 @@ export class RenderSceneCapture {
     input: string,
     count: Count,
     depth: number,
-    build: () => SceneNode,
+    build: Build | undefined,
+    edgeInput: Input | undefined,
   ): SceneNode {
     const entry = this.entries.get(render);
     const valid =
@@ -297,17 +358,23 @@ export class RenderSceneCapture {
       return entry.scene;
     }
     const reconnect = valid && !entry.dynamic && !this.localDirty.has(render);
+    const fields =
+      valid && !entry.dynamic
+        ? (this.fields.get(render) ?? nativeRenderFields.all)
+        : nativeRenderFields.all;
+    // New invalidations during projection belong to the following capture.
+    this.fields.delete(render);
     this.dirty.delete(render);
     this.localDirty.delete(render);
     const before = count.value;
-    const frame: CaptureFrame = {
+    const frame: CaptureFrame<Input> = {
       depth,
       deepest: depth,
       dynamic: false,
       hasDynamic: false,
       children: [],
-      uses: reconnect ? entry.uses : new Map(),
-      dependencies: reconnect ? (entry.dependencies as Dependencies) : new Map(),
+      uses: reconnect ? entry.uses : emptyUses,
+      dependencies: reconnect ? (entry.dependencies as Dependencies) : emptyDependencies,
     };
     this.frames.push(frame);
     try {
@@ -321,7 +388,9 @@ export class RenderSceneCapture {
         const old = entry.scene;
         let children: SceneNode[] | undefined;
         for (const child of entry.children) {
-          const next = child.refresh(count, depth + child.depth);
+          const next = child.refresh
+            ? child.refresh(count, depth + child.depth)
+            : this.projection!.refresh(child.render, count, depth + child.depth, child.input);
           if (next !== child.scene) {
             const index = old.children.indexOf(child.scene);
             if (index < 0) throw Error('Native capture child edge is absent');
@@ -346,8 +415,13 @@ export class RenderSceneCapture {
         ++this.counters.relinked;
       } else {
         ++this.counters.captured;
+        if (fields === nativeRenderFields.all) ++this.counters.fullCaptures;
+        else ++this.counters.fieldCaptures;
         if (!entry) ++this.counters.created;
-        scene = build();
+        const previous = valid && !entry.dynamic ? entry.scene : undefined;
+        scene = build
+          ? build(fields, previous, !entry)
+          : this.projection!.build(render, count, depth, edgeInput, fields, previous, !entry);
       }
       if (!frame.dynamic) {
         retainSceneConfiguration(scene, entry?.scene);
@@ -383,6 +457,7 @@ export class RenderSceneCapture {
       return scene;
     } catch (error) {
       this.entries.delete(render);
+      this.invalidate(render);
       throw error;
     } finally {
       this.frames.pop();
@@ -392,6 +467,7 @@ export class RenderSceneCapture {
     this.entries = new WeakMap();
     this.dirty = new WeakSet();
     this.localDirty = new WeakSet();
+    this.fields = new WeakMap();
     this.active.clear();
     this.roots.clear();
     this.parents.clear();

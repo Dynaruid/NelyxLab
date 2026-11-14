@@ -1584,6 +1584,23 @@ export function emitDart(
       );
     return dotted(adapter.check);
   }
+  const integerGuardResults = new WeakSet<ts.Expression>();
+  if (
+    recipe.integerGuardFolding &&
+    (recipe.integerGuardFolding.policy !== 'adjacent-canonical-integer-guards' ||
+      recipe.numericTypes?.int?.check !== 'checkedInteger' ||
+      recipe.imports?.checkedInteger !== '@nelyx/core/internal/ui/value-math')
+  )
+    blocked('Unknown canonical integer guard folding policy');
+  function checkedIntegerExpression(value: ts.Expression): ts.Expression {
+    let result = value;
+    while (ts.isParenthesizedExpression(result) || ts.isAsExpression(result))
+      result = result.expression;
+    if (recipe.integerGuardFolding && integerGuardResults.has(result)) return value;
+    const checked = f.createCallExpression(integerCheck(), undefined, [value]);
+    integerGuardResults.add(checked);
+    return checked;
+  }
   function numericType(value: 'int' | 'num'): ts.TypeNode {
     if (value === 'int') {
       integerCheck();
@@ -2230,7 +2247,7 @@ export function emitDart(
     if (!lvalue && n.promotedType && recipe.sourceFlow?.policy === 'resolved-source-flow')
       value = f.createAsExpression(value, resolvedType(n.promotedType));
     return !lvalue && n.type === 'int' && recipe.numericTypes?.int && n.kind !== 'literal'
-      ? f.createCallExpression(integerCheck(), undefined, [value])
+      ? checkedIntegerExpression(value)
       : value;
   }
   function withStorage(

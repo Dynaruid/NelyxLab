@@ -47,6 +47,14 @@ try {
       const decoded = response(observation);
       assert.equal(observationNode(decoded,{slot:1,generation:1}),decoded.nodes[0]);
       assert.equal(observationNode(decoded,{slot:1,generation:2}),undefined,'index must not alias recycled slots');
+      const sharedRows={...decoded,publication:decoded.publication+1n};
+      assert.equal(observationNode(sharedRows,{slot:1,generation:1}),decoded.nodes[0],'Response metadata changed a shared immutable row index');
+      packet.setUint32(b+p.stateBytes+4,2,true);packet.setUint32(blobStart+12,2,true);
+      const recycled=response(observation);
+      assert.equal(observationNode(recycled,{slot:1,generation:1}),undefined,'A new row array reused an older generation index');
+      assert.equal(observationNode(recycled,{slot:1,generation:2}),recycled.nodes[0]);
+      assert.equal(observationNode(sharedRows,{slot:1,generation:1}),decoded.nodes[0],'A recycled cohort changed an older row index');
+      packet.setUint32(b+p.stateBytes+4,1,true);packet.setUint32(blobStart+12,1,true);
       assert.equal(decoded.nodes.length, count);
       assert(Object.isFrozen(decoded.nodes[0]), 'in-place enrichment must still publish immutable nodes');
       for (let i = 0; i < count; ++i) assert.equal(decoded.nodes[i].fontBinding.fontRevision, BigInt(i + 100));

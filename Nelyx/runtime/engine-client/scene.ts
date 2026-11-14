@@ -37,6 +37,12 @@ import type { NativeSnapshotConfiguration } from './snapshot.ts';
 import type { LayoutBuilderOptions } from './layout-builder.ts';
 import type { NativeLayoutProgram } from '@nelyx/core/framework/rendering/object';
 import type { NativeBoxConfiguration } from '@nelyx/core/framework/rendering/object';
+import type {
+  NativeBoxCommandSink,
+  NativeBoxCommandProjector,
+  RenderObject,
+} from '@nelyx/core/framework/rendering/object';
+import type { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 export class ImageResource {
   readonly bytes: Uint8Array;
   constructor(bytes: Uint8Array) {
@@ -267,6 +273,9 @@ type BindingPart = {
 export interface RenderBindingProjectionCounters {
   partEncodes: number;
   partReuses: number;
+  commandEncodes?: number;
+  commandBytes?: number;
+  commandReuses?: number;
 }
 type BindingPartJournal = {
   readonly previous: readonly BindingPart[] | undefined;
@@ -300,18 +309,20 @@ function bindingPart<T extends unknown[]>(
   args: T,
   encode: (...args: T) => Uint8Array,
 ): Uint8Array {
-  let scalar = true;
+  let reusable = true;
   for (let index = 1; index < args.length; ++index) {
     const value = args[index];
     if (
       value !== null &&
-      (typeof value === 'object' || typeof value === 'function' || typeof value === 'symbol')
+      ((typeof value === 'object' && !immutableSceneValues.has(value)) ||
+        typeof value === 'function' ||
+        typeof value === 'symbol')
     ) {
-      scalar = false;
+      reusable = false;
       break;
     }
   }
-  const before = scalar ? journal.previous?.find((part) => part.kind === kind) : undefined;
+  const before = reusable ? journal.previous?.find((part) => part.kind === kind) : undefined;
   if (before && sameBindingPartInput(args, before)) {
     journal.parts.push(before);
     if (journal.counters) ++journal.counters.partReuses;
@@ -319,10 +330,10 @@ function bindingPart<T extends unknown[]>(
   }
   if (journal.counters) ++journal.counters.partEncodes;
   const bytes = Reflect.apply(encode, c, args);
-  // This internal argument tuple owns only scalar values and the frozen
-  // destination placeholder. Objects/arrays keep their ordinary codec path;
-  // no extra graph probe, clone, revision or freezing is needed to retain it.
-  if (scalar) journal.parts.push({ kind, key: args, bytes });
+  // Scalars and already-owned immutable numeric policies need no extra graph
+  // probe, clone, revision or freeze. Mutable objects and reference handles
+  // keep their ordinary codec/fixup path on every capture.
+  if (reusable) journal.parts.push({ kind, key: args, bytes });
   return bytes;
 }
 // A sealed command owns its body, but not a destination. Only diff addresses
@@ -451,6 +462,7 @@ export function renderBindingConfiguration(
   text?: SceneText,
   closedData = false,
   counters?: RenderBindingProjectionCounters,
+  retainedSemantics?: SceneNode,
 ): RenderBinding | undefined {
   if (!bindingKinds.has(kind)) return;
   if (!closedData) {
@@ -523,7 +535,20 @@ export function renderBindingConfiguration(
   else if (o.paragraph || o.paragraphFont) return;
   if (kind === 'clip') config.push(c.clipStyle(h, o.clipStyle ?? null));
   else if (o.clipStyle) return;
-  if (o.semantics) config.push(c.semantics(h, o.semantics));
+  if (o.semantics) {
+    const before =
+      retainedSemantics?.reference === reference
+        ? bindingPrograms
+            .get(retainedSemantics)
+            ?.find(
+              (bytes) =>
+                new DataView(bytes.buffer, bytes.byteOffset).getUint16(0, true) ===
+                p.commands.semantics,
+            )
+        : undefined;
+    if (before && counters) counters.commandReuses = (counters.commandReuses ?? 0) + 1;
+    config.push(before ?? c.semantics(h, o.semantics));
+  }
   if (o.graphics) config.push(c.graphics(h, o.graphics));
   if (o.nativePaint?.length) {
     const command = c.nativePaint(h, o.nativePaint),
@@ -556,7 +581,10 @@ export function renderBindingConfiguration(
   if (o.tooltipPosition) config.push(c.tooltipPosition(h, o.tooltipPosition));
   if (o.childAnchor) config.push(c.childAnchor(h, o.childAnchor));
   if (o.intrinsicSizing) config.push(c.intrinsicSizing(h, o.intrinsicSizing));
-  if (o.layoutProgram) config.push(c.layoutProgram(h, o.layoutProgram));
+  if (o.layoutProgram)
+    config.push(
+      bindingPart(journal, p.commands.layoutProgram, [h, o.layoutProgram], c.layoutProgram),
+    );
   if (o.listItem) config.push(c.listItem(h, o.listItem));
   if (o.gestures)
     config.push(
@@ -692,6 +720,336 @@ export function boxRenderBindingConfiguration(
     config,
     journal.parts,
   );
+}
+/** @internal One reusable sink per host. Modules write only their non-default
+ * commands; no NativeBoxConfiguration, Scene options, or axis payload survives.
+ * Nested/reentrant producers get an independent sink, and failure clears every
+ * reference without changing the last sealed program or accepted records. */
+type BoxParentLayout = (render: RenderObject, layout: NodeLayout) => NodeLayout | false | undefined;
+const simpleBoxLayouts: readonly NodeLayout[] = [
+  Object.freeze({ childConstraints: 'inherit' }),
+  Object.freeze({ childConstraints: 'inherit', enforceBounds: false }),
+  Object.freeze({ childConstraints: 'inherit', enforceBounds: true }),
+  Object.freeze({ childConstraints: 'inherit', expandEmpty: false }),
+  Object.freeze({ childConstraints: 'inherit', expandEmpty: true }),
+  Object.freeze({ childConstraints: 'inherit', offstage: false }),
+  Object.freeze({ childConstraints: 'inherit', offstage: true }),
+];
+const simpleBoxLayoutIndices = new Map(simpleBoxLayouts.map((layout, index) => [layout, index]));
+const simpleBoxLayoutCommands: (Uint8Array | undefined)[] = [];
+const inheritedBoxLayout = simpleBoxLayouts[0]!;
+function boxConstraintAxis(min: number, max: number): AxisBound {
+  return min === Infinity && max === Infinity
+    ? { kind: 'expand' }
+    : max === Infinity
+      ? { kind: 'unbounded', min }
+      : { kind: 'finite', min, max };
+}
+/** Bounded, destination-free command bodies only. Every capture still reads
+ * live Source scalars; no render, constraints object, callback or ACK is cached. */
+class BoxCommandCache {
+  private readonly scalarLayouts: {
+    kind: number;
+    first: number;
+    second: number;
+    third: number;
+    fourth: number;
+    bytes: Uint8Array;
+  }[] = [];
+  private nextScalarLayout = 0;
+  private readonly constraintEntries: {
+    minWidth: number;
+    maxWidth: number;
+    minHeight: number;
+    maxHeight: number;
+    bytes: Uint8Array;
+  }[] = [];
+  private nextConstraint = 0;
+  private readonly policies = new Map<number, Uint8Array>();
+  layout(value: NodeLayout, counters?: RenderBindingProjectionCounters): Uint8Array {
+    const index = simpleBoxLayoutIndices.get(value);
+    if (index === undefined) return this.encoded(c.layout(unboundHandle, value), counters);
+    const previous = simpleBoxLayoutCommands[index];
+    if (previous) return this.reused(previous, counters);
+    const bytes = c.layout(unboundHandle, value);
+    simpleBoxLayoutCommands[index] = bytes;
+    return this.encoded(bytes, counters);
+  }
+  scalarLayout(
+    kind: 1 | 2,
+    first: number,
+    second: number,
+    third: number,
+    fourth: number,
+    counters?: RenderBindingProjectionCounters,
+  ): Uint8Array {
+    for (let index = 0; index < this.scalarLayouts.length; ++index) {
+      const entry = this.scalarLayouts[index]!;
+      if (
+        entry.kind === kind &&
+        Object.is(entry.first, first) &&
+        Object.is(entry.second, second) &&
+        Object.is(entry.third, third) &&
+        Object.is(entry.fourth, fourth)
+      )
+        return this.reused(entry.bytes, counters);
+    }
+    const bytes = c.layout(
+      unboundHandle,
+      kind === 1
+        ? {
+            childConstraints: 'inherit',
+            padding: { left: first, top: second, right: third, bottom: fourth },
+          }
+        : {
+            alignment: { x: first, y: second },
+            alignmentSizing: true,
+            widthFactor: third,
+            heightFactor: fourth,
+          },
+    );
+    if (
+      typeof first === 'number' &&
+      typeof second === 'number' &&
+      typeof third === 'number' &&
+      typeof fourth === 'number'
+    ) {
+      this.scalarLayouts[this.nextScalarLayout] = { kind, first, second, third, fourth, bytes };
+      this.nextScalarLayout = (this.nextScalarLayout + 1) % 8;
+    }
+    return this.encoded(bytes, counters);
+  }
+  constraints(
+    minWidth: number,
+    maxWidth: number,
+    minHeight: number,
+    maxHeight: number,
+    counters?: RenderBindingProjectionCounters,
+  ): Uint8Array {
+    for (let index = 0; index < this.constraintEntries.length; ++index) {
+      const entry = this.constraintEntries[index]!;
+      if (
+        Object.is(entry.minWidth, minWidth) &&
+        Object.is(entry.maxWidth, maxWidth) &&
+        Object.is(entry.minHeight, minHeight) &&
+        Object.is(entry.maxHeight, maxHeight)
+      )
+        return this.reused(entry.bytes, counters);
+    }
+    const bytes = c.constraints(
+      unboundHandle,
+      boxConstraintAxis(minWidth, maxWidth),
+      boxConstraintAxis(minHeight, maxHeight),
+    );
+    // Invalid/non-numeric producers still use the ordinary codec and never
+    // become a reusable entry, including after a failed encode.
+    if (
+      typeof minWidth === 'number' &&
+      typeof maxWidth === 'number' &&
+      typeof minHeight === 'number' &&
+      typeof maxHeight === 'number'
+    ) {
+      this.constraintEntries[this.nextConstraint] = {
+        minWidth,
+        maxWidth,
+        minHeight,
+        maxHeight,
+        bytes,
+      };
+      this.nextConstraint = (this.nextConstraint + 1) % 8;
+    }
+    return this.encoded(bytes, counters);
+  }
+  policy(value: number, counters?: RenderBindingProjectionCounters): Uint8Array {
+    const previous = this.policies.get(value);
+    if (previous) return this.reused(previous, counters);
+    const bytes = c.eventPolicy(unboundHandle, value);
+    if (this.policies.size === 8) this.policies.delete(this.policies.keys().next().value!);
+    this.policies.set(value, bytes);
+    return this.encoded(bytes, counters);
+  }
+  private encoded(bytes: Uint8Array, counters?: RenderBindingProjectionCounters): Uint8Array {
+    if (counters) {
+      counters.commandEncodes = (counters.commandEncodes ?? 0) + 1;
+      counters.commandBytes = (counters.commandBytes ?? 0) + bytes.byteLength;
+    }
+    return bytes;
+  }
+  private reused(bytes: Uint8Array, counters?: RenderBindingProjectionCounters): Uint8Array {
+    if (counters) counters.commandReuses = (counters.commandReuses ?? 0) + 1;
+    return bytes;
+  }
+}
+const rejectBoxCommand = (reason: string): never => {
+  throw Error(reason);
+};
+export class BoxRenderBindingWriter implements NativeBoxCommandSink {
+  private active = false;
+  private nested: BoxRenderBindingWriter | undefined;
+  private sourceLayout: NodeLayout | undefined;
+  private scalarLayoutKind: 0 | 1 | 2 = 0;
+  private sourceConstraints: BoxConstraints | undefined;
+  private counters: RenderBindingProjectionCounters | undefined;
+  private hasInteraction = false;
+  private readonly interactionOptions: {
+    pointerHitTest: NativeBoxConfiguration['hitTest'];
+    pointerBlock: NativeBoxConfiguration['pointerBlock'];
+    semanticsPolicy: NativeBoxConfiguration['semanticsPolicy'];
+    onPointerSample: NativeBoxConfiguration['onPointerSample'];
+  } = {
+    pointerHitTest: 'proxy',
+    pointerBlock: undefined,
+    semanticsPolicy: undefined,
+    onPointerSample: undefined,
+  };
+  constructor(
+    private readonly reject: (reason: string) => never = rejectBoxCommand,
+    private readonly commands = new BoxCommandCache(),
+  ) {}
+  capture(
+    reference: SceneReference | (() => SceneReference),
+    children: readonly SceneNode[] | (() => readonly SceneNode[]),
+    render: RenderObject,
+    project: NativeBoxCommandProjector,
+    parentLayout: BoxParentLayout,
+    listItem?: SceneNodeOptions['listItem'],
+    counters?: RenderBindingProjectionCounters,
+    ownedParentLayout = false,
+  ): RenderBinding {
+    if (this.active)
+      return (this.nested ??= new BoxRenderBindingWriter(this.reject, this.commands)).capture(
+        reference,
+        children,
+        render,
+        project,
+        parentLayout,
+        listItem,
+        counters,
+        ownedParentLayout,
+      );
+    this.active = true;
+    this.counters = counters;
+    try {
+      project(render, this, this.reject);
+      const key = typeof reference === 'function' ? reference() : reference,
+        layout = parentLayout(render, this.sourceLayout ?? inheritedBoxLayout);
+      if (!layout) throw Error('Direct module has no parent layout');
+      // Preserve reader -> bind -> parent fields -> child capture -> codec order,
+      // including child side effects before a codec rejects a producer value.
+      const nodes = typeof children === 'function' ? children() : children;
+      // Only the canonical host owns this unchanged private wrapper. Arbitrary
+      // parent callbacks and ParentData merges keep the ordinary codec path.
+      let layoutCommand: Uint8Array;
+      if (layout === inheritedBoxLayout) layoutCommand = defaultLayouts[2]!;
+      else if (ownedParentLayout && layout === this.sourceLayout && this.scalarLayoutKind) {
+        if (this.scalarLayoutKind === 1) {
+          const padding = layout.padding;
+          layoutCommand = this.commands.scalarLayout(
+            1,
+            padding?.left ?? 0,
+            padding?.top ?? 0,
+            padding?.right ?? 0,
+            padding?.bottom ?? 0,
+            counters,
+          );
+        } else {
+          const alignment = layout.alignment;
+          layoutCommand = this.commands.scalarLayout(
+            2,
+            alignment?.x ?? 0,
+            alignment?.y ?? 0,
+            layout.widthFactor ?? -1,
+            layout.heightFactor ?? -1,
+            counters,
+          );
+        }
+      } else layoutCommand = this.commands.layout(layout, counters);
+      const config = [defaultProperties, defaultPaint, layoutCommand, defaultConstraints];
+      const constraint = this.sourceConstraints;
+      if (constraint) {
+        config[3] = this.commands.constraints(
+          constraint.minWidth,
+          constraint.maxWidth,
+          constraint.minHeight,
+          constraint.maxHeight,
+          counters,
+        );
+      }
+      if (listItem) config.push(this.encoded(c.listItem(unboundHandle, listItem)));
+      const policy = this.hasInteraction
+        ? sceneEventPolicy(this.interactionOptions)
+        : p.eventPolicies.canonicalHitTest;
+      config.push(
+        policy === p.eventPolicies.canonicalHitTest
+          ? defaultPolicies[1]!
+          : this.commands.policy(policy, counters),
+      );
+      const callback = this.interactionOptions.onPointerSample;
+      return sealRenderBinding(
+        key,
+        'box',
+        nodes,
+        callback ? { onPointerSample: callback } : {},
+        config,
+        [],
+      );
+    } finally {
+      this.active = false;
+      this.sourceLayout = undefined;
+      this.scalarLayoutKind = 0;
+      this.sourceConstraints = undefined;
+      this.hasInteraction = false;
+      this.interactionOptions.pointerHitTest = 'proxy';
+      this.interactionOptions.pointerBlock = undefined;
+      this.interactionOptions.semanticsPolicy = undefined;
+      this.interactionOptions.onPointerSample = undefined;
+      this.counters = undefined;
+    }
+  }
+  private encoded(command: Uint8Array): Uint8Array {
+    if (this.counters) {
+      this.counters.commandEncodes = (this.counters.commandEncodes ?? 0) + 1;
+      this.counters.commandBytes = (this.counters.commandBytes ?? 0) + command.byteLength;
+    }
+    return command;
+  }
+  layout(value: Parameters<NativeBoxCommandSink['layout']>[0]): void {
+    this.sourceLayout = value;
+    this.scalarLayoutKind = 0;
+  }
+  inheritLayout(kind: 'bounds' | 'empty' | 'offstage', value: boolean): void {
+    this.sourceLayout =
+      simpleBoxLayouts[(kind === 'bounds' ? 1 : kind === 'empty' ? 3 : 5) + Number(!!value)];
+    this.scalarLayoutKind = 0;
+  }
+  paddingLayout(value: NonNullable<NodeLayout['padding']>): void {
+    this.sourceLayout = { childConstraints: 'inherit', padding: value };
+    this.scalarLayoutKind = 1;
+  }
+  alignmentLayout(x: number, y: number, widthFactor?: number, heightFactor?: number): void {
+    this.sourceLayout = {
+      alignment: { x, y },
+      alignmentSizing: true,
+      ...(widthFactor === undefined ? {} : { widthFactor }),
+      ...(heightFactor === undefined ? {} : { heightFactor }),
+    };
+    this.scalarLayoutKind = 2;
+  }
+  constraints(value: BoxConstraints): void {
+    this.sourceConstraints = value;
+  }
+  interaction(
+    hitTest: NativeBoxConfiguration['hitTest'],
+    pointerBlock?: NativeBoxConfiguration['pointerBlock'],
+    semanticsPolicy?: NativeBoxConfiguration['semanticsPolicy'],
+    onPointerSample?: NativeBoxConfiguration['onPointerSample'],
+  ): void {
+    this.hasInteraction = true;
+    this.interactionOptions.pointerHitTest = hitTest ?? 'proxy';
+    this.interactionOptions.pointerBlock = pointerBlock;
+    this.interactionOptions.semanticsPolicy = semanticsPolicy;
+    this.interactionOptions.onPointerSample = onPointerSample;
+  }
 }
 /** @internal Reconnect changed edges without re-projecting retained fields. */
 export function relinkRenderBinding(
@@ -884,13 +1242,36 @@ export function retainSceneConfiguration(node: SceneNode, previous?: SceneNode):
   const identity =
     before && sameConfigInput(input, before.identity, inputs)
       ? before.identity
-      : captureConfigInput(input, new Set(), inputs);
+      : captureConfigInput(input, undefined, inputs);
   if (identity !== uncacheableInput) retainedPayloads.set(node, { identity, inputs });
 }
-function id(h: NodeHandle): string {
-  return `${h.slot}:${h.generation}`;
+type HandleKey = number | string;
+/** Private registry keys retain both uint32 fields. Ordinary generations fit
+ * exactly in a JS integer and need no temporary strings. Large generations
+ * keep the full textual pair instead of imposing a narrower handle limit. */
+function id(h: NodeHandle): HandleKey {
+  const slot = h.slot;
+  // Preserve ToString(slot) before reading generation for non-numeric inputs.
+  if (typeof slot !== 'number') return `${slot}:${h.generation}`;
+  const generation = h.generation;
+  if (
+    typeof generation === 'number' &&
+    generation < 0x20_0000 &&
+    generation >>> 0 === generation &&
+    slot >>> 0 === slot
+  )
+    return generation * 0x1_0000_0000 + slot;
+  return `${slot}:${generation}`;
 }
 const commandKind = (bytes: Uint8Array) => bytes[0]! | (bytes[1]! << 8);
+const sameHandle = (a: NodeHandle | null, b: NodeHandle | null) =>
+  a === b || (!!a && !!b && a.slot === b.slot && a.generation === b.generation);
+/** Index the sealed commands without one temporary tuple per command. */
+function commandIndex(config: readonly Uint8Array[]): Map<number, Uint8Array> {
+  const index = new Map<number, Uint8Array>();
+  for (const bytes of config) index.set(commandKind(bytes), bytes);
+  return index;
+}
 interface NativeRecord {
   readonly appGeometry: boolean;
   readonly node: SceneNode;
@@ -903,6 +1284,8 @@ interface NativeRecord {
   readonly configInputs: ReadonlyMap<number, unknown>;
 }
 const recordBindingPrograms = new WeakMap<NativeRecord, readonly Uint8Array[]>();
+const emptyBindingChildren: readonly SceneNode[] = Object.freeze([]);
+const emptyConfigurationInputs: ReadonlyMap<number, unknown> = new Map();
 type BindingTarget = {
   readonly reference: SceneReference;
   readonly slot: number;
@@ -912,21 +1295,21 @@ const recordBindingTargets = new WeakMap<NativeRecord, readonly BindingTarget[]>
 /** A transaction's private write set over the accepted registry. The base is
  * changed only after a terminal ACK; in-flight edits never mutate it. */
 class RecordPatch {
-  readonly changed = new Map<string, NativeRecord>();
-  readonly removed = new Map<string, NativeRecord>();
-  constructor(readonly base: Map<string, NativeRecord>) {}
+  readonly changed = new Map<HandleKey, NativeRecord>();
+  readonly removed = new Map<HandleKey, NativeRecord>();
+  constructor(readonly base: Map<HandleKey, NativeRecord>) {}
   get size(): number {
     let count = this.base.size - this.removed.size;
     for (const key of this.changed.keys()) if (!this.base.has(key)) ++count;
     return count;
   }
-  get(key: string): NativeRecord | undefined {
+  get(key: HandleKey): NativeRecord | undefined {
     return this.removed.has(key) ? undefined : (this.changed.get(key) ?? this.base.get(key));
   }
-  has(key: string): boolean {
+  has(key: HandleKey): boolean {
     return this.get(key) !== undefined;
   }
-  set(key: string, record: NativeRecord): void {
+  set(key: HandleKey, record: NativeRecord): void {
     if (record !== this.base.get(key)) this.changed.set(key, record);
   }
   *values(): IterableIterator<NativeRecord> {
@@ -934,7 +1317,7 @@ class RecordPatch {
       if (!this.removed.has(key)) yield this.changed.get(key) ?? record;
     for (const [key, record] of this.changed) if (!this.base.has(key)) yield record;
   }
-  *[Symbol.iterator](): IterableIterator<[string, NativeRecord]> {
+  *[Symbol.iterator](): IterableIterator<[HandleKey, NativeRecord]> {
     for (const record of this.values()) yield [id(record.handle), record];
   }
   reconcile(root: NodeHandle, previousRoot?: NodeHandle): void {
@@ -972,7 +1355,7 @@ class RecordPatch {
         if (!parent?.children.some((child) => id(child) === id(record.handle)))
           throw Error('Scene parent edge is absent');
       }
-      const children = new Set<string>();
+      const children = new Set<HandleKey>();
       for (const child of record.children) {
         const key = id(child),
           next = this.get(key);
@@ -983,7 +1366,7 @@ class RecordPatch {
     }
   }
 }
-type RecordSet = Map<string, NativeRecord> | RecordPatch;
+type RecordSet = Map<HandleKey, NativeRecord> | RecordPatch;
 type RetainedSubtree = {
   record: NativeRecord;
   count: number;
@@ -1132,7 +1515,7 @@ const uncacheableInput = Symbol('uncacheable scene input');
  * hide a later change; executable/accessor values always run through encoding. */
 function captureConfigInput(
   value: unknown,
-  parents = new Set<object>(),
+  parents?: Set<object>,
   inputs?: WeakMap<object, unknown>,
 ): unknown {
   if (value === null || typeof value !== 'object')
@@ -1145,10 +1528,10 @@ function captureConfigInput(
     (!array &&
       Object.getPrototypeOf(value) !== Object.prototype &&
       Object.getPrototypeOf(value) !== null) ||
-    parents.has(value)
+    parents?.has(value)
   )
     return uncacheableInput;
-  parents.add(value);
+  (parents ??= new Set()).add(value);
   const copy: Record<string, unknown> | unknown[] = array ? [] : Object.create(null);
   for (const key of Object.keys(value)) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key)!;
@@ -1231,12 +1614,12 @@ export class SceneWriter {
   private mounted = false;
   private eventsStarted = false;
   private closed = false;
-  private accepted = new Map<string, NativeRecord>();
+  private accepted = new Map<HandleKey, NativeRecord>();
   private acceptedRoot: NodeHandle | undefined;
   private retainedSubtrees = new WeakMap<SceneNode, RetainedSubtree>();
-  private readonly layoutObservers = new Map<string, NativeRecord>();
+  private readonly layoutObservers = new Map<HandleKey, NativeRecord>();
   private readonly imageCounts = new Map<ImageResource, number>();
-  private readonly provisional = new Set<string>();
+  private readonly provisional = new Set<HandleKey>();
   private recordCheckpoint:
     | {
         nextSlot: number;
@@ -1249,9 +1632,9 @@ export class SceneWriter {
         resources: ImageResource[];
       }
     | undefined;
-  private hovered = new Map<string, GestureEvent>();
+  private hovered = new Map<HandleKey, GestureEvent>();
   private handles = new Map<SceneReference, { kind: SceneNode['kind']; handle: NodeHandle }>();
-  private allocations = new Map<string, { reference: SceneReference; handle: NodeHandle }>();
+  private allocations = new Map<HandleKey, { reference: SceneReference; handle: NodeHandle }>();
   private free: NodeHandle[] = [];
   private nextSlot = 0;
   private resources = new Map<ImageResource, NodeHandle>();
@@ -1277,7 +1660,7 @@ export class SceneWriter {
     layout: { pending: undefined, running: undefined },
     publication: { pending: undefined, running: undefined },
   };
-  private focusHandle = '';
+  private focusHandle: HandleKey = '';
   private focusCallback: SceneNodeOptions['onFocusChanged'];
   private semanticPublication: EngineResponse | undefined;
   private semanticState: EngineResponse | undefined;
@@ -1285,7 +1668,7 @@ export class SceneWriter {
   private layoutDemand = 0;
   private observedLayoutDemand = 0;
   private appGeometryNodes = 0;
-  private readonly controlRevisions = new Map<string, bigint>();
+  private readonly controlRevisions = new Map<HandleKey, bigint>();
   readonly counters = {
     blobRegistrations: 0,
     blobBindings: 0,
@@ -1296,6 +1679,8 @@ export class SceneWriter {
     recordsMs: 0,
     sharedDefaultConfigs: 0,
     diffMs: 0,
+    commitMs: 0,
+    commitCalls: 0,
     topologyReused: 0,
     publicationObservations: 0,
     publicationObservationMs: 0,
@@ -1406,7 +1791,7 @@ export class SceneWriter {
   private records(root: SceneNode): RecordSet {
     const records: RecordSet = this.options.retainedScene
       ? new RecordPatch(this.accepted)
-      : new Map<string, NativeRecord>();
+      : new Map<HandleKey, NativeRecord>();
     if (!(records instanceof RecordPatch)) ++this.counters.fullRecordBuilds;
     const seen = new Set<SceneReference>();
     const checkedDependencies = new Map<RetainedDependencies, boolean>();
@@ -1461,6 +1846,45 @@ export class SceneWriter {
       for (const child of node.children) allocate(child, depth + 1);
     };
     allocate(root, 0);
+    const retainSubtree = (
+      node: SceneNode,
+      options: SceneNodeOptions,
+      record: NativeRecord,
+      appGeometry: boolean,
+    ): void => {
+      const targets = recordBindingTargets.get(record);
+      let dependencies: RetainedDependencies[] | undefined;
+      if (targets?.length) dependencies = [{ targets, owner: record }];
+      let count = 1,
+        height = 0,
+        geometry = Number(appGeometry),
+        cacheableChildren = true;
+      for (const nodeChild of node.children) {
+        const child = this.retainedSubtrees.get(nodeChild)!;
+        if (child.dependencies) (dependencies ??= []).push(child.dependencies);
+        count += child.count;
+        height = Math.max(height, child.height + 1);
+        geometry += child.geometry;
+        cacheableChildren &&= child.cacheable;
+      }
+      this.retainedSubtrees.set(node, {
+        record,
+        count,
+        height,
+        geometry,
+        cacheable:
+          retainedConfigurations.has(node) &&
+          (record.fullyCacheable || targets !== undefined) &&
+          !options.control &&
+          cacheableChildren,
+        dependencies:
+          dependencies?.length === 1
+            ? dependencies[0]
+            : dependencies
+              ? { children: dependencies }
+              : undefined,
+      });
+    };
     const visit = (
       node: SceneNode,
       parent: NodeHandle | null,
@@ -1474,9 +1898,7 @@ export class SceneWriter {
       const cached = reusable(node);
       if (cached && cached.record.appGeometry === appGeometry) {
         if (depth + cached.height > p.limits.depth) throw Error('Scene node/depth budget');
-        const sameParent =
-          cached.record.parent === parent ||
-          (!!cached.record.parent && !!parent && id(cached.record.parent) === id(parent));
+        const sameParent = sameHandle(cached.record.parent, parent);
         const record = sameParent ? cached.record : { ...cached.record, parent };
         records.set(key, record);
         this.retainedSubtrees.set(node, { ...cached, record });
@@ -1495,59 +1917,37 @@ export class SceneWriter {
           'AppDrivenBoundary requires explicit finite width and height on every node',
         );
       const children = node.children.map((child) => visit(child, h, appGeometry, depth + 1));
-      const retainSubtree = (record: NativeRecord): void => {
-        const descendants = node.children.map((child) => this.retainedSubtrees.get(child)!);
-        const targets = recordBindingTargets.get(record);
-        let dependencies: RetainedDependencies[] | undefined;
-        if (targets?.length) dependencies = [{ targets, owner: record }];
-        for (const child of descendants)
-          if (child.dependencies) (dependencies ??= []).push(child.dependencies);
-        this.retainedSubtrees.set(node, {
-          record,
-          count: 1 + descendants.reduce((sum, child) => sum + child.count, 0),
-          height: descendants.reduce((height, child) => Math.max(height, child.height + 1), 0),
-          geometry:
-            Number(appGeometry) + descendants.reduce((sum, child) => sum + child.geometry, 0),
-          cacheable:
-            retainedConfigurations.has(node) &&
-            (record.fullyCacheable || targets !== undefined) &&
-            !o.control &&
-            descendants.every((child) => child.cacheable),
-          dependencies:
-            dependencies?.length === 1
-              ? dependencies[0]
-              : dependencies
-                ? { children: dependencies }
-                : undefined,
-        });
-      };
       const before = this.accepted.get(key);
       const program = bindingPrograms.get(node);
       if (program) {
         if (appGeometry) throw Error('Direct render binding requires Core-owned geometry');
         const references = program.some((command) => bindingFixups.has(command));
         const reused = before && !references && recordBindingPrograms.get(before) === program;
-        const projected = reused
-          ? undefined
-          : program.map((template) => {
-              const fixups = bindingFixups.get(template);
-              if (fixups) {
-                const bytes = template.slice(),
-                  view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                for (const fixup of fixups) {
-                  const target = this.handles.get(fixup.reference)?.handle;
-                  if (!target) throw Error('Direct render reference is not mounted');
-                  view.setUint32(fixup.offset, target.slot, true);
-                  view.setUint32(fixup.offset + 4, target.generation, true);
+        // A cold destination-free program without references is already the
+        // complete immutable configuration. Only updates and handle fixups
+        // need a private projected array (and update-only reset commands).
+        const projected =
+          reused || (!before && !references)
+            ? undefined
+            : program.map((template) => {
+                const fixups = bindingFixups.get(template);
+                if (fixups) {
+                  const bytes = template.slice(),
+                    view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+                  for (const fixup of fixups) {
+                    const target = this.handles.get(fixup.reference)?.handle;
+                    if (!target) throw Error('Direct render reference is not mounted');
+                    view.setUint32(fixup.offset, target.slot, true);
+                    view.setUint32(fixup.offset + 4, target.generation, true);
+                  }
+                  bindingTemplates.add(bytes);
+                  const previous = before?.configByKind.get(commandKind(bytes));
+                  return previous && sameRecordConfig(previous, bytes) ? previous : bytes;
                 }
-                bindingTemplates.add(bytes);
-                const previous = before?.configByKind.get(commandKind(bytes));
-                return previous && sameRecordConfig(previous, bytes) ? previous : bytes;
-              }
-              const previous = before?.configByKind.get(commandKind(template));
-              return previous && sameRecordConfig(previous, template) ? previous : template;
-            });
-        const config = projected ?? before!.config;
+                const previous = before?.configByKind.get(commandKind(template));
+                return previous && sameRecordConfig(previous, template) ? previous : template;
+              });
+        const config = projected ?? (reused ? before!.config : program);
         if (projected && before) {
           let resetAdded = false;
           const present = new Set(projected.map(commandKind));
@@ -1575,7 +1975,7 @@ export class SceneWriter {
                 __proto__: RenderBinding.prototype,
                 reference: node.reference,
                 kind: node.kind,
-                children: Object.freeze([]),
+                children: emptyBindingChildren,
                 options: node.options,
                 text: undefined,
                 image: undefined,
@@ -1586,10 +1986,9 @@ export class SceneWriter {
         retainedConfigurations.add(ownNode);
         const sameEdges =
           reused &&
-          ((!before.parent && !parent) ||
-            (before.parent && parent && id(before.parent) === id(parent))) &&
+          sameHandle(before.parent, parent) &&
           before.children.length === children.length &&
-          before.children.every((child, index) => id(child) === id(children[index]!));
+          before.children.every((child, index) => sameHandle(child, children[index]!));
         const record: NativeRecord =
           sameEdges && ownNode === before.node
             ? before
@@ -1599,11 +1998,9 @@ export class SceneWriter {
                 parent,
                 children,
                 config,
-                configByKind: reused
-                  ? before.configByKind
-                  : new Map(config.map((bytes) => [commandKind(bytes), bytes])),
+                configByKind: reused ? before.configByKind : commandIndex(config),
                 fullyCacheable: !references,
-                configInputs: reused ? before.configInputs : new Map(),
+                configInputs: reused ? before.configInputs : emptyConfigurationInputs,
                 appGeometry: false,
               };
         recordBindingPrograms.set(record, program);
@@ -1621,7 +2018,7 @@ export class SceneWriter {
           recordBindingTargets.set(record, targets);
         }
         records.set(key, record);
-        retainSubtree(record);
+        retainSubtree(node, o, record, appGeometry);
         ++this.counters.bindingRecords;
         if (reused) ++this.counters.bindingProgramReuses;
         else this.counters.bindingCommands += config.length;
@@ -1647,14 +2044,10 @@ export class SceneWriter {
         !o.control &&
         before.fullyCacheable
       ) {
-        const sameParent =
-          before.parent === parent ||
-          (!!before.parent && !!parent && id(before.parent) === id(parent));
+        const sameParent = sameHandle(before.parent, parent);
         const sameChildren =
           before.children.length === children.length &&
-          before.children.every(
-            (child, index) => child === children[index] || id(child) === id(children[index]!),
-          );
+          before.children.every((child, index) => sameHandle(child, children[index]!));
         let ownNode = before.node;
         if (ownNode.options !== o || ownNode.text !== node.text) {
           ownNode = sceneConfiguration(
@@ -1676,7 +2069,7 @@ export class SceneWriter {
             ? before
             : { ...before, node: ownNode, parent, children };
         records.set(key, record);
-        retainSubtree(record);
+        retainSubtree(node, o, record, appGeometry);
         ++this.counters.reusedRecords;
         return h;
       }
@@ -1703,7 +2096,7 @@ export class SceneWriter {
           return previous;
         }
         const bytes = make();
-        const captured = captureConfigInput(input, new Set(), payload?.inputs);
+        const captured = captureConfigInput(input, undefined, payload?.inputs);
         if (captured !== uncacheableInput) configInputs.set(kind, captured);
         return bytes;
       };
@@ -1876,7 +2269,7 @@ export class SceneWriter {
         config.push(
           c.motion(h, o.motion.id, o.motion.revision ?? 0n, o.motion.opacity, o.motion.seconds),
         );
-      const configByKind = new Map(config.map((value) => [commandKind(value), value]));
+      const configByKind = commandIndex(config);
       // Accepted callback/configuration records do not own the Scene subtree.
       // Topology is already represented by generational handles. Keeping only
       // this node's configuration lets relinked ancestors reuse a record without
@@ -1908,7 +2301,7 @@ export class SceneWriter {
         appGeometry,
       };
       records.set(key, record);
-      retainSubtree(record);
+      retainSubtree(node, o, record, appGeometry);
       return h;
     };
     visit(root, null);
@@ -1941,8 +2334,6 @@ export class SceneWriter {
         changes.push(c.acquireResource(this.resources.get(resource)!, resource.bytes));
     // Paint-only updates keep the exact handle/parent/child order. Avoid building
     // a shadow topology, preorder and detach/move indexes for that common case.
-    const sameHandle = (a: NodeHandle | null, b: NodeHandle | null) =>
-      a === b || (!!a && !!b && a.slot === b.slot && a.generation === b.generation);
     let sameTopology =
       desired instanceof RecordPatch
         ? desired.removed.size === 0
@@ -1976,8 +2367,8 @@ export class SceneWriter {
           changes.push(c.releaseResource(this.resources.get(resource)!));
       return changes;
     }
-    const topology = new Map<string, string[]>();
-    const siblingsOf = (parent: NodeHandle): string[] => {
+    const topology = new Map<HandleKey, HandleKey[]>();
+    const siblingsOf = (parent: NodeHandle): HandleKey[] => {
       const key = id(parent);
       let children = topology.get(key);
       if (!children) {
@@ -2001,9 +2392,9 @@ export class SceneWriter {
     for (const r of removed) detach(r);
     for (const r of removed.reverse()) changes.push(c.destroy(r.handle, !!r.parent));
     const preorder: NativeRecord[] = [],
-      indices = new Map<string, number>(),
-      creationFlags = new Map<string, number>(),
-      attached = new Set<string>();
+      indices = new Map<HandleKey, number>(),
+      creationFlags = new Map<HandleKey, number>(),
+      attached = new Set<HandleKey>();
     const visit = (record: NativeRecord): void => {
       preorder.push(record);
       record.children.forEach((child, index) => {
@@ -2015,7 +2406,7 @@ export class SceneWriter {
       // New siblings share long retained ancestor paths. Sorting must not walk
       // that same path twice for every comparison (calendar/lazy-list inserts).
       // This memo belongs to this immutable desired patch and expires after diff.
-      const depths = new Map<string, number>();
+      const depths = new Map<HandleKey, number>();
       const depth = (r: NativeRecord): number => {
         const key = id(r.handle),
           cached = depths.get(key);
@@ -2037,11 +2428,20 @@ export class SceneWriter {
         }
         return depths.get(key)!;
       };
-      for (const record of [...changed.values()]
-        .filter((r) => !this.accepted.has(id(r.handle)))
-        .sort((a, b) => depth(a) - depth(b))) {
-        preorder.push(record);
-        record.children.forEach((child, index) => indices.set(id(child), index));
+      // Depth is a bounded integer. A stable bucket pass asks for each new
+      // record's depth once, rather than repeating handle/key lookups in the
+      // sort comparator. Insertion order within a depth stays unchanged.
+      const byDepth: NativeRecord[][] = [];
+      for (const record of changed.values()) {
+        if (this.accepted.has(id(record.handle))) continue;
+        (byDepth[depth(record)] ??= []).push(record);
+      }
+      for (const level of byDepth) {
+        if (!level) continue;
+        for (const record of level) {
+          preorder.push(record);
+          record.children.forEach((child, index) => indices.set(id(child), index));
+        }
       }
       // Existing parents can introduce new children too.
       for (const record of changed.values())
@@ -2254,6 +2654,8 @@ export class SceneWriter {
       }
       if (changes.length) {
         this.pending = { desired, changes, blobPlan };
+        const commitStarted = typeof performance === 'undefined' ? Date.now() : performance.now();
+        ++this.counters.commitCalls;
         try {
           await this.view.commit(changes);
         } catch (error) {
@@ -2282,6 +2684,11 @@ export class SceneWriter {
           if (known.status === p.statuses.notFound) await this.view.retryCommit();
           else if (known.status !== p.statuses.accepted)
             throw new EngineError(known.status, 'Scene transaction rejected', known);
+        } finally {
+          // This is the asynchronous commit/recovery interval, not Core CPU
+          // time or proof that its document is active/published/covered.
+          this.counters.commitMs +=
+            (typeof performance === 'undefined' ? Date.now() : performance.now()) - commitStarted;
         }
       }
       this.adopt(desired, changes);
@@ -2321,14 +2728,15 @@ export class SceneWriter {
         if (op === p.commands.move) ++this.counters.moved;
       }
     }
-    const affected =
-      desired instanceof RecordPatch
-        ? new Map(
-            [...desired.changed.keys(), ...desired.removed.keys()].flatMap((key) =>
-              this.accepted.has(key) ? [[key, this.accepted.get(key)!] as const] : [],
-            ),
-          )
-        : this.accepted;
+    let affected: Map<HandleKey, NativeRecord>;
+    if (desired instanceof RecordPatch) {
+      affected = new Map();
+      for (const source of [desired.changed, desired.removed])
+        for (const key of source.keys()) {
+          const before = this.accepted.get(key);
+          if (before) affected.set(key, before);
+        }
+    } else affected = this.accepted;
     for (const [key, before] of affected) {
       const after = desired.get(key);
       if (before.node.editor !== after?.node.editor) before.node.editor?.detach(this);
@@ -2342,10 +2750,12 @@ export class SceneWriter {
         if (hover) before.node.options.onGesture?.({ ...hover, kind: 'mouseExit' });
       }
     }
-    const retiring =
-      desired instanceof RecordPatch
-        ? new Set([...this.provisional, ...desired.removed.keys()])
-        : this.allocations.keys();
+    let retiring: Iterable<HandleKey>;
+    if (desired instanceof RecordPatch) {
+      const keys = new Set(this.provisional);
+      for (const key of desired.removed.keys()) keys.add(key);
+      retiring = keys;
+    } else retiring = this.allocations.keys();
     for (const key of retiring) {
       const allocation = this.allocations.get(key)!;
       if (desired.has(key)) continue;

@@ -48,6 +48,14 @@ export function sourceNativeBindingOptions(
   )
     return;
   const { key: _, ...options } = render.options;
+  // These fields belong to the actual Source container/retirement protocol.
+  // They stay live on render.options; the native command codec never reads
+  // them. Keep the original key/rest getter order before removing wire noise.
+  delete options.sliverChildren;
+  delete options.keepAliveChildren;
+  delete options.sourceCollectionIndex;
+  delete options.parkedChildren;
+  delete options.onChildrenInvalidated;
   return options;
 }
 /** Native configuration only. No Source layout/paint override runs on App. */

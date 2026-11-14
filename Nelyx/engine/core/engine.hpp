@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 #include "protocol/wire.hpp"
+#include <array>
 #include <memory>
+#include <optional>
 
 namespace nelyx::v2 {
 inline constexpr uint32_t coreCapabilities = wire::capabilities::protocol | wire::capabilities::headlessScene |
@@ -17,7 +19,34 @@ struct InteractionSnapshot;
 struct FontTransition;
 struct EventOverflowInfo;
 struct PreparationFailureInfo;
-struct DispatchTiming { double lockWaitMs=0,lockHeldMs=0; };
+/** In-process diagnostics only. No packet schema or scheduling authority. */
+struct PreparationCohort {
+  uint64_t preparation=0,document=0,metrics=0,device=0,font=0;
+  bool operator==(const PreparationCohort&)const=default;
+};
+struct PreparationViewportProgress {
+  Handle node{},content{};uint64_t listGeneration=0;
+  uint32_t begin=0,end=0;bool coverage=false,deferred=false,published=false;
+  double minimum=0,maximum=0,offset=0,requested=0,publishedOffset=0,publishedRequested=0;
+};
+struct PreparationProgress {
+  uint32_t session=0,app=0,view=0,generation=0;
+  PreparationCohort current{},active{},published{};
+  uint64_t sequence=0,input=0,publication=0;
+  bool closed=false,preparing=false,ready=false,providerReady=false,hasRequest=false,truncated=false;
+  struct Request {
+    Handle node{},viewport{};uint64_t id=0,revision=0,listGeneration=0;
+    bool list=false;uint32_t begin=0,end=0;double offset=0,paint=0;
+  } request;
+  uint32_t viewportCount=0,publishedViewportCount=0;
+  std::array<PreparationViewportProgress,16> viewports{};
+  std::array<PreparationViewportProgress,16> publishedViewports{};
+};
+struct DispatchTiming {
+  double lockWaitMs=0,lockHeldMs=0;
+  bool capturePreparation=false;
+  std::optional<PreparationProgress> preparation;
+};
 class Engine {
  public:
   Engine(uint32_t session, uint32_t app);

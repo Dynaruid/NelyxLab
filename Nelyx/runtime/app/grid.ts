@@ -18,28 +18,52 @@ import {
 import type {
   NativeLayoutProgram,
   NativeLayoutCommand,
+  NativeLayoutScalar,
 } from '@nelyx/core/framework/rendering/object';
 import type { NativeViewportGridPolicy } from '@nelyx/core/internal/framework/rendering/native-grid';
 import { SliverChildListDelegate } from '@nelyx/core/framework/widgets/scroll-delegate';
 import { protocol as p } from '../engine-client/schema.ts';
 import type { EngineNodeSnapshot, EngineResponse, EngineEvent } from '../engine-client/codec.ts';
 import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
-import { OriginalNativeNode } from './native-node.ts';
+import { sourceNativeNode } from './native-node.ts';
 import { immutableSceneData } from '../engine-client/scene.ts';
 
 const unsupportedQuery: NativeLayoutProgram['minWidth'] = [
   { kind: 'assert', values: [0] },
   { kind: 'result', values: [0] },
 ];
-function program(children: number, layout: NativeLayoutProgram['layout']): NativeLayoutProgram {
+function program(
+  children: number,
+  layout: NativeLayoutProgram['layout'],
+  query = unsupportedQuery,
+): NativeLayoutProgram {
   return {
     children,
     layout,
-    minWidth: unsupportedQuery,
-    maxWidth: unsupportedQuery,
-    minHeight: unsupportedQuery,
-    maxHeight: unsupportedQuery,
+    minWidth: query,
+    maxWidth: query,
+    minHeight: query,
+    maxHeight: query,
   };
+}
+type PositionData = Record<number, NativeLayoutScalar | undefined>;
+function gridPosition(
+  cache: PositionData | undefined,
+  unit: NativeLayoutScalar,
+  index: number,
+): NativeLayoutScalar {
+  if (
+    !cache ||
+    !Number.isSafeInteger(index) ||
+    index < 0 ||
+    index >= 64 ||
+    (index === 0 && 1 / index < 0)
+  )
+    return expression('multiply', unit, index);
+  let data = cache[index];
+  if (data === undefined)
+    cache[index] = data = immutableSceneData(expression('multiply', unit, index));
+  return data;
 }
 /** Two Content programs share the viewport extent through tight child bounds.
  * No Source constraints, measurement, or provisional LayoutBuilder reply. */
@@ -49,23 +73,52 @@ export function viewportGridPrograms(
   rtl: boolean,
 ) {
   const { columns, rows, maximumRowExtent } = policy;
+  // Own the private numeric subexpressions before embedding them in many cells.
+  // Public/malformed producers keep the original complete snapshot path.
+  const ownExpressions =
+    Number.isSafeInteger(columns) &&
+    columns > 0 &&
+    Number.isSafeInteger(rows) &&
+    rows > 0 &&
+    Number.isFinite(maximumRowExtent) &&
+    maximumRowExtent > 0 &&
+    Number.isSafeInteger(count) &&
+    count >= 0 &&
+    typeof rtl === 'boolean';
   const rowCount = Math.ceil(count / columns);
   const extent = expression('min', maximumRowExtent, expression('divide', input.maxHeight, rows));
-  const height = expression('multiply', extent, rowCount);
-  const viewport = program(1, [
-    { kind: 'assert', values: [expression('finite', input.maxWidth)] },
-    { kind: 'assert', values: [expression('finite', input.maxHeight)] },
-    {
-      kind: 'layout',
-      child: 0,
-      target: 0,
-      values: [input.maxWidth, input.maxWidth, height, height],
-    },
-    { kind: 'position', child: 0, values: [0, 0] },
-    { kind: 'size', values: [input.maxWidth, input.maxHeight] },
-  ]);
-  const width = expression('divide', input.maxWidth, columns);
-  const tileHeight = rowCount ? expression('divide', input.maxHeight, rowCount) : 0;
+  const heightExpression = expression('multiply', extent, rowCount);
+  const height = ownExpressions ? immutableSceneData(heightExpression) : heightExpression;
+  const query = ownExpressions ? immutableSceneData(unsupportedQuery) : unsupportedQuery;
+  const viewport = program(
+    1,
+    [
+      { kind: 'assert', values: [expression('finite', input.maxWidth)] },
+      { kind: 'assert', values: [expression('finite', input.maxHeight)] },
+      {
+        kind: 'layout',
+        child: 0,
+        target: 0,
+        values: [input.maxWidth, input.maxWidth, height, height],
+      },
+      { kind: 'position', child: 0, values: [0, 0] },
+      { kind: 'size', values: [input.maxWidth, input.maxHeight] },
+    ],
+    query,
+  );
+  const widthExpression = expression('divide', input.maxWidth, columns);
+  const width = ownExpressions ? immutableSceneData(widthExpression) : widthExpression;
+  const tileHeightExpression = rowCount ? expression('divide', input.maxHeight, rowCount) : 0;
+  const tileHeight = ownExpressions
+    ? immutableSceneData(tileHeightExpression)
+    : tileHeightExpression;
+  // These local tables contain only private numeric expressions and never a
+  // Source owner. Large or unusual indices retain the uncached expression path.
+  const sharePositions = ownExpressions && count <= 64 && columns <= 64;
+  const columnPositions: PositionData | undefined = sharePositions
+    ? Object.create(null)
+    : undefined;
+  const rowPositions: PositionData | undefined = sharePositions ? Object.create(null) : undefined;
   const layout: NativeLayoutCommand[] = [];
   for (let index = 0; index < count; index++) {
     const column = rtl ? columns - 1 - (index % columns) : index % columns;
@@ -77,14 +130,14 @@ export function viewportGridPrograms(
         kind: 'position',
         child: index,
         values: [
-          expression('multiply', width, column),
-          expression('multiply', tileHeight, Math.floor(index / columns)),
+          gridPosition(columnPositions, width, column),
+          gridPosition(rowPositions, tileHeight, Math.floor(index / columns)),
         ],
       },
     );
   }
   layout.push({ kind: 'size', values: [input.maxWidth, input.maxHeight] });
-  return immutableSceneData({ viewport, tiles: program(count, layout) });
+  return immutableSceneData({ viewport, tiles: program(count, layout, query) });
 }
 
 // One current numeric policy per original GridView Element, never a page or
@@ -156,7 +209,7 @@ export function originalNativeGrid(
           const child = grid.childrenDelegate.build(context, index);
           if (!child) return fail('native-grid-null-before-count');
           children.push(
-            new OriginalNativeNode('box', [child], {
+            sourceNativeNode('box', [child], {
               ...(child.key ? { key: child.key } : {}),
               keepAliveChildren: true,
               sourceCollectionIndex: index,
@@ -164,9 +217,9 @@ export function originalNativeGrid(
             }),
           );
         }
-        return new OriginalNativeNode(
+        return sourceNativeNode(
           'scrollViewport',
-          [new OriginalNativeNode('box', children, { layout: {}, layoutProgram: programs.tiles })],
+          [sourceNativeNode('box', children, { layout: {}, layoutProgram: programs.tiles })],
           {
             pointerHitTest: 'self',
             layout: {},
@@ -226,7 +279,7 @@ export function originalNativeGrid(
             const child = grid.childrenDelegate.build(childContext, index);
             if (child === null) return fail('native-grid-null-before-count');
             children.push(
-              new OriginalNativeNode('box', [child], {
+              sourceNativeNode('box', [child], {
                 ...(child.key ? { key: child.key } : {}),
                 keepAliveChildren: true,
                 sourceCollectionIndex: index,
@@ -239,7 +292,7 @@ export function originalNativeGrid(
               }),
             );
           }
-          return new OriginalNativeNode('grid', children, {
+          return sourceNativeNode('grid', children, {
             layout: { columns, gap, reverseMain: layout.reverseCrossAxis },
           });
         },

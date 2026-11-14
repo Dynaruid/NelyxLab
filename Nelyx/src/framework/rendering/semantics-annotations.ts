@@ -2,7 +2,7 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Adapted from pinned rendering/proxy_box.dart.
 import { RenderProxyBox } from './boxes.ts';
-import { registerNativeBoxConfiguration } from './native-box.ts';
+import { registerNativeBoxConfiguration, registerNativeBoxCommands } from './native-box.ts';
 import { registerNativeRenderMetadata } from './native-paint.ts';
 import { nativeSemanticsMetadata } from './native-semantics.ts';
 import { SemanticsAnnotationsMixin } from './object.ts';
@@ -145,21 +145,49 @@ export class RenderExcludeSemantics extends RenderProxyBox {
   }
 }
 RenderProxyBox._registerGeometryLayoutSemantics(RenderExcludeSemantics.prototype);
-registerNativeBoxConfiguration(RenderBlockSemantics.prototype, (render) => ({
-  kind: 'box',
-  layout: { childConstraints: 'inherit' },
-  semanticsPolicy: { blockPrevious: render.blocking },
-}));
-registerNativeBoxConfiguration(RenderExcludeSemantics.prototype, (render) => ({
-  kind: 'box',
-  layout: { childConstraints: 'inherit' },
-  semanticsPolicy: { excludeChildren: render.excluding },
-}));
-registerNativeBoxConfiguration(RenderMergeSemantics.prototype, () => ({
-  kind: 'box',
-  layout: { childConstraints: 'inherit' },
-  semanticsPolicy: { boundary: true, forceMergeDescendants: true },
-}));
+registerNativeBoxConfiguration(
+  RenderBlockSemantics.prototype,
+  (render) => ({
+    kind: 'box',
+    layout: { childConstraints: 'inherit' },
+    semanticsPolicy: { blockPrevious: render.blocking },
+  }),
+  true,
+);
+registerNativeBoxConfiguration(
+  RenderExcludeSemantics.prototype,
+  (render) => ({
+    kind: 'box',
+    layout: { childConstraints: 'inherit' },
+    semanticsPolicy: { excludeChildren: render.excluding },
+  }),
+  true,
+);
+registerNativeBoxConfiguration(
+  RenderMergeSemantics.prototype,
+  () => ({
+    kind: 'box',
+    layout: { childConstraints: 'inherit' },
+    semanticsPolicy: { boundary: true, forceMergeDescendants: true },
+  }),
+  true,
+);
+registerNativeBoxCommands(
+  RenderBlockSemantics.prototype,
+  (render, sink) => sink.interaction!('proxy', undefined, { blockPrevious: render.blocking }),
+  5,
+);
+registerNativeBoxCommands(
+  RenderExcludeSemantics.prototype,
+  (render, sink) => sink.interaction!('proxy', undefined, { excludeChildren: render.excluding }),
+  5,
+);
+const mergedSemanticsPolicy = Object.freeze({ boundary: true, forceMergeDescendants: true });
+registerNativeBoxCommands(
+  RenderMergeSemantics.prototype,
+  (_render, sink) => sink.interaction!('proxy', undefined, mergedSemanticsPolicy),
+  5,
+);
 RenderProxyBox._registerSemanticsGeometryPrototype(
   RenderSemanticsAnnotations.prototype,
   RenderBlockSemantics.prototype,

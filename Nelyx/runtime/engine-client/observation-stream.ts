@@ -71,6 +71,7 @@ export class ObservationStream {
   private previousPreparation: Readonly<ProviderPreparationCohort> | undefined;
   private rows = new Map<string, EngineNodeSnapshot>();
   private references = new Map<string, readonly bigint[]>();
+  private readonly referenceCounts = new Map<bigint, number>();
   private dictionary = new Map<bigint, RegisteredBlob>();
   private order: readonly string[] = [];
   private current: readonly EngineNodeSnapshot[] = Object.freeze([]);
@@ -89,6 +90,9 @@ export class ObservationStream {
     rowCompactions: 0,
     compactedRows: 0,
     compactedBytes: 0,
+    referenceVisits: 0,
+    membershipReuses: 0,
+    membershipOrderVisits: 0,
   };
   get byteLength(): number {
     let bytes = 0;
@@ -427,13 +431,25 @@ export class ObservationStream {
         references.set(owner, Object.freeze(ids));
       }
     if (references.size !== rowKeys.size) throw Error('Missing observation row manifest');
-    const members = new Set(full ? [] : this.rows.keys());
-    for (const id of removed) {
-      if (!members.delete(id) || rowKeys.has(id)) throw Error('Foreign observation tombstone');
+    // A delta without tombstones or an order replacement cannot introduce a
+    // handle. The accepted order/membership were already validated together.
+    // Check every changed generation, but do not copy/scan the retained tree
+    // for an offset or paint update. Publication still owns its full row array.
+    const retainedMembership = !replaceOrder && !removedCount;
+    let members: Set<string>;
+    if (retainedMembership) {
+      for (const id of rowKeys)
+        if (!this.handles.has(id)) throw Error('Observation order/membership differs');
+      members = this.handles;
+    } else {
+      members = new Set(full ? [] : this.rows.keys());
+      for (const id of removed) {
+        if (!members.delete(id) || rowKeys.has(id)) throw Error('Foreign observation tombstone');
+      }
+      for (const id of rowKeys) members.add(id);
+      if (order.length !== members.size || order.some((id) => !members.has(id)))
+        throw Error('Observation order/membership differs');
     }
-    for (const id of rowKeys) members.add(id);
-    if (order.length !== members.size || order.some((id) => !members.has(id)))
-      throw Error('Observation order/membership differs');
     const metadata: ObservationDelta = Object.freeze({
       base,
       version,
@@ -448,7 +464,7 @@ export class ObservationStream {
       ...(preparation ? { preparation } : {}),
     });
     let merged: readonly EngineNodeSnapshot[] | undefined;
-    let nextRows: Map<string, EngineNodeSnapshot> | undefined;
+    let rowPatch: Map<string, EngineNodeSnapshot> | undefined;
     return {
       metadata,
       blobs: expanded,
@@ -458,10 +474,13 @@ export class ObservationStream {
           merged = this.current;
           return merged;
         }
-        nextRows = new Map(full ? [] : this.rows);
-        for (const id of removed) nextRows.delete(id);
-        for (const row of changed) nextRows.set(key(row.node), row);
-        merged = Object.freeze(order.map((id) => nextRows!.get(id)!));
+        // The public snapshot owns its frozen row array. Validation needs only
+        // an overlay for changed rows, not a clone of every retained Map entry.
+        // Keep the stream's current index untouched until the whole response
+        // (including semantics routes and traversal) has been validated.
+        rowPatch = new Map();
+        for (const row of changed) rowPatch.set(key(row.node), row);
+        merged = Object.freeze(order.map((id) => rowPatch!.get(id) ?? this.rows.get(id)!));
         return merged;
       },
       commit: () => {
@@ -476,14 +495,50 @@ export class ObservationStream {
             if (previous) this.detachRow(previous, affected);
           }
         for (const node of changes) this.attachRow(node, affected);
-        if (nextRows) this.rows = nextRows;
-        if (full) this.references.clear();
-        for (const id of removed) this.references.delete(id);
-        for (const [id, ids] of references) this.references.set(id, ids);
-        const live = new Set<bigint>();
-        for (const ids of this.references.values()) for (const id of ids) live.add(id);
-        for (const id of this.dictionary.keys()) if (!live.has(id)) this.dictionary.delete(id);
-        for (const [id, blob] of dictionary) if (live.has(id)) this.dictionary.set(id, blob);
+        if (rowPatch) {
+          if (full) this.rows.clear();
+          else for (const id of removed) this.rows.delete(id);
+          for (const [id, node] of rowPatch) this.rows.set(id, node);
+        }
+        // Retire only bindings changed by this delta. Rebuilding a live-ID Set
+        // from the entire retained tree made even one-row changes allocate and
+        // scan every registration again. Counts are private to this stream;
+        // public snapshots still own immutable values and private copied bytes.
+        const retired = new Set<bigint>();
+        const release = (ids: readonly bigint[] | undefined): void => {
+          for (const id of ids ?? []) {
+            ++this.counters.referenceVisits;
+            const count = this.referenceCounts.get(id)! - 1;
+            if (count) this.referenceCounts.set(id, count);
+            else {
+              this.referenceCounts.delete(id);
+              retired.add(id);
+            }
+          }
+        };
+        if (full) {
+          this.references.clear();
+          this.referenceCounts.clear();
+          this.dictionary.clear();
+        } else
+          for (const id of removed) {
+            release(this.references.get(id));
+            this.references.delete(id);
+          }
+        for (const [owner, ids] of references) {
+          const previous = this.references.get(owner);
+          if (previous?.length === ids.length && previous.every((id, index) => id === ids[index]))
+            continue;
+          release(previous);
+          this.references.set(owner, ids);
+          for (const id of ids) {
+            ++this.counters.referenceVisits;
+            this.referenceCounts.set(id, (this.referenceCounts.get(id) ?? 0) + 1);
+          }
+        }
+        for (const id of retired) if (!this.referenceCounts.has(id)) this.dictionary.delete(id);
+        for (const [id, blob] of dictionary)
+          if (this.referenceCounts.has(id)) this.dictionary.set(id, blob);
         for (const id of dictionary.keys()) if (id > this.highId) this.highId = id;
         this.compactRows(affected);
         if (this.byteLength > p.limits.observationBytes)
@@ -498,6 +553,8 @@ export class ObservationStream {
         this.counters.rowWrappers += changes.length;
         this.counters.registrations += dictionary.size;
         this.counters.registrationCopyBytes += registrationCopyBytes;
+        if (retainedMembership) ++this.counters.membershipReuses;
+        else this.counters.membershipOrderVisits += order.length;
       },
     };
   }
@@ -510,6 +567,7 @@ export class ObservationStream {
     this.rowGroups = new WeakMap();
     this.rows.clear();
     this.references.clear();
+    this.referenceCounts.clear();
     this.dictionary.clear();
     this.order = [];
     this.current = Object.freeze([]);

@@ -2,7 +2,7 @@
 import { protocol as p } from './schema.ts';
 import type { EngineNodeSnapshot, NodeHandle, AffineMatrix, TextRect } from './codec.ts';
 
-type Row = { data: DataView; at: number; cache: Record<string, unknown> };
+type Row = { data: DataView; at: number; cache?: Record<string, unknown> };
 const rows = new WeakMap<object, Row>();
 /** @internal Retained deltas must not pin a large transport packet for a few
  * surviving rows. Relocation changes storage only, never snapshot values or
@@ -63,6 +63,39 @@ function handle(data: DataView, at: number): NodeHandle {
     generation: data.getUint32(at + 4, true),
   });
 }
+// These readers belong to this module's private rows, not the public snapshot
+// interface. Direct calls let the compiler inline reads without a second
+// virtual method lookup; every getter still reads its current backing/cache.
+function rowScalar(node: object, offset: number): number {
+  const r = rows.get(node)!;
+  return r.data.getFloat64(r.at + offset, true);
+}
+function rowUnsigned(node: object, offset: number): number {
+  const r = rows.get(node)!;
+  return r.data.getUint32(r.at + offset, true);
+}
+function rowHandle(node: object, offset: number, key: string): NodeHandle {
+  const r = rows.get(node)!,
+    cache = (r.cache ??= Object.create(null));
+  return (cache[key] ??= handle(r.data, r.at + offset)) as NodeHandle;
+}
+function rowBig(node: object, offset: number): bigint {
+  const r = rows.get(node)!,
+    cache = (r.cache ??= Object.create(null)),
+    key = 'u' + offset;
+  return (cache[key] ??= r.data.getBigUint64(r.at + offset, true)) as bigint;
+}
+function rowRect(node: object, offset: number): TextRect {
+  const r = rows.get(node)!,
+    cache = (r.cache ??= Object.create(null)),
+    key = 'r' + offset;
+  return (cache[key] ??= Object.freeze({
+    x: r.data.getFloat64(r.at + offset, true),
+    y: r.data.getFloat64(r.at + offset + 8, true),
+    width: r.data.getFloat64(r.at + offset + 16, true),
+    height: r.data.getFloat64(r.at + offset + 24, true),
+  })) as TextRect;
+}
 /** App-only projection over a private packet copy. Validation is eager; object
  * and BigInt materialization is demand-driven. The renderer keeps eager rows. */
 class ObservationRow implements EngineNodeSnapshot {
@@ -74,39 +107,13 @@ class ObservationRow implements EngineNodeSnapshot {
       validate(data.getFloat64(at + p.nodeFields.preparedMaximum, true));
     }
     this.node = handle(data, at);
-    rows.set(this, { data, at, cache: Object.create(null) });
-  }
-  private f(offset: number): number {
-    const r = rows.get(this)!;
-    return r.data.getFloat64(r.at + offset, true);
-  }
-  private u(offset: number): number {
-    const r = rows.get(this)!;
-    return r.data.getUint32(r.at + offset, true);
-  }
-  private memo<T>(key: string, read: (r: Row) => T): T {
-    const r = rows.get(this)!;
-    if (!Object.hasOwn(r.cache, key)) r.cache[key] = read(r);
-    return r.cache[key] as T;
-  }
-  private big(offset: number): bigint {
-    return this.memo('u' + offset, (r) => r.data.getBigUint64(r.at + offset, true));
-  }
-  private rect(offset: number): TextRect {
-    return this.memo('r' + offset, () =>
-      Object.freeze({
-        x: this.f(offset),
-        y: this.f(offset + 8),
-        width: this.f(offset + 16),
-        height: this.f(offset + 24),
-      }),
-    );
+    rows.set(this, { data, at });
   }
   get parent(): NodeHandle {
-    return this.memo('parent', (r) => handle(r.data, r.at + 12));
+    return rowHandle(this, 12, 'parent');
   }
   get resource(): NodeHandle {
-    return this.memo('resource', (r) => handle(r.data, r.at + p.nodeFields.resource));
+    return rowHandle(this, p.nodeFields.resource, 'resource');
   }
   get hasFocus(): boolean {
     return !!(this.flags & 256);
@@ -118,102 +125,110 @@ class ObservationRow implements EngineNodeSnapshot {
     return !!(this.flags & 64);
   }
   get matrix(): AffineMatrix {
-    return this.memo(
-      'matrix',
-      () =>
-        Object.freeze(
-          Array.from({ length: 6 }, (_, i) => this.f(p.nodeFields.matrix + i * 8)),
-        ) as unknown as AffineMatrix,
-    );
+    const r = rows.get(this)!,
+      cache = (r.cache ??= Object.create(null)),
+      at = r.at + p.nodeFields.matrix;
+    return (cache.matrix ??= Object.freeze([
+      r.data.getFloat64(at, true),
+      r.data.getFloat64(at + 8, true),
+      r.data.getFloat64(at + 16, true),
+      r.data.getFloat64(at + 24, true),
+      r.data.getFloat64(at + 32, true),
+      r.data.getFloat64(at + 40, true),
+    ])) as AffineMatrix;
   }
   get bounds(): TextRect {
-    return this.rect(p.nodeFields.boundsX);
+    return rowRect(this, p.nodeFields.boundsX);
   }
   get content(): TextRect {
-    return this.rect(p.nodeFields.contentX);
+    return rowRect(this, p.nodeFields.contentX);
   }
   get clip(): TextRect {
-    return this.rect(p.nodeFields.clipX);
+    return rowRect(this, p.nodeFields.clipX);
   }
   get preparedCoverage(): EngineNodeSnapshot['preparedCoverage'] {
-    return this.memo('coverage', () =>
-      this.flags & 128
-        ? Object.freeze({
-            minimum: this.f(p.nodeFields.preparedMinimum),
-            maximum: this.f(p.nodeFields.preparedMaximum),
-            revision: this.big(p.nodeFields.coverageRevision),
-          })
-        : null,
-    );
+    const r = rows.get(this)!,
+      cache = (r.cache ??= Object.create(null));
+    // Null is an observed absence, so do not reconstruct it on every read.
+    if (cache.coverage === undefined)
+      cache.coverage =
+        r.data.getUint32(r.at + 20, true) & 128
+          ? Object.freeze({
+              minimum: r.data.getFloat64(r.at + p.nodeFields.preparedMinimum, true),
+              maximum: r.data.getFloat64(r.at + p.nodeFields.preparedMaximum, true),
+              revision: rowBig(this, p.nodeFields.coverageRevision),
+            })
+          : null;
+    return cache.coverage as EngineNodeSnapshot['preparedCoverage'];
   }
   get x(): number {
-    return this.f(24);
+    return rowScalar(this, 24);
   }
   get y(): number {
-    return this.f(32);
+    return rowScalar(this, 32);
   }
   get width(): number {
-    return this.f(40);
+    return rowScalar(this, 40);
   }
   get height(): number {
-    return this.f(48);
+    return rowScalar(this, 48);
   }
   get offset(): number {
-    return this.f(56);
+    return rowScalar(this, 56);
   }
   get velocity(): number {
-    return this.f(64);
+    return rowScalar(this, 64);
   }
   get opacity(): number {
-    return this.f(80);
+    return rowScalar(this, 80);
   }
   get localOpacity(): number {
-    return this.f(p.nodeFields.localOpacity);
+    return rowScalar(this, p.nodeFields.localOpacity);
   }
   get radius(): number {
-    return this.f(p.nodeFields.radius);
+    return rowScalar(this, p.nodeFields.radius);
   }
   get fontSize(): number {
-    return this.f(p.nodeFields.fontSize);
+    return rowScalar(this, p.nodeFields.fontSize);
   }
   get baseline(): number {
-    return this.f(p.nodeFields.baseline);
+    return rowScalar(this, p.nodeFields.baseline);
   }
   get requestedOffset(): number {
-    return this.f(p.nodeFields.requestedOffset);
+    return rowScalar(this, p.nodeFields.requestedOffset);
   }
   get scrollMinimum(): number {
-    return this.f(p.nodeFields.scrollMinimum);
+    return rowScalar(this, p.nodeFields.scrollMinimum);
   }
   get scrollMaximum(): number {
-    return this.f(p.nodeFields.scrollMaximum);
+    return rowScalar(this, p.nodeFields.scrollMaximum);
   }
   get kind(): number {
-    return this.u(8);
+    return rowUnsigned(this, 8);
   }
   get flags(): number {
-    return this.u(20);
+    return rowUnsigned(this, 20);
   }
   get depth(): number {
-    return this.u(p.nodeFields.depth);
+    return rowUnsigned(this, p.nodeFields.depth);
   }
   get color(): number {
-    return this.u(p.nodeFields.color);
+    return rowUnsigned(this, p.nodeFields.color);
   }
   get order(): number {
-    return this.u(p.nodeFields.order);
+    return rowUnsigned(this, p.nodeFields.order);
   }
   get textDirection(): number {
-    return this.u(p.nodeFields.textDirection);
+    return rowUnsigned(this, p.nodeFields.textDirection);
   }
   get scrollRevision(): bigint {
-    return this.big(72);
+    return rowBig(this, 72);
   }
   get motion(): bigint {
-    return this.big(88);
+    return rowBig(this, 88);
   }
   get layoutRevision(): bigint {
-    return this.big(p.nodeFields.layoutRevision);
+    return rowBig(this, p.nodeFields.layoutRevision);
   }
   declare readonly layoutBuilder: EngineNodeSnapshot['layoutBuilder'];
   declare readonly snapshot: EngineNodeSnapshot['snapshot'];

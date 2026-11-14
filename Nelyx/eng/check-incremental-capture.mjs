@@ -17,13 +17,53 @@ try {
       import { originalControlConfiguration } from './Nelyx/runtime/app/controls.ts';
       import { RenderSemanticsAnnotations } from '@nelyx/core/framework/rendering/semantics-annotations';
       import { SemanticsProperties } from '@nelyx/core/framework/semantics/semantics';
-      import { claimNativeRenderObject } from '@nelyx/core/framework/rendering/object';
+      import { claimNativeRenderObject, nativeRenderFields } from '@nelyx/core/framework/rendering/object';
       import {LayoutBuilder} from '@nelyx/core/framework/widgets/layout-builder';
       import {BoxConstraints} from '@nelyx/core/framework/rendering/constraints';
       import {originalBoxConfiguration} from './Nelyx/runtime/app/layout.ts';
-      import {RenderPadding} from '@nelyx/core/framework/rendering/boxes';
+      import {RenderPadding, RenderConstrainedBox} from '@nelyx/core/framework/rendering/boxes';
       import {EdgeInsets} from '@nelyx/core/framework/painting/edge-insets';
       const capture = new RenderSceneCapture(), calls = new Map(), effects:string[] = [];
+      {
+        const journal=new RenderSceneCapture(),render:any={debugDisposed:false},reference=new SceneReference();
+        const masks=[],baselines=[];let fail=false,reenter=false;
+        const read=()=>journal.node(render,'',{value:0},0,(fields,previous)=>{
+          masks.push(fields);baselines.push(previous);
+          if(reenter){reenter=false;journal.invalidate(render,'layout',undefined,nativeRenderFields.paint);}
+          if(fail)throw Error('journal failure');
+          return new SceneNode(reference,'box');
+        },()=>{throw Error('unexpected child');});
+        const first=read();journal.commit([render]);assert.equal(masks.at(-1),nativeRenderFields.all);
+        journal.batchInvalidations(()=>{
+          journal.invalidate(render,'layout',undefined,nativeRenderFields.layout);
+          journal.invalidate(render,'layout',undefined,nativeRenderFields.constraints);
+        });
+        const second=read();journal.commit([render]);
+        assert.equal(masks.at(-1),nativeRenderFields.layout|nativeRenderFields.constraints,'Coalescing lost a second command field');
+        assert.equal(baselines.at(-1),first);
+        journal.invalidate(render,'layout',undefined,nativeRenderFields.layout);reenter=true;
+        read();journal.commit([render]);read();journal.commit([render]);
+        assert.equal(masks.at(-1),nativeRenderFields.paint,'Capture consumed an invalidation created during projection');
+        journal.invalidate(render,'layout',undefined,nativeRenderFields.layout);fail=true;
+        assert.throws(read,/journal failure/);journal.abort();fail=false;read();journal.commit([render]);
+        assert.equal(masks.at(-1),nativeRenderFields.all,'Abort retained a partial field baseline');
+        journal.context='new-device';read();assert.equal(masks.at(-1),nativeRenderFields.all);
+        assert.equal(baselines.at(-1),undefined,'New global cohort retained a field baseline');
+        journal.clear();
+        const notifications=[],hooks=[];let reentrant=true,throwHook=false;
+        class Hooked extends RenderConstrainedBox {
+          override markNeedsLayout(...args:any[]){hooks.push(args.length);if(throwHook)throw Error('hook failure');super.markNeedsLayout();}
+        }
+        const box=new Hooked();claimNativeRenderObject(box,{},(kind,fields)=>{
+          notifications.push([kind,fields]);if(reentrant){reentrant=false;box.markNeedsLayout();}
+        });
+        box.additional=BoxConstraints.tightFor(10,20);
+        assert.deepEqual(notifications,[['layout',nativeRenderFields.constraints],['layout',undefined]],'Reentrant invalidation inherited a setter hint');
+        assert(hooks.every(count=>count===0),'Canonical setter changed a virtual hook argument list');
+        throwHook=true;assert.throws(()=>box.additional=BoxConstraints.tightFor(11,21),/hook failure/);
+        throwHook=false;box.markNeedsLayout();assert.deepEqual(notifications.at(-1),['layout',undefined],'Throwing hook leaked a field hint');
+        assert.notEqual(first,second);
+      }
       function render(name, children=[], dynamic=false) {
         const r:any = {name,children,dynamic,reference:new SceneReference(),color:0,debugDisposed:false,edge:''};
         for(const child of children) child.parent=r;
@@ -49,8 +89,9 @@ try {
       writer.accepted=writer.records(second);
       leaf.color=0xff123456;capture.invalidate(leaf);
       const third=read(), desired=writer.records(third), changes=writer.diff(desired);
-      assert.equal(desired.get('1:1'),writer.accepted.get('1:1'),'unchanged ancestor configuration record must retain identity');
-      assert.equal(desired.get('1:1').node.children.length,0,'accepted records must not pin old Scene subtrees');
+      const rootBefore=[...writer.accepted.values()].find(record=>record.handle.slot===1&&record.handle.generation===1),rootAfter=[...desired.values()].find(record=>record.handle.slot===1&&record.handle.generation===1);
+      assert(rootBefore&&rootAfter);assert.equal(rootAfter,rootBefore,'unchanged ancestor configuration record must retain identity');
+      assert.equal(rootAfter.node.children.length,0,'accepted records must not pin old Scene subtrees');
       assert.equal(changes.length,1,'one local paint mutation must reach the wire');
       assert.equal(calls.get('root'),1);assert.equal(calls.get('leaf'),2);
       assert.equal(third.children[1],second.children[1]);
@@ -119,7 +160,7 @@ try {
         const batched=new RenderSceneCapture(),target=render('batch-target'),consumer=render('batch-consumer'),indirect=render('batch-indirect');
         const root=render('batch-root',[target,consumer,indirect]);let value=0,setters=0;
         const project=(r,count={value:0},depth=0)=>batched.node(r,'',count,depth,()=>{
-          ++count.value;if(r===consumer)batched.dependOn(target);if(r===indirect)batched.dependOn(consumer);
+          ++count.value;if(r===target)batched.dependOn(indirect);if(r===consumer)batched.dependOn(target);if(r===indirect)batched.dependOn(consumer);
           return new SceneNode(r.reference,'stack',r.children.map(child=>project(child,count,depth+1)),{color:value});
         },(count,depth)=>project(r,count,depth));
         const commit=()=>{const scene=project(root);batched.commit([root]);return scene;};commit();

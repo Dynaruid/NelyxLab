@@ -456,9 +456,7 @@ export abstract class DateUtils {
     return checkedInteger(
       checkedInteger(
         checkedInteger(
-          checkedInteger(
-            checkedInteger(checkedInteger(endDate.year) - checkedInteger(startDate.year)),
-          ) * 12,
+          checkedInteger(checkedInteger(endDate.year) - checkedInteger(startDate.year)) * 12,
         ) + checkedInteger(endDate.month),
       ) - checkedInteger(startDate.month),
     );
@@ -511,14 +509,12 @@ export abstract class DateUtils {
     let firstDayOfWeekIndex: number = checkedInteger(localizations.firstDayOfWeekIndex);
     void checkedInteger(
       (firstDayOfWeekIndex = checkedInteger(
-        modulo(checkedInteger(checkedInteger(checkedInteger(firstDayOfWeekIndex) - 1)), 7),
+        modulo(checkedInteger(checkedInteger(firstDayOfWeekIndex) - 1), 7),
       )),
     );
     return checkedInteger(
       modulo(
-        checkedInteger(
-          checkedInteger(checkedInteger(weekdayFromMonday) - checkedInteger(firstDayOfWeekIndex)),
-        ),
+        checkedInteger(checkedInteger(weekdayFromMonday) - checkedInteger(firstDayOfWeekIndex)),
         7,
       ),
     );

@@ -178,8 +178,14 @@ export {
   nativeBoxConfiguration,
   nativeBoxDataConfiguration,
   registerNativeBoxConfiguration,
+  nativeBoxCommands,
 } from './native-box.ts';
-export type { NativeLayoutBuilderConfiguration, NativeBoxConfiguration } from './native-box.ts';
+export type {
+  NativeLayoutBuilderConfiguration,
+  NativeBoxConfiguration,
+  NativeBoxCommandSink,
+  NativeBoxCommandProjector,
+} from './native-box.ts';
 export { NativeLayoutBuilder, nativeLayoutExpression, nativeLayoutInput } from './native-layout.ts';
 export type {
   NativeLayoutScalar,
@@ -209,7 +215,26 @@ export type NativeRenderChange =
   | 'semantics'
   | 'interaction'
   | 'resource';
-const nativeRenderInvalidators = new WeakMap<RenderObject, (kind: NativeRenderChange) => void>();
+/** @internal Command groups reported by the setter that already knows the edit.
+ * Broad public invalidations, references and unknown modules remain full updates. */
+export const nativeRenderFields = Object.freeze({
+  layout: 1,
+  constraints: 2,
+  paint: 4,
+  properties: 8,
+  semantics: 16,
+  interaction: 32,
+  graphics: 64,
+  text: 128,
+  paragraph: 256,
+  clip: 512,
+  all: 0xffff,
+});
+const nativeRenderFieldHints = new WeakMap<RenderObject, number>();
+const nativeRenderInvalidators = new WeakMap<
+  RenderObject,
+  (kind: NativeRenderChange, fields?: number) => void
+>();
 const nativeFontsBindings = new WeakMap<
   RenderObject,
   (scope: SystemFontsRelayoutContext, isLive: () => boolean) => void
@@ -251,7 +276,7 @@ export function withNativeRenderConfiguration<T>(
 export function claimNativeRenderObject(
   render: RenderObject,
   owner: object,
-  invalidated?: (kind: NativeRenderChange) => void,
+  invalidated?: (kind: NativeRenderChange, fields?: number) => void,
 ): void {
   const previous = nativeRenderOwners.get(render);
   invariant(
@@ -2191,6 +2216,23 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     }
     return errors;
   }
+  /** Preserve virtual invalidation hooks and their original zero arguments.
+   * The hint exists only during this synchronous canonical setter notification. */
+  protected markNativeFieldsChanged(kind: 'layout' | 'paint' | 'semantics', fields: number): void {
+    const notify = nativeRenderInvalidators.has(this),
+      before = nativeRenderFieldHints.get(this);
+    if (notify) nativeRenderFieldHints.set(this, fields);
+    try {
+      if (kind === 'layout') this.markNeedsLayout();
+      else if (kind === 'paint') this.markNeedsPaint();
+      else this.markNeedsSemanticsUpdate();
+    } finally {
+      if (notify) {
+        if (before === undefined) nativeRenderFieldHints.delete(this);
+        else nativeRenderFieldHints.set(this, before);
+      }
+    }
+  }
   markNeedsLayout(): void {
     assertOutsideRenderPaint();
     if (!(!this.dead && !layoutQueries.length))
@@ -2199,7 +2241,12 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate layout',
       );
-    nativeRenderInvalidators.get(this)?.(this.changingChildren ? 'children' : 'layout');
+    const nativeFields = nativeRenderFieldHints.get(this);
+    nativeRenderFieldHints.delete(this);
+    nativeRenderInvalidators.get(this)?.(
+      this.changingChildren ? 'children' : 'layout',
+      this.changingChildren ? undefined : nativeFields,
+    );
     const errors = this.invalidateLayout(undefined, undefined);
     if (errors) throwFailures(errors, 'Layout invalidation failed');
   }
@@ -2248,7 +2295,9 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate paint',
       );
-    nativeRenderInvalidators.get(this)?.('paint');
+    const nativeFields = nativeRenderFieldHints.get(this);
+    nativeRenderFieldHints.delete(this);
+    nativeRenderInvalidators.get(this)?.('paint', nativeFields);
     let owner: PipelineOwner | undefined,
       contents = true;
     let batch = this.paintCoalesces ? this.pipelineOwner?._paintInvalidationBatch : null;
@@ -2336,7 +2385,12 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate semantics',
       );
-    nativeRenderInvalidators.get(this)?.('semantics');
+    const nativeFields = nativeRenderFieldHints.get(this);
+    nativeRenderFieldHints.delete(this);
+    nativeRenderInvalidators.get(this)?.(
+      'semantics',
+      geometryOnly ? nativeRenderFields.layout : nativeFields,
+    );
     if (FoundationBuildMode.debug) {
       if (this.owner?.debugDoingSemantics)
         invariant(
@@ -3202,7 +3256,10 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set properties(value: SemanticsProperties) {
       if (this._properties === value) return;
       this._properties = value;
-      this.markNeedsSemanticsUpdate();
+      this.markNativeFieldsChanged(
+        'semantics',
+        nativeRenderFields.semantics | nativeRenderFields.interaction,
+      );
     }
     _replaceSemanticsProperties(value: SemanticsProperties): void {
       this._properties = value;
@@ -3213,7 +3270,10 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set container(value: boolean) {
       if (this._container === value) return;
       this._container = value;
-      this.markNeedsSemanticsUpdate();
+      this.markNativeFieldsChanged(
+        'semantics',
+        nativeRenderFields.semantics | nativeRenderFields.interaction,
+      );
     }
     get explicitChildNodes(): boolean {
       return this._explicitChildNodes;
@@ -3221,7 +3281,10 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set explicitChildNodes(value: boolean) {
       if (this._explicitChildNodes === value) return;
       this._explicitChildNodes = value;
-      this.markNeedsSemanticsUpdate();
+      this.markNativeFieldsChanged(
+        'semantics',
+        nativeRenderFields.semantics | nativeRenderFields.interaction,
+      );
     }
     get excludeSemantics(): boolean {
       return this._excludeSemantics;
@@ -3229,7 +3292,10 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set excludeSemantics(value: boolean) {
       if (this._excludeSemantics === value) return;
       this._excludeSemantics = value;
-      this.markNeedsSemanticsUpdate();
+      this.markNativeFieldsChanged(
+        'semantics',
+        nativeRenderFields.semantics | nativeRenderFields.interaction,
+      );
     }
     get blockUserActions(): boolean {
       return this._blockUserActions;
@@ -3237,7 +3303,10 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set blockUserActions(value: boolean) {
       if (this._blockUserActions === value) return;
       this._blockUserActions = value;
-      this.markNeedsSemanticsUpdate();
+      this.markNativeFieldsChanged(
+        'semantics',
+        nativeRenderFields.semantics | nativeRenderFields.interaction,
+      );
     }
     get localeForSubtree(): Locale | null {
       return this._localeForSubtree;
@@ -3245,7 +3314,10 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set localeForSubtree(value: Locale | null) {
       if (valueEquals(this._localeForSubtree, value)) return;
       this._localeForSubtree = value;
-      this.markNeedsSemanticsUpdate();
+      this.markNativeFieldsChanged(
+        'semantics',
+        nativeRenderFields.semantics | nativeRenderFields.interaction,
+      );
     }
     get textDirection(): 'ltr' | 'rtl' | null {
       return this._textDirection;
@@ -3253,7 +3325,10 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set textDirection(value: 'ltr' | 'rtl' | null) {
       if (this._textDirection === value) return;
       this._textDirection = value;
-      this.markNeedsSemanticsUpdate();
+      this.markNativeFieldsChanged(
+        'semantics',
+        nativeRenderFields.semantics | nativeRenderFields.interaction,
+      );
     }
     private attributedProperties: SemanticsProperties | null = null;
     private _attributedLabel: AttributedString | null = null;

@@ -218,6 +218,7 @@ export function sourceIdentity() {
     '../sdk/tooling/cli/src/windows-native-icu.mjs',
     '../sdk/tooling/cli/src/windows-native-hermes.mjs',
     '../sdk/tooling/cli/src/windows-hermes-policy.mjs',
+    '../sdk/tooling/cli/src/engine-v2-native-unit.mjs',
     ...['core', 'bindings', 'include', 'schema', 'tools', 'platform', 'render'].flatMap((dir) =>
       tree(
         path.join(engineRoot, dir),

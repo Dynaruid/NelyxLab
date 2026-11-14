@@ -809,6 +809,8 @@ export interface ModuleRecipe {
     int?: { representation: 'safe-number'; check: string };
     num?: { representation: 'double' };
   };
+  /** Fold only adjacent guards emitted by this module, never user calls. */
+  integerGuardFolding?: { policy: 'adjacent-canonical-integer-guards' };
   /** Scalars stay numbers; erased Object/num/T slots retain explicit numeric kind.
    * Uses resolved declaration/flow identities, never integrality or value spelling. */
   numericValues?: {

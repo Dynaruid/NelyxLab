@@ -13,6 +13,15 @@ const generated = new Set([
   'android/build-logic/.gradle',
   'android/build-logic/build',
 ]);
+// Gradle's root prefab task also writes these metadata reports while importing
+// the pinned Android project. The archive contains none of them, and no native
+// build consumes them as source. Keep every other file below build/ in the hash.
+const prefabReports = new Set(
+  ['debug', 'debugOptimized', 'release'].map(
+    (variant) =>
+      'build/intermediates/prefab_package_header_only/prefab_publication.json/' + variant,
+  ),
+);
 export function nativeHermesSourceTree(directory) {
   const files = [];
   const visit = (folder, prefix = '') => {
@@ -20,6 +29,7 @@ export function nativeHermesSourceTree(directory) {
       const relative = prefix + entry.name;
       if (generated.has(relative) && entry.isDirectory()) continue;
       if (entry.isSymbolicLink()) throw Error('Hermes source input is a link: ' + relative);
+      if (prefabReports.has(relative) && entry.isFile()) continue;
       const file = path.join(folder, entry.name);
       if (entry.isDirectory()) visit(file, relative + '/');
       else if (entry.isFile()) files.push(relative);

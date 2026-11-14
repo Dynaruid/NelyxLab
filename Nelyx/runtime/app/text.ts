@@ -55,6 +55,7 @@ export class AppTextLayoutService implements TextLayoutService {
   private failed = false;
   private fontCurrent = true;
   private observedFontRevision: number;
+  private readonly thinFontFamilies: boolean;
   private closeFailure: { error: unknown } | undefined;
   private sdkLayouts = 0;
   private sdkQueries = 0;
@@ -77,6 +78,8 @@ export class AppTextLayoutService implements TextLayoutService {
     )
       throw Error('App paragraph service version/font cohort unavailable');
     this.observedFontRevision = state.fontRevision;
+    this.thinFontFamilies =
+      state.fontFamiliesVersion === 1 && typeof backend.fontFamilies === 'function';
     registerTextFontRevision(this, () => this.fontRevision);
   }
   get fontRevision(): number {
@@ -103,7 +106,13 @@ export class AppTextLayoutService implements TextLayoutService {
     let available = false;
     if (revision >= 1n && revision <= BigInt(Number.MAX_SAFE_INTEGER)) {
       try {
-        available = this.backend.snapshot(Number(revision)).fontRevision === Number(revision);
+        if (this.thinFontFamilies) {
+          // State polls need the live revision fence, not owner-wide accounting.
+          // This negotiated operation validates the same cohort as snapshot.
+          this.backend.fontFamilies!(Number(revision));
+          available = true;
+        } else
+          available = this.backend.snapshot(Number(revision)).fontRevision === Number(revision);
       } catch {
         // A foreign/retired revision also latches the existing fail-closed guard.
       }
@@ -130,18 +139,20 @@ export class AppTextLayoutService implements TextLayoutService {
   }
   private input(input: TextLayoutInput): AppTextInput {
     encodeUtf8(input.text, 16384);
-    const state = this.backend.snapshot(this.observedFontRevision);
-    return originalParagraphInput(
-      input,
-      this.unsupported,
-      false,
-      false,
-      new Set(state.fontFamilies),
-    );
+    return originalParagraphInput(input, this.unsupported, false, false, this.readFontFamilies());
   }
   get fontFamilies(): ReadonlySet<string> {
     this.ensure();
-    return new Set(this.backend.snapshot(this.observedFontRevision).fontFamilies);
+    return this.readFontFamilies();
+  }
+  private readFontFamilies(): ReadonlySet<string> {
+    // Each query still validates its live cohort and owns a fresh set. Counter
+    // snapshots remain current and older/custom backends retain their protocol.
+    return new Set(
+      this.thinFontFamilies
+        ? this.backend.fontFamilies!(this.observedFontRevision)
+        : this.backend.snapshot(this.observedFontRevision).fontFamilies,
+    );
   }
   layout(input: TextLayoutInput, request?: TextLayoutRequest): TextLayout {
     this.ensure();

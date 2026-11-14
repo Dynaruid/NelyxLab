@@ -110,8 +110,49 @@ export interface NativeLayoutBuilderConfiguration {
 }
 type Reject = (reason: string) => never;
 type Reader<T extends object> = (render: T, reject: Reject) => NativeBoxConfiguration;
+/** @internal Fixed common box commands. Resolvers still execute in the module;
+ * the sink owns codec validation and never retains the producer's payload. */
+export interface NativeBoxCommandSink {
+  layout(value: NativeBoxLayout): void;
+  /** Fixed layouts have no Source payload to retain or re-read. */
+  inheritLayout?(kind: 'bounds' | 'empty' | 'offstage', value: boolean): void;
+  /** Padding scalars stay live until children have been captured. */
+  paddingLayout?(value: NonNullable<NativeBoxLayout['padding']>): void;
+  alignmentLayout?(x: number, y: number, widthFactor?: number, heightFactor?: number): void;
+  constraints(value: BoxConstraints): void;
+  /** Additive capability for fixed pointer and semantics modules. */
+  interaction?(
+    hitTest: NativeBoxConfiguration['hitTest'],
+    pointerBlock?: NativeBoxConfiguration['pointerBlock'],
+    semanticsPolicy?: NativeBoxConfiguration['semanticsPolicy'],
+    onPointerSample?: NativeBoxConfiguration['onPointerSample'],
+  ): void;
+}
+/** Fixed diagnostic order: proxy, constraints, padding, alignment, pointer,
+ * semantics policy, offstage. Repaint boundaries share constraints commands. */
+export type NativeBoxCommandProjector = ((
+  render: object,
+  sink: NativeBoxCommandSink,
+  reject?: Reject,
+) => void) & {
+  readonly module: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+};
 const readers = new WeakMap<object, Reader<object>>();
 const dataReaders = new WeakMap<object, Reader<object>>();
+const projectors = new WeakMap<object, NativeBoxCommandProjector>();
+export function registerNativeBoxCommands<T extends object>(
+  prototype: T,
+  project: (render: T, sink: NativeBoxCommandSink, reject?: Reject) => void,
+  module: NativeBoxCommandProjector['module'],
+): void {
+  if (!dataReaders.has(prototype) || projectors.has(prototype))
+    throw Error('Native box commands require one exact direct-data registration');
+  Object.defineProperty(project, 'module', { value: module });
+  projectors.set(prototype, project as NativeBoxCommandProjector);
+}
+export function nativeBoxCommands(render: object): NativeBoxCommandProjector | undefined {
+  return projectors.get(Object.getPrototypeOf(render));
+}
 
 /** @internal Each canonical module registers its own exact configuration identity. */
 export function registerNativeBoxConfiguration<T extends object>(

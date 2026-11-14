@@ -15,9 +15,35 @@ try {
     import {createWasmTransport} from './Nelyx/runtime/engine-client/wasm.ts';
     import {SceneBlobJournal} from './Nelyx/runtime/engine-client/scene-blobs.ts';
     import {ObservationGapError,ObservationStream} from './Nelyx/runtime/engine-client/observation-stream.ts';
+    import type {EngineNodeSnapshot} from './Nelyx/runtime/engine-client/codec.ts';
     import {commands as c,body,packet,response as decodeResponse,protocol as p,appObservationBody} from './Nelyx/runtime/engine-client/codec.ts';
     const materialize=node=>Object.fromEntries([...new Set([...Object.keys(node),...Object.getOwnPropertyNames(Object.getPrototypeOf(node)).filter(key=>Object.getOwnPropertyDescriptor(Object.getPrototypeOf(node),key)?.get)])].map(key=>[key,node[key]]));
     const sameRows=(actual,expected,label)=>{assert.equal(actual.length,expected.length,label+' row count');for(let i=0;i<actual.length;++i)assert.deepEqual(materialize(actual[i]),materialize(expected[i]),label+' row '+i);};
+    // Membership is independent from row values. Exercise malformed deltas
+    // against an accepted base, including same-size replacement/generation
+    // changes that an order-length-only check would incorrectly accept.
+    const membership=new ObservationStream(),row=(slot,generation=1)=>Object.freeze({node:Object.freeze({slot,generation})}) as EngineNodeSnapshot;
+    const m1=row(1),m2=row(2),m3=row(3),m4=row(4),m2next=row(2,2);
+    const membershipBlobs=(base,version,changed,removed=[],order?)=>{
+      const bytes=body(p.observationDeltaBytes+(removed.length+(order?.length??0))*8,v=>{
+        v.setBigUint64(0,base,true);v.setBigUint64(8,version,true);v.setUint32(16,(base===0n?1:0)|(order?2:0),true);
+        v.setUint32(20,removed.length,true);v.setUint32(24,order?.length??0,true);
+        for(const [offset,value] of [[48,1n],[56,2n],[64,1n],[72,1n]])v.setBigUint64(offset,value,true);
+        [...removed,...(order??[])].forEach((node,i)=>{v.setUint32(p.observationDeltaBytes+i*8,node.slot,true);v.setUint32(p.observationDeltaBytes+i*8+4,node.generation,true);});
+      });
+      return [{type:p.observationDeltaBlob,handle:{slot:0,generation:0},bytes},...changed.map(node=>({type:p.observationReferencesBlob,handle:node.node,bytes:new Uint8Array()}))];
+    };
+    const adoptMembership=(base,version,changed,removed=[],order?)=>{const plan=membership.prepare(membershipBlobs(base,version,changed,removed,order),changed),nodes=plan.merge(changed);plan.commit();return nodes;};
+    const initialMembers=adoptMembership(0n,1n,[m1,m2,m3],[],[m1.node,m2.node,m3.node]),m2changed=row(2);
+    const valueChanged=adoptMembership(1n,2n,[m2changed]);
+    assert.deepEqual(valueChanged,[m1,m2changed,m3]);assert.equal(valueChanged[0],initialMembers[0]);
+    assert.equal(membership.counters.membershipReuses,1);assert.equal(membership.counters.membershipOrderVisits,3);
+    for(const changed of [[m4],[m2next]])assert.throws(()=>membership.prepare(membershipBlobs(2n,3n,changed),changed),/membership/);
+    assert.equal(membership.version,2n,'Malformed value-only membership advanced the base');
+    assert.throws(()=>membership.prepare(membershipBlobs(2n,3n,[m4],[m3.node]),[m4]),/membership/);
+    const reordered=adoptMembership(2n,3n,[],[],[m3.node,m2.node,m1.node]);assert.deepEqual(reordered,[m3,m2changed,m1]);
+    const replaced=adoptMembership(3n,4n,[m2next],[m2.node],[m3.node,m2next.node,m1.node]);assert.deepEqual(replaced,[m3,m2next,m1]);
+    assert.deepEqual(initialMembers,[m1,m2,m3],'Membership updates mutated an older snapshot');membership.clear();assert.equal(membership.byteLength,0);
     const factory=(await import(pathToFileURL(path.resolve(process.argv[2]??'Nelyx/engine/dist/single-worker/engine.mjs')).href)).default;
     const transport=createWasmTransport(await factory()),client=await EngineClient.connect(transport);
     try {
@@ -115,14 +141,16 @@ try {
       const forceFull=await storage.request(p.opcodes.semanticsSnapshot,body(16,v=>v.setUint32(0,p.inspectionFlags.appObservationDelta,true)));
       // request() also validates and adopts its delta, like the ordinary observation path.
       assert(forceFull.observation.full);assert.equal(stream.counters.registrationCopyBytes,originalCopyBytes,'Known immutable IDs copied again on resync');
-      const kept=forceFull.nodes[0],expected={width:kept.width,parent:kept.parent,matrix:kept.matrix};
+      const kept=forceFull.nodes[0],expected={width:kept.width,parent:kept.parent,matrix:kept.matrix,bounds:kept.bounds,resource:kept.resource,coverage:kept.preparedCoverage,motion:kept.motion};
       for(const batch of [handles.slice(1,13),handles.slice(13)]){
         await storage.commit(batch.map(n=>c.paint(n,0xffabcdef)));await publishStorage();
         const delta=await storage.observeApp(p.opcodes.semanticsSnapshot);
         assert.equal(delta.nodes[0],kept,'Row relocation changed immutable identity');
         assert(stream.byteLength<=Number(delta.observation.retainedBytes),'Live row backing fragmentation escaped the native cache bound');
       }
-      assert.deepEqual({width:kept.width,parent:kept.parent,matrix:kept.matrix},expected,'Relocation changed lazy/cached snapshot values');
+      assert.deepEqual({width:kept.width,parent:kept.parent,matrix:kept.matrix,bounds:kept.bounds,resource:kept.resource,coverage:kept.preparedCoverage,motion:kept.motion},expected,'Relocation changed lazy/cached snapshot values');
+      for(const property of ['parent','matrix','bounds','resource','preparedCoverage'])assert.equal(kept[property],property==='preparedCoverage'?expected.coverage:expected[property],'Relocation replaced a materialized immutable value: '+property);
+      assert.equal(kept.motion,0n,'A zero BigInt cache entry became absent');
       assert.equal(survivor.color,0);assert.equal(originalRows.nodes[1].color,0,'An old snapshot was overwritten by a delta');
       const stable=await storage.observeApp(p.opcodes.semanticsSnapshot),compactions=stream.counters.rowCompactions;
       assert.equal((await storage.observeApp(p.opcodes.semanticsSnapshot)).nodes,stable.nodes);
@@ -133,10 +161,16 @@ try {
         await bounded.request(p.opcodes.metrics,body(40,v=>{v.setBigUint64(0,2n,true);v.setFloat64(8,320,true);v.setFloat64(16,240,true);v.setFloat64(24,1,true);}));
         await bounded.commit([...handles.map((n,i)=>i?c.create(n,'box',0,{parent:root,index:i-1}):c.create(n,'stack')),c.properties(target,{width:20,height:20}),c.semantics(target,{role:'button',label:'retained'})]);
         await publishStorage(bounded);const before=await bounded.observeApp(p.opcodes.semanticsSnapshot);
+        const referenceCosts=client.observationStream(bounded.owner,p.opcodes.semanticsSnapshot).counters;
+        const referenceVisits=referenceCosts.referenceVisits;
+        const membershipVisits=referenceCosts.membershipOrderVisits,membershipReuses=referenceCosts.membershipReuses;
         await bounded.commit([c.paint(target,0xff112233,2)]);await publishStorage(bounded);
         const changed=await bounded.observeApp(p.opcodes.semanticsSnapshot),oracle=await bounded.request(p.opcodes.semanticsSnapshot,appObservationBody());
         assert.equal(changed.observation.rowVisits,1,'Native paint observation grew with '+width+' unrelated nodes');
         assert.equal(changed.observation.changedRows,1);assert.equal(changed.nodes[2],before.nodes[2]);
+        assert.equal(referenceCosts.referenceVisits,referenceVisits,'Paint delta rescanned unrelated immutable bindings at '+width+' nodes');
+        assert.equal(referenceCosts.membershipOrderVisits,membershipVisits,'Paint delta rescanned the retained order at '+width+' nodes');
+        assert.equal(referenceCosts.membershipReuses,membershipReuses+1,'Paint delta did not retain its validated membership');
         assert.deepEqual(changed.nodes.map(materialize),oracle.nodes.map(materialize),'Incremental paint observation differs from full oracle');
         await bounded.commit([c.properties(target,{x:4,width:30,height:20})]);await publishStorage(bounded);
         const geometry=await bounded.observeApp(p.opcodes.semanticsSnapshot),fullGeometry=await bounded.request(p.opcodes.semanticsSnapshot,appObservationBody());
@@ -208,6 +242,7 @@ try {
       assert.equal(rejectedFrame.status,p.statuses.budgetExceeded);assert.equal(rejectedFrame.holds,0,'A failed frame response left an unissued provider hold');
       await oversizedFrame.close();
       console.log('Versioned observations: immutable rows, no-change reuse, active/published fences, tombstones, lost response/resync, owner close PASS.');
+      console.log('Observation membership: bounded value-only updates, forged additions/generations/order rejection, reordering/replacement and old snapshots PASS.');
       console.log('Observation storage: bounded live backing, immutable lazy-row relocation, resync copy reuse and close PASS.');
       console.log('Native observations: bounded paint/geometry/semantics/layout candidates for 64/2048 nodes, skipped publications, removal/recycling and full oracle equivalence PASS.');
       console.log('Observation quota: rejected multi-MiB response preserves both bases, then recovers by a valid delta PASS.');

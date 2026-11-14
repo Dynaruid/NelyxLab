@@ -182,13 +182,13 @@ export const _maxDayPickerRowCount: number = 6;
  * @dartTypeOrigin explicit
  */
 export const _maxDayPickerHeightM2: number =
-  _dayPickerRowHeightM2 * checkedInteger(checkedInteger(checkedInteger(_maxDayPickerRowCount) + 1));
+  _dayPickerRowHeightM2 * checkedInteger(checkedInteger(_maxDayPickerRowCount) + 1);
 /**
  * @dartType double
  * @dartTypeOrigin explicit
  */
 export const _maxDayPickerHeightM3: number =
-  _dayPickerRowHeightM3 * checkedInteger(checkedInteger(checkedInteger(_maxDayPickerRowCount) + 1));
+  _dayPickerRowHeightM3 * checkedInteger(checkedInteger(_maxDayPickerRowCount) + 1);
 /**
  * @dartType double
  * @dartTypeOrigin explicit
@@ -818,8 +818,7 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
     const scaledMaxDayPickerHeight: number =
       textScaleFactor > 1.3
         ? maxDayPickerHeight +
-          checkedInteger(checkedInteger(checkedInteger(_maxDayPickerRowCount) + 1)) *
-            ((textScaleFactor - 1) * 8)
+          checkedInteger(checkedInteger(_maxDayPickerRowCount) + 1) * ((textScaleFactor - 1) * 8)
         : maxDayPickerHeight;
     const picker: SizedBox = dateSizedBox({
       height: _subHeaderHeight + scaledMaxDayPickerHeight,
@@ -1886,10 +1885,7 @@ export class _DayPickerState extends State<_DayPicker> {
       checkedInteger(result.length) < checkedInteger(DateTime.daysPerWeek);
       checkedInteger(
         (i = checkedInteger(
-          modulo(
-            checkedInteger(checkedInteger(checkedInteger(i) + 1)),
-            checkedInteger(DateTime.daysPerWeek),
-          ),
+          modulo(checkedInteger(checkedInteger(i) + 1), checkedInteger(DateTime.daysPerWeek)),
         )),
       )
     ) {
@@ -2300,7 +2296,7 @@ export class _DayPickerGridDelegate extends SliverGridDelegate {
         boxSourceDartDouble(scaledRowHeight),
         boxSourceDartDouble(
           constraints.viewportMainAxisExtent /
-            checkedInteger(checkedInteger(checkedInteger(_maxDayPickerRowCount) + 1)),
+            checkedInteger(checkedInteger(_maxDayPickerRowCount) + 1),
         ),
       ),
     );
@@ -2498,10 +2494,8 @@ export class _YearPickerState extends State<YearPicker> {
         ? checkedInteger(
             truncateDivide(
               checkedInteger(
-                checkedInteger(
-                  checkedInteger(_YearPickerState.minYears) -
-                    checkedInteger(this._dart_e3418b5381fd4ff8_itemCount),
-                ),
+                checkedInteger(_YearPickerState.minYears) -
+                  checkedInteger(this._dart_e3418b5381fd4ff8_itemCount),
               ),
               2,
             ),
@@ -2766,7 +2760,7 @@ export class _YearPickerGridDelegate extends SliverGridDelegate {
       maxSourceDartNum(
         boxSourceDartDouble(
           (constraints.crossAxisExtent -
-            checkedInteger(checkedInteger(checkedInteger(scaledYearPickerColumnCount) - 1)) *
+            checkedInteger(checkedInteger(scaledYearPickerColumnCount) - 1) *
               _yearPickerRowSpacing) /
             checkedInteger(scaledYearPickerColumnCount),
         ),

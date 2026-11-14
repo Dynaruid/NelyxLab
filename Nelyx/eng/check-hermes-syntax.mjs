@@ -10,14 +10,53 @@ import {
   windowsHermesPolicy,
   windowsHermesSyntax,
 } from '../sdk/tooling/cli/src/windows-hermes-policy.mjs';
+import { windowsHermesSyntaxPolicy } from '../sdk/tooling/cli/src/windows-hermes-syntax.mjs';
 import { windowsNativeHermesCohort } from '@nelyx/sdk/runtime/cohorts';
 import { textStyleApplyReference } from './text-style-apply-reference.mjs';
+import { elementConstructionFixture } from './element-construction-fixture.mjs';
+import { layoutEncoderFixture } from './layout-encoder-fixture.mjs';
+import { sceneKeyFixture } from './scene-key-fixture.mjs';
+import { boxCommandCacheFixture } from './box-command-cache-fixture.mjs';
+import { dependencyScopeFixture } from './dependency-scope-fixture.mjs';
+import { inheritedAncestorFixture } from './inherited-ancestor-fixture.mjs';
+import { privateFieldFixture, privateCoreFixture } from './private-field-fixture.mjs';
+import { compileHermesImage } from '../sdk/tooling/cli/src/windows-hermes-image.mjs';
+import { verifyNativeHermes } from '../sdk/tooling/cli/src/windows-native-hermes-toolchain.mjs';
 const root = path.resolve(import.meta.dirname, '../..');
 const parent = path.join(root, '.nelyx');
 const temporary = fs.mkdtempSync(path.join(parent, 'hermes-syntax-'));
 if (!temporary.startsWith(parent + path.sep)) throw Error('Temporary check escaped its owner');
+// Leave cleanup time inside the caller's 20-minute process timeout.
+const deadline = Date.now() + 1_170_000;
 const hermes = path.join(root, '.nelyx/windows-hermes');
 const toolchainOnly = process.argv.includes('--toolchain-only');
+const syntaxPolicy = windowsHermesSyntaxPolicy(windowsNativeHermesCohort());
+assert.equal(syntaxPolicy.supported['class-field'], true);
+assert.equal(syntaxPolicy.supported['class-static-field'], true);
+assert.equal(
+  windowsHermesSyntax['class-static-field'],
+  undefined,
+  'Stock RNW static lowering changed',
+);
+for (const feature of ['class-private-field', 'class-private-brand-check']) {
+  assert.equal(syntaxPolicy.supported[feature], true);
+  assert.equal(windowsHermesSyntax[feature], undefined, 'Stock RNW private lowering changed');
+}
+for (const feature of ['class-private-method', 'class-private-accessor'])
+  assert.equal(syntaxPolicy.supported[feature], undefined, 'Private member lowering changed');
+assert.equal(windowsHermesSyntax['class-field'], undefined, 'Stock RNW syntax changed');
+assert.equal(
+  windowsHermesSyntaxPolicy({
+    engine: 'hermes',
+    engineVersion: '1.0.0',
+    engineRevision: '94aa5e1d40a4ce99df79d951cbe45310ec40680c',
+    bytecodeVersion: 99,
+    framework: 'react-native-windows',
+    frameworkVersion: '0.83.2',
+  }).supported,
+  windowsHermesSyntax,
+);
+assert.throws(() => windowsHermesSyntaxPolicy({}), /policy requires/);
 const supply = toolchainOnly
   ? path.join(hermes, 'build/bin')
   : path.join(root, 'Nelyx/engine/dist/windows-app-sdk');
@@ -36,27 +75,82 @@ const run = (command, args) => {
     cwd: temporary,
     env,
     encoding: 'utf8',
-    timeout: 1200000,
+    timeout: Math.max(1, deadline - Date.now()),
     windowsHide: true,
   });
   if (result.error || result.status)
     throw Error(`${command}: ${result.error ?? result.status}\n${result.stdout}${result.stderr}`);
   return result.stdout.trim();
 };
+async function runNativeUnit(source, name) {
+  const controller = new AbortController(),
+    timer = setTimeout(
+      () => controller.abort(Error('Native unit check exceeded the test deadline')),
+      Math.max(1, deadline - Date.now()),
+    );
+  try {
+    const checked = verifyNativeHermes(hermes),
+      library = path.join(temporary, name + '.dll');
+    const build = await compileHermesImage({
+      checked,
+      env,
+      output: library,
+      runtimeLibrary: path.join(hermes, 'build/lib/hermesvm.lib'),
+      signal: controller.signal,
+      units: [
+        {
+          name: 'nelyx_probe',
+          source,
+          flags: [
+            ...windowsHermesPolicy('optimized', windowsNativeHermesCohort()).flags,
+            '-Xes6-block-scoping',
+            '-emit-async-break-check',
+            '-g1',
+          ],
+          typed: false,
+          requireNumeric: false,
+        },
+      ],
+    });
+    return {
+      result: run(path.join(temporary, 'check.exe'), ['--native-unit', library]),
+      buildMs: build.buildMs,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
 try {
   fs.writeFileSync(
     path.join(temporary, 'check.cpp'),
     `
     #include <hermes/hermes.h>
     #include <jsi/jsi.h>
+    #define WIN32_LEAN_AND_MEAN
+    #define NOMINMAX
+    #include <windows.h>
+    #include <filesystem>
     #include <fstream>
     #include <iostream>
     #include <sstream>
-    int main(int argc,char** argv){try{
-      if(argc!=2)return 2;
+    struct OwnedUnitLibrary {
+      HMODULE value=nullptr;
+      ~OwnedUnitLibrary(){if(value)FreeLibrary(value);}
+    };
+    int wmain(int argc,wchar_t** argv){OwnedUnitLibrary library;try{
+      if(argc!=2&&argc!=3)return 2;
       auto rt=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withES6BlockScoping(true).build());
-      std::ifstream file(argv[1],std::ios::binary);std::stringstream data;data<<file.rdbuf();
-      rt->evaluateJavaScript(std::make_shared<facebook::jsi::StringBuffer>(data.str()),"syntax.hbc");
+      if(argc==3){
+        if(std::wstring(argv[1])!=L"--native-unit")return 2;
+        library.value=LoadLibraryExW(argv[2],nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+        if(!library.value)throw std::runtime_error("Native unit library load failed: "+std::to_string(GetLastError()));
+        const auto factory=reinterpret_cast<SHUnitCreator>(GetProcAddress(library.value,"sh_export_nelyx_probe"));
+        if(!factory)throw std::runtime_error("Native unit factory is absent");
+        rt->evaluateSHUnit(factory);
+      }else{
+        std::ifstream file(std::filesystem::path(argv[1]),std::ios::binary);std::stringstream data;data<<file.rdbuf();
+        rt->evaluateJavaScript(std::make_shared<facebook::jsi::StringBuffer>(data.str()),"syntax.hbc");
+      }
       rt->drainMicrotasks();
       std::cout<<rt->global().getProperty(*rt,"result").getString(*rt).utf8(*rt)<<"\\n";
     }catch(const facebook::jsi::JSError& e){std::cerr<<e.getStack()<<"\\n";return 1;}
@@ -115,8 +209,35 @@ try {
       }
     }
     assert(!failed, 'The actual App module initialization failed in the pinned VM');
+    if (process.argv.includes('--native-unit')) {
+      const native = await runNativeUnit(source, 'application-init');
+      assert.equal(native.result, 'App module initialization PASS');
+      console.log('Pinned upstream native unit: actual App module initialization PASS.', {
+        buildMs: native.buildMs,
+      });
+    }
   }
   const liveNames = Array.from({ length: 650 }, (_, index) => 'live' + index);
+  const typescript = compilerRequire('typescript');
+  const parameterPropertyFixture = typescript.transpileModule(
+    `
+    class ParameterFields {
+      observed = {own:Object.hasOwn(this,'value'),value:this.value};
+      constructor(public value:number) {}
+    }
+    const parameterFields=new ParameterFields(17);
+    check(parameterFields.observed.own && parameterFields.observed.value===undefined && parameterFields.value===17,
+      'ES2022 package parameter-property initialization order');
+    check(Object.keys(parameterFields).join(',')==='value,observed','parameter-property enumeration order');
+  `,
+    {
+      compilerOptions: {
+        target: typescript.ScriptTarget.ES2022,
+        useDefineForClassFields: true,
+        module: typescript.ModuleKind.None,
+      },
+    },
+  ).outputText;
   const classSpillFixture = `
     globalThis.spillValue=()=>({value:7});
     globalThis.spillObserve=(...values)=>{if(values.length!==650||values.some(value=>value.value!==7))throw Error('Class spill corrupted a live value');};
@@ -134,6 +255,9 @@ try {
   `;
   const fixture = `
     const check=(ok,message)=>{if(!ok)throw Error(message);};
+    const notNumber=Number.NaN,negativeZero=-0;
+    check(notNumber!==notNumber&&!(notNumber===notNumber)&&Object.is(notNumber,NaN),'NaN equality');
+    check(negativeZero===0&&!Object.is(negativeZero,0)&&1/negativeZero===-Infinity,'signed zero');
     check(typeof Intl==='object'&&typeof Intl.DateTimeFormat==='function'&&typeof Intl.NumberFormat==='function','native Intl availability');
     check(new Intl.DateTimeFormat('en-US',{year:'numeric',month:'long',day:'numeric',timeZone:'UTC'}).format(new Date(Date.UTC(2026,10,15)))==='November 15, 2026','native Intl date formatting');
     const symbol=Symbol('key');let reads=0,setters=0;
@@ -150,6 +274,38 @@ try {
     class Child extends Base { value=21; next=this.value+1; static first=23; static next=this.first+1; }
     const child=new Child();const descriptor=Object.getOwnPropertyDescriptor(child,'value');
     check(setters===0&&child.next===22&&Child.next===24&&descriptor.enumerable&&descriptor.writable&&descriptor.configurable,'field define semantics and order');
+    ${parameterPropertyFixture}
+    (()=>{
+    const fieldOrder=[],fieldSymbol=Symbol('field');let keyEvaluations=0,valueEvaluations=0;
+    const fieldKey=()=>{++keyEvaluations;fieldOrder.push('key');return fieldSymbol;};
+    class FieldBase {
+      first=(fieldOrder.push('base-field'),11);
+      empty;
+      constructor(){fieldOrder.push('base-body');check(!Object.hasOwn(this,'derived'),'derived field visible during base constructor');}
+    }
+    class FieldChild extends FieldBase {
+      derived=(fieldOrder.push('derived-field'),this.first+1);
+      [fieldKey()]=++valueEvaluations;
+      last=(fieldOrder.push('last'),this.derived+1);
+    }
+    check(keyEvaluations===1&&valueEvaluations===0&&fieldOrder.join(',')==='key','computed key evaluated at class definition');
+    const fieldFirst=new FieldChild(),fieldSecond=new FieldChild();
+    check(keyEvaluations===1&&valueEvaluations===2&&fieldFirst[fieldSymbol]===1&&fieldSecond[fieldSymbol]===2,'computed value evaluated per instance');
+    check(Object.keys(fieldFirst).join(',')==='first,empty,derived,last'&&Object.hasOwn(fieldFirst,'empty')&&fieldFirst.empty===undefined,'undefined own field and enumeration order');
+    check(fieldOrder.join(',')==='key,base-field,base-body,derived-field,last,base-field,base-body,derived-field,last','base/derived field and constructor order');
+    const fieldFailure={reason:'initializer'},failedFields=[];let caughtField;
+    class FailingFields {first=failedFields.push(1);second=(()=>{throw fieldFailure;})();third=failedFields.push(3);}
+    try{new FailingFields();}catch(error){caughtField=error;}
+    check(caughtField===fieldFailure&&failedFields.join(',')==='1','field exception identity and short circuit');
+    const keyFailure={reason:'key'};let caughtKey,keyValueRan=false;
+    try{class BadKey {[(()=>{throw keyFailure;})()]=(keyValueRan=true);}}catch(error){caughtKey=error;}
+    check(caughtKey===keyFailure&&!keyValueRan,'computed key exception identity and order');
+    if(globalThis.nativeFields){
+      class NamedFields {callback=()=>{};['named']=function(){};[fieldSymbol]=()=>{};}
+      const namedFields=new NamedFields();
+      check(namedFields.callback.name==='callback'&&namedFields.named.name==='named'&&namedFields[fieldSymbol].name==='[field]','anonymous field function names');
+    }
+    })();
     class Parent {constructor(v){this.v=v;} get doubled(){return this.v*2;} method(){return this.v+1;} static code(){return 31;} }
     const mixin=Type=>class extends Type {method(){return super.method()+2;} get doubled(){return super.doubled+1;}};
     class Mixed extends mixin(Parent) { field=this.method();static code(){return super.code()+1;} }
@@ -182,6 +338,7 @@ try {
     class Second extends diagnostic(class {}) { constructor(options={}){super();this.options=options;} }
     check(new First().describe()==='value'&&new Second().describe()==='value','anonymous empty mixin bases');
     ${classSpillFixture}
+    ${privateFieldFixture()}
     let sum=0;const started=Date.now();
     for(let pass=0;pass<12;++pass) for(let i=0;i<1000;++i){
       const a={a:i,b:2,c:3,d:4,e:5,f:6,g:7,h:8};
@@ -190,6 +347,7 @@ try {
     }
     const elapsedMs=Date.now()-started;
     async function continuations() {
+      await globalThis.privateFieldPending;
       const order=[];let reads=0;
       const receiver={base:7,async method(v){await 0;return this.base+v;}};
       const arrow=function(v){return (async()=>{await 0;return this.base+arguments[0];})();};
@@ -205,7 +363,7 @@ try {
       synchronous=false;await pending;
       const values=await Promise.all([receiver.method(3),receiver.method(4)]);
       check(values.join(',')==='10,11','async concurrent completion');
-      globalThis.result=JSON.stringify({sum,elapsedMs});
+      globalThis.result=JSON.stringify({sum,elapsedMs,private:globalThis.privateFieldResult});
     }
     continuations();
   `;
@@ -213,20 +371,30 @@ try {
   for (const [name, supported] of [
     ['lowered', { bigint: true }],
     ['native', windowsHermesSyntax],
+    ...(!process.argv.includes('--babel-classes')
+      ? [['instance-fields', syntaxPolicy.supported]]
+      : []),
   ]) {
     const code = transformSync(
       'globalThis.nativeSyntax=' +
-        String(name === 'native') +
+        String(name !== 'lowered') +
+        ';globalThis.nativeFields=' +
+        String(name === 'instance-fields') +
         ';globalThis.nativeClasses=' +
         String(!process.argv.includes('--babel-classes')) +
         ';' +
         fixture,
       { target: 'es2015', supported, format: 'iife' },
     ).code;
-    if (name === 'native')
+    if (name !== 'lowered')
       assert(
         !/__spreadValues|__spreadProps|__async/.test(code),
         'Qualified syntax was lowered again',
+      );
+    if (name === 'instance-fields')
+      assert(
+        !/__publicField\(this,/.test(code),
+        'Instance fields were lowered to per-field helpers',
       );
     const sourceFile = path.join(temporary, name + '.js'),
       bytecode = path.join(temporary, name + '.hbc');
@@ -238,28 +406,149 @@ try {
         })
       : { code };
     fs.writeFileSync(sourceFile, lowered.code);
-    run(path.join(supply, 'hermesc.exe'), [
-      ...windowsHermesPolicy(
-        process.argv.includes('--debug-classes') ? 'debug' : 'optimized',
-        windowsNativeHermesCohort(),
-      ).flags,
-      '-Xes6-block-scoping',
-      '-emit-binary',
-      '-out',
-      bytecode,
-      sourceFile,
-    ]);
-    try {
-      outputs[name] = JSON.parse(run(path.join(temporary, 'check.exe'), [bytecode]));
-    } catch (error) {
-      throw Error(name + ': ' + error.message);
+    for (const profile of process.argv.includes('--debug-classes')
+      ? ['debug']
+      : ['debug', 'optimized']) {
+      run(path.join(supply, 'hermesc.exe'), [
+        ...windowsHermesPolicy(profile, windowsNativeHermesCohort()).flags,
+        '-Xes6-block-scoping',
+        '-emit-binary',
+        '-out',
+        bytecode,
+        sourceFile,
+      ]);
+      try {
+        outputs[name + '/' + profile] = JSON.parse(
+          run(path.join(temporary, 'check.exe'), [bytecode]),
+        );
+      } catch (error) {
+        throw Error(name + '/' + profile + ': ' + error.message);
+      }
+    }
+    if (
+      name === 'instance-fields' &&
+      (process.argv.includes('--native-unit') || process.argv.includes('--native-syntax'))
+    ) {
+      const native = await runNativeUnit(sourceFile, 'syntax');
+      outputs[name + '/native-unit'] = JSON.parse(native.result);
+      console.log('Pinned upstream native unit: class/field, numeric and async semantics PASS.', {
+        buildMs: native.buildMs,
+      });
     }
   }
-  assert.equal(outputs.native.sum, outputs.lowered.sum);
+  for (const result of Object.values(outputs)) {
+    assert.equal(result.sum, outputs[Object.keys(outputs)[0]].sum);
+    assert.deepEqual(result.private, outputs[Object.keys(outputs)[0]].private);
+  }
   console.log(
     'Pinned compiler + VM spread/rest/symbol/getter/proto, async and class field semantics PASS.',
     outputs,
   );
+  // Inspect the actual qualified compiler outputs as well as executing HBC.
+  // One narrow field fixture bounds output independently of the wide spill test.
+  const fieldFile = path.join(temporary, 'field-ir.js');
+  fs.writeFileSync(
+    fieldFile,
+    'class Fields { missing; first=7; next=this.first+1; } globalThis.result=new Fields();',
+  );
+  const fieldIR = run(path.join(supply, 'hermesc.exe'), [
+    '-Og',
+    '-Xes6-block-scoping',
+    '-dump-ir',
+    fieldFile,
+  ]);
+  const fieldHBC = run(path.join(supply, 'hermesc.exe'), [
+    '-O',
+    '-Xes6-block-scoping',
+    '-dump-bytecode',
+    fieldFile,
+  ]);
+  assert(
+    /instance_members_initializer/.test(fieldIR),
+    'Native field initializer missing from actual IR',
+  );
+  assert(
+    /DefineOwnProperty|StoreNewOwnProperty|StoreOwnProperty/.test(fieldIR),
+    'Own field definitions missing from IR',
+  );
+  assert(/DefineOwnById/.test(fieldHBC), 'Own field definition missing from actual HBC');
+  assert(
+    /NewObjectWithBufferAndParent/.test(fieldHBC),
+    'Initial field shape missing from actual HBC',
+  );
+  console.log('Native field IR/HBC PASS.', {
+    irInitializers: (fieldIR.match(/instance_members_initializer/g) ?? []).length,
+    hbcNamedInitializers: (fieldHBC.match(/instance_members_initializer/g) ?? []).length,
+    hbcOwnDefinitions: (fieldHBC.match(/DefineOwnById/g) ?? []).length,
+    hbcInitialShapes: (fieldHBC.match(/NewObjectWithBufferAndParent/g) ?? []).length,
+  });
+  const privateFile = path.join(temporary, 'private-field-ir.js');
+  fs.writeFileSync(
+    privateFile,
+    'class PrivateFields { #value=17; read(){return this.#value;} update(){this.#value++;} static has(value){return #value in value;} } globalThis.result=new PrivateFields();',
+  );
+  const privateIR = run(path.join(supply, 'hermesc.exe'), [
+    '-Og',
+    '-Xes6-block-scoping',
+    '-dump-ir',
+    privateFile,
+  ]);
+  const privateHBC = run(path.join(supply, 'hermesc.exe'), [
+    '-O',
+    '-Xes6-block-scoping',
+    '-dump-bytecode',
+    privateFile,
+  ]);
+  for (const operation of ['AddOwnPrivateField', 'LoadOwnPrivateField', 'StoreOwnPrivateField'])
+    assert(privateIR.includes(operation), 'Missing private IR operation: ' + operation);
+  for (const operation of ['AddOwnPrivateBySym', 'GetOwnPrivateBySym', 'PutOwnPrivateBySym'])
+    assert(privateHBC.includes(operation), 'Missing private HBC operation: ' + operation);
+  assert(!privateHBC.includes('WeakMap'), 'Private field probe still uses a WeakMap');
+  console.log('Pinned private field IR/HBC: direct own private add/get/put operations PASS.');
+  if (process.argv.includes('--native-unit') || process.argv.includes('--native-syntax')) {
+    const source = path.join(temporary, 'layout-encoder.js'),
+      bytecode = path.join(temporary, 'layout-encoder.hbc'),
+      code = buildSync({
+        stdin: {
+          resolveDir: root,
+          loader: 'ts',
+          contents: `import {commands as layoutCommands,protocol as layoutProtocol} from './Nelyx/runtime/engine-client/codec.ts';
+            ${layoutEncoderFixture()}
+            ${sceneKeyFixture()}
+            ${boxCommandCacheFixture()}
+            ${dependencyScopeFixture()}
+            ${inheritedAncestorFixture()}
+            globalThis.result=JSON.stringify({layout:layoutEncoderResult,keys:sceneKeyResult,boxCache:boxCommandCacheResult,dependency:dependencyScopeResult,ancestor:inheritedAncestorResult});`,
+        },
+        bundle: true,
+        write: false,
+        format: 'iife',
+        target: 'es2015',
+        supported: syntaxPolicy.supported,
+        logLevel: 'silent',
+      }).outputFiles[0].text;
+    fs.writeFileSync(source, code);
+    let expected;
+    for (const profile of ['debug', 'optimized']) {
+      run(path.join(supply, 'hermesc.exe'), [
+        ...windowsHermesPolicy(profile, windowsNativeHermesCohort()).flags,
+        '-Xes6-block-scoping',
+        '-emit-binary',
+        '-out',
+        bytecode,
+        source,
+      ]);
+      const result = JSON.parse(run(path.join(temporary, 'check.exe'), [bytecode]));
+      if (expected) assert.deepEqual(result, expected);
+      else expected = result;
+    }
+    const native = await runNativeUnit(source, 'layout-encoder');
+    assert.deepEqual(JSON.parse(native.result), expected);
+    console.log(
+      'Layout/Scene keys/Box cache/Dependency scope: getter/error order, wire, signed zero, full uint32 generations, bounded bodies and provider lookup PASS in debug/optimized HBC and native unit.',
+      expected,
+    );
+  }
   const cachedFixture = buildSync({
     stdin: {
       resolveDir: root,
@@ -276,13 +565,19 @@ try {
     import {FontWeight,kTextHeightNone} from './Nelyx/dist/ui/typography.js';
     import {invariant} from './Nelyx/dist/foundation/errors.js';
     import {FoundationBuildMode} from './Nelyx/dist/foundation/constants.js';
-    import {BuildOwner} from './Nelyx/dist/framework/widgets/framework.js';
+    import {Rect as PrivateCoreRect} from './Nelyx/dist/ui/rect.js';
+    import {Offset as PrivateCoreOffset} from './Nelyx/dist/ui/offset.js';
+    import {EdgeInsets as PrivateCoreInsets,EdgeInsetsDirectional as PrivateCoreDirectionalInsets} from './Nelyx/dist/framework/painting/edge-insets.js';
+    import {Alignment as PrivateCoreAlignment} from './Nelyx/dist/framework/painting/alignment.js';
+    import {DartMap as PrivateCoreDartMap,DartSet as PrivateCoreDartSet} from './Nelyx/dist/foundation/dart-collections.js';
+    import {BuildOwner,ComponentElement,StatefulElement,ProxyElement,InheritedElement,State,StatelessWidget,StatefulWidget,InheritedWidget} from './Nelyx/dist/framework/widgets/framework.js';
     import {LayoutBuilder,nativeLayoutBuilderCosts} from './Nelyx/dist/framework/widgets/layout-builder.js';
     import {SizedBox} from './Nelyx/dist/framework/widgets/basic.js';
     import {BoxConstraints} from './Nelyx/dist/framework/rendering/constraints.js';
     import {claimNativeRenderObject} from './Nelyx/dist/framework/rendering/object.js';
     import {FrameScheduler} from './Nelyx/dist/framework/scheduler/scheduler.js';
     import {registerTickerScheduler,unregisterTickerScheduler} from './Nelyx/dist/framework/widgets/ticker-scheduler.js';
+    ${elementConstructionFixture()}
     ${textStyleApplyReference()}
     const textBase=new TextStyle({fontSize:17,color:0xff123456,fontWeight:FontWeight.w500,fontFamilyFallback:['a']});
     const expectedText=referenceApply.call(textBase,{color:0xff654321}),sourceText=textBase.apply({color:0xff654321});
@@ -375,7 +670,8 @@ try {
     for(let frame=0;frame<20;++frame)for(let i=0;i<bodies.length;++i)cachedSum+=cache.read('view1/'+i,bodies[i],readSemanticBody).label.length;
     const cachedMs=Date.now()-begin;
     if(plainSum!==cachedSum||cache.counters.hits!==19*512)throw Error('Observation decode cache differs');
-    globalThis.result=JSON.stringify({plainMs,cachedMs,hits:cache.counters.hits,bytes:cache.byteLength,sceneConstructorMs,sceneConfigurationMs,textConstructorMs,textSourceMs,partEncodes:partCounts.partEncodes,partReuses:partCounts.partReuses});
+    ${privateCoreFixture()}
+    globalThis.result=JSON.stringify({plainMs,cachedMs,hits:cache.counters.hits,bytes:cache.byteLength,sceneConstructorMs,sceneConfigurationMs,textConstructorMs,textSourceMs,partEncodes:partCounts.partEncodes,partReuses:partCounts.partReuses,privateCore:globalThis.privateCoreResult});
   `,
     },
     bundle: true,
@@ -384,7 +680,7 @@ try {
     format: 'iife',
     tsconfigRaw: { compilerOptions: { useDefineForClassFields: true } },
     target: 'es2015',
-    supported: windowsHermesSyntax,
+    supported: syntaxPolicy.supported,
     logLevel: 'silent',
   }).outputFiles[0].text;
   const cacheSource = path.join(temporary, 'observation.js'),
@@ -410,10 +706,19 @@ try {
     cacheBytecode,
     cacheSource,
   ]);
-  console.log(
-    'Pinned VM unchanged observation decode comparison PASS.',
-    JSON.parse(run(path.join(temporary, 'check.exe'), [cacheBytecode])),
-  );
+  const bytecodeResult = JSON.parse(run(path.join(temporary, 'check.exe'), [cacheBytecode]));
+  console.log('Pinned VM unchanged observation decode comparison PASS.', bytecodeResult);
+  if (process.argv.includes('--native-unit') && !applicationInit) {
+    const native = await runNativeUnit(cacheSource, 'probe'),
+      nativeResult = JSON.parse(native.result);
+    for (const key of ['hits', 'bytes', 'partEncodes', 'partReuses'])
+      assert.equal(nativeResult[key], bytecodeResult[key], 'Native unit result differs: ' + key);
+    assert.deepEqual(nativeResult.privateCore, bytecodeResult.privateCore);
+    console.log(
+      'Pinned upstream native unit: same VM, constructor/Source semantics and observation/scene result PASS.',
+      { nativeResult, buildMs: native.buildMs },
+    );
+  }
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });
 }

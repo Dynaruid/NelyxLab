@@ -82,6 +82,10 @@ const allowed = new Set([
   'applyHeightToLastDescent',
 ]);
 const aligned = (size: number) => Math.ceil(size / 8) * 8;
+// A Source capture may hand its already validated payload to its immediately
+// following scene projection. Only this module creates these frozen keys; the
+// payload is consumed once and never exposed through a returned mutable view.
+const preparedParagraphs = new WeakMap<object, Uint8Array>();
 const finite = (value: number) => {
   if (!Number.isFinite(value) || Math.abs(value) > 1e12) throw Error('Invalid paragraph scalar');
   return value;
@@ -224,6 +228,53 @@ export function paragraphOptionsBytes(
   allowProbe = true,
 ): Uint8Array {
   if (!value) return new Uint8Array();
+  const prepared = preparedParagraphs.get(value);
+  if (prepared && (allowProbe || !value.overflowProbe)) {
+    preparedParagraphs.delete(value);
+    return prepared.slice();
+  }
+  return encodeParagraphOptions(value, allowProbe, false) as Uint8Array;
+}
+/** Capture through the same codec validation without decoding its result twice. */
+export function captureParagraphOptions(value: ParagraphOptions): ParagraphSnapshot {
+  return encodeParagraphOptions(value, true, true) as ParagraphSnapshot;
+}
+/** @internal One capture's owned payload, not a cache for public producers. */
+export function prepareParagraphOptions(value: ParagraphOptions): ParagraphSnapshot {
+  return encodeParagraphOptions(value, true, true, true) as ParagraphSnapshot;
+}
+/** @internal Preserve the Source's existing height omission and wrap override. */
+export function paragraphSceneOptions(value: ParagraphSnapshot, wrap: boolean): ParagraphOptions {
+  const { height, ...options } = value;
+  const result: ParagraphOptions = { ...options, ...(height === null ? {} : { height }), wrap };
+  const prepared = preparedParagraphs.get(value);
+  if (prepared && typeof wrap === 'boolean') {
+    preparedParagraphs.delete(value);
+    let bytes = prepared;
+    if (wrap !== value.wrap) {
+      bytes = prepared.slice();
+      const data = new DataView(bytes.buffer);
+      data.setUint32(
+        0,
+        (data.getUint32(0, true) & ~p.paragraphFlags.wrap) | (wrap ? p.paragraphFlags.wrap : 0),
+        true,
+      );
+    }
+    Object.freeze(result);
+    preparedParagraphs.set(result, bytes);
+  }
+  return result;
+}
+/** @internal The key's entire nested policy was decoded from validated bytes. */
+export function isPreparedParagraphOptions(value: ParagraphOptions): boolean {
+  return preparedParagraphs.has(value);
+}
+function encodeParagraphOptions(
+  value: ParagraphOptions,
+  allowProbe: boolean,
+  capture: boolean,
+  prepare = false,
+): Uint8Array | ParagraphSnapshot {
   for (const key of Object.keys(value))
     if (!allowed.has(key)) throw Error('Unknown paragraph option: ' + key);
   if (!allowProbe && value.overflowProbe) throw Error('Nested paragraph probe');
@@ -319,6 +370,7 @@ export function paragraphOptionsBytes(
   const extrasOffset = probeOffset + probeLength;
   bytes.set(extras.bytes, extrasOffset);
   bytes.set(runs, extrasOffset + extras.bytes.length);
-  readParagraphOptions(bytes);
-  return bytes;
+  const snapshot = readParagraphOptions(bytes);
+  if (prepare) preparedParagraphs.set(snapshot, bytes);
+  return capture ? snapshot : bytes;
 }

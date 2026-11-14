@@ -8,6 +8,7 @@ import { windowsHermesPolicy } from '../../sdk/tooling/cli/src/windows-hermes-po
 import { windowsNativeHermesCohort } from '@nelyx/sdk/runtime/cohorts';
 import { windowsNativeHermesPin } from '../../sdk/tooling/cli/src/windows-native-hermes-pin.mjs';
 import { copyWindowsNativeIcuRuntime } from '../../sdk/tooling/cli/src/windows-native-icu.mjs';
+import { engineV2NativeUnit } from '../../sdk/tooling/cli/src/engine-v2-native-unit.mjs';
 
 export const windowsAppSdkVersion = '1.8.260508005';
 function supplyRnwPort(engineRoot, output) {
@@ -174,6 +175,7 @@ export function buildAppSdkHost({ engineRoot, library, intermediate, output }) {
       entry: 'application/app.hbc',
       policy: windowsHermesPolicy('optimized', windowsNativeHermesCohort()).id,
     },
+    appNativeUnit: engineV2NativeUnit,
     crt: 'MD',
     compiler: env.VCTOOLSVERSION,
     windowsSdk: env.WINDOWSSDKVERSION,

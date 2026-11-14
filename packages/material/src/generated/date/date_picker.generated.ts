@@ -1302,7 +1302,7 @@ export class _DatePickerHeader extends ScrollbarStatelessHost {
       style: this.titleStyle,
       maxLines: checkedInteger(
         scrollbarRawObjectEquals(this.orientation, 'portrait')
-          ? checkedInteger(checkedInteger(scaledFontSize > 70 ? 2 : 1))
+          ? checkedInteger(scaledFontSize > 70 ? 2 : 1)
           : checkedInteger(scaledFontSize > 40 ? 3 : 2),
       ),
       overflow: TextOverflow.ellipsis,

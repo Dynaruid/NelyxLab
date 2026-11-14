@@ -20,6 +20,59 @@ std::shared_ptr<const Frame> copyNativeFrame(const Frame& frame,const std::share
     frame.observationRemoved.size()*sizeof(Handle));
   auto result=std::make_shared<Frame>(frame);result->snapshotLease=std::move(memory);return result;
 }
+PreparationCohort progressCohort(const Scene& scene){
+  return {scene.preparation,scene.document->epoch,scene.metrics.epoch,scene.metrics.device,scene.fontRevision};
+}
+void preparationProgress(PreparationProgress& out,const View& view,uint32_t session,uint32_t app,uint32_t viewId){
+  out.session=session;out.app=app;out.view=viewId;out.generation=view.generation;
+  out.closed=view.closed;out.input=view.consumedThrough;
+  if(view.active)out.active=progressCohort(*view.active);
+  if(view.published){const auto& frame=*view.published;out.published=progressCohort(*frame.scene);out.publication=frame.id;
+    for(const auto& item:frame.items){const auto& node=frame.scene->document->get(item.node);
+      if(node.kind!=wire::kinds::scrollViewport)continue;
+      if(out.publishedViewportCount==out.publishedViewports.size()){out.truncated=true;break;}
+      auto& value=out.publishedViewports[out.publishedViewportCount++];value.node=node.id;
+      value.coverage=node.coverage.enabled;value.minimum=node.coverage.minimum;value.maximum=node.coverage.maximum;
+      const auto& property=frame.properties[node.id.slot];value.published=true;
+      value.offset=value.publishedOffset=property.offset;value.requested=value.publishedRequested=property.requested;
+      const auto& children=frame.scene->document->children[node.id.slot];
+      if(children.size()==1){const auto& child=frame.scene->document->get(children.front());value.content=child.id;
+        value.listGeneration=child.list.generation;value.begin=child.list.begin;value.end=child.list.end;}
+    }
+  }
+  const Document* document=nullptr;
+  if(view.preparing){const auto& p=*view.preparing;out.preparing=true;out.ready=p.ready;out.providerReady=p.providerReady;
+    out.current={p.id,p.document->epoch,p.metrics.epoch,p.metrics.device,p.fontRevision};document=p.document.get();
+    if(p.layout&&p.layout->buildRequest()&&view.document&&p.document->epoch==view.document->epoch&&
+        p.metrics.epoch==view.metrics.epoch&&p.metrics.device==view.metrics.device){
+      const auto& request=*p.layout->buildRequest();out.hasRequest=true;
+      out.request.node=request.node->id;out.request.id=request.id;out.request.revision=request.node->layoutBuilder->revision;
+      auto at=request.node->id;
+      for(uint32_t depth=0;at&&depth<=document->count;++depth){
+        const auto& ancestor=document->get(at);
+        if(ancestor.kind==wire::kinds::scrollViewport){out.request.viewport=at;break;}
+        at=ancestor.parent;
+      }
+      if(request.list){out.request.list=true;out.request.begin=request.list->begin;out.request.end=request.list->end;
+        out.request.listGeneration=request.node->list.generation;out.request.offset=request.list->offset;out.request.paint=request.list->paintExtent;}
+    }
+  }else if(view.active){out.current=out.active;document=view.active->document.get();out.ready=out.providerReady=true;}
+  if(!document)return;
+  for(const auto& slot:document->nodes)if(slot.value&&slot.value->kind==wire::kinds::scrollViewport){
+    if(out.viewportCount==out.viewports.size()){out.truncated=true;break;}
+    const auto& node=*slot.value;auto& value=out.viewports[out.viewportCount++];value.node=node.id;
+    value.coverage=node.coverage.enabled;value.minimum=node.coverage.minimum;value.maximum=node.coverage.maximum;
+    const auto overlay=view.overlays.find(node.id.key());
+    if(overlay!=view.overlays.end()){value.offset=overlay->second.offset;value.requested=overlay->second.requested;value.deferred=overlay->second.deferred;}
+    const auto& children=document->children[node.id.slot];
+    if(children.size()==1){const auto& child=document->get(children.front());value.content=child.id;
+      value.listGeneration=child.list.generation;value.begin=child.list.begin;value.end=child.list.end;}
+    if(view.published&&view.published->scene->document->contains(node.id)&&node.id.slot<view.published->properties.size()){
+      const auto& property=view.published->properties[node.id.slot];value.published=true;
+      value.publishedOffset=property.offset;value.publishedRequested=property.requested;
+    }
+  }
+}
 }
 struct Engine::State {
   std::mutex mutex;
@@ -32,6 +85,7 @@ struct Engine::State {
   std::array<uint32_t, wire::limits::views + 1> generations{};
   bool providerConnected = false, independent = false;
   uint64_t contentOwner = 0, renderOwner = 0, resourceRevision = 0;
+  uint64_t diagnosticSequence=0;
   State(uint32_t s, uint32_t a) : session(s), app(a) { generations.fill(1); }
 };
 Engine::Engine(uint32_t session, uint32_t app) : state_(std::make_unique<State>(session, app)) {}
@@ -209,7 +263,7 @@ std::vector<uint8_t> Engine::dispatchImpl(Reader packet,DispatchTiming* timing,s
     void released(){if(output)output->lockHeldMs+=std::chrono::duration<double,std::milli>(Clock::now()-at).count();}
     ~LockTiming(){released();}
   } measured{timing,{}};
-  if(timing){*timing={};measured.acquired(lockAt);}
+  if(timing){const auto capture=timing->capturePreparation;*timing={};timing->capturePreparation=capture;measured.acquired(lockAt);}
   const uint32_t actualCapabilities = capabilities | (s.providerConnected ? wire::capabilities::surface : 0) |
     (s.independent ? wire::capabilities::contentIndependent : 0);
   uint32_t status = wire::statuses::ok, opcode = 0, viewId = 0, generation = 0;
@@ -804,6 +858,10 @@ std::vector<uint8_t> Engine::dispatchImpl(Reader packet,DispatchTiming* timing,s
       }
     }
   } catch (const Error& error) { unissuedFrame.retire();status = error.status; frame = nullptr; }
+
+  if(timing&&timing->capturePreparation&&view){timing->preparation.emplace();
+    preparationProgress(*timing->preparation,*view,s.session,s.app,viewId);
+    timing->preparation->sequence=++s.diagnosticSequence;}
 
   const auto measureStorage=status==wire::statuses::ok&&opcode==wire::opcodes::measureRequest&&view?view->measurement():std::optional<MeasurementRequest>{};
   const MeasurementRequest* measure=measureStorage?&*measureStorage:nullptr;

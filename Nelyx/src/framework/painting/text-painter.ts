@@ -261,6 +261,11 @@ export class TextPainter {
       this.selectedFontRevision !== (this.context ? textFontRevision(this.context.text) : undefined)
     );
   }
+  /** @internal The existing input fence also distinguishes a new configuration
+   * edit from the absent TS layout cache of a native-owned paragraph. */
+  get _inputRevision(): number {
+    return this.inputRevision;
+  }
   get _paintOffset(): number {
     this.laidOut();
     return this.paintOffsetX;

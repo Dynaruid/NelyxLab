@@ -8,9 +8,11 @@ import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { build } from 'esbuild';
 import { execute } from './commands.mjs';
-import { windowsHermesPolicy, windowsHermesSyntax } from './windows-hermes-policy.mjs';
+import { windowsHermesPolicy } from './windows-hermes-policy.mjs';
+import { windowsHermesSyntaxPolicy } from './windows-hermes-syntax.mjs';
 import { windowsNativeHermesCohort } from '@nelyx/sdk/runtime/cohorts';
 import { windowsNativeHermesPin } from './windows-native-hermes-pin.mjs';
+import { buildEngineV2NativeUnit, verifyEngineV2NativeUnit } from './engine-v2-native-unit.mjs';
 import { protocol as p } from '@nelyx/core/v2';
 import { engineV2ImportRoute, engineV2OriginalAppRoute } from './engine-v2-data-api.mjs';
 import {
@@ -232,6 +234,13 @@ export async function buildEngineV2Application(options) {
     target = options.target;
   if (!['windows', 'web', 'android'].includes(target))
     throw Error('Engine v2 has no supplied ' + target + ' host');
+  if (
+    options.nativeUnitInputs !== undefined &&
+    (target !== 'windows' ||
+      typeof options.nativeUnitInputs !== 'string' ||
+      !options.nativeUnitInputs)
+  )
+    throw Error('Native unit compiler inputs require a Windows App build');
   if (settings.vm !== undefined && settings.vm !== (target === 'web' ? 'browser' : 'hermes'))
     throw Error('The requested JavaScript VM is not supplied for ' + target);
   const supply = verifyEngineV2Supply(
@@ -285,7 +294,7 @@ export async function buildEngineV2Application(options) {
         mainFields: target === 'web' ? ['browser', 'module', 'main'] : ['module', 'main'],
         target: target === 'web' ? 'es2022' : 'es2015',
         ...(target === 'windows'
-          ? { supported: windowsHermesSyntax }
+          ? { supported: windowsHermesSyntaxPolicy(windowsNativeHermesCohort()).supported }
           : target !== 'web'
             ? { supported: { bigint: true } }
             : {}),
@@ -405,7 +414,7 @@ export async function buildEngineV2Application(options) {
       bundle = await createBundle(true);
     }
     const coreDirectory = fs.realpathSync(path.resolve(path.dirname(core), '../../..'));
-    let bytecode;
+    let bytecode, nativeUnit;
     if (target === 'windows') {
       const policy = windowsHermesPolicy('optimized', windowsNativeHermesCohort());
       const producer = supply.manifest.profiles['windows-app-sdk'].appBytecode;
@@ -432,8 +441,16 @@ export async function buildEngineV2Application(options) {
         sourceSha256: hash(javascript),
         release: windowsNativeHermesPin.version,
         classes: windowsNativeHermesPin.classes,
-        syntax: windowsHermesSyntax,
+        syntax: windowsHermesSyntaxPolicy(windowsNativeHermesCohort()).supported,
+        syntaxPolicy: windowsHermesSyntaxPolicy(windowsNativeHermesCohort()).id,
       };
+      if (options.nativeUnitInputs !== undefined)
+        nativeUnit = await buildEngineV2NativeUnit({
+          supply,
+          staged,
+          compilerInputs: options.nativeUnitInputs,
+          signal: options.signal,
+        });
     }
     const graph = inspectEngineV2Graph(
       Object.keys(bundle.metafile.inputs).map((file) => path.resolve(file)),
@@ -533,6 +550,7 @@ export async function buildEngineV2Application(options) {
       engine: 'v2',
       target,
       ...(bytecode ? { bytecode } : {}),
+      ...(nativeUnit ? { nativeUnit } : {}),
       ...(android ? { android } : {}),
       ...(target === 'windows'
         ? { windowsHost: engineV2WindowsHost(options.windowsHost ?? settings.windowsHost).host }
@@ -606,11 +624,18 @@ export function verifyEngineV2Application(directory, target, engineInputs) {
       !manifest.files.some((file) => file.path === expected.entry) ||
       manifest.bytecode?.release !== expected.release ||
       manifest.bytecode?.classes !== windowsNativeHermesPin.classes ||
-      JSON.stringify(manifest.bytecode?.syntax) !== JSON.stringify(windowsHermesSyntax) ||
+      manifest.bytecode?.syntaxPolicy !==
+        windowsHermesSyntaxPolicy(windowsNativeHermesCohort()).id ||
+      JSON.stringify(manifest.bytecode?.syntax) !==
+        JSON.stringify(windowsHermesSyntaxPolicy(windowsNativeHermesCohort()).supported) ||
       manifest.bytecode?.sourceSha256 !== hash(input(root, 'application/app.js')) ||
       fs.readFileSync(input(root, expected.entry)).readUInt32LE(8) !== expected.version
     )
       throw Error('Windows optimized App bytecode identity differs; rebuild the application');
+  }
+  if (manifest.nativeUnit !== undefined) {
+    if (target !== 'windows') throw Error('Native unit execution requires a Windows App bundle');
+    verifyEngineV2NativeUnit(manifest, supply, manifest.bytecode.sourceSha256, root);
   }
   if (target === 'android') {
     const selected = manifest.android,
@@ -766,7 +791,13 @@ export async function engineV2Operation(operation, options) {
             bundle.supply.root,
             engineV2WindowsHost(bundle.manifest.windowsHost).executable,
           ),
-          [bundle.supply.root, '--app', bundle.root, ...(options.arguments ?? [])],
+          [
+            bundle.supply.root,
+            '--app',
+            bundle.root,
+            ...(bundle.manifest.nativeUnit ? ['--native-unit'] : []),
+            ...(options.arguments ?? []),
+          ],
           { stdio: 'inherit', windowsHide: false },
         );
         child.once('error', reject);

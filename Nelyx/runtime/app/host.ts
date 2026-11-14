@@ -16,6 +16,8 @@ import {
   withNativeRenderConfiguration,
   nativeSliverConfiguration,
   nativeBoxDataConfiguration,
+  nativeBoxCommands,
+  nativeRenderFields,
 } from '@nelyx/core/framework/rendering/object';
 import type {
   RenderObject,
@@ -50,6 +52,7 @@ import {
   sceneConfiguration,
   renderBindingConfiguration,
   boxRenderBindingConfiguration,
+  BoxRenderBindingWriter,
   sceneReferenceHandle,
   sceneReferenceConfiguration,
 } from '../engine-client/scene.ts';
@@ -79,6 +82,7 @@ import { restrictNativeGestureRecognition } from '@nelyx/core/framework/gestures
 import { AppTextLayoutService } from './text.ts';
 import type { AppParagraphFontLease } from './text.ts';
 import { originalSpanInput } from './spans.ts';
+import { paragraphSceneOptions, isPreparedParagraphOptions } from '../engine-client/paragraph.ts';
 export { AppTextLayoutService } from './text.ts';
 import type { AppTextBackend, AppTextExecution } from '../engine-client/app-text.ts';
 import { OriginalFontOwner } from './fonts.ts';
@@ -86,20 +90,40 @@ import { OriginalEditingBridge } from './editing.ts';
 import { OriginalSemanticsBridge } from './semantics.ts';
 import { OriginalTapRegions } from './tap-regions.ts';
 import { RenderSceneCapture } from './capture.ts';
+import { SourcePreparationJournal } from './source-preparation.ts';
+import { SourceElementProfile } from './source-element-profile.ts';
+import type { SourcePreparationTarget, SourceDiagnosticClock } from './source-preparation.ts';
+export type { SourceDiagnosticClock } from './source-preparation.ts';
 import { retainSceneConfiguration } from '../engine-client/scene.ts';
 
 const collectionChanges: readonly NativeRenderChange[] = ['children', 'layout'];
+const instanceRenderHooks = [
+  'layout',
+  'performLayout',
+  'paint',
+  'hitTest',
+  'computeDryLayout',
+  'computeMinIntrinsicWidth',
+  'computeMaxIntrinsicWidth',
+  'computeMinIntrinsicHeight',
+  'computeMaxIntrinsicHeight',
+] as const;
+const emptyPaintShape = Object.freeze({
+  kind: 'rrect' as const,
+  radii: Object.freeze([0, 0, 0, 0, 0, 0, 0, 0]),
+  strokeWidth: 0,
+  strokeColor: 0,
+  strokeAlign: 0,
+});
 const appTimestamp = () => (typeof performance === 'undefined' ? Date.now() : performance.now());
-type SourcePreparation = {
-  readonly sequence: number;
-  readonly kind: 'sliver-request' | 'box-request' | 'observed-window';
-  readonly request: string;
-  readonly started: number;
-  readonly elapsedMs: number;
-  readonly result: 'built' | 'declined' | 'failed';
-};
 
 export interface OriginalWidgetHostOptions {
+  /** @internal Differential checks only; Source and Core remain identical. */
+  readonly diagnosticProjection?: 'reference';
+  /** @internal Diagnostic overhead comparison, never a scheduling switch. */
+  readonly diagnosticSourcePreparation?: false;
+  /** @internal Same native clock as host preparation/frame diagnostics. */
+  readonly diagnosticClock?: SourceDiagnosticClock;
   readonly platform?: FoundationPlatformEnvironment;
   readonly onError?: (error: unknown) => void;
   readonly onExecution?: (execution: OriginalWidgetExecution) => void;
@@ -153,15 +177,28 @@ class AppRoot extends StatelessWidget {
  */
 export class OriginalWidgetHost {
   private readonly timings: {
+    pass: number;
     document: string;
     input: string;
     started: number;
+    buildStarted: number;
     buildMs: number;
     retainedBuilderMs: number;
     retainedBuilderCosts: NativeLayoutBuilderCosts;
     sourceThrough: number;
+    sourceSequences: number[];
     captureMs: number;
+    captureStarted: number;
     sceneMs: number;
+    sceneStarted: number;
+    /** Owner counter deltas during this update, including async commit waits. */
+    sceneWork: {
+      recordsMs: number;
+      diffMs: number;
+      commitMs: number;
+      commitCalls: number;
+      builds: number;
+    };
     waitMs: number;
     projection: {
       created: number;
@@ -171,14 +208,20 @@ export class OriginalWidgetHost {
       adapters: number;
       partEncodes: number;
       partReuses: number;
+      commandBindings: number;
+      commandEncodes: number;
+      commandBytes: number;
+      commandReuses: number;
+      paragraphPreparations: number;
+      paragraphDirectBindings: number;
+      moduleCounts: number[];
     };
     completed: number;
   }[] = [];
   /** Bounded diagnostics read explicitly at teardown, never serialized per frame. */
   diagnostics(): Record<string, unknown> {
     return {
-      domain:
-        typeof performance === 'undefined' ? 'date-milliseconds' : 'app-performance-milliseconds',
+      domain: this.sourceClockDomain,
       samples: this.timings.slice(),
       samplesThrough: this.timingSamples,
       samplesOverwritten: Math.max(0, this.timingSamples - this.timings.length),
@@ -191,20 +234,24 @@ export class OriginalWidgetHost {
       scrolling: { ...this.scrolling.counters },
       semantics: { ...this.semantics.counters, ...this.semanticsProjection },
       projection: { ...this.projectionCounters },
-      sourcePreparation: {
-        ...this.sourcePreparationCounters,
-        samplesThrough: this.sourcePreparationSequence,
-        samplesOverwritten: Math.max(
-          0,
-          this.sourcePreparationSequence - this.sourcePreparations.length,
-        ),
-        samples: this.sourcePreparations.slice(),
-      },
+      sourcePreparation: this.sourcePreparation.diagnostics(),
+      ...(this.elementProfile ? { elementProfile: this.elementProfile.diagnostics() } : {}),
     };
   }
-  private readonly capture = new RenderSceneCapture();
+  private readonly capture = new RenderSceneCapture<SceneNodeOptions['listItem']>({
+    build: (render, count, depth, listItem, fields, previous, initial) =>
+      this.captureNode(render, count, depth, listItem, fields, previous, initial),
+    refresh: (render, count, depth, listItem) => this.node(render, count, depth, listItem),
+  });
   private readonly semanticsProjection = { metadataCalls: 0, metadataMs: 0 };
   private readonly projectionCounters = {
+    paragraphPreparations: 0,
+    paragraphDirectBindings: 0,
+    commandBindings: 0,
+    commandEncodes: 0,
+    commandBytes: 0,
+    commandReuses: 0,
+    moduleCounts: Array<number>(14).fill(0),
     moduleBindings: 0,
     bindings: 0,
     adapters: 0,
@@ -212,11 +259,14 @@ export class OriginalWidgetHost {
     partReuses: 0,
   };
   private timingSamples = 0;
-  private readonly sourcePreparations: SourcePreparation[] = [];
-  private sourcePreparationSequence = 0;
-  private readonly sourcePreparationCounters = { calls: 0, elapsedMs: 0, maxMs: 0 };
-  private invalidateRender(render: RenderObject, kind?: NativeRenderChange): void {
-    this.capture.invalidate(render, kind);
+  private readonly sourcePreparation: SourcePreparationJournal;
+  private readonly elementProfile: SourceElementProfile | undefined;
+  private readonly sourceNow: () => number;
+  private readonly sourceClockDomain: SourceDiagnosticClock['domain'];
+  private sourcePass = 0;
+  private readonly boxCommands = new BoxRenderBindingWriter((reason) => this.unsupported(reason));
+  private invalidateRender(render: RenderObject, kind?: NativeRenderChange, fields?: number): void {
+    this.capture.invalidate(render, kind, undefined, fields);
     if (render instanceof OriginalNativeRender) render.options.onChildrenInvalidated?.();
     this.schedule();
   }
@@ -285,6 +335,14 @@ export class OriginalWidgetHost {
     readonly view: EngineViewClient,
     private readonly options: OriginalWidgetHostOptions = {},
   ) {
+    this.sourceNow = options.diagnosticClock?.now ?? appTimestamp;
+    this.sourceClockDomain =
+      options.diagnosticClock?.domain ??
+      (typeof performance === 'undefined' ? 'date-milliseconds' : 'app-performance-milliseconds');
+    this.sourcePreparation = new SourcePreparationJournal(
+      options.diagnosticSourcePreparation !== false,
+      this.sourceClockDomain,
+    );
     if (options.services && (options.appText || options.appImages))
       throw Error(
         'Explicit App services and the default App paragraph backend are mutually exclusive',
@@ -306,6 +364,7 @@ export class OriginalWidgetHost {
         this.observeLayoutBuilder(state);
       },
       onPublication: (state) => {
+        this.sourcePreparation.observe(state, this.sourceNow());
         this.geometry.observePublication(state);
         this.layers.observePublication(state);
         this.semantics.observePublication(state);
@@ -421,6 +480,10 @@ export class OriginalWidgetHost {
       {},
       systemFonts,
     );
+    if (options.diagnosticClock?.profileActive) {
+      this.elementProfile = new SourceElementProfile(options.diagnosticClock);
+      this.owner._setElementBuildObserver(this.elementProfile);
+    }
     this.editing.install(this.owner);
     installOriginalGestures(this.owner, (reason) => this.unsupported(reason));
     this.scrolling = installOriginalScrolling(
@@ -673,6 +736,15 @@ export class OriginalWidgetHost {
           () => sliver.prepare(request.revision, input),
           'sliver-request',
           answer,
+          this.sourceTarget(request.node, state, request.revision, {
+            preparation: String(request.preparation),
+            requestId: String(request.id),
+            range: {
+              begin: request.list.begin,
+              end: request.list.end,
+              generation: String(sliver.generation),
+            },
+          }),
         );
         if (this.builderDiagnostic)
           this.builderDiagnostic.result = rebuilt ? 'sliver-built' : 'sliver-declined';
@@ -709,6 +781,10 @@ export class OriginalWidgetHost {
         () => builder.rebuild(request.revision, constraints),
         'box-request',
         answer,
+        this.sourceTarget(request.node, state, request.revision, {
+          preparation: String(request.preparation),
+          requestId: String(request.id),
+        }),
       );
       if (this.builderDiagnostic)
         this.builderDiagnostic.result = rebuilt ? 'builder-built' : 'builder-declined';
@@ -720,13 +796,33 @@ export class OriginalWidgetHost {
     }
     if (this.builderDiagnostic) this.builderDiagnostic.result = 'builder-owner-not-found';
   }
+  private sourceTarget(
+    node: NodeHandle,
+    state: EngineResponse,
+    revision: bigint,
+    extra: Pick<SourcePreparationTarget, 'preparation' | 'requestId' | 'range' | 'publication'>,
+  ): SourcePreparationTarget {
+    const owner = this.view.owner;
+    return {
+      owner: `${owner.session}/${owner.app}/${owner.view}/${owner.generation}`,
+      node: { slot: node.slot, generation: node.generation },
+      document: String(state.document),
+      metrics: String(state.metrics),
+      device: String(state.device),
+      font: String(state.fontRevision),
+      revision: String(revision),
+      input: String(state.consumedThrough),
+      ...extra,
+    };
+  }
   private rebuildNativeContent(
     callback: () => boolean,
-    kind: SourcePreparation['kind'],
+    kind: 'sliver-request' | 'box-request' | 'observed-window',
     request: string,
+    target: SourcePreparationTarget,
   ): boolean {
-    const started = appTimestamp();
-    let result: SourcePreparation['result'] = 'failed';
+    const started = this.sourceNow();
+    let result: 'built' | 'declined' | 'failed' = 'failed';
     this.building = true;
     this.bridgeFailure = undefined;
     try {
@@ -741,22 +837,8 @@ export class OriginalWidgetHost {
       return rebuilt;
     } finally {
       this.building = false;
-      const elapsedMs = appTimestamp() - started;
-      ++this.sourcePreparationCounters.calls;
-      this.sourcePreparationCounters.elapsedMs += elapsedMs;
-      this.sourcePreparationCounters.maxMs = Math.max(
-        this.sourcePreparationCounters.maxMs,
-        elapsedMs,
-      );
-      if (this.sourcePreparations.length === 128) this.sourcePreparations.shift();
-      this.sourcePreparations.push({
-        sequence: ++this.sourcePreparationSequence,
-        kind,
-        request,
-        started,
-        elapsedMs,
-        result,
-      });
+      const elapsedMs = this.sourceNow() - started;
+      this.sourcePreparation.record(kind, request, target, started, elapsedMs, result);
     }
   }
   private sliverNode(
@@ -780,7 +862,9 @@ export class OriginalWidgetHost {
       return this.unsupported('list-child-policy');
     const required = sliver.children.filter((child) => !child.keptAlive || child.explicitKeepAlive);
     if (required.length > p.limits.listChildren) return this.unsupported('list-keep-alive-budget');
-    claimNativeRenderObject(render, this, (kind) => this.invalidateRender(render, kind));
+    claimNativeRenderObject(render, this, (kind, fields) =>
+      this.invalidateRender(render, kind, fields),
+    );
     this.geometry.bind(render);
     let key = this.keys.get(render);
     if (!key) this.keys.set(render, (key = new SceneReference()));
@@ -893,6 +977,14 @@ export class OriginalWidgetHost {
             }),
           'observed-window',
           `${snapshot.publication}/${snapshot.publishedDocument}/${sliver.revision}/${list.generation}/${list.demandBegin}:${list.demandEnd}`,
+          this.sourceTarget(node.node, snapshot, sliver.revision, {
+            publication: String(snapshot.publication),
+            range: {
+              begin: list.demandBegin,
+              end: list.demandEnd,
+              generation: String(list.generation),
+            },
+          }),
         )
       ) {
         this.invalidateRender(render);
@@ -918,22 +1010,21 @@ export class OriginalWidgetHost {
   ): SceneNode {
     // ParentData can be changed by a parent layout widget without invalidating
     // the child itself. Compare only that small independent input at the edge.
+    const layout = parentLayoutFields(render);
     const input =
-      JSON.stringify(parentLayout(render, {}).layout) + `/${listItem?.index}/${listItem?.key}`;
-    return this.capture.node(
-      render,
-      input,
-      count,
-      depth,
-      () => this.captureNode(render, count, depth, listItem),
-      (nextCount, nextDepth) => this.node(render, nextCount, nextDepth, listItem),
-    );
+      layout === undefined && !listItem
+        ? 'undefined/undefined/undefined'
+        : JSON.stringify(layout) + `/${listItem?.index}/${listItem?.key}`;
+    return this.capture.node(render, input, count, depth, undefined, undefined, listItem);
   }
   private captureNode(
     render: RenderObject,
     count: { value: number },
     depth = 0,
     listItem?: SceneNodeOptions['listItem'],
+    fields?: number,
+    previous?: SceneNode,
+    initial = false,
   ): SceneNode {
     if (++count.value >= p.limits.nodes || depth >= p.limits.depth)
       return this.unsupported('render-tree-budget');
@@ -967,28 +1058,35 @@ export class OriginalWidgetHost {
       (render instanceof RenderBox && render.semantics && !paragraph && !control)
     )
       return this.unsupported('render-pointer-or-semantics-hook');
-    if (
-      [
-        'layout',
-        'performLayout',
-        'paint',
-        'hitTest',
-        'computeDryLayout',
-        'computeMinIntrinsicWidth',
-        'computeMaxIntrinsicWidth',
-        'computeMinIntrinsicHeight',
-        'computeMaxIntrinsicHeight',
-      ].some((name) => Object.hasOwn(render, name))
-    )
-      return this.unsupported('instance-render-hook');
+    for (const name of instanceRenderHooks)
+      if (Object.hasOwn(render, name)) return this.unsupported('instance-render-hook');
+    const directProjection = this.options.diagnosticProjection !== 'reference';
+    const commands = directProjection && !control && !layer ? nativeBoxCommands(render) : undefined;
+    if (commands) {
+      ++this.projectionCounters.bindings;
+      ++this.projectionCounters.moduleBindings;
+      ++this.projectionCounters.commandBindings;
+      ++this.projectionCounters.moduleCounts[commands.module * 2 + (initial ? 0 : 1)]!;
+      return this.boxCommands.capture(
+        () => this.bindRender(render),
+        () => render.children.map((child) => this.node(child, count, depth + 1)),
+        render,
+        commands,
+        parentLayoutFields,
+        listItem,
+        this.projectionCounters,
+        true,
+      );
+    }
     let kind: SceneNode['kind'] = 'box';
     let options: SceneNodeOptions = { layout: { childConstraints: 'inherit' } };
     let text: SceneNode['text'];
     let image: SceneNode['image'];
     let editable: OriginalNativeRender['editable'];
     let sourceBinding: SceneNodeOptions | undefined;
+    let paragraphData = false;
     const module =
-      !control && !layer
+      directProjection && !control && !layer
         ? nativeBoxDataConfiguration(render, (reason) => this.unsupported(reason))
         : undefined;
     if (module) {
@@ -1120,7 +1218,6 @@ export class OriginalWidgetHost {
     } else if (paragraph) {
       const source = render as RenderParagraph;
       const input = this.paragraph(source);
-      const { height, ...paragraphOptions } = input.paragraph;
       text = {
         value: input.text,
         size: input.fontSize,
@@ -1137,13 +1234,11 @@ export class OriginalWidgetHost {
         return this.unsupported('paragraph-semantics');
       kind = 'paragraph';
       options = {
-        paragraph: {
-          ...paragraphOptions,
-          ...(height === null ? {} : { height }),
-          wrap:
-            source.paragraphOptions.softWrap !== false ||
+        paragraph: paragraphSceneOptions(
+          input.paragraph,
+          source.paragraphOptions.softWrap !== false ||
             source.paragraphOptions.overflow === 'ellipsis',
-        },
+        ),
         layout: {
           paragraphSizing: true,
           clipOverflow: source.paragraphOptions.overflow !== 'visible',
@@ -1176,9 +1271,20 @@ export class OriginalWidgetHost {
             }
           : {}),
       };
+      if (isPreparedParagraphOptions(options.paragraph!)) {
+        ++this.projectionCounters.paragraphPreparations;
+        paragraphData =
+          typeof text.value === 'string' &&
+          typeof text.size === 'number' &&
+          typeof text.color === 'number';
+      }
     } else return this.unsupported('custom-or-unported-render-object:' + render.constructor.name);
     const key = this.bindRender(render);
+    const sourceOptions = options;
     options = parentLayout(render, options);
+    // ParentData and collection producers keep their ordinary live-data
+    // eligibility path. The one-use paragraph payload can still be consumed.
+    paragraphData &&= options === sourceOptions && listItem === undefined;
     if (box?.tooltipPosition) {
       const placement = box.tooltipPosition;
       const target = placement.target();
@@ -1199,117 +1305,114 @@ export class OriginalWidgetHost {
         ? []
         : (control?.children ?? box?.children ?? render.children)
     ).map((child) => this.node(child, count, depth + 1));
-    const emptyShape = {
-      kind: 'rrect' as const,
-      radii: Array<number>(8).fill(0),
-      strokeWidth: 0,
-      strokeColor: 0,
-      strokeAlign: 0,
-    };
-    let paintKeys = this.paintKeys.get(render);
-    if (!paintKeys) this.paintKeys.set(render, (paintKeys = [[], []]));
-    const sequence = (
-      entries: readonly NativePaintEntry[],
-      plane: 0 | 1,
-    ): readonly NativePaintOptions[] => {
-      let paragraphIndex = 0;
-      return entries.map((entry) => {
-        if (entry.kind !== 'paragraph') {
-          const { reference, paragraph: _, ...paint } = entry;
-          if (reference) this.capture.dependOn(reference);
-          return {
-            ...paint,
-            ...(reference
-              ? { reference: sceneReferenceHandle(this.renderReference(reference)) }
-              : {}),
-          };
-        }
-        if (
-          !entry.paragraph ||
-          !this.textService ||
-          (entry.clip && entry.clip !== 'none') ||
-          (entry.geometry && entry.geometry.kind !== 'program')
-        )
-          return this.unsupported('paragraph-paint-configuration');
-        if (entry.reference) this.capture.dependOn(entry.reference);
-        if (
-          entry.geometry?.kind === 'program' &&
-          (entry.geometry.radii ||
-            entry.geometry.visible !== undefined ||
-            entry.geometry.color !== undefined ||
-            entry.geometry.repeat !== undefined)
-        )
-          return this.unsupported('paragraph-paint-program');
-        if (++count.value >= p.limits.nodes) return this.unsupported('render-tree-budget');
-        const captured = this.textService.capturePaint(entry.paragraph),
-          { input, fontBinding, ...expected } = captured,
-          { height, ...paragraph } = input.paragraph,
-          key =
-            paintKeys![plane][paragraphIndex] ??
-            (paintKeys![plane][paragraphIndex] = new SceneReference());
-        if (fontBinding)
-          this.capture.bind('fonts', fontBinding.fontRevision, fontBinding.fontRevision);
-        paragraphIndex++;
-        const paragraphConfiguration: SceneNodeOptions = sceneReferenceConfiguration({
-          layout: { paintChild: true },
-          pointerHitTest: 'deferToChild',
-          horizontal: { kind: 'finite', min: captured.width, max: captured.width },
-          paragraph: { ...paragraph, ...(height === null ? {} : { height }) },
-          ...(fontBinding ? { paragraphFont: fontBinding } : {}),
-          paintPlacement: {
-            ...expected,
-            ...(entry.reference
-              ? { reference: sceneReferenceHandle(this.renderReference(entry.reference)) }
-              : {}),
-            rect:
-              entry.geometry?.kind === 'program'
-                ? entry.geometry.rect
-                : [entry.x ?? 0, entry.y ?? 0, captured.width, captured.height],
-          },
-        });
-        const paragraphText = {
-          value: input.text,
-          size: input.fontSize,
-          color: input.color,
-          direction: input.textDirection ? ('rtl' as const) : ('ltr' as const),
-        };
-        const binding = renderBindingConfiguration(
-          key,
-          'paragraph',
-          [],
-          paragraphConfiguration,
-          paragraphText,
-          false,
-          this.projectionCounters,
-        );
-        if (binding) ++this.projectionCounters.bindings;
-        else ++this.projectionCounters.adapters;
-        children.push(
-          binding ??
-            sceneConfiguration(key, 'paragraph', [], paragraphConfiguration, paragraphText),
-        );
-        return {
-          kind: 'paragraph',
-          reference: sceneReferenceHandle(key),
-          color: 0,
-          shape: emptyShape,
-        };
-      });
-    };
     const foreground = control?.foreground ?? box?.foreground;
-    if (control?.paint || box?.paint || foreground?.length)
+    if (control?.paint || box?.paint || foreground?.length) {
+      // Ordinary boxes, semantics and focus nodes have no paint projection.
+      // Keep paragraph key tables and the sequence closure out of that path.
+      let paintKeys: [SceneReference[], SceneReference[]] | undefined;
+      const sequence = (
+        entries: readonly NativePaintEntry[],
+        plane: 0 | 1,
+      ): readonly NativePaintOptions[] => {
+        let paragraphIndex = 0;
+        return entries.map((entry) => {
+          if (entry.kind !== 'paragraph') {
+            const { reference, paragraph: _, ...paint } = entry;
+            if (reference) this.capture.dependOn(reference);
+            return {
+              ...paint,
+              ...(reference
+                ? { reference: sceneReferenceHandle(this.renderReference(reference)) }
+                : {}),
+            };
+          }
+          if (
+            !entry.paragraph ||
+            !this.textService ||
+            (entry.clip && entry.clip !== 'none') ||
+            (entry.geometry && entry.geometry.kind !== 'program')
+          )
+            return this.unsupported('paragraph-paint-configuration');
+          if (entry.reference) this.capture.dependOn(entry.reference);
+          if (
+            entry.geometry?.kind === 'program' &&
+            (entry.geometry.radii ||
+              entry.geometry.visible !== undefined ||
+              entry.geometry.color !== undefined ||
+              entry.geometry.repeat !== undefined)
+          )
+            return this.unsupported('paragraph-paint-program');
+          if (++count.value >= p.limits.nodes) return this.unsupported('render-tree-budget');
+          paintKeys ??= this.paintKeys.get(render);
+          if (!paintKeys) this.paintKeys.set(render, (paintKeys = [[], []]));
+          const captured = this.textService.capturePaint(entry.paragraph),
+            { input, fontBinding, ...expected } = captured,
+            { height, ...paragraph } = input.paragraph,
+            key =
+              paintKeys![plane][paragraphIndex] ??
+              (paintKeys![plane][paragraphIndex] = new SceneReference());
+          if (fontBinding)
+            this.capture.bind('fonts', fontBinding.fontRevision, fontBinding.fontRevision);
+          paragraphIndex++;
+          const paragraphConfiguration: SceneNodeOptions = sceneReferenceConfiguration({
+            layout: { paintChild: true },
+            pointerHitTest: 'deferToChild',
+            horizontal: { kind: 'finite', min: captured.width, max: captured.width },
+            paragraph: { ...paragraph, ...(height === null ? {} : { height }) },
+            ...(fontBinding ? { paragraphFont: fontBinding } : {}),
+            paintPlacement: {
+              ...expected,
+              ...(entry.reference
+                ? { reference: sceneReferenceHandle(this.renderReference(entry.reference)) }
+                : {}),
+              rect:
+                entry.geometry?.kind === 'program'
+                  ? entry.geometry.rect
+                  : [entry.x ?? 0, entry.y ?? 0, captured.width, captured.height],
+            },
+          });
+          const paragraphText = {
+            value: input.text,
+            size: input.fontSize,
+            color: input.color,
+            direction: input.textDirection ? ('rtl' as const) : ('ltr' as const),
+          };
+          const binding = renderBindingConfiguration(
+            key,
+            'paragraph',
+            [],
+            paragraphConfiguration,
+            paragraphText,
+            false,
+            this.projectionCounters,
+          );
+          if (binding) ++this.projectionCounters.bindings;
+          else ++this.projectionCounters.adapters;
+          children.push(
+            binding ??
+              sceneConfiguration(key, 'paragraph', [], paragraphConfiguration, paragraphText),
+          );
+          return {
+            kind: 'paragraph',
+            reference: sceneReferenceHandle(key),
+            color: 0,
+            shape: emptyPaintShape,
+          };
+        });
+      };
       options = {
         ...options,
         nativePaint: [
           ...sequence(control?.paint ?? box?.paint ?? [], 0),
           ...(foreground?.length
             ? [
-                { kind: 'children' as const, color: 0, shape: emptyShape },
+                { kind: 'children' as const, color: 0, shape: emptyPaintShape },
                 ...sequence(foreground, 1),
               ]
             : []),
         ],
       };
+    }
     this.taps.retain(render);
     const configuration = {
       ...options,
@@ -1321,18 +1424,29 @@ export class OriginalWidgetHost {
       sceneReferenceConfiguration(configuration);
     // Module capabilities decide the path; raw public/native producers and
     // executable dependencies continue through the existing capture adapter.
-    if ((prototype !== OriginalNativeRender.prototype || sourceBinding) && !image && !editable) {
+    if (
+      directProjection &&
+      (prototype !== OriginalNativeRender.prototype || sourceBinding) &&
+      !image &&
+      !editable
+    ) {
       const binding = renderBindingConfiguration(
         key,
         kind,
         children,
         configuration,
         text,
-        control?.directData,
+        control?.directData || paragraphData,
         this.projectionCounters,
+        control?.cacheableSemantics &&
+          fields !== undefined &&
+          !(fields & nativeRenderFields.semantics)
+          ? previous
+          : undefined,
       );
       if (binding) {
         ++this.projectionCounters.bindings;
+        if (paragraphData) ++this.projectionCounters.paragraphDirectBindings;
         return binding;
       }
     }
@@ -1350,7 +1464,9 @@ export class OriginalWidgetHost {
     );
   }
   private bindRender(render: RenderObject): SceneReference {
-    claimNativeRenderObject(render, this, (kind) => this.invalidateRender(render, kind));
+    claimNativeRenderObject(render, this, (kind, fields) =>
+      this.invalidateRender(render, kind, fields),
+    );
     bindNativeSemanticsEvents(render, this, (event) => {
       if (this.closed) return;
       if (!['tap', 'longPress', 'focus'].includes(event.type) || event.getDataMap().size)
@@ -1428,11 +1544,13 @@ export class OriginalWidgetHost {
     do {
       this.rerun = false;
       if (!this.desired || this.closed) return;
-      const now = appTimestamp;
+      const now = this.sourceNow;
       const timing = {
+        pass: 0,
         document: '',
         input: '',
         started: now(),
+        buildStarted: 0,
         buildMs: 0,
         retainedBuilderMs: 0,
         retainedBuilderCosts: {
@@ -1446,8 +1564,12 @@ export class OriginalWidgetHost {
           syncMs: 0,
         },
         sourceThrough: 0,
+        sourceSequences: [] as number[],
         captureMs: 0,
+        captureStarted: 0,
         sceneMs: 0,
+        sceneStarted: 0,
+        sceneWork: { recordsMs: 0, diffMs: 0, commitMs: 0, commitCalls: 0, builds: 0 },
         waitMs: 0,
         projection: {
           created: 0,
@@ -1457,6 +1579,13 @@ export class OriginalWidgetHost {
           adapters: 0,
           partEncodes: 0,
           partReuses: 0,
+          commandBindings: 0,
+          commandEncodes: 0,
+          commandBytes: 0,
+          commandReuses: 0,
+          paragraphPreparations: 0,
+          paragraphDirectBindings: 0,
+          moduleCounts: Array<number>(14).fill(0),
         },
         completed: 0,
       };
@@ -1513,7 +1642,10 @@ export class OriginalWidgetHost {
       let captureStarted = now();
       const capturedBefore = this.capture.counters.captured,
         createdBefore = this.capture.counters.created,
-        projectionBefore = { ...this.projectionCounters };
+        projectionBefore = {
+          ...this.projectionCounters,
+          moduleCounts: this.projectionCounters.moduleCounts.slice(),
+        };
       try {
         this.geometry.observeState(state);
         this.layers.observeState(state);
@@ -1522,6 +1654,7 @@ export class OriginalWidgetHost {
           () => {
             this.capture.batchInvalidations(() => {
               const buildStarted = now();
+              timing.buildStarted = buildStarted;
               // A paint/input invalidation is not a new application Widget.
               // BuildOwner already marks State and viewport dependents dirty.
               // Replacing AppRoot here rebuilt its MediaQuery on every capture.
@@ -1567,8 +1700,30 @@ export class OriginalWidgetHost {
                   // input before publication, and requests a correction on mismatch.
                   // This batches dirty retained builders instead of one full scene
                   // transaction/Content round trip per unchanged viewport.
-                  if (builder.rebuild(builder.revision, builder.built.constraints))
-                    ++this.retainedBuilderRebuilds;
+                  const node = this.keys.get(render)?.currentNode;
+                  const sourceTarget =
+                    node && this.options.diagnosticSourcePreparation !== false
+                      ? this.sourceTarget(node, state, builder.revision, {
+                          publication: String(state.publication),
+                        })
+                      : undefined;
+                  const sourceStarted = sourceTarget ? now() : 0;
+                  let result: 'built' | 'declined' | 'failed' = 'failed';
+                  try {
+                    const built = builder.rebuild(builder.revision, builder.built.constraints);
+                    if (built) ++this.retainedBuilderRebuilds;
+                    result = built ? 'built' : 'declined';
+                  } finally {
+                    if (sourceTarget)
+                      this.sourcePreparation.record(
+                        'retained-box',
+                        `retained/${sourceTarget.document}/${node!.slot}:${node!.generation}/${builder.revision}`,
+                        sourceTarget,
+                        sourceStarted,
+                        now() - sourceStarted,
+                        result,
+                      );
+                  }
                 }
                 timing.retainedBuilderMs += now() - retainedStarted;
                 const costsAfter = nativeLayoutBuilderCosts(this.owner);
@@ -1582,6 +1737,7 @@ export class OriginalWidgetHost {
               timing.buildMs += now() - buildStarted;
             });
             captureStarted = now();
+            timing.captureStarted = captureStarted;
             // Canonical builders may catch their own exceptions and build an
             // ErrorWidget. An unported bridge operation still rejects admission.
             if (this.bridgeFailure) throw this.bridgeFailure;
@@ -1630,7 +1786,9 @@ export class OriginalWidgetHost {
       timing.captureMs = now() - captureStarted;
       // Only preparations completed before this sealed capture belong to its
       // Source cohort. Later work during an ACK belongs to a following pass.
-      timing.sourceThrough = this.sourcePreparationSequence;
+      timing.pass = ++this.sourcePass;
+      timing.sourceSequences = this.sourcePreparation.seal(timing.pass, now());
+      timing.sourceThrough = this.sourcePreparation.through;
       timing.projection = {
         created: this.capture.counters.created - createdBefore,
         captured: this.capture.counters.captured - capturedBefore,
@@ -1639,6 +1797,18 @@ export class OriginalWidgetHost {
         adapters: this.projectionCounters.adapters - projectionBefore.adapters,
         partEncodes: this.projectionCounters.partEncodes - projectionBefore.partEncodes,
         partReuses: this.projectionCounters.partReuses - projectionBefore.partReuses,
+        commandBindings: this.projectionCounters.commandBindings - projectionBefore.commandBindings,
+        commandEncodes: this.projectionCounters.commandEncodes - projectionBefore.commandEncodes,
+        commandBytes: this.projectionCounters.commandBytes - projectionBefore.commandBytes,
+        commandReuses: this.projectionCounters.commandReuses - projectionBefore.commandReuses,
+        paragraphPreparations:
+          this.projectionCounters.paragraphPreparations - projectionBefore.paragraphPreparations,
+        paragraphDirectBindings:
+          this.projectionCounters.paragraphDirectBindings -
+          projectionBefore.paragraphDirectBindings,
+        moduleCounts: this.projectionCounters.moduleCounts.map(
+          (value, index) => value - projectionBefore.moduleCounts[index]!,
+        ),
       };
       retainSceneConfiguration(scene);
       try {
@@ -1682,18 +1852,29 @@ export class OriginalWidgetHost {
       this.desiredImages = capturedImages;
       const errors: unknown[] = [];
       const sceneStarted = now();
+      timing.sceneStarted = sceneStarted;
+      const sceneBefore = {
+        recordsMs: this.native.counters.recordsMs,
+        diffMs: this.native.counters.diffMs,
+        commitMs: this.native.counters.commitMs,
+        commitCalls: this.native.counters.commitCalls,
+        builds: this.native.counters.builds,
+      };
       try {
         if (this.nativeMounted) await this.native.update(scene);
         else {
           this.nativeMounted = true;
           await this.native.mount(scene);
         }
+        if (!this.view.hasPendingTransaction)
+          this.sourcePreparation.accept(timing.sourceSequences, this.view.documentEpoch, now());
         this.layers.accept(this.view.documentEpoch);
         this.sceneMetrics = state.metrics;
         this.sceneDevice = state.device;
         this.sceneFontRevision = state.fontRevision;
         await this.editing.finishBuild();
       } catch (error) {
+        this.sourcePreparation.reject(timing.sourceSequences, now());
         errors.push(error);
         try {
           this.layers.reject();
@@ -1731,6 +1912,8 @@ export class OriginalWidgetHost {
       if (errors.length)
         throw new AggregateError(errors, 'Original scene admission/retirement failed');
       timing.sceneMs = now() - sceneStarted;
+      for (const key of Object.keys(sceneBefore) as (keyof typeof sceneBefore)[])
+        timing.sceneWork[key] = this.native.counters[key] - sceneBefore[key];
       timing.document = String(this.view.documentEpoch);
       timing.input = String(state.consumedThrough);
       timing.completed = now();
@@ -1825,6 +2008,7 @@ export class OriginalWidgetHost {
   close(): Promise<void> {
     if (this.closing) return this.closing;
     this.closed = true;
+    this.sourcePreparation.close(this.sourceNow());
     this.view.wakeChangeWaits();
     this.fontOwner?.cancel();
     this.focusing.close();

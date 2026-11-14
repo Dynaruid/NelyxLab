@@ -61,16 +61,18 @@ inline jsi::Value call(jsi::Runtime& rt,AppParagraphs& service,const jsi::Value*
   const auto owner=Packet(rt,jsi::Value(rt,args[1])).counter(),handle=Packet(rt,jsi::Value(rt,args[2])).counter();
   auto payload=Packet(rt,jsi::Value(rt,args[3]));
   if(operation=="open"){if(owner||handle)payload.fail();return double(service.open());}
-  if(operation=="snapshot"){
+  if(operation=="snapshot"||operation=="fontFamilies"){
+    if(operation=="fontFamilies"&&!handle)payload.fail();
 #if defined(__ANDROID__)
     if(!service.snapshot(owner).closed)service.prepareFonts(owner);
 #endif
     const auto& state=service.snapshot(owner);const auto generation=handle?service.fontGeneration(owner,handle):state.generation;
-    jsi::Object result(rt);result.setProperty(rt,"version",12);result.setProperty(rt,"fontRevision",double(handle?handle:state.fontRevision));
     std::set<std::string> families;
     if(generation)for(const auto& face:generation->provider->faces)families.insert(face.first);
     else for(const auto* family:{"NelyxDefault","NelyxArabic","NelyxHebrew","NelyxEmoji"})families.insert(family);
     jsi::Array names(rt,families.size());size_t index=0;for(const auto& name:families)names.setValueAtIndex(rt,index++,jsi::String::createFromUtf8(rt,name));
+    if(operation=="fontFamilies")return names;
+    jsi::Object result(rt);result.setProperty(rt,"version",12);result.setProperty(rt,"fontRevision",double(handle?handle:state.fontRevision));
     result.setProperty(rt,"fontFamilies",std::move(names));result.setProperty(rt,"fontCatalogs",double(service.fontCatalogs()));
     result.setProperty(rt,"fontStages",state.stage?1:0);result.setProperty(rt,"fontLoads",double(state.fontLoads));
     uint64_t fontBufferBytes=0;for(const auto& [token,memory]:state.fontBuffers)fontBufferBytes+=memory->bytes;
@@ -90,7 +92,7 @@ inline jsi::Value call(jsi::Runtime& rt,AppParagraphs& service,const jsi::Value*
     result.setProperty(rt,"immutableBufferFileBytes",double(state.bufferFileBytes));
     result.setProperty(rt,"layouts",double(state.layouts));result.setProperty(rt,"queries",double(state.queries));
     result.setProperty(rt,"paragraphs",double(state.entries.size()));result.setProperty(rt,"reservedBytes",double(service.reservedBytes()));
-    result.setProperty(rt,"heapBytes",0);result.setProperty(rt,"closed",state.closed);return result;
+    result.setProperty(rt,"heapBytes",0);result.setProperty(rt,"closed",state.closed);result.setProperty(rt,"fontFamiliesVersion",1);return result;
   }
   if(operation=="prepareFonts"||operation=="fontFamily"){
     if(handle)payload.fail();auto buffer=args[3].getObject(rt).getPropertyAsObject(rt,"bytes").getArrayBuffer(rt);

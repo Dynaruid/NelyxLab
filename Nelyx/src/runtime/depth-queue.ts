@@ -9,6 +9,15 @@ export interface DepthQueueRecord {
   _buildQueueDepth: number;
   _buildQueueOrder: number;
 }
+// This comparison has no queue state or extension hooks. A direct module
+// binding lets the pinned compiler inline the hot heap comparison without a
+// virtual method lookup. Keep each record-field read in its original order.
+function before(a: DepthQueueRecord, b: DepthQueueRecord): boolean {
+  return (
+    a._buildQueueDepth < b._buildQueueDepth ||
+    (a._buildQueueDepth === b._buildQueueDepth && a._buildQueueOrder < b._buildQueueOrder)
+  );
+}
 export class DepthQueue<T extends DepthQueueRecord> {
   private readonly heap: T[] = [];
   private order = 0;
@@ -23,17 +32,11 @@ export class DepthQueue<T extends DepthQueueRecord> {
       if (!predicate(record) || this.revision !== revision) return false;
     return true;
   }
-  private before(a: T, b: T): boolean {
-    return (
-      a._buildQueueDepth < b._buildQueueDepth ||
-      (a._buildQueueDepth === b._buildQueueDepth && a._buildQueueOrder < b._buildQueueOrder)
-    );
-  }
   private up(index: number, record: T): void {
     while (index) {
       const parent = (index - 1) >> 1,
         value = this.heap[parent]!;
-      if (!this.before(record, value)) break;
+      if (!before(record, value)) break;
       this.heap[index] = value;
       value._buildQueueIndex = index;
       index = parent;
@@ -44,10 +47,9 @@ export class DepthQueue<T extends DepthQueueRecord> {
   private down(index: number, record: T): void {
     while (index * 2 + 1 < this.heap.length) {
       let child = index * 2 + 1;
-      if (child + 1 < this.heap.length && this.before(this.heap[child + 1]!, this.heap[child]!))
-        child++;
+      if (child + 1 < this.heap.length && before(this.heap[child + 1]!, this.heap[child]!)) child++;
       const value = this.heap[child]!;
-      if (!this.before(value, record)) break;
+      if (!before(value, record)) break;
       this.heap[index] = value;
       value._buildQueueIndex = index;
       index = child;
@@ -72,8 +74,7 @@ export class DepthQueue<T extends DepthQueueRecord> {
     if (index < 0) {
       this.heap.push(record);
       this.up(this.heap.length - 1, record);
-    } else if (index > 0 && this.before(record, this.heap[(index - 1) >> 1]!))
-      this.up(index, record);
+    } else if (index > 0 && before(record, this.heap[(index - 1) >> 1]!)) this.up(index, record);
     else this.down(index, record);
   }
   remove(record: T): void {
@@ -84,7 +85,7 @@ export class DepthQueue<T extends DepthQueueRecord> {
     this.revision++;
     record._buildQueueIndex = -1;
     if (index < this.heap.length) {
-      if (index > 0 && this.before(last, this.heap[(index - 1) >> 1]!)) this.up(index, last);
+      if (index > 0 && before(last, this.heap[(index - 1) >> 1]!)) this.up(index, last);
       else this.down(index, last);
     }
   }

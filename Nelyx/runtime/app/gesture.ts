@@ -4,7 +4,7 @@ import {
   StatefulElement,
 } from '@nelyx/core/framework/widgets/framework';
 import { RawTooltip, RawTooltipState } from '@nelyx/core/framework/widgets/raw-tooltip';
-import type { BuildOwner } from '@nelyx/core/framework/widgets/framework';
+import type { BuildOwner, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector';
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { FlutterError } from '@nelyx/core/foundation/flutter-error';
@@ -28,6 +28,7 @@ import {
   LongPressEndDetails,
 } from '@nelyx/core/framework/gestures/long-press';
 import { Velocity } from '@nelyx/core/framework/gestures/velocity-tracker';
+import type { SceneNodeOptions } from '../engine-client/scene.ts';
 import { sourceNativeNode } from './native-node.ts';
 import type { EngineEvent, GestureEvent, GestureDetails } from '../engine-client/codec.ts';
 import { protocol as p } from '../engine-client/schema.ts';
@@ -62,6 +63,217 @@ const admitted = new Set([
   'supportedDevices',
   'key',
 ]);
+/** One per Source binding; event conversion procedures are shared by all cells. */
+class NativeGestureDispatcher {
+  constructor(
+    private readonly context: BuildContext,
+    private readonly options: GestureDetector['options'],
+    private readonly fail: (reason: string) => never,
+    private readonly tap: boolean,
+    private readonly long: boolean,
+    private readonly pan: boolean,
+    private readonly horizontal: boolean,
+    private readonly vertical: boolean,
+  ) {}
+  private invoke(name: string, ...args: unknown[]) {
+    if (!this.context.mounted) return;
+    const callback = Reflect.get(this.options, name) as
+      | ((...args: unknown[]) => void)
+      | null
+      | undefined;
+    if (!callback) return;
+    try {
+      callback(...args);
+    } catch (exception) {
+      FlutterError.reportError(
+        new FlutterErrorDetails({
+          exception,
+          library: 'gesture',
+          context: new ErrorDescription('while handling ' + name),
+        }),
+      );
+    }
+  }
+  private details(event: GestureEvent | EngineEvent): GestureDetails {
+    const { fail } = this;
+    const value = 'sequence' in event ? event.details : event.gesture;
+    return value ?? fail('native-gesture-details');
+  }
+  private positions(event: GestureEvent | EngineEvent) {
+    const data = this.details(event);
+    return {
+      globalPosition: new Offset(event.x, event.y),
+      localPosition: new Offset(data.localX, data.localY),
+    };
+  }
+  private pointerKind(data: GestureDetails) {
+    return PointerDeviceKind[data.pointerKind];
+  }
+  private tapDown(event: GestureEvent | EngineEvent) {
+    return this.invoke(
+      'onTapDown',
+      new TapDownDetails({ ...this.positions(event), kind: this.pointerKind(this.details(event)) }),
+    );
+  }
+  private tapUp(event: GestureEvent | EngineEvent) {
+    return this.invoke(
+      'onTapUp',
+      new TapUpDetails({ ...this.positions(event), kind: this.pointerKind(this.details(event)) }),
+    );
+  }
+  private longDown(event: GestureEvent | EngineEvent) {
+    return this.invoke(
+      'onLongPressDown',
+      new LongPressDownDetails({
+        ...this.positions(event),
+        kind:
+          this.details(event).flags & p.gestureDetailFlags.semantic
+            ? null
+            : this.pointerKind(this.details(event)),
+      }),
+    );
+  }
+  private longStart(event: GestureEvent | EngineEvent) {
+    this.invoke('onLongPressStart', new LongPressStartDetails(this.positions(event)));
+    this.invoke('onLongPress');
+  }
+  private longEnd(event: GestureEvent | EngineEvent) {
+    const data = this.details(event);
+    this.invoke(
+      'onLongPressEnd',
+      new LongPressEndDetails({
+        ...this.positions(event),
+        velocity: new Velocity({ pixelsPerSecond: new Offset(data.velocityX, data.velocityY) }),
+      }),
+    );
+    this.invoke('onLongPressUp');
+  }
+  private drag(event: GestureEvent) {
+    const data = this.details(event),
+      h = !!(data.flags & p.gestureDetailFlags.horizontal),
+      v = !!(data.flags & p.gestureDetailFlags.vertical),
+      prefix = this.pan ? 'onPan' : h ? 'onHorizontalDrag' : v ? 'onVerticalDrag' : null;
+    if (!prefix) {
+      if (event.kind === 'dragCancel') {
+        if (this.horizontal) this.invoke('onHorizontalDragCancel');
+        if (this.vertical) this.invoke('onVerticalDragCancel');
+      }
+      return;
+    }
+    const position = this.positions(event),
+      kind = this.pointerKind(data);
+    if (event.kind === 'dragDown') this.invoke(prefix + 'Down', new DragDownDetails(position));
+    else if (event.kind === 'panStart')
+      this.invoke(
+        prefix + 'Start',
+        new DragStartDetails({ ...position, kind, sourceTimeStamp: data.timestamp * 1000 }),
+      );
+    else if (event.kind === 'panUpdate') {
+      this.invoke(
+        prefix + 'Update',
+        new DragUpdateDetails({
+          ...position,
+          kind,
+          sourceTimeStamp: data.timestamp * 1000,
+          delta: new Offset(data.deltaX, data.deltaY),
+          primaryDelta: h ? data.deltaX : v ? data.deltaY : null,
+        }),
+      );
+      if (this.pan) this.invoke('onDrag', data.deltaX, data.deltaY);
+    } else if (event.kind === 'panEnd') {
+      this.invoke(
+        prefix + 'End',
+        new DragEndDetails({
+          ...position,
+          velocity: new Velocity({ pixelsPerSecond: new Offset(data.velocityX, data.velocityY) }),
+          primaryVelocity: h ? data.velocityX : v ? data.velocityY : null,
+        }),
+      );
+      if (this.pan) this.invoke('onDragEnd', data.velocityX, data.velocityY);
+    } else if (event.kind === 'dragCancel') this.invoke(prefix + 'Cancel');
+  }
+  gesture(event: GestureEvent): void {
+    switch (event.kind) {
+      case 'tapDown':
+        this.tapDown(event);
+        break;
+      case 'tapUp':
+        this.tapUp(event);
+        break;
+      case 'tap':
+        this.invoke('onTap');
+        break;
+      case 'tapCancel':
+        this.invoke('onTapCancel');
+        break;
+      case 'tapMove': {
+        const data = this.details(event);
+        this.invoke(
+          'onTapMove',
+          new TapMoveDetails({
+            ...this.positions(event),
+            kind: this.pointerKind(data),
+            delta: new Offset(data.deltaX, data.deltaY),
+          }),
+        );
+        break;
+      }
+      case 'doubleTap':
+        this.invoke('onDoubleTap');
+        break;
+      case 'longPressDown':
+        this.longDown(event);
+        break;
+      case 'longPress':
+        this.longStart(event);
+        break;
+      case 'longPressCancel':
+        this.invoke('onLongPressCancel');
+        break;
+      case 'longPressMove': {
+        const data = this.details(event);
+        this.invoke(
+          'onLongPressMoveUpdate',
+          new LongPressMoveUpdateDetails({
+            ...this.positions(event),
+            offsetFromOrigin: new Offset(event.x - data.originX, event.y - data.originY),
+            localOffsetFromOrigin: new Offset(
+              data.localX - data.localOriginX,
+              data.localY - data.localOriginY,
+            ),
+          }),
+        );
+        break;
+      }
+      case 'longPressEnd':
+        this.longEnd(event);
+        break;
+      case 'dragDown':
+      case 'panStart':
+      case 'panUpdate':
+      case 'panEnd':
+      case 'dragCancel':
+        this.drag(event);
+        break;
+    }
+  }
+  action(
+    action: Parameters<NonNullable<SceneNodeOptions['onAction']>>[0],
+    event?: EngineEvent,
+  ): void {
+    const { fail } = this;
+    if (!event) return fail('native-semantic-gesture-details');
+    if (action === 'activate' && this.tap) {
+      this.tapDown(event);
+      this.tapUp(event);
+      this.invoke('onTap');
+    } else if (action === 'longPress' && this.long) {
+      this.longDown(event);
+      this.longStart(event);
+      this.longEnd(event);
+    }
+  }
+}
 /** Canonical details are constructed from Content-owned published coordinates and recognizer state. */
 export function installOriginalGestures(owner: BuildOwner, fail: (reason: string) => never): void {
   installOriginalRawGestures(owner, fail);
@@ -114,117 +326,16 @@ export function installOriginalGestures(owner: BuildOwner, fail: (reason: string
     if (pan && (horizontal || vertical)) return fail('competing-pan-axis-gestures');
     const semantics = !options.excludeFromSemantics,
       behavior = options.behavior?.index ?? (source.child === null ? 2 : 0);
-    const invoke = (name: string, ...args: unknown[]) => {
-      if (!context.mounted) return;
-      const callback = Reflect.get(options, name) as
-        | ((...args: unknown[]) => void)
-        | null
-        | undefined;
-      if (!callback) return;
-      try {
-        callback(...args);
-      } catch (exception) {
-        FlutterError.reportError(
-          new FlutterErrorDetails({
-            exception,
-            library: 'gesture',
-            context: new ErrorDescription('while handling ' + name),
-          }),
-        );
-      }
-    };
-    const details = (event: GestureEvent | EngineEvent): GestureDetails => {
-      const value = 'sequence' in event ? event.details : event.gesture;
-      return value ?? fail('native-gesture-details');
-    };
-    const positions = (event: GestureEvent | EngineEvent) => {
-      const data = details(event);
-      return {
-        globalPosition: new Offset(event.x, event.y),
-        localPosition: new Offset(data.localX, data.localY),
-      };
-    };
-    const pointerKind = (data: GestureDetails) => PointerDeviceKind[data.pointerKind];
-    const tapDown = (event: GestureEvent | EngineEvent) =>
-      invoke(
-        'onTapDown',
-        new TapDownDetails({ ...positions(event), kind: pointerKind(details(event)) }),
-      );
-    const tapUp = (event: GestureEvent | EngineEvent) =>
-      invoke(
-        'onTapUp',
-        new TapUpDetails({ ...positions(event), kind: pointerKind(details(event)) }),
-      );
-    const longDown = (event: GestureEvent | EngineEvent) =>
-      invoke(
-        'onLongPressDown',
-        new LongPressDownDetails({
-          ...positions(event),
-          kind:
-            details(event).flags & p.gestureDetailFlags.semantic
-              ? null
-              : pointerKind(details(event)),
-        }),
-      );
-    const longStart = (event: GestureEvent | EngineEvent) => {
-      invoke('onLongPressStart', new LongPressStartDetails(positions(event)));
-      invoke('onLongPress');
-    };
-    const longEnd = (event: GestureEvent | EngineEvent) => {
-      const data = details(event);
-      invoke(
-        'onLongPressEnd',
-        new LongPressEndDetails({
-          ...positions(event),
-          velocity: new Velocity({ pixelsPerSecond: new Offset(data.velocityX, data.velocityY) }),
-        }),
-      );
-      invoke('onLongPressUp');
-    };
-    const drag = (event: GestureEvent) => {
-      const data = details(event),
-        h = !!(data.flags & p.gestureDetailFlags.horizontal),
-        v = !!(data.flags & p.gestureDetailFlags.vertical),
-        prefix = pan ? 'onPan' : h ? 'onHorizontalDrag' : v ? 'onVerticalDrag' : null;
-      if (!prefix) {
-        if (event.kind === 'dragCancel') {
-          if (horizontal) invoke('onHorizontalDragCancel');
-          if (vertical) invoke('onVerticalDragCancel');
-        }
-        return;
-      }
-      const position = positions(event),
-        kind = pointerKind(data);
-      if (event.kind === 'dragDown') invoke(prefix + 'Down', new DragDownDetails(position));
-      else if (event.kind === 'panStart')
-        invoke(
-          prefix + 'Start',
-          new DragStartDetails({ ...position, kind, sourceTimeStamp: data.timestamp * 1000 }),
-        );
-      else if (event.kind === 'panUpdate') {
-        invoke(
-          prefix + 'Update',
-          new DragUpdateDetails({
-            ...position,
-            kind,
-            sourceTimeStamp: data.timestamp * 1000,
-            delta: new Offset(data.deltaX, data.deltaY),
-            primaryDelta: h ? data.deltaX : v ? data.deltaY : null,
-          }),
-        );
-        if (pan) invoke('onDrag', data.deltaX, data.deltaY);
-      } else if (event.kind === 'panEnd') {
-        invoke(
-          prefix + 'End',
-          new DragEndDetails({
-            ...position,
-            velocity: new Velocity({ pixelsPerSecond: new Offset(data.velocityX, data.velocityY) }),
-            primaryVelocity: h ? data.velocityX : v ? data.velocityY : null,
-          }),
-        );
-        if (pan) invoke('onDragEnd', data.velocityX, data.velocityY);
-      } else if (event.kind === 'dragCancel') invoke(prefix + 'Cancel');
-    };
+    const dispatch = new NativeGestureDispatcher(
+      context,
+      options,
+      fail,
+      tap,
+      long,
+      pan,
+      horizontal,
+      vertical,
+    );
     return sourceNativeNode('box', source.child ? [source.child] : [], {
       layout: { childConstraints: 'inherit' },
       pointerHitTest: behavior === 1 ? 'self' : behavior === 2 ? 'translucent' : 'deferToChild',
@@ -251,83 +362,8 @@ export function installOriginalGestures(owner: BuildOwner, fail: (reason: string
             },
           }
         : {}),
-      onGesture: (event) => {
-        switch (event.kind) {
-          case 'tapDown':
-            tapDown(event);
-            break;
-          case 'tapUp':
-            tapUp(event);
-            break;
-          case 'tap':
-            invoke('onTap');
-            break;
-          case 'tapCancel':
-            invoke('onTapCancel');
-            break;
-          case 'tapMove': {
-            const data = details(event);
-            invoke(
-              'onTapMove',
-              new TapMoveDetails({
-                ...positions(event),
-                kind: pointerKind(data),
-                delta: new Offset(data.deltaX, data.deltaY),
-              }),
-            );
-            break;
-          }
-          case 'doubleTap':
-            invoke('onDoubleTap');
-            break;
-          case 'longPressDown':
-            longDown(event);
-            break;
-          case 'longPress':
-            longStart(event);
-            break;
-          case 'longPressCancel':
-            invoke('onLongPressCancel');
-            break;
-          case 'longPressMove': {
-            const data = details(event);
-            invoke(
-              'onLongPressMoveUpdate',
-              new LongPressMoveUpdateDetails({
-                ...positions(event),
-                offsetFromOrigin: new Offset(event.x - data.originX, event.y - data.originY),
-                localOffsetFromOrigin: new Offset(
-                  data.localX - data.localOriginX,
-                  data.localY - data.localOriginY,
-                ),
-              }),
-            );
-            break;
-          }
-          case 'longPressEnd':
-            longEnd(event);
-            break;
-          case 'dragDown':
-          case 'panStart':
-          case 'panUpdate':
-          case 'panEnd':
-          case 'dragCancel':
-            drag(event);
-            break;
-        }
-      },
-      onAction: (action, event) => {
-        if (!event) return fail('native-semantic-gesture-details');
-        if (action === 'activate' && tap) {
-          tapDown(event);
-          tapUp(event);
-          invoke('onTap');
-        } else if (action === 'longPress' && long) {
-          longDown(event);
-          longStart(event);
-          longEnd(event);
-        }
-      },
+      onGesture: (event) => dispatch.gesture(event),
+      onAction: (action, event) => dispatch.action(action, event),
     });
   });
 }

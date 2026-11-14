@@ -30,8 +30,12 @@ import type { BoxConstraints } from './constraints.ts';
 import { EnumProperty, FlagsSummary } from '../../foundation/diagnostic-properties.ts';
 import type { DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.ts';
 import { invariant } from '../../foundation/errors.ts';
-import { registerNativeBoxConfiguration } from './native-box.ts';
-import type { NativePointerSample } from './native-box.ts';
+import { registerNativeBoxConfiguration, registerNativeBoxCommands } from './native-box.ts';
+import type {
+  NativePointerSample,
+  NativeBoxConfiguration,
+  NativeBoxCommandSink,
+} from './native-box.ts';
 import { Offset as PointerOffset } from '../../ui/offset.ts';
 import { PointerDeviceKind } from '../../ui/pointer.ts';
 import { FlutterError } from '../../foundation/flutter-error.ts';
@@ -224,7 +228,20 @@ export function pointerEventFromNativeSample(sample: NativePointerSample): Point
   if (sample.phase === 'end') return new PointerUpEvent(options);
   return new PointerCancelEvent(options);
 }
-registerNativeBoxConfiguration(RenderPointerListener.prototype, (render, reject) => {
+function readNativePointerListener(
+  render: RenderPointerListener,
+  reject: (reason: string) => never,
+): NativeBoxConfiguration;
+function readNativePointerListener(
+  render: RenderPointerListener,
+  reject: (reason: string) => never,
+  sink: NativeBoxCommandSink,
+): void;
+function readNativePointerListener(
+  render: RenderPointerListener,
+  reject: (reason: string) => never,
+  sink?: NativeBoxCommandSink,
+): NativeBoxConfiguration | void {
   if (
     Object.hasOwn(render, 'handleEvent') ||
     render.handleEvent !== defaultPointerListenerHandleEvent
@@ -232,31 +249,50 @@ registerNativeBoxConfiguration(RenderPointerListener.prototype, (render, reject)
     return reject('custom-pointer-listener-handler');
   if (render.onPointerPanZoomStart || render.onPointerPanZoomUpdate || render.onPointerPanZoomEnd)
     return reject('pointer-pan-zoom-carrier');
-  return {
-    kind: 'box',
-    layout: { childConstraints: 'inherit', expandEmpty: !render.child },
-    hitTest:
+  const expandEmpty = !render.child,
+    hitTest =
       render.behavior === HitTestBehavior.opaque
         ? 'self'
-        : (render.behavior.name as 'deferToChild' | 'translucent'),
-    onPointerSample(sample) {
-      if (render.debugDisposed) return;
-      const event = pointerEventFromNativeSample(sample);
-      try {
-        if (event instanceof PointerDownEvent) render.onPointerDown?.(event);
-        else if (event instanceof PointerMoveEvent) render.onPointerMove?.(event);
-        else if (event instanceof PointerUpEvent) render.onPointerUp?.(event);
-        else if (event instanceof PointerHoverEvent) render.onPointerHover?.(event);
-        else if (event instanceof PointerCancelEvent) render.onPointerCancel?.(event);
-        else if (event instanceof PointerSignalEvent) render.onPointerSignal?.(event);
-      } catch (exception) {
-        FlutterError.reportError(
-          new FlutterErrorDetails({ exception, library: 'pointer listener' }),
-        );
-      }
-    },
+        : (render.behavior.name as 'deferToChild' | 'translucent');
+  const onPointerSample = (sample: NativePointerSample) => {
+    if (render.debugDisposed) return;
+    const event = pointerEventFromNativeSample(sample);
+    try {
+      if (event instanceof PointerDownEvent) render.onPointerDown?.(event);
+      else if (event instanceof PointerMoveEvent) render.onPointerMove?.(event);
+      else if (event instanceof PointerUpEvent) render.onPointerUp?.(event);
+      else if (event instanceof PointerHoverEvent) render.onPointerHover?.(event);
+      else if (event instanceof PointerCancelEvent) render.onPointerCancel?.(event);
+      else if (event instanceof PointerSignalEvent) render.onPointerSignal?.(event);
+    } catch (exception) {
+      FlutterError.reportError(new FlutterErrorDetails({ exception, library: 'pointer listener' }));
+    }
   };
-});
+  if (sink) {
+    if (sink.inheritLayout) sink.inheritLayout('empty', expandEmpty);
+    else sink.layout({ childConstraints: 'inherit', expandEmpty });
+    sink.interaction!(hitTest, undefined, undefined, onPointerSample);
+    return;
+  }
+  return {
+    kind: 'box',
+    layout: { childConstraints: 'inherit', expandEmpty },
+    hitTest,
+    onPointerSample,
+  };
+}
+registerNativeBoxConfiguration(RenderPointerListener.prototype, readNativePointerListener, true);
+registerNativeBoxCommands(
+  RenderPointerListener.prototype,
+  (
+    render,
+    sink,
+    reject = (reason) => {
+      throw Error(reason);
+    },
+  ) => readNativePointerListener(render, reject, sink),
+  4,
+);
 /** @internal Inspect ordinary data fields without invoking a custom callback getter. */
 export function hasEmptyPointerHoverHandler(target: RenderObject): boolean {
   if (

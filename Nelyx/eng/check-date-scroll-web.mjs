@@ -5,6 +5,9 @@ import {
   createEngineV2Server,
   verifyEngineV2Application,
 } from '../sdk/tooling/cli/src/engine-v2-runner.mjs';
+const speedArgument = process.argv.find((argument) => argument.startsWith('--gesture-speed='));
+const gestureSpeed = speedArgument ? Number(speedArgument.slice('--gesture-speed='.length)) : 3;
+assert([1, 3].includes(gestureSpeed), 'Choose --gesture-speed=1 or 3');
 const server = createEngineV2Server(
   verifyEngineV2Application('sample/nelyx-demo-app/engine-v2/dist/v2-web', 'web'),
 );
@@ -315,7 +318,7 @@ try {
         if (step % 6 === 1) burstStarted = started;
         if (process.argv.includes('--precision')) {
           await worker.evaluate(
-            async ({ direction, x, y }) => {
+            async ({ direction, x, y, speed }) => {
               const h = globalThis.__dateScrollHost;
               let position;
               const visit = (e) => {
@@ -349,11 +352,24 @@ try {
                 if (result.status !== 0) throw Error('Precision packet rejected: ' + result.status);
               };
               await send(1, 0, 0);
+              const activeStarted = performance.now();
               for (let i = 0; i < 6; ++i) {
-                await send(2, direction * 100, direction * 1800);
-                await new Promise((resolve) => setTimeout(resolve, 16));
+                const remaining = activeStarted + ((i + 1) * 16) / speed - performance.now();
+                if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
+                await send(2, direction * 100, direction * 1800 * speed);
               }
-              await send(3, 0, direction * 1800);
+              const activeMs = performance.now() - activeStarted;
+              await send(3, 0, direction * 1800 * speed);
+              console.log(
+                'DATEPREP',
+                JSON.stringify({
+                  gestureSpeed: speed,
+                  updates: 6,
+                  distance: 600,
+                  targetActiveMs: 96 / speed,
+                  activeMs,
+                }),
+              );
             },
             {
               direction: pastOnly
@@ -367,11 +383,12 @@ try {
                     : -1,
               x: gridPoint.x + gridPoint.width / 2,
               y: gridPoint.y + gridPoint.height / 2,
+              speed: gestureSpeed,
             },
           );
         } else await page.mouse.wheel(pastOnly ? -340 : step <= 6 ? 340 : -340, 0);
         if (burst && step % 6 !== 0) {
-          await page.waitForTimeout(20);
+          await page.waitForTimeout(20 / gestureSpeed);
           continue;
         }
         if (!burst)
@@ -463,11 +480,16 @@ try {
       if (process.argv.includes('--year-mode')) {
         const year = /\b(\d{4})\b/.exec(monthBeforeResize)?.[1];
         assert(year, 'Calendar header has no year');
-        await page.getByRole('button', { name: /^Select year/ }).click();
+        // These are semantic actions, like activate() above. A trusted pointer
+        // click has detail=1 and belongs to the canvas contact route; the DOM
+        // peer intentionally activates only detail=0 accessibility clicks.
+        await page
+          .getByRole('button', { name: /^Select year/ })
+          .evaluate((element) => element.click());
         await idle();
         const selectedYear = page.getByRole('button', { name: year, exact: true }).first();
         await selectedYear.waitFor();
-        await selectedYear.click();
+        await selectedYear.evaluate((element) => element.click());
         await idle();
         await page.getByRole('button', { name: /^15, / }).first().waitFor();
         assert.equal(
@@ -479,19 +501,32 @@ try {
       }
       assert.deepEqual(errors, []);
     } catch (error) {
+      console.log(
+        'CALENDAR_PEERS',
+        await page.locator('[role="button"]').evaluateAll((elements) =>
+          elements.slice(0, 80).map((element) => ({
+            label: element.getAttribute('aria-label'),
+            description: element.getAttribute('aria-description'),
+            hidden: element.getAttribute('aria-hidden'),
+          })),
+        ),
+      );
       const worker = page.workers().find((w) => w.url().includes('/application/app.js'));
       console.log(
         'CALENDAR_FAILURE',
         await worker
           ?.evaluate(async () => {
             const h = globalThis.__dateScrollHost;
+            const diagnostics = h.diagnostics();
+            diagnostics.samples = diagnostics.samples.slice(-5);
+            diagnostics.sourcePreparation.samples = diagnostics.sourcePreparation.samples.slice(-5);
             return JSON.stringify(
               {
                 state: await h.view.inspectState(),
                 running: !!h.running,
                 rerun: h.rerun,
                 scheduled: h.scheduled,
-                diagnostics: h.diagnostics(),
+                diagnostics,
                 scrolls: (await h.view.layoutSnapshot()).nodes
                   .filter((n) => n.list || n.kind === 11)
                   .map((n) => ({

@@ -28,6 +28,8 @@ export interface AppTextSnapshot {
   readonly version: 12;
   readonly fontRevision: number;
   readonly fontFamilies: readonly string[];
+  /** Optional thin font-cohort query, independently negotiated from counters. */
+  readonly fontFamiliesVersion?: 1;
   readonly fontCatalogs: number;
   readonly fontStages: number;
   readonly fontBuffers: number;
@@ -118,6 +120,8 @@ export interface AppTextBackend {
   line(handle: number, offset: number): number | null;
   release(handle: number): void;
   snapshot(fontRevision?: number): AppTextSnapshot;
+  /** Validates the same live revision as snapshot, without accounting counters. */
+  fontFamilies?(fontRevision: number): readonly string[];
   close(): void;
 }
 export interface AppTextExecution extends AppTextSnapshot {
@@ -311,6 +315,8 @@ export function nativeAppTextBackend(native: NativeAppTextService): AppTextBacke
     },
     snapshot: (fontRevision) =>
       invoke('snapshot', owner, revision(fontRevision), undefined) as AppTextSnapshot,
+    fontFamilies: (fontRevision) =>
+      invoke('fontFamilies', owner, revision(fontRevision), undefined) as readonly string[],
     close: () => {
       invoke('close', owner, 0, undefined);
     },

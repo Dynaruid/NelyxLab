@@ -17,7 +17,7 @@ import type { Rect } from '../../ui/types.ts';
 import type { ResourceId, TextLayout } from '../../ui/types.ts';
 import { BoxConstraints } from './constraints.ts';
 import { RenderBox, ContainerBoxParentData } from './object.ts';
-import { RenderObject } from './object.ts';
+import { RenderObject, nativeRenderFields } from './object.ts';
 import type { TextBaseline, HitTestEntry } from './object.ts';
 import type { PaintingContext } from '../painting/context.ts';
 import type { TextPainter } from '../painting/text-painter.ts';
@@ -46,7 +46,7 @@ import { BorderRadius } from '../painting/border-radius.ts';
 import { ImageConfiguration } from '../painting/image-configuration.ts';
 import { valueEquals } from '../painting/value-equality.ts';
 import { flexLayoutProtocol } from '../../hosting/flex-layout.ts';
-import { registerNativeBoxConfiguration } from './native-box.ts';
+import { registerNativeBoxConfiguration, registerNativeBoxCommands } from './native-box.ts';
 export class RenderProxyBox extends RenderBox {
   protected override get childCountLimit(): number {
     return 1;
@@ -106,7 +106,7 @@ export class RenderConstrainedBox extends RenderProxyBox {
     value.debugAssertIsValid();
     if (this.extra.equals(value)) return;
     this.extra = value;
-    this.markNeedsLayout();
+    this.markNativeFieldsChanged('layout', nativeRenderFields.constraints);
   }
   get additional(): BoxConstraints {
     return this.additionalConstraints;
@@ -184,7 +184,7 @@ export class RenderPadding extends RenderShiftedBox {
   }
   private _markNeedResolution(): void {
     this._resolvedPaddingCache = undefined;
-    this.markNeedsLayout();
+    this.markNativeFieldsChanged('layout', nativeRenderFields.layout);
   }
   get padding(): EdgeInsetsGeometry {
     return this._padding;
@@ -335,7 +335,7 @@ export class RenderPositionedBox extends RenderAligningShiftedBox {
     this.assertCanMutateLayoutProperty();
     if (value !== this.shrinkToChild) {
       this.shrinkToChild = value;
-      this.markNeedsLayout();
+      this.markNativeFieldsChanged('layout', nativeRenderFields.layout);
     }
   }
   get widthFactor(): number | undefined {
@@ -346,7 +346,7 @@ export class RenderPositionedBox extends RenderAligningShiftedBox {
     this.checkFactor(value);
     if (value !== this.factorX) {
       this.factorX = value;
-      this.markNeedsLayout();
+      this.markNativeFieldsChanged('layout', nativeRenderFields.layout);
     }
   }
   get heightFactor(): number | undefined {
@@ -357,7 +357,7 @@ export class RenderPositionedBox extends RenderAligningShiftedBox {
     this.checkFactor(value);
     if (value !== this.factorY) {
       this.factorY = value;
-      this.markNeedsLayout();
+      this.markNativeFieldsChanged('layout', nativeRenderFields.layout);
     }
   }
   protected override computeMinIntrinsicWidth(height: number): number {
@@ -2777,6 +2777,28 @@ registerNativeBoxConfiguration(
   }),
   true,
 );
+registerNativeBoxCommands(RenderProxyBox.prototype, () => {}, 0);
+registerNativeBoxCommands(
+  RenderConstrainedBox.prototype,
+  (render, sink) => {
+    if (sink.inheritLayout) sink.inheritLayout('bounds', true);
+    else sink.layout({ childConstraints: 'inherit', enforceBounds: true });
+    sink.constraints(render.additionalConstraints);
+  },
+  1,
+);
+registerNativeBoxCommands(
+  RenderPadding.prototype,
+  (render, sink) => {
+    if (sink.paddingLayout) sink.paddingLayout(render.padding.resolve(render.textDirection));
+    else
+      sink.layout({
+        childConstraints: 'inherit',
+        padding: render.padding.resolve(render.textDirection),
+      });
+  },
+  2,
+);
 for (const prototype of [RenderPositionedBox.prototype, RenderAlign.prototype])
   registerNativeBoxConfiguration(
     prototype,
@@ -2795,6 +2817,25 @@ for (const prototype of [RenderPositionedBox.prototype, RenderAlign.prototype])
       };
     },
     true,
+  );
+for (const prototype of [RenderPositionedBox.prototype, RenderAlign.prototype])
+  registerNativeBoxCommands(
+    prototype,
+    (render, sink) => {
+      const alignment = render.alignment.resolve(render.textDirection ?? 'ltr'),
+        widthFactor = render.widthFactor ?? (render.shrink ? 1 : undefined),
+        heightFactor = render.heightFactor ?? (render.shrink ? 1 : undefined);
+      if (sink.alignmentLayout)
+        sink.alignmentLayout(alignment.x, alignment.y, widthFactor, heightFactor);
+      else
+        sink.layout({
+          alignment: { x: alignment.x, y: alignment.y },
+          alignmentSizing: true,
+          ...(widthFactor === undefined ? {} : { widthFactor }),
+          ...(heightFactor === undefined ? {} : { heightFactor }),
+        });
+    },
+    3,
   );
 registerNativeBoxConfiguration(
   RenderFlex.prototype,

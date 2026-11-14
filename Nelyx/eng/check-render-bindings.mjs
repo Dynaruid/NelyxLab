@@ -12,7 +12,7 @@ try {
       loader: 'ts',
       contents: `
         import assert from 'node:assert/strict';
-        import {SceneNode,SceneReference,SceneWriter,RenderBinding,renderBindingConfiguration,retainSceneConfiguration,sceneReferenceHandle,sceneReferenceConfiguration} from './Nelyx/runtime/engine-client/scene.ts';
+        import {SceneNode,SceneReference,SceneWriter,RenderBinding,renderBindingConfiguration,retainSceneConfiguration,sceneReferenceHandle,sceneReferenceConfiguration,immutableSceneData} from './Nelyx/runtime/engine-client/scene.ts';
         import {protocol as p} from './Nelyx/runtime/engine-client/schema.ts';
         import {commands as codecs} from './Nelyx/runtime/engine-client/codec.ts';
         import {RenderSceneCapture} from './Nelyx/runtime/app/capture.ts';
@@ -21,6 +21,77 @@ try {
         import {originalControlConfiguration} from './Nelyx/runtime/app/controls.ts';
         import {OriginalNativeNode,sourceNativeNode,sourceNativeBindingOptions} from './Nelyx/runtime/app/native-node.ts';
         import {ObjectKey} from '@nelyx/core/foundation/key';
+        import {captureParagraphOptions,prepareParagraphOptions,paragraphSceneOptions,isPreparedParagraphOptions,paragraphOptionsBytes,readParagraphOptions} from './Nelyx/runtime/engine-client/paragraph.ts';
+        {
+          const cases=[{}, {fontFamily:'NelyxDefault',fontWeight:500,locale:'ko',ellipsis:'…',maxLines:2},
+            {height:1.4,letterSpacing:-.25,wordSpacing:2,halfLeading:true,applyHeightToFirstAscent:false},
+            {strut:{fontFamilies:['NelyxDefault'],fontSize:18,fontWeight:400,fontStyle:'normal',height:1.2,leading:0,halfLeading:false,forceStrutHeight:true}},
+            {runs:[{start:0,end:2,color:0xff123456,fontFamilies:['NelyxDefault'],fontSize:16,fontWeight:500,fontStyle:'italic',locale:'en',height:null,letterSpacing:0,wordSpacing:0,halfLeading:false,decoration:0,decorationStyle:'solid',decorationThickness:1}]},
+            {overflowProbe:{text:'…',fontSize:16,color:0xff123456,paragraph:{locale:'en'}}}];
+          for(const options of cases)assert.deepEqual(captureParagraphOptions(options),readParagraphOptions(paragraphOptionsBytes(options)),'Paragraph capture changed codec normalization');
+          for(const options of cases)for(const wrap of [true,false]){
+            const prepared=prepareParagraphOptions(options),ordinary=captureParagraphOptions(options);
+            assert.deepEqual(prepared,ordinary,'Prepared capture changed Source normalization');
+            assert(isPreparedParagraphOptions(prepared));
+            const projected=paragraphSceneOptions(prepared,wrap),{height,...values}=ordinary;
+            const expected={...values,...(height===null?{}:{height}),wrap};
+            assert(!isPreparedParagraphOptions(prepared),'Projection kept two payload owners');
+            assert(isPreparedParagraphOptions(projected));assert(Object.isFrozen(projected));
+            assert.deepEqual(projected,expected,'Paragraph projection changed Source fields');
+            const payload=paragraphOptionsBytes(projected),reference=paragraphOptionsBytes(expected);
+            assert.deepEqual(payload,reference,'Prepared paragraph wire changed');
+            assert(!isPreparedParagraphOptions(projected),'Payload was retained after consumption');
+            payload.fill(0);
+            assert.deepEqual(paragraphOptionsBytes(projected),reference,'Caller bytes poisoned a later encode');
+          }
+          const preparedProbe=prepareParagraphOptions(cases[5]),projectedProbe=paragraphSceneOptions(preparedProbe,false);
+          assert.throws(()=>paragraphOptionsBytes(projectedProbe,false),/Nested paragraph probe/);
+          assert(isPreparedParagraphOptions(projectedProbe),'Rejected nesting consumed another valid operation');
+          assert.deepEqual(readParagraphOptions(paragraphOptionsBytes(projectedProbe)).overflowProbe.text,'…');
+          const fake={...captureParagraphOptions({locale:'en'})};let probeReads=0;
+          Object.defineProperty(fake,'locale',{enumerable:true,get(){++probeReads;return 'ko';}});
+          assert(!isPreparedParagraphOptions(fake));assert.equal(probeReads,0,'Ownership probe read a producer getter');
+          assert.equal(readParagraphOptions(paragraphOptionsBytes(fake)).locale,'ko');assert(probeReads>0);
+          for(const options of [{locale:''},{maxLines:-1},{fontWeight:901},{height:NaN},{wrap:1},{unknown:1},
+            {overflowProbe:{text:'…',fontSize:16,color:0,paragraph:{overflowProbe:{text:'x',fontSize:16,color:0,paragraph:{}}}}}]){
+            const failure=operation=>{try{operation();return null;}catch(error){return [error.constructor,error.message];}};
+            const expected=failure(()=>readParagraphOptions(paragraphOptionsBytes(options)));assert(expected,'Invalid paragraph fixture was accepted');
+            assert.deepEqual(failure(()=>captureParagraphOptions(options)),expected);
+            assert.deepEqual(failure(()=>prepareParagraphOptions(options)),expected);
+          }
+          const original=cases[4],captured=captureParagraphOptions(original);original.runs[0].color=0xffabcdef;
+          assert.equal(captured.runs[0].color,0xff123456,'Captured paragraph retained mutable producer runs');
+          assert(Object.isFrozen(captured));assert(Object.isFrozen(captured.runs));assert(Object.isFrozen(captured.runs[0]));
+          const mutable={runs:[{...original.runs[0]}]},prepared=prepareParagraphOptions(mutable),before=prepared.runs[0].color;
+          mutable.runs[0].color=0xff987654;
+          assert.equal(readParagraphOptions(paragraphOptionsBytes(paragraphSceneOptions(prepared,true))).runs[0].color,before,'Prepared bytes retained producer aliases');
+          const reads=[],observe=()=>new Proxy({locale:'ko',fontWeight:500},{get(target,key,receiver){reads.push(String(key));return Reflect.get(target,key,receiver);}});
+          captureParagraphOptions(observe());const ordinaryReads=reads.splice(0);prepareParagraphOptions(observe());
+          assert.deepEqual(reads,ordinaryReads,'Preparing a payload changed Source getter order');
+        }
+        {
+          const identity=handle=>handle.slot+':'+handle.generation;
+          const recordFor=(records,handle)=>[...records.values()].find(record=>record.handle.slot===handle.slot&&record.handle.generation===handle.generation);
+          for(const direct of [false,true])for(const size of [13,27,41]){
+            const writer:any=new SceneWriter({commit:async()=>{}} as any,{pollEvents:false,retainedScene:true});
+            const refs=Array.from({length:size},()=>new SceneReference());
+            const project=count=>{
+              const nodes=[],children=Array.from({length:count},()=>[]);
+              for(let index=1;index<count;index++)children[Math.floor((index-1)/(index%3===0?3:2))].push(index);
+              for(let index=count-1;index>=0;index--){
+                const kids=children[index].map(child=>nodes[child]),options={color:index+1};
+                nodes[index]=direct?renderBindingConfiguration(refs[index],'box',kids,options,undefined,true):new SceneNode(refs[index],'box',kids,options);
+              }
+              return nodes[0];
+            };
+            await writer.mount(project(5));
+            const desired=writer.records(project(size));
+            const depth=record=>{let result=0;while(record.parent){record=recordFor(desired,record.parent);assert(record);result++;}return result;};
+            const expected=[...desired.changed.values()].filter(record=>!recordFor(writer.accepted,record.handle)).sort((a,b)=>depth(a)-depth(b)).map(record=>identity(record.handle));
+            const actual=writer.diff(desired).filter(bytes=>new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength).getUint16(0,true)===p.commands.create).map(bytes=>{const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);return view.getUint32(8,true)+':'+view.getUint32(12,true);});
+            assert.deepEqual(actual,expected,'Creation order changed the stable depth-sort oracle for '+size+'/'+direct);
+          }
+        }
         const writes=[[],[]],refs=[0,1].map(()=>Array.from({length:5},()=>new SceneReference()));
         let reject=false,revision=0;const actions=[];
         const writers:any[]=writes.map(output=>new SceneWriter({
@@ -48,10 +119,28 @@ try {
           assert.deepEqual(writes[1],writes[0],'Direct/reference bytes differed at '+mode+'/'+keep+'/'+nack);
         }
         assert(writers[1].counters.bindingRecords>0);assert.equal(writers[0].counters.bindingRecords,0);
-        const bindingRecord=writers[1].accepted.get(refs[1][1].currentNode.slot+':'+refs[1][1].currentNode.generation);
+        const bindingRecord=[...writers[1].accepted.values()].find(record=>record.handle.slot===refs[1][1].currentNode.slot&&record.handle.generation===refs[1][1].currentNode.generation);
         bindingRecord.node.options.onAction();assert.equal(actions.at(-1),revision);
         assert.equal(bindingRecord.configInputs.size,0,'Direct binding rebuilt generic input snapshots');
         assert.equal(bindingRecord.node.children.length,0,'Accepted binding retained a projection subtree');
+        {
+          const reference=new SceneReference(),counts={partEncodes:0,partReuses:0,commandReuses:0},actions=[];
+          let reject=false;const writer:any=new SceneWriter({commit:async()=>{if(reject)throw Error('semantic NACK');}} as any,{pollEvents:false,retainedScene:true});
+          const first=renderBindingConfiguration(reference,'box',[],{semantics:{role:'button',label:'day'},onAction:()=>actions.push(1)},undefined,true,counts)!;
+          await writer.mount(first);
+          const codec=codecs.semantics;let encodes=0;codecs.semantics=function(...args){++encodes;return Reflect.apply(codec,this,args);};
+          try {
+            const next=renderBindingConfiguration(reference,'box',[],{semantics:{role:'button',label:'day'},onAction:()=>actions.push(2)},undefined,true,counts,first)!;
+            assert.equal(encodes,0,'Static semantic geometry update encoded unchanged metadata');
+            await writer.update(next);[...writer.accepted.values()][0].node.options.onAction();assert.deepEqual(actions,[2]);
+            assert.equal(counts.commandReuses,1);
+            const accepted=writer.accepted;
+            const changed=renderBindingConfiguration(reference,'box',[],{semantics:{role:'button',label:'next'}},undefined,true,counts)!;
+            assert.equal(encodes,1,'Semantic setter change did not encode metadata');
+            reject=true;await assert.rejects(writer.update(changed),/semantic NACK/);assert.equal(writer.accepted,accepted);
+            reject=false;await writer.update(changed);
+          } finally {codecs.semantics=codec;}
+        }
         {
           const original={...codecs},encoded=[];
           for(const name of ['paint','layout','semantics','graphics','text','eventPolicy'])
@@ -227,11 +316,14 @@ try {
         }
         {
           const actions=[],focus=[],key=new ObjectKey({});
-          const options={key,layout:{childConstraints:'inherit' as const},nativeFocus:{enabled:true,skipTraversal:false},onFocusChanged:(value)=>focus.push(value),canonicalGestures:true,gestures:p.gestures.tap,onGesture:()=>actions.push(1)};
+          const retired=[],options={key,keepAliveChildren:true,sourceCollectionIndex:3,parkedChildren:false,onChildrenInvalidated:()=>retired.push(1),layout:{childConstraints:'inherit' as const},nativeFocus:{enabled:true,skipTraversal:false},onFocusChanged:(value)=>focus.push(value),canonicalGestures:true,gestures:p.gestures.tap,onGesture:()=>actions.push(1)};
           const source=sourceNativeNode('box',[],options),render=source.createRenderObject();
           assert.equal(source.key,key,'Projection changed the original Widget key');
           const wire=sourceNativeBindingOptions(render)!;
           assert(wire);assert(!Object.hasOwn(wire,'key'));
+          for(const name of ['keepAliveChildren','sourceCollectionIndex','parkedChildren','onChildrenInvalidated'])assert(!Object.hasOwn(wire,name),'Source container metadata entered the wire options');
+          assert.equal(render.options,options);assert.equal(render.options.sourceCollectionIndex,3);
+          render.options.onChildrenInvalidated!();assert.deepEqual(retired,[1],'Projection removed the live Source retirement callback');
           const targets:any[]=[0,1].map(()=>new SceneWriter({}, {pollEvents:false,retainedScene:true}));
           targets.forEach(writer=>writer.nextSlot=113);
           const expected=targets[0].records(new SceneNode(new SceneReference(),'box',[],options));
@@ -251,6 +343,28 @@ try {
           const ordinaryRender=ordinary.createRenderObject();
           assert.equal(sourceNativeBindingOptions(ordinaryRender),undefined);ordinaryRender.dispose();
           render.dispose();
+        }
+        {
+          const reads=[],options={get key(){reads.push('key');return undefined;},get sourceCollectionIndex(){reads.push('index');return 2;},get color(){reads.push('color');return 7;},get keepAliveChildren(){reads.push('keepAlive');return true;}};
+          const render=sourceNativeNode('box',[],options).createRenderObject();reads.length=0;
+          const wire=sourceNativeBindingOptions(render)!;
+          assert.deepEqual(reads,['key','index','color','keepAlive'],'Source options changed their key/rest evaluation order');
+          assert.deepEqual(wire,{color:7});render.dispose();
+        }
+        {
+          const raw={children:0,layout:[{kind:'size',values:[20,30]}],minWidth:[{kind:'result',values:[20]}],maxWidth:[{kind:'result',values:[20]}],minHeight:[{kind:'result',values:[30]}],maxHeight:[{kind:'result',values:[30]}]},owned=immutableSceneData(raw),reference=new SceneReference();
+          const counters={partEncodes:0,partReuses:0},project=program=>renderBindingConfiguration(reference,'box',[],{layout:{childConstraints:'inherit'},layoutProgram:program},undefined,true,counters)!;
+          const first=project(owned);assert.equal(counters.partEncodes,1,'Layout program was not included in its part journal');
+          project(owned);assert.equal(counters.partEncodes,1);assert.equal(counters.partReuses,1,'Owned immutable layout program was encoded again');
+          const oracle:any=new SceneWriter({}, {pollEvents:false,retainedScene:true}),direct:any=new SceneWriter({}, {pollEvents:false,retainedScene:true});
+          oracle.nextSlot=direct.nextSlot=127;
+          const expected=oracle.records(new SceneNode(new SceneReference(),'box',[],{layout:{childConstraints:'inherit'},layoutProgram:raw}));
+          const actual=direct.records(first);assert.deepEqual(direct.diff(actual),oracle.diff(expected),'Owned layout program changed native command bytes');
+          project(raw);raw.layout[0].values[0]=25;const changed=project(raw);
+          assert.equal(counters.partEncodes,3,'A mutable layout program was cached by identity');
+          const next=direct.records(changed),program=[...next.values()][0].config.find(bytes=>new DataView(bytes.buffer,bytes.byteOffset).getUint16(0,true)===p.commands.layoutProgram);
+          assert.deepEqual(program.subarray(16),codecs.layoutProgram({slot:0,generation:0},raw).subarray(16));
+          assert.equal(owned.layout[0].values[0],20,'Producer mutation changed the owned policy');
         }
         {
           const output=[[],[]],refs=[0,1].map(()=>Array.from({length:5},()=>new SceneReference()));

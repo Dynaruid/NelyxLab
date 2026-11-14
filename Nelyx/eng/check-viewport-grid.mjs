@@ -57,6 +57,7 @@ import {response} from './Nelyx/runtime/engine-client/codec.ts';
 import {OriginalWidgetHost} from './Nelyx/runtime/app/host.ts';
 import {SceneWriter,SceneNode,SceneReference} from './Nelyx/runtime/engine-client/scene.ts';
 import {viewportGridPrograms} from './Nelyx/runtime/app/grid.ts';
+import {OriginalNativeRender} from './Nelyx/runtime/app/native-node.ts';
 import {StatelessWidget,StatefulWidget,State} from '@nelyx/core/framework/widgets/framework';
 import {GridView} from '@nelyx/core/framework/widgets/scroll-view';
 import {SliverChildListDelegate} from '@nelyx/core/framework/widgets/scroll-delegate';
@@ -159,11 +160,14 @@ try {
     }
     assert.equal([...controller.positions].length,1,'Grid lost its canonical controller attachment');
     if(s.count===42){
-      const identities=new Map(currentStates),programs=new Map([...app.native.accepted.values()].filter(r=>r.node.options.layoutProgram).map(r=>[r.handle.slot,r.node.options.layoutProgram]));
+      const sourcePrograms=()=>{const result=new Map();const visit=render=>{if(render instanceof OriginalNativeRender&&render.options.layoutProgram)result.set(render,render.options.layoutProgram);for(const child of render.children)visit(child);};for(const root of app.root.renderObjects)visit(root);return result;};
+      const identities=new Map(currentStates),programs=sourcePrograms();
+      assert.equal(programs.size,2,'The actual Source viewport/tile programs were not inspected');
       for(const data of programs.values())assert(Object.isFrozen(data)&&Object.isFrozen(data.layout),'Layout program is not deeply owned');
       settings={...settings,version:99};
       await app.update(new Root());assert.equal(requests,0);
-      for(const r of app.native.accepted.values())if(r.node.options.layoutProgram)assert.equal(r.node.options.layoutProgram,programs.get(r.handle.slot),'Same GridView Element recreated an unchanged layout program');
+      const nextPrograms=sourcePrograms();assert.equal(nextPrograms.size,programs.size);
+      for(const [render,data] of nextPrograms)assert.equal(data,programs.get(render),'Same GridView Element recreated an unchanged layout program');
       assert.equal(updates,42,'A new source child configuration was skipped');
       for(const [index,state] of identities)assert.equal(currentStates.get(index),state,'Keyed cell State was recreated');
     }

@@ -10,6 +10,7 @@ import type { EngineV2AppContext } from './runtime/app-session.ts';
 import { bindFontLoader } from '@nelyx/core/services/font-loader';
 import type { Disposable } from '@nelyx/core/foundation/disposable';
 import { createAppServices } from './runtime/app-services.ts';
+import { nativeSourceDiagnosticClock } from './runtime/source-clock.ts';
 
 export type { EngineV2AppContext as AppServiceContext } from './runtime/app-session.ts';
 export interface AppContext extends EngineV2AppContext {
@@ -132,9 +133,11 @@ export function launchApp(definition: AppDefinition): void {
             if (backend.networkVersion !== 2)
               throw Error('Required App HTTP header service version 2 is unavailable');
           }
+          const diagnosticClock = nativeSourceDiagnosticClock();
           host = new OriginalWidgetHost(view, {
             onError,
             onExecution,
+            ...(diagnosticClock ? { diagnosticClock } : {}),
             ...(definition.services
               ? { services: definition.services }
               : {

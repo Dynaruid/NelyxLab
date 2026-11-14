@@ -43,7 +43,9 @@ export class SceneBlobJournal {
   constructor(
     private readonly hashBytes = (bytes: Uint8Array) => {
       let hash = 2166136261;
-      for (const value of bytes) hash = Math.imul(hash ^ value, 16777619);
+      // These are canonical wire bytes, like equal() below. Indexing avoids
+      // allocating an iterator result for each byte in the App VM.
+      for (let i = 0; i < bytes.length; ++i) hash = Math.imul(hash ^ bytes[i]!, 16777619);
       return hash >>> 0;
     },
   ) {}

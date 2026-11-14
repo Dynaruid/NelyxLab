@@ -294,7 +294,44 @@ export class BuildScope {
     this._buildScheduled = false;
   }
 }
+/** @internal Explicit diagnostic only; never an alternative build scheduler. */
+export interface ElementBuildDiagnosticObserver {
+  active(): boolean;
+  begin(element: Element): number | undefined;
+  end(token: number): void;
+}
+// Keep diagnostic try/finally frames off the ordinary rebuild callback path.
+function diagnosticRebuild(element: Element, observer: ElementBuildDiagnosticObserver): void {
+  let token: number | undefined;
+  try {
+    token = observer.begin(element);
+  } catch {
+    /* Diagnostic failure cannot suppress Source. */
+  }
+  try {
+    element.rebuild();
+  } finally {
+    if (token !== undefined)
+      try {
+        observer.end(token);
+      } catch {
+        /* Preserve Source exceptions. */
+      }
+  }
+}
+function activeBuildObserver(observer: ElementBuildDiagnosticObserver): boolean {
+  try {
+    return observer.active();
+  } catch {
+    return false;
+  }
+}
 export class BuildOwner {
+  private elementBuildObserver: ElementBuildDiagnosticObserver | undefined;
+  /** @internal Installed only by an explicitly profiling native App host. */
+  _setElementBuildObserver(observer: ElementBuildDiagnosticObserver | undefined): void {
+    this.elementBuildObserver = observer;
+  }
   private readonly renderChildren = new OwnerTransaction<RenderObjectElement>((element) => {
     if (element.active) element._commitRenderChildren();
   });
@@ -786,6 +823,8 @@ export class BuildOwner {
       failure: unknown;
     const now = costs ? buildScopeTimestamp : undefined;
     const dirtyStarted = now?.() ?? 0;
+    const candidate = this.elementBuildObserver;
+    const observer = candidate && activeBuildObserver(candidate) ? candidate : undefined;
     try {
       scope._flushDirtyElements(
         (element) => {
@@ -802,7 +841,8 @@ export class BuildOwner {
             );
           if (element.dirty) {
             this.currentElement = element;
-            element.rebuild();
+            if (observer) diagnosticRebuild(element, observer);
+            else element.rebuild();
           }
         },
         callback,
@@ -870,6 +910,7 @@ export class BuildOwner {
     assertOutsideRenderPaint();
     if (this.disposed) return;
     this.disposed = true;
+    this.elementBuildObserver = undefined;
     this.pointerBinding = undefined;
     const errors: unknown[] = [];
     for (const dispose of [
@@ -1174,6 +1215,26 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     while (ancestor) {
       if (ancestor instanceof InheritedElement && ancestor.widget.typeToken === type)
         return ancestor;
+      ancestor = ancestor.parent;
+    }
+    return undefined;
+  }
+  /** @internal Base-class lookup over the same inherited ancestry. Matching
+   * still reads each current Widget; subtype/value results are never cached. */
+  _findAncestorInheritedElement(type: Function): InheritedElement | undefined {
+    if (!this.active)
+      invariant(false, 'inactive-context', 'Ancestor lookup requires an active Element');
+    let ancestor = this.parent;
+    while (ancestor) {
+      if (ancestor.lifecycle === 'active' && !ancestor.dynamicInheritedTypes) {
+        const indexed = ancestor.inheritedIndex;
+        if (!indexed) return undefined;
+        ancestor = indexed.value;
+      }
+      if (ancestor instanceof InheritedElement && ancestor.widget instanceof type) return ancestor;
+      // Read the live parent after matching, as visitAncestorElements does.
+      // A matching hook can reparent an ancestor; do not retain a traversal
+      // cursor through that callback or depend on an old query result.
       ancestor = ancestor.parent;
     }
     return undefined;
@@ -1492,6 +1553,29 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   }
 }
 initializeElementType(Element);
+const elementAncestorVisit = Element.prototype.visitAncestorElements;
+const elementInheritedLookup = Element.prototype._findAncestorInheritedElement;
+/** @internal Select an inherited base class without visiting ordinary wrapper
+ * Elements. Custom context traversal keeps its original call and receiver. */
+export function findAncestorInheritedElement(
+  context: BuildContext,
+  type: Function,
+): InheritedElement | undefined {
+  const visit = context.visitAncestorElements;
+  if (context instanceof Element && visit === elementAncestorVisit)
+    return elementInheritedLookup.call(context, type);
+  let found: InheritedElement | undefined;
+  Reflect.apply(visit, context, [
+    (element: Element) => {
+      if (element instanceof InheritedElement && element.widget instanceof type) {
+        found = element;
+        return false;
+      }
+      return true;
+    },
+  ]);
+  return found;
+}
 export type ElementConstructor = abstract new (...args: any[]) => Element;
 type NotifiableElementConstructor<Base extends ElementConstructor> = abstract new (
   ...args: ConstructorParameters<Base>

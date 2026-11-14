@@ -9,8 +9,10 @@
 #include "app_text_jsi.hpp"
 #include "../common/app_services_jsi.hpp"
 #include "../common/input_clipboard.hpp"
+#include "../common/preparation_journal.hpp"
 #include "interaction.hpp"
 #include "memory_pressure.hpp"
+#include "app_heap_clock.hpp"
 #include "rnw/ClipboardModule.h"
 #include "input/WindowsPrecisionTrackpad.h"
 #include "input/PrecisionVelocity.h"
@@ -86,6 +88,23 @@ struct AppHeapAccount {
   ~AppHeapAccount(){ledger->report(4,1,0);observed=0;}
 };
 struct AppExitSignal{std::atomic<bool>& exited;~AppExitSignal(){exited=true;}};
+/** Declared before the Runtime so native function code remains loaded through
+ * every JS value, microtask and SHUnit destruction on the App owner thread. */
+struct AppUnitLibrary {
+  HMODULE value=nullptr;
+  AppUnitLibrary()=default;
+  AppUnitLibrary(const AppUnitLibrary&)=delete;
+  AppUnitLibrary& operator=(const AppUnitLibrary&)=delete;
+  ~AppUnitLibrary(){if(value)FreeLibrary(value);}
+  void evaluate(facebook::hermes::HermesRuntime& runtime,const std::filesystem::path& file){
+    if(value)throw std::runtime_error("App native unit is already loaded");
+    value=LoadLibraryExW(file.c_str(),nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+    if(!value)throw std::runtime_error("App native unit load failed: "+std::to_string(GetLastError()));
+    const auto factory=reinterpret_cast<SHUnitCreator>(GetProcAddress(value,"sh_export_nelyx_engine_app"));
+    if(!factory)throw std::runtime_error("App native unit factory is absent");
+    runtime.evaluateSHUnit(factory);
+  }
+};
 struct SamplingGuard {
   facebook::hermes::IHermesRootAPI* api=nullptr;bool active=false;
   ~SamplingGuard(){if(active)try{api->disableSamplingProfiler();}catch(...){}}
@@ -99,14 +118,22 @@ class Host {
   std::shared_ptr<ResponseBackingStats> responseBacking=std::make_shared<ResponseBackingStats>();
   struct Trace {uint64_t sequence=0,request=0,input=0,document=0,preparation=0,submission=0,publication=0;uint32_t opcode=0,status=0;double started=0,elapsedMs=0,queueMs=0,lockWaitMs=0,lockHeldMs=0;};
   std::mutex traceMutex;std::array<Trace,1024> traceRing{};uint64_t traceSequence=0;
+  std::unique_ptr<diagnostics::PreparationJournal> preparationJournal;
   std::atomic<uint64_t> nativeFrameReplies{0},nativeFrameReplyBytes{0},nativeFrameNodes{0};
   std::vector<uint8_t> dispatch(const std::vector<uint8_t>& bytes,double enqueued=0,std::shared_ptr<const Frame>* nativeFrame=nullptr){
     const auto started=now();DispatchTiming timing;
     const auto opcode=reader(bytes).u16(12);
+    timing.capturePreparation=RNSkia::windowsInputTraceEnabled()&&
+      (opcode==wire::opcodes::transaction||opcode==wire::opcodes::contentStep||opcode==wire::opcodes::providerReady||
+       opcode==wire::opcodes::tick||opcode==wire::opcodes::publish||opcode==wire::opcodes::closeView||
+       opcode==wire::opcodes::preparationResult||opcode==wire::opcodes::metrics||opcode==wire::opcodes::device);
     const auto sequence=opcode==wire::opcodes::input&&bytes.size()>=wire::headerBytes+8?reader(bytes).u64(wire::headerBytes):0;
     RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::CoreDispatchBegin,1,0,sequence,opcode,0);
     auto result=nativeFrame?core.dispatchNativeFrame({bytes.data(),bytes.size()},*nativeFrame,&timing):core.dispatch({bytes.data(),bytes.size()},&timing);
     const auto ended=now();const auto r=reader(result);const auto b=wire::headerBytes;
+    if(timing.preparation){std::lock_guard lock(traceMutex);
+      if(!preparationJournal)preparationJournal=std::make_unique<diagnostics::PreparationJournal>();
+      preparationJournal->observe(*timing.preparation,started*1000,ended*1000);}
     RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::CoreDispatchEnd,1,0,sequence,opcode,(ended-started)*1000);
     if(sequence)RNSkia::windowsInputTrace(r.u16(14)?RNSkia::WindowsInputStage::CoreDrop:RNSkia::WindowsInputStage::CoreQueued,1,0,sequence,r.u16(14),(ended-started)*1000,true);
     if(nativeFrame&&*nativeFrame){++nativeFrameReplies;nativeFrameReplyBytes+=result.size();nativeFrameNodes+=(*nativeFrame)->items.size();}
@@ -127,6 +154,8 @@ class Host {
       for(auto i=begin;i<frameSampleCount;++i){const auto& f=frameSamples[i%frameSamples.size()];if(i!=begin)out<<',';
         out<<"{\"submission\":"<<f.submission<<",\"document\":"<<f.document<<",\"publication\":"<<f.publication<<",\"input\":"<<f.input<<",\"started\":"<<f.started<<",\"completed\":"<<f.completed<<",\"coreMs\":"<<f.coreMs<<",\"recordMs\":"<<f.recordMs<<",\"outputMs\":"<<f.submitMs<<",\"acquireMs\":"<<f.gpu.acquireMs<<",\"submitMs\":"<<f.gpu.submitMs<<",\"presentMs\":"<<f.gpu.presentMs<<",\"gpuObservedMs\":"<<f.gpu.gpuObservedMs<<",\"resourcesObservedMs\":"<<f.gpu.resourcesObservedMs<<'}';}
       out<<"],\"frameSamplesThrough\":"<<frameSampleCount<<",\"frameSamplesOverwritten\":"<<(frameSampleCount>frameSamples.size()?frameSampleCount-frameSamples.size():0);}
+    {std::lock_guard lock(traceMutex);out<<",\"preparations\":";
+      if(preparationJournal)preparationJournal->write(out);else out<<"null";}
     out<<"}";std::osyncstream(std::cout)<<out.str()<<std::endl;
   }
   struct FrameTiming {nw::DisplayClockSample clock;double started=0,coreMs=0,recordMs=0,submitMs=0,publicationMs=0,completed=0;uint64_t submission=0,document=0,publication=0,input=0;nelyx::vulkan::WindowFrameTiming gpu;};
@@ -200,6 +229,7 @@ class Host {
   std::shared_ptr<const PreparedFont> fontCandidate;
   std::string directory;
   std::string appDirectory;
+  const bool nativeUnit;
   std::atomic<uint64_t> rendered{0},paragraphs{0},pictures{0},images{0};
   std::atomic<uint64_t> graphicsRecords{0},nativeExtensions{0};
   std::atomic<uint64_t> reusedPictures{0},reusedParagraphs{0},reusedImages{0},cachedContentBytes{0},paragraphLayouts{0};
@@ -462,10 +492,12 @@ class Host {
     appThread=GetCurrentThreadId();
     try{
       while(!stopping&&!connected)std::this_thread::sleep_for(std::chrono::milliseconds(2));if(stopping)return;
+      AppUnitLibrary unitLibrary;
       AppHeapAccount appMemory{core.memoryLedger(),appHeapBytes,responseBacking};
       nw::AppParagraphs appText(directory+"/assets/font.ttf",directory+"/assets/icudtl.dat",core.memoryLedger(),
         appDirectory+"/application/assets",false);
       wchar_t profileFlag[2]{};const bool profiling=GetEnvironmentVariableW(L"NELYX_V2_CPU_PROFILE",profileFlag,2)==1&&profileFlag[0]==L'1';
+      const auto heapClock=profiling?std::make_unique<nw::AppHeapClock>():nullptr;
       auto runtime=facebook::hermes::makeHermesRuntime(::hermes::vm::RuntimeConfig::Builder().withMicrotaskQueue(true).withES6BlockScoping(true).withAsyncBreakCheckInEval(true).withEnableSampleProfiling(profiling).withGCConfig(::hermes::vm::GCConfig::Builder().withShouldRecordStats(profiling).build()).build());
       SamplingGuard sampling{profiling?jsi::castInterface<facebook::hermes::IHermesRootAPI>(facebook::hermes::makeHermesRootAPI()):nullptr};
       if(profiling&&!sampling.api)throw std::runtime_error("Hermes sampling interface unavailable");
@@ -477,10 +509,19 @@ class Host {
       native.setProperty(rt,"operatingSystem","windows");
       native.setProperty(rt,"eventNotifications",true);
       native.setProperty(rt,"clockDomain","qpc-milliseconds");
+      if(heapClock)native.setProperty(rt,"heapProfileActive",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"heapProfileActive"),0,[heap=heapClock.get()](jsi::Runtime&,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value{return heap->isActive();}));
       nw::installAppText(rt,native,appText);
       nelyx::v2::native::installAppServices(rt,native,services,[clipboard=clipboard,input=inputClipboard]()mutable{input->close();clipboard.cancel();});
       auto identity=jsi::Object(rt);identity.setProperty(rt,"engine","v2");identity.setProperty(rt,"abiMajor",double(wire::abiMajor));identity.setProperty(rt,"schema",double(wire::schema));native.setProperty(rt,"identity",std::move(identity));
-      native.setProperty(rt,"clock",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"clock"),0,[](jsi::Runtime&,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value{return now()*1000;}));
+      native.setProperty(rt,"clock",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"clock"),0,[heap=heapClock.get()](jsi::Runtime& r,const jsi::Value&,const jsi::Value*,size_t)->jsi::Value{
+        const auto at=now()*1000;
+        if(heap)heap->sample(at,[&r]{
+          const auto info=r.instrumentation().getHeapInfo(false);
+          const auto value=[&info](const char* key){return nw::checkedInstrumentedHeapCounter(info.at(key));};
+          return nw::AppHeapClock::Counters{value("hermes_totalAllocatedBytes"),value("hermes_numCollections"),value("hermes_allocatedBytes"),value("hermes_heapSize"),value("hermes_externalBytes")};
+        },[]{return now()*1000;});
+        return at;
+      }));
       native.setProperty(rt,"enqueue",jsi::Function::createFromHostFunction(rt,jsi::PropNameID::forAscii(rt,"enqueue"),2,[this,&appMemory](jsi::Runtime& r,const jsi::Value&,const jsi::Value* args,size_t count)->jsi::Value{
         appMemory.update(r);
         if(count!=2)throw jsi::JSError(r,"V2 enqueue arguments");auto buffer=args[1].getObject(r).getArrayBuffer(r);const auto length=buffer.size(r);
@@ -519,19 +560,29 @@ class Host {
       rt.global().setProperty(rt,"NelyxV2Native",std::move(native));
       const auto bootstrap=std::string("globalThis.__v2Timers=[];globalThis.setTimeout=(f,m=0)=>{const t={f,at:Date.now()+m};__v2Timers.push(t);return t;};globalThis.clearTimeout=t=>{if(t)t.f=null;};globalThis.__v2Delay=()=>{let d=2147483647;const n=Date.now();for(const t of __v2Timers)if(t.f)d=Math.min(d,Math.max(0,t.at-n));return d;};globalThis.__v2Pump=()=>{const n=Date.now();const q=__v2Timers.splice(0);for(const t of q){if(t.f&&t.at<=n)t.f();else if(t.f)__v2Timers.push(t);}};");
       rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(bootstrap),"v2-timers.js");
-      const auto source=readFile(appDirectory+"/application/app.hbc");rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::string(source.begin(),source.end())),"application/app.hbc");rt.drainMicrotasks();
+      if(nativeUnit){
+        std::osyncstream(std::cout)<<"V2_APP_EXECUTION {\"kind\":\"native-unit\",\"entry\":\"application/app.native.dll\"}"<<std::endl;
+        unitLibrary.evaluate(*runtime,std::filesystem::path(appDirectory)/"application/app.native.dll");
+      }else{
+        std::osyncstream(std::cout)<<"V2_APP_EXECUTION {\"kind\":\"bytecode\",\"entry\":\"application/app.hbc\"}"<<std::endl;
+        const auto source=readFile(appDirectory+"/application/app.hbc");rt.evaluateJavaScript(std::make_shared<jsi::StringBuffer>(std::string(source.begin(),source.end())),"application/app.hbc");
+      }
+      rt.drainMicrotasks();
       while(!stopping){
         const auto turnStarted=now();
         RNSkia::windowsInputTrace(RNSkia::WindowsInputStage::JsFrameBegin,1,0,0,0,0);
         uint64_t observedWake;{std::lock_guard lock(wakeMutex);observedWake=appWakeRevision;}
         const auto profile=profileRequest.exchange(0);
-        if(profiling&&profile==1&&!profiled){sampling.api->enableSamplingProfiler(250);sampling.active=true;profiled=true;profileDeadline=now()+30;std::osyncstream(std::cout)<<"V2_PROFILE_STARTED"<<std::endl;}
+        if(profiling&&profile==1&&!profiled){sampling.api->enableSamplingProfiler(250);sampling.active=true;profiled=true;profileDeadline=now()+30;heapClock->start(now()*1000);std::osyncstream(std::cout)<<"V2_PROFILE_STARTED"<<std::endl;}
         if(sampling.active&&(profile==2||now()>=profileDeadline)){
+          heapClock->stop(now()*1000);
           sampling.api->disableSamplingProfiler();sampling.active=false;
           std::ostringstream output;sampling.api->dumpSampledTraceToStream(output);const auto report=output.str();
           if(report.size()<=8*1024*1024)std::osyncstream(std::cout)<<"V2_PROFILE_BEGIN\n"<<report<<"\nV2_PROFILE_END"<<std::endl;
           const auto gc=rt.instrumentation().getRecordedGCStats();
           if(gc.size()<=4*1024*1024)std::osyncstream(std::cout)<<"V2_GC_BEGIN\n"<<gc<<"\nV2_GC_END"<<std::endl;
+          std::ostringstream heap;heapClock->write(heap);const auto heapReport=heap.str();
+          if(heapReport.size()<=512*1024)std::osyncstream(std::cout)<<"V2_HEAP_CLOCK "<<heapReport<<std::endl;
         }
         // Resolve the already-ready bounded mailbox before running continuations.
         // A commit continuation must not postpone an older input/geometry reply
@@ -562,7 +613,7 @@ class Host {
     }catch(const std::exception& error){notifyError(std::string("App owner: ")+error.what());}
   }
  public:
-  Host(std::string directory,std::string appDirectory):directory(std::move(directory)),appDirectory(std::move(appDirectory)){
+  Host(std::string directory,std::string appDirectory,bool nativeUnit=false):directory(std::move(directory)),appDirectory(std::move(appDirectory)),nativeUnit(nativeUnit){
     wchar_t value[2]{};scrollDiagnostics=GetEnvironmentVariableW(L"NELYX_WINDOWS_SCROLL_DIAGNOSTICS",value,2)==1&&value[0]==L'1';
   }
   void bind(HWND value){window=value;interaction=std::make_unique<nw::Interaction>(window,core,[this](uint32_t op,const std::vector<uint8_t>& bytes){return call(op,bytes);},[this](auto callback){postUI(std::move(callback));},[this]{contentWake=true;renderWakeRequested=true;wakeOwners();},[this]{
@@ -791,15 +842,16 @@ static LRESULT CALLBACK procedure(HWND window,UINT message,WPARAM w,LPARAM l){
 int main(int argc,char**argv){
   try{
     if(argc<4)throw std::runtime_error("Usage: NelyxEngineAppSdkHost <current engine dist> --app <bundle directory>");
-    std::string appDirectory;
+    std::string appDirectory;bool nativeUnit=false;
     for(int i=2;i<argc;++i){const std::string option=argv[i];if(option=="--app"&&appDirectory.empty()&&i+1<argc)appDirectory=std::filesystem::canonical(argv[++i]).string();
+      else if(option=="--native-unit"&&!nativeUnit)nativeUnit=true;
       else throw std::runtime_error("Unknown or duplicate native host option: "+option);}
     if(appDirectory.empty())throw std::runtime_error("An independently built App bundle is required");
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     if(FAILED(CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED)))throw std::runtime_error("UI COM apartment failed");
     struct Apartment{~Apartment(){CoUninitialize();}}apartment;
     nw::AppSdkLoop appSdk;
-    Host host(argv[1],std::move(appDirectory));const auto instance=GetModuleHandleW(nullptr);WNDCLASSW klass{};klass.hInstance=instance;klass.lpszClassName=L"NelyxEngineAppSdkHost";klass.lpfnWndProc=procedure;klass.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&klass);
+    Host host(argv[1],std::move(appDirectory),nativeUnit);const auto instance=GetModuleHandleW(nullptr);WNDCLASSW klass{};klass.hInstance=instance;klass.lpszClassName=L"NelyxEngineAppSdkHost";klass.lpfnWndProc=procedure;klass.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassW(&klass);
     const auto dpi=GetDpiForSystem();RECT bounds{0,0,LONG(960*dpi/96),LONG(720*dpi/96)};AdjustWindowRectExForDpi(&bounds,WS_OVERLAPPEDWINDOW,FALSE,0,dpi);
     const auto window=CreateWindowExW(0,klass.lpszClassName,L"Nelyx Engine v2 — Windows App SDK",WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,bounds.right-bounds.left,bounds.bottom-bounds.top,nullptr,nullptr,instance,&host);
     if(!window)throw std::runtime_error("Native HWND creation failed");

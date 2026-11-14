@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import path from 'node:path';
+import fs from 'node:fs';
 import { engineRoot, sourceIdentity } from '../engine/tools/build.mjs';
 import {
   verifyEngineV2Supply,
@@ -22,7 +23,19 @@ console.log(
     appFiles: bundle.manifest.files.length,
     appJsSha256: bundle.manifest.files.find((file) => file.path === 'application/app.js').sha256,
     appHbcSha256: bundle.manifest.files.find((file) => file.path === 'application/app.hbc').sha256,
+    appExecution: bundle.manifest.nativeUnit ? 'native-unit' : 'bytecode',
+    nativeUnit: bundle.manifest.nativeUnit ?? null,
+    appNativeSha256: bundle.manifest.nativeUnit
+      ? bundle.manifest.files.find((file) => file.path === bundle.manifest.nativeUnit.entry).sha256
+      : null,
     appClasses: bundle.manifest.bytecode.classes,
+    syntaxPolicy: bundle.manifest.bytecode.syntaxPolicy,
+    instanceFieldHelperCalls: (
+      fs
+        .readFileSync(path.join(bundle.root, 'application/app.js'), 'utf8')
+        .match(/__publicField\(this,/g) ?? []
+    ).length,
+    diagnosticComparison: bundle.manifest.diagnosticComparison ?? null,
     executable: path.join(supply.root, engineV2WindowsHost().executable),
     bundle: bundle.root,
   }),

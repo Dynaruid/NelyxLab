@@ -37,6 +37,7 @@ try {
     path.join(import.meta.dirname, 'check-live-paint-activation.cpp'),
     path.join(import.meta.dirname, 'check-provider-admission.cpp'),
     path.join(import.meta.dirname, 'check-native-frame-delivery.cpp'),
+    path.join(import.meta.dirname, 'check-preparation-journal.cpp'),
     path.resolve(
       process.argv.slice(2).find((arg) => arg.endsWith('.lib')) ??
         path.join(root, 'Nelyx/engine/dist/native/nelyx_engine_v2.lib'),

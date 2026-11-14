@@ -12,7 +12,7 @@ import {
 import type { Offset, TransformMatrix, Size } from '../../ui/geometry.ts';
 import { Offset as OffsetValue } from '../../ui/offset.ts';
 import { Alignment, AlignmentGeometry } from '../painting/alignment.ts';
-import { RenderBox } from './object.ts';
+import { RenderBox, nativeRenderFields } from './object.ts';
 import type { RenderObject, HitTestEntry, TextBaseline } from './object.ts';
 import type { BoxConstraints } from './constraints.ts';
 import type { PaintingContext } from '../painting/context.ts';
@@ -122,7 +122,7 @@ export abstract class RenderAligningShiftedBox extends RenderShiftedBox {
   }
   private _markNeedResolution(): void {
     this._resolvedAlignment = undefined;
-    this.markNeedsLayout();
+    this.markNativeFieldsChanged('layout', nativeRenderFields.layout);
   }
   get alignment(): AlignmentGeometry {
     return this._alignment;

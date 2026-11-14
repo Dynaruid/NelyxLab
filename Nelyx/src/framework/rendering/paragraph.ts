@@ -7,6 +7,7 @@ import {
   RelayoutWhenSystemFontsChangeMixin,
   RenderBox,
   assertParentDataOffsetMutation,
+  isNativeRenderObject,
 } from './object.ts';
 import type { RenderObject, HitTestEntry, TextBaseline } from './object.ts';
 import { BoxConstraints } from './constraints.ts';
@@ -39,8 +40,9 @@ import { PlaceholderDimensions } from '../painting/placeholder-dimensions.ts';
 import { Size as SizeValue } from '../../ui/size.ts';
 import { collectInlinePlaceholders } from '../painting/inline-layout.ts';
 import { textLimits } from '../../ui/text.ts';
-import { TextStyle } from '../painting/text-style.ts';
-import { TextScaler } from '../painting/text-scaler.ts';
+import { TextStyle, isCapturedTextStyle } from '../painting/text-style.ts';
+import { TextScaler, isCapturedTextScaler } from '../painting/text-scaler.ts';
+import { isCapturedTextRecord } from '../../ui/text-input-data.ts';
 import type { ParagraphContext } from '../../ui/paragraph.ts';
 import type { Locale } from '../../ui/locale.ts';
 import type { StrutStyle } from '../painting/strut-style.ts';
@@ -275,6 +277,8 @@ export interface RichParagraphConfiguration {
   readonly painterOptions?: TextPainterOptions;
 }
 const ownedConfigurations = new WeakSet<RichParagraphConfiguration>();
+const nativeParagraphInputs = new WeakSet<RichParagraphConfiguration>();
+const nativeParagraphSources = new WeakSet<RenderRichParagraph>();
 /** @internal Capture consumed source fields once without enumerating borrowed metadata. */
 export function captureRichParagraphConfiguration(
   value: RichParagraphConfiguration,
@@ -322,6 +326,17 @@ export function captureRichParagraphConfiguration(
     ...(options === undefined ? {} : { painterOptions: options }),
   });
   ownedConfigurations.add(captured);
+  if (
+    isCapturedTextStyle(style) &&
+    isCapturedTextSpan(span) &&
+    isCapturedTextScaler(scaler) &&
+    (painterOptions === undefined ||
+      isCapturedTextRecord(painterOptions) ||
+      Object.values(options!).every(
+        (value) => value === null || (typeof value !== 'object' && typeof value !== 'function'),
+      ))
+  )
+    nativeParagraphInputs.add(captured);
   return captured;
 }
 /** One engine paragraph with inline RenderBox children and scaled shared geometry. */
@@ -355,6 +370,9 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
     painter.validateResources({ font: configuration.font });
     this.configuration = configuration;
     this.configurePainter(painter);
+    const constructor: unknown = new.target;
+    if (constructor === RenderRichParagraph || constructor === RenderParagraph)
+      nativeParagraphSources.add(this);
   }
   get config(): RichParagraphConfiguration {
     return this.configuration;
@@ -362,12 +380,13 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
   private samePlainTextSemantics(
     previous: RichParagraphConfiguration,
     value: RichParagraphConfiguration,
+    native: boolean,
+    prototype: object,
   ): boolean {
     const before = previous.span,
-      after = value.span,
-      prototype = Object.getPrototypeOf(this);
+      after = value.span;
     return (
-      this.describedSemanticsConfiguration === previous &&
+      (this.describedSemanticsConfiguration === previous || native) &&
       (prototype === RenderRichParagraph.prototype || prototype === RenderParagraph.prototype) &&
       this.hasStaticLayoutSemantics(
         prototype,
@@ -402,7 +421,16 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
       span = old.span.compareTo(value.span),
       style = old.style.compareTo(value.style),
       damage = span.index > style.index ? span : style;
-    const sameSemantics = this.samePlainTextSemantics(old, value);
+    const prototype = Object.getPrototypeOf(this),
+      native =
+        nativeParagraphSources.has(this) &&
+        isNativeRenderObject(this) &&
+        nativeParagraphInputs.has(old) &&
+        nativeParagraphInputs.has(value) &&
+        (prototype === RenderParagraph.prototype || prototype === RenderRichParagraph.prototype) &&
+        canonicalNativeParagraphHooks(this),
+      sameSemantics = this.samePlainTextSemantics(old, value, native, prototype),
+      painterRevision = native ? this.painter._inputRevision : undefined;
     this.configuration = value;
     if (old.span !== value.span && !sameSemantics) {
       this.cachedCombinedSemanticsInfo = null;
@@ -411,12 +439,16 @@ export class RenderRichParagraph extends RenderInlineChildrenContainerDefaults(T
     this.configurePainter(this.painter);
     const layout =
         damage === RenderComparison.layout ||
-        this.painter._needsLayout ||
+        (this.painter._needsLayout &&
+          (!native || painterRevision !== this.painter._inputRevision)) ||
         old.paragraphOptions?.softWrap !== value.paragraphOptions?.softWrap ||
         old.paragraphOptions?.overflow !== value.paragraphOptions?.overflow,
       paint = damage === RenderComparison.paint;
     if (!layout && sameSemantics && (paint || damage === RenderComparison.identical)) {
-      this.describedSemanticsConfiguration = value;
+      // Native configuration has no TS semantics/layout cache to advance.
+      // Preserve an actual described cache only when it already existed.
+      if (this.describedSemanticsConfiguration === old)
+        this.describedSemanticsConfiguration = value;
       if (paint) this.markNeedsPaintOnly();
       return;
     }
@@ -1589,4 +1621,32 @@ export class RenderParagraph extends RelayoutWhenSystemFontsChangeMixin(RenderRi
     super.systemFontsDidChange();
     this.selectionPainter.markNeedsLayout();
   }
+}
+
+const nativeParagraphHooks = [
+  ['markNeedsLayout', TransportParagraph.prototype.markNeedsLayout],
+  ['markNeedsSemanticsUpdate', RenderBox.prototype.markNeedsSemanticsUpdate],
+  ['markNeedsPaint', RenderBox.prototype.markNeedsPaint],
+  ['describeSemanticsConfiguration', RenderRichParagraph.prototype.describeSemanticsConfiguration],
+] as const;
+const nativeParagraphPrototypes = new Set<object>();
+for (let at: object | null = RenderParagraph.prototype; at; at = Object.getPrototypeOf(at))
+  nativeParagraphPrototypes.add(at);
+/** Unknown hooks keep their original invalidation calls and getter ordering. */
+function canonicalNativeParagraphHooks(render: RenderRichParagraph): boolean {
+  for (const [name, expected] of nativeParagraphHooks) {
+    let current: object | null = render;
+    let found = false;
+    while (current && (current === render || nativeParagraphPrototypes.has(current))) {
+      const descriptor = Object.getOwnPropertyDescriptor(current, name);
+      if (descriptor) {
+        if (descriptor.value !== expected) return false;
+        found = true;
+        break;
+      }
+      current = Object.getPrototypeOf(current);
+    }
+    if (!found) return false;
+  }
+  return true;
 }

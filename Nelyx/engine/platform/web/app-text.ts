@@ -195,6 +195,7 @@ export class WebAppTextBackend implements AppTextBackend {
       version: appTextServiceVersion,
       fontRevision: generation.revision,
       fontFamilies: [...(generation.catalog?.families ?? bundledFontFamilies)],
+      fontFamiliesVersion: 1,
       fontCatalogs:
         (this.closed ? 0 : 1) + [...this.generations].filter((value) => value.catalog).length,
       fontStages: this.stage ? 1 : 0,
@@ -239,6 +240,9 @@ export class WebAppTextBackend implements AppTextBackend {
       heapBytes: this.provider.counters.heapBytes,
       closed: this.closed,
     };
+  }
+  fontFamilies(revision: number): readonly string[] {
+    return [...(this.fontGeneration(revision).catalog?.families ?? bundledFontFamilies)];
   }
   private retain(generation: Generation): void {
     ++generation.holds;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { TextLayoutInput } from '@nelyx/core/ui/types';
-import { paragraphOptionsBytes, readParagraphOptions } from '../engine-client/paragraph.ts';
+import { captureParagraphOptions, prepareParagraphOptions } from '../engine-client/paragraph.ts';
 import type { ParagraphRun } from '../engine-client/paragraph.ts';
 import { validateParagraphRuns } from '../engine-client/paragraph-runs.ts';
 import { validateParagraphPlaceholders } from '../engine-client/paragraph-extras.ts';
@@ -58,6 +58,7 @@ export function originalParagraphInput(
   allowProviderFamilies = false,
   inlineChildren = false,
   providerFamilies?: ReadonlySet<string>,
+  prepareProjection = false,
 ): AppTextInput {
   const base = input.style ?? {},
     scale = input.textScale ?? 1;
@@ -143,65 +144,63 @@ export function originalParagraphInput(
       first.fontFamilies.length === 1 &&
       (allowProviderFamilies || providerFamilies || first.fontFamilies[0] === 'NelyxDefault'),
     defaults = plain ? first : resolved(base, 0, input.text.length),
-    paragraph = readParagraphOptions(
-      paragraphOptionsBytes({
-        ...(input.strutStyle
-          ? {
-              strut: (() => {
-                const strut = input.strutStyle!;
-                if (
-                  Object.keys(strut).some(
-                    (key) =>
-                      ![
-                        'fontFamilies',
-                        'fontSize',
-                        'fontWeight',
-                        'fontStyle',
-                        'height',
-                        'leading',
-                        'leadingDistribution',
-                        'forceStrutHeight',
-                      ].includes(key),
-                  )
+    paragraph = (prepareProjection ? prepareParagraphOptions : captureParagraphOptions)({
+      ...(input.strutStyle
+        ? {
+            strut: (() => {
+              const strut = input.strutStyle!;
+              if (
+                Object.keys(strut).some(
+                  (key) =>
+                    ![
+                      'fontFamilies',
+                      'fontSize',
+                      'fontWeight',
+                      'fontStyle',
+                      'height',
+                      'leading',
+                      'leadingDistribution',
+                      'forceStrutHeight',
+                    ].includes(key),
                 )
-                  return unsupported('App-text-strut-style');
-                return {
-                  fontFamilies: resolveFamilies(strut.fontFamilies),
-                  fontSize: (strut.fontSize ?? input.fontSize) * scale,
-                  fontWeight: strut.fontWeight ?? 400,
-                  fontStyle: strut.fontStyle ?? 'normal',
-                  height: strut.height ?? null,
-                  leading: strut.leading ?? 0,
-                  halfLeading:
-                    (strut.leadingDistribution ?? input.textHeightBehavior?.leadingDistribution) ===
-                    'even',
-                  forceStrutHeight: strut.forceStrutHeight ?? false,
-                };
-              })(),
-            }
-          : {}),
-        ...(input.placeholders?.length ? { placeholders: input.placeholders } : {}),
-        ...(inlineChildren ? { inlineChildren: true } : {}),
-        ...(plain &&
-        (allowProviderFamilies || providerFamilies) &&
-        first.fontFamilies[0] !== 'NelyxDefault'
-          ? { fontFamily: first.fontFamilies[0]! }
-          : {}),
-        fontWeight: defaults.fontWeight,
-        hyphens: input.hyphens ?? 'manual',
-        textAlign: input.textAlign ?? 'start',
-        maxLines: input.unlimitedLines ? 0 : (input.maxLines ?? 128),
-        ellipsis: input.ellipsis ?? '',
-        locale: defaults.locale,
-        ...(defaults.height === null ? {} : { height: defaults.height }),
-        letterSpacing: defaults.letterSpacing,
-        wordSpacing: defaults.wordSpacing,
-        halfLeading: defaults.halfLeading,
-        applyHeightToFirstAscent: input.textHeightBehavior?.applyHeightToFirstAscent ?? true,
-        applyHeightToLastDescent: input.textHeightBehavior?.applyHeightToLastDescent ?? true,
-        ...(plain || !runs.length ? {} : { runs }),
-      }),
-    );
+              )
+                return unsupported('App-text-strut-style');
+              return {
+                fontFamilies: resolveFamilies(strut.fontFamilies),
+                fontSize: (strut.fontSize ?? input.fontSize) * scale,
+                fontWeight: strut.fontWeight ?? 400,
+                fontStyle: strut.fontStyle ?? 'normal',
+                height: strut.height ?? null,
+                leading: strut.leading ?? 0,
+                halfLeading:
+                  (strut.leadingDistribution ?? input.textHeightBehavior?.leadingDistribution) ===
+                  'even',
+                forceStrutHeight: strut.forceStrutHeight ?? false,
+              };
+            })(),
+          }
+        : {}),
+      ...(input.placeholders?.length ? { placeholders: input.placeholders } : {}),
+      ...(inlineChildren ? { inlineChildren: true } : {}),
+      ...(plain &&
+      (allowProviderFamilies || providerFamilies) &&
+      first.fontFamilies[0] !== 'NelyxDefault'
+        ? { fontFamily: first.fontFamilies[0]! }
+        : {}),
+      fontWeight: defaults.fontWeight,
+      hyphens: input.hyphens ?? 'manual',
+      textAlign: input.textAlign ?? 'start',
+      maxLines: input.unlimitedLines ? 0 : (input.maxLines ?? 128),
+      ellipsis: input.ellipsis ?? '',
+      locale: defaults.locale,
+      ...(defaults.height === null ? {} : { height: defaults.height }),
+      letterSpacing: defaults.letterSpacing,
+      wordSpacing: defaults.wordSpacing,
+      halfLeading: defaults.halfLeading,
+      applyHeightToFirstAscent: input.textHeightBehavior?.applyHeightToFirstAscent ?? true,
+      applyHeightToLastDescent: input.textHeightBehavior?.applyHeightToLastDescent ?? true,
+      ...(plain || !runs.length ? {} : { runs }),
+    });
   validateParagraphRuns(input.text, paragraph.runs);
   validateParagraphPlaceholders(input.text, paragraph.placeholders);
   return Object.freeze({

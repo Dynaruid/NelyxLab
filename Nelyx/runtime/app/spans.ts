@@ -158,6 +158,7 @@ export function originalSpanInput(
       true,
       slots.length > 0,
       providerFamilies,
+      true,
     );
     if (paragraph.overflow !== 'fade') return main;
     const {

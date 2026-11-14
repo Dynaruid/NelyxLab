@@ -15,6 +15,7 @@ void checkMaterialization();
 void checkLivePaintActivation();
 void checkProviderAdmission();
 void checkNativeFrameDelivery();
+void checkPreparationJournal();
 static void check(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 static void legacyPreparationLead(){
   auto ledger=std::make_shared<Ledger>();
@@ -126,6 +127,7 @@ static void run(){
   inputFrameIndex();
   checkProviderAdmission();
   checkNativeFrameDelivery();
+  checkPreparationJournal();
   checkTransactionSharing();
   checkMaterialization();
   checkLivePaintActivation();

@@ -317,10 +317,7 @@ export class SourceDateLocalizations implements DateLocalizationsContract {
       if (
         checkedInteger(i) < checkedInteger(maxDigitIndex) &&
         checkedInteger(
-          modulo(
-            checkedInteger(checkedInteger(checkedInteger(maxDigitIndex) - checkedInteger(i))),
-            3,
-          ),
+          modulo(checkedInteger(checkedInteger(maxDigitIndex) - checkedInteger(i)), 3),
         ) === 0
       ) {
         void result.write(',');
