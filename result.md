@@ -2,24 +2,27 @@
 
 작성·개정일: **2026-11-14 KST**
 
-검토 기준: checkout `ff42f46`, [기술 검토 보고서](report.md), [W11 설계·판정 기준](work11.md), [W11-1 구현·측정 기록](work11-1.md), 현재 구현
+검토 기준: checkout `eca7856`, [기술 검토 보고서](report.md), [W11 설계·판정 기준](work11.md), [W11-1 구현·측정 기록](work11-1.md), 현재 구현, **2026-11-14 20:51 KST 사용자 관찰**
 
-범위: **Windows Original App의 기존 데이터와 코드에서 가장 설명력 있는 가설을 선택한다. 신규 성능 측정·구현 변경·중단된 작업의 재개는 하지 않았다.**
+범위: **Windows Original App의 기존 데이터·코드와 사용자 제보에서 가장 설명력 있는 가설을 선택한다. 신규 계측·성능 측정·구현 변경·중단된 작업의 재개는 하지 않았다.**
 
-## 1. 결론부터: 가장 설득력 있는 설명은 새 콘텐츠의 공급 지연이다
+## 1. 결론부터: 로딩보다 공통 상호작용 경로를 먼저 의심한다
 
-**현재 가장 설명력이 높은 가설은 “화면을 계속 그리지 못한다”가 아니라, “새 UI를 사용할 수 있게 만드는 선행 작업이 필요한 시점을 놓치고, coverage 보호가 그 지연을 표시 offset의 정체와 후속 추종으로 드러낸다”는 것이다.** 그 선행 작업 중에서는 실제 긴 구간이 관측된 **App의 동기 Source 생성·투영을 첫 조사 대상으로 선택**한다.
+**“lazy 로드가 이미 완료됐는데 스크롤 시작 때 버벅이고, DatePicker의 월 스와이프도 버벅인다”는 제보는 기존 결론을 수정할 중요한 단서다. 두 현상의 공통 원인을 찾는다면 새 데이터·항목의 로딩 자체보다, 입력 시작과 이동 상태 반영 때 실행되는 공통 입력·관찰·갱신 경로의 지연을 먼저 검토해야 한다.**
+
+실제로 월 넘김의 PageView는 내부에서 ListView를 사용하며 일반 목록과 native 스크롤 어댑터·offset 관찰 경로를 공유한다. 이미 존재하는 내용도 이동하면 controller 알림과 Source 상태 갱신이 발생할 수 있다. **따라서 공통 원인이라는 의심에는 구현상의 근거가 있다. 다만 공유 코드가 있다는 사실만으로 동일한 병목이 실행됐다고 확정하지는 않는다.**
 
 이는 원인을 모두 확인했다는 선언이 아니다. 다만 모든 후보를 같은 무게로 나열하는 대신, 다음과 같이 판단을 구분한다.
 
 | 판단 | 현재 지위 | 이유 |
 | --- | --- | --- |
 | 최신 공급은 성능 수락 기준에 미달한다 | **확인된 결과** | 이동 지연·offset 정체가 정해 둔 문턱을 초과 |
-| 새 콘텐츠의 가용 시점과 coverage 제한의 결합이 정체를 설명한다 | **우선 채택할 잠정 설명** | 게시 지속·준비된 구간의 짧은 지연·cold 비용·실제 제한 코드가 함께 부합 |
-| 그 지연의 주된 발생지는 App의 선행 생산 작업이다 | **먼저 검증할 하위 가설** | 긴 build·capture와 실행 모드 차이라는 직접 단서가 있으나 동일 정체와의 인과 연결은 미완성 |
+| 스크롤 시작과 월 스와이프가 같은 상호작용 경로의 긴 작업·대기를 공유한다 | **두 증상을 함께 설명할 우선 조사 가설** | 로드 완료 뒤에도 생기는 시작 지연이라는 제보와 실제 공유 경로가 있음. 동일 원인 여부는 미계측 |
+| 새 콘텐츠의 준비 지연과 coverage 제한이 월 이동 중 정체를 더한다 | **기존 측정에 대한 유력한 조건부 설명** | 긴 cold 비용과 제한 코드에 부합하나 이미 로드된 스크롤의 시작 버벅임 전체를 이것만으로 설명할 수 없음 |
+| App의 동기 작업이 두 증상을 모두 지연시킨다 | **검증할 하위 가설** | 긴 build·capture는 관측됐지만 native 이동을 실제로 막은 의존·잠금·왕복은 연결해야 함 |
 | GC 하나, Hermes 하나 또는 GPU 하나가 전체 실패의 원인이다 | **단독 설명으로 채택하지 않음** | 각각으로 모든 관측을 설명할 증거가 부족 |
 
-따라서 권고는 **기존 엔진을 버리는 것보다 새 내용의 생성부터 사용 가능해질 때까지의 임계경로를 줄이는 것**이다. App이 주 병목이라는 가설이 틀리면 Content·Core·활성화 경계로 우선순위를 바꾼다. 성능 수락 보류는 확정적이지만, 전면 재설계의 필요성까지 확정적이지는 않다.
+따라서 **“새 내용이 없어서 늦는다”를 공통 원인으로 선결하지 않고, 로드된 범위에서의 첫 입력→첫 실제 이동 경로를 먼저 분리**한다. 월 경계에서만 추가되는 callback·상태 갱신·새 월 준비도 따로 본다. 공통 병목 위에 월 이동 고유 비용이 더해질 수도 있고, 겉모습만 비슷한 독립 문제일 수도 있다.
 
 ## 2. 추론 방법: 설명을 선택하되 뒤집을 조건도 정한다
 
@@ -27,7 +30,7 @@
 
 이 보고서는 다음을 구분한다.
 
-- **관측:** 실제 실행 기록의 수치·실패·성공. 측정한 범위 안의 사실이다.
+- **관측:** 실제 실행 기록과 사용자의 사용감 제보. 계측 수치와 미계측 정성 관찰의 증거 수준을 구분한다.
 - **메커니즘:** 코드상 가능한 실행·대기·수명 경로. 해당 실행에서의 비용 크기까지 증명하지 않는다.
 - **귀추적 판단:** 여러 관측을 함께 설명하면서 추가 가정이 적은 가설의 선택이다.
 - **검증 예측:** 그 가설이 맞으면 새로 보여야 할 현상과, 우선순위를 낮추게 할 반대 결과다.
@@ -63,29 +66,46 @@ E3의 build·capture는 각각 60Hz 한 표시 주기보다 길지만 **순수 J
 
 [§12.3의 field/helper × direct/reference 네 조합](work11-1.md#123-source와-projection의-같은-공급-비교)도 모두 기능 PASS·성능 FAIL이며 각 1회 대조의 순위는 일관되지 않았다. 서로 다른 공급·시나리오의 숫자를 시간순 개선 추세로 연결하지 않는다.
 
+### 3.3 새 단서: 로드가 끝난 화면에서도 시작할 때 버벅인다
+
+**E10 · 사용자 정성 관찰:** 2026-11-14 20:51 KST, 사용자는 **lazy 로드가 이미 완료된 상태의 스크롤 시작 버벅임**과 **DatePicker 월 스와이프의 버벅임**을 함께 제시하고 동일 원인을 의심했다. 두 증상은 관찰 제보이고, **동일 원인이라는 해석은 검토할 가설**이다. 이번에 각 증상의 장치·공급·정확한 지연 시각을 새로 계측한 것은 아니다.
+
+이 단서는 **새 데이터·항목 생성이 있어야만 버벅인다는 설명의 우선순위를 낮춘다.** 로드 완료를 무시하고 숨은 lazy 작업이 반드시 있었을 것이라고 설명을 유지해서는 안 된다. 동시에 로딩 완료, Widget/Element 유지, native 준비·활성화·게시, 첫 입력 처리의 준비 완료는 별도 상태이므로 필요한 단계는 직접 확인한다. 데이터가 그대로여도 입력·알림·상태 변경·paint·semantics 갱신은 남을 수 있다.
+
+E4의 준비된 Contact는 이 제보를 부정하지 않지만 **모든 시작에서 고정된 큰 지연이 필연적으로 발생한다는 가설에는 반대 근거**다. 같은 대상·입력 방식·정지 시간·hit 위치·월 변경 callback 조건을 맞춘 비교가 아니므로 둘을 같은 실험처럼 취급하지 않는다. 세션 최초 한 번인지, 멈췄다 다시 시작할 때마다인지, 월 전환 중간인지도 아직 구분되지 않았다.
+
 ## 4. 경쟁 가설의 비교
 
-### 4.1 어느 경계가 지연을 주도하는가
+### 4.1 두 증상을 같은 원인으로 설명할 수 있는가
 
-아래 가설은 **지배적인 지연 위치**에 대한 비교다. 여러 구간이 동시에 느릴 수 있으므로 배타적인 원인 목록으로 읽지 않는다.
+| 가설 | 설명력 | 약점·반증 조건 | 잠정 판단 |
+| --- | --- | --- | --- |
+| **H-S · 공통 상호작용 병목**: 시작 시 target/hit 경로·owner 기동 또는 이동 관찰·알림·갱신 중 같은 긴 경로가 두 증상을 지연 | E10을 새 항목 로딩 없이 설명할 수 있고, 아래 공유 구현이 실제 존재 | 공유 코드는 넓은 공통 기반일 뿐 비용 증거가 아님. 두 증상에서 같은 경로가 이동 지연을 선행하지 않으면 약화 | **공통 원인을 찾는 첫 조사 가설** |
+| **H-I · 서로 다른 원인**: 일반 스크롤은 시작 처리, 달력은 월 변경 상태 갱신·새 월 준비가 각각 지연 | E10과 기존 cold 실패가 모두 성립할 수 있음. 월 스와이프의 어느 시점인지에 따라 자연스러운 설명 | 같은 경로 하나의 수정으로 두 지연이 함께 줄면 별개 원인을 추가할 이유가 줄어듦 | **대등하게 반증할 경쟁 가설로 유지** |
+
+H-S는 하나의 함수가 범인이라는 결론이 아니다. **공통 코드의 존재보다, 같은 긴 구간이 각 증상의 임계경로에 놓이는지가 핵심**이다. 스크롤 전환을 반복할 때마다 발생하면 일회성 초기화만으로는 부족하고, 월이 바뀌는 중간 시점에만 발생하면 입력 시작만으로는 부족하다.
+
+### 4.2 어느 경계가 지연을 주도하는가
+
+아래는 H-S/H-I의 공통 여부와 별개인 **지연 위치·발생 조건**의 비교다. 여러 구간이 동시에 느릴 수 있다.
 
 | 가설 | 설명력과 현재 근거 | 약점·반대 관측 | 잠정 판단 |
 | --- | --- | --- | --- |
-| **H-A · App 선행 생산 지연**: 동기 Source 생성·투영이 새 coverage의 공급을 늦춤 | E3의 긴 실제 구간, E4의 준비 상태별 차이, E5의 실행 모드 민감도를 함께 설명. 새 내용 공급이 늦으면 게시 지속 중 정체도 가능 | E3가 해당 정체의 필수 선행 작업이었는지 미연결. App 종료 뒤의 대기가 더 클 수 있음 | **첫 조사 대상으로 채택. 주원인 확정은 아님** |
+| **H-A · App 동기 갱신·생성 지연**: 기존 UI 갱신 또는 새 내용의 Source 실행·투영이 늦음 | E3·E5는 실제 App 비용의 단서. E10도 기존 내용의 알림·상태 갱신이 비싸다면 설명 가능 | warm 시작에서 같은 긴 App 작업이 발생했는지, native 이동을 막는 의존이 있는지 미연결 | **공통 갱신과 cold 생성을 나눠 조사. 기존 cold 비용만으로 공통 원인이라 하지 않음** |
 | **H-B · 하류 준비 지연**: Core·Content·provider의 queue·잠금·문단·기록 작업이 주도 | E1·E2·E4와 양립하며 App이 끝나도 이동하지 못하는 현상을 설명할 수 있음 | 최신 정체에서 각 경계의 기여 시간을 제시한 근거가 없음 | **주요 경쟁 설명으로 유지. H-A와 같은 시간축에서 비교** |
-| **H-C · 준비·활성화 계약 문제**: 필요한 내용은 준비됐지만 cohort·coverage·활성화 연결의 지연 또는 오류로 사용되지 못함 | 게시와 offset의 분리를 설명할 수 있음. 계산량 축소만으로 해결되지 않을 가능성 | 해당 정체 전에 유효한 내용이 이미 준비됐다는 직접 증거가 없음 | **배제하지 않음. 준비 완료가 확인되면 우선순위를 높임** |
-| **H-D · 전체 Render/GPU 정지 하나로 설명** | 이전 물리 실행의 긴 publication gap 일부와는 부합 | 최신 E2의 짧은 publication gap과 큰 offset 정체, E4를 함께 설명하기 어려움 | **최신 실패의 단독 설명으로는 우선순위를 낮춤** |
+| **H-C · 입력 시작·준비·활성화 경계 지연**: target 결정·공유 잠금·owner 깨움 또는 준비된 상태의 사용 연결이 늦음 | E10의 시작 시점, E2의 게시/이동 분리를 설명할 수 있음. 로딩과 독립적인 경로가 존재 | 해당 구간의 비용·필요한 내용의 사전 활성화 여부가 미측정 | **warm 시작에서 H-A와 함께 우선 분리** |
+| **H-D · 전체 Render/GPU 정지 하나로 설명** | 이전 물리 실행의 긴 publication gap 일부와는 부합. E10에는 첫 이동 frame 준비 비용도 후보 | 최신 E2·E4는 전체 렌더 중단 하나로 설명하기 어려움. E10의 frame 시각은 미계측 | **기존 연속 실패의 단독 설명은 낮음. 새 시작 증상의 wake/draw 지연까지 배제하지 않음** |
 | **H-E · 입력 누락·주입 지연·진단 착시만의 문제** | 검사·시계 오류라면 지연을 잘못 판정할 수 있음 | E1의 반영·loss 기록, E2의 작은 driver lateness, 일반 실행과 E8의 물리 실패가 반대 근거 | **현재 현상의 단독 설명으로는 낮음** |
 
-H-A를 먼저 선택하는 이유는 “Source가 원래 느릴 것”이라는 선입견이 아니라 **실제로 긴 App 구간과 실행 모드 차이가 관측됐기 때문**이다. 다만 시간 인과가 연결되지 않아 H-B를 크게 열등한 설명으로 판정할 근거는 없다. GPU가 Content 준비에 영향을 주거나 입력·관찰 오류가 일부 섞일 가능성도 위 표만으로 제거하지 않는다.
+기존 E3·E5 때문에 App 비용은 중요하지만, E10을 추가하면 **“cold Source 생성이 두 증상의 주원인”이라는 우선 결론은 유지할 수 없다.** 먼저 로드된 범위의 입력 시작·기존 상태 갱신을 비교하고, H-B와 실제 coverage 부족은 별도 경로로 연결한다. E2의 작은 publication gap을 E10에도 측정된 값처럼 적용하지 않는다.
 
-### 4.2 GC·VM은 구조 가설과 경쟁하는 별개의 원인이 아니다
+### 4.3 GC·VM은 구조 가설과 경쟁하는 별개의 원인이 아니다
 
 **H-A가 지연 위치라면, GC·allocator·동기 native 작업·언어 실행 방식은 그 위치가 비싸지는 이유의 후보**다. “구조 문제인가, GC 문제인가”라는 양자택일은 잘못된 비교다.
 
 | 하위 설명 | 지지하는 단서 | 현재 선택할 수 있는 결론 |
 | --- | --- | --- |
-| 실제 Source·투영 작업량이 큼 | E3, E7 이후에도 남은 긴 구간 | 더 넓은 작업량 축소를 검토할 이유는 있음. 남은 비용 전부가 필수 객체 생성이라는 뜻은 아님 |
+| 실제 Source·투영 작업량이 큼 | E3, E7 이후에도 남은 긴 구간 | 기존 상태 갱신도 조사 대상. 새 항목 생성이나 lazy 재실행이 필수 원인이라는 뜻은 아님 |
 | VM의 단위 실행비용이 큼 | E5의 같은 Source native/HBC 차이 | VM·실행 모드가 영향을 줄 가능성. Hermes 결함·부적합 또는 JIT만의 해법은 미입증 |
 | 할당·GC·회수가 준비 지연을 키움 | E6와 수거·외부 버퍼 finalizer 경로 | 조사 가치가 높음. 지배적인 기여율·최신 공급의 동일 패턴은 미확인 |
 | App의 동기 native 작업이 큼 | [동기 문단 API](Nelyx/engine/platform/common/app_text_jsi.hpp)와 [App 호출부](Nelyx/runtime/app/text.ts) | App elapsed를 순수 JS로 해석하지 말아야 함. 실제 실행 시간 비중은 미측정 |
@@ -94,30 +114,41 @@ GC가 크지 않으면 GC 패치 없이 다른 경로로 진행할 수 있다. �
 
 ## 5. 우선 설명의 인과 구조와 한계
 
-### 5.1 관측에서 가설로 이어지는 논증
+### 5.1 새 관찰에 따라 우선 설명을 수정한다
 
 1. **E1은 최종 도착과 적시 반응의 분리를 보여 준다.** 입력 누락이나 최종 결과만으로는 사용감 실패를 설명하거나 반박할 수 없다.
 2. **E2는 프레임 게시와 표시 위치의 갱신이 다른 조건에 의존함을 시사한다.** 전체 렌더링 중단을 가정하지 않아도 정체가 발생할 설명이 필요하다.
-3. **E4는 이미 준비된 내용의 이동 경로가 항상 느린 것은 아님을 보여 준다.** 통제 실험은 아니지만 “모든 입력·그리기가 본질적으로 느리다”보다 새 내용 준비를 우선 의심하게 한다.
-4. **E3는 새 내용을 위한 App 선행 작업이 실제로 길다는 단서다.** E5의 실행 모드 차이는 이 작업의 실행비용도 중요할 수 있음을 보탠다.
-5. **coverage 제한 코드는 이 비용이 정체로 나타날 수 있는 연결 메커니즘을 제공한다.** 표시 가능한 범위가 늘지 않으면 입력 목표는 진행해도 표시 offset은 제한될 수 있다.
+3. **E10은 로딩이 끝난 상태의 시작 지연을 추가한다.** 새 데이터·항목 생성만으로 두 현상을 함께 설명하는 것은 불충분해진다.
+4. **공통 adapter·offset 알림 경로는 H-S의 구현상 근거다.** 월 전환의 `onPageChanged`·`setState`는 로딩과 별개의 추가 비용 후보이며, 일반 스크롤에서도 같은 callback이 실행된다는 뜻은 아니다.
+5. **E3·E5는 App 비용을 조사할 이유를 유지한다.** 그러나 이미 존재하는 UI의 갱신과 신규 UI 생성을 구분해야 한다.
+6. **E4와 coverage 코드는 서로 다른 제약을 준다.** 준비된 경로는 짧게 이동할 수도 있고, 실제 준비 범위를 벗어나면 별도의 공급 지연이 더해질 수 있다.
 
-이 다섯 항목을 함께 설명하는 잠정 모델은 다음과 같다.
+수정된 모델은 하나의 로딩 경로가 아니라 두 층이다.
 
-> 새 내용 요구 → App의 생성·투영 및 Content 준비 → 유효 coverage의 가용 시점 지연 → 표시 offset 제한 → 준비 후 남은 목표를 추종
+> 공통 후보: 정지→입력 시작 또는 이동 반영 → target/gesture·owner 처리 → offset 관찰·controller/Source 알림 → 필요한 기존 UI 갱신·frame 처리
+>
+> 월 이동의 추가 후보: page 경계의 callback·상태 갱신 → 기존 UI 재구성, 그리고 필요한 경우에만 새 월 준비 → coverage·활성화 대기
 
-이 모델은 **확인되지 않은 200ms급 단일 GC pause나 전체 GPU 중단을 새로 가정하지 않고도** 주요 관측을 설명한다는 점에서 우선한다. 다만 “새 내용이 늦어서 정체했다”를 관측 없이 되풀이하면 설명이 아니라 재진술이 된다. 따라서 **필요한 내용이 실제로 언제 준비됐고, 무엇이 그 완료를 늦췄는지**를 확인해야 하며 §6의 반증 조건을 둔다.
+이것은 항상 직렬로 실행되는 확정 파이프라인이 아니다. **어느 구간이 첫 native offset 변경과 첫 이동 게시를 실제로 늦추는지**가 검증 대상이다. 공통 원인이 맞으면 같은 구간이 두 증상에서 드러나야 하며, 달력만 월 경계의 별도 비용이 크면 H-I 또는 공통 비용+추가 비용 모델을 선택한다.
 
 ### 5.2 코드가 뒷받침하는 부분과 뒷받침하지 않는 부분
 
 | 구현 근거 | 확인한 메커니즘 | 이 근거만으로 주장할 수 없는 것 |
 | --- | --- | --- |
-| [App host](Nelyx/runtime/app/host.ts)·[capture](Nelyx/runtime/app/capture.ts) | build·render tree 동기화·capture에 연속 동기 구간이 있음. Promise가 내부 작업을 자동 분할하지 않음 | 모든 입력·렌더 프레임이 Source rebuild를 기다린다는 주장 |
+| [PageView](Nelyx/src/framework/widgets/page-view.ts)·[스크롤 adapter](Nelyx/runtime/app/scroll.ts) | PageView는 ListView와 PageController를 사용. 목록·페이지가 공통 NativePosition을 통해 offset을 관찰 | 두 화면이 같은 item 생성 정책·callback 비용을 갖거나 동일 병목이라는 주장 |
+| [NativePosition.observe](Nelyx/runtime/app/scroll.ts)·[ScrollController](Nelyx/src/framework/widgets/scroll-controller.ts)·[ScrollPosition](Nelyx/src/framework/widgets/scroll-position.ts) | offset 변경 시 `forcePixels`→listener 통지와 `didUpdateScrollPositionBy`→ScrollUpdateNotification이 실행될 수 있음. 새 데이터가 필요하지 않음 | 모든 listener가 `setState`를 하거나 항상 비싸다는 주장. 일반 Scrollable의 drag/ScrollStart 경로를 native adapter에 그대로 대입하는 주장 |
+| [PageView의 월 경계 알림](Nelyx/src/framework/widgets/page-view.ts)·[달력 Source](packages/material/src/generated/date/calendar_date_picker.generated.ts) | 관찰된 page를 반올림한 값이 달라지면 `onPageChanged`. 달력은 `setState`·표시 월 callback·focus 날짜/announcement 갱신을 실행 | swipe 시작 즉시 이 callback이 실행되거나 실제 비용의 주범이라는 주장. 첫 delta와 page 반올림 경계를 구분해야 함 |
+| [Core 입력](Nelyx/engine/core/scheduler/scheduler.cpp)·[target 탐색](Nelyx/engine/core/scene/frame.cpp)·[pointer path](Nelyx/engine/core/interaction/pointer_path.cpp) | 새 stream의 target 결정과 입력 방식별 hit path는 기존 frame에서도 필요. pointer path 구성은 frame item을 순회해 geometry 표를 만듦 | 전체 내용이 준비되면 입력 경로 비용도 0이라는 주장. 반대로 순회 코드만 보고 큰 지연을 확정하는 주장 |
+| [Scene 관찰](Nelyx/runtime/engine-client/scene.ts)·[App host](Nelyx/runtime/app/host.ts)·[capture](Nelyx/runtime/app/capture.ts) | 이동 상태를 App에 관찰시키고 필요 시 동기 build·capture로 이어질 수 있음. layout/publication 관찰 lane은 이미 분리됨 | 매 입력이 전체 rebuild·전체 snapshot을 유발하거나 이미 있는 lane 분리를 새 해법으로 제안하는 주장 |
 | [scheduler](Nelyx/engine/core/scheduler/scheduler.cpp) | 요청 위치와 표시 offset을 구분하고 coverage 밖 이동을 제한·후속 처리 | 최신 234ms 정체 전부가 이 분기를 거쳤다는 주장 |
-| [Core protocol](Nelyx/engine/core/protocol/engine.cpp)·[Windows host](Nelyx/engine/platform/windows/host.cpp) | accepted·layout ready·providerReady·active·published가 구별됨. Core는 공유 mutex를 쓰며 transaction staging은 이미 잠금 밖에서 실행 | Core가 독립된 다섯 번째 스레드이거나 모든 native 작업이 하나의 잠금 안에 있다는 주장 |
+| [Core protocol](Nelyx/engine/core/protocol/engine.cpp)·[Windows host](Nelyx/engine/platform/windows/host.cpp) | accepted·layout ready·providerReady·active·published가 구별됨. 공유 mutex, idle 시 wait와 입력 wake 경로가 존재. transaction staging은 이미 잠금 밖에서 실행 | owner가 분리됐으므로 잠금·깨움 지연이 없거나, idle/wake 코드가 있으므로 실제 wake 지연이 길었다는 주장 |
 | [App의 `waitForContent`](Nelyx/runtime/app/host.ts) | 일부 후속 invalidation은 게시를 기다리지만 유효한 layout build 요청은 예외 | 모든 작업이 무조건 직렬이거나 장벽 삭제만으로 안전하게 해결된다는 주장 |
 
-coverage의 `needChildren`과 Content layout의 `layoutBuildRequest`는 같은 요청이 아니다. **최신 demand 생성→Source→Content ready→activation→publication의 전체 인과 연결은 여전히 `notVerified`**다. H-A가 그럴듯하다는 판단은 이 누락을 채운 것으로 간주하지 않는다.
+**시간 순서의 제약:** [NativePosition.observe](Nelyx/runtime/app/scroll.ts)의 controller·월 변경 통지는 관찰한 offset의 후행 처리다. 그 통지만으로 동일 offset의 첫 Core 이동 지연을 설명할 수는 없다. 후속 frame의 정체나 이전 입력에서 남은 작업과 연결되는지는 별도 확인해야 한다.
+
+**소유권의 제약:** 준비된 coverage의 native 이동은 매번 App의 응답을 기다리는 구조가 아니다. [App 승인 경로](Nelyx/engine/core/interaction/gestures.cpp)는 조건부이며, 일반 목록·달력에서 켜져 있었다고 확인하지 않았다. 따라서 App이 바쁘다는 사실만으로 시작 지연이 설명되지는 않는다. 승인 의존, shared lock·owner 대기, 갱신된 document/geometry 필요 또는 frame 전달 중 어떤 연결이 실제 이동을 막았는지 보여야 한다.
+
+coverage의 `needChildren`과 Content layout의 `layoutBuildRequest`는 같은 요청이 아니다. **최신 demand 생성→Source→Content ready→activation→publication의 전체 인과 연결은 여전히 `notVerified`**이며, E10의 첫 입력 경로도 미계측이다.
 
 ### 5.3 기존 최적화의 실패가 뜻하는 것
 
@@ -127,19 +158,24 @@ E7과 네 조합 대조는 **그 수정만으로는 충분하지 않았음**을 
 
 ## 6. 이 설명을 뒤집거나 구체화할 관측
 
-다음은 **후속 검증의 예측이며 이번에 실행한 결과가 아니다.** 가장 구별력이 높은 것은 더 많은 평균값이 아니라, 같은 정체에서 요청 위치·유효 coverage·App 작업·준비·활성화의 선후 관계다.
+다음은 **후속 검증의 예측이며 이번에 실행한 결과가 아니다.** 먼저 일반 목록과 달력에서 로드되고 active coverage 안에 있는 짧은 이동을 비교한다. 달력은 page 반올림 경계를 넘지 않는 이동, 준비된 이웃 월로 경계를 넘는 이동, 실제 새 준비가 필요한 이동을 나눈다. 로드 상태·입력 방식·hit 대상·정지 후 대기 조건을 기록하고 이를 섞어 개선율을 만들지 않는다.
 
 | 검증할 예측 | 가설을 지지하는 관측 | 우선순위를 바꿀 관측 |
 | --- | --- | --- |
+| **P0 · warm 시작에도 공통 병목이 있는가** | 새 항목/coverage 준비 없이도 두 화면의 첫 유효 입력→첫 실제 이동이 늦고, 같은 target·lock·wake 또는 관찰/갱신 구간이 이를 선행 | 지연 구간이 서로 다르거나 하나는 신규 준비 때만 느림. H-I 또는 공통+추가 비용으로 분리 |
+| **P6 · 월 경계의 추가 비용인가** | page가 반올림 경계를 넘을 때 `onPageChanged`·달력 `setState`·후속 build와 지연이 함께 시작. 이미 준비된 월에서도 발생 | 첫 page 변경 전에 이미 지연이 발생. 월 변경 callback만으로는 설명 불가. 정착 때만 느리면 snapping/ballistic·종료 경로도 조사 |
+| **P7 · 일회성 초기화인가, 재시작마다인가** | 같은 화면·같은 구간에서 최초 한 번만 느리면 첫 사용 비용, 멈췄다 재접촉할 때마다 느리면 반복되는 시작·깨움·상태 전환을 지지 | 재접촉보다 새 항목 또는 월 경계에만 종속되면 로딩/월 갱신 설명을 강화. 입력 시작과 page 경계 시각을 혼동하지 않음 |
 | **P1 · 실제 coverage 대기인가** | 진행해야 하는 정체 동안 목표는 coverage 밖이고 표시 offset은 해당 경계에 제한됨. 유효 범위 확장·활성화 뒤 이동 재개 | 같은 document·metrics·device·font 조건의 충분한 coverage가 이미 active인데도 정체. 공급 지연 설명을 낮추고 H-C·입력/표시 계약을 조사 |
 | **P2 · App이 기한을 놓치게 하는가** | 해당 coverage에 필수인 App 작업이 늦게 끝나며, 그 경로만 줄인 대조에서 coverage도 앞당겨지고 정체가 감소 | 필요한 App 응답은 충분히 일찍 끝났지만 Content·활성화 대기가 길게 남음. H-B/H-C를 우선 |
 | **P3 · GC·회수가 큰 부분인가** | 같은 실패 구간의 수거·진입 대기·finalizer/native 해제가 임계경로의 상당 부분을 차지하고 해당 경로 개선이 준비를 앞당김 | 비용의 겹침을 제외해도 기여가 작음. GC 가설의 우선순위를 낮추고 GC 패치를 필수 단계로 삼지 않음 |
 | **P4 · 하류 준비가 지배하는가** | App 제출 이후 queue·Core lock wait/held·Content measure/record가 준비 지연을 주도 | 이 구간은 짧고 필요한 App 결과의 도착을 기다림. H-A를 강화 |
 | **P5 · 실행 모델을 바꾸면 충분한가** | 같은 앱·의미·입력·Core·메모리 계약의 다른 runtime에서 준비와 이동 기준을 함께 충족 | Source 일부만 짧아지고 정체는 유지. VM 단독 해법을 낮추고 남은 준비·활성화 경로를 조사 |
 
-**최소 확인은 P1·P2와 P4를 같은 시간축에서 연결하는 것**이다. [기존 host trace](Nelyx/engine/platform/windows/host.cpp)의 `queueMs`·`lockWaitMs`·`lockHeldMs`와 Content의 `measureMs`·`recordMs`, 기존 pass/document/preparation/publication 식별자를 먼저 사용한다. 필요한 누락 경계만 추가하며 중첩 시간은 합집합으로 처리한다. GC 시간을 뺀 elapsed도 자동으로 CPU self time이 되지는 않는다.
+**최소 확인은 P0·P6·P7로 발생 시점을 분리하고, 필요한 경우 P1·P2·P4를 연결하는 것**이다. 접촉/stream begin, 첫 유효 delta, Core의 실제 offset 변경, 그 이동의 게시, page 반올림 경계와 callback, lift/정착을 구별한다. native offset부터 늦으면 입력·Core 의존을, offset은 즉시 바뀌는데 이동 게시만 늦으면 frame·draw·publication을 먼저 본다. App의 통지만 늦은 것을 화면 자체의 지연으로 세지 않는다.
 
-상관만으로 원인을 확정하지 않고, 가설이 지정한 경로 하나만 바꾼 대조가 실제 준비 시점과 offset에 영향을 주는지 확인한다. 준비 기한을 넘는 병목은 여러 개일 수 있으므로 개선량과 정체 감소가 선형 비례해야 한다고 요구하지 않는다. V8 비교는 이 판단을 바꿀 수 있을 때만 제한적으로 진행하며 필수 선행 작업으로 두지 않는다.
+[기존 host trace](Nelyx/engine/platform/windows/host.cpp)의 `queueMs`·`lockWaitMs`·`lockHeldMs`와 Content의 `measureMs`·`recordMs`, pass/document/preparation/publication 식별자를 먼저 사용한다. 필요한 누락 경계만 추가하며 중첩 시간은 합집합으로 처리한다. GC 시간을 뺀 elapsed도 자동으로 CPU self time이 되지는 않는다.
+
+상관만으로 원인을 확정하지 않고, **같은 경로 하나를 보존 의미에 맞게 수정한 대조에서 두 증상의 실제 이동 지연이 함께 줄어드는지** 확인한다. 단순히 같은 stack에 나타나거나 광범위한 기능 비활성화로 둘 다 빨라진 것만으로 동일 원인이라 하지 않는다. 병목이 여러 개일 수 있으므로 선형 비례를 요구하지 않으며, 하나만 개선되면 가설을 분리한다. V8 비교는 필수 선행 작업이 아니다.
 
 ## 7. 귀추적 판단에서 도출되는 설계 결정
 
@@ -149,17 +185,20 @@ E7과 네 조합 대조는 **그 수정만으로는 충분하지 않았음**을 
 | --- | --- |
 | **제품·성능 수락은 보류** | E1의 명시적 실패. 기능 PASS·최종 도착·높은 게시 빈도로 대체할 수 없음 |
 | **기존 Core·플랫폼 자산은 우선 보존** | E4와 실제 실행·재사용 성과가 있음. 전면 폐기가 준비 지연을 제거한다는 증거는 없음 |
-| **다음 수정은 임계경로의 설명에 연결** | H-A면 Source·투영·동기 native, 회수 기여가 크면 수명/할당, H-B면 하류 준비, H-C면 cohort·활성화 계약을 수정 |
-| **UI 생성 모델 변경은 조건부** | App의 일반 생성·변환 작업량이 핵심으로 남고 작은 수정으로 목표를 맞추기 어렵다는 근거가 생길 때 |
+| **공통 원인부터 작게 반증** | 로드 완료 뒤 첫 이동을 기준으로 두 증상을 비교. H-S가 맞으면 공유 경로를, H-I가 맞으면 시작과 월 전환의 원인을 분리 |
+| **다음 수정은 임계경로의 설명에 연결** | H-A면 기존 UI의 알림·dirty 범위·Source/투영·동기 native, H-B면 하류 준비, H-C면 입력·wake·잠금·활성화 경계. 회수 기여가 크면 수명/할당 |
+| **UI 생성 모델 변경은 조건부** | 시작 지연이 단순한 입력·상태 전환 문제가 아니라 실제 생성·변환 작업량에 지배된다는 근거가 남을 때 |
 | **VM 교체·GC 설정·GPU 교체를 선결론으로 삼지 않음** | 해당 경로의 기여와 같은 앱의 수락 결과가 아직 없음 |
 
 이미 [dirty rebuild](Nelyx/src/framework/widgets/framework.ts), [capture 재사용](Nelyx/runtime/app/capture.ts), [직접 binding](Nelyx/runtime/engine-client/scene.ts), [native fitted-grid](Nelyx/runtime/app/grid.ts), [Document](Nelyx/engine/core/scene/document.hpp)·[PagedStorage](Nelyx/engine/core/scene/paged_storage.hpp)의 공유/COW, [native Frame 전달](Nelyx/engine/core/protocol/engine.cpp)이 존재한다. **“retained로 바꾸자”, “달력을 C++로 배치하자”, “프레임마다 JS를 없애자”만으로는 새 해법이 되지 않는다.** 전체 zero-copy라는 뜻도 아니다.
 
 유지 대상은 검증한 범위의 layout·입력·scroll·hit test·문단·자원 수명, Windows IME/UIA·표면·종료 계약, TS 비즈니스·날짜 의미와 기능 fixture다. 보존은 무결점 선언이 아니라 이미 확보한 성과와 재구현 비용을 고려한 결정이다.
 
-### 7.2 H-A가 남으면 생성 이전의 표현을 바꾼다
+### 7.2 공통 갱신 문제와 새 내용 생성 문제에 다른 처방을 적용한다
 
-TypeScript UI SDK를 유지하면서 H-A가 핵심으로 남는다면 **반복 UI의 정적 구조와 데이터를 분리해, 새 항목마다 생성·변환하는 비공개 표현을 실제로 줄이는 모델**이 합리적인 다음 후보가 된다. 이미 만든 RenderObject를 더 빠르게 보내는 것과는 다른 변경이다.
+H-S/H-A가 **기존 내용의 이동 알림이 불필요하게 넓은 UI를 갱신하는 문제**로 확인되면 dirty 범위·알림 소비·중복 투영을 먼저 줄인다. 입력 target·wake·shared lock이 원인이면 그 경계를 고친다. 시작 지연만으로 모든 위젯의 생성 모델을 바꾸는 것은 과도하다.
+
+TypeScript UI SDK를 유지하면서도 **신규 생성·변환 작업량**이 핵심으로 남는다면 반복 UI의 정적 구조와 데이터를 분리하는 모델을 검토한다. 이는 새 항목마다 생성하는 비공개 표현을 줄이는 변경이며 이미 만든 RenderObject를 더 빠르게 보내는 것과 다르다.
 
 단, 현재 증거로 Widget·State·callback 자체의 제거가 필수라고 결론내리지는 않는다. 공개 identity·State/Key 수명·callback 순서·Focus·Semantics·키보드·locale/RTL을 유지하고, 계약을 바꾸면 opt-in·버전·지원 범위를 드러내야 한다. 임의 builder·날짜 predicate·테마 resolver가 자동으로 native로 이전된다고 가정하지 않는다.
 
@@ -192,7 +231,7 @@ TypeScript UI SDK를 유지하면서 H-A가 핵심으로 남는다면 **반복 U
 | 실행·공급 자격 | Demo는 명시적 SH native unit 후보. Testbed HBC·일반 빌드 기본값과 구분. [Engine manifest](Nelyx/engine/dist/engine-manifest.json)는 `host-integration-candidate` |
 | 작업·수락 상태 | **`PAUSED / PARTIAL`**, `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false` |
 
-[App manifest](sample/nelyx-demo-app/engine-v2/dist/v2-windows/app-manifest.json)의 공급·Source 식별자와 App JS 해시는 기존 기록과 대조했지만 전체 바이너리·runtime 재검증은 아니다. 이번 개정은 기존 증거의 해석·구성 변경이지 새 관측의 추가가 아니다. 현재 공급의 Reversal·Contact·Web UI·heap을 다시 실행한 것으로 표시하지 않는다. 좁은 기능 PASS는 전체 호환 완료가 아니며, 전체 미수락이 모든 기능의 실패를 뜻하지도 않는다.
+[App manifest](sample/nelyx-demo-app/engine-v2/dist/v2-windows/app-manifest.json)의 공급·Source 식별자와 App JS 해시는 기존 기록과 대조했지만 전체 바이너리·runtime 재검증은 아니다. 이번 개정은 **E10의 사용자 정성 관찰을 추가해 추론을 갱신한 것**이지 새 성능 계측의 추가가 아니다. 현재 공급의 Reversal·Contact·Web UI·heap을 다시 실행한 것으로 표시하지 않는다. 좁은 기능 PASS는 전체 호환 완료가 아니며, 전체 미수락이 모든 기능의 실패를 뜻하지도 않는다.
 
 [v2 공급 도구](Nelyx/sdk/tooling/cli/src/engine-v2-runner.mjs)의 대상은 Windows/Web/Android다. [별도 Apple runner](Nelyx/sdk/tooling/cli/src/apple-runner.mjs)의 존재가 v2 iOS 완성을 뜻하지 않는다. 일반 iOS 대상의 no-JIT/native 배포 경로는 Hermes 종속성을 뜻하지 않지만, Windows 성공도 iOS 실행·서명·배포·성능을 보장하지 않는다. Web 기능 검사 역시 Windows 성능의 반증이나 다른 플랫폼 성능의 입증이 아니다.
 
@@ -208,8 +247,10 @@ TypeScript UI SDK를 유지하면서 H-A가 핵심으로 남는다면 **반복 U
 
 ## 9. 종합 결론
 
-**가장 합리적인 현재 설명은 새 콘텐츠의 가용 시점이 입력 수요를 따라가지 못하고 coverage 보호가 이를 정체로 드러낸다는 것이다. 실제 긴 비용이 관측된 App의 동기 생성·투영을 우선 의심하되, Content 준비와 활성화 계약이 지연을 주도할 가능성을 같은 시간축에서 겨뤄야 한다.** GC·native 회수·VM 실행비용은 이 설명과 배타적인 대안이 아니라 지연을 만드는 하위 메커니즘일 수 있다.
+**사용자가 제시한 두 증상의 공통 원인 가설은 합리적이며, 실제 공유 스크롤·관찰 경로가 뒷받침한다. 특히 로딩 완료 뒤의 시작 버벅임은 “새 월·새 항목이 준비되지 않아 멈춘다”를 전체 원인으로 삼았던 기존 설명을 약화한다. 이제는 이미 로드된 내용의 입력 시작·상태 반영·frame 갱신에서 같은 긴 작업이나 대기가 발생하는지를 먼저 확인해야 한다.**
 
-이 판단은 **기존 Core·플랫폼 자산을 유지하고, 임계경로를 설명하는 수정부터 선택하라**는 결론을 지지한다. App 작업량이 끝내 핵심이면 UI 생성 모델의 부분 재설계를, 하류 준비·계약이 핵심이면 그 경계의 수정을 선택한다. SDK 자체가 목적이 아니라면 기존 프레임워크로의 전환을 평가한다.
+달력에는 page 변경 callback·기존 상태 rebuild와 실제 새 월 준비 비용이 별도로 더해질 수 있다. 공통 원인과 추가 원인을 구분하고, **같은 경로의 수정이 두 증상의 실제 이동을 함께 개선하는지**로 판단한다. App이 바쁘다는 사실만으로 native 시작 지연까지 설명했다고 하지 않는다.
+
+기존 Core·플랫폼 자산은 유지하고 확인된 공유 경로부터 수정하되, 실제 신규 생성비용이 끝내 핵심으로 남을 때만 생성 모델의 부분 재설계를 선택한다. SDK 자체가 목적이 아니라면 기존 프레임워크로의 전환을 평가한다.
 
 현재 성과는 실제 앱 실행·증분 처리·수명 계약·국소 작업 제거다. 현재 실패는 성능 수락이며, **남은 과제는 그 실패의 모든 가능성을 나열하는 것이 아니라 우선 설명을 반증 가능한 방식으로 좁히는 것**이다. 전면 폐기·Hermes/GC 단독 책임·V8 전환 성공은 이 자료에서 따라오는 결론이 아니다.
