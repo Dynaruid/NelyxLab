@@ -10,6 +10,7 @@ def nelyxProviderOutput = nelyxProviderPath.text.trim()
 if (nelyxProviderPath.waitFor() != 0 || !nelyxProviderOutput) { throw new GradleException("Nelyx SDK provider resolution failed") }
 def nelyxPackageDirectory = new File(nelyxProviderOutput).parentFile.parentFile
 android.sourceSets.main.java.srcDir(new File(nelyxPackageDirectory,"native/android"))
+android.sourceSets.main.java.srcDir(new File(nelyxPackageDirectory,"native/engine-helpers/platform/android/shared"))
 def nelyxSkiaPath = ["node", "--print", "require.resolve('@nelyx/skia-rn/native-manifest.json')"].execute(null, new File(rootDir, "runner"))
 def nelyxSkiaOutput = nelyxSkiaPath.text.trim()
 if (nelyxSkiaPath.waitFor() != 0 || !nelyxSkiaOutput) { throw new GradleException("Nelyx Skia package resolution failed") }

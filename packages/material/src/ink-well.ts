@@ -23,8 +23,7 @@ import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector'
 import type { GestureOptions } from '@nelyx/core/framework/widgets/gesture-detector';
 import type { TapDownDetails, TapUpDetails } from '@nelyx/core/framework/gestures/tap';
 import { HitTestBehavior } from '@nelyx/core/framework/rendering/pointer-listener';
-import { RenderBox, isNativeRenderObject } from '@nelyx/core/framework/rendering/object';
-import { markNativeInkCenter } from './internal/material/material-ink-owner.ts';
+import { RenderBox } from '@nelyx/core/framework/rendering/object';
 import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { DefaultSelectionStyle } from '@nelyx/core/framework/widgets/default-selection-style';
@@ -435,23 +434,18 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
     if (!this.live) return;
     const reference = this.context.findRenderObject();
     invariant(
-      reference instanceof RenderBox && (isNativeRenderObject(reference) || reference.hasSize),
+      reference instanceof RenderBox && reference.hasSize,
       'unlaid-out-ink',
       'InkResponse needs its actual laid-out RenderBox',
     );
     const factory = this.resolveFactory(),
       o = this.widget.options,
-      position = isNativeRenderObject(reference)
-        ? details
-          ? details.localPosition
-          : new Offset(0, 0)
-        : details
-          ? (() => {
-              const point = reference.globalToLocal(details.globalPosition);
-              return new Offset(point.x, point.y);
-            })()
-          : new Offset(reference.size.width / 2, reference.size.height / 2);
-    if (isNativeRenderObject(reference) && !details) markNativeInkCenter(position);
+      position = details
+        ? (() => {
+            const point = reference.globalToLocal(details.globalPosition);
+            return new Offset(point.x, point.y);
+          })()
+        : new Offset(reference.size.width / 2, reference.size.height / 2);
     this.changing = true;
     try {
       this.controller.update(WidgetState.pressed, true);

@@ -54,7 +54,7 @@ import {
   GestureRecognizerFactoryWithHandlers,
 } from './raw-gesture-detector.ts';
 import type { GestureRecognizerType, GestureRecognizerFactory } from './raw-gesture-detector.ts';
-import { RenderObjectWidget, Element, StatelessWidget, buildNativeWidget } from './framework.ts';
+import { RenderObjectWidget, Element, StatelessWidget } from './framework.ts';
 import type { Widget, BuildContext } from './framework.ts';
 import { EnumProperty } from '../../foundation/diagnostic-properties.ts';
 import type { DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.ts';
@@ -165,8 +165,6 @@ export class GestureDetector extends StatelessWidget {
     return this.options.dragStartBehavior ?? DragStartBehavior.start;
   }
   build(context: BuildContext): Widget {
-    const native = buildNativeWidget(context, 'gesture-detector', this);
-    if (native !== undefined) return native;
     invariant(
       context instanceof Element,
       'invalid-context',

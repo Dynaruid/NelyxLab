@@ -5,12 +5,7 @@ import { Rect } from '@nelyx/core/ui/rect';
 import { RRect } from '@nelyx/core/ui/rrect';
 import { Paint } from '@nelyx/core/ui/paint';
 import { Size } from '@nelyx/core/ui/size';
-import { unwrapSourceDartNum } from '@nelyx/core/foundation/dart-numeric';
 import type { PaintingContext } from '@nelyx/core/framework/painting/context';
-import type {
-  NativePaintEntry,
-  NativePaintScalar as Scalar,
-} from '@nelyx/core/framework/rendering/object';
 import { SliderThemeData } from '@nelyx/material/slider-theme';
 import {
   RangeSliderTrackShape,
@@ -18,7 +13,6 @@ import {
   RangeSliderTickMarkShape,
   RangeSliderValueIndicatorShape,
   SliderComponentShape,
-  registerNativeRangeSliderShape,
 } from '@nelyx/material/slider-shapes';
 import type {
   RangeSliderTrackPaintOptions,
@@ -29,35 +23,7 @@ import type {
   RangeSliderIndicatorSizeOptions,
   RangeSliderIndicatorShiftOptions,
   RangeSliderIndicatorPaintOptions,
-  NativeRangeSliderIndicatorContext,
 } from '@nelyx/material/slider-shapes';
-
-const op = (name: Exclude<Scalar, number>['op'], ...args: Scalar[]): Scalar => ({ op: name, args });
-const add = (a: Scalar, b: Scalar) => op('add', a, b),
-  sub = (a: Scalar, b: Scalar) => op('subtract', a, b),
-  mul = (a: Scalar, b: Scalar) => op('multiply', a, b);
-const shape = {
-  kind: 'rrect' as const,
-  radii: Array(8).fill(0),
-  strokeWidth: 0,
-  strokeAlign: 0,
-  strokeColor: 0,
-};
-function box(
-  x: Scalar,
-  y: Scalar,
-  w: Scalar,
-  h: Scalar,
-  color: number,
-  radius = 0,
-): NativePaintEntry {
-  return {
-    kind: 'shape',
-    color,
-    shape,
-    geometry: { kind: 'program', rect: [x, y, w, h], radii: Array(8).fill(radius) },
-  };
-}
 const blend = (disabled: Color | null, enabled: Color | null, amount: number) =>
   Color.lerp(disabled, enabled, amount)!.toARGB32();
 function draw(context: PaintingContext, rect: Rect, color: number, radius = 0): void {
@@ -88,7 +54,7 @@ export class DemoRangeTrack extends RangeSliderTrackShape {
   ): void {
     const rect = this.getPreferredRect({ ...options, offset }),
       t = options.sliderTheme,
-      amount = unwrapSourceDartNum(options.enableAnimation.value),
+      amount = options.enableAnimation.value,
       first = Math.max(rect.left, Math.min(options.startThumbCenter.dx, options.endThumbCenter.dx)),
       last = Math.min(rect.right, Math.max(options.startThumbCenter.dx, options.endThumbCenter.dx));
     draw(context, rect, blend(t.disabledInactiveTrackColor, t.inactiveTrackColor, amount), 3);
@@ -115,7 +81,7 @@ export class DemoRangeThumb extends RangeSliderThumbShape {
       blend(
         options.sliderTheme.disabledThumbColor,
         options.sliderTheme.thumbColor,
-        unwrapSourceDartNum(options.enableAnimation.value),
+        options.enableAnimation.value,
       ),
       4,
     );
@@ -140,7 +106,7 @@ export class DemoRangeTick extends RangeSliderTickMarkShape {
       blend(
         between ? t.disabledActiveTickMarkColor : t.disabledInactiveTickMarkColor,
         between ? t.activeTickMarkColor : t.inactiveTickMarkColor,
-        unwrapSourceDartNum(options.enableAnimation.value),
+        options.enableAnimation.value,
       ),
       0.2,
     );
@@ -155,7 +121,7 @@ export class DemoRangeOverlay extends SliderComponentShape {
     center: Offset,
     options: SliderComponentPaintOptions,
   ): void {
-    const radius = 20 * unwrapSourceDartNum(options.activationAnimation.value);
+    const radius = 20 * options.activationAnimation.value;
     draw(
       context,
       Rect.fromLTWH(center.dx - radius, center.dy - radius, radius * 2, radius * 2),
@@ -184,7 +150,7 @@ export class DemoRangeIndicator extends RangeSliderValueIndicatorShape {
     center: Offset,
     options: RangeSliderIndicatorPaintOptions,
   ): void {
-    const a = unwrapSourceDartNum(options.activationAnimation.value),
+    const a = options.activationAnimation.value,
       painter = options.labelPainter,
       shift = this.getHorizontalShift({ ...options, center });
     const canvas = context.canvas;
@@ -209,125 +175,6 @@ export class DemoRangeIndicator extends RangeSliderValueIndicatorShape {
     }
   }
 }
-
-registerNativeRangeSliderShape(DemoRangeTrack.prototype, {
-  kind: 'track',
-  rect: (_, { enabled, discrete }) => {
-    const inset = op('min', mul(op('width'), 0.5), trackInset(enabled, discrete));
-    return {
-      left: inset,
-      top: sub(mul(op('height'), 0.5), 3),
-      width: op('max', 0, sub(op('width'), mul(2, inset))),
-      height: 6,
-    };
-  },
-  paint: (_, { source: s, geometry: g }) => [
-    box(
-      g.left,
-      g.top,
-      g.width,
-      g.height,
-      blend(s.theme.disabledInactiveTrackColor, s.theme.inactiveTrackColor, s.enable),
-      3,
-    ),
-    box(
-      op('max', g.left, g.first),
-      g.top,
-      op('max', 0, sub(op('min', g.right, g.last), op('max', g.left, g.first))),
-      g.height,
-      blend(s.theme.disabledActiveTrackColor, s.theme.activeTrackColor, s.enable),
-      3,
-    ),
-  ],
-});
-registerNativeRangeSliderShape(DemoRangeThumb.prototype, {
-  kind: 'thumb',
-  paint: (_, { center: [x, y], source: s }) => [
-    box(
-      sub(x, 7),
-      sub(y, 11),
-      14,
-      22,
-      blend(s.theme.disabledThumbColor, s.theme.thumbColor, s.enable),
-      4,
-    ),
-  ],
-});
-registerNativeRangeSliderShape(DemoRangeTick.prototype, {
-  kind: 'tick',
-  repeat: true,
-  paint: (_, { center: [x, y], source: s, geometry: g }) => {
-    const between = mul(op('greater', x, g.first), op('less', x, g.last)),
-      t = s.theme;
-    const entry = box(sub(x, 0.2), sub(y, 0.2), 0.4, 0.4, 0, 0.2);
-    return [
-      {
-        ...entry,
-        geometry: {
-          ...(entry.geometry as Extract<NativePaintEntry['geometry'], { kind: 'program' }>),
-          color: op(
-            'select',
-            between,
-            blend(t.disabledActiveTickMarkColor, t.activeTickMarkColor, s.enable),
-            blend(t.disabledInactiveTickMarkColor, t.inactiveTickMarkColor, s.enable),
-          ),
-        },
-      },
-    ];
-  },
-});
-registerNativeRangeSliderShape(DemoRangeOverlay.prototype, {
-  kind: 'overlay',
-  paint: (_, { center: [x, y], activation, source: s }) => {
-    const radius = 20 * activation;
-    return [
-      box(
-        sub(x, radius),
-        sub(y, radius),
-        radius * 2,
-        radius * 2,
-        s.theme.overlayColor!.toARGB32(),
-        radius,
-      ),
-    ];
-  },
-});
-function indicatorShift(c: NativeRangeSliderIndicatorContext): Scalar {
-  const x = op('worldX', c.center[0], c.center[1]),
-    half = c.label.width / 2 + 8,
-    width = c.screenWidth ?? op('width');
-  return op('max', sub(8 + half, x), op('min', 0, sub(sub(width, 8 + half), x)));
-}
-registerNativeRangeSliderShape(DemoRangeIndicator.prototype, {
-  kind: 'indicator',
-  horizontalShift: (_, c) => indicatorShift(c),
-  paint: (_, c) => {
-    const a = c.activation,
-      x = add(c.center[0], mul(sub(indicatorShift(c), c.label.width / 2), a)),
-      y = sub(c.center[1], (c.label.height + 34) * a);
-    return [
-      box(
-        sub(x, 8 * a),
-        sub(y, 6 * a),
-        (c.label.width + 16) * a,
-        (c.label.height + 12) * a,
-        c.source.theme.valueIndicatorColor!.toARGB32(),
-        5 * a,
-      ),
-      ...c.label.entries.map((entry) => {
-        if (entry.geometry?.kind !== 'program') throw Error('Invalid Demo label geometry');
-        const r = entry.geometry.rect;
-        return {
-          ...entry,
-          geometry: {
-            kind: 'program' as const,
-            rect: [add(x, mul(r[0], a)), add(y, mul(r[1], a)), mul(r[2], a), mul(r[3], a)] as const,
-          },
-        };
-      }),
-    ];
-  },
-});
 
 export const demoRangeTheme = new SliderThemeData({
   rangeTrackShape: new DemoRangeTrack(),

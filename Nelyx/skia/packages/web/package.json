@@ -6,7 +6,7 @@
   "sideEffects": false,
   "license": "BSD-3-Clause AND MIT",
   "dependencies": {
-    "@nelyx/core": "0.16.0",
+    "@nelyx/core": "0.17.0",
     "canvaskit-wasm": "0.41.0"
   },
   "files": [

@@ -7,7 +7,6 @@ import type { HitTestEntry, TextBaseline } from '@nelyx/core/framework/rendering
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import type { Size, Offset, TransformMatrix } from '@nelyx/core/ui/geometry';
 import { contains, identity, multiply } from '@nelyx/core/ui/geometry';
-import { registerNativeRenderMetadata } from '@nelyx/core/framework/rendering/object';
 export class ButtonInputPadding extends SingleChildRenderObjectWidget {
   constructor(
     readonly minSize: Size,
@@ -104,8 +103,3 @@ export class RenderButtonInputPadding extends RenderShiftedBox {
   }
 }
 RenderShiftedBox._registerGeometryLayoutSemantics(RenderButtonInputPadding.prototype);
-registerNativeRenderMetadata(RenderButtonInputPadding.prototype, (source) => ({
-  kind: 'inputPadding',
-  width: source.minSize.width,
-  height: source.minSize.height,
-}));

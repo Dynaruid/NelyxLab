@@ -18,6 +18,55 @@ const manifest = JSON.parse(
 );
 const formatOptions = JSON.parse(fs.readFileSync('.oxfmtrc.json', 'utf8'));
 delete formatOptions.$schema;
+// Dart permits unused parameters. Preserve named keys and only rename unused local bindings.
+function unusedParameterBindings(output: string): string {
+  const file = 'date-picker-output.ts';
+  const source = ts.createSourceFile(file, output, ts.ScriptTarget.Latest, true);
+  const host = ts.createCompilerHost({});
+  host.getSourceFile = (name) => (name === file ? source : undefined);
+  const program = ts.createProgram([file], { noLib: true, noResolve: true }, host);
+  const checker = program.getTypeChecker();
+  const references = new Map<ts.Symbol, number>();
+  function count(node: ts.Node): void {
+    if (ts.isShorthandPropertyAssignment(node)) {
+      const symbol = checker.getShorthandAssignmentValueSymbol(node);
+      if (symbol) references.set(symbol, (references.get(symbol) ?? 0) + 1);
+    }
+    if (ts.isIdentifier(node)) {
+      const symbol = checker.getSymbolAtLocation(node);
+      if (symbol) references.set(symbol, (references.get(symbol) ?? 0) + 1);
+    }
+    ts.forEachChild(node, count);
+  }
+  count(source);
+  const edits: { start: number; end: number; text: string }[] = [];
+  function visit(node: ts.Node): void {
+    if ((ts.isParameter(node) || ts.isBindingElement(node)) && ts.isIdentifier(node.name)) {
+      let parameter: ts.Node = node;
+      while (ts.isBindingElement(parameter) || ts.isBindingPattern(parameter))
+        parameter = parameter.parent;
+      const symbol = checker.getSymbolAtLocation(node.name);
+      if (
+        ts.isParameter(parameter) &&
+        !parameter.modifiers?.length &&
+        !node.name.text.startsWith('_') &&
+        symbol &&
+        references.get(symbol) === 1
+      ) {
+        const text =
+          ts.isBindingElement(node) && !node.propertyName && ts.isObjectBindingPattern(node.parent)
+            ? node.name.text + ': _' + node.name.text
+            : '_' + node.name.text;
+        edits.push({ start: node.name.getStart(source), end: node.name.end, text });
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  for (const edit of edits.sort((a, b) => b.start - a.start))
+    output = output.slice(0, edit.start) + edit.text + output.slice(edit.end);
+  return output;
+}
 function analyze() {
   const sourceRoot = path.resolve(argument('--source') ?? 'reference/flutter-master');
   const dart = argument('--dart') ?? process.env.DART_EXECUTABLE ?? 'dart';
@@ -1275,21 +1324,9 @@ for (const source of new Set(ir.records.map((r: any) => r.source))) {
     );
     if (source.endsWith('/calendar_date_picker.dart'))
       output += `
-// Exact generated owners for inherited lookup and native regular-grid parameters.
+// Exact generated owner for Source inherited lookup.
 import { registerDateFocusedType } from "../../internal/date/source-host.ts";
-import { registerNativeRegularGridDelegate } from "@nelyx/core/internal/framework/rendering/native-grid";
 registerDateFocusedType(_FocusedDate);
-// Exact lowering of _DayPickerGridDelegate.getLayout above. Context controls
-// numeric policy; actual viewport dimensions and tile placement stay in Core.
-registerNativeRegularGridDelegate(_DayPickerGridDelegate.prototype, (delegate) => {
-  const textScaleFactor = MediaQuery.textScalerOf(delegate.context).clamp({ maxScaleFactor: 3 }).scale(_fontSizeToScale) / _fontSizeToScale;
-  const rowHeight = SourceDateTheme.of(delegate.context).useMaterial3 &&
-    scrollbarRawObjectEquals(dateOrientationOf(delegate.context), 'portrait')
-    ? _dayPickerRowHeightM3 : _dayPickerRowHeightM2;
-  return { columns: DateTime.daysPerWeek, rows: _maxDayPickerRowCount + 1,
-    maximumRowExtent: textScaleFactor > 1.3 ? (textScaleFactor - 1) * 30 + rowHeight : rowHeight };
-});
-registerNativeRegularGridDelegate(_YearPickerGridDelegate.prototype);
 `;
     const enums = rows.filter((row: any) => row.ir?.kind === 'enum');
     if (enums.length)
@@ -1297,7 +1334,7 @@ registerNativeRegularGridDelegate(_YearPickerGridDelegate.prototype);
         '\nimport { registerDateEnumValues } from "../../internal/date/source-values.ts";\n' +
         enums.map((row: any) => `registerDateEnumValues(${row.ir.name});`).join('\n') +
         '\n';
-    const formatted = await format('generated.ts', output, formatOptions);
+    const formatted = await format('generated.ts', unusedParameterBindings(output), formatOptions);
     if (formatted.errors.length) throw Error('Generated TypeScript formatting failed');
     output = formatted.code;
     passed += rows.length;

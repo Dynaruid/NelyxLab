@@ -34,10 +34,6 @@ export function fixedTreeExtent(builder: Function): number | null {
 /** Core owns construction/layout; the complete generated source owns painting. */
 export abstract class TreeRenderHost extends RenderSliverVariedExtentList {
   abstract sourcePaint(context: PaintingContext, offset: Offset): void;
-  // Retain the source's animation clip layers in the Core scene graph.
-  get needsCompositing(): boolean {
-    return true;
-  }
   protected override performLayout(): void {
     super.performLayout(this.constraints);
   }

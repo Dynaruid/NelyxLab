@@ -15,9 +15,7 @@ import type { AlignmentGeometry } from '../painting/alignment.ts';
 import type { EdgeInsetsGeometry } from '../painting/edge-insets.ts';
 import type { Decoration } from '../painting/decoration.ts';
 import { BoxConstraints } from '../rendering/constraints.ts';
-import { CustomClipper, registerNativeClipperConfiguration } from '../rendering/clip.ts';
-import { nativeRenderMetadata } from '../rendering/native-paint.ts';
-import { BoxDecoration } from '../painting/box-decoration.ts';
+import { CustomClipper } from '../rendering/clip.ts';
 import { StatelessWidget } from './framework.ts';
 import type { Widget, WidgetOptions, BuildContext } from './framework.ts';
 import {
@@ -217,53 +215,6 @@ export class Container extends StatelessWidget {
   }
 }
 class DecorationClipper extends CustomClipper<Path> {
-  static {
-    registerNativeClipperConfiguration(DecorationClipper.prototype, (clipper) => {
-      const decoration = clipper.decoration;
-      if (Object.getPrototypeOf(decoration) === BoxDecoration.prototype) {
-        const box = decoration as BoxDecoration;
-        if (box.shape === 'circle') return { shape: 'circle', hitTestShape: true };
-        const radius = box.borderRadius?.resolve(clipper.textDirection);
-        return radius
-          ? {
-              shape: 'rrect',
-              hitTestShape: true,
-              radii: [
-                radius.topLeft.x,
-                radius.topLeft.y,
-                radius.topRight.x,
-                radius.topRight.y,
-                radius.bottomRight.x,
-                radius.bottomRight.y,
-                radius.bottomLeft.x,
-                radius.bottomLeft.y,
-              ],
-            }
-          : { shape: 'rect', hitTestShape: true };
-      }
-      const metadata = nativeRenderMetadata(decoration, clipper.textDirection);
-      if (metadata?.kind !== 'decoration') throw Error('Unsupported native decoration clipper');
-      const shape = metadata.shape;
-      return {
-        shape: shape.kind === 'rrect' ? 'rrect' : shape.kind,
-        hitTestShape: true,
-        ...(shape.kind === 'rrect'
-          ? {
-              radii: shape.radii as readonly [
-                number,
-                number,
-                number,
-                number,
-                number,
-                number,
-                number,
-                number,
-              ],
-            }
-          : {}),
-      };
-    });
-  }
   constructor(
     readonly decoration: Decoration,
     readonly textDirection: 'ltr' | 'rtl',

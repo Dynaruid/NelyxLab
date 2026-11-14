@@ -42,7 +42,6 @@ import { BorderRadius, BorderRadiusGeometry } from '@nelyx/core/framework/painti
 import type { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import { ShapeBorderClipper } from '@nelyx/core/framework/rendering/shape-border-clipper';
 import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';
-import { registerNativeRenderMetadata, nativeShape } from '@nelyx/core/framework/rendering/object';
 import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
 import { ClipPath } from '@nelyx/core/framework/widgets/clip';
 import { Directionality } from '@nelyx/core/framework/widgets/app-data';
@@ -56,15 +55,15 @@ import {
   MaterialInkController,
   materialDefaultSplashRadius,
 } from './internal/material/material-ink-owner.ts';
-export { InkFeature, MaterialInkController } from './internal/material/material-ink-owner.ts';
-export type { InkFeatureOptions } from './internal/material/material-ink-owner.ts';
 import { MaterialType } from './generated/material/material-values.generated.ts';
-export { MaterialType } from './generated/material/material-values.generated.ts';
 import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
 import { valueEquals } from '@nelyx/core/framework/painting/value-equality';
 import { ValueNotifier } from '@nelyx/core/foundation/notifier';
 import type { ValueListenable } from '@nelyx/core/foundation/notifier';
 import { RenderPhysicalShape } from '@nelyx/core/framework/rendering/clip';
+export { InkFeature, MaterialInkController } from './internal/material/material-ink-owner.ts';
+export type { InkFeatureOptions } from './internal/material/material-ink-owner.ts';
+export { MaterialType } from './generated/material/material-values.generated.ts';
 export interface MaterialOptions extends WidgetOptions {
   readonly type?: MaterialType;
   /** @dartType double */
@@ -551,11 +550,3 @@ function borderPaint(
   const painter = new ShapePainter(shape, context.maybeDependOn(Directionality)?.direction ?? null);
   return new CustomPaint(child, foreground ? { foregroundPainter: painter } : { painter });
 }
-registerNativeRenderMetadata(AnimatedShapePainter.prototype, (source) => ({
-  kind: 'border',
-  shape: source.border.value ? nativeShape(source.border.value, source.direction) : null,
-}));
-registerNativeRenderMetadata(ShapePainter.prototype, (source) => ({
-  kind: 'border',
-  shape: nativeShape(source.border, source.direction),
-}));

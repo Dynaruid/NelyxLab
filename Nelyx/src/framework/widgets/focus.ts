@@ -85,37 +85,8 @@ export interface FocusAttachmentOptions {
   readonly blur?: () => void;
   readonly reveal?: (options?: TraversalRequestFocusOptions) => void;
 }
-/** @internal An owning native adapter supplies committed geometry and queued OS focus commands. */
-export interface NativeFocusBinding extends Pick<
-  FocusAttachmentOptions,
-  'focus' | 'blur' | 'reveal'
-> {
-  readonly geometry: () => { readonly rect: Rect; readonly offset: Offset };
-}
-const nativeFocusBindings = new WeakMap<
-  FocusNode,
-  { owner: object; binding: NativeFocusBinding }
->();
-/** @internal Native bindings never change an ordinary FocusNode's attachment or source lifecycle. */
-export function bindNativeFocusNode(
-  node: FocusNode,
-  owner: object,
-  binding: NativeFocusBinding,
-): () => void {
-  const previous = nativeFocusBindings.get(node);
-  invariant(
-    !previous || previous.owner === owner,
-    'foreign-native-focus',
-    'FocusNode belongs to another native owner',
-  );
-  const entry = { owner, binding };
-  nativeFocusBindings.set(node, entry);
-  return () => {
-    if (nativeFocusBindings.get(node) === entry) nativeFocusBindings.delete(node);
-  };
-}
 function focusCommands(node: FocusNode): FocusAttachmentOptions {
-  return nativeFocusBindings.get(node)?.binding ?? state(node).commands;
+  return state(node).commands;
 }
 export interface FocusScopeNodeOptions extends FocusNodeOptions {
   readonly traversalEdgeBehavior?: TraversalEdgeBehavior;
@@ -685,8 +656,6 @@ export class FocusNode extends ChangeNotifier {
     else d.manager.blur(this);
   }
   get rect(): Rect {
-    const native = nativeFocusBindings.get(this);
-    if (native) return native.binding.geometry().rect;
     const render = this.context?.findRenderObject();
     if (!(render instanceof RenderBox && render.hasSize))
       invariant(false, 'missing-focus-geometry', 'Focus geometry requires a laid-out RenderBox');
@@ -696,8 +665,6 @@ export class FocusNode extends ChangeNotifier {
     return Rect.fromLTRB(a.x, a.y, z.x, z.y);
   }
   get offset(): Offset {
-    const native = nativeFocusBindings.get(this);
-    if (native) return native.binding.geometry().offset;
     const render = this.context?.findRenderObject();
     if (!(render instanceof RenderBox && render.hasSize))
       invariant(false, 'missing-focus-geometry', 'Focus offset requires a laid-out RenderBox');
@@ -723,7 +690,6 @@ export class FocusNode extends ChangeNotifier {
     d.commands = {};
     d.context = null;
     d.dead = true;
-    nativeFocusBindings.delete(this);
     try {
       super.dispose();
     } catch (error) {

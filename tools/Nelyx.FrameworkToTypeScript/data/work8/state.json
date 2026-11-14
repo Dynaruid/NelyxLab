@@ -36388,5 +36388,6 @@
       "file": "tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json",
       "sha256": "0c368e3c90a47baa92a6b754fe0d259bbc16115881739b19e2ffbc0ed033ac30"
     }
-  }
+  },
+  "currentSourceScope": "work12 Source transition: current adopted files retain historical base/fingerprint and validation records. Historical promotion is not current behavior qualification. Reuse requires a current validator; no batch was resumed or promoted."
 }

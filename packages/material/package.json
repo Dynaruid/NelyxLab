@@ -1,6 +1,6 @@
 {
   "name": "@nelyx/material",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "sideEffects": false,
@@ -14,8 +14,10 @@
     "assets"
   ],
   "exports": {
-    "./date-picker": { "types": "./dist/date-picker.d.ts", "default": "./dist/date-picker.js" },
-    "./v2": { "types": "./dist/v2.d.ts", "default": "./dist/v2.js" },
+    "./date-picker": {
+      "types": "./dist/date-picker.d.ts",
+      "default": "./dist/date-picker.js"
+    },
     "./widgets": {
       "types": "./dist/widgets.d.ts",
       "default": "./dist/widgets.js"
@@ -770,7 +772,7 @@
     }
   },
   "peerDependencies": {
-    "@nelyx/core": "0.16.0"
+    "@nelyx/core": "0.17.0"
   },
   "scripts": {
     "build": "node ../../Nelyx/eng/build-packages.mjs material",
@@ -778,6 +780,6 @@
   },
   "dependencies": {
     "@material/material-color-utilities": "0.3.0",
-    "@nelyx/cupertino": "0.1.0"
+    "@nelyx/cupertino": "0.2.0"
   }
 }

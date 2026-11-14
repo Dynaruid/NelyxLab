@@ -11,14 +11,8 @@ import { verifyPackageSourceInputs } from './package-source-inputs.mjs';
 
 async function verifyEmitInventory(directory) {
   const { default: ts } = await import('typescript'),
-    manifest = JSON.parse(fs.readFileSync(path.join(directory, 'package.json'), 'utf8')),
     expected = new Set();
-  // Match build-packages: Core emits both the canonical src tree and its
-  // separate v2 runtime program into the same current dist.
-  for (const relative of [
-    'tsconfig.build.json',
-    ...(manifest.name === '@nelyx/core' ? ['runtime/tsconfig.json'] : []),
-  ]) {
+  for (const relative of ['tsconfig.build.json']) {
     const config = path.join(directory, relative),
       read = ts.readConfigFile(config, ts.sys.readFile);
     if (read.error) throw Error('Cannot read package build configuration: ' + config);

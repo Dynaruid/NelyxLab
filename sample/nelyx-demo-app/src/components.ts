@@ -21,13 +21,7 @@ import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
 import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
 import { Directionality } from '@nelyx/core/framework/widgets/app-data';
-import {
-  Curve,
-  Curves,
-  Interval,
-  nativeCurveConfiguration,
-  registerNativeCurveConfiguration,
-} from '@nelyx/core/framework/animation/curves';
+import { Curve, Curves, Interval } from '@nelyx/core/framework/animation/curves';
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
 import { TextFieldTapRegion } from '@nelyx/core/framework/widgets/tap-region';
 import { RadioGroup } from '@nelyx/core/framework/widgets/radio-group';
@@ -77,9 +71,6 @@ class MessageScrollCurve extends Curve {
     return messageCurve.transform(t);
   }
 }
-registerNativeCurveConfiguration(MessageScrollCurve.prototype, () =>
-  nativeCurveConfiguration(messageCurve),
-);
 const curvedMessageScroll = new MessageScrollCurve();
 
 const groups = [

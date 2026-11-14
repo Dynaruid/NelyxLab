@@ -2,12 +2,7 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Flutter widgets/raw_tooltip.dart at 71e4717a61786faab4c7aa39825989305ed29e8a.
 // Existing bounded OverlayEntry transports the overlay; the State owns its lifetime.
-import {
-  StatefulWidget,
-  Element,
-  SingleChildRenderObjectWidget,
-  buildNativeWidget,
-} from './framework.ts';
+import { StatefulWidget, Element, SingleChildRenderObjectWidget } from './framework.ts';
 import type { BuildContext, Widget, WidgetOptions, BuildOwner } from './framework.ts';
 import { SingleTickerProviderStateMixin } from './ticker-provider.ts';
 import { AnimationController } from '../animation/animation-controller.ts';
@@ -20,9 +15,8 @@ import { Overlay, OverlayEntry } from './overlay.ts';
 import { InheritedTheme } from './inherited-theme.ts';
 import { MediaQuery, Directionality } from './app-data.ts';
 import { MouseRegion } from './mouse-region.ts';
-import { RenderMouseRegion, registerNativeMouseRegion } from '../rendering/mouse-region.ts';
+import { RenderMouseRegion } from '../rendering/mouse-region.ts';
 import { Listener } from './listener.ts';
-import { GestureDetector } from './gesture-detector.ts';
 import { HitTestBehavior } from '../rendering/pointer-listener.ts';
 import { Semantics } from './semantics.ts';
 import { IgnorePointer } from './pointer-blocking.ts';
@@ -65,7 +59,6 @@ import { positionDependentBox } from '../painting/geometry.ts';
 import { protect } from '../../ui/value-math.ts';
 import { valueEquals, hashValues } from '../painting/value-equality.ts';
 import { invariant } from '../../foundation/errors.ts';
-import { registerNativeBoxConfiguration } from '../rendering/native-box.ts';
 import { StringProperty, DiagnosticsProperty } from '../../foundation/diagnostics.ts';
 import type { DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.ts';
 import { FlagProperty } from '../../foundation/diagnostic-properties.ts';
@@ -75,27 +68,6 @@ export type TooltipComponentBuilder = (
   animation: Animation<number>,
 ) => Widget;
 export type TooltipPositionDelegate = (context: TooltipPositionContext) => Offset;
-interface NativeTooltipPositionPolicy {
-  readonly verticalOffset: number;
-  readonly preferBelow: boolean;
-  readonly margin: number;
-}
-const nativeTooltipDelegates = new WeakMap<
-  TooltipPositionDelegate,
-  () => NativeTooltipPositionPolicy | null
->();
-/** @internal Design policy stays in TS; Core resolves current target and child geometry. */
-export function registerNativeTooltipPositionDelegate(
-  delegate: TooltipPositionDelegate,
-  policy: () => NativeTooltipPositionPolicy | null,
-): void {
-  invariant(
-    !nativeTooltipDelegates.has(delegate),
-    'duplicate-tooltip-delegate',
-    'Tooltip delegate is already registered',
-  );
-  nativeTooltipDelegates.set(delegate, policy);
-}
 export type TooltipTriggeredCallback = () => void;
 export class TooltipPositionContext {
   readonly target: Offset;
@@ -366,7 +338,6 @@ class RenderExclusiveMouseRegion extends RenderMouseRegion {
     }
   }
 }
-registerNativeMouseRegion(RenderExclusiveMouseRegion.prototype, true);
 /** Source position decisions with live sibling geometry at paint/hit/semantics.
  * This prevents an OverlayEntry from lagging behind a moved/transformed anchor. */
 class TooltipPositionWidget extends SingleChildRenderObjectWidget {
@@ -480,18 +451,6 @@ class RenderTooltipPosition extends RenderProxyBox {
     if (this.position()) super.collectSemantics(output, matrix, clip);
   }
 }
-registerNativeBoxConfiguration(RenderTooltipPosition.prototype, (render, reject) => {
-  const policy = render.positionDelegate
-    ? nativeTooltipDelegates.get(render.positionDelegate)?.()
-    : { verticalOffset: 0, preferBelow: true, margin: 10 };
-  if (!policy) return reject('custom-tooltip-position-delegate');
-  return {
-    kind: 'box',
-    hitTest: 'proxy',
-    layout: { childConstraints: 'loose', alignmentSizing: true, alignment: { x: -1, y: -1 } },
-    tooltipPosition: { target: render.target, ...policy },
-  };
-});
 const triggerDevices = new Set([
   PointerDeviceKind.invertedStylus,
   PointerDeviceKind.stylus,
@@ -506,7 +465,6 @@ export class RawTooltipState extends SingleTickerProviderStateMixin<RawTooltip> 
   private backingAnimation: CurvedAnimation | null = null;
   private entry: OverlayEntry | null = null;
   private tap: TapGestureRecognizer | null = null;
-  private nativePointer: number | null = null;
   private longPress: LongPressGestureRecognizer | null = null;
   private status = AnimationStatus.dismissed;
   private retiring = false;
@@ -643,7 +601,6 @@ export class RawTooltipState extends SingleTickerProviderStateMixin<RawTooltip> 
     if (
       !this.live ||
       this.tap?.primaryPointer === event.pointer ||
-      this.nativePointer === event.pointer ||
       this.longPress?.primaryPointer === event.pointer
     )
       return;
@@ -777,55 +734,12 @@ export class RawTooltipState extends SingleTickerProviderStateMixin<RawTooltip> 
     if (errors.length) throw new AggregateError(errors, 'Tooltip retirement failed');
   }
   build(context: BuildContext): Widget {
-    const native = buildNativeWidget(context, 'raw-tooltip', this.widget);
-    if (native) return native;
     if (this.widget.semanticsTooltip === '') return this.widget.child;
     Overlay.of(context);
     return new ExclusiveMouseRegion(
       new Listener(
         new Semantics({ tooltip: this.widget.semanticsTooltip, child: this.widget.child }),
         { onPointerDown: this.pointerDown, behavior: HitTestBehavior.opaque },
-      ),
-      { onEnter: this.mouseEnter, onExit: this.mouseExit },
-    );
-  }
-  /** @internal The same State/timers/overlay are driven by Content recognition. */
-  buildNative(context: BuildContext): Widget {
-    if (this.widget.semanticsTooltip === '') return this.widget.child;
-    Overlay.of(context);
-    const tap = this.widget.triggerMode === TooltipTriggerMode.tap,
-      long = this.widget.triggerMode === TooltipTriggerMode.longPress;
-    return new ExclusiveMouseRegion(
-      new Listener(
-        new GestureDetector(
-          new Semantics({ tooltip: this.widget.semanticsTooltip, child: this.widget.child }),
-          {
-            behavior: HitTestBehavior.opaque,
-            excludeFromSemantics: true,
-            supportedDevices: triggerDevices,
-            ...(tap ? { onTap: this.handleTap, onTapCancel: this.tapToDismiss } : {}),
-            ...(long
-              ? {
-                  onLongPress: this.handleLongPress,
-                  onLongPressUp: this.pressUp,
-                  onLongPressCancel: this.tapToDismiss,
-                }
-              : {}),
-          },
-        ),
-        {
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: (event) => {
-            if (this.live && triggerDevices.has(event.kind) && (tap || long))
-              this.nativePointer = event.pointer;
-          },
-          onPointerUp: () => {
-            this.nativePointer = null;
-          },
-          onPointerCancel: () => {
-            this.nativePointer = null;
-          },
-        },
       ),
       { onEnter: this.mouseEnter, onExit: this.mouseExit },
     );

@@ -40,9 +40,9 @@ export class InputDatePickerFormField extends ScrollbarStatefulHost {
   readonly initialDate: DateTime | null;
   readonly firstDate: DateTime;
   readonly lastDate: DateTime;
-  readonly onDateSubmitted: ((argument0: DateTime) => void) | null;
-  readonly onDateSaved: ((argument0: DateTime) => void) | null;
-  readonly selectableDayPredicate: ((argument0: DateTime) => boolean) | null;
+  readonly onDateSubmitted: ((_argument0: DateTime) => void) | null;
+  readonly onDateSaved: ((_argument0: DateTime) => void) | null;
+  readonly selectableDayPredicate: ((_argument0: DateTime) => boolean) | null;
   readonly errorFormatText: string | null;
   readonly errorInvalidText: string | null;
   readonly fieldHintText: string | null;
@@ -74,9 +74,9 @@ export class InputDatePickerFormField extends ScrollbarStatefulHost {
     readonly initialDate?: DateTime | null;
     readonly firstDate: DateTime;
     readonly lastDate: DateTime;
-    readonly onDateSubmitted?: ((argument0: DateTime) => void) | null;
-    readonly onDateSaved?: ((argument0: DateTime) => void) | null;
-    readonly selectableDayPredicate?: ((argument0: DateTime) => boolean) | null;
+    readonly onDateSubmitted?: ((_argument0: DateTime) => void) | null;
+    readonly onDateSaved?: ((_argument0: DateTime) => void) | null;
+    readonly selectableDayPredicate?: ((_argument0: DateTime) => boolean) | null;
     readonly errorFormatText?: string | null;
     readonly errorInvalidText?: string | null;
     readonly fieldHintText?: string | null;
@@ -242,7 +242,7 @@ export class _InputDatePickerFormFieldState extends State<InputDatePickerFormFie
     ) {
       void scrollbarPostFrame(
         this,
-        (timeStamp: number): void => {
+        (_timeStamp: number): void => {
           void this.setState((): void => {
             void (this._dart_08de5281b9ede809_selectedDate = this.widget.initialDate);
             void this._dart_08de5281b9ede809_updateValueForSelectedDate();
@@ -337,7 +337,7 @@ export class _InputDatePickerFormFieldState extends State<InputDatePickerFormFie
   }
   _dart_08de5281b9ede809_updateDate(
     text: string | null,
-    callback: ((argument0: DateTime) => void) | null,
+    callback: ((_argument0: DateTime) => void) | null,
   ): void {
     const date: DateTime | null = this._dart_08de5281b9ede809_parseDate(text);
     if (this._dart_08de5281b9ede809_isValidAcceptableDate(date)) {

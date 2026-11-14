@@ -696,6 +696,8 @@ export class FrameworkRoot implements ViewController {
       );
       finishDiagnostic?.('optional-work');
       if (!this.isViewOpen() || this.scheduler.disposed) return [];
+      this.pipeline.flushCompositingBits();
+      finishDiagnostic?.('compositing');
       this.scheduler.phase = 'paint';
       const paintCounts = diagnostics
         ? {
@@ -1242,6 +1244,7 @@ export class FrameworkRoot implements ViewController {
     painting.save();
     painting.transform(render.localTransform);
     withRenderPaint(() => render.paint(painting));
+    render._didPaint();
     painting.restore();
   }
   pointer(event: PointerEvent): void {

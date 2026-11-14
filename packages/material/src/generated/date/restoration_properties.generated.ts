@@ -21,7 +21,7 @@ export class RestorableDateTimeN extends SourceRestorableValue<DateTime | null> 
   override createDefaultValue(): DateTime | null {
     return this._dart_28c900461d797ad7_defaultValue;
   }
-  override didUpdateValue(oldValue: DateTime | null): void {
+  override didUpdateValue(_oldValue: DateTime | null): void {
     if (FoundationBuildMode.debug)
       invariant(
         debugIsSerializableForRestoration(

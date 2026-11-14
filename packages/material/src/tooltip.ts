@@ -7,7 +7,6 @@ import {
   RawTooltip,
   TooltipTriggerMode,
   TooltipPositionContext,
-  registerNativeTooltipPositionDelegate,
 } from '@nelyx/core/framework/widgets/raw-tooltip';
 import type {
   RawTooltipState,
@@ -198,15 +197,6 @@ export class TooltipState extends State<Tooltip> {
   private theme = new TooltipThemeData();
   constructor() {
     super();
-    registerNativeTooltipPositionDelegate(this.position, () =>
-      this.widget.positionDelegate
-        ? null
-        : {
-            verticalOffset: this.widget.verticalOffset ?? this.theme.verticalOffset ?? 24,
-            preferBelow: this.widget.preferBelow ?? this.theme.preferBelow ?? true,
-            margin: 10,
-          },
-    );
   }
   ensureTooltipVisible(): boolean {
     return this.tooltipKey.currentState?.ensureTooltipVisible() ?? false;

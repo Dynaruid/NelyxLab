@@ -270,10 +270,10 @@ export class CalendarDatePicker extends ScrollbarStatefulHost {
   readonly firstDate: DateTime;
   readonly lastDate: DateTime;
   readonly currentDate: DateTime;
-  readonly onDateChanged: (argument0: DateTime) => void;
-  readonly onDisplayedMonthChanged: ((argument0: DateTime) => void) | null;
+  readonly onDateChanged: (_argument0: DateTime) => void;
+  readonly onDisplayedMonthChanged: ((_argument0: DateTime) => void) | null;
   readonly initialCalendarMode: DatePickerMode;
-  readonly selectableDayPredicate: ((argument0: DateTime) => boolean) | null;
+  readonly selectableDayPredicate: ((_argument0: DateTime) => boolean) | null;
   readonly calendarDelegate: CalendarDelegate<DateTime>;
   constructor({
     key = null,
@@ -292,10 +292,10 @@ export class CalendarDatePicker extends ScrollbarStatefulHost {
     readonly firstDate: DateTime;
     readonly lastDate: DateTime;
     readonly currentDate?: DateTime | null;
-    readonly onDateChanged: (argument0: DateTime) => void;
-    readonly onDisplayedMonthChanged?: ((argument0: DateTime) => void) | null;
+    readonly onDateChanged: (_argument0: DateTime) => void;
+    readonly onDisplayedMonthChanged?: ((_argument0: DateTime) => void) | null;
     readonly initialCalendarMode?: DatePickerMode;
-    readonly selectableDayPredicate?: ((argument0: DateTime) => boolean) | null;
+    readonly selectableDayPredicate?: ((_argument0: DateTime) => boolean) | null;
     readonly calendarDelegate?: CalendarDelegate<DateTime>;
   }) {
     const _initialField0 = onDateChanged;
@@ -1034,9 +1034,9 @@ export class _MonthPicker extends ScrollbarStatefulHost {
   readonly firstDate: DateTime;
   readonly lastDate: DateTime;
   readonly selectedDate: DateTime | null;
-  readonly onChanged: (argument0: DateTime) => void;
-  readonly onDisplayedMonthChanged: (argument0: DateTime) => void;
-  readonly selectableDayPredicate: ((argument0: DateTime) => boolean) | null;
+  readonly onChanged: (_argument0: DateTime) => void;
+  readonly onDisplayedMonthChanged: (_argument0: DateTime) => void;
+  readonly selectableDayPredicate: ((_argument0: DateTime) => boolean) | null;
   readonly calendarDelegate: CalendarDelegate<DateTime>;
   constructor({
     key = null,
@@ -1056,10 +1056,10 @@ export class _MonthPicker extends ScrollbarStatefulHost {
     readonly firstDate: DateTime;
     readonly lastDate: DateTime;
     readonly selectedDate: DateTime | null;
-    readonly onChanged: (argument0: DateTime) => void;
-    readonly onDisplayedMonthChanged: (argument0: DateTime) => void;
+    readonly onChanged: (_argument0: DateTime) => void;
+    readonly onDisplayedMonthChanged: (_argument0: DateTime) => void;
     readonly calendarDelegate: CalendarDelegate<DateTime>;
-    readonly selectableDayPredicate?: ((argument0: DateTime) => boolean) | null;
+    readonly selectableDayPredicate?: ((_argument0: DateTime) => boolean) | null;
   }) {
     const _initialField0 = initialMonth;
     const _initialField1 = currentDate;
@@ -1470,11 +1470,11 @@ export class _MonthPickerState extends State<_MonthPicker> {
       }
     });
   }
-  _dart_e3418b5381fd4ff8_handleGridNextFocus(intent: NextFocusIntent): void {
+  _dart_e3418b5381fd4ff8_handleGridNextFocus(_intent: NextFocusIntent): void {
     void this._dart_e3418b5381fd4ff8_dayGridFocus.requestFocus();
     void this._dart_e3418b5381fd4ff8_dayGridFocus.nextFocus();
   }
-  _dart_e3418b5381fd4ff8_handleGridPreviousFocus(intent: PreviousFocusIntent): void {
+  _dart_e3418b5381fd4ff8_handleGridPreviousFocus(_intent: PreviousFocusIntent): void {
     void this._dart_e3418b5381fd4ff8_dayGridFocus.requestFocus();
     void this._dart_e3418b5381fd4ff8_dayGridFocus.previousFocus();
   }
@@ -1578,7 +1578,7 @@ export class _MonthPickerState extends State<_MonthPicker> {
    * @dartParam index int
    * @dartParamOrigin index explicit
    */
-  _dart_e3418b5381fd4ff8_buildItems(context: BuildContext, index: number): Widget {
+  _dart_e3418b5381fd4ff8_buildItems(_context: BuildContext, index: number): Widget {
     checkedInteger(index);
     const month: DateTime = this.widget.calendarDelegate.addMonthsToMonthDate(
       this.widget.firstDate,
@@ -1739,11 +1739,11 @@ const _dartTemporary45 = finalFieldProtector([
 export class _DayPicker extends ScrollbarStatefulHost {
   readonly selectedDate: DateTime | null;
   readonly currentDate: DateTime;
-  readonly onChanged: (argument0: DateTime) => void;
+  readonly onChanged: (_argument0: DateTime) => void;
   readonly firstDate: DateTime;
   readonly lastDate: DateTime;
   readonly displayedMonth: DateTime;
-  readonly selectableDayPredicate: ((argument0: DateTime) => boolean) | null;
+  readonly selectableDayPredicate: ((_argument0: DateTime) => boolean) | null;
   readonly calendarDelegate: CalendarDelegate<DateTime>;
   constructor({
     key = null,
@@ -1762,9 +1762,9 @@ export class _DayPicker extends ScrollbarStatefulHost {
     readonly firstDate: DateTime;
     readonly lastDate: DateTime;
     readonly selectedDate: DateTime | null;
-    readonly onChanged: (argument0: DateTime) => void;
+    readonly onChanged: (_argument0: DateTime) => void;
     readonly calendarDelegate: CalendarDelegate<DateTime>;
-    readonly selectableDayPredicate?: ((argument0: DateTime) => boolean) | null;
+    readonly selectableDayPredicate?: ((_argument0: DateTime) => boolean) | null;
   }) {
     const _initialField0 = currentDate;
     const _initialField1 = displayedMonth;
@@ -2032,7 +2032,7 @@ export class _Day extends ScrollbarStatefulHost {
   readonly isDisabled: boolean;
   readonly isSelectedDay: boolean;
   readonly isToday: boolean;
-  readonly onChanged: (argument0: DateTime) => void;
+  readonly onChanged: (_argument0: DateTime) => void;
   readonly focusNode: FocusNode;
   readonly calendarDelegate: CalendarDelegate<DateTime>;
   constructor(
@@ -2050,7 +2050,7 @@ export class _Day extends ScrollbarStatefulHost {
       readonly isDisabled: boolean;
       readonly isSelectedDay: boolean;
       readonly isToday: boolean;
-      readonly onChanged: (argument0: DateTime) => void;
+      readonly onChanged: (_argument0: DateTime) => void;
       readonly focusNode: FocusNode;
       readonly calendarDelegate: CalendarDelegate<DateTime>;
     },
@@ -2329,7 +2329,7 @@ export class YearPicker extends ScrollbarStatefulHost {
   readonly firstDate: DateTime;
   readonly lastDate: DateTime;
   readonly selectedDate: DateTime | null;
-  readonly onChanged: (argument0: DateTime) => void;
+  readonly onChanged: (_argument0: DateTime) => void;
   readonly dragStartBehavior: DragStartBehavior;
   readonly calendarDelegate: CalendarDelegate<DateTime>;
   constructor({
@@ -2337,7 +2337,7 @@ export class YearPicker extends ScrollbarStatefulHost {
     currentDate = null,
     firstDate,
     lastDate,
-    initialDate = null,
+    initialDate: _initialDate = null,
     selectedDate,
     onChanged,
     dragStartBehavior = DragStartBehavior.start,
@@ -2349,7 +2349,7 @@ export class YearPicker extends ScrollbarStatefulHost {
     readonly lastDate: DateTime;
     readonly initialDate?: DateTime | null;
     readonly selectedDate: DateTime | null;
-    readonly onChanged: (argument0: DateTime) => void;
+    readonly onChanged: (_argument0: DateTime) => void;
     readonly dragStartBehavior?: DragStartBehavior;
     readonly calendarDelegate?: CalendarDelegate<DateTime>;
   }) {
@@ -2799,25 +2799,6 @@ export function _reportAnnouncementError(exception: {}, stack: SourceStackTrace)
   );
 }
 
-// Exact generated owners for inherited lookup and native regular-grid parameters.
+// Exact generated owner for Source inherited lookup.
 import { registerDateFocusedType } from '../../internal/date/source-host.ts';
-import { registerNativeRegularGridDelegate } from '@nelyx/core/internal/framework/rendering/native-grid';
 registerDateFocusedType(_FocusedDate);
-// Exact lowering of _DayPickerGridDelegate.getLayout above. Context controls
-// numeric policy; actual viewport dimensions and tile placement stay in Core.
-registerNativeRegularGridDelegate(_DayPickerGridDelegate.prototype, (delegate) => {
-  const textScaleFactor =
-    MediaQuery.textScalerOf(delegate.context).clamp({ maxScaleFactor: 3 }).scale(_fontSizeToScale) /
-    _fontSizeToScale;
-  const rowHeight =
-    SourceDateTheme.of(delegate.context).useMaterial3 &&
-    scrollbarRawObjectEquals(dateOrientationOf(delegate.context), 'portrait')
-      ? _dayPickerRowHeightM3
-      : _dayPickerRowHeightM2;
-  return {
-    columns: DateTime.daysPerWeek,
-    rows: _maxDayPickerRowCount + 1,
-    maximumRowExtent: textScaleFactor > 1.3 ? (textScaleFactor - 1) * 30 + rowHeight : rowHeight,
-  };
-});
-registerNativeRegularGridDelegate(_YearPickerGridDelegate.prototype);

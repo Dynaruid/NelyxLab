@@ -12,14 +12,6 @@ import { SectionExtentIndex } from './section-extent-index.ts';
 import type { SectionExtentEnvironment } from './section-extent-index.ts';
 import { invariant } from '../../foundation/errors.ts';
 import type { PipelineOwner } from './object.ts';
-import { registerNativeRenderResources } from './object.ts';
-import { registerNativeSliverConfiguration } from './native-sliver.ts';
-import type {
-  NativeSliverConfiguration,
-  NativeSliverInput,
-  NativeSliverMeasurement,
-} from './native-sliver.ts';
-import { Axis } from '../painting/basic-types.ts';
 
 /** Indexed variable-height layout with the canonical lazy child/keep-alive
  * owner. Far seeks materialize the destination cache range, not intervening
@@ -29,7 +21,6 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
   private revision: object | null;
   private configured = false;
   private environment: SectionExtentEnvironment | null;
-  private nativeSectionAttached = false;
   private readonly changed = () => this.markNeedsLayout();
   constructor({
     childManager,
@@ -46,39 +37,6 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
     this.index = extentIndex;
     this.revision = metricRevision;
     this.environment = environment;
-    registerNativeRenderResources(this, {
-      attach: () => {
-        this.index._attach(this.changed);
-        this.nativeSectionAttached = true;
-      },
-      detach: () => {
-        this.nativeSectionAttached = false;
-        this.index._detach(this.changed);
-      },
-    });
-  }
-  /** @internal Only Content measurements update the Source estimate index. */
-  protected override _configureNativeList(input: NativeSliverInput): boolean {
-    return this.index._configure(input.width, this.revision, this.environment, Axis.vertical);
-  }
-  protected override _acceptNativeRows(
-    input: NativeSliverInput,
-    rows: readonly NativeSliverMeasurement[],
-  ): void {
-    for (const row of rows) this.index._measure(row.index, row.extent);
-    const anchor = rows.find((row) => row.extent > 0 && row.offset + row.extent > input.offset);
-    if (this.index.count && input.begin < this.index.count)
-      this.index._didLayout(
-        anchor?.index ?? input.begin,
-        Math.max(0, input.offset - (anchor?.offset ?? input.beginOffset)),
-      );
-  }
-  /** @internal The same index and request owner serve TS and native configurations. */
-  nativeSectionConfiguration(): NativeSliverConfiguration {
-    return {
-      ...this._nativeListConfiguration(this.index.estimatedExtent, null),
-      takeRequest: () => this.index._takeRequest(),
-    };
   }
   override attach(owner: PipelineOwner): void {
     this.index._attach(this.changed);
@@ -103,8 +61,7 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
   ): void {
     this.assertCanMutateLayoutProperty();
     if (this.index !== extentIndex) {
-      const native = this.nativeSectionAttached;
-      if (this.attached || native) extentIndex._attach(this.changed);
+      if (this.attached) extentIndex._attach(this.changed);
       this.index._detach(this.changed);
       this.index = extentIndex;
       this.configured = false;
@@ -232,6 +189,3 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
     this.childManager.didFinishLayout();
   }
 }
-registerNativeSliverConfiguration(RenderSliverSectionList.prototype, (render) =>
-  render.nativeSectionConfiguration(),
-);

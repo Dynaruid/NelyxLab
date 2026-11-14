@@ -95,63 +95,6 @@ class TapRegionGroupKey extends Key {
     return value;
   }
 }
-const nativeRegistrations = new WeakMap<RenderTapRegion, bigint>();
-const nativeSurfaceListeners = new WeakMap<
-  RenderTapRegionSurface,
-  (event: SemanticsActionEvent) => void
->();
-const nativeSurfaceDelegates = new WeakMap<
-  RenderTapRegionSurface,
-  (event: SemanticsActionEvent) => void
->();
-function invalidateNativeRegistration(region: RenderTapRegion): void {
-  nativeRegistrations.set(region, (nativeRegistrations.get(region) ?? 1n) + 1n);
-}
-/** @internal Source owns group equality and render configuration; native owns hit execution. */
-export function nativeTapRegionConfiguration(render: RenderObject) {
-  const prototype: unknown = Object.getPrototypeOf(render);
-  const pointerPolicy = (box: RenderProxyBoxWithHitTestBehavior) =>
-    box.behavior === HitTestBehavior.opaque
-      ? ('self' as const)
-      : box.behavior === HitTestBehavior.translucent
-        ? ('translucent' as const)
-        : ('deferToChild' as const);
-  if (prototype === RenderTapRegionSurface.prototype)
-    return {
-      kind: 'surface' as const,
-      render: render as RenderTapRegionSurface,
-      pointerHitTest: pointerPolicy(render as RenderTapRegionSurface),
-    };
-  if (prototype !== RenderTapRegion.prototype) return undefined;
-  const region = render as RenderTapRegion;
-  return {
-    kind: 'region' as const,
-    render: region,
-    pointerHitTest: pointerPolicy(region),
-    registry: region.registry,
-    groupKey: region.groupId === null ? null : new TapRegionGroupKey(region.groupId),
-    revision: nativeRegistrations.get(region) ?? 1n,
-  };
-}
-/** @internal Registers the original Source listener without attaching a TS render pipeline. */
-export function bindNativeTapRegionSemantics(
-  surface: RenderTapRegionSurface,
-  dispatch: (event: SemanticsActionEvent) => void,
-): () => void {
-  const listener = nativeSurfaceListeners.get(surface);
-  invariant(
-    listener && !nativeSurfaceDelegates.has(surface) && !surface.attached && !surface.debugDisposed,
-    'invalid-native-tap-surface',
-    'A native tap surface has one live semantics owner',
-  );
-  surface.semanticsBinding.addSemanticsActionListener(listener);
-  nativeSurfaceDelegates.set(surface, dispatch);
-  return () => {
-    if (nativeSurfaceDelegates.get(surface) !== dispatch) return;
-    nativeSurfaceDelegates.delete(surface);
-    surface.semanticsBinding.removeSemanticsActionListener(listener);
-  };
-}
 export class RenderTapRegionSurface
   extends RenderProxyBoxWithHitTestBehavior
   implements TapRegionRegistry
@@ -164,7 +107,6 @@ export class RenderTapRegionSurface
     readonly semanticsBinding: SemanticsBinding,
   ) {
     super();
-    nativeSurfaceListeners.set(this, this.handleSemanticsAction);
   }
   override attach(owner: PipelineOwner): void {
     super.attach(owner);
@@ -175,15 +117,6 @@ export class RenderTapRegionSurface
     super.detach();
   }
   private readonly handleSemanticsAction = (event: SemanticsActionEvent): void => {
-    const native = nativeSurfaceDelegates.get(this);
-    if (native) {
-      if (
-        !this.debugDisposed &&
-        (event.type === SemanticsAction.tap || event.type === SemanticsAction.longPress)
-      )
-        native(event);
-      return;
-    }
     if (
       this.debugDisposed ||
       (event.type !== SemanticsAction.tap && event.type !== SemanticsAction.longPress) ||
@@ -385,7 +318,6 @@ export class RenderTapRegion extends RenderProxyBoxWithHitTestBehavior {
     this.assertCanMutateLayoutProperty();
     if (!sameGroup(this.groupIdValue, value)) {
       this.unregister();
-      invalidateNativeRegistration(this);
       this.groupIdValue = value;
       this.markNeedsLayout();
     }
@@ -397,7 +329,6 @@ export class RenderTapRegion extends RenderProxyBoxWithHitTestBehavior {
     this.assertCanMutateLayoutProperty();
     if (value !== this.registryValue) {
       this.unregister();
-      invalidateNativeRegistration(this);
       this.registryValue = value;
       this.markNeedsLayout();
     }

@@ -22,9 +22,9 @@ npm --prefix MyApp/web/runner run dev
 
 [시작 템플릿](templates/nelyx-app/README.ko.md)이 공통 앱과 플랫폼 runner를 제공합니다. 루트 `package.json`의 `nelyx`에서 설정하며, 자세한 내용은 [SDK 가이드](../../README.ko.md#설정과-provider)에 있습니다.
 
-## 자체 v2 엔진
+## Source runner
 
-C++ v2 엔진의 일반 앱은 `nelyx create MyApp --engine v2 --packages <archive-directory>`로 만들고 `MyApp/`에서 설치합니다. [SDK 일반 v2 프로젝트 안내](../../README.ko.md#일반-v2-프로젝트)에 entry/자산·검증한 engine 공급·Web/Windows/Android build/run/dev·doctor/pack·독립 package 사용을 설명했습니다. 새 후보는 원래 Widget을 반환하는 `@nelyx/sdk/app`과 `nelyx.json` (`nelyx.app/1`), `dist/v2-<target>`을 사용합니다. Android는 HotSpot JDK 21·고정한 SDK 36과 `--architecture arm64-v8a|x86_64`를 사용합니다. `dev --engine v2 --target android --architecture x86_64 --device emulator-5554`는 새 APK 준비 → 이전 App/worker/GPU drain → 설치/새 session 순서로 교체하며 State는 초기화합니다. 현재 APK는 개발용 debug key로 서명합니다.
+새 프로젝트와 플랫폼 runner는 Source main().definition을 읽습니다. 별도 v2 프로젝트 생성기와 --engine v2 앱 경로는 삭제했습니다. 일반 target/host 옵션으로 플랫폼 backend를 선택하며 Windows의 engine 옵션은 같은 Source 프레임워크에서 사용할 JavaScript 엔진을 고릅니다. [SDK 앱 진입점](../../README.ko.md#source-앱-진입점)을 참고하세요.
 
 ## 공급과 설치
 

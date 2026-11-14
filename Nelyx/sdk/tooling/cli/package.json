@@ -1,6 +1,6 @@
 {
   "name": "@nelyx/cli",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "type": "module",
   "license": "BSD-3-Clause",
@@ -104,9 +104,9 @@
     "upstream"
   ],
   "dependencies": {
-    "@nelyx/core": "0.16.0",
+    "@nelyx/core": "0.17.0",
     "@nelyx/metro": "0.10.0",
-    "@nelyx/sdk": "0.20.0",
+    "@nelyx/sdk": "0.21.0",
     "@nelyx/static-aot": "0.1.0",
     "esbuild": "0.25.12",
     "hermes-compiler": "0.14.1",

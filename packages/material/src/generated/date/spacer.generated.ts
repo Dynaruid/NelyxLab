@@ -45,7 +45,7 @@ export class Spacer extends ScrollbarStatelessHost {
     this.flex = _initialField0;
     protect(this, ['flex']);
   }
-  override build(context: BuildContext): Widget {
+  override build(_context: BuildContext): Widget {
     return dateExpanded({
       flex: checkedInteger(this.flex),
       child: constDateSizedBoxShrink(SizedBox),

@@ -140,24 +140,6 @@ export class RenderMouseRegion extends RenderProxyBox implements MouseTrackerAnn
     return hit && this._opaque;
   }
 }
-const nativeMouseRegions = new WeakMap<object, boolean>();
-/** @internal Canonical modules register their exact hit policy; subclasses do not inherit it. */
-export function registerNativeMouseRegion(prototype: RenderMouseRegion, exclusive = false): void {
-  invariant(
-    !nativeMouseRegions.has(prototype),
-    'duplicate-native-mouse-region',
-    'Mouse policy is already registered',
-  );
-  nativeMouseRegions.set(prototype, exclusive);
-}
-/** @internal Configuration only; the Core owns the retained hit path and mouse tracking. */
-export function nativeMouseRegionConfiguration(
-  target: RenderObject,
-): { readonly region: RenderMouseRegion; readonly exclusive: boolean } | undefined {
-  const exclusive = nativeMouseRegions.get(Object.getPrototypeOf(target));
-  return exclusive === undefined ? undefined : { region: target as RenderMouseRegion, exclusive };
-}
-registerNativeMouseRegion(RenderMouseRegion.prototype);
 const defaultMouseRegionHandleEvent = RenderMouseRegion.prototype.handleEvent;
 /** @internal Enter/exit tracking is independent of an absent hover callback. */
 export function hasEmptyMouseHoverHandler(target: RenderObject): boolean {

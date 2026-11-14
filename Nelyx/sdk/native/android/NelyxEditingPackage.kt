@@ -1,20 +1,28 @@
 // SPDX-License-Identifier: BSD-3-Clause
 package dev.nelyx.sdk.editing
 
-import com.facebook.react.ReactPackage
+import com.facebook.react.BaseReactPackage
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableArray
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.module.model.ReactModuleInfo
+import com.facebook.react.module.model.ReactModuleInfoProvider
 import com.facebook.react.uimanager.SimpleViewManager
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.ViewManager
 import com.facebook.react.uimanager.annotations.ReactProp
 
 /** Nonvisual OS input/semantics endpoints; Core paints and lays out editing UI. */
-class NelyxEditingPackage: ReactPackage {
-    override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> = listOf(NelyxPlatformServices(context))
-    override fun createViewManagers(context: ReactApplicationContext): List<ViewManager<in Nothing,in Nothing>> = listOf(NelyxInputConnectionManager(),NelyxEnvironmentManager(),NelyxKeyboardHostManager(),NelyxSemanticsManager())
+class NelyxEditingPackage: BaseReactPackage() {
+    override fun getModule(name: String,reactContext: ReactApplicationContext): NativeModule? = when(name) {
+        "NelyxPlatformServices" -> NelyxPlatformServices(reactContext)
+        else -> null
+    }
+    override fun getReactModuleInfoProvider(): ReactModuleInfoProvider = ReactModuleInfoProvider {
+        mapOf("NelyxPlatformServices" to ReactModuleInfo("NelyxPlatformServices",NelyxPlatformServices::class.java.name,false,false,false,false))
+    }
+    override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<in Nothing,in Nothing>> = listOf(NelyxInputConnectionManager(),NelyxEnvironmentManager(),NelyxKeyboardHostManager(),NelyxSemanticsManager())
 }
 
 class NelyxInputConnectionManager: SimpleViewManager<NelyxInputConnectionView>() {
@@ -22,7 +30,6 @@ class NelyxInputConnectionManager: SimpleViewManager<NelyxInputConnectionView>()
     override fun getExportedViewConstants(): Map<String,Any> = mapOf("inputConnectionProtocol" to 4)
     override fun createViewInstance(context: ThemedReactContext): NelyxInputConnectionView = NelyxInputConnectionView(context)
     override fun getExportedCustomDirectEventTypeConstants(): Map<String,Any> = mapOf("topNelyxEditing" to mapOf("registrationName" to "onNelyxEditing"),"topNelyxInputBounds" to mapOf("registrationName" to "onNelyxInputBounds"))
-    override fun getCommandsMap(): Map<String,Int> = mapOf("focus" to 1,"replace" to 2,"blur" to 3,"geometry" to 4,"replaceComposing" to 5)
     private fun integer(args: ReadableArray,index: Int): Long {val value=args.getDouble(index);require(value.isFinite()&&value>=0&&value<=9007199254740991.0&&value==value.toLong().toDouble());return value.toLong()}
     override fun receiveCommand(view: NelyxInputConnectionView,commandId: String,args: ReadableArray?) {
         when(commandId){
@@ -36,7 +43,6 @@ class NelyxInputConnectionManager: SimpleViewManager<NelyxInputConnectionView>()
             else->throw IllegalArgumentException("Unknown Nelyx input connection command")
         }
     }
-    override fun receiveCommand(view: NelyxInputConnectionView,commandId: Int,args: ReadableArray?) = receiveCommand(view,when(commandId){1->"focus";2->"replace";3->"blur";4->"geometry";5->"replaceComposing";else->throw IllegalArgumentException("Unknown Nelyx input connection command")},args)
     @ReactProp(name="initialValue") fun initialValue(view: NelyxInputConnectionView,value: ReadableMap?){if(value!=null)view.initialize(value)}
     @ReactProp(name="editable",defaultBoolean=true) fun editable(view: NelyxInputConnectionView,value: Boolean){view.isEnabled=value}
     @ReactProp(name="maxLength",defaultInt=4096) fun maxLength(view: NelyxInputConnectionView,value: Int){view.setTextLimit(value)}

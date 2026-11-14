@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-import { StatelessWidget, Widget, Element, buildNativeWidget } from './framework.ts';
+import { StatelessWidget, Widget, Element } from './framework.ts';
 import type { BuildContext, WidgetOptions } from './framework.ts';
 import type { Key } from '../../foundation/key.ts';
 import type { Clip } from '../../ui/clip.ts';
@@ -209,11 +209,6 @@ export abstract class ScrollView extends StatelessWidget {
   ): Widget {
     if (axisDirection === AxisDirection.up || axisDirection === AxisDirection.down)
       Directionality.of(context);
-    invariant(
-      this.clipBehavior === 'none' || this.clipBehavior === 'hardEdge',
-      'viewport-clip-owner-not-implemented',
-      'Additional Source viewport clip modes are still pending',
-    );
     const scrollCacheExtent = this.childLayoutCacheExtent;
     if (this.shrinkWrap)
       return new ShrinkWrappingViewport({
@@ -236,8 +231,6 @@ export abstract class ScrollView extends StatelessWidget {
     });
   }
   build(context: BuildContext): Widget {
-    const native = buildNativeWidget(context, 'scroll-view', this);
-    if (native !== undefined) return native;
     const slivers = this.buildSlivers(context),
       axisDirection = this.getDirection(context),
       effectivePrimary =

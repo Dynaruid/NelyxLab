@@ -17,7 +17,7 @@ import type { Rect } from '../../ui/types.ts';
 import type { ResourceId, TextLayout } from '../../ui/types.ts';
 import { BoxConstraints } from './constraints.ts';
 import { RenderBox, ContainerBoxParentData } from './object.ts';
-import { RenderObject, nativeRenderFields } from './object.ts';
+import { RenderObject } from './object.ts';
 import type { TextBaseline, HitTestEntry } from './object.ts';
 import type { PaintingContext } from '../painting/context.ts';
 import type { TextPainter } from '../painting/text-painter.ts';
@@ -46,7 +46,6 @@ import { BorderRadius } from '../painting/border-radius.ts';
 import { ImageConfiguration } from '../painting/image-configuration.ts';
 import { valueEquals } from '../painting/value-equality.ts';
 import { flexLayoutProtocol } from '../../hosting/flex-layout.ts';
-import { registerNativeBoxConfiguration, registerNativeBoxCommands } from './native-box.ts';
 export class RenderProxyBox extends RenderBox {
   protected override get childCountLimit(): number {
     return 1;
@@ -106,7 +105,7 @@ export class RenderConstrainedBox extends RenderProxyBox {
     value.debugAssertIsValid();
     if (this.extra.equals(value)) return;
     this.extra = value;
-    this.markNativeFieldsChanged('layout', nativeRenderFields.constraints);
+    this.markNeedsLayout();
   }
   get additional(): BoxConstraints {
     return this.additionalConstraints;
@@ -184,7 +183,7 @@ export class RenderPadding extends RenderShiftedBox {
   }
   private _markNeedResolution(): void {
     this._resolvedPaddingCache = undefined;
-    this.markNativeFieldsChanged('layout', nativeRenderFields.layout);
+    this.markNeedsLayout();
   }
   get padding(): EdgeInsetsGeometry {
     return this._padding;
@@ -335,7 +334,7 @@ export class RenderPositionedBox extends RenderAligningShiftedBox {
     this.assertCanMutateLayoutProperty();
     if (value !== this.shrinkToChild) {
       this.shrinkToChild = value;
-      this.markNativeFieldsChanged('layout', nativeRenderFields.layout);
+      this.markNeedsLayout();
     }
   }
   get widthFactor(): number | undefined {
@@ -346,7 +345,7 @@ export class RenderPositionedBox extends RenderAligningShiftedBox {
     this.checkFactor(value);
     if (value !== this.factorX) {
       this.factorX = value;
-      this.markNativeFieldsChanged('layout', nativeRenderFields.layout);
+      this.markNeedsLayout();
     }
   }
   get heightFactor(): number | undefined {
@@ -357,7 +356,7 @@ export class RenderPositionedBox extends RenderAligningShiftedBox {
     this.checkFactor(value);
     if (value !== this.factorY) {
       this.factorY = value;
-      this.markNativeFieldsChanged('layout', nativeRenderFields.layout);
+      this.markNeedsLayout();
     }
   }
   protected override computeMinIntrinsicWidth(height: number): number {
@@ -2649,6 +2648,7 @@ export abstract class RenderParagraph extends RenderBox {
         start++;
       }
       this.fragments = fragments;
+      this.markNeedsCompositingBitsUpdate();
     }
     for (const fragment of this.fragments) this.selectionRegistrar.add(fragment);
   }
@@ -2656,6 +2656,7 @@ export abstract class RenderParagraph extends RenderBox {
     if (this.fragments === null) return;
     const fragments = this.fragments;
     this.fragments = null;
+    if (!this.debugDisposed) this.markNeedsCompositingBitsUpdate();
     const errors: unknown[] = [];
     for (const fragment of fragments) {
       if (this.selectionRegistrar)
@@ -2747,202 +2748,4 @@ RenderObject._registerInputGeometryHooks(RenderClip.prototype);
 RenderObject._registerSemanticsGeometryPrototype(
   RenderShiftedBox.prototype,
   RenderAligningShiftedBox.prototype,
-);
-
-registerNativeBoxConfiguration(
-  RenderProxyBox.prototype,
-  () => ({
-    kind: 'box',
-    layout: { childConstraints: 'inherit' },
-  }),
-  true,
-);
-registerNativeBoxConfiguration(
-  RenderConstrainedBox.prototype,
-  (render) => ({
-    kind: 'box',
-    layout: { childConstraints: 'inherit', enforceBounds: true },
-    constraints: render.additionalConstraints,
-  }),
-  true,
-);
-registerNativeBoxConfiguration(
-  RenderPadding.prototype,
-  (render) => ({
-    kind: 'box',
-    layout: {
-      childConstraints: 'inherit',
-      padding: render.padding.resolve(render.textDirection),
-    },
-  }),
-  true,
-);
-registerNativeBoxCommands(RenderProxyBox.prototype, () => {}, 0);
-registerNativeBoxCommands(
-  RenderConstrainedBox.prototype,
-  (render, sink) => {
-    if (sink.inheritLayout) sink.inheritLayout('bounds', true);
-    else sink.layout({ childConstraints: 'inherit', enforceBounds: true });
-    sink.constraints(render.additionalConstraints);
-  },
-  1,
-);
-registerNativeBoxCommands(
-  RenderPadding.prototype,
-  (render, sink) => {
-    if (sink.paddingLayout) sink.paddingLayout(render.padding.resolve(render.textDirection));
-    else
-      sink.layout({
-        childConstraints: 'inherit',
-        padding: render.padding.resolve(render.textDirection),
-      });
-  },
-  2,
-);
-for (const prototype of [RenderPositionedBox.prototype, RenderAlign.prototype])
-  registerNativeBoxConfiguration(
-    prototype,
-    (render) => {
-      const alignment = render.alignment.resolve(render.textDirection ?? 'ltr'),
-        widthFactor = render.widthFactor ?? (render.shrink ? 1 : undefined),
-        heightFactor = render.heightFactor ?? (render.shrink ? 1 : undefined);
-      return {
-        kind: 'box',
-        layout: {
-          alignment: { x: alignment.x, y: alignment.y },
-          alignmentSizing: true,
-          ...(widthFactor === undefined ? {} : { widthFactor }),
-          ...(heightFactor === undefined ? {} : { heightFactor }),
-        },
-      };
-    },
-    true,
-  );
-for (const prototype of [RenderPositionedBox.prototype, RenderAlign.prototype])
-  registerNativeBoxCommands(
-    prototype,
-    (render, sink) => {
-      const alignment = render.alignment.resolve(render.textDirection ?? 'ltr'),
-        widthFactor = render.widthFactor ?? (render.shrink ? 1 : undefined),
-        heightFactor = render.heightFactor ?? (render.shrink ? 1 : undefined);
-      if (sink.alignmentLayout)
-        sink.alignmentLayout(alignment.x, alignment.y, widthFactor, heightFactor);
-      else
-        sink.layout({
-          alignment: { x: alignment.x, y: alignment.y },
-          alignmentSizing: true,
-          ...(widthFactor === undefined ? {} : { widthFactor }),
-          ...(heightFactor === undefined ? {} : { heightFactor }),
-        });
-    },
-    3,
-  );
-registerNativeBoxConfiguration(
-  RenderFlex.prototype,
-  (render, reject) => {
-    if (render.items.length) return reject('flex-legacy-items');
-    const horizontal = render.direction === 'horizontal';
-    if (horizontal && render.crossAxisAlignment === 'baseline' && render.textBaseline === null)
-      return reject('flex-missing-baseline');
-    if (
-      render.textDirection === null &&
-      ((horizontal &&
-        (render.children.length > 1 ||
-          render.mainAxisAlignment === 'start' ||
-          render.mainAxisAlignment === 'end')) ||
-        (!horizontal &&
-          (render.crossAxisAlignment === 'start' || render.crossAxisAlignment === 'end')))
-    )
-      return reject('flex-missing-text-direction');
-    return {
-      kind: 'flex',
-      layout: {
-        direction: render.direction,
-        mainSize: render.mainAxisSize,
-        mainAlign: render.mainAxisAlignment,
-        crossAlign:
-          !horizontal && render.crossAxisAlignment === 'baseline'
-            ? 'start'
-            : render.crossAxisAlignment,
-        ...(horizontal && render.crossAxisAlignment === 'baseline'
-          ? { textBaseline: render.textBaseline! }
-          : {}),
-        gap: render.spacing,
-        reverseMain: horizontal
-          ? render.textDirection === 'rtl'
-          : render.verticalDirection === 'up',
-        reverseCross: horizontal
-          ? render.verticalDirection === 'up'
-          : render.crossAxisAlignment !== 'baseline' && render.textDirection === 'rtl',
-        shrinkUnboundedMain: true,
-        clipOverflow: render.clipBehavior === 'hardEdge',
-      },
-    };
-  },
-  true,
-);
-registerNativeBoxConfiguration(
-  RenderStack.prototype,
-  (render) => {
-    const alignment = render.alignment.resolve(render.textDirection);
-    return {
-      kind: 'stack',
-      layout: {
-        childConstraints:
-          render.fit === 'expand' ? 'expand' : render.fit === 'passthrough' ? 'inherit' : 'loose',
-        alignment: { x: alignment.x, y: alignment.y },
-        expandEmpty: true,
-        canonicalStack: true,
-        clipOverflow: render.clipBehavior !== 'none',
-        overflowClipBehavior: render.clipBehavior,
-      },
-    };
-  },
-  true,
-);
-registerNativeBoxConfiguration(
-  RenderClip.prototype,
-  (render) => ({
-    kind: 'clip',
-    layout: { childConstraints: 'inherit', enforceBounds: true },
-    constraints: render.additionalConstraints,
-  }),
-  true,
-);
-registerNativeBoxConfiguration(
-  RenderTransform.prototype,
-  (render, reject) => {
-    if (!render.transformHitTests) return reject('transform-hit-tests-disabled');
-    if (render.filterQuality !== null) return reject('transform-filter-quality');
-    const matrix = render.matrix;
-    if (
-      matrix.length === 16 &&
-      (matrix[2] !== 0 ||
-        matrix[3] !== 0 ||
-        matrix[6] !== 0 ||
-        matrix[7] !== 0 ||
-        matrix[8] !== 0 ||
-        matrix[9] !== 0 ||
-        matrix[10] !== 1 ||
-        matrix[11] !== 0 ||
-        matrix[14] !== 0 ||
-        matrix[15] !== 1)
-    )
-      return reject('transform-non-affine');
-    const alignment = render.alignment?.resolve(render.textDirection);
-    return {
-      kind: 'transform',
-      layout: { childConstraints: 'inherit', enforceBounds: true },
-      constraints: render.additionalConstraints,
-      graphics: {
-        transform:
-          matrix.length === 6
-            ? [matrix[0]!, matrix[1]!, matrix[2]!, matrix[3]!, matrix[4]!, matrix[5]!]
-            : [matrix[0]!, matrix[1]!, matrix[4]!, matrix[5]!, matrix[12]!, matrix[13]!],
-        ...(render.origin ? { origin: { x: render.origin.x, y: render.origin.y } } : {}),
-        ...(alignment ? { alignment: { x: alignment.x, y: alignment.y } } : {}),
-      },
-    };
-  },
-  true,
 );

@@ -48,7 +48,6 @@ import type { DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.t
 import { protect } from '../../ui/value-math.ts';
 import { normalizeSliverChildPolicy } from './view-work-budget.ts';
 import type { SliverChildPolicy } from './view-work-budget.ts';
-import { registerNativeSliverChildOwner } from '../rendering/native-sliver.ts';
 export type { SliverChildPolicy } from './view-work-budget.ts';
 
 /** Preserve the established public module while avoiding delegate/keep-alive initialization cycles. */
@@ -198,11 +197,6 @@ export class SliverMultiBoxAdaptorElement
   ) {
     super(widget);
     this._replaceMovedChildren = replaceMovedChildren;
-    if (Object.getPrototypeOf(this) === SliverMultiBoxAdaptorElement.prototype)
-      registerNativeSliverChildOwner(this, {
-        identity: (child) => this.childElement(child),
-        policy: () => this.adaptorWidget.childPolicy,
-      });
   }
   override get buildScope(): BuildScope {
     return this._buildScope;

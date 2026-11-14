@@ -7,7 +7,7 @@
   "description": "Reference-derived Skia RN bindings and Nelyx rendering adapters",
   "license": "BSD-3-Clause AND MIT",
   "dependencies": {
-    "@nelyx/core": "0.16.0",
+    "@nelyx/core": "0.17.0",
     "@nelyx/skia-native": "0.1.0"
   },
   "peerDependencies": {

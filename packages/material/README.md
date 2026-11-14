@@ -71,14 +71,6 @@ Use `npm run build:sdk` for the full package set. Supply and reinstall the selec
 
 Nelyx-authored code uses [BSD-3-Clause](LICENSE.md). Imported Flutter sources and assets retain the notices and source records in [licenses/](licenses/).
 
-## Experimental C++ engine v2
+## Source framework migration
 
-Use the explicit `@nelyx/material/v2` entry point together with `@nelyx/core/v2`. It declares Core/native control state and Skia/CanvasKit painting; it does not call the v1 renderer. Supported constructor signatures are in [src/v2.ts](src/v2.ts). Buttons, selection controls, sliders, editors and composed surfaces are available; primary control colors resolve through the v2 theme. Material also provides range/progress/chip controls; Cupertino provides activity/list/form-section surfaces.
-
-These are scoped v2 APIs. Full v1 constructor compatibility, form validation, complete typography/icons/shapes/transitions and general resolver migration are pending. The v2 Testbed exercises both design packages. See the [Core guide](../../Nelyx/README.md#experimental-v2-engine-protocol) and [work8 implementation boundaries](../../history/26/11/04/work8-2-summary.md#lazy-list디자인-controlgestureime-후속-구현) and [archived work9 plan](../../history/26/11/05/work9-summary.md). Physical IME/reader and performance acceptance remain separate.
-
-The original RangeSlider also accepts explicitly registered custom shape
-configuration for native execution. See the [Range/Curve extension contract](../../Nelyx/engine/range-editor.md)
-for exact prototype registration, paragraph ownership, repeating ticks and
-resource budgets. This does not provide automatic native execution of arbitrary
-Canvas or layout callbacks.
+Version 0.2 uses the canonical Core Source framework. The former `/v2` exports and per-widget native registration APIs have been removed. Custom shapes, painters and layout delegates run their Source hooks. See [work12](../../work12.md#11-현재-구현과-확인-범위) for verified and pending behavior.

@@ -7,7 +7,6 @@ import type { TransformMatrix } from '../../ui/geometry.ts';
 import type { RenderBox, RenderObject } from './object.ts';
 import { RenderProxyBox } from './boxes.ts';
 import type { PaintingContext } from '../painting/context.ts';
-import { registerNativeBoxConfiguration } from './native-box.ts';
 export class RenderOpacity extends RenderProxyBox {
   private readonly retained = new LayerHandle<OpacityLayer>();
   private value = 1;
@@ -104,9 +103,3 @@ export class RenderOpacity extends RenderProxyBox {
 RenderProxyBox._registerGeometryLayoutSemantics(RenderOpacity.prototype);
 
 NumericGeometryRenderObject._registerInputGeometryHooks(RenderOpacity.prototype);
-registerNativeBoxConfiguration(RenderOpacity.prototype, (render) => ({
-  kind: 'box',
-  layout: { childConstraints: 'inherit' },
-  opacity: render.alpha / 255,
-  semanticsPolicy: { excludeChildren: render.alpha === 0 && !render.alwaysIncludeSemantics },
-}));

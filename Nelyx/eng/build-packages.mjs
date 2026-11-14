@@ -190,30 +190,6 @@ function finalizeOutput(directory) {
 
 try {
   compile('tsconfig.build.json', { outDir: staged });
-  if (name === 'core')
-    compile('runtime/tsconfig.json', {
-      outDir: path.join(staged, 'v2'),
-      // Explicit declaration extensions also resolve in NodeNext ESM mode.
-      // Never fall back to the previously published Core during this build.
-      paths: {
-        '@nelyx/core/internal/framework/rendering/native-grid': [
-          path.join(staged, 'framework/rendering/native-grid.d.ts'),
-        ],
-        '@nelyx/core/internal/framework/rendering/native-snapshot': [
-          path.join(staged, 'framework/rendering/native-snapshot.d.ts'),
-        ],
-        '@nelyx/core/internal/framework/widgets/text-input': [
-          path.join(staged, 'framework/widgets/text-input.d.ts'),
-        ],
-        '@nelyx/core/internal/framework/widgets/native-radio-semantics': [
-          path.join(staged, 'framework/widgets/native-radio-semantics.d.ts'),
-        ],
-        '@nelyx/core/internal/framework/widgets/ticker-scheduler': [
-          path.join(staged, 'framework/widgets/ticker-scheduler.d.ts'),
-        ],
-        '@nelyx/core/*': [path.join(staged, '*.d.ts')],
-      },
-    });
   finalizeOutput(staged);
   // Restore source-map paths after the generated tree moves from staging to dist.
   const visit = (directory) => {

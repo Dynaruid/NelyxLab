@@ -10,12 +10,9 @@ import type { BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { Directionality, Localizations } from '@nelyx/core/framework/widgets/app-data';
 import { RenderConstrainedBox, RenderDecoratedBox } from '@nelyx/core/framework/rendering/boxes';
 import type { RenderObject, TextBaseline } from '@nelyx/core/framework/rendering/object';
-import { registerNativeBoxConfiguration } from '@nelyx/core/framework/rendering/object';
-import type { NativePaintScalar, NativePaintEntry } from '@nelyx/core/framework/rendering/object';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { ImageConfiguration } from '@nelyx/core/framework/painting/image-configuration';
 import type { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
-import { Border } from '@nelyx/core/framework/painting/box-border';
 import type { EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
 import type { Size } from '@nelyx/core/ui/geometry';
 
@@ -57,132 +54,6 @@ export class DividerRenderWidget extends LeafRenderObjectWidget {
   }
 }
 class RenderDivider extends RenderConstrainedBox {
-  static {
-    registerNativeBoxConfiguration(RenderDivider.prototype, (render, reject) => {
-      const config = render.configuration,
-        padding = config.margin.resolve(render.direction);
-      const border = config.decoration.border;
-      if (!(border instanceof Border)) return reject('divider-border');
-      const side = config.vertical ? border.left : border.bottom;
-      const variable = (
-        op: 'width' | 'height' | 'boundedWidth' | 'boundedHeight',
-      ): NativePaintScalar => ({ op });
-      const expression = (
-        op: 'min' | 'max' | 'add' | 'subtract' | 'multiply' | 'divide' | 'select',
-        ...args: NativePaintScalar[]
-      ): NativePaintScalar => ({ op, args });
-      const width = variable('width'),
-        height = variable('height'),
-        lineWidth = config.vertical
-          ? expression('min', config.thickness, width)
-          : expression(
-              'select',
-              variable('boundedWidth'),
-              expression('max', 0, expression('subtract', width, padding.horizontal)),
-              0,
-            ),
-        lineHeight = config.vertical
-          ? expression(
-              'select',
-              variable('boundedHeight'),
-              expression('max', 0, expression('subtract', height, padding.vertical)),
-              0,
-            )
-          : expression('min', config.thickness, height),
-        rect = [
-          config.vertical
-            ? expression('divide', expression('subtract', width, lineWidth), 2)
-            : expression(
-                'add',
-                padding.left,
-                expression(
-                  'divide',
-                  expression(
-                    'subtract',
-                    width,
-                    expression('select', variable('boundedWidth'), width, padding.horizontal),
-                  ),
-                  2,
-                ),
-              ),
-          config.vertical
-            ? expression(
-                'add',
-                padding.top,
-                expression(
-                  'divide',
-                  expression(
-                    'subtract',
-                    height,
-                    expression('select', variable('boundedHeight'), height, padding.vertical),
-                  ),
-                  2,
-                ),
-              )
-            : expression('divide', expression('subtract', height, lineHeight), 2),
-          lineWidth,
-          lineHeight,
-        ] as const,
-        shape = {
-          kind: 'rrect' as const,
-          radii: Array<number>(8).fill(0),
-          strokeWidth: 0,
-          strokeColor: 0,
-          strokeAlign: 0,
-        };
-      // Preserve Source paintBorder, including zero-width hairlines and a
-      // border wider than the constrained line box. Content resolves geometry.
-      const path: NativePaintEntry['path'] = {
-        commands: config.vertical
-          ? config.thickness === 0
-            ? [
-                ['move', 0, 0],
-                ['line', 0, lineHeight],
-              ]
-            : [
-                ['move', 0, 0],
-                ['line', 0, lineHeight],
-                ['line', config.thickness, lineHeight],
-                ['line', config.thickness, 0],
-                ['close'],
-              ]
-          : config.thickness === 0
-            ? [
-                ['move', 0, lineHeight],
-                ['line', lineWidth, lineHeight],
-              ]
-            : [
-                ['move', 0, lineHeight],
-                ['line', lineWidth, lineHeight],
-                ['line', lineWidth, expression('subtract', lineHeight, config.thickness)],
-                ['line', 0, expression('subtract', lineHeight, config.thickness)],
-                ['close'],
-              ],
-      };
-      return {
-        kind: 'box',
-        children: [],
-        hitTest: 'self',
-        layout: { alignment: { x: 0, y: 0 }, alignmentSizing: true, enforceBounds: true },
-        constraints: config.vertical
-          ? new BoxConstraints(config.extent, config.extent, padding.vertical, Infinity)
-          : new BoxConstraints(padding.horizontal, Infinity, config.extent, config.extent),
-        paint: [
-          { kind: 'hitRegion', color: 0, shape, geometry: { kind: 'program', rect } },
-          {
-            kind: 'path',
-            color: config.thickness === 0 || side.style === 'none' ? 0 : side.color,
-            shape: {
-              ...shape,
-              strokeColor: config.thickness === 0 && side.style !== 'none' ? side.color : 0,
-            },
-            geometry: { kind: 'program', rect },
-            path,
-          },
-        ],
-      };
-    });
-  }
   private readonly line: RenderDecoratedBox;
   private direction: 'ltr' | 'rtl' | null = null;
   constructor(private configuration: Configuration) {

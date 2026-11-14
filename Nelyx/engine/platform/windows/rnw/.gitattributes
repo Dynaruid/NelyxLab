@@ -1,3 +1,0 @@
-# Preserve the exact npm-package bytes recorded by provenance.json.
-upstream/* -text
-LICENSE -text

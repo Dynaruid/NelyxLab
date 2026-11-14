@@ -27,8 +27,6 @@ import { Padding, ConstrainedBox, SizedBox, Transform } from '@nelyx/core/framew
 import { Opacity } from '@nelyx/core/framework/widgets/opacity';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';
-import { registerNativeRenderMetadata } from '@nelyx/core/framework/rendering/object';
-import type { NativePaintEntry, NativePaintScalar } from '@nelyx/core/framework/rendering/object';
 import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
 import { ClipRRect } from '@nelyx/core/framework/widgets/clip';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
@@ -303,30 +301,7 @@ export class CircularProgressIndicator extends ProgressIndicator<CircularProgres
     return this.options.controller ?? null;
   }
 }
-const paintWidth: NativePaintScalar = { op: 'width' },
-  paintHeight: NativePaintScalar = { op: 'height' };
-function paintExpression(
-  op: Exclude<NativePaintScalar, number>['op'],
-  ...args: NativePaintScalar[]
-): NativePaintScalar {
-  return { op, args };
-}
-function progressShape(strokeWidth = 0, strokeColor = 0): NativePaintEntry['shape'] {
-  return {
-    kind: 'rrect',
-    radii: [0, 0, 0, 0, 0, 0, 0, 0],
-    strokeWidth,
-    strokeColor,
-    strokeAlign: 0,
-  };
-}
 class LinearPainter extends CustomPainter {
-  static {
-    registerNativeRenderMetadata(LinearPainter.prototype, (painter) => ({
-      kind: 'paint',
-      entries: painter.nativeEntries(),
-    }));
-  }
   constructor(
     readonly value: number | null,
     readonly phase: number,
@@ -341,100 +316,6 @@ class LinearPainter extends CustomPainter {
     private readonly colorSource: Animation<Color | null> | null = null,
   ) {
     super({ repaint: Listenable.merge([phaseSource, colorSource]) });
-  }
-  private nativeEntries(): readonly NativePaintEntry[] {
-    const entries: NativePaintEntry[] = [],
-      width = paintWidth,
-      height = paintHeight,
-      phase = this.phaseSource?.value ?? this.phase,
-      activeColor = (this.colorSource?.value ?? this.color).toARGB32(),
-      radius = this.radius?.resolve(this.direction),
-      shape = {
-        ...progressShape(),
-        radii: radius
-          ? [radius.topLeft, radius.topRight, radius.bottomRight, radius.bottomLeft].flatMap(
-              (corner) => [corner.x, corner.y],
-            )
-          : progressShape().radii,
-      },
-      position = (fraction: number) => paintExpression('multiply', fraction, width),
-      gap = (fraction: number) => (this.gap * clampDouble(fraction, 0, 0.01)) / 0.01,
-      add = (
-        start: NativePaintScalar,
-        end: NativePaintScalar,
-        track: boolean,
-        condition: NativePaintScalar = 1,
-      ) => {
-        const left = this.direction === 'ltr' ? start : paintExpression('subtract', width, end);
-        entries.push({
-          kind: 'shape',
-          color: track ? this.track.toARGB32() : activeColor,
-          shape,
-          geometry: {
-            kind: 'program',
-            rect: [left, 0, paintExpression('subtract', end, start), height],
-            visible: paintExpression(
-              'select',
-              paintExpression('greater', width, 0),
-              paintExpression('select', condition, paintExpression('greater', end, start), 0),
-              0,
-            ),
-          },
-        });
-      };
-    if (this.value !== null) {
-      const value = clampDouble(this.value, 0, 1),
-        start = this.gap > 0 ? paintExpression('add', position(value), gap(value)) : 0;
-      add(start, width, true);
-      if (this.stopRadius !== null && this.stopRadius > 0 && this.stopColor) {
-        const centerY = paintExpression('divide', height, 2),
-          centerX =
-            this.direction === 'rtl' ? centerY : paintExpression('subtract', width, centerY),
-          stopRadius = paintExpression('min', this.stopRadius, centerY),
-          diameter = paintExpression('multiply', stopRadius, 2);
-        entries.push({
-          kind: 'circle',
-          color: this.stopColor.toARGB32(),
-          shape: progressShape(),
-          geometry: {
-            kind: 'program',
-            rect: [
-              paintExpression('subtract', centerX, stopRadius),
-              paintExpression('subtract', centerY, stopRadius),
-              diameter,
-              diameter,
-            ],
-          },
-        });
-      }
-      if (value > 0) add(0, position(value), false);
-    } else {
-      const head1 = lineCurves[0]!.transform(phase),
-        tail1 = lineCurves[1]!.transform(phase),
-        head2 = lineCurves[2]!.transform(phase),
-        tail2 = lineCurves[3]!.transform(phase);
-      add(
-        head1 > 0 ? paintExpression('add', position(head1), gap(head1)) : 0,
-        width,
-        true,
-        paintExpression('less', position(head1), paintExpression('subtract', width, this.gap)),
-      );
-      if (head1 > tail1) add(position(tail1), position(head1), false);
-      add(
-        head2 > 0 ? paintExpression('add', position(head2), gap(head2)) : 0,
-        tail1 < 1 ? paintExpression('subtract', position(tail1), gap(1 - tail1)) : width,
-        true,
-        paintExpression('greater', position(tail1), this.gap),
-      );
-      if (head2 > tail2) add(position(tail2), position(head2), false);
-      add(
-        0,
-        tail2 < 1 ? paintExpression('subtract', position(tail2), gap(1 - tail2)) : width,
-        true,
-        paintExpression('greater', position(tail2), this.gap),
-      );
-    }
-    return entries;
   }
   paint(canvas: Canvas, size: Size): void {
     const draw = (segment: LinearProgressSegment) => {
@@ -471,12 +352,6 @@ class LinearPainter extends CustomPainter {
   }
 }
 class CircularPainter extends CustomPainter {
-  static {
-    registerNativeRenderMetadata(CircularPainter.prototype, (painter) => ({
-      kind: 'paint',
-      entries: painter.nativeEntries(),
-    }));
-  }
   constructor(
     readonly value: number | null,
     readonly phase: number,
@@ -495,66 +370,6 @@ class CircularPainter extends CustomPainter {
   }
   protected get arc(): MaterialCircularArc {
     return circularArc(this.value, this.phaseSource?.value ?? this.phase, this.headScale);
-  }
-  protected nativeEntries(): NativePaintEntry[] {
-    const offset = (this.width / 2) * -this.align,
-      width = paintExpression('subtract', paintWidth, offset * 2),
-      height = paintExpression('subtract', paintHeight, offset * 2),
-      entries: NativePaintEntry[] = [],
-      add = (start: NativePaintScalar, sweep: NativePaintScalar, color: Color, cap: StrokeCap) => {
-        entries.push({
-          kind: 'path',
-          color: 0,
-          shape: progressShape(this.width, color.toARGB32()),
-          strokeCap: cap,
-          geometry: {
-            kind: 'program',
-            rect: [0, 0, paintWidth, paintHeight],
-            visible: paintExpression(
-              'select',
-              paintExpression('greater', width, 0),
-              paintExpression(
-                'select',
-                paintExpression('greater', height, 0),
-                paintExpression('select', paintExpression('equal', sweep, 0), 0, 1),
-                0,
-              ),
-              0,
-            ),
-          },
-          path: { commands: [['arc', offset, offset, width, height, start, sweep, 1]] },
-        });
-      };
-    if (this.track) {
-      if (this.gap !== null && this.gap > 0 && this.value !== null && this.value > epsilon) {
-        const radius = paintExpression('divide', paintExpression('min', width, height), 2),
-          startGap = paintExpression('divide', this.width + this.gap, radius),
-          sweep = paintExpression(
-            'max',
-            0,
-            paintExpression(
-              'subtract',
-              twoPi - clampDouble(this.value, 0, 1) * twoPi,
-              paintExpression('multiply', startGap, 2),
-            ),
-          );
-        // The source reflects this arc about the box's vertical center.
-        add(
-          paintExpression('subtract', 1.5 * Math.PI, startGap),
-          paintExpression('multiply', sweep, -1),
-          this.track,
-          this.cap ?? 'round',
-        );
-      } else add(0, twoPi - epsilon, this.track, this.cap ?? 'round');
-    }
-    const arc = this.arc,
-      cap = this.year2023
-        ? this.value === null && this.cap === null
-          ? 'square'
-          : (this.cap ?? 'butt')
-        : (this.cap ?? 'round');
-    add(arc.start, arc.sweep, this.colorSource?.value ?? this.color, cap);
-    return entries;
   }
   paint(canvas: Canvas, size: Size): void {
     const offset = (this.width / 2) * -this.align,
@@ -813,12 +628,6 @@ export class RefreshProgressIndicator extends CircularProgressIndicator {
   }
 }
 class RefreshPainter extends CircularPainter {
-  static {
-    registerNativeRenderMetadata(RefreshPainter.prototype, (painter) => ({
-      kind: 'paint',
-      entries: painter.nativeEntries(),
-    }));
-  }
   constructor(
     phase: number,
     color: Color,
@@ -828,40 +637,6 @@ class RefreshPainter extends CircularPainter {
     readonly arrowheadScale: number,
   ) {
     super(null, phase, color, null, width, align, cap, null, true, 1.05);
-  }
-  protected override nativeEntries(): NativePaintEntry[] {
-    const entries = super.nativeEntries();
-    if (this.arrowheadScale <= 0) return entries;
-    const angle = this.arc.start + this.arc.sweep,
-      ux = Math.cos(angle),
-      uy = Math.sin(angle),
-      radius = paintExpression('divide', paintWidth, 2),
-      arrowRadius = this.width * 2 * this.arrowheadScale,
-      inner = paintExpression('subtract', radius, arrowRadius),
-      outer = paintExpression('add', radius, arrowRadius),
-      x = (r: NativePaintScalar) =>
-        paintExpression('add', radius, paintExpression('multiply', ux, r)),
-      y = (r: NativePaintScalar) =>
-        paintExpression('add', radius, paintExpression('multiply', uy, r));
-    entries.push({
-      kind: 'path',
-      color: this.color.toARGB32(),
-      shape: progressShape(),
-      geometry: { kind: 'program', rect: [0, 0, paintWidth, paintHeight] },
-      path: {
-        commands: [
-          ['move', x(inner), y(inner)],
-          ['line', x(outer), y(outer)],
-          [
-            'line',
-            paintExpression('subtract', x(radius), uy * arrowRadius),
-            paintExpression('add', y(radius), ux * arrowRadius),
-          ],
-          ['close'],
-        ],
-      },
-    });
-    return entries;
   }
   override paint(canvas: Canvas, size: Size): void {
     super.paint(canvas, size);

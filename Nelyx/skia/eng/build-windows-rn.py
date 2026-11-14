@@ -23,10 +23,7 @@ def sha(file):
 
 lock = json.loads((SKIA / 'vendor/windows-rn-supplier.lock.json').read_text())
 def supplier_file(name):
-    file = supplier / name
-    if not file.exists() and 'nelyx_rn_module' in name:
-        file = supplier / name.replace('nelyx_rn_module', 'ozeli_rn_module')
-    return file
+    return supplier / name
 for record in lock['files']:
     file = supplier_file(record['file'])
     if file.stat().st_size != record['bytes'] or sha(file) != record['sha256']:

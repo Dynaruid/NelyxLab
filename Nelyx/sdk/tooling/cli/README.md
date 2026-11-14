@@ -22,9 +22,9 @@ The destination must be empty. Application names start with an uppercase letter 
 
 The [starter template](templates/nelyx-app/README.md) owns the shared app and platform runners. Configure it through root `package.json` → `nelyx`; see the [SDK guide](../../README.md#configuration-and-providers).
 
-## Standalone v2 engine
+## Source runner
 
-For the standalone C++ v2 engine, use `nelyx create MyApp --engine v2 --packages <archive-directory>` and install at `MyApp/`. The [SDK v2 project guide](../../README.md#general-v2-projects) covers entry/assets, verified engine inputs, Web/Windows/Android build/run/dev, doctor/pack and portable packages. This route uses `nelyx.v2.json` and `dist/v2-<target>`. Android uses HotSpot JDK 21, the pinned SDK 36 toolchain, and `--architecture arm64-v8a|x86_64`. `dev --engine v2 --target android --architecture x86_64 --device emulator-5554` prepares the next APK, drains the old App/workers/GPU, then installs and starts a new session with reset State. The APK currently uses development debug signing.
+New projects and platform runners load the Source main().definition application. The separate v2 project generator and --engine v2 application route have been removed. Select a platform backend with the ordinary target/host options; engine options on Windows select a JavaScript engine for the same Source framework. See the [SDK app entry](../../README.md#source-application-entry).
 
 ## Supply and install
 

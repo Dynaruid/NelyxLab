@@ -21,7 +21,6 @@ import type { ToggleableMotion } from './toggleable-control.ts';
 import type { ControlVisualState, ControlInteractionOptions } from './control-interaction.ts';
 import { FoundationPlatform } from '../../foundation/platform.ts';
 import { radioUnselectedHint } from './radio-localizations.ts';
-import { markToggleableRadioSemantics } from './native-radio-semantics.ts';
 
 export interface RadioClient<T> {
   readonly radioValue: T;
@@ -380,17 +379,6 @@ class RawRadioState<T> extends State<RawRadio<T>> implements RadioClient<T> {
       selected: apple ? selected : null,
       hint: apple && !selected ? radioUnselectedHint(this.context) : null,
     };
-    if (this.tristate)
-      markToggleableRadioSemantics(
-        semantics,
-        () =>
-          !this.retired &&
-          this.mounted &&
-          (this.context as Element).active &&
-          this.enabled &&
-          this.tristate &&
-          dartValueEquals(this.registry?.groupValue, this.radioValue),
-      );
     return new ToggleableControl({
       ...interaction,
       value: selected,

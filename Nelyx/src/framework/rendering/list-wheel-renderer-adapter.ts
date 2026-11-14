@@ -82,9 +82,6 @@ export abstract class WheelRenderHost extends RenderAbstractViewport<RenderBox> 
   get isRepaintBoundary(): boolean {
     return false;
   }
-  get needsCompositing(): boolean {
-    return this.isRepaintBoundary;
-  }
   get sourceSize(): Size {
     return wheelBoxSize(this);
   }

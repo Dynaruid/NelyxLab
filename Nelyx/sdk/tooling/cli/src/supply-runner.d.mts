@@ -3,10 +3,6 @@ export declare function packageReferences(
 ): Record<'core' | 'sdk' | 'native' | 'rn' | 'web' | 'metro' | 'cli' | 'static-aot', string> &
   Partial<Record<'material' | 'cupertino' | 'localizations', string>>;
 export declare function readRnlSupply(file: string): Record<string, string>;
-export declare function engineV2PackageReferences(
-  directory: string,
-): Record<'core' | 'sdk' | 'cli' | 'metro' | 'static-aot', string> &
-  Partial<Record<'material' | 'cupertino' | 'localizations', string>>;
 export declare function supplyRunner(options: {
   readonly app: string;
   readonly target: 'windows' | 'android' | 'web' | 'ios' | 'macos' | 'linux';

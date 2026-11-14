@@ -20,7 +20,9 @@ export function verifyNativeSourceInputs(directory, workspace = repository) {
     manifest = JSON.parse(fs.readFileSync(path.join(owner, 'package.json'), 'utf8'));
   if (!['@nelyx/skia-native', '@nelyx/skia-rn'].includes(manifest.name)) return null;
   const rn = manifest.name === '@nelyx/skia-rn',
-    skia = path.join(fs.realpathSync(workspace), 'Nelyx/skia'),
+    workspaceRoot = fs.realpathSync(workspace),
+    engine = path.join(workspaceRoot, 'Nelyx/engine'),
+    skia = path.join(workspaceRoot, 'Nelyx/skia'),
     canonical = path.join(skia, 'native');
   const fail = (message) => {
     throw Error('Prepare ' + manifest.name + ' native sources before supply: ' + message);
@@ -54,15 +56,29 @@ export function verifyNativeSourceInputs(directory, workspace = repository) {
       fail('canonical source differs or is absent: ' + path.relative(owner, target));
     checked++;
   };
+  const helpers = JSON.parse(
+    fs.readFileSync(path.join(engine, 'vendor/helper-sources.json'), 'utf8'),
+  );
+  for (const entry of helpers.projections)
+    compare(path.join(engine, entry.source), path.join(canonical, 'engine-helpers', entry.source));
   for (const [source, target, extra] of [
-    ['core', 'generated/core'],
-    ['host', 'generated/host'],
-    ['rendering/nelyx_skia', 'generated/gpu/nelyx_skia'],
-    ['platforms/vulkan', 'generated/vulkan'],
-    ['adapters/jsi/cpp', rn ? 'generated/jsi' : 'cpp', rn ? ['engine.cmake'] : []],
-    ['adapters/jsi/vulkan', rn ? 'generated/native-vulkan' : 'native/vulkan', rn ? [] : ['sdk']],
+    [path.join(canonical, 'core'), 'generated/core'],
+    [path.join(canonical, 'host'), 'generated/host'],
+    [path.join(canonical, 'rendering/nelyx_skia'), 'generated/gpu/nelyx_skia'],
+    [path.join(engine, 'render/vulkan'), 'generated/vulkan'],
+    [path.join(canonical, 'engine-helpers'), 'generated/engine-helpers'],
+    [
+      path.join(canonical, 'adapters/jsi/cpp'),
+      rn ? 'generated/jsi' : 'cpp',
+      rn ? ['engine.cmake'] : [],
+    ],
+    [
+      path.join(canonical, 'adapters/jsi/vulkan'),
+      rn ? 'generated/native-vulkan' : 'native/vulkan',
+      rn ? [] : ['sdk'],
+    ],
   ]) {
-    const from = path.join(canonical, source),
+    const from = source,
       to = path.join(owner, target),
       inputs = files(from).sort(),
       outputs = files(to, new Set(extra)).sort();

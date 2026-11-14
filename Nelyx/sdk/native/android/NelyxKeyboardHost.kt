@@ -39,19 +39,15 @@ class NelyxKeyboardHostManager: ReactViewManager() {
             put("topNelyxKey",mapOf("registrationName" to "onNelyxKey"))
             put("topNelyxKeyboardFocus",mapOf("registrationName" to "onNelyxKeyboardFocus"))
         }
-    override fun getCommandsMap(): MutableMap<String,Int> = super.getCommandsMap().apply {put("focusCanvas",101);put("acknowledgeKey",102)}
     @ReactProp(name="keyboardProtocol") fun protocol(view: ReactViewGroup,value: Int) {require(value==3);(view as NelyxKeyboardHost).enableProtocol()}
-    override fun receiveCommand(view: ReactViewGroup,commandId: String,args: ReadableArray?) {
+    override fun receiveCommand(root: ReactViewGroup,commandId: String,args: ReadableArray?) {
         when(commandId) {
-            "focusCanvas" -> (view as NelyxKeyboardHost).focusCanvas()
-            "acknowledgeKey" -> {requireNotNull(args);require(args.size()==2);(view as NelyxKeyboardHost).acknowledge(args.getDouble(0).toLong(),args.getBoolean(1))}
-            else -> super.receiveCommand(view,commandId,args)
+            "focusCanvas" -> (root as NelyxKeyboardHost).focusCanvas()
+            "acknowledgeKey" -> {requireNotNull(args);require(args.size()==2);(root as NelyxKeyboardHost).acknowledge(args.getDouble(0).toLong(),args.getBoolean(1))}
+            else -> super.receiveCommand(root,commandId,args)
         }
     }
-    override fun receiveCommand(view: ReactViewGroup,commandId: Int,args: ReadableArray?) {
-        when(commandId) {101->receiveCommand(view,"focusCanvas",args);102->receiveCommand(view,"acknowledgeKey",args);else->super.receiveCommand(view,commandId,args)}
-    }
-    override fun onDropViewInstance(view: ReactViewGroup) {(view as NelyxKeyboardHost).close();super.onDropViewInstance(view)}
+    override fun onDropViewInstance(root: ReactViewGroup) {(root as NelyxKeyboardHost).close();super.onDropViewInstance(root)}
 }
 
 class NelyxKeyboardHost(private val reactContext: ThemedReactContext): ReactViewGroup(reactContext) {

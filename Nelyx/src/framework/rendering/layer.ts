@@ -39,54 +39,6 @@ import type { Matrix4Storage } from '../../ui/matrix4.ts';
 import type { Canvas } from '../../ui/canvas.ts';
 import { forgetRecordedComposition } from '../painting/recorded-composition-cache.ts';
 
-interface NativeLayerObservation {
-  readonly owner: object;
-  readonly read: () => Matrix4Storage | null;
-}
-const nativeLayerObservations = new WeakMap<Layer, NativeLayerObservation>(),
-  retiredNativeLayerOwner = Object.freeze({});
-let nativeLayerMutationOwner: object | undefined;
-/** @internal Native publication updates may configure their own Source mirrors. */
-export function withNativeLayerMutation<T>(owner: object, action: () => T): T {
-  const previous = nativeLayerMutationOwner;
-  nativeLayerMutationOwner = owner;
-  try {
-    return action();
-  } finally {
-    nativeLayerMutationOwner = previous;
-  }
-}
-/** @internal Read observations; Source SceneBuilder cannot compose a native-owned layer. */
-export function bindNativeLayerObservation(
-  layer: Layer,
-  owner: object,
-  read: () => Matrix4Storage | null,
-): void {
-  const previous = nativeLayerObservations.get(layer);
-  invariant(
-    !previous || previous.owner === owner,
-    'foreign-native-layer',
-    'Native layer belongs to another owner',
-  );
-  nativeLayerObservations.set(layer, { owner, read });
-}
-/** @internal Drop View/Render closures even when an App retains a LayerHandle. */
-export function retireNativeLayerObservation(layer: Layer, owner: object): void {
-  invariant(
-    nativeLayerObservations.get(layer)?.owner === owner,
-    'foreign-native-layer',
-    'Native layer belongs to another owner',
-  );
-  nativeLayerObservations.set(layer, { owner: retiredNativeLayerOwner, read: () => null });
-}
-function assertSourceLayerOperation(layer: Layer, operation: string): void {
-  invariant(
-    !nativeLayerObservations.has(layer),
-    'native-layer-operation',
-    `Native Source layer does not execute App ${operation}`,
-  );
-}
-
 function failures(errors: unknown[], message: string): void {
   if (errors.length === 1) throw errors[0];
   if (errors.length) throw new AggregateError(errors, message);
@@ -246,12 +198,6 @@ export abstract class Layer {
     old?.dispose();
   }
   protected assertMutable(): void {
-    const native = nativeLayerObservations.get(this);
-    invariant(
-      !native || native.owner === nativeLayerMutationOwner,
-      'native-layer-mutation',
-      'Native Source layer configuration belongs to its render owner',
-    );
     this.assertHandleMutable();
   }
   private assertHandleMutable(): void {
@@ -260,19 +206,13 @@ export abstract class Layer {
       invariant(false, 'locked-layer', 'Layers cannot be mutated by composition callbacks');
   }
   _retain(): void {
-    if (nativeLayerObservations.has(this)) this.assertHandleMutable();
-    else this.assertMutable();
+    this.assertMutable();
     this.references++;
   }
   _release(): void {
-    const native = nativeLayerObservations.get(this);
-    if (native) this.assertHandleMutable();
-    else this.assertMutable();
+    this.assertMutable();
     if (!(this.references > 0)) invariant(false, 'unowned-layer', 'Layer has no handle to release');
-    if (--this.references === 0) {
-      if (native) withNativeLayerMutation(native.owner, () => this.dispose());
-      else this.dispose();
-    }
+    if (--this.references === 0) this.dispose();
   }
   markNeedsAddToScene(): void {
     this.assertMutable();
@@ -304,7 +244,7 @@ export abstract class Layer {
     this.parent?._removeChild(this);
   }
   supportsRasterization(): boolean {
-    return !nativeLayerObservations.has(this);
+    return true;
   }
   describeClipBounds(): Rect | null {
     return null;
@@ -1255,7 +1195,6 @@ export class LeaderLayer extends ContainerLayer {
     localPosition: Offset,
     options: { readonly onlyFirst: boolean },
   ): boolean {
-    assertSourceLayerOperation(this, 'annotation search');
     return super.findAnnotations(
       result,
       { x: localPosition.x - this.position.x, y: localPosition.y - this.position.y },
@@ -1277,7 +1216,6 @@ export class LeaderLayer extends ContainerLayer {
     super.detach();
   }
   override addToScene(builder: SceneBuilder): void {
-    assertSourceLayerOperation(this, 'composition');
     this.engineLayer = builder.pushTransform(translation(this.position), {
       oldLayer: this.engineLayer as TransformEngineLayer | null,
     });
@@ -1361,8 +1299,6 @@ export class FollowerLayer extends ContainerLayer {
     return true;
   }
   getLastTransform(): Matrix4Storage | null {
-    const native = nativeLayerObservations.get(this);
-    if (native) return native.read();
     return this.lastTransform && this.lastOffset
       ? multiplyMatrix4(
           translation({ x: -this.lastOffset.x, y: -this.lastOffset.y }),
@@ -1375,7 +1311,6 @@ export class FollowerLayer extends ContainerLayer {
     localPosition: Offset,
     options: { readonly onlyFirst: boolean },
   ): boolean {
-    assertSourceLayerOperation(this, 'annotation search');
     if (!this.connection.leader)
       return this.showing
         ? super.findAnnotations(
@@ -1460,7 +1395,6 @@ export class FollowerLayer extends ContainerLayer {
     );
   }
   override addToScene(builder: SceneBuilder): void {
-    assertSourceLayerOperation(this, 'composition');
     if (!this.connection.leader && !this.showing) {
       this.lastTransform = null;
       this.lastOffset = null;
@@ -1481,8 +1415,7 @@ export class FollowerLayer extends ContainerLayer {
   ): Matrix4Storage {
     return multiplyMatrix4(
       super.applyTransform(child, transform),
-      (nativeLayerObservations.has(this) ? this.getLastTransform() : this.lastTransform) ??
-        translation(this.unlinked),
+      this.lastTransform ?? translation(this.unlinked),
     );
   }
 }

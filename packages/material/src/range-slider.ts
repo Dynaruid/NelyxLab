@@ -61,9 +61,6 @@ import type { Disposable } from '@nelyx/core/foundation/disposable';
 import {
   RenderBox,
   RelayoutWhenSystemFontsChangeMixin,
-  registerNativeBoxConfiguration,
-  registerNativeRenderMetadata,
-  isNativeRenderObject,
 } from '@nelyx/core/framework/rendering/object';
 import type { RenderObject } from '@nelyx/core/framework/rendering/object';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
@@ -89,9 +86,6 @@ import { RangeValues, RangeLabels } from './range-slider-values.ts';
 import type { RangeThumbSelector } from './range-slider-values.ts';
 import { RectangularRangeSliderValueIndicatorShape } from './slider-shapes.ts';
 import { materialRangeSliderDefaults } from './internal/slider/range-slider-defaults.ts';
-import { nativeRangeSliderConfiguration } from './internal/slider/range-native-paint.ts';
-import { nativeRangeSliderIndicators } from './internal/slider/range-native-indicator.ts';
-import type { NativeRangeSource } from './internal/slider/range-native-paint.ts';
 import { materialRangeSliderPaintThemes } from './internal/slider/range-paint-policy.ts';
 export interface RangeSliderOptions extends WidgetOptions {
   readonly values: RangeValues;
@@ -960,33 +954,6 @@ abstract class RangeRenderBase extends RenderBox {}
 class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(RangeRenderBase) {
   private startLabel: TextPainter;
   private endLabel: TextPainter;
-  static {
-    registerNativeBoxConfiguration(MaterialRangeSliderRender.prototype, (source) =>
-      nativeRangeSliderConfiguration(source.nativeSource()),
-    );
-  }
-  nativeSource(): NativeRangeSource {
-    const m = this.model,
-      o = m.owner;
-    return {
-      theme: m.theme,
-      preferred: m.preferred,
-      direction: m.direction,
-      start: o.startPosition.value,
-      end: o.endPosition.value,
-      enabled: o.enabled,
-      divisions: o.widget.divisions,
-      enable: o.enableAnimation.value,
-      overlay: o.overlayAnimation.value,
-      indicator: o.indicatorAnimation.value,
-      active: o.active,
-      selected: o.selected,
-      focusedStart: o.startFocusNode.hasFocus,
-      focusedEnd: o.endFocusNode.hasFocus,
-      hoverStart: o.hoverStart,
-      hoverEnd: o.hoverEnd,
-    };
-  }
   constructor(public model: RangePaintModel) {
     super();
     this.startLabel = new TextPainter({}, model.textContext);
@@ -1138,37 +1105,13 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
       sizeWithOverflow: m.screen.isEmpty ? new Size(this.size.width, this.size.height) : m.screen,
     };
   }
-  nativeIndicator(): ReturnType<typeof nativeRangeSliderIndicators> {
-    const m = this.model,
-      o = m.owner,
-      always = m.theme.showValueIndicator === ShowValueIndicator.alwaysVisible;
-    if (
-      (!this.attached && !isNativeRenderObject(this)) ||
-      this.debugDisposed ||
-      !o.live ||
-      !o.enabled ||
-      o.widget.labels === null ||
-      (!always && (!shouldShowOnDrag(m.theme, o.discrete) || o.indicatorAnimation.isDismissed))
-    )
-      return { kind: 'paint', entries: [] };
-    return nativeRangeSliderIndicators({
-      ...this.nativeSource(),
-      enable: always ? 1 : o.enableAnimation.value,
-      reference: this,
-      startLabel: this.startLabel,
-      endLabel: this.endLabel,
-      activation: always ? 1 : o.indicatorAnimation.value,
-      textScale: m.scale,
-      screenWidth: m.screen.isEmpty ? null : m.screen.width,
-    });
-  }
   paintIndicators(context: PaintingContext): void {
     const m = this.model,
       o = m.owner,
       t = m.theme,
       always = t.showValueIndicator === ShowValueIndicator.alwaysVisible;
     if (
-      (!this.attached && !isNativeRenderObject(this)) ||
+      !this.attached ||
       !o.live ||
       !o.enabled ||
       o.widget.labels === null ||
@@ -1319,13 +1262,6 @@ class RangeIndicatorWidget extends LeafRenderObjectWidget {
   }
 }
 class RangeIndicatorRender extends RenderBox {
-  static {
-    registerNativeRenderMetadata(
-      RangeIndicatorRender.prototype,
-      (source) =>
-        source.slider.renderer(false)?.nativeIndicator() ?? { kind: 'paint', entries: [] },
-    );
-  }
   constructor(readonly slider: MaterialRangeSliderState) {
     super();
   }

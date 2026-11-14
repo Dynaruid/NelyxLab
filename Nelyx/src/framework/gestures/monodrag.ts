@@ -14,7 +14,6 @@ import {
   DragStartBehavior,
   MultitouchDragStrategy,
   OffsetPair,
-  recordNativeRecognizerOptions,
 } from './recognizer.ts';
 import type { GestureRecognizerOptions } from './recognizer.ts';
 import { GestureDisposition } from './arena.ts';
@@ -97,13 +96,6 @@ export abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer
       options.velocityTrackerBuilder ??
       ((event) => VelocityTracker.withKind(event.kind, { clock: this.binding.samplingClock }));
     this.onlyAcceptDragOnThreshold = options.onlyAcceptDragOnThreshold ?? false;
-    recordNativeRecognizerOptions(
-      this,
-      options.allowedButtonsFilter !== undefined ||
-        options.timers !== undefined ||
-        options.velocityTrackerBuilder !== undefined,
-      this.velocityTrackerBuilder,
-    );
   }
   get lastPosition(): OffsetPair {
     invariant(

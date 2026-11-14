@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+import type { Clip } from '../../ui/clip.ts';
 import { RenderBox, RenderObject } from './object.ts';
 import type {
   PipelineOwner,
@@ -21,6 +22,7 @@ import {
 } from './sliver.ts';
 import type { SliverGeometry } from './sliver.ts';
 import { ViewportOffset } from './viewport-offset.ts';
+import { ClipRectLayer, LayerHandle } from './layer.ts';
 import { Axis, AxisDirection, axisDirectionToAxis } from '../painting/basic-types.ts';
 import { hashValues } from '../painting/value-equality.ts';
 import { FoundationBuildMode } from '../../foundation/constants.ts';
@@ -196,7 +198,7 @@ export interface RenderViewportBaseOptions {
   readonly cacheExtent?: number | null;
   readonly cacheExtentStyle?: CacheExtentStyle;
   readonly paintOrder?: SliverPaintOrder;
-  readonly clipBehavior?: 'none' | 'hardEdge';
+  readonly clipBehavior?: Clip;
 }
 export interface SliverChildSequence {
   readonly child: RenderSliver | null;
@@ -286,7 +288,8 @@ export abstract class RenderViewportBase extends RenderAbstractViewport {
   private _offset: ViewportOffset;
   private _scrollCacheExtent: ScrollCacheExtent;
   private _paintOrder: SliverPaintOrder;
-  private _clipBehavior: 'none' | 'hardEdge';
+  private _clipBehavior: Clip;
+  private readonly clipRectLayer = new LayerHandle<ClipRectLayer>();
   protected _calculatedCacheExtent = 0;
   private observingOffset = false;
   private readonly offsetChanged = () => this.markNeedsLayout();
@@ -408,10 +411,10 @@ export abstract class RenderViewportBase extends RenderAbstractViewport {
       this.markNeedsPaint();
     }
   }
-  get clipBehavior(): 'none' | 'hardEdge' {
+  get clipBehavior(): Clip {
     return this._clipBehavior;
   }
-  set clipBehavior(value: 'none' | 'hardEdge') {
+  set clipBehavior(value: Clip) {
     this.assertCanMutateLayoutProperty();
     if (value !== this._clipBehavior) {
       this._clipBehavior = value;
@@ -911,16 +914,40 @@ export abstract class RenderViewportBase extends RenderAbstractViewport {
     }
     return hit;
   }
+  private paintContents(context: PaintingContext): void {
+    for (const child of this.childrenInPaintOrder)
+      if (child.geometry?.visible) this.paintChild(context, child);
+  }
   override paint(context: PaintingContext): void {
     if (!this.children.length) return;
-    context.save();
-    try {
-      if (this.clips) context.clip({ x: 0, y: 0, ...this.size });
-      for (const child of this.childrenInPaintOrder)
-        if (child.geometry?.visible) this.paintChild(context, child);
-    } finally {
-      context.restore();
+    if (this.clips) {
+      this.clipRectLayer.layer = context.pushClipRect(
+        this.needsCompositing,
+        { x: 0, y: 0 },
+        { x: 0, y: 0, ...this.size },
+        (inside) => this.paintContents(inside),
+        { clipBehavior: this.clipBehavior, oldLayer: this.clipRectLayer.layer },
+      );
+    } else {
+      this.clipRectLayer.layer = null;
+      this.paintContents(context);
     }
+  }
+  override dispose(): void {
+    const errors: unknown[] = [];
+    try {
+      super.dispose();
+    } catch (error) {
+      errors.push(error);
+    }
+    if (this.debugDisposed)
+      try {
+        this.clipRectLayer.layer = null;
+      } catch (error) {
+        errors.push(error);
+      }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length) throw new AggregateError(errors, 'Viewport clip retirement failed');
   }
 }
 export interface RenderViewportOptions extends RenderViewportBaseOptions {

@@ -1,40 +1,22 @@
 {
   "name": "@nelyx/core",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "private": true,
   "type": "module",
   "sideEffects": false,
   "files": [
     "dist",
     "src",
-    "runtime/engine-client",
     "README.md",
     "LICENSE.md",
     "licenses",
     "upstream/framework-imports.json",
-    "upstream/flutter-coverage.json",
-    "runtime/app"
+    "upstream/flutter-coverage.json"
   ],
   "exports": {
-    "./engine": {
-      "types": "./dist/v2/engine-client/engine.d.ts",
-      "default": "./dist/v2/engine-client/engine.js"
-    },
     "./internal/framework/widgets/text-input": {
       "types": "./dist/framework/widgets/text-input.d.ts",
       "default": "./dist/framework/widgets/text-input.js"
-    },
-    "./internal/framework/widgets/native-radio-semantics": {
-      "types": "./dist/framework/widgets/native-radio-semantics.d.ts",
-      "default": "./dist/framework/widgets/native-radio-semantics.js"
-    },
-    "./v2/original": {
-      "types": "./dist/v2/engine-client/original.d.ts",
-      "default": "./dist/v2/engine-client/original.js"
-    },
-    "./v2": {
-      "types": "./dist/v2/engine-client/index.d.ts",
-      "default": "./dist/v2/engine-client/index.js"
     },
     "./hosting/pointer-targets": {
       "types": "./dist/hosting/pointer-targets.d.ts",
@@ -2180,14 +2162,6 @@
       "types": "./dist/ui/frame-resource-list-binding.d.ts",
       "default": "./dist/ui/frame-resource-list-binding.js"
     },
-    "./internal/runtime/app": {
-      "types": "./dist/v2/app/host.d.ts",
-      "default": "./dist/v2/app/host.js"
-    },
-    "./internal/framework/rendering/native-snapshot": {
-      "types": "./dist/framework/rendering/native-snapshot.d.ts",
-      "default": "./dist/framework/rendering/native-snapshot.js"
-    },
     "./internal/foundation/dart-method-tear-off": {
       "types": "./dist/foundation/dart-method-tear-off.d.ts",
       "default": "./dist/foundation/dart-method-tear-off.js"
@@ -2196,14 +2170,18 @@
       "types": "./dist/foundation/dart-exceptions.d.ts",
       "default": "./dist/foundation/dart-exceptions.js"
     },
-    "./internal/framework/rendering/native-grid": {
-      "types": "./dist/framework/rendering/native-grid.d.ts",
-      "default": "./dist/framework/rendering/native-grid.js"
+    "./framework/widgets/sliver-fill": {
+      "types": "./dist/framework/widgets/sliver-fill.d.ts",
+      "default": "./dist/framework/widgets/sliver-fill.js"
+    },
+    "./framework/rendering/sliver-fill": {
+      "types": "./dist/framework/rendering/sliver-fill.d.ts",
+      "default": "./dist/framework/rendering/sliver-fill.js"
     }
   },
   "scripts": {
     "build": "node eng/build-packages.mjs core",
-    "check": "tsc -p tsconfig.build.json --noEmit && tsc -p runtime/tsconfig.json --noEmit"
+    "check": "tsc -p tsconfig.build.json --noEmit"
   },
   "license": "BSD-3-Clause"
 }

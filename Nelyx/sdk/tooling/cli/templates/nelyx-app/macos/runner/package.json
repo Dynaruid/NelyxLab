@@ -15,15 +15,15 @@
     "run": "node native.mjs run"
   },
   "dependencies": {
-    "@nelyx/core": "0.16.0",
-    "@nelyx/sdk": "0.20.0",
+    "@nelyx/core": "0.17.0",
+    "@nelyx/sdk": "0.21.0",
     "@nelyx/skia-rn": "0.6.0",
     "react": "19.2.0",
     "react-native": "0.83.10",
     "react-native-skia-graphite-apple-macos": "154.1.0",
     "react-native-macos": "0.83.0",
-    "@nelyx/material": "0.1.0",
-    "@nelyx/cupertino": "0.1.0",
+    "@nelyx/material": "0.2.0",
+    "@nelyx/cupertino": "0.2.0",
     "@nelyx/skia-native": "0.1.0"
   },
   "devDependencies": {

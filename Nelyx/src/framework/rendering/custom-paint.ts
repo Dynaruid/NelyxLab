@@ -39,7 +39,6 @@ import { fullTransform } from '../../ui/geometry.ts';
 import type { PaintingContext } from '../painting/context.ts';
 import { RenderProxyBox } from './boxes.ts';
 import type { RenderBox, RenderObject, HitTestEntry, PipelineOwner } from './object.ts';
-import { registerNativeRenderResources } from './object.ts';
 import { BoxConstraints } from './constraints.ts';
 import { withRenderPaint, assertOutsideRenderPaint } from './phase.ts';
 
@@ -269,7 +268,6 @@ export class RenderCustomPaint extends RenderProxyBox {
   };
   private preference: Size;
   private changing = false;
-  private nativeLive = false;
   private readonly semanticId = `custom-paint-${++nextRenderId}`;
   private nextSemanticId = 0;
   private get hasSemanticsBuilder(): boolean {
@@ -730,23 +728,6 @@ export class RenderCustomPaint extends RenderProxyBox {
     this.background.painter = painter(options.painter);
     this.foreground.painter = painter(options.foregroundPainter);
     if (options.child) this.child = options.child;
-    registerNativeRenderResources(this, {
-      attach: () => {
-        this.nativeLive = true;
-        try {
-          this.attachPainterListeners();
-        } catch (error) {
-          this.nativeLive = false;
-          throw error;
-        }
-      },
-      detach: () => {
-        this.nativeLive = false;
-        const errors: unknown[] = [];
-        this.retirePainterListeners(errors);
-        failures(errors, 'Native custom painter detach failed');
-      },
-    });
   }
   get painter(): CustomPainter | null {
     return this.background.painter;
@@ -782,7 +763,7 @@ export class RenderCustomPaint extends RenderProxyBox {
         different = !old || !value || old.typeToken !== value.typeToken,
         repaint = different || value!.shouldRepaint(old!),
         semantics = different || value!.shouldRebuildSemantics(old!),
-        next = (this.attached || this.nativeLive) && value ? this.subscribe(value) : undefined,
+        next = this.attached && value ? this.subscribe(value) : undefined,
         previous = slot.subscription;
       slot.painter = value;
       slot.subscription = next;
@@ -803,8 +784,7 @@ export class RenderCustomPaint extends RenderProxyBox {
     const entry: Subscription = {
       painter: source,
       callback: () => {
-        if (entry.active && (this.attached || this.nativeLive) && !this.debugDisposed)
-          this.markNeedsPaintOnly();
+        if (entry.active && this.attached && !this.debugDisposed) this.markNeedsPaintOnly();
         else if (entry.pending) entry.notified = true;
       },
       active: false,

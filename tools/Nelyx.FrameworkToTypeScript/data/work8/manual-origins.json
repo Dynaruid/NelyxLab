@@ -1,7 +1,7 @@
 {
   "schema": "nelyx.w8-manual-origins/v1",
   "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
-  "coverageStatus": "Do not infer adapted/implemented from this partial provenance. Generated bodies retain their separate automatic batch evidence.",
+  "coverageStatus": "Do not infer adapted/implemented from this partial provenance. Destination paths and hashes describe the current Source products. Acceptance entries are historical scoped evidence, not requalification of these current hashes. Generated bodies retain separate automatic batch evidence.",
   "origins": [
     {
       "id": "e6d8cd9292bea9c89074",
@@ -31,7 +31,7 @@
       "destination": {
         "file": "Nelyx/src/ui/paragraph.ts",
         "module": "@nelyx/core/ui/paragraph",
-        "sha256": "48da30043f677078fe9dce457586e95423b12a361c4debb9f23342daf92a32de"
+        "sha256": "575936c06c0d1e139dc4f00bcd70a9dba0d0bd5763888cc7f7c03ddc3f9e1a06"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -46,7 +46,7 @@
         {
           "file": "Nelyx/src/ui/text.ts",
           "module": "@nelyx/core/ui/text",
-          "sha256": "64632711df1228dda25c03158d47e363b546c8aac405b6b5b42d6b96fcf851b2",
+          "sha256": "0a2b43509c35ff147a6541d3bd83f188628db669151abe17f4f440b069341f2d",
           "scope": "Host resource admission policy: exact live transient replacement, 64 normal/65 measurement post-replacement producers and unchanged resident bound; not a native dart:ui declaration substitute"
         }
       ]
@@ -79,7 +79,7 @@
       "destination": {
         "file": "Nelyx/src/ui/paragraph-builder.ts",
         "module": "@nelyx/core/ui/paragraph-builder",
-        "sha256": "fa0e683c19c47de0a53143a48aa25bd3118bf36a699fa0008714abd5370c9d2d"
+        "sha256": "7e7f93f115ea1d3d0516137ee1edefdafb2a05bc170c83b541d0543d4bc04e83"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -119,7 +119,7 @@
       "destination": {
         "file": "Nelyx/src/ui/color.ts",
         "module": "@nelyx/core/ui/color",
-        "sha256": "e2509db5ff81717697e6372ea4a2540851d65487270f81f67c7c95e3e3b000db"
+        "sha256": "4f4f18c92f1207845a224c45aa60785e491eae6ad68e731f0f693893bc5a2a0d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -156,7 +156,7 @@
       "destination": {
         "file": "Nelyx/src/ui/color.ts",
         "module": "@nelyx/core/ui/color",
-        "sha256": "e2509db5ff81717697e6372ea4a2540851d65487270f81f67c7c95e3e3b000db"
+        "sha256": "4f4f18c92f1207845a224c45aa60785e491eae6ad68e731f0f693893bc5a2a0d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -193,7 +193,7 @@
       "destination": {
         "file": "Nelyx/src/ui/typography.ts",
         "module": "@nelyx/core/ui/typography",
-        "sha256": "d23e7f9c05dd9b0bb2644fa640a8a88540f044d7cb57acbd817d0b7c2096a327"
+        "sha256": "6efe5ed96567fe1e730f9186413de16c6c9cd63502806acf2865a7b24a3097d8"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -231,7 +231,7 @@
       "destination": {
         "file": "Nelyx/src/ui/typography.ts",
         "module": "@nelyx/core/ui/typography",
-        "sha256": "d23e7f9c05dd9b0bb2644fa640a8a88540f044d7cb57acbd817d0b7c2096a327"
+        "sha256": "6efe5ed96567fe1e730f9186413de16c6c9cd63502806acf2865a7b24a3097d8"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -269,7 +269,7 @@
       "destination": {
         "file": "Nelyx/src/ui/glyph-info.ts",
         "module": "@nelyx/core/ui/glyph-info",
-        "sha256": "fffcea0cae060f5e409920a261bed4e26c685a37b5bdeca2f200663866178dc3"
+        "sha256": "935e9e9b910c9654d8b7f911621c56de2415cc8f21786bbe7494d398b7655e5e"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -307,7 +307,7 @@
       "destination": {
         "file": "Nelyx/src/ui/typography.ts",
         "module": "@nelyx/core/ui/typography",
-        "sha256": "d23e7f9c05dd9b0bb2644fa640a8a88540f044d7cb57acbd817d0b7c2096a327"
+        "sha256": "6efe5ed96567fe1e730f9186413de16c6c9cd63502806acf2865a7b24a3097d8"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -344,7 +344,7 @@
       "destination": {
         "file": "Nelyx/src/ui/typography.ts",
         "module": "@nelyx/core/ui/typography",
-        "sha256": "d23e7f9c05dd9b0bb2644fa640a8a88540f044d7cb57acbd817d0b7c2096a327"
+        "sha256": "6efe5ed96567fe1e730f9186413de16c6c9cd63502806acf2865a7b24a3097d8"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -381,7 +381,7 @@
       "destination": {
         "file": "Nelyx/src/ui/line-metrics.ts",
         "module": "@nelyx/core/ui/line-metrics",
-        "sha256": "fdcee9224fa8c3a4321a8f3c303181dfb5d4ce90c3a217816950ef842a3a6c1d"
+        "sha256": "7cf12d6e37e6677fdc1f95b66328e34c48454e2f78c100fc1c2098c778f4978a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -412,7 +412,7 @@
       "destination": {
         "file": "Nelyx/src/ui/locale.ts",
         "module": "@nelyx/core/ui/locale",
-        "sha256": "3b1cb2fe9438b2d614fdf426d998fc333f8ac70edc7c0f3dfca7e7b4c1493d8f"
+        "sha256": "4a82dd697be74157959caf9b908141678bdb6e66b1bce064fbbce5d0469606e2"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -444,7 +444,7 @@
       "destination": {
         "file": "Nelyx/src/ui/string-attribute.ts",
         "module": "@nelyx/core/ui/string-attribute",
-        "sha256": "bb47e58cfd9d5afc096b8849bf9e23f2ff5c26d34e9225714b65f2377869ebb9"
+        "sha256": "39cc0e9c0faa84973691b728ea7e2265ec24154d7409055d52402d6ee5d46c9c"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -483,7 +483,7 @@
       "destination": {
         "file": "Nelyx/src/ui/paragraph.ts",
         "module": "@nelyx/core/ui/paragraph",
-        "sha256": "48da30043f677078fe9dce457586e95423b12a361c4debb9f23342daf92a32de"
+        "sha256": "575936c06c0d1e139dc4f00bcd70a9dba0d0bd5763888cc7f7c03ddc3f9e1a06"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -521,7 +521,7 @@
       "destination": {
         "file": "Nelyx/src/ui/paragraph-builder.ts",
         "module": "@nelyx/core/ui/paragraph-builder",
-        "sha256": "fa0e683c19c47de0a53143a48aa25bd3118bf36a699fa0008714abd5370c9d2d"
+        "sha256": "7e7f93f115ea1d3d0516137ee1edefdafb2a05bc170c83b541d0543d4bc04e83"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -561,7 +561,7 @@
       "destination": {
         "file": "Nelyx/src/ui/paragraph-constraints.ts",
         "module": "@nelyx/core/ui/paragraph-constraints",
-        "sha256": "38ef684a89af75552aa0030807f5d01d76a8f30a51decfa700a8d83ced460faa"
+        "sha256": "018921e3fab8fcef64655372b3cbd1225b3f65ff0ca86f8433df88c2861f25cf"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -599,7 +599,7 @@
       "destination": {
         "file": "Nelyx/src/ui/paragraph-style.ts",
         "module": "@nelyx/core/ui/paragraph-style",
-        "sha256": "812ef272d88965fe146c1b0fcb49fd5cf9ff8dca07a412149f0c1e68c11d07bf"
+        "sha256": "4df4662731e997b1a56f11a379010e0b230166a60f12fe694563458b3f28b640"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -630,7 +630,7 @@
       "destination": {
         "file": "Nelyx/src/ui/string-attribute.ts",
         "module": "@nelyx/core/ui/string-attribute",
-        "sha256": "bb47e58cfd9d5afc096b8849bf9e23f2ff5c26d34e9225714b65f2377869ebb9"
+        "sha256": "39cc0e9c0faa84973691b728ea7e2265ec24154d7409055d52402d6ee5d46c9c"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -662,7 +662,7 @@
       "destination": {
         "file": "Nelyx/src/ui/string-attribute.ts",
         "module": "@nelyx/core/ui/string-attribute",
-        "sha256": "bb47e58cfd9d5afc096b8849bf9e23f2ff5c26d34e9225714b65f2377869ebb9"
+        "sha256": "39cc0e9c0faa84973691b728ea7e2265ec24154d7409055d52402d6ee5d46c9c"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -701,7 +701,7 @@
       "destination": {
         "file": "Nelyx/src/ui/typography.ts",
         "module": "@nelyx/core/ui/typography",
-        "sha256": "3dc4228189980da7bdf866dc2946722a28c351a9b48aaaf17ddc1e19f8fc0dac"
+        "sha256": "6efe5ed96567fe1e730f9186413de16c6c9cd63502806acf2865a7b24a3097d8"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -738,7 +738,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/animation-style.ts",
         "module": "@nelyx/core/framework/animation/animation-style",
-        "sha256": "762f4e1d34cc7794e62820f0186462458890ece1961f2af52c35dd977262778a"
+        "sha256": "b50d3c5c527b6b4fefb575474e8449db81257e70d1601babf73e97551d2ada54"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -775,7 +775,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/animations.ts",
         "module": "@nelyx/core/framework/animation/animations",
-        "sha256": "5d75f418acd3a893355c4d6925fccbe31b5c6699a0e0ea8b4ea146e37c162169"
+        "sha256": "2de3bedb01c1b8c30ceb2c0e33134d2b6f7e11df1351e74979894fb25d989766"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -812,7 +812,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/animations.ts",
         "module": "@nelyx/core/framework/animation/animations",
-        "sha256": "5d75f418acd3a893355c4d6925fccbe31b5c6699a0e0ea8b4ea146e37c162169"
+        "sha256": "2de3bedb01c1b8c30ceb2c0e33134d2b6f7e11df1351e74979894fb25d989766"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -849,7 +849,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/animations.ts",
         "module": "@nelyx/core/framework/animation/animations",
-        "sha256": "5d75f418acd3a893355c4d6925fccbe31b5c6699a0e0ea8b4ea146e37c162169"
+        "sha256": "2de3bedb01c1b8c30ceb2c0e33134d2b6f7e11df1351e74979894fb25d989766"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -886,7 +886,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/animations.ts",
         "module": "@nelyx/core/framework/animation/animations",
-        "sha256": "5d75f418acd3a893355c4d6925fccbe31b5c6699a0e0ea8b4ea146e37c162169"
+        "sha256": "2de3bedb01c1b8c30ceb2c0e33134d2b6f7e11df1351e74979894fb25d989766"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -923,7 +923,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/animations.ts",
         "module": "@nelyx/core/framework/animation/animations",
-        "sha256": "5d75f418acd3a893355c4d6925fccbe31b5c6699a0e0ea8b4ea146e37c162169"
+        "sha256": "2de3bedb01c1b8c30ceb2c0e33134d2b6f7e11df1351e74979894fb25d989766"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -960,7 +960,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/animations.ts",
         "module": "@nelyx/core/framework/animation/animations",
-        "sha256": "5d75f418acd3a893355c4d6925fccbe31b5c6699a0e0ea8b4ea146e37c162169"
+        "sha256": "2de3bedb01c1b8c30ceb2c0e33134d2b6f7e11df1351e74979894fb25d989766"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -997,7 +997,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/animations.ts",
         "module": "@nelyx/core/framework/animation/animations",
-        "sha256": "5d75f418acd3a893355c4d6925fccbe31b5c6699a0e0ea8b4ea146e37c162169"
+        "sha256": "2de3bedb01c1b8c30ceb2c0e33134d2b6f7e11df1351e74979894fb25d989766"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1034,7 +1034,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/animations.ts",
         "module": "@nelyx/core/framework/animation/animations",
-        "sha256": "5d75f418acd3a893355c4d6925fccbe31b5c6699a0e0ea8b4ea146e37c162169"
+        "sha256": "2de3bedb01c1b8c30ceb2c0e33134d2b6f7e11df1351e74979894fb25d989766"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1071,7 +1071,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/animations.ts",
         "module": "@nelyx/core/framework/animation/animations",
-        "sha256": "5d75f418acd3a893355c4d6925fccbe31b5c6699a0e0ea8b4ea146e37c162169"
+        "sha256": "2de3bedb01c1b8c30ceb2c0e33134d2b6f7e11df1351e74979894fb25d989766"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1108,7 +1108,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/animations.ts",
         "module": "@nelyx/core/framework/animation/animations",
-        "sha256": "5d75f418acd3a893355c4d6925fccbe31b5c6699a0e0ea8b4ea146e37c162169"
+        "sha256": "2de3bedb01c1b8c30ceb2c0e33134d2b6f7e11df1351e74979894fb25d989766"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1145,7 +1145,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/curves.ts",
         "module": "@nelyx/core/framework/animation/curves",
-        "sha256": "2ba65a0ac766137e8ac71fe4c916420dce40761d6d2b8c8733850c3e76298f80"
+        "sha256": "dd278474502a38b94f733d76f1fc92c9e5357d03b699cb557d2f03b0dd959b0a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1182,7 +1182,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/curves.ts",
         "module": "@nelyx/core/framework/animation/curves",
-        "sha256": "2ba65a0ac766137e8ac71fe4c916420dce40761d6d2b8c8733850c3e76298f80"
+        "sha256": "dd278474502a38b94f733d76f1fc92c9e5357d03b699cb557d2f03b0dd959b0a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1219,7 +1219,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/curves.ts",
         "module": "@nelyx/core/framework/animation/curves",
-        "sha256": "2ba65a0ac766137e8ac71fe4c916420dce40761d6d2b8c8733850c3e76298f80"
+        "sha256": "dd278474502a38b94f733d76f1fc92c9e5357d03b699cb557d2f03b0dd959b0a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1256,7 +1256,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/curves.ts",
         "module": "@nelyx/core/framework/animation/curves",
-        "sha256": "2ba65a0ac766137e8ac71fe4c916420dce40761d6d2b8c8733850c3e76298f80"
+        "sha256": "dd278474502a38b94f733d76f1fc92c9e5357d03b699cb557d2f03b0dd959b0a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1293,7 +1293,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/listener-helpers.ts",
         "module": "@nelyx/core/framework/animation/listener-helpers",
-        "sha256": "276d6148e3110d30e69a5c1f8d637b4a6033f39ff49bc728bd22a926e5d50fb1"
+        "sha256": "63e4d49cb332b088d8469f6b93b6f0ba132db7cede136107e47261266c29ffdb"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1330,7 +1330,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/listener-helpers.ts",
         "module": "@nelyx/core/framework/animation/listener-helpers",
-        "sha256": "276d6148e3110d30e69a5c1f8d637b4a6033f39ff49bc728bd22a926e5d50fb1"
+        "sha256": "63e4d49cb332b088d8469f6b93b6f0ba132db7cede136107e47261266c29ffdb"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1367,7 +1367,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/listener-helpers.ts",
         "module": "@nelyx/core/framework/animation/listener-helpers",
-        "sha256": "276d6148e3110d30e69a5c1f8d637b4a6033f39ff49bc728bd22a926e5d50fb1"
+        "sha256": "63e4d49cb332b088d8469f6b93b6f0ba132db7cede136107e47261266c29ffdb"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1404,7 +1404,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/listener-helpers.ts",
         "module": "@nelyx/core/framework/animation/listener-helpers",
-        "sha256": "276d6148e3110d30e69a5c1f8d637b4a6033f39ff49bc728bd22a926e5d50fb1"
+        "sha256": "63e4d49cb332b088d8469f6b93b6f0ba132db7cede136107e47261266c29ffdb"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1441,7 +1441,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween-sequence.ts",
         "module": "@nelyx/core/framework/animation/tween-sequence",
-        "sha256": "e4933583c08b17ba7bccf672ff557e6e0d2d849f9d5eeb0e6b35f5af68f6ad52"
+        "sha256": "11cda33a6b6dafe871b89d11431e1afb2e2048108efb907bffaae6dd95936156"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1478,7 +1478,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween-sequence.ts",
         "module": "@nelyx/core/framework/animation/tween-sequence",
-        "sha256": "e4933583c08b17ba7bccf672ff557e6e0d2d849f9d5eeb0e6b35f5af68f6ad52"
+        "sha256": "11cda33a6b6dafe871b89d11431e1afb2e2048108efb907bffaae6dd95936156"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1515,7 +1515,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween.ts",
         "module": "@nelyx/core/framework/animation/tween",
-        "sha256": "75b3ebe76b8daf2df48fd5c19daff7a30cdcc11bde564b0488012dceb6fc776d"
+        "sha256": "058e7d2baef41a4989e49479a638aa0ab4d52891a1de833d40676de1b3397a31"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1552,7 +1552,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween.ts",
         "module": "@nelyx/core/framework/animation/tween",
-        "sha256": "75b3ebe76b8daf2df48fd5c19daff7a30cdcc11bde564b0488012dceb6fc776d"
+        "sha256": "058e7d2baef41a4989e49479a638aa0ab4d52891a1de833d40676de1b3397a31"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1589,7 +1589,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween.ts",
         "module": "@nelyx/core/framework/animation/tween",
-        "sha256": "75b3ebe76b8daf2df48fd5c19daff7a30cdcc11bde564b0488012dceb6fc776d"
+        "sha256": "058e7d2baef41a4989e49479a638aa0ab4d52891a1de833d40676de1b3397a31"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1626,7 +1626,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween.ts",
         "module": "@nelyx/core/framework/animation/tween",
-        "sha256": "75b3ebe76b8daf2df48fd5c19daff7a30cdcc11bde564b0488012dceb6fc776d"
+        "sha256": "058e7d2baef41a4989e49479a638aa0ab4d52891a1de833d40676de1b3397a31"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1663,7 +1663,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween.ts",
         "module": "@nelyx/core/framework/animation/tween",
-        "sha256": "75b3ebe76b8daf2df48fd5c19daff7a30cdcc11bde564b0488012dceb6fc776d"
+        "sha256": "058e7d2baef41a4989e49479a638aa0ab4d52891a1de833d40676de1b3397a31"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1700,7 +1700,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween.ts",
         "module": "@nelyx/core/framework/animation/tween",
-        "sha256": "75b3ebe76b8daf2df48fd5c19daff7a30cdcc11bde564b0488012dceb6fc776d"
+        "sha256": "058e7d2baef41a4989e49479a638aa0ab4d52891a1de833d40676de1b3397a31"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1737,7 +1737,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween.ts",
         "module": "@nelyx/core/framework/animation/tween",
-        "sha256": "75b3ebe76b8daf2df48fd5c19daff7a30cdcc11bde564b0488012dceb6fc776d"
+        "sha256": "058e7d2baef41a4989e49479a638aa0ab4d52891a1de833d40676de1b3397a31"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1774,7 +1774,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween.ts",
         "module": "@nelyx/core/framework/animation/tween",
-        "sha256": "75b3ebe76b8daf2df48fd5c19daff7a30cdcc11bde564b0488012dceb6fc776d"
+        "sha256": "058e7d2baef41a4989e49479a638aa0ab4d52891a1de833d40676de1b3397a31"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1811,7 +1811,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween.ts",
         "module": "@nelyx/core/framework/animation/tween",
-        "sha256": "75b3ebe76b8daf2df48fd5c19daff7a30cdcc11bde564b0488012dceb6fc776d"
+        "sha256": "058e7d2baef41a4989e49479a638aa0ab4d52891a1de833d40676de1b3397a31"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1848,7 +1848,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/tween.ts",
         "module": "@nelyx/core/framework/animation/tween",
-        "sha256": "75b3ebe76b8daf2df48fd5c19daff7a30cdcc11bde564b0488012dceb6fc776d"
+        "sha256": "058e7d2baef41a4989e49479a638aa0ab4d52891a1de833d40676de1b3397a31"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1878,7 +1878,7 @@
       "destination": {
         "file": "packages/cupertino/src/text-selection.ts",
         "module": "@nelyx/cupertino/text-selection",
-        "sha256": "ab1caa664604efc3c774623200dcc884a6a2fbd5d03c28e71ca29f98452fca36"
+        "sha256": "f22ff3aa4e7b3b64d024c005b3fcd021dd667b442e2c90ac6b7aada3b2461811"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1921,7 +1921,7 @@
       "destination": {
         "file": "packages/cupertino/src/text-selection.ts",
         "module": "@nelyx/cupertino/text-selection",
-        "sha256": "ab1caa664604efc3c774623200dcc884a6a2fbd5d03c28e71ca29f98452fca36"
+        "sha256": "f22ff3aa4e7b3b64d024c005b3fcd021dd667b442e2c90ac6b7aada3b2461811"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1965,7 +1965,7 @@
       "destination": {
         "file": "packages/cupertino/src/text-selection.ts",
         "module": "@nelyx/cupertino/text-selection",
-        "sha256": "ab1caa664604efc3c774623200dcc884a6a2fbd5d03c28e71ca29f98452fca36"
+        "sha256": "f22ff3aa4e7b3b64d024c005b3fcd021dd667b442e2c90ac6b7aada3b2461811"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2009,7 +2009,7 @@
       "destination": {
         "file": "packages/material/src/adaptive-text-selection-toolbar.ts",
         "module": "@nelyx/material/adaptive-text-selection-toolbar",
-        "sha256": "ccbbb945389e940482a197e0b6d1e53d67ac7eb9ea0bafca696ad166b97f8f58"
+        "sha256": "e0ea23c03f9d483e8d50271d43c177b8fe523ed4d31a08fe63bd32bcc6781962"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2049,7 +2049,7 @@
       "destination": {
         "file": "packages/material/src/text-selection.ts",
         "module": "@nelyx/material/text-selection",
-        "sha256": "4308dfe2d75b9f7195241e0dabd24f49621e4d1c6515ddd6d5b3a1b83bf108c8"
+        "sha256": "8297042b7c4086bce2c8037356b2b6ada06abe28bdbe657ab4c8d16ce299b90d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2100,7 +2100,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/selectable-text.ts",
         "module": "@nelyx/core/framework/widgets/selectable-text",
-        "sha256": "cc96879c314ca470e1193b069f556184c3693206ebb1d79cc745579af6ac6486"
+        "sha256": "f74a9b8cf3de3e5e37df3e0b2f51c0645e732c76dc94ea5879ead9f8d288575a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2113,7 +2113,7 @@
         {
           "file": "Nelyx/src/framework/rendering/selectable-paragraph.ts",
           "module": "@nelyx/core/framework/rendering/selectable-paragraph",
-          "sha256": "ed9f97df497e4d76f1850ca8b2df4f5643f2f110c7bd9f814e6c69833675b7b3",
+          "sha256": "a6c546bb4c64a006a139b40c205e8b55f31091d52c7ae9e246b20efa27c6200e",
           "scope": "Host read-only selection renderer; no invented source RenderEditable equivalence"
         }
       ]
@@ -2139,7 +2139,7 @@
       "destination": {
         "file": "packages/material/src/selection-area.ts",
         "module": "@nelyx/material/selection-area",
-        "sha256": "42fa3cc24af169d483bc4ba62b70e3c1ebffabaf4ebd42a02b9ffdd9c7254334"
+        "sha256": "cfdc2db135a138d86281ec9958f3b3423f971ae79c8297f9a34a8abfdefc45df"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2178,7 +2178,7 @@
       "destination": {
         "file": "packages/material/src/selection-area.ts",
         "module": "@nelyx/material/selection-area",
-        "sha256": "42fa3cc24af169d483bc4ba62b70e3c1ebffabaf4ebd42a02b9ffdd9c7254334"
+        "sha256": "cfdc2db135a138d86281ec9958f3b3423f971ae79c8297f9a34a8abfdefc45df"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2217,7 +2217,7 @@
       "destination": {
         "file": "packages/material/src/text-selection.ts",
         "module": "@nelyx/material/text-selection",
-        "sha256": "4308dfe2d75b9f7195241e0dabd24f49621e4d1c6515ddd6d5b3a1b83bf108c8"
+        "sha256": "8297042b7c4086bce2c8037356b2b6ada06abe28bdbe657ab4c8d16ce299b90d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2261,7 +2261,7 @@
       "destination": {
         "file": "packages/material/src/text-selection.ts",
         "module": "@nelyx/material/text-selection",
-        "sha256": "4308dfe2d75b9f7195241e0dabd24f49621e4d1c6515ddd6d5b3a1b83bf108c8"
+        "sha256": "8297042b7c4086bce2c8037356b2b6ada06abe28bdbe657ab4c8d16ce299b90d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2312,7 +2312,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/binding.ts",
         "module": "@nelyx/core/framework/painting/binding",
-        "sha256": "09d6d5fb95d9518e1245bdef2349f706dee65189cbe354e261e97ed38f362ba0"
+        "sha256": "f227667509a5a452681248e944477f22eef1111b07bc7ee882fe2e4129ef995f"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2351,7 +2351,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/binding.ts",
         "module": "@nelyx/core/framework/painting/binding",
-        "sha256": "fd39300199034f4f0f0d423090e71a91c419495debae65411861f55eb6480a75"
+        "sha256": "f227667509a5a452681248e944477f22eef1111b07bc7ee882fe2e4129ef995f"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2404,7 +2404,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/inline-span.ts",
         "module": "@nelyx/core/framework/painting/inline-span",
-        "sha256": "c6cb8420e8ff56533440dcabdffcdc593a4b9405602fb057ddb8b6665b9f73b7"
+        "sha256": "a334f50a0ff54ec260b6e5f9ad5db4ebdc38228b2fee0eca670be6b24cbdbe90"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2436,7 +2436,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/inline-span.ts",
         "module": "@nelyx/core/framework/painting/inline-span",
-        "sha256": "c6cb8420e8ff56533440dcabdffcdc593a4b9405602fb057ddb8b6665b9f73b7"
+        "sha256": "a334f50a0ff54ec260b6e5f9ad5db4ebdc38228b2fee0eca670be6b24cbdbe90"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2475,7 +2475,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/inline-span.ts",
         "module": "@nelyx/core/framework/painting/inline-span",
-        "sha256": "237b31581f16a219b5ae7dac900c3cb01a59ac35f1fd32fea0a487da6c7ffaae"
+        "sha256": "a334f50a0ff54ec260b6e5f9ad5db4ebdc38228b2fee0eca670be6b24cbdbe90"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2509,7 +2509,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/inline-span.ts",
         "module": "@nelyx/core/framework/painting/inline-span",
-        "sha256": "c6cb8420e8ff56533440dcabdffcdc593a4b9405602fb057ddb8b6665b9f73b7"
+        "sha256": "a334f50a0ff54ec260b6e5f9ad5db4ebdc38228b2fee0eca670be6b24cbdbe90"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2548,7 +2548,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/matrix-utils.ts",
         "module": "@nelyx/core/framework/painting/matrix-utils",
-        "sha256": "bd29e3076d6e13e548af31d5ada8ca215e92a46071539b179dbae6db862bb158"
+        "sha256": "b787c78677e9303c1f6717e235c0735fac09692a548b5f9510146af5c3ddbaef"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2587,7 +2587,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/matrix-utils.ts",
         "module": "@nelyx/core/framework/painting/matrix-utils",
-        "sha256": "bd29e3076d6e13e548af31d5ada8ca215e92a46071539b179dbae6db862bb158"
+        "sha256": "b787c78677e9303c1f6717e235c0735fac09692a548b5f9510146af5c3ddbaef"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2626,7 +2626,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/matrix-utils.ts",
         "module": "@nelyx/core/framework/painting/matrix-utils",
-        "sha256": "bd29e3076d6e13e548af31d5ada8ca215e92a46071539b179dbae6db862bb158"
+        "sha256": "b787c78677e9303c1f6717e235c0735fac09692a548b5f9510146af5c3ddbaef"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2665,7 +2665,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/matrix-utils.ts",
         "module": "@nelyx/core/framework/painting/matrix-utils",
-        "sha256": "bd29e3076d6e13e548af31d5ada8ca215e92a46071539b179dbae6db862bb158"
+        "sha256": "b787c78677e9303c1f6717e235c0735fac09692a548b5f9510146af5c3ddbaef"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2704,7 +2704,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/placeholder-span.ts",
         "module": "@nelyx/core/framework/painting/placeholder-span",
-        "sha256": "8b32757b84be64fe220951c4e04bd11013358e9a99c39f7c5d6ad8f116bf6071"
+        "sha256": "52a69d6a510c93e903416c7c7468493fa0525ca0d05e591b50aeaca4637ee213"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2745,7 +2745,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/strut-style.ts",
         "module": "@nelyx/core/framework/painting/strut-style",
-        "sha256": "341a67b9371091f4f56075b5c37585b52d8b4042c2bb17fcd2feb5306ec8f6e8"
+        "sha256": "2d4a1e9dace8bada9e1453b0a8fc45ee93964b26a64cdb26adedba9a3e64ee3d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2782,7 +2782,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/text-painter.ts",
         "module": "@nelyx/core/framework/painting/text-painter",
-        "sha256": "963b6519c02df57ec7fe1fe6cd431ba5d6dfffe803e324fe66b657daa27bdf7b"
+        "sha256": "49ca9cbbf682293a525c1eb04842715b54d671e8b1b4c773a3b73e1a1ec30db7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2822,7 +2822,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/placeholder-dimensions.ts",
         "module": "@nelyx/core/framework/painting/placeholder-dimensions",
-        "sha256": "184cb5a74d10ec4e2db91f4088be800862fc6063224fa484a712bd23cfb781e8"
+        "sha256": "6e4b5d6cc0148c2092bc3493a4a1b883f66470b2f1a6b0b9f5c58569c6ac375b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2860,7 +2860,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/text-painter.ts",
         "module": "@nelyx/core/framework/painting/text-painter",
-        "sha256": "963b6519c02df57ec7fe1fe6cd431ba5d6dfffe803e324fe66b657daa27bdf7b"
+        "sha256": "49ca9cbbf682293a525c1eb04842715b54d671e8b1b4c773a3b73e1a1ec30db7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2899,7 +2899,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/text-painter.ts",
         "module": "@nelyx/core/framework/painting/text-painter",
-        "sha256": "963b6519c02df57ec7fe1fe6cd431ba5d6dfffe803e324fe66b657daa27bdf7b"
+        "sha256": "49ca9cbbf682293a525c1eb04842715b54d671e8b1b4c773a3b73e1a1ec30db7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2939,7 +2939,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/text-painter.ts",
         "module": "@nelyx/core/framework/painting/text-painter",
-        "sha256": "963b6519c02df57ec7fe1fe6cd431ba5d6dfffe803e324fe66b657daa27bdf7b"
+        "sha256": "49ca9cbbf682293a525c1eb04842715b54d671e8b1b4c773a3b73e1a1ec30db7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -2971,7 +2971,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/text-scaler.ts",
         "module": "@nelyx/core/framework/painting/text-scaler",
-        "sha256": "dff5f2f4ee4079ec3084e0338e749822da421586eaaa20897eeded2b44090017"
+        "sha256": "979535be29ffc67f92348da2ec728b0977fb57ba21c1c2727d4c4090d6113501"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3010,7 +3010,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/text-span.ts",
         "module": "@nelyx/core/framework/painting/text-span",
-        "sha256": "f5ee18ed85b3cef417c1ba74d2b20b6c805d40ddf72c11f68d1b86ae59ef5e1f"
+        "sha256": "8771ae1d9dab01f6a45aa71eff8c078af7e8778b7925c4d084a373e5c6b20c7b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3051,7 +3051,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/text-style.ts",
         "module": "@nelyx/core/framework/painting/text-style",
-        "sha256": "6dafa52522ec7b57a0d29a6fbef952799971acf79b9e40941f4f00b69728198f"
+        "sha256": "e85b357c6936c3866e0a0ccb7e63da4279dfa4fecfb24ceb29c0ba64092d31b7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3091,7 +3091,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/text-style.ts",
         "module": "@nelyx/core/framework/painting/text-style",
-        "sha256": "6dafa52522ec7b57a0d29a6fbef952799971acf79b9e40941f4f00b69728198f"
+        "sha256": "e85b357c6936c3866e0a0ccb7e63da4279dfa4fecfb24ceb29c0ba64092d31b7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3131,7 +3131,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/layout-helper.ts",
         "module": "@nelyx/core/framework/rendering/layout-helper",
-        "sha256": "5d92822c83a45df7b3fdaeacde53ed803db1f7e460098e3554cbd53804cb9e5a"
+        "sha256": "5e3fc5c9b5de44a73c47bbea0c4f2c3ffd05e226441fe75adda2ddf5f95765f2"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3169,7 +3169,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/layout-helper.ts",
         "module": "@nelyx/core/framework/rendering/layout-helper",
-        "sha256": "5d92822c83a45df7b3fdaeacde53ed803db1f7e460098e3554cbd53804cb9e5a"
+        "sha256": "5e3fc5c9b5de44a73c47bbea0c4f2c3ffd05e226441fe75adda2ddf5f95765f2"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3207,7 +3207,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/layout-helper.ts",
         "module": "@nelyx/core/framework/rendering/layout-helper",
-        "sha256": "5d92822c83a45df7b3fdaeacde53ed803db1f7e460098e3554cbd53804cb9e5a"
+        "sha256": "5e3fc5c9b5de44a73c47bbea0c4f2c3ffd05e226441fe75adda2ddf5f95765f2"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3245,7 +3245,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "112238531c960f69f0dbee7f43907e36708f8732108064c97fa4f3edbb474646"
+        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3282,7 +3282,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "7e290b49c12a075c1afc64bb6bff5c23f62fb188933b19863d1c48a6fbba19bf"
+        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3321,7 +3321,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/paragraph.ts",
         "module": "@nelyx/core/framework/rendering/paragraph",
-        "sha256": "23e555d576c5b88b07ed4f1993883cfa31461950153eb4448b4f299d49d7c4b4"
+        "sha256": "ac85e86a3e8c42ad5f7628bea0301ec603868761643edb4ca087bf14a8272e0e"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3360,7 +3360,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/paragraph.ts",
         "module": "@nelyx/core/framework/rendering/paragraph",
-        "sha256": "23e555d576c5b88b07ed4f1993883cfa31461950153eb4448b4f299d49d7c4b4"
+        "sha256": "ac85e86a3e8c42ad5f7628bea0301ec603868761643edb4ca087bf14a8272e0e"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3392,7 +3392,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/paragraph.ts",
         "module": "@nelyx/core/framework/rendering/paragraph",
-        "sha256": "23e555d576c5b88b07ed4f1993883cfa31461950153eb4448b4f299d49d7c4b4"
+        "sha256": "ac85e86a3e8c42ad5f7628bea0301ec603868761643edb4ca087bf14a8272e0e"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3433,7 +3433,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/paragraph.ts",
         "module": "@nelyx/core/framework/rendering/paragraph",
-        "sha256": "23e555d576c5b88b07ed4f1993883cfa31461950153eb4448b4f299d49d7c4b4"
+        "sha256": "ac85e86a3e8c42ad5f7628bea0301ec603868761643edb4ca087bf14a8272e0e"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3472,7 +3472,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/clip.ts",
         "module": "@nelyx/core/framework/rendering/clip",
-        "sha256": "f96eb8e8c4e342fee5189772461a4ad033261453abca2c38963195d7db170579"
+        "sha256": "6c9dbc9be0132a6b7d0c59564f45d2af2120ec6d66e9bbcdce7ae21f4787f704"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3511,7 +3511,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/animated-opacity.ts",
         "module": "@nelyx/core/framework/rendering/animated-opacity",
-        "sha256": "ad37e45fa0d09dc959145a1a6ca4f67839daabca5398d8fba3d499311d936e1d"
+        "sha256": "ba4193a8e949486d34132232b1bc760874915feaa88516d786f3fba4ffc7ee16"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3549,7 +3549,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/animated-opacity.ts",
         "module": "@nelyx/core/framework/rendering/animated-opacity",
-        "sha256": "ad37e45fa0d09dc959145a1a6ca4f67839daabca5398d8fba3d499311d936e1d"
+        "sha256": "ba4193a8e949486d34132232b1bc760874915feaa88516d786f3fba4ffc7ee16"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3587,7 +3587,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/clip.ts",
         "module": "@nelyx/core/framework/rendering/clip",
-        "sha256": "f96eb8e8c4e342fee5189772461a4ad033261453abca2c38963195d7db170579"
+        "sha256": "6c9dbc9be0132a6b7d0c59564f45d2af2120ec6d66e9bbcdce7ae21f4787f704"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3624,7 +3624,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/clip.ts",
         "module": "@nelyx/core/framework/rendering/clip",
-        "sha256": "f96eb8e8c4e342fee5189772461a4ad033261453abca2c38963195d7db170579"
+        "sha256": "6c9dbc9be0132a6b7d0c59564f45d2af2120ec6d66e9bbcdce7ae21f4787f704"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3663,7 +3663,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/clip.ts",
         "module": "@nelyx/core/framework/rendering/clip",
-        "sha256": "f96eb8e8c4e342fee5189772461a4ad033261453abca2c38963195d7db170579"
+        "sha256": "6c9dbc9be0132a6b7d0c59564f45d2af2120ec6d66e9bbcdce7ae21f4787f704"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3702,7 +3702,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/proxy-sliver.ts",
         "module": "@nelyx/core/framework/rendering/proxy-sliver",
-        "sha256": "4b1aad8db65e38d7b18ac06297f554a6604b2b94ee7c009a5786a2b57d9e9747"
+        "sha256": "26edbded277ada6f261b692db50addf0a3f0f282e0d82c9c46eb9354d794cae3"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3740,7 +3740,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/proxy-sliver.ts",
         "module": "@nelyx/core/framework/rendering/proxy-sliver",
-        "sha256": "4b1aad8db65e38d7b18ac06297f554a6604b2b94ee7c009a5786a2b57d9e9747"
+        "sha256": "26edbded277ada6f261b692db50addf0a3f0f282e0d82c9c46eb9354d794cae3"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3778,7 +3778,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/tweens.ts",
         "module": "@nelyx/core/framework/rendering/tweens",
-        "sha256": "cb48a79f36264382ffea0945e58d9bc3bfb741996fa1be3735ac61cd4cf18928"
+        "sha256": "ad501b134ec50d8913a00af3d15ade576dbe57d76c1a0fb69e39a44987f015a7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3815,7 +3815,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/tweens.ts",
         "module": "@nelyx/core/framework/rendering/tweens",
-        "sha256": "cb48a79f36264382ffea0945e58d9bc3bfb741996fa1be3735ac61cd4cf18928"
+        "sha256": "ad501b134ec50d8913a00af3d15ade576dbe57d76c1a0fb69e39a44987f015a7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3852,7 +3852,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/viewport.ts",
         "module": "@nelyx/core/framework/rendering/viewport",
-        "sha256": "5ee25db4b5010c7a1379f92da93a8aea9b2408f54b6b607a651a07ce20e5d101"
+        "sha256": "d3f1fb32fc2a6574daf6148897b146fcad60f966dce0717c7dac319e7db7f5d5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3891,7 +3891,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/viewport.ts",
         "module": "@nelyx/core/framework/rendering/viewport",
-        "sha256": "5ee25db4b5010c7a1379f92da93a8aea9b2408f54b6b607a651a07ce20e5d101"
+        "sha256": "d3f1fb32fc2a6574daf6148897b146fcad60f966dce0717c7dac319e7db7f5d5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3930,7 +3930,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/viewport.ts",
         "module": "@nelyx/core/framework/rendering/viewport",
-        "sha256": "5ee25db4b5010c7a1379f92da93a8aea9b2408f54b6b607a651a07ce20e5d101"
+        "sha256": "d3f1fb32fc2a6574daf6148897b146fcad60f966dce0717c7dac319e7db7f5d5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -3969,7 +3969,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/viewport.ts",
         "module": "@nelyx/core/framework/rendering/viewport",
-        "sha256": "5ee25db4b5010c7a1379f92da93a8aea9b2408f54b6b607a651a07ce20e5d101"
+        "sha256": "d3f1fb32fc2a6574daf6148897b146fcad60f966dce0717c7dac319e7db7f5d5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4008,7 +4008,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/viewport.ts",
         "module": "@nelyx/core/framework/rendering/viewport",
-        "sha256": "5ee25db4b5010c7a1379f92da93a8aea9b2408f54b6b607a651a07ce20e5d101"
+        "sha256": "d3f1fb32fc2a6574daf6148897b146fcad60f966dce0717c7dac319e7db7f5d5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4047,7 +4047,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/viewport.ts",
         "module": "@nelyx/core/framework/rendering/viewport",
-        "sha256": "5ee25db4b5010c7a1379f92da93a8aea9b2408f54b6b607a651a07ce20e5d101"
+        "sha256": "d3f1fb32fc2a6574daf6148897b146fcad60f966dce0717c7dac319e7db7f5d5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4079,7 +4079,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/attributed-string.ts",
         "module": "@nelyx/core/framework/semantics/attributed-string",
-        "sha256": "9773dd1b401ecf7f8919a8bcf1e68b260799968005d827bc45443e46c623b602"
+        "sha256": "438341dc7eabfc89f4c9c1a323bcd5d6ca44b43a9d0847421ca6d3dd9b8c1da5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4111,7 +4111,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4155,7 +4155,7 @@
       "destination": {
         "file": "Nelyx/src/services/restoration.ts",
         "module": "@nelyx/core/services/restoration",
-        "sha256": "f8ef7feba44eb27bfd35436b3da362344d12d8bc1fe8347b2674b94af9c5d8fa"
+        "sha256": "1137b11b658860ee54930aaf753130faeb7df5461575c1c75dc1c9c674a557bd"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4194,7 +4194,7 @@
       "destination": {
         "file": "Nelyx/src/services/restoration.ts",
         "module": "@nelyx/core/services/restoration",
-        "sha256": "f8ef7feba44eb27bfd35436b3da362344d12d8bc1fe8347b2674b94af9c5d8fa"
+        "sha256": "1137b11b658860ee54930aaf753130faeb7df5461575c1c75dc1c9c674a557bd"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4233,7 +4233,7 @@
       "destination": {
         "file": "Nelyx/src/services/restoration.ts",
         "module": "@nelyx/core/services/restoration",
-        "sha256": "f8ef7feba44eb27bfd35436b3da362344d12d8bc1fe8347b2674b94af9c5d8fa"
+        "sha256": "1137b11b658860ee54930aaf753130faeb7df5461575c1c75dc1c9c674a557bd"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4265,7 +4265,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/platform-selectable-region-context-menu.ts",
         "module": "@nelyx/core/framework/widgets/platform-selectable-region-context-menu",
-        "sha256": "7324870606172e8d40157adabbe40eeeb25daeb54dd3df158b640fa94fedc340"
+        "sha256": "8dd95b4fdec22cdbd52aa98d35ee9165ab0da7a1a842456275f5ac79989d7203"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4277,11 +4277,11 @@
       "supportingDestinations": [
         {
           "file": "Nelyx/src/hosting/interaction.ts",
-          "sha256": "2c62df0aebe34963570cb58cafb674aa4e4304bc015f903361f7b20b3b01cf0c"
+          "sha256": "2d36b4dff79dba330cf0886628b7225d3af6416d93fba998dd413c03c8d29aa0"
         },
         {
           "file": "Nelyx/sdk/src/backends/browser/selection-context-menu.ts",
-          "sha256": "2567d01d9493665f090bab07be47bc511649a61b0f3add16af1c867a32ae2015"
+          "sha256": "b74377747857f6f6e7808605850de25bb3fad5464ad500a8777f7031370e37ac"
         }
       ]
     },
@@ -4313,7 +4313,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/basic.ts",
         "module": "@nelyx/core/framework/widgets/basic",
-        "sha256": "a5e8c608cb35d7ef602b34d1ecaa72796be74de7061e5f2fbf2f4c36f48f5277"
+        "sha256": "604d1008f8619eef5537ea619200adc26e2040a6aeee641031f391564872585a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4351,7 +4351,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/clip.ts",
         "module": "@nelyx/core/framework/widgets/clip",
-        "sha256": "c36a542403a43d58688d0a25bffdc778bd2a01b13d88b82e0ed24146946c3cc9"
+        "sha256": "784e552fa22ee7141f053bf4c526651836bfd04a76f69d760994b760d73193d7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4388,7 +4388,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/basic.ts",
         "module": "@nelyx/core/framework/widgets/basic",
-        "sha256": "a5e8c608cb35d7ef602b34d1ecaa72796be74de7061e5f2fbf2f4c36f48f5277"
+        "sha256": "604d1008f8619eef5537ea619200adc26e2040a6aeee641031f391564872585a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4426,7 +4426,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/basic.ts",
         "module": "@nelyx/core/framework/widgets/basic",
-        "sha256": "a5e8c608cb35d7ef602b34d1ecaa72796be74de7061e5f2fbf2f4c36f48f5277"
+        "sha256": "604d1008f8619eef5537ea619200adc26e2040a6aeee641031f391564872585a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4465,7 +4465,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/basic.ts",
         "module": "@nelyx/core/framework/widgets/basic",
-        "sha256": "a5e8c608cb35d7ef602b34d1ecaa72796be74de7061e5f2fbf2f4c36f48f5277"
+        "sha256": "604d1008f8619eef5537ea619200adc26e2040a6aeee641031f391564872585a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4505,7 +4505,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/container.ts",
         "module": "@nelyx/core/framework/widgets/container",
-        "sha256": "c521cf2b6fae2d81b79b1b628fceafec77f060f66d38db442805b6d73cd4ebc2"
+        "sha256": "4fc8ca571213fc41cda7f26ab8923e40e82901c76a8fe0bdfe9128572f403299"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4542,7 +4542,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/container.ts",
         "module": "@nelyx/core/framework/widgets/container",
-        "sha256": "c521cf2b6fae2d81b79b1b628fceafec77f060f66d38db442805b6d73cd4ebc2"
+        "sha256": "4fc8ca571213fc41cda7f26ab8923e40e82901c76a8fe0bdfe9128572f403299"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4579,7 +4579,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4618,7 +4618,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4657,7 +4657,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4696,7 +4696,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4735,7 +4735,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4774,7 +4774,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4813,7 +4813,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4852,7 +4852,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4891,7 +4891,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4930,7 +4930,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -4969,7 +4969,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5008,7 +5008,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5047,7 +5047,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5086,7 +5086,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5125,7 +5125,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5164,7 +5164,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5203,7 +5203,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5242,7 +5242,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5281,7 +5281,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5320,7 +5320,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5359,7 +5359,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5398,7 +5398,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5437,7 +5437,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5476,7 +5476,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5515,7 +5515,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5554,7 +5554,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5593,7 +5593,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5632,7 +5632,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5671,7 +5671,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5710,7 +5710,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5749,7 +5749,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5788,7 +5788,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5827,7 +5827,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5866,7 +5866,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5905,7 +5905,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5944,7 +5944,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -5983,7 +5983,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6022,7 +6022,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6061,7 +6061,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/implicit-animations.ts",
         "module": "@nelyx/core/framework/widgets/implicit-animations",
-        "sha256": "2559d61bbf3aed6a246283b17d01316d67e6df9fb340452af098809b4d9ec96d"
+        "sha256": "45b8a5aac1244ab377de855e5c577aeb6a5bf138525edd9d9610f2a4adf9039d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6100,7 +6100,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/overscroll-indicator.ts",
         "module": "@nelyx/core/framework/widgets/overscroll-indicator",
-        "sha256": "da8353f8e8c2ef2c0eb4366c91b1eb60147f7789b0e7b0644491112760d199ba"
+        "sha256": "4b2465c52e56f681c3359fad9a6d82863e185fae86f926ac6cfa58098077e398"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6139,7 +6139,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/overscroll-indicator.ts",
         "module": "@nelyx/core/framework/widgets/overscroll-indicator",
-        "sha256": "da8353f8e8c2ef2c0eb4366c91b1eb60147f7789b0e7b0644491112760d199ba"
+        "sha256": "4b2465c52e56f681c3359fad9a6d82863e185fae86f926ac6cfa58098077e398"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6178,7 +6178,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/restoration.ts",
         "module": "@nelyx/core/framework/widgets/restoration",
-        "sha256": "213fb1ff0cc23f8753811a025ce336e6af8f8632965ce9c53dedb0e8447fe056"
+        "sha256": "77c79ad32754985be1594223cee2d2836b8bd6ef8f2d470409555eaaa49a23b5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6217,7 +6217,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/restoration.ts",
         "module": "@nelyx/core/framework/widgets/restoration",
-        "sha256": "213fb1ff0cc23f8753811a025ce336e6af8f8632965ce9c53dedb0e8447fe056"
+        "sha256": "77c79ad32754985be1594223cee2d2836b8bd6ef8f2d470409555eaaa49a23b5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6256,7 +6256,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/restoration.ts",
         "module": "@nelyx/core/framework/widgets/restoration",
-        "sha256": "213fb1ff0cc23f8753811a025ce336e6af8f8632965ce9c53dedb0e8447fe056"
+        "sha256": "77c79ad32754985be1594223cee2d2836b8bd6ef8f2d470409555eaaa49a23b5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6295,7 +6295,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/scroll-position.ts",
         "module": "@nelyx/core/framework/widgets/scroll-position",
-        "sha256": "cd27082268dfef24c7a4cd21733b99d9d95ffc636c65272f11d6713e3965e6ff"
+        "sha256": "81c4477b3c60f0bc2f28d48258122bfe1bde46f687434bc96c6e51ef5a6b21a8"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6334,7 +6334,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/scrollable-helpers.ts",
         "module": "@nelyx/core/framework/widgets/scrollable-helpers",
-        "sha256": "858461f305a9099f5b17033a812b36b2462050e265fa484ba63c4535ed700ece"
+        "sha256": "9dbedc7bf876d84c73ea83e3695864fa008e6cd67cd24d69c22461fdc13ef978"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6374,7 +6374,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/scrollable.ts",
         "module": "@nelyx/core/framework/widgets/scrollable",
-        "sha256": "fa6649f7f3c1539234c25480a16292f1d96961e4e863ded4fda2f80c55fe9220"
+        "sha256": "13c26c4b327d56c7b41a81842c181c9575f4baa1cfa20dc3235ab1fb3aef100f"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6414,7 +6414,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/scrollable.ts",
         "module": "@nelyx/core/framework/widgets/scrollable",
-        "sha256": "fa6649f7f3c1539234c25480a16292f1d96961e4e863ded4fda2f80c55fe9220"
+        "sha256": "13c26c4b327d56c7b41a81842c181c9575f4baa1cfa20dc3235ab1fb3aef100f"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6454,7 +6454,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/scrollbar.ts",
         "module": "@nelyx/core/framework/widgets/scrollbar",
-        "sha256": "ba7775670f777e4694c64df6f77a0000542eebaf82e1c98c00fac91575b8af81"
+        "sha256": "340b9502a6eaf567625d3aaf292f63af4476209a1aad6660fc4d1b48d7185a4c"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6493,7 +6493,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/scrollbar.ts",
         "module": "@nelyx/core/framework/widgets/scrollbar",
-        "sha256": "ba7775670f777e4694c64df6f77a0000542eebaf82e1c98c00fac91575b8af81"
+        "sha256": "340b9502a6eaf567625d3aaf292f63af4476209a1aad6660fc4d1b48d7185a4c"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6532,7 +6532,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/scrollbar.ts",
         "module": "@nelyx/core/framework/widgets/scrollbar",
-        "sha256": "ba7775670f777e4694c64df6f77a0000542eebaf82e1c98c00fac91575b8af81"
+        "sha256": "340b9502a6eaf567625d3aaf292f63af4476209a1aad6660fc4d1b48d7185a4c"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6571,7 +6571,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/scrollbar.ts",
         "module": "@nelyx/core/framework/widgets/scrollbar",
-        "sha256": "ba7775670f777e4694c64df6f77a0000542eebaf82e1c98c00fac91575b8af81"
+        "sha256": "340b9502a6eaf567625d3aaf292f63af4476209a1aad6660fc4d1b48d7185a4c"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6610,7 +6610,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/default-text-style.ts",
         "module": "@nelyx/core/framework/widgets/default-text-style",
-        "sha256": "c76a5d6a99c22d4fa047d307a29bfcab2ccf3511bd85c2269ca3e36a9f2aab58"
+        "sha256": "6a5248f01666161cc9847b423acd275d1d4972e1a4680b9e64dcc7ec915c393d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6648,7 +6648,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6686,7 +6686,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6724,7 +6724,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/animated-widget.ts",
         "module": "@nelyx/core/framework/widgets/animated-widget",
-        "sha256": "32d2307252409a488cf249a123f7fe403904b16e04d249387cf115aaf87c4153"
+        "sha256": "0a46f3bc5a49d5badc95c861ff3761854b7eec5ed00af8f158575b6678f48b90"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6762,7 +6762,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6800,7 +6800,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6838,7 +6838,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6876,7 +6876,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/listenable-builder.ts",
         "module": "@nelyx/core/framework/widgets/listenable-builder",
-        "sha256": "d9c951b20fb43d4e85e9bef5cbce3c62dc5c8a8dcb98b661f26ee8fe8643e4bb"
+        "sha256": "c2c50f4a85eeeb127f04e75db142b6073eb96417e1c820ecc6fbc7ce969b5913"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6914,7 +6914,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6952,7 +6952,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -6990,7 +6990,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7028,7 +7028,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7066,7 +7066,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7104,7 +7104,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7142,7 +7142,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7180,7 +7180,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7218,7 +7218,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/transitions.ts",
         "module": "@nelyx/core/framework/widgets/transitions",
-        "sha256": "2510b9be4f425149fa1d9d51d60d9fe186f7d197b44a4a3421fa334f43bacc39"
+        "sha256": "14863bdb16efabc6693281af9a00674c66222366d4eef2cd9b0ba33677120992"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7256,7 +7256,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/widget-span.ts",
         "module": "@nelyx/core/framework/widgets/widget-span",
-        "sha256": "4e7f180660e203f76884176ecf974cd9db567fc27f5356f4088e17ba2d9fffbe"
+        "sha256": "dfdcb8bb218456d01e7856430dc2a933e677fd7cb1d3dacd8d85b1cf37c0d9cc"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7297,7 +7297,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/widget-span.ts",
         "module": "@nelyx/core/framework/widgets/widget-span",
-        "sha256": "4e7f180660e203f76884176ecf974cd9db567fc27f5356f4088e17ba2d9fffbe"
+        "sha256": "dfdcb8bb218456d01e7856430dc2a933e677fd7cb1d3dacd8d85b1cf37c0d9cc"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7338,7 +7338,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/widget-span.ts",
         "module": "@nelyx/core/framework/widgets/widget-span",
-        "sha256": "4e7f180660e203f76884176ecf974cd9db567fc27f5356f4088e17ba2d9fffbe"
+        "sha256": "dfdcb8bb218456d01e7856430dc2a933e677fd7cb1d3dacd8d85b1cf37c0d9cc"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7379,7 +7379,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/widget-span.ts",
         "module": "@nelyx/core/framework/widgets/widget-span",
-        "sha256": "4e7f180660e203f76884176ecf974cd9db567fc27f5356f4088e17ba2d9fffbe"
+        "sha256": "dfdcb8bb218456d01e7856430dc2a933e677fd7cb1d3dacd8d85b1cf37c0d9cc"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7413,7 +7413,7 @@
       "destination": {
         "file": "Nelyx/src/ui/semantics-action.ts",
         "module": "@nelyx/core/ui/semantics-action",
-        "sha256": "023449ce714ca623801d7675ad7d2da9700bcea04073e04ae3a99bd4bc801858"
+        "sha256": "cfe8da07cdd02439c22a3e8a86ec909ca9c63efca1f8c1ade93995ab05ab923c"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7443,7 +7443,7 @@
       "destination": {
         "file": "Nelyx/src/ui/semantics.ts",
         "module": "@nelyx/core/ui/semantics",
-        "sha256": "0d58dde7bc4042ecb6ff737268d35588d4d7bbf9c6daa4d571086c512781349d"
+        "sha256": "1fefc9e5a9c99cb135ad0484d82c48fdf36d97e3b9a94d764507a1c7584f685b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7473,7 +7473,7 @@
       "destination": {
         "file": "Nelyx/src/ui/semantics.ts",
         "module": "@nelyx/core/ui/semantics",
-        "sha256": "0d58dde7bc4042ecb6ff737268d35588d4d7bbf9c6daa4d571086c512781349d"
+        "sha256": "1fefc9e5a9c99cb135ad0484d82c48fdf36d97e3b9a94d764507a1c7584f685b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7503,7 +7503,7 @@
       "destination": {
         "file": "Nelyx/src/ui/semantics.ts",
         "module": "@nelyx/core/ui/semantics",
-        "sha256": "0d58dde7bc4042ecb6ff737268d35588d4d7bbf9c6daa4d571086c512781349d"
+        "sha256": "1fefc9e5a9c99cb135ad0484d82c48fdf36d97e3b9a94d764507a1c7584f685b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7533,7 +7533,7 @@
       "destination": {
         "file": "Nelyx/src/ui/semantics.ts",
         "module": "@nelyx/core/ui/semantics",
-        "sha256": "0d58dde7bc4042ecb6ff737268d35588d4d7bbf9c6daa4d571086c512781349d"
+        "sha256": "1fefc9e5a9c99cb135ad0484d82c48fdf36d97e3b9a94d764507a1c7584f685b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7563,7 +7563,7 @@
       "destination": {
         "file": "Nelyx/src/ui/semantics.ts",
         "module": "@nelyx/core/ui/semantics",
-        "sha256": "0d58dde7bc4042ecb6ff737268d35588d4d7bbf9c6daa4d571086c512781349d"
+        "sha256": "1fefc9e5a9c99cb135ad0484d82c48fdf36d97e3b9a94d764507a1c7584f685b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7593,7 +7593,7 @@
       "destination": {
         "file": "Nelyx/src/ui/semantics.ts",
         "module": "@nelyx/core/ui/semantics",
-        "sha256": "0d58dde7bc4042ecb6ff737268d35588d4d7bbf9c6daa4d571086c512781349d"
+        "sha256": "1fefc9e5a9c99cb135ad0484d82c48fdf36d97e3b9a94d764507a1c7584f685b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7623,7 +7623,7 @@
       "destination": {
         "file": "Nelyx/src/ui/semantics.ts",
         "module": "@nelyx/core/ui/semantics",
-        "sha256": "0d58dde7bc4042ecb6ff737268d35588d4d7bbf9c6daa4d571086c512781349d"
+        "sha256": "1fefc9e5a9c99cb135ad0484d82c48fdf36d97e3b9a94d764507a1c7584f685b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7653,7 +7653,7 @@
       "destination": {
         "file": "Nelyx/src/ui/semantics.ts",
         "module": "@nelyx/core/ui/semantics",
-        "sha256": "0d58dde7bc4042ecb6ff737268d35588d4d7bbf9c6daa4d571086c512781349d"
+        "sha256": "1fefc9e5a9c99cb135ad0484d82c48fdf36d97e3b9a94d764507a1c7584f685b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7683,7 +7683,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7720,7 +7720,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7757,7 +7757,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7794,7 +7794,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7831,7 +7831,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7868,7 +7868,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7905,7 +7905,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7942,7 +7942,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -7979,7 +7979,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8015,7 +8015,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8051,7 +8051,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8090,7 +8090,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8129,7 +8129,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8168,7 +8168,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8207,7 +8207,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8246,7 +8246,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8285,7 +8285,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8324,7 +8324,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8363,7 +8363,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "e1f793d2419801445cb6e2c91f9bb311a8d1f03735fc6b1b58572619b7ead066"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8399,7 +8399,7 @@
       "destination": {
         "file": "Nelyx/src/ui/semantics.ts",
         "module": "@nelyx/core/ui/semantics",
-        "sha256": "0d58dde7bc4042ecb6ff737268d35588d4d7bbf9c6daa4d571086c512781349d"
+        "sha256": "1fefc9e5a9c99cb135ad0484d82c48fdf36d97e3b9a94d764507a1c7584f685b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8430,7 +8430,7 @@
       "destination": {
         "file": "Nelyx/src/ui/semantics.ts",
         "module": "@nelyx/core/ui/semantics",
-        "sha256": "0d58dde7bc4042ecb6ff737268d35588d4d7bbf9c6daa4d571086c512781349d"
+        "sha256": "1fefc9e5a9c99cb135ad0484d82c48fdf36d97e3b9a94d764507a1c7584f685b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8461,7 +8461,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/matrix-utils.ts",
         "module": "@nelyx/core/framework/painting/matrix-utils",
-        "sha256": "ec4438f1af38e62683a21fb7b9505bd48e80144f447afad275e7a9ecf4954342"
+        "sha256": "b787c78677e9303c1f6717e235c0735fac09692a548b5f9510146af5c3ddbaef"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8491,7 +8491,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/matrix-utils.ts",
         "module": "@nelyx/core/framework/painting/matrix-utils",
-        "sha256": "ec4438f1af38e62683a21fb7b9505bd48e80144f447afad275e7a9ecf4954342"
+        "sha256": "b787c78677e9303c1f6717e235c0735fac09692a548b5f9510146af5c3ddbaef"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8521,7 +8521,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "d96ca467e1bec2fd4a75424a30124f3e5c83b74bea8ddd1bad74f7155ff8f136"
+        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8554,7 +8554,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics-event.ts",
         "module": "@nelyx/core/framework/semantics/semantics-event",
-        "sha256": "aa921ff10a1d250611873e3983171173c00d11dfd3f80178320c127650e9d4d3"
+        "sha256": "dea56589f5b9a2472311d406a656ec0ff9ba6da044c1d926ee74deb8e498b238"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8593,7 +8593,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics-event.ts",
         "module": "@nelyx/core/framework/semantics/semantics-event",
-        "sha256": "aa921ff10a1d250611873e3983171173c00d11dfd3f80178320c127650e9d4d3"
+        "sha256": "dea56589f5b9a2472311d406a656ec0ff9ba6da044c1d926ee74deb8e498b238"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8632,7 +8632,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics-event.ts",
         "module": "@nelyx/core/framework/semantics/semantics-event",
-        "sha256": "aa921ff10a1d250611873e3983171173c00d11dfd3f80178320c127650e9d4d3"
+        "sha256": "dea56589f5b9a2472311d406a656ec0ff9ba6da044c1d926ee74deb8e498b238"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8671,7 +8671,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics-event.ts",
         "module": "@nelyx/core/framework/semantics/semantics-event",
-        "sha256": "aa921ff10a1d250611873e3983171173c00d11dfd3f80178320c127650e9d4d3"
+        "sha256": "dea56589f5b9a2472311d406a656ec0ff9ba6da044c1d926ee74deb8e498b238"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8710,7 +8710,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics-event.ts",
         "module": "@nelyx/core/framework/semantics/semantics-event",
-        "sha256": "aa921ff10a1d250611873e3983171173c00d11dfd3f80178320c127650e9d4d3"
+        "sha256": "dea56589f5b9a2472311d406a656ec0ff9ba6da044c1d926ee74deb8e498b238"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8749,7 +8749,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics-event.ts",
         "module": "@nelyx/core/framework/semantics/semantics-event",
-        "sha256": "aa921ff10a1d250611873e3983171173c00d11dfd3f80178320c127650e9d4d3"
+        "sha256": "dea56589f5b9a2472311d406a656ec0ff9ba6da044c1d926ee74deb8e498b238"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8788,7 +8788,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics-event.ts",
         "module": "@nelyx/core/framework/semantics/semantics-event",
-        "sha256": "aa921ff10a1d250611873e3983171173c00d11dfd3f80178320c127650e9d4d3"
+        "sha256": "dea56589f5b9a2472311d406a656ec0ff9ba6da044c1d926ee74deb8e498b238"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8828,7 +8828,7 @@
         "file": "Nelyx/src/framework/rendering/semantics-pipeline.ts",
         "module": null,
         "visibility": "internal",
-        "sha256": "49bfc3435ee5066c44c917c80aa92149d3149748499b9406d3252aabbad98aa4"
+        "sha256": "9dc8cccd4b9c6ec418476fd60b245cc12d48ddab8c1093a98472f660eb32769b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8862,7 +8862,7 @@
         "file": "Nelyx/src/framework/rendering/semantics-pipeline.ts",
         "module": null,
         "visibility": "internal",
-        "sha256": "49bfc3435ee5066c44c917c80aa92149d3149748499b9406d3252aabbad98aa4"
+        "sha256": "9dc8cccd4b9c6ec418476fd60b245cc12d48ddab8c1093a98472f660eb32769b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8896,7 +8896,7 @@
         "file": "Nelyx/src/framework/rendering/semantics-pipeline.ts",
         "module": null,
         "visibility": "internal",
-        "sha256": "49bfc3435ee5066c44c917c80aa92149d3149748499b9406d3252aabbad98aa4"
+        "sha256": "9dc8cccd4b9c6ec418476fd60b245cc12d48ddab8c1093a98472f660eb32769b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8930,7 +8930,7 @@
         "file": "Nelyx/src/framework/rendering/semantics-pipeline.ts",
         "module": null,
         "visibility": "internal",
-        "sha256": "49bfc3435ee5066c44c917c80aa92149d3149748499b9406d3252aabbad98aa4"
+        "sha256": "9dc8cccd4b9c6ec418476fd60b245cc12d48ddab8c1093a98472f660eb32769b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8964,7 +8964,7 @@
         "file": "Nelyx/src/framework/rendering/semantics-pipeline.ts",
         "module": null,
         "visibility": "internal",
-        "sha256": "49bfc3435ee5066c44c917c80aa92149d3149748499b9406d3252aabbad98aa4"
+        "sha256": "9dc8cccd4b9c6ec418476fd60b245cc12d48ddab8c1093a98472f660eb32769b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -8998,7 +8998,7 @@
         "file": "Nelyx/src/framework/rendering/semantics-pipeline.ts",
         "module": null,
         "visibility": "internal",
-        "sha256": "49bfc3435ee5066c44c917c80aa92149d3149748499b9406d3252aabbad98aa4"
+        "sha256": "9dc8cccd4b9c6ec418476fd60b245cc12d48ddab8c1093a98472f660eb32769b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9031,7 +9031,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "d96ca467e1bec2fd4a75424a30124f3e5c83b74bea8ddd1bad74f7155ff8f136"
+        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9064,7 +9064,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "d96ca467e1bec2fd4a75424a30124f3e5c83b74bea8ddd1bad74f7155ff8f136"
+        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9097,7 +9097,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "d96ca467e1bec2fd4a75424a30124f3e5c83b74bea8ddd1bad74f7155ff8f136"
+        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9130,7 +9130,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "d96ca467e1bec2fd4a75424a30124f3e5c83b74bea8ddd1bad74f7155ff8f136"
+        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9163,7 +9163,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/binding.ts",
         "module": "@nelyx/core/framework/semantics/binding",
-        "sha256": "603df8f8e4f851707c24cc5fb0bdecb6423558beaa7d92f0c0a4cb26fb46a13d"
+        "sha256": "8d93bc7a3f1ad8b69ca41c6e1cf66d2de423181570d4f099e8c183a2834f9a85"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9217,7 +9217,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/binding.ts",
         "module": "@nelyx/core/framework/semantics/binding",
-        "sha256": "603df8f8e4f851707c24cc5fb0bdecb6423558beaa7d92f0c0a4cb26fb46a13d"
+        "sha256": "8d93bc7a3f1ad8b69ca41c6e1cf66d2de423181570d4f099e8c183a2834f9a85"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9271,7 +9271,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics-service.ts",
         "module": "@nelyx/core/framework/semantics/semantics-service",
-        "sha256": "95ed36b6628b736ccab46a27646aabebe7474d4c340d108c93b4db8ce8d9bfbe"
+        "sha256": "58559f9ab5e2882f166244defa0a271827930f2de3faa157d74c149eb0f2a81e"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9307,7 +9307,7 @@
       "destination": {
         "file": "Nelyx/src/ui/platform-dispatcher.ts",
         "module": "@nelyx/core/ui/platform-dispatcher",
-        "sha256": "42c1939431ef54145f3d4509097e50585d0ca3239463ebfafcffe71fa13e625c"
+        "sha256": "671d54527820811b2e88d605efe1b844f72b95ee00d73418bf0da75867d501ff"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9378,7 +9378,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/semantics.ts",
         "module": "@nelyx/core/framework/widgets/semantics",
-        "sha256": "6fad19950489d2a44ed5bdb705003c57a40ecc036254d049107789c2dc2d1461"
+        "sha256": "c7c9cee0925a0c60a13b23d241fc9cbc3485b9130384058f980f2cfad14e71eb"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9417,7 +9417,7 @@
       "destination": {
         "file": "Nelyx/src/framework/semantics/semantics.ts",
         "module": "@nelyx/core/framework/semantics/semantics",
-        "sha256": "84504c7396f4a4f3590fc2e808212cd8e019db70e272c1dabf911756b8eae772"
+        "sha256": "0529f7238f54030c0a86f8e07dcdedd99996f09216cda217fe23b7df0f8f1a7d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9456,7 +9456,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "72d233bf3012fa2b254836e63138a19769327c2c3e5956f5a477afe1bd997835"
+        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9495,7 +9495,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/semantics-annotations.ts",
         "module": "@nelyx/core/framework/rendering/semantics-annotations",
-        "sha256": "67e39c11ffbe01af2afabb73852a3526cc8baaf78a9f8a9994f295e75ce556c6"
+        "sha256": "e9c8b4fa93db36b4bc740eea270d3334786981dcb79da3a2f12962d7c8fd4874"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9534,7 +9534,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/semantics-annotations.ts",
         "module": "@nelyx/core/framework/rendering/semantics-annotations",
-        "sha256": "67e39c11ffbe01af2afabb73852a3526cc8baaf78a9f8a9994f295e75ce556c6"
+        "sha256": "e9c8b4fa93db36b4bc740eea270d3334786981dcb79da3a2f12962d7c8fd4874"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9573,7 +9573,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/semantics-annotations.ts",
         "module": "@nelyx/core/framework/rendering/semantics-annotations",
-        "sha256": "67e39c11ffbe01af2afabb73852a3526cc8baaf78a9f8a9994f295e75ce556c6"
+        "sha256": "e9c8b4fa93db36b4bc740eea270d3334786981dcb79da3a2f12962d7c8fd4874"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9612,7 +9612,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/semantics-annotations.ts",
         "module": "@nelyx/core/framework/rendering/semantics-annotations",
-        "sha256": "67e39c11ffbe01af2afabb73852a3526cc8baaf78a9f8a9994f295e75ce556c6"
+        "sha256": "e9c8b4fa93db36b4bc740eea270d3334786981dcb79da3a2f12962d7c8fd4874"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9651,7 +9651,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/proxy-sliver.ts",
         "module": "@nelyx/core/framework/rendering/proxy-sliver",
-        "sha256": "3d949ab9089cb7aafb7781ac200e55a9cd6cf3b8a1bbff820d3a4e96503d7da2"
+        "sha256": "26edbded277ada6f261b692db50addf0a3f0f282e0d82c9c46eb9354d794cae3"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9690,7 +9690,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/semantics.ts",
         "module": "@nelyx/core/framework/widgets/semantics",
-        "sha256": "6fad19950489d2a44ed5bdb705003c57a40ecc036254d049107789c2dc2d1461"
+        "sha256": "c7c9cee0925a0c60a13b23d241fc9cbc3485b9130384058f980f2cfad14e71eb"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9729,7 +9729,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/semantics.ts",
         "module": "@nelyx/core/framework/widgets/semantics",
-        "sha256": "6fad19950489d2a44ed5bdb705003c57a40ecc036254d049107789c2dc2d1461"
+        "sha256": "c7c9cee0925a0c60a13b23d241fc9cbc3485b9130384058f980f2cfad14e71eb"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9768,7 +9768,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/semantics.ts",
         "module": "@nelyx/core/framework/widgets/semantics",
-        "sha256": "6fad19950489d2a44ed5bdb705003c57a40ecc036254d049107789c2dc2d1461"
+        "sha256": "c7c9cee0925a0c60a13b23d241fc9cbc3485b9130384058f980f2cfad14e71eb"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9807,7 +9807,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/semantics.ts",
         "module": "@nelyx/core/framework/widgets/semantics",
-        "sha256": "6fad19950489d2a44ed5bdb705003c57a40ecc036254d049107789c2dc2d1461"
+        "sha256": "c7c9cee0925a0c60a13b23d241fc9cbc3485b9130384058f980f2cfad14e71eb"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9846,7 +9846,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/semantics.ts",
         "module": "@nelyx/core/framework/widgets/semantics",
-        "sha256": "6fad19950489d2a44ed5bdb705003c57a40ecc036254d049107789c2dc2d1461"
+        "sha256": "c7c9cee0925a0c60a13b23d241fc9cbc3485b9130384058f980f2cfad14e71eb"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9885,7 +9885,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/custom-paint.ts",
         "module": "@nelyx/core/framework/rendering/custom-paint",
-        "sha256": "7096dc92c26ecd2e96b735f8db9c9953ec9faeea2f378750e497ca5a22f37481"
+        "sha256": "1580303e55ecc5bea0dedaf2cf5cb72d2ce8a0a98344ef2c3b750c7e719aafc7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9924,7 +9924,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/custom-paint.ts",
         "module": "@nelyx/core/framework/rendering/custom-paint",
-        "sha256": "7096dc92c26ecd2e96b735f8db9c9953ec9faeea2f378750e497ca5a22f37481"
+        "sha256": "1580303e55ecc5bea0dedaf2cf5cb72d2ce8a0a98344ef2c3b750c7e719aafc7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -9964,7 +9964,7 @@
         "file": "Nelyx/src/framework/rendering/scroll-semantics.ts",
         "module": null,
         "visibility": "internal",
-        "sha256": "b553c3edc44f1faaf3aef85337fcc9521198486dabaf056a442649370179a899"
+        "sha256": "ed1cca02fe6539955f0f9653aeb0e52d5c9188265571cbeeaf283eb8c4e18cc9"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10003,7 +10003,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/viewport.ts",
         "module": "@nelyx/core/framework/rendering/viewport",
-        "sha256": "4f210f24ce8e6a16173f9a7587e79f00561632917136b56c11261dd7873bdb1d"
+        "sha256": "d3f1fb32fc2a6574daf6148897b146fcad60f966dce0717c7dac319e7db7f5d5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10042,7 +10042,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/sliver-multi-box-adaptor.ts",
         "module": "@nelyx/core/framework/rendering/sliver-multi-box-adaptor",
-        "sha256": "2267b03abc4679204ce4634cf901b602812684270176825d26e332da6e855b1d"
+        "sha256": "19d3450899d17841259a4e995bd630c2172be71bdd8551880223c4ad37366421"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10081,7 +10081,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/semantics-gesture-handler.ts",
         "module": "@nelyx/core/framework/rendering/semantics-gesture-handler",
-        "sha256": "d8b5b5d30ad6dcfbc6e757d78cb1b682a78ff96bcbd21e470c1facc91ce0614b"
+        "sha256": "72438ab41fcd5f67b8971135660353f53b582a899ada67ac59571fc6aec2b4cc"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10120,7 +10120,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/feedback.ts",
         "module": "@nelyx/core/framework/widgets/feedback",
-        "sha256": "ddab5a0a4534bc086e24c6f9a5a3e56ee845c5631bd2e032556d81fdf9142c6a"
+        "sha256": "a22e3031f104d612d05b5e334376ab3e84e748646c25f62381045a294c16bcb7"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10159,7 +10159,7 @@
       "destination": {
         "file": "Nelyx/src/services/system-sound.ts",
         "module": "@nelyx/core/services/system-sound",
-        "sha256": "331e72af6d83f863d968a082dd02c786a7d86818c94da1f0522a8dbe5ac6d996"
+        "sha256": "17180c36092819361834d3a9f8a1951a6a211865baaae83051d2f5dfe517dfab"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10198,7 +10198,7 @@
       "destination": {
         "file": "Nelyx/src/services/system-sound.ts",
         "module": "@nelyx/core/services/system-sound",
-        "sha256": "331e72af6d83f863d968a082dd02c786a7d86818c94da1f0522a8dbe5ac6d996"
+        "sha256": "17180c36092819361834d3a9f8a1951a6a211865baaae83051d2f5dfe517dfab"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10237,7 +10237,7 @@
       "destination": {
         "file": "Nelyx/src/services/haptic-feedback.ts",
         "module": "@nelyx/core/services/haptic-feedback",
-        "sha256": "f4fb89d20daa6d245e6613ed7923ec1f7bee03fe12d22ab29f335f3c9a33490a"
+        "sha256": "66c56acab00e143eaeafea9d3b8b5065c53870334e6787590f435b7a6585c5b5"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10276,16 +10276,16 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/platform-selectable-region-context-menu.ts",
         "module": "@nelyx/core/framework/widgets/platform-selectable-region-context-menu",
-        "sha256": "7324870606172e8d40157adabbe40eeeb25daeb54dd3df158b640fa94fedc340"
+        "sha256": "8dd95b4fdec22cdbd52aa98d35ee9165ab0da7a1a842456275f5ac79989d7203"
       },
       "supportingDestinations": [
         {
           "file": "Nelyx/src/hosting/interaction.ts",
-          "sha256": "2c62df0aebe34963570cb58cafb674aa4e4304bc015f903361f7b20b3b01cf0c"
+          "sha256": "2d36b4dff79dba330cf0886628b7225d3af6416d93fba998dd413c03c8d29aa0"
         },
         {
           "file": "Nelyx/sdk/src/backends/browser/selection-context-menu.ts",
-          "sha256": "2567d01d9493665f090bab07be47bc511649a61b0f3add16af1c867a32ae2015"
+          "sha256": "b74377747857f6f6e7808605850de25bb3fad5464ad500a8777f7031370e37ac"
         }
       ],
       "mode": "manual-port",
@@ -10317,16 +10317,16 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/platform-selectable-region-context-menu.ts",
         "module": "@nelyx/core/framework/widgets/platform-selectable-region-context-menu",
-        "sha256": "7324870606172e8d40157adabbe40eeeb25daeb54dd3df158b640fa94fedc340"
+        "sha256": "8dd95b4fdec22cdbd52aa98d35ee9165ab0da7a1a842456275f5ac79989d7203"
       },
       "supportingDestinations": [
         {
           "file": "Nelyx/src/hosting/interaction.ts",
-          "sha256": "2c62df0aebe34963570cb58cafb674aa4e4304bc015f903361f7b20b3b01cf0c"
+          "sha256": "2d36b4dff79dba330cf0886628b7225d3af6416d93fba998dd413c03c8d29aa0"
         },
         {
           "file": "Nelyx/sdk/src/backends/browser/selection-context-menu.ts",
-          "sha256": "2567d01d9493665f090bab07be47bc511649a61b0f3add16af1c867a32ae2015"
+          "sha256": "b74377747857f6f6e7808605850de25bb3fad5464ad500a8777f7031370e37ac"
         }
       ],
       "mode": "manual-port",
@@ -10358,16 +10358,16 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/platform-selectable-region-context-menu.ts",
         "module": "@nelyx/core/framework/widgets/platform-selectable-region-context-menu",
-        "sha256": "7324870606172e8d40157adabbe40eeeb25daeb54dd3df158b640fa94fedc340"
+        "sha256": "8dd95b4fdec22cdbd52aa98d35ee9165ab0da7a1a842456275f5ac79989d7203"
       },
       "supportingDestinations": [
         {
           "file": "Nelyx/src/hosting/interaction.ts",
-          "sha256": "2c62df0aebe34963570cb58cafb674aa4e4304bc015f903361f7b20b3b01cf0c"
+          "sha256": "2d36b4dff79dba330cf0886628b7225d3af6416d93fba998dd413c03c8d29aa0"
         },
         {
           "file": "Nelyx/sdk/src/backends/browser/selection-context-menu.ts",
-          "sha256": "2567d01d9493665f090bab07be47bc511649a61b0f3add16af1c867a32ae2015"
+          "sha256": "b74377747857f6f6e7808605850de25bb3fad5464ad500a8777f7031370e37ac"
         }
       ],
       "mode": "manual-port",
@@ -10399,16 +10399,16 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/platform-selectable-region-context-menu.ts",
         "module": "@nelyx/core/framework/widgets/platform-selectable-region-context-menu",
-        "sha256": "7324870606172e8d40157adabbe40eeeb25daeb54dd3df158b640fa94fedc340"
+        "sha256": "8dd95b4fdec22cdbd52aa98d35ee9165ab0da7a1a842456275f5ac79989d7203"
       },
       "supportingDestinations": [
         {
           "file": "Nelyx/src/hosting/interaction.ts",
-          "sha256": "2c62df0aebe34963570cb58cafb674aa4e4304bc015f903361f7b20b3b01cf0c"
+          "sha256": "2d36b4dff79dba330cf0886628b7225d3af6416d93fba998dd413c03c8d29aa0"
         },
         {
           "file": "Nelyx/sdk/src/backends/browser/selection-context-menu.ts",
-          "sha256": "2567d01d9493665f090bab07be47bc511649a61b0f3add16af1c867a32ae2015"
+          "sha256": "b74377747857f6f6e7808605850de25bb3fad5464ad500a8777f7031370e37ac"
         }
       ],
       "mode": "manual-port",
@@ -10440,16 +10440,16 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/platform-selectable-region-context-menu.ts",
         "module": "@nelyx/core/framework/widgets/platform-selectable-region-context-menu",
-        "sha256": "7324870606172e8d40157adabbe40eeeb25daeb54dd3df158b640fa94fedc340"
+        "sha256": "8dd95b4fdec22cdbd52aa98d35ee9165ab0da7a1a842456275f5ac79989d7203"
       },
       "supportingDestinations": [
         {
           "file": "Nelyx/src/hosting/interaction.ts",
-          "sha256": "2c62df0aebe34963570cb58cafb674aa4e4304bc015f903361f7b20b3b01cf0c"
+          "sha256": "2d36b4dff79dba330cf0886628b7225d3af6416d93fba998dd413c03c8d29aa0"
         },
         {
           "file": "Nelyx/sdk/src/backends/browser/selection-context-menu.ts",
-          "sha256": "2567d01d9493665f090bab07be47bc511649a61b0f3add16af1c867a32ae2015"
+          "sha256": "b74377747857f6f6e7808605850de25bb3fad5464ad500a8777f7031370e37ac"
         }
       ],
       "mode": "manual-port",
@@ -10481,16 +10481,16 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/platform-selectable-region-context-menu.ts",
         "module": "@nelyx/core/framework/widgets/platform-selectable-region-context-menu",
-        "sha256": "7324870606172e8d40157adabbe40eeeb25daeb54dd3df158b640fa94fedc340"
+        "sha256": "8dd95b4fdec22cdbd52aa98d35ee9165ab0da7a1a842456275f5ac79989d7203"
       },
       "supportingDestinations": [
         {
           "file": "Nelyx/src/hosting/interaction.ts",
-          "sha256": "2c62df0aebe34963570cb58cafb674aa4e4304bc015f903361f7b20b3b01cf0c"
+          "sha256": "2d36b4dff79dba330cf0886628b7225d3af6416d93fba998dd413c03c8d29aa0"
         },
         {
           "file": "Nelyx/sdk/src/backends/browser/selection-context-menu.ts",
-          "sha256": "2567d01d9493665f090bab07be47bc511649a61b0f3add16af1c867a32ae2015"
+          "sha256": "b74377747857f6f6e7808605850de25bb3fad5464ad500a8777f7031370e37ac"
         }
       ],
       "mode": "manual-port",
@@ -10522,16 +10522,16 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/platform-selectable-region-context-menu.ts",
         "module": "@nelyx/core/framework/widgets/platform-selectable-region-context-menu",
-        "sha256": "7324870606172e8d40157adabbe40eeeb25daeb54dd3df158b640fa94fedc340"
+        "sha256": "8dd95b4fdec22cdbd52aa98d35ee9165ab0da7a1a842456275f5ac79989d7203"
       },
       "supportingDestinations": [
         {
           "file": "Nelyx/src/hosting/interaction.ts",
-          "sha256": "2c62df0aebe34963570cb58cafb674aa4e4304bc015f903361f7b20b3b01cf0c"
+          "sha256": "2d36b4dff79dba330cf0886628b7225d3af6416d93fba998dd413c03c8d29aa0"
         },
         {
           "file": "Nelyx/sdk/src/backends/browser/selection-context-menu.ts",
-          "sha256": "2567d01d9493665f090bab07be47bc511649a61b0f3add16af1c867a32ae2015"
+          "sha256": "b74377747857f6f6e7808605850de25bb3fad5464ad500a8777f7031370e37ac"
         }
       ],
       "mode": "manual-port",
@@ -10563,7 +10563,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/magnifier.ts",
         "module": "@nelyx/core/framework/widgets/magnifier",
-        "sha256": "64433358b481f1e89bfc472e9c1ddc3f927bec5883b2c08e75ad010aee2ea844"
+        "sha256": "3da848d134da909f5f73436ee2ecce0f1f30b5578f9ee24532de32a2eddf9969"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10602,7 +10602,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/magnifier.ts",
         "module": "@nelyx/core/framework/widgets/magnifier",
-        "sha256": "64433358b481f1e89bfc472e9c1ddc3f927bec5883b2c08e75ad010aee2ea844"
+        "sha256": "3da848d134da909f5f73436ee2ecce0f1f30b5578f9ee24532de32a2eddf9969"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10641,7 +10641,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/magnifier.ts",
         "module": "@nelyx/core/framework/widgets/magnifier",
-        "sha256": "64433358b481f1e89bfc472e9c1ddc3f927bec5883b2c08e75ad010aee2ea844"
+        "sha256": "3da848d134da909f5f73436ee2ecce0f1f30b5578f9ee24532de32a2eddf9969"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10680,7 +10680,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/magnifier.ts",
         "module": "@nelyx/core/framework/widgets/magnifier",
-        "sha256": "64433358b481f1e89bfc472e9c1ddc3f927bec5883b2c08e75ad010aee2ea844"
+        "sha256": "3da848d134da909f5f73436ee2ecce0f1f30b5578f9ee24532de32a2eddf9969"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10719,7 +10719,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/magnifier.ts",
         "module": "@nelyx/core/framework/widgets/magnifier",
-        "sha256": "64433358b481f1e89bfc472e9c1ddc3f927bec5883b2c08e75ad010aee2ea844"
+        "sha256": "3da848d134da909f5f73436ee2ecce0f1f30b5578f9ee24532de32a2eddf9969"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10758,7 +10758,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/layer.ts",
         "module": "@nelyx/core/framework/rendering/layer",
-        "sha256": "73aae5cbd7dc7a10731a06d6359f3e162d7af08b867325ad1775edee160472f7"
+        "sha256": "7ae0a43f7e68521203a457b203876b9ab8ebf41988a21cd888323c51e99f2e0d"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10797,7 +10797,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/backdrop-filter.ts",
         "module": "@nelyx/core/framework/widgets/backdrop-filter",
-        "sha256": "b895663c85890fcd9bf2cce5db7c32a198e1b127657007a216b09b9e0b6c5789"
+        "sha256": "8976a49dbae91848fe1a39766c947b380b41a3268f2ea18e2fac2e68f96c20ab"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10836,7 +10836,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/backdrop-filter.ts",
         "module": "@nelyx/core/framework/widgets/backdrop-filter",
-        "sha256": "b895663c85890fcd9bf2cce5db7c32a198e1b127657007a216b09b9e0b6c5789"
+        "sha256": "8976a49dbae91848fe1a39766c947b380b41a3268f2ea18e2fac2e68f96c20ab"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10875,7 +10875,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/rounded-rectangle-border.ts",
         "module": "@nelyx/core/framework/painting/rounded-rectangle-border",
-        "sha256": "99cf91a058d95c4d134047355cec567da70dcb6eff2b537acba0fa6a12f54b34"
+        "sha256": "0e83b87c703a0bb47221b2613a9916ebaf8ec9e1f0699c44ad447788f46f3e78"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10914,7 +10914,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/rounded-superellipse-border.ts",
         "module": "@nelyx/core/framework/painting/rounded-superellipse-border",
-        "sha256": "aa742dfda3cca7f7fbfd746401244af561b5b02cdf6524edd5b590a7b5e15014"
+        "sha256": "260f11c73a1748fe1a4bb2a837edac024e075d1c60dd51321721356b62e1926e"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10953,7 +10953,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/animated-size.ts",
         "module": "@nelyx/core/framework/widgets/animated-size",
-        "sha256": "d83f2a5fc42fb6abaf88ce7442eedf70618729e0247306d89911868eca65f036"
+        "sha256": "c81cfc6deebe7e506fa1dd68e92e51896c9ca92618a43dd127a36460cbb8d2e3"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -10992,7 +10992,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/animated-size.ts",
         "module": "@nelyx/core/framework/rendering/animated-size",
-        "sha256": "683ad21182eb273d2490fa6e79a941bc08f01c45bb4c4085977d6412f9a57ad4"
+        "sha256": "9479afc390f2059cb952ccc54ae069c3c443ef091a82dc43bf6407571d141098"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11031,7 +11031,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/animated-size.ts",
         "module": "@nelyx/core/framework/rendering/animated-size",
-        "sha256": "683ad21182eb273d2490fa6e79a941bc08f01c45bb4c4085977d6412f9a57ad4"
+        "sha256": "9479afc390f2059cb952ccc54ae069c3c443ef091a82dc43bf6407571d141098"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11070,7 +11070,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/text-selection-toolbar-layout-delegate.ts",
         "module": "@nelyx/core/framework/widgets/text-selection-toolbar-layout-delegate",
-        "sha256": "e9a76ee10a7897bad54844a7b53bc5b39563f0931cb0d7c0cf3f0cdf1fe9fade"
+        "sha256": "f046e9064c8d885d6bad9ba0a7105037830c542d90da04caac042c03ff192880"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11109,7 +11109,7 @@
       "destination": {
         "file": "packages/material/src/magnifier.ts",
         "module": "@nelyx/material/magnifier",
-        "sha256": "5417f1dc7d07e2e0542da511f814d72304573ffa9abbb6eaca8f3ab760887533"
+        "sha256": "e58567243327c61a53948f362ed435d4e9034dbbd409d19a290997954b28a395"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11148,7 +11148,7 @@
       "destination": {
         "file": "packages/material/src/magnifier.ts",
         "module": "@nelyx/material/magnifier",
-        "sha256": "5417f1dc7d07e2e0542da511f814d72304573ffa9abbb6eaca8f3ab760887533"
+        "sha256": "e58567243327c61a53948f362ed435d4e9034dbbd409d19a290997954b28a395"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11187,7 +11187,7 @@
       "destination": {
         "file": "packages/material/src/text-selection-toolbar.ts",
         "module": "@nelyx/material/text-selection-toolbar",
-        "sha256": "672952bd6b0c6513dac405eecd2366417c645e2c3f1060ebbcd0f97698463dfe"
+        "sha256": "5c2ebed5b010ef9704874370e0da90cb4082dab9c0f617fa6be02e967423dd91"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11226,7 +11226,7 @@
       "destination": {
         "file": "packages/material/src/desktop-text-selection-toolbar.ts",
         "module": "@nelyx/material/desktop-text-selection-toolbar",
-        "sha256": "2087c3a5e1a7ca6bc0398091ba7f7d1a761c534f8cda56f60113884d6763c8ff"
+        "sha256": "8703550697a3720bda4fd31866c07c638d6a9a902815e1a161f5bcaa680d487f"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11265,7 +11265,7 @@
       "destination": {
         "file": "packages/cupertino/src/magnifier.ts",
         "module": "@nelyx/cupertino/magnifier",
-        "sha256": "dccaa43c5e5beb50dbfe77677b9aa04399cf8b617e471d27188494af4168a8e7"
+        "sha256": "ff08430c9efbd511a176c37f8a8e1a3a00ad41c0c26e8d522d25f0ea572cf0cd"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11304,7 +11304,7 @@
       "destination": {
         "file": "packages/cupertino/src/magnifier.ts",
         "module": "@nelyx/cupertino/magnifier",
-        "sha256": "dccaa43c5e5beb50dbfe77677b9aa04399cf8b617e471d27188494af4168a8e7"
+        "sha256": "ff08430c9efbd511a176c37f8a8e1a3a00ad41c0c26e8d522d25f0ea572cf0cd"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11343,7 +11343,7 @@
       "destination": {
         "file": "packages/cupertino/src/text-selection-toolbar.ts",
         "module": "@nelyx/cupertino/text-selection-toolbar",
-        "sha256": "84a1bcb3c76d48d0bd3f9a35b66bb19ad47a0c7dfafe47ce572975cd67f803e8"
+        "sha256": "3765321d280f49581394542dbb2362e6b21193808e457599da32a21d655be4cf"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11382,7 +11382,7 @@
       "destination": {
         "file": "packages/cupertino/src/desktop-text-selection-toolbar.ts",
         "module": "@nelyx/cupertino/desktop-text-selection-toolbar",
-        "sha256": "627fb853f0d0ad1ea5a4d1535df6486f02c3851efa922c3b4a6ded6aa53c9e1a"
+        "sha256": "ece098e4891499747005c886dea345562c911f86eeb2c5d5b1655f186fa888d0"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11421,7 +11421,7 @@
       "destination": {
         "file": "packages/cupertino/src/adaptive-text-selection-toolbar.ts",
         "module": "@nelyx/cupertino/adaptive-text-selection-toolbar",
-        "sha256": "4fccb8b41f54701cbd04803df4e475740d2ec82a3f7d7354e2cd8a1994fad540"
+        "sha256": "e6d5ddde16932dc1e6ee223a86ff261d2bfceeebd0f39971db5340d533a1c955"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11460,7 +11460,7 @@
       "destination": {
         "file": "packages/material/src/text-selection-toolbar-text-button.ts",
         "module": "@nelyx/material/text-selection-toolbar-text-button",
-        "sha256": "b8ceb4c1846fe0c1db3bd2d9b02b3d55bc3b31ba8d33a3cda705e1645d9db425"
+        "sha256": "ea1fd45b2b41a347cecff8ae70cb50c1dcb9a292fca7da33ca63234ea9977364"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11499,7 +11499,7 @@
       "destination": {
         "file": "packages/material/src/desktop-text-selection-toolbar.ts",
         "module": "@nelyx/material/desktop-text-selection-toolbar",
-        "sha256": "2087c3a5e1a7ca6bc0398091ba7f7d1a761c534f8cda56f60113884d6763c8ff"
+        "sha256": "8703550697a3720bda4fd31866c07c638d6a9a902815e1a161f5bcaa680d487f"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11538,7 +11538,7 @@
       "destination": {
         "file": "packages/cupertino/src/text-selection-toolbar-button.ts",
         "module": "@nelyx/cupertino/text-selection-toolbar-button",
-        "sha256": "fec234b0d8452b0abca857d39de8f5e0d494daa9491e7c4fd777cf239d74c3e7"
+        "sha256": "124e2df4bf7e54385c7ce5d2191a365c06f73948e6174b99fa0fffd2b09dafab"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11577,7 +11577,7 @@
       "destination": {
         "file": "packages/cupertino/src/text-selection-toolbar-button.ts",
         "module": "@nelyx/cupertino/text-selection-toolbar-button",
-        "sha256": "fec234b0d8452b0abca857d39de8f5e0d494daa9491e7c4fd777cf239d74c3e7"
+        "sha256": "124e2df4bf7e54385c7ce5d2191a365c06f73948e6174b99fa0fffd2b09dafab"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11616,7 +11616,7 @@
       "destination": {
         "file": "packages/material/src/theme.ts",
         "module": "@nelyx/material/theme",
-        "sha256": "6bfb6201c8c21817e4f8c6f356b139495569aaf44794fc64bb9e307053602fe3"
+        "sha256": "58a5757c4fb51fe2931f4b725480385f421819e97b800cea312caacfa1546e25"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11655,7 +11655,7 @@
       "destination": {
         "file": "packages/material/src/theme.ts",
         "module": "@nelyx/material/theme",
-        "sha256": "6bfb6201c8c21817e4f8c6f356b139495569aaf44794fc64bb9e307053602fe3"
+        "sha256": "58a5757c4fb51fe2931f4b725480385f421819e97b800cea312caacfa1546e25"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11694,7 +11694,7 @@
       "destination": {
         "file": "packages/material/src/theme.ts",
         "module": "@nelyx/material/theme",
-        "sha256": "6bfb6201c8c21817e4f8c6f356b139495569aaf44794fc64bb9e307053602fe3"
+        "sha256": "58a5757c4fb51fe2931f4b725480385f421819e97b800cea312caacfa1546e25"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11733,7 +11733,7 @@
       "destination": {
         "file": "packages/material/src/text-selection-theme.ts",
         "module": "@nelyx/material/text-selection-theme",
-        "sha256": "3b2b84aec6fdbe2a1d54ef0a1b1675f994856f10288edc82a75db3111496859d"
+        "sha256": "30bd586fc9b4f6b0516f47a0462e56adb455dc76e948a28cd4dfb9839c8feeac"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11772,7 +11772,7 @@
       "destination": {
         "file": "packages/material/src/text-selection-theme.ts",
         "module": "@nelyx/material/text-selection-theme",
-        "sha256": "3b2b84aec6fdbe2a1d54ef0a1b1675f994856f10288edc82a75db3111496859d"
+        "sha256": "30bd586fc9b4f6b0516f47a0462e56adb455dc76e948a28cd4dfb9839c8feeac"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11811,7 +11811,7 @@
       "destination": {
         "file": "packages/cupertino/src/theme.ts",
         "module": "@nelyx/cupertino/theme",
-        "sha256": "15991dc4fae5fa89a5103847cf56eb38a7c9b212c281216b6d98c0c925a1ec05"
+        "sha256": "1a787c81c557e61a2cfcc3a9de96febdf45ba64ef72f9a54cc489529885f6499"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11850,7 +11850,7 @@
       "destination": {
         "file": "packages/cupertino/src/theme.ts",
         "module": "@nelyx/cupertino/theme",
-        "sha256": "15991dc4fae5fa89a5103847cf56eb38a7c9b212c281216b6d98c0c925a1ec05"
+        "sha256": "1a787c81c557e61a2cfcc3a9de96febdf45ba64ef72f9a54cc489529885f6499"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11889,7 +11889,7 @@
       "destination": {
         "file": "packages/material/src/material-localizations.ts",
         "module": "@nelyx/material/material-localizations",
-        "sha256": "04e3dfa48ff2ad0a4ffb1defc4f145fcb25b94f216472ec30df79fd2d3ee8b28"
+        "sha256": "26c551620df096dda347381c596b11a9908f21e34224460e0718049dfa6e70fc"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11908,8 +11908,8 @@
       "scope": "Selection label contract backed by all 116 pinned Material ARB locale tables. Host inherited scope and locale resolution adapter. Non-selection date/time APIs remain W9-06.",
       "supportingDestinations": [
         {
-          "file": "packages/material/src/selection-localizations-data.ts",
-          "sha256": "caca47d87349705709e7dfcf11c60576072e87264c469194c0b87060d4e11a5a"
+          "file": "packages/material/src/generated/localizations/selection-localizations-data.ts",
+          "sha256": "3295a53bfa307198b39c69c96509b57bd8ae4f0cee20254bd290b82f383a021a"
         }
       ]
     },
@@ -11934,7 +11934,7 @@
       "destination": {
         "file": "packages/material/src/material-localizations.ts",
         "module": "@nelyx/material/material-localizations",
-        "sha256": "04e3dfa48ff2ad0a4ffb1defc4f145fcb25b94f216472ec30df79fd2d3ee8b28"
+        "sha256": "26c551620df096dda347381c596b11a9908f21e34224460e0718049dfa6e70fc"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11973,7 +11973,7 @@
       "destination": {
         "file": "packages/cupertino/src/cupertino-localizations.ts",
         "module": "@nelyx/cupertino/cupertino-localizations",
-        "sha256": "bcfd7a559b2316c1f205e3f5126b58e46a243d5c2b441de2091f6e5fc770ce10"
+        "sha256": "b44d5a47f60495d4db57e15ac3dfdf5725b1be336b90ab64809f95648c740d4a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -11992,8 +11992,8 @@
       "scope": "Selection label contract backed by all 115 pinned Cupertino ARB locale tables. Host inherited scope and locale resolution adapter. Non-selection date/time APIs remain W9-06.",
       "supportingDestinations": [
         {
-          "file": "packages/cupertino/src/selection-localizations-data.ts",
-          "sha256": "9c69d7737390f963c2eb0129686526aecaa43fb48e64b3d925b15900d350781b"
+          "file": "packages/cupertino/src/generated/localizations/selection-localizations-data.ts",
+          "sha256": "eed6a894f450ec4da49ab2ceba3e41d191f0dea82c0ee2cf14fd583dc806bc8f"
         }
       ]
     },
@@ -12018,7 +12018,7 @@
       "destination": {
         "file": "packages/cupertino/src/cupertino-localizations.ts",
         "module": "@nelyx/cupertino/cupertino-localizations",
-        "sha256": "bcfd7a559b2316c1f205e3f5126b58e46a243d5c2b441de2091f6e5fc770ce10"
+        "sha256": "b44d5a47f60495d4db57e15ac3dfdf5725b1be336b90ab64809f95648c740d4a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -12064,7 +12064,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/image-provider.ts",
         "module": "@nelyx/core/framework/painting/image-provider",
-        "sha256": "282424ff9792b2d6bd9f8596e48f30119d7c2bdbda6a8c49b4f1f118e8797f11"
+        "sha256": "49424aa32a487799b3318b72831caeb22f850c260ca42854e65b63354b8638a9"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -12109,7 +12109,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/mouse-tracker.ts",
         "module": "@nelyx/core/framework/rendering/mouse-tracker",
-        "sha256": "6c7f86a3c79a98c799704bcbedc728580cf5218e91b4ba6a659fb76c44a5d0be"
+        "sha256": "38daef0c72088e69c09d8213be788b49ccbf3dcebdee35746f02205e36283e8a"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -12154,7 +12154,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/shader-mask.ts",
         "module": "@nelyx/core/framework/rendering/shader-mask",
-        "sha256": "0cb18cfd3872bff3a5e4eec1ad9fb5e189d42700dc23e8804962a8e556088a4e"
+        "sha256": "97409abe1e65fa08eb11df2edc663dac7b79fbcb438757b9b3a99049c7ad160e"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -12199,7 +12199,7 @@
       "destination": {
         "file": "Nelyx/src/framework/scheduler/scheduler.ts",
         "module": "@nelyx/core/framework/scheduler/scheduler",
-        "sha256": "9fd0e3475136ecf6300455a8a6747a279348fcc36998beb1e93ce8255e861cf4"
+        "sha256": "44586b22b7c8062a5f26c155fc50b9f3182f9f6efc7e2137b60b9490b1cd8690"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -12244,7 +12244,7 @@
       "destination": {
         "file": "Nelyx/src/framework/animation/ticker.ts",
         "module": "@nelyx/core/framework/animation/ticker",
-        "sha256": "d1f373f10454d7f1735abc39568f6e9d3d4beebb5805f65f30f7a3f66dea3a52"
+        "sha256": "a583e2e5e5124e3d8b9f36a448d01156eaa9ddc57ccf21b2ea8dbe5b5480c3f8"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -12289,7 +12289,7 @@
       "destination": {
         "file": "Nelyx/src/services/asset-bundle.ts",
         "module": "@nelyx/core/services/asset-bundle",
-        "sha256": "4c1ee97353354f1504d8b12793ba4dff1f4be66a1aff0b39fddb23837a55be13"
+        "sha256": "0367140cfe3239d4671b5a2501fc05034c75f2bbc53cafd8e0e7c2ed58abd413"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -12334,7 +12334,7 @@
       "destination": {
         "file": "Nelyx/src/services/binding.ts",
         "module": "@nelyx/core/services/binding",
-        "sha256": "13c6fe9a2c2f771959a168c1380dc08ccc3e9c8d1466e44dc9644caa693c992d"
+        "sha256": "189d4da1980d3883da7541853c01be056c1b4963e827ac69c4f222a64632d076"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -12379,7 +12379,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/shader-mask.ts",
         "module": "@nelyx/core/framework/widgets/shader-mask",
-        "sha256": "3167258a83e90ecaf47ae855ecb62b05433214aafa6c7164fdf9e8abdebe8222"
+        "sha256": "87aa1d93d82e065c12167b671eecdfa09a600db934570c8017a62d930fd7a54c"
       },
       "mode": "manual-port",
       "status": "PARTIAL",

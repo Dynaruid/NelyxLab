@@ -5,7 +5,7 @@ import { readApplication } from './application.mjs';
 import { configureRunner } from './runner-configuration.mjs';
 import { execute, capture } from './commands.mjs';
 import {
-  freshPackageDirectory,
+  inFreshPackageDirectory,
   publishRunnerPackage,
   rememberPackage,
   packageFor,
@@ -131,67 +131,68 @@ export async function buildAndroid({
     throw new Error('Emulator profile requires x86_64');
   await configureRunner({ app: value.app, target: 'android' });
   const hermesInput = prepareAndroidHermesBuild(value.app, value.cohort);
-  const directory = freshPackageDirectory(value.app, 'android', output);
-  await execute(
-    process.execPath,
-    [
-      path.join(value.runner, 'build.mjs'),
-      '--configuration',
-      'Release',
-      '--architecture',
-      architecture,
-      '--port',
-      String(port),
-    ],
-    {
-      cwd: value.runner,
-      env: { ...process.env, ANDROID_HOME: native.sdk, ANDROID_SDK_ROOT: native.sdk },
-    },
-  );
-  const hermes = finishAndroidHermesBuild(hermesInput);
-  const apk = path.join(value.app, 'android/app/build/outputs/apk/release/app-release.apk');
-  inspectAndroidApk(apk, { architecture, bytecodeVersion: value.cohort.bytecodeVersion });
-  const badging = capture(native.aapt, ['dump', 'badging', apk]),
-    applicationId = badging.match(/^package: name='([^']+)'/m)?.[1],
-    activity = badging.match(/^launchable-activity: name='([^']+)'/m)?.[1];
-  if (!applicationId || !activity) throw new Error('Android package/launch activity absent');
-  fs.copyFileSync(apk, path.join(directory, 'application.apk'));
-  fs.copyFileSync(hermesInput.report, path.join(directory, 'hermes-policy.json'));
-  copyHermesMap(
-    path.join(
-      value.app,
-      'android/app/build/generated/sourcemaps/react/release/index.android.bundle.map',
-    ),
-    directory,
-  );
-  copyRunnerNotices(value, directory);
-  publishRunnerPackage({
-    directory,
-    target: 'android',
-    application: value,
-    entry: 'application.apk',
-    details: {
-      ...hermes,
-      architecture,
-      applicationId,
-      activity,
-      buildToolsVersion: native.version,
-      signing: 'local development key; production signing notVerified',
-      noticeQualification: 'PARTIAL',
-    },
+  return inFreshPackageDirectory(value.app, 'android', output, async (directory) => {
+    await execute(
+      process.execPath,
+      [
+        path.join(value.runner, 'build.mjs'),
+        '--configuration',
+        'Release',
+        '--architecture',
+        architecture,
+        '--port',
+        String(port),
+      ],
+      {
+        cwd: value.runner,
+        env: { ...process.env, ANDROID_HOME: native.sdk, ANDROID_SDK_ROOT: native.sdk },
+      },
+    );
+    const hermes = finishAndroidHermesBuild(hermesInput);
+    const apk = path.join(value.app, 'android/app/build/outputs/apk/release/app-release.apk');
+    inspectAndroidApk(apk, { architecture, bytecodeVersion: value.cohort.bytecodeVersion });
+    const badging = capture(native.aapt, ['dump', 'badging', apk]),
+      applicationId = badging.match(/^package: name='([^']+)'/m)?.[1],
+      activity = badging.match(/^launchable-activity: name='([^']+)'/m)?.[1];
+    if (!applicationId || !activity) throw new Error('Android package/launch activity absent');
+    fs.copyFileSync(apk, path.join(directory, 'application.apk'));
+    fs.copyFileSync(hermesInput.report, path.join(directory, 'hermes-policy.json'));
+    copyHermesMap(
+      path.join(
+        value.app,
+        'android/app/build/generated/sourcemaps/react/release/index.android.bundle.map',
+      ),
+      directory,
+    );
+    copyRunnerNotices(value, directory);
+    publishRunnerPackage({
+      directory,
+      target: 'android',
+      application: value,
+      entry: 'application.apk',
+      details: {
+        ...hermes,
+        architecture,
+        applicationId,
+        activity,
+        buildToolsVersion: native.version,
+        signing: 'local development key; production signing notVerified',
+        noticeQualification: 'PARTIAL',
+      },
+    });
+    const verified = verifyAndroidPackage(directory);
+    rememberPackage(value.app, 'android', directory);
+    return {
+      schema: 'nelyx.build/v3',
+      target: 'android',
+      directory,
+      files: verified.files,
+      bytes: verified.bytes,
+      apk: verified.apk,
+      signing: verified.manifest.details.signing,
+      qualification: 'notVerified',
+    };
   });
-  const verified = verifyAndroidPackage(directory);
-  rememberPackage(value.app, 'android', directory);
-  return {
-    schema: 'nelyx.build/v3',
-    target: 'android',
-    directory,
-    files: verified.files,
-    bytes: verified.bytes,
-    apk: verified.apk,
-    signing: verified.manifest.details.signing,
-    qualification: 'notVerified',
-  };
 }
 export async function runAndroid({ app, directory, androidSdk, device }) {
   const value = await application(app),

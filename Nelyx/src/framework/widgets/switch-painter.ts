@@ -32,13 +32,6 @@ import type { IconThemeData } from './icon-theme-data.ts';
 import type { Icon } from './icon.ts';
 import { valueEquals } from '../painting/value-equality.ts';
 import { invariant } from '../../foundation/errors.ts';
-import { registerNativeRenderMetadata } from '../rendering/native-paint.ts';
-import type {
-  NativePaintEntry,
-  NativePaintGeometry,
-  NativeRenderMetadata,
-  NativeShape,
-} from '../rendering/native-paint.ts';
 export interface SwitchConfig {
   readonly isCupertino: boolean;
   readonly trackWidth: number;
@@ -112,11 +105,6 @@ function nullableLerp(a: number | null, b: number | null, t: number): number | n
   return a === null && b === null ? null : lerp(a ?? 0, b ?? 0, t);
 }
 export class SwitchPainter extends CustomPainter {
-  static {
-    registerNativeRenderMetadata(SwitchPainter.prototype, (painter) =>
-      painter.nativeConfiguration(),
-    );
-  }
   private values: SwitchPainterOptions | null = null;
   private textPainter: TextPainter | null = null;
   private decoration: BoxPainter | null = null;
@@ -149,151 +137,6 @@ export class SwitchPainter extends CustomPainter {
   private readonly decorationChanged = () => {
     if (!this.painting && !this.retired) this.signal.notifyListeners();
   };
-  /** Source animation/colour state only; no canvas, layout or final coordinates run on App. */
-  private nativeConfiguration(): NativeRenderMetadata {
-    invariant(!this.retired, 'disposed-switch-painter', 'Cannot read a retired Switch');
-    const o = this.options,
-      c = o.config;
-    if (o.activeImage || o.inactiveImage || o.activeIcon || o.inactiveIcon)
-      throw Error('Native Switch thumb image/icon requires the resource/paragraph bridge');
-    const thumb = this.thumbSize(),
-      t = o.colorPosition;
-    const geometry: Omit<Exclude<NativePaintGeometry, { kind: 'linear' | 'program' }>, 'kind'> = {
-      trackWidth: c.trackWidth,
-      trackHeight: c.trackHeight,
-      thumbWidth: thumb.width,
-      thumbHeight: thumb.height,
-      extension: this.extension,
-      position: o.position,
-      rtl: o.rtl,
-    };
-    const stadium: NativeShape = {
-      kind: 'stadium',
-      radii: Array(8).fill(0),
-      strokeWidth: 0,
-      strokeAlign: 0,
-      strokeColor: 0,
-    };
-    const circle: NativeShape = { ...stadium, kind: 'circle' };
-    const outline =
-      o.inactiveOutline === null || o.activeOutline === null
-        ? null
-        : sourceColorLerp(o.inactiveOutline, o.activeOutline, t);
-    const outlineWidth = nullableLerp(o.inactiveOutlineWidth, o.activeOutlineWidth, t) ?? 2;
-    const entries: NativePaintEntry[] = [
-      {
-        kind: 'shape',
-        color: sourceColorLerp(
-          o.inactiveTrackColor,
-          o.activeTrackColor,
-          o.cupertino ? o.position : t,
-        )!.toARGB32(),
-        shape: {
-          ...stadium,
-          strokeColor: outline?.toARGB32() ?? 0,
-          strokeWidth: outline === null ? 0 : outlineWidth,
-          strokeAlign: outlineWidth > 0 ? -2 / outlineWidth : 0,
-        },
-        geometry: { ...geometry, kind: 'switchTrack' },
-      },
-    ];
-    if (c.isCupertino) {
-      if (o.isFocused)
-        entries.push({
-          kind: 'border',
-          color: 0,
-          shape: { ...stadium, strokeWidth: 3.5, strokeColor: o.focusColor.toARGB32() },
-          geometry: { ...geometry, kind: 'switchTrack', inset: -1.75 },
-        });
-      entries.push({
-        kind: 'clip',
-        color: 0,
-        shape: stadium,
-        geometry: { ...geometry, kind: 'switchTrack' },
-      });
-    }
-    if (o.reaction !== 0 || o.reactionFocusFade !== 0 || o.reactionHoverFade !== 0) {
-      const color = sourceColorLerp(
-        sourceColorLerp(
-          sourceColorLerp(o.inactiveReaction, o.activeReaction, o.position),
-          o.hoverColor,
-          o.reactionHoverFade,
-        ),
-        o.focusColor,
-        o.reactionFocusFade,
-      )!;
-      entries.push({
-        kind: 'circle',
-        color: color.toARGB32(),
-        shape: circle,
-        radius: o.splashRadius,
-        progress: o.isFocused || o.isHovered ? 1 : o.reaction,
-        geometry: { ...geometry, kind: 'switchReaction' },
-      });
-    }
-    if (o.onOffLabels) {
-      const on = o.onOffLabels.on.withOpacity(o.position * (1 - o.reaction)).toARGB32();
-      const off = o.onOffLabels.off.withOpacity((1 - o.position) * (1 - o.reaction)).toARGB32();
-      entries.push(
-        {
-          kind: 'shape',
-          color: on,
-          shape: { ...stadium, kind: 'rrect' },
-          geometry: {
-            ...geometry,
-            kind: 'switchOnLabel',
-            thumbWidth: onLabelWidth,
-            thumbHeight: onLabelHeight,
-            inset: onLabelPadding,
-          },
-        },
-        {
-          kind: 'circle',
-          color: 0,
-          shape: { ...circle, strokeWidth: offLabelWidth, strokeColor: off },
-          radius: offLabelRadius,
-          geometry: { ...geometry, kind: 'switchOffLabel', inset: offLabelPadding },
-        },
-      );
-    }
-    for (const shadow of c.shadows) {
-      if (shadow.blurStyle !== 'normal') throw Error('Native Switch custom shadow style');
-      entries.push({
-        kind: 'shadow',
-        color: shadow.color,
-        shape: stadium,
-        x: shadow.offset.dx,
-        y: shadow.offset.dy,
-        blurSigma: shadow.blurSigma,
-        spread: c.isCupertino ? 0 : shadow.spreadRadius,
-        geometry: { ...geometry, kind: 'switchThumb' },
-      });
-    }
-    if (c.isCupertino)
-      entries.push({
-        kind: 'shape',
-        color: 0x0a000000,
-        shape: stadium,
-        geometry: { ...geometry, kind: 'switchThumb', inset: -0.5 },
-      });
-    const thumbColor = Color.alphaBlend(
-      o.reaction !== 0
-        ? sourceColorLerp(o.inactivePressedColor, o.activePressedColor, t)!
-        : o.positionStatus === AnimationStatus.forward
-          ? sourceColorLerp(o.inactivePressedColor, o.activeColor, t)!
-          : o.positionStatus === AnimationStatus.reverse
-            ? sourceColorLerp(o.inactiveColor, o.activePressedColor, t)!
-            : sourceColorLerp(o.inactiveColor, o.activeColor, t)!,
-      o.surface,
-    );
-    entries.push({
-      kind: 'shape',
-      color: thumbColor.toARGB32(),
-      shape: stadium,
-      geometry: { ...geometry, kind: 'switchThumb' },
-    });
-    return { kind: 'paint', entries };
-  }
   private thumbSize(): Size {
     const o = this.options,
       c = o.config,

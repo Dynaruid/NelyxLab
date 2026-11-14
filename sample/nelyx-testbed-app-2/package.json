@@ -32,10 +32,10 @@
     "start:windows:jsc:interpreter": "npm run build:windows:jsc:interpreter && npm run run:windows"
   },
   "dependencies": {
-    "@nelyx/core": "0.16.0",
-    "@nelyx/sdk": "0.20.0",
-    "@nelyx/material": "0.1.0",
-    "@nelyx/cupertino": "0.1.0"
+    "@nelyx/core": "0.17.0",
+    "@nelyx/sdk": "0.21.0",
+    "@nelyx/material": "0.2.0",
+    "@nelyx/cupertino": "0.2.0"
   },
   "devDependencies": {},
   "type": "module",
@@ -84,7 +84,7 @@
       {
         "id": "component-image",
         "kind": "image",
-        "path": "./engine-v2/assets/component-image.webp"
+        "path": "./assets/component-image.webp"
       }
     ],
     "targets": {

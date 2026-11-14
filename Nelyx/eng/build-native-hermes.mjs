@@ -8,7 +8,7 @@ export function buildNativeHost(options = {}) {
   return build({
     app: path.join(root, 'sample/nelyx-testbed-app-2'),
     engineInputs: path.join(root, '.nelyx/windows-hermes'),
-    nativeInputs: path.join(root, 'Nelyx/skia/vendor/inputs/windows-x64/vendor-inputs.json'),
+    nativeInputs: path.join(root, 'Nelyx/skia/vendor/inputs/windows-x64/source-inputs.json'),
     ...options,
   });
 }

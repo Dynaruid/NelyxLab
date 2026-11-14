@@ -2,7 +2,11 @@
 
 작성일: 2026-11-14
 
-상태: **설계 / 대표 경로 정적 검토 완료 / 전수 감사·제품 구현 미착수**
+상태: **PARTIAL / 단절적 Source 전환·현재 공급 반영 / 전체 원본·제품 수락 미완료**
+
+마지막 확인: 2026-11-15
+
+사용자 추가 결정: **deprecated alias와 레거시 호환 경로를 남기지 않는 단절적 개편**을 적용한다. 아래 설계의 호환·병행 공급 제안보다 이 결정을 우선한다. SDK 앱 정의는 기존 Source FrameworkRoot로 연결하고 native Widget adapter·두 번째 Widget/State 모델·이전 앱 launcher/export를 철거한다. 기존 Flutter 원본에 포함된 API 분류와 Nelyx 호환 alias는 구별한다. 미완료 기능을 이전 host로 자동 전환하지 않는다.
 
 ## 1. 개편의 목적과 이번 작업의 경계
 
@@ -10,7 +14,7 @@
 
 사용자가 없애려는 것은 모든 Nelyx 작성 코드가 아니다. 없애야 하는 것은 원본 위젯을 다른 위젯 조합으로 대체하거나, 같은 이름의 스크롤·레이아웃·제스처·편집 정책을 native에서 별도로 결정하면서 그것을 원본 실행으로 취급하는 구조다.
 
-이 계획은 아직 구현·빌드·실행하지 않았다. 제품 공급을 교체하지 않았으며, 이전 네 문서는 사용자 요청으로 STOPPED 처리해 이력으로 보관했다. [work11-1의 중단·V8 실패 기록](history/26/11/14/work11-1-summary.md#v8-진단과-마지막-정지-지점)을 해제하거나 V8 진단을 재개하지 않는다.
+§2–5의 감사 내용은 2026-11-14 개편 전 구조를 기록한 것이다. 현재 구현·빌드·실행·공급 결과와 미완료 항목은 §11을 기준으로 한다. 철거한 파일명은 초기 감사의 경로로만 남긴다. 이전 네 문서는 사용자 요청으로 STOPPED 처리해 이력으로 보관했다. [work11-1의 중단·V8 실패 기록](history/26/11/14/work11-1-summary.md#v8-진단과-마지막-정지-지점)을 해제하거나 V8 진단을 재개하지 않는다.
 
 ### 1.1 우선순위
 
@@ -33,10 +37,10 @@
 
 | 확인한 자료 | 확인한 사실 | 해석의 한계 |
 | --- | --- | --- |
-| [Flutter coverage](Nelyx/upstream/flutter-coverage.json) | 원본 revision은 `71e4717a61786faab4c7aa39825989305ed29e8a`로 기록되어 있다. | 실제 reference 전체가 해당 revision과 일치하는지 이번에 Git/blob hash로 전수 검증하지 않았다. |
+| [Flutter coverage](Nelyx/upstream/flutter-coverage.json) | 원본 revision은 `71e4717a61786faab4c7aa39825989305ed29e8a`로 기록되어 있다. | 현재 Git/blob·SHA-256 대조 결과는 §11에 기록했다. coverage 상태 라벨 자체는 동작 지원의 증거가 아니다. |
 | [수동 이식 출처](tools/Nelyx.FrameworkToTypeScript/data/work8/manual-origins.json) | 같은 Flutter pin, 원본 span·목적지·PARTIAL 범위가 기록되어 있다. | 파일 자체도 부분 출처만으로 구현 완료를 추론하지 말라고 명시한다. |
 | [기존 framework imports](Nelyx/upstream/framework-imports.json) | 상위 revision과 Doroti/C# 출처, reviewed-port 등의 이전 기록이 남아 있다. | 이 기록 전체가 현재 Flutter 직접 이식의 활성 기준이라고 볼 수 없다. 서로 다른 기록의 존재만으로 현재 제품 오류를 확정하지도 않는다. |
-| [로컬 Flutter reference](reference/flutter-master/packages/flutter/lib/src/) | 이번 구조 비교에 사용한 실제 Dart 소스다. | 디렉터리 이름의 master를 최신 기준이나 검증된 pin으로 취급하지 않는다. |
+| [로컬 Flutter reference](reference/flutter-master/packages/flutter/lib/src/) | 이번 구조 비교에 사용한 실제 Dart 소스다. | 703개 중 13개가 pin과 다르므로 활성 oracle로 사용하지 않는다. 디렉터리 이름의 master를 최신 기준으로 취급하지 않는다. |
 
 W12-00에서 **활성 원본은 하나로 확정**하고, 선언별 현재 출처와 과거 출처를 구별한다. 원본 pin·파일 hash가 확인되기 전에는 해당 reference 실행을 정식 oracle로 승격하지 않는다. 개편과 동시에 Flutter 최신 버전으로 올리지 않는다.
 
@@ -51,9 +55,9 @@ coverage에 기록된 Dart dev SDK/analyzer 정보와 이전 작업에서 사용
 
 ## 3. 현재 구조와 목표 구조
 
-### 3.1 현재는 원본 이름과 실제 실행 소유자가 일치하지 않을 수 있다
+### 3.1 초기 감사: 원본 이름과 실제 실행 소유자의 불일치
 
-[framework의 adapter 등록부](Nelyx/src/framework/widgets/framework.ts#L55)는 BuildOwner별로 위젯을 다른 위젯으로 바꿀 수 있게 한다. [현재 App host](Nelyx/runtime/app/host.ts#L487)는 편집·제스처·스크롤 adapter를 설치하고, Source build 이후 render 구성을 capture해 native Scene으로 보낸다.
+[framework의 adapter 등록부](Nelyx/src/framework/widgets/framework.ts#L55)는 BuildOwner별로 위젯을 다른 위젯으로 바꿀 수 있게 한다. 현재 App host (`Nelyx/runtime/app/host.ts`, 철거 전 경로)는 편집·제스처·스크롤 adapter를 설치하고, Source build 이후 render 구성을 capture해 native Scene으로 보낸다.
 
 동시에 [FrameworkRoot](Nelyx/src/framework/widgets/root.ts#L610)에는 Source build, PipelineOwner layout, PaintingContext paint와 합성 경로가 남아 있다. [Canvas](Nelyx/src/ui/canvas.ts)와 [Scene](Nelyx/src/ui/scene.ts)도 이미 존재한다.
 
@@ -101,9 +105,9 @@ coverage에 기록된 Dart dev SDK/analyzer 정보와 이전 작업에서 사용
 
 - [현재 PageView build](Nelyx/src/framework/widgets/page-view.ts#L279)는 LayoutBuilder 안에서 ListView를 조합한다. [Flutter 원본 build](reference/flutter-master/packages/flutter/lib/src/widgets/page_view.dart#L1007)는 Scrollable, Viewport, SliverFillViewport를 구성한다.
 - [현재 fraction 검사](Nelyx/src/framework/widgets/page-view.ts#L33)는 `(0, 1]`을 허용한다. [원본 PageController](reference/flutter-master/packages/flutter/lib/src/widgets/page_view.dart#L121)는 양수 조건을 두며, 1보다 큰 fraction도 유효한 범위다. 이는 정적으로 확인되는 지원 차이다.
-- [native scroll 옵션 검사](Nelyx/runtime/app/scroll.ts#L1253)는 reverse 등 여러 옵션을 거부하며, 기본 native PageScrollPhysics 경로의 fraction은 1로 제한한다.
-- [native 목록 reset](Nelyx/runtime/app/scroll.ts#L864)은 일반 페이지 창 크기를 4로 정하고, 첫 native viewport 전에는 보이는 페이지 한 개로 좁힌다. Focus/KeepAlive 예외도 있으므로 실제 상주 수가 항상 4라는 뜻은 아니다.
-- [native position](Nelyx/runtime/app/scroll.ts#L132)과 [C++ 페이지 ballistic·스냅](Nelyx/engine/core/scheduler/scheduler.cpp#L6)이 별도 위치·목표·이동 처리를 수행한다. [coverage 처리](Nelyx/engine/core/scheduler/scheduler.cpp#L738)는 요청 위치와 표시 가능한 범위를 구별한다.
+- native scroll 옵션 검사 (`Nelyx/runtime/app/scroll.ts`, 철거 전 경로)는 reverse 등 여러 옵션을 거부하며, 기본 native PageScrollPhysics 경로의 fraction은 1로 제한한다.
+- native 목록 reset (`Nelyx/runtime/app/scroll.ts`, 철거 전 경로)은 일반 페이지 창 크기를 4로 정하고, 첫 native viewport 전에는 보이는 페이지 한 개로 좁힌다. Focus/KeepAlive 예외도 있으므로 실제 상주 수가 항상 4라는 뜻은 아니다.
+- native position (`Nelyx/runtime/app/scroll.ts`, 철거 전 경로)과 C++ 페이지 ballistic·스냅 (`Nelyx/engine/core/scheduler/scheduler.cpp`, 철거 전 경로)이 별도 위치·목표·이동 처리를 수행한다. coverage 처리 (`Nelyx/engine/core/scheduler/scheduler.cpp`, 철거 전 경로)는 요청 위치와 표시 가능한 범위를 구별한다.
 
 캐시 기본값 0 자체가 잘못이라는 결론은 아니다. 원본과 같은 값이 있어도 **누가 언제 child를 build/layout/회수하고 이동을 결정하는지**가 달라지면 같은 실행으로 볼 수 없다. coverage 안전장치도 그 자체는 필요할 수 있으나 별도 페이지 정책을 정당화하지는 않는다.
 
@@ -111,11 +115,11 @@ coverage에 기록된 Dart dev SDK/analyzer 정보와 이전 작업에서 사용
 
 PageView 파일 하나를 수정하는 것으로 종료하지 않는다. 원본 PageController, PageMetrics, private position, PageScrollPhysics, ScrollPosition·Activity·Simulation, Scrollable, Viewport, SliverFillViewport와 고정 extent adaptor의 의존 폐쇄를 확인한다. [원본 widget](reference/flutter-master/packages/flutter/lib/src/widgets/sliver_fill.dart#L35)과 [원본 render sliver](reference/flutter-master/packages/flutter/lib/src/rendering/sliver_fill.dart#L33)까지 연결한다.
 
-initialPage·keepPage·fraction·padEnds·방향·재생성·resize·notification·KeepAlive를 원본 규칙으로 실행한 뒤, 해당 native position 등록과 페이지 전용 창·스냅 interception을 제거한다. 일반 목록·grid·editor가 같은 파일을 사용하므로 [scroll 연결부](Nelyx/runtime/app/scroll.ts)를 한 번에 삭제하지 않는다.
+initialPage·keepPage·fraction·padEnds·방향·재생성·resize·notification·KeepAlive를 원본 규칙으로 실행한 뒤, 해당 native position 등록과 페이지 전용 창·스냅 interception을 제거한다. 일반 목록·grid·editor가 같은 파일을 사용하므로 scroll 연결부 (`Nelyx/runtime/app/scroll.ts`, 철거 전 경로)를 한 번에 삭제하지 않는다.
 
 ### 4.3 F04: Source recognizer를 보관하는 것과 실행하는 것은 다르다
 
-[현재 host](Nelyx/runtime/app/host.ts#L502)는 Source GestureBinding을 만들지만 App pointer dispatch·hit test·recognition을 제한한다. [RawGestureDetector adapter](Nelyx/runtime/app/raw-gesture.ts#L27)는 Source factory·recognizer 수명을 유지하면서, 정확한 prototype·일부 recognizer·slop·team 설정을 허용하고 native GestureDetector 구성으로 바꾼다. [일반 gesture adapter](Nelyx/runtime/app/gesture.ts#L278)도 지원 옵션을 선별하고 native 결과에서 Source callback 세부 값을 구성한다.
+현재 host (`Nelyx/runtime/app/host.ts`, 철거 전 경로)는 Source GestureBinding을 만들지만 App pointer dispatch·hit test·recognition을 제한한다. RawGestureDetector adapter (`Nelyx/runtime/app/raw-gesture.ts`, 철거 전 경로)는 Source factory·recognizer 수명을 유지하면서, 정확한 prototype·일부 recognizer·slop·team 설정을 허용하고 native GestureDetector 구성으로 바꾼다. 일반 gesture adapter (`Nelyx/runtime/app/gesture.ts`, 철거 전 경로)도 지원 옵션을 선별하고 native 결과에서 Source callback 세부 값을 구성한다.
 
 [Flutter 원본 GestureBinding](reference/flutter-master/packages/flutter/lib/src/gestures/binding.dart#L407)은 hit test 경로와 pointer dispatch·router·arena를 연결한다. callback 객체 모양을 맞추는 것만으로 경합·취소·slop·velocity·team 의미가 같다고 판단할 수 없다.
 
@@ -123,9 +127,9 @@ initialPage·keepPage·fraction·padEnds·방향·재생성·resize·notificatio
 
 ### 4.4 F05–F06: RenderObject는 native 설정 객체를 만드는 용도로 축소하지 않는다
 
-[현재 capture](Nelyx/runtime/app/host.ts#L1020)는 native box·sliver·control 구성으로 render를 분류하며 instance 훅·일부 pointer/semantics 훅을 거부한다. [native box 계약](Nelyx/src/framework/rendering/native-box.ts)과 [box별 등록](Nelyx/src/framework/rendering/boxes.ts#L2752)은 native layout 구성을 공급하고, [C++ layout](Nelyx/engine/core/layout/layout.cpp)은 별도 치수·배치 처리를 수행한다.
+현재 capture (`Nelyx/runtime/app/host.ts`, 철거 전 경로)는 native box·sliver·control 구성으로 render를 분류하며 instance 훅·일부 pointer/semantics 훅을 거부한다. native box 계약 (`Nelyx/src/framework/rendering/native-box.ts`, 철거 전 경로)과 [box별 등록](Nelyx/src/framework/rendering/boxes.ts#L2752)은 native layout 구성을 공급하고, C++ layout (`Nelyx/engine/core/layout/layout.cpp`, 철거 전 경로)은 별도 치수·배치 처리를 수행한다.
 
-[CustomPainter 처리](Nelyx/runtime/app/controls.ts#L98)는 일반 Source paint/hit/semantics 훅을 실행하는 경로가 아니라 등록 metadata를 요구한다. [layer 연결](Nelyx/runtime/app/layers.ts)은 Source link identity와 Content 소유 transform을 연결한다. 정확히 보존되는 경우도 있을 수 있으므로 모두 잘못된 수학이라고 단정하지 않는다. 다만 native 등록이 없다는 이유만으로 원본 확장점을 쓸 수 없다면 원본 충실 프레임워크의 기본 경계가 아니다.
+CustomPainter 처리 (`Nelyx/runtime/app/controls.ts`, 철거 전 경로)는 일반 Source paint/hit/semantics 훅을 실행하는 경로가 아니라 등록 metadata를 요구한다. layer 연결 (`Nelyx/runtime/app/layers.ts`, 철거 전 경로)은 Source link identity와 Content 소유 transform을 연결한다. 정확히 보존되는 경우도 있을 수 있으므로 모두 잘못된 수학이라고 단정하지 않는다. 다만 native 등록이 없다는 이유만으로 원본 확장점을 쓸 수 없다면 원본 충실 프레임워크의 기본 경계가 아니다.
 
 원본 기준선에서는 Source RenderObject가 constraints, parentUsesSize, relayout boundary, dry/intrinsic, baseline, parent data, paint, hit test와 semantics를 결정한다. 사용자 subclass·custom painter도 해당 훅을 실제 실행해야 한다. [Flutter rendering binding](reference/flutter-master/packages/flutter/lib/src/rendering/binding.dart#L691)의 layout·compositing·paint·semantics 순서와 [PipelineOwner](reference/flutter-master/packages/flutter/lib/src/rendering/object.dart#L1020)를 비교한다.
 
@@ -135,7 +139,7 @@ layout program이나 고정 명령 공유는 원본과 동등한 실행 표현�
 
 ### 4.5 F07: 날짜 선택기·grid 전용 경로도 대상이다
 
-[native grid](Nelyx/runtime/app/grid.ts)는 일부 regular grid를 목록 행이나 viewport layout program으로 바꾼다. [delegate 등록부](Nelyx/src/framework/rendering/native-grid.ts)는 정확한 prototype·메서드 identity를 검사한다. [생성된 날짜 선택기 끝부분](packages/material/src/generated/date/calendar_date_picker.generated.ts#L2802)에도 날짜·연도 delegate의 native 등록이 추가되어 있다.
+native grid (`Nelyx/runtime/app/grid.ts`, 철거 전 경로)는 일부 regular grid를 목록 행이나 viewport layout program으로 바꾼다. delegate 등록부 (`Nelyx/src/framework/rendering/native-grid.ts`, 철거 전 경로)는 정확한 prototype·메서드 identity를 검사한다. [생성된 날짜 선택기 끝부분](packages/material/src/generated/date/calendar_date_picker.generated.ts#L2802)에도 날짜·연도 delegate의 native 등록이 추가되어 있다.
 
 이 등록은 원본 숫자 정책의 lowering을 의도하므로 현재 픽셀이 틀렸다고 단정하지 않는다. 그러나 생성 파일이라는 이름만으로 원본 Dart 실행과 동일하다고 할 수는 없다. 원본 delegate의 layout, sliver child manager, key 이동, semantics와 사용자 delegate 확장이 실제로 실행되는지 대조해야 한다.
 
@@ -143,13 +147,13 @@ layout program이나 고정 명령 공유는 원본과 동등한 실행 표현�
 
 ### 4.6 F08–F10: 편집·Focus·접근성은 유지할 경계와 대체된 정책을 구별한다
 
-[편집 bridge](Nelyx/runtime/app/editing.ts#L35)는 Source controller·formatter·undo·focus를 유지한다고 명시하면서 native editable 구성과 비동기 authoritative edit transport를 사용한다. 동시에 일부 scrollPhysics·strutStyle·textAlign을 거부하고, native가 caret·scroll·password paint 등을 담당하도록 한다. 이는 OS IME 연결만 있는 얇은 bridge는 아니다.
+편집 bridge (`Nelyx/runtime/app/editing.ts`, 철거 전 경로)는 Source controller·formatter·undo·focus를 유지한다고 명시하면서 native editable 구성과 비동기 authoritative edit transport를 사용한다. 동시에 일부 scrollPhysics·strutStyle·textAlign을 거부하고, native가 caret·scroll·password paint 등을 담당하도록 한다. 이는 OS IME 연결만 있는 얇은 bridge는 아니다.
 
 [원본 EditableTextState](reference/flutter-master/packages/flutter/lib/src/widgets/editable_text.dart#L2562)와 [RenderEditable](reference/flutter-master/packages/flutter/lib/src/rendering/editable.dart#L267)를 기준으로 편집 값·selection/composing·caret·reveal·입력 순서의 소유자를 재정리한다. OS IME·clipboard·TSF 등의 transport와 Paragraph glyph 질의는 유지 후보이며, 모두 TS로 재구현하라는 뜻이 아니다.
 
-[Focus bridge](Nelyx/runtime/app/focus.ts#L124)는 Source focus·shortcut 실행을 유지한다. 이를 독자 Focus 구현으로 단정해 버리지 않는다. 다만 native focus session, 비동기 관측 geometry, 원본 traversal·reveal·키 전달 순서가 만나는 경계를 확인해야 한다.
+Focus bridge (`Nelyx/runtime/app/focus.ts`, 철거 전 경로)는 Source focus·shortcut 실행을 유지한다. 이를 독자 Focus 구현으로 단정해 버리지 않는다. 다만 native focus session, 비동기 관측 geometry, 원본 traversal·reveal·키 전달 순서가 만나는 경계를 확인해야 한다.
 
-[semantics bridge](Nelyx/runtime/app/semantics.ts#L26)는 TS semantics/layout pipeline을 붙이지 않고 native publication의 geometry·action을 연결한다고 명시한다. 의미 트리의 병합·순서·identity·action은 원본 Source pipeline이 한 번 결정하고, native는 OS API로 변환하는 경계로 맞춘다. publication·generation·stale action 방어는 별개로 유지한다.
+semantics bridge (`Nelyx/runtime/app/semantics.ts`, 철거 전 경로)는 TS semantics/layout pipeline을 붙이지 않고 native publication의 geometry·action을 연결한다고 명시한다. 의미 트리의 병합·순서·identity·action은 원본 Source pipeline이 한 번 결정하고, native는 OS API로 변환하는 경계로 맞춘다. publication·generation·stale action 방어는 별개로 유지한다.
 
 단순 버튼 callback이나 가짜 editor로 전체 입력·IME·스크린 리더 검증을 대신하지 않는다. 현재 유지되는 Source 로직과 자원·세대 방어도 adapter 철거 과정에서 함께 삭제하지 않는다.
 
@@ -174,7 +178,7 @@ layout program이나 고정 명령 공유는 원본과 동등한 실행 표현�
 
 [Material3-only adoption](tools/Nelyx.FrameworkToTypeScript/data/work8/w11-m3-scroll-adoption.json)은 이전 사용자 지시에 따른 명시적 제품 정책이다. 이를 무단 native 위젯 대체와 동일하게 취급하거나 이번 문서만으로 철회하지 않는다. 원본 기본값과의 차이·유지 승인·지원 profile을 명시하고, oracle는 같은 원본 설정으로 실행한다. 기대값을 맞추려고 oracle 원본 자체를 고치지 않는다.
 
-또한 [v2 Widget 계층](Nelyx/runtime/engine-client/widgets.ts#L21)은 별도 Widget·State·Element 모델이고, [패키지 export](Nelyx/package.json)는 v2와 original 경로를 별도로 공급한다. 같은 이름이나 비슷한 callback을 원본 Source의 identity·수명으로 간주하지 않는다.
+또한 v2 Widget 계층 (`Nelyx/runtime/engine-client/widgets.ts`, 철거 전 경로)은 별도 Widget·State·Element 모델이고, [패키지 export](Nelyx/package.json)는 v2와 original 경로를 별도로 공급한다. 같은 이름이나 비슷한 callback을 원본 Source의 identity·수명으로 간주하지 않는다.
 
 canonical 앱의 실패를 다른 Widget 모델로 우회해 성공 처리하지 않는다. 공개 소비자가 있다면 버전·이전 절차를 제공하고 주 프레임워크에서 분리·퇴역한다. 저수준 engine client를 유지하는 것과 두 번째 UI 프레임워크를 계속 유지하는 것은 구분한다.
 
@@ -200,7 +204,7 @@ canonical 앱의 실패를 다른 Widget 모델로 우회해 성공 처리하지
 - 결과·호출 순서·수명·오류를 보존하는 dirty queue·불변 저장소·retained drawing 최적화.
 - 별도로 승인·표시한 제품 정책. 원본 전체 호환 주장과 혼합하지 않는다.
 
-기존 [텍스트 서비스](Nelyx/runtime/app/text.ts), [자원 보존](Nelyx/src/ui/resource-retention.ts), Canvas·Scene과 native 렌더러는 재사용 후보이지 폐기 기본값이 아니다. 다만 새 Source API의 동기 질의·자원 수명·fallback·오류 계약을 다시 검증한다.
+기존 텍스트 서비스 (`Nelyx/runtime/app/text.ts`, 철거 전 경로), [자원 보존](Nelyx/src/ui/resource-retention.ts), Canvas·Scene과 native 렌더러는 재사용 후보이지 폐기 기본값이 아니다. 다만 새 Source API의 동기 질의·자원 수명·fallback·오류 계약을 다시 검증한다.
 
 ### 5.2 원본 경계 계약
 
@@ -312,7 +316,7 @@ float 비교는 원본 테스트의 tolerance와 필요한 연산 차이를 먼�
 
 ### 7.2 기존 검사와 실행 비용
 
-[child reconciliation](Nelyx/eng/check-child-reconciliation.mjs), [LayoutBuilder scheduling](Nelyx/eng/check-layout-builder-scheduling.mjs), [native gestures](Nelyx/eng/check-native-gestures.mjs), [날짜 Web 검사](Nelyx/eng/check-date-scroll-web.mjs) 같은 기존 검사는 파일이 존재한다. 실행 전 현재 계약·의존성·정리 동작을 확인하고 필요한 것만 재사용한다. 존재한다는 이유로 현재 실행 가능하거나 원본 동등성을 이미 입증했다고 간주하지 않는다.
+[child reconciliation](Nelyx/eng/check-child-reconciliation.mjs), [Source framework](Nelyx/eng/check-source-framework.mjs), [고정 Flutter 원본 대조](Nelyx/eng/check-flutter-framework.mjs)를 사용한다. native Widget adapter와 두 번째 Widget 모델에 의존하던 검사는 해당 구현과 함께 철거했다. Source 검사를 플랫폼·시각·물리 입력 수락으로 확대하지 않는다.
 
 기존 독자 native 정책을 기대값으로 삼는 검사는 그 정책의 과거 회귀 검사일 뿐이다. 안전성·자원·입력 invariant는 유지하되, 충돌하는 기대값은 원본 oracle 기준으로 교체하거나 해당 구현과 함께 퇴역시킨다.
 
@@ -386,4 +390,33 @@ Android 번들링에서 IDE Oracle Java 서버가 해당 빌드의 project 디�
 
 첫 작업은 W12-00의 활성 원본·실행 경로 전수 목록이다. 그 결과를 바탕으로 W12-01/W12-02를 진행하고, 기존 FrameworkRoot를 활용한 Source 기준선을 만든 뒤 PageView를 첫 제품 세로 단면으로 교체한다. 이후 다른 위젯·입력·디자인 패키지까지 같은 기준으로 확대한다.
 
-현재 완료된 것은 **대표 경로의 정적 감사와 이 개편 계획 작성**이다. W12-00부터 W12-10까지의 제품 구현·원본 실행 대조·성능 수락은 아직 완료하지 않았다.
+현재 구현 상태는 아래 표를 기준으로 한다. 전체 제품·성능 수락을 완료한 상태가 아니다.
+
+## 11. 현재 구현과 확인 범위
+
+아래 PASS는 명시한 관측 범위에만 적용한다. W12 전체 완료·Flutter 전체 호환·성능 수락을 뜻하지 않는다.
+
+| 범위 | 현재 결과 |
+| --- | --- |
+| W12-00 원본 identity | 고정 pin Git tree와 coverage의 Git blob·SHA-256 703개를 확인했다. 로컬 reference는 690개 일치·13개 불일치·누락 0개다. 변환/oracle은 [immutable Git reader](tools/Nelyx.FrameworkToTypeScript/flutter-source.mjs)로 pin을 읽으며 reference를 덮어쓰지 않는다. |
+| W12-00 공개 surface | [현재 inventory](Nelyx/eng/framework-inventory.mjs)는 공개 경로 852개(TS 모듈 837개·자산/metadata 15개)의 4,617개 export와 선언 타입·멤버·기본값·의존 import·실제 owner, 두 앱의 entry와 runner 6곳의 공급을 조회한다. export 대상 파일 누락 0개. 기존 출처와 새 partial port를 연결해도 3,189개 export는 직접 대응이 없으며 의미 감사가 남아 있다. 74,297개 upstream 선언의 이전 상태 라벨은 현재 지원률로 계산하지 않는다. |
+| W12-01 출처·생성 | 수동 출처 322개/현재 목적지 342개의 경로·SHA와 신규 reviewed port 15개를 반영했다. 이전 base·fingerprint·PARTIAL 및 과거 검증 기록은 보존했으며 일괄 resume/promote하지 않았다. 날짜 생성기는 실제 사용하지 않는 parameter binding만 의미 분석으로 정리하고, shorthand 참조는 보존한다. |
+| W12-02–04 Source 실행 | FrameworkRoot의 Source build→layout→compositing bits→paint·hit path·gesture arena·semantics를 실행한다. 임의 RenderObject·CustomPainter·recognizer와 취소, LayoutBuilder의 clean/dirty·descendant build scope, compositing 자식 제거와 clip 4개 모드를 검사했다. 범용 drawing·Paragraph·GPU·OS transport는 유지한다. |
+| W12-05 PageView | ListView 대체를 제거하고 Source Scrollable·Viewport·SliverFillViewport, PageMetrics/position/physics를 이식했다. fraction > 1, 0 크기 cached page, 페이지 단위 저장·복원, controller 교체와 애니메이션 중단을 포함한다. 기존 native position hook·호환 physics 옵션은 삭제했다. |
+| W12-05–06 원본 대조 | pin의 실제 Flutter/flutter_test 실행 소스 781개를 사용했다. PageView 18개(방향·fraction·jump·resize·저장/복원·교체·중단·padEnds=false·빈 목록)와 가변 높이 목록/custom grid delegate 2개, 총 20개 관측이 Dart 원본과 일치했다. 설치된 tester engine은 371f77202a73e8dff57a8b3bff75bca55c090aee, Dart 3.14.0이다. engine/pixel 동등성 판정은 아니다. |
+| W12-06 날짜 | calendar의 native grid 생성 주입을 generator와 제품 출력에서 함께 제거했다. 날짜 75개 선언 재생성 검사와 실제 Dart 날짜/지역화 oracle(날짜 12개·입력 11개·decimal 4개)이 통과했다. Web Source 달력 열기→다음 달→2026-12-16 선택→확인 callback을 관측했다. |
+| W12-07 편집·Focus·semantics | EditableText는 Source Scrollable·gesture·caret·Focus·semantics를 사용한다. Windows 실제 창에서 필드 focus·전체 선택·Source 12 입력·Ctrl+Z 복원·UIA 값 동기화를 관측했다. 이는 자동 입력 기능 확인이며 한국어 IME 조합·candidate geometry·reader 수락을 포함하지 않는다. native host가 보고한 editing geometry는 unavailable이다. |
+| W12-08 SDK·공급 | Core 0.17.0·SDK 0.21.0·CLI 0.11.0·Material/Cupertino 0.2.0. 앱과 템플릿은 Source defineApp/createRoot를 사용한다. 두 앱의 Web·Windows·Android runner 6곳에 현재 패키지를 설치·설정했고 타입 검사를 통과했다. Native package에서 빠진 generated/engine-helpers를 포함하고 CLI의 native source digest에도 helper 입력을 반영했다. Android 공용 Java helper 소스 경로를 두 샘플과 템플릿에 연결했다. 편집·키보드의 구형 정수 명령 alias와 deprecated eager module 등록 override를 삭제하고 문자열 명령·BaseReactPackage lazy 등록을 사용한다. |
+| W12-10 단절적 철거 | native Widget adapter 등록·분기 97개, OriginalWidgetHost, 별도 v2 Widget/State·Scene/control packet frontend, engine export·CLI v2 생성/실행·관련 샘플/검사를 삭제했다. 중복 구형 AnimationController/Tween export도 삭제했다. 사용자는 framework/animation/animation-controller·tween·curves의 원본 기반 생성자/Curve 객체 계약으로 이전한다. deprecated alias·이전 renderer 자동 fallback은 제공하지 않는다. Nelyx/engine에는 현재 Source backend가 사용하는 공용 자원/플랫폼 helper 28개만 유지한다. |
+| 정적·회귀 검사 | 루트 check:types·lint·format:check·check:cli-types, converter 타입 검사, child reconciliation 검사, 신규 source identity 검사, native/RN native source input 241개씩 검사가 통과했다. Core·디자인·SDK·renderer 빌드와 패키지 공급을 완료했다. Android/Web 빌드 실패 시 이번 실행이 만든 미완성 출력만 finally에서 회수하도록 바꾸고 실패 회수/성공 보존 2개 사례를 확인했다. |
+| Web 실제 실행 | 두 앱 Ganesh/WebGL2 static build와 Chrome 157 headless/SwiftShader 실행을 확인했다. Demo 버튼/대화상자/탐색/달력 및 Testbed 1,000행 목록의 자동 wheel·행 선택을 확인했다. 사용자 정의 RangeSlider 훅에서 scalar animation 값을 Dart wrapper로 잘못 푸는 Demo 오류를 수정했다. 기능·화면 관측이며 실제 GPU/물리 입력/성능 수락은 아니다. CanvasKit source rebuild·notice qualification은 기존 notVerified/PARTIAL을 유지한다. |
+| Windows 실제 실행 | Source direct Hermes host를 현재 공급의 Skia·Hermes 입력으로 컴파일·링크하고 bytecode 앱을 실행했다. 실제 화면·버튼 callback·탐색·편집·UIA를 관측했다. close exitCode=0·forced=false, 입력 41개 수신/전달/수락·거절 0개, surface frame 380개. scanout/displayed는 unobserved이고 성능은 미측정이다. 기본 RNW host의 native 공급은 이번에 수락하지 않았다. |
+| Android | Temurin JDK 21.0.11로 최신 x86_64 Release APK 빌드·Hermes bytecode 96·native library 12개를 확인했다. GraalVM jlink 실패는 설치된 표준 JDK를 이번 실행에만 지정해 해결했고, 누락된 Java helper 경로도 수정했다. API 33 읽기 전용 AVD에서 SwiftShader 모드는 Vulkan Core adapter 선택 실패로 화면 전에 종료됐다. 같은 APK의 host GPU 모드에서는 실제 Source 화면·터치 callback·탐색·필드 focus/키보드·W12 입력·Android 접근성 값 동기화를 확인했다. renderer fallback이나 adapter 조건 완화는 하지 않았다. 에뮬레이터 기능 확인이며 실제 기기·한국어 IME·reader·ARM64·복구/수명·성능은 미수락이다. |
+| 정리 | 새 oracle·source fixture·pack/build staging·UI 임시 디렉터리와 검증 브라우저/서버/Windows 앱·Android 검증 APK/AVD는 종료·회수했다. 현재 dist·플랫폼 패키지·현재 공급 archive만 유지한다. 이전 ignored Android standalone 엔진 캐시 .nelyx/android-v2와 구형 Windows 공급 manifest Nelyx/skia/vendor/inputs/windows-x64/vendor-inputs.json의 삭제는 자동 승인 검토가 blocked by policy로 거절해 남아 있다. 현재 코드·runner는 이를 참조하지 않는다. |
+
+현재 전체 판정은 **PARTIAL**이다. 다음 필수 종료 조건이 남아 있다.
+
+- W12-00/01/08: 3,189개 직접 미대응 export와 나머지 API·옵션·확장점의 원본 의미/언어 adaptation/승인 정책/미지원 판정. 현재 inventory의 behavior=unreviewed는 동작 완료로 승격하지 않았다.
+- W12-05/06: drag/fling·다중 pointer·notification depth/반올림 경계, child 수/Key 이동·KeepAlive·중첩 scroll/focus reveal·가변 높이 텍스트의 전체 수명 대조.
+- W12-02/07/09: frame 자원 보유·복구·취소·shutdown의 전체 대조, 실제 OS IME composition/candidate geometry·reader, Windows/Web/Android 및 Apple/Linux 각각의 시각·물리 입력·성능 수락.
+- W12-10: 나머지 생성 recipe의 현재 validator 연결과 전체 재생성 폐쇄, 삭제 거절된 로컬 이전 산출물 정리. 원본에 존재하는 deprecated Dart API와 철거한 Nelyx 호환 alias는 같은 것으로 취급하지 않는다.

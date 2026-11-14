@@ -34,10 +34,6 @@ import { invariant } from '@nelyx/core/foundation/errors';
 import { Material, InkFeature } from './material.ts';
 import type { InkFeatureOptions } from './material.ts';
 import { emptyInkDecoration } from './internal/material/empty-ink-decoration.ts';
-import { registerNativeInkFeature } from './internal/material/material-ink-owner.ts';
-import { nativeRenderMetadata } from '@nelyx/core/framework/rendering/object';
-import type { NativePaintEntry, NativePaintScalar } from '@nelyx/core/framework/rendering/object';
-import { Border, BorderDirectional } from '@nelyx/core/framework/painting/box-border';
 export interface InkOptions extends WidgetOptions {
   readonly child?: Widget | null;
   readonly padding?: EdgeInsetsGeometry | null;
@@ -198,97 +194,6 @@ export interface InkDecorationOptions extends InkFeatureOptions {
   readonly isVisible?: boolean;
 }
 export class InkDecoration extends InkFeature {
-  static {
-    registerNativeInkFeature(InkDecoration.prototype, (source) => {
-      if (source.emptyPaint || !source.visible || source.currentDecoration === null) return [];
-      const decoration = source.currentDecoration;
-      if (
-        ['createBoxPainter', 'getClipPath', 'hitTest'].some((name) =>
-          Object.hasOwn(decoration, name),
-        )
-      )
-        throw Error('native instance ink decoration');
-      let entries: readonly NativePaintEntry[];
-      if (Object.getPrototypeOf(decoration) === BoxDecoration.prototype) {
-        const box = decoration as BoxDecoration,
-          border = box.border;
-        if (
-          box.image ||
-          box.gradient ||
-          box.backgroundBlendMode ||
-          box.boxShadow?.length ||
-          (border &&
-            ((Object.getPrototypeOf(border) !== Border.prototype &&
-              Object.getPrototypeOf(border) !== BorderDirectional.prototype) ||
-              !border.isUniform))
-        )
-          throw Error('native ink decoration style');
-        const radius = box.borderRadius?.resolve(source.configuration.textDirection),
-          side = border?.top;
-        const shape = {
-          kind: box.shape === 'circle' ? ('circle' as const) : ('rrect' as const),
-          radii: radius
-            ? [radius.topLeft, radius.topRight, radius.bottomRight, radius.bottomLeft].flatMap(
-                (corner) => [corner.x, corner.y],
-              )
-            : Array<number>(8).fill(0),
-          strokeWidth: side?.width ?? 0,
-          strokeColor: side?.style === 'solid' ? side.color : 0,
-          strokeAlign: side?.strokeAlign ?? -1,
-        };
-        entries = [
-          ...(box.color !== null
-            ? [{ kind: 'shape' as const, color: box.color, shape: { ...shape, strokeColor: 0 } }]
-            : []),
-          ...(shape.strokeColor >>> 24 ? [{ kind: 'border' as const, color: 0, shape }] : []),
-        ];
-      } else {
-        const metadata = nativeRenderMetadata(decoration, source.configuration.textDirection);
-        if (metadata?.kind !== 'decoration') throw Error('native custom ink decoration');
-        entries = metadata.entries;
-      }
-      const dimension = (op: 'width' | 'height'): NativePaintScalar => ({ op });
-      const linear = (
-        factor: number,
-        offset: number,
-        axis: 'width' | 'height',
-      ): NativePaintScalar => ({
-        op: 'add',
-        args: [{ op: 'multiply', args: [dimension(axis), factor] }, offset],
-      });
-      return entries.map((entry) => {
-        if (!['shape', 'border', 'circle', 'path'].includes(entry.kind))
-          throw Error('native ink decoration entry');
-        const geometry = entry.geometry;
-        if (geometry && geometry.kind !== 'program' && geometry.kind !== 'linear')
-          throw Error('native ink decoration geometry');
-        return {
-          ...entry,
-          reference: source.referenceBox,
-          geometry:
-            geometry?.kind === 'program'
-              ? geometry
-              : {
-                  kind: 'program' as const,
-                  rect: geometry
-                    ? ([
-                        linear(geometry.rect[0], geometry.rect[4], 'width'),
-                        linear(geometry.rect[1], geometry.rect[5], 'height'),
-                        {
-                          op: 'max' as const,
-                          args: [0, linear(geometry.rect[2], geometry.rect[6], 'width')],
-                        },
-                        {
-                          op: 'max' as const,
-                          args: [0, linear(geometry.rect[3], geometry.rect[7], 'height')],
-                        },
-                      ] as const)
-                    : ([0, 0, dimension('width'), dimension('height')] as const),
-                },
-        };
-      });
-    });
-  }
   private readonly canonicalDecoration: boolean;
   private emptyPaint = false;
   private painter: BoxPainter | null = null;

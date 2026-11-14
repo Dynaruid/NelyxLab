@@ -20,7 +20,6 @@ import { RenderAligningShiftedBox } from '@nelyx/core/framework/rendering/shifte
 import { RenderProxyBox } from '@nelyx/core/framework/rendering/boxes';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import type { RenderBox, RenderObject, TextBaseline } from '@nelyx/core/framework/rendering/object';
-import { registerNativeBoxConfiguration } from '@nelyx/core/framework/rendering/object';
 import type { Size } from '@nelyx/core/ui/geometry';
 import { Offset } from '@nelyx/core/ui/offset';
 import type { Color } from '@nelyx/core/ui/color';
@@ -196,30 +195,6 @@ class BadgePosition extends SingleChildRenderObjectWidget {
   }
 }
 class RenderBadge extends RenderAligningShiftedBox {
-  static {
-    registerNativeBoxConfiguration(RenderBadge.prototype, (render) => {
-      const alignment = render.resolvedAlignment,
-        x = (alignment.x + 1) / 2,
-        y = (alignment.y + 1) / 2;
-      return {
-        kind: 'box',
-        layout: {
-          childConstraints: 'unconstrained',
-          alignment: { x: 0, y: 0 },
-          alignmentSizing: true,
-        },
-        childAnchor: [
-          x,
-          0,
-          render.badgeOffset.dx - render.widthOffset * x,
-          y,
-          render.hasLabel ? -0.5 : 0,
-          render.badgeOffset.dy,
-        ],
-        hitTest: 'deferToChild',
-      };
-    });
-  }
   constructor(
     alignment: AlignmentGeometry,
     private badgeOffset: Offset,
@@ -292,18 +267,6 @@ class IntrinsicHorizontalStadium extends SingleChildRenderObjectWidget {
   }
 }
 class RenderIntrinsicHorizontalStadium extends RenderProxyBox {
-  static {
-    registerNativeBoxConfiguration(RenderIntrinsicHorizontalStadium.prototype, (render) => ({
-      kind: 'box',
-      layout: {},
-      hitTest: 'proxy',
-      intrinsicSizing: {
-        minimumHeight: render.minimum,
-        minimumWidthPerHeight: 1,
-        expandReportedWidth: true,
-      },
-    }));
-  }
   constructor(private minimum: number) {
     super();
   }

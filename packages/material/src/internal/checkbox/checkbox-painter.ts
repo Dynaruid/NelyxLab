@@ -13,8 +13,6 @@ import { sourceColorLerp } from '@nelyx/core/ui/color-source';
 import { BorderSide, OutlinedBorder } from '@nelyx/core/framework/painting/borders';
 import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
 import type { ToggleableMotion } from '@nelyx/core/framework/widgets/toggleable-control';
-import { registerNativeRenderMetadata, nativeShape } from '@nelyx/core/framework/rendering/object';
-import type { NativePaintEntry, NativeShape } from '@nelyx/core/framework/rendering/object';
 export interface CheckboxPaintValues {
   readonly activeColor: Color;
   readonly inactiveColor: Color;
@@ -140,85 +138,3 @@ export class CheckboxPainter extends CustomPainter {
     return true;
   }
 }
-
-// Exact canonical configuration only. Content resolves centers, animated box
-// insets and mark segments from the final native layout; App never calls paint.
-registerNativeRenderMetadata(CheckboxPainter.prototype, (source) => {
-  const o = source.options,
-    entries: NativePaintEntry[] = [],
-    base = nativeShape(o.shape, null),
-    circle: NativeShape = {
-      kind: 'circle',
-      radii: Array(8).fill(0),
-      strokeWidth: 0,
-      strokeAlign: 0,
-      strokeColor: 0,
-    };
-  if (
-    o.isFocused ||
-    o.isHovered ||
-    o.reaction !== 0 ||
-    o.reactionFocusFade !== 0 ||
-    o.reactionHoverFade !== 0
-  ) {
-    const color = sourceColorLerp(
-      sourceColorLerp(
-        sourceColorLerp(o.inactiveReactionColor, o.activeReactionColor, o.position),
-        o.hoverColor,
-        o.reactionHoverFade,
-      ),
-      o.focusColor,
-      o.reactionFocusFade,
-    )!;
-    entries.push({
-      kind: 'circle',
-      color: color.toARGB32(),
-      shape: circle,
-      radius: o.splashRadius,
-      progress: o.isFocused || o.isHovered ? 1 : o.reaction,
-    });
-  }
-  const normalized =
-    o.positionStatus === AnimationStatus.forward || o.positionStatus === AnimationStatus.completed
-      ? o.position
-      : 1 - o.position;
-  let t = 1,
-    mark = 0,
-    dash = false,
-    color = o.activeColor,
-    side = o.activeSide;
-  if (o.previousValue === false || o.value === false) {
-    t = o.value === false ? 1 - normalized : normalized;
-    color = t >= 0.25 ? o.activeColor : sourceColorLerp(o.inactiveColor, o.activeColor, t * 4)!;
-    side = t <= 0.5 ? BorderSide.lerp(o.inactiveSide, o.activeSide, t) : o.activeSide;
-    if (t > 0.5) {
-      mark = (t - 0.5) * 2;
-      dash = o.previousValue === null || o.value === null;
-    }
-  } else {
-    const first = normalized <= 0.5,
-      value = first ? o.previousValue : o.value;
-    mark = first ? 1 - normalized * 2 : (normalized - 0.5) * 2;
-    dash = value !== true;
-  }
-  entries.push({
-    kind: 'checkbox',
-    color: color.toARGB32(),
-    shape: {
-      ...base,
-      strokeColor: side.color,
-      strokeWidth: side.style === 'none' ? 0 : side.width,
-      strokeAlign: side.strokeAlign,
-    },
-    progress: t,
-  });
-  if (mark > 0)
-    entries.push({
-      kind: 'mark',
-      color: o.checkColor.toARGB32(),
-      shape: { ...circle, kind: 'rrect', strokeWidth: 2 },
-      progress: mark,
-      dash,
-    });
-  return { kind: 'paint', entries };
-});

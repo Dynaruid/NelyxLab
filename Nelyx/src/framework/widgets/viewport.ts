@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+import type { Clip } from '../../ui/clip.ts';
 import {
   MultiChildRenderObjectWidget,
   MultiChildRenderObjectElement,
@@ -36,7 +37,7 @@ export interface ViewportOptions {
   readonly cacheExtentStyle?: CacheExtentStyle;
   readonly scrollCacheExtent?: ScrollCacheExtent | null;
   readonly paintOrder?: SliverPaintOrder;
-  readonly clipBehavior?: 'none' | 'hardEdge';
+  readonly clipBehavior?: Clip;
   readonly slivers?: readonly Widget[];
 }
 export class Viewport extends MultiChildRenderObjectWidget {
@@ -49,7 +50,7 @@ export class Viewport extends MultiChildRenderObjectWidget {
   readonly cacheExtentStyle: CacheExtentStyle;
   readonly scrollCacheExtent: ScrollCacheExtent | null;
   readonly paintOrder: SliverPaintOrder;
-  readonly clipBehavior: 'none' | 'hardEdge';
+  readonly clipBehavior: Clip;
   constructor({
     key = null,
     axisDirection = AxisDirection.down,
@@ -205,7 +206,7 @@ export class ShrinkWrappingViewport extends MultiChildRenderObjectWidget {
   readonly crossAxisDirection: AxisDirection | null;
   readonly offset: ViewportOffset;
   readonly paintOrder: SliverPaintOrder;
-  readonly clipBehavior: 'none' | 'hardEdge';
+  readonly clipBehavior: Clip;
   readonly cacheExtent: number | null;
   readonly cacheExtentStyle: CacheExtentStyle;
   readonly scrollCacheExtent: ScrollCacheExtent | null;

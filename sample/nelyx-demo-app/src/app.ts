@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { ApplicationDefinition } from '@nelyx/core/hosting/runtime';
-import { widgetApplication } from '@nelyx/core/framework/widgets/root';
+import { defineApp } from '@nelyx/sdk/app';
 import { DemoApplication } from './demo-application.ts';
 export { DemoApplication } from './demo-application.ts';
 
@@ -17,7 +17,7 @@ export function defineApplication(
   state: ApplicationState,
   options: ApplicationOptions = {},
 ): ApplicationDefinition {
-  return widgetApplication({
+  return defineApp({
     id: 'nelyx.demo',
     defaultFont: 'sample-font',
     accessibilityEnabled: options.accessibilityEnabled ?? true,

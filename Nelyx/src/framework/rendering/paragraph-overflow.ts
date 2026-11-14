@@ -7,42 +7,6 @@ import { Paint } from '../../ui/paint.ts';
 import type { Shader } from '../../ui/shader.ts';
 import type { PaintingContext } from '../painting/context.ts';
 import type { TextOverflow, TextWidthBasis } from '../painting/text-painter.ts';
-import type { NativePaintEntry, NativePaintScalar } from './native-paint.ts';
-
-/** The same Source fade policy, recorded without reading final geometry. */
-export function nativeParagraphFade(
-  direction: 'ltr' | 'rtl',
-): Omit<NativePaintEntry, 'reference' | 'paragraph'> {
-  const width: NativePaintScalar = { op: 'width' },
-    height: NativePaintScalar = { op: 'height' },
-    horizontal: NativePaintScalar = { op: 'contentOverflowX' },
-    probeWidth: NativePaintScalar = { op: 'overflowProbeWidth' },
-    select = (yes: NativePaintScalar, no: NativePaintScalar): NativePaintScalar => ({
-      op: 'select',
-      args: [horizontal, yes, no],
-    });
-  return {
-    kind: 'linearMask',
-    color: 0,
-    shape: {
-      kind: 'rrect',
-      radii: Array<number>(8).fill(0),
-      strokeWidth: 0,
-      strokeAlign: 0,
-      strokeColor: 0,
-    },
-    geometry: { kind: 'program', rect: [0, 0, width, height], visible: { op: 'contentOverflow' } },
-    gradient: [
-      select(direction === 'rtl' ? probeWidth : { op: 'subtract', args: [width, probeWidth] }, 0),
-      select(0, {
-        op: 'subtract',
-        args: [height, { op: 'divide', args: [{ op: 'overflowProbeHeight' }, 2] }],
-      }),
-      select(direction === 'rtl' ? 0 : width, 0),
-      select(0, height),
-    ],
-  };
-}
 export interface ParagraphLayoutOptions {
   readonly softWrap?: boolean;
   readonly overflow?: TextOverflow;

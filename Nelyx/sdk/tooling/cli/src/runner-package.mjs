@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { createProviderRegistry } from '@nelyx/sdk/runtime/providers';
-import { sha256, relativeFile, localFile } from './files.mjs';
+import { sha256, relativeFile, localFile, fileTree } from './files.mjs';
 import { capture } from './commands.mjs';
 const manifestName = 'nelyx-package.json',
   digest = (value) => createHash('sha256').update(value).digest('hex');
@@ -153,6 +153,34 @@ export function freshPackageDirectory(app, target, output) {
   if (fs.existsSync(directory)) throw new Error('Build requires a new package directory');
   fs.mkdirSync(directory, { recursive: true });
   return directory;
+}
+/** The builder owns only the directory it just created. Failed output never becomes a locator. */
+function discardFailedPackageDirectory(directory, canonical, identity) {
+  if (!fs.existsSync(directory)) return;
+  const current = fs.lstatSync(directory);
+  if (
+    current.isSymbolicLink() ||
+    !current.isDirectory() ||
+    current.ino !== identity.ino ||
+    current.dev !== identity.dev ||
+    fs.realpathSync(directory) !== canonical
+  )
+    throw Error('Failed build output no longer belongs to this invocation');
+  fileTree(directory);
+  fs.rmSync(canonical, { recursive: true });
+}
+export async function inFreshPackageDirectory(app, target, output, build) {
+  const directory = freshPackageDirectory(app, target, output),
+    canonical = fs.realpathSync(directory),
+    identity = fs.statSync(directory);
+  let complete = false;
+  try {
+    const result = await build(directory);
+    complete = true;
+    return result;
+  } finally {
+    if (!complete) discardFailedPackageDirectory(directory, canonical, identity);
+  }
 }
 export function copyRunnerNotices(application, directory) {
   const destination = path.join(directory, 'licenses');

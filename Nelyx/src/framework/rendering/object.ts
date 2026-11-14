@@ -90,222 +90,7 @@ import type {
   InputGeometryFrame,
   InputGeometryCandidate,
 } from '../../hosting/input-geometry.ts';
-const nativeRenderOwners = new WeakMap<RenderObject, object>();
-const nativeRenderResources = new WeakMap<
-  RenderObject,
-  { readonly attach: () => void; readonly detach: () => void; active: boolean }
->();
-const nativeResourceWork = new WeakMap<RenderObject, number>();
-function changeNativeResourceWork(render: RenderObject, delta: number): void {
-  for (let node: RenderObject | undefined = render; node; node = node.parent)
-    nativeResourceWork.set(node, (nativeResourceWork.get(node) ?? 0) + delta);
-}
-/** @internal Configuration resources have a native lifetime without a TS PipelineOwner. */
-export function registerNativeRenderResources(
-  render: RenderObject,
-  hooks: { readonly attach: () => void; readonly detach: () => void },
-): void {
-  if (nativeRenderResources.has(render)) throw Error('Native render resources already registered');
-  nativeRenderResources.set(render, { ...hooks, active: false });
-}
-function detachNativeRenderResources(render: RenderObject, errors: unknown[]): void {
-  if (!nativeResourceWork.get(render)) return;
-  const state = nativeRenderResources.get(render);
-  if (state?.active) {
-    state.active = false;
-    changeNativeResourceWork(render, -1);
-    attempt(errors, state.detach);
-  }
-  for (const child of render.children) detachNativeRenderResources(child, errors);
-}
-/** @internal Element detachment includes native roots without a PipelineOwner. */
-export function releaseNativeRenderResources(render: RenderObject): void {
-  const errors: unknown[] = [];
-  detachNativeRenderResources(render, errors);
-  throwFailures(errors, 'Detaching native render resources failed');
-}
-const nativeSemanticsEvents = new WeakMap<RenderObject, (event: SemanticsEvent) => void>();
-/** @internal Native configuration never attaches to a TS semantics pipeline. */
-export function bindNativeSemanticsEvents(
-  render: RenderObject,
-  owner: object,
-  send: (event: SemanticsEvent) => void,
-): void {
-  invariant(
-    nativeRenderOwners.get(render) === owner,
-    'foreign-native-semantics',
-    'Semantics belongs to the native render owner',
-  );
-  nativeSemanticsEvents.set(render, send);
-}
-export interface NativePublishedGeometry {
-  readonly owner: object;
-  readonly snapshot: object;
-  readonly publication: bigint;
-  readonly size: Size;
-  readonly transform: Matrix4Storage;
-  readonly layer?: {
-    readonly kind: 'leader' | 'follower';
-    readonly linked: boolean;
-    readonly showWhenUnlinked: boolean;
-    readonly transform: Matrix4Storage | null;
-    readonly linkedOffset: Offset;
-  };
-}
-const nativeGeometryReaders = new WeakMap<
-  RenderObject,
-  () => NativePublishedGeometry | undefined
->();
-/** @internal Read a published native observation; this never requests App layout. */
-export function nativePublishedGeometry(render: RenderObject): NativePublishedGeometry | undefined {
-  return nativeGeometryReaders.get(render)?.();
-}
-/** @internal Only the native render owner can supply its published observations. */
-export function bindNativePublishedGeometry(
-  render: RenderObject,
-  owner: object,
-  read: () => NativePublishedGeometry | undefined,
-): void {
-  invariant(
-    nativeRenderOwners.get(render) === owner,
-    'foreign-native-geometry',
-    'Geometry belongs to the native render owner',
-  );
-  nativeGeometryReaders.set(render, read);
-}
-export { registerNativeRenderMetadata, nativeRenderMetadata, nativeShape } from './native-paint.ts';
-export {
-  nativeBoxConfiguration,
-  nativeBoxDataConfiguration,
-  registerNativeBoxConfiguration,
-  nativeBoxCommands,
-} from './native-box.ts';
-export type {
-  NativeLayoutBuilderConfiguration,
-  NativeBoxConfiguration,
-  NativeBoxCommandSink,
-  NativeBoxCommandProjector,
-} from './native-box.ts';
-export { NativeLayoutBuilder, nativeLayoutExpression, nativeLayoutInput } from './native-layout.ts';
-export type {
-  NativeLayoutScalar,
-  NativeLayoutProgram,
-  NativeLayoutCommand,
-} from './native-layout.ts';
-export { nativeSliverConfiguration } from './native-sliver.ts';
-export type {
-  NativeSliverConfiguration,
-  NativeSliverInput,
-  NativeSliverMeasurement,
-} from './native-sliver.ts';
 export { nativeSemanticsRange } from './semantics-transport.ts';
-export type {
-  NativeShape,
-  NativePaintEntry,
-  NativePaintPath,
-  NativePaintPathSegment,
-  NativePaintGeometry,
-  NativePaintScalar,
-  NativeRenderMetadata,
-} from './native-paint.ts';
-export type NativeRenderChange =
-  | 'children'
-  | 'layout'
-  | 'paint'
-  | 'semantics'
-  | 'interaction'
-  | 'resource';
-/** @internal Command groups reported by the setter that already knows the edit.
- * Broad public invalidations, references and unknown modules remain full updates. */
-export const nativeRenderFields = Object.freeze({
-  layout: 1,
-  constraints: 2,
-  paint: 4,
-  properties: 8,
-  semantics: 16,
-  interaction: 32,
-  graphics: 64,
-  text: 128,
-  paragraph: 256,
-  clip: 512,
-  all: 0xffff,
-});
-const nativeRenderFieldHints = new WeakMap<RenderObject, number>();
-const nativeRenderInvalidators = new WeakMap<
-  RenderObject,
-  (kind: NativeRenderChange, fields?: number) => void
->();
-const nativeFontsBindings = new WeakMap<
-  RenderObject,
-  (scope: SystemFontsRelayoutContext, isLive: () => boolean) => void
->();
-/** @internal Font notifications reuse the canonical mixin's frame/cancel path.
- * Native-owned configuration remains detached from every TS PipelineOwner. */
-export function bindNativeSystemFonts(
-  render: RenderObject,
-  owner: object,
-  scope: SystemFontsRelayoutContext,
-  isLive: () => boolean,
-): void {
-  invariant(
-    nativeRenderOwners.get(render) === owner && !render.debugDisposed && !render.attached,
-    'foreign-native-font-owner',
-    'Native font notifications require the live configuration owner',
-  );
-  nativeFontsBindings.get(render)?.(scope, isLive);
-}
-/** @internal A canonical configuration adapter can defer geometry to its native owner. */
-export function isNativeRenderObject(render: RenderObject): boolean {
-  return nativeRenderOwners.has(render);
-}
-let nativeRenderConfiguration: ((operation: string) => never) | undefined;
-/** @internal Configuration callbacks may create metadata, never run the TS render pipeline. */
-export function withNativeRenderConfiguration<T>(
-  action: () => T,
-  rejected: (operation: string) => never,
-): T {
-  const previous = nativeRenderConfiguration;
-  nativeRenderConfiguration = rejected;
-  try {
-    return action();
-  } finally {
-    nativeRenderConfiguration = previous;
-  }
-}
-/** @internal A native bridge may use canonical render objects as App configuration only. */
-export function claimNativeRenderObject(
-  render: RenderObject,
-  owner: object,
-  invalidated?: (kind: NativeRenderChange, fields?: number) => void,
-): void {
-  const previous = nativeRenderOwners.get(render);
-  invariant(
-    !previous || previous === owner,
-    'foreign-native-render',
-    'Render object belongs to another native bridge',
-  );
-  invariant(
-    !render.attached && (!!previous || !(render instanceof RenderBox && render.hasSize)),
-    'native-render-already-laid-out',
-    'Native metadata cannot adopt an attached or TS-laid-out render object',
-  );
-  nativeRenderOwners.set(render, owner);
-  if (invalidated) nativeRenderInvalidators.set(render, invalidated);
-  const resources = nativeRenderResources.get(render);
-  if (resources && !resources.active) {
-    resources.attach();
-    resources.active = true;
-    changeNativeResourceWork(render, 1);
-  }
-}
-function assertAppRenderOperation(render: RenderObject, operation: string): void {
-  nativeRenderConfiguration?.(operation);
-  invariant(
-    !nativeRenderOwners.has(render),
-    'native-render-operation',
-    `Synchronous ${operation} is unavailable for native-owned render metadata; a TS renderer fallback is forbidden`,
-  );
-}
 const numericGeometryObjects = new WeakSet<object>();
 const numericGeometryGuards = new WeakMap<object, (node: RenderObject) => boolean>();
 const numericSemanticsPrototypes = new WeakSet<object>();
@@ -640,6 +425,39 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   private readonly layoutCallbacks = new Set<RenderObject>();
   private layoutWorkRevision = 0;
   private readonly paintRetirements = new Set<RenderObject>();
+  private readonly dirtyCompositing = new Set<RenderObject>();
+  private flushingCompositing = false;
+  /** @internal Scheduling belongs to the same Source pipeline as layout and paint. */
+  _scheduleCompositingBits(node: RenderObject): void {
+    this.dirtyCompositing.add(node);
+  }
+  _forgetCompositingBits(node: RenderObject): void {
+    this.dirtyCompositing.delete(node);
+  }
+  flushCompositingBits(): void {
+    invariant(
+      !this.dead && !this.flushingLayout && !this.flushingCompositing,
+      'invalid-compositing-phase',
+      'Compositing bits require an idle live pipeline after layout',
+    );
+    this.flushingCompositing = true;
+    try {
+      const pending = [...this.dirtyCompositing].sort((a, b) => a.depth - b.depth);
+      for (const node of pending) {
+        if (node.owner === this) node._updateCompositingBits();
+        this.dirtyCompositing.delete(node);
+      }
+      for (const child of this.childOwners) child.flushCompositingBits();
+      if (FoundationBuildMode.debug)
+        invariant(
+          !this.dirtyCompositing.size,
+          'cross-pipeline-compositing-mutation',
+          'Child pipelines must not dirty compositing bits in their parent',
+        );
+    } finally {
+      this.flushingCompositing = false;
+    }
+  }
   /** @internal One synchronous layout transaction, never a frame/geometry lease. */
   _paintInvalidationBatch: object | null = null;
   _finishPaintInvalidationBatch(): void {
@@ -1083,6 +901,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
         !this.changingRoot &&
         !this.flushingLayout &&
         !this.flushingSemantics &&
+        !this.flushingCompositing &&
         !treeTransitions.has(this) &&
         !layoutQueries.length
       )
@@ -1105,6 +924,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
     this.dirtyLayout.clear();
     this.layoutCallbacks.clear();
     this.paintRetirements.clear();
+    this.dirtyCompositing.clear();
     if (root) detachRenderTree(root, errors);
     throwFailures(errors, 'Pipeline teardown failed');
   }
@@ -1478,6 +1298,53 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   get isRepaintBoundary(): boolean {
     return false;
   }
+  get alwaysNeedsCompositing(): boolean {
+    return false;
+  }
+  private compositingDirty = true;
+  private compositing = this.isRepaintBoundary || this.alwaysNeedsCompositing;
+  private wasRepaintBoundary = false;
+  get needsCompositing(): boolean {
+    if (FoundationBuildMode.debug)
+      invariant(
+        !this.compositingDirty,
+        'dirty-compositing-bits',
+        'Flush compositing bits before observing needsCompositing',
+      );
+    return this.compositing;
+  }
+  markNeedsCompositingBitsUpdate(): void {
+    invariant(!this.dead, 'disposed-render-object', 'Cannot dirty a disposed render object');
+    if (this.compositingDirty) return;
+    this.compositingDirty = true;
+    const parent = this.parent;
+    if (parent) {
+      if (parent.compositingDirty) return;
+      if ((!this.wasRepaintBoundary || !this.isRepaintBoundary) && !parent.isRepaintBoundary) {
+        parent.markNeedsCompositingBitsUpdate();
+        return;
+      }
+    }
+    this.owner?._scheduleCompositingBits(this);
+  }
+  /** @internal Called in depth order by PipelineOwner; children complete before their parent. */
+  _updateCompositingBits(): void {
+    if (!this.compositingDirty) return;
+    const previous = this.compositing;
+    this.compositing = false;
+    this.visitChildren((child) => {
+      child._updateCompositingBits();
+      if (child.needsCompositing) this.compositing = true;
+    });
+    if (this.isRepaintBoundary || this.alwaysNeedsCompositing) this.compositing = true;
+    this.compositingDirty = false;
+    if ((!this.isRepaintBoundary && this.wasRepaintBoundary) || previous !== this.compositing)
+      this.markNeedsPaint();
+  }
+  /** @internal A successfully painted Source node establishes its previous boundary state. */
+  _didPaint(): void {
+    this.wasRepaintBoundary = this.isRepaintBoundary;
+  }
   /** @internal Retained subclasses alone admit their invalid cache owner. */
   protected retainedPaintInvalidated(): void {}
   _retireHiddenPaint(): void {}
@@ -1707,7 +1574,6 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     options: LayoutOptions,
     perform?: () => void,
   ): void {
-    assertAppRenderOperation(this, 'layout');
     assertOutsideRenderPaint();
     if (
       !(
@@ -1796,7 +1662,6 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   protected adoptChild(child: RenderObject): void {
     if (child.parent) invariant(false, 'render-parent', 'Adopt requires an unparented child');
-    releaseNativeRenderResources(child);
     this.setupParentData(child);
     child.renderParent = this;
     this.changeInputGeometryWork(child.inputGeometrySubtreeWork);
@@ -1804,12 +1669,14 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     child.boundary = undefined;
     if (this.owner) attachRenderTree(child, this.owner);
     this.redepthChild(child);
+    this.markNeedsCompositingBitsUpdate();
   }
   protected dropChild(child: RenderObject): void {
     if (!(child.parent === this))
       invariant(false, 'render-parent', 'Drop requires a child of this render object');
     const errors: unknown[] = [];
     this.releaseChild(child, errors);
+    attempt(errors, () => this.markNeedsCompositingBitsUpdate());
     throwFailures(errors, 'Dropping render child failed');
   }
   protected redepthChild(child: RenderObject): void {
@@ -1824,7 +1691,6 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     for (const child of this.children) this.redepthChild(child);
   }
   private releaseChild(child: RenderObject, errors: unknown[], alreadyDetached = false): void {
-    detachNativeRenderResources(child, errors);
     attempt(errors, () => child.parentData?.detach());
     child.parentData = undefined;
     if (child.parent === this) this.changeInputGeometryWork(-child.inputGeometrySubtreeWork);
@@ -2087,6 +1953,8 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     this.changingAttachment = true;
     const transition = enterTreeTransition(owner);
     this.pipelineOwner = owner;
+    this.compositingDirty = true;
+    owner._scheduleCompositingBits(this);
     this.layoutDirty = true;
     this.boundary = undefined;
     committedInputGeometries.delete(this);
@@ -2130,6 +1998,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       errors: unknown[] = [],
       transition = enterTreeTransition(owner);
     this.pipelineOwner = undefined;
+    owner?._forgetCompositingBits(this);
     this.paintCoalesces = false;
     this.paintInvalidationBarrier = this.paintInvalidationBoundary = undefined;
     this.paintBatch = this.paintContentsBatch = null;
@@ -2216,23 +2085,6 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     }
     return errors;
   }
-  /** Preserve virtual invalidation hooks and their original zero arguments.
-   * The hint exists only during this synchronous canonical setter notification. */
-  protected markNativeFieldsChanged(kind: 'layout' | 'paint' | 'semantics', fields: number): void {
-    const notify = nativeRenderInvalidators.has(this),
-      before = nativeRenderFieldHints.get(this);
-    if (notify) nativeRenderFieldHints.set(this, fields);
-    try {
-      if (kind === 'layout') this.markNeedsLayout();
-      else if (kind === 'paint') this.markNeedsPaint();
-      else this.markNeedsSemanticsUpdate();
-    } finally {
-      if (notify) {
-        if (before === undefined) nativeRenderFieldHints.delete(this);
-        else nativeRenderFieldHints.set(this, before);
-      }
-    }
-  }
   markNeedsLayout(): void {
     assertOutsideRenderPaint();
     if (!(!this.dead && !layoutQueries.length))
@@ -2241,12 +2093,6 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate layout',
       );
-    const nativeFields = nativeRenderFieldHints.get(this);
-    nativeRenderFieldHints.delete(this);
-    nativeRenderInvalidators.get(this)?.(
-      this.changingChildren ? 'children' : 'layout',
-      this.changingChildren ? undefined : nativeFields,
-    );
     const errors = this.invalidateLayout(undefined, undefined);
     if (errors) throwFailures(errors, 'Layout invalidation failed');
   }
@@ -2295,9 +2141,6 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate paint',
       );
-    const nativeFields = nativeRenderFieldHints.get(this);
-    nativeRenderFieldHints.delete(this);
-    nativeRenderInvalidators.get(this)?.('paint', nativeFields);
     let owner: PipelineOwner | undefined,
       contents = true;
     let batch = this.paintCoalesces ? this.pipelineOwner?._paintInvalidationBatch : null;
@@ -2385,12 +2228,6 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'render-mutation-during-measurement',
         'Disposed objects and measurements cannot invalidate semantics',
       );
-    const nativeFields = nativeRenderFieldHints.get(this);
-    nativeRenderFieldHints.delete(this);
-    nativeRenderInvalidators.get(this)?.(
-      'semantics',
-      geometryOnly ? nativeRenderFields.layout : nativeFields,
-    );
     if (FoundationBuildMode.debug) {
       if (this.owner?.debugDoingSemantics)
         invariant(
@@ -2493,37 +2330,6 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   }
   /** Compose complete paint transforms, including sibling coordinate conversion within one tree. */
   getTransformTo(target: RenderObject | null = null): Matrix4Storage {
-    if (nativeRenderOwners.has(this) || (target && nativeRenderOwners.has(target))) {
-      const from = nativePublishedGeometry(this);
-      invariant(
-        from !== undefined,
-        'unpublished-native-transform',
-        'Native transforms require a current published Core observation',
-      );
-      if (target === this) return matrix4Identity;
-      if (!target) return from.transform;
-      const to = nativePublishedGeometry(target);
-      invariant(
-        to !== undefined &&
-          to.owner === from.owner &&
-          to.snapshot === from.snapshot &&
-          to.publication === from.publication,
-        'foreign-native-transform',
-        'Native transform targets must share one published Core observation',
-      );
-      let fromRoot: RenderObject = this,
-        toRoot = target;
-      while (fromRoot.parent) fromRoot = fromRoot.parent;
-      while (toRoot.parent) toRoot = toRoot.parent;
-      invariant(
-        fromRoot === toRoot,
-        'unrelated-render-transform',
-        'Render transform targets must share a render tree',
-      );
-      const inverse = inverseMatrix4(to.transform);
-      return inverse ? multiplyMatrix4(inverse, from.transform) : captureMatrix4(Array(16).fill(0));
-    }
-    assertAppRenderOperation(this, 'geometry');
     if (target === this) return matrix4Identity;
     let from: RenderObject = this,
       fromMatrix: TransformMatrix = identity;
@@ -2587,7 +2393,6 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       );
   }
   paint(context: PaintingContext): void {
-    assertAppRenderOperation(this, 'paint');
     for (const child of this.children) this.paintChild(context, child);
   }
   protected paintChild(context: PaintingContext, child: RenderObject): void {
@@ -2627,21 +2432,6 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     owner.requestVisualUpdate();
   }
   sendSemanticsEvent(event: SemanticsEvent): void {
-    if (nativeRenderOwners.has(this)) {
-      invariant(
-        !this.debugDisposed,
-        'disposed-semantics-event',
-        'Semantics events require a live render object',
-      );
-      const send = nativeSemanticsEvents.get(this);
-      invariant(
-        send !== undefined,
-        'unbound-native-semantics',
-        'Native semantics event owner is unavailable',
-      );
-      send(event);
-      return;
-    }
     if (!(this.owner !== undefined))
       invariant(
         false,
@@ -3022,8 +2812,6 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       );
     const errors: unknown[] = [];
     attempt(errors, () => this.clearSemantics());
-    detachNativeRenderResources(this, errors);
-    nativeRenderResources.delete(this);
     attempt(errors, () => RenderObject.prototype.setChildren.call(this, []));
     attempt(errors, () => this.clearCachedLayoutData());
     this.clearLayoutDependencies();
@@ -3050,17 +2838,6 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
     private fontScope: SystemFontsRelayoutContext | null = null;
     private fontClosing: Disposable | undefined;
     private pendingFonts: { scope: SystemFontsRelayoutContext; id?: number } | null = null;
-    private nativeFontsLive: (() => boolean) | undefined;
-    constructor(...args: any[]) {
-      super(...args);
-      nativeFontsBindings.set(this, (scope, isLive) => {
-        if (this.fontScope === scope && this.nativeFontsLive === isLive) return;
-        this.cancelFontsUpdate();
-        this.removeFontsListener();
-        this.nativeFontsLive = isLive;
-        this.installFontsListener(scope);
-      });
-    }
     systemFontsDidChange(): void {
       this.markNeedsLayout();
     }
@@ -3075,18 +2852,14 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
           if (this.pendingFonts !== pending) return;
           this.pendingFonts = null;
           if (FoundationBuildMode.debug) {
-            if (!(this.attached || this.nativeFontsLive !== undefined || this.debugDisposed))
+            if (!(this.attached || this.debugDisposed))
               invariant(
                 false,
                 'detached-font-update',
                 'System font callback requires an attached or disposed render object',
               );
           }
-          if (
-            (this.attached || this.nativeFontsLive?.()) &&
-            !this.debugDisposed &&
-            this.fontScope === scope
-          )
+          if (this.attached && !this.debugDisposed && this.fontScope === scope)
             this.systemFontsDidChange();
         });
       } catch (error) {
@@ -3102,7 +2875,6 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
     private removeFontsListener(): void {
       const scope = this.fontScope;
       this.fontScope = null;
-      this.nativeFontsLive = undefined;
       const closing = this.fontClosing;
       this.fontClosing = undefined;
       try {
@@ -3154,7 +2926,7 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
     protected override clearCachedLayoutData(): void {
       super.clearCachedLayoutData();
       // RenderObject's failure recovery can call its base detach directly.
-      if (!this.attached && this.fontScope && !this.nativeFontsLive) {
+      if (!this.attached && this.fontScope) {
         this.cancelFontsUpdate();
         this.removeFontsListener();
       }
@@ -3164,7 +2936,6 @@ export function RelayoutWhenSystemFontsChangeMixin<Base extends RenderObjectCons
         super.dispose();
       } finally {
         if (this.debugDisposed) {
-          nativeFontsBindings.delete(this);
           this.cancelFontsUpdate();
           this.removeFontsListener();
         }
@@ -3256,10 +3027,7 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set properties(value: SemanticsProperties) {
       if (this._properties === value) return;
       this._properties = value;
-      this.markNativeFieldsChanged(
-        'semantics',
-        nativeRenderFields.semantics | nativeRenderFields.interaction,
-      );
+      this.markNeedsSemanticsUpdate();
     }
     _replaceSemanticsProperties(value: SemanticsProperties): void {
       this._properties = value;
@@ -3270,10 +3038,7 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set container(value: boolean) {
       if (this._container === value) return;
       this._container = value;
-      this.markNativeFieldsChanged(
-        'semantics',
-        nativeRenderFields.semantics | nativeRenderFields.interaction,
-      );
+      this.markNeedsSemanticsUpdate();
     }
     get explicitChildNodes(): boolean {
       return this._explicitChildNodes;
@@ -3281,10 +3046,7 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set explicitChildNodes(value: boolean) {
       if (this._explicitChildNodes === value) return;
       this._explicitChildNodes = value;
-      this.markNativeFieldsChanged(
-        'semantics',
-        nativeRenderFields.semantics | nativeRenderFields.interaction,
-      );
+      this.markNeedsSemanticsUpdate();
     }
     get excludeSemantics(): boolean {
       return this._excludeSemantics;
@@ -3292,10 +3054,7 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set excludeSemantics(value: boolean) {
       if (this._excludeSemantics === value) return;
       this._excludeSemantics = value;
-      this.markNativeFieldsChanged(
-        'semantics',
-        nativeRenderFields.semantics | nativeRenderFields.interaction,
-      );
+      this.markNeedsSemanticsUpdate();
     }
     get blockUserActions(): boolean {
       return this._blockUserActions;
@@ -3303,10 +3062,7 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set blockUserActions(value: boolean) {
       if (this._blockUserActions === value) return;
       this._blockUserActions = value;
-      this.markNativeFieldsChanged(
-        'semantics',
-        nativeRenderFields.semantics | nativeRenderFields.interaction,
-      );
+      this.markNeedsSemanticsUpdate();
     }
     get localeForSubtree(): Locale | null {
       return this._localeForSubtree;
@@ -3314,10 +3070,7 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set localeForSubtree(value: Locale | null) {
       if (valueEquals(this._localeForSubtree, value)) return;
       this._localeForSubtree = value;
-      this.markNativeFieldsChanged(
-        'semantics',
-        nativeRenderFields.semantics | nativeRenderFields.interaction,
-      );
+      this.markNeedsSemanticsUpdate();
     }
     get textDirection(): 'ltr' | 'rtl' | null {
       return this._textDirection;
@@ -3325,10 +3078,7 @@ export function SemanticsAnnotationsMixin<Base extends RenderObjectConstructor>(
     set textDirection(value: 'ltr' | 'rtl' | null) {
       if (this._textDirection === value) return;
       this._textDirection = value;
-      this.markNativeFieldsChanged(
-        'semantics',
-        nativeRenderFields.semantics | nativeRenderFields.interaction,
-      );
+      this.markNeedsSemanticsUpdate();
     }
     private attributedProperties: SemanticsProperties | null = null;
     private _attributedLabel: AttributedString | null = null;
@@ -4264,8 +4014,6 @@ export abstract class RenderBox<
   }
   private measuredSize: Size | undefined;
   get hasSize(): boolean {
-    const native = nativeGeometryReaders.get(this);
-    if (native) return native() !== undefined;
     return this.measuredSize !== undefined;
   }
   get size(): Size {
@@ -4281,16 +4029,6 @@ export abstract class RenderBox<
         'undeclared-size-dependency',
         'A parent reading child size must pass parentUsesSize true',
       );
-    const native = nativeGeometryReaders.get(this);
-    if (native) {
-      const publication = native();
-      invariant(
-        publication,
-        'missing-native-render-size',
-        `${this.constructor.name} has no current native layout publication`,
-      );
-      return publication.size;
-    }
     if (!this.measuredSize)
       invariant(false, 'missing-render-size', `${this.constructor.name} has not been laid out`);
     return this.measuredSize;
@@ -4415,7 +4153,6 @@ export abstract class RenderBox<
     this.nextConstraintKey = 0;
   }
   private query<T extends Size | number | null>(key: string, compute: () => T): T {
-    assertAppRenderOperation(this, 'layout query');
     if (this.dead) invariant(false, 'disposed-render-object', 'Measurement after dispose');
     this.registerLayoutQuery();
     const kind = key.split(':', 1)[0];
@@ -4550,7 +4287,6 @@ export abstract class RenderBox<
     return !!(this.onPointer || this.semantics);
   }
   hitTest(position: Offset, result: HitTestEntry[], toLocal: TransformMatrix = identity): boolean {
-    assertAppRenderOperation(this, 'hit-test');
     if (!this.hasSize)
       invariant(false, 'missing-hit-test-size', 'Hit testing requires a laid-out size');
     const size = this.size;

@@ -37,8 +37,6 @@ import { Offset } from '@nelyx/core/ui/offset';
 import type { Size } from '@nelyx/core/ui/size';
 import type { Image } from '@nelyx/core/ui/image';
 import { Paint } from '@nelyx/core/ui/paint';
-import { registerNativeSnapshotPainter } from '@nelyx/core/internal/framework/rendering/native-snapshot';
-import type { NativeSnapshotPainterConfiguration } from '@nelyx/core/internal/framework/rendering/native-snapshot';
 import { materialTransitionThemeOf } from '../theme/transition-theme-context.ts';
 import { Colors } from '../../colors.ts';
 
@@ -432,41 +430,6 @@ function zoomScrimColor(painter: ZoomEnterTransitionPainter): number {
       : 0;
   return opacity > 0 ? painter.backgroundColor.withOpacity(opacity).toARGB32() : 0;
 }
-function nativeZoomPaint(
-  painter: ZoomEnterTransitionPainter | ZoomExitTransitionPainter,
-  backgroundColor = 0,
-): NativeSnapshotPainterConfiguration {
-  const scale = painter.scale.value,
-    fade = painter.fade.value;
-  return {
-    live: painter.animation.isAnimating
-      ? {
-          scaleX: scale,
-          scaleY: scale,
-          translateXFactor: (scale * (1 - scale)) / 2,
-          translateYFactor: (scale * (1 - scale)) / 2,
-          opacity: Math.round(fade * 255) / 255,
-          backgroundColor,
-        }
-      : {},
-    snapshot: {
-      sizing: 'intrinsic',
-      scaleX: scale,
-      scaleY: scale,
-      translateXFactor: (1 - scale) / 2,
-      translateYFactor: (1 - scale) / 2,
-      opacity:
-        scale <= 0 || fade <= 0 ? 0 : (Color.fromRGBO(0, 0, 0, fade).toARGB32() >>> 24) / 255,
-      backgroundColor,
-    },
-  };
-}
-registerNativeSnapshotPainter(ZoomEnterTransitionPainter.prototype, (painter) =>
-  nativeZoomPaint(painter, zoomScrimColor(painter)),
-);
-registerNativeSnapshotPainter(ZoomExitTransitionPainter.prototype, (painter) =>
-  nativeZoomPaint(painter),
-);
 
 class ZoomPageTransition extends StatelessWidget {
   /** @dartType Animation<double> */ readonly animation: Animation<number>;

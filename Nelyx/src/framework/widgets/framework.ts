@@ -27,7 +27,7 @@ import type { ViewControllerContext } from '../../hosting/runtime.ts';
 import type { ViewMetrics } from '../../ui/types.ts';
 import { ViewWorkBudget } from './view-work-budget.ts';
 import { DormantChildCache } from './dormant-child-cache.ts';
-import { RenderObject, releaseNativeRenderResources } from '../rendering/object.ts';
+import { RenderObject } from '../rendering/object.ts';
 import { RenderErrorBox } from '../rendering/error-box.ts';
 import { assertOutsideRenderPaint } from '../rendering/phase.ts';
 import type { ParentData } from '../rendering/object.ts';
@@ -38,11 +38,6 @@ import type { Disposable } from '../../foundation/disposable.ts';
 import type { Listenable } from '../../foundation/notifier.ts';
 import { FocusScope } from './focus.ts';
 import { initializeElementType } from './widget-class-identity.ts';
-
-const buildScopeTimestamp = () => {
-  const clock = (globalThis as unknown as { performance?: { now(): number } }).performance;
-  return clock ? clock.now() : Date.now();
-};
 import type { FocusManagerOptions } from './focus.ts';
 import { GlobalKey } from './global-key.ts';
 import type { KeyEvent } from '../../ui/input.ts';
@@ -53,33 +48,10 @@ import { OwnerTransaction } from '../../runtime/owner-transaction.ts';
 import { DependencyScope } from '../../runtime/dependency-scope.ts';
 import { DepthQueue } from '../../runtime/depth-queue.ts';
 
-const nativeWidgetAdapters = new WeakMap<
-  BuildOwner,
-  Map<string, (widget: Widget, context: BuildContext) => Widget>
->();
-/** Owner-scoped native configuration adapters; ordinary framework owners are unchanged. */
-export function registerNativeWidgetAdapter(
-  owner: BuildOwner,
-  name: string,
-  adapter: (widget: Widget, context: BuildContext) => Widget,
-): void {
-  let adapters = nativeWidgetAdapters.get(owner);
-  if (!adapters) nativeWidgetAdapters.set(owner, (adapters = new Map()));
-  if (adapters.has(name)) throw Error('Native widget adapter is already registered: ' + name);
-  adapters.set(name, adapter);
-}
-export function unregisterNativeWidgetAdapters(owner: BuildOwner): void {
-  nativeWidgetAdapters.delete(owner);
-}
-export function buildNativeWidget(
-  context: BuildContext,
-  name: string,
-  widget: Widget,
-): Widget | undefined {
-  return context instanceof Element
-    ? nativeWidgetAdapters.get(context.owner)?.get(name)?.(widget, context)
-    : undefined;
-}
+const buildScopeTimestamp = () => {
+  const clock = (globalThis as unknown as { performance?: { now(): number } }).performance;
+  return clock ? clock.now() : Date.now();
+};
 
 export abstract class Widget extends DiagnosticableTree {
   constructor(readonly key: Key | null = null) {
@@ -2022,11 +1994,6 @@ export class RenderObjectElement extends Element {
     let errors: unknown[] | undefined;
     try {
       if (this.render) {
-        try {
-          releaseNativeRenderResources(this.render);
-        } catch (error) {
-          (errors ??= []).push(error);
-        }
         try {
           if (this.ancestor) this.ancestor.removeRenderObjectChild(this.render, this.slot);
           else if (this.render.attached) this.render.detach();

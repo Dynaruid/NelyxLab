@@ -179,7 +179,7 @@ export class DatePickerDialog extends ScrollbarStatefulHost {
   readonly lastDate: DateTime;
   readonly currentDate: DateTime;
   readonly initialEntryMode: DatePickerEntryMode;
-  readonly selectableDayPredicate: ((argument0: DateTime) => boolean) | null;
+  readonly selectableDayPredicate: ((_argument0: DateTime) => boolean) | null;
   readonly cancelText: string | null;
   readonly confirmText: string | null;
   readonly helpText: string | null;
@@ -190,7 +190,7 @@ export class DatePickerDialog extends ScrollbarStatefulHost {
   readonly fieldLabelText: string | null;
   readonly keyboardType: TextInputType | null;
   readonly restorationId: string | null;
-  readonly onDatePickerModeChange: ((argument0: DatePickerEntryMode) => void) | null;
+  readonly onDatePickerModeChange: ((_argument0: DatePickerEntryMode) => void) | null;
   readonly switchToInputEntryModeIcon: Icon | null;
   readonly switchToCalendarEntryModeIcon: Icon | null;
   readonly insetPadding: EdgeInsets;
@@ -225,7 +225,7 @@ export class DatePickerDialog extends ScrollbarStatefulHost {
     readonly lastDate: DateTime;
     readonly currentDate?: DateTime | null;
     readonly initialEntryMode?: DatePickerEntryMode;
-    readonly selectableDayPredicate?: ((argument0: DateTime) => boolean) | null;
+    readonly selectableDayPredicate?: ((_argument0: DateTime) => boolean) | null;
     readonly cancelText?: string | null;
     readonly confirmText?: string | null;
     readonly helpText?: string | null;
@@ -236,7 +236,7 @@ export class DatePickerDialog extends ScrollbarStatefulHost {
     readonly fieldLabelText?: string | null;
     readonly keyboardType?: TextInputType | null;
     readonly restorationId?: string | null;
-    readonly onDatePickerModeChange?: ((argument0: DatePickerEntryMode) => void) | null;
+    readonly onDatePickerModeChange?: ((_argument0: DatePickerEntryMode) => void) | null;
     readonly switchToInputEntryModeIcon?: Icon | null;
     readonly switchToCalendarEntryModeIcon?: Icon | null;
     readonly insetPadding?: EdgeInsets;
@@ -425,7 +425,7 @@ export class _DatePickerDialogState extends RestorationMixin<DatePickerDialog> {
   override get restorationId(): string | null {
     return this.widget.restorationId;
   }
-  override restoreState(oldBucket: RestorationBucket | null, initialRestore: boolean): void {
+  override restoreState(_oldBucket: RestorationBucket | null, _initialRestore: boolean): void {
     void this.registerForRestoration(this._dart_b85857c463f8c355_selectedDate, 'selected_date');
     void this.registerForRestoration(
       this._dart_b85857c463f8c355_autovalidateMode,
@@ -1006,7 +1006,7 @@ export class _DatePickerDialogState extends RestorationMixin<DatePickerDialog> {
         child: dateClampedTextScaling({
           maxScaleFactor: _kMaxTextScaleFactor,
           child: dateLayoutBuilder({
-            builder: (context: BuildContext, constraints: BoxConstraints): Flex => {
+            builder: (_context: BuildContext, constraints: BoxConstraints): Flex => {
               const portraitDialogSize: Size = useMaterial3
                 ? _inputPortraitDialogSizeM3
                 : _inputPortraitDialogSizeM2;
@@ -1095,7 +1095,7 @@ export class _RestorableDatePickerEntryMode extends SourceRestorableValue<DatePi
   override createDefaultValue(): DatePickerEntryMode {
     return this._dart_b85857c463f8c355_defaultValue;
   }
-  override didUpdateValue(oldValue: DatePickerEntryMode | null): void {
+  override didUpdateValue(_oldValue: DatePickerEntryMode | null): void {
     if (FoundationBuildMode.debug)
       invariant(
         debugIsSerializableForRestoration(boxSourceDartInt(checkedInteger(this.value.index))),
@@ -1134,7 +1134,7 @@ export class _RestorableAutovalidateMode extends SourceRestorableValue<Autovalid
   override createDefaultValue(): AutovalidateMode {
     return this._dart_b85857c463f8c355_defaultValue;
   }
-  override didUpdateValue(oldValue: AutovalidateMode | null): void {
+  override didUpdateValue(_oldValue: AutovalidateMode | null): void {
     if (FoundationBuildMode.debug)
       invariant(
         debugIsSerializableForRestoration(boxSourceDartInt(checkedInteger(this.value.index))),
@@ -1455,7 +1455,7 @@ export async function showDatePicker({
   readonly lastDate: DateTime;
   readonly currentDate?: DateTime | null;
   readonly initialEntryMode?: DatePickerEntryMode;
-  readonly selectableDayPredicate?: ((argument0: DateTime) => boolean) | null;
+  readonly selectableDayPredicate?: ((_argument0: DateTime) => boolean) | null;
   readonly helpText?: string | null;
   readonly cancelText?: string | null;
   readonly confirmText?: string | null;
@@ -1466,7 +1466,7 @@ export async function showDatePicker({
   readonly useRootNavigator?: boolean;
   readonly routeSettings?: RouteSettings | null;
   readonly textDirection?: ScrollbarTextDirection | null;
-  readonly builder?: ((argument0: BuildContext, argument1: Widget | null) => Widget) | null;
+  readonly builder?: ((_argument0: BuildContext, _argument1: Widget | null) => Widget) | null;
   readonly initialDatePickerMode?: DatePickerMode;
   readonly errorFormatText?: string | null;
   readonly errorInvalidText?: string | null;
@@ -1474,7 +1474,7 @@ export async function showDatePicker({
   readonly fieldLabelText?: string | null;
   readonly keyboardType?: TextInputType | null;
   readonly anchorPoint?: Offset | null;
-  readonly onDatePickerModeChange?: ((argument0: DatePickerEntryMode) => void) | null;
+  readonly onDatePickerModeChange?: ((_argument0: DatePickerEntryMode) => void) | null;
   readonly switchToInputEntryModeIcon?: Icon | null;
   readonly switchToCalendarEntryModeIcon?: Icon | null;
   readonly calendarDelegate?: CalendarDelegate<DateTime>;
@@ -1505,7 +1505,7 @@ export async function showDatePicker({
     invariant(
       selectableDayPredicate === null ||
         initialDate === null ||
-        (selectableDayPredicate as (argument0: DateTime) => boolean)(initialDate as DateTime),
+        (selectableDayPredicate as (_argument0: DateTime) => boolean)(initialDate as DateTime),
       'generated-source-assert',
       `Provided initialDate ${dartValueString(initialDate as DateTime)} must satisfy provided selectableDayPredicate.`,
     );
@@ -1568,7 +1568,7 @@ export async function showDatePicker({
     builder: (context: BuildContext): Widget => {
       return builder === null
         ? dialog
-        : (builder as (argument0: BuildContext, argument1: Widget | null) => Widget)(
+        : (builder as (_argument0: BuildContext, _argument1: Widget | null) => Widget)(
             context,
             dialog,
           );

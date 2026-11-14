@@ -8,14 +8,13 @@ import { invariant } from '../../foundation/errors.ts';
 import { DiagnosticsProperty } from '../../foundation/diagnostics.ts';
 import { FlagProperty } from '../../foundation/diagnostic-properties.ts';
 import type { DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.ts';
-import { RenderObject, registerNativeRenderResources } from './object.ts';
+import { RenderObject } from './object.ts';
 import type { RenderBox, PipelineOwner } from './object.ts';
 import { RenderProxyBox } from './boxes.ts';
 import { LayerHandle, OpacityLayer } from './layer.ts';
 import type { PaintingContext } from '../painting/context.ts';
 import type { Rect, SemanticsNode } from '../../ui/types.ts';
 import type { TransformMatrix } from '../../ui/geometry.ts';
-import { registerNativeBoxConfiguration } from './native-box.ts';
 
 type OpacityBase = abstract new (
   ...args: any[]
@@ -46,26 +45,8 @@ export function RenderAnimatedOpacityMixin<TBase extends OpacityBase>(
     private opacityAlpha = -1;
     private includeSemantics = false;
     private readonly retainedOpacity = new LayerHandle<OpacityLayer>();
-    private nativeAttached = false;
     constructor(...args: any[]) {
       super(...args);
-      registerNativeRenderResources(this, {
-        attach: () => {
-          this.nativeAttached = true;
-          try {
-            this.subscribe();
-            this.updateOpacity();
-          } catch (error) {
-            this.nativeAttached = false;
-            this.unsubscribe();
-            throw error;
-          }
-        },
-        detach: () => {
-          this.nativeAttached = false;
-          this.unsubscribe();
-        },
-      });
     }
     get opacity(): Animation<number> {
       invariant(
@@ -80,7 +61,7 @@ export function RenderAnimatedOpacityMixin<TBase extends OpacityBase>(
       if (value === this.opacityAnimation) return;
       this.unsubscribe();
       this.opacityAnimation = value;
-      if (this.attached || this.nativeAttached) this.subscribe();
+      if (this.attached) this.subscribe();
       this.updateOpacity();
     }
     get alpha(): number {
@@ -215,9 +196,3 @@ export class RenderAnimatedOpacity extends RenderAnimatedOpacityMixin(RenderProx
 }
 RenderProxyBox._registerGeometryLayoutSemantics(RenderAnimatedOpacity.prototype);
 RenderObject._registerInputGeometryHooks(RenderAnimatedOpacity.prototype);
-registerNativeBoxConfiguration(RenderAnimatedOpacity.prototype, (render) => ({
-  kind: 'box',
-  layout: { childConstraints: 'inherit' },
-  opacity: render.alpha / 255,
-  semanticsPolicy: { excludeChildren: render.alpha === 0 && !render.alwaysIncludeSemantics },
-}));

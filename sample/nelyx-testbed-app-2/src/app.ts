@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { ApplicationDefinition } from '@nelyx/core/hosting/runtime';
-import { widgetApplication } from '@nelyx/core/framework/widgets/root';
+import { defineApp } from '@nelyx/sdk/app';
 import { ComponentsGallery } from './gallery.ts';
 export interface ApplicationState {
   readonly initialText: string;
@@ -15,7 +15,7 @@ export function defineApplication(
   state: ApplicationState,
   options: ApplicationOptions = {},
 ): ApplicationDefinition {
-  return widgetApplication({
+  return defineApp({
     id: 'nelyx.components-gallery',
     defaultFont: 'sample-font',
     accessibilityEnabled: options.accessibilityEnabled ?? true,

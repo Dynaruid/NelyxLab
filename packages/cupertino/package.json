@@ -1,6 +1,6 @@
 {
   "name": "@nelyx/cupertino",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "sideEffects": false,
@@ -14,7 +14,6 @@
     "assets"
   ],
   "exports": {
-    "./v2": { "types": "./dist/v2.d.ts", "default": "./dist/v2.js" },
     "./widgets": {
       "types": "./dist/widgets.d.ts",
       "default": "./dist/widgets.js"
@@ -187,7 +186,7 @@
     }
   },
   "peerDependencies": {
-    "@nelyx/core": "0.16.0"
+    "@nelyx/core": "0.17.0"
   },
   "scripts": {
     "build": "node ../../Nelyx/eng/build-packages.mjs cupertino",

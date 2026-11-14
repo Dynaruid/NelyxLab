@@ -6,9 +6,6 @@ import type { Constraints } from '../rendering/constraints.ts';
 import { BoxConstraints } from '../rendering/constraints.ts';
 import { RenderProxyBox } from '../rendering/boxes.ts';
 import { RenderBox } from '../rendering/object.ts';
-import { isNativeRenderObject } from '../rendering/object.ts';
-import { registerNativeBoxConfiguration } from '../rendering/native-box.ts';
-import { registerNativeLayoutCallback } from '../rendering/layout-callback.ts';
 import type { RenderObject, TextBaseline } from '../rendering/object.ts';
 import { RenderObjectWithLayoutCallbackMixin } from '../rendering/layout-callback.ts';
 import type {
@@ -25,37 +22,6 @@ import {
 import type { BuildContext, BuildOwner, Element, WidgetOptions } from './framework.ts';
 import type { FrameScheduler } from '../scheduler/scheduler.ts';
 import { tickerScheduler } from './ticker-scheduler.ts';
-export interface NativeLayoutBuilderCosts {
-  calls: number;
-  builds: number;
-  callbackMs: number;
-  rebuildMs: number;
-  descendantMs: number;
-  renderCommitMs: number;
-  scopeMs: number;
-  syncMs: number;
-}
-const nativeBuilderCosts = new WeakMap<BuildOwner, NativeLayoutBuilderCosts>();
-const emptyBuilderCosts = Object.freeze({
-  calls: 0,
-  builds: 0,
-  callbackMs: 0,
-  rebuildMs: 0,
-  descendantMs: 0,
-  renderCommitMs: 0,
-  scopeMs: 0,
-  syncMs: 0,
-});
-const nativeBuilderNow = () => {
-  const clock = (globalThis as unknown as { performance?: { now(): number } }).performance;
-  return clock ? clock.now() : Date.now();
-};
-/** @internal Owner-lifetime counters only. scopeMs contains callback/rebuild;
- * it also includes the owner's remaining dirty work and render commit. */
-export function nativeLayoutBuilderCosts(owner: BuildOwner): Readonly<NativeLayoutBuilderCosts> {
-  const costs = nativeBuilderCosts.get(owner);
-  return costs ? Object.freeze({ ...costs }) : emptyBuilderCosts;
-}
 export type LayoutWidgetBuilder = (context: BuildContext, constraints: BoxConstraints) => Widget;
 export interface AbstractLayoutBuilderRender<
   I,
@@ -71,11 +37,9 @@ type AbstractLayoutConstructor<
   Base extends RenderObjectConstructor<
     LayoutCallbackRenderObject & { readonly child: Child | undefined }
   >,
-> = abstract new (...args: ConstructorParameters<Base>) => InstanceType<Base> &
-  AbstractLayoutBuilderRender<I, Child> & {
-    /** @internal The original callback receives an observed native input only. */
-    _rebuildNativeWithConstraints(constraints: Constraints): boolean;
-  };
+> = abstract new (
+  ...args: ConstructorParameters<Base>
+) => InstanceType<Base> & AbstractLayoutBuilderRender<I, Child>;
 /** Curried class factory retains a concrete base constructor and child protocol. */
 export function RenderAbstractLayoutBuilderMixin<I, Child extends RenderObject>() {
   return <
@@ -87,7 +51,6 @@ export function RenderAbstractLayoutBuilderMixin<I, Child extends RenderObject>(
   ): AbstractLayoutConstructor<I, Child, Base> => {
     abstract class AbstractLayoutRender extends Base {
       private _callback: ((constraints: Constraints) => void) | null = null;
-      private _nativeLayoutInfo: I | undefined;
       _updateCallback(value: ((constraints: Constraints) => void) | null): void {
         if (value === this._callback) return;
         this._callback = value;
@@ -98,17 +61,7 @@ export function RenderAbstractLayoutBuilderMixin<I, Child extends RenderObject>(
         this._callback(this.constraints);
       }
       get layoutInfo(): I {
-        return this._nativeLayoutInfo ?? (this.constraints as unknown as I);
-      }
-      _rebuildNativeWithConstraints(constraints: Constraints): boolean {
-        if (!this._callback || this.debugDisposed) return false;
-        this._nativeLayoutInfo = constraints as unknown as I;
-        try {
-          this._runNativeLayoutCallback(() => this._callback!(constraints));
-          return true;
-        } finally {
-          this._nativeLayoutInfo = undefined;
-        }
+        return this.constraints as unknown as I;
       }
     }
     return AbstractLayoutRender as unknown as AbstractLayoutConstructor<I, Child, Base>;
@@ -220,85 +173,43 @@ class _LayoutBuilderElement<I> extends SingleChildRenderObjectElement {
     return this.built ? [this.built] : [];
   }
   private readonly _rebuildWithConstraints = (_constraints: Constraints): void => {
-    // Native Content can flush this scope before its deferred App frame. That
-    // frame only requested the work we are about to consume; leaving it queued
-    // would invalidate the completed builder and require another transaction.
-    // Cancel before building so new work scheduled during the callback survives.
-    const native = isNativeRenderObject(this.renderObject);
-    if (native) this.cancelDeferred();
-    const info = this.renderObject.layoutInfo,
-      needs = this._needsBuild || !sameLayoutInfo(info, this._previousLayoutInfo);
-    let callbackMs = 0,
-      rebuildMs = 0,
-      scopeMs = 0,
-      syncMs = 0;
-    const scopeCosts = native ? { dirtyFlushMs: 0, renderCommitMs: 0 } : undefined;
-    const scopeStarted = native ? nativeBuilderNow() : 0;
-    try {
-      try {
-        this.owner.buildScope(
-          this,
-          needs
-            ? () => {
-                let built: Widget;
-                const callbackStarted = native ? nativeBuilderNow() : 0;
-                try {
-                  built = (this.widget as AbstractLayoutBuilder<I>).builder(this, info);
-                  invariant(
-                    built instanceof Widget,
-                    'invalid-layout-builder-result',
-                    'Builder must synchronously return a Widget',
-                  );
-                } catch (exception) {
-                  built = this.buildErrorWidget(exception);
-                } finally {
-                  if (native) callbackMs += nativeBuilderNow() - callbackStarted;
-                }
-                const rebuildStarted = native ? nativeBuilderNow() : 0;
-                try {
-                  this.built = built;
-                  this.dirty = true;
-                  this.rebuild();
-                } catch (exception) {
-                  this.built = this.buildErrorWidget(exception);
-                  try {
-                    this.owner.deactivateChildren(this.children);
-                  } catch {}
-                  this.children = [];
-                  this.dirty = true;
-                  this.rebuild();
-                } finally {
-                  this._needsBuild = false;
-                  this._previousLayoutInfo = info;
-                  if (native) rebuildMs += nativeBuilderNow() - rebuildStarted;
-                }
-              }
-            : undefined,
-          scopeCosts,
-        );
-      } finally {
-        if (native) scopeMs = nativeBuilderNow() - scopeStarted;
-      }
-      const syncStarted = native ? nativeBuilderNow() : 0;
-      try {
-        this.syncRenderTree();
-      } finally {
-        if (native) syncMs = nativeBuilderNow() - syncStarted;
-      }
-    } finally {
-      if (native) {
-        let costs = nativeBuilderCosts.get(this.owner);
-        if (!costs) nativeBuilderCosts.set(this.owner, (costs = { ...emptyBuilderCosts }));
-        ++costs.calls;
-        if (needs) ++costs.builds;
-        costs.callbackMs += callbackMs;
-        costs.rebuildMs += rebuildMs;
-        costs.descendantMs += Math.max(0, scopeCosts!.dirtyFlushMs - callbackMs - rebuildMs);
-        costs.renderCommitMs += scopeCosts!.renderCommitMs;
-        costs.scopeMs += scopeMs;
-        costs.syncMs += syncMs;
-      }
-    }
+    const info = this.renderObject.layoutInfo;
+    const needs = this._needsBuild || !sameLayoutInfo(info, this._previousLayoutInfo);
+    this.owner.buildScope(
+      this,
+      needs
+        ? () => {
+            let built: Widget;
+            try {
+              built = (this.widget as AbstractLayoutBuilder<I>).builder(this, info);
+              invariant(
+                built instanceof Widget,
+                'invalid-layout-builder-result',
+                'Builder must synchronously return a Widget',
+              );
+            } catch (exception) {
+              built = this.buildErrorWidget(exception);
+            }
+            try {
+              this.built = built;
+              this.dirty = true;
+              this.rebuild();
+            } catch (exception) {
+              this.built = this.buildErrorWidget(exception);
+              try {
+                this.owner.deactivateChildren(this.children);
+              } catch {}
+              this.children = [];
+              this.dirty = true;
+              this.rebuild();
+            } finally {
+              this._needsBuild = false;
+              this._previousLayoutInfo = info;
+            }
+          }
+        : undefined,
+    );
+    this.syncRenderTree();
   };
   override deactivate(): void {
     this.cancelDeferred();
@@ -329,29 +240,6 @@ class _RenderLayoutBuilder extends RenderAbstractLayoutBuilderMixin<
   BoxConstraints,
   RenderBox<RenderObject>
 >()(RenderObjectWithLayoutCallbackMixin(RenderProxyBox)) {
-  private nativeRevision = 1n;
-  private nativeBuilt: { readonly revision: bigint; readonly constraints: BoxConstraints } | null =
-    null;
-  constructor() {
-    super();
-    registerNativeLayoutCallback(this, () => {
-      ++this.nativeRevision;
-    });
-  }
-  private readonly rebuildNative = (revision: bigint, constraints: BoxConstraints): boolean => {
-    if (revision !== this.nativeRevision || !isNativeRenderObject(this) || this.debugDisposed)
-      return false;
-    if (!this._rebuildNativeWithConstraints(constraints) || this.debugDisposed) return false;
-    this.nativeBuilt = { revision, constraints };
-    // A callback may return the same Widget and leave every child unchanged.
-    // Its completed Content input is still new native configuration metadata.
-    this.markNeedsLayout();
-    return true;
-  };
-  /** @internal Configuration only; neither callback nor layout runs during compilation. */
-  nativeBuilderConfiguration() {
-    return { revision: this.nativeRevision, built: this.nativeBuilt, rebuild: this.rebuildNative };
-  }
   protected override computeMinIntrinsicWidth(_height: number): number {
     throw new Error(
       'LayoutBuilder cannot compute intrinsic dimensions without speculative tree mutation',
@@ -392,23 +280,3 @@ class _RenderLayoutBuilder extends RenderAbstractLayoutBuilderMixin<
   }
 }
 RenderBox._registerGeometryLayoutSemantics(_RenderLayoutBuilder.prototype);
-registerNativeBoxConfiguration(_RenderLayoutBuilder.prototype, (render, reject) => {
-  if (
-    [
-      'layoutCallback',
-      'runLayoutCallback',
-      'scheduleLayoutCallback',
-      '_updateCallback',
-      '_runNativeLayoutCallback',
-      '_rebuildNativeWithConstraints',
-      'layoutInfo',
-      'nativeBuilderConfiguration',
-    ].some((name) => Object.hasOwn(render, name))
-  )
-    return reject('instance-layout-builder-hook');
-  return {
-    kind: 'box',
-    layout: { childConstraints: 'inherit', expandEmpty: true },
-    layoutBuilder: render.nativeBuilderConfiguration(),
-  };
-});

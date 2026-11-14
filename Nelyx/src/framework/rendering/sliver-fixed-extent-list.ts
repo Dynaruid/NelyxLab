@@ -14,7 +14,6 @@ import type { RenderBox } from './object.ts';
 import type { BoxConstraints } from './constraints.ts';
 import { FoundationBuildMode, precisionErrorTolerance } from '../../foundation/constants.ts';
 import { invariant } from '../../foundation/errors.ts';
-import { registerNativeSliverConfiguration } from './native-sliver.ts';
 
 const dartRound = (value: number): number => (value < 0 ? -Math.round(-value) : Math.round(value));
 const maxExtentQueries = 1_000_000;
@@ -382,8 +381,3 @@ export class RenderSliverVariedExtentList extends RenderSliverFixedExtentBoxAdap
     return null;
   }
 }
-registerNativeSliverConfiguration(RenderSliverFixedExtentList.prototype, (render, reject) => {
-  if (!Number.isFinite(render.itemExtent) || render.itemExtent <= 0)
-    return reject('native-fixed-list-extent');
-  return render._nativeListConfiguration(render.itemExtent, render.itemExtent);
-});

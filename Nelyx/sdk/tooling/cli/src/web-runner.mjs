@@ -8,7 +8,7 @@ import { readApplication } from './application.mjs';
 import { configureRunner } from './runner-configuration.mjs';
 import { execute } from './commands.mjs';
 import {
-  freshPackageDirectory,
+  inFreshPackageDirectory,
   publishRunnerPackage,
   rememberPackage,
   packageFor,
@@ -115,38 +115,39 @@ export async function buildWebApplication({ app, output, configuration = 'Releas
     throw new Error('Static Web packages require Release; development reload adapter is separate');
   const value = await application(app);
   await configureRunner({ app: value.app, target: 'web' });
-  const directory = freshPackageDirectory(value.app, 'web', output);
-  await execute(process.execPath, [path.join(value.runner, 'build.mjs'), directory], {
-    cwd: value.runner,
+  return inFreshPackageDirectory(value.app, 'web', output, async (directory) => {
+    await execute(process.execPath, [path.join(value.runner, 'build.mjs'), directory], {
+      cwd: value.runner,
+    });
+    const build = JSON.parse(fs.readFileSync(path.join(directory, 'build.json'), 'utf8'));
+    if (
+      build.schema !== 'nelyx.web-build/v1' ||
+      build.profile !== value.profile.id ||
+      build.development !== false ||
+      build.gpuBackend !== 'webgl2'
+    )
+      throw new Error('Web builder acknowledgement mismatch');
+    const verified = publishRunnerPackage({
+      directory,
+      target: 'web',
+      application: value,
+      entry: 'index.html',
+      details: {
+        renderer: build.renderer,
+        gpuBackend: build.gpuBackend,
+        noticeQualification: build.noticeQualification,
+      },
+    });
+    rememberPackage(value.app, 'web', directory);
+    return {
+      schema: 'nelyx.build/v3',
+      target: 'web',
+      directory,
+      files: verified.files,
+      bytes: verified.bytes,
+      qualification: 'notVerified',
+    };
   });
-  const build = JSON.parse(fs.readFileSync(path.join(directory, 'build.json'), 'utf8'));
-  if (
-    build.schema !== 'nelyx.web-build/v1' ||
-    build.profile !== value.profile.id ||
-    build.development !== false ||
-    build.gpuBackend !== 'webgl2'
-  )
-    throw new Error('Web builder acknowledgement mismatch');
-  const verified = publishRunnerPackage({
-    directory,
-    target: 'web',
-    application: value,
-    entry: 'index.html',
-    details: {
-      renderer: build.renderer,
-      gpuBackend: build.gpuBackend,
-      noticeQualification: build.noticeQualification,
-    },
-  });
-  rememberPackage(value.app, 'web', directory);
-  return {
-    schema: 'nelyx.build/v3',
-    target: 'web',
-    directory,
-    files: verified.files,
-    bytes: verified.bytes,
-    qualification: 'notVerified',
-  };
 }
 /** Serves only recorded static bytes. The caller owns the listener's close acknowledgement. */
 export async function serveWeb({ app, directory, host = '127.0.0.1', port = 8080 }) {

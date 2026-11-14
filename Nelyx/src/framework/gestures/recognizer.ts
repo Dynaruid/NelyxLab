@@ -137,32 +137,6 @@ class RecognizerEventData {
     Object.freeze(this);
   }
 }
-const nativeRecognizerOptions = new WeakMap<
-  object,
-  { readonly custom: boolean; readonly velocity?: unknown }
->();
-const nativeGestureOwners = new WeakMap<GestureBinding, () => never>();
-/** @internal A native View permits Source recognizer configuration, never App recognition. */
-export function restrictNativeGestureRecognition(
-  binding: GestureBinding,
-  reject: () => never,
-): void {
-  if (nativeGestureOwners.has(binding)) throw Error('Native gesture owner is already registered');
-  nativeGestureOwners.set(binding, reject);
-}
-/** @internal Constructor provenance for the canonical native recognizer adapter. */
-export function recordNativeRecognizerOptions(
-  recognizer: object,
-  custom: boolean,
-  velocity?: unknown,
-): void {
-  nativeRecognizerOptions.set(recognizer, { custom, velocity });
-}
-export function nativeRecognizerConfiguration(
-  recognizer: object,
-): { readonly custom: boolean; readonly velocity?: unknown } | undefined {
-  return nativeRecognizerOptions.get(recognizer);
-}
 export abstract class GestureRecognizer extends DiagnosticableTree implements GestureArenaMember {
   readonly debugOwner: unknown;
   gestureSettings: DeviceGestureSettings | null = null;
@@ -187,10 +161,6 @@ export abstract class GestureRecognizer extends DiagnosticableTree implements Ge
     this.allowedButtonsFilter =
       options.allowedButtonsFilter ?? GestureRecognizer.defaultButtonAcceptBehavior;
     this.timers = options.timers ?? defaultTimers;
-    recordNativeRecognizerOptions(
-      this,
-      options.allowedButtonsFilter !== undefined || options.timers !== undefined,
-    );
   }
   private static defaultButtonAcceptBehavior(_buttons: number): boolean {
     return true;
@@ -213,7 +183,6 @@ export abstract class GestureRecognizer extends DiagnosticableTree implements Ge
     this.inputTimestamp = event.timeStamp;
   }
   addPointerPanZoom(event: PointerPanZoomStartEvent): void {
-    nativeGestureOwners.get(this.binding)?.();
     this.checkOpen();
     this.recordInput(event);
     this.pointerToEventData.set(event.pointer, new RecognizerEventData(event.kind, event.buttons));
@@ -221,7 +190,6 @@ export abstract class GestureRecognizer extends DiagnosticableTree implements Ge
     else this.handleNonAllowedPointerPanZoom(event);
   }
   addPointer(event: PointerDownEvent): void {
-    nativeGestureOwners.get(this.binding)?.();
     this.checkOpen();
     this.recordInput(event);
     this.pointerToEventData.set(event.pointer, new RecognizerEventData(event.kind, event.buttons));

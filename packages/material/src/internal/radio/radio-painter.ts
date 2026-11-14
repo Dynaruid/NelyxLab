@@ -12,8 +12,6 @@ import { sourceColorLerp } from '@nelyx/core/ui/color-source';
 import { BorderSide } from '@nelyx/core/framework/painting/borders';
 import { CircleBorder } from '@nelyx/core/framework/painting/circle-border';
 import type { ToggleableMotion } from '@nelyx/core/framework/widgets/toggleable-control';
-import { registerNativeRenderMetadata, nativeShape } from '@nelyx/core/framework/rendering/object';
-import type { NativePaintEntry } from '@nelyx/core/framework/rendering/object';
 
 export interface RadioPaintValues {
   readonly activeColor: Color;
@@ -82,48 +80,3 @@ export class RadioPainter extends CustomPainter {
     return true;
   }
 }
-
-// Content resolves the shared center and animated radii against the final box.
-registerNativeRenderMetadata(RadioPainter.prototype, (source) => {
-  const o = source.options,
-    circle = nativeShape(new CircleBorder(), null),
-    entries: NativePaintEntry[] = [];
-  if (o.reaction !== 0 || o.reactionFocusFade !== 0 || o.reactionHoverFade !== 0) {
-    const color = sourceColorLerp(
-      sourceColorLerp(
-        sourceColorLerp(o.inactiveReactionColor, o.activeReactionColor, o.position),
-        o.hoverColor,
-        o.reactionHoverFade,
-      ),
-      o.focusColor,
-      o.reactionFocusFade,
-    )!;
-    entries.push({
-      kind: 'circle',
-      color: color.toARGB32(),
-      shape: circle,
-      radius: o.splashRadius,
-      progress: o.isFocused || o.isHovered ? 1 : o.reaction,
-    });
-  }
-  const side = BorderSide.lerp(o.inactiveSide, o.activeSide, o.position);
-  entries.push({
-    kind: 'circle',
-    color: sourceColorLerp(
-      o.inactiveBackgroundColor,
-      o.activeBackgroundColor,
-      o.position,
-    )!.toARGB32(),
-    shape: nativeShape(new CircleBorder({ side }), null),
-    radius: 8,
-  });
-  if (o.position > 0)
-    entries.push({
-      kind: 'circle',
-      color: sourceColorLerp(o.inactiveColor, o.activeColor, o.position)!.toARGB32(),
-      shape: circle,
-      radius: o.innerRadius,
-      progress: o.position,
-    });
-  return { kind: 'paint', entries };
-});

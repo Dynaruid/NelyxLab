@@ -119,7 +119,7 @@ export abstract class CalendarDelegate<T extends DateTime> {
     );
   }
   abstract now(): T;
-  abstract dateOnly(date: T): T;
+  abstract dateOnly(_date: T): T;
   datesOnly(range: DateTimeRange<T>): DateTimeRange<T> {
     return new DateTimeRange<T>(readDartType<T>(this, CalendarDelegate, 0), {
       start: this.dateOnly(range.start),
@@ -182,17 +182,17 @@ export abstract class CalendarDelegate<T extends DateTime> {
    * @dartReturn int
    * @dartReturnOrigin explicit
    */
-  abstract monthDelta(startDate: T, endDate: T): number;
+  abstract monthDelta(_startDate: T, _endDate: T): number;
   /**
    * @dartParam monthsToAdd int
    * @dartParamOrigin monthsToAdd explicit
    */
-  abstract addMonthsToMonthDate(monthDate: T, monthsToAdd: number): T;
+  abstract addMonthsToMonthDate(_monthDate: T, _monthsToAdd: number): T;
   /**
    * @dartParam days int
    * @dartParamOrigin days explicit
    */
-  abstract addDaysToDate(date: T, days: number): T;
+  abstract addDaysToDate(_date: T, _days: number): T;
   /**
    * @dartParam year int
    * @dartParamOrigin year explicit
@@ -202,9 +202,9 @@ export abstract class CalendarDelegate<T extends DateTime> {
    * @dartReturnOrigin explicit
    */
   abstract firstDayOffset(
-    year: number,
-    month: number,
-    localizations: MaterialLocalizations,
+    _year: number,
+    _month: number,
+    _localizations: MaterialLocalizations,
   ): number;
   /**
    * @dartParam year int
@@ -214,14 +214,14 @@ export abstract class CalendarDelegate<T extends DateTime> {
    * @dartReturn int
    * @dartReturnOrigin explicit
    */
-  abstract getDaysInMonth(year: number, month: number): number;
+  abstract getDaysInMonth(_year: number, _month: number): number;
   /**
    * @dartParam year int
    * @dartParamOrigin year explicit
    * @dartParam month int
    * @dartParamOrigin month explicit
    */
-  abstract getMonth(year: number, month: number): T;
+  abstract getMonth(_year: number, _month: number): T;
   /**
    * @dartParam year int
    * @dartParamOrigin year explicit
@@ -230,8 +230,8 @@ export abstract class CalendarDelegate<T extends DateTime> {
    * @dartParam day int
    * @dartParamOrigin day explicit
    */
-  abstract getDay(year: number, month: number, day: number): T;
-  abstract formatMonthYear(date: T, localizations: MaterialLocalizations): string;
+  abstract getDay(_year: number, _month: number, _day: number): T;
+  abstract formatMonthYear(_date: T, _localizations: MaterialLocalizations): string;
   /**
    * @dartParam year int
    * @dartParamOrigin year explicit
@@ -240,16 +240,16 @@ export abstract class CalendarDelegate<T extends DateTime> {
     checkedInteger(year);
     return localizations.formatYear(new DateTime(checkedInteger(year)));
   }
-  abstract formatMediumDate(date: T, localizations: MaterialLocalizations): string;
-  abstract formatShortMonthDay(date: T, localizations: MaterialLocalizations): string;
-  abstract formatShortDate(date: T, localizations: MaterialLocalizations): string;
-  abstract formatFullDate(date: T, localizations: MaterialLocalizations): string;
-  abstract formatCompactDate(date: T, localizations: MaterialLocalizations): string;
+  abstract formatMediumDate(_date: T, _localizations: MaterialLocalizations): string;
+  abstract formatShortMonthDay(_date: T, _localizations: MaterialLocalizations): string;
+  abstract formatShortDate(_date: T, _localizations: MaterialLocalizations): string;
+  abstract formatFullDate(_date: T, _localizations: MaterialLocalizations): string;
+  abstract formatCompactDate(_date: T, _localizations: MaterialLocalizations): string;
   abstract parseCompactDate(
-    inputString: string | null,
-    localizations: MaterialLocalizations,
+    _inputString: string | null,
+    _localizations: MaterialLocalizations,
   ): T | null;
-  abstract dateHelpText(localizations: MaterialLocalizations): string;
+  abstract dateHelpText(_localizations: MaterialLocalizations): string;
 }
 export class GregorianCalendarDelegate extends CalendarDelegate<DateTime> {
   constructor() {

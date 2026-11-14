@@ -16,16 +16,16 @@
     "dev": "nelyx dev --app ../.. --target linux"
   },
   "dependencies": {
-    "@nelyx/core": "0.16.0",
-    "@nelyx/sdk": "0.20.0",
+    "@nelyx/core": "0.17.0",
+    "@nelyx/sdk": "0.21.0",
     "@nelyx/skia-rn": "0.6.0",
     "react": "19.1.4",
     "react-native": "0.81.6",
     "@lucid-softworks/react-native-linux": "0.0.1",
     "@lucid-softworks/react-native-linux-codegen": "0.0.1",
     "@lucid-softworks/react-native-linux-cli": "0.0.1",
-    "@nelyx/material": "0.1.0",
-    "@nelyx/cupertino": "0.1.0",
+    "@nelyx/material": "0.2.0",
+    "@nelyx/cupertino": "0.2.0",
     "@nelyx/skia-native": "0.1.0"
   },
   "devDependencies": {

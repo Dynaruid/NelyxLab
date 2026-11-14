@@ -27,6 +27,7 @@ const allPackages = [
     'metro',
     'cli',
     'static-aot',
+    'tooling-contracts',
     'material',
     'cupertino',
   ],

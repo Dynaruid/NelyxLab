@@ -7,6 +7,7 @@ export type FrameDiagnosticStage =
   | 'build'
   | 'layout'
   | 'optional-work'
+  | 'compositing'
   | 'paint'
   | 'compose'
   | 'input-geometry'

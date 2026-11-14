@@ -4,6 +4,16 @@ Nelyx 프레임워크 소스 이전과 생성 코드 관리를 위한 독립적�
 
 제품 SDK와 앱은 저장소에 추적된 TypeScript를 빌드합니다. 일반 앱 개발이나 SDK 빌드에 이 도구를 설치·실행할 필요는 없습니다.
 
+활성 Flutter pin은 `71e4717a61786faab4c7aa39825989305ed29e8a`입니다. [flutter-source.mjs](flutter-source.mjs)는 명시적으로 선택한 Flutter Git 저장소의 immutable commit/blob을 읽습니다. 로컬 reference 디렉터리나 설치 SDK의 HEAD를 원본 identity로 추정하지 않습니다. [framework-ports.mjs](framework-ports.mjs)는 이식한 선언의 원본 span과 현재 목적지 hash를 [framework-ports.json](data/framework-ports.json)에 기록하며, 모든 기록의 의미 수락 범위는 `PARTIAL`입니다.
+
+```powershell
+node Nelyx/eng/framework-inventory.mjs --source C:/path/to/flutter-git
+node tools/Nelyx.FrameworkToTypeScript/framework-ports.mjs --source C:/path/to/flutter-git --dart C:/path/to/dart.exe --check
+node Nelyx/eng/check-flutter-framework.mjs --source C:/path/to/flutter-git --flutter C:/path/to/installed-flutter --dates check
+```
+
+마지막 명령은 고정 원본의 실제 Flutter 테스트와 Source 구현을 대조하고 날짜 선택기 75개 선언을 재생성 검사합니다. 설치된 tester engine identity는 별도로 출력합니다. 임시 입력과 결과는 한 실행 안에서 삭제하며, 원본 일치·동작 수락·제품 시각/물리 입력/성능 결과를 구별합니다. `--dates write`는 검토한 생성기 변경을 제품 출력에 반영합니다. 새 이식 범위를 검토한 뒤에만 `framework-ports.mjs --write`로 현재 출처를 갱신합니다.
+
 ## 개발 환경
 
 저장소 루트에서 실행합니다.

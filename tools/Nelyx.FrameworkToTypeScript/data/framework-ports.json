@@ -1,0 +1,457 @@
+{
+  "schema": "nelyx.framework-ports/v1",
+  "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "coverageStatus": "Identity and explicitly partial port scope. This does not promote original or product acceptance.",
+  "origins": [
+    {
+      "id": "4156a9dd5b12d4696b97",
+      "qualifiedId": "package:flutter/src/widgets/page_view.dart::PageController:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/page_view.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a47e4d75212f4a338a74b154b9230fb7a12c533c",
+        "fileSha256": "4af00e7e0f61ac55c3b8ee2f9edf3ee358920c90fc7e99e2e2032af1812ac427",
+        "canonicalSpan": {
+          "offset": 1023,
+          "length": 8440,
+          "line": 36,
+          "sha256": "a642874f1ee93786decf26a7e0958d4cbbb19b163f08f40f84b78970c262aa31",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/page-view.ts",
+        "module": "@nelyx/core/framework/widgets/page-view",
+        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "03d42767bcb694159c1c",
+      "qualifiedId": "package:flutter/src/widgets/page_view.dart::PageMetrics:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/page_view.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a47e4d75212f4a338a74b154b9230fb7a12c533c",
+        "fileSha256": "4af00e7e0f61ac55c3b8ee2f9edf3ee358920c90fc7e99e2e2032af1812ac427",
+        "canonicalSpan": {
+          "offset": 9465,
+          "length": 1725,
+          "line": 285,
+          "sha256": "e4508c2284ae6644325e2fccc3103e0391be1035d4d7dd30cd93b3075b2bdead",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/page-view.ts",
+        "module": "@nelyx/core/framework/widgets/page-view",
+        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "8a42c12b33181cc0cd65",
+      "qualifiedId": "package:flutter/src/widgets/page_view.dart::_PagePosition:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/page_view.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a47e4d75212f4a338a74b154b9230fb7a12c533c",
+        "fileSha256": "4af00e7e0f61ac55c3b8ee2f9edf3ee358920c90fc7e99e2e2032af1812ac427",
+        "canonicalSpan": {
+          "offset": 11192,
+          "length": 6517,
+          "line": 335,
+          "sha256": "77d370c8f05b5f6d51923c9543424fc22ce130b905206fbca7845b73f7982fa1",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/page-view.ts",
+        "module": "@nelyx/core/framework/widgets/page-view",
+        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "a4c0d23578f8900735ae",
+      "qualifiedId": "package:flutter/src/widgets/page_view.dart::_ForceImplicitScrollPhysics:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/page_view.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a47e4d75212f4a338a74b154b9230fb7a12c533c",
+        "fileSha256": "4af00e7e0f61ac55c3b8ee2f9edf3ee358920c90fc7e99e2e2032af1812ac427",
+        "canonicalSpan": {
+          "offset": 17711,
+          "length": 627,
+          "line": 543,
+          "sha256": "bdb6708114e1c090a65048c6b49c32785be8b8a9b70366d05b309085659c984f",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/page-view.ts",
+        "module": "@nelyx/core/framework/widgets/page-view",
+        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "61cc622482dfd225b24b",
+      "qualifiedId": "package:flutter/src/widgets/page_view.dart::PageScrollPhysics:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/page_view.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a47e4d75212f4a338a74b154b9230fb7a12c533c",
+        "fileSha256": "4af00e7e0f61ac55c3b8ee2f9edf3ee358920c90fc7e99e2e2032af1812ac427",
+        "canonicalSpan": {
+          "offset": 18340,
+          "length": 2352,
+          "line": 566,
+          "sha256": "84ba495afe7563c4d540511564dfc951df9436027ba41940d0e24521f7ffdc6a",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/page-view.ts",
+        "module": "@nelyx/core/framework/widgets/page-view",
+        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "6f2f7ed128a699417575",
+      "qualifiedId": "package:flutter/src/widgets/page_view.dart::PageView:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/page_view.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a47e4d75212f4a338a74b154b9230fb7a12c533c",
+        "fileSha256": "4af00e7e0f61ac55c3b8ee2f9edf3ee358920c90fc7e99e2e2032af1812ac427",
+        "canonicalSpan": {
+          "offset": 20756,
+          "length": 13452,
+          "line": 641,
+          "sha256": "836a9cb7031a8cf788d4df0c0ca9026807cba439fab9ffc7cd84c8fa80c5caf8",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/page-view.ts",
+        "module": "@nelyx/core/framework/widgets/page-view",
+        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "d3e9ca032334bab3260b",
+      "qualifiedId": "package:flutter/src/widgets/page_view.dart::_PageViewState:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/page_view.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a47e4d75212f4a338a74b154b9230fb7a12c533c",
+        "fileSha256": "4af00e7e0f61ac55c3b8ee2f9edf3ee358920c90fc7e99e2e2032af1812ac427",
+        "canonicalSpan": {
+          "offset": 34210,
+          "length": 4438,
+          "line": 960,
+          "sha256": "c5d770421b7fa811d91bd2d3faa22c95e431e75e944aefa7136f160e60dbfe01",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/page-view.ts",
+        "module": "@nelyx/core/framework/widgets/page-view",
+        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "8aadc004e6ff9a7bfdb3",
+      "qualifiedId": "package:flutter/src/widgets/sliver_fill.dart::SliverFillViewport:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/sliver_fill.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "f62f8d750a5f2f3dcfc8c0d728804712294b8ce3",
+        "fileSha256": "e838c7ee574e486ae046e6970fe23c2f8425d26b0b0336c1c3554a7ead5e8b4d",
+        "canonicalSpan": {
+          "offset": 505,
+          "length": 2594,
+          "line": 18,
+          "sha256": "c550d463612e70f8a85f85ae74e065b4caaacc83eed007d2d05c094d67a75187",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/sliver-fill.ts",
+        "module": "@nelyx/core/framework/widgets/sliver-fill",
+        "sha256": "bfa2774553975970f887fdf1ccaa6c1d56a3694906e8661effaa6945822dbe39"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source delegate/child-manager and fractional-padding path. Only the PageView vertical slice is qualified; SliverFillRemaining is not implemented by this module.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "c6a2e5e2132c6ba4f34b",
+      "qualifiedId": "package:flutter/src/widgets/sliver_fill.dart::_SliverFillViewportRenderObjectWidget:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/sliver_fill.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "f62f8d750a5f2f3dcfc8c0d728804712294b8ce3",
+        "fileSha256": "e838c7ee574e486ae046e6970fe23c2f8425d26b0b0336c1c3554a7ead5e8b4d",
+        "canonicalSpan": {
+          "offset": 3101,
+          "length": 886,
+          "line": 84,
+          "sha256": "cf0e7018187a6cf64a682e7e4e3ed2b82ef0b8d9126f72cd38acb956b46bb5eb",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/sliver-fill.ts",
+        "module": "@nelyx/core/framework/widgets/sliver-fill",
+        "sha256": "bfa2774553975970f887fdf1ccaa6c1d56a3694906e8661effaa6945822dbe39"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source delegate/child-manager and fractional-padding path. Only the PageView vertical slice is qualified; SliverFillRemaining is not implemented by this module.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "615dde5a41886b8d981a",
+      "qualifiedId": "package:flutter/src/widgets/sliver_fill.dart::_SliverFractionalPadding:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/sliver_fill.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "f62f8d750a5f2f3dcfc8c0d728804712294b8ce3",
+        "fileSha256": "e838c7ee574e486ae046e6970fe23c2f8425d26b0b0336c1c3554a7ead5e8b4d",
+        "canonicalSpan": {
+          "offset": 3989,
+          "length": 600,
+          "line": 111,
+          "sha256": "12c6ec453e7f52864cbce9643fb009fc4a66cfdf5f799a0b2b346366f2a40fc3",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/sliver-fill.ts",
+        "module": "@nelyx/core/framework/widgets/sliver-fill",
+        "sha256": "bfa2774553975970f887fdf1ccaa6c1d56a3694906e8661effaa6945822dbe39"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source delegate/child-manager and fractional-padding path. Only the PageView vertical slice is qualified; SliverFillRemaining is not implemented by this module.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "7084fdc01a887573b787",
+      "qualifiedId": "package:flutter/src/widgets/sliver_fill.dart::_RenderSliverFractionalPadding:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/sliver_fill.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "f62f8d750a5f2f3dcfc8c0d728804712294b8ce3",
+        "fileSha256": "e838c7ee574e486ae046e6970fe23c2f8425d26b0b0336c1c3554a7ead5e8b4d",
+        "canonicalSpan": {
+          "offset": 4591,
+          "length": 1303,
+          "line": 129,
+          "sha256": "df3c001a639f6350e005608ba45799378aeb1b64511883488be3702b284de2b3",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/sliver-fill.ts",
+        "module": "@nelyx/core/framework/widgets/sliver-fill",
+        "sha256": "bfa2774553975970f887fdf1ccaa6c1d56a3694906e8661effaa6945822dbe39"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source delegate/child-manager and fractional-padding path. Only the PageView vertical slice is qualified; SliverFillRemaining is not implemented by this module.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "81b2dd5bb337c07561ba",
+      "qualifiedId": "package:flutter/src/rendering/sliver_fill.dart::RenderSliverFillViewport:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/rendering/sliver_fill.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a12dd2bb6f6ab9268a1630bbb9c992e1ee89b44c",
+        "fileSha256": "a01558d993a99046db452ccd7971dca55a356e569dd3d6851166b77cc4872655",
+        "canonicalSpan": {
+          "offset": 434,
+          "length": 2874,
+          "line": 18,
+          "sha256": "fee3680622c053c3cde0b6430d939e93dd9474ac1daa2fc668d1cd1bc4299034",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/rendering/sliver-fill.ts",
+        "module": "@nelyx/core/framework/rendering/sliver-fill",
+        "sha256": "7377e7cbe82a039f59e4527a2dd64ae1662120bac11607ddcf3e7f0c2fe4fa08"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source fixed-extent adaptor, fraction and implicit visibility. Eighteen PageView cases; not a claim about every sliver or engine boundary.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "af70bcb664713dcceee5",
+      "qualifiedId": "package:flutter/src/rendering/object.dart::PipelineOwner:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/rendering/object.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "14d2452c2cf4496a36612130280a40d00754f065",
+        "fileSha256": "19206a10d5d0b71689aad2ad6f5a855d6a10504596e752d9028840af54234f14",
+        "canonicalSpan": {
+          "offset": 36910,
+          "length": 34000,
+          "line": 977,
+          "sha256": "7158dd4ab7b2cf532548d9bba5f451e7d99f71e51a285072d9b6c0cd1e833bd6",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/rendering/object.ts",
+        "module": "@nelyx/core/framework/rendering/object",
+        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source compositing invalidation/flush and removal of configuration-only render ownership. Existing layout, lifecycle, input geometry and semantics still require complete original comparison.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "80d927b5134ab69486c3",
+      "qualifiedId": "package:flutter/src/rendering/object.dart::RenderObject:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/rendering/object.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "14d2452c2cf4496a36612130280a40d00754f065",
+        "fileSha256": "19206a10d5d0b71689aad2ad6f5a855d6a10504596e752d9028840af54234f14",
+        "canonicalSpan": {
+          "offset": 73404,
+          "length": 92426,
+          "line": 1885,
+          "sha256": "fcff97d4cd8c213be863b3a3c497d214c37ec3f0895610a329efae7783249f26",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/rendering/object.ts",
+        "module": "@nelyx/core/framework/rendering/object",
+        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source compositing invalidation/flush and removal of configuration-only render ownership. Existing layout, lifecycle, input geometry and semantics still require complete original comparison.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "d741070e8109ef84236d",
+      "qualifiedId": "package:flutter/src/rendering/object.dart::PaintingContext:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/rendering/object.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "14d2452c2cf4496a36612130280a40d00754f065",
+        "fileSha256": "19206a10d5d0b71689aad2ad6f5a855d6a10504596e752d9028840af54234f14",
+        "canonicalSpan": {
+          "offset": 2437,
+          "length": 29206,
+          "line": 80,
+          "sha256": "70647490744cc5a20c9f3a886b9de9a77429310360c2be9656d1e5649560fd83",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/painting/context.ts",
+        "module": "@nelyx/core/framework/painting/context",
+        "sha256": "25f07a08a879edcc1335b3a5764a0f83a1c314b9f90327289ab63e22d038a4fd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Generic pushClipRect and retained/composited path. Immediate clip command cases pass; full raster/layer equivalence remains open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    }
+  ]
+}

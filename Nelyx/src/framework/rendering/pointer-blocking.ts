@@ -8,7 +8,6 @@ import type { Offset, TransformMatrix } from '../../ui/geometry.ts';
 import type { SemanticsNode, Rect } from '../../ui/types.ts';
 import { RenderProxyBox } from './boxes.ts';
 import type { RenderBox, RenderObject, HitTestEntry } from './object.ts';
-import { registerNativeBoxConfiguration, registerNativeBoxCommands } from './native-box.ts';
 function blockActions(nodes: readonly SemanticsNode[]): SemanticsNode[] {
   let count = 0;
   const ancestors = new Set<SemanticsNode>();
@@ -131,38 +130,3 @@ export class RenderAbsorbPointer extends RenderProxyBox {
     output.push(...blockActions(nodes));
   }
 }
-const blockedPointerActions = Object.freeze({ blockActions: true });
-registerNativeBoxConfiguration(
-  RenderIgnorePointer.prototype,
-  (render) => ({
-    kind: 'box',
-    layout: { childConstraints: 'inherit' },
-    ...(render.ignoring ? { pointerBlock: 'ignore', semanticsPolicy: { blockActions: true } } : {}),
-  }),
-  true,
-);
-registerNativeBoxConfiguration(
-  RenderAbsorbPointer.prototype,
-  (render) => ({
-    kind: 'box',
-    layout: { childConstraints: 'inherit' },
-    ...(render.absorbing
-      ? { pointerBlock: 'absorb', semanticsPolicy: { blockActions: true } }
-      : {}),
-  }),
-  true,
-);
-registerNativeBoxCommands(
-  RenderIgnorePointer.prototype,
-  (render, sink) => {
-    if (render.ignoring) sink.interaction!('proxy', 'ignore', blockedPointerActions);
-  },
-  4,
-);
-registerNativeBoxCommands(
-  RenderAbsorbPointer.prototype,
-  (render, sink) => {
-    if (render.absorbing) sink.interaction!('proxy', 'absorb', blockedPointerActions);
-  },
-  4,
-);

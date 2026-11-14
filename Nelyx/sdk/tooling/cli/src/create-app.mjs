@@ -279,9 +279,9 @@ export async function createApp(
           : 'new DecoratedBox(new Padding(allInsets(24),new Text(state.initialText,{color:0xffe5e7eb})),0xff101827)';
     fs.writeFileSync(
       path.join(sourceRoot, 'app.ts'),
-      "// SPDX-License-Identifier: BSD-3-Clause\nimport type {ApplicationDefinition} from '@nelyx/core/hosting/runtime';\nimport {widgetApplication} from '@nelyx/core/framework/widgets/root';\nimport {Text,DecoratedBox,Padding} from '@nelyx/core/framework/widgets/basic';\nimport {Directionality} from '@nelyx/core/framework/widgets/app-data';\nimport {allInsets} from '@nelyx/core/ui/geometry';\n" +
+      "// SPDX-License-Identifier: BSD-3-Clause\nimport type {ApplicationDefinition} from '@nelyx/core/hosting/runtime';\nimport {defineApp} from '@nelyx/sdk/app';\nimport {Text,DecoratedBox,Padding} from '@nelyx/core/framework/widgets/basic';\nimport {Directionality} from '@nelyx/core/framework/widgets/app-data';\nimport {allInsets} from '@nelyx/core/ui/geometry';\n" +
         importDesign +
-        "export interface ApplicationState {readonly initialText:string}\nexport function createApplicationState():ApplicationState{return {initialText:'Hello Nelyx'};}\nexport function defineApplication(state:ApplicationState):ApplicationDefinition{return widgetApplication({id:'nelyx.generated',defaultFont:'sample-font',createRoot:()=>new Directionality('ltr'," +
+        "export interface ApplicationState {readonly initialText:string}\nexport function createApplicationState():ApplicationState{return {initialText:'Hello Nelyx'};}\nexport function defineApplication(state:ApplicationState):ApplicationDefinition{return defineApp({id:'nelyx.generated',defaultFont:'sample-font',createRoot:()=>new Directionality('ltr'," +
         body +
         ')});}\n',
     );

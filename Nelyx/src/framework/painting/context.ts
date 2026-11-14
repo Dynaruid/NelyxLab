@@ -17,7 +17,10 @@ import {
   PictureLayer,
   OpacityLayer,
   TransformLayer,
+  ClipRectLayer,
 } from '../rendering/layer.ts';
+import type { Clip } from '../../ui/clip.ts';
+import { Paint } from '../../ui/paint.ts';
 import { Matrix4 } from '../../math/matrix4.ts';
 import { Rect as SourceRect } from '../../ui/rect.ts';
 import { MatrixUtils } from './matrix-utils.ts';
@@ -242,6 +245,7 @@ export class PaintingContext extends Canvas {
       )
         this.transform(transform);
       child.paint(this);
+      child._didPaint();
     } finally {
       this.restore();
     }
@@ -884,6 +888,56 @@ export class PaintingContext extends Canvas {
         }
       throw error;
     }
+  }
+  pushClipRect(
+    needsCompositing: boolean,
+    offset: Offset,
+    clipRect: Rect,
+    painter: (context: PaintingContext, offset: Offset) => void,
+    {
+      clipBehavior = 'hardEdge',
+      oldLayer = null,
+    }: {
+      readonly clipBehavior?: Clip;
+      readonly oldLayer?: ClipRectLayer | null;
+    } = {},
+  ): ClipRectLayer | null {
+    if (clipBehavior === 'none') {
+      painter(this, offset);
+      return null;
+    }
+    const bounds = { ...clipRect, x: clipRect.x + offset.x, y: clipRect.y + offset.y };
+    if (needsCompositing) {
+      const layer = oldLayer ?? new ClipRectLayer();
+      layer.clipRect = bounds;
+      layer.clipBehavior = clipBehavior;
+      try {
+        return this.pushLayer(layer, painter, offset, bounds);
+      } catch (error) {
+        if (!oldLayer && layer.debugHandleCount === 0)
+          try {
+            layer.dispose();
+          } catch (cleanup) {
+            throw new AggregateError([error, cleanup], 'Clip paint and rollback failed');
+          }
+        throw error;
+      }
+    }
+    this.save();
+    try {
+      this.clipRect(bounds, { doAntiAlias: clipBehavior !== 'hardEdge' });
+      if (clipBehavior === 'antiAliasWithSaveLayer') {
+        this.saveLayer(bounds, new Paint());
+        try {
+          painter(this, offset);
+        } finally {
+          this.restore();
+        }
+      } else painter(this, offset);
+    } finally {
+      this.restore();
+    }
+    return null;
   }
   pushTransform(
     needsCompositing: boolean,

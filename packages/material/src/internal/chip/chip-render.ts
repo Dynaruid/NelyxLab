@@ -7,18 +7,11 @@ import {
 } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { Directionality } from '@nelyx/core/framework/widgets/app-data';
-import {
-  RenderBox,
-  RenderObject,
-  registerNativeBoxConfiguration,
-  registerNativeRenderResources,
-} from '@nelyx/core/framework/rendering/object';
+import { RenderBox, RenderObject } from '@nelyx/core/framework/rendering/object';
 import type {
   PipelineOwner,
   HitTestEntry,
   TextBaseline,
-  NativeBoxConfiguration,
-  NativeLayoutProgram,
 } from '@nelyx/core/framework/rendering/object';
 import { RenderConstrainedBox, RenderProxyBox } from '@nelyx/core/framework/rendering/boxes';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
@@ -37,12 +30,6 @@ import type { Size, TransformMatrix } from '@nelyx/core/ui/geometry';
 import { identity, multiply, contains } from '@nelyx/core/ui/geometry';
 import { invariant } from '@nelyx/core/foundation/errors';
 import type { VisualDensity } from '../../theme-data.ts';
-import {
-  nativeChipLayout,
-  nativeChipTapLayout,
-  nativeChipSemanticsLayout,
-} from './chip-native-layout.ts';
-import { nativeChipCheckmark } from './chip-native-paint.ts';
 export interface ChipRenderTheme {
   readonly avatar: Widget;
   readonly label: Widget;
@@ -119,34 +106,17 @@ export class RenderChip extends RenderBox {
   private direction: 'ltr' | 'rtl';
   private deleteRect = Rect.zero;
   private pressRect = Rect.zero;
-  private nativeAttached = false;
   private subscriptions: { animation: Animation<number>; listener: () => void }[] = [];
   private readonly layoutChanged = () => {
-    if (this.attached || this.nativeAttached) this.markNeedsLayout();
+    if (this.attached) this.markNeedsLayout();
   };
   private readonly paintChanged = () => {
-    if (this.attached || this.nativeAttached) this.markNeedsPaint();
+    if (this.attached) this.markNeedsPaint();
   };
   constructor(options: ChipRenderOptions, direction: 'ltr' | 'rtl') {
     super();
     this.options = options;
     this.direction = direction;
-    registerNativeRenderResources(this, {
-      attach: () => {
-        this.nativeAttached = true;
-        try {
-          this.startListening();
-        } catch (error) {
-          this.nativeAttached = false;
-          this.stopListening();
-          throw error;
-        }
-      },
-      detach: () => {
-        this.nativeAttached = false;
-        if (!this.attached) this.stopListening();
-      },
-    });
   }
   protected override get childCountLimit(): number {
     return 3;
@@ -167,7 +137,7 @@ export class RenderChip extends RenderBox {
     return !this.options.deleteDrawerAnimation.isDismissed;
   }
   private startListening(): void {
-    if (this.subscriptions.length || (!this.attached && !this.nativeAttached)) return;
+    if (this.subscriptions.length || !this.attached) return;
     const options = this.options;
     try {
       for (const entry of [
@@ -212,7 +182,7 @@ export class RenderChip extends RenderBox {
     try {
       super.detach();
     } finally {
-      if (!this.nativeAttached) this.stopListening();
+      this.stopListening();
     }
   }
   override dispose(): void {
@@ -221,22 +191,6 @@ export class RenderChip extends RenderBox {
     } finally {
       if (this.debugDisposed) this.stopListening();
     }
-  }
-  _nativeLayoutProgram(): NativeLayoutProgram {
-    return nativeChipLayout(this.options, this.direction);
-  }
-  _nativeSlot(index: number): NativeBoxConfiguration {
-    const visible =
-      index === 0
-        ? this.theme.showAvatar || !this.options.avatarDrawerAnimation.isDismissed
-        : index !== 2 || this.deleteIconShowing;
-    return {
-      kind: 'box',
-      layout: { childConstraints: 'inherit' },
-      hitTest: 'proxy',
-      opacity: visible ? this.disabledColor.alpha / 255 : 0,
-      ...(index === 0 ? { foreground: nativeChipCheckmark(this.options, this.direction) } : {}),
-    };
   }
   protected override computeMinIntrinsicWidth(height: number): number {
     return (
@@ -590,9 +544,6 @@ export class ChipRedirectingHitDetectionWidget extends SingleChildRenderObjectWi
   }
 }
 class RenderChipRedirectingHitDetection extends RenderConstrainedBox {
-  _nativeLayoutProgram(): NativeLayoutProgram {
-    return nativeChipTapLayout(this.additionalConstraints);
-  }
   override hitTest(
     position: {
       readonly x: number;
@@ -644,9 +595,6 @@ class RenderEnsureMinSemanticsSize extends RenderProxyBox {
   get semanticSize(): Size {
     return this.minimum;
   }
-  _nativeLayoutProgram(): NativeLayoutProgram {
-    return nativeChipSemanticsLayout(this.minimum);
-  }
   set semanticSize(value: Size) {
     if (value.width === this.minimum.width && value.height === this.minimum.height) return;
     this.minimum = value;
@@ -678,54 +626,3 @@ class ChipSlot extends SingleChildRenderObjectWidget {
   }
 }
 class RenderChipSlot extends RenderProxyBox {}
-
-const chipLayoutPolicy = RenderChip.prototype._nativeLayoutProgram,
-  chipSlotPolicy = RenderChip.prototype._nativeSlot,
-  tapLayoutPolicy = RenderChipRedirectingHitDetection.prototype._nativeLayoutProgram,
-  semanticsLayoutPolicy = RenderEnsureMinSemanticsSize.prototype._nativeLayoutProgram;
-registerNativeBoxConfiguration(RenderChip.prototype, (render, reject) => {
-  if (
-    Object.hasOwn(render, '_nativeLayoutProgram') ||
-    RenderChip.prototype._nativeLayoutProgram !== chipLayoutPolicy
-  )
-    return reject('instance-chip-layout-policy');
-  return {
-    kind: 'stack',
-    layout: {},
-    hitTest: 'self',
-    children: [render.avatar, render.deleteIcon, render.label],
-    layoutProgram: chipLayoutPolicy.call(render),
-  };
-});
-registerNativeBoxConfiguration(RenderChipSlot.prototype, (render, reject) => {
-  const parent = render.parent;
-  if (
-    !parent ||
-    Object.getPrototypeOf(parent) !== RenderChip.prototype ||
-    Object.hasOwn(parent, '_nativeSlot') ||
-    RenderChip.prototype._nativeSlot !== chipSlotPolicy
-  )
-    return reject('foreign-chip-slot-policy');
-  return chipSlotPolicy.call(parent as RenderChip, parent.children.indexOf(render));
-});
-registerNativeBoxConfiguration(RenderChipRedirectingHitDetection.prototype, (render, reject) => {
-  if (
-    Object.hasOwn(render, '_nativeLayoutProgram') ||
-    RenderChipRedirectingHitDetection.prototype._nativeLayoutProgram !== tapLayoutPolicy
-  )
-    return reject('instance-chip-tap-policy');
-  return { kind: 'box', layout: {}, hitTest: 'proxy', layoutProgram: tapLayoutPolicy.call(render) };
-});
-registerNativeBoxConfiguration(RenderEnsureMinSemanticsSize.prototype, (render, reject) => {
-  if (
-    Object.hasOwn(render, '_nativeLayoutProgram') ||
-    RenderEnsureMinSemanticsSize.prototype._nativeLayoutProgram !== semanticsLayoutPolicy
-  )
-    return reject('instance-chip-semantics-policy');
-  return {
-    kind: 'box',
-    layout: {},
-    hitTest: 'proxy',
-    layoutProgram: semanticsLayoutPolicy.call(render),
-  };
-});

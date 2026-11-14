@@ -19,13 +19,14 @@ createRequire(import.meta.url);
 function sourceDigest(sdk, skia) {
   const sources = [];
   for (const [owner, base, folders] of [
-    ['sdk', sdk, ['native/windows-hermes', 'native/windows']],
+    ['sdk', sdk, ['native/windows-hermes', 'native/windows', 'native/engine-helpers']],
     [
       'skia',
       skia,
       [
         'cpp',
         'generated/core',
+        'generated/engine-helpers',
         'generated/gpu',
         'generated/vulkan',
         'generated/host',
@@ -124,9 +125,7 @@ export function verifyNativeSkiaInputs(input, skia) {
       name.includes(':')
     )
       throw Error('Invalid native supplier path');
-    let file = path.join(directory, name);
-    if (!fs.existsSync(file) && name.includes('nelyx_rn_module'))
-      file = path.join(directory, name.replace('nelyx_rn_module', 'ozeli_rn_module'));
+    const file = path.join(directory, name);
     if (!fs.statSync(file).isFile() || fs.lstatSync(file).isSymbolicLink())
       throw Error('Invalid native supplier file');
     return file;
