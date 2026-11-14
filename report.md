@@ -2,11 +2,11 @@
 
 작성일: **2026-11-14 KST**
 
-개정: **관측과 원인 가설 분리, 힙·GC 통계 해석 및 의사결정 기준 정정**
+개정: **실제 owner·준비/게시 프로토콜·동기 native 작업·자원 수명 대조 반영**
 
-검토 기준: 현재 checkout `97d45c8`, `work11.md`, `work11-1.md` 및 아래에 명시한 실제 소스·공식 문서
+검토 기준: checkout `d0f6c5f`, `work11.md`, `work11-1.md` 및 아래에 명시한 실제 소스·공식 문서
 
-범위: **코드·설계 검토와 의사결정 제안. 구현 재개, 런타임 교체, 신규 성능 측정은 하지 않았다.**
+범위: **Windows Original App의 실제 코드·아키텍처 검토와 의사결정 제안. 보고서만 수정했으며 구현 재개, 런타임 교체, 신규 성능 측정은 하지 않았다.** 공통 TS/Core와 플랫폼별 host의 책임을 구분하며 Windows의 스레드 구성을 Web/Android에 그대로 일반화하지 않는다.
 
 ## 1. 판단
 
@@ -14,13 +14,13 @@
 
 현재 가장 직접적인 근거는 **새 내용 생성 시 긴 App 준비 구간과 offset 정체가 남아 있다**는 것이다. 대량 할당·객체 교체가 GC와 네이티브 자원 회수를 유발하고, 그 지연이 coverage 준비 의존을 통해 정체로 나타난다는 설명은 **우선 조사할 가설 중 하나**다. 이전 공급의 기록에는 Source 한 구간의 약 11–13MB 할당과 여러 GC 완료가 있다. 코드에서는 할당 도중의 young GC, 외부 메모리 압력에 따른 수거 조건 변화, finalizer에서 네이티브 버퍼 해제·공용 장부 잠금으로 이어지는 경로를 확인했다. 다만 경로의 존재는 실제 비용의 크기나 최신 정체의 원인을 입증하지 않는다. **구조 문제와 GC 문제는 별개의 경쟁 설명이 아니다.**
 
-실제 offset 정체 중 GC 정지·잠금 대기·일반 Source 실행·Content 준비가 각각 차지한 시간은 아직 분리되지 않았다. 따라서 **같은 실패 구간의 원인을 나누는 것이 먼저이며, 현재 근거만으로 GC의 기여도가 가장 크다고 순위를 매기지는 않는다.** 최신 §13.31 공급에서는 힙을 재관측하지 않았다. Native AOT도 같은 Hermes 객체·GC 체계를 사용하므로, AOT에서도 실패했다는 사실은 GC 가설의 반증이 아니다.
+실제 offset 정체 중 GC 정지·잠금 대기·일반 Source 실행·Content 준비가 각각 차지한 시간은 아직 분리되지 않았다. 특히 **App은 동기 JSI 호출로 C++ 문단 작업도 실행하며, C++ Core는 독립된 다섯 번째 스레드가 아니라 여러 owner가 공유 잠금으로 접근하는 상태·알고리즘**이다. 따라서 Source elapsed를 순수 JS 시간으로 읽거나, owner가 분리됐다는 이유로 Core 경합을 제외해서는 안 된다. 최신 §13.31 공급에서는 힙을 재관측하지 않았다. Native AOT도 같은 Hermes 객체·GC 체계를 사용하므로, AOT에서도 실패했다는 사실은 GC 가설의 반증이 아니다.
 
 따라서 권고는 다음과 같다.
 
-1. **긴 App 준비와 coverage 대기의 연결을 먼저 확인한다.** Source/capture의 일반 실행·할당, GC·회수, Content 준비와 게시 의존을 같은 시간축에서 나눈다. 임시 객체·snapshot·외부 응답 버퍼의 수명과 수거 경계의 잠금도 포함한다.
+1. **긴 App 준비와 coverage 대기의 연결을 먼저 확인한다.** Source/capture의 JS 실행·할당, App의 동기 native 호출, GC·회수, mailbox·Core 잠금 대기, Content 준비와 게시 의존을 같은 시간축에서 나눈다. 임시 객체·snapshot·외부 응답 버퍼의 수명과 수거 경계의 잠금도 포함한다.
 2. **확인된 비용 경로를 바꾸는 작은 수정부터 선택한다.** 반복 표현 제거, 불필요한 참조 보유 해소, 안전한 자원 회수 분리가 후보이며 실제 병목 입증 전 적용을 확정하지 않는다. GC 수정 자체를 다음 단계의 필수 조건으로 삼거나 helper 몇 개의 제거량만으로 전체 GC 부담이 해결됐다고 판단하지 않는다.
-3. **TypeScript UI SDK가 목적이고 원인 분해 결과 Source 작업량이 핵심으로 남는다면 UI 생성·소유 모델을 부분 재설계한다.** C++ Core와 플랫폼 자산은 보존 후보로 두고, 원본 Flutter의 내부 객체 실행까지 보존하는 정책을 재검토한다.
+3. **TypeScript UI SDK가 목적이고 원인 분해 결과 Source 작업량이 핵심으로 남는다면 UI 생성·소유 모델을 부분 재설계한다.** 이미 존재하는 native layout·control·재사용 경로를 출발점으로, 그 앞에서 실제로 없어지는 Source 작업을 특정한다. 공개 의미 보존과 비공개 객체의 동일한 생성 방식을 보존하는 것은 구분한다.
 4. **앱 제품 완성이 목적이고 TypeScript가 필수가 아니라면 원본 Flutter/Dart를 우선 평가한다.** 필수 기능·플랫폼과 이전 비용을 확인해야 하며 현재 앱보다 빠르다고 검증된 대안은 아니다. Flutter도 GC를 사용하므로 GC를 없애기 위한 전환으로 설명하지 않는다.
 5. **V8는 필요할 때 원인을 나누는 비교 수단이다.** 실행 방식뿐 아니라 GC·allocator·외부 자원 처리도 바뀌므로, V8가 빨라져도 곧바로 JIT 단독 효과로 해석하지 않는다. Windows JIT 결과는 일반 iOS 배포 전략과도 구분한다.
 
@@ -32,7 +32,9 @@
 
 판단 기준은 현재 저장소 문서와 코드다. `work11-1.md`의 최신 정지 지점은 **§13.33**이며, 실제 기준 공급 기록은 **§13.31**이다. 작업은 `PAUSED / PARTIAL`, 성능은 미수락 상태다.
 
-현재 [engine manifest](Nelyx/engine/dist/engine-manifest.json)의 `sourceSha256`은 `7fde85bf683331939cbefdd47c0a1fb417805db05f37a3f1dec29e15c56ebf1a`로 §13.31 기록과 일치한다. 이것은 manifest를 읽은 결과이며 이번에 전체 바이너리 무결성이나 실행 결과를 재검증한 것은 아니다.
+직전 검토 기준 `97d45c8`과 현재 `d0f6c5f` 사이에는 실행 코드 변경이 없다. 이번 개정은 아래 함수들의 호출·소유권 경계를 추가로 추적한 정적 검토이며, 실행 중 비용 순위를 새로 측정한 결과가 아니다.
+
+현재 [engine manifest](Nelyx/engine/dist/engine-manifest.json)의 `sourceSha256`은 `7fde85bf683331939cbefdd47c0a1fb417805db05f37a3f1dec29e15c56ebf1a`로 §13.31 기록과 일치한다. `qualification`은 `host-integration-candidate`다. 이것은 manifest를 읽은 결과이며 이번에 전체 바이너리 무결성이나 실행 결과를 재검증하거나 제품 수락 상태를 바꾼 것은 아니다.
 
 이하 수치는 모두 **기존 작업 기록의 측정값**이다. 시나리오·공급·입력 속도가 다른 값을 한 성능 개선 추세로 연결하지 않았다. 함수 elapsed, 비동기 대기, GC 통계, 게시 시각과 물리 표시를 구분했다.
 
@@ -50,7 +52,7 @@
 | 같은 §13.31 | publication gap 최대 26.819ms, App turn p95/최대 145.279/165.368ms | 게시가 계속되더라도 offset이 정체할 수 있다. FPS만으로는 이 실패를 판정할 수 없다. |
 | [work11-1 §13.33](work11-1.md#1333-v8-jit-직접-host-진단과-사용자-요청에-따른-정지--paused--partial) | V8 진단 host 빌드·모듈 초기화는 PASS, GUI는 app-ready 전 실패 | **사용 가능한 V8 Demo와 스크롤 성능 비교는 아직 없다.** |
 
-§13.31의 한 cold pass는 신규/captured owner **784/827**, 문단 준비 **76**, build/capture/scene **78.705/43.249/53.054ms**, wait **19.752ms**다. build와 capture만 봐도 60Hz 한 프레임의 16.67ms보다 각각 길다. 다만 scene에는 비동기 처리가 있으므로 이 숫자를 전부 더해 “CPU가 그만큼 막혔다”거나 “234ms 정체를 전부 설명했다”고 말하면 안 된다.
+§13.31의 한 cold pass는 App capture의 created/captured **784/827**, App 투영의 `paragraphPreparations` **76**, build/capture/scene **78.705/43.249/53.054ms**, wait **19.752ms**다. [capture.ts](Nelyx/runtime/app/capture.ts)의 created/captured는 capture entry 생성·투영 횟수이며 Widget 전체 수나 Core nodeCount가 아니다. [host.ts](Nelyx/runtime/app/host.ts)의 `paragraphPreparations`도 prepared paragraph 옵션의 투영 카운터이지 Content의 SkParagraph layout 실행 횟수가 아니다. build와 capture는 60Hz 한 프레임의 16.67ms보다 각각 길지만, scene에는 비동기 처리가 있으므로 이 숫자를 전부 더해 “CPU가 그만큼 막혔다”거나 “234ms 정체를 전부 설명했다”고 말하면 안 된다.
 
 또한 180Hz는 이 검사의 **입력 표본 속도**다. 180fps 렌더링을 요구한 검사가 아니다. 12개월을 약 2초에 이동하면 평균 새 월 간격은 약 166.7ms이지만, 실제 준비 단위·기존 상주 범위·동시 작업이 있으므로 이것만으로 정확한 월 생산 처리량을 계산할 수는 없다.
 
@@ -60,22 +62,28 @@
 
 ### 3.1 현재 경로는 이미 C++ 엔진과 여러 owner로 분리되어 있다
 
-현재 Original App 경로를 축약하면 다음과 같다.
+현재 Windows Original App의 일반적인 layout 변경 경로는 다음과 같다. **Core는 별도 스레드 이름이 아니다.** Core 함수는 호출한 owner에서 실행되며 공유 상태의 잠금 경계는 §3.8과 같다.
 
 ```text
-TS 앱 / 변환된 Material·Cupertino Source
-  → Widget·Element·State·의존성 갱신
-  → TS RenderObject와 native configuration
-  → RenderSceneCapture / RenderBinding / SceneWriter
-  → transaction을 통한 C++ Document 갱신
-  → Content의 layout·문단·그림 준비
-  → Render의 프레임 게시
-  → 게시된 상태·geometry·새 자식 요구를 App에 전달
+UI owner: native 입력 → Core input queue → Render tick의 입력 처리
+App owner: TS Widget·Element·State / RenderObject
+           + 동기 JSI native 문단 호출
+           → capture / RenderBinding / SceneWriter → transaction mailbox
+Content owner: Core transaction 수락 → Core contentStep / layout
+               ↔ App의 layoutBuildRequest 응답 / 새 transaction
+               ↔ ContentProvider.measure / measureResult
+               → ready snapshot → ContentProvider.prepare → candidate
+Render owner: providerReady → Core tick / activate → takeFrame
+              → Graphite/Vulkan draw·submit/present
+              → GPU 완료 관측 → releaseFrame / publish
+App 관찰: live state·layout 요청과 published geometry·semantics를 구분
 ```
 
-[Windows host](Nelyx/engine/platform/windows/host.cpp)의 173행, 267행, 492행에는 UI/App/Content/Render 스레드 구분이 있다. “모두 JS 한 스레드에서 그리므로 C++와 렌더 스레드를 도입하자”는 설명은 현재 구조와 맞지 않는다.
+[Windows host](Nelyx/engine/platform/windows/host.cpp)의 `contentLoop`·`renderLoop`·`appLoop`와 UI 메시지 처리가 이 owner 구분을 구현한다. 준비된 scrollViewport의 허용된 native 입력 경로는 매 프레임 Source rebuild를 기다리지 않고 이동할 수 있다. 반대로 [gestures.cpp](Nelyx/engine/core/interaction/gestures.cpp)의 `appDecision`처럼 App 승인을 기다리는 분기도 있다. “모든 UI 작업이 JS 한 스레드에 있다”와 “native 입력은 항상 App과 독립적이다”는 설명이 모두 부정확하다.
 
 또한 [capture.ts](Nelyx/runtime/app/capture.ts)의 dirty/field 정보와 subtree 재사용, [host.ts](Nelyx/runtime/app/host.ts)의 1063–1079행에 있는 직접 command capture가 이미 존재한다. 다시 “retained로 바꾸자”, “중간 트리를 없애자”라고만 제안하면 기존 시도를 반복하게 된다.
+
+native Render도 프레임마다 JS를 거치는 구조가 아니다. [host.cpp](Nelyx/engine/platform/windows/host.cpp)의 `dispatchNativeFrame` 호출은 [engine.cpp](Nelyx/engine/core/protocol/engine.cpp)에서 paint node-row 직렬화를 생략하고 C++ `Frame` reader를 전달한다. 다만 `copyNativeFrame`은 vector 저장소를 복사하므로 전체 경로가 zero-copy라는 뜻은 아니다. [Document](Nelyx/engine/core/scene/document.hpp)와 [PagedStorage](Nelyx/engine/core/scene/paged_storage.hpp)도 snapshot 사이에 페이지·불변 노드를 공유하며 [transact](Nelyx/engine/core/protocol/transaction.cpp)는 수정 노드를 복제한다. snapshot 개수에 전체 트리 크기를 곱해 복사량을 추정해서는 안 된다.
 
 검토할 것은 **재사용 가능한 기존 노드의 갱신 이후에도 남는 새 내용 생성비용과, 이 단계들 사이의 필수 왕복**이다. 복수 트리 자체가 잘못이라는 뜻은 아니다. Flutter와 React Native도 목적이 다른 표현을 여러 개 유지한다. 각 표현의 작업량·갱신 범위·연결 비용이 문제다. [Flutter 구조](https://docs.flutter.dev/resources/architectural-overview), [React Native 렌더 파이프라인](https://reactnative.dev/architecture/render-pipeline).
 
@@ -88,10 +96,13 @@ TS 앱 / 변환된 Material·Cupertino Source
 | [host.ts](Nelyx/runtime/app/host.ts), 1493–1511행 | `Promise.then(() => perform())`으로 flush 실행 | Promise를 썼다는 사실이 내부 작업의 분할을 뜻하지 않는다. |
 | 같은 파일, 1653–1750행 | `flushBuild`, `syncRenderTree`, retained builder rebuild, 다시 flush, scene capture | 한 JS owner에서 연속 실행되는 동기 구간이 있다. |
 | [framework.ts](Nelyx/src/framework/widgets/framework.ts), 811–869행 | dirty Element rebuild와 render tree commit | dirty queue를 이미 사용하지만, 선택된 자손의 실제 생성·상태 처리는 남는다. |
+| [text.ts](Nelyx/runtime/app/text.ts)의 `AppTextLayoutService.layout` → [app_text_jsi.hpp](Nelyx/engine/platform/common/app_text_jsi.hpp) → [AppParagraphs::layout](Nelyx/engine/platform/common/app_text.hpp) | 같은 App 스레드에서 C++ paragraph build·geometry 변환을 동기 실행 | C++으로 구현됐다는 사실이 App owner의 점유 시간을 없애지 않는다. |
 | [capture.ts](Nelyx/runtime/app/capture.ts), 109–120행 | Source build가 동기적으로 끝난 뒤 capture한다는 계약 | 중간에 임의 yield를 넣으면 invalidation·callback·snapshot 경계를 함께 재설계해야 한다. |
 | [host.cpp](Nelyx/engine/platform/windows/host.cpp), 570–604행 | App 작업과 Promise continuation을 `drainMicrotasks()`로 실행 | 마이크로태스크 내부의 긴 build를 스케줄러 옵션만으로 짧게 만들 수 없다. |
 
 따라서 타이머, Promise, 작업 우선순위만 바꾸는 것으로 실제 계산량이 줄지는 않는다. 임의 JS callback의 중간 상태를 안전하게 외부에 노출하거나 취소·재실행할 수 있다고 가정해서도 안 된다.
+
+**App의 동기 문단 API와 Content의 문단 측정은 별도 경로다.** 전자는 Source의 동기 layout/query 의미를 제공하고, 후자는 Core layout의 측정 요청을 Content provider가 처리한다. 따라서 build/Source elapsed에는 JS뿐 아니라 그 안에서 호출한 native 작업·GC·대기가 포함될 수 있다. VM 교체나 Typed Hermes만으로 이미 C++인 문단 작업까지 없어지는 것은 아니며, 두 경로가 같은 문단을 항상 중복 처리한다고 단정해서도 안 된다.
 
 ### 3.3 준비되지 않은 영역에서는 Core가 실제 이동을 제한한다
 
@@ -108,9 +119,25 @@ TS 앱 / 변환된 Material·Cupertino Source
 
 coverage 검사를 제거하는 것은 해법이 아니다. 준비되지 않은 픽셀·hit test·semantics를 노출하게 된다. 기존 의미를 유지하려면 제시간에 준비하거나, 제품 계약에서 미준비 영역을 어떻게 표시할지 명시해야 한다.
 
+다만 **coverage 부족의 `needChildren` 이벤트와 Content layout의 `layoutBuildRequest`는 같은 요청이 아니다.** [SceneWriter.pollEvents](Nelyx/runtime/engine-client/scene.ts)는 전자를 layout 관찰 demand로 유지한다. [LayoutWork](Nelyx/engine/core/layout/layout.cpp)는 builder revision·실제 constraints 또는 list 범위가 맞지 않을 때 별도의 pending build를 만들고, [OriginalWidgetHost.rebuildFromContent](Nelyx/runtime/app/host.ts)는 그 node·document·metrics·device·revision을 확인해 Source를 실행한다. 응답 transaction이 맞으면 기존 preparation을 resume할 수도 있다. 한 번의 정체를 한 번의 builder 왕복으로 환산하면 안 된다.
+
+또한 [grid.ts](Nelyx/runtime/app/grid.ts)의 fitted-grid 경로는 이미 Content의 실제 제약을 사용하는 두 native layout program으로 셀을 배치한다. 이 경로에는 provisional Grid LayoutBuilder 응답이 없으며, 그렇다고 날짜별 Source child 생성까지 없어진 것은 아니다. “달력 배치를 C++로 옮기자”만으로 새 수정의 차이를 설명할 수 없다. Core overlay의 `offset` 변경과 published Frame의 offset도 서로 다른 시점이다.
+
 ### 3.4 기존 게시를 기다리는 장벽도 있다
 
-[host.ts](Nelyx/runtime/app/host.ts) 1514–1541행의 `waitForContent`와 1593–1620행의 반복은 accepted document의 준비·게시 상태에 따라 후속 작업을 기다린다. 코드 주석에는 연속 invalidation으로 준비가 계속 교체되어 publication이 굶는 것을 막는 이유가 명시되어 있다.
+현재 Windows provider 연결 경로에서 구분해야 할 단계는 다음과 같다. 근거는 [engine.cpp](Nelyx/engine/core/protocol/engine.cpp), [scheduler.cpp](Nelyx/engine/core/scheduler/scheduler.cpp), [host.cpp](Nelyx/engine/platform/windows/host.cpp)다.
+
+| 단계 | 실제 의미 | 아직 보장하지 않는 것 |
+| --- | --- | --- |
+| transaction accepted / ACK | Core가 새 document를 수락했고 App이 결과를 알게 됨 | layout·native 준비·화면 게시 완료 |
+| `Preparation.ready` | Core의 layout/geometry 준비 완료 | Content의 그림 기록·GPU 완료 |
+| `Preparation.providerReady` | Content의 prepared candidate를 Render가 같은 cohort로 수락 | 활성화·프레임 게시 완료 |
+| `View.active` | tick의 activate가 새 scene을 설치 | 그 scene의 프레임이 이미 게시됐다는 보장 |
+| `View.published` / publication | host가 GPU 완료를 관측하고 releaseFrame/publish한 snapshot | 물리 scanout·사용자가 본 시각 |
+
+Render는 이전 GPU slot이 차 있어도 tick/activation을 진행한다. 반면 새 draw는 slot이 비어야 한다. 따라서 준비·활성화·GPU 제출·publication을 한 단계나 하나의 ACK로 합쳐서는 안 된다. 일부 retained paint 갱신은 전체 Content 준비를 건너뛰는 별도 경로도 있다.
+
+[host.ts](Nelyx/runtime/app/host.ts)의 `waitForContent`는 동일 metrics/device/font cohort에서 accepted document가 아직 게시되지 않았고 준비 또는 활성화된 작업이 남은 경우 후속 일반 invalidation을 기다린다. 그러나 해당 document의 유효한 layout build request는 예외이며, `perform`은 대기 전과 대기 루프에서 `rebuildFromContent`를 먼저 실행한다. 필요한 Source 응답까지 게시 뒤로 미루는 무조건 장벽이 아니다. 연속 invalidation으로 준비가 계속 교체되어 publication이 굶는 것을 막는 이유도 코드에 명시되어 있다.
 
 이 장벽에는 정확성상의 이유가 있다. 그냥 없애면 같은 문제가 재발할 수 있다. 그러나 비싼 Source 생성, Content 준비, document 단위 게시가 연결될수록 다음 요구가 기다릴 가능성도 커진다. 재설계에서는 **어떤 변경이 이전 게시와 정말 직렬이어야 하는지, 독립된 새 subtree 준비를 먼저 진행할 수 있는지**를 따져야 한다.
 
@@ -122,7 +149,7 @@ coverage 검사를 제거하는 것은 해법이 아니다. 준비되지 않은 
 
 이것은 단순한 달력 데이터 42개를 그리는 경로보다 많은 일을 한다. 동시에 해당 객체에는 키보드 이동, 상태 수명, 테마 의존성, 입력과 접근성이라는 실제 목적이 있다. 소스만 보고 전부 불필요하다고 제거할 수는 없다.
 
-문제는 **Flutter의 사용자 경험을 제공하는 것**과 **Flutter의 내부 객체·호출 순서까지 다른 언어에서 재현하는 것**을 동일한 요구로 취급하는 데 있다. 현재 W11 계열은 후자를 상당히 보존하면서 성능을 개선했다. 그 조건에서 허용되는 최적화의 범위가 좁았던 것은 사실이다.
+구분할 것은 **관찰 가능한 Source 의미를 보존하는 것**과 **비공개 중간 객체를 원본과 똑같이 생성하는 것**이다. W11의 실제 제약은 사용자 callback·override·State/Key 수명·동기 관찰 등의 보존이며, 모든 내부 할당이나 호출 형태를 그대로 유지한다는 정책은 아니다. 이미 적용한 private helper 제거·숫자 graph 공유·native field 보존이 그 차이를 보여 준다. 현재 비용만으로 호환성 정책을 완화해야 한다고 확정할 수는 없다.
 
 Flutter는 Dart 프레임워크와 엔진이 함께 설계된 경로를 제공한다. Nelyx는 변환된 언어 의미, TS 프레임워크, native projection, 자체 Core를 함께 유지한다. 이 추가 경계가 개발·성능 비용을 만든다는 판단은 가능하지만, “Flutter는 트리가 하나라 빠르다” 또는 “Dart AOT는 GC가 없다”는 설명은 틀리다. [Flutter 구조](https://docs.flutter.dev/resources/architectural-overview), [Flutter의 Dart 선택 이유와 GC](https://docs.flutter.dev/resources/faq#why-did-flutter-choose-to-use-dart).
 
@@ -133,7 +160,7 @@ Flutter는 Dart 프레임워크와 엔진이 함께 설계된 경로를 제공�
 | Hermes 자체 결함 | 미확정. native/HBC 차이는 있지만 대체 VM의 유효한 앱 성능 비교가 없다. |
 | GC 및 메모리 회수 | **우선 조사 후보 중 하나.** 이전 진단의 대량 할당·GC 완료와 수거/해제 경로는 확인했다. 최신 공급의 할당량, 전체 정체에서의 기여 시간, 설정 오류 여부는 미확정이다. 단일 pause 최대값만으로 배제하지 않되, 다른 후보보다 큰 원인이라고 확정하지 않는다. |
 | 접근성 브리지 전체 | W11에서 App/Core/UIA 비용을 분리했고 해당 관찰에서 Source보다 작았다. Source의 Semantics 생성 비용은 별도다. 접근성을 꺼서 해결할 근거는 부족하다. |
-| JSI라는 인터페이스 자체 | JSI 교체는 JS 객체 생성·reconcile 작업을 자동으로 없애지 않는다. 현재 경계의 encode·복사·왕복은 개별적으로 볼 문제다. |
+| JSI라는 인터페이스 자체 | JSI 교체는 JS 객체 생성·reconcile 작업을 자동으로 없애지 않는다. 같은 App 스레드의 동기 native 호출과 mailbox를 거치는 비동기 packet 왕복, Render의 C++ Frame 전달을 구분해야 한다. |
 | GPU/Skia가 유일한 원인 | 최신 Calendar의 작은 publication gap과 큰 offset 정체를 함께 설명하지 못한다. 반대로 이전 물리 실행에는 긴 publication gap도 있어 GPU·host 문제가 전혀 없다고 결론 내릴 수도 없다. |
 | 진단 계측만의 착시 | 일반 실행과 사용자 물리 실패가 있다. 다만 계측 elapsed를 CPU self time으로 읽으면 안 된다. |
 
@@ -191,14 +218,15 @@ Hades가 주로 old generation 작업을 배경에서 수행하면서도 young �
 
 현재 [host.cpp](Nelyx/engine/platform/windows/host.cpp) 54–65행, 591–594행은 Core의 응답을 `ResponseBuffer`로 옮겨 JS `ArrayBuffer`에 연결하고 `setExternalMemoryPressure(size)`를 호출한다. 이 경로는 단순한 JS wrapper 생성 이상의 수명을 갖는다.
 
+이 전송은 양방향 zero-copy가 아니다. App→Core의 `enqueue`는 JS ArrayBuffer를 native vector로 복사하고, Core→App 응답은 vector를 move한 외부 backing을 연결한다. Render의 C++ Frame 전달은 이 App packet 전송과 별도 경로다.
+
 ```text
 Core 응답 vector + ExternalLease
-  → ResponseBuffer를 가진 외부 ArrayBuffer
-  → fresh buffer의 외부 backing finalizer와 pressure용 NativeState
-  → JS snapshot/row가 보유할 수 있는 DataView
-  → 마지막 참조가 사라진 후 GC finalizer 실행
-  → shared_ptr 마지막 소유자라면 ResponseBuffer 파괴
-  → native vector 해제 + ExternalLease 반환 + Ledger::gate 잠금
+  → shared_ptr<ResponseBuffer>를 가진 외부 ArrayBuffer ← DataView / lazy row
+      ├ backing NativeState finalizer → shared_ptr 해제
+      │   → 마지막 소유자라면 ResponseBuffer 파괴
+      │   → ExternalLease 반환(Ledger 잠금) → vector 저장소 해제
+      └ pressure NativeState finalizer → Hermes external pressure 차감
 ```
 
 근거는 다음과 같다.
@@ -208,11 +236,13 @@ Core 응답 vector + ExternalLease
 | [hermes.cpp](.nelyx/windows-hermes/source/API/hermes/hermes.cpp), 2970–2984행 | `MutableBuffer`의 shared pointer를 `JSArrayBuffer::setExternalDataBlock`에 넘긴다. |
 | [JSArrayBuffer.cpp](.nelyx/windows-hermes/source/lib/VM/JSArrayBuffer.cpp), 287–309행 | 외부 backing을 가진 `shared_ptr`를 NativeState에 보관하고 finalizer에서 직접 delete한다. |
 | [NativeState.cpp](.nelyx/windows-hermes/source/lib/VM/NativeState.cpp), 35–37행 | 등록된 finalizer 함수를 호출한다. |
-| [memory.hpp](Nelyx/engine/core/memory.hpp), 48–52·66–70행 | `ExternalLease` 반환은 `Ledger::adjust`를 통해 공용 mutex를 얻는다. |
+| [memory.hpp](Nelyx/engine/core/memory.hpp)의 `ExternalLease`·`Ledger::adjust` | lease 반환은 공용 mutex 안에서 회계 값을 갱신한다. 응답 vector의 실제 저장소 해제와는 별도다. |
 | [hermes.cpp](.nelyx/windows-hermes/source/API/hermes/hermes.cpp), 2626–2698행 | fresh 객체의 external pressure에는 별도 NativeState를 만들고, 수거 시 pressure를 debit한다. |
 | `HadesGC.cpp`, 2019–2031행 | young 소유 외부 bytes는 유효 할당 끝을 당기며, old 사용량이 목표를 넘으면 다음 young 할당에도 영향을 준다. |
 
 따라서 **외부 응답량·보유 시간은 다음 GC 발생 조건에 영향을 주고, 실제 수거는 네이티브 해제 작업을 동반할 수 있다.** 일부 JSI HostObject/NativeState에 별도 finalizer executor가 있다는 사실을 이 외부 backing 경로에 그대로 적용하면 안 된다. 이번에 추적한 `setExternalDataBlock`의 finalizer는 그 executor로 위임하지 않는다. 수거되는 세대·단계에 따라 App 또는 GC 작업 스레드에서 실행될 수 있다.
+
+두 NativeState의 finalizer는 별도이므로 pressure 차감과 backing 파괴가 같은 순서·시각에 일어난다고 가정하지 않는다. [AppHeapAccount::update](Nelyx/engine/platform/windows/host.cpp)는 ledger와 VM pressure의 중복을 제외하되 counter가 어긋나면 보수적으로 계상한다. 또한 `ResponseBuffer` 멤버 파괴 순서상 lease 반환의 `Ledger::gate`는 vector 저장소 해제 전에 풀린다. `Ledger::adjust`의 잠금 안에서 큰 vector free나 GPU 대기를 수행하는 코드는 아니므로, mutex가 있다는 사실만으로 긴 경합을 설명해서는 안 된다.
 
 이것은 잠금 경합·큰 free 비용의 **가능 경로를 확인한 것**이며, response finalizer가 현재 정체의 주범이거나 deadlock이 있다는 증명은 아니다. pressure 누적 오류나 누수도 확인되지 않았다. pressure를 지우거나 accounting을 생략하면 원인을 숨기므로 해법으로 삼지 않는다.
 
@@ -221,6 +251,8 @@ Core 응답 vector + ExternalLease
 [capture.ts](Nelyx/runtime/app/capture.ts) 275–292행과 [scene.ts](Nelyx/runtime/engine-client/scene.ts) 2730–2805행은 retirement에서 여러 참조·등록을 해제한다. 이 동기 작업 자체의 비용과, 도달 불가능해진 JS 객체를 나중에 GC가 수거하는 비용은 다르다. 보존 중인 State·이전 snapshot·미완료 transaction이 있으면 다른 참조가 남아 있을 수도 있다.
 
 [client.ts](Nelyx/runtime/engine-client/client.ts) 312–319행은 owned observation을 전달하고, [codec.ts](Nelyx/runtime/engine-client/codec.ts) 1578–1587행은 그 buffer를 사용하는 lazy row를 만들 수 있다. row가 살아 있으면 backing도 필요하다. 현재 [observation-stream.ts](Nelyx/runtime/engine-client/observation-stream.ts)와 [observation-row.ts](Nelyx/runtime/engine-client/observation-row.ts)에는 소수의 row가 큰 packet을 계속 붙잡지 않도록 compaction이 이미 있다. 이를 누락된 기능으로 다시 제안하지 않는다.
+
+**모든 native 자원이 응답 ArrayBuffer의 GC 수명으로 관리되는 것은 아니다.** [AppTextLayoutService](Nelyx/runtime/app/text.ts)의 resource 반환은 backend `release`를 호출하고, [AppParagraphs](Nelyx/engine/platform/common/app_text.hpp)는 handle별 entry를 명시적으로 제거한다. Core Document/Node는 C++ shared ownership과 COW를 사용하며, [RenderProvider](Nelyx/engine/platform/windows/skia_provider.hpp)의 Frame/Prepared는 GPU slot의 수명까지 보유된다. App의 ACK/NACK 전 생산자 참조와 Core의 publication·입력 snapshot 보유도 별도다. 이 경로들을 모두 “JS GC가 늦어서 해제되지 않는 메모리”로 묶어서는 안 된다.
 
 조사할 대상은 **어느 snapshot이 얼마나 오래 유지되는지, compaction의 복사 비용과 해제 시점이 어디에 몰리는지**다. 캐시를 늘리거나 객체를 무조건 pool에 보관하면 live set과 old generation 생존량이 커질 수 있다. 반대로 모든 객체를 native로 옮겨도 대규모 `free`, reference-count 파괴, mutex 경합은 남을 수 있다. GC 없는 언어로 바꾸는 것만으로 회수 비용이 없어지지는 않는다.
 
@@ -241,6 +273,19 @@ young 수거에서는 죽은 객체를 일일이 일반 `free`하는 것만이 �
 
 이번 검토는 **GC·할당/해제 수명을 원인 분해에서 빼면 안 된다는 근거**다. GC의 기여도가 가장 크다거나 GC 수정이 VM 비교·UI 재설계의 필수 선행 조건이라는 근거는 아니다. 조사 범위를 “JS 코드가 느리다”에서 **JS 실행·할당, GC stop, GC 진입 대기, 외부 자원 회수, native 준비 대기**로 구체화하고, 같은 실패 구간의 시간 기여도에 따라 후속 수정을 선택한다.
 
+### 3.8 Core의 공유 잠금과 이미 잠금 밖으로 분리된 작업
+
+[Engine::State / dispatchImpl](Nelyx/engine/core/protocol/engine.cpp)는 하나의 `s.mutex`로 Engine의 공유 상태를 보호한다. input 수신, state/snapshot 조회, contentStep, tick·takeFrame·publish가 이 경계에서 만난다. owner가 여러 개여도 이 구간들이 동시에 상태를 변경하는 것은 아니다. 다만 **transaction 전체와 모든 native 준비가 이 잠금 안에서 실행된다는 설명도 틀리다.**
+
+| 경계 | 실제 코드 | 검토 의미 |
+| --- | --- | --- |
+| transaction staging | `transactionActive`를 세운 뒤 잠금을 풀고 `transact` 실행, 재획득 후 자원 revision·종료 상태를 검증해 설치 | 무거운 transaction 구성을 처음으로 잠금 밖에 옮기자는 제안은 기존 구현과 중복 |
+| Core contentStep | 잠금 안에서 `View::contentStep` → `LayoutWork::step(quota)` 실행 | quota는 작업 횟수이지 ms deadline이 아님. 실제 lock-held 시간을 확인해야 함 |
+| provider의 문단 측정·그림 기록 | [contentLoop](Nelyx/engine/platform/windows/host.cpp)가 snapshot을 얻은 뒤 `ContentProvider.measure/prepare` 실행 | Core 잠금 밖이지만 같은 Content mailbox owner를 점유할 수 있음 |
+| tick·Frame 생성·게시 | 잠금 안에서 활성화·입력/overlay 갱신·Frame 구성·snapshot 처리를 수행 | Render가 C++이라는 이유만으로 CPU·snapshot 복사 비용을 제외하지 않음 |
+
+근거는 [engine.cpp](Nelyx/engine/core/protocol/engine.cpp), [scheduler.cpp](Nelyx/engine/core/scheduler/scheduler.cpp), [LayoutWork::step](Nelyx/engine/core/layout/layout.cpp), [ContentProvider](Nelyx/engine/platform/common/skia_provider.hpp)다. Core 경합, Content queue 대기, GC의 `gcMutex_`, 회계의 `Ledger::gate`는 **서로 다른 잠금·대기 경로**다. 현재 [host.cpp](Nelyx/engine/platform/windows/host.cpp)의 bounded trace에는 `queueMs`·`lockWaitMs`·`lockHeldMs`, Content timing에는 `measureMs`·`recordMs`가 이미 있다. 새 계측을 확대하기 전에 이 경계를 재사용한다. 이번 검토는 경로의 존재를 확인한 것이며, 최신 234ms 정체에서의 기여 시간을 측정한 것은 아니다.
+
 ## 4. Hermes, AOT, iOS 전제를 다시 정리한다
 
 ### 4.1 서로 다른 세 가지를 같은 AOT로 취급하면 안 된다
@@ -252,6 +297,8 @@ young 수거에서는 죽은 객체를 일일이 일반 `free`하는 것만이 �
 | 정적 타입 정보를 활용한 native compilation | 타입·표현·호출 정보를 이용해 최적화한 기계어 | 언어와 코드에 따른 runtime/GC 및 실제 UI 작업 |
 
 현재 [engine-v2-native-unit.mjs](Nelyx/sdk/tooling/cli/src/engine-v2-native-unit.mjs) 62–63행은 **`typed: false`, `requireNumeric: false`**다. host는 실제 `evaluateSHUnit`을 호출한다. 따라서 “지금도 bytecode만 해석한다”는 설명은 틀리지만, “TypeScript 정적 타입을 활용해 전체 UI가 최적화된 native 코드가 됐다”는 설명도 틀리다.
+
+이는 최신 검증 기록에서 명시적으로 선택한 Demo native unit의 경로다. Testbed의 HBC나 SDK 기본 실행 전체가 native로 전환됐다는 뜻은 아니다. 이 빌드는 `typed: false`와 `windowsHermesPolicy('optimized', ...)`를 함께 사용한다. untyped를 “최적화되지 않은 코드”와 같은 뜻으로 쓰지 않는다.
 
 이 native unit도 같은 VM의 GC-managed 객체를 사용한다. **native/HBC 대조의 양쪽 실패는 GC 원인을 배제하지 않는다.** 반대로 다른 VM으로 변경하면 JIT뿐 아니라 객체 표현·할당기·GC 정책도 바뀌므로, 빨라진 이유를 분리해야 한다.
 
@@ -287,7 +334,7 @@ young 수거에서는 죽은 객체를 일일이 일반 `free`하는 것만이 �
 
 [engine-v2-runner.mjs](Nelyx/sdk/tooling/cli/src/engine-v2-runner.mjs) 234–245행은 공급 대상을 **Windows/Web/Android**로 제한한다. 현재 v2의 iOS host는 이 경로에서 공급하지 않는다. 루트 README의 오래된 플랫폼 표나 [Hermes provider metadata](Nelyx/sdk/providers/hermes-supply.json)에 Apple pin이 있다는 사실로 v2 iOS 지원이 완성됐다고 보면 안 된다.
 
-따라서 앞으로 어떤 스택을 선택하든 iOS의 Metal 표면, 입력·IME, 접근성, 앱 lifecycle, font/resource 관리, 서명·패키징과 실기기 성능은 별도 작업이다. **미구현 iOS 가능성만을 이유로 Windows에서 실패한 설계를 무기한 유지하는 것도 합리적이지 않다.**
+한편 [apple-runner.mjs](Nelyx/sdk/tooling/cli/src/apple-runner.mjs)에는 React/React Native cohort 기반의 별도 Apple runner가 있다. **v2의 공급 공백과 저장소 전체에 Apple 관련 코드가 없다는 주장은 다르다.** 기존 Apple 자산의 재사용 가능성과 v2의 표면·입력/IME·접근성·lifecycle·font/resource·서명/패키징 연결, 실기기 성능은 따로 확인해야 한다. 미검증 iOS 가능성만을 이유로 Windows에서 실패한 설계를 무기한 유지하는 것도 합리적이지 않다.
 
 ## 5. 초기 기술 스택의 대안 비교
 
@@ -322,35 +369,36 @@ Compose Multiplatform은 UI 공유와 iOS 경로를 제공하는 별도 대안�
 
 이 절은 §3.7·§8의 원인 분해 결과 Source 생산비용이 핵심으로 남을 때의 설계 대안이다. GC를 포함한 실제 비용을 확인하지 않은 채 바로 실행하도록 권고하는 것은 아니며, GC 관련 수정을 반드시 먼저 해야 한다는 뜻도 아니다.
 
-### 6.1 먼저 바꿀 것은 호환성의 정의다
+### 6.1 먼저 구분할 것은 공개 의미와 내부 표현이다
 
-현재 구조를 크게 개선하면서도 모든 내부 객체 수명·사용자 override·동기 관찰·callback 순서를 무제한 보존할 수 있다고 약속하면 안 된다. 다음 세 요구를 동시에 고정하면 선택 가능한 설계가 매우 좁다.
+현재 계약도 비공개 반복 표현의 제거를 허용한다. 따라서 “최적화하려면 먼저 호환성을 포기해야 한다”는 결론으로 시작하지 않는다. 다만 새 표현이 공개 identity·사용자 override·동기 관찰·callback 순서를 바꾼다면 명시적인 계약 변경이 필요하다. 다음 세 요구를 동시에 무제한 보장할 수는 없다.
 
 - 일반 TypeScript/JavaScript의 동적 확장과 임의 callback을 허용한다.
-- Flutter Source 내부의 실행과 관찰 가능한 객체 의미를 최대한 그대로 보존한다.
+- 공개 identity·상태 수명·override·동기 관찰·callback 순서를 보존한다.
 - 느린 no-JIT 기기에서도 새 subtree 생성이 항상 짧은 시간 안에 끝난다.
 
 어떤 언어에서도 임의로 오래 실행되는 사용자 함수를 일정 시간 안에 완료시킬 수는 없다. Nelyx가 보장해야 할 것은 지원하는 UI 표현과 작업량의 범위를 명확히 하고, 그 범위에서 deadline을 맞추는 것이다.
 
-권고하는 새 계약은 **사용자가 보는 동작과 공개 API의 의미를 기준으로 보존 범위를 정하는 것**이다. 비공개 wrapper·동일 표현의 중복 객체·소스 내부 실행 형태는 변경 가능하게 한다. 다만 기존 앱이 의존하는 공개 identity, 사용자 callback, State 수명은 조용히 생략하지 않는다. 호환 경로와 새 API의 차이는 문서·버전으로 드러내야 한다.
+이 일반적인 한계가 현재 Calendar에서 공개 API 변경이 필수라는 증명은 아니다. 우선 비공개 wrapper·중복 표현을 줄이되 기존 앱의 공개 identity, 사용자 callback, State 수명은 보존한다. 그것으로 부족해 제한된 새 표현을 도입한다면 opt-in·버전과 지원 범위를 드러낸다. 현재 [OriginalWidgetHost.unsupported](Nelyx/runtime/app/host.ts)는 미지원 기능을 오류로 거부하며 TypeScript renderer로 자동 fallback하지 않는다. 별도의 호환 경로로 되돌리는 기능이 이미 있다고 가정해서는 안 된다.
 
 이는 보고서의 제안이며, 현재 W11의 의미 보존 조건을 임의로 변경하거나 기존 작업을 완료 처리한 것이 아니다.
 
-### 6.2 새 경로의 차이는 Source 이후가 아니라 Source 이전에 있어야 한다
+### 6.2 Source graph를 줄이려면 생성 이전의 경계가 달라져야 한다
 
 | 기존 W11 계열에서 이미 한 일 | 다음 설계에서 검토할 차이 |
 | --- | --- |
 | 만들어진 RenderObject를 direct binding으로 전송 | 지원되는 반복 UI는 처음부터 일반 Widget/Element/RenderObject graph 전체를 만들지 않는 표현 |
 | 기존 subtree·program·command 재사용 | 반복 항목의 구조와 데이터를 분리해 새 항목도 작은 데이터 입력으로 생성 |
+| fitted calendar grid의 native layout program·숫자 식 공유 | 같은 배치를 다시 C++로 옮기는 것이 아니라 그 전에 생성하는 Source graph·변환 작업을 실제로 줄임 |
 | render setter의 dirty field journal | 공개 상태 변경이 native owner의 필요한 필드에 바로 연결되는 명시적 binding |
 | native가 기존 coverage 안에서 scroll | 새 coverage 생산도 제한된 작업으로 완료할 수 있는 내용 생성 계약 |
-| 전체 Source 의미를 보존한 생성기 최적화 | 어떤 표현은 compile-time plan으로 낮추고, 동적 표현은 별도 경로로 구분 |
+| 관찰 가능한 Source 의미를 보존한 생성기 최적화 | 어떤 표현은 compile-time plan으로 낮추고, 동적 표현은 별도 경로로 구분 |
 
 예를 들어 달력은 월·날짜·라벨·enabled/selected 상태와 셀의 구조를 분리할 수 있다. TS는 앱 상태와 필요한 사용자 결정을 담당하고, 제한된 셀 구조의 생성·배치·기본 포인터 반응은 native가 처리할 수 있는 데이터와 명령으로 전달한다.
 
 그러나 `selectableDayPredicate`, 테마 resolver, 사용자 정의 builder처럼 실행이 필요한 코드를 C++로 “자동 이전”한다고 가정해서는 안 된다. 해당 callback은 정의된 시점에 TS에서 실행하고 결과를 전달하거나, 새 API에서 허용하는 표현을 제한해야 한다. Focus·키보드 이동·Semantics·Ink 동작도 새 모델에서 구현해야 하며 그림만 같은 것으로 완료할 수 없다.
 
-달력 한 개를 특수 C++ 위젯으로 만드는 것으로 끝내지 않는다. **같은 반복 항목 모델이 가변 길이 텍스트 목록에도 적용되는지** 확인해야 SDK 방향의 근거가 된다. 현재 [경량 WidgetHost](Nelyx/runtime/engine-client/widgets.ts)와 [Scene/RenderBinding](Nelyx/runtime/engine-client/scene.ts)을 출발점으로 검토할 수 있지만, 이 경로가 요구 기능·성능을 이미 충족한다는 뜻은 아니다.
+달력 한 개를 특수 C++ 위젯으로 만드는 것으로 끝내지 않는다. **같은 반복 항목 모델이 가변 길이 텍스트 목록에도 적용되는지** 확인해야 SDK 방향의 근거가 된다. 다만 [WidgetHost](Nelyx/runtime/engine-client/widgets.ts)는 임시 data-Widget frontend이며, 자체 TS Element reconcile·State/build·SceneNode snapshot을 유지한다. 이것으로 frontend만 바꿨다고 Source graph가 사라지는 것은 아니다. [Scene/RenderBinding](Nelyx/runtime/engine-client/scene.ts)도 전송·재사용 경계이지 native 위젯 전체를 자동 생성하는 기능은 아니다. 새 모델은 어떤 생성·변환 작업을 없애는지 별도로 증명해야 한다.
 
 ### 6.3 실제 소유권을 단순하게 한다
 
@@ -363,13 +411,15 @@ Compose Multiplatform은 UI 공유와 iOS 경로를 제공하는 별도 대안�
 | native UI owner | 해당 경로의 실제 render 상태, layout·hit test·기본 동작·semantics 자료 |
 | 기존 Content/Render | 자원 준비, 그림과 프레임 게시, 디바이스·표시 수명 |
 
+여기서 native UI owner는 새 OS 스레드의 도입을 뜻하지 않는다. 현재 Core도 이미 layout·scroll·gesture/control·편집·hit test와 semantics 자료를 처리한다. 추가 제안은 그 기능을 다시 만드는 것이 아니라, 제한된 UI 데이터에서 native 노드·이벤트 identity를 구성하는 책임과 Source에서 생략할 작업을 정하는 것이다. 원본 Widget/State/callback의 생명주기가 자동으로 C++로 이전되는 것은 아니다.
+
 이 설계에서도 correctness를 위한 snapshot과 세대 정보는 필요하다. “하나의 tree”라는 표현 때문에 스레드가 같은 mutable 객체를 무단 공유하게 만들지 않는다. 없애려는 것은 같은 의미를 매번 여러 형태로 해석하는 작업이지, 필요한 일관성 경계 전부가 아니다.
 
 임의 JS closure는 native 스레드에서 직접 실행할 수 있는 데이터가 아니다. 기본 동작과 앱 callback을 분리하고, 결과가 필요한 사용자 callback은 명시적인 왕복으로 남긴다. 고빈도 입력 경로에 그 왕복이 반드시 필요한 경우에는 그 비용까지 새 계약에 포함해야 한다.
 
-### 6.4 준비와 게시를 분리하되, 미완성 상태를 노출하지 않는다
+### 6.4 기존 준비·게시 분리를 확장할 때도 미완성 상태를 노출하지 않는다
 
-새 subtree를 독립적으로 준비할 수 있다면 문서 전체의 다음 flush까지 기다리지 않고 작업을 시작하는 구조를 검토한다. 전환 시에는 document/node generation, metrics, font, resource 조건을 맞추고 원자적으로 반영한다.
+현재도 accepted document, Content 준비, active scene, published frame은 분리되어 있고 builder 응답에 대한 layout resume가 있다. 그러나 [View](Nelyx/engine/core/state.hpp)는 기본적으로 하나의 `preparing`과 최신 `demand`를 유지한다. 독립 subtree를 여러 준비 단위로 진행하는 것은 단순한 대기 삭제나 worker 추가가 아니라 준비 단위·취소/재기반화·budget 계약을 바꾸는 제안이다. 필요성이 확인될 때만 검토하고, 합류 시 document/node generation, metrics, device, font, resource 조건과 게시 원자성을 유지한다.
 
 작업 분할은 부수 효과가 없는 계산이나 명시적 생명주기 경계에 한정한다. 실행한 callback을 취소 후 다시 호출하거나, 오래된 좌표와 새 semantics를 섞거나, 중간 상태를 공개하는 방식은 허용하지 않는다. 현재 `waitForContent`를 단순 삭제하는 수정과는 다르다.
 
@@ -403,22 +453,26 @@ Compose Multiplatform은 UI 공유와 iOS 경로를 제공하는 별도 대안�
 | 조사 경로 | 먼저 답할 질문 | 결과에 따른 수정 후보 |
 | --- | --- | --- |
 | Source rebuild → capture → scene records | private 임시 표현과 실제 State/Widget 중 무엇이 얼마나 반복 생성되는가? 기존 변경으로 제거한 graph와 남은 graph는 무엇인가? | 관찰 불가능한 반복 표현의 생성을 없애거나 동일 owner 안에서 재사용. 공개 identity·callback은 유지 |
+| App text API → 동기 JSI → AppParagraphs | Source elapsed 안에서 native layout/query·geometry 변환·release가 차지하는 시간은 얼마인가? Content 측정과 어떤 조건에서 별도로 실행되는가? | 확인된 중복 변환·측정·회수 비용을 축소. native 구현이라는 이유로 App 비용에서 제외하지 않음 |
 | accepted/pending/observation snapshot → retirement | 마지막 소비자는 누구인가? ACK·publication 이후에도 필요 없이 붙잡은 참조가 있는가? | 불필요한 보유 해소. JS에 노출된 view가 살아 있는 동안 backing을 재사용하지 않음 |
 | ResponseBuffer → external pressure → finalizer | 어떤 응답이 pressure와 최종 파괴를 집중시키는가? 마지막 shared owner는 어느 경로에서 해제되는가? | 불필요한 응답량 감소 또는 확인된 무거운 native 파괴의 지연 처리 설계 |
 | GC 진입 → background pause → `gcMutex_` | App이 기다리는 동안 background는 무엇을 하고 어떤 잠금을 갖는가? | 실제 긴 경합 경로가 확인될 때 잠금 범위·작업 단위 축소 |
 | finalizer → ExternalLease → `Ledger::gate` | finalizer가 만나는 mutex를 다른 owner가 오래 보유하는가? 잠금 순서가 일관적인가? | 회계·수명 의미를 유지하는 짧은 반환 경로 또는 분리 회수 후보 |
+| mailbox → Core dispatch / `s.mutex` | queue 대기·lock wait·lock held 중 무엇이 긴가? transaction staging의 잠금 해제와 provider의 잠금 밖 작업을 구분했는가? | 기존 trace를 먼저 사용하고 실제 긴 직렬 구간만 축소. 이미 분리된 작업을 다시 분리하는 개편은 하지 않음 |
 | Source 제출 → Content 준비 → activation/publication/coverage | Source 종료 뒤 어떤 작업·게시 조건을 기다리는가? 독립된 준비를 불필요하게 직렬화하는가? | 실제 의존성을 보존하면서 준비 단위·게시 장벽을 조정할 후보 |
 
-native 회수를 GC 밖으로 넘기는 후보는 **아직 채택하지 않았다.** 도입한다면 GC callback에서 큰 할당·대기 없이 넘길 수 있어야 하고, 회수 대기 bytes도 실제 해제까지 ledger에 남아야 한다. queue는 bounded여야 하며 overflow·종료 drain·스레드 소유 자원의 파괴 규칙도 정해야 한다. 단순히 `free`를 다른 스레드로 보내 통계를 낮추는 것은 완료가 아니다.
+native 회수를 GC 밖으로 넘기는 후보는 **아직 채택하지 않았다.** 도입한다면 GC callback에서 큰 할당·대기 없이 넘길 수 있어야 하고, 회수 대기 bytes도 실제 해제까지 ledger에 남아야 한다. backing 파괴와 별도로 차감되는 GC pressure 및 기존 중복 차감 방지 counter도 검토해야 한다. queue는 bounded여야 하며 overflow·종료 drain·스레드 소유 자원의 파괴 규칙도 정해야 한다. App 전용 문단과 GPU slot 자원을 일반 회수 스레드에서 임의 파괴할 수는 없다. 단순히 `free`를 다른 스레드로 보내 통계를 낮추는 것은 완료가 아니다.
 
 #### 8.1.1 그다음 최소 계측으로 가설을 반증한다
 
 현재 bounded App/source 기록을 활용하고, 결론에 필요한 다음 경계만 추가하는 것이 적절하다.
 
-1. **같은 QPC 기준의 GC 구간:** 종류·실행 스레드·cause·시작/끝을 연결한다. 공개 `GCConfig::Callback`·`AnalyticsCallback`의 호출 위치를 확인해 사용하고, 분석 이벤트의 세대별 allocated/size/external·survival ratio를 전체 heap의 정확한 live bytes로 바꾸어 부르지 않는다. background 전체 경과도 App 정지로 취급하지 않는다.
-2. **GC 진입 전 잠금 대기:** 공개 collection start보다 앞선 `ensureBackgroundTaskPaused`/잠금 경계는 별도로 잰다. 기존 최대 pause 통계만으로 이 비용을 대신하지 않는다.
-3. **외부 버퍼 회수:** holder 수·live bytes·pressure, finalizer 실행 시간·실행 스레드, 마지막 native 해제와 ledger 잠금 대기. JS 누적 allocation counter에 외부 bytes가 모두 포함된다고 가정하지 않는다.
-4. **화면과의 연결:** 같은 Source pass/document/preparation/publication 및 offset 구간에 연결한다. 중첩 정지는 시간 구간의 합집합으로 처리하고, GC를 뺀 elapsed도 자동으로 CPU self time이라 부르지 않는다.
+1. **기존 queue·Core·Content 시간:** `queueMs`·`lockWaitMs`·`lockHeldMs`와 `measureMs`·`recordMs`를 같은 실패 구간에 먼저 연결한다. 이미 있는 경계를 위한 별도 전면 profiler를 새로 만들지 않는다.
+2. **App 동기 native 시간:** 필요하면 backend layout/query/release의 시간만 bounded 방식으로 구분한다. `sdkLayouts`·native layouts 등의 호출 수를 실행 시간으로 바꾸거나 App 투영의 `paragraphPreparations`로 대신하지 않는다.
+3. **같은 QPC 기준의 GC 구간:** 종류·실행 스레드·cause·시작/끝을 연결한다. 공개 `GCConfig::Callback`·`AnalyticsCallback`의 호출 위치를 확인해 사용하고, 분석 이벤트의 세대별 allocated/size/external·survival ratio를 전체 heap의 정확한 live bytes로 바꾸어 부르지 않는다. background 전체 경과도 App 정지로 취급하지 않는다.
+4. **GC 진입 전 잠금 대기:** 공개 collection start보다 앞선 `ensureBackgroundTaskPaused`/잠금 경계는 별도로 잰다. 기존 최대 pause 통계만으로 이 비용을 대신하지 않는다.
+5. **외부 버퍼 회수:** holder 수·live bytes·pressure, finalizer 실행 시간·실행 스레드, 마지막 native 해제와 ledger 잠금 대기. App 문단의 명시적 release·GPU 자원 retirement와 분리하며 JS 누적 allocation counter가 native bytes를 모두 포함한다고 가정하지 않는다.
+6. **화면과의 연결:** 같은 Source pass/document/preparation/publication 및 offset 구간에 연결한다. 중첩 정지는 시간 구간의 합집합으로 처리하고, GC나 native 호출을 뺀 elapsed도 자동으로 CPU self time이라 부르지 않는다.
 
 collector callback에서는 Runtime을 다시 호출하지 않는다는 upstream 계약을 지킨다. hook 안에서 문자열·배열을 누적하거나 파일을 쓰지 않고, 다중 스레드 안전한 고정 크기 기록을 사용한다. overflow·측정 overhead를 별도 표시한다. 공개 callback의 ms 단위 분석 이벤트와 정밀 QPC 경계도 구분한다. 이는 **후속 검증 설계이며 이번에 도구를 구현하거나 실행한 것은 아니다.**
 
@@ -428,6 +482,7 @@ collector callback에서는 Runtime을 다시 호출하지 않는다는 upstream
 | --- | --- |
 | GC 정지·진입 대기가 새 월 준비 지연의 큰 부분과 겹침 | 할당 생존량·pressure·GC 경합 개선 우선. 원인에 맞는 heap/수거 정책 대조를 그다음 진행 |
 | buffer finalizer/native 해제·ledger 대기가 큼 | 외부 자원 수명과 회수 경로부터 개선. 전체 UI API 변경을 먼저 하지 않음 |
+| App의 동기 native 문단 작업이나 Core/Content queue·잠금 대기가 큼 | 해당 native 작업·직렬 구간을 먼저 검토. JS VM 교체나 Source 객체 제거만으로 해소된다고 가정하지 않음 |
 | 같은 실패 구간에서 GC·회수·진입 대기는 작고 allocation/일반 생성 작업이 큼 | GC 설정 변경을 선행 조건으로 삼지 않고 Source·projection 작업량 축소 및 §6의 UI 생성 모델 재설계 |
 | App 준비가 기한 안에 끝나도 offset 정체가 남음 | Content 준비·coverage·publication의 실제 의존 경로 분석 |
 | 다른 VM에서만 통과 | JIT·GC·allocator 차이를 분리하고 no-JIT/iOS 후보의 적합성을 별도 판단 |
@@ -442,7 +497,7 @@ GC·회수 비용이 같은 실패 구간의 지연을 설명하지 못하면 �
 
 1. 보존할 공개 동작: 날짜 선택, 범위/disabled 상태, locale·RTL, 키보드·Focus, 접근성, resize와 상태 수명.
 2. 새 경로에서 지원하는 표현과 동적 callback의 경계. 기존 경로로 돌아가는 조건 및 그 경우의 성능 보장 범위.
-3. 새 월 하나가 만드는 객체·native 노드·transaction·Content 왕복의 경로. 기존 784/827 owner 형태와 무엇이 실제로 사라지는지.
+3. 새 월 하나가 만드는 객체·native 노드·transaction·Content 왕복의 경로. App capture created/captured 784/827, Core nodeCount, command·문단 실행 횟수를 각각 구분하고 무엇이 실제로 사라지는지.
 
 이 단계에서 제거되는 실제 작업을 설명할 수 없다면 “새 엔진”이라는 이름만 붙여 구현을 시작하지 않는다.
 
@@ -493,7 +548,7 @@ V8 결과가 나와야만 원인을 분석할 수 있는 것은 아니다. §8.1
 
 ## 9. 최종 권고
 
-**지금의 첫 과제는 같은 실패 구간에서 일반 Source 실행·할당, GC·회수·잠금 대기, Content 준비·coverage 의존의 기여도를 나누는 것이다.** GC와 외부 버퍼 수명은 빠뜨리면 안 되는 구체적인 후보지만 최신 공급의 시간 기여도는 미확정이다. 단일 pause 최대값이나 native AOT 실패로 GC를 배제하지도, 이전 공급의 할당량만으로 최우선 원인으로 확정하지도 않는다.
+**지금의 첫 과제는 같은 실패 구간에서 Source 실행·할당, App의 동기 native 문단 작업, GC·회수, mailbox·Core 잠금 대기, Content 준비·coverage 의존의 기여도를 나누는 것이다.** accepted·ready·active·published의 실제 경계와 기존 native layout·Frame 전달·COW 재사용을 기준으로 분석한다. GC와 외부 버퍼 수명은 빠뜨리면 안 되는 후보지만 최신 공급의 시간 기여도는 미확정이다. 단일 pause 최대값이나 native AOT 실패로 GC를 배제하지도, 이전 공급의 할당량만으로 최우선 원인으로 확정하지도 않는다.
 
 확인된 병목 경로의 작은 수정부터 대조하고, 그 효과와 남은 비용으로 재설계 범위를 정한다. GC 기여도가 작다면 GC 수정 없이 Source·준비 구조의 판단으로 진행한다. TypeScript UI SDK가 프로젝트의 이유이고 더 큰 변경이 필요하다면 C++ Core와 플랫폼 자산을 살리면서 UI 생성·상태·native 소유권을 더 작은 계약으로 바꾸는 후보를 검증한다. 이때 일부 API·내부 호환성 정책의 변경이 필요할 수 있다.
 
