@@ -2,7 +2,7 @@
 
 원문: 루트 `work10-a1.md` · 작성: **2026-11-11 KST** · 구현/검증: **11-11~12** · 후속·중간 마무리: **11-13** · 보관: **2026-11-13 KST**
 
-상태: **PAUSED / PARTIAL**. [Work10](work10-summary.md)의 Windows W10-00/06/07 실행 후속이며 데이터 소유권과 [W10-R01~08](work10-summary.md#work9-잔여-의무-이관)을 유지한다. 11월 13일 후속/현재 공급은 [work11](../../../../work11.md)에 있고 자동 재개하지 않는다.
+상태: **PAUSED / PARTIAL**. [Work10](work10-summary.md)의 Windows W10-00/06/07 실행 후속이며 데이터 소유권과 [W10-R01~08](work10-summary.md#work9-잔여-의무-이관)을 유지한다. 11월 13~14일 후속/당시 공급은 [work11 요약](../14/work11-summary.md)에 있으며, 후속도 11월 14일 STOPPED로 중단·보관해 자동 재개하지 않는다.
 
 ## 조사·실행 계약
 
@@ -66,14 +66,14 @@
 | 마지막 All의 범위 | 목록4구간 PASS 뒤 새 픽셀 검사 함수의 PowerShell 배열식 오류로 helper FAIL. 함수 수정 뒤 별도 Calendar PASS이며 **All 전체 PASS가 아님** |
 | 종료 | 마지막 네 실행 ringLost/outputDropped **0**, exit/status **0**, reservedBytes/memoryTotal **0**, workersJoined **true**. 최근128 Source sample의 overwrite는 전체 무유실과 구분 |
 
-원본 격자·날짜 기본값 oracle, native/Source·ACK/게시·취소/복구·page/child/notification·Hermes/배포 ESM·수명 회귀는 PASS다. 날짜 생성기 전체 `--check`는 당시 **Dart3.12.2 / analyzer 언어3.13** 차이로 미완료였고 adapter template/TS suffix·pinned SHA 확인으로 구분했다. [이후 work11](../../../../work11.md)의 생성기 PASS를 당시 결과로 소급하지 않는다. 전체 repository lint도 기존 생성 파일 경고와 구분한다.
+원본 격자·날짜 기본값 oracle, native/Source·ACK/게시·취소/복구·page/child/notification·Hermes/배포 ESM·수명 회귀는 PASS다. 날짜 생성기 전체 `--check`는 당시 **Dart3.12.2 / analyzer 언어3.13** 차이로 미완료였고 adapter template/TS suffix·pinned SHA 확인으로 구분했다. [이후 work11](../14/work11-summary.md)의 생성기 PASS를 당시 결과로 소급하지 않는다. 전체 repository lint도 기존 생성 파일 경고와 구분한다.
 
 ## 잔여 판정·후속
 
 최종 짧은 표본의 ≥500ms **0회**는 부분 목표 PASS일 뿐 **100~403ms 끊김·빠른 접촉 backlog·긴 Source build/capture/scene**은 남았다. `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 사용자 물리/연속 표시/scanout **notVerified**와 제품 **PARTIAL**을 유지한다. Android 최신 native 공급/실행·Web 제품 UI 검증으로 확대하지 않는다.
 
-후속은 필수 원본 Source 구성과 반복 capture/records의 처리량·demand→coverage 게시 인과다. 제거한 격자 왕복·추가 cache/보간·fence 생략으로 우회하지 않는다. 11월 13일 work11의 Source/직접 투영·생성 helper/후속 Hermes 공급을 거쳐 현재 **PAUSED / PARTIAL**이며 [중간 마무리·미완료](../../../../work11.md#18-중간-마무리와-재개-지점)와 최신 §19를 따른다.
+당시 후속은 필수 원본 Source 구성과 반복 capture/records의 처리량·demand→coverage 게시 인과였다. 제거한 격자 왕복·추가 cache/보간·fence 생략으로 우회하지 않는 계약이었다. 이후 work11의 Source/직접 투영·생성 helper/Hermes 공급을 거쳤으나 해결하지 못했고, 11월 14일 후속도 **STOPPED / PARTIAL**로 중단했다. [미완료·중단 경계](../14/work11-summary.md#미완료와-중단-경계)와 [후속 최종 공급](../14/work11-1-summary.md#최종-공급과-측정)을 보존한다.
 
-검사는 당시 **20분 timeout**, bounded 수집·finally 회수를 사용했다. 승인 거부됐던 진단 폴더의 당시 잔존과 [이후 별도 정리](../../../../work11.md#183-후속-요청에-따른-구형-출력일회성-검사-정리)는 구분하며 이번 보관에서 재실행·새 검증 자료/공급 사본을 만들지 않았다.
+검사는 당시 **20분 timeout**, bounded 수집·finally 회수를 사용했다. 승인 거부됐던 진단 폴더의 당시 잔존과 [이후 별도 정리](../14/work11-summary.md#후속-정리-이력)는 구분하며 이번 보관에서 재실행·새 검증 자료/공급 사본을 만들지 않았다.
 
 [Work10 상위 계약·잔여 의무](work10-summary.md) · [work9 보관 목차](../05/work9-summary.md) · [이력 목록](../../../README.md)

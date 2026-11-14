@@ -1274,7 +1274,16 @@ function scrollController(
     scroll.buildViewport !== sourceScrollMethods.buildViewport
   )
     return fail('list-scroll-options');
-  if (scroll.cacheExtent !== null || scroll.scrollCacheExtent !== null)
+  // PageView supplies the Flutter default zero cache extent. Preserve its
+  // native page adapter; other explicit list cache extents use Source layout.
+  if (
+    (scroll.cacheExtent !== null || scroll.scrollCacheExtent !== null) &&
+    !(
+      scroll.cacheExtent === 0 &&
+      scroll.scrollCacheExtent === null &&
+      scroll.controller instanceof PageController
+    )
+  )
     return fail('list-cache-extent');
   const pagePhysics =
     scroll.physics instanceof PageScrollPhysics &&

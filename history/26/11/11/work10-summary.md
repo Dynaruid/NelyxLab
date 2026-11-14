@@ -68,6 +68,6 @@ Windows는 App SDK 하나, Web은 두 profile, 후속 차수는 Android/Linux→
 
 새 월 **p95 100ms**는 초기 목표이지 달성값이 아니다. Accepted/activated/published·GPU 완료·display/scanout, 게시 gap·실제 offset 진행 gap·최종 월 도달을 구분한다. `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리/display/scanout **notVerified**를 유지한다. 전체 lint의 당시 생성 날짜 파일 미사용 매개변수 오류도 관련 변경 검사 PASS와 구분했다.
 
-11월 13일 Source/직접 투영·helper·Hermes 등의 후속과 현재 공급은 [work11](../../../../work11.md)에 있다. **PAUSED / PARTIAL**이며 자동 재개하지 않는다. 당시 삭제 차단/이후 별도 정리 이력과 이번 요청의 원문 보관은 구분한다. 이번에는 문서·날짜·링크·삭제 범위만 확인하며 제품 빌드/runtime/API/성능을 재검증하지 않았다.
+11월 13~14일 Source/직접 투영·helper·Hermes 등의 후속과 당시 공급은 [work11 요약](../14/work11-summary.md)에 보존했다. 후속도 11월 14일 **STOPPED / PARTIAL**로 중단·보관했으며 자동 재개하지 않는다. 당시 삭제 차단/이후 별도 정리 이력과 원문 보관은 구분한다. 이 보관은 문서·날짜·링크·삭제 범위 확인이며 제품 빌드/runtime/API/성능 재검증은 아니다.
 
 [Windows work10-a1](work10-a1-summary.md) · [work9 종료 기록](../09/work9-c-summary.md) · [이력 목록](../../../README.md)

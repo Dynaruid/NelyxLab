@@ -4,9 +4,20 @@
 
 이력의 PASS·PARTIAL·NO_ADOPTION·notVerified·공급 식별은 **당시 범위**이며 현재 제품의 재검증 결과가 아니다. 같은 `workN.md` 이름을 재사용한 문서도 날짜와 주제로 구분한다.
 
-## 2026-11-13 현재 후속 기록
+## 2026-11-14 작업 중단·보관
 
-현재 루트 작업 기록은 [work11 — 새 월 Source 실행·렌더 투영 결합](../work11.md)이며 **PAUSED / PARTIAL**이다. 최신 공급·기능/성능 판정은 그 문서 §19, 미완료 의무와 재개 경계는 §18.2·§19.4를 따른다. 이번 보관으로 제품 작업을 자동 재개하지 않는다.
+사용자 요청으로 `report.md`, `result.md`, `work11-1.md`, `work11.md`의 작업을 모두 **STOPPED**로 종료하고 각각 요약한 뒤 루트 원문 4개를 삭제했다. 원문의 작성·갱신 표기가 모두 **2026-11-14 KST**이므로 그 날짜에 배치하고, W11 계열 본문의 11월 13~14일 구현·검증은 별도로 표시했다. 10월의 같은 이름 문서는 별개다.
+
+| 원문 | 날짜·성격 | 요약 | 중단 시 판정 |
+| --- | --- | --- | --- |
+| `work11.md` | 11-14 작성·갱신 표기 / 11-13~14 실행 | [Source·직접 투영·Hermes 전환](26/11/14/work11-summary.md) | STOPPED / PARTIAL, 기능 scoped PASS·성능 미수락 |
+| `work11-1.md` | 11-14 작성·갱신 표기 / 11-13~14 실행 | [후속 최적화·최종 공급·V8 실패](26/11/14/work11-1-summary.md) | STOPPED / PARTIAL, Calendar/Fast 성능 FAIL·V8 비교 미완료 |
+| `report.md` | 11-14 작성·개정 / 정적 검토 | [owner·GC/회수·기술 스택 재검토](26/11/14/report-summary.md) | STOPPED, 원인 기여도 미확정·권고 미실행 |
+| `result.md` | 11-14 작성·개정 / 관측 기반 추론 | [시작 지연·재생성·공통 원인 가설](26/11/14/result-summary.md) | STOPPED, 최신 미커밋 수명 구분 반영·새 측정 없음 |
+
+마지막 일반 검증은 W11-1 원문 §13.31, 마지막 작업 지점은 §13.33의 V8 startup 실패다. [최종 공급과 측정](26/11/14/work11-1-summary.md#최종-공급과-측정), [미완료와 중단 경계](26/11/14/work11-summary.md#미완료와-중단-경계)를 보존한다. 예전 active·재개 제안은 현재 실행 지시가 아니며 자동 재개하지 않는다.
+
+현재 별도 루트 계획은 [work12 — Flutter 원본 충실 이식](../work12.md)이다. **설계 / 대표 경로 정적 검토 완료 / 전수 감사·제품 구현 미착수**이며, 중단한 native 정책 확대·VM 비교 권고를 그대로 실행하도록 이관하지 않는다. 이번 정리는 요약·링크·삭제 범위의 문서 검사만 수행하고 제품 코드·공급을 변경하거나 빌드/runtime/성능을 재검증하지 않았다.
 
 Work9 계열의 종료 기록과 work10·work10-a1의 상위 계약·Windows 부분 구현을 아래 날짜별 요약에 보존했다. **문서 보관/종료와 구현 완료는 별개**다. 전체 API `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/display/scanout **notVerified**와 [W10-R01~08 잔여 의무](26/11/11/work10-summary.md#work9-잔여-의무-이관)를 유지한다. 아래 10월의 같은 이름 문서는 별도 작업이다.
 
@@ -28,7 +39,7 @@ Work9 계열의 종료 기록과 work10·work10-a1의 상위 계약·Windows 부
 | `work10.md` | 11-11 작성 표기, 11-10~12 실행, 11-13 후속 | [변경 기록·구조 공유·delta·전체 잔여 의무](26/11/11/work10-summary.md) | 원문 OPEN / 구현 PARTIAL, Windows PAUSED |
 | `work10-a1.md` | 11-11 작성, 11-12 구현, 11-13 중간 마무리 | [Windows 정체·Source/페이지 준비 개편](26/11/11/work10-a1-summary.md) | PAUSED / PARTIAL, 100~403ms 정체·backlog 잔존 |
 
-요약은 구현·채택/철회·실패/미실행·당시 공급과 검증 한계를 구분한다. 최신 work11 공급/생성기/Hermes 결과를 과거 문서의 PASS로 소급하지 않는다. 이번 보관의 확인 범위는 날짜·원문 11개 대응·문서 링크/앵커·삭제 범위·diff이며 제품 빌드·runtime·API/성능 재검증은 수행하지 않았다.
+요약은 구현·채택/철회·실패/미실행·당시 공급과 검증 한계를 구분한다. 후속 work11 공급/생성기/Hermes 결과를 과거 문서의 PASS로 소급하지 않는다. 11월 13일 보관의 확인 범위는 날짜·원문 11개 대응·문서 링크/앵커·삭제 범위·diff이며 제품 빌드·runtime·API/성능 재검증은 수행하지 않았다.
 
 ## 2026-11-05 보관한 work8 문서
 
@@ -58,7 +69,7 @@ Work9 계열의 종료 기록과 work10·work10-a1의 상위 계약·Windows 부
 | `work6.md` | 2026-11-03 작성·실행 | [전체 구간 검증·N1~N4](26/11/03/work6-summary.md) | 후보 구현·all 통합·검증 완료, 기본 TS·NO_ADOPTION |
 | `work7.md` | 11-03 분석, **11-04 계획 재작성·구현** | [scroll 입력·frame 재개・starvation](26/11/04/work7-summary.md) | 수정 자동 회귀 scoped-pass, **물리 재확인 대기/PARTIAL** |
 
-7개 문서 모두 기존 `performanceAccepted=false`·`resizePerformanceAccepted=false`를 보존한다. 당시 보관은 요약·링크·삭제 범위의 문서 검사이며 빌드·runtime·물리 입력·표시 성능 수락을 추가하지 않았다. 후속 work8과 [work9](26/11/05/work9-summary.md)도 위 날짜별 요약으로 이관했으며 현재 루트 기록은 [work11](../work11.md)이다.
+7개 문서 모두 기존 `performanceAccepted=false`·`resizePerformanceAccepted=false`를 보존한다. 당시 보관은 요약·링크·삭제 범위의 문서 검사이며 빌드·runtime·물리 입력·표시 성능 수락을 추가하지 않았다. 후속 work8과 [work9](26/11/05/work9-summary.md)도 위 날짜별 요약으로 이관했다. 이후 [work11](26/11/14/work11-summary.md)도 STOPPED로 보관했으며 별도 루트 계획은 [work12](../work12.md)다.
 
 ## 이전 이력
 

@@ -308,6 +308,8 @@ class PageViewState extends State<PageView> {
           behavior: new ScrollBehavior().copyWith({ scrollbars: false, overscroll: false }),
           child: ListView.custom({
             controller: this.controller,
+            // Flutter's PageView has no offscreen layout cache by default.
+            cacheExtent: 0,
             scrollDirection: axis,
             reverse: options.reverse ?? false,
             physics:

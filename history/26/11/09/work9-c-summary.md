@@ -43,6 +43,6 @@ Flutter pin **`71e4717a…`**의 날짜/월/연도·입력 검증·Dialog/restor
 
 종료 직전 사용자는 **종료 없이 이동하지만 새 월 준비가 여전히 너무 느림**을 확인했다. 새 월·빠른 다중 월 이동·전체 records/동적 구성·GC·Source/Content 왕복은 미해결이며 W9C-01로 자동 진행하지 않았다. `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리/display/scanout **notVerified**, Android **stale/notVerified**, Linux·iOS/macOS **DEFERRED**를 유지한다.
 
-W9C-01~08의 Core/디자인·실제 OS 소스 이식·SDK/CLI·전체 앱·기술/제품 gate·기본값/레거시 제거와 날짜 선택기 생성 출처는 [work10](../11/work10-summary.md)에 이월했다. 당시 승인 거부된 임시 자료는 정리 미완료였으며 이후 상태는 [work11의 후속 정리 기록](../../../../work11.md#183-후속-요청에-따른-구형-출력일회성-검사-정리)과 구분한다.
+W9C-01~08의 Core/디자인·실제 OS 소스 이식·SDK/CLI·전체 앱·기술/제품 gate·기본값/레거시 제거와 날짜 선택기 생성 출처는 [work10](../11/work10-summary.md)에 이월했다. 당시 승인 거부된 임시 자료는 정리 미완료였으며 이후 상태는 [work11의 후속 정리 기록](../14/work11-summary.md#후속-정리-이력)과 구분한다.
 
 [work9 보관 목차](../05/work9-summary.md) · [work9-b](work9-b-summary.md) · [이력 목록](../../../README.md)

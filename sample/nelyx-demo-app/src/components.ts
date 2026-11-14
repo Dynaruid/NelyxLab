@@ -365,7 +365,6 @@ class ComponentsState extends State<ComponentsScreen> {
             : this.secondExtents
           ).forItems(entries.map((entry) => entry.id)),
           metricRevision: Theme.of(context),
-          childPolicy: { mode: 'bounded', capacity: 2, preparation: 'disabled' },
           padding: EdgeInsets.only({ bottom: 20 }),
           itemCount: entries.length,
           findChildIndexCallback: (key) => {

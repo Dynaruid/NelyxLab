@@ -44,6 +44,6 @@
 
 종료 당시 Windows/Web **PARTIAL**, Android **stale/notVerified**, Linux·iOS/macOS **DEFERRED**다. 전체 API **4 packages / 834 subpaths**와 서명 의무, 실제 OS 소스 이식·전체 앱/설치·복구·제품 수락·마지막 소비자 이후 레거시 삭제 의무는 [work10 잔여 대응표](../11/work10-summary.md#work9-잔여-의무-이관)에 보존한다.
 
-후속 성능 기록은 [work10](../11/work10-summary.md) → [Windows work10-a1](../11/work10-a1-summary.md) → [work11](../../../../work11.md)이다. 보관일 현재 work11도 **PAUSED / PARTIAL**이며 이번 보관으로 제품 검증이나 자동 재개를 수행하지 않았다.
+후속 성능 기록은 [work10](../11/work10-summary.md) → [Windows work10-a1](../11/work10-a1-summary.md) → [work11 요약](../14/work11-summary.md)이다. 11월 13일 보관 당시 후속은 PAUSED / PARTIAL이었고 11월 14일 **STOPPED / PARTIAL**로 중단·보관했다. 어느 보관도 제품 검증이나 자동 재개를 뜻하지 않는다.
 
 [이력 목록](../../../README.md) · [선행 work8](../04/work8-summary.md)

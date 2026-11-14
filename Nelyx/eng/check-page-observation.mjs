@@ -11,7 +11,7 @@ try {
       loader: 'ts',
       contents: `
       import assert from 'node:assert/strict';
-      import { NativePositionForCheck, NativeListStateForCheck } from './Nelyx/runtime/app/scroll.ts';
+      import { NativePositionForCheck, NativeListStateForCheck, scrollControllerForCheck } from './Nelyx/runtime/app/scroll.ts';
       import { Element } from '@nelyx/core/framework/widgets/framework';
       import { FrameScheduler } from '@nelyx/core/framework/scheduler/scheduler';
       import { registerTickerScheduler, unregisterTickerScheduler } from '@nelyx/core/internal/framework/widgets/ticker-scheduler';
@@ -163,6 +163,9 @@ try {
         const atWidth=width=>pageState.build().builder({},BoxConstraints.tight({width,height:100})).child.child;
         const firstSize=atWidth(200),secondSize=atWidth(240);
         assert.equal(firstSize.itemExtent,200);assert.equal(secondSize.itemExtent,240);
+        assert.equal(firstSize.cacheExtent,0,'PageView must not retain offscreen pages through the ListView cache');
+        assert.equal(scrollControllerForCheck(firstSize,{} as any,reason=>{throw Error(reason);}).controller,
+          firstSize.controller,'A zero-cache PageView lost its native page adapter');
         assert.equal(firstSize.childrenDelegate,secondSize.childrenDelegate,
           'PageView recreated its Source delegate to transport a viewport constraint change');
         assert.equal(firstSize.childrenDelegate,page.childrenDelegate);
@@ -186,7 +189,7 @@ try {
             return {
               contents:
                 contents +
-                '\nexport { NativePosition as NativePositionForCheck, NativeListState as NativeListStateForCheck };',
+                '\nexport { NativePosition as NativePositionForCheck, NativeListState as NativeListStateForCheck, scrollController as scrollControllerForCheck };',
               loader: 'ts',
             };
           });

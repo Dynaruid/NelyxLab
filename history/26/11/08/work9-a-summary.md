@@ -39,6 +39,6 @@ Core package build·전체 타입과 C++ **5 units /W4 /WX compile-only**는 PAS
 
 위 초안의 의미/수명·공급 일치를 먼저 검증하고, 중앙 render 분기·마지막 TS 실행 소비자·전체 디자인/semantics·TapRegion 동기 재진입·SDK 환경/font/lifecycle/VM·reload/loss·공통 target descriptor·Testbed/Demo 전체로 확장하도록 [work9-b](../09/work9-b-summary.md)에 이관했다. 기존 W9-00~14·W9A-00~12의 미완료를 재번호로 완료 처리하지 않는다.
 
-전체 **compatible=false**, 두 성능 flag **false**, 물리/display/scanout **notVerified**, Linux·iOS/macOS **DEFERRED**를 유지한다. 최종 의무 대응은 [work10](../11/work10-summary.md#work9-잔여-의무-이관), 현재 후속 기록은 [work11](../../../../work11.md)이다.
+전체 **compatible=false**, 두 성능 flag **false**, 물리/display/scanout **notVerified**, Linux·iOS/macOS **DEFERRED**를 유지한다. 최종 의무 대응은 [work10](../11/work10-summary.md#work9-잔여-의무-이관), 이후 중단·보관한 후속은 [work11 요약](../14/work11-summary.md)이다.
 
 [work9 보관 목차](../05/work9-summary.md) · [이력 목록](../../../README.md)
