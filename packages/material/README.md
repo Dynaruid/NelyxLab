@@ -73,4 +73,4 @@ Nelyx-authored code uses [BSD-3-Clause](LICENSE.md). Imported Flutter sources an
 
 ## Source framework migration
 
-Version 0.2 uses the canonical Core Source framework. The former `/v2` exports and per-widget native registration APIs have been removed. Custom shapes, painters and layout delegates run their Source hooks. See [work12](../../work12.md#11-현재-구현과-확인-범위) for verified and pending behavior.
+Version 0.2 uses the canonical Core Source framework. The former `/v2` exports and per-widget native registration APIs have been removed. Custom shapes, painters and layout delegates run their Source hooks. See the [W12 closing summary](../../history/26/11/14/work12-summary.md#현재-구현과-확인-범위) for verified and pending behavior.

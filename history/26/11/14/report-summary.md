@@ -57,7 +57,7 @@
 | 원본 Flutter/Dart | TS UI보다 앱 출시가 우선일 때 평가. 성능 해결·GC 제거가 검증된 대안은 아님 |
 | RN·Compose·WebView·C++/Rust 재작성 | 언어/API·플랫폼·유지 책임 변경 비용을 비교. 전면 재작성은 현재 근거로 비추천 |
 
-QuickJS의 C 출력, AssemblyScript/Wasm, Typed Hermes 연구 확대, C++→Rust/GPU 교체도 현재 앱의 해결로 채택하지 않았다. 제한된 UI 표현 제안은 원본 Source 전체 실행을 줄일 수 있는지 검증해야 하는 당시 대안이며, 새 [work12](../../../../work12.md)의 **Flutter 원본 충실 이식**과 혼합해 자동 실행하지 않는다.
+QuickJS의 C 출력, AssemblyScript/Wasm, Typed Hermes 연구 확대, C++→Rust/GPU 교체도 현재 앱의 해결로 채택하지 않았다. 제한된 UI 표현 제안은 원본 Source 전체 실행을 줄일 수 있는지 검증해야 하는 당시 대안이며, 별도 CLOSED / PARTIAL 이력인 [work12](work12-summary.md)의 **Flutter 원본 충실 이식**과 혼합해 자동 실행하지 않는다.
 
 ## 중단한 권고와 남은 불확실성
 

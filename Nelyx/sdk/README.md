@@ -14,7 +14,7 @@ SDK 0.21.0 defines applications with defineApp({ id, createRoot, defaultFont, as
 
 The former build/ready/dispose native scene launcher, native widget adapters and engine-v2 application exports have been removed. Update application code to createRoot and the existing ApplicationDefinition startup/owned disposal contract. Use declared font assets and the selected backend's font service. Keep app-owned cleanup in the disposable returned by startup. There are no deprecated aliases, second Widget models or automatic fallback renderers.
 
-The CLI and generated templates use the same Source definition. Windows native/Hermes, RN platform surfaces and the Web CanvasKit surface reuse their existing drawing/resource/OS backends; none installs a per-widget native policy adapter. Backend capability errors remain explicit. [Current acceptance](../../work12.md#11-현재-구현과-확인-범위) records the original comparisons and outstanding platform/IME/reader/performance work.
+The CLI and generated templates use the same Source definition. Windows native/Hermes, RN platform surfaces and the Web CanvasKit surface reuse their existing drawing/resource/OS backends; none installs a per-widget native policy adapter. Backend capability errors remain explicit. The [W12 closing summary](../../history/26/11/14/work12-summary.md#현재-구현과-확인-범위) records the original comparisons and outstanding platform/IME/reader/performance work; overall acceptance remains partial.
 
 ## Application APIs
 

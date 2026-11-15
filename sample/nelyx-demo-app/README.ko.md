@@ -65,8 +65,8 @@ npm.cmd run run:windows --workspace @nelyx/demo
 `build:windows`는 optimized Hermes bytecode와 direct C++ host를
 `.nelyx/native-windows/current-bytecode/`에 빌드합니다. `run:windows`는 앱·SDK·준비한 공급의 변경을 확인해
 필요한 경우 현재 SDK를 다시 공급하고 패키지를 갱신하며, 변경이 없으면 재사용합니다.
-재빌드 전에 기존 데모 창을 닫으세요. direct host는 experimental이며 물리 입력·성능 수락은
-[work12](../../work12.md)에 구분해 기록합니다.
+재빌드 전에 기존 데모 창을 닫으세요. direct host는 experimental이며 물리 입력·성능 결과는
+[W12 종료 요약](../../history/26/11/14/work12-summary.md)에 구분해 보존했습니다.
 달력은 창을 최대화한 뒤 **메뉴 → Selection → Choose date**에서 열 수 있습니다.
 
 Android는 OpenJDK 21·SDK 36·NDK와 대상 아키텍처의 렌더러 공급이 필요합니다.

@@ -236,7 +236,7 @@ export function frameworkInventory({ module: requestedModule } = {}) {
           };
         }),
         behavior:
-          'Declared entries and current supply only; platform execution is recorded in work12.md',
+          'Declared entries and current supply only; platform execution is recorded in history/26/11/14/work12-summary.md',
       };
     }),
     modules,

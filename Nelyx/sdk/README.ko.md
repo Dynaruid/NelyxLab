@@ -14,7 +14,7 @@ SDK 0.21.0은 @nelyx/sdk/app의 defineApp({ id, createRoot, defaultFont, assets,
 
 이전 build/ready/dispose native scene launcher·native 위젯 adapter·engine-v2 앱 export는 삭제했습니다. createRoot와 기존 ApplicationDefinition의 startup/소유 자원 dispose 계약으로 이전합니다. 폰트는 선언된 자산과 선택 backend의 font 서비스를 사용하고, 앱 자원은 startup이 반환하는 disposable에서 해제합니다. deprecated alias·두 번째 Widget 모델·자동 fallback renderer는 제공하지 않습니다.
 
-CLI와 생성 템플릿도 같은 Source 앱 정의를 사용합니다. Windows native/Hermes·RN 플랫폼 surface·Web CanvasKit surface는 기존 drawing/자원/OS backend를 재사용하며 위젯별 native 정책 adapter를 설치하지 않습니다. backend capability 오류는 명시적으로 실패합니다. 원본 대조와 플랫폼/IME/reader/성능의 남은 확인은 [현재 수락 범위](../../work12.md#11-현재-구현과-확인-범위)에 기록합니다.
+CLI와 생성 템플릿도 같은 Source 앱 정의를 사용합니다. Windows native/Hermes·RN 플랫폼 surface·Web CanvasKit surface는 기존 drawing/자원/OS backend를 재사용하며 위젯별 native 정책 adapter를 설치하지 않습니다. backend capability 오류는 명시적으로 실패합니다. 원본 대조와 플랫폼/IME/reader/성능의 남은 확인은 [W12 종료 요약](../../history/26/11/14/work12-summary.md#현재-구현과-확인-범위)에 보존했으며 전체 수락은 PARTIAL입니다.
 
 ## 앱 API
 

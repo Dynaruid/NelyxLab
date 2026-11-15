@@ -16,7 +16,7 @@ Core 0.17.0 executes one Source Widget/Element/RenderObject tree through Framewo
 
 The native-configuration widget host, its widget interception registry, the separate v2 Widget/State model and their exports have been removed. Use canonical framework imports and the Source application definition from @nelyx/sdk/app. There are no deprecated aliases or automatic renderer substitutions. PageScrollPhysics no longer accepts a viewportFraction override; PageController owns that value. PageController.page requires one attached PageView. PageView.builder accepts an optional itemCount and findChildIndexCallback; PageView.custom accepts a Source child delegate.
 
-The active Flutter source pin is 71e4717a61786faab4c7aa39825989305ed29e8a. [Current implementation and acceptance](../work12.md#11-현재-구현과-확인-범위) distinguish portable Source checks, original Dart comparisons and platform/visual/input/performance results. This release does not claim full Flutter API or platform equivalence.
+The active Flutter source pin is 71e4717a61786faab4c7aa39825989305ed29e8a. The [W12 closing summary](../history/26/11/14/work12-summary.md#현재-구현과-확인-범위) distinguishes portable Source checks, original Dart comparisons and platform/visual/input/performance results. W12 is closed with overall acceptance still partial. This release does not claim full Flutter API or platform equivalence.
 
 The previous packet Scene/control frontend and its engine exports are removed. Shared Vulkan, Paragraph, IME and accessibility helpers remain backend resources.
 

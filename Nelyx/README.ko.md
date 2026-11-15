@@ -16,7 +16,7 @@ Core 0.17.0은 FrameworkRoot의 Source Widget/Element/RenderObject 트리 하나
 
 native 설정 전용 Widget host·interception 등록부·별도 v2 Widget/State 모델과 관련 export는 삭제했습니다. canonical framework import와 @nelyx/sdk/app의 Source 앱 정의를 사용합니다. deprecated alias나 자동 renderer 대체 경로는 제공하지 않습니다. PageScrollPhysics의 viewportFraction 옵션은 삭제하고 PageController가 해당 값을 소유합니다. PageController.page는 PageView 하나가 attach된 상태에서 읽습니다. PageView.builder는 선택적 itemCount·findChildIndexCallback을, PageView.custom은 Source child delegate를 받습니다.
 
-활성 Flutter pin은 71e4717a61786faab4c7aa39825989305ed29e8a입니다. [현재 구현과 수락 범위](../work12.md#11-현재-구현과-확인-범위)에서 Source 내부 검사·Dart 원본 대조·실제 플랫폼/시각/입력/성능 결과를 구분합니다. Flutter 전체 API 또는 모든 플랫폼 동등성을 완료했다고 표시하지 않습니다.
+활성 Flutter pin은 71e4717a61786faab4c7aa39825989305ed29e8a입니다. [W12 종료 요약](../history/26/11/14/work12-summary.md#현재-구현과-확인-범위)에서 Source 내부 검사·Dart 원본 대조·실제 플랫폼/시각/입력/성능 결과를 구분합니다. 문서는 CLOSED이며 전체 수락은 PARTIAL입니다. Flutter 전체 API 또는 모든 플랫폼 동등성을 완료했다고 표시하지 않습니다.
 
 이전 packet Scene/control frontend와 engine export는 제거했습니다. Source backend가 사용하는 Vulkan·Paragraph·IME·접근성 helper만 엔진 자원으로 유지합니다.
 

@@ -4,6 +4,16 @@
 
 이력의 PASS·PARTIAL·NO_ADOPTION·notVerified·공급 식별은 **당시 범위**이며 현재 제품의 재검증 결과가 아니다. 같은 `workN.md` 이름을 재사용한 문서도 날짜와 주제로 구분한다.
 
+## 2026-11-15 work12 종료·보관
+
+사용자 요청으로 루트 `work12.md`를 **CLOSED**로 종료하고 요약한 뒤 원문을 삭제했다. 원문 작성일인 **2026-11-14 KST**에 배치하고 11월 15일 후속 구현·검증과 종료일을 별도로 표시했다. 10월의 같은 이름 문서와는 별개다.
+
+| 원문 | 작성·실행·종료 | 요약 | 종료 시 판정 |
+| --- | --- | --- | --- |
+| `work12.md` | 11-14 작성 / 11-14~15 구현·확인 / 11-15 종료 | [Flutter 원본 충실 이식·Source 전환](26/11/14/work12-summary.md) | CLOSED / PARTIAL, Windows Demo 두 증상 실사용 해결·평균 FPS 개선 미확인·전체 수락 미완료 |
+
+단절적 Source 전환·공급 반영, 원본 대조와 플랫폼별 확인 범위, Windows Demo 스크롤·달력·실행 경로 수정 및 남은 API·수명·IME/reader·성능 과제를 보존했다. [사용자 실사용 확인](26/11/14/work12-summary.md#windows-demo-사용자-실사용-확인)은 주기적 버벅임과 고속 월 전환 애니메이션 누락의 해결이며 정량 FPS·displayed/scanout 수락과 구별한다. 이번 보관은 요약·참조 갱신·원문 삭제의 문서 검사만 수행했으며 제품 빌드·runtime·성능은 재검증하지 않았다. 이 문서의 미완료 항목을 자동 재개하지 않는다.
+
 ## 2026-11-14 작업 중단·보관
 
 사용자 요청으로 `report.md`, `result.md`, `work11-1.md`, `work11.md`의 작업을 모두 **STOPPED**로 종료하고 각각 요약한 뒤 루트 원문 4개를 삭제했다. 원문의 작성·갱신 표기가 모두 **2026-11-14 KST**이므로 그 날짜에 배치하고, W11 계열 본문의 11월 13~14일 구현·검증은 별도로 표시했다. 10월의 같은 이름 문서는 별개다.
@@ -17,7 +27,7 @@
 
 마지막 일반 검증은 W11-1 원문 §13.31, 마지막 작업 지점은 §13.33의 V8 startup 실패다. [최종 공급과 측정](26/11/14/work11-1-summary.md#최종-공급과-측정), [미완료와 중단 경계](26/11/14/work11-summary.md#미완료와-중단-경계)를 보존한다. 예전 active·재개 제안은 현재 실행 지시가 아니며 자동 재개하지 않는다.
 
-현재 별도 루트 계획은 [work12 — Flutter 원본 충실 이식](../work12.md)이다. **설계 / 대표 경로 정적 검토 완료 / 전수 감사·제품 구현 미착수**이며, 중단한 native 정책 확대·VM 비교 권고를 그대로 실행하도록 이관하지 않는다. 이번 정리는 요약·링크·삭제 범위의 문서 검사만 수행하고 제품 코드·공급을 변경하거나 빌드/runtime/성능을 재검증하지 않았다.
+당시 별도 루트 계획으로 작성한 work12는 이후 Source 전환과 부분 검증을 거쳐 [CLOSED / PARTIAL로 보관](26/11/14/work12-summary.md)했다. 중단한 native 정책 확대·VM 비교 권고를 그대로 실행하도록 이관하지 않았다. 11월 14일 정리 자체는 요약·링크·삭제 범위의 문서 검사만 수행했고 제품 코드·공급 변경이나 빌드/runtime/성능 재검증은 포함하지 않았다.
 
 Work9 계열의 종료 기록과 work10·work10-a1의 상위 계약·Windows 부분 구현을 아래 날짜별 요약에 보존했다. **문서 보관/종료와 구현 완료는 별개**다. 전체 API `compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`, 물리 입력/display/scanout **notVerified**와 [W10-R01~08 잔여 의무](26/11/11/work10-summary.md#work9-잔여-의무-이관)를 유지한다. 아래 10월의 같은 이름 문서는 별도 작업이다.
 
@@ -69,7 +79,7 @@ Work9 계열의 종료 기록과 work10·work10-a1의 상위 계약·Windows 부
 | `work6.md` | 2026-11-03 작성·실행 | [전체 구간 검증·N1~N4](26/11/03/work6-summary.md) | 후보 구현·all 통합·검증 완료, 기본 TS·NO_ADOPTION |
 | `work7.md` | 11-03 분석, **11-04 계획 재작성·구현** | [scroll 입력·frame 재개・starvation](26/11/04/work7-summary.md) | 수정 자동 회귀 scoped-pass, **물리 재확인 대기/PARTIAL** |
 
-7개 문서 모두 기존 `performanceAccepted=false`·`resizePerformanceAccepted=false`를 보존한다. 당시 보관은 요약·링크·삭제 범위의 문서 검사이며 빌드·runtime·물리 입력·표시 성능 수락을 추가하지 않았다. 후속 work8과 [work9](26/11/05/work9-summary.md)도 위 날짜별 요약으로 이관했다. 이후 [work11](26/11/14/work11-summary.md)도 STOPPED로 보관했으며 별도 루트 계획은 [work12](../work12.md)다.
+7개 문서 모두 기존 `performanceAccepted=false`·`resizePerformanceAccepted=false`를 보존한다. 당시 보관은 요약·링크·삭제 범위의 문서 검사이며 빌드·runtime·물리 입력·표시 성능 수락을 추가하지 않았다. 후속 work8과 [work9](26/11/05/work9-summary.md)도 위 날짜별 요약으로 이관했다. 이후 [work11](26/11/14/work11-summary.md)은 STOPPED로, 별도 후속 [work12](26/11/14/work12-summary.md)는 CLOSED / PARTIAL로 보관했다.
 
 ## 이전 이력
 

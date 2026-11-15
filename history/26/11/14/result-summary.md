@@ -52,7 +52,7 @@ needChildren과 layoutBuildRequest, accepted·ready·providerReady·active·publ
 
 제품 수락을 보류하고 기존 Core·플랫폼·수명 자산을 우선 보존하되, 입증된 공유 경로의 작은 수정부터 판단하자는 결론이었다. 실제 신규 생성량이 끝내 핵심일 때만 UI 생성 모델 축소를 검토했다. TS보다 앱 출시가 목적이면 Flutter/Dart 평가도 가능하지만 성능 해결·GC 제거가 검증됐다는 뜻은 아니었다.
 
-이전 권고의 native 표현 확대를 새 실행 방침으로 이관하지 않는다. 이후 사용자가 선택한 [work12](../../../../work12.md)는 **TypeScript UI를 유지하며 Flutter 원본을 충실하게 이식하고 독자 정책을 제거하는 별도 계획**이다. 이번 중단은 그 계획을 구현한 것이 아니다.
+이전 권고의 native 표현 확대를 새 실행 방침으로 이관하지 않는다. 이후 사용자가 선택한 [work12](work12-summary.md)는 **TypeScript UI를 유지하며 Flutter 원본을 충실하게 이식하고 독자 정책을 제거하는 별도 작업**으로 CLOSED / PARTIAL 보관했다. 이 문서의 중단은 그 계획을 구현한 것이 아니다.
 
 수락 기준은 [W11 성능 기준](work11-summary.md#성능-기준과-미수락)의 p95 $\le 2T$ / 최대 $\le 4T$ / 활성 offset 무진행 100ms 이상 0회다. source/runtime·입력·resident/lead·animation을 맞추며 물리/scanout·IME/reader·resize·전체 API·다른 플랫폼 의무는 별도다.
 

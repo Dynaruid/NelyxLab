@@ -8,7 +8,7 @@
 
 [Windows work10-a1](../11/work10-a1-summary.md)의 새 월 준비 정체를 대상으로, 필수 Source 실행을 유지하면서 접근성 반복 구성과 capture→Scene 변환을 줄이려 했다. 접근성 비용 분리, 모듈별 고정 투영 절차, 기존 writer의 RenderBinding·불변 command program, 제한된 생성기 최적화를 결합했다.
 
-TS Widget·Element·State·Key·사용자 callback과 native layout/scroll 소유권, 원래 resident·200ms animation·coverage·ACK/publication·자원 fence를 유지하는 것이 당시 계약이었다. 이 소유권 배분을 새 설계의 정답으로 승인한 것은 아니며, 이후 [원본 충실 이식 계획](../../../../work12.md)에서 다시 검토한다.
+TS Widget·Element·State·Key·사용자 callback과 native layout/scroll 소유권, 원래 resident·200ms animation·coverage·ACK/publication·자원 fence를 유지하는 것이 당시 계약이었다. 이 소유권 배분을 새 설계의 정답으로 승인한 것은 아니며, 별도 후속 작업은 [원본 충실 이식 종료 요약](work12-summary.md)에 보관했다.
 
 ## 채택한 구현과 검증 범위
 
@@ -70,7 +70,7 @@ TS Widget·Element·State·Key·사용자 callback과 native layout/scroll 소�
 - 실제 UIA/reader·원본 시각·물리 입력·display/scanout·물리 resize 성능, 다른 플랫폼·일반 CLI/native 기본값 전환.
 - [W10-R01~08](../11/work10-summary.md#work9-잔여-의무-이관)의 공개 API·OS 소스 이식·SDK/CLI·전체 앱·제품 전환·레거시 제거 의무.
 
-**`compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`**, 제품 **PARTIAL**을 보존한다. 위 항목은 미해결 이력이지 자동 재개 명령이 아니다. [work12](../../../../work12.md)는 별도 원본 충실 이식 계획이며, 이전 native 소유권·최적화 제안을 그대로 실행하도록 이관하지 않는다.
+**`compatible=false`, `performanceAccepted=false`, `resizePerformanceAccepted=false`**, 제품 **PARTIAL**을 보존한다. 위 항목은 미해결 이력이지 자동 재개 명령이 아니다. [work12](work12-summary.md)는 별도 원본 충실 이식 작업의 CLOSED / PARTIAL 이력이며, 이전 native 소유권·최적화 제안을 그대로 실행하도록 이관하지 않는다.
 
 이번 보관은 현재 원문 요약·링크 정리·원문 삭제만 수행했다. 새 빌드·runtime·원본 oracle·성능·물리 수락은 추가하지 않았다.
 

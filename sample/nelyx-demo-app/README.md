@@ -49,7 +49,7 @@ the runner. Missing or mismatched suppliers fail preparation explicitly.
 `.nelyx/native-windows/current-bytecode/`. `run:windows` refreshes changed repository
 SDK inputs and rebuilds changed app/SDK/supplier inputs; an unchanged package is reused.
 Close the app before replacing its package. The direct host remains experimental;
-physical input and performance acceptance are tracked in [work12](../../work12.md).
+physical input and performance results are preserved in the [W12 closing summary](../../history/26/11/14/work12-summary.md).
 For the calendar, maximize the window and choose **Menu → Selection → Choose date**.
 
 Android defaults to the x86_64 `emulator-vulkan` profile. Select a standard JDK 21

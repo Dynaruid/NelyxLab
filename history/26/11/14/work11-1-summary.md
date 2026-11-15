@@ -70,7 +70,7 @@ Source pending/overwrite는 0이었지만 마지막 **native close 전 관찰 pe
 
 원문 §13.32–13.33은 작은 helper 제거 반복 대신 runtime 비용과 preparation/coverage 의존을 분리하려 했다. 고정 Hermes JIT backend는 ARM64 중심이고 현재 Windows x64에서 옵션만 켜는 해법이 아니었다. SH native 함수를 V8처럼 재최적화하는 경로도 아니었다.
 
-보존한 진단 도구는 [runtime 비교 도구](../../../../Nelyx/eng/check-windows-runtime-comparison.mjs)와 [V8 adapter](../../../../Nelyx/eng/windows-v8-comparison.hpp)다. 고정 V8 24.1.10의 C ABI를 현재 직접 host의 JSI로 소비했다. 기존 SDK/App/engine dist를 바꾸거나 전체 설치본을 복제한 제품 전환은 아니었다.
+당시 진단에는 runtime 비교 도구(`Nelyx/eng/check-windows-runtime-comparison.mjs`, 현재 파일 없음)와 [V8 adapter](../../../../Nelyx/eng/windows-v8-comparison.hpp)를 사용했다. 고정 V8 24.1.10의 C ABI를 당시 직접 host의 JSI로 소비했다. 기존 SDK/App/engine dist를 바꾸거나 전체 설치본을 복제한 제품 전환은 아니었다.
 
 - **PASS:** Promise/microtask·외부 32KB 버퍼의 동일 backing/단일 release, 실제 Demo 모듈 초기화, heap counter, 실제 SDK activation과 전체 진단 host 빌드.
 - **FAIL:** GUI app-ready 전에 `Original App viewport is unavailable`. 최종 appReady=false / frames=0 / activeDocument=0 / document=1 / pendingDocument=1. 후속 mailbox 오류는 첫 실패 뒤 cleanup 오류다.
@@ -83,6 +83,6 @@ Source pending/overwrite는 0이었지만 마지막 **native close 전 관찰 pe
 
 전체 setter/API/adapter·일반 소비자, 실제 demand 생성→coverage→첫 이동의 완전한 인과, UIA 실제 소비자·원본 시각·물리/scanout/resize·다른 플랫폼·일반 CLI/native 제품 전환은 미완료다. 문서/request QPC 연결은 일부 구현했지만 `actualDemandCreation=notObserved`, `demandToCoverage=notVerified`, `coverageReadyGoal=notVerified`였다.
 
-**STOPPED / PARTIAL / `compatible=false` / `performanceAccepted=false` / `resizePerformanceAccepted=false`**를 유지한다. 새 [work12](../../../../work12.md)의 Flutter 원본 충실 이식은 별도 계획이며, 이 문서의 미실행 후보나 native 정책을 자동으로 재개·채택하지 않는다. 보관에는 문서 검증만 수행했고 테스트·빌드·성능 측정은 추가하지 않았다.
+**STOPPED / PARTIAL / `compatible=false` / `performanceAccepted=false` / `resizePerformanceAccepted=false`**를 유지한다. 후속 [work12](work12-summary.md)의 Flutter 원본 충실 이식은 별도 작업으로 CLOSED / PARTIAL 보관했으며, 이 문서의 미실행 후보나 native 정책을 자동으로 재개·채택하지 않는다. 보관에는 문서 검증만 수행했고 테스트·빌드·성능 측정은 추가하지 않았다.
 
 [work11](work11-summary.md) · [기술 검토](report-summary.md) · [결론 보고서](result-summary.md) · [이력 목록](../../../README.md)
