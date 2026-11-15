@@ -13,6 +13,11 @@ import { sha256 as hash, fileTree, verifyInventory, localFile } from './files.mj
 import { defineConfig } from '@nelyx/sdk/runtime/config';
 import { startWindowsProcess } from './windows-process.mjs';
 import { buildNativeAot, verifyNativeAot } from './windows-native-aot.mjs';
+import { windowsAppBuildInputs, windowsBuildInputs } from './windows-build-inputs.mjs';
+import {
+  nativeWindowsBuildIdentity,
+  prepareNativeWindowsRun,
+} from './windows-native-run-preparation.mjs';
 const timeout = 1_200_000;
 function commonRoot(paths) {
   let root = fs.realpathSync(paths[0]);
@@ -76,10 +81,17 @@ export async function buildNativeApplication({
       throw Error('A diagnostic output must be a separate temporary package inside native-windows');
   }
   const { roots, runner } = nativePackageEnvironment(app),
-    root = commonRoot([app, ...Object.values(roots)]);
+    root = commonRoot([app, ...Object.values(roots)]),
+    installedSdkInputsSha256 = windowsBuildInputs(runner),
+    appInputsSha256 = windowsAppBuildInputs(app);
   const host = hostBuild ?? (await buildNativeHost({ app, engineInputs, nativeInputs, signal }));
   const checked = verifyNativeHermes(host.toolchain),
-    env = windowsCompilerEnvironment();
+    env = windowsCompilerEnvironment(),
+    sdkInputsSha256 = nativeWindowsBuildIdentity(
+      installedSdkInputsSha256,
+      host.manifest.nativeInputsSha256,
+      checked.sha256,
+    );
   const parent = path.join(app, '.nelyx/native-windows');
   fs.mkdirSync(parent, { recursive: true });
   if (fs.realpathSync(parent) !== parent)
@@ -262,6 +274,10 @@ export async function buildNativeApplication({
       }
     };
     visit(stage);
+    if (windowsBuildInputs(runner) !== installedSdkInputsSha256)
+      throw Error('Native SDK inputs changed during the build');
+    if (windowsAppBuildInputs(app) !== appInputsSha256)
+      throw Error('Native application inputs changed during the build');
     fs.writeFileSync(
       path.join(stage, 'native-package.json'),
       JSON.stringify(
@@ -272,6 +288,8 @@ export async function buildNativeApplication({
           revision: checked.manifest.revision,
           toolchainSha256: checked.sha256,
           sourceSha256: host.manifest.sourceSha256,
+          sdkInputsSha256,
+          appInputsSha256,
           compilerPolicy: policy.id,
           bundle,
           nativeFunctions,
@@ -392,6 +410,9 @@ function assertReplaceable(directory) {
 export function verifyNativePackage(directory) {
   directory = fs.realpathSync(directory);
   const manifest = JSON.parse(fs.readFileSync(localFile(directory, 'native-package.json'), 'utf8'));
+  for (const key of ['sdkInputsSha256', 'appInputsSha256'])
+    if (manifest[key] !== undefined && !/^[a-f0-9]{64}$/.test(manifest[key]))
+      throw Error('Invalid native build input identity: ' + key);
   if (
     manifest.schema !== 'nelyx.native-hermes-package/v1' ||
     !['bytecode', 'static-aot'].includes(manifest.mode) ||
@@ -539,8 +560,11 @@ export async function runNativeApplication({
 export async function prepareNativeApplication({ app, engineInputs, nativeInputs } = {}) {
   const parent = path.join(app, '.nelyx/native-windows');
   fs.mkdirSync(parent, { recursive: true });
-  const roots = nativePackageRoots(app),
+  const { roots, runner } = nativePackageEnvironment(app),
     inputs = verifyNativeSkiaInputs(nativeInputs, roots['@nelyx/skia-native']);
+  createRequire(path.join(runner, 'package.json'))(
+    '@nelyx/metro/assets',
+  ).prepareAppAssetConfiguration(app, runner);
   const toolchain = await prepareNativeHermes({
     directory: engineInputs ?? path.join(parent, 'toolchain'),
   });
@@ -608,7 +632,8 @@ export async function nativeWindowsOperation(operation, options) {
     };
   }
   if (operation === 'prepare') inputs = readInputs(true);
-  else if (operation === 'build') inputs = readInputs();
+  else if (operation === 'build' || (operation === 'run' && !options.directory))
+    inputs = readInputs();
   const selected = {
     ...inputs,
     ...options,
@@ -619,7 +644,28 @@ export async function nativeWindowsOperation(operation, options) {
   if (operation === 'prepare') return prepareNativeApplication(selected);
   if (operation === 'build')
     return buildNativeApplication({ ...selected, mode: options.hermesMode ?? 'bytecode' });
-  if (operation === 'run') return runNativeApplication(selected);
+  if (operation === 'run') {
+    const prepared = await prepareNativeWindowsRun(selected, {
+      packageFor: (app, directory, mode) => {
+        const folder = directory ?? path.join(app, '.nelyx/native-windows', 'current-' + mode);
+        if (!directory && !fs.existsSync(folder)) return undefined;
+        return verifyNativePackage(folder);
+      },
+      readInputs: (app) =>
+        nativeWindowsBuildIdentity(
+          windowsBuildInputs(nativePackageEnvironment(app).runner),
+          inputs.nativeInputsSha256,
+          inputs.engineInputsSha256,
+        ),
+      readAppInputs: windowsAppBuildInputs,
+      build: (options) => buildNativeApplication({ ...selected, ...options }),
+      onRebuild: () =>
+        console.error(
+          'Nelyx native application or build inputs changed; rebuilding current package',
+        ),
+    });
+    return runNativeApplication({ ...selected, directory: prepared.directory });
+  }
   if (operation === 'pack') return packNativeApplication(selected);
   throw Error('Native Windows host supports doctor, prepare, build, run and pack');
 }

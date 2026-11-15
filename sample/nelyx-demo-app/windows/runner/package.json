@@ -5,15 +5,15 @@
   "type": "module",
   "license": "BSD-3-Clause",
   "scripts": {
-    "build": "nelyx build --app ../.. --target windows",
-    "run": "nelyx run --app ../.. --target windows",
+    "build": "nelyx build --app ../.. --target windows --host native-hermes",
+    "run": "nelyx run --app ../.. --target windows --host native-hermes",
     "check": "node check.mjs",
     "bundle": "node bundle.mjs",
     "start": "react-native start --config metro.config.cjs",
     "dev": "nelyx dev --app ../.. --target windows",
-    "doctor": "nelyx doctor --app ../.. --target windows",
-    "prepare:native": "nelyx prepare --app ../.. --target windows",
-    "pack": "nelyx pack --app ../.. --target windows"
+    "doctor": "nelyx doctor --app ../.. --target windows --host native-hermes",
+    "prepare:native": "nelyx prepare --app ../.. --target windows --host native-hermes",
+    "pack": "nelyx pack --app ../.. --target windows --host native-hermes"
   },
   "dependencies": {
     "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.17.0-4df447ccc14038abc3b9df2ae834828a4af11f904f6c79c1182de5af857aab62.tgz",
@@ -37,7 +37,7 @@
     "@react-native-windows/find-dotnet-tools": "0.0.0",
     "@types/react": "19.2.2",
     "typescript": "7.0.2",
-    "@nelyx/cli": "file:../../.nelyx/supply/windows/nelyx-cli-0.11.0-8c86a3601f2db2b333eaabb110c770b7d016d56efe6c2b56e8a36575e4733ee9.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/windows/nelyx-cli-0.11.0-e0158d8d6f691fad84f9be495a738f4702a65a3d713782b766c6e2776518b4fb.tgz",
     "@nelyx/static-aot": "file:../../.nelyx/supply/windows/nelyx-static-aot-0.1.0-1729647bf09b2ec755830b7ae47b448effd137dc9529a2a6f5efb229d636b4c5.tgz",
     "@nelyx/tooling-contracts": "file:../../.nelyx/supply/windows/nelyx-tooling-contracts-0.1.0-772c05ea1814228a9c75ec9e48335d706741ebec5b3f26566bb6da152ad6455d.tgz"
   }

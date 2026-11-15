@@ -28,7 +28,8 @@ Open `http://127.0.0.1:8081/`; Ctrl+C stops the server. Web requires the prepare
 Nelyx CanvasKit runtime and WebGL2. `npm.cmd run build:web --workspace @nelyx/demo`
 writes the current static build to this app's `.nelyx/web/`.
 
-For Windows, prepare the matching renderer inputs, Visual Studio C++ tools and Windows SDK:
+Windows uses the direct Hermes host with Source widgets. Install Visual Studio C++ tools,
+Windows SDK, LLVM, CMake and Ninja, and prepare the matching native Skia inputs:
 
 ```powershell
 npm.cmd run prepare:windows --workspace @nelyx/demo
@@ -36,16 +37,20 @@ npm.cmd run build:windows --workspace @nelyx/demo
 npm.cmd run run:windows --workspace @nelyx/demo
 ```
 
-Build the [Windows native supplier](../../Nelyx/skia/README.ko.md#windows-네이티브-입력)
-with `--runner sample/nelyx-demo-app/windows/runner`. `prepare:windows` verifies and
-references the current `.nelyx/windows-rnw-native/supplier/inputs.json` directly,
-without copying native libraries into each app. To select another supplier, append
-`-- <inputs.json>` to preparation or run
+`prepare:windows` supplies and installs the current SDK, verifies
+`Nelyx/skia/vendor/inputs/windows-x64/source-inputs.json`, and prepares the matching
+Hermes toolchain in `.nelyx/windows-hermes/`. It records both suppliers in this app's
+`.nelyx/native-windows/inputs.json`. To select another native Skia supplier, append
+`-- <source-inputs.json>` to preparation or run
 `node sample/nelyx-demo-app/eng/windows-inputs.mjs <inputs.json>` after installing
-the runner. If the supplier is absent, build it after runner installation, then register it.
+the runner. Missing or mismatched suppliers fail preparation explicitly.
 
-Windows uses RNW/Hermes bytecode. The run command refreshes changed repository
-SDK inputs and rebuilds changed application inputs. Close the app before replacing its package.
+`build:windows` builds optimized Hermes bytecode and the direct C++ host into
+`.nelyx/native-windows/current-bytecode/`. `run:windows` refreshes changed repository
+SDK inputs and rebuilds changed app/SDK/supplier inputs; an unchanged package is reused.
+Close the app before replacing its package. The direct host remains experimental;
+physical input and performance acceptance are tracked in [work12](../../work12.md).
+For the calendar, maximize the window and choose **Menu → Selection → Choose date**.
 
 Android defaults to the x86_64 `emulator-vulkan` profile. Select a standard JDK 21
 (Temurin is available on this Windows machine), then run from the repository root:
@@ -71,8 +76,8 @@ Each `prepare:<platform>` supplies current SDK archives and installs that runner
 [package.json](package.json) declares the entrypoint, assets and profiles.
 
 The app owns its shared sources and assets and does not import the Testbed.
-It uses the existing public Widget/Material API and RNW/RN/Web runners; a C++ v2
-engine port is outside this project. It adapts the available Nelyx components,
+It uses the public Source Widget/Material API with the Windows direct Hermes,
+Android RN and Web backends. It adapts the available Nelyx components,
 rather than claiming full Doroti component parity. Runner availability and
 successful builds do not establish device, physical-input or performance acceptance.
 

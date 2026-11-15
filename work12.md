@@ -491,3 +491,25 @@ viewport는 physical 2560×1459, logical 1280×729.5, DPR 2이며 달력 PageVie
 새 월 자식의 지연 build·텍스트 처리를 포함하는 Source layout CPU 최대는 84.7·116.9·155.5ms였고, 마지막 구간 frame CPU 최대는 234.0ms였다. move의 native 입력 대기 최대도 129.6·272.3·328.3ms로 늘었다. 활성 입력 중 Source offset을 연결한 surface 진행 간격 100ms 이상은 각 구간 5·3·5개였다. 연속 월 생성과 입력 대기가 다음 성능 분석 대상이며, W12 전체 **PARTIAL**과 기존 성능 미수락을 유지한다.
 
 각 실행은 20분 timeout을 적용했다. 앱·앱 안의 임시 진단 entry/package·화면 캡처·pack staging은 회수하고 현재 제품 package와 현재 공급을 유지했다. `.tmp/calendar-fast-entry.ts`, `.tmp/calendar-fast-run.mjs`, `.tmp/calendar-fast-ui.ps1`, `.tmp/calendar-product-build.mjs`의 삭제는 자동 승인 검토가 **blocked by policy**로 거절했다. 파일 경로를 명시한 더 좁은 PowerShell 삭제도 같은 이유로 거절돼 이 4개 임시 스크립트는 남아 있다. 세부 사유는 제공되지 않았다. §12에 기록한 이전 산출물 삭제 거절 대상은 이번 실행에서 재시도하지 않았다.
+
+## 14. Demo README의 Windows npm 명령 복구 — 2026-11-15
+
+README의 `prepare:windows`·`build:windows`·`run:windows`는 RNW host를 선택하고 있었다. 현재 검증된 direct Hermes 공급과 경로가 달랐으며 RNW 공급 locator도 없었다. 사용자와 같은 build 명령에서 `ENOENT ... sample/nelyx-demo-app/.nelyx/windows-native`를 재현했다.
+
+- Demo의 Windows 준비·빌드·실행과 runner의 doctor·pack을 direct Hermes로 연결했다. 준비는 현재 native Skia `source-inputs.json`과 공용 `.nelyx/windows-hermes`를 검증하고 `.nelyx/native-windows/inputs.json`을 기록한다. 공급 누락을 안내만 출력하고 성공 처리하던 분기는 제거했다. 설치된 디자인 패키지의 에셋 준비도 유지한다.
+- Native 제품 manifest에 앱 입력 hash와 설치된 SDK·Skia/Hermes 공급의 결합 hash를 기록한다. 빌드 중 앱·설치된 SDK가 바뀌면 발행 전에 실패한다. 기본 run은 현재 입력과 비교해 필요한 경우 재빌드하고 변경이 없으면 제품을 재사용한다. 명시적 `--package`는 선택한 snapshot의 무결성을 검증하고 로컬 입력을 재빌드하지 않는다. 새 호환 alias나 RNW 자동 fallback은 추가하지 않았다.
+- 영문·한국어 Demo README와 CLI의 direct-host 설명을 현재 공급·실행 계약에 맞췄다. 기존 `windows/runner/app-config.json`의 사용자 변경은 보존했다.
+
+저장소 루트에서 다음 명령을 그대로 실행해 준비·빌드·실행을 확인했다.
+
+```powershell
+npm.cmd run prepare:windows --workspace @nelyx/demo
+npm.cmd run build:windows --workspace @nelyx/demo
+npm.cmd run run:windows --workspace @nelyx/demo
+```
+
+실제 npm 실행으로 열린 창에서 PowerShell/Win32 가상 입력으로 drawer→Selection→Choose date, 달력 2026-11→12→11 이동을 확인했다. UIA와 실제 화면이 일치했고 pointer 36개를 모두 수신·전달·수락했다. 거절 0개, close exitCode=0·forced=false였다. 공급 hash 보강 후 최종 코드의 준비·빌드·실행도 재확인했다. 마지막 run에는 executable 인자 `8000`으로 자동 종료 시간을 지정했으며 exitCode=0·forced=false와 현재 manifest의 byte·mtime 불변을 확인했다. 변경 없는 run은 재빌드하지 않았다.
+
+[Native 실행 회귀 검사](Nelyx/eng/check-native-windows-run.mjs) 18개와 루트 lint·format:check·check:cli-types가 통과했다. 회귀 검사는 앱/SDK/공급 변경, 최초 실행·입력 식별자 없는 캐시, 명시적 snapshot·실행 모드, 손상된 패키지, 재빌드 결과의 stale identity·잘못된 모드·진단 패키지 거절을 포함한다. 명령과 회귀 검사에는 20분 timeout을 적용했다.
+
+제품 host source SHA와 JS bytecode SHA는 §13의 현재 값과 같다. 이번 변경은 실행 경로와 갱신 계약 복구이며 §13의 성능 미달·물리 입력 미수락과 W12 전체 **PARTIAL**은 유지한다. 새 pack/build staging·캡처 임시 디렉터리와 검증 앱은 회수했다. §13의 기존 삭제 거절 파일은 이번 작업에서 삭제를 재시도하지 않았다.

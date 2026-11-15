@@ -11,7 +11,7 @@
     "dev:web": "npm --prefix web/runner run dev",
     "build:web": "npm --prefix web/runner run build",
     "check:windows": "npm --prefix windows/runner run check",
-    "build:windows": "npm --prefix windows/runner run build -- --engine hermes --hermes-profile optimized",
+    "build:windows": "npm --prefix windows/runner run build -- --hermes-mode bytecode",
     "run:windows": "node eng/run-windows.mjs",
     "dev:windows": "npm --prefix windows/runner run dev",
     "check:android": "npm --prefix android/runner run check",

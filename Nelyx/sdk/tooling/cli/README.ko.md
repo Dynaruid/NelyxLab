@@ -90,7 +90,7 @@ npx --no-install nelyx build --app ../.. --target windows --host native-hermes -
 npx --no-install nelyx run --app ../.. --target windows --host native-hermes --hermes-mode bytecode
 ```
 
-네이티브 AOT 모드는 `bytecode` 대신 `static-aot`로 빌드·실행합니다. 직접 호스트 빌드에는 LLVM·CMake·Ninja도 필요합니다. 현재 패키지는 앱의 `.nelyx/native-windows/current-bytecode/`·`current-static-aot/`에 있습니다.
+네이티브 AOT 모드는 `bytecode` 대신 `static-aot`로 빌드·실행합니다. 직접 호스트 빌드에는 LLVM·CMake·Ninja도 필요합니다. 현재 패키지는 앱의 `.nelyx/native-windows/current-bytecode/`·`current-static-aot/`에 있습니다. 기본 native 실행은 앱·설치된 SDK·준비한 공급을 비교해 변경 시 재빌드합니다. `--package`를 지정하면 선택한 portable snapshot을 실행하며 로컬 소스를 재빌드하지 않습니다.
 
 Windows RNW 출력은 고정된 `.nelyx/windows/packages/Release/`·`Debug/`를 사용합니다. 재빌드 전에 실행 중인 패키지를 닫고, 네이티브 공급 파일을 바꾸면 준비 명령을 반복하세요.
 

@@ -45,7 +45,8 @@ npm.cmd run dev:web --workspace @nelyx/demo
 정적 Web 빌드는 `npm.cmd run build:web --workspace @nelyx/demo`이며
 현재 출력은 이 앱의 `.nelyx/web/`에 있습니다.
 
-Windows는 Visual Studio C++ 도구·Windows SDK와 현재 렌더러 공급이 필요합니다.
+Windows는 Source 위젯과 direct Hermes host를 사용합니다. Visual Studio C++ 도구·
+Windows SDK·LLVM·CMake·Ninja와 현재 native Skia 공급이 필요합니다.
 
 ```powershell
 npm.cmd run prepare:windows --workspace @nelyx/demo
@@ -53,16 +54,20 @@ npm.cmd run build:windows --workspace @nelyx/demo
 npm.cmd run run:windows --workspace @nelyx/demo
 ```
 
-[Windows 네이티브 입력 빌드](../../Nelyx/skia/README.ko.md#windows-네이티브-입력)의
-`--runner`에는 `sample/nelyx-demo-app/windows/runner`를 지정합니다.
-`prepare:windows`는 공유 출력 `.nelyx/windows-rnw-native/supplier/inputs.json`이 있으면
-설치된 SDK 소스와 모든 파일 hash를 검사해 직접 참조합니다. 네이티브 라이브러리를
-앱마다 복제하지 않습니다. 다른 공급 경로는 `prepare:windows` 뒤에 `-- <inputs.json>`을
+`prepare:windows`는 현재 SDK를 공급·설치하고
+`Nelyx/skia/vendor/inputs/windows-x64/source-inputs.json`을 검증하며,
+일치하는 Hermes toolchain을 `.nelyx/windows-hermes/`에 준비합니다. 두 공급의 경로와 hash는
+앱의 `.nelyx/native-windows/inputs.json`에 기록합니다. 다른 native Skia 공급 경로는
+`prepare:windows` 뒤에 `-- <source-inputs.json>`을
 추가하거나, 설치 후 `node sample/nelyx-demo-app/eng/windows-inputs.mjs <inputs.json>`으로 지정합니다.
-공급이 없으면 먼저 패키지 설치가 끝난 뒤 네이티브 입력을 빌드하고 이 등록 명령을 실행하세요.
+공급이 없거나 일치하지 않으면 준비 단계에서 명시적으로 실패합니다.
 
-기본값은 RNW·Hermes bytecode입니다. `run:windows`는 앱 입력과 SDK 변경을 확인해
-필요한 경우 현재 SDK를 다시 공급하고 패키지를 갱신합니다. 재빌드 전에 기존 데모 창을 닫으세요.
+`build:windows`는 optimized Hermes bytecode와 direct C++ host를
+`.nelyx/native-windows/current-bytecode/`에 빌드합니다. `run:windows`는 앱·SDK·준비한 공급의 변경을 확인해
+필요한 경우 현재 SDK를 다시 공급하고 패키지를 갱신하며, 변경이 없으면 재사용합니다.
+재빌드 전에 기존 데모 창을 닫으세요. direct host는 experimental이며 물리 입력·성능 수락은
+[work12](../../work12.md)에 구분해 기록합니다.
+달력은 창을 최대화한 뒤 **메뉴 → Selection → Choose date**에서 열 수 있습니다.
 
 Android는 OpenJDK 21·SDK 36·NDK와 대상 아키텍처의 렌더러 공급이 필요합니다.
 현재 기본값은 x86_64 에뮬레이터용 `emulator-vulkan`입니다.
@@ -96,8 +101,8 @@ npm.cmd run check:windows --workspace @nelyx/demo
 각 `prepare:<platform>` 명령은 현재 SDK 공급과 해당 러너 설치를 수행합니다.
 앱 설정·폰트·이미지 선언은 [package.json](package.json)의 `nelyx`에 있습니다.
 
-이 프로젝트는 기존 Testbed와 같은 공개 Widget/Material API와 RNW·RN·Web 러너를
-사용합니다. 자체 C++ v2 엔진으로의 연결은 포함하지 않습니다. Doroti의 모든 컴포넌트를
+이 프로젝트는 공개 Source Widget/Material API와 Windows direct Hermes·Android RN·Web
+backend를 사용합니다. Doroti의 모든 컴포넌트를
 일대일로 이식한 것은 아니며 현재 Nelyx 공개 API로 구성한 15개 데모를 제공합니다.
 플랫폼 러너 포함과 타입·빌드 통과는 기기 실행·물리 입력·성능 검증을 뜻하지 않습니다.
 

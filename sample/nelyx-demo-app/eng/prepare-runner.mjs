@@ -2,10 +2,6 @@
 import path from 'node:path';
 import { execute } from '../../../Nelyx/sdk/tooling/cli/src/commands.mjs';
 import { configureRunner } from '../../../Nelyx/sdk/tooling/cli/src/runner-configuration.mjs';
-import {
-  readApplication,
-  configureWindowsApplication,
-} from '../../../Nelyx/sdk/tooling/cli/src/application.mjs';
 import { prepareDemoWindowsInputs } from './windows-inputs.mjs';
 
 const app = path.resolve(import.meta.dirname, '..');
@@ -34,6 +30,5 @@ await execute(
 );
 
 if (target === 'windows') {
-  configureWindowsApplication(await readApplication(app, target));
-  prepareDemoWindowsInputs(process.argv[3]);
+  await prepareDemoWindowsInputs(process.argv[3]);
 } else await configureRunner({ app, target });
