@@ -30,6 +30,7 @@
       "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -60,6 +61,7 @@
       "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -90,6 +92,7 @@
       "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -120,6 +123,7 @@
       "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -150,6 +154,7 @@
       "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -180,6 +185,7 @@
       "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -210,6 +216,7 @@
       "scope": "Source Scrollable/Viewport/SliverFillViewport, position and physics port. Eighteen pinned-framework geometry/jump/resize, page storage, controller transfer, interruption, padding and empty-list cases are compared; fling, keyed/keep-alive lifetime, physical input and full semantics acceptance remain open.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -240,6 +247,7 @@
       "scope": "Source delegate/child-manager and fractional-padding path. Only the PageView vertical slice is qualified; SliverFillRemaining is not implemented by this module.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -270,6 +278,7 @@
       "scope": "Source delegate/child-manager and fractional-padding path. Only the PageView vertical slice is qualified; SliverFillRemaining is not implemented by this module.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -300,6 +309,7 @@
       "scope": "Source delegate/child-manager and fractional-padding path. Only the PageView vertical slice is qualified; SliverFillRemaining is not implemented by this module.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -330,6 +340,7 @@
       "scope": "Source delegate/child-manager and fractional-padding path. Only the PageView vertical slice is qualified; SliverFillRemaining is not implemented by this module.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -360,6 +371,7 @@
       "scope": "Source fixed-extent adaptor, fraction and implicit visibility. Eighteen PageView cases; not a claim about every sliver or engine boundary.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -383,13 +395,14 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
+        "sha256": "2ca7f2cdccb923a3869cab736d2b8106a99dfb45803c1f50df78cae19bec7ca3"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
-      "scope": "Source compositing invalidation/flush and removal of configuration-only render ownership. Existing layout, lifecycle, input geometry and semantics still require complete original comparison.",
+      "scope": "Source compositing invalidation/flush and generic repaint-boundary retirement. Three pinned repaint hook observations and twenty boundary/scheduling/resource regressions are checked. Existing layout, lifecycle, input geometry and semantics still require complete original comparison.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -413,13 +426,14 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "7662b8be02a69b26721006c28aff029d905a0348653ddbf3222b95f206d975d0"
+        "sha256": "2ca7f2cdccb923a3869cab736d2b8106a99dfb45803c1f50df78cae19bec7ca3"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
-      "scope": "Source compositing invalidation/flush and removal of configuration-only render ownership. Existing layout, lifecycle, input geometry and semantics still require complete original comparison.",
+      "scope": "Source compositing invalidation/flush and generic repaint-boundary retirement. Three pinned repaint hook observations and twenty boundary/scheduling/resource regressions are checked. Existing layout, lifecycle, input geometry and semantics still require complete original comparison.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     },
@@ -443,13 +457,169 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/context.ts",
         "module": "@nelyx/core/framework/painting/context",
-        "sha256": "25f07a08a879edcc1335b3a5764a0f83a1c314b9f90327289ab63e22d038a4fd"
+        "sha256": "1bfbb97233cab72d55fe9e85544b39f62918270f557d60081fb9dc41603c32b4"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
-      "scope": "Generic pushClipRect and retained/composited path. Immediate clip command cases pass; full raster/layer equivalence remains open.",
+      "scope": "Generic pushClipRect, retained/composited path, and Source boundary recording at paintChild. Immediate clip commands and three original repaint hook observations pass; full raster/layer equivalence remains open.",
       "acceptance": [
         "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "ae037b1ec0ea55c49818",
+      "qualifiedId": "package:flutter/src/rendering/viewport.dart::RenderViewportBase:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/rendering/viewport.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "6e7c45abc086c29fe994aa5ca494dd6711609a96",
+        "fileSha256": "77dedef663cd57434d5b2eda1e0ccc6d4bc4822a2da527052ab4a960f50a5f4f",
+        "canonicalSpan": {
+          "offset": 14746,
+          "length": 42550,
+          "line": 391,
+          "sha256": "0ffefe5a9892dadecd27be3dcc22c51002eefd218388cd050cc874ebf46e8761",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/rendering/viewport.ts",
+        "module": "@nelyx/core/framework/rendering/viewport",
+        "sha256": "35fb3f296f39f37b62f3b95100d1d5825b77b411e50b6a4ada4ac38e9b7a2815"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Partial Source viewport layout/paint with the original repaint-boundary getter restored. List/grid and PageView geometry are compared; full viewport lifecycle, semantics and raster acceptance remain open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "d8652fd1284cd6be0a8f",
+      "qualifiedId": "package:flutter/src/rendering/viewport.dart::RenderViewport:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/rendering/viewport.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "6e7c45abc086c29fe994aa5ca494dd6711609a96",
+        "fileSha256": "77dedef663cd57434d5b2eda1e0ccc6d4bc4822a2da527052ab4a960f50a5f4f",
+        "canonicalSpan": {
+          "offset": 57298,
+          "length": 17161,
+          "line": 1520,
+          "sha256": "cdb2cc41b7615d7702a549667ba1cbe9941a9ffe7616fbd5f76c178ff29253ad",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/rendering/viewport.ts",
+        "module": "@nelyx/core/framework/rendering/viewport",
+        "sha256": "35fb3f296f39f37b62f3b95100d1d5825b77b411e50b6a4ada4ac38e9b7a2815"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Partial Source viewport layout/paint with the original repaint-boundary getter restored. List/grid and PageView geometry are compared; full viewport lifecycle, semantics and raster acceptance remain open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "7462162ee6d8c8d495ff",
+      "qualifiedId": "package:flutter/src/rendering/viewport.dart::RenderShrinkWrappingViewport:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/rendering/viewport.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "6e7c45abc086c29fe994aa5ca494dd6711609a96",
+        "fileSha256": "77dedef663cd57434d5b2eda1e0ccc6d4bc4822a2da527052ab4a960f50a5f4f",
+        "canonicalSpan": {
+          "offset": 74461,
+          "length": 11014,
+          "line": 1976,
+          "sha256": "71021e46ff6734ebc5b3b2191c7d163c5d93d1e0a416de96f4c919ef564ff7a5",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/rendering/viewport.ts",
+        "module": "@nelyx/core/framework/rendering/viewport",
+        "sha256": "35fb3f296f39f37b62f3b95100d1d5825b77b411e50b6a4ada4ac38e9b7a2815"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Partial Source viewport layout/paint with the original repaint-boundary getter restored. List/grid and PageView geometry are compared; full viewport lifecycle, semantics and raster acceptance remain open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "f83cc6bcbc6148d80ddd",
+      "qualifiedId": "package:flutter/src/rendering/proxy_box.dart::RenderRepaintBoundary:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/rendering/proxy_box.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "5f2b7b9f102fac1e9d7271bb072ff7889453e13b",
+        "fileSha256": "67be37f422791e215b3912dbafda3199ef0ddbd107c7a0eff1d5d0e7765e9e8c",
+        "canonicalSpan": {
+          "offset": 111897,
+          "length": 10714,
+          "line": 3449,
+          "sha256": "e1f09fabecc483a4e1e29c93913926c305d4a61e5d92023693425477a9382244",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/rendering/repaint-boundary.ts",
+        "module": "@nelyx/core/framework/rendering/repaint-boundary",
+        "sha256": "dd0caa8d0b2e3ea143b39c875e70b06f72e7e033599a0760f44cb9607857192f"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Source paint hooks use generic PaintingContext boundary recording. Image capture rejects dirty recordings; complete image/raster comparison remains open.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
+        "Nelyx/eng/check-flutter-framework.mjs"
+      ]
+    },
+    {
+      "id": "fd8ec174d758c33c3b9a",
+      "qualifiedId": "package:flutter/src/rendering/object.dart::PaintingContext:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/rendering/object.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "14d2452c2cf4496a36612130280a40d00754f065",
+        "fileSha256": "19206a10d5d0b71689aad2ad6f5a855d6a10504596e752d9028840af54234f14",
+        "canonicalSpan": {
+          "offset": 2437,
+          "length": 29206,
+          "line": 80,
+          "sha256": "70647490744cc5a20c9f3a886b9de9a77429310360c2be9656d1e5649560fd83",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/rendering/retained-paint.ts",
+        "module": "@nelyx/core/framework/rendering/retained-paint",
+        "sha256": "61d3f76ce5557399aff177bec7b4c7b8ccd600a4c21e7156a572228e2ed26edd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Host adaptation of PaintingContext boundary recording and refresh. One cache serves the View root, viewports and custom boundaries; twenty scoped lifetime/scheduling/resource regressions and three original repaint hook observations. Not a second layout or Widget owner.",
+      "acceptance": [
+        "Nelyx/eng/check-source-framework.mjs",
+        "Nelyx/eng/check-retained-paint.mjs",
         "Nelyx/eng/check-flutter-framework.mjs"
       ]
     }

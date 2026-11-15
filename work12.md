@@ -400,7 +400,7 @@ Android 번들링에서 IDE Oracle Java 서버가 해당 빌드의 project 디�
 | --- | --- |
 | W12-00 원본 identity | 고정 pin Git tree와 coverage의 Git blob·SHA-256 703개를 확인했다. 로컬 reference는 690개 일치·13개 불일치·누락 0개다. 변환/oracle은 [immutable Git reader](tools/Nelyx.FrameworkToTypeScript/flutter-source.mjs)로 pin을 읽으며 reference를 덮어쓰지 않는다. |
 | W12-00 공개 surface | [현재 inventory](Nelyx/eng/framework-inventory.mjs)는 공개 경로 852개(TS 모듈 837개·자산/metadata 15개)의 4,617개 export와 선언 타입·멤버·기본값·의존 import·실제 owner, 두 앱의 entry와 runner 6곳의 공급을 조회한다. export 대상 파일 누락 0개. 기존 출처와 새 partial port를 연결해도 3,189개 export는 직접 대응이 없으며 의미 감사가 남아 있다. 74,297개 upstream 선언의 이전 상태 라벨은 현재 지원률로 계산하지 않는다. |
-| W12-01 출처·생성 | 수동 출처 322개/현재 목적지 342개의 경로·SHA와 신규 reviewed port 15개를 반영했다. 이전 base·fingerprint·PARTIAL 및 과거 검증 기록은 보존했으며 일괄 resume/promote하지 않았다. 날짜 생성기는 실제 사용하지 않는 parameter binding만 의미 분석으로 정리하고, shorthand 참조는 보존한다. |
+| W12-01 출처·생성 | 수동 출처 322개/현재 목적지 342개의 경로·SHA와 신규 reviewed port 20개를 반영했다. 이전 base·fingerprint·PARTIAL 및 과거 검증 기록은 보존했으며 일괄 resume/promote하지 않았다. 날짜 생성기는 실제 사용하지 않는 parameter binding만 의미 분석으로 정리하고, shorthand 참조는 보존한다. 2026-11-15 스크롤 변경의 현재 목적지 SHA와 추가 출처 범위는 §12에 반영했다. |
 | W12-02–04 Source 실행 | FrameworkRoot의 Source build→layout→compositing bits→paint·hit path·gesture arena·semantics를 실행한다. 임의 RenderObject·CustomPainter·recognizer와 취소, LayoutBuilder의 clean/dirty·descendant build scope, compositing 자식 제거와 clip 4개 모드를 검사했다. 범용 drawing·Paragraph·GPU·OS transport는 유지한다. |
 | W12-05 PageView | ListView 대체를 제거하고 Source Scrollable·Viewport·SliverFillViewport, PageMetrics/position/physics를 이식했다. fraction > 1, 0 크기 cached page, 페이지 단위 저장·복원, controller 교체와 애니메이션 중단을 포함한다. 기존 native position hook·호환 physics 옵션은 삭제했다. |
 | W12-05–06 원본 대조 | pin의 실제 Flutter/flutter_test 실행 소스 781개를 사용했다. PageView 18개(방향·fraction·jump·resize·저장/복원·교체·중단·padEnds=false·빈 목록)와 가변 높이 목록/custom grid delegate 2개, 총 20개 관측이 Dart 원본과 일치했다. 설치된 tester engine은 371f77202a73e8dff57a8b3bff75bca55c090aee, Dart 3.14.0이다. engine/pixel 동등성 판정은 아니다. |
@@ -420,3 +420,74 @@ Android 번들링에서 IDE Oracle Java 서버가 해당 빌드의 project 디�
 - W12-05/06: drag/fling·다중 pointer·notification depth/반올림 경계, child 수/Key 이동·KeepAlive·중첩 scroll/focus reveal·가변 높이 텍스트의 전체 수명 대조.
 - W12-02/07/09: frame 자원 보유·복구·취소·shutdown의 전체 대조, 실제 OS IME composition/candidate geometry·reader, Windows/Web/Android 및 Apple/Linux 각각의 시각·물리 입력·성능 수락.
 - W12-10: 나머지 생성 recipe의 현재 validator 연결과 전체 재생성 폐쇄, 삭제 거절된 로컬 이전 산출물 정리. 원본에 존재하는 deprecated Dart API와 철거한 Nelyx 호환 alias는 같은 것으로 취급하지 않는다.
+
+## 12. Demo 스크롤 개선 — 2026-11-15
+
+이번 변경은 Demo의 Source 스크롤 경로를 개선한 범위다. W12 전체 판정은 **PARTIAL**, 기존 60Hz 성능 기준은 **미달**을 유지한다.
+
+### 12.1 원인과 구현
+
+- 고정 Flutter 원본의 `RenderViewportBase.isRepaintBoundary`는 true인데 현재 이식에는 해당 getter가 빠져 있었다. [viewport](Nelyx/src/framework/rendering/viewport.ts)에 원본 경계를 복원했다.
+- [PaintingContext](Nelyx/src/framework/painting/context.ts)와 [공통 boundary 기록](Nelyx/src/framework/rendering/retained-paint.ts)이 View root·viewport·사용자 정의 RenderObject의 repaint 경계를 처리한다. clean 조상의 paint를 반복하지 않고 dirty 중첩 경계의 안정된 layer를 갱신한다. detach·숨김·실패·paint 중 재무효화와 제출 프레임의 독립 자원 보유를 유지한다.
+- `RenderRepaintBoundary`의 별도 캐시와 `paintContents` 확장점을 제거했다. 하위 클래스는 원본 RenderObject의 `paint(context)`를 override한다. Material의 `RenderDecorationBorder`도 이 경로로 이전했으며 호환 alias는 추가하지 않았다.
+- [FrameworkRoot](Nelyx/src/framework/widgets/root.ts)는 현재 프레임에서 실행할 post-frame callback 때문에 다음 프레임을 중복 예약하지 않는다. paint·semantics에서 발생한 pipeline 갱신도 단계 종료 후 남은 layout·paint·semantics 작업을 확인한다. 미처리 paint 변경, post-frame 재진입, animation callback의 다음 프레임 예약은 유지한다.
+- Demo의 목록 항목·cache 범위·KeepAlive 정책·입력 속도·font·semantics 간격 300ms는 변경하지 않았다. C++ 위젯 정책이나 별도 스크롤 owner를 추가하지 않았다.
+
+### 12.2 Windows 측정
+
+Windows direct Hermes bytecode·동일 host/VM·Vulkan adapter에서 비교했다. viewport는 logical 1280×729.5, physical 2560×1459, DPR 2, host가 보고한 화면 refresh는 165Hz다. 시작 후 첫 하강→복귀→재하강을 각각 24개 휠 입력으로 실행했다. 기존 native driver의 raw delta ±120·간격 24ms를 유지했고 각 구간의 Source 이동은 1,152 logical px다. 입력 속도 p95는 수정 전후 약 24.5–24.8ms였다.
+
+아래 지연은 **OS 입력 timestamp부터 해당 input sequence를 포함하는 첫 native surface-copy fence 완료까지**다. displayed/scanout 시간이나 물리 트랙패드 결과가 아니다. 각 구간 입력 24개 수신, foreign 입력·trace 유실 0개를 확인했다.
+
+| Gallery 세로 목록 구간 | 지연 p95 이전 → 이후 | 최대 지연 이전 → 이후 | Source frame CPU p95 이전 → 이후 |
+| --- | --- | --- | --- |
+| 시작 후 첫 하강 | 96.7 → 61.6ms | 151.0 → 78.8ms | 45.7 → 39.6ms |
+| 이미 본 구간 복귀 | 65.2 → 52.5ms | 77.2 → 62.9ms | 14.7 → 13.2ms |
+| 재하강 | 55.0 → 45.4ms | 55.4 → 46.0ms | 25.2 → 22.0ms |
+
+첫 하강 지연 p95는 약 36% 감소했다. 같은 구간의 paint 방문 수는 1,137→739, 복귀는 1,342→771, 재하강은 1,181→802로 줄었다. frame CPU 분포에는 구간 안의 animation·semantics 후속 프레임도 포함한다. 각 1회 실행의 관측이며 장시간 분포나 모든 화면의 개선율로 확대하지 않는다. CPU sampling을 켠 별도 진단 실행은 이 비교 수치에서 제외했다.
+
+기준선 diagnostic bundle SHA-256은 `35af9ea712aa9f84530621705a7f7de46b289e6791ba68b25a8d13387cb133b4`, 최종 측정 bundle은 `9e66e0a50b262b9d1611c37d43b5982264f3bdf73bb8ead58391932c394bbebf`다. host source SHA는 양쪽 모두 `19306fd4b619845fad3fd8224e9f47a70ad76431111565742bc5b37202941dc6`이다. diagnostic entry를 제외한 현재 제품 bytecode도 다시 빌드했으며 SHA는 `1cbf59f1949492a2d4c551022e8e1da372a17b13e8de50fe1411c2efdb314f45`다.
+
+### 12.3 검증과 남은 범위
+
+- [repaint·예약·자원 회귀 검사](Nelyx/eng/check-retained-paint.mjs) 20개가 통과했다. custom boundary, dynamic boundary 제거/복원, paint 훅 중 재무효화, 실패 후 재시도, 숨김 복귀, dirty 이미지 캡처 거절, callback 예약, 마지막 renderer lease 반환까지 포함한다.
+- [실제 고정 Flutter 원본 대조](Nelyx/eng/check-flutter-framework.mjs)는 기존 PageView·list/grid 20개와 repaint 호출 관측 3개, 총 23개가 일치했다. 설치 tester engine과 pixel 동등성은 별도다. reviewed port 20개 및 기존 manual 매핑 15개의 목적지 SHA를 갱신했고 과거 acceptance·PARTIAL은 보존했다.
+- 루트 `check:types`, `lint`, `format:check`, `check:cli-types`가 통과했다. Core·Material을 빌드하고 Demo Windows·Web·Android runner에 현재 공급을 설치했다. Windows 제품 bytecode와 Web Ganesh/WebGL2 제품을 빌드했다.
+- Windows 실제 기능 입력은 사용자 요청대로 **PowerShell/Win32 가상 입력**으로 실행했다. HWND·PID·DPI·전경 창을 확인하고 `SendInput` 휠 왕복, `InjectTouchInput` 목록 드래그와 달력 11월→12월 스와이프, 2026-12-16 선택 callback, 버튼·drawer, 필드 focus·전체 선택·문자 입력·Ctrl+Z의 최근 문자 undo, 창 크기 변경 후 편집 값 유지를 관측했다. 실제 화면과 UIA 값을 함께 확인했다. close 후 exitCode=0, pointer 143개 수신/전달/수락·거절 0개였다.
+- Web은 Chrome 157 headless/SwiftShader에서 실제 canvas 버튼 callback과 목록 하강·재진입 3개를 확인했고 page error는 없었다. Android는 공급 설치까지만 했으며 이번 변경의 기기 실행·성능은 확인하지 않았다.
+- 새 섹션 생성의 layout CPU 최대 47.7ms가 남아 있다. 지연 p95 33.3ms 이하·최대 66.7ms 이하 목표를 모두 충족하지 못했다. offset 무진행 100ms gate, 달력의 별도 전후 성능, 물리 트랙패드·scanout, 실제 IME·reader 수락은 이번 결과에 포함하지 않는다.
+- 이번 oracle·diagnostic package·UI 임시 파일과 앱·브라우저·서버는 회수했다. 현재 dist·제품 package·현재 공급 archive를 유지한다. 이전 Web 생성 package `sample/nelyx-demo-app/.nelyx/web/packages/1794670208245-3b018b16-8c6d-4d54-9c65-450e2802a346` 삭제는 자동 승인 검토가 **blocked by policy**로 거절했다. 세부 사유는 제공되지 않았고 해당 폴더는 남아 있다. 현재 Web locator는 새 package를 가리킨다.
+
+## 13. Demo 달력 고속 연속 스와이프 — 2026-11-15
+
+### 13.1 입력 거리 유실 수정
+
+코드를 먼저 분석하고 PowerShell/Win32 `InjectTouchInput`으로 확인했다. 최초 실행에서는 정방향 6회·6회와 역방향 12회의 touch 이벤트 240개를 모두 수락했지만 최종 월 이동은 +1·+1·0개월이었다. [Windows direct Hermes host](Nelyx/sdk/native/windows-hermes/main.cpp)의 위치 패킷이 측정하지 않은 `deltaX`·`deltaY`를 항상 0으로 전달했다. FrameworkRoot는 명시된 delta를 우선하므로 좌표가 움직여도 Source drag 거리는 0이 되고 종료 velocity의 ballistic 이동만 남았다.
+
+host는 wheel·panZoomUpdate에 실제 상대 delta를 보내고, touch·pen·mouse 위치 패킷에서는 해당 필드를 생략한다. Source가 동일 contact·viewport 안의 좌표 차이로 이동량을 계산한다. 별도 달력 스크롤 정책이나 호환 alias는 추가하지 않았다. SDK 0.21.0의 수정된 native 소스를 Demo Windows·Web·Android runner에 공급·설치하고 파일 SHA 일치를 확인했다. 실제 실행 검증은 Windows direct Hermes 경로다.
+
+### 13.2 재검증 결과
+
+한 실행에 24회, 각 제스처는 down→8개 move→up으로 주입했다. 주입 루프 중 UIA 조회·화면 캡처는 하지 않았다. 최초 PowerShell sleep 루프의 실제 contact 시간은 약 131–209ms였으므로 이를 고속 측정 기준으로 사용하지 않았다. 재검증은 PowerShell에서 호출한 Win32/.NET 입력 루프에 1ms timer period를 적용하고 finally에서 복원했다. 아래 시간은 요청값이 아닌 실제 측정값이다.
+
+viewport는 physical 2560×1459, logical 1280×729.5, DPR 2이며 달력 PageView 폭은 344 logical px다. 제스처 이동 폭은 445 physical px다. 다음 touch down이 이전 페이지 정착을 중단하므로 제스처 수와 최종 월 수를 1:1로 가정하지 않는다.
+
+| 구간 | 실제 contact 시간 / 시작 간격 | 정착한 월 / 페이지 변화 | move 입력→surface 완료 p95 / 최대 | surface의 offset 진행 간격 최대 |
+| --- | --- | --- | --- | --- |
+| 정방향 6회 | 103.0–105.2ms / 127.5–130.1ms | 2026-11 → 2027-03 / +4 | 233.5 / 266.4ms | 146.7ms |
+| 더 빠른 정방향 6회 | 56.6–60.1ms / 73.2–77.1ms | 2027-03 → 2027-07 / +4 | 408.2 / 417.0ms | 234.2ms |
+| 빠른 역방향 12회 | 56.0–58.6ms / 73.0–75.6ms | 2027-07 → 2026-12 / −7 | 525.3 / 571.3ms | 259.4ms |
+
+- 24회 모두 올바른 방향의 Source drag 거리를 확인했다. 23회는 ±194.5 logical px, 역방향 1회는 −222.5 logical px였다. Source 월 변경은 정방향 4·4개, 역방향 7개를 순서대로 관측했다.
+- 각 구간이 끝난 뒤 scrolling=false·정수 page·위치 안정 상태를 확인했다. 정착 page는 해당 월과 firstDate의 월 차이와 일치했다. UIA 월 제목·31일 grid와 실제 화면도 세 구간 모두 일치했다.
+- touch 240개를 모두 수신·수락했고 거절·trace 유실·해당 move를 포함하는 surface 완료 관측 누락은 0개였다. setup/hover를 포함한 전체 pointer는 259개 수신·전달·수락, 거절 0개이며 정상 close exitCode=0이었다.
+- 진단 bundle SHA-256은 `7d809ac2f3ada70e3bb8cfb6668f263488697b2d526e3aba40b8c2738dd5bb4c`, 수정 host source SHA는 `c82ffbd0930fa2fc85abea2068f87a4bbf2b7a53b6c7a6268203087a30f772ed`다. 제품 `current-bytecode`도 해당 host로 갱신하고 진단 entry 미포함·시작/정상 종료를 확인했다. 제품 JS bytecode SHA는 기존 `1cbf59f1949492a2d4c551022e8e1da372a17b13e8de50fe1411c2efdb314f45`와 같다.
+
+### 13.3 수락 범위와 남은 문제
+
+**고속 반복 drag와 연속 월 이동 기능은 확인했으며 성능은 미달이다.** 지연은 OS 입력 timestamp부터 해당 input sequence를 포함하는 native surface-copy fence 완료까지다. displayed/scanout·물리 트랙패드·실제 터치 장치의 수락으로 확대하지 않는다. 입력 드라이버와 실제 이동 경로가 달라졌으므로 최초 실행과의 성능 개선율도 계산하지 않는다.
+
+새 월 자식의 지연 build·텍스트 처리를 포함하는 Source layout CPU 최대는 84.7·116.9·155.5ms였고, 마지막 구간 frame CPU 최대는 234.0ms였다. move의 native 입력 대기 최대도 129.6·272.3·328.3ms로 늘었다. 활성 입력 중 Source offset을 연결한 surface 진행 간격 100ms 이상은 각 구간 5·3·5개였다. 연속 월 생성과 입력 대기가 다음 성능 분석 대상이며, W12 전체 **PARTIAL**과 기존 성능 미수락을 유지한다.
+
+각 실행은 20분 timeout을 적용했다. 앱·앱 안의 임시 진단 entry/package·화면 캡처·pack staging은 회수하고 현재 제품 package와 현재 공급을 유지했다. `.tmp/calendar-fast-entry.ts`, `.tmp/calendar-fast-run.mjs`, `.tmp/calendar-fast-ui.ps1`, `.tmp/calendar-product-build.mjs`의 삭제는 자동 승인 검토가 **blocked by policy**로 거절했다. 파일 경로를 명시한 더 좁은 PowerShell 삭제도 같은 이유로 거절돼 이 4개 임시 스크립트는 남아 있다. 세부 사유는 제공되지 않았다. §12에 기록한 이전 산출물 삭제 거절 대상은 이번 실행에서 재시도하지 않았다.

@@ -108,6 +108,22 @@ class UserGridDelegate extends SliverGridDelegate {
   }
   @override bool shouldRelayout(covariant UserGridDelegate oldDelegate) => false;
 }
+class PaintCounter extends RenderProxyBox {
+  PaintCounter({this.boundary=false});
+  final bool boundary;
+  int paints=0;
+  @override bool get isRepaintBoundary => boundary;
+  @override void paint(PaintingContext context, Offset offset) {
+    paints++;
+    context.canvas.drawRect(offset & const Size(8,9),Paint()..color=const Color(0xff123456));
+    super.paint(context,offset);
+  }
+}
+class PaintCounterWidget extends SingleChildRenderObjectWidget {
+  const PaintCounterWidget(this.render,{super.child});
+  final PaintCounter render;
+  @override PaintCounter createRenderObject(BuildContext context) => render;
+}
 void main() {
   testWidgets('pinned PageView geometry and zero-size restoration', (WidgetTester tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
@@ -210,8 +226,16 @@ void main() {
     gridController.jumpTo(65);await tester.pump();expect(delegate.calls,greaterThan(0));
     slivers.add(record(tester.renderObject<RenderSliverGrid>(find.byType(SliverGrid)),gridController,'custom-grid'));
     await tester.pumpWidget(const SizedBox.shrink());expect(gridController.hasClients,false);gridController.dispose();
+    final parent=PaintCounter(), boundary=PaintCounter(boundary:true), leaf=PaintCounter();
+    final retainedPaint=<Map<String,Object?>>[];
+    void recordPaint(String kind) => retainedPaint.add(<String,Object?>{'kind':kind,'paints':<int>[parent.paints,boundary.paints,leaf.paints]});
+    await tester.pumpWidget(PaintCounterWidget(parent,child:PaintCounterWidget(boundary,child:PaintCounterWidget(leaf))));
+    await tester.pump();recordPaint('clean');
+    leaf.markNeedsPaint();await tester.pump();recordPaint('child-dirty');
+    parent.markNeedsPaint();await tester.pump();recordPaint('parent-dirty');
+    await tester.pumpWidget(const SizedBox.shrink());
     File(${JSON.stringify(oracle.replaceAll('\\', '/'))}).writeAsStringSync(jsonEncode(<String, Object?>{
-      'revision': '${flutterRevision}', 'pages': pages, 'slivers': slivers, 'lifecycle': lifecycle,
+      'revision': '${flutterRevision}', 'pages': pages, 'slivers': slivers, 'lifecycle': lifecycle, 'retainedPaint':retainedPaint,
     }));
   });
 }
@@ -296,12 +320,18 @@ void main() {
     result.revision !== flutterRevision ||
     result.pages.length !== 12 ||
     result.slivers.length !== 2 ||
-    result.lifecycle.length !== 6
+    result.lifecycle.length !== 6 ||
+    result.retainedPaint.length !== 3
   )
     throw Error('Original framework observations are incomplete');
   await execute(
     process.execPath,
     [path.join(root, 'Nelyx/eng/check-source-framework.mjs'), '--oracle', oracle],
+    { cwd: root, timeout: remaining() },
+  );
+  await execute(
+    process.execPath,
+    [path.join(root, 'Nelyx/eng/check-retained-paint.mjs'), '--oracle', oracle],
     { cwd: root, timeout: remaining() },
   );
   console.log(
@@ -312,9 +342,13 @@ void main() {
       executableFiles: inputs.length,
       installedEngine: engine.engineRevision,
       dart: engine.dartSdkVersion,
-      cases: result.pages.length + result.slivers.length + result.lifecycle.length,
+      cases:
+        result.pages.length +
+        result.slivers.length +
+        result.lifecycle.length +
+        result.retainedPaint.length,
       scope:
-        'actual pinned PageView geometry/storage/transfer/interruption/empty and variable list/custom grid; installed tester engine; no pixel/physical acceptance',
+        'actual pinned PageView geometry/storage/transfer/interruption/empty, variable list/custom grid, and repaint boundary hooks; installed tester engine; no pixel/physical acceptance',
     }),
   );
 } catch (error) {

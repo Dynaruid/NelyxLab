@@ -35,6 +35,7 @@ import { FrameRecording } from '../../ui/frame.ts';
 import type { SceneFrameSource } from '../../ui/frame.ts';
 import { PaintingBinding } from '../painting/binding.ts';
 import { withRenderPaint, assertOutsideRenderPaint } from '../rendering/phase.ts';
+import { paintRenderObject } from '../rendering/retained-paint.ts';
 import { FrameScheduler } from '../scheduler/scheduler.ts';
 import { MouseTracker } from '../rendering/mouse-tracker.ts';
 import {
@@ -228,6 +229,7 @@ export class FrameworkRoot implements ViewController {
   private readonly keyEventManager: KeyEventManager;
   private readonly layerRoot = new LayerHandle(new OffsetLayer());
   private root: Element | undefined;
+  private pipelineInvalidatedDuringFrame = false;
   private closed = false;
   private visible = true;
   private isViewOpen(): boolean {
@@ -355,11 +357,13 @@ export class FrameworkRoot implements ViewController {
       )
         this.scheduler.requestFrame();
     };
-    // Layout invalidates paint and semantics that this frame has yet to visit.
-    // Widget rebuilds use invalidate directly: their earlier stage may need a
-    // new frame even when render work is already covered by the current one.
+    // Render updates before post-frame may be consumed by this very frame.
+    // Check the remaining work after all pipeline stages instead of reserving
+    // a duplicate host frame for paint/semantics already flushed below.
+    // Widget rebuilds still use invalidate directly for their earlier stage.
     const invalidatePipeline = () => {
-      if (this.scheduler.phase !== 'layout') invalidate();
+      if (this.scheduler.phase === 'idle' || this.scheduler.phase === 'post-frame') invalidate();
+      else this.pipelineInvalidatedDuringFrame = true;
     };
     // The snapshot transport below consumes the live semantics tree. It does
     // not submit engine packets, so do not build a second copy to dispose it.
@@ -371,7 +375,12 @@ export class FrameworkRoot implements ViewController {
       context,
       invalidate,
       (callback) => {
-        if (!this.closed) this.scheduler.addPostFrame(callback);
+        if (this.closed) return;
+        this.scheduler.addPostFrameCallback(callback);
+        // Before post-frame dispatch, this frame will consume the callback.
+        // Idle and reentrant post-frame registrations still need a host wake.
+        if (this.scheduler.phase === 'idle' || this.scheduler.phase === 'post-frame')
+          this.scheduler.requestFrame();
       },
       { mouseIsConnected: () => this.mouseTracker.mouseIsConnected },
       systemFonts,
@@ -585,6 +594,7 @@ export class FrameworkRoot implements ViewController {
     invariant(!this.closed, 'closed-framework-root', 'Frame after root disposal');
     if (!this.isViewOpen()) return [];
     this.preparedFrame = undefined;
+    this.pipelineInvalidatedDuringFrame = false;
     let preparedFrame: FrameworkRoot['preparedFrame'];
     const diagnostics = scene.frameDiagnostics;
     let diagnosticAt = diagnostics?.now();
@@ -1109,6 +1119,24 @@ export class FrameworkRoot implements ViewController {
           this.pendingSemanticsActions = [];
           errors.push(error);
         }
+      if (
+        !failed &&
+        !errors.length &&
+        !this.closed &&
+        this.pipelineInvalidatedDuringFrame &&
+        preparedFrame
+      ) {
+        const render = preparedFrame.render;
+        render._finishPaintInvalidationBatch();
+        if (
+          render.needsLayout ||
+          this.pipeline.hasActiveLayoutWork ||
+          render.paintVersion !== preparedFrame.paintVersion ||
+          (!this.semanticsDeferred &&
+            existingPipelineSemantics(this.pipeline)?.hasPendingChanges === true)
+        )
+          this.scheduler.requestFrame();
+      }
       finishDiagnostic?.('post-frame');
       // Seal the completed CPU buffer before publishing its input coordinates.
       // Capture owns Canvas close on success and failure.
@@ -1243,8 +1271,7 @@ export class FrameworkRoot implements ViewController {
   private recordPaint(render: RenderObject, painting: PaintingContext): void {
     painting.save();
     painting.transform(render.localTransform);
-    withRenderPaint(() => render.paint(painting));
-    render._didPaint();
+    withRenderPaint(() => paintRenderObject(render, painting, true));
     painting.restore();
   }
   pointer(event: PointerEvent): void {

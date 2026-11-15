@@ -168,7 +168,7 @@ class RenderDecorationBorder extends RenderRepaintBoundary {
   protected override performLayout(constraints: BoxConstraints): Size {
     return this.computeDryLayout(constraints);
   }
-  protected override paintContents(context: PaintingContext): void {
+  override paint(context: PaintingContext): void {
     const c = this.animation?.value ?? this.configuration,
       rect = Rect.fromLTWH(0, 0, this.size.width, this.size.height);
     if (c.fill >>> 24) {

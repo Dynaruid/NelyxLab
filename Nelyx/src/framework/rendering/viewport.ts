@@ -215,6 +215,9 @@ export interface SliverChildSequence {
 }
 /** Source sequence and offset protocol; this host enforces a finite View boundary. */
 export abstract class RenderViewportBase extends RenderAbstractViewport {
+  override get isRepaintBoundary(): boolean {
+    return true;
+  }
   protected override markNeedsPaintAfterLayout(): void {
     if (
       this.markNeedsPaint === RenderObject.prototype.markNeedsPaint &&
@@ -1424,6 +1427,7 @@ export class RenderShrinkWrappingViewport extends RenderViewportBase {
   }
 }
 
+RenderObject._registerPaintInvalidationBoundary(RenderViewportBase.prototype);
 RenderObject._registerInputGeometryHooks(RenderViewportBase.prototype);
 
 RenderObject._registerInputGeometryHooks(RenderViewport.prototype);

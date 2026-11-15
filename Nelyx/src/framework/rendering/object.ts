@@ -12,6 +12,11 @@ import { FoundationBuildMode } from '../../foundation/constants.ts';
 import { describeIdentity } from '../../foundation/diagnostics-identity.ts';
 import { assertOutsideRenderPaint } from './phase.ts';
 import {
+  disposeRetainedPaint,
+  invalidateRetainedPaint,
+  retireHiddenPaint,
+} from './retained-paint.ts';
+import {
   contains,
   identity,
   inversePaintTransform,
@@ -1211,7 +1216,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   /** @internal Only constant framework boundary getters and retirement hooks. */
   static _registerPaintInvalidationBoundary(prototype: object): void {
     const getter = Object.getOwnPropertyDescriptor(prototype, 'isRepaintBoundary')!.get!,
-      hook = Object.getOwnPropertyDescriptor(prototype, 'retainedPaintInvalidated')!.value;
+      hook = Reflect.get(prototype, 'retainedPaintInvalidated') as Function;
     RenderObject.paintBoundaryOwners.set(getter, { hook, boundary: true });
   }
   private static readonly emptyInputGeometryCommit =
@@ -1345,9 +1350,13 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   _didPaint(): void {
     this.wasRepaintBoundary = this.isRepaintBoundary;
   }
-  /** @internal Retained subclasses alone admit their invalid cache owner. */
-  protected retainedPaintInvalidated(): void {}
-  _retireHiddenPaint(): void {}
+  /** @internal Boundary recordings share their Source render owner's lifetime. */
+  protected retainedPaintInvalidated(): void {
+    invalidateRetainedPaint(this);
+  }
+  _retireHiddenPaint(): void {
+    retireHiddenPaint(this);
+  }
   protected dead = false;
   private lastConstraints: Constraints | undefined;
   private parentUsesSize = false;
@@ -1998,6 +2007,8 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       errors: unknown[] = [],
       transition = enterTreeTransition(owner);
     this.pipelineOwner = undefined;
+    owner?._forgetPaintRetirement(this);
+    attempt(errors, () => disposeRetainedPaint(this));
     owner?._forgetCompositingBits(this);
     this.paintCoalesces = false;
     this.paintInvalidationBarrier = this.paintInvalidationBoundary = undefined;
@@ -2811,6 +2822,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'Dispose requires an idle detached render object',
       );
     const errors: unknown[] = [];
+    attempt(errors, () => disposeRetainedPaint(this));
     attempt(errors, () => this.clearSemantics());
     attempt(errors, () => RenderObject.prototype.setChildren.call(this, []));
     attempt(errors, () => this.clearCachedLayoutData());

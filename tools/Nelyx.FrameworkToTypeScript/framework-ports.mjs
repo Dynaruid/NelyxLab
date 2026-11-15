@@ -44,13 +44,31 @@ const definitions = [
     'rendering/object.dart',
     'rendering/object',
     ['PipelineOwner', 'RenderObject'],
-    'Source compositing invalidation/flush and removal of configuration-only render ownership. Existing layout, lifecycle, input geometry and semantics still require complete original comparison.',
+    'Source compositing invalidation/flush and generic repaint-boundary retirement. Three pinned repaint hook observations and twenty boundary/scheduling/resource regressions are checked. Existing layout, lifecycle, input geometry and semantics still require complete original comparison.',
   ],
   [
     'rendering/object.dart',
     'painting/context',
     ['PaintingContext'],
-    'Generic pushClipRect and retained/composited path. Immediate clip command cases pass; full raster/layer equivalence remains open.',
+    'Generic pushClipRect, retained/composited path, and Source boundary recording at paintChild. Immediate clip commands and three original repaint hook observations pass; full raster/layer equivalence remains open.',
+  ],
+  [
+    'rendering/viewport.dart',
+    'rendering/viewport',
+    ['RenderViewportBase', 'RenderViewport', 'RenderShrinkWrappingViewport'],
+    'Partial Source viewport layout/paint with the original repaint-boundary getter restored. List/grid and PageView geometry are compared; full viewport lifecycle, semantics and raster acceptance remain open.',
+  ],
+  [
+    'rendering/proxy_box.dart',
+    'rendering/repaint-boundary',
+    ['RenderRepaintBoundary'],
+    'Source paint hooks use generic PaintingContext boundary recording. Image capture rejects dirty recordings; complete image/raster comparison remains open.',
+  ],
+  [
+    'rendering/object.dart',
+    'rendering/retained-paint',
+    ['PaintingContext'],
+    'Host adaptation of PaintingContext boundary recording and refresh. One cache serves the View root, viewports and custom boundaries; twenty scoped lifetime/scheduling/resource regressions and three original repaint hook observations. Not a second layout or Widget owner.',
   ],
 ];
 const options = {};
@@ -148,6 +166,7 @@ try {
         scope,
         acceptance: [
           'Nelyx/eng/check-source-framework.mjs',
+          'Nelyx/eng/check-retained-paint.mjs',
           'Nelyx/eng/check-flutter-framework.mjs',
         ],
       };

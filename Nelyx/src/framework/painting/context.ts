@@ -42,6 +42,7 @@ import {
   isCapturedPaintCommand,
 } from '../../ui/frame.ts';
 import { resourceOwner } from '../../ui/resource-retention.ts';
+import { paintRenderObject } from '../rendering/retained-paint.ts';
 // Captured commands and their resource bindings are immutable. Weak identity
 // metadata follows the recording's lifetime and never keeps an owner alive on
 // its own; frozen external commands still have to cross Canvas admission.
@@ -244,8 +245,7 @@ export class PaintingContext extends Canvas {
         this.transform !== Canvas.prototype.transform
       )
         this.transform(transform);
-      child.paint(this);
-      child._didPaint();
+      paintRenderObject(child, this);
     } finally {
       this.restore();
     }
