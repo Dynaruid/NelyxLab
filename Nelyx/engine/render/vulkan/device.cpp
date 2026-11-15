@@ -346,9 +346,10 @@ struct Device::Impl {
     // every frame; the allocator's separate 256MiB hard cap remains unchanged.
     options.fGpuBudgetInBytes=96*1024*1024;
     // Window-sized 4x color/depth attachments exceed the fixed 256MiB native
-    // allocator cap at normal maximized sizes. Use bounded 2x MSAA for WSI;
-    // imported-texture and offscreen consumers retain their existing policy.
-    if(windowSurface)options.fInternalMultisampleCount=skgpu::graphite::SampleCount::k2;
+    // allocator cap when a maximized date picker switches to text input.
+    // Both WSI and the shared-texture Windows presenter need bounded 2x MSAA;
+    // win32Interop has no VkSurfaceKHR. Standalone offscreen devices keep the default.
+    if(windowSurface||win32Interop)options.fInternalMultisampleCount=skgpu::graphite::SampleCount::k2;
 #endif
     context=skgpu::graphite::ContextFactory::MakeVulkan(backend,options);
     if(!context||context->backend()!=skgpu::BackendApi::kVulkan)throw std::runtime_error("Graphite/native Vulkan context unavailable");
