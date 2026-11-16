@@ -409,7 +409,11 @@ export function lowerSourcePartition({ graph, program, checker, owners }, select
         parameters.map((p) => ',' + p.name + ':' + p.type).join('') +
         '):number',
     );
-    emitStatement(body);
+    // The audit needs a named kernel definition. Preserve only this boundary;
+    // ordinary application helpers remain eligible for Hermes JS inlining.
+    out('{"noinline";', body);
+    body.statements.forEach(emitStatement);
+    out('}');
     out('\n');
     out(
       'let calls' +

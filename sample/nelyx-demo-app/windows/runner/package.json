@@ -16,14 +16,14 @@
     "pack": "nelyx pack --app ../.. --target windows --host native-hermes"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.17.0-c6ad57c1d55873144c4a485392ea7471a7bd99af2e36358e84a56c45826b7bfb.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.21.0-35b317846e6e2218129b71e19f027aac07dc0d880a3bb9ecacd9f98bb32e0475.tgz",
-    "@nelyx/skia-rn": "file:../../.nelyx/supply/windows/nelyx-skia-rn-0.6.0-6eedb0cd528603c6d67af4316da96c62f72ed9639242483987df85d775f1e0f4.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.17.0-60dc7fd20b510854f98a76a44240f4e7964ac7b3b833bca9fd5a42c59efe7b35.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.21.0-46d965dece0788f0931573442dc28fe0457bf6be5c2c9325a9d657ecffb8b5dd.tgz",
+    "@nelyx/skia-rn": "file:../../.nelyx/supply/windows/nelyx-skia-rn-0.6.0-5178f9558b3c980e10e9f70443be5b34ea534794bdce5fab075016b32df65fc3.tgz",
     "react": "19.2.0",
     "react-native": "0.83.10",
     "react-native-windows": "0.83.2",
     "@nelyx/material": "file:../../.nelyx/supply/windows/nelyx-material-0.2.0-8502555065e4165f9deb3bd9c347bc50e3c4dd2982904755c286a91033eb8223.tgz",
-    "@nelyx/skia-native": "file:../../.nelyx/supply/windows/nelyx-skia-native-0.1.0-a1920d4538c5a3dda568667aab890dffaab53f49c284baeeee54a433b2416160.tgz",
+    "@nelyx/skia-native": "file:../../.nelyx/supply/windows/nelyx-skia-native-0.1.0-b2de8b1b3e8bda0ca364d3c591b5635a67384e49a2b6e2434495daf0d1e9a48d.tgz",
     "@nelyx/cupertino": "file:../../.nelyx/supply/windows/nelyx-cupertino-0.2.0-a202288a21e0884b134d6e536ddefe3756abc0087e2943adfb342c01a1fe7f2f.tgz"
   },
   "devDependencies": {
@@ -37,8 +37,8 @@
     "@react-native-windows/find-dotnet-tools": "0.0.0",
     "@types/react": "19.2.2",
     "typescript": "7.0.2",
-    "@nelyx/cli": "file:../../.nelyx/supply/windows/nelyx-cli-0.11.0-55edce54088662f61fe3a39b9e33d455fcc00c74a1baa4a0413ccaa384127cf9.tgz",
-    "@nelyx/static-aot": "file:../../.nelyx/supply/windows/nelyx-static-aot-0.1.0-1729647bf09b2ec755830b7ae47b448effd137dc9529a2a6f5efb229d636b4c5.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/windows/nelyx-cli-0.11.0-4338483d16994c49d15581435aa8f25cf7bacd8efbd1567c169a6945508ab150.tgz",
+    "@nelyx/static-aot": "file:../../.nelyx/supply/windows/nelyx-static-aot-0.1.0-f4028f3ed44ce471920b6a3530d3720dfdde422d75d8c8dbb7d180cc8d5c850f.tgz",
     "@nelyx/tooling-contracts": "file:../../.nelyx/supply/windows/nelyx-tooling-contracts-0.1.0-772c05ea1814228a9c75ec9e48335d706741ebec5b3f26566bb6da152ad6455d.tgz"
   }
 }

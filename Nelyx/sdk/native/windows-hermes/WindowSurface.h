@@ -8,10 +8,12 @@
 #include <atomic>
 #include <iostream>
 #include <string>
+#include <cmath>
 #include "rnskia/RNSkWindowSurface.h"
 #include "rnskia/RNSkGraphiteTarget.h"
 #include "device.h"
 #include "windows/WindowsFrameWorker.h"
+#include "windows/WindowsMonotonic.h"
 
 namespace Nelyx::NativeHermes {
 using Microsoft::WRL::ComPtr;
@@ -23,6 +25,9 @@ public:
   using UiPost=std::function<void(std::function<void()>)>;
   using Render=std::function<std::shared_ptr<const nelyx::vulkan::Win32Frame>(nelyx::vulkan::Win32TextureTarget,const std::vector<std::shared_ptr<skgpu::graphite::Recording>>&)>;
   explicit WindowSurface(HWND hwnd,UiPost post):hwnd(hwnd),post(std::move(post)),owner(std::this_thread::get_id()){
+    wchar_t marker[2]{};const auto markerLength=GetEnvironmentVariableW(L"NELYX_NATIVE_SCREEN_MARKER",marker,2);
+    if(markerLength&&(markerLength!=1||(marker[0]!=L'0'&&marker[0]!=L'1')))throw std::runtime_error("Screen marker requires 0 or 1");
+    screenMarker=markerLength==1&&marker[0]==L'1';
     ComPtr<IDXGIFactory1> factory;check(CreateDXGIFactory1(IID_PPV_ARGS(&factory)));
     wchar_t requested[32]{};const auto length=GetEnvironmentVariableW(L"NELYX_WINDOWS_GPU_VENDOR",requested,32);uint32_t vendor=0;
     if(length){if(length>=32)throw std::runtime_error("Invalid NELYX_WINDOWS_GPU_VENDOR");size_t end=0;const auto value=std::stoul(requested,&end,0);if(end!=length||!value||value>UINT32_MAX)throw std::runtime_error("Invalid NELYX_WINDOWS_GPU_VENDOR");vendor=uint32_t(value);}
@@ -75,7 +80,7 @@ public:
   uint64_t surfaceGeneration()const{return generation;}
   uint64_t frames()const{return committed;}
   std::function<void(uint64_t,const RNSkia::NelyxFrameIdentity&,int,int,uint64_t)> onPresented;
-  void close(){ui();if(busy)throw std::runtime_error("Native surface close before GPU drain");worker.close();detach();check(visual->SetContent(nullptr));check(composition->Commit());drawing.Reset();visual.Reset();target.Reset();composition.Reset();texture.Reset();fence.Reset();context.Reset();device.Reset();}
+  void close(){ui();if(busy)throw std::runtime_error("Native surface close before GPU drain");worker.close();detach();check(visual->SetContent(nullptr));check(composition->Commit());if(screenMarker)std::cout<<"NELYX_NATIVE_SCREEN_MARKER {\"frames\":"<<markerFrames<<",\"totalCpuMs\":"<<markerTotalMs<<",\"maxCpuMs\":"<<markerMaxMs<<"}"<<std::endl;drawing.Reset();visual.Reset();target.Reset();composition.Reset();texture.Reset();fence.Reset();context.Reset();device.Reset();}
 private:
   struct Packet{int width,height;uint64_t generation,wait;ComPtr<ID3D11Texture2D> texture;ComPtr<ID3D11Fence> fence;std::vector<std::shared_ptr<skgpu::graphite::Recording>> recordings;std::vector<RNSkia::NelyxFrameIdentity> identities;std::shared_ptr<const nelyx::vulkan::Win32Frame> frame;Render render;FrameCompletion complete;std::string failure;bool updated=false;};
   void ui()const{if(owner!=std::this_thread::get_id())throw std::runtime_error("Native surface requires UI owner");}
@@ -83,6 +88,21 @@ private:
     if(texture&&targetWide==wide&&targetHigh==high)return;texture.Reset();fence.Reset();consumer=0;
     D3D11_TEXTURE2D_DESC desc{};desc.Width=wide;desc.Height=high;desc.MipLevels=1;desc.ArraySize=1;desc.Format=DXGI_FORMAT_B8G8R8A8_UNORM;desc.SampleDesc.Count=1;desc.Usage=D3D11_USAGE_DEFAULT;desc.BindFlags=D3D11_BIND_SHADER_RESOURCE|D3D11_BIND_RENDER_TARGET;desc.MiscFlags=D3D11_RESOURCE_MISC_SHARED_NTHANDLE|D3D11_RESOURCE_MISC_SHARED;
     check(device->CreateTexture2D(&desc,nullptr,&texture));check(device->CreateFence(0,D3D11_FENCE_FLAG_SHARED,IID_PPV_ARGS(&fence)));targetWide=wide;targetHigh=high;
+  }
+  // Opt-in diagnostic only. A screen sampler decodes the actual composed frame
+  // identity; a GPU copy/Commit receipt alone never establishes displayed FPS.
+  // The 32 cells contain a sync byte, uint16 Source frame and byte checksum.
+  void markFrame(ID3D11Texture2D* destination,POINT offset,uint64_t frame){
+    if(!screenMarker)return;if(!frame||frame>65535)throw std::runtime_error("Screen marker frame budget exceeded");
+    const auto began=RNSkia::windowsMonotonicMilliseconds();
+    ComPtr<ID3D11RenderTargetView> view;check(device->CreateRenderTargetView(destination,nullptr,&view));
+    const auto scale=GetDpiForWindow(hwnd)/96.;
+    auto rectangle=[&](int from,int to){return D3D11_RECT{offset.x+LONG(std::lround((8+from*3)*scale)),offset.y+LONG(std::lround(8*scale)),offset.x+LONG(std::lround((8+to*3)*scale)),offset.y+LONG(std::lround(14*scale))};};
+    const float black[]{0,0,0,1},white[]{1,1,1,1};auto full=rectangle(0,32);context->ClearView(view.Get(),black,&full,1);
+    const uint32_t checksum=(uint32_t(frame)^(uint32_t(frame)>>8)^0xa5)&255;
+    const uint32_t code=0xd3|(uint32_t(frame)<<8)|(checksum<<24);
+    for(int bit=0;bit<32;++bit)if((code>>bit)&1){auto cell=rectangle(bit,bit+1);context->ClearView(view.Get(),white,&cell,1);}
+    const auto elapsed=RNSkia::windowsMonotonicMilliseconds()-began;++markerFrames;markerTotalMs+=elapsed;markerMaxMs=std::max(markerMaxMs,elapsed);
   }
   void publish(std::shared_ptr<Packet> packet){
     ui();if(!packet->failure.empty()){busy=false;packet->complete({},packet->failure);return;}
@@ -92,7 +112,7 @@ private:
       if(current){
         if(drawingWide!=wide||drawingHigh!=high){ComPtr<IDCompositionSurface> next;check(composition->CreateSurface(wide,high,DXGI_FORMAT_B8G8R8A8_UNORM,DXGI_ALPHA_MODE_PREMULTIPLIED,&next));check(visual->SetContent(next.Get()));drawing=next;drawingWide=wide;drawingHigh=high;}
         POINT offset{};ComPtr<ID3D11Texture2D> destination;check(drawing->BeginDraw(nullptr,IID_PPV_ARGS(&destination),&offset));
-        context->CopySubresourceRegion(destination.Get(),0,offset.x,offset.y,0,packet->texture.Get(),0,nullptr);check(drawing->EndDraw());check(composition->Commit());packet->updated=true;
+        context->CopySubresourceRegion(destination.Get(),0,offset.x,offset.y,0,packet->texture.Get(),0,nullptr);markFrame(destination.Get(),offset,packet->identities.back().frame);check(drawing->EndDraw());check(composition->Commit());packet->updated=true;
       }
       consumer=packet->frame->producerFenceValue+1;check(context->Signal(packet->fence.Get(),consumer));context->Flush();
       auto self=shared_from_this();worker.post([self,packet]{
@@ -107,6 +127,7 @@ private:
   nelyx::vulkan::Win32DeviceOptions options{};skgpu::graphite::TextureInfo format;Render render;
   std::atomic<int> wide{0},high{0},logicalWide{0},logicalHigh{0};std::atomic<uint64_t> generation{1};
   bool busy=false;uint64_t consumer=0,committed=0;int targetWide=0,targetHigh=0,drawingWide=1,drawingHigh=1;
+  bool screenMarker=false;uint64_t markerFrames=0;double markerTotalMs=0,markerMaxMs=0;
   std::function<void()> redraw;std::function<bool()> canShow;
   ComPtr<ID3D11Device5> device;ComPtr<ID3D11DeviceContext4> context;ComPtr<ID3D11Texture2D> texture;ComPtr<ID3D11Fence> fence;
   ComPtr<IDCompositionDevice> composition;ComPtr<IDCompositionTarget> target;ComPtr<IDCompositionVisual> visual;ComPtr<IDCompositionSurface> drawing;

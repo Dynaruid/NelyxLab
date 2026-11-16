@@ -48,6 +48,6 @@ inline SemanticPacket readSemantics(Packet const& record){
   }
   TextDocument::validate(t);s.text=std::move(t);return result;
 }
-struct SemanticsDelta {WindowsInput::Owner owner;uint64_t commit=0,viewport=0,surface=0;std::vector<SemanticPacket> upserts;std::vector<std::string> removed,order;};
-inline SemanticsDelta readSemanticsDelta(Packet const& p){if(p.field("protocol").counter()!=1)p.fail();SemanticsDelta delta;delta.owner=readOwner(p.field("owner"));delta.commit=p.field("commit").counter();delta.viewport=p.field("viewport").counter();delta.surface=p.field("surface").counter(false);for(auto const& item:p.field("upserts").array())delta.upserts.push_back(readSemantics(item));for(auto const& item:p.field("removed").array())delta.removed.push_back(item.string(1024));for(auto const& item:p.field("order").array())delta.order.push_back(item.string(1024));return delta;}
+struct SemanticsDelta {WindowsInput::Owner owner;uint64_t commit=0,viewport=0,surface=0;bool reset=false;std::vector<SemanticPacket> upserts;std::vector<std::string> removed,order;};
+inline SemanticsDelta readSemanticsDelta(Packet const& p){if(p.field("protocol").counter()!=1)p.fail();SemanticsDelta delta;delta.owner=readOwner(p.field("owner"));delta.commit=p.field("commit").counter();delta.viewport=p.field("viewport").counter();delta.surface=p.field("surface").counter(false);auto reset=p.field("reset");if(!reset.absent())delta.reset=reset.boolean();for(auto const& item:p.field("upserts").array())delta.upserts.push_back(readSemantics(item));for(auto const& item:p.field("removed").array())delta.removed.push_back(item.string(1024));for(auto const& item:p.field("order").array())delta.order.push_back(item.string(1024));return delta;}
 }

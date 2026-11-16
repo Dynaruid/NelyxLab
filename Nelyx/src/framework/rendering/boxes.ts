@@ -979,12 +979,6 @@ export class RenderFlex extends RenderBox {
     this.clipping = options.clipBehavior ?? 'none';
     this.validateConfiguration();
   }
-  private change<T>(old: T, value: T, assign: () => void): void {
-    if (old !== value) {
-      assign();
-      this.markNeedsLayout();
-    }
-  }
   get direction(): 'horizontal' | 'vertical' {
     return this.axis;
   }
@@ -995,9 +989,10 @@ export class RenderFlex extends RenderBox {
       'invalid-flex-direction',
       'Unknown flex direction',
     );
-    this.change(this.axis, value, () => {
+    if (this.axis !== value) {
       this.axis = value;
-    });
+      this.markNeedsLayout();
+    }
   }
   get spacing(): number {
     return this.gap;
@@ -1009,9 +1004,10 @@ export class RenderFlex extends RenderBox {
       'invalid-spacing',
       'Flex spacing must be finite and nonnegative',
     );
-    this.change(this.gap, value, () => {
+    if (this.gap !== value) {
       this.gap = value;
-    });
+      this.markNeedsLayout();
+    }
   }
   get items(): readonly FlexItem[] {
     return this.legacyItems;
@@ -1027,9 +1023,10 @@ export class RenderFlex extends RenderBox {
   set mainAxisSize(value: 'min' | 'max') {
     this.assertCanMutateLayoutProperty();
     invariant(value === 'min' || value === 'max', 'invalid-flex-size', 'Unknown main axis size');
-    this.change(this.mainSizing, value, () => {
+    if (this.mainSizing !== value) {
       this.mainSizing = value;
-    });
+      this.markNeedsLayout();
+    }
   }
   get mainSize(): 'min' | 'max' {
     return this.mainAxisSize;
@@ -1048,9 +1045,10 @@ export class RenderFlex extends RenderBox {
       'invalid-flex-alignment',
       'Unknown cross axis alignment',
     );
-    this.change(this.crossAlignment, value, () => {
+    if (this.crossAlignment !== value) {
       this.crossAlignment = value;
-    });
+      this.markNeedsLayout();
+    }
   }
   get crossAlign(): CrossAxisAlignment {
     return this.crossAxisAlignment;
@@ -1069,9 +1067,10 @@ export class RenderFlex extends RenderBox {
       'invalid-flex-alignment',
       'Unknown main axis alignment',
     );
-    this.change(this.mainAlignment, value, () => {
+    if (this.mainAlignment !== value) {
       this.mainAlignment = value;
-    });
+      this.markNeedsLayout();
+    }
   }
   get textDirection(): 'ltr' | 'rtl' | null {
     return this.textFlow;
@@ -1083,9 +1082,10 @@ export class RenderFlex extends RenderBox {
       'invalid-text-direction',
       'Unknown text direction',
     );
-    this.change(this.textFlow, value, () => {
+    if (this.textFlow !== value) {
       this.textFlow = value;
-    });
+      this.markNeedsLayout();
+    }
   }
   get verticalDirection(): 'up' | 'down' {
     return this.verticalFlow;
@@ -1097,9 +1097,10 @@ export class RenderFlex extends RenderBox {
       'invalid-vertical-direction',
       'Unknown vertical direction',
     );
-    this.change(this.verticalFlow, value, () => {
+    if (this.verticalFlow !== value) {
       this.verticalFlow = value;
-    });
+      this.markNeedsLayout();
+    }
   }
   get textBaseline(): TextBaseline | null {
     return this.baselineType;
@@ -1111,9 +1112,10 @@ export class RenderFlex extends RenderBox {
       'invalid-baseline',
       'Unknown baseline',
     );
-    this.change(this.baselineType, value, () => {
+    if (this.baselineType !== value) {
       this.baselineType = value;
-    });
+      this.markNeedsLayout();
+    }
   }
   get clipBehavior(): 'none' | 'hardEdge' {
     return this.clipping;

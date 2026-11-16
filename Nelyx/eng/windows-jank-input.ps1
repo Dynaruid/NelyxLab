@@ -1,6 +1,6 @@
 param(
   [Parameter(Mandatory)][string]$Package,
-  [Parameter(Mandatory)][ValidateSet('Setup','SetupGallery','SetupTestbed','Wheel','Editor','Swipe','Snapshot','Close')][string]$Action,
+  [Parameter(Mandatory)][ValidateSet('Setup','SetupGallery','SetupTestbed','SetupList','SnapshotList','Capture','Wheel','Editor','Swipe','Snapshot','Close')][string]$Action,
   [int]$Count = 0, [int]$MoveMs = 6, [int]$GapMs = 16, [int]$Direction = 1,
   [ValidateRange(1,240)][double]$InputHz = 60,
   [string]$ExpectedMonth = '', [string]$CapturePath = '', [int]$Delta = -120
@@ -38,7 +38,7 @@ function Click-Button([string]$name,[string]$id) {
     if ($matches.Count -eq 1) { break }
     Start-Sleep -Milliseconds 100
   } while ($until.ElapsedMilliseconds -lt 5000)
-  if ($matches.Count -ne 1) { throw "Button unavailable: $name / $id ($($matches.Count))" }
+  if ($matches.Count -ne 1) { throw "Button unavailable: $name / $id ($($matches.Count)); visible=$(@(Get-Buttons) | ConvertTo-Json -Compress)" }
   Assert-Foreground
   $button=$matches[0]
   [FastCalendarInput]::Click([int]($button.X+$button.Width/2),[int]($button.Y+$button.Height/2))
@@ -68,11 +68,21 @@ function Get-EditorValues {
   }
 }
 try {
+  if($Action -eq 'Capture') {
+    Assert-Foreground
+    if(!$CapturePath){throw 'Capture path is required'}
+    $rect=[FastCalendarInput+Rect]::new();$origin=[FastCalendarInput+Point]::new()
+    if(![FastCalendarInput]::GetClientRect($window,[ref]$rect) -or ![FastCalendarInput]::ClientToScreen($window,[ref]$origin)){throw 'Capture client unavailable'}
+    $bitmap=[Drawing.Bitmap]::new($rect.Right,$rect.Bottom);$graphics=[Drawing.Graphics]::FromImage($bitmap)
+    try{$graphics.CopyFromScreen($origin.X,$origin.Y,0,0,$bitmap.Size);$bitmap.Save($CapturePath,[Drawing.Imaging.ImageFormat]::Png)}
+    finally{$graphics.Dispose();$bitmap.Dispose()}
+    Write-Output ('FAST_CAPTURE '+$CapturePath);return
+  }
   if ($Action -eq 'Close') {
     if (![FastCalendarInput]::PostMessage($window,0x10,[IntPtr]::Zero,[IntPtr]::Zero)) { throw 'Close message rejected' }
     Write-Output 'FAST_UI_CLOSE'; return
   }
-  if ($Action -eq 'Setup' -or $Action -eq 'SetupGallery' -or $Action -eq 'SetupTestbed') {
+  if ($Action -eq 'Setup' -or $Action -eq 'SetupGallery' -or $Action -eq 'SetupTestbed' -or $Action -eq 'SetupList') {
     $foreground=[FastCalendarInput]::GetForegroundWindow(); [uint32]$foregroundPid=0
     $foregroundThread=[FastCalendarInput]::GetWindowThreadProcessId($foreground,[ref]$foregroundPid)
     $ourThread=[FastCalendarInput]::GetCurrentThreadId(); $attached=$false
@@ -84,11 +94,31 @@ try {
     } finally { if ($attached) { [void][FastCalendarInput]::AttachThreadInput($ourThread,$foregroundThread,$false) } }
     Start-Sleep -Milliseconds 600
     Assert-Foreground
+    if($Action -eq 'SetupList') {
+      Click-Button '' 'show-list-view'
+      $items=@(Get-Buttons|Where-Object {$_.Id -like 'list-view-item-*'}|Select-Object -ExpandProperty Id)
+      if(!$items.Count){throw 'Variable list semantics unavailable'}
+      Write-Output ('LIST_UI_SNAPSHOT '+(@{Items=$items}|ConvertTo-Json -Compress));return
+    }
     if($Action -eq 'SetupTestbed') {
       Click-Button '' 'show-mixed-scroll'
-      $edits=@(Get-EditorValues|Sort-Object {$_.Rect.Y},{$_.Rect.X});if($edits.Count -lt 1){throw 'MixedScroll editor unavailable'}
+      $editorWait=[Diagnostics.Stopwatch]::StartNew()
+      do {
+        $edits=@(Get-EditorValues|Sort-Object {$_.Rect.Y},{$_.Rect.X})
+        if($edits.Count){break}
+        Start-Sleep -Milliseconds 100
+      } while($editorWait.ElapsedMilliseconds -lt 10000)
+      if(!$edits.Count){throw ('MixedScroll editor unavailable; visible='+(@(Get-Buttons)|ConvertTo-Json -Compress))}
       $edit=$edits[0];[FastCalendarInput]::Click([int]($edit.Rect.X+$edit.Rect.Width/2),[int]($edit.Rect.Y+$edit.Rect.Height/2))
-      Start-Sleep -Milliseconds 150;[FastCalendarInput]::TypeText('Jank 한글 😀');Start-Sleep -Milliseconds 500
+      Start-Sleep -Milliseconds 150;[FastCalendarInput]::TypeText('Jank 한글 😀')
+      $editorWait.Restart()
+      do {
+        $entered=@(Get-EditorValues|Where-Object {$_.Value.Trim() -eq 'Jank 한글 😀'})
+        if($entered.Count){break}
+        Start-Sleep -Milliseconds 100
+      } while($editorWait.ElapsedMilliseconds -lt 5000)
+      if(!$entered.Count){throw 'MixedScroll initial edit did not publish'}
+      Start-Sleep -Milliseconds 500
       $origin=[FastCalendarInput+Point]::new();$rect=[FastCalendarInput+Rect]::new()
       if(![FastCalendarInput]::ClientToScreen($window,[ref]$origin) -or ![FastCalendarInput]::GetClientRect($window,[ref]$rect)){throw 'Testbed client unavailable'}
       [void][FastCalendarInput]::SetCursorPos($origin.X+45,$origin.Y+[int]($rect.Bottom*.65))
@@ -102,7 +132,7 @@ try {
       [void][FastCalendarInput]::SetCursorPos($origin.X+[int]($rect.Right*.3),$origin.Y+[int]($rect.Bottom*.65))
       [void][FastCalendarInput]::Wheels($window,30,-24,$InputHz);Start-Sleep -Milliseconds 600
       $after=@(Get-Buttons|Where-Object {$_.Id -like 'list-view-item-*'}|Select-Object -ExpandProperty Id)
-      if(!$before.Count -or !$after.Count -or ($before -join ',') -eq ($after -join ',')){throw 'Testbed variable list did not progress'}
+      if(!$before.Count -or !$after.Count -or ($before -join ',') -eq ($after -join ',')){throw 'Testbed list did not progress'}
       Click-Button '' 'list-view-back'
       Write-Output ('TESTBED_UI_PASS '+(@{MixedEditor='Jank 한글 😀';MixedCounter=1;Before=$before;After=$after}|ConvertTo-Json -Compress));return
     }
@@ -114,6 +144,11 @@ try {
     Write-Output ('FAST_UI_SETUP '+($calendar|ConvertTo-Json -Compress)); return
   }
   Assert-Foreground
+  if($Action -eq 'SnapshotList') {
+    $items=@(Get-Buttons|Where-Object {$_.Id -like 'list-view-item-*'}|Select-Object -ExpandProperty Id)
+    if(!$items.Count){throw 'Variable list semantics unavailable'}
+    Write-Output ('LIST_UI_SNAPSHOT '+(@{Items=$items}|ConvertTo-Json -Compress));return
+  }
   if($Action -eq 'Wheel') {
     if($Count -lt 2 -or $Count -gt 240 -or $Delta -eq 0 -or [Math]::Abs([long]$Delta) -gt 120){throw 'Invalid bounded wheel plan'}
     $rect=[FastCalendarInput+Rect]::new();$origin=[FastCalendarInput+Point]::new()

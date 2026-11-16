@@ -1,15 +1,20 @@
 param(
-  [ValidateSet('calendar','gallery','boundaries','testbed')][string]$Scenario = 'calendar',
+  [ValidateSet('calendar','gallery','boundaries','testbed','list')][string]$Scenario = 'calendar',
   [ValidateRange(1,30)][int]$Runs = 3,
-  [switch]$RunOnce,
-  [ValidateSet('demo','testbed')][string]$App = 'demo'
+  [switch]$RunOnce, [switch]$NoScreen, [string]$SummaryPath = '',
+  [ValidateSet('demo','testbed')][string]$App = 'demo',
+  [ValidateSet('bytecode','static-aot')][string]$HermesMode = 'bytecode',
+  [string]$CompilerCache = ''
 )
 $ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Run this check with PowerShell 7 (pwsh).' }
 Push-Location -LiteralPath (Join-Path $PSScriptRoot '../..')
 try {
-  $taskArguments = @((Join-Path $PSScriptRoot 'check-windows-jank.mjs'), '--scenario', $Scenario, '--runs', $Runs, '--app', $App)
+  $taskArguments = @((Join-Path $PSScriptRoot 'check-windows-jank.mjs'), '--scenario', $Scenario, '--runs', $Runs, '--app', $App, '--hermes-mode', $HermesMode)
   if ($RunOnce) { $taskArguments += '--child' }
+  if ($NoScreen) { $taskArguments += '--no-screen' }
+  if ($SummaryPath) { $taskArguments += @('--summary-file', $SummaryPath) }
+  if ($CompilerCache) { $taskArguments += @('--compiler-cache', $CompilerCache) }
   & node @taskArguments
   if ($LASTEXITCODE -ne 0) { throw "Windows $Scenario check failed with exit code $LASTEXITCODE" }
 } finally { Pop-Location }

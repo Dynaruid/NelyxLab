@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Microsoft.Win32.SafeHandles;
 
 public static class FastCalendarInput {
  [StructLayout(LayoutKind.Sequential)] public struct Point { public int X,Y; }
@@ -37,12 +38,16 @@ public static class FastCalendarInput {
  [DllImport("user32.dll",SetLastError=true)] public static extern bool PostMessage(IntPtr w,uint message,IntPtr a,IntPtr b);
  [DllImport("winmm.dll")] public static extern uint timeBeginPeriod(uint period);
  [DllImport("winmm.dll")] public static extern uint timeEndPeriod(uint period);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern SafeWaitHandle CreateWaitableTimerEx(IntPtr attributes,string name,uint flags,uint access);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool SetWaitableTimer(SafeWaitHandle timer,ref long dueTime,int period,IntPtr completion,IntPtr argument,bool resume);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern uint WaitForSingleObject(SafeWaitHandle handle,uint milliseconds);
 
  public sealed class Timing {
+  public readonly string WaitStrategy="high-resolution-waitable-timer+QPC";
   public double Hz,PeriodMs,EffectiveHz,MaxLatenessMs,MaxIntervalErrorMs;
   public int Injected;
   public bool CadenceValid;
-  public double[] ScheduledMs,ActualInjectionMs,ApiDurationMs,IntervalsMs;
+  public double[] ScheduledMs,ActualInjectionMs,ApiDurationMs,IntervalsMs,AttemptQpcMs;
  }
  public sealed class SwipeFrame {
   public double At; public int X,Y,Gesture; public uint Flags;
@@ -63,13 +68,20 @@ public static class FastCalendarInput {
   for(int i=0;i<count;i++)result[i]=i*1000.0/hz;
   return result;
  }
- static void WaitUntil(Stopwatch clock,double deadline) {
+ static void WaitUntil(Stopwatch clock,double deadline,SafeWaitHandle timer) {
   for(;;) {
    double remaining=deadline-clock.Elapsed.TotalMilliseconds;
    if(remaining<=0)return;
-   // Sleep only the coarse part, then wait against the original QPC deadline.
-   // Adding Sleep(period) after SendInput accumulates API and scheduler time.
-   if(remaining>2)Thread.Sleep((int)(remaining-1));
+   // A hidden PowerShell process cannot rely on the Sleep timer resolution.
+   // Arm a one-shot high-resolution timer, then finish against the QPC deadline.
+   // The absolute schedule and late-run rejection remain independent of waits.
+   if(remaining>2) {
+    long dueTime=-(long)((remaining-1)*10000);
+    if(!SetWaitableTimer(timer,ref dueTime,0,IntPtr.Zero,IntPtr.Zero,false))
+     throw new Exception("Input wait timer could not arm: "+Marshal.GetLastWin32Error());
+    uint waited=WaitForSingleObject(timer,(uint)Math.Ceiling(remaining)+1000);
+    if(waited!=0)throw new Exception("Input wait timer failed: "+waited+" / "+Marshal.GetLastWin32Error());
+   }
    else Thread.SpinWait(64);
   }
  }
@@ -82,20 +94,25 @@ public static class FastCalendarInput {
     throw new ArgumentException("Input deadlines must increase within 3 minutes");
   var result=new Timing {
    Hz=hz,PeriodMs=1000.0/hz,ScheduledMs=(double[])deadlines.Clone(),
-   ActualInjectionMs=new double[deadlines.Length],ApiDurationMs=new double[deadlines.Length]
+   ActualInjectionMs=new double[deadlines.Length],ApiDurationMs=new double[deadlines.Length],AttemptQpcMs=new double[deadlines.Length]
   };
   var intervals=new double[Math.Max(0,deadlines.Length-1)];int intervalCount=0;
-  if(timeBeginPeriod(1)!=0)throw new Exception("High resolution input timer unavailable");
-  try {
-   // The first call to the pacing method is outside the measured schedule.
-   var clock=Stopwatch.StartNew();WaitUntil(clock,0);clock.Restart();
+  // CREATE_WAITABLE_TIMER_HIGH_RESOLUTION; only SYNCHRONIZE|TIMER_MODIFY_STATE.
+  // SafeWaitHandle releases the unnamed timer on success and every failure path.
+  using(var timer=CreateWaitableTimerEx(IntPtr.Zero,null,2,0x00100002)) {
+   if(timer.IsInvalid)throw new Exception("High resolution input timer unavailable: "+Marshal.GetLastWin32Error());
+   if(timeBeginPeriod(1)!=0)throw new Exception("Input timer resolution request failed");
+   try {
+   // Exercise the blocking and spin paths before the measured schedule.
+   var clock=Stopwatch.StartNew();WaitUntil(clock,3,timer);clock.Restart();
    for(int i=0;i<deadlines.Length;i++) {
-    WaitUntil(clock,deadlines[i]);
+    WaitUntil(clock,deadlines[i],timer);
     double actual=clock.Elapsed.TotalMilliseconds,lateness=actual-deadlines[i];
     // A late sender must invalidate the run, never burst to catch up or drop input.
     if(lateness>result.PeriodMs/4)
      throw new Exception("Input deadline missed at sample "+i+": "+lateness.ToString("F3")+"ms");
     result.ActualInjectionMs[i]=actual;
+    result.AttemptQpcMs[i]=Stopwatch.GetTimestamp()*1000.0/Stopwatch.Frequency;
     send(i);
     result.ApiDurationMs[i]=clock.Elapsed.TotalMilliseconds-actual;
     result.Injected++;
@@ -106,7 +123,8 @@ public static class FastCalendarInput {
      result.MaxIntervalErrorMs=Math.Max(result.MaxIntervalErrorMs,Math.Abs(interval-result.PeriodMs));
     }
    }
-  } finally {timeEndPeriod(1);}
+   } finally {timeEndPeriod(1);}
+  }
   Array.Resize(ref intervals,intervalCount);result.IntervalsMs=intervals;
   double total=0;foreach(double interval in intervals)total+=interval;
   result.EffectiveHz=total>0?intervalCount*1000.0/total:0;

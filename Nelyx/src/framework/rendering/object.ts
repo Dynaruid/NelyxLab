@@ -1020,7 +1020,12 @@ export interface LayoutOptions {
 }
 let activeLayout: RenderObject | undefined;
 const activeLayoutCallbacks: { root: RenderObject; owner: PipelineOwner }[] = [];
-const layoutQueries: { readonly render: RenderBox<RenderObject>; readonly key: string }[] = [];
+type IntrinsicQueryKind = 'minWidth' | 'maxWidth' | 'minHeight' | 'maxHeight';
+type LayoutQueryKind = IntrinsicQueryKind | 'dry' | 'dryBaseline' | 'baseline';
+const layoutQueries: {
+  readonly render: RenderBox<RenderObject>;
+  readonly kind: LayoutQueryKind;
+}[] = [];
 /** Shared render ownership/tree contract. Geometry belongs to RenderBox or a specialized renderer. */
 export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   /** @internal Bypass public owner getters while selecting a pure numeric phase. */
@@ -4046,7 +4051,7 @@ export abstract class RenderBox<
     return this.measuredSize !== undefined;
   }
   get size(): Size {
-    if (!(!layoutQueries.length || layoutQueries.at(-1)!.key.startsWith('baseline:')))
+    if (!(!layoutQueries.length || layoutQueries.at(-1)!.kind === 'baseline'))
       invariant(
         false,
         'wet-size-during-measurement',
@@ -4181,21 +4186,69 @@ export abstract class RenderBox<
     this.cachedConstraints.length = 0;
     this.nextConstraintKey = 0;
   }
-  private query<T extends Size | number | null>(key: string, compute: () => T): T {
+  private query(
+    kind: LayoutQueryKind,
+    key: string,
+    input: number | BoxConstraints | TextBaseline,
+    baseline?: TextBaseline,
+  ): Size | number | null {
     if (this.dead) invariant(false, 'disposed-render-object', 'Measurement after dispose');
     this.registerLayoutQuery();
-    const kind = key.split(':', 1)[0];
-    if (layoutQueries.some((query) => query.render === this && query.key.split(':', 1)[0] === kind))
-      invariant(
-        false,
-        'cyclic-layout-measurement',
-        `${this.constructor.name} recursively requested ${key}`,
-      );
+    for (const query of layoutQueries)
+      if (query.render === this && query.kind === kind)
+        invariant(
+          false,
+          'cyclic-layout-measurement',
+          `${this.constructor.name} recursively requested ${key}`,
+        );
     const shouldCache = !FoundationBuildMode.debug || !RenderObject.debugCheckingIntrinsics;
-    if (shouldCache && this.layoutCache?.has(key)) return this.layoutCache.get(key) as T;
-    layoutQueries.push({ render: this, key });
+    if (shouldCache && this.layoutCache?.has(key)) return this.layoutCache.get(key)!;
+    layoutQueries.push({ render: this, kind });
     try {
-      const result = compute();
+      // Dispatch only after cache admission. Cache hits allocate no compute
+      // closures and do not read an overridable compute hook. Keeping the kind
+      // alongside the stack entry also avoids splitting every ancestor's key.
+      let result: Size | number | null;
+      switch (kind) {
+        case 'dry': {
+          const constraints = input as BoxConstraints;
+          result = validSize(this.computeDryLayout(constraints));
+          if (!constraints.isSatisfiedBy(result))
+            invariant(
+              false,
+              'constraint-violation',
+              'Dry layout returned a size outside constraints',
+            );
+          break;
+        }
+        case 'dryBaseline':
+          result = this.validateBaseline(
+            this.computeDryBaseline(input as BoxConstraints, baseline!),
+          );
+          break;
+        case 'baseline':
+          result = this.validateBaseline(
+            this.computeDistanceToActualBaseline(input as TextBaseline),
+          );
+          break;
+        default:
+          switch (kind) {
+            case 'minWidth':
+              result = this.computeMinIntrinsicWidth(input as number);
+              break;
+            case 'maxWidth':
+              result = this.computeMaxIntrinsicWidth(input as number);
+              break;
+            case 'minHeight':
+              result = this.computeMinIntrinsicHeight(input as number);
+              break;
+            case 'maxHeight':
+              result = this.computeMaxIntrinsicHeight(input as number);
+              break;
+          }
+          if (!(result >= 0 && !Number.isNaN(result)))
+            invariant(false, 'invalid-intrinsic-result', 'Intrinsic size must be nonnegative');
+      }
       if (shouldCache) {
         const cache = (this.layoutCache ??= new Map());
         if (cache.size >= 64) cache.delete(cache.keys().next().value!);
@@ -4206,27 +4259,22 @@ export abstract class RenderBox<
       layoutQueries.pop();
     }
   }
-  private intrinsic(kind: string, input: number, compute: (value: number) => number): number {
+  private intrinsic(kind: IntrinsicQueryKind, input: number): number {
     if (!(input >= 0 && !Number.isNaN(input)))
       invariant(false, 'invalid-intrinsic-input', 'Intrinsic dimension must be nonnegative');
-    return this.query(`${kind}:${input}`, () => {
-      const value = compute(input);
-      if (!(value >= 0 && !Number.isNaN(value)))
-        invariant(false, 'invalid-intrinsic-result', 'Intrinsic size must be nonnegative');
-      return value;
-    });
+    return this.query(kind, `${kind}:${input}`, input) as number;
   }
   getMinIntrinsicWidth(height: number): number {
-    return this.intrinsic('minWidth', height, (value) => this.computeMinIntrinsicWidth(value));
+    return this.intrinsic('minWidth', height);
   }
   getMaxIntrinsicWidth(height: number): number {
-    return this.intrinsic('maxWidth', height, (value) => this.computeMaxIntrinsicWidth(value));
+    return this.intrinsic('maxWidth', height);
   }
   getMinIntrinsicHeight(width: number): number {
-    return this.intrinsic('minHeight', width, (value) => this.computeMinIntrinsicHeight(value));
+    return this.intrinsic('minHeight', width);
   }
   getMaxIntrinsicHeight(width: number): number {
-    return this.intrinsic('maxHeight', width, (value) => this.computeMaxIntrinsicHeight(value));
+    return this.intrinsic('maxHeight', width);
   }
   protected computeMinIntrinsicWidth(_height: number): number {
     return 0;
@@ -4255,12 +4303,7 @@ export abstract class RenderBox<
   }
   getDryLayout(constraints: BoxConstraints): Size {
     constraints.debugAssertIsValid({ isAppliedConstraint: true });
-    return this.query('dry:' + this.constraintKey(constraints), () => {
-      const size = validSize(this.computeDryLayout(constraints));
-      if (!constraints.isSatisfiedBy(size))
-        invariant(false, 'constraint-violation', 'Dry layout returned a size outside constraints');
-      return size;
-    });
+    return this.query('dry', 'dry:' + this.constraintKey(constraints), constraints) as Size;
   }
   protected computeDryLayout(_constraints: BoxConstraints): Size {
     throw new Error(`${this.constructor.name} does not support dry layout`);
@@ -4274,9 +4317,12 @@ export abstract class RenderBox<
     constraints.debugAssertIsValid({ isAppliedConstraint: true });
     if (!(baseline === 'alphabetic' || baseline === 'ideographic'))
       invariant(false, 'invalid-baseline', 'Unknown baseline');
-    return this.query(`dryBaseline:${baseline}:${this.constraintKey(constraints)}`, () =>
-      this.validateBaseline(this.computeDryBaseline(constraints, baseline)),
-    );
+    return this.query(
+      'dryBaseline',
+      `dryBaseline:${baseline}:${this.constraintKey(constraints)}`,
+      constraints,
+      baseline,
+    ) as number | null;
   }
   protected computeDryBaseline(
     _constraints: BoxConstraints,
@@ -4298,9 +4344,7 @@ export abstract class RenderBox<
       invariant(false, 'stale-baseline', 'Actual baseline requires a current layout');
     if (!(baseline === 'alphabetic' || baseline === 'ideographic'))
       invariant(false, 'invalid-baseline', 'Unknown baseline');
-    return this.query('baseline:' + baseline, () =>
-      this.validateBaseline(this.computeDistanceToActualBaseline(baseline)),
-    );
+    return this.query('baseline', 'baseline:' + baseline, baseline) as number | null;
   }
   protected computeDistanceToActualBaseline(_baseline: TextBaseline): number | null {
     return null;

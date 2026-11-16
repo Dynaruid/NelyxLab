@@ -1,7 +1,11 @@
 // Diagnostic entry template. All movement comes from Win32 input, never jumpTo.
 import { main as application } from './src/index.ts';
 import { FrameDiagnostics } from './windows/runner/node_modules/@nelyx/core/dist/ui/frame-diagnostics.js';
+// @jank-metrics: inlined by the runner inside the isolated consumer boundary.
 const host = globalThis.NelyxNativeHost;
+const summary = distribution;
+const listScenario = false; // @jank-testbed
+// @jank-list-fixture
 const diagnostics = new FrameDiagnostics({ now: () => host.now() }, 16384);
 const plans = ['cold-down', 'return-up', 'warm-down'];
 const wheelSamples = 50; // 50 x 24 Win32 units = the previous 10 x 120 total.
@@ -15,16 +19,6 @@ let root,
   samples = [],
   events = [];
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-function summary(values) {
-  const sorted = [...values].sort((a, b) => a - b),
-    round = (n) => Math.round(n * 1000) / 1000;
-  return {
-    n: sorted.length,
-    p50: round(sorted[Math.floor((sorted.length - 1) * 0.5)] ?? 0),
-    p95: round(sorted[Math.ceil((sorted.length - 1) * 0.95)] ?? 0),
-    max: round(sorted.at(-1) ?? 0),
-  };
-}
 function drain() {
   const data = diagnostics.drain();
   if (data.invalid || data.overwritten) throw Error('Gallery samples lost');
@@ -36,13 +30,17 @@ function drain() {
 function locate() {
   if (position) return;
   const visit = (element) => {
-    if (element.state?.firstScroll?.hasClients && element.state?.secondScroll)
+    if (
+      listScenario
+        ? element.state?.scroll?.debugLabel === 'list-view-page' && element.state.scroll.hasClients
+        : element.state?.firstScroll?.hasClients && element.state?.secondScroll
+    )
       component = element.state;
     for (const child of element.children) visit(child);
   };
   visit(root.root);
   if (!component) return;
-  position = component.firstScroll.position;
+  position = (listScenario ? component.scroll : component.firstScroll).position;
   host.log(
     'GALLERY_READY ' + JSON.stringify({ pixels: position.pixels, max: position.maxScrollExtent }),
   );
@@ -109,6 +107,13 @@ async function finish() {
     start: phase.start,
     end: position.pixels,
     frames: summary(frames.map((f) => f.cpu)),
+    motion: motionMetrics({
+      events,
+      frames,
+      surfaces,
+      startPixels: phase.start,
+      endPixels: position.pixels,
+    }),
     inputQueue: summary(queue),
     inputToSurface: summary(latency),
     stages,
@@ -145,7 +150,15 @@ export function main() {
           locate();
           if (phase) {
             if (frames.length >= 2048) throw Error('Gallery frame budget');
-            frames.push({ cpu: host.now() - at });
+            frames.push({
+              frame: scene.token.sequence,
+              input: scene.token.inputSequence,
+              at,
+              end: host.now(),
+              cpu: host.now() - at,
+              pixels: position.pixels,
+              moving: position.isScrollingNotifier.value,
+            });
           }
           return value;
         };
@@ -161,7 +174,7 @@ export function main() {
               phase = { start: position.pixels };
             }
             if (events.length >= wheelSamples) throw Error('Extra gallery wheel packet');
-            events.push({ id: event.inputSequence, delta: event.deltaY });
+            events.push({ id: event.inputSequence, delta: event.deltaY, stamp: event.timestamp });
           }
           pointer(event);
           if (
@@ -176,15 +189,16 @@ export function main() {
         };
         root.dispose = () => {
           clearInterval(sampling);
-          const value = component?.filled.text;
-          if (planIndex === plans.length && value !== 'Jank 한글 😀')
+          const value = listScenario ? undefined : component?.filled.text;
+          if (!listScenario && planIndex === plans.length && value !== 'Jank 한글 😀')
             throw Error('Edited value was lost across scroll/theme/resize');
-          if (planIndex === plans.length)
+          if (!listScenario && planIndex === plans.length)
             host.log(
               'GALLERY_EDITOR_FINAL ' +
                 JSON.stringify({ text: value, selection: component.filled.selection }),
             );
           dispose();
+          if (listScenario) restoreVariableList();
         };
         return root;
       },

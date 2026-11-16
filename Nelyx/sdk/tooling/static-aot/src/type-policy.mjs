@@ -4,12 +4,13 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { buildSourceGraph } from './source-graph.mjs';
 import { lowerSourcePartition } from './partition.mjs';
+import { isOwnedFactory, inspectOwnedFactory, appendOwnedFactories } from './owned-factory.mjs';
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 export function verifyTypePolicy(policy) {
   const { sha256, ...body } = policy;
   if (
     policy.schema !== 'nelyx.static-aot-type-policy/v1' ||
-    policy.id !== 'guarded-closed-scalar-v2' ||
+    policy.id !== 'guarded-scalars-owned-state-v3' ||
     sha256 !== hash(JSON.stringify(body)) ||
     policy.decisions.some(
       (decision) =>
@@ -37,7 +38,8 @@ export function automaticPartition(options) {
   const frontend = buildSourceGraph(options),
     { graph, program, checker, owners } = frontend;
   const decisions = [],
-    selections = [];
+    selections = [],
+    factories = [];
   const runtimeFiles = options.runtimeFiles
     ? new Set(options.runtimeFiles.map((file) => path.resolve(file).toLowerCase()))
     : null;
@@ -48,7 +50,7 @@ export function automaticPartition(options) {
     if (runtimeFiles && !runtimeFiles.has(path.resolve(file).toLowerCase())) continue;
     const source = program.getSourceFile(file);
     if (!source) throw Error('Type policy source unavailable: ' + module.id);
-    const visit = (node) => {
+    const visit = (node, owned = null, rejectedFactory = null) => {
       if (ts.isFunctionLike(node) && node.body) {
         const offset = node.getStart(source),
           at = source.getLineAndCharacterOfPosition(offset);
@@ -59,14 +61,51 @@ export function automaticPartition(options) {
           node.parent.parent === source &&
           node.parent.name &&
           ts.isIdentifier(node.name);
-        const selection = topFunction
+        let selection = topFunction
           ? { module: module.id, name: node.name.text }
           : topMethod
             ? { module: module.id, className: node.parent.name.text, name: node.name.text }
             : null;
         let reason = 'dynamic-callable-shape';
         let evidence = null;
-        if (selection) {
+        if (isOwnedFactory(node) && topFunction) {
+          try {
+            const inspected = inspectOwnedFactory(source, node, checker);
+            if (factories.length >= 64)
+              throw Object.assign(Error('static-aot: owned factory code-size bound'), {
+                code: 'NELYX_TYPED_UNSUPPORTED',
+              });
+            owned = inspected;
+            factories.push({ inspected, module, file });
+          } catch (error) {
+            if (error.code !== 'NELYX_TYPED_UNSUPPORTED') throw error;
+            rejectedFactory =
+              'dynamic-owned-state: ' +
+              error.message.slice(error.message.indexOf('static-aot: ') + 12);
+          }
+        }
+        if (owned) {
+          selection = {
+            module: module.id,
+            name: node.name.text,
+            factoryName: owned.declaration.name.text,
+            offset,
+          };
+          reason = 'checked-owned-state-ir';
+          evidence = {
+            returnAnnotation: node.type?.getText(source) ?? 'boxed-js',
+            parameters: node.parameters.map((parameter) => ({
+              name: parameter.name.getText(source),
+              annotation: 'boxed-js',
+              checkerType: checker.typeToString(checker.getTypeAtLocation(parameter)),
+            })),
+            ownership: 'private-closure',
+            objectLayout: 'dynamic-js',
+            scalarProof: 'checked-initializers-assignments-returns-v1',
+          };
+        } else if (rejectedFactory) {
+          reason = rejectedFactory;
+        } else if (selection) {
           reason = 'explicit-scalar-contract-required';
           // Inferred or any-valued public parameters do not authorize a typed ABI.
           if (
@@ -127,16 +166,18 @@ export function automaticPartition(options) {
           column: at.character + 1,
           name: node.name?.getText(source) ?? '<closure>',
           selection,
-          decision: reason === 'checked-scalar-ir' ? 'specialize' : 'dynamic-js-with-reason',
+          decision: ['checked-scalar-ir', 'checked-owned-state-ir'].includes(reason)
+            ? 'specialize'
+            : 'dynamic-js-with-reason',
           reason,
           evidence,
         });
       }
-      ts.forEachChild(node, visit);
+      ts.forEachChild(node, (child) => visit(child, owned, rejectedFactory));
     };
     visit(source);
   }
-  const partition = lowerSourcePartition(frontend, selections);
+  let partition = lowerSourcePartition(frontend, selections);
   partition.bindings = partition.bindings.map((binding, index) => ({
     ...binding,
     guard:
@@ -147,9 +188,10 @@ export function automaticPartition(options) {
         )
         .join('&&') || 'true',
   }));
+  partition = appendOwnedFactories(partition, factories);
   const policy = {
     schema: 'nelyx.static-aot-type-policy/v1',
-    id: 'guarded-closed-scalar-v2',
+    id: 'guarded-scalars-owned-state-v3',
     graphSha256: graph.sha256,
     checkerSha256: graph.checkerSha256,
     sourceModules: [...new Set(decisions.map((decision) => decision.module))].map((id) => ({
@@ -159,8 +201,8 @@ export function automaticPartition(options) {
     decisions,
     summary: {
       callables: decisions.length,
-      specialize: selections.length,
-      dynamic: decisions.length - selections.length,
+      specialize: decisions.filter((item) => item.decision === 'specialize').length,
+      dynamic: decisions.filter((item) => item.decision === 'dynamic-js-with-reason').length,
     },
   };
   return { ...partition, typePolicy: { ...policy, sha256: hash(JSON.stringify(policy)) } };

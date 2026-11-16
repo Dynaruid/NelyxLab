@@ -36,6 +36,7 @@ function commonRoot(paths) {
 import { execute } from './commands.mjs';
 import { windowsCompilerEnvironment } from './windows-static-hermes.mjs';
 import { windowsHermesPolicy } from './windows-hermes-policy.mjs';
+import { windowsNativeAotPolicy } from './windows-native-aot-policy.mjs';
 import { windowsNativeHermesCohort } from '@nelyx/sdk/runtime/cohorts';
 import { windowsNativeHermesPin } from './windows-native-hermes-pin.mjs';
 import { windowsNativeIcuRuntimeFiles } from './windows-native-icu.mjs';
@@ -191,7 +192,10 @@ export async function buildNativeApplication({
         },
       },
     });
-    const policy = windowsHermesPolicy('optimized', windowsNativeHermesCohort());
+    const policy =
+      mode === 'static-aot'
+        ? windowsNativeAotPolicy(windowsNativeHermesCohort())
+        : windowsHermesPolicy('optimized', windowsNativeHermesCohort());
     let bundle = 'app.hbc',
       nativeFunctions = null,
       aot;

@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { execute } from '../sdk/tooling/cli/src/commands.mjs';
+import { displayedMotion } from './windows-jank-metrics.ts';
 import { buildNativeHost } from './build-native-hermes.mjs';
 import {
   buildNativeApplication,
@@ -16,24 +17,33 @@ const argument = (name, fallback) => {
 };
 const scenario = argument('--scenario', 'calendar'),
   runs = Number(argument('--runs', '3')),
-  appName = argument('--app', 'demo');
+  appName = argument('--app', 'demo'),
+  hermesMode = argument('--hermes-mode', 'bytecode');
 const app = path.join(
   root,
   appName === 'testbed' ? 'sample/nelyx-testbed-app-2' : 'sample/nelyx-demo-app',
 );
+const scrollScenario = ['gallery', 'list'].includes(scenario);
+const screenEnabled =
+  !process.argv.includes('--no-screen') && ['calendar', 'gallery', 'list'].includes(scenario);
 if (
-  !['calendar', 'gallery', 'boundaries', 'testbed'].includes(scenario) ||
+  !['calendar', 'gallery', 'boundaries', 'testbed', 'list'].includes(scenario) ||
+  (scenario === 'list' && appName !== 'testbed') ||
   !['demo', 'testbed'].includes(appName) ||
+  !['bytecode', 'static-aot'].includes(hermesMode) ||
   !Number.isInteger(runs) ||
   runs < 1 ||
   runs > 30
 )
-  throw Error('Choose calendar/gallery/boundaries and runs in 1..30');
+  throw Error('Choose a supported scenario, bytecode/static-aot and runs in 1..30');
 if (!process.argv.includes('--child')) {
   const deadline = Date.now() + 1_200_000;
+  const batch = fs.mkdtempSync(path.join(root, '.tmp/jank-batch-'));
+  const summary = path.join(batch, 'current.json'),
+    results = [];
   try {
     for (let run = 1; run <= runs; run++) {
-      console.log('JANK_RUN ' + JSON.stringify({ scenario, run, runs }));
+      console.log('JANK_RUN ' + JSON.stringify({ scenario, hermesMode, run, runs }));
       await execute(
         'pwsh.exe',
         [
@@ -45,16 +55,94 @@ if (!process.argv.includes('--child')) {
           scenario,
           '-App',
           appName,
+          '-HermesMode',
+          hermesMode,
+          '-SummaryPath',
+          summary,
+          ...(!screenEnabled ? ['-NoScreen'] : []),
+          ...(hermesMode === 'static-aot' ? ['-CompilerCache', path.join(batch, 'compiler')] : []),
         ],
         { cwd: root, timeout: Math.max(1, deadline - Date.now()) },
       );
+      results.push(JSON.parse(fs.readFileSync(summary, 'utf8')));
     }
+    console.log(
+      'JANK_BATCH_RESULT ' + JSON.stringify({ scenario, app: appName, hermesMode, runs: results }),
+    );
+    // Keep a small final comparison visible when a terminal truncates the
+    // detailed per-input reports. Neither output is retained on disk.
+    console.log(
+      'JANK_COMPARISON_SUMMARY ' +
+        JSON.stringify({
+          scenario,
+          app: appName,
+          hermesMode,
+          runs: results.map((result) => ({
+            identity: {
+              ...result.identity,
+              nativeAcceptance: result.identity.nativeAcceptance
+                ? {
+                    typePolicyAccepted: result.identity.nativeAcceptance.typePolicyAccepted,
+                    wholeAppNativeAot: result.identity.nativeAcceptance.wholeAppNativeAot,
+                    unclassified: result.identity.nativeAcceptance.unclassified,
+                    unresolved: result.identity.nativeAcceptance.unresolved,
+                  }
+                : undefined,
+            },
+            measurementView: result.measurementView,
+            performanceSample: result.performanceSample,
+            displayed: result.displayed.map((phase) => ({
+              name: phase.name,
+              averageFpsLowerBound: phase.averageFpsLowerBound,
+              frameIntervals: phase.frameIntervals,
+              progressAtLeast100ms: phase.progressAtLeast100ms,
+            })),
+            phases: [...result.phases, ...result.galleryPhases].map((phase) => ({
+              name: phase.name,
+              accepted: phase.accepted,
+              motion: phase.motion
+                ? {
+                    averageFps: phase.motion.averageFps,
+                    frameIntervals: phase.motion.frameIntervals,
+                    progressAtLeast100ms: phase.motion.progressAtLeast100ms,
+                  }
+                : undefined,
+            })),
+            exit: result.exit,
+          })),
+        }),
+    );
   } catch (error) {
     console.error(error.message);
-    process.exit(1);
+    process.exitCode = 1;
+  } finally {
+    removeOwned(batch, path.join(root, '.tmp'));
   }
-  process.exit(0);
+  process.exit(process.exitCode ?? 0);
 }
+const summaryFile = argument('--summary-file', '');
+const compilerCache = argument('--compiler-cache', '');
+if (
+  summaryFile &&
+  (path.basename(summaryFile) !== 'current.json' ||
+    !path.basename(path.dirname(summaryFile)).startsWith('jank-batch-') ||
+    path.dirname(path.dirname(path.resolve(summaryFile))) !== path.join(root, '.tmp') ||
+    fs.lstatSync(path.dirname(summaryFile)).isSymbolicLink() ||
+    (fs.existsSync(summaryFile) && fs.lstatSync(summaryFile).isSymbolicLink()))
+)
+  throw Error('Summary path is outside this execution');
+// One batch may reuse its current native object files. No compiler cache or
+// diagnostic package survives the parent's finally, including failed runs.
+if (
+  compilerCache &&
+  (hermesMode !== 'static-aot' ||
+    path.basename(compilerCache) !== 'compiler' ||
+    !path.basename(path.dirname(compilerCache)).startsWith('jank-batch-') ||
+    path.dirname(path.dirname(path.resolve(compilerCache))) !== path.join(root, '.tmp') ||
+    fs.lstatSync(path.dirname(compilerCache)).isSymbolicLink() ||
+    (fs.existsSync(compilerCache) && fs.lstatSync(compilerCache).isSymbolicLink()))
+)
+  throw Error('Compiler cache is outside this execution');
 const entry = path.join(app, '.windows-jank-probe.ts');
 const output = path.join(app, '.nelyx/native-windows/windows-jank-probe');
 const session = fs.mkdtempSync(path.join(root, '.tmp/calendar-fast-session-'));
@@ -76,6 +164,7 @@ const wheels = [
   { Count: 50, Delta: -24, InputHz: 60 },
 ];
 const galleryPhases = [];
+const listSnapshots = [];
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let native,
   nativeExit,
@@ -89,6 +178,70 @@ let native,
   editorFinal = false,
   ownsEntry = false,
   ownsOutput = false;
+let screenChild, screenExit, screenData, markerCost, identity;
+let displayed = [];
+let currentView, measurementView;
+const screenStop = path.join(session, 'screen.stop'),
+  screenReady = path.join(session, 'screen.ready'),
+  screenOutput = path.join(session, 'screen.json');
+async function startScreen() {
+  measurementView = currentView;
+  if (!screenEnabled) return;
+  screenChild = spawn(
+    'pwsh.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-File',
+      path.join(root, 'Nelyx/eng/windows-jank-screen.ps1'),
+      '-Package',
+      output,
+      '-StopPath',
+      screenStop,
+      '-ReadyPath',
+      screenReady,
+      '-OutputPath',
+      screenOutput,
+    ],
+    { cwd: root, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] },
+  );
+  children.add(screenChild);
+  let error = '';
+  screenChild.stderr.on('data', (chunk) => {
+    error = (error + chunk).slice(-4096);
+  });
+  screenExit = new Promise((resolve, reject) => {
+    screenChild.once('error', reject);
+    screenChild.once('close', (code) => {
+      children.delete(screenChild);
+      resolve({ code, error });
+    });
+  });
+  for (let attempt = 0; attempt < 30 && !fs.existsSync(screenReady); attempt++) {
+    if (screenChild.exitCode !== null) throw Error('Screen observer failed: ' + error);
+    await pause(100);
+  }
+  if (!fs.existsSync(screenReady)) throw Error('Screen observer did not become ready');
+}
+async function stopScreen() {
+  if (!screenEnabled || screenData) return;
+  fs.writeFileSync(screenStop, 'stop');
+  const stopped = await screenExit;
+  if (stopped.code !== 0) throw Error('Screen observer failed: ' + stopped.error);
+  screenData = JSON.parse(fs.readFileSync(screenOutput, 'utf8'));
+  displayed = [...phases, ...galleryPhases].map((phase) => ({
+    name: phase.name,
+    ...displayedMotion(phase.motion, screenData),
+  }));
+  console.log(
+    'JANK_DISPLAY_RESULT ' +
+      JSON.stringify({
+        captures: screenData.Captures,
+        invalid: screenData.Invalid,
+        phases: displayed,
+      }),
+  );
+}
 const timeout = setTimeout(() => {
   failure ??= Error('20 minute calendar validation timeout');
   controller.abort(failure);
@@ -188,6 +341,7 @@ async function ui(action, options = {}) {
       );
     } else console.log(line);
     if (line.startsWith('FAST_UI_SNAPSHOT ')) snapshots.push(JSON.parse(line.slice(17)));
+    if (line.startsWith('LIST_UI_SNAPSHOT ')) listSnapshots.push(JSON.parse(line.slice(17)));
   }
 }
 function enqueue(task) {
@@ -202,15 +356,34 @@ function enqueue(task) {
       native?.kill();
     });
 }
+function publicMotion(motion) {
+  if (!motion) return motion;
+  const { framePositions: _positions, ...summary } = motion;
+  return summary;
+}
 function onLine(line) {
+  if (line.startsWith('NELYX_NATIVE_VIEW '))
+    currentView = JSON.parse(line.slice('NELYX_NATIVE_VIEW '.length));
+  if (line.startsWith('NELYX_NATIVE_SCREEN_MARKER '))
+    markerCost = JSON.parse(line.slice('NELYX_NATIVE_SCREEN_MARKER '.length));
   if (
     line.startsWith('FAST_') ||
     line.startsWith('NATIVE_BOUNDARY_') ||
     line.startsWith('GALLERY_') ||
     line.startsWith('NELYX_NATIVE_EXIT') ||
+    line.startsWith('NELYX_NATIVE_SCREEN_MARKER') ||
+    line.startsWith('NELYX_NATIVE_VIEW ') ||
     line.includes('ERROR')
   )
-    console.log(line);
+    if (line.startsWith('FAST_PHASE_RESULT ') || line.startsWith('GALLERY_PHASE_RESULT ')) {
+      const at = line.indexOf(' '),
+        result = JSON.parse(line.slice(at + 1));
+      console.log(
+        line.slice(0, at) +
+          ' ' +
+          JSON.stringify({ ...result, motion: publicMotion(result.motion) }),
+      );
+    } else console.log(line);
   if (line.startsWith('NATIVE_BOUNDARY_PASS ')) boundaryResult = JSON.parse(line.slice(21));
   if (line.startsWith('GALLERY_READY ')) galleryReady = true;
   if (line.startsWith('GALLERY_EDITOR_FINAL ')) editorFinal = true;
@@ -226,8 +399,11 @@ function onLine(line) {
         finished = true;
         await ui('Close');
       } else {
-        await ui(scenario === 'gallery' ? 'SetupGallery' : 'Setup');
-        if (scenario === 'gallery') {
+        await ui(
+          scenario === 'list' ? 'SetupList' : scenario === 'gallery' ? 'SetupGallery' : 'Setup',
+        );
+        await startScreen();
+        if (scrollScenario) {
           if (!galleryReady) throw Error('Gallery owner unavailable');
           await ui('Wheel', wheels[0]);
         }
@@ -247,13 +423,18 @@ function onLine(line) {
         Math.sign(result.end - result.start) !== (index === 1 ? -1 : 1)
       )
         throw Error('Gallery input/progress validation failed');
+      if (scenario === 'list') await ui('SnapshotList');
       if (index < 2) await ui('Wheel', wheels[index + 1]);
     });
   }
   if (line === 'GALLERY_ALL_DONE' && !finished) {
     finished = true;
     enqueue(async () => {
-      await ui('Editor');
+      await stopScreen();
+      await ui('Capture', { CapturePath: capture });
+      console.log('FAST_SCREENSHOT ' + capture);
+      if (process.env.NELYX_JANK_REVIEW === '1') await pause(15000);
+      if (scenario === 'gallery') await ui('Editor');
       await ui('Close');
     });
   }
@@ -282,7 +463,8 @@ function onLine(line) {
     finished = true;
     enqueue(async () => {
       console.log('FAST_SCREENSHOT ' + capture);
-      await pause(500);
+      await stopScreen();
+      await pause(process.env.NELYX_JANK_REVIEW === '1' ? 45000 : 500);
       await ui('Close');
     });
   }
@@ -309,12 +491,80 @@ try {
   const template =
     scenario === 'boundaries'
       ? 'windows-native-boundaries.ts'
-      : scenario === 'gallery'
+      : scrollScenario
         ? 'windows-gallery-probe.ts'
         : 'windows-jank-probe.ts';
   if (scenario === 'testbed')
     fs.writeFileSync(entry, "export { main } from './src/index.ts';\n", { flag: 'wx' });
-  else fs.copyFileSync(path.join(root, 'Nelyx/eng', template), entry, fs.constants.COPYFILE_EXCL);
+  else {
+    const module = fs
+      .readFileSync(path.join(root, 'Nelyx/eng/windows-jank-metrics.ts'), 'utf8')
+      .replace(/^export /gm, '');
+    const names =
+      template === 'windows-jank-probe.ts'
+        ? 'motionMetrics, distribution, samplingSummary'
+        : 'motionMetrics, distribution';
+    const metrics =
+      'const { ' + names + ' } = (() => {\n' + module + '\nreturn { ' + names + ' };\n})();';
+    let source = fs
+      .readFileSync(path.join(root, 'Nelyx/eng', template), 'utf8')
+      .replace(
+        '// @jank-metrics: inlined by the runner inside the isolated consumer boundary.',
+        metrics,
+      )
+      .replace(
+        'const listScenario = false; // @jank-testbed',
+        `const listScenario = ${scenario === 'list'};`,
+      )
+      .replace(
+        '// @jank-list-fixture',
+        scenario === 'list'
+          ? fs.readFileSync(path.join(root, 'Nelyx/eng/windows-variable-list.ts'), 'utf8')
+          : 'function restoreVariableList() {}',
+      );
+    if (process.env.NELYX_JANK_BUILD_PROFILE === '1') {
+      if (scenario !== 'calendar') throw Error('Build profile currently requires calendar');
+      if (hermesMode !== 'bytecode')
+        throw Error('Build observer profile currently requires bytecode');
+      source =
+        fs.readFileSync(path.join(root, 'Nelyx/eng/windows-jank-build-profile.ts'), 'utf8') +
+        '\nlet builderProfile;\n' +
+        source
+          .replace(
+            'root = created;',
+            'root = created; builderProfile = installBuildProfile(root, host, () => phase !== undefined);',
+          )
+          .replace(
+            '  diagnostics.drain();\n  host.takeFrameTrace();',
+            '  builderProfile.reset();\n  diagnostics.drain();\n  host.takeFrameTrace();',
+          )
+          .replace(
+            '  phase = undefined;',
+            '  host.log("FAST_BUILD_PROFILE " + JSON.stringify({ name: phase.name, ...builderProfile.snapshot(), text: root.context.text.debugStats, stages: Object.fromEntries(["semantics-flush", "semantics-snapshot", "semantics-freeze", "mouse-tracking", "post-frame"].map(key => [key, summary(samples.filter(s => s.stage === key).map(s => s.duration))])) }));\n  phase = undefined;',
+          )
+          .replace('            dispose();', '            builderProfile.dispose(); dispose();');
+    }
+    if (process.env.NELYX_NATIVE_GC_STATS === '1') {
+      if (scenario !== 'calendar') throw Error('GC phase profile currently requires calendar');
+      source =
+        fs.readFileSync(path.join(root, 'Nelyx/eng/windows-jank-heap-profile.ts'), 'utf8') +
+        '\nlet phaseHeap: ReturnType<typeof heapProfileSnapshot> | undefined;\n' +
+        source
+          .replace(
+            '  now(): number;',
+            '  heapInfo(): { heap: Record<string, number>; gcStatsEnabled: boolean; gc?: string };\n  now(): number;',
+          )
+          .replace(
+            'function begin() {',
+            'function begin() {\n  phaseHeap = heapProfileSnapshot(host);',
+          )
+          .replace(
+            '  phase = undefined;',
+            '  host.log("FAST_HEAP_PROFILE " + JSON.stringify({ name: active.name, before: phaseHeap, after: heapProfileSnapshot(host) }));\n  phaseHeap = undefined;\n  phase = undefined;',
+          );
+    }
+    fs.writeFileSync(entry, source, { flag: 'wx' });
+  }
   ownsEntry = true;
   ownsOutput = true;
   console.log('FAST_BUILD_HOST');
@@ -322,30 +572,50 @@ try {
   console.log('FAST_BUILD_BUNDLE');
   const built = await buildNativeApplication({
     app,
-    mode: 'bytecode',
+    mode: hermesMode,
     hostBuild: host,
     diagnosticEntry: entry,
     output,
+    ...(compilerCache ? { cacheDirectory: compilerCache } : {}),
     signal: controller.signal,
   });
   const checked = verifyNativePackage(built.directory);
+  if (built.mode !== hermesMode || checked.manifest.mode !== hermesMode)
+    throw Error('Built native execution mode differs from the requested mode');
+  identity = {
+    hermesMode,
+    revision: checked.manifest.revision,
+    toolchainSha256: checked.manifest.toolchainSha256,
+    compilerPolicy: checked.manifest.compilerPolicy,
+    applicationSourceSha256: checked.manifest.files.find((file) => file.path === 'app.js').sha256,
+    ...(checked.manifest.acceptance
+      ? {
+          nativeCompilerPolicy: checked.manifest.nativePlan.compilerPolicy,
+          typedSourceSha256: checked.manifest.nativePlan.typedSourceSha256,
+          nativeAcceptance: checked.manifest.acceptance,
+        }
+      : {}),
+    bundleSha256: crypto.createHash('sha256').update(fs.readFileSync(built.bundle)).digest('hex'),
+    hostSourceSha256: checked.manifest.sourceSha256,
+    diagnosticEntrySha256: checked.manifest.diagnosticEntrySha256,
+  };
   console.log(
     'FAST_IDENTITY ' +
       JSON.stringify({
         qualification: checked.manifest.qualification,
-        bundleSha256: crypto
-          .createHash('sha256')
-          .update(fs.readFileSync(built.bundle))
-          .digest('hex'),
-        hostSourceSha256: checked.manifest.sourceSha256,
-        diagnosticEntrySha256: checked.manifest.diagnosticEntrySha256,
+        ...identity,
       }),
   );
-  native = spawn(built.executable, [built.bundle, built.assetRoot, 'bytecode', '180000'], {
+  native = spawn(built.executable, [built.bundle, built.assetRoot, hermesMode, '180000'], {
     cwd: built.directory,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, NELYX_NATIVE_DIAGNOSTICS: '1', NELYX_NATIVE_FRAME_TRACE: '1' },
+    env: {
+      ...process.env,
+      NELYX_NATIVE_DIAGNOSTICS: '1',
+      NELYX_NATIVE_FRAME_TRACE: '1',
+      NELYX_NATIVE_SCREEN_MARKER: screenEnabled ? '1' : '0',
+    },
   });
   children.add(native);
   nativeExit = new Promise((resolve, reject) => {
@@ -374,9 +644,12 @@ try {
     !finished ||
     (scenario === 'calendar' &&
       (phases.length !== 3 || drivers.length !== 3 || snapshots.length !== 3)) ||
-    (scenario === 'gallery' &&
-      (galleryPhases.length !== 3 || drivers.length !== 3 || !editorFinal)) ||
+    (scrollScenario &&
+      (galleryPhases.length !== 3 ||
+        drivers.length !== 3 ||
+        (scenario === 'gallery' && !editorFinal))) ||
     exitReceipt?.exitCode !== 0 ||
+    exitReceipt.mode !== hermesMode ||
     exitReceipt.inputRejected !== 0 ||
     exitReceipt.inputReceived !== exitReceipt.inputDelivered ||
     exitReceipt.inputDelivered !== exitReceipt.inputAccepted ||
@@ -393,30 +666,55 @@ try {
           exitReceipt,
         }),
     );
-  console.log(
-    'FAST_VALIDATION_PASS ' +
-      JSON.stringify({
-        inputPacing: drivers.map((d) => ({
-          hz: d.Timing.Hz,
-          effectiveHz: d.Timing.EffectiveHz,
-          injected: d.Timing.Injected,
-          maxLatenessMs: d.Timing.MaxLatenessMs,
-          maxIntervalErrorMs: d.Timing.MaxIntervalErrorMs,
-        })),
-        phases: phases.map((p) => ({
-          name: p.name,
-          start: p.start.label,
-          end: p.end.label,
-          pageDelta: p.pageDelta,
-          gestures: p.gestures,
-          accepted: p.accepted,
-          inputToSurface: p.inputToSurface,
-          publishedProgressGaps: p.publishedProgressGaps,
-          progressGapsOver100ms: p.progressGapsOver100ms,
-        })),
-        exit: exitReceipt,
-      }),
-  );
+  if (scenario === 'list') {
+    const ids = listSnapshots.map((snapshot) => snapshot.Items.join(','));
+    if (ids.length !== 4 || ids[0] === ids[1] || ids[0] !== ids[2] || ids[1] !== ids[3])
+      throw Error('Variable list UIA cold/return/warm membership differs');
+    console.log('LIST_UI_PASS ' + JSON.stringify({ snapshots: listSnapshots }));
+  }
+  const report = {
+    identity,
+    measurementView,
+    displayed,
+    markerCost,
+    performanceSample:
+      process.env.NELYX_NATIVE_CPU_PROFILE !== '1' &&
+      process.env.NELYX_JANK_BUILD_PROFILE !== '1' &&
+      process.env.NELYX_NATIVE_GC_STATS !== '1',
+    inputPacing: drivers.map((d, index) => ({
+      waitStrategy: d.Timing.WaitStrategy,
+      hz: d.Timing.Hz,
+      effectiveHz: d.Timing.EffectiveHz,
+      injected: d.Timing.Injected,
+      maxLatenessMs: d.Timing.MaxLatenessMs,
+      maxIntervalErrorMs: d.Timing.MaxIntervalErrorMs,
+      firstAttemptQpcMs: d.Timing.AttemptQpcMs[0],
+      firstNativeReceiptQpcMs: [...phases, ...galleryPhases][index]?.motion.start,
+      firstAttemptToNativeMs:
+        [...phases, ...galleryPhases][index]?.motion.start - d.Timing.AttemptQpcMs[0],
+    })),
+    phases: phases.map((p) => ({
+      name: p.name,
+      start: p.start.label,
+      end: p.end.label,
+      pageDelta: p.pageDelta,
+      gestures: p.gestures,
+      accepted: p.accepted,
+      inputToSurface: p.inputToSurface,
+      publishedProgressGaps: p.publishedProgressGaps,
+      progressGapsOver100ms: p.progressGapsOver100ms,
+      motion: publicMotion(p.motion),
+    })),
+    galleryPhases: galleryPhases.map((p) => ({
+      name: p.name,
+      motion: publicMotion(p.motion),
+      inputToSurface: p.inputToSurface,
+      resources: p.resources,
+    })),
+    exit: exitReceipt,
+  };
+  console.log('FAST_VALIDATION_PASS ' + JSON.stringify(report));
+  if (summaryFile) fs.writeFileSync(summaryFile, JSON.stringify(report));
 } catch (error) {
   console.error(String(error.stack ?? error));
   process.exitCode = 1;
@@ -425,6 +723,7 @@ try {
   controller.abort();
   for (const child of children) child.kill();
   if (nativeExit) await Promise.race([nativeExit.catch(() => {}), pause(10000)]);
+  if (screenExit) await screenExit.catch(() => {});
   if (ownsEntry) removeOwned(entry, app);
   if (ownsOutput) removeOwned(output, path.join(app, '.nelyx/native-windows'));
   removeOwned(session, path.join(root, '.tmp'));

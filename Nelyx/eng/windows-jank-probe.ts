@@ -1,30 +1,78 @@
 import { main as application } from './src/index.ts';
-import { FrameDiagnostics } from './windows/runner/node_modules/@nelyx/core/dist/ui/frame-diagnostics.js';
+import { FrameDiagnostics } from '@nelyx/core/ui/frame';
+import type { FrameDiagnosticSample } from '@nelyx/core/ui/frame';
+import type { ViewControllerContext } from '@nelyx/core/hosting/runtime';
+import { FrameworkRoot } from '@nelyx/core/framework/widgets/root';
+import { Element } from '@nelyx/core/framework/widgets/framework';
+import type { ScrollPosition } from '@nelyx/core/framework/widgets/scroll-position';
+import type { PointerEvent } from '@nelyx/core/ui/input';
+import { _MonthPickerState } from './windows/runner/node_modules/@nelyx/material/dist/generated/date/calendar_date_picker.generated.js';
+import { NativeTextLayoutService } from '@nelyx/skia-native/text';
 import { ScrollableState } from '@nelyx/core/framework/widgets/scrollable';
 import { Axis } from '@nelyx/core/framework/painting/basic-types';
-const host = globalThis.NelyxNativeHost;
+// @jank-metrics: inlined by the runner inside the isolated consumer boundary.
+interface DiagnosticHost {
+  now(): number;
+  log(message: string): void;
+  fail(message: string): void;
+  takeFrameTrace(): {
+    readonly lostInputs: number;
+    readonly lostSurfaces: number;
+    readonly lostTurns: number;
+    readonly inputs: ArrayBuffer;
+    readonly surfaces: ArrayBuffer;
+  };
+  readonly cpuProfile?: {
+    (operation: 'begin'): void;
+    (operation: 'end'): string;
+  };
+}
+const host = (globalThis as unknown as { NelyxNativeHost: DiagnosticHost }).NelyxNativeHost;
+const summary = distribution;
 const diagnostics = new FrameDiagnostics({ now: () => host.now() }, 16384);
 const plans = [
   { name: 'forward-100ms-60hz', count: 6, direction: 1 },
   { name: 'forward-50ms-60hz', count: 6, direction: 1 },
   { name: 'reverse-50ms-60hz', count: 12, direction: -1 },
 ];
-let root,
-  position,
-  monthState,
-  phase,
+type CalendarPosition = ScrollPosition & { readonly page: number };
+type Phase = (typeof plans)[number] & {
+  readonly started: number;
+  readonly start: ReturnType<typeof month>;
+  readonly startPage: number;
+  readonly startPixels: number;
+  down: number;
+  up: number;
+  finishing: boolean;
+};
+let root: FrameworkRoot,
+  position: CalendarPosition,
+  monthState: _MonthPickerState,
+  phase: Phase | undefined,
   planIndex = 0;
-let samples = [],
-  frames = [],
-  events = [],
-  changes = [],
-  offsets = [],
-  gestureMoves = [],
-  activeGesture;
+let samples: FrameDiagnosticSample[] = [],
+  frames: {
+    frame: number;
+    input: number;
+    at: number;
+    end: number;
+    cpu: number;
+    pixels: number;
+    moving: boolean;
+    page: number;
+  }[] = [],
+  events: { id: number; kind: PointerEvent['kind']; stamp: number; at: number }[] = [],
+  changes: (ReturnType<typeof month> & { at: number; page: number })[] = [],
+  offsets: [number, number, number][] = [],
+  gestureMoves: { pageAtDown: number; pageAtUp: number; dragPixels: number }[] = [],
+  activeGesture: { pixels: number; page: number } | undefined;
 let observedMonth = '',
   lastInput = 0;
 const monthKey = '_dart_e3418b5381fd4ff8_currentMonth';
-const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+function errorText(error: unknown): string {
+  return error instanceof Error ? (error.stack ?? error.message) : String(error);
+}
 function month() {
   const value = monthState[monthKey];
   return {
@@ -56,19 +104,27 @@ function drain() {
 }
 function locate() {
   if (position) return;
-  let found, state;
-  const visit = (element) => {
-    if (element.state && monthKey in element.state) state = element.state;
-    if (element.state instanceof ScrollableState && element.state.widget.axis === Axis.horizontal) {
-      const candidate = element.state.position;
-      if ('page' in candidate && candidate.viewportDimension > 100) {
+  let found: CalendarPosition | undefined, state: _MonthPickerState | undefined;
+  const visit = (element: Element) => {
+    const value = element.stateObject;
+    if (value instanceof _MonthPickerState) state = value;
+    if (value instanceof ScrollableState && value.widget.axis === Axis.horizontal) {
+      const candidate = value.position;
+      if (
+        'page' in candidate &&
+        typeof candidate.page === 'number' &&
+        candidate.viewportDimension > 100
+      ) {
         if (found) throw Error('Multiple visible page positions in calendar diagnostic');
-        found = candidate;
+        found = candidate as CalendarPosition;
       }
     }
     for (const child of element.children) visit(child);
   };
-  visit(root.root);
+  const tree: unknown = Reflect.get(root, 'root');
+  if (!tree) return;
+  if (!(tree instanceof Element)) throw Error('Source diagnostic root is not an Element');
+  visit(tree);
   if (!found || !state) return;
   position = found;
   monthState = state;
@@ -90,16 +146,6 @@ function locate() {
       }),
   );
 }
-function summary(values) {
-  const sorted = [...values].sort((a, b) => a - b),
-    round = (n) => Math.round(n * 1000) / 1000;
-  return {
-    n: sorted.length,
-    p50: round(sorted[Math.floor((sorted.length - 1) * 0.5)] ?? 0),
-    p95: round(sorted[Math.ceil((sorted.length - 1) * 0.95)] ?? 0),
-    max: round(sorted.at(-1) ?? 0),
-  };
-}
 function begin() {
   if (planIndex >= plans.length) throw Error('Unexpected extra calendar gesture');
   diagnostics.drain();
@@ -116,14 +162,17 @@ function begin() {
     started: host.now(),
     start: month(),
     startPage: position.page,
+    startPixels: position.pixels,
     down: 0,
     up: 0,
     finishing: false,
   };
   host.log('FAST_PHASE_BEGIN ' + JSON.stringify(phase));
+  if (host.cpuProfile) host.cpuProfile('begin');
 }
 async function finish() {
   const active = phase;
+  if (!active) throw Error('Calendar phase is unavailable');
   let stableAt = host.now(),
     previous = position.pixels,
     settled = false;
@@ -153,8 +202,8 @@ async function finish() {
     surfaces = Array.from(new Float64Array(trace.surfaces));
   const own = new Set(events.map((e) => e.id)),
     moves = events.filter((e) => e.kind === 'move'),
-    latency = [],
-    queue = [],
+    latency: number[] = [],
+    queue: number[] = [],
     sources = new Map(frames.map((f) => [f.frame, f]));
   let accepted = 0,
     rejected = 0;
@@ -170,10 +219,11 @@ async function finish() {
         break;
       }
   }
-  const progress = [],
+  if (!frames.length) throw Error('No calendar frames were observed');
+  const progress: number[] = [],
     firstMove = moves[0]?.stamp ?? active.started,
     lastUp = events.filter((e) => e.kind === 'up').at(-1)?.stamp ?? host.now();
-  let publishedPixel = frames[0]?.pixels,
+  let publishedPixel = frames[0]!.pixels,
     progressAt = firstMove;
   for (let j = 0; j < surfaces.length; j += 11) {
     const f = sources.get(surfaces[j + 4]);
@@ -188,7 +238,7 @@ async function finish() {
   const expected = (end.year - first.year) * 12 + end.month - first.month;
   if (Math.abs(position.page - expected) > 1e-6)
     throw Error('Calendar displayed month and settled page differ');
-  const stages = {};
+  const stages: Record<string, ReturnType<typeof summary>> = {};
   for (const key of ['build', 'layout', 'paint', 'compose', 'semantics'])
     stages[key] = summary(samples.filter((s) => s.stage === key).map((s) => s.duration));
   const result = {
@@ -205,6 +255,13 @@ async function finish() {
     pageDelta: position.page - active.startPage,
     monthTransitions: changes.map(({ year, month, page }) => ({ year, month, page })),
     frames: summary(frames.map((f) => f.cpu)),
+    motion: motionMetrics({
+      events,
+      frames,
+      surfaces,
+      startPixels: active.startPixels,
+      endPixels: position.pixels,
+    }),
     inputQueue: summary(queue),
     inputToSurface: summary(latency),
     missingMoveSurfaces: moves.length - latency.length,
@@ -217,18 +274,27 @@ async function finish() {
   };
   phase = undefined;
   planIndex++;
+  if (host.cpuProfile)
+    host.log(
+      'FAST_CPU_PROFILE ' +
+        JSON.stringify({ name: active.name, ...samplingSummary(host.cpuProfile('end')) }),
+    );
   host.log('FAST_PHASE_RESULT ' + JSON.stringify(result));
   if (planIndex === plans.length) host.log('FAST_ALL_DONE');
 }
 export function main() {
   const result = application(),
     create = result.definition.createView;
+  if (!create) throw Error('Application has no Source view factory');
   return {
     ...result,
     definition: {
       ...result.definition,
-      createView(context) {
-        root = create(context);
+      createView(context: ViewControllerContext) {
+        const created = create(context);
+        if (!(created instanceof FrameworkRoot))
+          throw Error('Application did not create a FrameworkRoot');
+        root = created;
         const build = root.build.bind(root),
           pointer = root.pointer.bind(root),
           dispose = root.dispose.bind(root);
@@ -236,7 +302,7 @@ export function main() {
           try {
             drain();
           } catch (error) {
-            host.fail(String(error.stack ?? error));
+            host.fail(errorText(error));
           }
         }, 80);
         root.build = (scene) => {
@@ -248,11 +314,12 @@ export function main() {
             if (frames.length >= 2048) throw Error('Calendar frame sample budget exceeded');
             frames.push({
               frame: scene.token.sequence,
-              input: scene.token.inputSequence,
+              input: scene.token.inputSequence ?? 0,
               at,
               end: host.now(),
               cpu: host.now() - at,
               pixels: position.pixels,
+              moving: position.isScrollingNotifier.value,
               page: position.page,
             });
           }
@@ -264,10 +331,12 @@ export function main() {
           if (touch && phase && event.kind === 'down')
             activeGesture = { pixels: position.pixels, page: position.page };
           if (touch && phase) {
-            lastInput = event.inputSequence;
+            const id = event.inputSequence;
+            if (id === undefined) throw Error('Native touch has no input sequence');
+            lastInput = id;
             if (events.length >= 4096) throw Error('Calendar input sample budget exceeded');
             events.push({
-              id: event.inputSequence,
+              id,
               kind: event.kind,
               stamp: event.timestamp,
               at: host.now(),
@@ -288,17 +357,22 @@ export function main() {
             phase.up++;
             if (phase.up === phase.count && !phase.finishing) {
               phase.finishing = true;
-              void finish().catch((error) => host.fail(String(error.stack ?? error)));
+              void finish().catch((error: unknown) => host.fail(errorText(error)));
             }
           }
         };
         root.dispose = () => {
           clearInterval(sampling);
-          host.log(
-            'FAST_NATIVE_TEXT ' +
-              JSON.stringify(context.text.nativeParagraphTransactionExecution?.()),
-          );
-          dispose();
+          try {
+            if (!(context.text instanceof NativeTextLayoutService))
+              throw Error('Native text diagnostics service unavailable');
+            host.log(
+              'FAST_NATIVE_TEXT ' +
+                JSON.stringify(context.text.nativeParagraphTransactionExecution()),
+            );
+          } finally {
+            dispose();
+          }
         };
         return root;
       },

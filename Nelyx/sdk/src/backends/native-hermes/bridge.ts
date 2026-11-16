@@ -44,6 +44,8 @@ export interface NativeSemanticsUpdate {
   readonly commit: number;
   readonly viewport: number;
   readonly surface: number;
+  /** Complete replacement after a coordinate generation change; no prior delta is assumed. */
+  readonly reset?: boolean;
   readonly upserts: readonly unknown[];
   readonly removed: readonly string[];
   readonly order: readonly string[];

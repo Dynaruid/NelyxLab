@@ -38,7 +38,10 @@ export class BoxConstraints extends Constraints {
   ) {
     super();
     invariant(
-      [minWidth, maxWidth, minHeight, maxHeight].every((value) => typeof value === 'number'),
+      typeof minWidth === 'number' &&
+        typeof maxWidth === 'number' &&
+        typeof minHeight === 'number' &&
+        typeof maxHeight === 'number',
       'invalid-constraints',
       'Constraint values must be numbers',
     );

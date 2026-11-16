@@ -32,6 +32,13 @@ export interface TypedPartition {
     readonly column: number;
   }[];
   readonly bindings: readonly PartitionBinding[];
+  readonly callables?: readonly {
+    readonly id: string;
+    readonly module: string;
+    readonly offset: number;
+    readonly kernel: string;
+    readonly inputRange?: { readonly offset: number; readonly end: number };
+  }[];
   readonly graph: SourceGraph;
   readonly qualification: 'experimental';
 }

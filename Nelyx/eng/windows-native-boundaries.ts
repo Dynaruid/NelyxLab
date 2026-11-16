@@ -2,6 +2,10 @@
 import { main as application } from './src/index.ts';
 import { ParagraphBuilder } from '@nelyx/core/ui/paragraph-builder';
 import { ParagraphStyle } from '@nelyx/core/ui/paragraph-style';
+import type { ParagraphStyleOptions } from '@nelyx/core/ui/paragraph-style';
+import type { ViewControllerContext } from '@nelyx/core/hosting/runtime';
+import { FrameDiagnostics, captureBorrowedFrame, disposeFrame } from '@nelyx/core/ui/frame';
+import type { PaintFrame } from '@nelyx/core/ui/types';
 import { ParagraphConstraints } from '@nelyx/core/ui/paragraph-constraints';
 import { Canvas } from '@nelyx/core/ui/canvas';
 import { Paint } from '@nelyx/core/ui/paint';
@@ -11,22 +15,129 @@ import { Radius } from '@nelyx/core/ui/radius';
 import { Gradient } from '@nelyx/core/ui/shader';
 import { MaskFilter } from '@nelyx/core/ui/mask-filter';
 import { ImageFilter } from '@nelyx/core/ui/image-filter';
-import { FrameDiagnostics } from './windows/runner/node_modules/@nelyx/core/dist/ui/frame-diagnostics.js';
-import { submitNativeScene } from './windows/runner/node_modules/@nelyx/skia-native/dist/scene.js';
+import { submitNativeScene } from '@nelyx/skia-native/scene';
+import { NativeTextLayoutService } from '@nelyx/skia-native/text';
+import type { Skia } from '@nelyx/skia-native/skia/types/Skia';
+import type { DisplayListTarget } from '@nelyx/skia-native/display-list';
+import {
+  SemanticsProperties,
+  sourceSemanticsProperties,
+} from '@nelyx/core/framework/semantics/semantics';
 
-const host = globalThis.NelyxNativeHost;
-function check(value, message) {
+const host = (
+  globalThis as unknown as {
+    NelyxNativeHost: { now(): number; log(message: string): void };
+  }
+).NelyxNativeHost;
+function check(value: unknown, message: string): asserts value {
   if (!value) throw Error(message);
 }
-function equal(a, b, label) {
+function equal(a: unknown, b: unknown, label: string): void {
   check(JSON.stringify(a) === JSON.stringify(b), label + ' differs');
 }
-function textChecks(context) {
+function errorText(error: unknown): string {
+  return error instanceof Error ? (error.stack ?? error.message) : String(error);
+}
+function wideObjectChecks() {
+  const widths = [64, 65, 78, 127, 128, 129, 160];
+  for (const width of widths) {
+    const prototype = { inherited: width },
+      first: Record<PropertyKey, unknown> = Object.create(prototype),
+      second: Record<PropertyKey, unknown> = Object.create(prototype),
+      keys = Array.from({ length: width }, (_, index) => 'field' + index),
+      symbol = Symbol('wide');
+    for (let index = 0; index < width; index++) {
+      first[keys[index]] = index;
+      second[keys[index]] = -index;
+    }
+    Object.defineProperty(first, 'accessor', {
+      get() {
+        return this.field0;
+      },
+      enumerable: false,
+      configurable: true,
+    });
+    first[symbol] = width;
+    first[2] = 'two';
+    first[1] = 'one';
+    Object.freeze(first);
+    check(Object.isFrozen(first) && !Object.isFrozen(second), 'Wide freeze leaked');
+    check(
+      Object.getPrototypeOf(first) === prototype && first.inherited === width,
+      'Wide prototype changed',
+    );
+    equal(Object.keys(first), ['1', '2', ...keys], 'Wide key order');
+    check(first[symbol] === width && first.accessor === 0, 'Wide accessor/symbol changed');
+    const descriptor = Object.getOwnPropertyDescriptor(first, keys[width - 1]);
+    check(
+      descriptor?.writable === false && descriptor.configurable === false,
+      'Wide frozen descriptor changed',
+    );
+    check(
+      !Reflect.set(first, keys[0], 99) && !Reflect.deleteProperty(first, keys[0]),
+      'Wide frozen mutation accepted',
+    );
+    check(Reflect.deleteProperty(second, keys[1]), 'Wide mutable deletion rejected');
+    second[keys[1]] = 'reinserted';
+    equal(Object.keys(second), [keys[0], ...keys.slice(2), keys[1]], 'Wide reinsertion order');
+    Object.seal(second);
+    check(Object.isSealed(second) && !Object.isFrozen(second), 'Wide seal changed');
+    check(
+      Reflect.set(second, keys[0], 42) && !Reflect.set(second, 'extra', 1),
+      'Wide sealed mutation changed',
+    );
+    check(first[keys[0]] === 0 && second[keys[0]] === 42, 'Wide instances aliased');
+  }
+  const rounds = [],
+    retained: SemanticsProperties[] = [],
+    callback = () => {};
+  for (let round = 0; round < 3; round++) {
+    const timings: Record<string, number> = {};
+    for (const mode of round === 1 ? ['literal', 'constructor'] : ['constructor', 'literal']) {
+      const started = host.now();
+      for (let index = 0; index < 512; index++) {
+        const options = { label: 'wide-' + index, focusable: true, onTap: callback };
+        retained[index % 32] =
+          mode === 'literal'
+            ? sourceSemanticsProperties(options)
+            : new SemanticsProperties(options);
+      }
+      timings[mode] = host.now() - started;
+      for (const value of retained) {
+        check(
+          value instanceof SemanticsProperties && Object.isFrozen(value),
+          'Source wide value identity/freeze changed',
+        );
+        check(
+          Object.getOwnPropertyNames(value).length === 78 && value.onTap === callback,
+          'Source wide fields/callback changed',
+        );
+      }
+    }
+    rounds.push(timings);
+  }
+  return { widths, constructionsPerMode: 512, retainedLimit: 32, rounds };
+}
+interface TextCase extends Pick<
+  ParagraphStyleOptions,
+  'textDirection' | 'locale' | 'maxLines' | 'ellipsis' | 'hyphens'
+> {
+  readonly name: string;
+  readonly text: string;
+  readonly width: number;
+  readonly placeholder?: boolean;
+  readonly paints?: boolean;
+  readonly variation?: boolean;
+  readonly largeStyle?: boolean;
+  readonly farPlaceholder?: boolean;
+  readonly fallback?: boolean;
+}
+function textChecks(context: ViewControllerContext) {
   const service = context.text,
     font = context.assets.get('sample-font');
-  check(font && service.setNativeParagraphTransactions, 'Native text service unavailable');
+  check(font && service instanceof NativeTextLayoutService, 'Native text service unavailable');
   const original = service.nativeParagraphTransactionExecution().enabled;
-  const cases = [
+  const cases: readonly TextCase[] = [
     { name: 'korean-emoji-fallback', text: '한글 😀 é English', width: 96 },
     { name: 'rtl', text: 'مرحبا שלום 123', width: 100, textDirection: 'rtl', locale: 'ar' },
     { name: 'line-breaks', text: 'first\n둘째\nthird line', width: 70 },
@@ -157,7 +268,7 @@ function textChecks(context) {
                   stage: 'text',
                   name: item.name,
                   transaction,
-                  error: String(error.stack ?? error),
+                  error: errorText(error),
                 }),
             );
             throw error;
@@ -198,8 +309,8 @@ function textChecks(context) {
     if (original) service.setNativeParagraphTransactions(true);
   }
 }
-function sceneChecks(context) {
-  const api = globalThis.SkiaApi,
+function sceneChecks(context: ViewControllerContext) {
+  const api = (globalThis as unknown as { SkiaApi: Skia }).SkiaApi,
     source = new Canvas(),
     path = new Path();
   path.moveTo(8, 8);
@@ -213,6 +324,7 @@ function sceneChecks(context) {
     bottomLeft: new Radius(5, 15),
   });
   const gradient = Gradient.linear({ x: 0, y: 0 }, { x: 90, y: 90 }, [0xff112233, 0xffabcdef]);
+  let frame: PaintFrame | undefined;
   try {
     source.save();
     source.clipRect({ x: 1, y: 1, width: 94, height: 94 });
@@ -235,14 +347,13 @@ function sceneChecks(context) {
     );
     source.restore();
     source.restore();
-    const frame = {
-      token: { owner: context.owner, metrics: context.readMetrics(), sequence: 1 },
-      commands: source.commands,
-      resources: [],
-    };
+    frame = captureBorrowedFrame(
+      { owner: context.owner, metrics: context.readMetrics(), sequence: 1 },
+      source.commands,
+    );
     const results = [],
-      baseline = [];
-    const modes = [undefined, 'path', 'paint', 'all'];
+      baseline: number[] = [];
+    const modes = [undefined, 'path', 'paint', 'all'] as const;
     for (let round = 0; round < 3; round++)
       for (const mode of [...modes.slice(round), ...modes.slice(0, round)]) {
         const diagnostics = new FrameDiagnostics({ now: () => host.now() });
@@ -251,9 +362,13 @@ function sceneChecks(context) {
           recorder = api.PictureRecorder();
           bounds = api.XYWHRect(0, 0, 96, 96);
           recorder.beginRecording(bounds);
+          check(
+            typeof recorder.nelyxReplayDisplayList === 'function',
+            'Native display-list capability unavailable',
+          );
           submitNativeScene(
             api,
-            recorder,
+            recorder as typeof recorder & DisplayListTarget,
             frame,
             {
               sceneBatch: mode,
@@ -284,12 +399,16 @@ function sceneChecks(context) {
             );
           const samples = diagnostics.drain();
           check(!samples.invalid && !samples.overwritten, 'Scene diagnostics lost');
+          const wrappers = samples.samples.find((sample) => sample.stage === 'scene-wrappers'),
+            packet = samples.samples.find((sample) => sample.stage === 'packet'),
+            replay = samples.samples.find((sample) => sample.stage === 'native-replay');
+          check(wrappers && packet && replay, 'Scene stage observations missing');
           results.push({
             round,
             mode: mode ?? 'none',
-            wrappers: samples.samples.find((s) => s.stage === 'scene-wrappers').count,
-            packetMs: samples.samples.find((s) => s.stage === 'packet').duration,
-            replayMs: samples.samples.find((s) => s.stage === 'native-replay').duration,
+            wrappers: wrappers.count,
+            packetMs: packet.duration,
+            replayMs: replay.duration,
           });
         } catch (error) {
           host.log(
@@ -297,7 +416,7 @@ function sceneChecks(context) {
               JSON.stringify({
                 stage: 'scene',
                 mode: mode ?? 'none',
-                error: String(error.stack ?? error),
+                error: errorText(error),
               }),
           );
           throw error;
@@ -312,6 +431,7 @@ function sceneChecks(context) {
       }
     return results;
   } finally {
+    if (frame) disposeFrame(frame);
     source.dispose();
     gradient.dispose();
   }
@@ -319,15 +439,18 @@ function sceneChecks(context) {
 export function main() {
   const result = application(),
     create = result.definition.createView;
+  check(create, 'Application has no Source view factory');
   return {
     ...result,
     definition: {
       ...result.definition,
-      createView(context) {
+      createView(context: ViewControllerContext) {
+        const objects = wideObjectChecks();
+        host.log('NATIVE_BOUNDARY_OBJECTS_PASS ' + JSON.stringify(objects));
         const text = textChecks(context);
         host.log('NATIVE_BOUNDARY_TEXT_PASS ' + JSON.stringify(text));
         const scene = sceneChecks(context);
-        host.log('NATIVE_BOUNDARY_PASS ' + JSON.stringify({ text, scene }));
+        host.log('NATIVE_BOUNDARY_PASS ' + JSON.stringify({ objects, text, scene }));
         return create(context);
       },
     },

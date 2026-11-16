@@ -95,6 +95,7 @@ export interface FocusScopeNodeOptions extends FocusNodeOptions {
 interface NodeData {
   parent: FocusNode | null;
   children: Set<FocusNode>;
+  childrenSnapshot: readonly FocusNode[] | undefined;
   manager: FocusManager | undefined;
   context: BuildContext | null;
   attachment: FocusAttachment | undefined;
@@ -110,6 +111,7 @@ interface NodeData {
   dead: boolean;
   history: FocusNode[];
 }
+const emptyFocusChildren: readonly FocusNode[] = Object.freeze([]);
 interface ManagerData {
   generation: number;
   request: InputFocusRequest | undefined;
@@ -297,8 +299,13 @@ function reparent(node: FocusNode, parent: FocusNode): void {
     primary = d.manager?.primaryFocus;
   if (d.manager && !p.manager) detach(node);
   else if (node.enclosingScope !== parent.nearestScope) forget(node);
-  if (d.parent) state(d.parent).children.delete(node);
+  if (d.parent) {
+    const oldParent = state(d.parent);
+    oldParent.children.delete(node);
+    oldParent.childrenSnapshot = undefined;
+  }
   p.children.add(node);
+  p.childrenSnapshot = undefined;
   d.parent = parent;
   setManager(node, p.manager);
   for (const change of scopeChanges)
@@ -348,7 +355,11 @@ function detach(node: FocusNode): void {
     for (const value of [node, ...node.descendants]) m.dirty.delete(value);
     if (m.last && inSubtree(m.last, node)) m.last = undefined;
   }
-  if (d.parent) state(d.parent).children.delete(node);
+  if (d.parent) {
+    const parent = state(d.parent);
+    parent.children.delete(node);
+    parent.childrenSnapshot = undefined;
+  }
   d.parent = null;
   setManager(node, undefined);
   if (errors.length) throw new AggregateError(errors, 'Focus detach command failed');
@@ -410,6 +421,7 @@ export class FocusNode extends ChangeNotifier {
     nodes.set(this, {
       parent: null,
       children: new Set(),
+      childrenSnapshot: emptyFocusChildren,
       manager: undefined,
       context: null,
       attachment: undefined,
@@ -430,7 +442,12 @@ export class FocusNode extends ChangeNotifier {
     return state(this).parent;
   }
   get children(): readonly FocusNode[] {
-    return Object.freeze([...state(this).children]);
+    const data = state(this);
+    // One immutable projection per current membership, like render children.
+    // Reparent/detach discard it immediately; retired nodes gain no owner.
+    return (data.childrenSnapshot ??= data.children.size
+      ? Object.freeze([...data.children])
+      : emptyFocusChildren);
   }
   get ancestors(): readonly FocusNode[] {
     const out: FocusNode[] = [];

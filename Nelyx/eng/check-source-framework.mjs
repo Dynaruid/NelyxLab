@@ -56,6 +56,9 @@ if (!process.argv.includes('--child')) {
       ORIGINAL_LAYOUT_QUEUE_EXPECTATIONS: JSON.stringify(
         oracleFile ? (JSON.parse(fs.readFileSync(oracleFile, 'utf8')).layoutQueues ?? null) : null,
       ),
+      ORIGINAL_LAYOUT_QUERY_EXPECTATIONS: JSON.stringify(
+        oracleFile ? (JSON.parse(fs.readFileSync(oracleFile, 'utf8')).layoutQueries ?? null) : null,
+      ),
     },
     stdin: {
       resolveDir: root,
@@ -93,9 +96,31 @@ import {RenderSliverGrid,SliverGridDelegate,SliverGridRegularTileLayout} from '.
 import {PaintingContext} from './Nelyx/src/framework/painting/context.ts';
 import {PageStorage,PageStorageBucket,PageStorageKey} from './Nelyx/src/framework/widgets/page-storage.ts';
 import {Curves} from './Nelyx/src/framework/animation/curves.ts';
+import {FocusManager,FocusNode,FocusScopeNode} from './Nelyx/src/framework/widgets/focus.ts';
 const trace=[];
 FlutterError.onError=(details)=>{throw details.exception;};
 FoundationPlatform.configure({kind:'native',operatingSystem:'windows'});
+// Focus child snapshots retain their old ordered membership across moves and
+// retirement, while traversal still calls a subclass's live children getter.
+const focusManager=new FocusManager(),otherFocusManager=new FocusManager();
+let focusChildReads=0;
+class ObservedFocusScope extends FocusScopeNode{get children(){focusChildReads++;return super.children;}}
+const focusScope=new ObservedFocusScope(),focusA=new FocusNode(),focusB=new FocusNode();
+try{
+  focusManager.add(focusA);const initial=focusManager.rootScope.children;
+  focusManager.add(focusB);assert.deepEqual(initial,[focusA]);
+  const siblings=focusManager.rootScope.children;assert.deepEqual(siblings,[focusA,focusB]);
+  assert(Object.isFrozen(initial));assert.throws(()=>initial.push(focusB),TypeError);
+  focusManager.remove(focusA);assert.deepEqual(focusManager.rootScope.children,[focusB]);
+  focusManager.add(focusScope);focusScope.autofocus(focusA);await Promise.resolve();
+  assert.deepEqual(focusScope.children,[focusA]);assert.equal(focusA.parent,focusScope);
+  assert.deepEqual(siblings,[focusA,focusB]);
+  const childSnapshot=focusScope.children,reads=focusChildReads;
+  assert.deepEqual(focusScope.descendants,[focusA]);assert(focusChildReads>reads,'Virtual focus children getter was bypassed');
+  assert.throws(()=>otherFocusManager.add(focusA));assert.deepEqual(focusScope.children,[focusA]);
+  focusA.dispose();assert.deepEqual(focusScope.children,[]);assert.deepEqual(childSnapshot,[focusA]);
+  focusB.dispose();assert.deepEqual(focusManager.rootScope.children,[focusScope]);
+}finally{focusA.dispose();focusB.dispose();focusScope.dispose();focusManager.dispose();otherFocusManager.dispose();}
 class TestBox extends RenderBox {
   protected performLayout(constraints){trace.push('layout');return constraints.constrain({width:80,height:60});}
   paint(context){trace.push('paint');const p=new Paint();p.color=0xff126734;context.drawRect({x:0,y:0,...this.size},p);}
@@ -248,6 +273,36 @@ try{
   queueRight.suppressed=false;queueOwner.flushLayout();assert.deepEqual(layoutOrder,['right'],'Covered callback was lost');
   layoutOrder.length=0;queueRight.markNeedsLayout();queueRoot.remove(queueRight);queueOwner.flushLayout();assert(!layoutOrder.includes('right'),'Detached queued node was laid out');
 }finally{queueOwner.setRoot(undefined);queueOwner.dispose();queueRoot.setChildren([]);queueLeft.setChildren([]);for(const node of [queueRoot,queueLeft,queueRight,queueLeaf])node.dispose();}
+// Measurement cache hits, dependency invalidation, null baselines and failure
+// recovery must keep their public semantics when the query dispatch changes.
+class QueryBox extends RenderBox {
+  intrinsicCalls=0;dryCalls=0;baselineCalls=0;extra=10;fail=false;cycle=false;
+  computeMinIntrinsicWidth(height){++this.intrinsicCalls;if(this.fail)throw Error('query failed');if(this.cycle)return this.getMinIntrinsicWidth(height+1);return height+this.extra;}
+  computeMaxIntrinsicWidth(height){return this.getMinIntrinsicWidth(height)+1;}
+  computeDryLayout(constraints){++this.dryCalls;return constraints.constrain({width:15,height:25});}
+  computeDryBaseline(){return null;}
+  performLayout(constraints){return constraints.constrain({width:15,height:25});}
+  computeDistanceToActualBaseline(){++this.baselineCalls;return this.size.height/2;}
+}
+const queryBox=new QueryBox(),queryConstraints=new BoxConstraints(0,100,0,100),layoutQueries=[];
+try{
+  layoutQueries.push(queryBox.getMinIntrinsicWidth(20),queryBox.getMinIntrinsicWidth(20));
+  assert.equal(queryBox.intrinsicCalls,1);assert.equal(queryBox.getMaxIntrinsicWidth(20),31);
+  queryBox.extra=15;queryBox.markNeedsLayout();layoutQueries.push(queryBox.getMinIntrinsicWidth(20));
+  const dry=queryBox.getDryLayout(queryConstraints);assert.deepEqual(queryBox.getDryLayout(new BoxConstraints(0,100,0,100)),dry);assert.equal(queryBox.dryCalls,1);
+  layoutQueries.push(dry.width,dry.height,queryBox.getDryBaseline(queryConstraints,'alphabetic'));
+  queryBox.layout(queryConstraints);layoutQueries.push(queryBox.getDistanceToBaseline('alphabetic',{onlyReal:true}),queryBox.getDistanceToBaseline('alphabetic',{onlyReal:true}));assert.equal(queryBox.baselineCalls,1);
+  assert.deepEqual(layoutQueries.slice(6),[12.5,12.5]);
+  queryBox.markNeedsLayout();queryBox.fail=true;assert.throws(()=>queryBox.getMinIntrinsicWidth(21),/query failed/);
+  queryBox.fail=false;assert.equal(queryBox.getMinIntrinsicWidth(21),36,'Failed query poisoned its cache/stack');
+  queryBox.cycle=true;assert.throws(()=>queryBox.getMinIntrinsicWidth(22),/recursively requested/);
+  queryBox.cycle=false;assert.equal(queryBox.getMinIntrinsicWidth(22),37);
+  queryBox.computeDryLayout=()=>queryBox.size;queryBox.markNeedsLayout();assert.throws(()=>queryBox.getDryLayout(queryConstraints),/cannot read wet size/);
+}finally{queryBox.dispose();}
+const dependent=new QueryBox(),measurementChild=new QueryBox();dependent.setChildren([measurementChild]);
+dependent.computeMinIntrinsicWidth=height=>measurementChild.getMinIntrinsicWidth(height)+1;
+try{assert.equal(dependent.getMinIntrinsicWidth(10),21);measurementChild.extra=20;measurementChild.markNeedsLayout();assert.equal(dependent.getMinIntrinsicWidth(10),31,'Cached query lost its dependency');}
+finally{dependent.setChildren([]);dependent.dispose();measurementChild.dispose();}
 // Source requests reuse immutable captures without bypassing locale/width/hooks.
 const textRegistry=new ResourceRegistry(),textFont=textRegistry.allocateId('capture-font'),capturedText=[];
 textRegistry.register({...textFont,kind:'font'},()=>{});textRegistry.bindResource(textFont);
@@ -289,6 +344,7 @@ if(ORIGINAL_PAGE_EXPECTATIONS!==null)assert.deepEqual(cases,ORIGINAL_PAGE_EXPECT
 if(ORIGINAL_SLIVER_EXPECTATIONS!==null)assert.deepEqual(slivers,ORIGINAL_SLIVER_EXPECTATIONS,'Pinned Flutter list/grid observations differ');
 if(ORIGINAL_LIFECYCLE_EXPECTATIONS!==null)assert.deepEqual(lifecycle,ORIGINAL_LIFECYCLE_EXPECTATIONS,'Pinned Flutter PageView lifecycle observations differ');
 if(ORIGINAL_LAYOUT_QUEUE_EXPECTATIONS!==null)assert.deepEqual(layoutQueues,ORIGINAL_LAYOUT_QUEUE_EXPECTATIONS,'Pinned Flutter layout queue observations differ');
+if(ORIGINAL_LAYOUT_QUERY_EXPECTATIONS!==null)assert.deepEqual(layoutQueries.slice(0,6),ORIGINAL_LAYOUT_QUERY_EXPECTATIONS,'Pinned Flutter intrinsic/dry measurement observations differ');
 console.log('SOURCE_FRAMEWORK',JSON.stringify({result:'PASS-scoped',originalComparison:ORIGINAL_PAGE_EXPECTATIONS===null?'not-run':'PASS-scoped',cases:cases.length+slivers.length+lifecycle.length,scope:'Source layout/paint/hit/arena/build scope; PageView geometry/storage/transfer/interruption/empty; variable list; custom grid; compositing; clip commands',pages:cases,slivers,lifecycle}));
 `,
     },

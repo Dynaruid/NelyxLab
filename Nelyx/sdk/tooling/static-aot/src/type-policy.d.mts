@@ -12,10 +12,15 @@ export interface TypeDecision {
     readonly module: string;
     readonly name: string;
     readonly className?: string;
+    readonly factoryName?: string;
+    readonly offset?: number;
   } | null;
   readonly decision: 'specialize' | 'dynamic-js-with-reason';
   readonly reason: string;
   readonly evidence: {
+    readonly ownership?: 'private-closure';
+    readonly objectLayout?: 'dynamic-js';
+    readonly scalarProof?: 'checked-initializers-assignments-returns-v1';
     readonly returnAnnotation: string;
     readonly parameters: readonly {
       readonly name: string;
@@ -26,7 +31,7 @@ export interface TypeDecision {
 }
 export interface TypePolicy {
   readonly schema: 'nelyx.static-aot-type-policy/v1';
-  readonly id: 'guarded-closed-scalar-v2';
+  readonly id: 'guarded-scalars-owned-state-v3';
   readonly sha256: string;
   readonly graphSha256: string;
   readonly checkerSha256: string;

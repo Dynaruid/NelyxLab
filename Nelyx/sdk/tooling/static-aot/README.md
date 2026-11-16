@@ -1,6 +1,6 @@
 # Static Hermes AOT tooling
 
-`@nelyx/static-aot` supplies source analysis, scalar specialization, and execution-plan checks for experimental Static Hermes builds. The [CLI](../cli/README.md#native-prerequisites) uses it for Windows `--engine hermes --hermes-mode static-aot`.
+`@nelyx/static-aot` supplies source analysis, scalar and private-state specialization, and execution-plan checks for experimental Static Hermes builds. The [CLI](../cli/README.md#native-prerequisites) uses it for Windows `--engine hermes --hermes-mode static-aot`.
 
 Application imports do not start compiler downloads or native builds. Prepare the matching toolchain explicitly before building.
 
@@ -12,7 +12,7 @@ Application imports do not start compiler downloads or native builds. Prepare th
 | `runtime-inventory` | Describe original and emitted bodies in the installed Metro graph |
 | `numeric-partition` | Build IR for explicitly selected arithmetic scalar bodies |
 | `partition` | Handle supported scalar arguments, locals, branches, and bounded loops |
-| `product-partition` | Apply automatic guarded scalar specialization to the installed graph |
+| `product-partition` | Apply qualified specialization to the installed graph |
 | `execution-plan` | Join source identities, frontend decisions, and native definitions |
 
 See [package.json](package.json) for public exports. Inventory reports describe syntax and ownership; they do not establish native coverage by themselves.
@@ -23,7 +23,13 @@ The automatic policy requires scalar annotations, checker evidence, and supporte
 
 Entry guards preserve the original body for values outside a specialized contract. Unsupported explicit lowerings report source-positioned `NELYX_TYPED_UNSUPPORTED` errors. Numeric compilation preserves binary64 evaluation with `-ffp-contract=off` and without fast math.
 
+The `guarded-scalars-owned-state-v3` policy also admits Source functions explicitly marked `@nelyxTypedFactory owned-state-v1`. The private `owned-factory` frontend proves scalar initializers, writes and returns before retaining their primitive types. Parameters, Element references, property reads, array indexing and callbacks keep boxed JavaScript operations. It rejects unbound captures, receivers, asserted/nominal layouts and hidden scalar writes. The algorithm stays in Source and runs there normally on bytecode/Web.
+
+Only the factory gets a global native adapter. Nested helpers keep private audit names and individual Source-to-C ranges; a parent kernel is insufficient evidence for its helpers. This first internal-state path does not make Widget/Element/layout bodies broadly typed or establish a performance gain.
+
 A full-runtime package requires complete source/body/native correspondence. Unclassified bodies, unresolved targets, or runtime code generation block its build. Native AOT coverage and type-specialization coverage are separate measures.
+
+Typed emitters place a `noinline` directive on each kernel so the correspondence audit can match its named C definition. Other application functions use the supplier's normal optimized pipeline, and the native C optimizer runs with `-O3`. Eliminated callable definitions remain subject to the existing native coverage audit. Ordinary bytecode keeps its compiler policy.
 
 ## Build
 

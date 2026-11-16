@@ -2,7 +2,7 @@
 import type { ResourceId, TextLayoutService } from '../ui/types.ts';
 import type { ResourceRegistry, ResourceLease } from './resources.ts';
 import { invariant } from '../foundation/errors.ts';
-import { resourceKey, copyResourceId } from '../ui/resource-retention.ts';
+import { resourceKey, copyResourceId, isCapturedResourceId } from '../ui/resource-retention.ts';
 import { textInputSerializationIsPlain } from '../ui/text-input-data.ts';
 const textFontRevisions = new WeakMap<TextLayoutService, () => number>();
 /** @internal Font-cohort admission without changing the original service surface.
@@ -78,7 +78,10 @@ export class ParagraphFontCatalog<T extends ParagraphFont = ParagraphFont> {
           'font-provider-budget',
           'Paragraph font catalog exceeds64 live fonts',
         );
-        const captured = copyResourceId(resource),
+        // Engine-captured IDs are immutable scalar snapshots. Re-read the
+        // catalog/registry as before, but do not copy each unchanged ID for
+        // every paragraph. Public IDs still cross the complete copy boundary.
+        const captured = isCapturedResourceId(resource) ? resource : copyResourceId(resource),
           family = font.family,
           sourceBytes = font.sourceBytes ?? 0;
         invariant(

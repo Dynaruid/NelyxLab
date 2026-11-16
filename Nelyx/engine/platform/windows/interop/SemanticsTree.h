@@ -70,8 +70,11 @@ public:
     std::map<std::string,SemanticPacket> changes;std::set<std::string> desired(delta.order.begin(),delta.order.end()),removed(delta.removed.begin(),delta.removed.end());
     if(desired.size()!=delta.order.size()||removed.size()!=delta.removed.size())throw std::runtime_error("Duplicate native semantics delta ID");
     for(auto& packet:delta.upserts){auto const& s=packet.snapshot;auto id=s.id;if(s.owner!=delta.owner||s.commit!=delta.commit||s.frame.viewport!=delta.viewport||s.frame.surface!=delta.surface||!desired.contains(id)||!changes.emplace(id,std::move(packet)).second)throw std::runtime_error("Invalid native semantics upsert");}
-    for(auto const& id:removed)if(desired.contains(id)||!nodes.contains(id))throw std::runtime_error("Invalid native semantics removal");
-    for(auto const& [id,node]:nodes)if(!desired.contains(id)&&!removed.contains(id))throw std::runtime_error("Missing native semantics removal");
+    if(delta.reset){if(!removed.empty()||changes.size()!=desired.size())throw std::runtime_error("Incomplete native semantics reset");}
+    else{
+      for(auto const& id:removed)if(desired.contains(id)||!nodes.contains(id))throw std::runtime_error("Invalid native semantics removal");
+      for(auto const& [id,node]:nodes)if(!desired.contains(id)&&!removed.contains(id))throw std::runtime_error("Missing native semantics removal");
+    }
     std::vector<SemanticPacket> packets;packets.reserve(delta.order.size());
     for(auto const& id:delta.order){auto found=changes.find(id);if(found==changes.end()&&!nodes.contains(id))throw std::runtime_error("Missing native semantics node");auto packet=found==changes.end()?nodes.at(id).packet:std::move(found->second);packet.snapshot.commit=delta.commit;packets.push_back(std::move(packet));}
     publish(std::move(packets),context);commit=delta.commit;

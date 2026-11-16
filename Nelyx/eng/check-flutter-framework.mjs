@@ -129,6 +129,14 @@ class QueueCounter extends RenderProxyBox {
   final String name; final List<String> log;
   @override void performLayout(){log.add(name);super.performLayout();}
 }
+class QueryCounter extends RenderBox {
+  double extra=10;
+  int intrinsicCalls=0,dryCalls=0;
+  @override double computeMinIntrinsicWidth(double height){intrinsicCalls++;return height+extra;}
+  @override Size computeDryLayout(BoxConstraints constraints){dryCalls++;return constraints.constrain(const Size(15,25));}
+  @override double? computeDryBaseline(BoxConstraints constraints,TextBaseline baseline)=>null;
+  @override void performLayout(){size=constraints.constrain(const Size(15,25));}
+}
 void main() {
   testWidgets('pinned PageView geometry and zero-size restoration', (WidgetTester tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
@@ -248,8 +256,14 @@ void main() {
     queueLeaf.markNeedsLayout();queueLeft.markNeedsLayout();queueOwner.flushLayout();layoutQueues.add(List<String>.of(layoutLog));
     queueOwner.rootNode=null;queueRoot.removeAll();queueLeft.child=null;
     for(final render in <RenderObject>[queueRoot,queueLeft,queueRight,queueLeaf]){render.dispose();}queueOwner.dispose();
+    final query=QueryCounter(),layoutQueries=<Object?>[],queryConstraints=BoxConstraints.loose(const Size(100,100));
+    layoutQueries.addAll(<Object?>[query.getMinIntrinsicWidth(20),query.getMinIntrinsicWidth(20)]);expect(query.intrinsicCalls,1);
+    query.extra=15;query.markNeedsLayout();layoutQueries.add(query.getMinIntrinsicWidth(20));
+    final dry=query.getDryLayout(queryConstraints);expect(query.getDryLayout(BoxConstraints.loose(const Size(100,100))),dry);expect(query.dryCalls,1);
+    layoutQueries.addAll(<Object?>[dry.width,dry.height,query.getDryBaseline(queryConstraints,TextBaseline.alphabetic)]);
+    query.dispose();
     File(${JSON.stringify(oracle.replaceAll('\\', '/'))}).writeAsStringSync(jsonEncode(<String, Object?>{
-      'revision': '${flutterRevision}', 'pages': pages, 'slivers': slivers, 'lifecycle': lifecycle, 'retainedPaint':retainedPaint,'layoutQueues':layoutQueues,
+      'revision': '${flutterRevision}', 'pages': pages, 'slivers': slivers, 'lifecycle': lifecycle, 'retainedPaint':retainedPaint,'layoutQueues':layoutQueues,'layoutQueries':layoutQueries,
     }));
   });
 }

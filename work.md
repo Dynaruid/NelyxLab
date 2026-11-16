@@ -4,11 +4,15 @@
 
 상태: **PAUSED / PARTIAL / performanceAccepted=false**
 
-2026-11-16 `19940ce`의 clean checkout에서 실행을 시작했다. 같은 날 사용자의 **“일단 중간 마무리”** 요청으로 중단했다. 변경은 미커밋 상태로 보존했다. 아래 계획의 현재 실행 결과와 재개 지점은 **§7**에 기록했다. 구현·일부 회귀는 진행했으나 성능 목표와 최종 통합 수락은 미완료다. 사용자 재개 요청 전에는 자동으로 이어서 실행하지 않는다.
+2026-11-16 사용자의 **“중간마무리해줘”** 요청으로 현재 실행을 중단했다. 미커밋 변경은 보존했으며, 완료한 범위·중단한 검증·남은 작업은 §8 마지막 중단 기록을 따른다. 명시적인 재개 요청 전에는 자동으로 이어서 실행하지 않는다.
+
+2026-11-16 사용자의 **“/goal work.md 작업해줘”** 요청으로 재개했다. 이전 중단 기록은 §7에 보존하며, 이번 재개의 구현·검증과 남은 수락은 **§8**에 기록한다.
+
+이전 실행은 2026-11-16 `19940ce`에서 시작했고, 사용자의 **“일단 중간 마무리”** 요청으로 중단했다. 당시 미커밋 변경과 중단 판단은 **§7의 이력**이다. 이번 재개 checkout `63a8c748`에는 그 변경이 이미 포함돼 있었으며, 현재 실행 상태는 §8을 따른다.
 
 이후 같은 날 사용자가 요청한 **가상 스크롤 입력의 60Hz 보정**을 별도로 진행했다. 해당 변경과 확인 결과는 §7의 **60Hz 가상 입력 보정**에 기록한다. J-01~08 전체 성능 작업의 중단·미수락 상태와 구분한다.
 
-계획 개정: **2026-11-16 KST**. 이번 요청으로 목표·우선순위·수락 기준을 수정했다. 엔진 구현과 성능 실행을 재개한 것은 아니며, 기존 변경·측정 이력과 **PAUSED / PARTIAL** 상태를 보존한다.
+계획 개정: **2026-11-16 KST**. 앞선 문서 개정 때 목표·우선순위·수락 기준을 수정했다. 이후 이번 `/goal` 요청으로 엔진 구현과 성능 실행을 재개했다. §7의 **PAUSED / PARTIAL**은 이전 중단 시점에만 적용한다.
 
 ## 1. 목표와 작업 원칙
 
@@ -292,7 +296,7 @@ Flutter 의미 변경이 가능한 queue/geometry/생성기 수정에는 [고정
 - **FPS 제한·입력 폐기·접근성 끄기로 수치 개선:** 실제 처리 비용과 기능 회귀를 해결하지 못한다.
 - **MSAA를 추가로 낮추거나 GPU부터 교체:** 이전 2× MSAA 수정의 crash 해결과 이번 CPU 긴 frame 가설을 구분한다. renderer/GPU가 지배적이라는 현재 근거 없이 화질·기술 스택을 바꾸지 않는다.
 
-## 7. 현재 인계 상태
+## 7. 이전 중단 시점의 인계 이력
 
 **PAUSED / PARTIAL — 2026-11-16 사용자 요청으로 중간 마무리.** 구현 변경은 미커밋 상태로 보존했다. 기능 회귀의 통과 범위와 성능 목표 미달을 구분한다. 달력 긴 frame은 해결되지 않았으며 전체 개선율·FPS 상승을 주장하지 않는다.
 
@@ -396,3 +400,148 @@ pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -Scenario boundaries 
 pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -App testbed -Scenario testbed -Runs 1
 node Nelyx/eng/check-source-web.mjs
 ```
+
+## 8. 2026-11-16 재개 실행
+
+현재 상태: **PAUSED / PARTIAL / performanceAccepted=false**. 재개 checkout은 `63a8c748`이며 시작 시 tracked 변경은 없었다. 이전 patch는 이 커밋에 포함돼 있다. 아래는 이번 재개에서 수행한 작업이며, 사용자 요청에 따른 최종 중단 범위는 이 절 마지막에 기록했다.
+
+- J-04 공통 측정 조회: RenderBox intrinsic/dry/baseline cache hit의 compute callback 할당을 제거하고, 재귀 검사에서 stack별 key 문자열 분할을 없앴다. 같은 종류의 재귀 거부, 다른 종류의 중첩, dependency invalidation, 실패 후 재시도, null baseline·wet-size guard를 보존한다. Source·child reconciliation·retained paint 및 실제 pinned Flutter oracle이 통과했다. 전체 성능 이익은 아직 미수락이다.
+- J-04 문단 준비 후보: plain span의 image resource 배열·빈 admission Map을 만들지 않으며, font catalog는 이미 engine이 캡처한 immutable ResourceId의 복사를 생략한다. 외부 ID·font getter·registry 검사는 유지한다. 이 묶음의 Core/SDK 공급·관련 회귀·Windows/Web 제품 build/run은 통과했으나 달력 성능 이익은 미수락이다.
+- Windows resize 접근성 결함: native UI가 이전 viewport delta를 버리는데 SDK는 보낸 snapshot을 기준으로 다음 delta를 만들던 경로를 확인했다. 이 상태에서 `Missing/Invalid native semantics removal`로 앱이 종료되는 기준 실행이 있었다. scope 변경의 첫 게시와 종료에는 complete reset을 보내며, native는 reset의 전체 upsert·빈 removed를 검증한다. 같은 scope의 removal 검증은 유지한다. discarded packet·viewport/surface 변경·일반 delta·종료 회귀와 수정 공급의 달력/Gallery 기능 각 1회가 통과했다.
+- 측정: `windows-jank-metrics.ts`에 고유 Source frame/surface 완료, 입력 시작부터 최종 이동·입력 반영 surface까지의 전체 분모, frame 간격 p95/p99/최대, >50ms/≥100ms frame·≥100ms 진행 정체의 횟수·초당 빈도·총 시간·최장을 추가했다. quiet polling과 진단 수집은 종료 뒤로 분리한다. 마지막 surface가 없으면 표본을 거부한다.
+- 표시 확인: 진단 전용 `NELYX_NATIVE_SCREEN_MARKER=1`에서 native compositor surface에 Source frame 번호·sync·checksum을 그린다. 별도 pwsh/GDI sampler가 실제 composed desktop에 나타난 번호를 관측한다. 중복·scope/coverage·checksum 오류를 검사하고 **관측한 표시 FPS 하한**과 sampling 오차를 보고한다. 표식은 제품 기본 실행에서 off이며, screen capture는 scanout 관측이 아니다. 생성 trace·screenshot·진단 package는 실행 finally에서 회수한다.
+
+예비 결과(최종 채택 비교 아님):
+
+| 공급·범위 | 구간별 결과 | 판정 |
+| --- | --- | --- |
+| 재개 전 설치 공급, 새 집계·screen off, 달력 1회 | 엔진 FPS 보통 정방향 33.453 / 빠른 정방향 26.033 / 빠른 역방향 14.938. ≥100ms 진행 정체 6/4/6회, 총 793.914/641.456/1000.294ms | 달력 전체 목표 미달. 다른 startup 실패 표본은 제외. 3회 비교 baseline 미확보 |
+| query+resize 수정 공급, Gallery screen on 1회 | 관측 표시 FPS 하한 cold/return/warm 72.787/61.467/60.454. ≥100ms 진행 정체 0/0/0회, >50ms 표시 frame 간격 0/0/0회. capture 562회, invalid 0, 최대 관측 간격 26.355ms | 해당 실행 기능·표시 30fps 기준 통과. 같은 조건 변경 전 Gallery 비교는 없음 |
+
+Gallery 편집 `Jank 한글 😀`, theme/resize·화면 복귀·정상 종료 exit 0, wheel 150개 및 최종 `0→480→0→480`을 확인했다. 별도 1000Hz Hermes sampling 실행은 원인 가설을 좁히는 진단이며 성능 비교 표본에서 제외한다. sampling은 common child build/layout·ink paint 경로와 young-GC 비용을 보였지만 GC 단독 원인을 입증하지 않았다.
+
+### 추가 layout·Focus 후보와 현재 통합 상태
+
+- BoxConstraints 생성의 숫자 검사용 임시 배열/callback과 Flex 8개 setter의 assign closure를 제거했다. 검증·변경 시 무효화·속성 훅은 유지했다. 해당 묶음의 Source·child·retained paint, 11개 workspace 타입, lint·format은 통과했다. 같은 진단 entry/host·입력의 달력 3회 비교에서 일관된 FPS·정체 개선은 입증하지 못했다.
+- 최신 공급 Gallery 3회는 표시 FPS 하한 cold **70.903/68.647/72.728**, 복귀 **59.836/60.126/60.288**, warm **59.585/59.014/58.791**였다. 모든 phase에서 >50ms 표시 frame과 ≥100ms 진행 정체는 0회였다. 한글/emoji 편집, theme·resize·복귀·정상 종료 및 150 wheel의 `0→480→0→480`·모든 입력 처리도 통과했다.
+- Testbed 기존 목록은 `itemExtent=80`의 고정 높이였다. 가변 목록 성능용 entry에서만 public Source ListView와 1~4줄 한글·emoji TextButton 1,000개를 구성했다. 최신 공급 3회 표시 FPS 하한 cold **67.598/74.812/69.110**, 복귀 **58.571/62.795/59.857**, warm **54.497/54.860/56.443**. 모든 phase의 ≥100ms 진행 정체는 0회였고 UIA membership의 하강·복귀·warm 일치, 입력 보존·정상 종료가 통과했다. 원래 Testbed 목록과 MixedScroll은 이 entry로 대체하지 않았다.
+- 실제 native 표시는 2560×1459 physical / DPR 2, 달력 viewport 344, Windows가 보고한 refresh **165Hz**에서 관측했다. composed desktop marker의 관측률은 표시 FPS **하한**이며 scanout이 아니다. sampler의 최대 관측 간격은 약 26~40ms라 frame 누락 가능성이 있다. 30 미만 하한만으로 실제 표시율 상한을 단정하지 않지만, 달력 engine 완료율도 목표를 벗어난다.
+
+Focus 추가 전, 같은 60Hz 입력의 달력 결과(표시 FPS 하한):
+
+| 구간 | Flex/constraints 수정 전 3회 | 수정 후 3회 | 수정 후 ≥100ms 진행 정체 횟수 / 총 시간(ms) / 최장(ms) |
+| --- | --- | --- | --- |
+| 보통 정방향 | 29.461/27.065/26.995 | 25.679/23.945/26.150 | 8/7/7 · 1065.308/994.781/1050.757 · 210.166/190.688/194.962 |
+| 약 2배 정방향 | 24.912/25.957/23.841 | 25.534/25.839/23.999 | 4/5/5 · 676.930/773.163/748.556 · 236.626/200.178/200.811 |
+| 약 2배 역방향 | 19.267/15.150/15.810 | 12.899/19.578/18.277 | 7/6/8 · 1161.705/1072.405/1200.316 · 234.317/285.550/192.686 |
+
+수정 후 engine FPS는 각각 **30.910/28.166/31.591**, **28.285/31.304/25.744**, **13.645/23.785/22.434**였다. 모든 3회는 138 touch 입력 보존, `November 2026→March 2027→June 2027→December 2026` 정착과 UIA, 명령 exit 0·cleanup을 통과했다. **30fps+정체 감소 목표는 FAIL**이며 위 작은 할당 변경으로 목표를 달성했다고 판정하지 않는다.
+
+- 별도 build 진단의 앞 두 phase는 각각 13,024/8,607 Element rebuild와 outer build scope **470.608/356.189ms**를 관측했다. 빠른 phase 문단 cache 증분은 **150 hit / 3 miss**였다. 비용은 공통 Focus·MouseRegion·Text·Ink·Semantics 생산 등에 분산됐다. native 문단 cache 확대·transaction 기본 활성화의 근거로 사용하지 않는다. 역방향은 입력 deadline 7.643ms 초과로 거부돼 이 진단 전체를 기능 PASS 또는 성능 비교 표본으로 계산하지 않는다.
+- 이어 Focus.children의 매 조회 배열 복사를 현재 membership당 immutable snapshot 하나로 바꿨다. 실제 reparent/detach의 모든 Set 변경에서 즉시 무효화하며 오래된 snapshot은 바뀌지 않는다. subclass children getter·traversal과 focus flags 계산은 유지한다. 이전 snapshot 격리·foreign manager 거부·재부모화·dispose 회귀, Source·child·retained paint·타입·lint·format과 실제 pinned Flutter oracle 25 cases가 통과했고 Core를 Demo Windows/Testbed Windows/Web에 재공급했다.
+- Focus 공급 달력 3회 표시 FPS 하한은 보통 **26.048/29.712/25.119**, 약 2배 정방향 **22.596/20.405/25.347**, 역방향 **14.552/18.528/14.441**였다. ≥100ms 진행 정체 횟수는 각각 **6/5/8**, **5/4/4**, **5/5/9**, 총 시간은 **881.278/772.594/1053.126ms**, **764.036/710.411/661.175ms**, **979.168/1013.180/1297.206ms**였다. 입력 138개와 월 정착·UIA·정상 종료는 모두 통과했지만 일관된 FPS·정체 개선은 입증하지 못했다. bundle `d150c002…`, 같은 entry `45e8d519…`·host `67dbdc22…`다.
+- Focus 공급 Gallery 3회 표시 FPS 하한 cold **71.642/68.566/73.743**, 복귀 **59.381/58.837/59.965**, warm **58.725/60.480/59.649**, 모든 phase의 ≥100ms 진행 정체 0회였다. 편집·theme/resize·모든 입력 보존·정상 종료가 통과했다. native boundaries도 text 12 cases×3 rounds와 scene none/path/paint/all을 정상 종료까지 통과했다.
+- Focus 공급의 진짜 가변 목록 3회 표시 FPS 하한 cold **71.089/74.053/73.988**, 복귀 **63.965/60.334/61.661**, warm **54.903/59.834/55.033**, 모든 phase의 ≥100ms 진행 정체 0회였다. 모든 입력 159개 보존·UIA membership 하강/복귀/warm 일치·정상 종료도 통과했다. bundle `0b4ebc34…`, 같은 entry `2e07efd9…`다.
+- Web Playwright **1.64.0**을 root dependency/lock에 고정했다. 실제 canvas mouse·keyboard로 Gallery wheel/복귀, `Jank 한글 😀`, theme·폭 전환 보존, 달력 전/후월·취소 완료가 통과했다. 닫기 animation 종료 후 최신 화면도 직접 확인했다. WebGL2 SwiftShader 기능 검사이며 Web 성능 수락은 아니다. 사용한 browser/profile/screenshot·server는 finally에서 회수했다.
+- Focus 공급의 Windows 제품 기본 build/run도 정상 첫 프레임·exit 0을 통과했다(bundle `b5178f5b…`, host `6c424bfd…`, VM `30355a6c…`). Web static build/runtime·시각 확인도 통과했다. Windows run의 유효 duration 전달은 `npm.cmd run run:windows --workspace @nelyx/demo -- -- 8000`이다. 진단 bundle과 같은 native build cache를 동시에 사용한 한 빌드는 거부됐고, 직렬 재실행이 성공했다.
+- MixedScroll 최초 검사는 12개 row의 eager entry 뒤 400ms 고정 대기만 하고 Edit UIA를 읽어 실패했다. 실제 editor와 입력한 값이 UIA에 나타날 때까지 조건 대기를 추가했다. 이후 두 실행은 주입기 deadline 12.071/5.107ms 초과로 거부됐으며 기능 PASS에 포함하지 않는다.
+- 주입기의 `Thread.Sleep`은 숨겨진 pwsh의 고해상도 timer resolution을 보장하지 않는다([Windows timer 설명](https://learn.microsoft.com/en-us/windows/win32/api/timeapi/nf-timeapi-timebeginperiod)). coarse sleep을 [고해상도 one-shot waitable timer](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createwaitabletimerexw)로 바꾸고 QPC 마지막 대기·60Hz absolute deadline·25% 지터 초과 거부·입력/terminal 수는 유지했다. 측정 시작 전에 blocking/spin 경로를 모두 준비하며 unnamed handle은 SafeWaitHandle로 회수한다. 변경 후 sender 작업을 포함한 **입력 6 cases PASS**, 실제 MixedScroll의 한글/emoji 편집 보존·counter 0→1·원래 고정 목록 스크롤/복귀·118개 입력 보존·정상 종료가 통과했다.
+
+### 공통 실행 비용의 다음 후보
+
+Source build 비용이 여러 Widget에 분산되고 기존 문단 cache가 작동하므로, 기존 같은-VM Static Hermes native 컴파일 경로를 후속 진단 후보로 선택했다. Widget/State/layout·scroll 정책과 동적 JS fallback을 유지하고 기존 guarded scalar/type-policy·전체 body/native coverage 검사를 통과한 경우에만 실행한다. §6의 VM/JIT/AOT 비교로 시작하는 방향과 달리 공통 Source/경계 후보를 먼저 적용·비교한 뒤의 검토다. 예전 다른 pin의 AOT 결과를 현재 공급의 성능 근거로 사용하지 않는다. `check-windows-jank.ps1 -HermesMode static-aot`로만 명시적으로 선택하며 기본은 bytecode다. 실제 native 동등성·기능과 같은 입력의 FPS·정체를 확인하기 전 제품 기본값을 바꾸지 않는다.
+
+- native 컴파일의 strict 검사가 진단 entry의 미지정 타입·불완전 PaintFrame·Source/dist 중복 경로를 거부했다. 진단 타입을 실제 Core/Skia 계약에 맞추고 frame은 captureBorrowedFrame/disposeFrame으로 생성·회수하며 public native imports를 통일했다. 달력 진단의 별도 strict source graph 검사도 오류 0개다. 공통 집계는 Node와 Metro가 같은 TypeScript 파일을 사용하며 집계 회귀가 통과했다.
+- 첫 native 이미지는 typed kernel **21개 미분류 / typePolicyAccepted=false / wholeAppNativeAot=false**로 실행 전에 거부됐다. 새 compiler의 `-O`가 kernel을 boundary에 inline해 named C definition을 없애는 것을 작은 독립 사례로 확인했다(기본 최적화 kernel 0개, `-fno-inline` 1개). 대응 검사를 완화하지 않고 앱 AOT의 typed/dynamic unit에만 named body 보존 정책을 추가했다. VM 내부·bytecode 정책과 공급은 유지하며 C `-O3`는 유지한다. compiler 정책 회귀와 CLI 선언 타입 검사가 통과했다.
+- 수정 정책은 전체 native 대응과 실제 boundaries 실행을 통과했다. original callable **36,230 native(21 typed / 36,209 dynamic), 34 dead**, emitted **40,640 native / 0 dead**, initializer **877 native**, 미분류·미해결·동적 코드 생성 후보 **0**이며 typePolicyAccepted/wholeAppNativeAot 모두 true다. 문단 12 cases×3 rounds·scene 12개 픽셀 비교·정상 종료도 통과했다. 같은 entry(`f2abcd75…`)의 bytecode boundaries도 통과했다. native 대응의 통과는 성능 수락과 구별한다.
+- 이어 실제 달력 wrapper의 사용하지 않는 반환 필드가 strict contextual type 검사에서 거부됐다. 앞선 사전 검사와 달랐던 이 반환을 실제 사용하는 helper 이름들로 맞췄다. 이 실행은 native 컴파일/달력 동작 전에 거부됐으며 FPS 표본이 아니다. 수정 후 달력 비교를 다시 진행한다.
+- AOT 반복 비교는 같은 batch의 현재 compiler object만 임시 재사용한다. 입력·source·flags·toolchain hash가 일치할 때만 재사용하며 20분 batch timeout과 종료 finally에서 cache/package/entry를 모두 회수한다. 전체 SDK나 과거 cache를 복제하지 않는다.
+- 제품 캡처 임시 폴더 생성/재귀 정리 복합 명령은 자동 승인 검토가 `blocked by policy`로 거부했다. 상세 이유는 제공되지 않았고 해당 명령은 실행되지 않았다. 이전 `packages/cupertino/.cache/sdk-jJ9K0n` 삭제 거부와 함께 재시도하지 않았다. 기존 진단 runner의 캡처 경로를 계속 사용한다.
+
+현재 entry `9b550ab9…`, 같은 Source·host `67dbdc22…`·VM/toolchain `ca45f865…`와 고해상도 60Hz 주입기의 달력 비교는 다음과 같다. 모든 유효 실행은 158개 전체 입력/138개 touch 처리, 월 정착·UIA·exit 0을 통과했다. 최초 bytecode control은 Setup의 foreground guard에서 거부돼 표본에서 제외했다.
+
+| 구간 | bytecode 표시 FPS 하한 3회 | audited AOT 표시 FPS 하한 3회 | bytecode / AOT ≥100ms 진행 정체 횟수 |
+| --- | --- | --- | --- |
+| 보통 정방향 | 31.544/27.593/27.595 | 30.990/27.624/26.418 | 5/7/7 · 7/5/5 |
+| 약 2배 정방향 | 23.453/32.973/31.181 | 25.940/26.371/26.726 | 5/5/4 · 3/4/5 |
+| 약 2배 역방향 | 15.942/13.499/16.909 | 24.105/18.132/17.842 | 7/7/9 · 7/7/5 |
+
+AOT의 역방향 engine FPS도 **26.830/21.612/20.760**으로 30 미만이다. ≥100ms 표시 진행 정체 총 시간은 bytecode 역방향 **1079.445/1145.927/1253.313ms**, AOT **1153.233/1028.295/925.836ms**다. 일부 역방향 FPS 변화만으로 전체 목표를 수락하지 않으며 AOT는 기본 활성화하지 않는다.
+
+### 고정 폭 객체 shape 재사용 후보
+
+코드 검토에서 `SemanticsProperties`의 실제 own field가 **78개**이고, pinned Hermes `HiddenClass::kDictionaryThreshold`는 **64**임을 확인했다. `addProperty`는 65번째 속성에서 객체마다 별도 dictionary로 전환하며 `getHiddenClassForBuffer`와 StaticH의 리터럴 생성도 `addBufferPropertiesToHiddenClass → addProperty`를 거친다. dictionary는 리터럴 shape cache와 `makeAllReadOnly` freeze transition cache에서 제외된다. 기존 Source의 78-field 리터럴 fast path도 이 경계에 걸린다. 이 코드는 반복 생성·freeze의 중복 map 작업을 설명하지만 전체 정체의 단독 원인을 입증하지 않는다.
+
+이 후보는 같은 pinned VM의 dictionary 전환 한도만 128개로 변경해 비교했다. 재현 가능한 supplier patch·manifest 정책/입력 hash를 사용했고 64/65/78/127/128/129/160-field 객체의 freeze/seal·descriptor·prototype·symbol·key 순서·삭제/재삽입·인스턴스 독립성, 실제 Source 값 생성, 문단·scene 검사는 통과했다. 같은 512개 생성에서 constructor는 **10.908/11.936/11.010 → 8.777/8.647/8.702ms**, 리터럴은 **2.053/3.590/4.150 → 1.377/1.326/1.400ms**였다. 해당 boundary entry는 `4536e9a0…`, app.js `41ce2890…`, bundle `2c807af5…`로 동일했다.
+
+그러나 같은 달력 entry `9b550ab9…`/app.js `cc89835e…`/bundle `e9ca4374…`의 3회 표시 FPS 하한은 보통 **25.687/26.412/30.227**, 빠른 정방향 **24.156/28.492/25.325**, 역방향 **13.238/15.436/16.778**이었다. ≥100ms 표시 진행 정체는 각각 **6/6/6**, **4/4/5**, **6/7/7**회였다. 모든 입력 158개·월 정착·UIA·정상 종료는 통과했지만 일관된 성능 이득이 없어 **VM 한도 변경은 철회**했다. 128 공급은 `5d85ed9a…`/VM `8cf04752…`였다. pinned 64 한도로 복구·재빌드했고 임시 patch/manifest 정책도 canonical tooling에서 제거했다. fresh pinned archive+정규 patch의 전체 source tree와 최종 supplier 재검증이 통과했다. 현재 toolchain **`dbd11135911508448fb9fa66910a5d2babe590efc6b8f0106a678273d1e3d10e`**, source tree **`2cdd4ce7ff07f9c0a9a4c1ca3b5485df446a95a8efd2941b2bde0ff4bb3963a2`**, VM **`5a7a8d64…`**다. 원래 64 한도와 동일 소스/설정으로 재빌드했으며 기존 DLL과 byte 동일성은 주장하지 않는다.
+
+별도 GC 진단은 native `heapInfo`의 `GC stats:` section을 사용한다. 최초 두 실행은 진단 파서가 collector dump/머리말을 JSON으로 읽어 첫 입력에서 실패했고, 뒤따른 foreground 이탈은 앱 종료의 결과였다. 유효 FPS 표본이 아니다. 공급 소스의 출력 형식에 맞춘 파서와 invalid-report 회귀를 추가한 뒤 진단이 정상 종료했다. 정상/빠른 정방향/역방향의 할당 증분은 약 **112.4/94.5/123.6MB**, GC pause 증분 **137.9/102.4/157.6ms**, 누적 최대 단일 GC pause **19.512ms**, 마지막 heap **60MiB**, peak live-after-GC **26.34MiB**였다. GC 기록은 32/25/33회 증가했다. 이 실행은 `performanceSample=false`이며 최대 pause 통계가 GC 전 mutex 대기를 포함하지 않으므로 GC 단독 원인이나 그 부재를 단정하지 않는다. 12월 달력의 native 화면도 직접 확인했다.
+
+### 사용자 후속 방향: typed AOT
+
+사용자가 같은 진행 중 **“typed aot로 하면 어떨까?”**라고 제안했다. 현재 `static-aot`의 native callable 대부분은 동적 JS 의미를 유지하며, 실제 타입 특수화는 **21개의 closed scalar kernel**뿐이다. `automaticPartition`은 receiver/property/call/new 관측을 모두 제외하므로 Source layout/child 생산 본체가 typed AOT로 내려갔다고 볼 수 없다. 다음 검토는 공통 hot path에 적용할 수 있는 typed lowering·객체/호출 경계이며 Widget/Element/State/scroll 정책은 Source에 유지한다. 임의 cast로 kernel 개수만 늘리지 않고 동적 getter·callback·잘못된 런타임 값·예외/관측 순서를 보존할 수 있는 계약을 먼저 설계한다.
+
+선행 AOT 감사 수정의 범위도 좁혔다. pinned compiler의 `test/Optimizer/noinline-directive.js`에서 함수별 `"noinline"` 지시문을 확인했다. typed emitters의 kernel에만 지시문을 추가하고 앱 전체 `-fno-inline` 대신 표준 `-O`를 복원했다. typed kernel의 named C 대응과 기존 미분류 거부는 그대로 유지한다. 실제 compiler fixture는 지시문 없음 kernel 0개/있음 1개를 통과했다. CLI/static-aot 타입, 수정 파일 lint/format, 집계·GC 파서 회귀도 통과했다.
+
+새 정책의 boundaries도 전체 native 대응·객체·문단·scene·정상 종료를 통과했다. original callable **32,335 native(21 typed/32,314 dynamic), 3,933 eliminated definitions**, emitted **35,217 native/5,427 eliminated definitions**, initializer **877 native**, 미분류·미해결·동적 코드 생성 후보 **0**, typePolicyAccepted/wholeAppNativeAot true다. 최적화가 없앤 callable 정의에는 inlining된 정의도 포함되므로 원본 알고리즘 전체가 dead code라는 뜻으로 해석하지 않는다. entry `4536e9a0…`, app.js `2d1a33f0…`, typed source `3218a35b…`, bundle `14759a17…`다. native 정책 **`windows-hermes-260318099.0.7-native-aot-kernel-boundary-v2`**, typed 정책 **`windows-hermes-260318099.0.7-typed-kernel-boundary-v3`**다. 성능 3회는 진행 중이며 이 변경은 typed 적용 범위 확대 자체를 뜻하지 않는다.
+
+현재 Demo Source graph의 실제 결정은 **29,904 callables 중 21 specialize / 29,883 dynamic**이다. 20,429개는 callable shape, 9,105개는 명시적 scalar 계약 제한에 걸렸다. 후보 중 137개는 동적 관측 보존, 61개는 conditional expression 미지원 등으로 제외됐다. 21개에는 곡선/보간·좌표 변환과 상수 intrinsic 반환이 포함되며 layout/Element 생성 본체의 typed 수락으로 확대 해석하지 않는다.
+
+내부 record를 typed class로 만드는 작은 compiler 자격 확인도 진행했다. 현재 TS frontend는 class method 반환 주석에서 `ts2flow: remaining TS node TSTypeAnnotation in FunctionExpression`으로 거부했다. 같은 타입의 내부 record를 지원되는 Flow frontend로 내리면 IR에 **PrLoad 3 / PrStore 5 / CheckedTypeCast 3**, 숫자 `FAdd`가 생성됐다. 이는 컴파일 IR의 가능성 확인이며 실제 제품 ABI·실행·성능 수락이 아니다. Source는 TypeScript에 유지하고 검증한 중간 표현을 compiler가 지원하는 typed dialect로 방출하는 경로를 검토한다. `SH.cpp`의 class cast는 object tag 수준이고 고정 슬롯 load/store를 생성하므로, 임의 JS 객체를 typed record로 cast해서 사용하면 안 된다. private factory의 provenance/owner 검증과 불일치·Proxy·예외 순서에 대한 동작 검사가 선행돼야 한다. public Widget/State를 일괄 typed class로 바꾸는 대신 Source 내부에서 닫힌 자료구조의 수명을 보존하는 계약부터 정한다. 자격 확인용 파일·폴더는 finally에서 삭제했다.
+
+CLI/static-aot archive는 Demo Windows/Web와 Testbed Windows에 갱신했다. 최초 실행은 이전 installed CLI의 archive 경계 불일치로 시작 전에 거부됐다. Demo Windows `npm ci`는 성공했으나 Web은 변경된 전이 의존성 `hermes-estree@0.32.0`이 lock에 없어 거부됐다. 문서의 표준 install 단계로 Web/Testbed lock·설치를 갱신한 후 달력 비교를 재시작했다. 공급·설치 거부는 FPS 표본에 포함하지 않는다.
+
+함수별 kernel 보존 정책의 달력 3회 결과는 다음과 같다. 같은 entry `9b550ab9…`, app.js `02c4b554…`, typed source `3218a35b…`, host source `67dbdc22…`·현재 64-field VM/toolchain을 사용했다. original callable **32,360 native(21 typed), 3,935 eliminated**, emitted **35,240 native/5,429 eliminated**, initializer **877 native**, 미분류·미해결 **0**이다. 모든 phase의 48/30/60 touch(총 138개), 월 정착·UIA·정상 종료가 통과했고 전체 native 입력도 각각 **159/156/157개 수신=전달=수락, 거부 0**이었다. bundle은 `8a3756d9…`/`fb79cd8b…`/`06f67fa2…`다.
+
+| 구간 | 표시 FPS 하한 3회 | engine FPS 3회 | 표시 ≥100ms 진행 정체 횟수 / 총 시간(ms) / 최장(ms) |
+| --- | --- | --- | --- |
+| 보통 정방향 | 36.255/36.265/33.960 | 39.750/40.207/39.950 | 5/5/5 · 635.054/632.437/615.140 · 183.010/179.077/183.181 |
+| 약 2배 정방향 | 30.133/31.935/24.620 | 35.461/37.826/27.648 | 4/4/4 · 549.029/543.334/559.917 · 188.826/180.658/183.471 |
+| 약 2배 역방향 | 22.883/22.324/17.810 | 25.133/25.803/19.493 | 5/5/5 · 785.469/713.514/793.080 · 175.930/175.197/200.784 |
+
+보통 정방향은 개선됐으나 빠른 정·역방향을 포함한 **전체 30fps+정체 목표는 FAIL**이다. compiler의 정상 inlining과 감사 대응 수정은 유지하며 제품 기본은 bytecode다. 도구 출력 한도로 첫 전체 receipt 일부가 잘렸지만, 9개 완전한 표시 phase 객체와 첫 run의 phase/exit·나머지 완전한 run 객체에서 위 값을 확인했다. 같은 검사를 반복하지 않았고, 이후 runner는 상세 결과 뒤에 작은 `JANK_COMPARISON_SUMMARY`를 추가해 최종 비교 값이 출력 제한에 사라지는 문제를 줄인다. 별도 로그·receipt 파일은 보관하지 않는다.
+
+최종 공급의 Demo Windows 제품 `build:windows`/`run:windows -- -- 8000`는 정상 첫 프레임·종료를 통과했다. VM 재빌드 뒤 처음 build는 이전 input locator hash로 거부돼 README의 `eng/windows-inputs.mjs`로 실제 supplier를 재검증·갱신한 뒤 같은 명령을 다시 실행했다. bundle **`b5178f5b…`**, host **`642e76a2…`**, VM **`5a7a8d64…`**다. Web `check:web`/`build:web`도 통과했고 application hash **`91995298…`**는 앞서 실제 기능·시각 검사를 통과한 값과 동일하다. Web 성능·notice 전체 수락을 뜻하지 않는다.
+
+최종 Testbed MixedScroll 회귀도 편집 `Jank 한글 😀`, counter **0→1**, 기존 고정 목록 membership **0..7→3..10**, 복귀·정상 종료를 통과했다. 입력 **118개 수신=전달=수락, 거부 0**, wheel 합계 보존을 확인했다. bundle `5ec0814b…`/entry `da79a76c…`이며 이 실행은 성능 시나리오가 아니다. 생성한 package/entry·batch compiler cache·자격 확인 폴더와 소유 native process는 종료 시 회수했고 `.tmp`의 기존 4개 파일은 보존했다.
+
+typed 확장의 다음 계약은 **Source 내부의 닫힌 자료구조·루프를 실제 typed module로 낮추는 것**이다. closed-scalar admission을 단순 완화해 arbitrary getter/객체를 숫자나 고정 record로 cast하지 않는다. 후보는 기존 `OwnerTransaction`/`DepthQueue` 등 내부 owner 자료구조의 primitive 상태와 참조 값이며, 공개 Widget/State 정책을 SDK/native로 옮기지 않는다. 생성된 private record를 외부 JS 객체와 구분하는 provenance·owner/lifetime 검증, callback의 receiver/재진입/예외·동일 깊이 순서·GC 수명, bytecode/Web fallback을 먼저 구체화한다. 그 계약과 실제 hot-path 비용을 충족하지 못하는 작은 kernel 증가만으로 typed engine 성능 수락을 대신하지 않는다. 이 계약 검토 뒤 아래 첫 Source 내부 경로를 구현했다.
+
+### typed Source 내부 상태의 첫 연결
+
+- `check-typed-hermes-records.mjs`는 compiler IR만 확인하던 private record를 **실제 C SHUnit/DLL로 실행**한다. canonical VM/toolchain `dbd11135…`에서 동일한 dynamic/typed(Flow frontend) 구현이 각각 **55개 assertion**을 통과했다. fake·Proxy·다른 종류·retired token, 숫자 coercion 거부, WeakMap prototype 교체, boxed 한글/emoji 참조와 실제 VM GC 2회 이후 참조 보존을 확인했다. 고정 slot load/store와 native 숫자 덧셈도 IR에서 확인했다. weak key의 실제 회수 시점·장시간 누수나 제품 성능을 수락한 검사는 아니다.
+- 첫 제품 Source 후보는 `runtime/depth-queue.ts`의 내부 저장소다. 하나의 Source factory 안에 heap·order/revision·heap 루프를 두고, `owned-factory.mjs`가 **증명한 private 숫자 상태만 typed로 낮춘다**. Element/record 필드·callback·배열 index는 boxed JS 연산이며 arbitrary 객체를 typed class/array로 cast하지 않는다. 알고리즘은 Source 한 곳에 있으며 bytecode/Web도 같은 Source body를 실행한다. public `pop → this.remove`의 receiver·override 호출을 보존한다.
+- `guarded-scalars-owned-state-v3` 정책은 `@nelyxTypedFactory owned-state-v1`의 initializer·모든 scalar write·return을 검사한다. 주석 자체로 타입을 신뢰하지 않는다. 외부 lexical capture·this·nominal/asserted layout·괄호/구조 분해에 숨은 scalar write·dynamic void 반환·native adapter 이름 충돌 등 **18개 거부 사례**가 통과했다. 외부 native ABI는 factory **1개**뿐이며, 내부 함수 **9개**는 private 이름과 개별 Source-to-C range를 가진다. 부모 함수 하나의 대응으로 helper들을 포괄 수락하지 않는다.
+- 실제 Source 큐의 dynamic/typed C 실행은 각각 **24개 assertion**을 통과했다. 동일 깊이 순서·깊이 변경·24-record heap 순회·중복/foreign queue·재진입·callback receiver/예외·getter 순서·string/BigInt/object index coercion·public override·GC 참조 보존을 확인했다. native 예외가 VM/image보다 먼저 회수되는 실패 경로도 확인했다. `typed-hermes-fixture.mjs`는 canonical DLL을 복사하지 않고 같은 VM을 로드하며 실행별 파일·이미지·process를 finally에서 회수한다.
+- Core 재빌드 후 Source·child reconciliation·retained paint, **11개 workspace 타입**, 실제 pinned Flutter oracle **25 cases**가 통과했다. Flutter pin `71e4717a…`/installed engine `371f7720…`/Dart 3.14.0이다. Core/static-aot를 Demo Windows/Web·Testbed Windows에 공급·설치했다.
+- 새 Web 공급의 `check:web`/`build:web`와 실제 Playwright 회귀가 통과했다. application **`574c483c2d9d6dd56005f8cc4e95e7c4b326c1ee913bd277ec1cdb5ba4ac3936`**, Gallery wheel/복귀·`Jank 한글 😀` 편집·theme/폭 보존·달력 전후월/닫기와 최종 화면을 확인했고 browser/profile/server/screenshot을 회수했다. Web 성능 수락은 아니다.
+- 이 첫 경로는 Widget/Element/layout 전체의 typed 전환을 뜻하지 않는다. 전체 Demo native correspondence·Windows 기능·동일 입력의 FPS/정체 비교는 별도 수락 대상으로 남긴다. Source 큐 분리의 bytecode 비용까지 실제 비교하기 전 성능 이익을 주장하지 않는다.
+
+최종 guard 보강은 현재 Source 큐의 emitted source와 callable range를 바꾸지 않는 것을 root/supplied frontend의 직접 비교로 확인했다. 해당 isolated Source hash는 `09677e32…`다. 최종 tooling을 세 runner에 재공급했으며 static-aot·CLI 선언 타입과 변경 파일 lint/format이 통과했다.
+
+전체 Demo AOT boundaries는 initializer **877 native**, original **32,342 native(30 typed / 32,312 dynamic)·3,930 eliminated**, emitted **35,214 native·5,426 eliminated**, 미분류·미해결·동적 코드 생성 후보 **0**으로 통과했다. 30 typed 중 **기존 scalar 21 + 내부 큐 9**이며 전체 framework가 typed라는 뜻이 아니다. wide object·문단 12 cases×3·scene 12 pixel 비교·정상 종료도 통과했다. bundle `03dd16f5…`, app.js `8beb3eb9…`, typed source **`446bb314…`**, entry `4536e9a0…`다.
+
+같은 viewport **2560×1459 / DPR 2 / 165Hz**, 같은 host `67dbdc22…`·entry `9b550ab9…`·toolchain `dbd11135…`, 60Hz·100/50ms 입력의 달력 비교 결과:
+
+| 구간 | 큐 연결 전 AOT 표시 FPS 하한 3회 | 큐 연결 후 AOT 표시 FPS 하한 3회 | 큐 연결 후 bytecode 표시 FPS 하한 3회 |
+| --- | --- | --- | --- |
+| 보통 정방향 | 36.255/36.265/33.960 | **36.613/35.270/35.711** | 27.365/30.394/28.362 |
+| 약 2배 정방향 | 30.133/31.935/24.620 | **31.466/28.153/34.021** | 22.798/27.475/30.516 |
+| 약 2배 역방향 | 22.883/22.324/17.810 | **22.965/19.867/25.494** | 15.069/19.942/14.726 |
+
+새 AOT engine FPS는 보통 **41.402/39.721/39.859**, 빠른 정방향 **35.938/35.173/38.886**, 역방향 **27.501/22.787/29.472**다. 역방향은 engine 완료율도 모두 30 미만이다. AOT의 ≥100ms 표시 진행 정체는 보통 **4/5/4회·504.907/612.899/507.901ms**, 빠른 정방향 **3/3/3회·454.580/477.712/449.550ms**, 역방향 **6/6/6회·923.211/954.464/918.699ms**다. 연결 전 AOT 역방향은 5/5/5회였다. **이 큐 전환만의 일관된 성능 이득이나 전체 30fps+정체 감소 목표는 수락하지 않는다.** 기본 모드는 bytecode로 유지한다.
+
+새 AOT 달력은 original **32,367 native(30 typed / 32,337 dynamic)·3,932 eliminated**, emitted **35,237 native·5,428 eliminated**, 미분류·미해결 0을 모두 통과했다. app.js **`9a35b04e…`**, typed source `446bb314…`, 각 bundle `898af225…`/`193068b3…`/`659d2673…`다. 각 실행은 own touch **48+30+60=138개**와 월 정착 `November 2026→March 2027→June 2027→December 2026`, UIA·exit 0을 통과했다. 첫 실행의 December 화면도 직접 확인했다. native 수신=전달=수락은 156/159/783개, 거부 0이다. 3회차 phase 종료의 lastPublishedInput은 159이며 이후 총 입력 증가는 종료 뒤 review/quiet 구간이다. 그 구간의 추가 surface는 FPS 분모·분자에 포함하지 않았다. bytecode는 각 158개 입력 보존·정상 종료가 통과했다. 생성 entry/package·batch compiler cache·스크린 캡처와 소유 process는 각 실행 finally에서 회수했다.
+
+### 사용자 요청 중단 — PAUSED / PARTIAL
+
+2026-11-16 사용자의 **“중간마무리해줘”** 요청으로 추가 구현·성능 실행을 중단했다. 목표는 **PAUSED**, 성능 수락은 **false**이며 미커밋 변경을 보존한다. 명시적인 재개 요청 전에는 자동 재개하지 않는다.
+
+- 새 공급의 Gallery 유효 **3회**는 표시 FPS 하한 cold **70.951/70.621/69.298**, 복귀 **59.913/59.619/61.323**, warm **58.336/60.051/58.494**, 모든 phase의 ≥100ms 진행 정체 **0회**였다. 한글/emoji 편집·theme/resize·복귀·정상 종료와 각 **177개 입력 보존·거부 0**이 통과했다. 최초 batch의 세 번째 실행은 SetupGallery에서 `Owned window lost foreground`로 거부됐으므로 제외했고, 빠진 1회만 다시 확인했다. 전경 보호 조건은 유지했다. app.js `ff82bf4c…`/bundle `2b58f0e0…`다.
+- 가변 목록 **`-App testbed -Scenario list -Runs 3`**는 첫 실행의 host 준비 후 **bundle 생성 중에 중단**했다. 이번 Source 큐 연결 공급에서 가변 목록의 build 완료·실행·성능은 **미검증**이다. 중단을 엔진 실패나 기능 PASS로 계산하지 않는다.
+- 당시 소유한 list 검증 child와 하위 트리를 종료했고 parent의 finally로 batch가 정리됐다. 강제 종료로 남은 이 실행의 session 폴더·`.windows-jank-probe.ts`는 절대 경로·직접 parent·symlink 여부를 확인한 뒤 회수했다. 검증 Node/NativeHost 잔류가 없고 `.tmp`는 기존 사용자 파일 4개만 남은 것을 확인했다. 기존 Testbed `build-bytecode`/host 캐시와 사용자 파일은 보존했다.
+- 최신 공급의 **Testbed MixedScroll**, **일반 Demo Windows 제품 build/run**은 아직 실행하지 않았다. 앞선 성공 기록은 큐 연결 전 공급의 결과이며 이 새 Source의 제품 수락으로 승격하지 않는다. Web 새 공급의 기능·시각 확인, Source/Flutter/타입·native AOT 경계/달력과 Gallery 결과는 위 범위대로 유효하다.
+- 최종 static-aot guard는 dynamic void 반환·adapter namespace 충돌까지 거부한다. 실제 큐의 생성 source/callable range가 이전 공급과 동일함을 직접 비교했고 최종 tooling을 세 runner에 재공급·설치했다. 18개 거부 검사는 실행됐으며 출력의 거부 수에 별도 namespace 사례 1개를 더하도록 집계도 바로잡았다. 집계 수정은 테스트 표시만 바꾼다.
+
+남은 작업은 새 공급의 가변 목록·Testbed·일반 제품 Windows 회귀, 그리고 더 큰 공통 build/layout·할당 경로의 typed 내부 상태 검토/구현이다. 현재 9개 내부 큐 함수 연결만으로 일관된 성능 이득이나 **30fps+정체 감소**를 수락하지 않는다. 제품 기본은 bytecode다. Android·scanout·물리 trackpad/panZoom·한국어 IME 조합·screen reader·장시간 누수 수락도 notVerified다.

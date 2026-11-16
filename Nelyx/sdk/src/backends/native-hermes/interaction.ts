@@ -29,6 +29,7 @@ export function connectNativeInteraction(
   let live = true,
     publishing = false,
     publishAgain = false;
+  let semanticScope: { viewport: number; surface: number } | undefined;
   // UI publishes and runtime events have different queues. Keep only actionable
   // controls from at most 16 published commits, so an action from the actual
   // native tree can be matched while a newer delta is still waiting on UI.
@@ -45,6 +46,12 @@ export function connectNativeInteraction(
         publishAgain = false;
         const m = metrics();
         if (m.nativeSurfaceGeneration === null) return;
+        // UI can discard queued deltas for an obsolete viewport. The runtime
+        // cannot diff the first new generation against those unacknowledged
+        // snapshots: native may still own an earlier tree.
+        const reset =
+          semanticScope?.viewport !== m.viewportGeneration ||
+          semanticScope?.surface !== m.nativeSurfaceGeneration;
         const surface = {
             surfaceId: 1,
             nativeSurfaceGeneration: m.nativeSurfaceGeneration,
@@ -69,6 +76,7 @@ export function connectNativeInteraction(
               previous = semanticSnapshots.get(node.id);
             order.push(node.id);
             if (
+              reset ||
               previous?.node !== node ||
               previous.parent !== parent ||
               previous.packet.viewport !== packet.viewport ||
@@ -90,7 +98,7 @@ export function connectNativeInteraction(
           }
         };
         walk(interaction.semanticNodes);
-        const removed = [...semanticSnapshots.keys()].filter((id) => !next.has(id));
+        const removed = reset ? [] : [...semanticSnapshots.keys()].filter((id) => !next.has(id));
         semanticSnapshots = next;
         const actions = new Map<string, NativeSemanticSnapshot>();
         for (const [id, snapshot] of next)
@@ -120,10 +128,12 @@ export function connectNativeInteraction(
           commit: interaction.snapshot(),
           viewport: m.viewportGeneration,
           surface: m.nativeSurfaceGeneration,
+          reset,
           upserts: records,
           removed,
           order,
         });
+        semanticScope = { viewport: m.viewportGeneration, surface: m.nativeSurfaceGeneration };
       } while (publishAgain);
     } finally {
       publishing = false;
@@ -170,8 +180,9 @@ export function connectNativeInteraction(
           commit: interaction.snapshot() + 1,
           viewport: m.viewportGeneration,
           surface: m.nativeSurfaceGeneration,
+          reset: true,
           upserts: [],
-          removed: [...semanticSnapshots.keys()],
+          removed: [],
           order: [],
         });
       semanticSnapshots.clear();

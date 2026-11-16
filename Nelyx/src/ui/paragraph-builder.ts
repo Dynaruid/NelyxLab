@@ -57,7 +57,7 @@ export class ParagraphBuilder {
     );
   }
   private keep(resources: readonly ResourceId[]): void {
-    if (!this.context) return;
+    if (!this.context || resources.length === 0) return;
     const fresh = new Map<string, ResourceId>();
     for (const resource of resources) {
       invariant(
@@ -106,10 +106,15 @@ export class ParagraphBuilder {
       'Paragraph style stack exceeds its budget',
     );
     const captured = freezeRunStyle(style),
-      images = [captured.foreground?.shader, captured.background?.shader].flatMap((shader) =>
-        shader?.kind === 'image' ? [shader.image] : [],
+      foreground = captured.foreground?.shader,
+      background = captured.background?.shader;
+    // Plain text has no paint resource to admit. Keep image ownership on the
+    // same transactional path without arrays/maps for every ordinary span.
+    if (foreground?.kind === 'image')
+      this.keep(
+        background?.kind === 'image' ? [foreground.image, background.image] : [foreground.image],
       );
-    this.keep(images);
+    else if (background?.kind === 'image') this.keep([background.image]);
     this.stack.push(inheritTextRunStyle(this.stack[this.stack.length - 1]!, captured));
   }
   pop(): void {

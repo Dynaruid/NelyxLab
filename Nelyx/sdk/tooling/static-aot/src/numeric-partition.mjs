@@ -201,7 +201,7 @@ export function lowerNumericPartition(options, selections) {
         index +
         '(' +
         fn.parameters.map((_, i) => 'p' + i + ':number').join(',') +
-        '):number{return ',
+        '):number{"noinline";return ',
       fn,
       fn,
     );

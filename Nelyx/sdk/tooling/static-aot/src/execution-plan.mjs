@@ -266,14 +266,20 @@ export function createExecutionPlan(capture, partition, prefix = '', nativeScrip
       )
         throw Error('Ambiguous original type decision: ' + module.id + '#' + body.id);
       const decision = matches[0];
+      const owned = decision?.selection?.factoryName
+        ? partition.callables?.find(
+            (item) => item.module === decision.module && item.offset === decision.offset,
+          )
+        : null;
       const selected =
         decision?.decision === 'specialize'
-          ? partition.bindings.find(
+          ? (owned ??
+            partition.bindings.find(
               (binding) =>
                 binding.module === decision.module &&
                 binding.name === decision.selection.name &&
                 (binding.className ?? null) === (decision.selection.className ?? null),
-            )
+            ))
           : null;
       if (decision?.decision === 'specialize' && !selected)
         throw Error('Selected original body lacks a typed binding');
@@ -305,7 +311,9 @@ export function createExecutionPlan(capture, partition, prefix = '', nativeScrip
         typeEvidence: decision?.evidence ?? null,
         emitted: targets,
         typedBinding: selected?.id ?? null,
-        typedKernel: selected ? 'kernel' + partition.bindings.indexOf(selected) : null,
+        typedKernel:
+          selected?.kernel ?? (selected ? 'kernel' + partition.bindings.indexOf(selected) : null),
+        ...(owned ? { typedInputRange: owned.inputRange } : {}),
       };
     });
     modules.push({
@@ -552,7 +560,18 @@ export function bindNativeCoverage(plan, build, identity) {
       const kernel = body.typedKernel
         ? typedKernels.find((fn) => fn.symbol.endsWith('_' + body.typedKernel))
         : null;
-      if (body.typedBinding) classification = kernel ? 'typed-native' : 'unclassified';
+      if (body.typedBinding) {
+        const range = kernel?.sourceRange,
+          expected = body.typedInputRange;
+        const qualified =
+          kernel &&
+          (!expected ||
+            (range &&
+              range.start.offset >= expected.offset &&
+              range.end.offset <= expected.end &&
+              range.end.offset > range.start.offset));
+        classification = qualified ? 'typed-native' : 'unclassified';
+      }
       const initializer =
         body.kind === 'module-initializer' && module.role === 'module'
           ? emitted.find(
