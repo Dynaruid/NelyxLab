@@ -49,7 +49,7 @@ export interface TextLayoutResourceTotals {
   readonly producerBytes: number;
 }
 const retainedInputCosts = new WeakMap<TextLayout, TextInputCost>();
-const capturedInputs = new WeakSet<TextLayoutInput>();
+const capturedInputs = new WeakMap<TextLayoutInput, TextLayoutInput>();
 const ownedInputs = new WeakMap<
   TextLayoutInput,
   { readonly serialized: string; readonly cost: TextInputCost }
@@ -309,6 +309,8 @@ function checkedOwnedPlaceholders(
 }
 export function freezeTextInput(input: TextLayoutInput): TextLayoutInput {
   if (ownedInputs.has(input)) return input;
+  const captured = capturedInputs.get(input);
+  if (captured && captured !== input && textInputSerializationIsPlain()) return captured;
   if (!(input.text.length <= textLimits.units))
     invariant(false, 'oversize', 'paragraph text budget exceeded');
   validText(input.text);
@@ -440,8 +442,13 @@ export function freezeTextInput(input: TextLayoutInput): TextLayoutInput {
     ...(input.strutStyle ? { strutStyle: freezeStrutStyle(input.strutStyle) } : {}),
     ...(behavior ? { textHeightBehavior: Object.freeze({ ...behavior }) } : {}),
   });
-  capturedInputs.add(snapshot);
+  capturedInputs.set(snapshot, snapshot);
   markCapturedTextRecord(snapshot);
+  // Repeated requests from the same immutable Paragraph need not validate and
+  // clone its UTF-16 runs/placeholder/style data again. Public frozen inputs,
+  // extensions, proxies and serialization hooks retain their normal capture.
+  if (isCapturedTextRecord(input) && isCacheableTextInput(input))
+    capturedInputs.set(input, snapshot);
   return snapshot;
 }
 export function freezeTextRect(rect: Rect): Rect {

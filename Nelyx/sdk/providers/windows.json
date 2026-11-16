@@ -1,8 +1,8 @@
 {
   "schema": "nelyx.provider/v4",
   "id": "nelyx.windows",
-  "version": "0.20.0",
-  "coreRange": ">=0.16.0 <0.17.0",
+  "version": "0.21.0",
+  "coreRange": ">=0.17.0 <0.18.0",
   "protocolVersion": 1,
   "target": "windows",
   "runtime": "hermes",

@@ -198,12 +198,18 @@ export class ParagraphBuilder {
   build(): Paragraph {
     this.live();
     const snapshot: ParagraphTextSnapshot = Object.freeze({
-        text: this.text,
-        style: this.stack[0]!,
-        runs: captureTextArray([...this.runs]),
-        placeholders: captureTextArray([...this.placeholders]),
-      }),
-      paragraph = Paragraph._fromBuilder(this.style, snapshot, this.context, this.holds.splice(0));
+      text: this.text,
+      style: this.stack[0]!,
+      runs: captureTextArray([...this.runs]),
+      placeholders: captureTextArray([...this.placeholders]),
+    });
+    markCapturedTextRecord(snapshot);
+    const paragraph = Paragraph._fromBuilder(
+      this.style,
+      snapshot,
+      this.context,
+      this.holds.splice(0),
+    );
     this.closed = true;
     return paragraph;
   }

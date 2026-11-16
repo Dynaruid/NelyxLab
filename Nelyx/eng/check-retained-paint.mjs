@@ -70,7 +70,37 @@ import {Builder} from './Nelyx/src/framework/widgets/basic.ts';
 import {LeafRenderObjectWidget} from './Nelyx/src/framework/widgets/framework.ts';
 import {ResourceRegistry} from './Nelyx/src/hosting/resources.ts';
 import {FrameRecording,releaseSceneFrameSource} from './Nelyx/src/ui/frame.ts';
+import {freezePaintCommand} from './Nelyx/src/ui/frame.ts';
 const cases=[],observations=[];
+// A retained insertion keeps the transform outside the compiled picture.
+const compositionRoot=new LayerHandle(new OffsetLayer()),compositionChild=new LayerHandle(new OffsetLayer());
+const compositionBounds={x:0,y:0,width:120,height:80};
+function composeTranslation(x){
+  const counts={paintChildCalls:0,boundaryVisits:0,boundaryRecordings:0,boundaryReuses:0},context=new PaintingContext(null,null,true,counts);
+  try{context.save();context.translate(x,4);context.addLayer(compositionChild.layer);context.restore();
+    const sourceCount=context.commands.length;context.compose(compositionRoot.layer,compositionBounds);
+    return {commands:[...context.commands],counts,sourceCount};
+  }finally{context.dispose();}
+}
+try{
+  const first=composeTranslation(2),second=composeTranslation(9);
+  assert.equal(second.counts.compositionTransformUpdates,1);assert.equal(second.counts.compositionReuses,1);
+  assert.equal(second.counts.compositionCommandVisits,second.sourceCount,'Transform matching revisited its matching prefix');
+  assert(first.commands.some(c=>c.op==='transform'&&c.matrix[4]===2),'Prior frame transform mutated');
+  assert(second.commands.some(c=>c.op==='transform'&&c.matrix[4]===9));
+  const clean=composeTranslation(9);assert.equal(clean.counts.compositionReuses,1);assert.equal(clean.counts.compositionTransformUpdates,undefined);
+  compositionChild.layer.remove();const changed=composeTranslation(12);assert.equal(changed.counts.compositionReuses,undefined);assert.equal(changed.counts.compositionStructureMisses,1);
+  cases.push('transform-only-single-command-pass-and-immutable-old-frame','retained-insertion-parent-change-invalidates-reuse');
+}finally{compositionRoot.dispose();compositionChild.dispose();}
+const sharedRoot=new LayerHandle(new OffsetLayer()),sharedChildren=[new LayerHandle(new OffsetLayer()),new LayerHandle(new OffsetLayer())];
+function composeShared(first,second){
+  const context=new PaintingContext(null,null,true),a=freezePaintCommand({op:'transform',matrix:[1,0,0,1,first,0]}),b=second===first?a:freezePaintCommand({op:'transform',matrix:[1,0,0,1,second,0]});
+  try{for(const [index,command]of [a,b].entries()){context.save();context.addCommands([command]);context.addLayer(sharedChildren[index].layer);context.restore();}
+    context.compose(sharedRoot.layer,compositionBounds);return [...context.commands].filter(c=>c.op==='transform').map(c=>c.matrix[4]);
+  }finally{context.dispose();}
+}
+try{assert.deepEqual(composeShared(2,2),[2,2]);assert.deepEqual(composeShared(7,7),[7,7]);assert.deepEqual(composeShared(10,15),[10,15]);cases.push('shared-transform-identities-require-every-position-to-agree');}
+finally{sharedRoot.dispose();for(const child of sharedChildren)child.dispose();}
 class Box extends RenderProxyBox {
   paints=0;color=0xff123456;afterPaint;
   paint(context){++this.paints;context.drawRect({x:0,y:0,width:8,height:9},new Paint({color:this.color}));super.paint(context);this.afterPaint?.();}

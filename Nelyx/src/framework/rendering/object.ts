@@ -428,6 +428,9 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   private changingRoot = false;
   private readonly dirtyLayout = new Set<RenderObject>();
   private readonly layoutCallbacks = new Set<RenderObject>();
+  // Synchronous pass scratch only. Clear even when a virtual layout hook fails.
+  private readonly layoutBatch: RenderObject[] = [];
+  private readonly layoutBatchCallbacks = new Set<RenderObject>();
   private layoutWorkRevision = 0;
   private readonly paintRetirements = new Set<RenderObject>();
   private readonly dirtyCompositing = new Set<RenderObject>();
@@ -829,18 +832,30 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
         // Covered theaters keep attached LayoutBuilders and their isolated
         // scopes. A pending callback must stay queued until it can run: its
         // render-side pending flag prevents a later request from re-enqueuing.
-        const nodes = [...new Set([...this.dirtyLayout, ...this.layoutCallbacks])]
-          .filter(
-            (node) => node.owner !== this || !node.needsLayout || !node.layoutSuppressedByAncestor,
-          )
-          .sort((a, b) => a.depth - b.depth);
+        const nodes = this.layoutBatch,
+          callbacks = this.layoutBatchCallbacks;
+        nodes.length = 0;
+        callbacks.clear();
+        for (const node of this.dirtyLayout) nodes.push(node);
+        // Preserve Set-union order for equal depths: dirty nodes, then callbacks
+        // that were not already dirty. Suppressed callbacks remain queued.
+        for (const node of this.layoutCallbacks) if (!this.dirtyLayout.has(node)) nodes.push(node);
+        // Snapshot membership before invoking virtual admission hooks. A hook
+        // may enqueue a shallower node, which belongs to the next pass.
+        let kept = 0;
+        for (let index = 0; index < nodes.length; index++) {
+          const node = nodes[index]!;
+          if (node.owner !== this || !node.needsLayout || !node.layoutSuppressedByAncestor)
+            nodes[kept++] = node;
+        }
+        nodes.length = kept;
+        nodes.sort((a, b) => a.depth - b.depth);
         if (!nodes.length) break;
         if (!(++passes <= 30))
           invariant(false, 'layout-did-not-converge', 'Layout remained dirty after 30 passes');
-        const callbacks = new Set(nodes.filter((node) => this.layoutCallbacks.has(node)));
         for (const node of nodes) {
           this.dirtyLayout.delete(node);
-          this.layoutCallbacks.delete(node);
+          if (this.layoutCallbacks.delete(node)) callbacks.add(node);
         }
         for (let index = 0; index < nodes.length; index++)
           try {
@@ -873,6 +888,8 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
           );
       }
     } finally {
+      this.layoutBatch.length = 0;
+      this.layoutBatchCallbacks.clear();
       this._paintInvalidationBatch = null;
       this.flushingLayout = false;
       this.flushingChildLayout = false;

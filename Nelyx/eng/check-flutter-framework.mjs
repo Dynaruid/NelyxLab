@@ -124,6 +124,11 @@ class PaintCounterWidget extends SingleChildRenderObjectWidget {
   final PaintCounter render;
   @override PaintCounter createRenderObject(BuildContext context) => render;
 }
+class QueueCounter extends RenderProxyBox {
+  QueueCounter(this.name,this.log,{RenderBox? child}):super(child);
+  final String name; final List<String> log;
+  @override void performLayout(){log.add(name);super.performLayout();}
+}
 void main() {
   testWidgets('pinned PageView geometry and zero-size restoration', (WidgetTester tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
@@ -234,8 +239,17 @@ void main() {
     leaf.markNeedsPaint();await tester.pump();recordPaint('child-dirty');
     parent.markNeedsPaint();await tester.pump();recordPaint('parent-dirty');
     await tester.pumpWidget(const SizedBox.shrink());
+    final layoutLog=<String>[],layoutQueues=<List<String>>[],queueOwner=PipelineOwner();
+    final queueLeaf=QueueCounter('leaf',layoutLog),queueRight=QueueCounter('right',layoutLog);
+    final queueLeft=QueueCounter('left',layoutLog,child:queueLeaf);
+    final queueRoot=RenderStack(children:<RenderBox>[queueLeft,queueRight],fit:StackFit.expand,textDirection:TextDirection.ltr);
+    queueOwner.rootNode=queueRoot;queueRoot.layout(BoxConstraints.tight(const Size(120,80)));layoutLog.clear();
+    queueRight.markNeedsLayout();queueLeft.markNeedsLayout();queueOwner.flushLayout();layoutQueues.add(List<String>.of(layoutLog));layoutLog.clear();
+    queueLeaf.markNeedsLayout();queueLeft.markNeedsLayout();queueOwner.flushLayout();layoutQueues.add(List<String>.of(layoutLog));
+    queueOwner.rootNode=null;queueRoot.removeAll();queueLeft.child=null;
+    for(final render in <RenderObject>[queueRoot,queueLeft,queueRight,queueLeaf]){render.dispose();}queueOwner.dispose();
     File(${JSON.stringify(oracle.replaceAll('\\', '/'))}).writeAsStringSync(jsonEncode(<String, Object?>{
-      'revision': '${flutterRevision}', 'pages': pages, 'slivers': slivers, 'lifecycle': lifecycle, 'retainedPaint':retainedPaint,
+      'revision': '${flutterRevision}', 'pages': pages, 'slivers': slivers, 'lifecycle': lifecycle, 'retainedPaint':retainedPaint,'layoutQueues':layoutQueues,
     }));
   });
 }
@@ -321,7 +335,8 @@ void main() {
     result.pages.length !== 12 ||
     result.slivers.length !== 2 ||
     result.lifecycle.length !== 6 ||
-    result.retainedPaint.length !== 3
+    result.retainedPaint.length !== 3 ||
+    result.layoutQueues.length !== 2
   )
     throw Error('Original framework observations are incomplete');
   await execute(
@@ -346,7 +361,8 @@ void main() {
         result.pages.length +
         result.slivers.length +
         result.lifecycle.length +
-        result.retainedPaint.length,
+        result.retainedPaint.length +
+        result.layoutQueues.length,
       scope:
         'actual pinned PageView geometry/storage/transfer/interruption/empty, variable list/custom grid, and repaint boundary hooks; installed tester engine; no pixel/physical acceptance',
     }),

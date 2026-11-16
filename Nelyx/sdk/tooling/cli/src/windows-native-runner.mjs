@@ -213,11 +213,24 @@ export async function buildNativeApplication({
       assertNativeRuntimeGraph(inventory);
       copyRuntimeLicenses(inventory.modules, root, stage, roots);
       fs.writeFileSync(path.join(stage, 'native-graph.json'), JSON.stringify(inventory));
+      // installVmEnvironment supplies console before application modules run.
+      // Declare it to Hermes without emitting a binding or suppressing warnings.
+      const compilerGlobals = path.join(stage, 'globals.js');
+      fs.writeFileSync(compilerGlobals, 'var console;\n');
       await execute(
         path.join(checked.directory, 'build/bin/hermesc.exe'),
-        [...policy.flags, '-emit-binary', '-out', bundle, path.basename(source)],
+        [
+          ...policy.flags,
+          '-include-globals',
+          compilerGlobals,
+          '-emit-binary',
+          '-out',
+          bundle,
+          path.basename(source),
+        ],
         { cwd: stage, env, signal, timeout },
       );
+      fs.unlinkSync(compilerGlobals);
     } else {
       bundle = 'NelyxApp.aot.dll';
       aot = await buildNativeAot({

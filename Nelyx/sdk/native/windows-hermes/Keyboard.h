@@ -12,6 +12,10 @@ public:
   Keyboard(HWND window,std::shared_ptr<Editors> editors,Sink sink):window(window),editors(std::move(editors)),sink(std::move(sink)),owner(state.newOwner()),input([this](auto const& key){state.observe(owner,key.keyCode,key.scanCode,key.up);send("native-key",key);},[this](uint32_t point,auto const& observation){RNSkia::WindowsKeyPacket key;key.characterCodePoint=point;key.repeatCount=observation.repeatCount;key.focusEpoch=observation.focusEpoch;send("native-text",key);}){}
   void focus(bool value){input.flush();if(value)state.focus(owner);else{state.blur(owner);input.reset();}Event e;e.kind="native-keyboard-focus";e.focused=value;e.sequence=++sequence;e.timestamp=RNSkia::windowsMonotonicMilliseconds();sink(std::move(e));}
   void key(UINT key,LPARAM data,bool up){
+    // SendInput's Unicode packets produce UTF-16 WM_CHAR observations, not
+    // physical keys. Pair their surrogate units in input.character(); packet
+    // key-up/down between those units must not reset that pending scalar.
+    if(key==VK_PACKET)return;
     input.flush();keyTimestamp=RNSkia::windowsMonotonicMilliseconds();const auto scan=scanCode(data);if(key==VK_SHIFT)key=MapVirtualKeyW(scan,MAPVK_VSC_TO_VK_EX);else if(key==VK_CONTROL)key=(data&(1LL<<24))?VK_RCONTROL:VK_LCONTROL;else if(key==VK_MENU)key=(data&(1LL<<24))?VK_RMENU:VK_LMENU;
     RNSkia::WindowsKeyPacket packet;packet.keyCode=key;packet.scanCode=scan;packet.up=up;packet.repeat=!up&&bool(data&(1LL<<30));packet.repeatCount=LOWORD(data);packet.focusEpoch=epoch();
     const auto held=[](int key){return GetKeyState(key)<0;};packet.modifiers=(held(VK_SHIFT)?1:0)|(held(VK_LSHIFT)?2:0)|(held(VK_RSHIFT)?4:0)|(held(VK_CONTROL)?8:0)|(held(VK_LCONTROL)?16:0)|(held(VK_RCONTROL)?32:0)|(held(VK_MENU)?64:0)|(held(VK_LMENU)?128:0)|(held(VK_RMENU)?256:0)|(held(VK_LWIN)?512:0)|(held(VK_RWIN)?1024:0);packet.capsLock=(GetKeyState(VK_CAPITAL)&1)!=0;packet.numLock=(GetKeyState(VK_NUMLOCK)&1)!=0;packet.scrollLock=(GetKeyState(VK_SCROLL)&1)!=0;

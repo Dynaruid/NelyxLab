@@ -270,6 +270,7 @@ async function composeNativeHermesApplication(
       owner,
       assets: loaded,
       configuration,
+      sceneBatch: 'paint',
       retirement: nativeHermesEnvironment.retirement,
       resolveSource: (source) => assetBackend.resolveSource(source),
       assertOpen() {

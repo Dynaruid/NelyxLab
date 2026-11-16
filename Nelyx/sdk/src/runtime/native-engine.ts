@@ -56,6 +56,8 @@ export interface NativeEngineOptions {
   readonly inputGeometry?: boolean | 'retained';
   readonly sceneComposition?: boolean;
   readonly semanticsGeometry?: boolean;
+  /** Opt in only on a backend qualified for paragraph transaction version 1. */
+  readonly paragraphTransactions?: boolean;
   /** @internal Independently measured scene candidates. */
   readonly sceneBatch?: 'path' | 'paint' | 'all';
   readonly retirement?: GraphiteRetirementClock;
@@ -148,6 +150,7 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
             sceneComposition: !!options.sceneComposition,
             semanticsGeometry: !!options.semanticsGeometry,
             sceneBatch: options.sceneBatch ?? 'none',
+            paragraphTransactions: options.paragraphTransactions === true,
           }),
         );
         renderer = new GraphiteRenderer(api, () => context, owner, resources, options.retirement);
@@ -205,14 +208,16 @@ export function createNativeEngineServices(options: NativeEngineOptions) {
       create(registry) {
         ensure();
         if (text) throw new Error('Native text service already has an owner');
-        return (text = new NativeTextLayoutService(
+        const service = new NativeTextLayoutService(
           api,
           registry,
           owner,
           assets.fonts,
           image,
           programs,
-        ));
+        );
+        if (options.paragraphTransactions) service.setNativeParagraphTransactions(true);
+        return (text = service);
       },
     },
     paths: createPathQueries(api, ensure),

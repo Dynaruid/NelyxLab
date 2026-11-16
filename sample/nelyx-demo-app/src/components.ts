@@ -152,6 +152,9 @@ class ComponentsState extends State<ComponentsScreen> {
   private readonly secondScroll = new ScrollController({ debugLabel: 'demo-second' });
   private readonly firstExtents = new GallerySectionExtents();
   private readonly secondExtents = new GallerySectionExtents();
+  // These wrappers capture only section identity and this State. Their builder
+  // still reads current theme/dependencies and values whenever it runs.
+  private readonly sectionWidgets = new Map<string, Widget>();
   private readonly sectionKeys = new Map(
     demos.map(
       (demo) =>
@@ -211,6 +214,7 @@ class ComponentsState extends State<ComponentsScreen> {
   }
   override dispose(): void {
     ++this.messageAnimation;
+    this.sectionWidgets.clear();
     this.updates.dispose();
     this.firstScroll.dispose();
     this.secondScroll.dispose();
@@ -362,18 +366,7 @@ class ComponentsState extends State<ComponentsScreen> {
             const index = entries.findIndex((entry) => this.sectionKeys.get(entry.id) === key);
             return index < 0 ? null : index;
           },
-          itemBuilder: (_, index) => {
-            const entry = entries[index]!;
-            return new GallerySection(
-              new RepaintBoundary(
-                new ListenableBuilder(this.updates.section(entry.id), (itemContext) =>
-                  this.section(itemContext, entry),
-                ),
-              ),
-              entry.id === 'text-fields',
-              this.sectionKeys.get(entry.id)!,
-            );
-          },
+          itemBuilder: (_, index) => this.sectionWidget(entries[index]!),
         });
       return new DecoratedBox(
         new Column(
@@ -460,6 +453,22 @@ class ComponentsState extends State<ComponentsScreen> {
         colors.surface,
       );
     });
+  }
+  private sectionWidget(entry: Demo): Widget {
+    let widget = this.sectionWidgets.get(entry.id);
+    if (!widget) {
+      widget = new GallerySection(
+        new RepaintBoundary(
+          new ListenableBuilder(this.updates.section(entry.id), (context) =>
+            this.section(context, entry),
+          ),
+        ),
+        entry.id === 'text-fields',
+        this.sectionKeys.get(entry.id)!,
+      );
+      this.sectionWidgets.set(entry.id, widget);
+    }
+    return widget;
   }
   private section(context: BuildContext, demo: Demo): Widget {
     const colors = Theme.of(context).colorScheme;

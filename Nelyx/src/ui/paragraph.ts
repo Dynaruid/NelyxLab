@@ -25,7 +25,28 @@ import type { Offset } from './offset.ts';
 import { GlyphInfo } from './glyph-info.ts';
 import { LineMetrics } from './line-metrics.ts';
 import { checkedInteger } from './value-math.ts';
-import { markCapturedTextRecord } from './text-input-data.ts';
+import { markCapturedTextRecord, isCapturedTextRecord } from './text-input-data.ts';
+
+const layoutInputFields: readonly (keyof TextLayoutInput)[] = [
+  'text',
+  'style',
+  'runs',
+  'placeholders',
+  'font',
+  'width',
+  'fontSize',
+  'scale',
+  'locale',
+  'direction',
+  'textAlign',
+  'color',
+  'maxLines',
+  'unlimitedLines',
+  'ellipsis',
+  'strutStyle',
+  'textHeightBehavior',
+  'hyphens',
+];
 
 /** Explicit per-application engine ownership replaces a process-global native dart:ui factory. */
 export interface ParagraphContext {
@@ -49,6 +70,7 @@ export class Paragraph {
   private debugNeedsLayout = true;
   private current: TextLayout | undefined;
   private layoutAttempt = 0;
+  private lastInput: TextLayoutInput | undefined;
   private constructor(
     private readonly style: ParagraphStyle,
     private readonly contents: ParagraphTextSnapshot,
@@ -160,6 +182,15 @@ export class Paragraph {
       ...(style.hyphens ? { hyphens: style.hyphens } : {}),
     });
     markCapturedTextRecord(input);
+    // Read style/locale on every request, including custom locale.toString().
+    // Only builder-owned contents can reuse a request; public caller objects
+    // still cross the normal text capture boundary on every layout.
+    if (isCapturedTextRecord(this.contents)) {
+      const previous = this.lastInput;
+      if (previous && layoutInputFields.every((key) => Object.is(previous[key], input[key])))
+        return previous;
+      this.lastInput = input;
+    }
     return input;
   }
   /** @internal Copy geometry from the completed producer without borrowing it. */
@@ -400,6 +431,7 @@ export class Paragraph {
   dispose(): void {
     this.live();
     this.dead = true;
+    this.lastInput = undefined;
     const previous = this.current;
     this.current = undefined;
     const errors: unknown[] = [];

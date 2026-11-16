@@ -230,15 +230,16 @@ export class RecordedCompositionLayer extends ContainerLayer {
       updates: Array<{ node: Scope; commands: PaintCommand[]; scene: readonly PaintCommand[] }> =
         [];
     for (const node of this.scopes) {
-      let changed = false;
-      const commands = node.commands.map((command) => {
+      let commands: PaintCommand[] | undefined;
+      for (let index = 0; index < node.commands.length; index++) {
+        const command = node.commands[index]!;
         const replacement = replacements.get(command);
-        if (!replacement) return command;
+        if (!replacement) continue;
         counts.set(command, (counts.get(command) ?? 0) + 1);
-        changed = true;
-        return replacement.value;
-      });
-      if (changed)
+        commands ??= node.commands.slice();
+        commands[index] = replacement.value;
+      }
+      if (commands)
         updates.push({
           node,
           commands,

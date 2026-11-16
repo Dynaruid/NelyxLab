@@ -610,7 +610,9 @@ export class PaintingContext extends Canvas {
       counts.compositionVisits = (counts.compositionVisits ?? 0) + 1;
       if (!valid) counts.compositionScopeMisses = (counts.compositionScopeMisses ?? 0) + 1;
     }
+    let structureMatches: boolean | undefined;
     const sameStructure = () => {
+      if (structureMatches !== undefined) return structureMatches;
       const matches =
         !!cached &&
         cached.entries.length === this.entries.length &&
@@ -639,7 +641,7 @@ export class PaintingContext extends Canvas {
         });
       if (counts && !matches)
         counts.compositionStructureMisses = (counts.compositionStructureMisses ?? 0) + 1;
-      return matches;
+      return (structureMatches = matches);
     };
     const sameCommand = counts
       ? (before: CompositionCommand, after: PaintCommand) => {
@@ -647,19 +649,25 @@ export class PaintingContext extends Canvas {
           return sameCompositionCommand(before, after);
         }
       : sameCompositionCommand;
-    let reuse =
-        !!valid &&
-        cached.commands!.every((command, index) => sameCommand(command, this.commands[index]!)) &&
-        sameStructure(),
+    // Retain the first mismatch so transform-only matching does not scan the
+    // matching prefix (or invoke its comparisons) a second time.
+    let mismatch = 0;
+    if (valid)
+      while (
+        mismatch < this.commands.length &&
+        sameCommand(cached.commands![mismatch]!, this.commands[mismatch]!)
+      )
+        mismatch++;
+    let reuse = !!valid && mismatch === this.commands.length && sameStructure(),
       refreshed: readonly CompositionCommand[] | null = null;
     if (!reuse && valid && sameStructure() && cached.body instanceof RecordedCompositionLayer) {
       const replacements = new Map<PaintCommand, RecordedTransformReplacement>(),
         snapshots = [...cached.commands!];
       let compatible = true;
-      for (let index = 0; compatible && index < this.commands.length; index++) {
+      for (let index = mismatch; compatible && index < this.commands.length; index++) {
         const before = cached.commands![index]!,
           after = this.commands[index]!;
-        if (sameCommand(before, after)) continue;
+        if (index !== mismatch && sameCommand(before, after)) continue;
         const snapshot = captureCompositionCommand(after);
         if (before.value.op !== 'transform' || after.op !== 'transform' || !snapshot) {
           compatible = false;

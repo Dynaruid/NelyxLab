@@ -53,6 +53,9 @@ if (!process.argv.includes('--child')) {
       ORIGINAL_LIFECYCLE_EXPECTATIONS: JSON.stringify(
         oracleFile ? JSON.parse(fs.readFileSync(oracleFile, 'utf8')).lifecycle : null,
       ),
+      ORIGINAL_LAYOUT_QUEUE_EXPECTATIONS: JSON.stringify(
+        oracleFile ? (JSON.parse(fs.readFileSync(oracleFile, 'utf8')).layoutQueues ?? null) : null,
+      ),
     },
     stdin: {
       resolveDir: root,
@@ -66,6 +69,11 @@ import {Builder,SizedBox} from './Nelyx/src/framework/widgets/basic.ts';
 import {FlutterError} from './Nelyx/src/foundation/flutter-error.ts';
 import {FoundationPlatform} from './Nelyx/src/foundation/platform.ts';
 import {RenderBox,PipelineOwner} from './Nelyx/src/framework/rendering/object.ts';
+import {BoxConstraints} from './Nelyx/src/framework/rendering/constraints.ts';
+import {ParagraphBuilder} from './Nelyx/src/ui/paragraph-builder.ts';
+import {ParagraphStyle} from './Nelyx/src/ui/paragraph-style.ts';
+import {ParagraphConstraints} from './Nelyx/src/ui/paragraph-constraints.ts';
+import {freezeTextInput,ownedTextInputSerialization,serializeTextInput} from './Nelyx/src/ui/text.ts';
 import {Directionality} from './Nelyx/src/framework/widgets/app-data.ts';
 import {ResourceRegistry} from './Nelyx/src/hosting/resources.ts';
 import {releaseSceneFrameSource} from './Nelyx/src/ui/frame.ts';
@@ -208,6 +216,58 @@ const delegate=new UserGridDelegate(),gridController=new ScrollController();
 const grid=harness(GridView.builder({controller:gridController,cacheExtent:0,gridDelegate:delegate,itemCount:10,itemBuilder:()=>new TestWidget()}));
 try{grid.frame();gridController.jumpTo(65);grid.frame();assert(delegate.calls>0,'Custom delegate was bypassed');slivers.push(recordSliver(grid,gridController,RenderSliverGrid,'custom-grid'));}
 finally{grid.close();assert(!gridController.hasClients);gridController.dispose();}
+// Layout batches preserve depth/order, callback membership and retry ownership.
+const layoutOrder=[],layoutQueues=[];
+class QueueBox extends RenderBox {
+  constructor(name){super();this.name=name;}
+  action;
+  admissionAction;
+  suppressed=false;
+  get layoutSuppressedByAncestor(){this.admissionAction?.();return this.suppressed||super.layoutSuppressedByAncestor;}
+  performLayout(c){layoutOrder.push(this.name);this.action?.();for(const child of this.children)child.layout(BoxConstraints.tight({width:10,height:10}));return c.smallest;}
+}
+const queueOwner=new PipelineOwner({accessibilityEnabled:false}),queueRoot=new QueueBox('root'),queueLeft=new QueueBox('left'),queueRight=new QueueBox('right'),queueLeaf=new QueueBox('leaf');
+queueLeft.setChildren([queueLeaf]);queueRoot.setChildren([queueLeft,queueRight]);queueOwner.setRoot(queueRoot);
+try{
+  queueOwner.flushLayout({width:120,height:80});layoutOrder.length=0;
+  queueRight.markNeedsLayout();queueLeft.markNeedsLayout();queueOwner.requestLayoutCallback(queueLeft);queueOwner.flushLayout();
+  assert.deepEqual(layoutOrder,['right','left'],'Equal-depth queue order or duplicate callback changed');
+  layoutQueues.push([...layoutOrder]);
+  layoutOrder.length=0;queueLeaf.markNeedsLayout();queueLeft.markNeedsLayout();queueOwner.flushLayout();
+  assert.deepEqual(layoutOrder,['left','leaf'],'Parent must cover a child without duplicate layout');
+  layoutQueues.push([...layoutOrder]);
+  layoutOrder.length=0;let reenter=true;queueLeft.action=()=>{if(reenter){reenter=false;queueLeft.markNeedsLayout();queueOwner.requestLayoutCallback(queueLeft);}};
+  queueLeft.markNeedsLayout();queueOwner.flushLayout();assert.deepEqual(layoutOrder,['left','left']);queueLeft.action=undefined;
+  layoutOrder.length=0;let fail=true;queueLeft.action=()=>{if(fail){fail=false;throw Error('queued layout failed');}};
+  queueLeft.markNeedsLayout();queueRight.markNeedsLayout();queueOwner.requestLayoutCallback(queueRight);
+  assert.throws(()=>queueOwner.flushLayout(),/queued layout failed/);assert(queueRight.needsLayout);
+  queueOwner.flushLayout();assert.deepEqual(layoutOrder,['left','left','right'],'Failure lost pending siblings');queueLeft.action=undefined;
+  layoutOrder.length=0;let admit=true;queueLeaf.admissionAction=()=>{if(admit){admit=false;queueRight.markNeedsLayout();}};
+  queueLeaf.markNeedsLayout();queueOwner.flushLayout();assert.deepEqual(layoutOrder,['leaf','right'],'Admission hook changed the current batch membership');queueLeaf.admissionAction=undefined;
+  layoutOrder.length=0;queueRight.suppressed=true;queueRight.markNeedsLayout();queueOwner.requestLayoutCallback(queueRight);queueOwner.flushLayout();assert.deepEqual(layoutOrder,[]);
+  queueRight.suppressed=false;queueOwner.flushLayout();assert.deepEqual(layoutOrder,['right'],'Covered callback was lost');
+  layoutOrder.length=0;queueRight.markNeedsLayout();queueRoot.remove(queueRight);queueOwner.flushLayout();assert(!layoutOrder.includes('right'),'Detached queued node was laid out');
+}finally{queueOwner.setRoot(undefined);queueOwner.dispose();queueRoot.setChildren([]);queueLeft.setChildren([]);for(const node of [queueRoot,queueLeft,queueRight,queueLeaf])node.dispose();}
+// Source requests reuse immutable captures without bypassing locale/width/hooks.
+const textRegistry=new ResourceRegistry(),textFont=textRegistry.allocateId('capture-font'),capturedText=[];
+textRegistry.register({...textFont,kind:'font'},()=>{});textRegistry.bindResource(textFont);
+const captureText={layout(input){const snapshot=freezeTextInput(input);capturedText.push(snapshot);const resource=textRegistry.allocateId('capture-paragraph');textRegistry.register({...resource,kind:'paragraph'},()=>{});return {resource,input:snapshot,indexUnit:'utf16',width:0,height:0,alphabeticBaseline:0,ideographicBaseline:0,minIntrinsicWidth:0,maxIntrinsicWidth:0,longestLine:0,overflow:false,unresolvedGlyphs:0,lines:[]};}};
+let localeCalls=0,localeName='ko-KR';const locale={toString(){++localeCalls;return localeName;}};
+const textBuilder=new ParagraphBuilder(new ParagraphStyle({locale}),{text:captureText,resources:textRegistry,font:textFont,scale:1});textBuilder.addText('한글 😀');const sourceParagraph=textBuilder.build();
+try{
+  const beforeLocale=localeCalls;sourceParagraph.layout(new ParagraphConstraints({width:120}));sourceParagraph.layout(new ParagraphConstraints({width:120}));
+  assert.equal(capturedText[0],capturedText[1],'Same Source request was recaptured');assert.equal(localeCalls,beforeLocale+2,'Locale hooks were memoized');
+  sourceParagraph.layout(new ParagraphConstraints({width:100}));assert.notEqual(capturedText[1],capturedText[2]);assert.equal(capturedText[2].width,100);
+  localeName='en-US';sourceParagraph.layout(new ParagraphConstraints({width:100}));assert.equal(capturedText[3].locale,'en-US');
+  assert.throws(()=>sourceParagraph.layout(new ParagraphConstraints({width:NaN})),/width/);assert.equal(sourceParagraph.width,0,'Failed capture replaced the completed producer');
+  let reads=0;const external=Object.freeze({...capturedText[0],get fontSize(){++reads;return 14;}});freezeTextInput(external);const firstReads=reads;freezeTextInput(external);assert(reads>firstReads,'Public getters were cached');
+  assert(ownedTextInputSerialization(capturedText[0])!==undefined);let jsonCalls=0;
+  Object.defineProperty(Object.prototype,'toJSON',{configurable:true,value(){++jsonCalls;return this;}});
+  try{assert.equal(ownedTextInputSerialization(capturedText[0]),undefined);serializeTextInput(capturedText[0]);assert(jsonCalls>0,'Prototype serialization hook was hidden');
+    sourceParagraph.layout(new ParagraphConstraints({width:100}));sourceParagraph.layout(new ParagraphConstraints({width:100}));
+    assert.notEqual(capturedText.at(-1),capturedText.at(-2),'Prototype hooks reused a previous capture identity');
+  }finally{delete Object.prototype.toJSON;}
+}finally{sourceParagraph.dispose();textRegistry.dispose();}
 // A compositing change propagates through the same render tree before paint.
 class CompositedBox extends TestBox {composite=false;get alwaysNeedsCompositing(){return this.composite;}}
 const pipeline=new PipelineOwner(),parent=new TestBox(),child=new CompositedBox();parent.setChildren([child]);pipeline.setRoot(parent);
@@ -228,6 +288,7 @@ for(const behavior of ['none','hardEdge','antiAlias','antiAliasWithSaveLayer']){
 if(ORIGINAL_PAGE_EXPECTATIONS!==null)assert.deepEqual(cases,ORIGINAL_PAGE_EXPECTATIONS,'Pinned Flutter PageView observations differ');
 if(ORIGINAL_SLIVER_EXPECTATIONS!==null)assert.deepEqual(slivers,ORIGINAL_SLIVER_EXPECTATIONS,'Pinned Flutter list/grid observations differ');
 if(ORIGINAL_LIFECYCLE_EXPECTATIONS!==null)assert.deepEqual(lifecycle,ORIGINAL_LIFECYCLE_EXPECTATIONS,'Pinned Flutter PageView lifecycle observations differ');
+if(ORIGINAL_LAYOUT_QUEUE_EXPECTATIONS!==null)assert.deepEqual(layoutQueues,ORIGINAL_LAYOUT_QUEUE_EXPECTATIONS,'Pinned Flutter layout queue observations differ');
 console.log('SOURCE_FRAMEWORK',JSON.stringify({result:'PASS-scoped',originalComparison:ORIGINAL_PAGE_EXPECTATIONS===null?'not-run':'PASS-scoped',cases:cases.length+slivers.length+lifecycle.length,scope:'Source layout/paint/hit/arena/build scope; PageView geometry/storage/transfer/interruption/empty; variable list; custom grid; compositing; clip commands',pages:cases,slivers,lifecycle}));
 `,
     },

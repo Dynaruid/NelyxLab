@@ -88,6 +88,47 @@ interface Entry {
   readonly fonts: FontProviderLease<NativeFont, SkTypefaceFontProvider>;
   readonly paintResources: TextPaintResources;
 }
+// The transaction's defensive packet limits are narrower than the public
+// builder API. Keep valid large styles/ignored placeholder offsets on that
+// builder path; capability/version failures still fail closed at service setup.
+function transactionFallback(
+  input: TextLayoutInput,
+  families: readonly string[],
+): string | undefined {
+  if (families.some((family) => family.length > 256)) return 'font-family-budget';
+  if (input.placeholders?.some((value) => Math.abs(value.baselineOffset) > textLimits.width))
+    return 'placeholder-range';
+  const segments = Math.min(
+    input.text.length,
+    2 * (input.runs?.length ?? 0) + 2 * (input.placeholders?.length ?? 0) + 1,
+  );
+  if (segments * 3 > 2048) return 'operation-budget';
+  let fontNames = input.strutStyle?.fontFamilies?.length ?? 0,
+    features = 0,
+    variations = 1,
+    shadows = 0;
+  const style = (value: TextRunStyle | undefined) => {
+    if (!value) return;
+    fontNames = Math.max(fontNames, value.fontFamilies?.length ?? 0);
+    features = Math.max(features, value.fontFeatures?.length ?? 0);
+    variations = Math.max(
+      variations,
+      (value.fontVariations?.length ?? 0) +
+        (value.fontVariations?.some((v) => v.axis === 'wght') ? 0 : 1),
+    );
+    shadows = Math.max(shadows, value.shadows?.length ?? 0);
+  };
+  style(input.style);
+  for (const run of input.runs ?? []) style(run.style);
+  if (variations > 64) return 'font-variation-budget';
+  // Bound the native metadata tally without serializing another operations
+  // packet. Each family is at most 256 UTF-16 units; native adds 64 bytes/entry.
+  const perStyle =
+    (fontNames + families.length + 1) * 576 + (features + variations) * 72 + shadows * 64 + 256;
+  if ((segments + 2) * perStyle + (input.ellipsis?.length ?? 0) * 2 > 1048576)
+    return 'metadata-budget';
+  return undefined;
+}
 /** Paragraphs are private: callers receive frozen IDs/geometry and a paint-only facade. */
 export class NativeTextLayoutService implements TextLayoutService {
   private readonly layoutCache: TextLayoutCache<NativeFont>;
@@ -101,6 +142,7 @@ export class NativeTextLayoutService implements TextLayoutService {
   private readonly uncertain: unknown[] = [];
   private nativeTransactions = false;
   private transactionWork = { textTransactions: 0, textOperations: 0, textBytes: 0, cacheHits: 0 };
+  private transactionFallbacks: Record<string, number> = {};
   setNativeParagraphTransactions(enabled: boolean): void {
     invariant(!this.failed, 'text-retirement-failed', 'Paragraph native retirement failed');
     if (enabled) {
@@ -116,6 +158,7 @@ export class NativeTextLayoutService implements TextLayoutService {
         'Text transactions already enabled',
       );
       this.transactionWork = { textTransactions: 0, textOperations: 0, textBytes: 0, cacheHits: 0 };
+      this.transactionFallbacks = {};
     }
     this.nativeTransactions = enabled;
   }
@@ -123,8 +166,11 @@ export class NativeTextLayoutService implements TextLayoutService {
     return Object.freeze({
       ...this.transactionWork,
       enabled: this.nativeTransactions,
-      tsFallbacks: 0,
-      fallbackReasons: {},
+      tsFallbacks: Object.values(this.transactionFallbacks).reduce(
+        (total, count) => total + count,
+        0,
+      ),
+      fallbackReasons: Object.freeze({ ...this.transactionFallbacks }),
     });
   }
   get debugStats() {
@@ -253,9 +299,13 @@ export class NativeTextLayoutService implements TextLayoutService {
           primaryFamily,
           fonts.families,
         ),
-        operations: ParagraphTransactionOperation[] | undefined = this.nativeTransactions
-          ? []
-          : undefined;
+        fallback = this.nativeTransactions
+          ? transactionFallback(snapshot, fonts.families)
+          : undefined,
+        operations: ParagraphTransactionOperation[] | undefined =
+          this.nativeTransactions && !fallback ? [] : undefined;
+      if (fallback)
+        this.transactionFallbacks[fallback] = (this.transactionFallbacks[fallback] ?? 0) + 1;
       if (!operations) builder = this.api.ParagraphBuilder.Make(paragraphStyle, fonts.provider);
       const paint = (value: PaintSnapshot): SkPaint => {
         const result = own(this.api.Paint());
