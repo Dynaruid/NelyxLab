@@ -16,6 +16,7 @@
 4. 한 작업 단위의 관련 변경을 모아서 적용하고 해당 회귀를 확인한다. 각 작은 수정마다 전체 SDK/native 빌드를 반복하지 않는다.
 5. 이미 있는 캐시·batch·준비 기능의 적용 여부를 확인한 뒤 수정한다. 새 캐시나 별도 스케줄러를 중복 도입하지 않는다.
 6. [.github/copilot-instructions.md](.github/copilot-instructions.md)에 따라 검증은 **20분 timeout**, 시나리오 반복은 원칙적으로 **30회 이내**로 제한한다. 한 실행의 임시 파일·소유 프로세스는 성공·실패·중단 모두 `finally`에서 회수한다.
+7. **검증 명령은 PowerShell 7(`pwsh`)에서 실행하고, Windows Demo/Testbed의 실행 기능·성능 검증은 `pwsh`로 가상 입력을 생성해 수행한다.** 코드 분석·원인 가설·해결 설계를 먼저 진행한다. 물리 마우스·트랙패드 수동 조작을 이번 작업의 필수 완료 조건으로 두지 않는다.
 
 ## 2. 현재 판단의 출발점
 
@@ -58,7 +59,7 @@
 - 이 문서에 적힌 호출부와 현재 checkout 차이를 확인한다. 기존 사용자 변경을 보존한다.
 - 앱 진입 → Source 프레임 → native text/scene → GPU retire의 owner와 자원 수명을 정리한다. 함수별로 필수 작업·중복 검사·임시 객체·동기 native 호출을 구별한다.
 - 문단 transaction·sceneBatch 등은 **미연결 후보**와 **현재 기본 경로**를 구분한다. native 공급에 함수가 있는지와 앱이 실제 호출하는지도 구분한다.
-- 해결 설계가 정해진 뒤 효과 비교용 기준 실행을 최소 1세트 확보한다. 이는 코드 분석 뒤의 비교 자료 확보이며 반복 실행으로 원인을 탐색하는 단계가 아니다. 기준 실행을 확보하지 못하면 이후 개선율은 주장하지 않는다.
+- 해결 설계가 정해진 뒤 효과 비교용 기준 실행을 최소 1세트 확보한다. 변경 전후에 같은 `pwsh` 가상 입력 시나리오를 사용한다. 이는 코드 분석 뒤의 비교 자료 확보이며 반복 실행으로 원인을 탐색하는 단계가 아니다. 기준 실행을 확보하지 못하면 이후 개선율은 주장하지 않는다.
 
 완료 조건: 변경할 함수·없앨 반복 작업·보존할 동작·대응 회귀가 지정된다. 기존 이력의 수치로 현재 baseline을 대신하지 않는다.
 
@@ -149,7 +150,7 @@
 - [Windows SemanticsTree](Nelyx/engine/platform/windows/interop/SemanticsTree.h)는 이미 native delta를 받는다. 새 delta protocol을 먼저 만드는 대신 Source snapshot 생성과 실제 native 갱신의 중복 비용을 따로 다룬다.
 - 접근성 비활성화나 현재 Demo의 motion 간격 300ms 연장을 개선책으로 삼지 않는다. quiet wake·즉시 상태 통지·stale action 거부를 유지한다.
 
-검증: 스크롤 중 UIA bounds/상태, focus 이동, toggle·range action, 텍스트 selection, 오래된 action 거부, viewport/context 교체·제거 후 provider 수명을 확인한다. reader·한국어 IME 실사용 수락은 자동 UIA 검사와 분리한다.
+검증: `pwsh` 가상 입력과 PowerShell에서 조회한 UIA 상태로 스크롤 중 bounds/상태, focus 이동, toggle·range action, 텍스트 selection, 오래된 action 거부, viewport/context 교체·제거 후 provider 수명을 확인한다. reader·한국어 IME 실사용 수락은 이번 가상 입력 검증 범위 밖으로 구분해 기록한다.
 
 완료 조건: 같은 접근성 동작과 갱신 계약을 유지하면서 snapshot 할당·CPU가 감소한다. 비용 근거가 없으면 **DEFERRED**로 남긴다.
 
@@ -168,16 +169,20 @@
 - 채택한 변경을 모아 Core/디자인/renderer/SDK와 Demo 설치 공급을 갱신한다. alias가 dist를 읽는 회귀는 Core 빌드 후 실행한다.
 - native는 [정본 입력 규칙](Nelyx/skia/eng/native-source-inputs.mjs)에 따라 `Nelyx/skia/native`와 `Nelyx/engine`의 원본을 수정하고 projection을 재생성한다. `packages/native/cpp`, `generated`, 설치본만 고치지 않는다.
 - host·VM·bytecode·SDK·Skia supplier·viewport/DPR/refresh를 확인한다. 변경 전후 서로 다른 공급·입력·화면을 섞어 개선율을 계산하지 않는다.
-- 결과는 이 문서에 **채택/철회/DEFERRED, 기능 판정, 성능 판정, 미실행 범위**로 짧게 갱신한다. 과거 work11/work12의 중단 작업이나 전체 API 수락을 자동 재개하지 않는다.
+- §5의 `pwsh` 가상 입력으로 Demo/Testbed의 해당 기능·성능 시나리오를 실행한다. 물리 입력 확인을 기다리며 통합 검증을 미루지 않는다.
+- 결과는 이 문서에 **채택/철회/DEFERRED, 가상 입력 기능 판정, 가상 입력 성능 판정, 미실행 범위**로 짧게 갱신한다. 과거 work11/work12의 중단 작업이나 전체 API 수락을 자동 재개하지 않는다.
 
 ## 5. 검증 계획과 실행 명령
+
+**실행 환경은 PowerShell 7(`pwsh`)이며, Windows 앱 실행 검증의 입력은 PowerShell 스크립트에서 생성한다.** 코드 회귀·타입·lint 명령도 `pwsh`에서 구동한다. 아래 내용은 향후 구현 후 적용할 계획이며 이번 수정에서는 문서만 변경한다.
 
 ### 코드·기능 회귀
 
 다음은 **향후 구현 후 실행할 기존 명령**이다. 이번 문서 작성에서는 실행하지 않았다. 변경한 경로의 검사부터 실행하고, 최종 통합 시 타입·lint·format을 확인한다. 새 검사는 기존 runner에 동작 사례를 추가하는 것을 우선하며 구현을 그대로 되풀이하는 테스트는 만들지 않는다.
 
 ```powershell
-# 저장소 루트. alias 기반 검사 전에 현재 Core dist를 갱신한다.
+# pwsh에서 저장소 루트 기준으로 실행한다.
+# alias 기반 검사 전에 현재 Core dist를 갱신한다.
 npm.cmd run build:core
 node Nelyx/eng/check-source-framework.mjs
 node Nelyx/eng/check-child-reconciliation.mjs
@@ -188,7 +193,8 @@ npm.cmd run check:types
 npm.cmd run lint
 npm.cmd run format:check
 
-# SDK/native 변경을 모은 뒤 한 번 공급하고 실제 Demo 경로 확인
+# SDK/native 변경을 모은 뒤 한 번 공급한다.
+# 실행한 Demo는 아래 pwsh 가상 입력 방식으로 검증한다.
 npm.cmd run build:sdk
 npm.cmd run prepare:windows --workspace @nelyx/demo
 npm.cmd run build:windows --workspace @nelyx/demo
@@ -199,35 +205,44 @@ npm.cmd run run:windows --workspace @nelyx/demo
 
 Flutter 의미 변경이 가능한 queue/geometry/생성기 수정에는 [고정 원본 oracle](Nelyx/eng/check-flutter-framework.mjs)을 필요한 사례로 확장한다. `--source`와 `--flutter`는 실제 설치 경로를 확인한 뒤 명시하고, 변경된 local reference 파일을 oracle로 대신하지 않는다. Web은 공통 Source 변경의 화면·입력·수명 회귀를 확인한다. native 공통 변경의 Android 영향은 빌드와 실행 확인 여부를 분리해 기록한다.
 
+### pwsh 가상 입력 실행 방식
+
+- 현재 Source 앱에 맞는 PowerShell `.ps1` runner를 확인하고, 없으면 `Nelyx/eng/`에 최소 runner를 추가해 `pwsh -NoProfile -File <runner.ps1>`로 실행한다. runner 구현·실행은 **예정 작업**이다.
+- PowerShell `Add-Type`으로 Win32 입력 API를 호출한다. 마우스 이동·버튼·세로/가로 wheel·키보드는 `SendInput`, 터치 swipe는 `InjectTouchInput` 등 해당 입력을 지원하는 API로 생성한다. 앱 내부 offset/page 값을 직접 바꿔 입력 처리를 생략하지 않는다.
+- 대상 PID/HWND와 입력을 받는 창, foreground, client 영역·DPI를 확인한 뒤 좌표를 계산한다. 입력 종류·방향·delta·이동 거리·주입 간격·반복 횟수를 시나리오로 고정하고, 변경 전후 같은 프로파일을 재생한다.
+- 주입 시도/성공 수와 앱의 수신·전달·처리 수, 누적 delta, 최종 offset/page/월·focus/편집 상태를 대조한다. PowerShell의 UIA 조회·화면 캡처와 기존 diagnostics를 함께 사용해 실제 반영을 확인한다. 입력 API 성공만으로 기능 PASS를 판정하지 않는다.
+- 합성 wheel·touch swipe와 실제 precision trackpad의 panZoom·관성 경로를 구분한다. 가상 입력으로 생성하지 못한 panZoom/IME 등은 기존 Source 계약 회귀의 결과와 구분해 **해당 실행 경로 notVerified**로 남긴다. 물리 입력 실사용 확인은 이번 작업의 필수 단계에 추가하지 않는다.
+- runner는 실행 전체에 20분 timeout을 적용하고 성공·실패·중단 모두 `finally`에서 누른 키·버튼·touch contact를 해제한 뒤 소유 프로세스·임시 파일을 회수한다. 기능 시나리오와 성능 측정에 같은 입력 생성 방식을 사용한다.
+
 ### 성능 시나리오와 데이터
 
-| 시나리오 | 확인할 차이 |
-| --- | --- |
-| Gallery 첫 하강 → 복귀 → 재하강 | cold 생산과 재사용 비용, 새 섹션 진입 시 긴 frame |
-| 가변 높이·한글/emoji 목록 | text shaping/cache·extent 보정·layout 반복 |
-| 달력 보통/빠른 정방향 → 빠른 역방향·재접촉 | 새 월 생산, 입력 대기, 실제 page/월 진행·정착 |
-| editor focus 상태에서 스크롤·resize·화면 복귀 | input geometry·semantics·cache 무효화·자원 수명 |
-| 동작 종료 → 화면 이탈 → 앱 정상 종료 | 남는 optional owner·paragraph/Picture·GPU lease·입력 batch |
+| 시나리오 | pwsh 가상 입력 | 확인할 차이 |
+| --- | --- | --- |
+| Gallery 첫 하강 → 복귀 → 재하강 | 같은 좌표에서 고정 delta·간격의 세로 wheel을 정·역방향 재생 | cold 생산과 재사용 비용, 새 섹션 진입 시 긴 frame |
+| 가변 높이·한글/emoji 목록 | 같은 목록·viewport에서 세로 wheel·drag를 재생 | text shaping/cache·extent 보정·layout 반복 |
+| 달력 보통/빠른 정방향 → 빠른 역방향·재접촉 | 고정 거리의 touch swipe를 속도별 재생하고 접촉 종료·재시작·방향 반전 | 새 월 생산, 입력 대기, 실제 page/월 진행·정착 |
+| editor focus 상태에서 스크롤·resize·화면 복귀 | click·키보드 편집·wheel, Win32 창 크기 변경·복귀를 스크립트로 수행 | input geometry·semantics·cache 무효화·자원 수명 |
+| 동작 종료 → 화면 이탈 → 앱 정상 종료 | 입력 종료 후 화면 이동·닫기 click 또는 정상 종료 키 입력 | 남는 optional owner·paragraph/Picture·GPU lease·입력 batch |
 
-- 기본 비교는 시나리오별 같은 입력 **3회**로 시작한다. cold는 프로세스 재시작 등 조건을 통일하고 warm은 그 실행 안의 재방문으로 구별한다. 추가 반복은 변동·실패를 해소할 때만 하며 30회 이내로 제한한다.
-- [FrameDiagnostics](Nelyx/src/ui/frame-diagnostics.ts)와 [FrameTrace](Nelyx/sdk/native/windows-hermes/FrameTrace.h)를 우선 사용한다. 현재 Source 앱에 필요한 자동 시나리오/집계가 없으면 `Nelyx/eng/`에 최소 runner를 추가한다. 이는 **예정 작업**이며 옛 scroll harness가 현재도 존재하거나 작동한다고 가정하지 않는다.
+- 기본 비교는 시나리오별 같은 `pwsh` 가상 입력 **3회**로 시작한다. cold는 프로세스 재시작 등 조건을 통일하고 warm은 그 실행 안의 재방문으로 구별한다. 추가 반복은 변동·실패를 해소할 때만 하며 30회 이내로 제한한다.
+- [FrameDiagnostics](Nelyx/src/ui/frame-diagnostics.ts)와 [FrameTrace](Nelyx/sdk/native/windows-hermes/FrameTrace.h)를 우선 사용한다. `pwsh` 입력 runner에서 실행 구간을 맞추고 필요한 집계를 연결한다. 이는 **예정 작업**이며 옛 scroll harness가 현재도 존재하거나 작동한다고 가정하지 않는다.
 - build/layout/optional-work/paint/compose/geometry/semantics/capture/submit, 입력 dispatch 전 대기, surface fence 완료, offset/page 진행 간격을 구분한다. 중첩 구간의 시간을 더하지 않는다.
-- 입력 수신/전달/반영 누락, trace overflow, foreground 상실, 잘못된 viewport/공급이면 해당 성능 표본을 무효로 한다. 진단 켠 실행과 끈 실행을 섞지 않고 probe 비용을 확인한다.
+- 주입 실패·입력 수신/전달/반영 누락, trace overflow, foreground 상실, 수동 입력 간섭, 잘못된 viewport/공급이면 해당 성능 표본을 무효로 한다. 예약한 주입 시각·실제 주입 시각·앱 수신 시각을 구분하고 PowerShell 실행 지연을 앱 처리 시간에 섞지 않는다. 진단 켠 실행과 끈 실행을 섞지 않고 probe 비용을 확인한다.
 - trace·CPU profile·receipt·SDK 복사본을 누적 보관하지 않는다. 비교에 필요한 숫자와 공급 식별만 이 문서의 현재 결과표에 남기고 실행 임시 데이터는 회수한다. 현재 dist와 현재 제품 패키지만 유지한다.
 
 ### 제안 수락 기준
 
 | 판정 | 기준 |
 | --- | --- |
-| 기능 | 입력·최종 위치/월·편집·접근성·시각·자원 수명에 회귀가 없음 |
+| 가상 입력 기능 | `pwsh`로 검증한 입력 경로에서 입력·최종 위치/월·편집·접근성·시각·자원 수명에 회귀가 없음. 생성하지 못한 입력 경로는 별도 notVerified |
 | 변경 채택 | 원래 겨냥한 반복 작업/할당이 감소하고 해당 CPU 구간 또는 end-to-end 지연이 일관되게 개선됨. warm 개선을 위해 cold tail이나 live 자원을 악화시키지 않음 |
 | 60Hz 입력 응답 목표 | 유효한 입력→native surface-copy fence 완료 p95 **≤33.3ms**, 최대 **≤66.7ms**. 장치가 165Hz여도 이 목표를 165Hz 수락으로 부르지 않음 |
 | CPU frame 목표 | 활성 구간 Source frame CPU p95 **≤16.7ms**. cold 최대와 단계별 최대를 별도 표기하고 p95만으로 긴 frame을 숨기지 않음 |
 | 정체 목표 | 입력에 따라 움직여야 하는 활성 구간에서 offset/page 진행 간격 **100ms 이상 정체 0회**. 경계·정착·의도된 무이동은 제외 근거를 명시 |
 | 메모리 | 보관 한도와 producer/frame/native retire 계약 유지. 동등한 상태로 복귀한 뒤 반복마다 불필요한 resident 자원이 계속 증가하지 않음 |
-| 표시·물리 수락 | surface 완료율은 displayed FPS가 아님. 실제 화면 FPS/scanout 및 물리 트랙패드 체감은 별도 확인 전 **notVerified** |
+| 표시·물리 범위 | surface 완료율은 displayed FPS가 아님. 실제 화면 FPS/scanout 및 물리 트랙패드 체감은 이번 가상 입력 수락 범위 밖이며 **notVerified**로 기록 |
 
-위 기준은 이번 계획의 목표이며 달성 사실이 아니다. 유용한 일부 변경을 채택해도 전체 목표에 못 미치면 **PARTIAL / performanceAccepted=false**를 유지한다. 3회의 짧은 확인만으로 장시간 안정성·누수 부재·모든 기기 성능을 수락하지 않는다.
+위 기준은 이번 계획의 목표이며 달성 사실이 아니다. 기능·성능 판정의 입력 방식은 **pwsh 가상 입력**으로 명시한다. 이 범위의 목표에 못 미치면 **PARTIAL / performanceAccepted=false**를 유지한다. 표시·물리 항목은 별도 notVerified로 기록하되 가상 입력 검증 완료의 선행 조건으로 삼지 않는다. 3회의 짧은 확인만으로 장시간 안정성·누수 부재·모든 기기 성능을 수락하지 않는다.
 
 ## 6. 우선 진행하지 않을 방향
 
@@ -242,9 +257,10 @@ Flutter 의미 변경이 가능한 queue/geometry/생성기 수정에는 [고정
 
 - [x] 저장소 지침·최근 종료 기록·현재 Source/SDK/native 호출 경로 검토
 - [x] 기존 최적화의 적용/미적용 구분과 우선순위·작업·수락 기준 작성
+- [x] 실행 검증을 `pwsh` 가상 입력으로 수행하도록 원칙·시나리오·판정 범위 수정
 - [ ] J-01~J-04 우선 개선 구현·회귀·공급 반영
 - [ ] J-05~J-07 조건부 후보 채택/보류 판단
-- [ ] J-08 현재 공급의 기능·성능·물리 확인과 결과 기록
+- [ ] J-08 현재 공급의 `pwsh` 가상 입력 기능·성능 확인과 결과 기록
 
 문서 확인: 로컬 링크 대상 **36개 존재**, code fence 짝 일치, 공백 검사 통과. 제품 빌드·기능 회귀·성능 측정은 미실행이다.
 
