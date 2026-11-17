@@ -6,5 +6,5 @@ const app = path.resolve(import.meta.dirname, '..');
 await runSampleWindows({
   root: path.resolve(app, '../..'),
   app,
-  arguments: ['--host', 'native-hermes', ...process.argv.slice(2)],
+  arguments: ['--host', 'native', ...process.argv.slice(2)],
 });

@@ -28,6 +28,7 @@ const headerHashes = {
   'WebKitAvailability.h': '0e3657fe1f5538e50f02252a526c45c26f39478da82289fb1217a649fed71b89',
 };
 const engineFiles = ['JavaScriptCore.dll', 'icuin77.dll', 'icuuc77.dll', 'icudt77.dll'];
+export const windowsJscApiHeaderHashes = Object.freeze({ ...headerHashes });
 const xml = (value) =>
   String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
 const digest = (text) => createHash('sha256').update(text).digest('hex');

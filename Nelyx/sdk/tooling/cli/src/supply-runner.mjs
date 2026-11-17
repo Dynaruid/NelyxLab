@@ -223,8 +223,22 @@ export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent =
     fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + '\n');
     if (fs.existsSync(lockFile)) {
       const lock = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
-      for (const name of [...Object.keys(inputs), ...retired])
-        delete lock.packages['node_modules/' + name];
+      for (const name of Object.keys(inputs)) {
+        const key = 'node_modules/' + name,
+          entry = lock.packages[key],
+          reference = manifest.dependencies?.[name] ?? manifest.devDependencies?.[name];
+        // Equal-version replacements need fresh resolution, but reusing an
+        // unchanged content-addressed archive must retain its dependency tree.
+        // Deleting every supplied parent makes npm prune unchanged nested
+        // dependencies (including static-aot's older hermes-estree).
+        if (
+          !entry?.resolved?.startsWith('file:') ||
+          !reference?.startsWith('file:') ||
+          path.resolve(runner, entry.resolved.slice(5)) !== path.resolve(runner, reference.slice(5))
+        )
+          delete lock.packages[key];
+      }
+      for (const name of retired) delete lock.packages['node_modules/' + name];
       fs.writeFileSync(lockFile, JSON.stringify(lock, null, 2) + '\n');
     }
     const args = [

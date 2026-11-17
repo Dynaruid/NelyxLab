@@ -11,6 +11,8 @@ import type { Paint } from '../../ui/paint.ts';
 import type { Offset } from '../../ui/geometry.ts';
 import { clampDouble } from '../../ui/math.ts';
 import { invariant } from '../../foundation/errors.ts';
+const ordinaryCircles = new WeakSet<CircleBorder>();
+const noBorderSide = BorderSide.none;
 export class CircleBorder extends OutlinedBorder {
   /** @dartType double */ readonly eccentricity: number;
   constructor({
@@ -24,6 +26,7 @@ export class CircleBorder extends OutlinedBorder {
       'Circle eccentricity must be in [0,1]',
     );
     this.eccentricity = eccentricity;
+    if (new.target === CircleBorder) ordinaryCircles.add(this);
   }
   private adjust(rect: Rect): Rect {
     if (this.eccentricity === 0 || rect.width === rect.height)
@@ -122,4 +125,24 @@ export class CircleBorder extends OutlinedBorder {
   override toString(): string {
     return `${this.constructor.name}(${this.side}${this.eccentricity !== 0 ? `, eccentricity: ${this.eccentricity}` : ''})`;
   }
+}
+const circlePaint = CircleBorder.prototype.paint;
+/** @internal The ordinary no-side body returns before reading geometry or Canvas.
+ * Inspect descriptors without invoking borrowed getters; subclasses, Proxies
+ * and replaced paint hooks retain the ordinary call. */
+export function isNonPaintingCircleBorder(value: ShapeBorder): boolean {
+  if (
+    !ordinaryCircles.has(value as CircleBorder) ||
+    Object.getPrototypeOf(value) !== CircleBorder.prototype ||
+    Object.hasOwn(value, 'paint') ||
+    Object.getOwnPropertyDescriptor(CircleBorder.prototype, 'paint')?.value !== circlePaint
+  )
+    return false;
+  const side = Object.getOwnPropertyDescriptor(value, 'side');
+  return (
+    side !== undefined &&
+    'value' in side &&
+    side.value === noBorderSide &&
+    Object.getOwnPropertyDescriptor(noBorderSide, 'style')?.value === 'none'
+  );
 }

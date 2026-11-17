@@ -18,7 +18,7 @@ import { nativeHermesBridge } from './bridge.ts';
 import { connectNativeInteraction } from './interaction.ts';
 import { createNativeServices } from './services.ts';
 import { connectNativeEditing } from './editing.ts';
-import { nativeHermesEnvironment } from './globals.ts';
+import { nativeHermesEnvironment, nativeRuntimeEngine } from './globals.ts';
 
 /** RN-independent SDK composition. Core owns the same Widget/Element/layout
  * tree; the native host publishes already measured root metrics only. */
@@ -323,12 +323,12 @@ async function composeNativeHermesApplication(
     const started = (app = await bootstrapApplication(supplied, {
       identity: {
         target: 'windows',
-        runtime: 'hermes',
-        host: 'native-hermes',
+        runtime: nativeRuntimeEngine,
+        host: nativeRuntimeEngine === 'jsc' ? 'native-jsc' : 'native-hermes',
         renderer: 'skia-graphite',
         gpuBackend: 'vulkan',
         gpuImplementation: 'native-vulkan',
-        profile: 'native-hermes-graphite-vulkan',
+        profile: 'native-' + nativeRuntimeEngine + '-graphite-vulkan',
       },
       reportError: fail,
       clock,
@@ -367,7 +367,9 @@ async function composeNativeHermesApplication(
       'NELYX_NATIVE_READY ' +
         JSON.stringify({
           mode: bridge.mode,
-          host: 'native-hermes',
+          host: nativeRuntimeEngine === 'jsc' ? 'native-jsc' : 'native-hermes',
+          runtime: nativeRuntimeEngine,
+          ...(bridge.executionMode ? { executionMode: bridge.executionMode } : {}),
           metrics,
           editing: started.hostCapabilities.editing,
           semantics: started.hostCapabilities.semantics,

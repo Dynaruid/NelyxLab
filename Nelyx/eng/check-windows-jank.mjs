@@ -9,6 +9,9 @@ import {
   buildNativeApplication,
   verifyNativePackage,
 } from '../sdk/tooling/cli/src/windows-native-runner.mjs';
+import { buildNativeJscProbe } from './native-jsc-probe-build.mjs';
+import { nativePackageEnvironment } from '../sdk/tooling/cli/src/windows-native-host.mjs';
+import { windowsBuildInputs } from '../sdk/tooling/cli/src/windows-build-inputs.mjs';
 
 const root = path.resolve(import.meta.dirname, '../..');
 const argument = (name, fallback) => {
@@ -18,7 +21,16 @@ const argument = (name, fallback) => {
 const scenario = argument('--scenario', 'calendar'),
   runs = Number(argument('--runs', '3')),
   appName = argument('--app', 'demo'),
-  hermesMode = argument('--hermes-mode', 'bytecode');
+  hermesMode = argument('--hermes-mode', 'bytecode'),
+  engine = argument('--engine', 'hermes'),
+  jscMode = argument('--jsc-mode', 'interpreter');
+const runtimeMode = engine === 'jsc' ? 'source' : hermesMode;
+const runtimeIdentity = {
+  engine,
+  mode: runtimeMode,
+  ...(engine === 'jsc' ? { jscMode } : { hermesMode }),
+};
+const hostExecutable = engine === 'jsc' ? 'NelyxJscHost.exe' : 'NelyxHermesHost.exe';
 const app = path.join(
   root,
   appName === 'testbed' ? 'sample/nelyx-testbed-app-2' : 'sample/nelyx-demo-app',
@@ -31,6 +43,9 @@ if (
   (scenario === 'list' && appName !== 'testbed') ||
   !['demo', 'testbed'].includes(appName) ||
   !['bytecode', 'static-aot'].includes(hermesMode) ||
+  !['hermes', 'jsc'].includes(engine) ||
+  !['interpreter', 'jit'].includes(jscMode) ||
+  (engine === 'jsc' && hermesMode !== 'bytecode') ||
   !Number.isInteger(runs) ||
   runs < 1 ||
   runs > 30
@@ -43,7 +58,15 @@ if (!process.argv.includes('--child')) {
     results = [];
   try {
     for (let run = 1; run <= runs; run++) {
-      console.log('JANK_RUN ' + JSON.stringify({ scenario, hermesMode, run, runs }));
+      console.log(
+        'JANK_RUN ' +
+          JSON.stringify({
+            scenario,
+            ...runtimeIdentity,
+            run,
+            runs,
+          }),
+      );
       await execute(
         'pwsh.exe',
         [
@@ -57,6 +80,10 @@ if (!process.argv.includes('--child')) {
           appName,
           '-HermesMode',
           hermesMode,
+          '-Engine',
+          engine,
+          '-JscMode',
+          jscMode,
           '-SummaryPath',
           summary,
           ...(!screenEnabled ? ['-NoScreen'] : []),
@@ -67,7 +94,8 @@ if (!process.argv.includes('--child')) {
       results.push(JSON.parse(fs.readFileSync(summary, 'utf8')));
     }
     console.log(
-      'JANK_BATCH_RESULT ' + JSON.stringify({ scenario, app: appName, hermesMode, runs: results }),
+      'JANK_BATCH_RESULT ' +
+        JSON.stringify({ scenario, app: appName, ...runtimeIdentity, runs: results }),
     );
     // Keep a small final comparison visible when a terminal truncates the
     // detailed per-input reports. Neither output is retained on disk.
@@ -76,7 +104,7 @@ if (!process.argv.includes('--child')) {
         JSON.stringify({
           scenario,
           app: appName,
-          hermesMode,
+          ...runtimeIdentity,
           runs: results.map((result) => ({
             identity: {
               ...result.identity,
@@ -99,7 +127,11 @@ if (!process.argv.includes('--child')) {
             })),
             phases: [...result.phases, ...result.galleryPhases].map((phase) => ({
               name: phase.name,
+              pageDelta: phase.pageDelta,
+              gestures: phase.gestures,
               accepted: phase.accepted,
+              inputQueue: phase.inputQueue,
+              inputToSurface: phase.inputToSurface,
               motion: phase.motion
                 ? {
                     averageFps: phase.motion.averageFps,
@@ -196,6 +228,8 @@ async function startScreen() {
       path.join(root, 'Nelyx/eng/windows-jank-screen.ps1'),
       '-Package',
       output,
+      '-HostExecutable',
+      hostExecutable,
       '-StopPath',
       screenStop,
       '-ReadyPath',
@@ -283,6 +317,8 @@ async function ui(action, options = {}) {
     path.join(root, 'Nelyx/eng/windows-jank-input.ps1'),
     '-Package',
     output,
+    '-HostExecutable',
+    hostExecutable,
     '-Action',
     action,
   ];
@@ -524,7 +560,7 @@ try {
       );
     if (process.env.NELYX_JANK_BUILD_PROFILE === '1') {
       if (scenario !== 'calendar') throw Error('Build profile currently requires calendar');
-      if (hermesMode !== 'bytecode')
+      if (engine !== 'hermes' || hermesMode !== 'bytecode')
         throw Error('Build observer profile currently requires bytecode');
       source =
         fs.readFileSync(path.join(root, 'Nelyx/eng/windows-jank-framework-profile.ts'), 'utf8') +
@@ -549,6 +585,7 @@ try {
           .replace('            dispose();', '            builderProfile.dispose(); dispose();');
     }
     if (process.env.NELYX_NATIVE_GC_STATS === '1') {
+      if (engine !== 'hermes') throw Error('GC phase profile requires Hermes');
       if (scenario !== 'calendar') throw Error('GC phase profile currently requires calendar');
       source =
         fs.readFileSync(path.join(root, 'Nelyx/eng/windows-jank-heap-profile.ts'), 'utf8') +
@@ -572,22 +609,37 @@ try {
   ownsEntry = true;
   ownsOutput = true;
   console.log('FAST_BUILD_HOST');
-  const host = await buildNativeHost({ app, signal: controller.signal });
+  const host =
+    engine === 'hermes' ? await buildNativeHost({ app, signal: controller.signal }) : undefined;
   console.log('FAST_BUILD_BUNDLE');
-  const built = await buildNativeApplication({
-    app,
-    mode: hermesMode,
-    hostBuild: host,
-    diagnosticEntry: entry,
-    output,
-    ...(compilerCache ? { cacheDirectory: compilerCache } : {}),
-    signal: controller.signal,
-  });
+  const built =
+    engine === 'jsc'
+      ? await buildNativeJscProbe({
+          app,
+          output,
+          diagnosticEntry: entry,
+          mode: jscMode,
+          signal: controller.signal,
+        })
+      : await buildNativeApplication({
+          app,
+          mode: hermesMode,
+          hostBuild: host,
+          diagnosticEntry: entry,
+          output,
+          ...(compilerCache ? { cacheDirectory: compilerCache } : {}),
+          signal: controller.signal,
+        });
   const checked = verifyNativePackage(built.directory);
-  if (built.mode !== hermesMode || checked.manifest.mode !== hermesMode)
+  if (built.mode !== runtimeMode || checked.manifest.mode !== runtimeMode)
     throw Error('Built native execution mode differs from the requested mode');
+  const { runner, roots } = nativePackageEnvironment(app);
+  const hash = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
   identity = {
-    hermesMode,
+    ...runtimeIdentity,
+    rendererSha256: hash(path.join(app, '.nelyx/native-windows/host/nelyx_host_skia.lib')),
+    baseHostSourceSha256: hash(path.join(roots['@nelyx/sdk'], 'native/windows-hermes/main.cpp')),
+    installedSdkInputsSha256: windowsBuildInputs(runner),
     revision: checked.manifest.revision,
     toolchainSha256: checked.manifest.toolchainSha256,
     compilerPolicy: checked.manifest.compilerPolicy,
@@ -600,7 +652,7 @@ try {
         }
       : {}),
     bundleSha256: crypto.createHash('sha256').update(fs.readFileSync(built.bundle)).digest('hex'),
-    hostSourceSha256: checked.manifest.sourceSha256,
+    hostSourceSha256: checked.manifest.sourceSha256 ?? checked.manifest.hostSourceSha256,
     diagnosticEntrySha256: checked.manifest.diagnosticEntrySha256,
   };
   console.log(
@@ -610,7 +662,7 @@ try {
         ...identity,
       }),
   );
-  native = spawn(built.executable, [built.bundle, built.assetRoot, hermesMode, '180000'], {
+  native = spawn(built.executable, [built.bundle, built.assetRoot, runtimeMode, '180000'], {
     cwd: built.directory,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -653,7 +705,7 @@ try {
         drivers.length !== 3 ||
         (scenario === 'gallery' && !editorFinal))) ||
     exitReceipt?.exitCode !== 0 ||
-    exitReceipt.mode !== hermesMode ||
+    exitReceipt.mode !== runtimeMode ||
     exitReceipt.inputRejected !== 0 ||
     exitReceipt.inputReceived !== exitReceipt.inputDelivered ||
     exitReceipt.inputDelivered !== exitReceipt.inputAccepted ||
@@ -704,6 +756,7 @@ try {
       pageDelta: p.pageDelta,
       gestures: p.gestures,
       accepted: p.accepted,
+      inputQueue: p.inputQueue,
       inputToSurface: p.inputToSurface,
       publishedProgressGaps: p.publishedProgressGaps,
       progressGapsOver100ms: p.progressGapsOver100ms,
@@ -712,6 +765,7 @@ try {
     galleryPhases: galleryPhases.map((p) => ({
       name: p.name,
       motion: publicMotion(p.motion),
+      inputQueue: p.inputQueue,
       inputToSurface: p.inputToSurface,
       resources: p.resources,
     })),

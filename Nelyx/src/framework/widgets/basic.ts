@@ -991,12 +991,14 @@ export interface TextOptions {
   readonly selectionColor?: number | null;
 }
 const plainTextSemantics = new WeakSet<object>();
+const plainTextConstruction = new WeakSet<Text>();
 export class Text extends StatelessWidget {
   constructor(
     readonly text: string,
     readonly options: TextOptions = {},
   ) {
     super(options.key ?? null);
+    if (new.target === Text) plainTextConstruction.add(this);
   }
   static rich(span: InlineSpan, options: TextOptions = {}): Widget {
     return new RichTextFromText(span, options);
@@ -1029,24 +1031,27 @@ export class Text extends StatelessWidget {
     );
     render.config = { ...resolved, span: new TextSpan({ text: this.text }), placeholderCount: 0 };
     render.devicePixelRatio = resolved.scale;
-    const previous = render.semantics;
-    if (
-      Object.getPrototypeOf(render) === SourceRenderParagraph.prototype &&
-      previous &&
-      plainTextSemantics.has(previous) &&
-      previous.id === render.semanticsId &&
-      previous.name === this.text
-    )
-      return;
-    const semantics = Object.freeze({
-      id: render.semanticsId,
-      role: 'text' as const,
-      name: this.text,
-      enabled: true,
-    });
-    plainTextSemantics.add(semantics);
-    render.semantics = semantics;
+    configurePlainTextSemantics(render, this.text);
   }
+}
+function configurePlainTextSemantics(render: RenderParagraph, text: string): void {
+  const previous = render.semantics;
+  if (
+    Object.getPrototypeOf(render) === SourceRenderParagraph.prototype &&
+    previous &&
+    plainTextSemantics.has(previous) &&
+    previous.id === render.semanticsId &&
+    previous.name === text
+  )
+    return;
+  const semantics = Object.freeze({
+    id: render.semanticsId,
+    role: 'text' as const,
+    name: text,
+    enabled: true,
+  });
+  plainTextSemantics.add(semantics);
+  render.semantics = semantics;
 }
 class PlainTextWidget extends BoxWidget<RenderParagraph> {
   constructor(
@@ -1061,7 +1066,35 @@ class PlainTextWidget extends BoxWidget<RenderParagraph> {
     const render = this.textWidget.make(context);
     render.registrar = this.registrar;
     render.selectionColor = this.selectionColor;
+    if (this._hasInitialRenderObjectConfiguration())
+      configurePlainTextSemantics(render, this.textWidget.text);
     return render;
+  }
+  override _hasInitialRenderObjectConfiguration(): boolean {
+    // The public Text.make/configure extension points stay live. Only the
+    // private adapter around their original implementations has this contract.
+    if (
+      Object.getPrototypeOf(this) !== PlainTextWidget.prototype ||
+      !plainTextConstruction.has(this.textWidget) ||
+      Object.getPrototypeOf(this.textWidget) !== Text.prototype
+    )
+      return false;
+    const text = Object.getOwnPropertyDescriptor(this.textWidget, 'text'),
+      options = Object.getOwnPropertyDescriptor(this.textWidget, 'options');
+    return (
+      text !== undefined &&
+      'value' in text &&
+      options !== undefined &&
+      'value' in options &&
+      !Object.hasOwn(this.textWidget, 'make') &&
+      !Object.hasOwn(this.textWidget, 'configure') &&
+      Object.getOwnPropertyDescriptor(Text.prototype, 'make')?.value === textMake &&
+      Object.getOwnPropertyDescriptor(Text.prototype, 'configure')?.value === textConfigure &&
+      this.createRenderObject === plainTextCreate &&
+      this.updateRenderObject === plainTextUpdate &&
+      this.make === plainTextMake &&
+      this.configure === plainTextConfigure
+    );
   }
   configure(render: RenderParagraph, context: BuildContext): void {
     this.textWidget.configure(render, context);
@@ -1069,6 +1102,12 @@ class PlainTextWidget extends BoxWidget<RenderParagraph> {
     render.selectionColor = this.selectionColor;
   }
 }
+const plainTextCreate = BoxWidget.prototype.createRenderObject,
+  plainTextUpdate = BoxWidget.prototype.updateRenderObject,
+  plainTextMake = PlainTextWidget.prototype.make,
+  plainTextConfigure = PlainTextWidget.prototype.configure,
+  textMake = Text.prototype.make,
+  textConfigure = Text.prototype.configure;
 function buildTextSelection(
   context: BuildContext,
   options: TextOptions,

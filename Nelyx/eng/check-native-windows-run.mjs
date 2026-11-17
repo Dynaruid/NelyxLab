@@ -2,6 +2,11 @@
 import assert from 'node:assert/strict';
 import { execute } from '../sdk/tooling/cli/src/commands.mjs';
 import {
+  nativeEnginePolicy,
+  nativeManifestPolicy,
+  nativeWindowsEngineIdentity,
+} from '../sdk/tooling/cli/src/windows-native-engine.mjs';
+import {
   nativeWindowsBuildIdentity,
   prepareNativeWindowsRun,
 } from '../sdk/tooling/cli/src/windows-native-run-preparation.mjs';
@@ -27,9 +32,11 @@ if (!process.argv.includes('--child')) {
   cases++;
   function harness() {
     const state = { sdk: 'sdk-a', app: 'app-a', builds: [], reads: 0, notices: 0 };
-    const product = (mode = 'bytecode') => ({
-      directory: 'current-' + mode,
+    const product = (mode = 'bytecode', engine = 'hermes', jscMode) => ({
+      directory: 'current-' + (engine === 'jsc' ? 'jsc' : mode),
       manifest: {
+        engine,
+        ...(engine === 'jsc' ? { executionMode: jscMode ?? 'jit' } : {}),
         mode,
         qualification: 'experimental',
         sdkInputsSha256: state.sdk,
@@ -49,7 +56,7 @@ if (!process.argv.includes('--child')) {
       },
       build: async (options) => {
         state.builds.push(options);
-        state.current = product(options.mode);
+        state.current = product(options.mode, options.engine, options.jscMode);
       },
       onRebuild: () => {
         state.notices++;
@@ -151,5 +158,53 @@ if (!process.argv.includes('--child')) {
     await assert.rejects(run(), /did not publish the selected product mode/);
     cases++;
   }
+  {
+    const { state, run } = harness();
+    await run({ engine: 'jsc' });
+    assert.equal(state.current.manifest.mode, 'source');
+    assert.equal(state.current.manifest.executionMode, 'jit');
+    assert.equal(state.builds.length, 1);
+    await run({ engine: 'jsc' });
+    assert.equal(state.builds.length, 1, 'Unchanged JSC rerun rebuilt');
+    await run({ engine: 'jsc', jscMode: 'interpreter' });
+    assert.equal(state.builds.length, 2, 'JSC execution mode change reused the wrong VM');
+    assert.equal(state.current.manifest.executionMode, 'interpreter');
+    const reads = state.reads;
+    await run({ directory: 'portable', engine: 'jsc', jscMode: 'interpreter' });
+    assert.equal(state.reads, reads);
+    await assert.rejects(run({ directory: 'portable', engine: 'hermes' }), /different engine/);
+    await assert.rejects(
+      run({ directory: 'portable', engine: 'jsc', jscMode: 'jit' }),
+      /different JSC execution mode/,
+    );
+    cases += 6;
+  }
+  for (const options of [
+    { engine: 'v8' },
+    { engine: 'jsc', hermesMode: 'bytecode' },
+    { jscMode: 'jit' },
+    { engine: 'jsc', jscMode: 'bad' },
+  ]) {
+    assert.throws(() => nativeEnginePolicy(options));
+    cases++;
+  }
+  assert.equal(
+    nativeManifestPolicy({
+      schema: 'nelyx.native-jsc-package/v1',
+      engine: 'jsc',
+      mode: 'source',
+      executionMode: 'jit',
+    }).executable,
+    'NelyxJscHost.exe',
+  );
+  assert.throws(() =>
+    nativeManifestPolicy({ schema: 'nelyx.native-jsc-package/v1', engine: 'jsc', mode: 'source' }),
+  );
+  assert.notEqual(
+    nativeWindowsEngineIdentity(identity[0], identity[1]),
+    nativeWindowsEngineIdentity(identity[0], identity[2]),
+  );
+  assert.throws(() => nativeWindowsEngineIdentity(identity[0], undefined));
+  cases += 4;
   console.log('NATIVE_WINDOWS_RUN PASS ' + cases + ' cases');
 }

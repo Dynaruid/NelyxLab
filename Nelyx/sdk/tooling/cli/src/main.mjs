@@ -128,6 +128,11 @@ try {
     );
     allowed.run.push('hermes-mode');
     allowed.pack.push('hermes-mode');
+    if (['native', 'native-hermes'].includes(values.host)) {
+      allowed.prepare.push('jsc-inputs');
+      allowed.build.push('jsc-inputs');
+      for (const op of ['run', 'pack', 'doctor']) allowed[op].push('engine', 'jsc-mode');
+    }
     allowed.dev.push('native-inputs');
   }
   if (target === 'linux') {
@@ -175,6 +180,7 @@ try {
     configuration: values.configuration,
     engine: values.engine,
     engineInputs: values['engine-inputs'],
+    jscInputs: values['jsc-inputs'],
     hermesProfile: values['hermes-profile'],
     hermesMode: values['hermes-mode'],
     jscMode: values['jsc-mode'],
@@ -234,11 +240,11 @@ try {
     target === 'windows' &&
     operation !== 'dev' &&
     values.host !== undefined &&
-    !['rnw', 'native-hermes'].includes(values.host)
+    !['rnw', 'native', 'native-hermes'].includes(values.host)
   )
-    throw Error('Choose Windows --host rnw or native-hermes');
+    throw Error('Choose Windows --host rnw, native or native-hermes');
   const result =
-    target === 'windows' && values.host === 'native-hermes'
+    target === 'windows' && ['native', 'native-hermes'].includes(values.host)
       ? await (
           await import('./windows-native-runner.mjs')
         ).nativeWindowsOperation(operation, options)

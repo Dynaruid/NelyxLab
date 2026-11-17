@@ -1,5 +1,6 @@
 param(
   [Parameter(Mandatory)][string]$Package,
+  [ValidateSet('NelyxHermesHost.exe','NelyxJscHost.exe')][string]$HostExecutable = 'NelyxHermesHost.exe',
   [Parameter(Mandatory)][ValidateSet('Setup','SetupGallery','SetupTestbed','SetupList','SnapshotList','Capture','Wheel','Editor','Swipe','Snapshot','Close')][string]$Action,
   [int]$Count = 0, [int]$MoveMs = 6, [int]$GapMs = 16, [int]$Direction = 1,
   [ValidateRange(1,240)][double]$InputHz = 60,
@@ -8,8 +9,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes,System.Drawing
 Add-Type -Path (Join-Path $PSScriptRoot 'windows-jank-input.cs')
-$targetExe = Join-Path ([IO.Path]::GetFullPath($Package)) 'NelyxHermesHost.exe'
-$owned = @(Get-CimInstance Win32_Process -Filter "Name='NelyxHermesHost.exe'" | Where-Object { $_.ExecutablePath -eq $targetExe })
+$targetExe = Join-Path ([IO.Path]::GetFullPath($Package)) $HostExecutable
+$owned = @(Get-CimInstance Win32_Process -Filter "Name='$HostExecutable'" | Where-Object { $_.ExecutablePath -eq $targetExe })
 if ($owned.Count -ne 1) { throw "Expected one owned native process, found $($owned.Count)" }
 $process = Get-Process -Id $owned[0].ProcessId
 $window = $process.MainWindowHandle
@@ -44,11 +45,17 @@ function Click-Button([string]$name,[string]$id) {
   [FastCalendarInput]::Click([int]($button.X+$button.Width/2),[int]($button.Y+$button.Height/2))
   Start-Sleep -Milliseconds 400
 }
-function Get-Calendar {
-  $buttons=@(Get-Buttons)
-  $header=@($buttons | Where-Object { $_.Name -like 'Select year*' })
-  $days=@($buttons | Where-Object { $_.Name -match '^\d{1,2},\s' })
-  if ($header.Count -ne 1 -or $days.Count -lt 28 -or $days.Count -gt 31) { throw "Calendar semantics unavailable header=$($header.Count) days=$($days.Count)" }
+function Get-Calendar([switch]$WaitForDialog) {
+  $until=[Diagnostics.Stopwatch]::StartNew()
+  do {
+    $buttons=@(Get-Buttons)
+    $header=@($buttons | Where-Object { $_.Name -like 'Select year*' })
+    $days=@($buttons | Where-Object { $_.Name -match '^\d{1,2},\s' })
+    if($header.Count -eq 1 -and $days.Count -ge 28 -and $days.Count -le 31){break}
+    if(!$WaitForDialog){break}
+    Start-Sleep -Milliseconds 100
+  } while($until.ElapsedMilliseconds -lt 5000)
+  if ($header.Count -ne 1 -or $days.Count -lt 28 -or $days.Count -gt 31) { throw "Calendar semantics unavailable header=$($header.Count) days=$($days.Count); visible=$($buttons | ConvertTo-Json -Compress)" }
   $left=($days.X | Measure-Object -Minimum).Minimum
   $right=($days | ForEach-Object {$_.X+$_.Width} | Measure-Object -Maximum).Maximum
   $top=($days.Y | Measure-Object -Minimum).Minimum
@@ -140,7 +147,7 @@ try {
     Click-Button '' 'open-drawer'
     Click-Button 'Selection' ''
     Click-Button 'Choose date' ''
-    $calendar=Get-Calendar
+    $calendar=Get-Calendar -WaitForDialog
     Write-Output ('FAST_UI_SETUP '+($calendar|ConvertTo-Json -Compress)); return
   }
   Assert-Foreground

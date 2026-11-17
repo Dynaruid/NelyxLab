@@ -13,12 +13,16 @@ import { Rect } from '../../ui/rect.ts';
 import type { Offset } from '../../ui/geometry.ts';
 import { invariant } from '../../foundation/errors.ts';
 import { OutlinedBorder } from './borders.ts';
+import { isNonPaintingCircleBorder } from './circle-border.ts';
+const ordinaryDecorations = new WeakSet<ColorShapeDecoration>();
+const ordinaryPainters = new WeakSet<BoxPainter>();
 export class ColorShapeDecoration extends Decoration {
   constructor(
     readonly shape: ShapeBorder,
     readonly color: Color | null,
   ) {
     super();
+    if (new.target === ColorShapeDecoration) ordinaryDecorations.add(this);
   }
   override get padding(): EdgeInsetsGeometry {
     return this.shape.dimensions;
@@ -46,6 +50,7 @@ class ColorShapePainter extends BoxPainter {
     onChanged: (() => void) | null,
   ) {
     super(onChanged);
+    ordinaryPainters.add(this);
   }
   paint(canvas: Canvas, offset: Offset, configuration: ImageConfiguration): void {
     this.assertLive();
@@ -73,4 +78,43 @@ class ColorShapePainter extends BoxPainter {
     }
     d.shape.paint(canvas, rect, options);
   }
+}
+const colorShapePaint = ColorShapePainter.prototype.paint;
+const boxPainterAssertLive = Object.getOwnPropertyDescriptor(
+  BoxPainter.prototype,
+  'assertLive',
+)!.value;
+/** @internal A no-fill, no-border painter has no Canvas or geometry work.
+ * Recheck live fields and method descriptors on every call; this is not a
+ * cached decoration result and never admits caller painters or shape hooks. */
+export function isEmptyColorShapePainter(painter: BoxPainter | null): boolean {
+  if (
+    painter === null ||
+    !ordinaryPainters.has(painter) ||
+    Object.getPrototypeOf(painter) !== ColorShapePainter.prototype ||
+    Object.getPrototypeOf(ColorShapePainter.prototype) !== BoxPainter.prototype ||
+    Object.hasOwn(ColorShapePainter.prototype, 'assertLive') ||
+    Object.hasOwn(painter, 'paint') ||
+    Object.hasOwn(painter, 'assertLive') ||
+    Object.getOwnPropertyDescriptor(BoxPainter.prototype, 'assertLive')?.value !==
+      boxPainterAssertLive ||
+    Object.getOwnPropertyDescriptor(ColorShapePainter.prototype, 'paint')?.value !== colorShapePaint
+  )
+    return false;
+  const live = Object.getOwnPropertyDescriptor(painter, 'dead'),
+    record = Object.getOwnPropertyDescriptor(painter, 'decoration');
+  if (!live || !('value' in live) || live.value !== false) return false;
+  if (!record || !('value' in record) || !ordinaryDecorations.has(record.value)) return false;
+  const decoration = record.value as ColorShapeDecoration;
+  if (Object.getPrototypeOf(decoration) !== ColorShapeDecoration.prototype) return false;
+  const color = Object.getOwnPropertyDescriptor(decoration, 'color'),
+    shape = Object.getOwnPropertyDescriptor(decoration, 'shape');
+  return (
+    color !== undefined &&
+    'value' in color &&
+    color.value === null &&
+    shape !== undefined &&
+    'value' in shape &&
+    isNonPaintingCircleBorder(shape.value)
+  );
 }

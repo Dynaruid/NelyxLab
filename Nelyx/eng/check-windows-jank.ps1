@@ -4,6 +4,8 @@ param(
   [switch]$RunOnce, [switch]$NoScreen, [string]$SummaryPath = '',
   [ValidateSet('demo','testbed')][string]$App = 'demo',
   [ValidateSet('bytecode','static-aot')][string]$HermesMode = 'bytecode',
+  [ValidateSet('hermes','jsc')][string]$Engine = 'hermes',
+  [ValidateSet('interpreter','jit')][string]$JscMode = 'interpreter',
   [string]$CompilerCache = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -11,6 +13,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Run this check with PowerShe
 Push-Location -LiteralPath (Join-Path $PSScriptRoot '../..')
 try {
   $taskArguments = @((Join-Path $PSScriptRoot 'check-windows-jank.mjs'), '--scenario', $Scenario, '--runs', $Runs, '--app', $App, '--hermes-mode', $HermesMode)
+  $taskArguments += @('--engine', $Engine, '--jsc-mode', $JscMode)
   if ($RunOnce) { $taskArguments += '--child' }
   if ($NoScreen) { $taskArguments += '--no-screen' }
   if ($SummaryPath) { $taskArguments += @('--summary-file', $SummaryPath) }

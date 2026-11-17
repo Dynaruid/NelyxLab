@@ -11,7 +11,10 @@ export interface NativeHermesBridge {
     readonly editing: 1;
     readonly semantics: 1;
   };
-  readonly mode: 'bytecode' | 'static-aot';
+  readonly engine?: 'hermes' | 'jsc';
+  readonly executionMode?: 'interpreter' | 'jit';
+  readonly mode: 'bytecode' | 'static-aot' | 'source';
+  trackRejections?(onUnhandled: (error: unknown) => void): void;
   readonly assetRoot: string;
   readonly diagnostics?: boolean;
   now(): number;
@@ -56,14 +59,19 @@ export function nativeHermesBridge(): NativeHermesBridge {
     !value ||
     value.abi !== 2 ||
     value.frameClockVersion !== 2 ||
-    !['bytecode', 'static-aot'].includes(value.mode) ||
+    (value.engine !== undefined && !['hermes', 'jsc'].includes(value.engine)) ||
+    (value.engine === 'jsc'
+      ? value.mode !== 'source' ||
+        !['interpreter', 'jit'].includes(value.executionMode ?? '') ||
+        typeof value.trackRejections !== 'function'
+      : !['bytecode', 'static-aot'].includes(value.mode)) ||
     typeof value.assetRoot !== 'string' ||
     !value.assetRoot
   )
-    throw new Error('Native Hermes host ABI 2 and frame clock2 are required');
+    throw new Error('Direct native host ABI 2 and frame clock2 are required');
   for (const capability of ['vm', 'services', 'editing', 'semantics'] as const)
     if (value.capabilities?.[capability] !== 1)
-      throw new Error('Missing native Hermes capability: ' + capability);
+      throw new Error('Missing direct native capability: ' + capability);
   for (const method of [
     'now',
     'metrics',
@@ -84,6 +92,6 @@ export function nativeHermesBridge(): NativeHermesBridge {
     'log',
   ] as const)
     if (typeof value[method] !== 'function')
-      throw new Error('Missing native Hermes host port: ' + method);
+      throw new Error('Missing direct native host port: ' + method);
   return value;
 }

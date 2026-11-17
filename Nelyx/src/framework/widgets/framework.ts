@@ -1935,6 +1935,12 @@ export class InheritedElement extends ProxyElement {
 }
 export abstract class RenderObjectWidget extends Widget {
   abstract createRenderObject(context: BuildContext): RenderObject;
+  /** @internal Opt in only when creation applies the complete configuration.
+   * Unknown/custom widgets retain their initial update hook. This does not
+   * suppress an update or dependency change queued after creation. */
+  _hasInitialRenderObjectConfiguration(): boolean {
+    return false;
+  }
   /** Optional configuration and unmount hooks follow the upstream base widget. */
   updateRenderObject(_context: BuildContext, _renderObject: RenderObject): void {}
   didUnmountRenderObject(_renderObject: RenderObject): void {}
@@ -1946,6 +1952,7 @@ export abstract class RenderObjectWidget extends Widget {
 const emptyParentDataWidgets: readonly ParentDataWidget<ParentData>[] = Object.freeze([]);
 export class RenderObjectElement extends Element {
   private render: RenderObject | undefined;
+  private initiallyConfiguredWidget: RenderObjectWidget | undefined;
   private renderProjection: readonly RenderObject[] = emptyRenderObjects;
   private ancestor: RenderObjectElement | undefined;
   private appliedData: ParentData | undefined;
@@ -1969,13 +1976,38 @@ export class RenderObjectElement extends Element {
   }
   override mount(parent: Element | undefined, owner: BuildOwner, slot?: unknown): void {
     super.mount(parent, owner, slot);
-    this.render = (this.widget as RenderObjectWidget).createRenderObject(this);
+    const widget = this.widget as RenderObjectWidget;
+    this.initiallyConfiguredWidget = widget._hasInitialRenderObjectConfiguration()
+      ? widget
+      : undefined;
+    // Creation can read View metrics as well as inherited providers. Attribute
+    // those reads to this Element, just as during its subsequent rebuilds.
+    const previous = owner.currentElement;
+    owner.currentElement = this;
+    try {
+      this.render = widget.createRenderObject(this);
+    } catch (error) {
+      this.initiallyConfiguredWidget = undefined;
+      throw error;
+    } finally {
+      owner.currentElement = previous;
+    }
     this.renderProjection = Object.freeze([this.render]);
     this.attachRenderObject(slot);
   }
+  override markNeedsBuild(): void {
+    this.initiallyConfiguredWidget = undefined;
+    super.markNeedsBuild();
+  }
   protected build(): readonly Widget[] {
-    (this.widget as RenderObjectWidget).updateRenderObject(this, this.render!);
-    return (this.widget as RenderObjectWidget).childWidgets;
+    const widget = this.widget as RenderObjectWidget,
+      configured = this.initiallyConfiguredWidget;
+    // Consume before running any hook/getter. A failed first child build or a
+    // reentrant invalidation must not suppress the next configuration update.
+    this.initiallyConfiguredWidget = undefined;
+    if (widget !== configured || !widget._hasInitialRenderObjectConfiguration())
+      widget.updateRenderObject(this, this.render!);
+    return widget.childWidgets;
   }
   private previousRender(slot: unknown, child: RenderObject): RenderObject | undefined {
     const previous = slot instanceof IndexedSlot ? slot.value?.renderObjects.at(-1) : undefined;
@@ -2116,6 +2148,7 @@ export class RenderObjectElement extends Element {
   }
   override unmount(): void {
     if (!this.mounted) return;
+    this.initiallyConfiguredWidget = undefined;
     let errors: unknown[] | undefined;
     // Keep every retirement stage and its live receiver even after a failure,
     // without allocating five callbacks and empty error arrays for each leaf.

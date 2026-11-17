@@ -7,6 +7,7 @@
 #include <fstream>
 #include <array>
 #include <vector>
+#include <string_view>
 namespace Nelyx::NativeHermes {
 inline std::filesystem::path loadedPath(HMODULE module){std::vector<wchar_t> value(32768);auto size=GetModuleFileNameW(module,value.data(),DWORD(value.size()));if(!size||size==value.size())throw std::runtime_error("Loaded image path unavailable");return std::filesystem::canonical(std::wstring(value.data(),size));}
 inline std::string fileHash(std::filesystem::path const& file){
@@ -16,9 +17,10 @@ inline std::string fileHash(std::filesystem::path const& file){
   checked(BCryptOpenAlgorithmProvider(&hash.algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0));ULONG bytes=0,size=0;checked(BCryptGetProperty(hash.algorithm,BCRYPT_OBJECT_LENGTH,reinterpret_cast<PUCHAR>(&size),sizeof(size),&bytes,0));object.resize(size);checked(BCryptCreateHash(hash.algorithm,&hash.value,object.data(),size,nullptr,0,0));
   std::ifstream stream(file,std::ios::binary);if(!stream)throw std::runtime_error("Loaded image read failed");std::array<char,65536> chunk{};while(stream){stream.read(chunk.data(),chunk.size());if(stream.gcount())checked(BCryptHashData(hash.value,reinterpret_cast<PUCHAR>(chunk.data()),ULONG(stream.gcount()),0));}if(!stream.eof())throw std::runtime_error("Loaded image read incomplete");std::array<UCHAR,32> result{};checked(BCryptFinishHash(hash.value,result.data(),result.size(),0));static constexpr char hex[]="0123456789abcdef";std::string output;for(auto value:result){output.push_back(hex[value>>4]);output.push_back(hex[value&15]);}return output;
 }
-inline size_t assertIndependentModules(){
+inline size_t assertIndependentModules(std::wstring_view permittedVm=L"hermesvm.dll"){
+  std::wstring allowed(permittedVm);for(auto& c:allowed)c=towlower(c);
   const auto snapshot=CreateToolhelp32Snapshot(TH32CS_SNAPMODULE,GetCurrentProcessId());if(snapshot==INVALID_HANDLE_VALUE)throw std::runtime_error("Loaded module enumeration failed");
   MODULEENTRY32W entry{};entry.dwSize=sizeof(entry);size_t count=0;bool independent=true;
-  if(Module32FirstW(snapshot,&entry))do{++count;std::wstring name=entry.szModule;for(auto& c:name)c=towlower(c);if(name.find(L"reactnative")!=std::wstring::npos||name.find(L"react-native")!=std::wstring::npos||name.find(L"nodeapi")!=std::wstring::npos||name.find(L"node-api")!=std::wstring::npos||name==L"hermes.dll"||name.find(L"v8jsi")!=std::wstring::npos||name.find(L"javascriptcore")!=std::wstring::npos)independent=false;}while(Module32NextW(snapshot,&entry));CloseHandle(snapshot);if(!count||!independent)throw std::runtime_error("RN/Node-API or foreign engine in direct host loaded modules");return count;
+  if(Module32FirstW(snapshot,&entry))do{++count;std::wstring name=entry.szModule;for(auto& c:name)c=towlower(c);const bool engine=name==L"hermes.dll"||name==L"hermesvm.dll"||name.find(L"v8jsi")!=std::wstring::npos||name==L"v8.dll"||name.find(L"javascriptcore")!=std::wstring::npos;if(name.find(L"reactnative")!=std::wstring::npos||name.find(L"react-native")!=std::wstring::npos||name.find(L"nodeapi")!=std::wstring::npos||name.find(L"node-api")!=std::wstring::npos||name==L"node.dll"||name==L"libnode.dll"||(engine&&name!=allowed))independent=false;}while(Module32NextW(snapshot,&entry));CloseHandle(snapshot);if(!count||!independent)throw std::runtime_error("RN/Node-API or foreign engine in direct host loaded modules");return count;
 }
 }

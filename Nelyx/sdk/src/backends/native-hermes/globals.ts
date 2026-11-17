@@ -3,6 +3,7 @@ import { nativeHermesBridge } from './bridge.ts';
 import { AbortController, AbortSignal } from 'abort-controller';
 import { installVmEnvironment, formatVmValue } from '../../runtime/vm-environment.ts';
 const bridge = nativeHermesBridge();
+export const nativeRuntimeEngine = bridge.engine ?? 'hermes';
 /** Startup can reject after its VM environment has already retired. Report
  * through the host directly, with the same non-throwing error formatter. */
 export function failNativeHermesStartup(error: unknown): void {
@@ -19,7 +20,7 @@ const hermes = (
     };
   }
 ).HermesInternal;
-if (typeof hermes?.enablePromiseRejectionTracker !== 'function')
+if (nativeRuntimeEngine === 'hermes' && typeof hermes?.enablePromiseRejectionTracker !== 'function')
   throw new Error('Native Hermes requires observable Promise rejection tracking');
 /** One VM owner, installed before app module evaluation by the generated entry. */
 export const nativeHermesEnvironment = installVmEnvironment(
@@ -31,12 +32,17 @@ export const nativeHermesEnvironment = installVmEnvironment(
     requestFrame: (run) => bridge.requestFrame(run),
     cancelFrame: (id) => bridge.cancelFrame(id),
     queueMicrotask: (run) => bridge.queueMicrotask(run),
-    trackRejections: (onUnhandled) =>
-      hermes.enablePromiseRejectionTracker({
+    trackRejections: (onUnhandled) => {
+      if (nativeRuntimeEngine === 'jsc') {
+        bridge.trackRejections!(onUnhandled);
+        return;
+      }
+      hermes!.enablePromiseRejectionTracker({
         allRejections: true,
         onUnhandled: (_id, error) => onUnhandled(error),
         onHandled: () => {},
-      }),
+      });
+    },
     fail: (message) => bridge.fail(message),
     log: (message) => bridge.log(message),
   },

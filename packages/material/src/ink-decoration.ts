@@ -13,6 +13,7 @@ import { EdgeInsets, EdgeInsetsGeometry } from '@nelyx/core/framework/painting/e
 import { Decoration } from '@nelyx/core/framework/painting/decoration';
 import type { BoxPainter } from '@nelyx/core/framework/painting/decoration';
 import { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
+import { isEmptyColorShapePainter } from '@nelyx/core/framework/painting/color-shape-decoration';
 import { DecorationImage } from '@nelyx/core/framework/painting/decoration-image';
 import type { ImageProvider } from '@nelyx/core/framework/painting/image-provider';
 import type { ImageErrorListener } from '@nelyx/core/framework/painting/image-stream';
@@ -193,8 +194,8 @@ export interface InkDecorationOptions extends InkFeatureOptions {
   readonly configuration: ImageConfiguration;
   readonly isVisible?: boolean;
 }
+const ordinaryInkDecorations = new WeakSet<InkDecoration>();
 export class InkDecoration extends InkFeature {
-  private readonly canonicalDecoration: boolean;
   private emptyPaint = false;
   private painter: BoxPainter | null = null;
   private currentDecoration: Decoration | null = null;
@@ -202,7 +203,7 @@ export class InkDecoration extends InkFeature {
   private currentConfiguration: ImageConfiguration;
   constructor({ decoration, configuration, isVisible = true, ...options }: InkDecorationOptions) {
     super(options);
-    this.canonicalDecoration = new.target === InkDecoration;
+    if (new.target === InkDecoration) ordinaryInkDecorations.add(this);
     this.currentConfiguration = configuration;
     this.decoration = decoration;
     this.isVisible = isVisible;
@@ -220,7 +221,7 @@ export class InkDecoration extends InkFeature {
       // Keep the original value/painter equality contract, including a
       // caller's equal decoration. Only our still-owned default can cull.
       this.emptyPaint =
-        this.canonicalDecoration &&
+        ordinaryInkDecorations.has(this) &&
         value === emptyInkDecoration &&
         this.currentDecoration === emptyInkDecoration;
       return;
@@ -232,7 +233,7 @@ export class InkDecoration extends InkFeature {
       value?.createBoxPainter(() => {
         if (!this.debugDisposed) this.controller.markNeedsPaint();
       }) ?? null;
-    this.emptyPaint = this.canonicalDecoration && value === emptyInkDecoration;
+    this.emptyPaint = ordinaryInkDecorations.has(this) && value === emptyInkDecoration;
     this.controller.markNeedsPaint();
   }
   get isVisible(): boolean {
@@ -254,7 +255,15 @@ export class InkDecoration extends InkFeature {
     this.controller.markNeedsPaint();
   }
   override paintOnMaterial(canvas: Canvas): void {
-    if (this.emptyPaint) return;
+    if (
+      ordinaryInkDecorations.has(this) &&
+      Object.getPrototypeOf(this) === InkDecoration.prototype &&
+      !Object.hasOwn(this, 'paintFeature') &&
+      Object.getOwnPropertyDescriptor(InkDecoration.prototype, 'paintFeature')?.value ===
+        inkDecorationPaint &&
+      (this.emptyPaint || isEmptyColorShapePainter(this.painter))
+    )
+      return;
     super.paintOnMaterial(canvas);
   }
   protected paintFeature(canvas: Canvas, transform: Matrix4): void {
@@ -282,3 +291,7 @@ export class InkDecoration extends InkFeature {
     }
   }
 }
+const inkDecorationPaint = Object.getOwnPropertyDescriptor(
+  InkDecoration.prototype,
+  'paintFeature',
+)!.value;

@@ -14,12 +14,23 @@ import {
 } from './windows-native-icu.mjs';
 import { openNativeBuildCache } from './native-build-cache.mjs';
 import { assertInstalledSupply } from '@nelyx/metro/installed-supply';
+import { prepareNativeJsc, nativeJscRuntimeHashes } from './windows-native-jsc.mjs';
+import { nativeEnginePolicy, nativeWindowsEngineIdentity } from './windows-native-engine.mjs';
 const timeout = 1_200_000;
 createRequire(import.meta.url);
-function sourceDigest(sdk, skia) {
+function sourceDigest(sdk, skia, engine = 'hermes') {
   const sources = [];
   for (const [owner, base, folders] of [
-    ['sdk', sdk, ['native/windows-hermes', 'native/windows', 'native/engine-helpers']],
+    [
+      'sdk',
+      sdk,
+      [
+        'native/windows-hermes',
+        'native/windows',
+        'native/engine-helpers',
+        ...(engine === 'jsc' ? ['native/windows-jsc'] : []),
+      ],
+    ],
     [
       'skia',
       skia,
@@ -144,7 +155,16 @@ export function verifyNativeSkiaInputs(input, skia) {
     libraries: lock.libraries.map(resolve),
   };
 }
-export async function buildNativeHost({ app, engineInputs, nativeInputs, output, signal } = {}) {
+export async function buildNativeHost({
+  app,
+  engine = 'hermes',
+  engineInputs,
+  jscInputs,
+  nativeInputs,
+  output,
+  signal,
+} = {}) {
+  const policy = nativeEnginePolicy({ engine });
   app = fs.realpathSync(app);
   const roots = nativePackageRoots(app),
     skia = roots['@nelyx/skia-native'],
@@ -153,13 +173,20 @@ export async function buildNativeHost({ app, engineInputs, nativeInputs, output,
     directory: engineInputs ?? path.join(app, '.nelyx/native-windows/toolchain'),
     signal,
   });
+  const jsc =
+    engine === 'jsc'
+      ? await prepareNativeJsc({
+          directory: jscInputs ?? path.join(app, '.nelyx/native-windows/jsc-toolchain'),
+          signal,
+        })
+      : undefined;
   const inputs = verifyNativeSkiaInputs(nativeInputs, skia),
     env = windowsCompilerEnvironment(),
     build = path.resolve(output ?? path.join(app, '.nelyx/native-windows/host'));
   fs.mkdirSync(build, { recursive: true });
   if (fs.realpathSync(build) !== build) throw Error('Native host build directory must be owned');
   const lock = openNativeBuildCache(path.join(build, 'owner')),
-    sourceSha256 = sourceDigest(sdk, skia);
+    sourceSha256 = sourceDigest(sdk, skia, engine);
   try {
     const configuration = path.join(build, 'skia-inputs.cmake');
     fs.writeFileSync(
@@ -190,38 +217,53 @@ export async function buildNativeHost({ app, engineInputs, nativeInputs, output,
         '-DCMAKE_BUILD_TYPE=Release',
         '-DNELYX_HOST_TEST_SOURCE=',
         `-DNELYX_HERMES_ROOT=${checked.directory}`,
+        `-DNELYX_JSC_ROOT=${jsc?.directory ?? ''}`,
         `-DNELYX_SKIA_PACKAGE=${skia}`,
         `-DNELYX_SKIA_SUPPLIER=${inputs.directory}`,
         `-DNELYX_SKIA_INPUTS_CMAKE=${configuration}`,
       ],
       { cwd: app, env, signal, timeout },
     );
-    await execute('cmake', ['--build', build, '--parallel', '2'], {
-      cwd: app,
-      env,
-      signal,
-      timeout,
-    });
-    if (sourceDigest(sdk, skia) !== sourceSha256)
+    await execute(
+      'cmake',
+      ['--build', build, '--target', policy.executable.slice(0, -4), '--parallel', '2'],
+      {
+        cwd: app,
+        env,
+        signal,
+        timeout,
+      },
+    );
+    if (sourceDigest(sdk, skia, engine) !== sourceSha256)
       throw Error('Native host sources changed during compilation');
     copyWindowsNativeIcuRuntime(checked.directory, build);
+    if (jsc)
+      for (const name of Object.keys(nativeJscRuntimeHashes))
+        fs.copyFileSync(path.join(jsc.directory, name), path.join(build, name));
+    const engineSha256 = jsc
+      ? nativeWindowsEngineIdentity(checked.sha256, jsc.sha256)
+      : checked.sha256;
     const manifest = {
-      schema: 'nelyx.native-hermes-host/v1',
+      schema: policy.hostSchema,
+      engine,
       sourceSha256,
-      toolchainSha256: checked.sha256,
+      toolchainSha256: engineSha256,
+      ...(jsc ? { jsiToolchainSha256: checked.sha256, jscSupplierSha256: jsc.sha256 } : {}),
       nativeInputsSha256: inputs.sha256,
       configuration: 'Release',
       architecture: 'x64',
       crt: 'MD',
       jsi: windowsNativeHermesPin.jsi,
       jsiHeaderSha256: windowsNativeHermesPin.jsiHeaderSha256,
-      host: 'native-hermes',
-      files: ['NelyxHermesHost.exe', 'hermesvm.dll', ...windowsNativeIcuRuntimeFiles].map(
-        (name) => ({
-          path: name,
-          sha256: sha256(path.join(build, name)),
-        }),
-      ),
+      host: policy.host,
+      files: [
+        policy.executable,
+        ...(jsc ? Object.keys(nativeJscRuntimeHashes) : ['hermesvm.dll']),
+        ...windowsNativeIcuRuntimeFiles,
+      ].map((name) => ({
+        path: name,
+        sha256: sha256(path.join(build, name)),
+      })),
     };
     fs.writeFileSync(
       path.join(build, 'native-host.json'),
@@ -229,12 +271,13 @@ export async function buildNativeHost({ app, engineInputs, nativeInputs, output,
     );
     return {
       directory: build,
-      executable: path.join(build, 'NelyxHermesHost.exe'),
+      executable: path.join(build, policy.executable),
       toolchain: checked.directory,
       supplier: inputs.directory,
       inputs,
       manifest,
       roots,
+      jsc,
     };
   } finally {
     lock.close();
