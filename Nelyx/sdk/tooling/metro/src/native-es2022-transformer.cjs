@@ -17,6 +17,7 @@ module.exports.createNativeTransformer = (engine, policy) => {
       .update(readFileSync(require.resolve('./babel-config.cjs')))
       .update(readFileSync(require.resolve('./hermes-loop-tdz.cjs')))
       .update(readFileSync(require.resolve('./hermes-block-scoping.cjs')))
+      .update(readFileSync(require.resolve('./hermes-temporal-refs.cjs')))
       .digest('hex');
 
   result.transform = ({ src, filename, options, plugins = [] }) => {
@@ -101,6 +102,11 @@ module.exports.createNativeTransformer = (engine, policy) => {
     // paths. Babel's block-scoping visitor cannot build an expression from a
     // JSXIdentifier. Keep TDZ/loop capture checks in a separate, ordered pass.
     if (result && engine === 'hermes') {
+      // The pruning candidate has behavioral coverage but no accepted App FPS
+      // benefit. Keep it opt-in; statement normalization remains unconditional.
+      const optimizeTemporalRefs = options.customTransformOptions?.nelyxTemporalRefOptimization;
+      if (optimizeTemporalRefs !== undefined && typeof optimizeTemporalRefs !== 'boolean')
+        throw Error('nelyxTemporalRefOptimization must be a boolean');
       const presetLoad = createRequire(load.resolve('@react-native/babel-preset/package.json'));
       const prepared = babel.transformFromAstSync(result.ast, src, {
         babelrc: false,
@@ -128,9 +134,18 @@ module.exports.createNativeTransformer = (engine, policy) => {
         ast: true,
         code: false,
         cloneInputAst: true,
-        plugins: [[require('./hermes-block-scoping.cjs'), { projectRoot }]],
+        plugins: [
+          [
+            require('./hermes-block-scoping.cjs'),
+            { projectRoot, optimizeTemporalRefs: optimizeTemporalRefs === true },
+          ],
+        ],
       });
-      result = { ...result, ast: lowered.ast };
+      result = {
+        ...result,
+        ast: lowered.ast,
+        metadata: { ...result.metadata, ...lowered.metadata },
+      };
     }
     return result ? { ast: result.ast, metadata: result.metadata } : { ast: null };
   };

@@ -27,7 +27,7 @@
     "@nelyx/cupertino": "file:../../.nelyx/supply/windows/nelyx-cupertino-0.2.0-a202288a21e0884b134d6e536ddefe3756abc0087e2943adfb342c01a1fe7f2f.tgz"
   },
   "devDependencies": {
-    "@nelyx/metro": "file:../../.nelyx/supply/windows/nelyx-metro-0.10.0-1ebe325b294e696bc58dfc31a3b2faaec263b45082125d2d936778b5e0430c44.tgz",
+    "@nelyx/metro": "file:../../.nelyx/supply/windows/nelyx-metro-0.10.0-0acb8c05463f2d799e59278ab5fee607dcf386e6a41014bb9f42a96740c531cc.tgz",
     "@babel/core": "7.28.5",
     "@react-native/babel-preset": "0.83.10",
     "@react-native/metro-config": "0.83.10",

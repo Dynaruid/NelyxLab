@@ -44,6 +44,10 @@ module.exports = createRunnerConfig({
 
 엔진별 변환은 runner·CLI 설정으로 선택합니다. 사용자 Babel plugin은 runner의 `babel.config.cjs`에 두고, transformer를 조합할 때 선택된 엔진 정책을 유지하세요.
 
+Windows Hermes는 TDZ·readonly binding·반복별 capture를 유지합니다. Lowering이 삽입한 TDZ prefix를 정식 statement로 감싸 compact 출력도 유효하게 생성합니다. 중복 TDZ 제거는 `customTransformOptions.nelyxTemporalRefOptimization: true`로만 켜는 실험 옵션이며 **기본 off**입니다. 동작 검사는 통과했지만 앱 FPS 비교에서 일관된 이익을 입증하지 못했습니다. Web·Android·V8·JSC 변환에는 적용하지 않습니다.
+
+저장소 회귀의 `node Nelyx/eng/check-hermes-temporal-refs.mjs --native`는 canonical VM에서 control·후보를 확인하고, `node Nelyx/eng/check-source-framework.mjs --hermes-lowering`는 명시적으로 후보를 켠 Source fixture를 Node에서 실행합니다. 두 검사 모두 20분 timeout과 임시 출력 정리를 적용합니다.
+
 ## 자산과 로컬 패키지
 
 루트 `package.json`의 `nelyx.assets`에 자산을 선언합니다. 생략한 자산·고지 해시는 생성되는 `runner/app-config.json`에 계산하고, 명시한 해시는 일치를 확인합니다.

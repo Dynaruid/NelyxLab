@@ -3,10 +3,12 @@ import { build } from 'esbuild';
 import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { execute } from '../sdk/tooling/cli/src/commands.mjs';
 const root = path.resolve(import.meta.dirname, '../..');
 const oracleIndex = process.argv.indexOf('--oracle');
 const oracleFile = oracleIndex < 0 ? null : process.argv[oracleIndex + 1];
+const hermesLowering = process.argv.includes('--hermes-lowering');
 function removeTemporary(temporary, parent) {
   if (path.dirname(temporary) !== parent || fs.lstatSync(temporary).isSymbolicLink())
     throw Error('Source fixture temporary owner differs');
@@ -24,6 +26,7 @@ if (!process.argv.includes('--child')) {
       [
         import.meta.filename,
         ...(oracleFile ? ['--oracle', path.resolve(oracleFile)] : []),
+        ...(hermesLowering ? ['--hermes-lowering'] : []),
         '--child',
         temporary,
       ],
@@ -357,7 +360,47 @@ console.log('SOURCE_FRAMEWORK',JSON.stringify({result:'PASS-scoped',originalComp
   });
   try {
     const file = path.join(temporary, 'fixture.mjs');
-    fs.writeFileSync(file, bundle.outputFiles[0].contents);
+    let contents = bundle.outputFiles[0].text;
+    if (hermesLowering) {
+      const load = createRequire(import.meta.url),
+        transformer = load('../sdk/tooling/metro/src/native-hermes-transformer.cjs'),
+        transformed = transformer.transform({
+          src: contents,
+          filename: path.join(root, 'source-framework-fixture.mjs'),
+          options: {
+            projectRoot: root,
+            platform: 'windows',
+            dev: false,
+            hot: false,
+            experimentalImportSupport: true,
+            customTransformOptions: { nelyxTemporalRefOptimization: true },
+          },
+        });
+      const counts = transformed.metadata?.nelyxTemporalRefs;
+      if (!counts?.removed) throw Error('Source Hermes lowering exercised no TDZ pruning');
+      contents = load('@babel/core').transformFromAstSync(transformed.ast, contents, {
+        configFile: false,
+        babelrc: false,
+        ast: false,
+        code: true,
+      }).code;
+      try {
+        load('@babel/core').parseSync(contents, {
+          configFile: false,
+          babelrc: false,
+          sourceType: 'module',
+        });
+      } catch (error) {
+        throw new Error(
+          'Invalid Hermes fixture JavaScript: ' +
+            error.message.split('\n')[0] +
+            '\n' +
+            contents.slice(Math.max(0, error.pos - 100), error.pos + 100),
+        );
+      }
+      console.log('SOURCE_HERMES_LOWERING ' + JSON.stringify(counts));
+    }
+    fs.writeFileSync(file, contents);
     await import(pathToFileURL(file).href);
   } catch (error) {
     console.error(error.stack?.split('\n').slice(0, 8).join('\n') ?? error.message);

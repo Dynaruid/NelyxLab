@@ -8,7 +8,7 @@ const { createRequire } = require('node:module');
 // classic for-head into the body, after initialization, resetting live values.
 // Such sentinels belong before the head's original initializers, once per loop
 // entry. Body-local lexical bindings must still reset on every iteration.
-module.exports = (api, { projectRoot }) => {
+module.exports = (api, { projectRoot, optimizeTemporalRefs = true }) => {
   const load = createRequire(path.join(projectRoot, 'package.json'));
   const factory = load('@babel/plugin-transform-block-scoping').default;
   const original = factory(api, { tdz: true }, projectRoot),
@@ -96,6 +96,30 @@ module.exports = (api, { projectRoot }) => {
                 },
               },
             });
+            // The pinned TDZ validator inserts a bare expression before an
+            // update statement. Newlines happen to separate it in pretty code,
+            // but compact generation joins the guard and update into invalid JS.
+            // Restore the statement-list invariant before any later traversal.
+            const normalizeStatements = (items) => {
+              for (let index = 0; index < items.length; index++)
+                if (t.isExpression(items[index]))
+                  items[index] = t.expressionStatement(items[index]);
+            };
+            normalizeStatements(program.node.body);
+            program.traverse({
+              BlockStatement(block) {
+                normalizeStatements(block.node.body);
+              },
+              SwitchCase(branch) {
+                normalizeStatements(branch.node.consequent);
+              },
+            });
+            if (optimizeTemporalRefs)
+              state.file.metadata.nelyxTemporalRefs = require('./hermes-temporal-refs.cjs')(
+                program,
+                t,
+                state.file.declarations.temporalRef,
+              );
           },
         },
       },

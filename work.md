@@ -2,9 +2,11 @@
 
 작성: **2026-11-16 KST** · 코드 검토 기준: **`092c393`**
 
-상태: **PAUSED / PARTIAL / performanceAccepted=false**
+상태: **PARTIAL / performanceAccepted=false — §9 새 접근 검토·구현·비교 및 최종 기본 회귀 완료**
 
-2026-11-16 사용자의 **“중간마무리해줘”** 요청으로 현재 실행을 중단했다. 미커밋 변경은 보존했으며, 완료한 범위·중단한 검증·남은 작업은 §8 마지막 중단 기록을 따른다. 명시적인 재개 요청 전에는 자동으로 이어서 실행하지 않는다.
+2026-11-17 사용자의 새 아이디어 검토·새 접근법 추진 요청으로 재개했다. 현재 checkout은 `720d22d6`이며 이번 접근법·구현·비교 결과는 **§9**를 따른다. 앞선 작은 할당 최적화나 typed 함수 개수 확대를 이번 성과로 계산하지 않는다.
+
+2026-11-16 사용자의 **“중간마무리해줘”** 요청으로 중단했던 범위는 §8 마지막 중단 기록에 보존한다. 이전 `PAUSED / PARTIAL`은 그 중단 시점의 상태다.
 
 2026-11-16 사용자의 **“/goal work.md 작업해줘”** 요청으로 재개했다. 이전 중단 기록은 §7에 보존하며, 이번 재개의 구현·검증과 남은 수락은 **§8**에 기록한다.
 
@@ -56,6 +58,7 @@ datepicker의 빠른 제스처는 기존 **3배 스트레스 요구 대신 보�
 
 | 우선순위 | 개선안과 현재 근거 | 기대하는 변화 | 주의할 경계 |
 | --- | --- | --- | --- |
+| §9 검토 완료, 기본 미채택 | Windows Hermes lowering의 중복 TDZ 제거를 구현·비교했다. 동작 회귀는 통과했지만 FPS·정체 이익이 일관되지 않아 **명시적 opt-in / 기본 off**로 남긴다. | 정적 helper 감소는 확인. 전체 성능 이득은 미수락 | TDZ/readonly/loop 의미 유지. 함께 발견한 compact 출력의 statement 결함만 기본 수정 |
 | P1 | layout 대기 목록의 할당·반복 작업 축소. [object.ts](Nelyx/src/framework/rendering/object.ts)의 `PipelineOwner.flushLayout`에 작업 배열·callback Set 재사용을 이미 반영했다(J-01). 잔여 필수 순회·정렬·재진입 비용과 기존 patch의 실효성을 검토한다. | dirty layout 처리에 필요한 임시 객체와 반복 작업 감소 | 부모 우선 순서·동일 깊이 순서·callback 재진입·실패 복원 유지 |
 | P1, 재검토 | 문단 native transaction의 비용·채택 판단. [text.ts](Nelyx/skia/packages/native/src/text.ts)에 transaction·capability 검사가 있고 engine opt-in도 연결했다. 제품 기본은 off이며 활성화는 철회한 상태다(J-02A). | cache miss 문단의 style/text/placeholder/build/layout/metrics 왕복 감소 가능성 | shaping·operations 배열·native parsing을 포함한 총 비용으로 판단. 새 근거 없이 기본 활성화하지 않음 |
 | P1 | scene packet 생성 전 임시 wrapper 축소. [scene.ts](Nelyx/skia/packages/native/src/scene.ts)는 path/paint/all을 지원하며 현재 direct 앱에는 paint 후보가 반영됐다(J-02B). 국소 이득과 전체 프레임 효과를 구분한다. | display-list 준비에 쓰는 JSI wrapper와 생성·dispose 감소 | 기존 display-list 위의 추가 개선. path/all 동시 활성화 없이 후보별 효과 확인 |
@@ -71,7 +74,7 @@ datepicker의 빠른 제스처는 기존 **3배 스트레스 요구 대신 보�
 
 ### J-00 — 현재 경로와 변경 경계 고정
 
-상태: **기존 코드·소유권 검토 및 당시 입력의 변경 전 달력 baseline 3회 확보 / 새 평균 FPS·버벅임 기준 비교 준비는 미완료**.
+상태: **코드·소유권 검토 및 새 평균 FPS·정체 기준의 변경 전/후 달력 각 3회 비교 완료(§9) / 성능 목표 미달**. 과거 입력 baseline과 이번 60Hz 비교를 구분한다.
 
 - 이 문서에 적힌 호출부와 현재 checkout 차이를 확인한다. 기존 사용자 변경을 보존한다.
 - 앱 진입 → Source 프레임 → native text/scene → GPU retire의 owner와 자원 수명을 정리한다. 함수별로 필수 작업·중복 검사·임시 객체·동기 native 호출을 구별한다.
@@ -188,7 +191,7 @@ datepicker의 빠른 제스처는 기존 **3배 스트레스 요구 대신 보�
 
 ### J-07 — 남은 GC·native 회수·생성 코드 비용, 조건부
 
-실행 판단: **DEFERRED**. GC의 인과 기여도와 emitter 평가 순서 동등성을 입증하지 못했으며, 강제 GC·VM 교체·generated 출력 수작업 수정은 수행하지 않았다.
+실행 판단: **GC·회수 정책은 DEFERRED / 공통 lowering 후보 검토는 §8~9**. GC의 단독 인과 기여도는 확정하지 않았다. §9의 중복 TDZ 제거는 동작 동등성 검사를 통과했지만 성능 이익이 일관되지 않아 기본 off다. 강제 GC·VM 교체·generated 출력 수작업 수정은 제품 개선책으로 채택하지 않았다.
 
 - 현재 direct host는 [main.cpp](Nelyx/sdk/native/windows-hermes/main.cpp)의 Hermes runtime을 사용한다. 로컬 CMake cache의 `HADES`·concurrent ON은 정적으로 확인했지만, 실제 로드 제품의 VM 설정·GC 기여도를 검증한 것은 아니다.
 - 먼저 J-01~J-04로 제거한 임시 할당과 현재 text/Path/Paint/Picture의 producer→frame lease→native retire→wrapper finalizer 수명을 추적한다. 회수 완료 전에 메모리가 사라진 것으로 계산하지 않는다.
@@ -200,7 +203,7 @@ datepicker의 빠른 제스처는 기존 **3배 스트레스 요구 대신 보�
 
 ### J-08 — 공급 반영·통합 확인·수락 기록
 
-실행 상태: **PARTIAL**. Core/SDK·Demo Windows/Web·Testbed Windows 공급 갱신을 진행했다. 최종 Keyboard header 반영 후 Testbed 재공급·실행, Web 실행, 제품 기본 run, 최신 변경 전체 검사 등은 사용자 중단 시점에 미완료다.
+실행 상태: **기능·코드 회귀는 확인 범위 PASS / 전체 성능 PARTIAL**. 현재 결과는 §9다. 최종 Demo/Testbed Windows 공급에서 Gallery·가변 목록 각 3회, MixedScroll·달력 기능 각 1회, 일반 Demo 제품 build/run이 통과했다. 코드·타입·lint·format과 source-input identity도 확인했다. 달력의 30fps+정체 감소 목표는 미달이다. Web의 이전 확인은 §8 이력이며 이번 Windows Hermes 수정 후 별도 플랫폼 실행을 추가하지 않았다.
 
 - 채택한 변경을 모아 Core/디자인/renderer/SDK와 Demo 설치 공급을 갱신한다. alias가 dist를 읽는 회귀는 Core 빌드 후 실행한다.
 - native는 [정본 입력 규칙](Nelyx/skia/eng/native-source-inputs.mjs)에 따라 `Nelyx/skia/native`와 `Nelyx/engine`의 원본을 수정하고 projection을 재생성한다. `packages/native/cpp`, `generated`, 설치본만 고치지 않는다.
@@ -210,7 +213,7 @@ datepicker의 빠른 제스처는 기존 **3배 스트레스 요구 대신 보�
 
 ## 5. 검증 계획과 실행 명령
 
-**실행 환경은 PowerShell 7(`pwsh`)이며, Windows 앱 실행 검증의 입력은 PowerShell 스크립트에서 생성한다.** 코드 회귀·타입·lint 명령도 `pwsh`에서 구동한다. 아래는 계획과 재현 명령이며, 실제 완료 여부는 §7을 따른다.
+**실행 환경은 PowerShell 7(`pwsh`)이며, Windows 앱 실행 검증의 입력은 PowerShell 스크립트에서 생성한다.** 코드 회귀·타입·lint 명령도 `pwsh`에서 구동한다. 아래는 계획과 재현 명령이며, 실행 이력은 §7~8, 최신 완료·미수락 범위는 §9를 따른다.
 
 ### 코드·기능 회귀
 
@@ -545,3 +548,66 @@ typed 확장의 다음 계약은 **Source 내부의 닫힌 자료구조·루프�
 - 최종 static-aot guard는 dynamic void 반환·adapter namespace 충돌까지 거부한다. 실제 큐의 생성 source/callable range가 이전 공급과 동일함을 직접 비교했고 최종 tooling을 세 runner에 재공급·설치했다. 18개 거부 검사는 실행됐으며 출력의 거부 수에 별도 namespace 사례 1개를 더하도록 집계도 바로잡았다. 집계 수정은 테스트 표시만 바꾼다.
 
 남은 작업은 새 공급의 가변 목록·Testbed·일반 제품 Windows 회귀, 그리고 더 큰 공통 build/layout·할당 경로의 typed 내부 상태 검토/구현이다. 현재 9개 내부 큐 함수 연결만으로 일관된 성능 이득이나 **30fps+정체 감소**를 수락하지 않는다. 제품 기본은 bytecode다. Android·scanout·물리 trackpad/panZoom·한국어 IME 조합·screen reader·장시간 누수 수락도 notVerified다.
+
+## 9. 2026-11-17 새 접근법 — lowering의 중복 TDZ 검사 제거
+
+사용자의 새 아이디어 검토·추진 요청으로 재개했다. 이전 후보의 일부 개선과 미달 결과는 §8에 보존한다. 이번 후보는 **공통 프레임 코드가 수행하는 작업 자체를 줄이는 compiler lowering**이며 VM·Widget 정책·접근성·입력률을 바꾸지 않는다.
+
+### 코드 근거와 대안 판단
+
+- 현재 제품 bytecode 번들(`app.js`, 약 11.15MB)에는 `temporalRef` 문자열이 **23,305회** 나타난다. 이는 helper 정의·문자열을 포함한 정적 빈도이며 실행 횟수나 단독 병목의 증거가 아니다. 실제 `RenderObject._registerInputGeometryHooks` 등에는 이미 같은 함수 안에서 초기화하거나 검사한 지역 변수를 다시 검사하는 호출이 남는다.
+- `native-es2022-transformer.cjs`는 Hermes에 `hermes-loop-tdz.cjs` → destructuring → `hermes-block-scoping.cjs` 순서를 적용한다. 기존 TDZ·const 쓰기·per-iteration capture 보정은 유지하고 그 뒤에 증명 가능한 중복 검사만 제거한다. 타입 주석이나 이름으로 initialized 상태를 추측하지 않는다.
+- 대안인 render children 동기화 등록 축소는 custom Element/동기화 훅과 실패 복원의 동작 경계를 더 크게 건드린다. 무조건 cache/prewarm을 늘리면 cold 생산 비용을 다른 시점과 live 자원으로 옮긴다. 이번에는 기존 Source 알고리즘을 유지하는 lowering 후보 하나를 먼저 분리해 비교한다.
+
+### 구현 계약
+
+- `hermes-temporal-refs.cjs`가 Babel의 실제 helper binding과 함수별 지역 binding을 확인한다. 검사 성공 또는 primitive/fresh 값으로 sentinel이 아님을 증명한 뒤의 검사만 제거한다. 읽기 전용 closure capture는 값 identity를 바꾸지 않지만, 외부 closure/class에서 쓸 수 있는 binding·sloppy arguments와 연결된 parameter는 제외한다. 모듈의 eval/with는 전체 fallback이다.
+- 알 수 없는 쓰기는 증명을 폐기한다. if/조건식/단락식은 도달 가능한 경로의 교집합만 유지한다. loop의 반복 진입·break/continue, try/catch/finally와 switch의 진입은 빈 증명에서 시작한다. optional chain·spread·class evaluation·suspension·delete 등 미지원 표현은 기존 검사를 유지한다. 특히 `delete helper(x)`를 `delete x`로 바꾸지 않는다.
+- 기존 native transformer cache identity에 새 pass의 source hash를 포함하고 Hermes transformer policy를 `/v2`로 구별했다. V8/JSC/Web/Android에는 이 Hermes pass를 실행하지 않는다. static-aot도 기존 upstream lowering을 사용하므로 전체 callable 대응은 별도 수락 대상이다.
+- `check-hermes-temporal-refs.mjs`는 control/후보의 실제 동작·TDZ/readonly 예외·쓰기/캡처·분기·루프·receiver·예외 경계를 비교한다. 실제 Windows Hermes VM/SHUnit 검사는 `--native`로 수행하며 파일·image/process는 기존 fixture의 finally에서 회수한다.
+
+### 이번 실행 결과
+
+이번 접근의 **구현·비교·최종 기본 회귀는 완료**, 전체 성능 목표는 **PARTIAL / performanceAccepted=false**다. 변경 전 달력 3회 → 후보 회귀와 공급 → 같은 60Hz·100/50ms 달력 3회를 비교했다. 후보의 기본 활성화는 철회했고 최종 기본 공급의 Gallery/가변 목록 각 3회·MixedScroll/달력 기능 각 1회·일반 Demo 제품 build/run까지 확인했다. 각각의 입력·공급·측정 경계와 수치는 아래를 따른다. 이전 중단에서 남았던 회귀를 확인한 범위와 달력 성능 미달을 구분한다.
+
+변경 전 bytecode 공급의 유효 달력 **3회**는 모두 138개 touch·월 정착·UIA·입력 156개 수신=전달=수락·거부 0·exit 0·cleanup을 통과했다. viewport는 2560×1459 physical / DPR 2 / Windows 보고 165Hz다. entry `9b550ab9…`, app.js `c749bbd4…`, bundle `972b7302…`, host `67dbdc22…`, toolchain `dbd11135…`이며 세 실행의 공급 식별은 같다.
+
+| 구간 | 변경 전 표시 FPS 하한 3회 | 변경 전 engine FPS 3회 | 표시 ≥100ms 진행 정체 횟수 / 총 시간(ms) / 최장(ms) |
+| --- | --- | --- | --- |
+| 보통 정방향 | 35.148/26.377/26.558 | 38.258/32.423/32.894 | 6/7/7 · 871.976/915.751/909.452 · 209.425/195.868/188.190 |
+| 약 2배 정방향 | 28.513/23.865/23.702 | 31.361/29.416/27.705 | 4/4/5 · 646.804/675.761/808.908 · 230.020/210.474/211.717 |
+| 약 2배 역방향 | 14.974/9.720/20.844 | 16.343/9.785/24.208 | 6/6/7 · 1120.860/1078.362/1070.551 · 205.208/286.956/201.314 |
+
+정적 control/후보 검사와 실제 canonical Hermes SHUnit 실행은 각각 raw **31개**·실제 lexical lowering **15개** assertion의 결과가 같다. eval·교체된 helper·sloppy parameter alias의 fallback도 확인했다. 현재 실제 Core `framework.js`의 local helper 248개 중 **50개**, `object.js`의 633개 중 **164개**를 제거한다. 전체 번들의 실행 빈도·FPS 이익은 이 개수로 환산하지 않는다.
+
+전체 Source 회귀를 실제 native transformer에 통과시키는 `check-source-framework.mjs --hermes-lowering`도 추가했다. 첫 검사는 큰 파일의 compact 생성에서 `…temporalRef(index)index++` 문법 오류로 거부됐다. pinned Babel `validation.js`는 UpdateExpression 앞에 ExpressionStatement 대신 raw helper expression을 삽입한다. 기존 pretty 출력은 줄바꿈으로 구분되지만 compact 출력에서는 사라진다. block lowering 종료 시 Program/Block/SwitchCase의 raw expression을 정식 statement로 감싸 AST 경계를 복구했다. compact loop 사례의 Node/실제 Hermes control·후보가 통과했고, **전체 Source lowering 회귀 20 cases PASS**(local helper 8,592개 중 2,450개 제거)로 확인했다. 이 오류는 FPS 표본이 아니며 TDZ 검사를 끄는 방식으로 해결하지 않았다.
+
+child reconciliation·retained paint 회귀, 11개 workspace 타입·lint·format도 통과했다. Source harness 확장·AST statement 보강·최종 opt-in gate 후 lint/format도 다시 통과했다. 실제 VM/fixture 파일·이미지·소유 process는 기존 finally로 회수했다. Demo/Testbed Windows의 Metro 최종 공급·설치를 완료했다. 전체 Source lowering 회귀는 Node에서 native transformer의 결과를 실행한 검사이며, 실제 VM 실행 46개 assertion 및 Windows 통합 입력과 구분한다.
+
+후보를 켠 bytecode 달력 **3회**의 비교 결과는 다음과 같다. 같은 entry·host source·toolchain·viewport·60Hz/100·50ms 입력을 사용했다. app.js **`23202d17…`**, bundle **`9bf81426…`**는 세 실행 모두 같다. 모든 138개 touch와 월 정착 `November 2026→March 2027→June 2027→December 2026`, UIA·입력 156/158/157개 수신=전달=수락·거부 0·exit 0·cleanup을 통과했다.
+
+| 구간 | 후보 표시 FPS 하한 3회 | 후보 engine FPS 3회 | 표시 ≥100ms 진행 정체 횟수 / 총 시간(ms) / 최장(ms) |
+| --- | --- | --- | --- |
+| 보통 정방향 | 26.051/27.639/29.023 | 29.452/32.744/32.445 | 6/7/8 · 901.153/900.369/1025.343 · 210.556/198.142/204.030 |
+| 약 2배 정방향 | 23.048/30.241/22.937 | 26.784/35.778/26.966 | 5/4/5 · 783.388/670.328/708.467 · 222.660/251.990/204.824 |
+| 약 2배 역방향 | 15.616/15.013/17.679 | 17.123/16.486/19.092 | 7/6/7 · 1050.340/982.528/1060.127 · 187.925/197.003/180.837 |
+
+**판정: 중복 TDZ 제거의 기본 활성화는 채택하지 않는다.** 정적 검사와 helper 호출은 줄었지만 FPS·정체에 일관된 이익을 입증하지 못했고 전체 30fps 목표도 미달이다. 제품 기본은 **bytecode + pruning off**다. 새 pass는 boolean transformer 옵션 `customTransformOptions.nelyxTemporalRefOptimization: true`로만 선택하는 실험 경로로 남기며 string 등 잘못된 옵션은 거부한다. 기본값과 명시적 false의 생성 코드 일치, true에서만 제거가 일어나는 것, 세 경로의 compact 실행과 동작 결과가 같음을 회귀로 고정했다. AST statement 정규화는 문법 결함 수정이므로 기본 경로에 유지한다. 앞선 후보-on 성능 수치를 최종 기본 공급의 결과로 바꾸어 기록하지 않는다.
+
+### 최종 기본 공급 회귀와 다음 설계
+
+최종 **pruning off** 공급 Gallery **3회**의 표시 FPS 하한은 cold **72.512/74.048/71.303**, 복귀 **58.477/60.042/61.136**, warm **59.071/60.069/60.177**였다. 모든 phase의 ≥100ms 진행 정체는 **0회**다. 한글/emoji 편집·theme/resize·복귀·정상 종료와 각 **177개 입력 수신=전달=수락, 거부 0**이 통과했다. app.js `9aed79d6…` / bundle `d380e324…` / entry `54827ed9…`이며 세 실행의 공급 식별이 같다. 이 수치는 후보-on 개선율의 근거로 사용하지 않는다.
+
+같은 최종 기본 공급의 진짜 가변 목록 **3회**는 표시 FPS 하한 cold **71.059/72.417/72.842**, 복귀 **58.978/59.902/58.612**, warm **58.801/57.670/58.376**였다. 모든 phase의 ≥100ms 진행 정체는 **0회**, 입력 **160/159/159개 수신=전달=수락·거부 0**, UIA membership 하강·복귀·warm 일치와 정상 종료가 통과했다. app.js `30ea1d2a…` / bundle `926e5982…` / entry `e10a726f…`다. §8 중단 시 남았던 큐 연결 후 공급의 가변 목록 수락은 이 범위에서 확인했으며, 달력 미달과 합쳐 전체 성능 목표를 PASS로 만들지 않는다.
+
+최종 기본 공급 **MixedScroll 1회**는 한글/emoji 편집 보존·counter 0→1·목록 membership 하강/복귀·입력 **118개 수신=전달=수락, 거부 0**·wheel 합계 보존·정상 종료가 통과했다. bundle `8ff3e8b…` / entry `da79a76c…`다. 이는 성능 시나리오가 아니다.
+
+최종 기본 **달력 기능 1회**도 138개 touch·월 정착·UIA·입력 158개 보존·정상 종료가 통과했다. 표시 FPS 하한은 보통/빠른 정방향/역방향 **31.056/24.516/14.827**, engine FPS는 **32.322/28.733/16.262**, ≥100ms 표시 진행 정체는 **8/5/7회**, 총 시간 **1035.743/820.245/1154.863ms**였다. app.js `086877b0…` / bundle `d84b9452…`다. 최종 기본 공급에서도 목표 미달이며, 이 1회는 후보-on 3회의 성능 수락을 대신하지 않는다.
+
+일반 Demo의 문서 명령 `npm.cmd run build:windows --workspace @nelyx/demo` 및 `npm.cmd run run:windows --workspace @nelyx/demo -- -- 8000`은 정상 첫 프레임·exit 0·forced=false를 통과했다. bundle **`ba0939e9…`**, host **`619460b0…`**, VM **`5a7a8d64…`**다. 기본 mode는 bytecode이며 `sceneBatch=paint`, paragraph transactions off 등 기존 제품 설정을 유지했다. 이 짧은 기본 실행은 성능 수락이 아니다.
+
+최종 Core/SDK/Material/Cupertino dist의 source-input identity를 재확인했다. 생성한 fixture/image·진단 entry/package·batch/session·소유 process는 회수했고 `.tmp`의 기존 사용자 파일 4개는 보존했다. Web/Android/V8/JSC는 이 Windows Hermes pass를 실행하지 않으며 이번 수정 후 별도 플랫폼 실행은 하지 않았다. 전체 Demo AOT correspondence·scanout·물리 trackpad/panZoom·IME 조합·screen reader·장시간 누수 수락도 이번 결과로 올리지 않는다.
+
+다음 공통 엔진 후보는 **실제 구조 변경에 따른 render children 동기화 등록**이다. 현재 `Element.rebuild`는 속성만 바뀌는 갱신에도 nearest render owner를 등록하고, 각 isolated scope 경계에서 `OwnerTransaction`이 depth 정렬·동기화를 수행한다. 기존 mount/slot/attach 경로의 직접 구조 변경과 겹치는 비용을 검토한다. 구현 전에 built-in 경로의 insert/move/remove admission, custom Element/동기화 훅의 기존 관측, 실패한 commit의 재시도·다음 경계 재등록을 함께 보존하는 계약이 필요하다. **이번 실행에서 이 후속 Source 변경은 구현하지 않았다.** 중복 검사 제거가 단독 성능 해법이 아니라는 이번 결과를 근거로 더 작은 scalar/검사 제거를 연속 확대하지 않는다.
+
+후속 [원인 분석 문서](performance-cause-analysis.md)에 월 변경→기존 자식 갱신→layout 중 새 페이지 생산·회수 경로와 남은 가설을 정리했다. 현재 owner `Set` 중복 제거·동일 자식 fast path가 이미 있으므로 rebuild 횟수를 실제 구조 commit 횟수로 해석하지 않는다. 동기화 등록 축소의 시간 비중과 cold 생산 개선 효과는 미확정이며, 역방향은 제스처 수·이동량이 달라 방향 결함으로 단정하지 않는다. 이 문서 작성에서는 후속 Source 수정이나 추가 성능 실행을 하지 않았다.

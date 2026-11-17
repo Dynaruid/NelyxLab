@@ -44,6 +44,10 @@ The sample's [Windows](../../../../sample/nelyx-testbed-app-2/windows/runner/met
 
 Engine-specific transforms are selected through runner/CLI configuration. Keep custom Babel plugins in the runner's `babel.config.cjs` and preserve the selected engine policy when composing transformers.
 
+Windows Hermes preserves TDZ, readonly bindings, and per-iteration captures. Its lowering normalizes generated TDZ prefixes into statements so compact output remains valid. Redundant TDZ pruning is an experimental transformer option, `customTransformOptions.nelyxTemporalRefOptimization: true`, and defaults to off: behavioral qualification passed, but the App FPS comparison did not establish a consistent benefit. This option does not affect Web, Android, V8, or JSC transforms.
+
+Repository regressions: `node Nelyx/eng/check-hermes-temporal-refs.mjs --native` checks the control and candidate on the canonical VM; `node Nelyx/eng/check-source-framework.mjs --hermes-lowering` executes the explicitly opted-in Source fixture on Node. Both use a 20-minute timeout and remove their temporary outputs.
+
 ## Assets and local packages
 
 Declare assets under root `package.json` → `nelyx.assets`. Tooling calculates omitted asset/notice hashes into generated `runner/app-config.json`; explicit hashes are checked.

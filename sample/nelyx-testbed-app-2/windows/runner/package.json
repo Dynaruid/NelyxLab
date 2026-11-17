@@ -27,7 +27,7 @@
     "@nelyx/skia-native": "file:../../.nelyx/supply/windows/nelyx-skia-native-0.1.0-b2de8b1b3e8bda0ca364d3c591b5635a67384e49a2b6e2434495daf0d1e9a48d.tgz"
   },
   "devDependencies": {
-    "@nelyx/metro": "file:../../.nelyx/supply/windows/nelyx-metro-0.10.0-1ebe325b294e696bc58dfc31a3b2faaec263b45082125d2d936778b5e0430c44.tgz",
+    "@nelyx/metro": "file:../../.nelyx/supply/windows/nelyx-metro-0.10.0-0acb8c05463f2d799e59278ab5fee607dcf386e6a41014bb9f42a96740c531cc.tgz",
     "@babel/core": "7.28.5",
     "@react-native/babel-preset": "0.83.10",
     "@react-native/metro-config": "0.83.10",
