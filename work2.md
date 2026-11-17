@@ -2,9 +2,9 @@
 
 작성일: 2026-11-17
 
-상태: **설계 제안 / notImplemented / performanceAccepted=false**
+상태: **단계 A의 자격 gate FAIL → 보존 후보 보류 / 후속 공통 build·수명·동기화 비용 분해 완료 / 제품 최적화 notImplemented / performanceAccepted=false**
 
-검토 기준: HEAD `0d917cab`과 문서 작성 전 깨끗한 작업 트리. [원인 분석](performance-cause-analysis.md)의 `720d22d6` 기준 및 [기존 작업 기록](work.md)의 측정 이력과 구분한다. 이번 작업에서는 관련 코드를 읽고 대안을 검토했으며, 엔진 수정·빌드·테스트·추가 성능 실행은 하지 않았다.
+원설계 검토 기준: HEAD `0d917cab`과 문서 작성 전 깨끗한 작업 트리. [원인 분석](performance-cause-analysis.md)의 `720d22d6` 기준 및 [기존 작업 기록](work.md)의 측정 이력과 구분한다. 아래 §1–8은 코드 검토만 수행했던 원설계다. 사용자의 `work2.md 작업해줘` 요청에 따른 HEAD `e222fd49`의 구현·진단·판정은 **§9**, 이후 `work2.md의 다음작업해줘` 요청의 공통 비용 분해는 **§10**에 기록한다.
 
 ## 1. 결론
 
@@ -224,4 +224,156 @@ cold 원자 작업 자체가 목표 프레임의 시간을 소진한다면 단�
 
 조건이 맞으면 PageView까지 공통 정책을 확장하고, 비필수 보존분을 활성 갱신 대상에서 분리한다. 조건이 맞지 않으면 이 방향을 접고 실제 시간 비중이 확인된 공통 cold 생산·구조 동기화 경로를 선택한다. 이 판단을 위해 기본 동작이나 접근성·입력 계약을 희생하지 않는다.
 
-이번 산출물은 새 해결 방향의 검토 문서다. 기존 [작업 기록](work.md)과 [원인 분석](performance-cause-analysis.md)의 **PARTIAL / performanceAccepted=false**를 변경하지 않는다.
+원설계 작성 시 산출물은 새 해결 방향의 검토 문서였다. 후속 실행에서도 기존 [작업 기록](work.md)과 [원인 분석](performance-cause-analysis.md)의 **PARTIAL / performanceAccepted=false**를 변경하지 않는다.
+
+## 9. 2026-11-17 실행 기록 — 단계 A의 보존 자격 판정
+
+### 9.1 작업 범위와 코드에서 확인한 제약
+
+시작 checkout은 `e222fd49`, 작업 트리는 깨끗했다. §7의 순서에 따라 공통 정책 구현 전에 실제 월 subtree의 보존 자격부터 확인했다. 현재 월 페이지는 **기존 dormant 자격 조건을 충족하지 못한다.** 따라서 이 후보를 보류하고 단계 B·C로 확대하지 않는다.
+
+코드상 연결은 다음과 같다.
+
+1. [_DayPickerState.build](packages/material/src/generated/date/calendar_date_picker.generated.ts#L1997)는 월 내부에 `GridView.custom`을 만든다.
+2. 그 내부 [ScrollableState](Nelyx/src/framework/widgets/scrollable.ts#L210)는 gesture·ignore·semantics용 일반 `GlobalKey`를 소유한다. 이 키는 `createFrameworkAnchorKey`로 만든 anchor가 아니다.
+3. Windows의 scrollbar에도 [painter·gesture용 일반 키](Nelyx/src/framework/widgets/scrollbar.generated.ts#L2103)가 있다.
+4. [DormantChildCache.eligibleElements](Nelyx/src/framework/widgets/dormant-child-cache.ts#L63)는 framework anchor 이외의 `GlobalKey`를 하나라도 만나면 보존을 거절한다. 키가 framework 코드에서 생성됐다는 사실만으로 anchor 자격을 부여하지 않는다.
+
+§5.3이 이 자격 검사의 완화를 명시적으로 제외하므로, Scrollable/scrollbar의 키를 anchor로 바꾸거나 GlobalKey 검사를 우회하지 않았다. 이는 index/key 세대 전달 경로만 추가해서 해결되는 문제가 아니다. 재취득·gesture·semantics 소유권 계약을 별도로 검토해야 한다.
+
+정체성 계약도 여전히 구현 전이다. 공통 API를 구현한다면 delegate 객체와 독립된 명시적 도메인 토큰을 받고, index/key 대응이 바뀌면 보존분 전체를 비우는 보수적 계약이 필요하다. 같은 도메인의 설정 갱신에서도 최신 builder와 `Widget.canUpdate`를 거쳐야 한다. callback identity, 월 key 추측, 설정 revision만으로 State 갱신을 생략할 수 없다. 이번 실행은 이 토큰을 공개 API로 추가하지 않았다.
+
+### 9.2 추가한 진단과 측정의 경계
+
+- [자식 수명 진단](Nelyx/eng/windows-jank-child-profile.ts): 실제 FillViewport 자식의 Element·State·일반 GlobalKey·framework anchor·명시적 keep-alive를 세고, fresh 자식 요청·기존 자식 요청·active build flush·delegate update·deactivate/remove·최종 root unmount를 구분한다. root identity는 WeakMap으로 추적하고 회수된 트리를 별도 cache에 보존하지 않는다.
+- [기존 build 진단](Nelyx/eng/windows-jank-build-profile.ts)과 [실행기](Nelyx/eng/check-windows-jank.mjs)에 명시적 `NELYX_JANK_BUILD_PROFILE=1`일 때만 연결했다. 일반 앱·기본 스크롤 정책에는 관측 hook이 들어가지 않는다.
+- 구간 중첩은 stack으로 빼서 `exclusiveMs`를 제공한다. `inclusiveMs`나 기존 layout/build 집계와 더해서 전체 CPU 시간을 만들지 않는다. `freshChild`는 외부 PageView의 createChild/build/commit 구간이며 **그 뒤 내부 GridView layout에서 생산하는 날짜 자식 비용 전체를 포함하지 않는다.** `activeBuildFlush` 역시 PageView sliver의 build flush이지 월 전체 갱신의 배타적 총 비용이 아니다.
+- native `log`는 8,192 UTF-8 bytes에서 잘린다. 최초 진단에서 긴 build record의 뒤쪽 census가 잘리는 것을 확인하여 build 유형·자식 요약·개별 페이지·이벤트를 분리했다. 각 record는 최대 2,700 UTF-16 code units로 제한하고 회귀에서 JSON 파싱·byte 한도를 확인한다. 잘린 최초 출력은 완전한 census 표본으로 사용하지 않는다.
+- [진단 회귀](Nelyx/eng/check-child-reuse-profile.mjs)는 실제 PageView의 재방문 시 다른 root 생성, nested GridView의 일반 GlobalKey 제외, 캐시의 4,096 Element 경계와 anchor 예외, 중첩 시간, 비활성 관측, reset 및 hook 원복을 확인한다. 합성 cache host는 자격 판정만 검사하며 실제 복귀 성능을 증명하지 않는다.
+
+Windows 진단은 기본 bytecode·TDZ pruning off·기존 60Hz 입력과 이동량을 유지한 legacy baseline이다. 보통 정방향·약 2배 정방향·약 2배 역방향을 각각 포함하는 진단을 세 번 실행했다. 첫 번째는 native record 잘림, 두 번째는 수집 터미널의 전체 출력 한도로 일부 결과를 온전히 확보하지 못했다. 마지막 실행에서 짧은 record와 표준 오류까지 함께 수집하여 아래 수치·페이지 17행·이벤트 54개를 모두 확인했다. 세 번 모두 `performanceSample=false`이며 표시 관측은 `-NoScreen`으로 실행하지 않았다. 이 실행의 FPS·지연을 변경 전후 성능 수락 자료로 사용하지 않는다.
+
+### 9.3 검증 및 채택 판단
+
+마지막 Windows 진단에서 관측한 페이지는 phase 중복을 제외한 **15개 실제 root, 9개 index**다. 같은 index를 재방문한 root identity가 달라진 것도 확인했다.
+
+| phase | 관측 root 수 | 월별 Element 수 | fresh root 요청 / 최종 회수 | 일반 GlobalKey / root | 보존 자격 통과 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 보통 정방향 | 5 | 898–1,010 | 4 / 4 | 5 | 0 |
+| 약 2배 정방향 | 5 | 961–1,017 | 4 / 4 | 5 | 0 |
+| 약 2배 역방향 | 7 | 898–1,017 | 6 / 6 | 5 | 0 |
+
+5개의 일반 키가 붙은 Widget은 `RawGestureDetector` 2개, `CustomPaint`·`_ScrollSemantics`·`IgnorePointer` 각 1개다. 이와 별도로 허용된 framework anchor는 페이지당 28–31개이며 State는 247–281개다. 관측 페이지의 명시적 keep-alive 요구는 모두 false였다. 이는 모든 입력·focus 상태에서 keep-alive가 없다는 보장이 아니다.
+
+한 페이지는 Element 예산에 들어가며 작은 owner 용량 1도 크기만 보면 가능하다. 그러나 모든 관측 root가 일반 GlobalKey 때문에 거절되므로 **예산 통과를 보존 자격 통과로 계산하지 않는다.** capacity 1/2를 실제로 켜거나 한도를 높이는 비교는 진행하지 않았다.
+
+관측한 수명 구간의 배타적 합계는 다음과 같다. 아래 값은 §9.2에 정의한 부분 구간이며 월 전체 생산·갱신의 총 CPU 시간이 아니다.
+
+| phase | 외부 fresh createChild (ms) | active build flush (ms) | deactivate/remove (ms) | 최종 root unmount (ms) |
+| --- | ---: | ---: | ---: | ---: |
+| 보통 정방향 | 15.172 | 26.218 | 18.698 | 28.745 |
+| 약 2배 정방향 | 17.299 | 12.839 | 29.739 | 33.467 |
+| 약 2배 역방향 | 25.155 | 20.357 | 46.743 | 38.554 |
+
+delegate 교체는 phase별 4·3·5회였다. 기존 buildScope의 dirty flush 합계는 445.725·396.526·601.352ms, render commit은 11.243·8.407·13.125ms다. 이 값은 위 수명 구간과 겹치며 모두 더할 수 없다. inner GridView 생산 등을 포함한 월별 비용 분해나 구조 동기화 단독 기여율을 산출한 결과도 아니다.
+
+역방향의 fresh 재진입 index는 136→135→134→133→132→131이다. 각 index의 마지막 이탈부터 재진입 요청 전까지 새로 요청된 서로 다른 자식 수는 1·3·4·5·6·7이었다. 이 수는 `createChild`의 missing-child 요청 trace로 정의하며, 방문 가능한 전체 월 수나 기존 활성 월의 갱신 횟수가 아니다. 작은 보존 용량이 역방향 전체를 hit로 바꿀 것이라고 가정할 수 없다. 실제 legacy는 dormant cache를 생성하지 않았고 resume는 0회다. **GlobalKey 자격 미충족 상태에서 가상의 hit, fresh/resume 순절감, 메모리 이득을 계산하지 않았다.**
+
+실행 조건은 2560×1459 physical / DPI 192 / 165Hz host, 각 입력 phase의 실제 주입률은 약 60Hz였다. 월 정착은 +4·+3·−6개월, 주입 touch는 48·30·60개였다. 종료 receipt는 전체 입력 **수신=전달=수락=158, 거절=0, exitCode=0**이었다. 이 동등성은 입력 보존의 기능 근거이며 지연 개선의 근거가 아니다.
+
+공급 식별자는 bytecode / `windows-hermes-260318099.0.7-optimized-v1`, package revision `b464dba92ad87bcfb77fae381a49a2394d9836d9`, bundle SHA-256 `6d3701cfe43ec485f96640f55fe326f2d8c6d05e2790410b1b5b0e29a5e57345`, diagnostic entry SHA-256 `94324c0cf7736675883091e55101b1df490392a650d4a0f20f111ccf7f06cdb1`이었다. package revision을 checkout `e222fd49`와 혼동하지 않는다. 판정에 사용한 core 7개 모듈(dormant cache·GlobalKey·Scrollable·scrollbar·sliver·FillViewport·PageView)과 Material calendar 생성 모듈은 현재 dist와 Windows 설치본의 SHA-256 일치를 별도로 확인했다.
+
+검증 결과:
+
+- 자식 재사용 진단 회귀 **PASS**. native 길이 제한 안의 분할 JSON과 hook 원복까지 포함한다.
+- Source framework **20개 사례 PASS-scoped**, child reconciliation **PASS**. 원본 Flutter 실행 비교는 이번에 수행하지 않았다.
+- 변경한 코드 4개 파일의 lint·format 및 `git diff --check` **PASS**.
+- Windows 세 진단 모두 정상 종료. diagnostic entry·임시 package·세 session 경로가 사라지고 해당 diagnostic host process가 남지 않은 것을 확인했다. 로그·receipt·이전 설치본을 별도로 보관하지 않았다.
+
+**채택 판단: 자격 gate FAIL / 후보 보류.** 일반 PageView에서의 조건부 가능성과 실제 달력에 적용 가능한 해법을 구분한다. 자격에 실패한 상태에서 큰 정책을 구현하지 말라는 §7의 중단 조건을 적용한다. dormant 복귀의 최신 설정·inherited·focus·ticker·실패 복원과 순성능은 이번 실행으로 검증되지 않았다.
+
+### 9.4 재실행 명령
+
+저장소 루트의 PowerShell 7에서 실행한다. Windows 실행기는 전체 20분 timeout과 소유 process·임시 package·entry·session의 `finally` 정리를 적용한다. 검사 결과는 표준 출력으로 확인하고 로그·receipt·이전 package를 추가 보관하지 않는다.
+
+```powershell
+node Nelyx/eng/check-child-reuse-profile.mjs
+node Nelyx/eng/check-source-framework.mjs
+
+$previousProfile = $env:NELYX_JANK_BUILD_PROFILE
+try {
+  $env:NELYX_JANK_BUILD_PROFILE = '1'
+  pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 `
+    -Scenario calendar -HermesMode bytecode -Runs 1 -NoScreen
+  if ($LASTEXITCODE -ne 0) { throw 'Calendar child feasibility diagnostic failed' }
+} finally {
+  $env:NELYX_JANK_BUILD_PROFILE = $previousProfile
+}
+```
+
+### 9.5 남은 범위
+
+공통 PageView/FillViewport의 childPolicy·delegate 세대 계약, 활성 자식 순서 변경, dormant resume/eviction의 순비용 비교, calendar opt-in, 변경 전후 각 3회 성능 비교는 **notImplemented / notVerified**다. 단계 A에서 탈락했으므로 §7의 조건에 따라 진행하지 않는다. 새 정책의 focus·ticker·inherited·GlobalKey retake·실패 복원과 Gallery/Testbed/Web 수락도 주장하지 않는다.
+
+이 후보를 다시 추진하려면 내부 일반 GlobalKey를 가진 페이지의 수명·재취득 계약을 먼저 별도 설계해야 한다. 이를 이번 후보의 cache 확대나 자격 완화로 대체하지 않는다. 공통 cold 생산/구조 동기화의 다른 후보는 실제 비용 범위를 확인한 별도 작업으로 남긴다. **전체 상태는 PARTIAL / performanceAccepted=false**다.
+
+## 10. 2026-11-17 후속 작업 — 공통 build·수명·동기화 비용 분해
+
+### 10.1 다음 작업의 범위와 코드 판단
+
+같은 HEAD `e222fd49`에서 §9의 미커밋 진단 변경을 보존하고 시작했다. 보존 자격에 실패한 단계 B를 진행하지 않고, §6·§9.5의 다음 작업인 **공통 필수 경로의 비용 분해와 후속 수정 대상 판정**을 수행했다. 이번 작업 단위는 완료했으며, 엔진 제품 코드의 최적화나 성능 수락 완료를 뜻하지 않는다.
+
+코드에서 먼저 확인한 경계는 다음과 같다.
+
+- `Element.rebuild`는 모든 build 전에 render owner를 등록한다. 그러나 `OwnerTransaction`은 이미 owner를 중복 제거하며, 동기화는 실제 자식이 같으면 교체하지 않는다. 등록 시도·commit·실제 교체를 같은 횟수로 계산할 수 없다.
+- `RenderObjectElement._commitRenderChildren`는 virtual 동기화 hook을 호출한다. Viewport는 이때 center도 갱신하고, sliver는 별도의 연결 계약을 사용한다. custom hook과 `renderObjects` getter도 존재하므로 `setChildren`을 호출하지 않았다는 이유만으로 hook 전체를 제거할 수 없다.
+- `StatefulElement.mount`의 State 초기화, `RenderObjectElement.mount`의 render 생성·연결, `Element.reconcile` 안의 mount/update는 중첩된다. 기존 외부 PageView `freshChild` 시간은 내부 GridView에서 나중에 만드는 날짜 subtree 전체를 포함하지 않는다. 외부 페이지 시간만으로 cold mount의 기여를 단정하지 않았다.
+
+따라서 큰 정책 변경이나 등록 삭제에 앞서 이 공통 경로만 구분하는 진단을 추가했다. cache·prewarm·AOT 전환이나 달력 생성 코드 변경은 적용하지 않았다.
+
+### 10.2 추가한 진단과 해석 제한
+
+[framework 작업 진단](Nelyx/eng/windows-jank-framework-profile.ts)을 기존 build profile에 연결했다. `NELYX_JANK_BUILD_PROFILE=1`인 calendar bytecode 진단에서만 inlining하며 일반 bundle에는 넣지 않는다.
+
+- Element의 첫 성공 rebuild 이전 호출과 그 이후 rebuild를 구분한다. 관측 phase 밖에서도 성공 여부는 WeakSet으로 추적하며 phase reset으로 기존 Element를 새 Element로 세지 않는다. 실패한 호출은 `failed`에 별도로 센다. 이 카운터는 base method 호출 수이며 Widget·State 할당량이나 월 개수의 대체 지표가 아니다.
+- 공통 reconcile, base/State/render mount와 update, render attach/detach, deactivate/unmount, owner 등록·flush·commit을 측정한다. 같은 진단 stack 안의 중첩 구간만 빼서 `exclusiveMs`를 계산한다. first/later rebuild의 exclusive 시간은 관측한 reconcile·mount 등의 내부 호출을 뺀 나머지이지 순수 Widget builder 시간은 아니다.
+- `ownerCommits`는 실제 base commit 진입 수다. `baseSetChildrenInCommit`은 그 실행 중 기존 `RenderObject.setChildren` base가 호출된 횟수만 센다. 진단을 위해 projection getter를 다시 실행하지 않는다. custom override가 base를 호출하지 않으면 이 카운터에 나타나지 않으며, base 호출이 있어도 실제 구조가 같을 수 있다.
+- 같은 owner의 base 호출 경로만 관측한다. `super`를 호출하지 않는 custom 구현의 자체 비용 전체, layout 기하·paint·GPU·프레임 전체 시간은 이 표의 범위가 아니다. build scope·자식 수명 진단과도 겹치므로 합산하지 않는다. 관측 wrapper·clock·집계의 비용이 들어간 수치를 일반 실행 CPU 비용이나 제거 가능한 시간으로 환산하지 않는다.
+- 결과는 기존 native 길이 제한에 맞춰 `FAST_FRAMEWORK_PROFILE`과 종류별 `FAST_FRAMEWORK_INTERVAL`로 분리한다. snapshot은 집계 값의 사본이며 별도의 Element 트리나 강한 참조 cache를 만들지 않는다. dispose에서 prototype과 owner의 원래 property descriptor를 복원한다.
+
+### 10.3 Windows 진단 1회의 결과
+
+PowerShell 7에서 §9.4와 같은 명령으로 **bytecode·기존 pruning off 공급·60Hz 가상 입력·Runs 1·NoScreen**을 실행했다. 세 phase 모두 기존 이동량과 월 정착을 통과했고, 관측 interval의 실패 호출은 0개였다. `performanceSample=false`이며 표시 화면은 관측하지 않았다. 아래 값은 모두 phase 누적 진단 값이다.
+
+| phase | base mount / 첫 rebuild | 후속 rebuild | owner 등록 시도 | owner commit | commit 중 base setChildren |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 보통 정방향 | 3,879 / 3,879 | 9,187 | 18,236 | 4,717 | 0 |
+| 약 2배 정방향 | 3,956 / 3,956 | 5,584 | 14,810 | 3,478 | 0 |
+| 약 2배 역방향 | 5,871 / 5,871 | 7,011 | 20,705 | 4,780 | 0 |
+
+다음 표는 위 진단 내부에서만 중첩을 제거한 시간이다. mount 계열은 base·State·render mount와 render attach의 exclusive 합, 회수 계열은 render detach·base/State deactivate·base/State/render unmount의 exclusive 합이다. owner 계열은 등록·flush·commit의 exclusive 합이다. 각 월의 전체 시간이나 프레임 전체 시간으로 해석하지 않는다.
+
+| phase | mount·연결 (ms) | 첫 rebuild 잔여 (ms) | 후속 rebuild 잔여 (ms) | reconcile 잔여 (ms) | 회수 계열 (ms) | owner 등록·flush·commit (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 보통 정방향 | 95.866 | 86.312 | 171.536 | 57.670 | 77.504 | 24.839 |
+| 약 2배 정방향 | 95.970 | 86.591 | 130.777 | 39.208 | 79.804 | 18.534 |
+| 약 2배 역방향 | 139.351 | 146.048 | 122.132 | 52.357 | 119.260 | 22.532 |
+
+이 표에서 제외한 base/State update의 exclusive 합은 각각 33.267·16.373·23.925ms다. 별도 buildScope 진단의 dirty flush는 529.975·441.326·594.573ms, render commit은 18.573·13.419·15.434ms였다. 두 진단은 측정 경계와 중첩이 달라 서로 더하거나 분모로 사용하지 않는다.
+
+이번 관측은 **등록 시도와 실제 commit 사이의 중복 제거가 작동하며, 관측한 commit에서 base 자식 교체가 없었음**을 지지한다. 그러나 owner 계열보다 첫/후속 rebuild와 mount·회수의 누적 시간이 컸다. 그러므로 등록 축소를 전체 문제의 주된 단독 해법으로 채택하지 않는다. 보통·빠른 정방향에서는 후속 rebuild 잔여도 첫 rebuild 잔여보다 컸으므로 **cold 생산 하나가 지배적이라는 판단도 채택하지 않는다.** phase별 호출량과 관측 overhead가 다르며, 이 1회로 통계적 기여율이나 FPS 개선율을 산출하지 않는다.
+
+종료 receipt는 **수신=전달=수락=158, 거부=0, exitCode=0**이었다. 보통/빠른 정방향/역방향은 6·6·12 gestures, 수락 입력 48·30·60개와 월 이동 +4·+3·−6을 유지했다. 유효 주입률은 각각 59.99975·59.99994·59.99978Hz다. 입력 보존과 월 정착은 기능 근거이며 낮은 지연이나 표시 FPS를 증명하지 않는다.
+
+공급은 `windows-hermes-260318099.0.7-optimized-v1`, package revision `b464dba92ad87bcfb77fae381a49a2394d9836d9`였다. bundle SHA-256은 `62ad61272289320ee551ebe81b39011dfdb2134ee7013608c05e2b8f60f9efb3`, diagnostic entry SHA-256은 `c3d3c61189b6dac49008f1ca000681c4e6033960ac1fd625b8e6ae6e3f91dcc5`다. 새 관측 대상인 framework·render object 두 모듈은 현재 Source와 dist source-map의 `sourcesContent` 일치, dist와 실제 Windows 설치본의 JS SHA-256 일치를 확인했다. package revision을 현재 checkout revision으로 표기하지 않는다.
+
+### 10.4 회귀와 다음 수정 대상
+
+- 자식/framework 진단 회귀 **PASS**: 실제 PageView·nested GridView, 첫/후속 build 구분, phase 밖 build와 foreign owner 제외, 중첩 시간·snapshot 격리, 원래 예외 값과 custom commit receiver, 실패 재시도·commit 중 다음 경계 재등록, virtual projection 추가 호출 없음, base setChildren 호출과 실제 변경의 구분, reset·hook 원복·분할 JSON 길이를 검사한다.
+- Source framework **20개 사례 PASS-scoped**, child reconciliation **PASS**. 원본 Flutter 실행 비교는 이번에 수행하지 않았다.
+- 변경한 진단 코드의 lint·format과 `git diff --check` **PASS**. 제품 Source를 바꾸지 않아 SDK/native 전체 재빌드나 제품 성능 비교는 수행하지 않았다. Windows 진단 bundle은 현재 공급에서 새로 생성·실행했다.
+- 실행기의 `finally` 정리 이후 진단 entry·package·batch/session과 해당 host가 남지 않은 것을 확인했다. 로그·receipt·설치본 사본은 추가 보관하지 않았다.
+
+**후속 수정 대상은 첫/후속 build 양쪽의 공통 Widget 구성·설정 전달 경로다.** 다음 작업에서는 기존 유형별 build 집계와 `ComponentElement.performRebuild`, State build, render update의 실제 호출 코드를 연결해 반복 탐색·중복 자원 등록 등 제거 가능한 작업을 구체적으로 입증한다. callback identity나 Widget type/key 일치만으로 build/update를 건너뛰지 않고, Focus·Ink·Semantics 기능을 줄이지 않는다. 이번 잔여 시간을 특정 함수 하나의 비용으로 단정하거나 새 pooling·typed 전환을 바로 시작하지 않는다.
+
+공통 정책 단계 B·C, GlobalKey 보존 계약, 엔진 최적화 patch와 변경 전후 성능 비교, Gallery/Testbed/Web 제품 수락은 여전히 미완료다. **전체 상태는 PARTIAL / performanceAccepted=false**이며 이번 진단 PASS를 제품 성능 PASS로 승격하지 않는다.

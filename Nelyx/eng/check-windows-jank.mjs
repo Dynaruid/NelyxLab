@@ -527,6 +527,10 @@ try {
       if (hermesMode !== 'bytecode')
         throw Error('Build observer profile currently requires bytecode');
       source =
+        fs.readFileSync(path.join(root, 'Nelyx/eng/windows-jank-framework-profile.ts'), 'utf8') +
+        '\n' +
+        fs.readFileSync(path.join(root, 'Nelyx/eng/windows-jank-child-profile.ts'), 'utf8') +
+        '\n' +
         fs.readFileSync(path.join(root, 'Nelyx/eng/windows-jank-build-profile.ts'), 'utf8') +
         '\nlet builderProfile;\n' +
         source
@@ -540,7 +544,7 @@ try {
           )
           .replace(
             '  phase = undefined;',
-            '  host.log("FAST_BUILD_PROFILE " + JSON.stringify({ name: phase.name, ...builderProfile.snapshot(), text: root.context.text.debugStats, stages: Object.fromEntries(["semantics-flush", "semantics-snapshot", "semantics-freeze", "mouse-tracking", "post-frame"].map(key => [key, summary(samples.filter(s => s.stage === key).map(s => s.duration))])) }));\n  phase = undefined;',
+            '  builderProfile.log(phase.name, root.context.text.debugStats, Object.fromEntries(["semantics-flush", "semantics-snapshot", "semantics-freeze", "mouse-tracking", "post-frame"].map(key => [key, summary(samples.filter(s => s.stage === key).map(s => s.duration))])));\n  phase = undefined;',
           )
           .replace('            dispose();', '            builderProfile.dispose(); dispose();');
     }

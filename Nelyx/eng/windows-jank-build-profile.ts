@@ -1,6 +1,8 @@
 // Inlined only for an explicit diagnostic run. It does not enter the ordinary
 // probe entry, and runs with this observer are excluded from FPS comparisons.
 export function installBuildProfile(root, host, active) {
+  const children = installChildReuseProfile(root, host, active),
+    work = installFrameworkWorkProfile(root, host, active);
   const names = [],
     times = [],
     values = new Map();
@@ -67,12 +69,48 @@ export function installBuildProfile(root, host, active) {
       values.clear();
       invalid = false;
       scopes = { count: 0, totalMs: 0, dirtyFlushMs: 0, renderCommitMs: 0 };
+      children.reset();
+      work.reset();
     },
     snapshot() {
       if (invalid || names.length || scopeDepth) throw Error('Build profile snapshot incomplete');
-      return { scopes, types: [...values].sort((a, b) => b[1].totalMs - a[1].totalMs) };
+      return {
+        scopes,
+        types: [...values].sort((a, b) => b[1].totalMs - a[1].totalMs),
+        children: children.snapshot(),
+        work: work.snapshot(),
+      };
+    },
+    log(name, text, stages) {
+      const { scopes, types, children, work } = this.snapshot(),
+        { pages, events, ...childSummary } = children;
+      // NativeHost.log truncates at 8,192 UTF-8 bytes. Keep every record below
+      // that bound even for non-ASCII constructor names; never lose a JSON tail.
+      const emit = (prefix, value) => {
+        const line = prefix + ' ' + JSON.stringify(value);
+        if (line.length > 2700) throw Error('Build profile log record exceeds native bound');
+        host.log(line);
+      };
+      emit('FAST_BUILD_PROFILE', { name, scopes, text, stages });
+      emit('FAST_FRAMEWORK_PROFILE', { name, scope: work.scope, counters: work.counters });
+      for (const [kind, value] of Object.entries(work.intervals))
+        emit('FAST_FRAMEWORK_INTERVAL', { name, kind, ...value });
+      for (let index = 0; index < types.length; index += 8)
+        emit('FAST_BUILD_TYPES', { name, index, types: types.slice(index, index + 8) });
+      emit('FAST_CHILD_PROFILE', {
+        name,
+        ...childSummary,
+        pageCount: pages.length,
+        eligiblePages: pages.filter((page) => page.eligible).length,
+        eventCount: events.length,
+      });
+      for (const page of pages) emit('FAST_CHILD_PAGE', { name, ...page });
+      for (let index = 0; index < events.length; index += 16)
+        emit('FAST_CHILD_EVENTS', { name, index, events: events.slice(index, index + 16) });
     },
     dispose() {
+      work.dispose();
+      children.dispose();
       root.buildOwner._setElementBuildObserver(undefined);
       if (previousScope) Object.defineProperty(owner, 'buildScope', previousScope);
       else delete owner.buildScope;
