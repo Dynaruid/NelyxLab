@@ -1211,6 +1211,22 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     }
     return undefined;
   }
+  /** @internal Provider-only queries share the existing ancestry links. Read
+   * the live parent after each callback so reentrant moves remain observable. */
+  _visitAncestorInheritedElements(visitor: (element: InheritedElement) => boolean): void {
+    if (!this.active)
+      invariant(false, 'inactive-context', 'Ancestor lookup requires an active Element');
+    let ancestor = this.parent;
+    while (ancestor) {
+      if (ancestor.lifecycle === 'active' && !ancestor.dynamicInheritedTypes) {
+        const indexed = ancestor.inheritedIndex;
+        if (!indexed) return;
+        ancestor = indexed.value;
+      }
+      if (ancestor instanceof InheritedElement && !visitor(ancestor)) return;
+      ancestor = ancestor.parent;
+    }
+  }
   visitAncestorElements(visitor: (element: Element) => boolean): void {
     if (!this.active)
       invariant(false, 'inactive-context', 'Ancestor lookup requires an active Element');
@@ -1527,6 +1543,22 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
 initializeElementType(Element);
 const elementAncestorVisit = Element.prototype.visitAncestorElements;
 const elementInheritedLookup = Element.prototype._findAncestorInheritedElement;
+const elementInheritedVisit = Element.prototype._visitAncestorInheritedElements;
+/** @internal Only use for data carried by InheritedWidgets. General marker
+ * queries (for example scroll owners) still need visitAncestorElements. */
+export function visitAncestorInheritedElements(
+  context: BuildContext,
+  visitor: (element: InheritedElement) => boolean,
+): void {
+  const visit = context.visitAncestorElements;
+  if (context instanceof Element && visit === elementAncestorVisit) {
+    elementInheritedVisit.call(context, visitor);
+    return;
+  }
+  Reflect.apply(visit, context, [
+    (element: Element) => !(element instanceof InheritedElement) || visitor(element),
+  ]);
+}
 /** @internal Select an inherited base class without visiting ordinary wrapper
  * Elements. Custom context traversal keeps its original call and receiver. */
 export function findAncestorInheritedElement(

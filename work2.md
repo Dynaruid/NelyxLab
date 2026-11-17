@@ -2,9 +2,11 @@
 
 작성일: 2026-11-17
 
-상태: **단계 A의 자격 gate FAIL → 보존 후보 보류 / 후속 공통 build·수명·동기화 비용 분해 완료 / 제품 최적화 notImplemented / performanceAccepted=false**
+상태: **단계 A의 자격 gate FAIL → 보존 후보 보류 / 공통 inherited 조상 순회 설계·Source 적용·관련 기능 회귀 완료 / 전체 성능 PARTIAL / performanceAccepted=false**
 
 원설계 검토 기준: HEAD `0d917cab`과 문서 작성 전 깨끗한 작업 트리. [원인 분석](performance-cause-analysis.md)의 `720d22d6` 기준 및 [기존 작업 기록](work.md)의 측정 이력과 구분한다. 아래 §1–8은 코드 검토만 수행했던 원설계다. 사용자의 `work2.md 작업해줘` 요청에 따른 HEAD `e222fd49`의 구현·진단·판정은 **§9**, 이후 `work2.md의 다음작업해줘` 요청의 공통 비용 분해는 **§10**에 기록한다.
+
+이번 `설계와 구현 적용까지` 요청에 따른 제품 Source 변경과 변경 전후 비교는 **§11**에 기록한다. §9–10의 `notImplemented`는 당시 상태이며, 새로운 dormant 정책은 여전히 보류한다.
 
 ## 1. 결론
 
@@ -377,3 +379,97 @@ PowerShell 7에서 §9.4와 같은 명령으로 **bytecode·기존 pruning off �
 **후속 수정 대상은 첫/후속 build 양쪽의 공통 Widget 구성·설정 전달 경로다.** 다음 작업에서는 기존 유형별 build 집계와 `ComponentElement.performRebuild`, State build, render update의 실제 호출 코드를 연결해 반복 탐색·중복 자원 등록 등 제거 가능한 작업을 구체적으로 입증한다. callback identity나 Widget type/key 일치만으로 build/update를 건너뛰지 않고, Focus·Ink·Semantics 기능을 줄이지 않는다. 이번 잔여 시간을 특정 함수 하나의 비용으로 단정하거나 새 pooling·typed 전환을 바로 시작하지 않는다.
 
 공통 정책 단계 B·C, GlobalKey 보존 계약, 엔진 최적화 patch와 변경 전후 성능 비교, Gallery/Testbed/Web 제품 수락은 여전히 미완료다. **전체 상태는 PARTIAL / performanceAccepted=false**이며 이번 진단 PASS를 제품 성능 PASS로 승격하지 않는다.
+
+## 11. 2026-11-17 설계·구현 적용 — 공통 inherited 조상 순회
+
+### 11.1 코드에서 확인한 제거 대상과 적용 범위
+
+시작 checkout은 `bd8e47f6`, tracked 작업 트리는 깨끗했다. 사용자의 이번 요청은 §10.4의 다음 대상을 설계 문서에서 끝내지 않고 제품 Source에 적용하는 범위다. §9에서 탈락한 dormant 정책과 GlobalKey 보존 자격은 변경하지 않는다.
+
+`FocusState.build → FocusAttachment.reparent → findFocusAncestor`는 첫 build와 설정 갱신 모두에서 `visitAncestorElements`로 일반 wrapper까지 방문하고 각 Widget의 marker를 조회한다. `focusOrderFor`·`traversalDirections`도 같은 순회를 반복하며, `Actions`는 일반 Element를 방문한 뒤 InheritedElement만 골라낸다. 이 후보는 이 조회의 방문 대상만 줄인다. `reparent`의 cycle·View 소유권·subtree 검사와 FocusNode의 실제 재연결은 모두 유지한다. 이 코드 판단을 §10의 잔여 시간 전체에 대한 원인 확정이나 FPS 예측으로 해석하지 않는다.
+
+Focus marker의 유일한 생산자는 `FocusInheritedScope`, order marker는 `FocusTraversalOrder`, direction marker는 `Directionality`이며 모두 inherited Widget이다. 반면 `traversalScrollable`의 marker는 일반 스크롤 Widget에도 있으므로 기존 전체 순회를 유지한다. 이 구분은 callback identity나 Widget type/key로 build를 생략하는 계약이 아니다.
+
+### 11.2 구현 계약
+
+- 공통 `visitAncestorInheritedElements`는 이미 존재하는 `inheritedIndex` 연결로 일반 wrapper 구간을 건너뛰며 가장 가까운 provider부터 방문한다. 별도 ancestry Map·Widget 결과 cache·트리를 만들지 않는다.
+- 일반 Element의 원래 `visitAncestorElements` 경로에만 이 순회를 적용한다. 사용자 BuildContext/Element의 override와 prototype 교체는 원래 virtual 순회를 정확한 receiver로 호출한다. 동적 type token 구간은 기존 parent 연결로 내려가면서 InheritedElement만 방문한다.
+- callback이 false를 반환하면 즉시 종료한다. callback 뒤에는 현재 provider의 live parent를 읽으며, marker 값·Widget·설정·provider 선택 결과는 보관하지 않는다. 중첩 조회와 callback/Widget getter의 예외를 그대로 전달한다.
+- mount·deactivate·GlobalKey activate의 기존 inherited 연결 갱신을 재사용한다. 새 dependency를 등록하지 않고 State build, didUpdateWidget, inherited 알림과 Focus·Ink·Semantics의 구성·입력 계약을 유지한다.
+- Focus/order/direction의 내부 marker 등록 인자는 실제 생산 계약에 맞게 InheritedWidget으로 표현한다. 전체 Element가 필요한 scroll marker와 일반 공개 조상 순회는 유지한다.
+
+### 11.3 검증 순서와 판정
+
+설계 후 기존 bytecode·pruning off·60Hz 입력의 달력 baseline 3회를 먼저 확보한다. Source 변경 뒤 국소 회귀에서 순서·중단·live 설정·동적 token·사용자 순회·GlobalKey 이동·예외·종료와 실제 Focus/Actions 연결을 확인하고, core를 한 번 빌드해 현재 runner에 공급한다. 같은 달력 3회와 Gallery·가변 목록·Testbed·Web 관련 회귀를 확인한다. 모든 실행은 20분 timeout을 적용하며 임시 산출물과 소유 process는 finally에서 정리한다.
+
+방문량 감소와 전체 성능 수락을 구분한다. 결과를 확인하기 전에는 이 절을 완료나 성능 개선으로 표시하지 않는다. §7의 전체 기준과 `performanceAccepted=false`를 유지한다. 이 실행의 검증 결과와 남은 범위는 아래에 기록한다.
+
+### 11.4 구현과 국소 검증 결과
+
+- [공통 순회](Nelyx/src/framework/widgets/framework.ts#L1214)와 [진입 함수](Nelyx/src/framework/widgets/framework.ts#L1547)를 제품 Source에 추가하고 [Focus 부모 조회](Nelyx/src/framework/widgets/focus-tree-context.ts), [order·direction 조회](Nelyx/src/framework/widgets/focus-traversal-context.ts), [Actions 조회](Nelyx/src/framework/widgets/actions.ts)에 적용했다. `visitAncestorElements` 자체와 scroll marker 경로는 유지했다. runtime native 엔진·VM·달력 생성 파일은 변경하지 않았다.
+- [새 회귀](Nelyx/eng/check-inherited-traversal.mjs) **PASS**. 64개 일반 wrapper를 둔 fixture에서 전체 조상 방문 67회와 provider 방문 2회를 구분했다. 이는 방문량의 구조적 증거이며 실제 달력의 방문량·CPU·FPS 절감 수치가 아니다. 순서·중단·live Widget 값과 getter 예외·중첩 순회·callback 후 live parent·사용자 Context/Element 및 prototype override·receiver·동적 token·GlobalKey 이동·종료를 검사한다. 실제 Focus/Actions의 구성·설정 교체·primary focus·scope 이동·최신 action과 order/direction 반영도 확인했다.
+- Source framework **20 cases PASS-scoped**, Source의 Hermes lowering 적용 후 같은 회귀 **PASS-scoped**, child reconciliation·dependency scope·inherited ancestor·retained paint **PASS**. lowering 회귀는 Node에서 변환 결과를 실행한 검사이고, 아래 Windows bytecode 앱 실행과 구분한다. 원본 Flutter oracle을 새로 실행하지는 않았다.
+- 기존 child/framework 진단 회귀 **PASS**, 전체 `npm.cmd run check:types` **PASS**, 변경 코드 5개 파일 lint·format 및 `git diff --check` **PASS**. 별도 ESM 진입점으로 FocusNode/FocusManager를 import한 연결·회수도 통과했다.
+- core만 한 번 빌드하고 Demo Windows/Web·Testbed Windows에 공급·설치했다. 변경한 4개 모듈의 Source와 dist source-map `sourcesContent` 일치, dist JS와 세 runner 설치본의 SHA-256 일치, npm 설치 receipt/공급 archive의 일치를 확인했다. 세 runner의 manifest/lock 변경은 같은 core 공급을 가리킨다. 전체 SDK/native 재빌드는 하지 않았다.
+
+공급 직후 첫 변경 후 시도는 npm 설치 전이어서 공급/설치본 일치 검사에서 앱 시작 전에 거절됐다. Web 공급 중 lock-only 갱신이 기존 `hermes-estree@0.32.0` 항목을 제거한 것도 확인해 해당 기존 항목을 복원하고 `npm ci --workspaces=false`를 통과시켰다. 이 두 준비 실패는 기능·FPS 표본에 포함하지 않았다. 공급 검사를 우회하거나 설치 receipt만 고쳐 성공 처리하지 않았다.
+
+### 11.5 Windows 달력 변경 전후 각 3회
+
+두 공급 모두 bytecode·pruning off, 동일 entry `9b550ab9…`, host `67dbdc22…`, VM/toolchain `dbd11135…`, 2560×1459 physical / DPI 192 / 165Hz와 기존 60Hz 입력을 사용했다. build/heap 관측 hook은 넣지 않았고 모든 유효 실행은 `performanceSample=true`다. baseline 3회 이후 core 변경 공급의 3회를 실행했다. bundle은 baseline `d84b9452…`, 변경 후 `20b2fabe…`로 각 공급의 세 실행 안에서 동일했다. package revision은 공통 공급 식별자인 `b464dba9…`이며 checkout `bd8e47f6`와 다르다.
+
+아래 각 셀의 세 값은 실행 1·2·3의 원자료 요약이다. engine FPS는 native surface-copy fence 완료율, 표시 FPS는 desktop frame tag 관측 하한이다. 실제 scanout FPS는 미검증이다.
+
+| phase | 변경 전 engine FPS | 변경 후 engine FPS | 변경 전 표시 FPS 하한 | 변경 후 표시 FPS 하한 |
+| --- | --- | --- | --- | --- |
+| 보통 정방향 | 36.355 / 31.643 / 33.230 | 32.963 / 32.225 / 34.971 | 29.977 / 27.624 / 28.730 | 28.766 / 28.181 / 28.684 |
+| 약 2배 정방향 | 29.865 / 31.245 / 27.567 | 27.041 / 30.455 / 29.309 | 24.349 / 26.757 / 23.879 | 23.389 / 28.327 / 24.140 |
+| 약 2배 역방향 | 21.596 / 18.433 / 20.820 | 17.595 / 18.384 / 23.541 | 19.490 / 17.022 / 18.019 | 16.759 / 14.904 / 20.332 |
+
+간격 tail도 함께 확인했다. 아래는 각 실행의 p95/p99/최장을 구한 뒤 해당 지표의 3회 중앙값을 비교한 값(ms)이다. 여러 실행의 프레임을 합쳐 새 percentile을 구한 값이 아니다.
+
+| phase | 표시 간격 p95 / p99 / 최장 전→후 | surface 간격 p95 / p99 / 최장 전→후 |
+| --- | --- | --- |
+| 보통 정방향 | 128.645 / 149.637 / 149.637 → 137.773 / 188.115 / 188.115 | 128.719 / 147.165 / 147.165 → 135.653 / 186.538 / 186.538 |
+| 약 2배 정방향 | 174.736 / 199.582 / 199.582 → 146.512 / 199.708 / 199.708 | 177.675 / 199.479 / 199.479 → 136.275 / 206.130 / 206.130 |
+| 약 2배 역방향 | 183.360 / 296.548 / 296.548 → 199.399 / 241.132 / 241.132 | 183.046 / 281.056 / 281.056 → 210.292 / 244.372 / 244.372 |
+
+표시 관측의 ≥100ms 진행 정체를 같은 정의로 비교했다. 총 시간과 최장은 ms이며 아래 `전→후`는 phase별 3회 중앙값이다. 작은 세 표본을 통계적 유의성이나 안정된 개선율로 해석하지 않는다.
+
+| phase | 변경 전 정체 횟수 3회 | 변경 후 정체 횟수 3회 | 횟수 중앙값 전→후 | 총 시간 중앙값 전→후 | 최장 중앙값 전→후 |
+| --- | --- | --- | --- | --- | --- |
+| 보통 정방향 | 7 / 7 / 7 | 8 / 6 / 7 | 7→7 | 950.990→1013.147 | 199.721→197.180 |
+| 약 2배 정방향 | 3 / 5 / 4 | 4 / 4 / 4 | 4→4 | 615.523→639.711 | 199.582→217.944 |
+| 약 2배 역방향 | 5 / 8 / 5 | 5 / 6 / 7 | 5→6 | 1000.026→1046.331 | 296.548→241.132 |
+
+**판정: 전체 30fps 기준 FAIL / 정체 감소 기준 FAIL / 일관된 성능 이득 미입증.** 모든 phase의 표시 FPS 하한이 30 미만이고, 정체 총 시간 중앙값은 세 phase 모두 증가했다. 빠른 정방향의 최장과 역방향의 횟수 중앙값도 증가했다. 방문 대상 축소가 이 변화의 단독 원인이라고 확정할 수는 없으며, 이 비교로 patch의 순성능 이득을 수락하지 않는다. build·생산·회수 비용 전체를 해결했다는 결론도 내리지 않는다.
+
+여섯 유효 실행 모두 기존 입력 48/30/60 touch, 월 정착 `November 2026→March 2027→June 2027→December 2026`, UIA·정상 종료를 통과했다. 종료 입력은 매회 **수신=전달=수락=158, 거부=0, exitCode=0**이었다. 양쪽의 screen·surface 간격 p95/p99/최장은 실행 summary에서 관측했다. 입력→surface는 변경 후 수치를 포함한 비교 요약을 확보하지 않았으므로 지연 개선은 **notVerified**다. 입력 수 보존으로 이를 대신하지 않는다. 별도 로그·receipt JSON은 보관하지 않았다.
+
+### 11.6 공통 기능·제품 실행·정리
+
+| 확인 범위 | 결과와 경계 |
+| --- | --- |
+| Windows Gallery 1회 | 편집·theme/resize·wheel 왕복·UIA·종료 PASS. 표시 FPS 하한 cold/return/warm 73.334 / 58.346 / 57.479, ≥100ms 정체 모두 0. 입력 177개 전부 수신=전달=수락, 거부 0, wheel 합계 수신=전달=480 |
+| Windows 가변 목록 1회 | UIA 항목의 하강·복귀·warm membership 일치와 종료 PASS. 표시 FPS 하한 69.768 / 58.478 / 54.001, ≥100ms 정체 모두 0. 입력 159개 전부 보존, 거부 0, wheel 합계 수신=전달=480 |
+| 일반 Testbed 1회 | 실제 앱의 MixedScroll 한글/emoji 편집 유지·왕복 스크롤·counter 갱신, 별도 목록의 UIA 항목 진행과 정상 종료 PASS. 입력 118개 전부 보존, 거부 0, wheel 합계 수신=전달=288. Testbed 전체 화면·표시 FPS 수락은 아님 |
+| 일반 Demo Windows | `npm.cmd run run:windows --workspace @nelyx/demo -- -- 8000`이 변경 입력을 감지해 현재 bytecode 제품 package를 재빌드. 첫 프레임과 exit 0, `forced=false` PASS. bundle `03ed704e…`. 진단 entry 실행과 구분 |
+| Demo Web | 현재 core 설치본의 static build 및 Chromium WebGL2/SwiftShader 기능 회귀 4 cases PASS. 첫 프레임·Gallery wheel 복귀·한글/emoji 편집과 theme/breakpoint 유지·달력 forward/reverse/close 확인. 최종 Selection 화면도 시각 확인. bundle `6cf90f57…`. 브라우저 실장치 성능·다른 브라우저·Skia native source 재빌드 수락은 아님 |
+
+Gallery·목록의 각 1회 결과는 관련 기능 회귀의 범위이며, 새 플랫폼 전체 성능 수락이나 달력 비교의 보충 표본이 아니다. 공통 순회 변경은 제품 Source와 현재 설치 공급에 적용해 두었다. **방문량 축소·기능 정확성의 확인과 patch의 순성능 이득 미수락을 구분한다.** 이것만으로 달력의 후속 build·fresh 생산·회수 비용을 해결했다고 보지 않으며 추가 cache/prewarm·AOT 확대의 근거로 사용하지 않는다.
+
+각 runner의 finally 이후 diagnostic entry·package·batch/session과 Web 임시 screenshot/profile을 회수했다. 현재 core dist만 유지하고 staging·이전 dist와 공급용 임시 package를 남기지 않았다. 소유 native host와 Web 검사 프로세스가 종료된 것도 확인했다. 기존 사용자의 `.tmp/calendar-fast-*` 자료를 이동하거나 지우지 않았다.
+
+### 11.7 완료 범위와 재실행
+
+이번 작업 단위의 **공통 조회 설계·제품 Source 구현/연결·기능 회귀·동일 조건 달력 각 3회 비교는 완료**했다. 전체 목표는 **PARTIAL / performanceAccepted=false**다. §9의 dormant 자격 실패·GlobalKey 수명 계약, PageView 정책·delegate 세대 API와 실제 calendar opt-in은 계속 보류한다. 이번에 새 보존 정책을 구현하거나 활성화한 것은 아니다. 달력 30fps·정체 감소·입력 지연 개선과 physical trackpad·scanout·screen reader·장시간 자원 수락도 완료로 표시하지 않는다.
+
+저장소 루트의 PowerShell 7에서 아래 진입점은 자체 20분 timeout과 임시 작업 정리를 적용한다. 현재 공급에서 실행하는 기능/성능 검사이며 위 비교의 과거 baseline을 다시 만드는 명령은 아니다.
+
+```powershell
+node Nelyx/eng/check-inherited-traversal.mjs
+node Nelyx/eng/check-source-framework.mjs
+node Nelyx/eng/check-child-reuse-profile.mjs
+pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 `
+  -Scenario calendar -HermesMode bytecode -Runs 3
+```

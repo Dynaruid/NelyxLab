@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Internal markers keep traversal policy independent of widget construction.
-import type { BuildContext } from './framework.ts';
+import { visitAncestorInheritedElements } from './framework.ts';
+import type { BuildContext, InheritedWidget } from './framework.ts';
 import type { FocusNode } from './focus.ts';
 import type { FocusTraversalPolicy, FocusOrder } from './focus-traversal-policy.ts';
 export interface TraversalGroupData {
@@ -27,12 +28,13 @@ export function traversalGroupNode(node: FocusNode | null): FocusNode | null {
   }
   return null;
 }
-export function markFocusOrder(widget: object, order: FocusOrder): void {
+export function markFocusOrder(widget: InheritedWidget, order: FocusOrder): void {
   orders.set(widget, order);
 }
 export function focusOrderFor(context: BuildContext | null): FocusOrder | null {
   let result: FocusOrder | null = null;
-  context?.visitAncestorElements((element) => {
+  if (!context) return null;
+  visitAncestorInheritedElements(context, (element) => {
     const order = orders.get(element.widget);
     if (order) {
       result = order;
@@ -42,14 +44,15 @@ export function focusOrderFor(context: BuildContext | null): FocusOrder | null {
   });
   return result;
 }
-export function markTraversalDirection(widget: object, direction: 'ltr' | 'rtl'): void {
+export function markTraversalDirection(widget: InheritedWidget, direction: 'ltr' | 'rtl'): void {
   directions.set(widget, direction);
 }
 export function traversalDirections(
   context: BuildContext | null,
 ): readonly { widget: object; direction: 'ltr' | 'rtl' }[] {
   const result: { widget: object; direction: 'ltr' | 'rtl' }[] = [];
-  context?.visitAncestorElements((element) => {
+  if (!context) return result;
+  visitAncestorInheritedElements(context, (element) => {
     const direction = directions.get(element.widget);
     if (direction) result.push({ widget: element.widget, direction });
     return true;

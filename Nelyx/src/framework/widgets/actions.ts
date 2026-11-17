@@ -2,7 +2,14 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Actions adapted from Flutter widgets/actions.dart. Intent type tokens are explicit
 // constructors because TypeScript erases generic types at runtime.
-import { StatefulWidget, State, InheritedWidget, Element, InheritedElement } from './framework.ts';
+import {
+  StatefulWidget,
+  State,
+  InheritedWidget,
+  Element,
+  visitAncestorInheritedElements,
+} from './framework.ts';
+import type { InheritedElement } from './framework.ts';
 import type { Widget, BuildContext } from './framework.ts';
 import type { Key } from '../../foundation/key.ts';
 import type { KeyEventResult } from './focus.ts';
@@ -182,9 +189,8 @@ function sameActions(
 function scopes(context: BuildContext): InheritedElement[] {
   if (!context.mounted) return [];
   const result: InheritedElement[] = [];
-  context.visitAncestorElements((element) => {
-    if (element instanceof InheritedElement && element.widget instanceof ActionsScope)
-      result.push(element);
+  visitAncestorInheritedElements(context, (element) => {
+    if (element.widget instanceof ActionsScope) result.push(element);
     return true;
   });
   return result;
