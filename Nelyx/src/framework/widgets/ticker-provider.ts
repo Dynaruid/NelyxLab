@@ -6,7 +6,7 @@ import type { ValueListenable } from '../../foundation/notifier.ts';
 import { Ticker } from '../animation/ticker.ts';
 import type { TickerProvider } from '../animation/ticker.ts';
 import type { FrameScheduler } from '../scheduler/scheduler.ts';
-import { State } from './framework.ts';
+import { Element, State } from './framework.ts';
 import type { StatefulWidget } from './framework.ts';
 import { TickerMode } from './ticker-mode.ts';
 import type { TickerModeData } from './ticker-mode.ts';
@@ -48,6 +48,8 @@ abstract class WidgetTickerProviderState<W extends StatefulWidget>
     }
   }
   protected configure(ticker: Ticker, values: TickerModeData): Ticker {
+    if (this.context instanceof Element && this.context._preparationScope)
+      ticker.setMuted(this.context._preparationScope, true);
     ticker.muted = !values.enabled;
     ticker.forceFrames = values.forceFrames;
     this.tickers.add(ticker);

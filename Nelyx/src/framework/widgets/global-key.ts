@@ -30,9 +30,9 @@ export class GlobalKey<S extends State = State> extends Key {
     const state = this.currentElement?.stateObject;
     return state && (!this.stateType || state instanceof this.stateType) ? (state as S) : undefined;
   }
-  /** Framework registry access; callers must not bind keys themselves. */
+  /** Published lookup; unpublished reservations remain bound for uniqueness. */
   get currentElement(): Element | undefined {
-    return this.element;
+    return this.element?._preparationScope ? undefined : this.element;
   }
   bind(element: Element | undefined): void {
     invariant(
@@ -106,7 +106,8 @@ export class GlobalObjectKey<S extends State = State> extends GlobalKey<S> {
     return this.value;
   }
   override get currentElement(): Element | undefined {
-    return readBindings(this.value)?.get(this.constructor)?.get(this.stateType);
+    const element = readBindings(this.value)?.get(this.constructor)?.get(this.stateType);
+    return element?._preparationScope ? undefined : element;
   }
   override bind(element: Element | undefined): void {
     const bindings =

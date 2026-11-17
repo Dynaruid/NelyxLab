@@ -2,7 +2,7 @@
 
 작성일: 2026-11-17
 
-상태: **계획 작성 완료 / S0 동기 control만 구현·검증 / 세대 격리·분할 생산 미구현 / PARTIAL / performanceAccepted=false**
+상태: **P1 내부 세대 소유권·key/focus/ticker 격리 구현·PASS-scoped / 전체 P1 승격·자원 gate 미완료 / 분할 생산·제품 연결 미구현 / PARTIAL / performanceAccepted=false**
 
 기준: HEAD `046f93d8`와 현재 미커밋 변경. [work3](work3.md)의 선별·실행 기록, [work4 §10](work4.md#10-큰-구조-변경-검토--분할-생산과-원자적-게시)의 구조안과 [§11](work4.md#11-s0-착수--실제-runtime-계약과-준비-프레임-자격-검사)의 S0 구현을 이어받는다. 이 문서는 **현재 남은 작업 전체의 실행·검증·중단·인계 계획**이며, 이후 단계가 이미 구현되거나 승인됐다는 뜻이 아니다.
 
@@ -293,3 +293,105 @@ View당 준비 세대는 첫 버전에서 최대 1개로 시작한다. Element·
 - [ ] P8: 최종 일반 공급 또는 안전한 복원, 임시 산출물 정리와 제약 인계.
 
 **이 계획서 작성 시점에는 위 P0~P8이 완료되지 않았다. 현재 성능 판정은 계속 `PARTIAL / performanceAccepted=false`다.**
+
+## 12. 실행 기록 — P1 내부 prototype의 격리 gate 중단 (2026-11-17)
+
+### 실행 범위와 결정
+
+- 실제 시작 HEAD는 `3614b568`이며 시작 worktree는 clean이었다. 앞부분의 `046f93d8`은 계획 작성 당시의 기준으로 보존한다.
+- §3의 계약을 한 번에 확인했으나 사용자 응답을 받을 수 없었다. 따라서 문서의 **승인 부재 시 내부 prototype까지만 진행**하는 규칙을 적용했다. 이 요청 자체를 표시 전 lifecycle·입력 UX 변경의 별도 승인으로 확대하지 않았다.
+- [게시 통합 fixture](Nelyx/eng/check-frame-publication.mjs)에 `--preparation-prototype` 실행을 추가했다. 실제 `AppSession`·`FrameworkRoot`의 canonical `BuildOwner`를 공유하면서 별도 `BuildScope`와 게시 pipeline에 연결하지 않은 `PipelineOwner`에 새 subtree를 mount/build/layout한다. fake scheduler 결과나 token 복사만으로 격리를 판정하지 않는다.
+- 이 경계는 **fixture 내부에만 존재**한다. framework API, PageView, 달력 생성물, 기본 정책과 제품 공급은 변경하지 않았다. 기존 기본 실행은 계속 S0 동기 control이다.
+
+### 관측 결과
+
+| 검증 | 결과 | 실제 확인한 범위 |
+| --- | --- | --- |
+| 준비 dirty queue 분리 | PASS-scoped | default flush·finalize가 별도 scope의 작업을 대신 비우거나 active 준비 root를 폐기하지 않음 |
+| 충돌 없는 새 subtree 생산 | PASS-scoped | 실제 별도 render tree의 layout 완료. 준비 전·후의 새 pointer는 기존 게시 target에 도달하며, 기존 render children·paint version·sealed commands·게시 semantics는 보존됨 |
+| host로 반환 후 다시 준비 | PASS-scoped | 두 번의 **동기 scope flush 사이**에서 게시 입력을 처리. init 1회, 명시적 rebuild 2회, cancel/dispose 1회. **하나의 build/layout을 yield·재개한 P2/P3 결과가 아님** |
+| 준비 GlobalKey의 외부 조회 차단 | **FAIL** | 미게시 State의 `GlobalKey.currentElement/currentState`가 즉시 외부에 노출됨 |
+| 게시 State/target retake 금지 | **FAIL** | 준비 scope가 기존 GlobalKey의 동일 State를 실제로 가져감. 원래 부모의 child가 사라지고 기존 live render target의 pipeline owner도 준비 pipeline으로 바뀜 |
+| 미게시 focus 차단 | **FAIL** | 준비 subtree의 stock Focus autofocus가 실제 View의 primary focus를 차지함 |
+| 미게시 framework ticker 차단 | **FAIL** | 준비 State의 stock ticker provider가 실제 View scheduler에 callback을 등록하고 다음 host tick에 실행됨 |
+| 취소·실험 복원·종료 | PASS-scoped | 준비 key·dirty 작업·ticker callback 회수, 중복 cancel 시 dispose 1회. retake 실험은 원래 State를 되돌린 뒤 실제 강제 frame으로 live pipeline을 재연결함. 각 session close에서 owned host task 0, 관측한 frame lease 전부 반환 |
+
+**P1 판정: `BLOCKED / implementationAccepted=false / performanceAccepted=false`.** 별도 BuildScope와 detached render tree만으로는 canonical owner의 GlobalKey registry·FocusManager·ticker scheduler까지 격리되지 않는다는 반례를 실제 객체로 확인했다. 따라서 이 표현을 그대로 P2~P5에 연결하지 않는다. 외부 관측 이후 legacy로 처음부터 재실행하거나 기존 게시 State를 복제하는 우회도 추가하지 않았다.
+
+다음 P1 구현 gate는 canonical owner 안에서 준비 세대별 key 예약/공개 시점과 양방향 retake 금지, framework focus/ticker 자격, render owner transaction 적용 범위를 함께 정의·구현하는 것이다. stock wrapper 하나를 추가한 것만으로 arbitrary opt-in subtree가 안전하다고 간주하지 않는다. 이번 prototype은 승격·오류/resize/close 재진입의 전체 조합이나 resource byte 상한을 증명하지 못하며, **P1 완료 또는 제품용 scaffolding으로 인계하지 않는다.**
+
+### 실행 방법과 검증 예산
+
+기존 S0 control:
+
+```powershell
+node .\Nelyx\eng\check-frame-publication.mjs
+```
+
+내부 구조의 격리 gate:
+
+```powershell
+node .\Nelyx\eng\check-frame-publication.mjs --preparation-prototype
+```
+
+이 첫 실행 당시 두 번째 명령은 네 가지 위반을 `FRAME_PREPARATION_PROTOTYPE`의 `gate=BLOCKED`로 출력하고 **종료 code 2**를 반환했다. 정상 수락이나 성능 PASS가 아니다. 이후 구현으로 변경된 현재 명령 결과는 §13을 따른다. 기본 control에는 이 실험을 실행하지 않으며, 양 경로는 기존 실행기의 **20분 timeout** 안에서 실행한다.
+
+| 실행 | 횟수·결과 |
+| --- | --- |
+| S0 frame publication | 3회 PASS: 최초 control, prototype 정상화 후 control, 공개 CLI 확인 후 최종 control |
+| Source framework / retained paint | 각 1회 PASS-scoped. 이번에는 이들 제품 Source를 변경하지 않음 |
+| core 타입 검사 | 설치된 `@typescript/native` compiler로 PASS. 최초 잘못 지정한 compiler 파일 경로의 실패는 수정했으며 dependency 설치 없음 |
+| 내부 prototype | 5회: fixture 취소/복원 구현 오류로 무효 3회, 정상 gate 실행 2회 모두 같은 4개 위반으로 BLOCKED. 무효 실행을 수락 표본에 넣지 않음 |
+| 변경 fixture lint / format / diff | 최종 PASS. 새 로컬 문서 링크를 포함한 50개 링크 대상도 존재 확인 |
+| native 전체 시나리오 / FPS 표본 | **0회**. P1 gate와 승인 조건 미충족으로 실제 Hermes·Web 제품 검증·기준선/후보 비교에 진입하지 않음 |
+
+### 공급과 종료 상태
+
+- 현재 [root Source](Nelyx/src/framework/widgets/root.ts) SHA-256 앞 12자리는 `6b6f25d85000`, 현재 dist의 대응 JS는 `09248baa1b94`다. 설치된 `@nelyx/core`는 같은 `Nelyx` 디렉터리의 junction이다. 이번에는 이 Source·dist·설치본을 교체하지 않았다.
+- 현재 dist에는 Source의 S0 input sequence/timestamp 자격 검사가 아직 공급되지 않은 상태도 그대로 남아 있다. Source fixture PASS를 현재 배포 출력이나 실제 Hermes 실행의 검증으로 인용하지 않는다. VM/host/renderer identity와 최종 native 일반 시작·종료는 **미검증**이다.
+- 새 준비/제품 자원 상한 확정, 승격·입력 게시 통합, nested 날짜 grid 분할, 실제 Hermes 공급과 성능 수락은 미완료다. P0는 control 확인만 완료, P1은 내부 후보 반례 검증 후 중단, P2~P7은 미진행이다.
+- P8은 **제품 공급 무변경·fixture 내부 State/target 복원·취소/종료 회수와 제한된 인계**까지만 수행한다. 제품용 최종 공급 완료로 표시하지 않는다. 별도 설치본·archive·history JSON·raw 로그를 만들지 않으며, fixture bundle은 메모리에서만 사용한다.
+
+**이 첫 실행의 판정: PARTIAL / P1 gate BLOCKED / 제품 구현·기능·성능 수락 모두 미완료 / performanceAccepted=false.**
+
+## 13. 다음 단계 실행 — 준비 세대 소유권과 네 가지 격리 실패 수정 (2026-11-17)
+
+### 실제 구현
+
+제품 lifecycle·입력 정책 승인을 새로 받았다고 간주하지 않고, 기본 동기 경로를 보존한 **명시적 내부 준비 세대**만 구현했다. 앞선 미커밋 fixture·문서 변경도 보존했다.
+
+| 변경 파일 | 구현 범위 |
+| --- | --- |
+| [framework](Nelyx/src/framework/widgets/framework.ts) | canonical BuildOwner당 준비 세대 최대 1개. 준비 root의 mount callback 전에 세대 소유권을 부여하고, 자손은 별도 LayoutBuilder scope 안에서도 이를 상속함. render-children transaction·GlobalKey 예약/retake 검증·inactive finalize를 게시 세대와 분리. 취소 및 owner close에서 준비 Element를 회수하며 같은 unmount hook을 중복 호출하지 않음 |
+| [GlobalKey](Nelyx/src/framework/widgets/global-key.ts) | 미게시 key의 context/widget/State 조회를 숨기되 실제 binding은 유지하여 다른 View와 동등한 GlobalObjectKey의 중복 mount를 계속 차단. 게시↔준비 retake는 기존 부모나 live render target을 변경하기 전에 명시적 오류 |
+| [Focus](Nelyx/src/framework/widgets/focus.ts), [Focus widget](Nelyx/src/framework/widgets/focus-scope.ts) | 준비 Focus의 autofocus·focus 획득과 게시 focus tree 편입을 차단. 이미 host/tree가 있는 FocusNode의 재사용은 flags나 callback을 재설정하기 전에 거부하여 기존 focus 상태를 보존 |
+| [ticker provider](Nelyx/src/framework/widgets/ticker-provider.ts) | stock framework ticker에 준비 세대 소유의 mute를 설정. 수동 `muted=false`나 `forceFrames=true`가 미게시 ticker를 활성화하지 못하며, 기존 게시 ticker는 계속 실행 |
+| [게시 통합 fixture](Nelyx/eng/check-frame-publication.mjs) | 기존 네 가지 반례를 실패 차단 검증으로 전환. 실제 AppSession/FrameworkRoot·별도 render pipeline을 계속 사용하며, 단순 token 검사로 대체하지 않음 |
+
+준비 중 build/dirty 작업은 게시 build revision이나 현재 CPU frame의 유효 geometry를 변경한 것으로 계산하지 않는다. 일반 mount에서 추가로 사용자 `buildScope` getter를 읽어 준비 여부를 추측하지 않고, 내부 root 진입점에서 소유권을 명시적으로 seed한다. 준비의 **render 연결 경계 자체는 여전히 fixture 내부**에 있으며, 이 내부 primitive를 완성된 준비 widget/API로 제공하지 않는다.
+
+### 검증 결과
+
+최종 선택 명령은 §12와 같다. `--preparation-prototype`은 이제 `gate=PASS-scoped`, **종료 code 0**을 반환한다. 이는 아래 소유권 하위 gate의 통과이며, 출력의 `implementationAccepted=false`, `performanceAccepted=false`는 그대로 유지한다.
+
+| 범위 | 최종 결과 |
+| --- | --- |
+| §12의 네 가지 위반 | 수정 후 PASS-scoped: 미게시 key 조회 차단, 양방향 retake 거부, 기존 primary focus 보존, 미게시 ticker callback 0 |
+| key/예약/실제 target | 객체·문자열 identity의 GlobalObjectKey alias, 다른 View의 중복 mount, nested LayoutBuilder의 세대 상속, 같은 준비 세대 안의 정상 retake와 별도 finalize 검증. 거부된 게시 target은 기존 pipeline에 남고 pointer down/up이 정상 도달 |
+| 게시/준비 transaction | 게시 flush가 준비 render commit을 실행하지 않음. 준비 flush는 실제 준비 render children을 commit하며, 기존 sealed frame·paint version·게시 semantics·입력 geometry 자격 유지 |
+| 수명과 실패 | init·dispose 1회, 중복 cancel 시 unmount hook 1회, 취소 전 build 미실행, dispose 오류의 원본 보존·나머지 생성분 회수·다음 세대 생성 가능, owner close 시 준비 Element와 owned frame task/lease 회수 |
+| 내부 Element 상한 | 준비 세대 2,048개를 넘는 첫 Element는 lifecycle 실행 전에 거부. 실제 생성된 State의 dispose 수가 init 수와 같고 dirty 작업 잔여 0 |
+| 기존 회귀 | S0 frame publication, child reconciliation, dependency scope, Source framework 20개 사례, retained paint 모두 PASS 또는 해당 실행기의 PASS-scoped |
+| 코드 품질 | core 타입 검사, 변경 6개 코드 파일 lint·format PASS. 모든 검증 subprocess는 20분 timeout |
+
+이번 후속 실행의 준비 fixture는 코드 보완에 따라 총 5회, 기본 publication control은 총 4회 실행했으며 모두 통과했다. child reconciliation은 3회, dependency scope·Source framework·retained paint는 각 2회 통과했다. native 전체 시나리오와 성능 표본은 추가 **0회**다. Element 상한 검증의 내부 mount 수를 native 시나리오 반복 횟수로 세지 않는다.
+
+### 남은 gate와 공급 상태
+
+- **전체 P1은 미완료**다. 준비→게시 승격과 그 실패·재진입, parent/route/hide/resize/renderer 무효화에 따른 취소, 수명·GlobalKey 공개 시점·Focus/ticker 승격 정책의 결합을 아직 구현·수락하지 않았다. 자동 사용자 timer/구독 정지나 callback 부수 효과 rollback도 제공하지 않는다.
+- 2,048개는 현재 **준비 세대 자체의 내부 Element 제한**이다. 기존 optional retention과의 합산 View 상한, resource byte/lease 상한 및 JS heap 관측은 미완료다. 이 제한만으로 §4.2/§9의 자원 gate를 수락하지 않는다.
+- 준비 scope의 실제 build/layout을 중간에 yield·재개하는 P2/P3, CPU seal·입력/semantics 게시·GPU backpressure를 통합하는 P4, PageView/달력 opt-in인 P5는 여전히 미구현이다. stock framework 경로의 이 검증을 arbitrary custom subtree 전체 지원으로 확대하지 않는다.
+- 기존 dist·설치 junction·Demo 출력은 교체하지 않았다. 새 framework Source는 아직 정규 package 공급이나 pinned Hermes/Web 제품 실행으로 검증하지 않았으며, 오래된 Web bundle을 이번 변경의 검증에 사용하지 않았다. 새 archive·별도 설치본·raw 로그는 남기지 않고, 도구가 생성한 임시 diff 출력도 삭제했다.
+- 다음 단계는 **P1의 실제 준비 경계·승격/취소 소유권과 총량 예산 통합**이다. 제품 연결 전 §3의 행동 계약 확인은 여전히 필요하며, 전체 P1 gate 통과 전에는 P2~P7을 완료로 표시하지 않는다.
+
+**현재 판정: P1 소유권 하위 gate PASS-scoped / 전체 작업 PARTIAL / performanceAccepted=false.**

@@ -5,7 +5,7 @@ import { ChangeNotifier, Listenable } from '../../foundation/notifier.ts';
 import { HashedObserverList } from '../../foundation/observer-list.ts';
 import { FoundationPlatform } from '../../foundation/platform.ts';
 import { invariant, exceptionStack } from '../../foundation/errors.ts';
-import type { BuildContext, Element } from './framework.ts';
+import type { BuildContext, BuildScope, Element } from './framework.ts';
 import { isElementContext, initializeFocusScopeType } from './widget-class-identity.ts';
 import { RenderBox } from '../rendering/object.ts';
 import { Rect } from '../../ui/rect.ts';
@@ -190,6 +190,10 @@ function live(node: FocusNode): NodeData {
   if (data.dead) invariant(false, 'disposed-focus-node', 'FocusNode is disposed');
   return data;
 }
+function preparationScope(node: FocusNode): BuildScope | undefined {
+  const context = state(node).context;
+  return isElementContext(context) ? context._preparationScope : undefined;
+}
 function managerState(manager: FocusManager): ManagerData {
   const data = managers.get(manager);
   if (!(data && !data.dead)) invariant(false, 'disposed-focus-manager', 'FocusManager is disposed');
@@ -243,7 +247,7 @@ function request(manager: FocusManager, node: FocusNode, invoke = true, immediat
   const m = managerState(manager);
   if (!(state(node).manager === manager))
     invariant(false, 'foreign-focus-node', 'FocusNode belongs to another View');
-  if (!node.canRequestFocus) {
+  if (preparationScope(node) || !node.canRequestFocus) {
     if (!invoke) focusCommands(node).blur?.();
     return;
   }
@@ -273,6 +277,11 @@ function setManager(node: FocusNode, manager: FocusManager | undefined): void {
 function reparent(node: FocusNode, parent: FocusNode): void {
   const d = live(node),
     p = live(parent);
+  invariant(
+    preparationScope(node) === preparationScope(parent),
+    'cross-preparation-focus',
+    'Focus trees cannot cross published and unpublished generations',
+  );
   if (!(node !== parent && !parent.ancestors.includes(node)))
     invariant(false, 'focus-cycle', 'Focus tree cannot contain a cycle');
   if (!(!d.manager || node !== d.manager.rootScope))
@@ -392,6 +401,8 @@ export class FocusAttachment {
       parent ??
       (context.active ? findFocusAncestor(context) : null) ??
       context.owner.focus.rootScope;
+    if (context._preparationScope && preparationScope(resolved) !== context._preparationScope)
+      return;
     reparent(this.node, resolved);
   }
 }
@@ -472,7 +483,11 @@ export class FocusNode extends ChangeNotifier {
       : [];
   }
   get canRequestFocus(): boolean {
-    return state(this).can && this.ancestors.every((n) => n.descendantsAreFocusable);
+    return (
+      !preparationScope(this) &&
+      state(this).can &&
+      this.ancestors.every((n) => n.descendantsAreFocusable)
+    );
   }
   set canRequestFocus(value: boolean) {
     const d = live(this);
@@ -536,6 +551,17 @@ export class FocusNode extends ChangeNotifier {
   get attached(): boolean {
     return !!state(this).attachment || !!state(this).legacy;
   }
+  /** @internal Check before a Focus widget can configure an existing live node. */
+  _assertPreparationAttachment(context: Element): void {
+    if (!context._preparationScope) return;
+    const data = live(this);
+    invariant(
+      (!data.attachment && !data.legacy && !data.manager && !data.parent) ||
+        (data.attachment && data.context === context),
+      'preparation-focus-host',
+      'Unpublished Focus cannot configure a node that already has another host or focus tree',
+    );
+  }
   attach(context: BuildContext, options?: FocusAttachmentOptions): FocusAttachment;
   attach(scope: FocusManager, command: () => void, reveal?: () => void): () => void;
   attach(
@@ -578,6 +604,7 @@ export class FocusNode extends ChangeNotifier {
         'invalid-focus-context',
         'FocusNode needs a live Element without another legacy host',
       );
+    this._assertPreparationAttachment(context);
     if (
       !(!d.attachment || d.context === context || !isElementContext(d.context) || !d.context.active)
     )
@@ -766,6 +793,7 @@ export class FocusScopeNode extends FocusNode {
   }
   autofocus(node: FocusNode): void {
     const d = live(this);
+    if (preparationScope(node)) return;
     if (!node.parent) reparent(node, this);
     if (!(node.ancestors.includes(this) && d.manager))
       invariant(false, 'foreign-autofocus', 'Autofocus node must belong to this scope');
@@ -980,7 +1008,7 @@ export class FocusManager extends ChangeNotifier {
   focus(node: FocusNode): boolean {
     if (!(state(node).manager === this))
       invariant(false, 'foreign-focus-node', 'FocusNode belongs to another View');
-    if (!node.canRequestFocus) {
+    if (preparationScope(node) || !node.canRequestFocus) {
       focusCommands(node).blur?.();
       return false;
     }
@@ -1012,6 +1040,7 @@ export class FocusManager extends ChangeNotifier {
           state(scope).manager === this &&
           state(node).manager === this &&
           !scope.focusedChild &&
+          !preparationScope(node) &&
           node.canRequestFocus
         ) {
           remember(node);
@@ -1028,7 +1057,7 @@ export class FocusManager extends ChangeNotifier {
       m.invoke = false;
       m.request = undefined;
       if (next && next !== previous) {
-        if (state(next).manager === this && next.canRequestFocus) {
+        if (state(next).manager === this && !preparationScope(next) && next.canRequestFocus) {
           const oldPath = previous ? [previous, ...previous.ancestors] : [],
             newPath = [next, ...next.ancestors];
           m.primary = next;

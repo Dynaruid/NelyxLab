@@ -310,6 +310,7 @@ class FocusState extends State<Focus> {
   }
   private connect(): void {
     this.node = this.widget.focusNode ?? (this.internal ??= this.createNode());
+    if (this.context instanceof Element) this.node._assertPreparationAttachment(this.context);
     this.configure();
     if (this.standardState()) {
       this.lastPrimary = this.node.hasPrimaryFocus;

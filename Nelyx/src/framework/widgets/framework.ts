@@ -25,7 +25,7 @@ import { FoundationBuildMode } from '../../foundation/constants.ts';
 import type { Key } from '../../foundation/key.ts';
 import type { ViewControllerContext } from '../../hosting/runtime.ts';
 import type { ViewMetrics } from '../../ui/types.ts';
-import { ViewWorkBudget } from './view-work-budget.ts';
+import { ViewWorkBudget, viewChildBudgetLimits } from './view-work-budget.ts';
 import { DormantChildCache } from './dormant-child-cache.ts';
 import { RenderObject } from '../rendering/object.ts';
 import { RenderErrorBox } from '../rendering/error-box.ts';
@@ -181,6 +181,7 @@ export class BuildScope {
    * the already painted route. Unknown render ownership remains conservative. */
   _hasDirtyInActiveLayout(): boolean {
     return !this.queue.every((element) => {
+      if (element._preparationScope) return true;
       if (!element.active || element.findRenderObject !== Element.prototype.findRenderObject)
         return false;
       const render = element.findRenderObject();
@@ -298,7 +299,94 @@ function activeBuildObserver(observer: ElementBuildDiagnosticObserver): boolean 
     return false;
   }
 }
+interface PreparationScope {
+  readonly scope: BuildScope;
+  readonly roots: Set<Element>;
+  readonly elements: Set<Element>;
+  readonly renderChildren: OwnerTransaction<RenderObjectElement>;
+  readonly reservations: KeyMap<{ key: GlobalKey; parents: Set<Element> }>;
+  readonly retakenParents: Set<Element>;
+  cancelling: boolean;
+}
 export class BuildOwner {
+  private preparation: PreparationScope | undefined;
+  /** @internal Ownership only: callers still need an isolated render boundary.
+   * This does not provide continuation, promotion or a product opt-in API. */
+  _createPreparationScope(): BuildScope {
+    invariant(
+      !this.disposed && !this.building && !this.preparation,
+      'invalid-preparation-scope',
+      'A live idle View may own at most one preparation generation',
+    );
+    const scope = new BuildScope();
+    this.preparation = {
+      scope,
+      roots: new Set(),
+      elements: new Set(),
+      renderChildren: new OwnerTransaction((element) => {
+        if (element.active) element._commitRenderChildren();
+      }),
+      reservations: new KeyMap(),
+      retakenParents: new Set(),
+      cancelling: false,
+    };
+    return scope;
+  }
+  /** @internal Validate the explicit seed; nested scopes inherit Element membership. */
+  _preparationForScope(scope: BuildScope): BuildScope {
+    const preparation = this.preparationFor(scope);
+    invariant(
+      !preparation.cancelling,
+      'foreign-preparation-scope',
+      'Preparation scope is being cancelled',
+    );
+    return scope;
+  }
+  private preparationFor(scope: BuildScope): PreparationScope {
+    const preparation = this.preparation;
+    invariant(
+      preparation !== undefined && preparation.scope === scope,
+      'foreign-preparation-scope',
+      'Preparation belongs to another View or has already been cancelled',
+    );
+    return preparation;
+  }
+  /** @internal Called before mount can run lifecycle or render callbacks. */
+  _registerPreparationElement(element: Element): void {
+    const scope = element._preparationScope;
+    if (!scope) return;
+    const preparation = this.preparationFor(scope);
+    invariant(
+      !preparation.cancelling && preparation.elements.size < viewChildBudgetLimits.elements,
+      'preparation-element-limit',
+      'Preparation is cancelling or reached its Element limit',
+    );
+    preparation.elements.add(element);
+    if (element.parent?._preparationScope !== scope) preparation.roots.add(element);
+  }
+  /** @internal Cancel unpublished ownership before the View's shared services. */
+  _disposePreparationScope(scope: BuildScope): void {
+    const preparation = this.preparationFor(scope);
+    invariant(!this.building, 'cancel-during-build', 'Cannot cancel preparation during build');
+    if (preparation.cancelling) return;
+    preparation.cancelling = true;
+    const errors: unknown[] = [];
+    for (const root of new Set([...preparation.roots, ...preparation.elements]))
+      try {
+        if (root.mounted) root.unmount();
+      } catch (error) {
+        errors.push(error);
+      }
+    preparation.renderChildren.dispose();
+    preparation.reservations.clear();
+    preparation.retakenParents.clear();
+    scope._clear();
+    this.preparation = undefined;
+    if (preparation.elements.size)
+      errors.push(new Error('Preparation cancellation left mounted Elements'));
+    if (errors.length === 1) throw errors[0];
+    if (errors.length) throw new AggregateError(errors, 'Preparation cancellation failed');
+  }
   private elementBuildObserver: ElementBuildDiagnosticObserver | undefined;
   /** @internal Installed only by an explicitly profiling native App host. */
   _setElementBuildObserver(observer: ElementBuildDiagnosticObserver | undefined): void {
@@ -309,12 +397,16 @@ export class BuildOwner {
   });
   /** @internal One admission per actual render owner, including isolated builds. */
   _scheduleRenderChildren(element: RenderObjectElement): void {
-    this.renderChildren.schedule(element);
+    const scope = element._preparationScope;
+    (scope ? this.preparationFor(scope).renderChildren : this.renderChildren).schedule(element);
   }
   /** Commit queued structural work before layout; no root projection traversal. */
-  flushRenderTree(): void {
+  flushRenderTree(preparationScope?: BuildScope): void {
     assertOutsideRenderPaint();
-    this.renderChildren.commit();
+    (preparationScope
+      ? this.preparationFor(preparationScope).renderChildren
+      : this.renderChildren
+    ).commit();
   }
   private viewWorkBudgetValue: ViewWorkBudget | undefined;
   /** @internal Created only by an explicitly bounded sliver in this View. */
@@ -494,7 +586,7 @@ export class BuildOwner {
   building = false;
   disposed = false;
   private buildRevisionValue = 0;
-  /** Completed rebuilds across the default and layout-owned isolated scopes. */
+  /** Completed published rebuilds across the default and layout-owned scopes. */
   get buildRevision(): number {
     return this.buildRevisionValue;
   }
@@ -620,7 +712,14 @@ export class BuildOwner {
     this.viewWorkBudgetValue?.register(element);
   }
   unregister(element: Element): void {
-    if (element instanceof RenderObjectElement) this.renderChildren.forget(element);
+    const preparation = element._preparationScope
+      ? this.preparationFor(element._preparationScope)
+      : undefined;
+    if (element instanceof RenderObjectElement)
+      (preparation?.renderChildren ?? this.renderChildren).forget(element);
+    preparation?.elements.delete(element);
+    preparation?.roots.delete(element);
+    if (preparation) this.inactive.delete(element);
     this.viewWorkBudgetValue?.unregister(element);
     this.viewMetricsReaders.delete(element);
     const key = element.widget.key;
@@ -629,9 +728,23 @@ export class BuildOwner {
     key.bind(undefined);
   }
   reserve(key: GlobalKey, parent: Element): void {
-    const reservation = this.reservations.get(key) ?? { key, parents: new Set<Element>() };
+    if (this.preparation) {
+      const child = this.globals.get(key);
+      if (child) this.assertSamePreparation(child, parent);
+    }
+    const reservations = parent._preparationScope
+      ? this.preparationFor(parent._preparationScope).reservations
+      : this.reservations;
+    const reservation = reservations.get(key) ?? { key, parents: new Set<Element>() };
     reservation.parents.add(parent);
-    this.reservations.set(key, reservation);
+    reservations.set(key, reservation);
+  }
+  private assertSamePreparation(child: Element, parent: Element): void {
+    invariant(
+      child._preparationScope === parent._preparationScope,
+      'cross-preparation-global-key',
+      'GlobalKey cannot move between published and unpublished generations',
+    );
   }
   /** Detach without disposing; finalizeTree retires roots not reclaimed in this frame. */
   deactivateChild(child: Element): void {
@@ -712,6 +825,7 @@ export class BuildOwner {
     if (!(key instanceof GlobalKey)) return undefined;
     const child = this.globals.get(key);
     if (!child) return undefined;
+    this.assertSamePreparation(child, parent);
     if (!(child !== parent && !parent.hasAncestor(child)))
       invariant(false, 'global-key-cycle', 'GlobalKey would move an ancestor below its descendant');
     const dormantRoot = this.dormantChildrenValue?.retainedRoot(child);
@@ -721,7 +835,11 @@ export class BuildOwner {
         if (!previous)
           invariant(false, 'global-key-root-move', 'A mounted root cannot be reparented');
         previous.forgetChild(child);
-        if (previous !== parent && previous.active) this.retakenParents.add(previous);
+        if (previous !== parent && previous.active)
+          (previous._preparationScope
+            ? this.preparationFor(previous._preparationScope).retakenParents
+            : this.retakenParents
+          ).add(previous);
         this.deactivateChild(child);
       }
     } catch (error) {
@@ -758,8 +876,11 @@ export class BuildOwner {
     }
   }
   parentRebuilt(parent: Element): void {
-    this.buildRevisionValue++;
-    this.retakenParents.delete(parent);
+    if (!parent._preparationScope) this.buildRevisionValue++;
+    (parent._preparationScope
+      ? this.preparationFor(parent._preparationScope).retakenParents
+      : this.retakenParents
+    ).delete(parent);
   }
   flushBuild(): void {
     assertOutsideRenderPaint();
@@ -830,7 +951,7 @@ export class BuildOwner {
     }
     const commitStarted = now?.() ?? 0;
     try {
-      this.flushRenderTree();
+      this.flushRenderTree(context?._preparationScope);
     } catch (error) {
       if (failed)
         throw new AggregateError([failure, error], 'Build and render owner commit failed');
@@ -840,11 +961,13 @@ export class BuildOwner {
     }
     if (failed) throw failure;
   }
-  finalizeTree(): void {
+  finalizeTree(preparationScope?: BuildScope): void {
     if (this.building) invariant(false, 'finalize-during-build', 'Cannot finalize during build');
+    const preparation = preparationScope ? this.preparationFor(preparationScope) : undefined;
     const errors: unknown[] = [];
     const snapshot2 = [...this.inactive];
     for (const root of snapshot2) {
+      if (root._preparationScope !== preparationScope) continue;
       if (this.dormantChildrenValue?.has(root)) continue;
       this.inactive.delete(root);
       if (!root.active)
@@ -856,7 +979,9 @@ export class BuildOwner {
     }
     // Reparenting can reserve a key under successive live parents in one frame.
     // Verify completed ownership, as source does, after all parents rebuild.
-    for (const { key, parents } of this.reservations.values())
+    const reservations = preparation?.reservations ?? this.reservations,
+      retakenParents = preparation?.retakenParents ?? this.retakenParents;
+    for (const { key, parents } of reservations.values())
       if (
         [...parents].filter(
           (parent) =>
@@ -867,15 +992,15 @@ export class BuildOwner {
         ).length > 1
       )
         errors.push(new Error('Multiple active parents retained the same GlobalKey'));
-    for (const parent of this.retakenParents)
+    for (const parent of retakenParents)
       if (parent.active)
         errors.push(
           new Error(
             `Duplicate GlobalKey: previous parent ${parent.widget.constructor.name} did not rebuild after its child was moved`,
           ),
         );
-    this.retakenParents.clear();
-    this.reservations.clear();
+    retakenParents.clear();
+    reservations.clear();
     if (errors.length) throw new AggregateError(errors, 'Finalizing widget tree failed');
   }
   dispose(): void {
@@ -886,6 +1011,9 @@ export class BuildOwner {
     this.pointerBinding = undefined;
     const errors: unknown[] = [];
     for (const dispose of [
+      () => {
+        if (this.preparation) this._disposePreparationScope(this.preparation.scope);
+      },
       () => this.dormantChildrenValue?.dispose(),
       () => this.finalizeTree(),
       () => this.gestures.dispose(),
@@ -995,6 +1123,11 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   // Source Element._parentBuildScope: scope ancestry changes at mount/retake,
   // not for every scheduling/check operation in a deep lazy child subtree.
   private parentBuildScope: BuildScope | undefined;
+  private preparationScope: BuildScope | undefined;
+  /** @internal Unpublished ownership survives isolated layout scopes and deactivation. */
+  get _preparationScope(): BuildScope | undefined {
+    return this.preparationScope;
+  }
   private parentScopeAncestor: Element | undefined;
   private inheritBuildScope(parent: Element | undefined, owner: BuildOwner): void {
     const scope = parent?.buildScope ?? owner.defaultBuildScope;
@@ -1104,6 +1237,25 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     }
     return false;
   }
+  /** @internal Seed ownership before a preparation root can run mount callbacks. */
+  _mountPreparationRoot(
+    parent: Element,
+    owner: BuildOwner,
+    scope: BuildScope,
+    slot?: unknown,
+  ): void {
+    invariant(
+      this.lifecycle === 'initial' &&
+        parent.active &&
+        parent.owner === owner &&
+        !parent.preparationScope &&
+        !owner.building,
+      'invalid-preparation-root',
+      'Preparation requires a fresh root below a live published context outside build',
+    );
+    this.preparationScope = owner._preparationForScope(scope);
+    this.mount(parent, owner, slot);
+  }
   mount(parent: Element | undefined, owner: BuildOwner, slot?: unknown): void {
     if (!(this.lifecycle === 'initial'))
       invariant(false, 'double-mount', 'Element can only be mounted once');
@@ -1120,7 +1272,9 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     this.currentSlot = slot;
     this.depth = (parent?.depth ?? -1) + 1;
     this.owner = owner;
+    this.preparationScope ??= parent?.preparationScope;
     this.lifecycle = 'active';
+    owner._registerPreparationElement(this);
     this.markRenderTreeSyncDirty();
     this.updateInheritedTypes();
     owner.register(this);
@@ -1453,7 +1607,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   }
   /** Explicit boundary for custom callers; built-in build scopes commit once. */
   syncRenderTree(): void {
-    this.owner.flushRenderTree();
+    this.owner.flushRenderTree(this.preparationScope);
   }
   private clearDependencies(): void {
     this.owner._forgetViewMetricsReader(this);
@@ -1483,7 +1637,13 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     if (errors) throw new AggregateError(errors, 'Subtree deactivation failed');
   }
   activate(parent: Element): void {
-    if (!(this.lifecycle === 'inactive' && parent.owner === this.owner))
+    if (
+      !(
+        this.lifecycle === 'inactive' &&
+        parent.owner === this.owner &&
+        this.preparationScope === parent._preparationScope
+      )
+    )
       invariant(
         false,
         'invalid-activation',
@@ -1534,6 +1694,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     this.parentRenderOwner = undefined;
     this._parentDataScope = null;
     this.parentBuildScope = undefined;
+    this.preparationScope = undefined;
     this.parentScopeAncestor = undefined;
     this.currentSlot = undefined;
     this._notificationTree = null;
