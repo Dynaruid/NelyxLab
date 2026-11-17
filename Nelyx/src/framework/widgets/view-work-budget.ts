@@ -11,6 +11,9 @@ import type { SectionLifetimeService } from '../../hosting/section-lifetime.ts';
  * State's responsibility and framework tickers resume with elapsed wall time. */
 export type SliverChildPolicy =
   | 'legacy'
+  /** Cold finite subtree production; one unpublished generation per View.
+   * init/build may run early. User timers and subscriptions must be disposable. */
+  | { readonly mode: 'split' }
   | {
       readonly mode: 'bounded';
       readonly preparation?: 'disabled' | 'observed-budget';
@@ -21,6 +24,8 @@ export function normalizeSliverChildPolicy(
   value: SliverChildPolicy | undefined,
 ): SliverChildPolicy {
   if (value === undefined || value === 'legacy') return 'legacy';
+  if (value !== null && typeof value === 'object' && value.mode === 'split')
+    return Object.freeze({ mode: 'split' });
   if (value !== null && typeof value === 'object' && value.mode === 'dormant') {
     invariant(
       Number.isSafeInteger(value.capacity) && value.capacity > 0 && value.capacity <= 32,
@@ -103,7 +108,12 @@ export class ViewWorkBudget {
   constructor(
     private readonly resources: ResourceRegistry,
     private readonly generation = 1,
+    private readonly preparingElements: () => number = () => 0,
   ) {}
+  /** @internal Shared cap, without allocating a diagnostic snapshot per mount. */
+  get optionalElementCount(): number {
+    return this.chargedElements;
+  }
   get debugStats() {
     return Object.freeze({
       trackedElements: this.tracked,
@@ -379,7 +389,8 @@ export class ViewWorkBudget {
         this.pressure ||
         owned >= capacity ||
         this.optional.size >= viewChildBudgetLimits.children ||
-        this.chargedElements + record.elements > viewChildBudgetLimits.elements
+        this.chargedElements + this.preparingElements() + record.elements >
+          viewChildBudgetLimits.elements
       ) {
         return false;
       }
@@ -395,7 +406,8 @@ export class ViewWorkBudget {
       this.pressure ||
       owned >= capacity ||
       this.optional.size >= viewChildBudgetLimits.children ||
-      this.chargedElements + record.elements > viewChildBudgetLimits.elements
+      this.chargedElements + this.preparingElements() + record.elements >
+        viewChildBudgetLimits.elements
     ) {
       const victim = [...this.optional].find(
         (value) =>
@@ -465,7 +477,8 @@ export class ViewWorkBudget {
       candidate.elements <= viewChildBudgetLimits.elements &&
       !this.pressure &&
       this.optional.size < viewChildBudgetLimits.children &&
-      this.chargedElements + candidate.elements <= viewChildBudgetLimits.elements &&
+      this.chargedElements + this.preparingElements() + candidate.elements <=
+        viewChildBudgetLimits.elements &&
       [...this.optional].filter((record) => record.owner === candidate.owner).length <
         (candidate.capacity ?? viewChildBudgetLimits.perSliver)
     );

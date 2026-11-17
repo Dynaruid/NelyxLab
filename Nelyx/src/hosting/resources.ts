@@ -13,6 +13,15 @@ export interface ResourceCost {
   readonly units: number;
   readonly bytes: number;
 }
+/** @internal Counts actual registrations, without retaining resource bodies or leases. */
+export class PreparationResourceBudget {
+  resources = 0;
+  units = 0;
+  bytes = 0;
+  peakResources = 0;
+  peakBytes = 0;
+  constructor(readonly limits = Object.freeze({ resources: 128, units: 16384, bytes: 1048576 })) {}
+}
 export interface ResourceAccountingTotals {
   readonly resident: number;
   readonly producers: number;
@@ -114,6 +123,7 @@ interface Entry {
   owners: number;
   readonly retire: () => void;
   readonly accounting?: AccountingEntry;
+  readonly preparation?: PreparationResourceBudget;
 }
 function changeProducerAccounting(entry: Entry, delta: number): void {
   const value = entry.accounting;
@@ -175,6 +185,37 @@ export class ResourceRegistry {
   private allocationSequence = 0;
   private optionalReclaimers: Set<() => void> | undefined;
   private reclaimingOptional = false;
+  private preparationBudget: PreparationResourceBudget | undefined;
+  private preparationBudgetProvider: (() => PreparationResourceBudget | undefined) | undefined;
+  /** @internal A parent can adopt a prepared child midway through required
+   * layout; only allocations after that adoption belong to its generation. */
+  _withPreparationBudgetProvider<T>(
+    provider: () => PreparationResourceBudget | undefined,
+    perform: () => T,
+  ): T {
+    const previous = this.preparationBudgetProvider;
+    this.preparationBudgetProvider = provider;
+    try {
+      return perform();
+    } finally {
+      this.preparationBudgetProvider = previous;
+    }
+  }
+  /** @internal No asynchronous extent and no extra resource ownership. */
+  _withPreparationBudget<T>(budget: PreparationResourceBudget, perform: () => T): T {
+    const previous = this.preparationBudget;
+    invariant(
+      !previous || previous === budget,
+      'nested-resource-preparation',
+      'Only one preparation may allocate in a View',
+    );
+    this.preparationBudget = budget;
+    try {
+      return perform();
+    } finally {
+      this.preparationBudget = previous;
+    }
+  }
   /** @internal Optional UI/cache owners can release their own logical leases
    * before admission. In-flight frames remain independently charged. */
   addOptionalResourceReclaimer(reclaim: () => void): { dispose(): void } {
@@ -249,6 +290,21 @@ export class ResourceRegistry {
     invariant(descriptor.id.length > 0, 'invalid-resource', 'empty resource id');
     const key = resourceKey(descriptor);
     invariant(!this.entries.has(key), 'duplicate-resource', 'resource already registered');
+    const preparation = this.preparationBudget ?? this.preparationBudgetProvider?.();
+    if (preparation) {
+      invariant(
+        accounting !== undefined,
+        'unaccounted-preparation-resource',
+        'Cold preparation requires resources with explicit byte and unit accounting',
+      );
+      invariant(
+        preparation.resources + 1 <= preparation.limits.resources &&
+          preparation.units + accounting.cost.units <= preparation.limits.units &&
+          preparation.bytes + accounting.cost.bytes <= preparation.limits.bytes,
+        'preparation-resource-limit',
+        'Cold preparation reached its resource budget',
+      );
+    }
     const copy = descriptor.asset
       ? { ...descriptor, asset: Object.freeze({ ...descriptor.asset }) }
       : { ...descriptor };
@@ -295,7 +351,15 @@ export class ResourceRegistry {
       owners: 0,
       retire,
       ...(tracked ? { accounting: tracked } : {}),
+      ...(preparation ? { preparation } : {}),
     });
+    if (preparation) {
+      preparation.resources++;
+      preparation.units += tracked!.cost.units;
+      preparation.bytes += tracked!.cost.bytes;
+      preparation.peakResources = Math.max(preparation.peakResources, preparation.resources);
+      preparation.peakBytes = Math.max(preparation.peakBytes, preparation.bytes);
+    }
   }
   has(resource: ResourceId): boolean {
     const entry = this.entries.get(resourceKey(resource)),
@@ -395,6 +459,11 @@ export class ResourceRegistry {
   }
   acquire(resources: readonly ResourceId[]): ResourceLease {
     try {
+      invariant(
+        !(this.preparationBudget ?? this.preparationBudgetProvider?.()),
+        'preparation-frame-lease',
+        'Unpublished production cannot acquire a CPU frame lease',
+      );
       invariant(!this.closed, 'closed', 'resource registry is closing');
       for (const resource of resources)
         invariant(
@@ -443,8 +512,16 @@ export class ResourceRegistry {
   private release(entry: Entry): void {
     if (--entry.references === 0) {
       this.entries.delete(resourceKey(entry.descriptor));
-      entry.retire();
-      retireAccounting(entry);
+      try {
+        entry.retire();
+      } finally {
+        retireAccounting(entry);
+        if (entry.preparation) {
+          entry.preparation.resources--;
+          entry.preparation.units -= entry.accounting!.cost.units;
+          entry.preparation.bytes -= entry.accounting!.cost.bytes;
+        }
+      }
     }
   }
   private releaseAll(entries: readonly Entry[]): void {

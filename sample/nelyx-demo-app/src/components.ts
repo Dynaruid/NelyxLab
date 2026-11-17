@@ -60,6 +60,7 @@ import { InputDecoration } from '@nelyx/material/input-decoration';
 import { OutlineInputBorder } from '@nelyx/material/input-border';
 import { showDialog } from '@nelyx/material/dialog';
 import { showDatePicker, DateTime } from '@nelyx/material/date-picker';
+import { PageViewPreparation } from '@nelyx/core/framework/widgets/page-view';
 import { GallerySection, GallerySectionExtents, GalleryUpdates } from './gallery-section.ts';
 import { ImageDemo } from './image-demo.ts';
 import { column, flow, inset, icon } from './layout.ts';
@@ -113,6 +114,7 @@ export class ComponentsScreen extends StatefulWidget {
     readonly initialText: string,
     readonly dark: boolean,
     readonly toggleBrightness: () => void,
+    readonly calendarPreparation = false,
   ) {
     super();
   }
@@ -130,6 +132,12 @@ class ComponentsState extends State<ComponentsScreen> {
       initialDate: this.selectedDate,
       firstDate: new DateTime(today.year - 10, 1, 1),
       lastDate: new DateTime(today.year + 10, 12, 31),
+      ...(this.widget.calendarPreparation
+        ? {
+            builder: (_context: BuildContext, child: Widget | null) =>
+              new PageViewPreparation(child!, { mode: 'split' }),
+          }
+        : {}),
     })
       .then((date) => {
         if (!this.mounted || date === null) return;

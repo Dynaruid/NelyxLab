@@ -32,7 +32,7 @@ export class GlobalKey<S extends State = State> extends Key {
   }
   /** Published lookup; unpublished reservations remain bound for uniqueness. */
   get currentElement(): Element | undefined {
-    return this.element?._preparationScope ? undefined : this.element;
+    return this.element?._unpublishedScope ? undefined : this.element;
   }
   bind(element: Element | undefined): void {
     invariant(
@@ -107,7 +107,7 @@ export class GlobalObjectKey<S extends State = State> extends GlobalKey<S> {
   }
   override get currentElement(): Element | undefined {
     const element = readBindings(this.value)?.get(this.constructor)?.get(this.stateType);
-    return element?._preparationScope ? undefined : element;
+    return element?._unpublishedScope ? undefined : element;
   }
   override bind(element: Element | undefined): void {
     const bindings =

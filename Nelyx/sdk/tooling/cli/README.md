@@ -92,6 +92,12 @@ npx --no-install nelyx run --app ../.. --target windows --host native-hermes --h
 
 Use `static-aot` instead of `bytecode` to build/run its native AOT mode. Direct-host builds also require LLVM, CMake, and Ninja. Its current packages are `.nelyx/native-windows/current-bytecode/` and `current-static-aot/` inside the app. Default native runs compare the app, installed SDK and prepared suppliers and rebuild when they change; `--package` runs the chosen portable snapshot without rebuilding local sources.
 
+Direct-host `build` and `run` accept `--entry src/variant.ts` to select a different
+application-owned entry exporting `main()`. The path is relative to `--app`.
+Changing the entry rebuilds the current package; omitting it selects the configured
+`nelyx.appEntry`. An explicit `--package` already fixes its entry and cannot be
+combined with `--entry`.
+
 Windows RNW output uses fixed `.nelyx/windows/packages/Release/` and `Debug/` directories. Close the running package before rebuilding. Preparation must be repeated after changing native suppliers.
 
 Android build accepts `--architecture arm64-v8a|x86_64` with a compatible app profile; Release packaging uses `--configuration Release`. Select a device for `run` with `--device <adb-serial>`. Use `dev` for the Debug/Metro path.

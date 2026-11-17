@@ -6,6 +6,8 @@ param(
   [ValidateSet('bytecode','static-aot')][string]$HermesMode = 'bytecode',
   [ValidateSet('hermes','jsc')][string]$Engine = 'hermes',
   [ValidateSet('interpreter','jit')][string]$JscMode = 'interpreter',
+  [ValidateSet('legacy','split')][string]$Preparation = 'legacy',
+  [switch]$Diagnostic,
   [string]$CompilerCache = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -14,6 +16,8 @@ Push-Location -LiteralPath (Join-Path $PSScriptRoot '../..')
 try {
   $taskArguments = @((Join-Path $PSScriptRoot 'check-windows-jank.mjs'), '--scenario', $Scenario, '--runs', $Runs, '--app', $App, '--hermes-mode', $HermesMode)
   $taskArguments += @('--engine', $Engine, '--jsc-mode', $JscMode)
+  $taskArguments += @('--preparation', $Preparation)
+  if ($Diagnostic) { $taskArguments += '--diagnostic' }
   if ($RunOnce) { $taskArguments += '--child' }
   if ($NoScreen) { $taskArguments += '--no-screen' }
   if ($SummaryPath) { $taskArguments += @('--summary-file', $SummaryPath) }

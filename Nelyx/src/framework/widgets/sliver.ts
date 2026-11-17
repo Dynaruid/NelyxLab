@@ -14,6 +14,7 @@ import type {
 } from '../rendering/sliver-multi-box-adaptor.ts';
 import {
   RenderSliverFixedExtentList,
+  RenderSliverFixedExtentBoxAdaptor,
   RenderSliverVariedExtentList,
 } from '../rendering/sliver-fixed-extent-list.ts';
 import { RenderSliverList } from '../rendering/sliver-list.ts';
@@ -47,6 +48,7 @@ import { DiagnosticsProperty } from '../../foundation/diagnostics.ts';
 import type { DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.ts';
 import { protect } from '../../ui/value-math.ts';
 import { normalizeSliverChildPolicy } from './view-work-budget.ts';
+import { SubtreePreparation } from './subtree-preparation.ts';
 import type { SliverChildPolicy } from './view-work-budget.ts';
 export type { SliverChildPolicy } from './view-work-budget.ts';
 
@@ -131,6 +133,7 @@ export abstract class SliverMultiBoxAdaptorWidget extends SliverWithKeepAliveWid
     this.childPolicy = normalizeSliverChildPolicy(childPolicy);
     invariant(
       this.childPolicy === 'legacy' ||
+        this.childPolicy.mode === 'split' ||
         this instanceof SliverFixedExtentList ||
         this instanceof SliverSectionList,
       'unsupported-bounded-sliver',
@@ -191,6 +194,15 @@ export class SliverMultiBoxAdaptorElement
   private preparationTarget: number | null = null;
   private preparationRestoring = false;
   private pendingOffsets: Map<number, number> | null = null;
+  private preparedMissingIndex: number | undefined;
+  private splitChild:
+    | {
+        index: number;
+        widget: SliverMultiBoxAdaptorWidget;
+        preparation: SubtreePreparation;
+        valid(): boolean;
+      }
+    | undefined;
   constructor(
     widget: SliverMultiBoxAdaptorWidget,
     { replaceMovedChildren = false }: { readonly replaceMovedChildren?: boolean } = {},
@@ -265,6 +277,44 @@ export class SliverMultiBoxAdaptorElement
   override mount(parent: Element | undefined, owner: BuildOwner, slot?: unknown): void {
     super.mount(parent, owner, slot);
     this.ready = true;
+    if (this._preparationScope) {
+      // A cold finite grid/list can produce its actual slots before its one
+      // final layout. No constraints callback/getLayout is speculatively run
+      // or replayed. Unknown/unbounded producers fail this generation instead
+      // of restarting observable lifecycle in a second legacy subtree.
+      const count = this.estimatedChildCount;
+      invariant(
+        (this.widget instanceof SliverGrid || this.widget instanceof SliverFixedExtentList) &&
+          count !== null &&
+          Number.isSafeInteger(count) &&
+          count >= 0 &&
+          count <= 64,
+        'unsupported-preparation-sliver',
+        'Cold preparation supports finite grids/fixed lists of at most 64 children',
+      );
+      let index = 0;
+      owner._whenPreparationPublished(this, () => {
+        this.preparedMissingIndex = undefined;
+      });
+      owner._registerPreparationWork(this, () => {
+        if (index === count) return true;
+        const child = this.updateChildAt(
+          index,
+          undefined,
+          this.adaptorWidget.delegate.build(this, index),
+        );
+        if (child) {
+          this._childElements.set(index, child);
+          owner._didProduceFiniteChild(this._preparationScope!);
+        } else {
+          this.preparedMissingIndex = index;
+          return true;
+        }
+        this.syncElementChildren();
+        index++;
+        return index === count;
+      });
+    }
   }
   override markNeedsBuild(): void {
     this._rebuildChildren = true;
@@ -443,7 +493,7 @@ export class SliverMultiBoxAdaptorElement
   }
   private finishQueuedChildren(): void {
     this.syncElementChildren();
-    this.owner.flushRenderTree();
+    this.owner.flushRenderTree(this._preparationScope);
     if (this.pendingOffsets !== null) {
       for (const [index, child] of this._childElements) {
         const data = this.renderBox(child)?.parentData;
@@ -457,11 +507,32 @@ export class SliverMultiBoxAdaptorElement
     }
   }
   createChild(index: number, { after }: { readonly after: RenderBox | null }): void {
+    if (this.preparedMissingIndex === index) return;
     invariant(
       this._currentlyUpdatingChildIndex === null && (!after || after.parent === this.renderObject),
       'invalid-sliver-create-scope',
       'Create child requires an unlocked manager and actual predecessor',
     );
+    const split = this.splitChild;
+    if (split && !split.valid()) {
+      split.preparation.cancel();
+      this.splitChild = undefined;
+    } else if (split?.index === index) {
+      if (!split.preparation.ready)
+        this.owner._requiredPreparationCompletion(() => split.preparation.complete());
+      this._currentlyUpdatingChildIndex = index;
+      try {
+        const child = split.preparation.adopt(index);
+        this._childElements.set(index, child);
+        this.owner._didRequireColdChild(true);
+        this.syncElementChildren();
+        this.splitChild = undefined;
+      } finally {
+        this._currentlyUpdatingChildIndex = null;
+      }
+      this.finishQueuedChildren();
+      return;
+    }
     const old = this._childElements.get(index),
       oldData = this.renderBox(old)?.parentData,
       oldOffset = oldData instanceof SliverMultiBoxAdaptorParentData ? oldData.layoutOffset : null;
@@ -472,6 +543,13 @@ export class SliverMultiBoxAdaptorElement
       this.syncElementChildren();
     });
     this.finishQueuedChildren();
+    if (
+      !old &&
+      this._childElements.has(index) &&
+      this.adaptorWidget.childPolicy !== 'legacy' &&
+      this.adaptorWidget.childPolicy.mode === 'split'
+    )
+      this.owner._didRequireColdChild(false);
     const data = this.renderBox(this._childElements.get(index))?.parentData;
     if (data instanceof SliverMultiBoxAdaptorParentData && oldOffset !== null)
       data.layoutOffset = oldOffset;
@@ -617,6 +695,7 @@ export class SliverMultiBoxAdaptorElement
     this.debugAssertChildListLocked();
     const entries = this._childElements.orderedEntries();
     this.adaptorWidget.delegate.didFinishLayout(entries[0]?.[0] ?? 0, entries.at(-1)?.[0] ?? 0);
+    this.offerSplitPreparation();
     if (!this.preparationEnabled) return;
     const budget = this.owner.viewWorkBudget,
       render = this.renderObject,
@@ -666,6 +745,70 @@ export class SliverMultiBoxAdaptorElement
         this.preparationTarget = null;
         this.preparationRestoring = true;
         this.requestBudgetLayout();
+      },
+    });
+  }
+  private offerSplitPreparation(): void {
+    const policy = this.adaptorWidget.childPolicy;
+    if (policy === 'legacy' || policy.mode !== 'split' || this._unpublishedScope) return;
+    const render = this.renderObject;
+    // Extent callbacks and unsupported slivers are rejected before a cold
+    // delegate is called. They retain the ordinary required child path.
+    if (
+      !(render instanceof RenderSliverFixedExtentBoxAdaptor) ||
+      render.itemExtentBuilder !== null ||
+      render.itemExtent === null ||
+      render.itemExtent <= 0
+    )
+      return;
+    const c = render.constraints,
+      scroll = c.scrollOffset;
+    if (this.previousScroll !== undefined && scroll !== this.previousScroll)
+      this.preparationDirection = scroll > this.previousScroll ? 1 : -1;
+    this.previousScroll = scroll;
+    const edge = this.preparationDirection > 0 ? render.lastChild : render.firstChild;
+    const count = this.estimatedChildCount;
+    if (!edge || count === null) return;
+    const index = render.indexOf(edge) + this.preparationDirection;
+    if (index < 0 || index >= count || this._childElements.has(index)) return;
+    const old = this.splitChild;
+    if (old?.index === index && old.valid()) return;
+    if (old) {
+      old.preparation.cancel();
+      this.splitChild = undefined;
+    }
+    const widget = this.adaptorWidget;
+    const valid = () =>
+      this.active &&
+      this.widget === widget &&
+      render.attached &&
+      render.constraints.crossAxisExtent === c.crossAxisExtent &&
+      render.constraints.viewportMainAxisExtent === c.viewportMainAxisExtent &&
+      render.constraints.axisDirection === c.axisDirection &&
+      !this._childElements.has(index);
+    this.owner._offerPreparation({
+      owner: this,
+      index,
+      valid,
+      start: () => {
+        const preparation = new SubtreePreparation(
+          this.owner,
+          this,
+          () =>
+            this.owner._invokePreparationDelegate(this, () => {
+              const child = widget.delegate.build(this, index);
+              invariant(
+                child,
+                'missing-cold-child',
+                'A finite cold delegate must produce its requested child',
+              );
+              return child;
+            }),
+          render._preparationChildConstraints(index),
+        );
+        const live = () => valid() && this.owner._ownsPreparationScope(preparation.scope);
+        this.splitChild = { index, widget, preparation, valid: live };
+        return preparation;
       },
     });
   }
@@ -737,6 +880,12 @@ export class SliverMultiBoxAdaptorElement
     this.ready = false;
     this.owner.maybeViewWorkBudget?.cancelOwner(this);
     const errors: unknown[] = [];
+    try {
+      this.splitChild?.preparation.cancel();
+      this.splitChild = undefined;
+    } catch (error) {
+      errors.push(error);
+    }
     try {
       this.owner.maybeDormantChildren?.trimOwner(this);
     } catch (error) {

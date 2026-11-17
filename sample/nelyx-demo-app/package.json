@@ -13,6 +13,7 @@
     "check:windows": "npm --prefix windows/runner run check",
     "build:windows": "npm --prefix windows/runner run build",
     "run:windows": "node eng/run-windows.mjs",
+    "run:windows:prepared": "node eng/run-windows.mjs --preparation split",
     "dev:windows": "npm --prefix windows/runner run dev",
     "check:android": "npm --prefix android/runner run check",
     "build:android": "npm --prefix android/runner run build --",

@@ -69,6 +69,41 @@ npm.cmd run run:windows --workspace @nelyx/demo
 [W12 종료 요약](../../history/26/11/14/work12-summary.md)에 구분해 보존했습니다.
 달력은 창을 최대화한 뒤 **메뉴 → Selection → Choose date**에서 열 수 있습니다.
 
+개선판 달력을 직접 사용하려면 저장소 루트에서 다음 명령을 실행하세요.
+현재 SDK 공급과 필요한 빌드를 자동으로 갱신하며, 창을 닫을 때까지 실행됩니다.
+
+```powershell
+npm.cmd run run:windows:prepared --workspace @nelyx/demo
+```
+
+같은 선택은 `npm.cmd run run:windows --workspace @nelyx/demo -- --preparation split`로도
+가능합니다. 기존 창을 닫고 옵션 없는 `run:windows` 또는 `--preparation legacy`로 실행하면
+기본 동기 경로로 돌아갑니다. 진입점 선택이 달라지면 현재 패키지를 다시 빌드하며,
+`--preparation`과 고정 snapshot인 `--package`는 함께 지정할 수 없습니다.
+
+실험적인 cold 월 생산 분할은 기본값이 꺼져 있습니다. 앱의
+`main(undefined, { calendarPreparation: true })`가 날짜 dialog에만
+`PageViewPreparation`과 `childPolicy: { mode: 'split' }`을 적용합니다.
+PageView에 같은 옵션을 직접 지정할 수도 있습니다. 새 State의 init/build가 표시 전에
+실행될 수 있고, 취소하면 생성분을 한 번 dispose합니다. 사용자 timer·구독의 해제는
+State의 책임입니다. View당 미게시 세대 1개, optional 보관분과 합산 Element 2,048개,
+중첩 finite grid/fixed list당 child 64개가 첫 지원 범위입니다. LayoutBuilder를 통한
+추가 생산 발견은 builder 실행 전에 거절합니다. 필수 페이지는 같은 생산 cursor를
+동기로 완결하고 실제 부모 pipeline의 layout 후 CPU 게시합니다. 관측된 작업 deadline을
+제공하지 않는 Web host에서는 선택 생산을 시작하지 않습니다.
+
+동일한 현재 공급에서 비교할 경로를 선택할 수 있습니다. 실제 판정·제약은
+[work5](../../work5.md)에 기록합니다.
+후속 개선에서 실제 날짜 선행 생산을 확인했습니다. 전체 성능 수락은 미완료이며 기본 동기 경로를 유지합니다.
+
+```powershell
+pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -Scenario calendar -HermesMode bytecode -Preparation legacy -Runs 3
+pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -Scenario calendar -HermesMode bytecode -Preparation split -Runs 3
+```
+
+`-Diagnostic -Runs 1 -NoScreen`은 성능 수락에서 제외하는 진단 실행입니다.
+기준선/후보 비교 시 CPU·build·GC profiling 환경 변수도 끕니다.
+
 Android는 OpenJDK 21·SDK 36·NDK와 대상 아키텍처의 렌더러 공급이 필요합니다.
 현재 기본값은 x86_64 에뮬레이터용 `emulator-vulkan`입니다.
 

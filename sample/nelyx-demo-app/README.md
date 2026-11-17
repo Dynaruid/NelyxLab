@@ -52,6 +52,43 @@ Close the app before replacing its package. The direct host remains experimental
 physical input and performance results are preserved in the [W12 closing summary](../../history/26/11/14/work12-summary.md).
 For the calendar, maximize the window and choose **Menu → Selection → Choose date**.
 
+To try the candidate interactively, run this from the repository root. It refreshes
+the current SDK supply and builds when needed, then stays open until you close it.
+
+```powershell
+npm.cmd run run:windows:prepared --workspace @nelyx/demo
+```
+
+Equivalently, use `npm.cmd run run:windows --workspace @nelyx/demo -- --preparation split`.
+Close the existing window before switching back with plain `run:windows` or
+`--preparation legacy`. Changing the entry rebuilds the current package.
+`--preparation` cannot be combined with an explicit `--package` snapshot.
+
+Cold calendar production is experimental and off by default. App owners can select
+`main(undefined, { calendarPreparation: true })`; it wraps only the date dialog in
+`PageViewPreparation` with `childPolicy: { mode: 'split' }`. A PageView can also set
+that policy directly. New State may initialize/build before display; cancellation
+disposes it once, while user timers/subscriptions remain the State's responsibility.
+The first implementation permits one unpublished generation per View, shares the
+2,048 Element cap with optional retained children, and supports nested finite
+grids/fixed lists with at most 64 children. LayoutBuilder discovery is unsupported
+and fails before its builder runs. Required coverage completes the same production
+cursor synchronously and performs layout before CPU publication. Web hosts without
+an observed work deadline do not start optional production.
+
+Use the current-source Windows runner to select the control or candidate; see
+[work5](../../work5.md) for the actual acceptance result and limitations.
+The current candidate produces dates ahead in the native Demo calendar. Full performance acceptance is pending,
+and it remains disabled by default.
+
+```powershell
+pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -Scenario calendar -HermesMode bytecode -Preparation legacy -Runs 3
+pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -Scenario calendar -HermesMode bytecode -Preparation split -Runs 3
+```
+
+`-Diagnostic -Runs 1 -NoScreen` selects a diagnostic run, which is excluded from
+performance acceptance. Do not enable CPU/build/GC profiling for the comparison.
+
 Android defaults to the x86_64 `emulator-vulkan` profile. Select a standard JDK 21
 (Temurin is available on this Windows machine), then run from the repository root:
 

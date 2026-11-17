@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Pinned ink_decoration.dart on the existing image, decoration and Material ink owners.
-import { StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
+import { Element, StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, WidgetOptions, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { createFrameworkAnchorKey } from '@nelyx/core/framework/widgets/global-key';
 import { Padding, Builder, SizedBox, ConstrainedBox } from '@nelyx/core/framework/widgets/basic';
@@ -133,12 +133,29 @@ export class Ink extends StatefulWidget {
 class InkState extends State<Ink> {
   private readonly boxKey = createFrameworkAnchorKey();
   private ink: InkDecoration | null = null;
+  private pendingInk = false;
   private readonly removed = () => {
     this.ink = null;
   };
   private buildContents(context: BuildContext): Widget {
+    if (this.context instanceof Element && this.context._unpublishedScope) {
+      if (!this.pendingInk) {
+        this.pendingInk = true;
+        this.context.owner._whenPreparationPaints(this.context, () => {
+          this.pendingInk = false;
+          if (this.mounted) this.updateInk(this.context);
+        });
+      }
+    } else this.updateInk(context);
+    return this.widget.child ?? new ConstrainedBox(undefined, BoxConstraints.expand());
+  }
+  private updateInk(context: BuildContext): void {
     if (this.ink === null) {
-      const reference = this.boxKey.currentContext?.findRenderObject();
+      const reference = (
+        context instanceof Element && context._unpublishedScope
+          ? context.owner._frameworkKeyContext(this.boxKey, context)
+          : this.boxKey.currentContext
+      )?.findRenderObject();
       invariant(
         reference instanceof RenderBox,
         'missing-ink-reference',
@@ -157,7 +174,6 @@ class InkState extends State<Ink> {
       this.ink.isVisible = Visibility.of(context);
       this.ink.configuration = createLocalImageConfiguration(context);
     }
-    return this.widget.child ?? new ConstrainedBox(undefined, BoxConstraints.expand());
   }
   build(context: BuildContext): Widget {
     Material.of(context);
@@ -205,9 +221,18 @@ export class InkDecoration extends InkFeature {
     super(options);
     if (new.target === InkDecoration) ordinaryInkDecorations.add(this);
     this.currentConfiguration = configuration;
-    this.decoration = decoration;
-    this.isVisible = isVisible;
-    this.controller.addInkFeature(this);
+    try {
+      this.decoration = decoration;
+      this.isVisible = isVisible;
+      this.controller.addInkFeature(this);
+    } catch (error) {
+      try {
+        this.dispose();
+      } catch (cleanup) {
+        throw new AggregateError([error, cleanup], 'Ink creation and retirement failed');
+      }
+      throw error;
+    }
   }
   private assertLive(): void {
     invariant(!this.debugDisposed, 'disposed-ink-decoration', 'InkDecoration is disposed');

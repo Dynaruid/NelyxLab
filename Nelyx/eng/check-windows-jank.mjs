@@ -24,11 +24,15 @@ const scenario = argument('--scenario', 'calendar'),
   appName = argument('--app', 'demo'),
   hermesMode = argument('--hermes-mode', 'bytecode'),
   engine = argument('--engine', 'hermes'),
-  jscMode = argument('--jsc-mode', 'interpreter');
+  jscMode = argument('--jsc-mode', 'interpreter'),
+  preparation = argument('--preparation', 'legacy'),
+  diagnostic = process.argv.includes('--diagnostic');
 const runtimeMode = engine === 'jsc' ? 'source' : hermesMode;
 const runtimeIdentity = {
   engine,
   mode: runtimeMode,
+  preparation,
+  diagnostic,
   ...(engine === 'jsc' ? { jscMode } : { hermesMode }),
 };
 const hostExecutable = engine === 'jsc' ? 'NelyxJscHost.exe' : 'NelyxHermesHost.exe';
@@ -65,6 +69,8 @@ if (
   !['bytecode', 'static-aot'].includes(hermesMode) ||
   !['hermes', 'jsc'].includes(engine) ||
   !['interpreter', 'jit'].includes(jscMode) ||
+  !['legacy', 'split'].includes(preparation) ||
+  (preparation === 'split' && (scenario !== 'calendar' || appName !== 'demo')) ||
   (engine === 'jsc' && hermesMode !== 'bytecode') ||
   !Number.isInteger(runs) ||
   runs < 1 ||
@@ -104,6 +110,9 @@ if (!process.argv.includes('--child')) {
           engine,
           '-JscMode',
           jscMode,
+          '-Preparation',
+          preparation,
+          ...(diagnostic ? ['-Diagnostic'] : []),
           '-SummaryPath',
           summary,
           ...(!screenEnabled ? ['-NoScreen'] : []),
@@ -139,6 +148,7 @@ if (!process.argv.includes('--child')) {
             },
             measurementView: result.measurementView,
             performanceSample: result.performanceSample,
+            preparationStats: result.preparationStats,
             representation: result.representation,
             displayed: result.displayed.map((phase) => ({
               name: phase.name,
@@ -153,6 +163,8 @@ if (!process.argv.includes('--child')) {
               accepted: phase.accepted,
               inputQueue: phase.inputQueue,
               inputToSurface: phase.inputToSurface,
+              preparation: phase.preparation,
+              preparationAtBegin: phase.preparationAtBegin,
               motion: phase.motion
                 ? {
                     averageFps: phase.motion.averageFps,
@@ -231,7 +243,7 @@ let native,
   editorFinal = false,
   ownsEntry = false,
   ownsOutput = false;
-let screenChild, screenExit, screenData, markerCost, identity;
+let screenChild, screenExit, screenData, markerCost, identity, preparationStats;
 let representationTrace;
 const representationReports = [];
 let displayed = [];
@@ -490,6 +502,8 @@ function onLine(line) {
   }
   if (line.startsWith('NELYX_NATIVE_VIEW '))
     currentView = JSON.parse(line.slice('NELYX_NATIVE_VIEW '.length));
+  if (line.startsWith('FAST_PREPARATION '))
+    preparationStats = JSON.parse(line.slice('FAST_PREPARATION '.length));
   if (line.startsWith('NELYX_NATIVE_SCREEN_MARKER '))
     markerCost = JSON.parse(line.slice('NELYX_NATIVE_SCREEN_MARKER '.length));
   if (
@@ -634,6 +648,14 @@ try {
       'const { ' + names + ' } = (() => {\n' + module + '\nreturn { ' + names + ' };\n})();';
     let source = fs
       .readFileSync(path.join(root, 'Nelyx/eng', template), 'utf8')
+      .replace(
+        'const preparationEnabled = false; // @page-preparation',
+        `const preparationEnabled = ${preparation === 'split'};`,
+      )
+      .replace(
+        'const diagnosticEnabled = false; // @page-diagnostic',
+        `const diagnosticEnabled = ${diagnostic || process.env.NELYX_JANK_BUILD_PROFILE === '1' || representationProfile};`,
+      )
       .replace(
         '// @jank-metrics: inlined by the runner inside the isolated consumer boundary.',
         metrics,
@@ -863,9 +885,12 @@ try {
     displayed,
     markerCost,
     performanceSample:
+      scenario === 'calendar' &&
+      !diagnostic &&
       process.env.NELYX_NATIVE_CPU_PROFILE !== '1' &&
       process.env.NELYX_JANK_BUILD_PROFILE !== '1' &&
       process.env.NELYX_NATIVE_GC_STATS !== '1',
+    preparationStats,
     ...(representationProfile ? { representation: representationReports } : {}),
     inputPacing: drivers.map((d, index) => ({
       waitStrategy: d.Timing.WaitStrategy,
@@ -890,6 +915,8 @@ try {
       inputToSurface: p.inputToSurface,
       publishedProgressGaps: p.publishedProgressGaps,
       progressGapsOver100ms: p.progressGapsOver100ms,
+      preparation: p.preparation,
+      preparationAtBegin: p.preparationAtBegin,
       motion: publicMotion(p.motion),
     })),
     galleryPhases: galleryPhases.map((p) => ({

@@ -28,6 +28,8 @@ interface DiagnosticHost {
   };
 }
 const host = (globalThis as unknown as { NelyxNativeHost: DiagnosticHost }).NelyxNativeHost;
+const preparationEnabled = false; // @page-preparation
+const diagnosticEnabled = false; // @page-diagnostic
 const summary = distribution;
 const diagnostics = new FrameDiagnostics({ now: () => host.now() }, 16384);
 const plans = [
@@ -37,6 +39,7 @@ const plans = [
 ];
 type CalendarPosition = ScrollPosition & { readonly page: number };
 type Phase = (typeof plans)[number] & {
+  readonly preparationAtBegin: FrameworkRoot['buildOwner']['preparationStats'];
   readonly started: number;
   readonly start: ReturnType<typeof month>;
   readonly startPage: number;
@@ -158,6 +161,7 @@ function begin() {
   gestureMoves = [];
   activeGesture = undefined;
   phase = {
+    preparationAtBegin: root.buildOwner.preparationStats,
     ...plans[planIndex],
     started: host.now(),
     start: month(),
@@ -269,6 +273,8 @@ async function finish() {
     progressGapsOver100ms: progress.filter((n) => n >= 100).length,
     stages,
     settled: true,
+    preparationAtBegin: active.preparationAtBegin,
+    preparation: root.buildOwner.preparationStats,
     lastInput,
     lastPublishedInput: surfaces.length ? surfaces.at(-6) : 0,
   };
@@ -283,7 +289,7 @@ async function finish() {
   if (planIndex === plans.length) host.log('FAST_ALL_DONE');
 }
 export function main() {
-  const result = application(),
+  const result = application(undefined, { calendarPreparation: preparationEnabled }),
     create = result.definition.createView;
   if (!create) throw Error('Application has no Source view factory');
   return {
@@ -307,7 +313,7 @@ export function main() {
         }, 80);
         root.build = (scene) => {
           const at = host.now(),
-            result = build({ ...scene, frameDiagnostics: diagnostics });
+            result = build(diagnosticEnabled ? { ...scene, frameDiagnostics: diagnostics } : scene);
           locate();
           observeMonth();
           if (phase) {
@@ -371,7 +377,17 @@ export function main() {
                 JSON.stringify(context.text.nativeParagraphTransactionExecution()),
             );
           } finally {
-            dispose();
+            try {
+              dispose();
+            } finally {
+              host.log(
+                'FAST_PREPARATION ' +
+                  JSON.stringify({
+                    ...root.buildOwner.preparationStats,
+                    resources: context.resources.accountedTotals,
+                  }),
+              );
+            }
           }
         };
         return root;

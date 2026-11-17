@@ -21,6 +21,15 @@ const maxExtentQueries = 1_000_000;
  * source-linear and can be numerous; only actual render children are bounded.
  * A nonterminating extent builder is rejected after a finite query budget. */
 export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMultiBoxAdaptor {
+  /** @internal Actual fixed-extent constraints, without laying out a live child. */
+  _preparationChildConstraints(index: number): BoxConstraints {
+    invariant(
+      this.itemExtentBuilder === null && this.itemExtent !== null && this.itemExtent > 0,
+      'unsupported-preparation-extent',
+      'Cold preparation requires a fixed positive extent',
+    );
+    return this._getChildConstraints(index);
+  }
   constructor({ childManager }: { readonly childManager: RenderSliverBoxChildManager }) {
     super({ childManager });
   }

@@ -48,8 +48,14 @@ abstract class WidgetTickerProviderState<W extends StatefulWidget>
     }
   }
   protected configure(ticker: Ticker, values: TickerModeData): Ticker {
-    if (this.context instanceof Element && this.context._preparationScope)
-      ticker.setMuted(this.context._preparationScope, true);
+    if (this.context instanceof Element && this.context._unpublishedScope) {
+      const context = this.context,
+        scope = context._unpublishedScope!;
+      ticker.setMuted(scope, true);
+      context.owner._whenPreparationPublished(context, () => {
+        if (this.mounted && this.tickers.has(ticker)) ticker.setMuted(scope, false);
+      });
+    }
     ticker.muted = !values.enabled;
     ticker.forceFrames = values.forceFrames;
     this.tickers.add(ticker);

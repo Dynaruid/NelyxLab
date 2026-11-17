@@ -263,7 +263,20 @@ export class ScrollableState extends TickerProviderStateMixin<Scrollable> implem
     return this.ratio;
   }
   get notificationContext(): BuildContext | null {
-    return this.gestureKey.currentContext ?? null;
+    return this.frameworkKeyContext(this.gestureKey) ?? null;
+  }
+  private frameworkKeyContext(key: GlobalKey): Element | undefined {
+    const context = this.context;
+    return context instanceof Element && context._unpublishedScope
+      ? context.owner._frameworkKeyContext(key, context)
+      : (key.currentContext as Element | undefined);
+  }
+  private get frameworkGestureState(): RawGestureDetectorState | undefined {
+    if (!(this.context instanceof Element && this.context._unpublishedScope))
+      return this.gestureKey.currentState;
+    return this.frameworkKeyContext(this.gestureKey)?.stateObject as
+      | RawGestureDetectorState
+      | undefined;
   }
   get storageContext(): BuildContext {
     return this.context;
@@ -425,7 +438,7 @@ export class ScrollableState extends TickerProviderStateMixin<Scrollable> implem
   setIgnorePointer(value: boolean): void {
     if (this.ignorePointer === value) return;
     this.ignorePointer = value;
-    const render = this.ignoreKey.currentContext?.findRenderObject();
+    const render = this.frameworkKeyContext(this.ignoreKey)?.findRenderObject();
     if (render) {
       invariant(
         render instanceof RenderIgnorePointer,
@@ -436,7 +449,7 @@ export class ScrollableState extends TickerProviderStateMixin<Scrollable> implem
     }
   }
   setSemanticsActions(actions: Set<SemanticsAction>): void {
-    this.gestureKey.currentState?.replaceSemanticsActions(actions);
+    this.frameworkGestureState?.replaceSemanticsActions(actions);
   }
   setCanDrag(value: boolean): void {
     if (value === this.lastCanDrag && (!value || this.widget.axis === this.lastAxis)) return;
@@ -495,7 +508,7 @@ export class ScrollableState extends TickerProviderStateMixin<Scrollable> implem
     }
     this.lastCanDrag = value;
     this.lastAxis = this.widget.axis;
-    this.gestureKey.currentState?.replaceGestureRecognizers(this.recognizers);
+    this.frameworkGestureState?.replaceGestureRecognizers(this.recognizers);
   }
   handleDragDown(_details: DragDownDetails): void {
     if (this.scrollableClosed) return;
@@ -527,7 +540,7 @@ export class ScrollableState extends TickerProviderStateMixin<Scrollable> implem
     if (!this.scrollableClosed) this.dragController?.end(details);
   }
   handleDragCancel(): void {
-    if (this.scrollableClosed || this.gestureKey.currentContext === undefined) return;
+    if (this.scrollableClosed || this.frameworkKeyContext(this.gestureKey) === undefined) return;
     this.holdController?.cancel();
     this.dragController?.cancel();
   }
@@ -626,7 +639,9 @@ export class ScrollableState extends TickerProviderStateMixin<Scrollable> implem
         notificationType: ScrollMetricsNotification,
         onNotification: (notification) => {
           if (notification.depth === 0)
-            this.semanticsKey.currentContext?.findRenderObject()?.markNeedsSemanticsUpdate();
+            this.frameworkKeyContext(this.semanticsKey)
+              ?.findRenderObject()
+              ?.markNeedsSemanticsUpdate();
           return false;
         },
         child: new _ScrollSemantics(

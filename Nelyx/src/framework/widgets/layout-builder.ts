@@ -122,6 +122,11 @@ class _LayoutBuilderElement<I> extends SingleChildRenderObjectElement {
   }
   override mount(parent: Element | undefined, owner: BuildOwner, slot?: unknown): void {
     super.mount(parent, owner, slot);
+    invariant(
+      !this._preparationScope || !owner._requiresFinitePreparation(this._preparationScope),
+      'unsupported-preparation-layout-builder',
+      'Cold finite preparation cannot discover producers through a layout-time user builder',
+    );
     owner.forget(this);
     this.dirty = false;
     this.ready = true;

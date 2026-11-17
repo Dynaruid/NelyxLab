@@ -5,6 +5,7 @@ import { StatelessWidget, SingleChildRenderObjectWidget } from './framework.ts';
 import type { BuildContext, WidgetOptions } from './framework.ts';
 import { SliverMultiBoxAdaptorWidget, SliverMultiBoxAdaptorElement } from './sliver.ts';
 import type { SliverChildDelegate } from './scroll-delegate.ts';
+import type { SliverChildPolicy } from './view-work-budget.ts';
 import { RenderSliverFillViewport } from '../rendering/sliver-fill.ts';
 import { RenderSliverEdgeInsetsPadding } from '../rendering/sliver-padding.ts';
 import type { SliverConstraints } from '../rendering/sliver.ts';
@@ -19,18 +20,21 @@ export interface SliverFillViewportOptions extends WidgetOptions {
   readonly viewportFraction?: number;
   readonly padEnds?: boolean;
   readonly allowImplicitScrolling?: boolean;
+  readonly childPolicy?: SliverChildPolicy;
 }
 export class SliverFillViewport extends StatelessWidget {
   readonly delegate: SliverChildDelegate;
   readonly viewportFraction: number;
   readonly padEnds: boolean;
   readonly allowImplicitScrolling: boolean;
+  readonly childPolicy: SliverChildPolicy;
   constructor({
     key = null,
     delegate,
     viewportFraction = 1,
     padEnds = true,
     allowImplicitScrolling = true,
+    childPolicy = 'legacy',
   }: SliverFillViewportOptions) {
     super(key);
     if (FoundationBuildMode.debug)
@@ -43,6 +47,7 @@ export class SliverFillViewport extends StatelessWidget {
     this.viewportFraction = viewportFraction;
     this.padEnds = padEnds;
     this.allowImplicitScrolling = allowImplicitScrolling;
+    this.childPolicy = childPolicy;
   }
   build(): SingleChildRenderObjectWidget {
     return new SliverFractionalPadding(
@@ -51,6 +56,7 @@ export class SliverFillViewport extends StatelessWidget {
         delegate: this.delegate,
         viewportFraction: this.viewportFraction,
         allowImplicitScrolling: this.allowImplicitScrolling,
+        childPolicy: this.childPolicy,
       }),
     );
   }
@@ -62,8 +68,9 @@ class SliverFillViewportRenderObjectWidget extends SliverMultiBoxAdaptorWidget {
     delegate,
     viewportFraction = 1,
     allowImplicitScrolling = true,
+    childPolicy = 'legacy',
   }: SliverFillViewportOptions) {
-    super({ delegate });
+    super({ delegate, childPolicy });
     this.viewportFraction = viewportFraction;
     this.allowImplicitScrolling = allowImplicitScrolling;
   }

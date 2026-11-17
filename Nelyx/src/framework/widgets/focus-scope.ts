@@ -328,6 +328,10 @@ class FocusState extends State<Focus> {
   override initState(): void {
     super.initState();
     this.connect();
+    if (this.context instanceof Element && this.context._unpublishedScope)
+      this.context.owner._whenPreparationPublished(this.context, () => {
+        if (this.mounted) this.autofocus();
+      });
   }
   override didChangeDependencies(): void {
     super.didChangeDependencies();
@@ -336,6 +340,7 @@ class FocusState extends State<Focus> {
     this.autofocus();
   }
   private autofocus(): void {
+    if (this.context instanceof Element && this.context._unpublishedScope) return;
     if (!this.autofocusHandled && this.widget.autofocus) {
       FocusScope.of(this.context).autofocus(this.node);
       this.autofocusHandled = true;
@@ -371,7 +376,7 @@ class FocusState extends State<Focus> {
     return new FocusInheritedScope(this.node, child);
   }
   protected semantics(child: Widget): Widget {
-    const can = this.node.canRequestFocus;
+    const can = this.node._canRequestAfterPublication;
     return this.widget.includeSemantics
       ? new Semantics({
           child,

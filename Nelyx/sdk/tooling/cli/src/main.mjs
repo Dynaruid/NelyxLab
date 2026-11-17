@@ -129,6 +129,7 @@ try {
     allowed.run.push('hermes-mode');
     allowed.pack.push('hermes-mode');
     if (['native', 'native-hermes'].includes(values.host)) {
+      for (const op of ['build', 'run']) allowed[op].push('entry');
       allowed.prepare.push('jsc-inputs');
       allowed.build.push('jsc-inputs');
       for (const op of ['run', 'pack', 'doctor']) allowed[op].push('engine', 'jsc-mode');
@@ -175,6 +176,7 @@ try {
     target,
     nativeInputs: values['native-inputs'],
     output: values.output,
+    entry: values.entry,
     directory: values.package,
     arguments: nativeArguments,
     configuration: values.configuration,

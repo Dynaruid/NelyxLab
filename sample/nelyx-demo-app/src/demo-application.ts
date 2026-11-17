@@ -8,7 +8,10 @@ import { ColorScheme } from '@nelyx/material/color-scheme';
 import { ComponentsScreen } from './components.ts';
 
 export class DemoApplication extends StatefulWidget {
-  constructor(readonly initialText: string) {
+  constructor(
+    readonly initialText: string,
+    readonly calendarPreparation = false,
+  ) {
     super();
   }
   createState(): State<DemoApplication> {
@@ -42,10 +45,15 @@ class DemoApplicationState extends State<DemoApplication> {
       locale: 'en',
       supportedLocales: ['en', 'ko-KR'],
       navigatorController: this.navigator,
-      home: new ComponentsScreen(this.navigator, this.widget.initialText, this.dark, () =>
-        this.setState(() => {
-          this.dark = !this.dark;
-        }),
+      home: new ComponentsScreen(
+        this.navigator,
+        this.widget.initialText,
+        this.dark,
+        () =>
+          this.setState(() => {
+            this.dark = !this.dark;
+          }),
+        this.widget.calendarPreparation,
       ),
     });
   }

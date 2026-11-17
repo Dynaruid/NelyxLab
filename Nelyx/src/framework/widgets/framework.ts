@@ -25,6 +25,8 @@ import { FoundationBuildMode } from '../../foundation/constants.ts';
 import type { Key } from '../../foundation/key.ts';
 import type { ViewControllerContext } from '../../hosting/runtime.ts';
 import type { ViewMetrics } from '../../ui/types.ts';
+import type { FrameTiming } from '../../foundation/clock.ts';
+import type { PreparationResourceBudget } from '../../hosting/resources.ts';
 import { ViewWorkBudget, viewChildBudgetLimits } from './view-work-budget.ts';
 import { DormantChildCache } from './dormant-child-cache.ts';
 import { RenderObject } from '../rendering/object.ts';
@@ -170,12 +172,17 @@ export class BuildScope {
   _nextDirtyScope: BuildScope | undefined;
   private _buildScheduled = false;
   private _building = false;
+  private preparationMembership: BuildScope | undefined;
   private readonly queue = new DepthQueue<Element>();
   constructor({ scheduleRebuild }: { readonly scheduleRebuild?: () => void } = {}) {
     this.scheduleRebuild = scheduleRebuild;
   }
   get hasDirty(): boolean {
     return this.queue.size > 0;
+  }
+  /** @internal A layout scope can contain only descendants of one generation. */
+  _containsPreparation(scope: BuildScope): boolean {
+    return this.hasDirty && this.preparationMembership === scope;
   }
   /** @internal Covered layout scopes keep their dirty work without changing
    * the already painted route. Unknown render ownership remains conservative. */
@@ -196,6 +203,13 @@ export class BuildScope {
       invariant(false, 'foreign-build-scope', 'A pending build scope cannot mix View owners');
     if (element._queuedBuildScope !== this) {
       element._queuedBuildScope?._forget(element);
+      if (!this.queue.size) this.preparationMembership = element._preparationScope;
+      else
+        invariant(
+          this.preparationMembership === element._preparationScope,
+          'mixed-preparation-build-scope',
+          'A dirty BuildScope cannot mix published and preparing Elements',
+        );
       this.queue.schedule(element);
       element._queuedBuildScope = this;
       element.owner._didQueueBuild(this);
@@ -218,6 +232,7 @@ export class BuildScope {
     callback?: () => void,
     reportError: (details: FlutterErrorDetails) => void = (details) =>
       FlutterError.reportError(details),
+    shouldContinue: () => boolean = () => true,
   ): void {
     if (this._building)
       invariant(false, 'reentrant-build-scope', 'BuildScope cannot recursively flush itself');
@@ -225,7 +240,7 @@ export class BuildScope {
     try {
       callback?.();
       let element: Element | undefined;
-      while ((element = this.queue.pop())) {
+      while (this.queue.size && shouldContinue() && (element = this.queue.pop())) {
         element._queuedBuildScope = undefined;
         element.owner._didUnqueueBuild(this);
         if (element._buildQueueDepth !== element.depth) {
@@ -254,7 +269,7 @@ export class BuildScope {
       }
     } finally {
       this._building = false;
-      this._buildScheduled = false;
+      this._buildScheduled = this.hasDirty;
     }
   }
   /** @internal */
@@ -300,34 +315,282 @@ function activeBuildObserver(observer: ElementBuildDiagnosticObserver): boolean 
   }
 }
 interface PreparationScope {
+  optionalChildren: number;
+  readonly finiteProduction: boolean;
+  resources?: PreparationResourceBudget;
   readonly scope: BuildScope;
   readonly roots: Set<Element>;
   readonly elements: Set<Element>;
   readonly renderChildren: OwnerTransaction<RenderObjectElement>;
   readonly reservations: KeyMap<{ key: GlobalKey; parents: Set<Element> }>;
   readonly retakenParents: Set<Element>;
+  readonly published: Map<Element, Set<() => void>>;
+  readonly beforePaint: Map<Element, Set<() => void>>;
+  readonly work: Map<Element, () => boolean>;
+  adopted?: Element;
+  cancel?: () => void;
   cancelling: boolean;
+  failure?: FlutterErrorDetails;
 }
 export class BuildOwner {
   private preparation: PreparationScope | undefined;
-  /** @internal Ownership only: callers still need an isolated render boundary.
-   * This does not provide continuation, promotion or a product opt-in API. */
-  _createPreparationScope(): BuildScope {
+  private preparationWake: Disposable | undefined;
+  private publishingPreparation = false;
+  private preparationDelegate = false;
+  private completingRequiredPreparation = false;
+  /** @internal Only exception handling queries this explicit delegate extent. */
+  get _inPreparationDelegate(): boolean {
+    return this.preparationDelegate;
+  }
+  private preparationCandidate:
+    | {
+        owner: Element;
+        index: number;
+        valid(): boolean;
+        start(): { ready: boolean; advance(allow: () => boolean): 'pending' | 'ready' };
+      }
+    | undefined;
+  private preparationWork:
+    | { ready: boolean; advance(allow: () => boolean): 'pending' | 'ready' }
+    | undefined;
+  private activePreparationCandidate: BuildOwner['preparationCandidate'];
+  private lastPreparationTick: number | undefined;
+  private preparationBudgetMisses = 0;
+  private readonly preparationCounts = {
+    started: 0,
+    slices: 0,
+    sliceMs: 0,
+    published: 0,
+    cancelled: 0,
+    forced: 0,
+    forcedMs: 0,
+    maxSliceMs: 0,
+    maxAtomicMs: 0,
+    peakElements: 0,
+    peakResources: 0,
+    peakResourceBytes: 0,
+    layoutProducedElements: 0,
+    requiredColdChildren: 0,
+    preparedColdChildren: 0,
+    finiteChildren: 0,
+    optionalFiniteChildren: 0,
+    maxOptionalFiniteChildren: 0,
+    productionSteps: 0,
+    opportunities: 0,
+    missingDeadline: 0,
+    budgetMisses: 0,
+    idleSlices: 0,
+  };
+  /** @internal Bounded numeric diagnostics; no retained generations or snapshots. */
+  get preparationStats() {
+    return {
+      ...this.preparationCounts,
+      elements: this.preparation?.elements.size ?? 0,
+      active: Number(!!this.preparation),
+    };
+  }
+  /** @internal An offer cannot start lifecycle until an observed host budget exists. */
+  _offerPreparation(candidate: NonNullable<BuildOwner['preparationCandidate']>): void {
+    const previous = this.preparationCandidate;
+    if (
+      previous?.owner === candidate.owner &&
+      previous.index === candidate.index &&
+      previous.valid()
+    )
+      return;
+    this.preparationCandidate = candidate;
+    this.preparationBudgetMisses = 0;
+    // One normal host opportunity for a new offer. Keeping the same valid offer
+    // does not poll forever when deadlines/renderer admission are unavailable.
+    if (!this.preparation) this.requestPreparationFrame();
+  }
+  private requestPreparationFrame(): void {
+    if (this.preparationWake || this.disposed) return;
+    const optional = this.services.requestOptionalWork;
+    if (optional) {
+      this.preparationWake = optional((timing, canRun) => {
+        this.preparationWake = undefined;
+        if (!this.disposed && this.services.readStatus() === 'open')
+          this._runOptionalPreparation(
+            timing,
+            () => !this.hasDirtyInActiveLayout && canRun(),
+            true,
+          );
+      });
+      return;
+    }
+    const request = this.services.requestFrameAt;
+    if (!request) {
+      this.invalidate();
+      return;
+    }
+    // A native credit wake can consume a dirty CPU frame without a compositor
+    // deadline. Keep optional continuation on an actual host tick instead.
+    this.preparationWake = request(this.services.clock.now(), () => {
+      this.preparationWake = undefined;
+      if (!this.disposed) this.invalidate();
+    });
+  }
+  private cancelPreparationFrame(): void {
+    const wake = this.preparationWake;
+    this.preparationWake = undefined;
+    wake?.dispose();
+  }
+  /** @internal Required work provides a fresh reason to retry parked work. */
+  _schedulePreparationOpportunity(): void {
+    if (this.preparationCandidate && !this.preparation?.adopted && !this.preparationWork?.ready) {
+      this.preparationBudgetMisses = 0;
+      this.requestPreparationFrame();
+    }
+  }
+  private retryPreparationBudget(idle: boolean): void {
+    this.preparationCounts.budgetMisses++;
+    // A single congested tick must not strand real work. A missing/expired
+    // prediction must also never turn into an unbounded idle polling loop.
+    if (idle && ++this.preparationBudgetMisses <= 2) this.requestPreparationFrame();
+  }
+  /** @internal Real required cold admissions, including synchronous misses. */
+  _didRequireColdChild(prepared: boolean): void {
+    this.preparationCounts.requiredColdChildren++;
+    if (prepared) this.preparationCounts.preparedColdChildren++;
+  }
+  /** @internal Counts actual nested delegate/mount production, not shell tokens. */
+  _didProduceFiniteChild(scope: BuildScope): void {
+    this.preparationCounts.finiteChildren++;
+    if (!this.completingRequiredPreparation) {
+      const preparation = this.preparationFor(scope);
+      preparation.optionalChildren++;
+      this.preparationCounts.optionalFiniteChildren++;
+      this.preparationCounts.maxOptionalFiniteChildren = Math.max(
+        this.preparationCounts.maxOptionalFiniteChildren,
+        preparation.optionalChildren,
+      );
+    }
+  }
+  /** @internal Called after required layout. No guessed refresh deadline. */
+  _runOptionalPreparation(
+    timing: FrameTiming | undefined,
+    allowed: () => boolean,
+    idle = false,
+  ): void {
+    const candidate = this.preparationWork
+      ? this.activePreparationCandidate
+      : this.preparationCandidate;
+    if (
+      candidate &&
+      !this.preparation?.adopted &&
+      (!candidate.owner.active || !candidate.valid())
+    ) {
+      this._cancelPreparation();
+      this.preparationCandidate = undefined;
+    }
+    if (this.preparation && !this.preparationWork) return;
+    if (
+      this.preparation &&
+      !this.preparation.adopted &&
+      this.preparation.elements.size + (this.maybeViewWorkBudget?.optionalElementCount ?? 0) >
+        viewChildBudgetLimits.elements
+    ) {
+      this._cancelPreparation();
+      return;
+    }
+    if (!candidate || this.preparation?.adopted || this.preparationWork?.ready) return;
+    this.preparationCounts.opportunities++;
+    const deadline = timing?.observedDeadline;
+    if (
+      !Number.isFinite(deadline) ||
+      !Number.isFinite(timing?.tick) ||
+      !Number.isFinite(timing?.queueDelay) ||
+      timing!.queueDelay < 0 ||
+      !Number.isFinite(timing?.clockUncertainty) ||
+      timing!.clockUncertainty < 0 ||
+      !allowed() ||
+      this.preparation?.adopted ||
+      this.lastPreparationTick === timing?.tick
+    ) {
+      if (!Number.isFinite(deadline)) this.preparationCounts.missingDeadline++;
+      return;
+    }
+    const now = () => this.services.clock.now();
+    const started = now(),
+      end = Math.min(started + 2, deadline! - 4 - timing!.queueDelay - timing!.clockUncertainty);
+    if (started >= end) {
+      this.retryPreparationBudget(idle);
+      return;
+    }
+    this.lastPreparationTick = timing!.tick;
+    if (!this.preparationWork) {
+      if (!this.preparationCandidate) return;
+      this.activePreparationCandidate = this.preparationCandidate;
+      this.preparationWork = this.preparationCandidate.start();
+      this.preparationCounts.started++;
+    }
+    const work = this.preparationWork,
+      stepsBefore = this.preparationCounts.productionSteps;
+    if (work.ready) return;
+    let last = started;
+    const allow = () => {
+      const current = now();
+      this.preparationCounts.maxAtomicMs = Math.max(
+        this.preparationCounts.maxAtomicMs,
+        current - last,
+      );
+      last = current;
+      return current < end && allowed();
+    };
+    const status = work.advance(allow),
+      elapsed = now() - started;
+    this.preparationCounts.slices++;
+    this.preparationCounts.sliceMs += elapsed;
+    if (idle) this.preparationCounts.idleSlices++;
+    this.preparationCounts.maxSliceMs = Math.max(this.preparationCounts.maxSliceMs, elapsed);
+    if (status === 'pending') {
+      if (this.preparationCounts.productionSteps > stepsBefore) {
+        this.preparationBudgetMisses = 0;
+        this.requestPreparationFrame();
+      } else this.retryPreparationBudget(idle);
+    }
+  }
+  /** @internal The required path accounts for draining the existing cursor. */
+  _requiredPreparationCompletion(perform: () => void): void {
+    const started = this.services.clock.now();
+    this.preparationCounts.forced++;
+    const previous = this.completingRequiredPreparation;
+    this.completingRequiredPreparation = true;
+    try {
+      perform();
+    } finally {
+      this.completingRequiredPreparation = previous;
+      this.preparationCounts.forcedMs += this.services.clock.now() - started;
+    }
+  }
+  /** @internal Allocate generation ownership before the detached boundary mounts. */
+  _createPreparationScope({
+    finiteProduction = false,
+  }: { finiteProduction?: boolean } = {}): BuildScope {
     invariant(
-      !this.disposed && !this.building && !this.preparation,
+      !this.disposed && !this.building && !this.preparation && !this.publishingPreparation,
       'invalid-preparation-scope',
       'A live idle View may own at most one preparation generation',
     );
     const scope = new BuildScope();
     this.preparation = {
+      optionalChildren: 0,
+      finiteProduction,
       scope,
       roots: new Set(),
       elements: new Set(),
       renderChildren: new OwnerTransaction((element) => {
-        if (element.active) element._commitRenderChildren();
+        if (element.active) {
+          element._commitRenderChildren();
+          this.preparationCounts.productionSteps++;
+        }
       }),
       reservations: new KeyMap(),
       retakenParents: new Set(),
+      published: new Map(),
+      beforePaint: new Map(),
+      work: new Map(),
       cancelling: false,
     };
     return scope;
@@ -342,6 +605,10 @@ export class BuildOwner {
     );
     return scope;
   }
+  /** @internal The product path cannot defer discovery to a user layout builder. */
+  _requiresFinitePreparation(scope: BuildScope): boolean {
+    return this.preparationFor(scope).finiteProduction;
+  }
   private preparationFor(scope: BuildScope): PreparationScope {
     const preparation = this.preparation;
     invariant(
@@ -353,24 +620,312 @@ export class BuildOwner {
   }
   /** @internal Called before mount can run lifecycle or render callbacks. */
   _registerPreparationElement(element: Element): void {
-    const scope = element._preparationScope;
+    const scope = element._unpublishedScope;
     if (!scope) return;
     const preparation = this.preparationFor(scope);
     invariant(
-      !preparation.cancelling && preparation.elements.size < viewChildBudgetLimits.elements,
+      !preparation.cancelling &&
+        preparation.elements.size + (this.maybeViewWorkBudget?.optionalElementCount ?? 0) <
+          viewChildBudgetLimits.elements,
       'preparation-element-limit',
       'Preparation is cancelling or reached its Element limit',
     );
     preparation.elements.add(element);
+    if (!element._preparationScope) this.preparationCounts.layoutProducedElements++;
+    this.preparationCounts.peakElements = Math.max(
+      this.preparationCounts.peakElements,
+      preparation.elements.size,
+    );
     if (element.parent?._preparationScope !== scope) preparation.roots.add(element);
+  }
+  /** @internal Framework services resume only at the sealed CPU publication. */
+  _whenPreparationPublished(element: Element, callback: () => void): void {
+    const scope = element._unpublishedScope;
+    if (!scope) return;
+    const preparation = this.preparationFor(scope);
+    let callbacks = preparation.published.get(element);
+    if (!callbacks) preparation.published.set(element, (callbacks = new Set()));
+    callbacks.add(callback);
+  }
+  /** @internal Render services join the current complete CPU production before
+   * paint. Key/focus/ticker visibility still waits for the later sealed publish. */
+  _whenPreparationPaints(element: Element, callback: () => void): void {
+    const scope = element._unpublishedScope;
+    if (!scope) return;
+    const preparation = this.preparationFor(scope);
+    let callbacks = preparation.beforePaint.get(element);
+    if (!callbacks) preparation.beforePaint.set(element, (callbacks = new Set()));
+    callbacks.add(callback);
+  }
+  /** @internal No preparation render service can mutate the old painted tree
+   * between slices. Only adopted, fully laid-out content reaches this boundary. */
+  _preparePreparationPaint(): void {
+    const preparation = this.preparation;
+    if (!preparation?.adopted) return;
+    const batch = [...preparation.beforePaint];
+    preparation.beforePaint.clear();
+    for (const [element, callbacks] of batch) {
+      if (this.disposed || this.preparation !== preparation) return;
+      if (element.active)
+        for (const callback of callbacks) {
+          if (this.disposed || this.preparation !== preparation || !element.active) return;
+          callback();
+        }
+    }
+    invariant(
+      !preparation.beforePaint.size,
+      'reentrant-preparation-service',
+      'Preparation paint services cannot recursively add work',
+    );
+  }
+  /** @internal Scoped self-reference never exposes another generation's State. */
+  _frameworkKeyContext(key: GlobalKey, context: Element): Element | undefined {
+    if (!context.active || context.owner !== this) return undefined;
+    const element = this.globals.get(key);
+    return element?.active &&
+      element._unpublishedScope === context._unpublishedScope &&
+      (element === context || element.hasAncestor(context) || context.hasAncestor(element))
+      ? element
+      : undefined;
+  }
+  /** @internal Preserve the actual lazy-parent build context for its delegate. */
+  _invokePreparationDelegate<T>(context: Element, perform: () => T): T {
+    invariant(
+      this.building && context.owner === this && context.active,
+      'invalid-preparation-delegate',
+      'A cold delegate requires its real active build parent',
+    );
+    const previous = this.currentElement;
+    const previousDelegate = this.preparationDelegate;
+    this.currentElement = context;
+    this.preparationDelegate = true;
+    try {
+      return perform();
+    } finally {
+      this.currentElement = previous;
+      this.preparationDelegate = previousDelegate;
+    }
+  }
+  /** @internal Report only after the failed generation has actually retired. */
+  _preparationFailure(scope: BuildScope): FlutterErrorDetails | undefined {
+    return this.preparation?.scope === scope ? this.preparation.failure : undefined;
+  }
+  /** @internal The detached render boundary owns its pipeline as well as Elements. */
+  _setPreparationCancellation(scope: BuildScope, cancel: () => void): void {
+    this.preparationFor(scope).cancel = cancel;
+  }
+  /** @internal The same producer budget covers final required layout. */
+  _setPreparationResources(scope: BuildScope, resources: PreparationResourceBudget): void {
+    this.preparationFor(scope).resources = resources;
+  }
+  /** @internal Called around required layout, including forced geometry. */
+  _withPreparationResources<T>(layout: () => T): T {
+    if (!this.preparation) return layout();
+    return this.services.resources._withPreparationBudgetProvider(
+      () => (this.preparation?.adopted ? this.preparation.resources : undefined),
+      layout,
+    );
+  }
+  /** @internal Idempotent cancellation after CPU publication or View close. */
+  _ownsPreparationScope(scope: BuildScope): boolean {
+    return this.preparation?.scope === scope;
+  }
+  /** @internal A formerly ready State can become dirty while waiting for use. */
+  _preparationProductionReady(scope: BuildScope): boolean {
+    const preparation = this.preparation;
+    if (
+      !preparation ||
+      preparation.scope !== scope ||
+      preparation.cancelling ||
+      preparation.renderChildren.hasPending ||
+      preparation.work.size
+    )
+      return false;
+    for (let current = this.dirtyScopes; current; current = current._nextDirtyScope)
+      if (current._containsPreparation(scope)) return false;
+    return true;
+  }
+  /** @internal Finite layout-time producers keep their own index cursor. */
+  _registerPreparationWork(element: Element, advance: () => boolean): void {
+    const scope = element._preparationScope;
+    invariant(
+      scope,
+      'missing-preparation-scope',
+      'Preparation work requires unpublished ownership',
+    );
+    this.preparationFor(scope).work.set(element, advance);
+  }
+  /** @internal Invalidation never leaves a detached pipeline or host task behind. */
+  _cancelPreparation(): void {
+    this.cancelPreparationFrame();
+    const preparation = this.preparation;
+    if (!preparation) {
+      this.preparationCandidate = undefined;
+      this.preparationWork = undefined;
+      this.activePreparationCandidate = undefined;
+      return;
+    }
+    if (preparation.cancelling) return;
+    if (preparation.cancel) preparation.cancel();
+    else this._disposePreparationScope(preparation.scope);
+  }
+  /** @internal Move only the completed cold child, without replaying lifecycle.
+   * Key/focus/ticker visibility remains withheld until the current CPU seal. */
+  _adoptPreparation(scope: BuildScope, child: Element, parent: Element, slot: unknown): void {
+    const preparation = this.preparationFor(scope);
+    invariant(
+      !preparation.adopted &&
+        !this.building &&
+        !this.disposed &&
+        child.active &&
+        child._preparationScope === scope &&
+        parent.active &&
+        parent.owner === this &&
+        !parent._unpublishedScope &&
+        !preparation.renderChildren.hasPending &&
+        preparation.work.size === 0 &&
+        ![...preparation.elements].some((element) => element._queuedBuildScope),
+      'invalid-preparation-adoption',
+      'Only a cold subtree with complete production can enter the real layout',
+    );
+    this.cancelPreparationFrame();
+    this.finalizeTree(scope);
+    child.detachRenderObject();
+    const previous = child.parent!;
+    previous.children = previous.children.filter((element) => element !== child);
+    preparation.roots.delete(previous);
+    preparation.roots.add(child);
+    preparation.adopted = child;
+    child._adoptPreparedParent(parent, scope);
+    child.attachRenderObject(slot);
+    this.buildRevisionValue++;
+  }
+  /** @internal Called only after capture and the current geometry/semantics
+   * notifications succeed. Hooks are not a rollbackable host transaction. */
+  _publishPreparation(): void {
+    const preparation = this.preparation;
+    const child = preparation?.adopted;
+    if (!preparation || !child) return;
+    this.publishingPreparation = true;
+    try {
+      for (const element of preparation.elements) element._publishPreparedOwnership();
+      this.preparation = undefined;
+      this.preparationWork = undefined;
+      this.preparationCandidate = undefined;
+      this.activePreparationCandidate = undefined;
+      this.recordPreparationResources(preparation);
+      this.preparationCounts.published++;
+      preparation.renderChildren.dispose();
+      preparation.reservations.clear();
+      preparation.retakenParents.clear();
+      preparation.beforePaint.clear();
+      for (const [element, callbacks] of preparation.published) {
+        if (this.disposed) break;
+        if (element.active)
+          for (const callback of callbacks) {
+            if (this.disposed || !element.active) break;
+            callback();
+          }
+      }
+    } catch (error) {
+      const errors = [error];
+      try {
+        if (child.mounted) {
+          child.parent?.forgetChild(child);
+          child.unmount();
+        }
+      } catch (cleanup) {
+        errors.push(cleanup);
+      }
+      if (errors.length > 1)
+        throw new AggregateError(errors, 'Preparation publication and retirement failed');
+      throw error;
+    } finally {
+      preparation.published.clear();
+      preparation.elements.clear();
+      preparation.roots.clear();
+      this.publishingPreparation = false;
+    }
+  }
+  /** @internal Drain the actual dirty queues a single atomic rebuild at a time.
+   * Layout-owned scopes retain their identity and newly dirtied ancestors keep
+   * the DepthQueue ordering. Ordinary flushes never call this entry point. */
+  _advancePreparationBuild(scope: BuildScope, shouldContinue: () => boolean): boolean {
+    this.preparationFor(scope);
+    invariant(
+      !this.building && !this.disposed,
+      'reentrant-build',
+      'Preparation requires an idle owner',
+    );
+    for (;;) {
+      let next: BuildScope | undefined;
+      for (let candidate = this.dirtyScopes; candidate; candidate = candidate._nextDirtyScope)
+        if (candidate._containsPreparation(scope)) {
+          next = candidate;
+          break;
+        }
+      if (!next) {
+        const preparation = this.preparationFor(scope);
+        preparation.renderChildren.commit(shouldContinue);
+        if (preparation.renderChildren.hasPending) return false;
+        const work = preparation.work.entries().next().value;
+        if (!work) return true;
+        if (!shouldContinue()) return false;
+        const [element, advance] = work;
+        this.building = true;
+        this.currentElement = element;
+        try {
+          if (!element.active) preparation.work.delete(element);
+          else {
+            if (advance()) preparation.work.delete(element);
+            this.preparationCounts.productionSteps++;
+          }
+        } finally {
+          this.currentElement = undefined;
+          this.building = false;
+        }
+        continue;
+      }
+      if (!shouldContinue()) return false;
+      this.building = true;
+      try {
+        next._flushDirtyElements(
+          (element) => {
+            if (element.active && element.dirty) {
+              this.currentElement = element;
+              element.rebuild();
+              this.preparationCounts.productionSteps++;
+            }
+          },
+          undefined,
+          (details) => {
+            this.preparationFor(scope).failure = details;
+            throw details.exception;
+          },
+          shouldContinue,
+        );
+      } finally {
+        this.currentElement = undefined;
+        this.building = false;
+      }
+    }
   }
   /** @internal Cancel unpublished ownership before the View's shared services. */
   _disposePreparationScope(scope: BuildScope): void {
     const preparation = this.preparationFor(scope);
     invariant(!this.building, 'cancel-during-build', 'Cannot cancel preparation during build');
     if (preparation.cancelling) return;
+    this.cancelPreparationFrame();
     preparation.cancelling = true;
     const errors: unknown[] = [];
+    if (preparation.adopted?.parent)
+      try {
+        const parent = preparation.adopted.parent;
+        parent.forgetChild(preparation.adopted);
+        if (parent.active && !this.disposed) parent.markNeedsBuild();
+      } catch (error) {
+        errors.push(error);
+      }
     for (const root of new Set([...preparation.roots, ...preparation.elements]))
       try {
         if (root.mounted) root.unmount();
@@ -380,12 +935,30 @@ export class BuildOwner {
     preparation.renderChildren.dispose();
     preparation.reservations.clear();
     preparation.retakenParents.clear();
+    preparation.published.clear();
+    preparation.beforePaint.clear();
+    preparation.work.clear();
     scope._clear();
     this.preparation = undefined;
+    this.preparationWork = undefined;
+    this.preparationCandidate = undefined;
+    this.activePreparationCandidate = undefined;
+    this.recordPreparationResources(preparation);
+    this.preparationCounts.cancelled++;
     if (preparation.elements.size)
       errors.push(new Error('Preparation cancellation left mounted Elements'));
     if (errors.length === 1) throw errors[0];
     if (errors.length) throw new AggregateError(errors, 'Preparation cancellation failed');
+  }
+  private recordPreparationResources(preparation: PreparationScope): void {
+    this.preparationCounts.peakResources = Math.max(
+      this.preparationCounts.peakResources,
+      preparation.resources?.peakResources ?? 0,
+    );
+    this.preparationCounts.peakResourceBytes = Math.max(
+      this.preparationCounts.peakResourceBytes,
+      preparation.resources?.peakBytes ?? 0,
+    );
   }
   private elementBuildObserver: ElementBuildDiagnosticObserver | undefined;
   /** @internal Installed only by an explicitly profiling native App host. */
@@ -414,6 +987,7 @@ export class BuildOwner {
     return (this.viewWorkBudgetValue ??= new ViewWorkBudget(
       this.services.resources,
       this.services.owner.generation,
+      () => this.preparation?.elements.size ?? 0,
     ));
   }
   /** @internal Legacy trees incur no tracking tables or subtree scans. */
@@ -709,16 +1283,19 @@ export class BuildOwner {
       key.bind(element);
       this.globals.set(key, element);
     }
-    this.viewWorkBudgetValue?.register(element);
+    if (!element._preparationScope) this.viewWorkBudgetValue?.register(element);
   }
   unregister(element: Element): void {
-    const preparation = element._preparationScope
-      ? this.preparationFor(element._preparationScope)
+    const preparation = element._unpublishedScope
+      ? this.preparationFor(element._unpublishedScope)
       : undefined;
     if (element instanceof RenderObjectElement)
       (preparation?.renderChildren ?? this.renderChildren).forget(element);
     preparation?.elements.delete(element);
     preparation?.roots.delete(element);
+    preparation?.published.delete(element);
+    preparation?.beforePaint.delete(element);
+    preparation?.work.delete(element);
     if (preparation) this.inactive.delete(element);
     this.viewWorkBudgetValue?.unregister(element);
     this.viewMetricsReaders.delete(element);
@@ -730,7 +1307,11 @@ export class BuildOwner {
   reserve(key: GlobalKey, parent: Element): void {
     if (this.preparation) {
       const child = this.globals.get(key);
-      if (child) this.assertSamePreparation(child, parent);
+      if (
+        child &&
+        !(child._unpublishedScope && !child._preparationScope && child.parent === parent)
+      )
+        this.assertSamePreparation(child, parent);
     }
     const reservations = parent._preparationScope
       ? this.preparationFor(parent._preparationScope).reservations
@@ -741,7 +1322,7 @@ export class BuildOwner {
   }
   private assertSamePreparation(child: Element, parent: Element): void {
     invariant(
-      child._preparationScope === parent._preparationScope,
+      child._unpublishedScope === parent._unpublishedScope,
       'cross-preparation-global-key',
       'GlobalKey cannot move between published and unpublished generations',
     );
@@ -1012,7 +1593,7 @@ export class BuildOwner {
     const errors: unknown[] = [];
     for (const dispose of [
       () => {
-        if (this.preparation) this._disposePreparationScope(this.preparation.scope);
+        this._cancelPreparation();
       },
       () => this.dormantChildrenValue?.dispose(),
       () => this.finalizeTree(),
@@ -1124,9 +1705,14 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
   // not for every scheduling/check operation in a deep lazy child subtree.
   private parentBuildScope: BuildScope | undefined;
   private preparationScope: BuildScope | undefined;
+  private pendingPublicationScope: BuildScope | undefined;
   /** @internal Unpublished ownership survives isolated layout scopes and deactivation. */
   get _preparationScope(): BuildScope | undefined {
     return this.preparationScope;
+  }
+  /** @internal Includes adopted content awaiting a sealed CPU publication. */
+  get _unpublishedScope(): BuildScope | undefined {
+    return this.preparationScope ?? this.pendingPublicationScope;
   }
   private parentScopeAncestor: Element | undefined;
   private inheritBuildScope(parent: Element | undefined, owner: BuildOwner): void {
@@ -1256,6 +1842,35 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     this.preparationScope = owner._preparationForScope(scope);
     this.mount(parent, owner, slot);
   }
+  /** @internal Rebind ancestry once; promotion is neither activate nor rebuild. */
+  _adoptPreparedParent(parent: Element, scope: BuildScope): void {
+    invariant(
+      this.active && this.preparationScope === scope,
+      'invalid-preparation-element',
+      'Adoption requires an active member of this generation',
+    );
+    this.parent = parent;
+    this.inheritBuildScope(parent, this.owner);
+    this.parentRenderOwner =
+      parent instanceof RenderObjectElement ? parent : parent.parentRenderOwner;
+    this._parentDataScope =
+      parent instanceof RenderObjectElement
+        ? null
+        : parent instanceof ParentDataElement
+          ? parent
+          : parent._parentDataScope;
+    this.depth = parent.depth + 1;
+    this.preparationScope = undefined;
+    this.pendingPublicationScope = scope;
+    this.updateInheritedTypes();
+    this.attachNotificationTree();
+    this.owner.maybeViewWorkBudget?.activate(this);
+    for (const child of this.children) child._adoptPreparedParent(this, scope);
+  }
+  /** @internal No user callbacks while the whole generation becomes visible. */
+  _publishPreparedOwnership(): void {
+    this.pendingPublicationScope = undefined;
+  }
   mount(parent: Element | undefined, owner: BuildOwner, slot?: unknown): void {
     if (!(this.lifecycle === 'initial'))
       invariant(false, 'double-mount', 'Element can only be mounted once');
@@ -1273,6 +1888,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     this.depth = (parent?.depth ?? -1) + 1;
     this.owner = owner;
     this.preparationScope ??= parent?.preparationScope;
+    this.pendingPublicationScope ??= parent?.pendingPublicationScope;
     this.lifecycle = 'active';
     owner._registerPreparationElement(this);
     this.markRenderTreeSyncDirty();
@@ -1695,6 +2311,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     this._parentDataScope = null;
     this.parentBuildScope = undefined;
     this.preparationScope = undefined;
+    this.pendingPublicationScope = undefined;
     this.parentScopeAncestor = undefined;
     this.currentSlot = undefined;
     this._notificationTree = null;
@@ -1797,6 +2414,7 @@ export abstract class ComponentElement extends Element {
           'A component must synchronously build one Widget',
         );
     } catch (exception) {
+      if (this._preparationScope) throw exception;
       widgets = [this.buildErrorWidget(exception)];
     } finally {
       this.dirty = false;
@@ -1804,6 +2422,7 @@ export abstract class ComponentElement extends Element {
     try {
       this.children = this.reconcile(this.children, widgets);
     } catch (exception) {
+      if (this._preparationScope) throw exception;
       const replacement = this.buildErrorWidget(exception);
       try {
         this.owner.deactivateChildren(this.children);

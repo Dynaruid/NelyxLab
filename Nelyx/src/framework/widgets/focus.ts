@@ -192,7 +192,7 @@ function live(node: FocusNode): NodeData {
 }
 function preparationScope(node: FocusNode): BuildScope | undefined {
   const context = state(node).context;
-  return isElementContext(context) ? context._preparationScope : undefined;
+  return isElementContext(context) ? context._unpublishedScope : undefined;
 }
 function managerState(manager: FocusManager): ManagerData {
   const data = managers.get(manager);
@@ -375,7 +375,14 @@ function detach(node: FocusNode): void {
 }
 let createFocusAttachment: (node: FocusNode) => FocusAttachment;
 export class FocusAttachment {
-  private constructor(private readonly node: FocusNode) {}
+  private preparationParent: FocusNode | null = null;
+  private constructor(private readonly node: FocusNode) {
+    const context = state(node).context;
+    if (isElementContext(context) && context._unpublishedScope)
+      context.owner._whenPreparationPublished(context, () => {
+        if (this.isAttached) this.reparent({ parent: this.preparationParent });
+      });
+  }
   private static readonly factoryInitialized = void (createFocusAttachment = (node) =>
     new FocusAttachment(node));
   get isAttached(): boolean {
@@ -401,8 +408,10 @@ export class FocusAttachment {
       parent ??
       (context.active ? findFocusAncestor(context) : null) ??
       context.owner.focus.rootScope;
-    if (context._preparationScope && preparationScope(resolved) !== context._preparationScope)
-      return;
+    if (context._unpublishedScope) {
+      this.preparationParent = parent;
+      if (preparationScope(resolved) !== context._unpublishedScope) return;
+    }
     reparent(this.node, resolved);
   }
 }
@@ -489,6 +498,23 @@ export class FocusNode extends ChangeNotifier {
       this.ancestors.every((n) => n.descendantsAreFocusable)
     );
   }
+  /** @internal Describe the completed subtree's semantics without granting
+   * focus to an unpublished node. Its actual acquisition remains blocked. */
+  get _canRequestAfterPublication(): boolean {
+    if (!preparationScope(this)) return this.canRequestFocus;
+    if (!state(this).can) return false;
+    const visited = new Set<FocusNode>([this]);
+    let node: FocusNode = this;
+    for (;;) {
+      const d = state(node);
+      const parent =
+        d.parent ?? (isElementContext(d.context) ? findFocusAncestor(d.context) : null);
+      if (!parent) return true;
+      if (visited.has(parent) || !parent.descendantsAreFocusable) return false;
+      visited.add(parent);
+      node = parent;
+    }
+  }
   set canRequestFocus(value: boolean) {
     const d = live(this);
     if (!(typeof value === 'boolean'))
@@ -553,7 +579,7 @@ export class FocusNode extends ChangeNotifier {
   }
   /** @internal Check before a Focus widget can configure an existing live node. */
   _assertPreparationAttachment(context: Element): void {
-    if (!context._preparationScope) return;
+    if (!context._unpublishedScope) return;
     const data = live(this);
     invariant(
       (!data.attachment && !data.legacy && !data.manager && !data.parent) ||

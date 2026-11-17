@@ -643,6 +643,7 @@ export class FrameworkRoot implements ViewController {
       )
         this.semanticsResizeAt = this.scheduler.currentSystemFrameTimeStamp;
       if (metricsChanged) {
+        this.buildOwner._cancelPreparation();
         this.cancelPointers();
         if (this.metrics?.rendererGeneration !== scene.token.metrics.rendererGeneration) {
           const visit = (element: Element) => {
@@ -666,7 +667,7 @@ export class FrameworkRoot implements ViewController {
           this.pipeline.debugPendingLayoutCount,
         );
       this.scheduler.phase = 'layout';
-      this.pipeline.flushLayout({
+      this.flushLayout({
         width: scene.token.metrics.logicalWidth,
         height: scene.token.metrics.logicalHeight,
       });
@@ -681,7 +682,7 @@ export class FrameworkRoot implements ViewController {
             this.pipeline.setRoot(render);
           }
           this.scheduler.phase = 'layout';
-          this.pipeline.flushLayout({
+          this.flushLayout({
             width: scene.token.metrics.logicalWidth,
             height: scene.token.metrics.logicalHeight,
           });
@@ -693,19 +694,29 @@ export class FrameworkRoot implements ViewController {
       const workBudget = this.buildOwner.maybeViewWorkBudget;
       finishDiagnostic?.('layout');
       workBudget?.enforcePressure();
-      if (workBudget?.scheduleEvictions()) this.pipeline.flushLayout();
+      if (workBudget?.scheduleEvictions()) this.flushLayout();
       workBudget?.runOptional(
         scene.token.timing,
         () => this.context.clock.now(),
         () =>
           this.isInputLive() && !this.buildOwner.hasDirty && scene.canRunOptionalWork?.() === true,
         () => {
-          if (!this.closed && !this.pipeline.debugDisposed) this.pipeline.flushLayout();
+          if (!this.closed && !this.pipeline.debugDisposed) this.flushLayout();
         },
         () => this.scheduler.requestFrame(),
       );
+      if (this.context.requestOptionalWork) this.buildOwner._schedulePreparationOpportunity();
+      else
+        this.buildOwner._runOptionalPreparation(
+          scene.token.timing,
+          () =>
+            this.isInputLive() &&
+            !this.buildOwner.hasDirtyInActiveLayout &&
+            scene.canRunOptionalWork?.() === true,
+        );
       finishDiagnostic?.('optional-work');
       if (!this.isViewOpen() || this.scheduler.disposed) return [];
+      this.buildOwner._preparePreparationPaint();
       this.pipeline.flushCompositingBits();
       finishDiagnostic?.('compositing');
       this.scheduler.phase = 'paint';
@@ -1194,6 +1205,8 @@ export class FrameworkRoot implements ViewController {
             currentScope = this.isCurrentFrame(scene.token);
             if (currentScope) publishSemantics?.();
             else geometryCommit?.discard();
+            if (currentScope && this.isCurrentFrame(scene.token))
+              this.buildOwner._publishPreparation();
             finishDiagnostic?.('semantics-publish');
           } catch (error) {
             semanticsFailed = true;
@@ -1216,6 +1229,11 @@ export class FrameworkRoot implements ViewController {
         this.scheduler.disposed ||
         !currentScope
       ) {
+        try {
+          this.buildOwner._cancelPreparation();
+        } catch (error) {
+          errors.push(error);
+        }
         this.cancelSemanticsWake();
         this.pendingSemanticsActions = [];
         this.semanticsCache = undefined;
@@ -1267,6 +1285,9 @@ export class FrameworkRoot implements ViewController {
       current.nativeContextGeneration === built.nativeContextGeneration &&
       current.nativeSurfaceGeneration === built.nativeSurfaceGeneration
     );
+  }
+  private flushLayout(size?: { width: number; height: number }): void {
+    this.buildOwner._withPreparationResources(() => this.pipeline.flushLayout(size));
   }
   /** One recording boundary, separate from retained layer composition. */
   private recordPaint(render: RenderObject, painting: PaintingContext): void {
@@ -1611,7 +1632,10 @@ export class FrameworkRoot implements ViewController {
   }
   setVisible(visible: boolean): void {
     if (this.closed) return;
-    if (!visible) this.buildOwner.maybeViewWorkBudget?.cancelPreparation();
+    if (!visible) {
+      this.buildOwner._cancelPreparation();
+      this.buildOwner.maybeViewWorkBudget?.cancelPreparation();
+    }
     if (this.visible !== visible) {
       this.cancelSemanticsWake();
       this.pendingSemanticsActions = [];
@@ -1686,6 +1710,7 @@ export class FrameworkRoot implements ViewController {
     }
     this.closed = true;
     for (const dispose of [
+      () => this.buildOwner._cancelPreparation(),
       () => this.pointerViewLease?.dispose(),
       () => this.gestureBinding.dispose(),
       () => this.pointerBindingLease.dispose(),

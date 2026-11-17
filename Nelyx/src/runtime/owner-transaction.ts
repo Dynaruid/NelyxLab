@@ -29,7 +29,7 @@ export class OwnerTransaction<T extends { readonly depth: number }> {
     this.closed = true;
     this.pending.clear();
   }
-  commit(): void {
+  commit(shouldContinue?: () => boolean): void {
     if (!this.pending.size) return;
     invariant(
       !this.committing,
@@ -43,6 +43,7 @@ export class OwnerTransaction<T extends { readonly depth: number }> {
     let errors: unknown[] | undefined;
     try {
       for (const owner of batch) {
+        if (shouldContinue && !shouldContinue()) break;
         if (!this.pending.delete(owner)) continue;
         try {
           this.commitOwner(owner);

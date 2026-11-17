@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-import { Widget, StatefulWidget, ErrorWidget } from './framework.ts';
+import { Widget, StatefulWidget, ErrorWidget, Element } from './framework.ts';
 import type { BuildContext, State } from './framework.ts';
 import { AutomaticKeepAlive, AutomaticKeepAliveClientMixin } from './automatic-keep-alive.ts';
 import { IndexedSemantics, KeyedSubtree } from './basic.ts';
@@ -147,6 +147,11 @@ export class SliverChildBuilderDelegate extends SliverChildDelegate implements D
         'Sliver builder must return a Widget or null',
       );
     } catch (exception) {
+      if (
+        context instanceof Element &&
+        (context._preparationScope || context.owner._inPreparationDelegate)
+      )
+        throw exception;
       child = _createErrorWidget(exception);
     }
     if (child === null) return null;

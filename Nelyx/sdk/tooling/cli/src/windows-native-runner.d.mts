@@ -11,6 +11,7 @@ export interface NativeWindowsOptions {
   readonly engineInputs?: string;
   readonly nativeInputs?: string;
   readonly output?: string;
+  readonly entry?: string;
   readonly directory?: string;
   readonly signal?: AbortSignal;
   readonly arguments?: readonly string[];
@@ -29,6 +30,7 @@ export interface NativePackageManifest {
   readonly sourceSha256: string;
   readonly sdkInputsSha256?: string;
   readonly appInputsSha256?: string;
+  readonly appEntry?: string;
   readonly compilerPolicy: string;
   readonly nativeFunctions: number | null;
   readonly qualification: 'experimental' | 'diagnostic-only';

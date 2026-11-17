@@ -3,7 +3,7 @@
 // Reviewed port: Flutter 71e4717a, widgets/page_view.dart. Time uses the owning TS scheduler.
 import { invariant } from '../../foundation/errors.ts';
 import { FoundationBuildMode, precisionErrorTolerance } from '../../foundation/constants.ts';
-import { State, StatefulWidget } from './framework.ts';
+import { InheritedWidget, State, StatefulWidget } from './framework.ts';
 import type { BuildContext, Widget, WidgetOptions } from './framework.ts';
 import { ScrollController } from './scroll-controller.ts';
 import type { ScrollControllerCallback } from './scroll-controller.ts';
@@ -47,6 +47,7 @@ import { HitTestBehavior } from '../rendering/pointer-listener.ts';
 import type { RenderObject } from '../rendering/object.ts';
 import type { Clip } from '../../ui/clip.ts';
 import { clampDouble } from '../../ui/math.ts';
+import type { SliverChildPolicy } from './view-work-budget.ts';
 
 const dartRound = (value: number): number => (value < 0 ? -Math.round(-value) : Math.round(value));
 function checkPage(page: number): void {
@@ -55,6 +56,22 @@ function checkPage(page: number): void {
 function checkFraction(fraction: number): void {
   if (FoundationBuildMode.debug)
     invariant(fraction > 0, 'invalid-page-fraction', 'Viewport fraction must be positive');
+}
+/** Opt-in for PageViews inside an owned product boundary (for example a date
+ * picker dialog). Legacy is the default. Cold init/build can precede display;
+ * cancellation disposes actual work but cannot undo external side effects.
+ * One finite cold subtree per View, with at most 64 children per nested sliver.
+ * A required page completes the same cursor synchronously. */
+export class PageViewPreparation extends InheritedWidget {
+  constructor(
+    child: Widget,
+    readonly childPolicy: SliverChildPolicy = 'legacy',
+  ) {
+    super(child);
+  }
+  override updateShouldNotify(old: this): boolean {
+    return this.childPolicy !== old.childPolicy;
+  }
 }
 export class PageController extends ScrollController {
   readonly initialPage: number;
@@ -352,6 +369,8 @@ export class PageScrollPhysics extends ScrollPhysics {
   }
 }
 export interface PageViewOptions extends WidgetOptions {
+  /** Explicit opt-in. Cold finite children may initialize/build before display. */
+  readonly childPolicy?: SliverChildPolicy;
   readonly controller?: PageController;
   readonly children?: readonly Widget[];
   readonly scrollDirection?: Axis;
@@ -452,6 +471,8 @@ class PageViewState extends State<PageView> {
   }
   build(context: BuildContext): Widget {
     const options = this.widget.options;
+    const childPolicy =
+      options.childPolicy ?? context.maybeDependOn(PageViewPreparation)?.childPolicy ?? 'legacy';
     const axis = options.scrollDirection ?? Axis.horizontal;
     const direction =
       axis === Axis.horizontal
@@ -500,6 +521,7 @@ class PageViewState extends State<PageView> {
                 delegate: this.widget.childrenDelegate,
                 padEnds: options.padEnds ?? true,
                 allowImplicitScrolling: options.allowImplicitScrolling ?? false,
+                childPolicy,
               }),
             ],
           }),

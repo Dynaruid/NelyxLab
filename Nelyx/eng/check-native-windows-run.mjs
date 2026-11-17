@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { execute } from '../sdk/tooling/cli/src/commands.mjs';
+import { demoWindowsArguments } from '../../sample/nelyx-demo-app/eng/run-windows.mjs';
+import { runSampleWindows } from './run-sample-windows.mjs';
 import {
   nativeEnginePolicy,
   nativeManifestPolicy,
@@ -8,6 +11,7 @@ import {
 } from '../sdk/tooling/cli/src/windows-native-engine.mjs';
 import {
   nativeWindowsBuildIdentity,
+  nativeApplicationEntry,
   prepareNativeWindowsRun,
 } from '../sdk/tooling/cli/src/windows-native-run-preparation.mjs';
 
@@ -32,7 +36,7 @@ if (!process.argv.includes('--child')) {
   cases++;
   function harness() {
     const state = { sdk: 'sdk-a', app: 'app-a', builds: [], reads: 0, notices: 0 };
-    const product = (mode = 'bytecode', engine = 'hermes', jscMode) => ({
+    const product = (mode = 'bytecode', engine = 'hermes', jscMode, entry) => ({
       directory: 'current-' + (engine === 'jsc' ? 'jsc' : mode),
       manifest: {
         engine,
@@ -41,6 +45,7 @@ if (!process.argv.includes('--child')) {
         qualification: 'experimental',
         sdkInputsSha256: state.sdk,
         appInputsSha256: state.app,
+        ...(entry ? { appEntry: entry } : {}),
       },
     });
     state.current = product();
@@ -56,7 +61,7 @@ if (!process.argv.includes('--child')) {
       },
       build: async (options) => {
         state.builds.push(options);
-        state.current = product(options.mode, options.engine, options.jscMode);
+        state.current = product(options.mode, options.engine, options.jscMode, options.entry);
       },
       onRebuild: () => {
         state.notices++;
@@ -70,6 +75,87 @@ if (!process.argv.includes('--child')) {
       original = state.current;
     assert.equal(await run(), original);
     assert.equal(state.builds.length, 0);
+    cases++;
+  }
+  {
+    const { state, run } = harness();
+    await run({ entry: 'src/calendar-preparation.ts' });
+    assert.equal(state.current.manifest.appEntry, 'src/calendar-preparation.ts');
+    await run({ entry: 'src/calendar-preparation.ts' });
+    assert.equal(state.builds.length, 1, 'Unchanged candidate entry rebuilt');
+    await run({ entry: 'src/index.ts' });
+    assert.equal(state.builds.length, 2, 'Default entry reused the candidate');
+    await run({ entry: 'src/index.ts' });
+    assert.equal(state.builds.length, 2);
+    cases++;
+  }
+  {
+    const { state, dependencies, run } = harness();
+    const build = dependencies.build;
+    dependencies.build = async (options) => {
+      await build(options);
+      state.current.manifest.appEntry = 'src/wrong.ts';
+    };
+    await assert.rejects(run({ entry: 'src/index.ts' }), /did not publish the selected/);
+    await assert.rejects(
+      run({ directory: 'portable', entry: 'src/index.ts' }),
+      /cannot be combined with --package/,
+    );
+    assert.equal(state.builds.length, 1);
+    cases++;
+  }
+  {
+    const app = path.resolve(import.meta.dirname, '../../sample/nelyx-demo-app');
+    assert.equal(nativeApplicationEntry(app), 'src/index.ts');
+    assert.equal(
+      nativeApplicationEntry(app, './src/../src/calendar-preparation.ts'),
+      'src/calendar-preparation.ts',
+    );
+    for (const entry of ['', 'src', '../nelyx-testbed-app-2/package.json', app])
+      assert.throws(() => nativeApplicationEntry(app, entry), /Native --entry/);
+    cases++;
+  }
+  {
+    assert.deepEqual(demoWindowsArguments([]), ['--host', 'native']);
+    assert.deepEqual(demoWindowsArguments(['--preparation', 'legacy']), [
+      '--host',
+      'native',
+      '--entry',
+      'src/index.ts',
+    ]);
+    const candidate = demoWindowsArguments(['--preparation', 'split', '--', '10000']);
+    assert.deepEqual(candidate, [
+      '--host',
+      'native',
+      '--entry',
+      'src/calendar-preparation.ts',
+      '--',
+      '10000',
+    ]);
+    for (const args of [
+      ['--preparation'],
+      ['--preparation', 'bad'],
+      ['--preparation', 'split', '--preparation', 'legacy'],
+      ['--preparation', 'split', '--package', 'snapshot'],
+      ['--preparation', 'split', '--entry', 'src/index.ts'],
+    ])
+      assert.throws(() => demoWindowsArguments(args), /--preparation/);
+    const calls = [];
+    await runSampleWindows(
+      { root: 'root', app: 'app', arguments: candidate },
+      {
+        refresh: async () => {
+          calls.push('refresh');
+        },
+        launch: async (_cli, args) => {
+          calls.push(args);
+        },
+      },
+    );
+    assert.deepEqual(calls, [
+      'refresh',
+      ['run', '--app', 'app', '--target', 'windows', ...candidate],
+    ]);
     cases++;
   }
   for (const field of ['app', 'sdk']) {

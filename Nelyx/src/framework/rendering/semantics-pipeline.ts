@@ -1413,11 +1413,30 @@ export class RenderSemanticsPipeline {
             moved.add(semantics.firstAncestorNodeWithCleanGeometry);
         }
       }
+      // Configuration work can select a different forming ancestor from the
+      // render object that queued geometry. Cover that ancestor as well before
+      // reading its visibility or assembling its current children.
+      for (const node of nodes) {
+        const semantics = semanticsFor(node);
+        semantics.computeAncestorInfo(token);
+        if (semantics.firstAncestorNodeWithCleanGeometry)
+          ensure.add(semantics.firstAncestorNodeWithCleanGeometry);
+      }
       for (const node of [...ensure].sort((a, b) => a.renderObject.depth - b.renderObject.depth))
         node.ensureGeometry();
       const assembled = new Set<_RenderObjectSemantics>();
       const assemble = (target: _RenderObjectSemantics) => {
         if (!target.parentDataDirty && !assembled.has(target)) {
+          if (target.geometry === null) {
+            // An invisible descendant also selects its semantic parent, which
+            // need not be in either input queue. Resolve its actual geometry;
+            // a cached "clean" ancestor is not proof after invalidation.
+            target.computeAncestorInfo({});
+            target.firstAncestorNodeWithCleanGeometry?.ensureGeometry();
+            // A blocked branch has no path from the current semantic root.
+            // Its parent's next structural update will admit it again.
+            if (target.geometry === null) return;
+          }
           target.ensureSemanticsNode();
           assembled.add(target);
         }

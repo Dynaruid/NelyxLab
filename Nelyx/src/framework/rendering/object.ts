@@ -379,6 +379,8 @@ export abstract class PipelineManifold extends Listenable {
   abstract requestVisualUpdate(): void;
 }
 export interface PipelineOwnerOptions {
+  /** @internal Isolated CPU production; never a View's published pipeline. */
+  readonly detachedPreparation?: boolean;
   /** Hard startup opt-out; explicit semantics requests cannot override it. */
   readonly accessibilityEnabled?: boolean;
   readonly onNeedVisualUpdate?: (() => void) | null;
@@ -420,6 +422,26 @@ class _LocalSemanticsHandle extends SemanticsHandle {
   }
 }
 export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
+  /** @internal Only this detached tree is authorized during a required query.
+   * Mutations to the live published owner still fail the normal owner guard. */
+  _withDetachedPreparation<T>(perform: () => T): T {
+    invariant(
+      this.detachedPreparation &&
+        !this.debugDisposed &&
+        !this.parentOwner &&
+        this.root !== undefined &&
+        !this.root.parent,
+      'invalid-preparation-pipeline',
+      'Preparation requires its explicitly isolated pipeline',
+    );
+    activeLayoutCallbacks.push({ root: this.root, owner: this });
+    try {
+      return perform();
+    } finally {
+      activeLayoutCallbacks.pop();
+    }
+  }
+  private readonly detachedPreparation: boolean;
   /** Optional owner-scoped experiment, absent in the ordinary TS pipeline. */
   flexLayout?: import('../../hosting/flex-layout.ts').FlexLayoutService;
   pointerTargets?: import('../../hosting/pointer-targets.ts').PointerTargetsService;
@@ -520,6 +542,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
     super();
     const settings: PipelineOwnerOptions =
       typeof options === 'function' ? { onNeedVisualUpdate: options, systemFonts } : options;
+    this.detachedPreparation = settings.detachedPreparation === true;
     this.accessibilityEnabled = settings.accessibilityEnabled !== false;
     this.onNeedVisualUpdate = settings.onNeedVisualUpdate ?? null;
     this.onSemanticsOwnerCreated = settings.onSemanticsOwnerCreated ?? null;

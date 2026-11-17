@@ -16,6 +16,7 @@ import { buildNativeAot, verifyNativeAot } from './windows-native-aot.mjs';
 import { windowsAppBuildInputs, windowsBuildInputs } from './windows-build-inputs.mjs';
 import {
   nativeWindowsBuildIdentity,
+  nativeApplicationEntry,
   prepareNativeWindowsRun,
 } from './windows-native-run-preparation.mjs';
 const timeout = 1_200_000;
@@ -70,6 +71,7 @@ export async function buildNativeApplication({
   nativeInputs,
   hostBuild,
   output,
+  entry: selectedEntry,
   diagnosticEntry,
   cacheDirectory,
 } = {}) {
@@ -77,11 +79,14 @@ export async function buildNativeApplication({
   mode = runtime.mode;
   if (diagnosticEntry && !output)
     throw Error('A diagnostic entry requires an explicit temporary output');
+  if (diagnosticEntry && selectedEntry !== undefined)
+    throw Error('Choose either a product --entry or a diagnostic entry');
   app = fs.realpathSync(app);
   const config = defineConfig(
     JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).nelyx,
   );
   const diagnostic = diagnosticEntry ? fs.realpathSync(diagnosticEntry) : null;
+  const appEntry = diagnostic ? undefined : nativeApplicationEntry(app, selectedEntry);
   if (diagnostic && (!inside(app, diagnostic) || !fs.statSync(diagnostic).isFile()))
     throw Error('A diagnostic entry must be an owned file inside the application');
   if (diagnostic) {
@@ -182,7 +187,7 @@ export async function buildNativeApplication({
       source = path.join(stage, 'app.js');
     const globals = '@nelyx/sdk/backends/native-hermes/globals',
       start = '@nelyx/sdk/backends/native-hermes/application',
-      main = path.resolve(diagnostic ?? path.join(app, config.appEntry)).replaceAll('\\', '/');
+      main = path.resolve(diagnostic ?? path.join(app, appEntry)).replaceAll('\\', '/');
     fs.writeFileSync(
       entry,
       `import {failNativeHermesStartup} from ${JSON.stringify(globals)};\nimport {startNativeHermesApplication} from ${JSON.stringify(start)};\nimport {main} from ${JSON.stringify(main)};\nstartNativeHermesApplication(main().definition,${JSON.stringify(assetConfiguration)}).catch(failNativeHermesStartup);\n`,
@@ -347,6 +352,7 @@ export async function buildNativeApplication({
           sourceSha256: host.manifest.sourceSha256,
           sdkInputsSha256,
           appInputsSha256,
+          ...(appEntry ? { appEntry } : {}),
           compilerPolicy: policy.id,
           bundle,
           nativeFunctions,
@@ -469,6 +475,14 @@ export function verifyNativePackage(directory) {
   directory = fs.realpathSync(directory);
   const manifest = JSON.parse(fs.readFileSync(localFile(directory, 'native-package.json'), 'utf8'));
   const runtime = nativeManifestPolicy(manifest);
+  if (
+    manifest.appEntry !== undefined &&
+    (typeof manifest.appEntry !== 'string' ||
+      manifest.appEntry.includes('\\') ||
+      manifest.appEntry.split('/').some((part) => !part || part === '.' || part === '..') ||
+      path.win32.isAbsolute(manifest.appEntry))
+  )
+    throw Error('Invalid native application entry');
   for (const key of ['sdkInputsSha256', 'appInputsSha256', 'toolchainSha256', 'sourceSha256'])
     if (manifest[key] !== undefined && !/^[a-f0-9]{64}$/.test(manifest[key]))
       throw Error('Invalid native build input identity: ' + key);
@@ -707,6 +721,8 @@ export async function prepareNativeApplication({
   return locator;
 }
 export async function nativeWindowsOperation(operation, options) {
+  if (options.directory && options.entry !== undefined)
+    throw Error('--entry cannot be combined with --package; the package fixes its entry');
   if (options.configuration && options.configuration !== 'Release')
     throw Error('The native Windows host requires Release');
   if (options.directory && ['run', 'pack'].includes(operation)) {
@@ -789,6 +805,9 @@ export async function nativeWindowsOperation(operation, options) {
     engineInputs: options.engineInputs ?? inputs.engineInputs,
     nativeInputs: options.nativeInputs ?? inputs.nativeInputs,
     jscInputs: options.jscInputs ?? inputs.jscInputs,
+    ...(['build', 'run'].includes(operation)
+      ? { entry: nativeApplicationEntry(app, options.entry) }
+      : {}),
   };
   if (operation === 'prepare') return prepareNativeApplication(selected);
   if (operation === 'build') return buildNativeApplication({ ...selected, mode: runtime.mode });

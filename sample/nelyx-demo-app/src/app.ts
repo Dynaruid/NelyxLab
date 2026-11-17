@@ -9,6 +9,8 @@ export interface ApplicationState {
 }
 export interface ApplicationOptions {
   readonly accessibilityEnabled?: boolean;
+  /** Experimental cold PageView production inside the date picker only. */
+  readonly calendarPreparation?: boolean;
 }
 export function createApplicationState(): ApplicationState {
   return { initialText: '안녕하세요, Nelyx!' };
@@ -22,6 +24,6 @@ export function defineApplication(
     defaultFont: 'sample-font',
     accessibilityEnabled: options.accessibilityEnabled ?? true,
     semanticsUpdateInterval: 300,
-    createRoot: () => new DemoApplication(state.initialText),
+    createRoot: () => new DemoApplication(state.initialText, options.calendarPreparation ?? false),
   });
 }
