@@ -2,6 +2,7 @@
 #include "Engine.h"
 #include "LoadedIdentity.h"
 #include <hermes/hermes.h>
+#include <chrono>
 #include <sstream>
 
 namespace Nelyx::NativeHermes {
@@ -31,6 +32,65 @@ public:
     auto& rt = *runtime_;
     api.setProperty(rt, "engine", "hermes");
     if (!sampling_) return;
+    // Match the sampler's steady-clock epoch, and distinguish runtime CPU from
+    // elapsed host/GPU waits. This port exists only in an explicit CPU diagnostic.
+    api.setProperty(rt, "cpuProfileClock", jsi::Function::createFromHostFunction(
+      rt, jsi::PropNameID::forAscii(rt, "cpuProfileClock"), 0,
+      [](auto& rt, auto const&, auto const*, size_t) {
+        FILETIME created{}, exited{}, kernel{}, user{};
+        if (!GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user))
+          throw jsi::JSError(rt, "Runtime thread CPU clock unavailable");
+        const auto ticks = [](FILETIME value) {
+          return (uint64_t(value.dwHighDateTime) << 32) | value.dwLowDateTime;
+        };
+        jsi::Array result(rt, 2);
+        result.setValueAtIndex(rt, 0, std::chrono::duration<double, std::milli>(
+          std::chrono::steady_clock::now().time_since_epoch()).count());
+        result.setValueAtIndex(rt, 1, double(ticks(kernel) + ticks(user)) / 10000.);
+        return jsi::Value(std::move(result));
+      }));
+    wchar_t descriptorFlag[2]{};
+    if (GetEnvironmentVariableW(L"NELYX_HERMES_DESCRIPTOR_PROFILE", descriptorFlag, 2) == 1 && descriptorFlag[0] == L'1') {
+      using DescriptorProfile = void (*)(unsigned, double*);
+      const auto profile = reinterpret_cast<DescriptorProfile>(GetProcAddress(
+        GetModuleHandleW(L"hermesvm.dll"), "nelyx_descriptor_profile_v1"));
+      if (!profile) throw jsi::JSError(rt, "Verified descriptor diagnostic VM is unavailable");
+      api.setProperty(rt, "definePropertiesProfile", jsi::Function::createFromHostFunction(
+        rt, jsi::PropNameID::forAscii(rt, "definePropertiesProfile"), 1,
+        [profile](auto& rt, auto const&, auto* args, size_t count) {
+          if (count != 1 || !args[0].isString()) throw jsi::JSError(rt, "Choose descriptor begin, end or calibrate");
+          const auto command = args[0].getString(rt).utf8(rt);
+          if (command != "begin" && command != "end" && command != "calibrate")
+            throw jsi::JSError(rt, "Invalid descriptor diagnostic operation");
+          double values[6]{};
+          profile(command == "begin" ? 1 : command == "end" ? 0 : 2, values);
+          if (values[0] < 0) throw jsi::JSError(rt, "Invalid descriptor diagnostic transition");
+          jsi::Array result(rt, 6);
+          for (unsigned index = 0; index < 6; ++index) result.setValueAtIndex(rt, index, values[index]);
+          return jsi::Value(std::move(result));
+        }));
+    }
+    wchar_t propertyFlag[2]{};
+    if (GetEnvironmentVariableW(L"NELYX_HERMES_PROPERTY_PROFILE", propertyFlag, 2) == 1 && propertyFlag[0] == L'1') {
+      using PropertyProfile = void (*)(unsigned, double*);
+      const auto profile = reinterpret_cast<PropertyProfile>(GetProcAddress(
+        GetModuleHandleW(L"hermesvm.dll"), "nelyx_property_profile_v1"));
+      if (!profile) throw jsi::JSError(rt, "Verified property diagnostic VM is unavailable");
+      api.setProperty(rt, "namedPropertyProfile", jsi::Function::createFromHostFunction(
+        rt, jsi::PropNameID::forAscii(rt, "namedPropertyProfile"), 1,
+        [profile](auto& rt, auto const&, auto* args, size_t count) {
+          if (count != 1 || !args[0].isString()) throw jsi::JSError(rt, "Choose property begin, end or calibrate");
+          const auto command = args[0].getString(rt).utf8(rt);
+          if (command != "begin" && command != "end" && command != "calibrate")
+            throw jsi::JSError(rt, "Invalid property diagnostic operation");
+          double values[9]{};
+          profile(command == "begin" ? 1 : command == "end" ? 0 : 2, values);
+          if (values[0] < 0) throw jsi::JSError(rt, "Invalid property diagnostic transition");
+          jsi::Array result(rt, 9);
+          for (unsigned index = 0; index < 9; ++index) result.setValueAtIndex(rt, index, values[index]);
+          return jsi::Value(std::move(result));
+        }));
+    }
     auto profile = jsi::Function::createFromHostFunction(rt, jsi::PropNameID::forAscii(rt, "cpuProfile"), 1,
       [this](auto& rt, auto const&, auto* args, size_t count) {
         if (count != 1 || !args[0].isString()) throw jsi::JSError(rt, "Choose begin or end sampling");

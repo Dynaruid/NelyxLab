@@ -12,6 +12,7 @@ import {
 import { buildNativeJscProbe } from './native-jsc-probe-build.mjs';
 import { nativePackageEnvironment } from '../sdk/tooling/cli/src/windows-native-host.mjs';
 import { windowsBuildInputs } from '../sdk/tooling/cli/src/windows-build-inputs.mjs';
+import { representationSamplingProfile } from './windows-jank-representation-profile.mjs';
 
 const root = path.resolve(import.meta.dirname, '../..');
 const argument = (name, fallback) => {
@@ -31,6 +32,25 @@ const runtimeIdentity = {
   ...(engine === 'jsc' ? { jscMode } : { hermesMode }),
 };
 const hostExecutable = engine === 'jsc' ? 'NelyxJscHost.exe' : 'NelyxHermesHost.exe';
+const representationProfile = process.env.NELYX_JANK_REPRESENTATION_PROFILE === '1';
+const semanticsConflictProfile = process.env.NELYX_JANK_SEMANTICS_CONFLICT_PROFILE === '1';
+if (
+  semanticsConflictProfile &&
+  (!representationProfile ||
+    process.env.NELYX_HERMES_DESCRIPTOR_PROFILE === '1' ||
+    process.env.NELYX_HERMES_PROPERTY_PROFILE === '1')
+)
+  throw Error('Semantics conflict screening requires the plain representation CPU diagnostic');
+if (
+  representationProfile &&
+  (engine !== 'hermes' ||
+    hermesMode !== 'bytecode' ||
+    scenario !== 'calendar' ||
+    process.env.NELYX_NATIVE_CPU_PROFILE !== '1' ||
+    process.env.NELYX_JANK_BUILD_PROFILE === '1' ||
+    process.env.NELYX_NATIVE_GC_STATS === '1')
+)
+  throw Error('Representation screening requires calendar bytecode CPU sampling alone');
 const app = path.join(
   root,
   appName === 'testbed' ? 'sample/nelyx-testbed-app-2' : 'sample/nelyx-demo-app',
@@ -119,6 +139,7 @@ if (!process.argv.includes('--child')) {
             },
             measurementView: result.measurementView,
             performanceSample: result.performanceSample,
+            representation: result.representation,
             displayed: result.displayed.map((phase) => ({
               name: phase.name,
               averageFpsLowerBound: phase.averageFpsLowerBound,
@@ -211,6 +232,8 @@ let native,
   ownsEntry = false,
   ownsOutput = false;
 let screenChild, screenExit, screenData, markerCost, identity;
+let representationTrace;
+const representationReports = [];
 let displayed = [];
 let currentView, measurementView;
 const screenStop = path.join(session, 'screen.stop'),
@@ -293,13 +316,14 @@ function lines(stream, handler) {
   stream.setEncoding('utf8');
   stream.on('data', (chunk) => {
     text += chunk;
-    if (text.length > 65536) throw Error('Native line budget exceeded');
     let at;
     while ((at = text.indexOf('\n')) >= 0) {
+      if (at > 65536) throw Error('Native line budget exceeded');
       const line = text.slice(0, at).trim();
       text = text.slice(at + 1);
       if (line) handler(line);
     }
+    if (text.length > 65536) throw Error('Native line budget exceeded');
   });
   stream.on('end', () => {
     if (text.trim()) handler(text.trim());
@@ -398,6 +422,72 @@ function publicMotion(motion) {
   return summary;
 }
 function onLine(line) {
+  if (line.startsWith('FAST_REPRESENTATION_')) {
+    try {
+      const payload = line.slice(line.indexOf(' ') + 1);
+      if (line.startsWith('FAST_REPRESENTATION_BEGIN ')) {
+        if (!representationProfile || representationTrace)
+          throw Error('Unexpected representation trace');
+        const meta = JSON.parse(payload);
+        if (
+          !Number.isSafeInteger(meta.length) ||
+          meta.length < 1 ||
+          meta.length > 8 * 1024 * 1024 ||
+          !Number.isInteger(meta.frames) ||
+          meta.frames < 1 ||
+          meta.frames > 2048
+        )
+          throw Error('Representation trace metadata exceeds budget');
+        representationTrace = { meta, frames: [], chunks: [], length: 0 };
+      } else {
+        if (!representationTrace) throw Error('Representation trace has no owner');
+        const trace = representationTrace;
+        if (line.startsWith('FAST_REPRESENTATION_FRAMES ')) {
+          const frames = JSON.parse(payload);
+          if (
+            !Array.isArray(frames) ||
+            frames.length > 8 ||
+            trace.frames.length + frames.length > trace.meta.frames
+          )
+            throw Error('Representation frame chunk exceeds budget');
+          trace.frames.push(...frames);
+        } else if (line.startsWith('FAST_REPRESENTATION_CHUNK ')) {
+          const chunk = JSON.parse(payload);
+          if (
+            typeof chunk !== 'string' ||
+            !chunk.length ||
+            chunk.length > 1000 ||
+            trace.length + chunk.length > trace.meta.length
+          )
+            throw Error('Representation trace chunk exceeds budget');
+          trace.chunks.push(chunk);
+          trace.length += chunk.length;
+        } else if (line === 'FAST_REPRESENTATION_END') {
+          if (trace.length !== trace.meta.length || trace.frames.length !== trace.meta.frames)
+            throw Error('Representation trace was truncated');
+          const report = {
+            name: trace.meta.name,
+            clockPairMs: trace.meta.clockPairMs,
+            nativeClockPairMs: trace.meta.nativeClockPairMs,
+            propertyClockPairMs: trace.meta.propertyClockPairMs,
+            ...representationSamplingProfile(
+              JSON.parse(trace.chunks.join('')),
+              trace.frames,
+              JSON.parse(fs.readFileSync(path.join(output, 'app.js.map'), 'utf8')),
+            ),
+          };
+          representationReports.push(report);
+          representationTrace = undefined;
+          console.log('FAST_REPRESENTATION_PROFILE ' + JSON.stringify(report));
+        } else throw Error('Unknown representation record');
+      }
+    } catch (error) {
+      failure ??= error;
+      console.error('FAST_VALIDATION_ERROR ' + error.message);
+      native?.kill();
+    }
+    return;
+  }
   if (line.startsWith('NELYX_NATIVE_VIEW '))
     currentView = JSON.parse(line.slice('NELYX_NATIVE_VIEW '.length));
   if (line.startsWith('NELYX_NATIVE_SCREEN_MARKER '))
@@ -584,6 +674,42 @@ try {
           )
           .replace('            dispose();', '            builderProfile.dispose(); dispose();');
     }
+    if (representationProfile) {
+      source =
+        (semanticsConflictProfile
+          ? "import { _RenderObjectSemantics as ConflictRenderSemantics } from './windows/runner/node_modules/@nelyx/core/dist/framework/rendering/semantics-pipeline.js';\n" +
+            fs
+              .readFileSync(
+                path.join(root, 'Nelyx/eng/windows-jank-semantics-conflict-profile.mjs'),
+                'utf8',
+              )
+              .replace(/^export /gm, '') +
+            '\n'
+          : '') +
+        fs.readFileSync(path.join(root, 'Nelyx/eng/windows-jank-framework-profile.ts'), 'utf8') +
+        '\nlet representationObserver;\n' +
+        source
+          .replace(
+            'root = created;',
+            'root = created; representationObserver = installRepresentationProfile(root, host, () => phase !== undefined' +
+              (semanticsConflictProfile
+                ? ', installSemanticsConflictProfile(ConflictRenderSemantics.prototype, () => host.cpuProfileClock()[0])'
+                : '') +
+              ');',
+          )
+          .replace(
+            '  diagnostics.drain();\n  host.takeFrameTrace();',
+            '  representationObserver.reset();\n  diagnostics.drain();\n  host.takeFrameTrace();',
+          )
+          .replace(
+            "...samplingSummary(host.cpuProfile('end'))",
+            '...samplingSummary((() => { const trace = host.cpuProfile("end"); representationObserver.log(active.name, trace); return trace; })())',
+          )
+          .replace(
+            '            dispose();',
+            '            representationObserver.dispose(); dispose();',
+          );
+    }
     if (process.env.NELYX_NATIVE_GC_STATS === '1') {
       if (engine !== 'hermes') throw Error('GC phase profile requires Hermes');
       if (scenario !== 'calendar') throw Error('GC phase profile currently requires calendar');
@@ -709,7 +835,10 @@ try {
     exitReceipt.inputRejected !== 0 ||
     exitReceipt.inputReceived !== exitReceipt.inputDelivered ||
     exitReceipt.inputDelivered !== exitReceipt.inputAccepted ||
-    exitReceipt.wheelReceivedY !== exitReceipt.wheelDeliveredY
+    exitReceipt.wheelReceivedY !== exitReceipt.wheelDeliveredY ||
+    (representationProfile && (representationReports.length !== 3 || representationTrace)) ||
+    (semanticsConflictProfile &&
+      representationReports.some((report) => !report.all.semanticsConflicts?.groups))
   )
     throw Error(
       'Incomplete input validation: ' +
@@ -737,6 +866,7 @@ try {
       process.env.NELYX_NATIVE_CPU_PROFILE !== '1' &&
       process.env.NELYX_JANK_BUILD_PROFILE !== '1' &&
       process.env.NELYX_NATIVE_GC_STATS !== '1',
+    ...(representationProfile ? { representation: representationReports } : {}),
     inputPacing: drivers.map((d, index) => ({
       waitStrategy: d.Timing.WaitStrategy,
       hz: d.Timing.Hz,

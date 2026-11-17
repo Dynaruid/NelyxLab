@@ -9,6 +9,14 @@ import { openNativeBuildCache } from './native-build-cache.mjs';
 import { windowsCompilerEnvironment, refreshWindowsCmakeTools } from './windows-static-hermes.mjs';
 import { windowsNativeHermesPin } from './windows-native-hermes-pin.mjs';
 import { patchStaticHermesCompiler } from './static-hermes-compiler-patch.mjs';
+import {
+  descriptorProfileEnabled,
+  patchDescriptorProfile,
+} from './windows-hermes-descriptor-profile.mjs';
+import {
+  propertyProfileEnabled,
+  patchPropertyProfile,
+} from './windows-hermes-property-profile.mjs';
 import { windowsHermesPolicy } from './windows-hermes-policy.mjs';
 import { windowsNativeHermesCohort } from '@nelyx/sdk/runtime/cohorts';
 import {
@@ -17,6 +25,8 @@ import {
   windowsNativeIcuRuntimeFiles,
 } from './windows-native-icu.mjs';
 const timeout = 1_200_000;
+const descriptorProfile = descriptorProfileEnabled();
+const propertyProfile = propertyProfileEnabled();
 const producer = () =>
   createHash('sha256')
     .update(
@@ -29,9 +39,13 @@ const producer = () =>
           'windows-hermes-policy.mjs',
           'windows-static-hermes.mjs',
           'windows-native-hermes-source.mjs',
+          'windows-hermes-descriptor-profile.mjs',
+          'windows-hermes-property-profile.mjs',
         ].map((name) => [name, sha256(path.join(import.meta.dirname, name))]),
       ),
     )
+    .update(descriptorProfile ? 'descriptor-profile-v1' : 'descriptor-profile-off')
+    .update(propertyProfile ? 'property-profile-v1' : 'property-profile-off')
     .digest('hex');
 const names = [
   windowsNativeHermesPin.icu.archive,
@@ -87,7 +101,9 @@ export function verifyNativeHermes(directory) {
     manifest.internalJavaScript.compilerPolicy !==
       windowsHermesPolicy('optimized', windowsNativeHermesCohort()).id ||
     manifest.debugger !== false ||
-    manifest.jit !== false
+    manifest.jit !== false ||
+    manifest.descriptorProfile !== descriptorProfile ||
+    manifest.propertyProfile !== propertyProfile
   )
     throw Error('Native Hermes pin/configuration/producer differs; prepare the current supplier');
   if (
@@ -249,6 +265,8 @@ export async function prepareNativeHermes({ directory, signal } = {}) {
       },
       debugger: false,
       jit: false,
+      descriptorProfile,
+      propertyProfile,
       files: names.map((name) => ({ path: name, sha256: sha256(path.join(directory, name)) })),
     };
     fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n');
@@ -261,6 +279,8 @@ function write(file, text) {
   if (fs.readFileSync(file, 'utf8') !== text) fs.writeFileSync(file, text);
 }
 function patchSource(source) {
+  patchDescriptorProfile(source, descriptorProfile);
+  patchPropertyProfile(source, propertyProfile);
   if (sha256(path.join(source, 'API/jsi/jsi/jsi.h')) !== windowsNativeHermesPin.jsiHeaderSha256)
     throw Error('Pinned upstream Hermes JSI header differs');
   patchStaticHermesCompiler(source, { upstreamClassSpill: true });

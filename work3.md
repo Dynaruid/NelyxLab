@@ -2,9 +2,9 @@
 
 작성일: 2026-11-17
 
-상태: **설계·탐색 완료 / 구현·성능 검증 전 / performanceAccepted=false**
+상태: **H3-00 PASS / H3-01·후속 선별 종료·A/B 및 getter VM 변경 보류 / H3-02·03 조건부 미착수 / PARTIAL / performanceAccepted=false**
 
-검토 기준: HEAD `a2ad1701`, 작성 시작 시 깨끗한 작업 트리. [work.md](work.md), [원인 분석](performance-cause-analysis.md), [work2.md](work2.md)의 실행 기록과 현재 Core·변환기·Hermes 공급 소스를 읽었다. 이 문서 작성에서는 앱 실행, VM 빌드, 패키지 공급, 제품 코드 변경을 하지 않았다. 아래 수치는 모두 과거 기록의 인용이며 현재 checkout의 새 측정값이 아니다.
+설계 당시 검토 기준: HEAD `a2ad1701`, 작성 시작 시 깨끗한 작업 트리. [work.md](work.md), [원인 분석](performance-cause-analysis.md), [work2.md](work2.md)의 실행 기록과 당시 Core·변환기·Hermes 공급 소스를 읽었다. §1–10의 수치는 과거 기록의 인용이다. **2026-11-17 사용자의 실행 요청과 후속 계속 요청으로 수행한 현재 checkout의 결과는 §11–12에 별도로 기록한다.**
 
 ## 1. 방향 결정
 
@@ -248,4 +248,133 @@ A가 통과하면 A 하나를 먼저 구현한다. A는 작고 B가 충분히 �
 
 두 번째는 **Hermes의 반복 불변 descriptor 해석**이다. Source에 descriptor cache가 이미 있어도 VM의 재해석·임시 할당이 남는다는 점을 겨냥한다. 다만 prototype·예외·GC 계약 때문에 native 비용과 자격 증명이 확보된 경우에만 진행한다.
 
-이것은 성능 향상을 약속하는 문서가 아니다. **Hermes를 유지하면서, 앞선 cache 확대·작은 검사 제거와 다른 두 가지 실행 비용을 구체적으로 시험하고 빨리 채택 또는 중단하기 위한 계획**이다. 이번 산출물은 이 문서뿐이며 제품 구현·성능 측정은 시작하지 않았다.
+이것은 성능 향상을 약속하는 문서가 아니다. **Hermes를 유지하면서, 앞선 cache 확대·작은 검사 제거와 다른 두 가지 실행 비용을 구체적으로 시험하고 빨리 채택 또는 중단하기 위한 계획**이다. §1–10은 구현 전 설계이며, 이후의 실행 판정은 아래 절을 따른다.
+
+## 11. 실행 결과 — 2026-11-17
+
+### 11.1 H3-00 — 현재 Hermes factory 기준선 PASS
+
+실행 시작 HEAD는 `f4ceea9d`, 작업 트리는 깨끗했다. VM/JSI callback·SHUnit/DLL 수명과 profiler 종료 순서를 코드에서 먼저 확인했다. 실제 설치 Demo의 SDK/CLI는 workspace와 달랐고 Core/Material은 같았다. 정규 `refreshSampleWindowsSdk`의 변경 패키지 공급·설치로 맞췄다. TypeScript Source와 emitted source-map 입력도 Core 645개, SDK 117개, Material 275개 일치를 확인했다. SDK의 TS Source 변경은 없어 불필요한 전체 SDK build는 하지 않았다.
+
+README의 `npm.cmd run run:windows --workspace @nelyx/demo -- -- 8000`으로 새 공통 factory의 C++ compile/link, Hermes bytecode 첫 프레임, 정상 종료를 확인했다. exit 0, `forced=false`, RN/Node-API JSI 혼입 없음이다. 초기 host는 `a67796af…`, 일반 HBC는 `a3fb0dd8…`였다. 기본 TDZ pruning off, VM pin/HBC99와 ICU 79.1을 유지했다. JSC 공급·실행과 static-aot는 진행하지 않았다.
+
+### 11.2 성능 기준선 — 유효 3회, 전체 목표 FAIL
+
+실행은 `check-windows-jank.ps1 -Scenario calendar -HermesMode bytecode -Runs 3`이다. Demo, Graphite/Vulkan, 2560×1459, DPI 192, 165Hz, 같은 60Hz touch 48/30/60개·gesture 6/6/12회·월 이동 +4/+3/−6을 고정했다. CPU/build/heap 관측 hook은 껐다. 세 실행의 진단 entry·JS/HBC·renderer·VM·host Source identity는 동일했다. HBC `fd2930da…`, renderer `c072724c…`, VM `5a7a8d64…`, host Source `9b133b77…`, 설치 SDK 묶음 `d46e6402…`다.
+
+아래 각 칸은 **engine FPS / 표시 FPS 하한**이다. engine 값은 surface-copy fence 완료 기준, 표시 값은 desktop marker 관측이며 scanout이 아니다.
+
+| 실행 | 보통 정방향 | 빠른 정방향 | 역방향 |
+| --- | --- | --- | --- |
+| 1 | 33.181 / 30.523 | 30.554 / 25.073 | 15.093 / 14.256 |
+| 2 | 38.047 / 32.545 | 30.069 / 27.159 | 20.912 / 18.124 |
+| 3 | 30.089 / 25.216 | 28.912 / 25.996 | 23.691 / 21.195 |
+| 중앙값 | 33.181 / 30.523 | 30.069 / 25.996 | 20.912 / 18.124 |
+
+다음은 phase별 3회 중앙값이다. 지연과 정체는 FPS와 별도로 남긴다.
+
+| phase | 표시 진행 ≥100ms 정체 횟수 / 총 ms / 최장 ms | 입력→surface p50 / p95 / p99 / 최장 ms | queue p50 / p95 / p99 / 최장 ms |
+| --- | --- | --- | --- |
+| 보통 정방향 | 6 / 906.025 / 215.814 | 190.086 / 346.169 / 355.979 / 355.979 | 75.340 / 211.752 / 216.599 / 216.599 |
+| 빠른 정방향 | 4 / 720.131 / 217.944 | 214.332 / 383.875 / 383.875 / 383.875 | 89.279 / 171.436 / 171.436 / 171.436 |
+| 역방향 | 6 / 965.254 / 203.576 | 327.510 / 448.432 / 464.432 / 464.432 | 164.400 / 282.449 / 298.217 / 298.217 |
+
+모든 실행에서 입력 수신=전달=수락 158, 거부 0, 주입 touch 138개 전부 보존, 월 정착·UIA 날짜/geometry·정상 종료 PASS다. 선택·focus·screen reader·실제 trackpad 전체 수락을 이 결과로 확대하지 않는다. 유리한 재실행을 고르거나 실패 표본을 제외하지 않았으며, 제품 30fps 목표는 실패다.
+
+### 11.3 H3-01 — 프레임 연결 진단 1회와 제한된 보완
+
+기존 달력 실행기·framework profile·Hermes CPU hook을 확장했다. 일반 진단 entry는 그대로 두고 `NELYX_JANK_REPRESENTATION_PROFILE=1`과 `NELYX_NATIVE_CPU_PROFILE=1`에서만 profile helper를 inline한다. 매 작은 연산을 감싸지 않고 프레임 경계에서만 clock을 읽는다. sampler와 같은 steady-clock epoch로 frame sequence를 연결하고 `GetThreadTimes`의 runtime-thread CPU를 별도로 수집했다. CPU 값은 약 15.625ms 단위로 양자화되어 개별 프레임에서 elapsed보다 조금 클 수 있다.
+
+첫 진단은 `-Runs 1 -NoScreen`, `performanceSample=false`다. frame 밖 샘플은 제외하고, 중첩 호출은 후보별 한 번만 세며, GC는 저장된 부모 JS 경로에 귀속하지 않았다. source map으로 일반 컬렉션 전체와 WidgetState adapter를 합친 **A보다 넓은 샘플 범위**를 사용했다. 이는 제거 가능한 시간이나 정확한 WidgetState 호출 비용이 아니다.
+
+| phase | 긴 프레임 수 | elapsed / thread CPU ms | 긴 프레임 샘플 | 컬렉션·policy 범위 | defineProperties builtin 전체 |
+| --- | --- | --- | --- | --- | --- |
+| 보통 정방향 | 8 | 928.141 / 906.250 | 469 | 4 / 0.853% | 2 / 0.426% |
+| 빠른 정방향 | 5 | 668.290 / 656.250 | 337 | 1 / 0.297% | 2 / 0.593% |
+| 역방향 | 6 | 1060.628 / 1000.000 | 535 | 7 / 1.308% | 2 / 0.374% |
+
+긴 프레임 19개의 source map 누락은 0이다. 새 `_Day` Element를 생산한 긴 프레임과 기존 날짜를 rebuild한 긴 프레임의 샘플 분모는 각각 295/174, 288/49, 430/105였다. 새 생산 구간의 컬렉션 범위 비중은 1.017/0.347/1.628%, 기존 rebuild 구간은 0.575/0/0%다. phase 전체 누적 비용을 긴 프레임 비용으로 바꾸거나 inclusive 부모를 더해 합계 CPU 비중으로 만들지 않았다. frame clock pair의 평균/최장은 0.000352/0.001600ms였다. 이는 profiler·build observer 전체 교란 비용을 측정한 값이 아니다.
+
+**A는 15% 선별선 통과 근거 없음으로 보류한다.** 위 샘플 비중을 CPU 비용의 정확한 비율이나 성능 향상률로 간주하지 않는다. 전체 집합 수명·정책·callback·GC 기여까지 정량 증명한 것은 아니므로 A의 실제 제거 가능 비용은 확정하지 않았다.
+
+B는 첫 진단의 builtin 전체 비용을 descriptor 변환 시간으로 기록하지 않았다. [정규 supplier](Nelyx/sdk/tooling/cli/src/windows-native-hermes-toolchain.mjs)에 [재현 가능한 native 계측](Nelyx/sdk/tooling/cli/src/windows-hermes-descriptor-profile.mjs)을 연결하고 보완 진단 **1회**를 실행했다. `NELYX_HERMES_DESCRIPTOR_PROFILE=1`은 위 두 진단 flag와 함께 사용할 때만 허용한다. supplier의 producer hash·source-tree hash·출력 파일 hash에 계측 여부를 연결했다. 기본 공급에서는 해당 C++ patch 자체를 제거한다. 로컬 Source나 manifest만 손으로 바꿔 맞추지 않았다.
+
+native 계측은 builtin 진입부터 keys 수집·descriptor 변환·임시 저장까지와, 이후 속성 적용·정리까지를 나눈다. 중첩 호출은 가장 바깥 호출에서 한 번만 시간에 합산한다. Proxy/getter/callback/GC를 새로 관측하거나 생략하지 않으며, 그 비용과 스케줄링 대기가 포함될 수 있는 **전체 호출의 보수적인 상한**이다. 자격이 증명된 descriptor만의 제거 가능한 비용이나 순수 변환 CPU라고 부르지 않는다. 모든 합산 구간은 sampler와 같은 steady clock을 쓴다.
+
+| phase | 긴 프레임 수 / thread CPU ms | builtin 호출 / 실패 | 변환 상한 ms / CPU 대비 | 적용·정리 상한 ms | 전체 상한 / CPU 대비 |
+| --- | --- | --- | --- | --- | --- |
+| 보통 정방향 | 9 / 921.875 | 2216 / 0 | 7.194 / 0.780% | 1.242 | 8.436 / 0.915% |
+| 빠른 정방향 | 6 / 703.125 | 1627 / 0 | 1.599 / 0.227% | 0.921 | 2.520 / 0.358% |
+| 역방향 | 8 / 1015.625 | 2486 / 0 | 2.270 / 0.223% | 1.388 | 3.657 / 0.360% |
+
+새 날짜 생산 / 기존 날짜 rebuild의 변환 상한 ms는 각각 0.853/6.341, 1.291/0.308, 1.624/0.646이었다. 가장 큰 기존 rebuild 집계도 전체 builtin 상한이 thread CPU의 1.567%다. native clock pair 교정 평균/관측 최장은 0.0000227/0.000100ms였고 계측 비용을 위 숫자에서 빼지 않았다. 이 호출 범위에는 cache가 제거할 수 없는 속성 적용까지 포함한다. 따라서 **B의 직접 변환 비용은 15% 선별선에 충분히 못 미쳐 보류**한다. 임시 할당이 프레임 밖 GC에 기여하는 양은 별도로 증명하지 않았다.
+
+보완 실행의 supplier는 `f7e9b520…`, HBC는 `bfd0c70d…`이고 `performanceSample=false`다. 첫 진단·기준선과 FPS를 섞지 않는다. 보완 샘플의 source map 미해결은 긴 프레임에서 2/2/4개였으며 누락을 0으로 숨기지 않았다. B의 native 시간은 JS symbolication에 의존하지 않는다. 첫 진단의 A 선별을 이 불완전한 추가 샘플로 정밀화하지 않았다.
+
+같은 pinned Hermes의 첫 화면 준비 전에 제한된 오류·재진입 fixture를 실행했다. descriptor 변환 중 오류가 나면 대상에 먼저 적용하지 않는 동작, 속성 적용 중 오류까지의 부분 적용, getter callback·중첩 defineProperties 관측 순서가 PASS다. 호출 4개·예상 실패 2개, 순서 `convert,outer,nested`를 확인했다. fixture의 예상 오류는 제품 phase의 실패 수와 별개다.
+
+### 11.4 현재 판정과 남은 범위
+
+H3-00 PASS, H3-01은 **A/B 모두 보류로 선별 종료**했다. A의 실제 제거 가능 비용은 미확정이며, B의 직접 비용 상한은 작다. 선별선 통과 근거가 없는 후보를 구현하는 대신 §8의 중단 조건을 적용한다. 따라서 H3-02의 후보 구현·국소 이득과 H3-03의 후보 3회 비교는 조건부 미착수다. 후보가 없으므로 버튼·Ink·Gallery·Testbed·Web 전체 회귀나 장시간 자원 수락을 이번 결과로 주장하지 않는다.
+
+남긴 변경은 명시적으로 켜는 진단 경계·분석·회귀 fixture와 현재 SDK/CLI 공급이다. `DartSet`·WidgetState adapter·생성된 날짜 build·descriptor 의미·cache 수명 정책은 변경하지 않았다. C는 자동으로 승격하지 않는다. 분석 fixture의 frame clock·source map·중첩·GC 분리·불완전 입력 거절, native patch의 반복 적용·정확한 복원·flag 자격, 관련 lint/format과 CLI 선언 타입 검사는 PASS다. 제품 성능 목표는 **PARTIAL / performanceAccepted=false**다.
+
+### 11.5 일반 공급 복원·최종 확인·정리
+
+보완 진단을 소유한 실행의 `finally`에서 정규 supplier를 다시 생성했다. 기본 `descriptorProfile=false`, `Object.cpp`의 계측 marker 0, source-tree SHA-256 `2cdd4ce7ff07f9c0a9a4c1ca3b5485df446a95a8efd2941b2bde0ff4bb3963a2`로 최초 일반 Source와 정확히 같다. 최종 supplier는 `8b551b30…`, 새 일반 VM은 `1f1316f9…`다. 재링크된 binary hash는 최초 기준선 VM과 다르므로 새 binary의 FPS를 이미 측정한 것처럼 기록하지 않는다.
+
+최종 일반 실행의 첫 시도는 준비된 입력의 supplier 서명이 바뀌어 **실행 전에 거절**됐다. 검사를 우회하지 않고 `node sample/nelyx-demo-app/eng/windows-inputs.mjs`로 정규 prepare를 갱신했다. 그 뒤 같은 README의 `run:windows -- -- 8000`으로 현재 SDK/CLI·일반 VM의 첫 프레임, 정상 종료 exit 0·`forced=false`를 확인했다. 최종 host `7256bb41…`, HBC `a3fb0dd8…`, 974×929/DPI 192/165Hz, RN/Node-API JSI 혼입 없음이다. 이 유한 실행은 달력 최대화 성능 표본이 아니다.
+
+현재 Source/dist/설치본 파일 내용은 Core `05eb141b…`, SDK `44b166b8…`, CLI `46a3fcbc…`, Material `4c1deb16…`로 일치한다. 일반 제품의 설치 SDK 묶음은 `ea13fee5…`, renderer·VM 공급까지 포함한 build identity는 `4ffed39c…`다. 제품 inventory를 검증했고 diagnostic entry와 source-map 입력은 없다.
+
+달력 시나리오는 기준선 3회 + 진단 2회로 **5회**에서 종료했다. 테스트·실행 batch는 `commands.execute`의 1,200,000ms timeout과 실행기의 자체 timeout으로 제한했다. 소유한 native/진단 process, diagnostic entry/package, 임시 source-check·build/replace staging·공급 staging·lock이 남지 않았다. `.tmp`의 기존 네 파일은 보존했고 SDK/CLI 공급 archive는 각각 현재 1개만 남겼다. 새 raw log·receipt·history JSON·이전 SDK 사본·browser profile·별도 archive는 저장하지 않았다. 최종 `git diff --check` PASS이며 변경은 커밋하지 않았다.
+
+## 12. 사용자 계속 요청 후의 공통 경로 선별
+
+사용자가 이어서 작업하고 파생 작업도 처리하도록 요청했다. §11의 A/B 보류를 성능 수락으로 바꾸지 않고, 다음 구현 대상의 규모와 닫힌 계약을 Source부터 조사했다. HEAD는 `f4ceea9d`이며 앞선 변경을 보존했다.
+
+### 12.1 함수별 표본과 닫힌 구역 조사
+
+기존 sampler의 함수 시작 위치를 source map으로 연결해 직접 표본, 호출 가지 포함 표본, 실제 native leaf를 구분했다. 직접 표본에는 가장 가까운 JS 함수의 native callee가 포함되고, GC 표본은 별도로 제외한다. 호출 가지의 표본은 중첩되므로 더하지 않는다. Windows 경로를 정규화하고 출력은 각 종류의 상위 24개로 제한했다. raw trace는 RAM에서 소비하고 저장하지 않는다.
+
+일반 VM의 추가 sampling 진단 1회에서 긴 프레임은 보통/빠른 정방향/역방향 **9/5/6개**, thread CPU는 **937.5/656.25/984.375ms**였다. GC 표본은 44/33/58개, source-map 미해결은 1/0/1개다. reconcile·mount·inherited lookup·paint 무효화·semantics 등으로 직접 표본이 분산됐다. `flushLayout`·`buildScope` 등의 큰 부모 포함 수치를 하나의 제거 가능한 연산 비용으로 바꾸지 않았다. 이 진단도 `performanceSample=false`다.
+
+조사한 기존 Flex numeric service와 Semantics geometry service는 이미 있는 경계다. Semantics 경로의 조상 탐색·clip·`applyPaintTransform`·bounds getter는 외부 관측을 포함하며, private TypeScript 선언만으로 고정 native layout을 보장하지 않는다. Element·RenderObject·Focus의 public getter/override/callback을 생략할 근거도 없다. 따라서 **C로 승격할 충분히 크고 닫힌 새 구역은 확인하지 못했다.** 큐의 scalar factory를 다시 확대하거나 기존 numeric service를 새 구현으로 세지 않았다.
+
+### 12.2 추가 VM 가설: accessor 탐색과 getter 재진입
+
+pinned Hermes의 `GetById` slow path는 `getNamedWithReceiver_RJS`에서 descriptor를 탐색하고, getter를 `executeCall0`으로 실행한다. 이 호출은 인터프리터에 재진입한다. 기존 read cache는 data slot 위주이며 accessor는 같은 경로를 반복한다. 가능한 해법은 accessor 탐색 cache 또는 일반 bytecode call frame으로의 getter dispatch다. 후자는 반환 명령 위치·예외 unwind·GC root·lazy/JIT·debugger 계약까지 영향을 주므로 호출량만으로 구현하지 않았다.
+
+[제한된 native 계측](Nelyx/sdk/tooling/cli/src/windows-hermes-property-profile.mjs)을 정규 supplier에 연결했다. `NELYX_HERMES_PROPERTY_PROFILE=1`, `NELYX_NATIVE_CPU_PROFILE=1`, `NELYX_JANK_REPRESENTATION_PROFILE=1`을 함께 요구하며 descriptor 진단과 동시에 켜지지 않는다. supplier producer·source-tree·출력 identity에 계측 여부를 포함했다. 기본 모드에서는 C++ patch 자체를 제거한다.
+
+측정 범위는 위 named-property 함수다. 임의 computed/super/descriptor API를 포함한 모든 JS property read의 총량으로 확대하지 않는다. cache 자격은 기존 data cache와 같은 own 또는 바로 위 prototype, slot 범위, dictionary 제외 조건과 실제 cache entry 유무로 제한했다. getter gateway는 중첩 인터프리터의 첫 loop 진입부터 반환/예외 종료까지를 빼므로 getter 본체·callee·그 안의 GC 시간을 포함하지 않는다. native stack scope만 연결하고 JS 객체를 보관하지 않는다. 남는 시간도 clock·계측·스케줄링·loop 밖 GC 등이 포함될 수 있는 wall-time 상한이며 제거 가능한 순수 CPU로 간주하지 않는다.
+
+실제 진단 VM의 첫 화면 전 fixture는 getter receiver, 중첩 호출과 같은 오류 객체의 전달을 통과했다. getter/해석된 loop 호출 **3/3개**, 순서 `outer,nested,failing`이다. 이후 같은 달력 workload의 진단 1회를 실행했다.
+
+| 구간 | 긴 프레임 / CPU ms | named lookup / cache 자격 accessor | 자격 탐색 상한 ms / CPU 대비 | getter gateway 상한 ms / CPU 대비 | 두 상한 합 / CPU 대비 |
+| --- | --- | --- | --- | --- | --- |
+| 보통 정방향 | 8 / 1109.375 | 3,209,117 / 822,808 | 28.207 / 2.543% | 107.857 / 9.722% | 12.265% |
+| 빠른 정방향 | 6 / 1000 | 2,952,765 / 721,780 | 23.478 / 2.348% | 94.950 / 9.495% | 11.843% |
+| 역방향 | 8 / 1578.125 | 4,416,315 / 1,073,843 | 36.886 / 2.337% | 147.504 / 9.347% | 11.684% |
+
+getter 호출/해석된 loop 호출은 각각 **1,547,957/1,530,877**, **1,395,390/1,380,031**, **2,096,534/2,074,292**다. loop가 확인되지 않은 native 등의 getter를 gateway 시간에 임의로 포함하지 않았다. 새 날짜가 포함된 긴 프레임의 합산 비율은 11.883/11.206/10.699%, 기존 날짜 구간은 13.479/13.471/13.910%다. 날짜 분류는 `_Day`의 첫 rebuild 관측 기준이며 정확한 월 root 생성 수가 아니다.
+
+모든 named descriptor 탐색의 상한은 135.751/119.367/205.049ms지만, data·깊은 prototype·cache 불가 경로가 섞여 있다. 이를 accessor cache가 모두 제거할 비용에 더하지 않는다. clock pair 평균/최장은 **0.0000242/0.000100ms**, 비용은 측정치에서 차감하지 않았다. 수백만 번의 clock·scope가 실행되므로 계측 교란이 있으며 진단 FPS를 일반 VM 기준선과 비교하지 않는다. 이 실행의 supplier는 `ab48fbbb…`, HBC는 `03522341…`, `performanceSample=false`다. 표본 미해결 1/2/4개는 native 시간 집계와 별개다.
+
+계측이 프레임 길이와 CPU 분모도 바꾸므로 위 비율을 일반 VM의 엄밀한 비용 상한으로 부르지 않는다. **이 추가 VM 가설도 실제 제거 가능한 비용이 15% 이상이라는 근거를 확보하지 못해 보류한다.** 그 비율은 미확정이며, 두 계측 상한을 함께 전부 없앤다는 가정도 순이익 증명이 아니다. 작은 accessor cache와 큰 호출 구조 변경을 묶어 성능 개선으로 제출하지 않았다. A/B 보류와 C의 조건부 상태를 유지한다.
+
+### 12.3 복원과 후속 검증
+
+진단을 소유한 실행의 `finally`에서 정규 supplier와 Demo prepared inputs를 복원했다. `propertyProfile=false`, `descriptorProfile=false`이며 `JSObject.cpp`·`Interpreter.cpp`·`Object.cpp`의 계측 marker와 VM DLL의 두 진단 export가 없다. Source tree는 §11과 정확히 같은 `2cdd4ce7…`다. 최종 supplier는 `003eba84…`, 재링크 VM은 `6705e10d…`이며 최초 기준선과 binary가 다르므로 새 binary의 FPS를 측정했다고 하지 않는다.
+
+README의 `npm.cmd run run:windows --workspace @nelyx/demo -- -- 8000`으로 일반 패키지를 정규 재생성해 첫 프레임·exit 0·`forced=false`를 확인했다. host는 `2d40eea6…`, 일반 HBC는 앞선 제품과 같은 `a3fb0dd8…`다. 974×929/DPI 192/165Hz의 유한 실행이며 달력 최대화 FPS 표본이 아니다. 제품 manifest는 `experimental`, `performanceAccepted=false`, diagnostic entry 없음이고 파일 inventory 검증이 PASS다. native JSI 직접 실행이며 RN runtime/Node-API JSI 혼입이 없다.
+
+설치된 Windows SDK 10개 패키지의 package identity와 workspace가 일치하고 Source-input 검사가 PASS다. 최종 SDK/CLI identity는 `6bcd6406…`/`e1e25a98…`, 설치 aggregate는 `b97b528b…`다. renderer·supplier를 포함한 제품 composite `be73adf5…`가 제품 manifest와 일치한다. Core/Material Source와 기존 dist identity는 유지됐다. 분석 fixture의 함수 귀속·중첩·GC 분리·시계/범위 오류·property coverage 검증, native patch의 반복 적용·정확한 복원·flag 자격, 관련 lint/format과 CLI 선언 타입 검사가 PASS다. 진단 VM과 일반 VM의 C++ compile/link 및 위 getter fixture도 PASS다.
+
+달력은 이번 계속 작업에서 진단 2회, 앞선 기준선·진단을 합해 **총 7회**다. batch는 1,200,000ms timeout으로 제한했고 진단 실패 여부와 무관하게 정규 공급을 복원하도록 했다. 소유한 process·diagnostic entry/package·임시 source-check·build/replace/supply staging을 회수했고 `.tmp`의 기존 네 파일을 보존했다. SDK/CLI archive는 현재 1개씩이며 raw trace·log·receipt·history나 별도 SDK 사본을 보관하지 않았다. 변경은 커밋하지 않았다.
+
+최종 변경은 명시적 진단과 분석·회귀 fixture다. 새로운 최적화 후보의 3회 비교, Gallery·Testbed·Web 전체 회귀·장시간 자원 수락을 수행했다고 주장하지 않는다. 후속 구현에는 비용이 충분히 크고 외부 관측 계약을 닫을 수 있는 새 공통 구역의 근거가 필요하다. 현재 근거로 H3-02·03이나 C를 강행하지 않는다. **30fps·정체·입력 지연의 제품 성능 수락은 여전히 PARTIAL / performanceAccepted=false**다.
+
+**선별 작업은 여기서 종료한다. A/B 최적화 미채택 / 30fps 제품 목표 미달 / PARTIAL / performanceAccepted=false.**
+
+다음 전략의 설계와 적용 대상 선정은 [work4.md](work4.md)에 기록했다.
