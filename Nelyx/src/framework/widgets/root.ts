@@ -31,7 +31,7 @@ import { AnnotationType } from '../rendering/layer.ts';
 import type { AnnotationResult } from '../rendering/layer.ts';
 import type { Offset } from '../../ui/geometry.ts';
 import { PaintingContext } from '../painting/context.ts';
-import { FrameRecording } from '../../ui/frame.ts';
+import { FrameRecording, sameOwner } from '../../ui/frame.ts';
 import type { SceneFrameSource } from '../../ui/frame.ts';
 import { PaintingBinding } from '../painting/binding.ts';
 import { withRenderPaint, assertOutsideRenderPaint } from '../rendering/phase.ts';
@@ -179,7 +179,7 @@ export class FrameworkRoot implements ViewController {
   readonly buildOwner: BuildOwner;
   readonly pipeline: PipelineOwner;
   private preparedFrame:
-    | { sequence: number; render: RenderObject; paintVersion: number; buildRevision: number }
+    | { token: FrameBuildToken; render: RenderObject; paintVersion: number; buildRevision: number }
     | undefined;
   private readonly sourceSemanticsSnapshot: SemanticsTransportSnapshot | undefined;
   private semanticsCache:
@@ -726,7 +726,7 @@ export class FrameworkRoot implements ViewController {
       painting = new PaintingContext(null, null, true, paintCounts);
       render._finishPaintInvalidationBatch();
       preparedFrame = {
-        sequence: scene.token.sequence,
+        token: scene.token,
         render,
         paintVersion: render.paintVersion,
         buildRevision: this.buildOwner.buildRevision,
@@ -1261,6 +1261,7 @@ export class FrameworkRoot implements ViewController {
       built = token.metrics;
     return (
       this.isViewOpen() &&
+      sameOwner(token.owner, this.context.owner) &&
       current.viewportGeneration === built.viewportGeneration &&
       current.rendererGeneration === built.rendererGeneration &&
       current.nativeContextGeneration === built.nativeContextGeneration &&
@@ -1645,7 +1646,13 @@ export class FrameworkRoot implements ViewController {
   }
   canSubmitPreparedFrame(token: FrameBuildToken): boolean {
     const prepared = this.preparedFrame;
-    if (!prepared || prepared.sequence !== token.sequence || !this.isCurrentFrame(token))
+    if (
+      !prepared ||
+      prepared.token.sequence !== token.sequence ||
+      prepared.token.inputSequence !== token.inputSequence ||
+      prepared.token.inputTimestamp !== token.inputTimestamp ||
+      !this.isCurrentFrame(token)
+    )
       return false;
     prepared.render._finishPaintInvalidationBatch();
     return (

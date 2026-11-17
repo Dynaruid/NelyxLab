@@ -4,6 +4,10 @@
 
 상태: **H4-00 선별 종료·후보 보류 / H4-01~03 조건부 미착수 / PARTIAL / performanceAccepted=false**
 
+후속 상태: **큰 구조 변경 검토 및 S0 동기 계약 fixture·준비 프레임 자격 검사 구현 / 세대 격리·S1~4 미구현**. §10은 기존 형제 충돌 인덱스의 재개가 아닌 별도 구조안이며, 이후 구현은 §11에 기록한다. 과거 실행 판정은 그대로 유지한다.
+
+남은 구현·검증·최종 공급의 전체 실행 순서와 완료 기준은 [work5.md](work5.md)에 통합했다. 이 문서의 설계·실행 이력과 구분한다.
+
 다음 적용 대상은 공통 `_RenderObjectSemantics.markConflicts`의 형제 간 호환성 판정이다. 같은 그룹에서 이전 형제를 모두 다시 비교하는 작업을, 자격이 증명된 기본 구성에 한해 **그룹 단위의 충돌 인덱스**로 대체한다. Widget·Element·State의 수명과 날짜별 Focus·Ink·접근성은 유지한다. 첫 구현 전에는 실제 그룹 크기와 비용, 안전하게 처리할 수 있는 비율을 확인한다.
 
 [work3.md](work3.md)의 A/B 및 getter VM 선별은 종료된 결과로 보존한다. 이번 사용자의 선택은 **새 성능 전략 설계 및 적용 대상 선정**이다. 이 문서는 그 범위를 수행한 설계이며, 제품 코드 변경이나 성능 개선의 실행 결과를 뜻하지 않는다. 코드 검토 기준은 HEAD `f4ceea9d`와 현재 미커밋 작업 트리다.
@@ -190,3 +194,103 @@ semantics tree·action·순서·UIA·focus·geometry와 resize/복귀/종료를 
 최종 일반 package의 파일 inventory·`experimental` 자격·diagnostic entry 없음, supplier·설치 SDK aggregate와 workspace package identity를 재확인했다. 소유 native process·진단 entry/package·임시 build/replace/source-check/supply staging·supplier lock이 남지 않았다. `.tmp`의 기존 네 파일을 보존했고 raw log/trace·receipt·history·이전 SDK 사본을 추가하지 않았다. 남긴 변경은 명시적 진단 helper·분석·회귀 fixture와 이 기록이며, 기존 미커밋 변경을 보존했다. 변경은 커밋하지 않았다.
 
 이번 달력 실행 시도는 **2회: bundle 준비 실패 1회 + 완료 진단 1회**다. 각 검증 batch는 1,200,000ms timeout을 사용했다. 문서 링크와 `git diff --check`도 PASS다. 요청된 순서는 H4-00의 중단 조건까지 실행했으며, 전체 성능은 **PARTIAL / performanceAccepted=false**다.
+
+## 10. 큰 구조 변경 검토 — 분할 생산과 원자적 게시
+
+### 10.1 범위와 결정
+
+`046f93d8`에서 현재 동기 build/layout, 입력과 게시 경계를 조사하고 Hermes sampling 진단을 1회 실행했다. 결과는 [work3 §13](work3.md#13-큰-구조-변경-선택-후의-재검토--2026-11-17)에 분리했다. 사용자는 **큰 구조 변경 검토**를 선택했다. 기존 H3/H4의 작은 후보를 다시 구현하거나 15% 투자 선별선을 낮추는 요청으로 해석하지 않는다.
+
+검토 결론은 **새 콘텐츠 생산의 작업 단위를 나누는 것과 미완성 콘텐츠의 비노출을 함께 설계해야 한다**는 것이다. 첫 구조안은 명시적 opt-in의 분할 생산·원자적 게시다. native 독립 스크롤, 월 보존량 확대, 입력 생략과 전체 AOT 전환은 이 구조안에 섞지 않는다. 아래 명칭은 설계용이며 현재 존재하는 API·flag가 아니다.
+
+### 10.2 현재 경계와 바꿔야 할 경계
+
+| 현재 구현 | 단순 변경이 실패하는 이유 | 필요한 새 경계 |
+| --- | --- | --- |
+| [BuildScope와 BuildOwner](Nelyx/src/framework/widgets/framework.ts)는 dirty 큐와 owner commit을 동기 완결 | 큐에서 임의로 반환하면 호출자는 scope가 끝난 것으로 진행한다. layout-time build는 별도로 남는다 | `pending/ready/failed`를 구분하는 명시적 생산 결과, 재개 위치와 소유 scope |
+| [sliver createChild](Nelyx/src/framework/widgets/sliver.ts)와 [grid layout](Nelyx/src/framework/rendering/sliver-grid.ts)은 자식 생성 뒤 즉시 geometry를 사용 | layout 도중 `await`나 제어용 예외를 넣으면 상위 stack·parent data·실행한 callback을 복원하지 못한다 | 자식 요구/대기/재개의 명시적 상태와, 완료 전 geometry를 읽지 않는 부모 프로토콜 |
+| [FrameworkRoot](Nelyx/src/framework/widgets/root.ts)는 live render tree로 paint·hit test·focus·입력 geometry·semantics를 처리 | paint만 이전 화면으로 유지해도 hit target과 State는 새 상태일 수 있다 | 동일 게시 세대를 참조하는 입력 target·geometry·semantics·paint의 소유권 |
+| [View runtime](Nelyx/src/hosting/runtime.ts)은 scene을 동기 호출하고 frame lease를 획득 | scene 반환 타입만 Promise로 바꿔서는 frame credit·강제 geometry·close·자원 회수를 보존하지 못한다 | 생산 중인 작업과 게시 가능한 CPU frame의 별도 수명, credit 및 취소 계약 |
+| [선택 작업 예산](Nelyx/src/framework/widgets/view-work-budget.ts)은 2ms 이하로 추정한 원자 항목 하나를 실행 | 월 생산 전체를 나누지 못한다. 한도 상향은 stall의 이동일 뿐이다 | 원자 항목 사이에만 yield하는 continuation과 실제 slice 비용 관측 |
+
+따라서 **BuildScope의 while 루프에 deadline 검사 하나를 넣는 patch는 채택하지 않는다.** 상위 호출자가 미완성 상태를 이해하지 못하는 상태에서 반환하거나 예외로 전체 layout을 재시작하지 않는다. 기존 callback을 다시 실행하면서 순수 계산 재시도라고 부르지도 않는다.
+
+### 10.3 제안하는 생산·게시 상태
+
+한 View의 한 opt-in 경계에서 동시에 준비하는 세대는 최대 하나로 제한한다. 이전의 *게시된* 세대와 현재 *준비 중인* 세대를 구분한다. 이는 기존 Element/State 전체를 복제해 두 벌의 앱을 만들라는 뜻이 아니다. **현재 단일 live tree를 그대로 공유하며 이 격리가 이미 가능하다고도 가정하지 않는다.** 게시 세대가 참조하는 가변 상태를 분리할 표현과 수명 계약의 증명이 첫 구현의 선행 조건이다.
+
+1. **Plan:** 가시 범위와 필요한 콘텐츠를 정한다. 임의 delegate/getter를 자격 확인용으로 미리 호출하지 않는다. custom layout은 명시적 continuation 지원이 없으면 기존 동기 경로다.
+2. **Produce:** 명시적으로 지원하는 작업만 순서대로 실행한다. 사용자 `build/initState`나 개별 layout callback은 원자 작업이며 중간 선점하지 않는다. 작업 사이에서만 반환하고 재개 cursor를 소유한다.
+3. **Wait:** 미완성 geometry를 paint·hit test·접근성에 게시하지 않는다. host deadline이 없거나 입력/credit 조건이 맞지 않으면 선택적 다음 slice를 시작하지 않는다. renderer credit을 JS 생산을 선점하는 기능으로 취급하지 않는다.
+4. **Ready:** 필요한 전체 범위의 build, layout, render 연결과 자원 획득을 확인한다. 부분적으로 보이는 인접 페이지도 필수 범위다. 완료 여부와 coverage를 별도로 검사한다.
+5. **Publish:** owner·metrics·renderer·content 및 입력 세대를 검증한 뒤 CPU 입력/geometry/semantics의 일관된 게시 경계를 확정한다. GPU 수락·표시 완료는 기존처럼 별도 단계로 추적하며 같은 사건이라고 부르지 않는다.
+6. **Retire/Cancel:** 게시 독자의 사용이 끝난 이전 자원, 게시되지 않은 준비 자원을 각자의 owner가 회수한다. 사용자 callback의 부수 효과는 rollback할 수 없으므로 취소를 “아무 일도 없었던 것”으로 정의하지 않는다.
+
+오래된 준비 결과는 게시하지 않는다. 반대로 매 입력마다 작업을 모두 취소해 영원히 `Ready`가 되지 않는 설계도 허용하지 않는다. 스크롤 위치만 바뀐 요구는 준비 coverage와 비교해 계속 사용할 수 있는지 판단하고, 의미가 바뀐 데이터·metrics·renderer 세대는 명시적으로 무효화한다. 이 판단 자체도 사용자 callback을 중복 실행해서 해서는 안 된다.
+
+### 10.4 구현 전 확정해야 할 관측 계약
+
+| 항목 | 반드시 해결할 사항 |
+| --- | --- |
+| State·callback | 준비 단계의 `initState/build/didUpdateWidget` 시점과 취소 후 `dispose`를 opt-in 계약에 명시한다. side effect가 없는 callback이라고 추측하지 않는다. 기존 Widget을 기본으로 등록하지 않는다 |
+| GlobalKey | 게시/준비 세대 사이의 단일 소유와 retake·예약·중복 오류를 정의한다. 달력 내부 GlobalKey를 framework 것이라는 이유만으로 제외하지 않는다. 사후 subtree 스캔으로 자격을 확인하기 전에 lifecycle이 이미 실행되는 문제도 해결해야 한다 |
+| 입력 | 현 `pointerHitTest`는 live RenderObject 경로다. 과거 frame만 보관한다고 안전하지 않다. 기존 pointer stream의 target 수명과 transform, 새 down·wheel·key·IME·접근성 action의 세대를 분리 없이 사용할 수 없다 |
+| 준비 범위 밖 입력 | 오래된 좌표로 새 콘텐츠를 누르거나 빈 페이지를 게시하지 않는다. 입력 지연·대기·취소 중 어떤 UX를 허용할지는 별도 승인 사항이며, native 수신·JS 전달·최종 적용을 모두 계수한다. 임의 motion 병합/폐기로 보존 수치를 맞추지 않는다 |
+| focus·ticker·timer | 미게시 콘텐츠가 focus·semantics를 획득하거나 framework ticker를 활성화하지 않도록 한다. 임의 사용자 timer/구독을 엔진이 자동 정지한다고 약속하지 않는다 |
+| 오류 | 원래 오류 객체와 실행한 callback 순서를 유지한다. 부분 생산의 실패를 `ready`·빈 성공으로 바꾸지 않는다. 원자 callback 실패 후 중복 실행 없이 정리할 수 있어야 한다 |
+| 회수 | route 제거, hide, resize, renderer 재생성, View close 시 준비 작업·frame lease·입력 target을 회수한다. frame마다 snapshot/SDK/archive를 쌓는 방식으로 격리를 구현하지 않는다 |
+
+특히 **기존 입력을 계속 live tree에 전달하면서 같은 tree를 tick 사이에 부분 변경하는 구현은 첫 버전에서 금지**한다. 안전한 격리를 증명하지 못하면 기존 동기 경로에 남긴다. 입력을 오래 대기시킨 뒤 FPS만 좋아졌다고 채택하지 않는다.
+
+### 10.5 최소 구현 순서와 중단 기준
+
+| 단계 | 산출물과 검증 | 진행 조건 |
+| --- | --- | --- |
+| S0 게시·입력 계약 | 현재 동기 경로를 control로 두고 게시 세대, target 수명, 강제 geometry query·close의 순서를 작은 통합 fixture로 고정 | 단일 live tree와 기존 frame cache만으로 격리된다고 가정하지 않고 구체적인 표현·소유권을 제시할 것 |
+| S1 생산 continuation | 지원 범위를 닫은 stock fixed-extent/grid 경계에서 자식 요구·build·layout 재개를 구현. scope, slot, parent data, 오류 정리의 명시적 상태를 포함 | 같은 callback을 재시도하지 않고 각 자식을 정확히 한 번 생산. custom callback의 원자 비용은 별도로 보고 |
+| S2 원자적 게시 | S0의 표현으로 paint·geometry·semantics와 입력을 연결. 세대 변경·취소·재진입을 실제 pinned Hermes에서 검증 | 임의 tick 경계마다 미완성 tree가 외부 입력에 관측되지 않음. 준비/게시/회수 중복과 미회수 0 |
+| S3 달력 opt-in | 공통 PageView/FillViewport 전달과 **중첩 grid의 layout-time 생성까지** 연결. Material 생성 코드에 임의 fast path를 삽입하지 않음 | 한 월을 위젯 shell만 나눠 만든 것을 날짜 전체 생산 분할이라고 세지 않음. Source/생성 소유권·새 lifecycle 계약을 함께 문서화 |
+| S4 제품 비교 | 일반 진단 off 기준선 3회와 후보 3회. 실제 slice 최장·coverage 대기·취소 낭비·게시 지연·자원을 기존 FPS·정체·입력 분포와 함께 비교 | 기존 세 phase 모두 30fps·정체·p95 비악화 및 기능 기준 유지. 실패하면 opt-in 실험으로도 기본 채택하지 않음 |
+
+S0에서 격리와 target 수명 표현을 닫지 못하면 S1부터 제품에 연결하지 않는다. S1에서 하나의 원자 callback이 이미 예산을 넘으면 slice 수를 늘리거나 deadline을 높여 성공 처리하지 않는다. 해당 atomic tail이 최종 정체를 지배하는지 기록하고 구조안을 재판정한다. cold 첫 생산과 빠른 역방향 모두에서 준비가 가시 요구를 따라가지 못하면, 평균 slice가 짧아도 이 설계의 제품 목표는 실패다.
+
+이 구조안은 총 작업량을 줄인다는 보장이 없다. 더 많은 tick·준비 메모리·취소 낭비로 처리량이 악화될 수 있다. 따라서 기존 15% 연산 선별 대신 **실제로 긴 원자 생산 구간이 분할됐는지와 end-to-end 반응**을 검증한다. 이는 과거 후보의 탈락을 뒤집거나 전체 성능 수락 기준을 낮추는 변경이 아니다.
+
+### 10.6 이번 완료 범위
+
+현재 경계 조사, 현재 Hermes 진단 1회, 구조안·위험·구현 gate 문서화를 완료했다. **S0 통합 fixture와 S1~4 구현·제품 비교는 아직 수행하지 않았다.** 기존 기본값·동기 lifecycle·공급과 생성 코드는 변경하지 않았다. 새 API, experimental flag 또는 성능 향상이 이미 존재한다고 기록하지 않는다. 다음 구현 착수점은 S0이며, 준비 중 lifecycle과 coverage 밖 입력의 새 UX는 구현 전에 별도 승인이 필요하다.
+
+현재 판정은 **구조 검토 완료 / 구현 미착수 / PARTIAL / performanceAccepted=false**다.
+
+## 11. S0 착수 — 실제 runtime 계약과 준비 프레임 자격 검사
+
+### 11.1 남긴 코드
+
+사용자의 계속 요청에 따라 S0의 동기 control을 코드로 고정했다. [통합 fixture](Nelyx/eng/check-frame-publication.mjs)는 현재 Source의 실제 `AppSession`·`ViewRuntime`·`FrameworkRoot`를 연결하고, local frame clock과 renderer로 실행 순서·GPU busy만 제어한다. 준비 프레임을 흉내 내는 별도 상태 기계나 분할 layout 알고리즘으로 대체하지 않는다.
+
+이 과정에서 [canSubmitPreparedFrame](Nelyx/src/framework/widgets/root.ts)의 기존 검사에 View owner 및 input scope가 빠져 있음을 확인했다. 동일 sequence·metrics로 다른 View id/generation이나 입력 sequence/timestamp를 전달해도 조기 자격 검사에서 통과할 수 있었다. `preparedFrame`은 이제 원래 `FrameBuildToken`을 보관하고 입력 scope를 비교하며, 공통 현재-frame 검사는 기존 `sameOwner` helper도 사용한다. capture가 만든 token 복사본은 정상 통과하고 sequence·tree revision·paint version·metrics 검사는 유지한다. 새 public API·실험 flag는 추가하지 않았다.
+
+기존 [ViewRuntime.pump](Nelyx/src/hosting/runtime.ts)의 renderer 직전 owner 검사는 이미 존재한다. 이번 수정은 그 검사를 대신하거나 실제 교차 View 렌더링 취약점을 발견했다는 뜻이 아니다. 여러 생산 세대를 다루기 전에 **조기 재사용 자격도 정확한 소유·입력 범위로 닫은 것**이다. 생산이나 입력 순서를 재배치하지 않았다.
+
+### 11.2 고정한 관측 계약
+
+| 사례 | 검증한 결과 |
+| --- | --- |
+| token 범위 | 정상 capture 복사본 허용. 다른 View id/generation, 입력 sequence/timestamp, 이전 frame 또는 resize 이전 scope는 준비 프레임 재사용 불가 |
+| CPU seal·게시 | recording seal 이후 geometry 알림, 그 뒤 semantics 게시. 이후 build가 이전 sealed paint commands를 변경하지 않음 |
+| target 수명 | down 뒤 target이 교체·dispose되면 이전 stream의 up을 새 target으로 재지정하지 않음. 새 down은 새 live target에 도달. 수신한 4개 contact의 dispatch begin/end 보존·임의 drop 0 |
+| GPU backpressure | busy pending을 ordinary tick마다 재생산하지 않음. 강제 geometry 요청은 GPU 수락 없이도 새 CPU frame과 semantics를 완결. 교체된 caller lease는 회수되고 credit 복귀 시 현재 frame을 제출 |
+| 재진입 close | geometry 게시 알림에서 `beginClose`하면 이후 semantics 게시·renderer admission·새 pointer 전달을 중지. 예정된 clock task와 CPU lease를 실제 종료에서 회수 |
+| 생산 실패 | paint 오류 객체를 그대로 보고하고 partial seal/geometry/semantics·renderer admission을 하지 않음. 실패 후 종료도 task·lease를 회수 |
+
+이 검증은 **CPU 입력/geometry/semantics 갱신과 GPU 수락이 별개**라는 기존 계약을 고정한다. GPU가 busy라는 이유로 강제 geometry 갱신을 미루거나, 미완성 준비 작업을 CPU frame처럼 게시하는 변경은 이 control과 양립할 수 없다.
+
+### 11.3 검증과 현재 한계
+
+- 수정 전 통합 fixture는 `Foreign View generation reused a prepared frame`으로 실패했다. 수정 후 4개 통합 시나리오가 PASS다. fixture 초기의 constructor-name 의존 assertion은 실제 event class의 `instanceof` 검사로 고쳐 bundler의 class 이름에 의존하지 않게 했다.
+- 기존 `check-source-framework.mjs`, `check-retained-paint.mjs`, `npm run check --workspace @nelyx/core`, 변경 두 코드 파일의 oxlint/oxfmt가 PASS다. 개별 검증은 1,200,000ms timeout이다. 타입 검사 첫 시도의 직접 tsc 경로가 현재 package alias 구조와 달라 실패했으며, dependency 설치 없이 정규 npm script로 확인했다.
+- fixture는 in-memory bundle이고 영구 trace·receipt·history·별도 SDK/cache 사본을 만들지 않는다. 기존 회귀의 임시 디렉터리는 각 실행의 finally에서 회수한다. 현재 dist·설치 공급은 교체하지 않았으며, 이전 일반 Hermes binary 실행을 변경 Source의 검증이라고 기록하지 않는다.
+
+**S0의 동기 계약 control·정확한 준비 프레임 자격은 구현/검증했지만, S0 전체의 세대 격리 gate는 아직 통과하지 않았다.** 과거 paint commands가 불변이어도 pointer hit test와 State·Focus·GlobalKey는 여전히 단일 live tree를 사용한다. 이 fixture 통과를 준비 중 tree를 tick 사이에 변경해도 된다는 증명으로 바꾸지 않는다. 게시된 target/geometry의 수명을 준비 작업과 분리하는 표현이 없으므로, S1을 기존 build/layout 루프의 조기 반환으로 연결하지 않았다.
+
+다음 선행 작업은 준비 전용 경계의 소유권과 lifecycle, coverage 밖 입력의 UX를 확정하고 격리 자체를 통합 검증하는 것이다. 이번 Source 수정은 성능 개선 수락이나 S1~4 완료가 아니다. **S0 동기 control PASS / 세대 격리 미구현 / PARTIAL / performanceAccepted=false**를 유지한다.

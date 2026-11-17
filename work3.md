@@ -4,6 +4,10 @@
 
 상태: **H3-00 PASS / H3-01·후속 선별 종료·A/B 및 getter VM 변경 보류 / H3-02·03 조건부 미착수 / PARTIAL / performanceAccepted=false**
 
+후속 상태: **큰 구조 변경 검토 및 S0 동기 계약 fixture·준비 프레임 자격 검사 구현 / 세대 격리·분할 생산 미구현**. 현재 checkout의 추가 진단과 판단은 §13, 상세 구조안은 [work4 §10](work4.md#10-큰-구조-변경-검토--분할-생산과-원자적-게시), 이후 구현은 §14에 기록한다. 기존 후보의 선별 탈락과 성능 미수락을 변경하지 않는다.
+
+남은 격리·분할 생산·달력 적용·성능 비교·최종 공급까지의 전체 실행 계획은 [work5.md](work5.md)를 따른다.
+
 설계 당시 검토 기준: HEAD `a2ad1701`, 작성 시작 시 깨끗한 작업 트리. [work.md](work.md), [원인 분석](performance-cause-analysis.md), [work2.md](work2.md)의 실행 기록과 당시 Core·변환기·Hermes 공급 소스를 읽었다. §1–10의 수치는 과거 기록의 인용이다. **2026-11-17 사용자의 실행 요청과 후속 계속 요청으로 수행한 현재 checkout의 결과는 §11–12에 별도로 기록한다.**
 
 ## 1. 방향 결정
@@ -378,3 +382,46 @@ README의 `npm.cmd run run:windows --workspace @nelyx/demo -- -- 8000`으로 일
 **선별 작업은 여기서 종료한다. A/B 최적화 미채택 / 30fps 제품 목표 미달 / PARTIAL / performanceAccepted=false.**
 
 다음 전략의 설계와 적용 대상 선정은 [work4.md](work4.md)에 기록했다.
+
+## 13. 큰 구조 변경 선택 후의 재검토 — 2026-11-17
+
+이번 요청의 시작 HEAD는 `046f93d8`, 작업 트리는 깨끗했다. 기존 A/B·getter·Semantics 형제 충돌의 보류 결과를 읽은 뒤 현재 일반 Hermes에서 sampling 진단을 **1회** 실행했다. 이후 사용자는 범위 선택에서 **“큰 구조 변경 검토: 동기 build/layout 생산 구조부터 재설계”**를 선택했다. 따라서 작은 후보의 15% 선별선을 완화해 국소 최적화를 채택하지 않고, 이후 작업 범위를 구조 검토로 전환했다.
+
+### 13.1 현재 실행의 관측
+
+기존 달력 workload, Hermes bytecode, representation CPU sampling, `--no-screen`, `performanceSample=false`다. descriptor/property/Semantics-conflict 계측은 켜지 않았다. supplier `003eba84…`, renderer `c072724c…`, 설치 SDK aggregate `b97b528b…`는 이전 일반 공급과 같다. 이 실행은 새로운 기준선 3회나 후보 성능 비교가 아니다.
+
+| phase | 긴 Source 프레임 | elapsed / thread CPU ms | 샘플 / GC 샘플 / source-map 미해결 |
+| --- | --- | --- | --- |
+| 보통 정방향 | 7 | 975.093 / 937.500 | 486 / 56 / 0 |
+| 빠른 정방향 | 6 | 869.894 / 796.875 | 449 / 52 / 5 |
+| 역방향 | 7 | 1206.548 / 1171.875 | 603 / 69 / 2 |
+
+직접 표본은 owner commit, reconcile/mount/rebuild, paint 무효화, inherited lookup, Semantics, text capture 등으로 분산됐다. GC 177개/전체 1,538개는 샘플 개수이지 GC pause 시간이나 제거 가능한 CPU 비율이 아니다. 큰 layout/build 부모 가지의 inclusive 표본도 중첩되므로 더하지 않았다. 이 관측은 기존 동기 생산 경로의 재검토 근거이며 새로운 단일 병목이나 개선율의 증명이 아니다.
+
+### 13.2 실행 구조에서 확인한 한계
+
+- [BuildScope](Nelyx/src/framework/widgets/framework.ts)의 dirty 큐는 scope를 끝까지 비우고 render owner commit까지 동기 수행한다. 큐만 여러 tick으로 나눠도 전체 달력 작업이 분할되는 것은 아니다.
+- [SliverMultiBoxAdaptorElement.createChild](Nelyx/src/framework/widgets/sliver.ts)는 실제 layout callback 안에서 delegate, reconcile, mount/build와 render 연결을 완결한다. [RenderSliverGrid](Nelyx/src/framework/rendering/sliver-grid.ts)도 필요한 날짜 자식의 생성·layout을 같은 호출 스택에서 반복한다. 최상위 build 이후에도 큰 생산 단위가 남는다.
+- [FrameworkRoot.build](Nelyx/src/framework/widgets/root.ts)는 layout 이후 paint, 입력 geometry, semantics, frame recording을 조립한다. [View.buildPending](Nelyx/src/hosting/runtime.ts)의 scene 호출도 동기 반환을 전제로 한다. `Promise`를 반환하거나 layout 예외로 yield를 흉내 낼 수 있는 경계가 아니다.
+- 기존 [선택 준비](Nelyx/src/framework/widgets/view-work-budget.ts)는 원자 항목 한 개의 실행이다. 2ms 한도를 올리거나 PageView에 전달 경로만 추가하는 것은 incremental mount가 아니다.
+
+### 13.3 결정과 완료 범위
+
+새 구조안은 **생산을 명시적 continuation으로 분할하고, 완성된 paint·입력·접근성 세대를 함께 게시하는 opt-in 경계**다. 기존 Widget/State 전체를 자동 비동기화하거나 native가 오래된 화면만 이동하는 방법을 완료안으로 삼지 않는다. 특히 사용자 callback 부수 효과를 취소할 수 없고 현재 hit test가 live RenderObject를 사용하므로, 기존 동기 계약을 그대로 유지한다고 약속할 수 없다.
+
+상세 계약·상태 전이·최초 적용 범위·구현/중단 기준은 [work4 §10](work4.md#10-큰-구조-변경-검토--분할-생산과-원자적-게시)에 정리했다. **이번에 완료한 것은 사용자가 선택한 구조 검토다.** 제품 scheduler·build/layout·입력 처리, VM, 생성 달력 코드는 변경하지 않았다. 분할 생산 구현, 순이익 또는 30fps 달성을 주장하지 않으며 `performanceAccepted=false`를 유지한다.
+
+### 13.4 일반 실행 확인
+
+진단 뒤 일반 Demo의 bytecode 첫 프레임과 정상 종료를 확인했다. host `2d40eea6…`, VM `6705e10d…`, 일반 HBC `a3fb0dd8…`, exit 0, `forced=false`, RN runtime/Node-API JSI 혼입 없음이다. 974×929/DPI 192/165Hz의 유한 실행으로, 달력 최대화 성능 표본이나 새 구조의 검증이 아니다.
+
+일반 실행의 첫 wrapper 시도는 `npm.cmd` 직접 spawn의 Windows `EINVAL`로 앱 시작 전에 실패했다. 제품 코드를 바꾸지 않고 동일 스크립트의 Node entry를 직접 실행해 확인했다. 진단과 일반 실행은 각각 1,200,000ms timeout으로 제한했다. 추가한 절의 로컬 링크·heading 14개와 `git diff --check`가 PASS다. 새 구조의 통합 fixture·기능 회귀를 실행한 것으로 확대하지 않는다. raw trace·로그를 새 repository 파일로 남기지 않았고 기존 `.tmp` 네 파일은 보존했다.
+
+## 14. 계속 요청 후의 S0 구현 — 2026-11-17
+
+문서 검토 이후의 계속 요청으로 실제 Source 구현을 시작했다. [FrameworkRoot](Nelyx/src/framework/widgets/root.ts)의 준비 프레임이 원래 `FrameBuildToken`을 보관하고, 재사용 자격에서 View id/generation 및 입력 sequence/timestamp를 확인하도록 했다. 기존 검사에는 sequence·metrics 및 tree revision은 있었지만 이 범위가 빠져 있었다. downstream renderer의 owner 검사는 이미 있었으므로, 이를 실제 교차 View의 GPU 게시가 허용됐던 결함으로 확대하지 않는다.
+
+새 [통합 fixture](Nelyx/eng/check-frame-publication.mjs)는 실제 `AppSession`·`ViewRuntime`·`FrameworkRoot`·geometry/semantics·resource lease를 사용한다. renderer와 frame clock만 결정론적인 local fake다. 기존 코드의 foreign View generation 자격 통과로 RED를 확인했고 수정 후 PASS다. sealed frame 불변성, 교체·회수된 pointer target, resize, GPU busy 중 강제 CPU geometry 갱신, 이전 caller lease 회수, geometry 게시 중 재진입 close, paint 실패까지 검사한다.
+
+Source framework·retained paint 관련 회귀, Core 타입 검사와 변경 코드 lint/format도 PASS다. 세부 결과와 **동기 control 검증이 세대 격리의 증명은 아니라는 한계**는 [work4 §11](work4.md#11-s0-착수--실제-runtime-계약과-준비-프레임-자격-검사)에 기록했다. 기존 UX와 동기 lifecycle을 유지했으며 분할 scheduler·continuation·달력 opt-in은 아직 연결하지 않았다. 이번에 새 FPS 표본, 변경 Source의 실제 Hermes VM 실행이나 공급 갱신을 수행한 것은 아니다. `performanceAccepted=false`를 유지한다.
