@@ -8,8 +8,8 @@ import type {
   RenderSliverBoxChildManager,
   EstimateMaxScrollOffsetOptions,
 } from './sliver-multi-box-adaptor.ts';
-import { SliverGeometry, SliverLayoutDimensions } from './sliver.ts';
-import type { SliverConstraints, ItemExtentBuilder } from './sliver.ts';
+import { SliverConstraints, SliverGeometry, SliverLayoutDimensions } from './sliver.ts';
+import type { ItemExtentBuilder } from './sliver.ts';
 import type { RenderBox } from './object.ts';
 import type { BoxConstraints } from './constraints.ts';
 import { FoundationBuildMode, precisionErrorTolerance } from '../../foundation/constants.ts';
@@ -38,6 +38,12 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
     return null;
   }
   private _currentLayoutDimensions: SliverLayoutDimensions | null = null;
+  private childPlacement:
+    | { constraints: SliverConstraints; box: BoxConstraints; extent: number; revision: number }
+    | undefined;
+  protected get supportsFixedChildLayoutReuse(): boolean {
+    return false;
+  }
   protected indexToLayoutOffset(_deprecatedItemExtent: number, index: number): number {
     const builder = this.itemExtentBuilder;
     if (builder === null) return this.itemExtent! * index;
@@ -197,6 +203,8 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
       );
     }
     const constraints = this.constraints;
+    const previous = this.childPlacement;
+    this.childPlacement = undefined;
     this.childManager.didStartLayout();
     this.childManager.setDidUnderflow(false);
     const scrollOffset =
@@ -235,6 +243,33 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
           : 0,
       );
     else this.collectGarbage(0, 0);
+    const extent =
+      this.supportsFixedChildLayoutReuse &&
+      this.itemExtentBuilder === null &&
+      constraints.constructor === SliverConstraints
+        ? this.itemExtent
+        : null;
+    const fixed = extent !== null && Number.isFinite(extent) && extent > 0;
+    const samePlacement =
+      fixed &&
+      previous?.extent === extent &&
+      this.sameChildLayoutEnvironment(previous.constraints, constraints);
+    const childConstraints = samePlacement
+      ? previous.box
+      : fixed
+        ? constraints.asBoxConstraints({ minExtent: extent, maxExtent: extent })
+        : undefined;
+    if (childConstraints && !samePlacement) Object.freeze(childConstraints);
+    const reuse =
+      samePlacement &&
+      this.firstChild !== null &&
+      this.canReuseChildRange(
+        firstIndex,
+        targetLastIndex,
+        previous.revision,
+        previous.box,
+        (data, index) => data.layoutOffset === extent * index,
+      );
     if (this.firstChild === null) {
       const layoutOffset = this.indexToLayoutOffset(deprecatedExtraItemExtent, firstIndex);
       if (!this.addInitialChild({ index: firstIndex, layoutOffset })) {
@@ -245,9 +280,11 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
         return;
       }
     }
-    let trailingChildWithLayout: RenderBox | null = null;
+    let trailingChildWithLayout: RenderBox | null = reuse ? this.lastChild : null;
     for (let index = this.indexOf(this.firstChild!) - 1; index >= firstIndex; --index) {
-      const child = this.insertAndLayoutLeadingChild(this._getChildConstraints(index));
+      const child = this.insertAndLayoutLeadingChild(
+        childConstraints ?? this._getChildConstraints(index),
+      );
       if (child === null) {
         this.geometry = new SliverGeometry({
           scrollOffsetCorrection: this.indexToLayoutOffset(deprecatedExtraItemExtent, index),
@@ -261,7 +298,9 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
       trailingChildWithLayout ??= child;
     }
     if (trailingChildWithLayout === null) {
-      this.firstChild!.layout(this._getChildConstraints(this.indexOf(this.firstChild!)));
+      this.firstChild!.layout(
+        childConstraints ?? this._getChildConstraints(this.indexOf(this.firstChild!)),
+      );
       (this.firstChild!.parentData as SliverMultiBoxAdaptorParentData).layoutOffset =
         this.indexToLayoutOffset(deprecatedExtraItemExtent, firstIndex);
       trailingChildWithLayout = this.firstChild;
@@ -274,14 +313,14 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
     ) {
       let child = this.childAfter(trailingChildWithLayout!);
       if (child === null || this.indexOf(child) !== index) {
-        child = this.insertAndLayoutChild(this._getChildConstraints(index), {
+        child = this.insertAndLayoutChild(childConstraints ?? this._getChildConstraints(index), {
           after: trailingChildWithLayout,
         });
         if (child === null) {
           estimatedMaxScrollOffset = this.indexToLayoutOffset(deprecatedExtraItemExtent, index);
           break;
         }
-      } else child.layout(this._getChildConstraints(index));
+      } else child.layout(childConstraints ?? this._getChildConstraints(index));
       trailingChildWithLayout = child;
       (child.parentData as SliverMultiBoxAdaptorParentData).layoutOffset = this.indexToLayoutOffset(
         deprecatedExtraItemExtent,
@@ -340,7 +379,12 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
         constraints.scrollOffset > 0,
     });
     if (estimatedMaxScrollOffset === trailingScrollOffset) this.childManager.setDidUnderflow(true);
+    const placement =
+      childConstraints && fixed
+        ? { constraints, box: childConstraints, extent, revision: this._activeChildRevision }
+        : undefined;
     this.childManager.didFinishLayout();
+    this.childPlacement = placement;
   }
 }
 export class RenderSliverFixedExtentList extends RenderSliverFixedExtentBoxAdaptor {
@@ -357,6 +401,9 @@ export class RenderSliverFixedExtentList extends RenderSliverFixedExtentBoxAdapt
   }
   get itemExtent(): number {
     return this._itemExtent;
+  }
+  protected override get supportsFixedChildLayoutReuse(): boolean {
+    return this.constructor === RenderSliverFixedExtentList;
   }
   set itemExtent(value: number) {
     this.assertCanMutateLayoutProperty();

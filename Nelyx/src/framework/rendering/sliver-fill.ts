@@ -33,6 +33,9 @@ export class RenderSliverFillViewport extends RenderSliverFixedExtentBoxAdaptor 
   override get itemExtent(): number {
     return this.constraints.viewportMainAxisExtent * this.viewportFraction;
   }
+  protected override get supportsFixedChildLayoutReuse(): boolean {
+    return this.constructor === RenderSliverFillViewport;
+  }
   get viewportFraction(): number {
     return this.fraction;
   }

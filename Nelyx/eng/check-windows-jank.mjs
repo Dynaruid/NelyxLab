@@ -37,6 +37,7 @@ const runtimeIdentity = {
 };
 const hostExecutable = engine === 'jsc' ? 'NelyxJscHost.exe' : 'NelyxHermesHost.exe';
 const representationProfile = process.env.NELYX_JANK_REPRESENTATION_PROFILE === '1';
+const sliverProfile = process.env.NELYX_JANK_SLIVER_PROFILE === '1';
 const semanticsConflictProfile = process.env.NELYX_JANK_SEMANTICS_CONFLICT_PROFILE === '1';
 if (
   semanticsConflictProfile &&
@@ -55,6 +56,11 @@ if (
     process.env.NELYX_NATIVE_GC_STATS === '1')
 )
   throw Error('Representation screening requires calendar bytecode CPU sampling alone');
+if (
+  sliverProfile &&
+  (!diagnostic || scenario !== 'calendar' || engine !== 'hermes' || hermesMode !== 'bytecode')
+)
+  throw Error('Sliver layout profiling requires a calendar Hermes bytecode diagnostic');
 const app = path.join(
   root,
   appName === 'testbed' ? 'sample/nelyx-testbed-app-2' : 'sample/nelyx-demo-app',
@@ -604,6 +610,7 @@ function onLine(line) {
     enqueue(async () => {
       console.log('FAST_SCREENSHOT ' + capture);
       await stopScreen();
+      if (sliverProfile) await ui('CalendarLifecycle');
       await pause(process.env.NELYX_JANK_REVIEW === '1' ? 45000 : 500);
       await ui('Close');
     });
@@ -670,6 +677,32 @@ try {
           ? fs.readFileSync(path.join(root, 'Nelyx/eng/windows-variable-list.ts'), 'utf8')
           : 'function restoreVariableList() {}',
       );
+    if (sliverProfile) {
+      source =
+        fs.readFileSync(path.join(root, 'Nelyx/eng/windows-jank-framework-profile.ts'), 'utf8') +
+        '\nlet sliverLayoutProfile;\n' +
+        source
+          .replace(
+            'if (!monthState) return;',
+            'if (!monthState?.mounted || planIndex >= plans.length) return;',
+          )
+          .replace(
+            'root = created;',
+            'root = created; sliverLayoutProfile = installSliverLayoutProfile(root, host, diagnostics, () => phase !== undefined);',
+          )
+          .replace(
+            'result = build(diagnosticEnabled ? { ...scene, frameDiagnostics: diagnostics } : scene);',
+            'result = sliverLayoutProfile.build(build, { ...scene, frameDiagnostics: diagnostics });',
+          )
+          .replace(
+            '  phase = undefined;',
+            '  sliverLayoutProfile.report(active.name, samples, inputs, surfaces);\n  phase = undefined;',
+          )
+          .replace(
+            '            dispose();',
+            '            try { dispose(); } finally { sliverLayoutProfile.dispose(); }',
+          );
+    }
     if (process.env.NELYX_JANK_BUILD_PROFILE === '1') {
       if (scenario !== 'calendar') throw Error('Build profile currently requires calendar');
       if (engine !== 'hermes' || hermesMode !== 'bytecode')

@@ -55,6 +55,8 @@ export type { SliverChildPolicy } from './view-work-budget.ts';
 /** Preserve the established public module while avoiding delegate/keep-alive initialization cycles. */
 export { KeepAlive } from './keep-alive.ts';
 
+const noAdditionalChildren: readonly Element[] = Object.freeze([]);
+
 /** Bookkeeping only: Element/adaptor remain the mount and render owners.
  * One ordered snapshot per structural revision, shared by projection/visitors.
  * User builders and lifecycle callbacks still run synchronously in slot order. */
@@ -172,7 +174,12 @@ export class SliverMultiBoxAdaptorElement
 {
   private readonly _childElements = new SliverChildStore();
   private projectedRevision = -1;
-  private projectedAdditional: readonly Element[] = [];
+  private detachedChildRevision = 0;
+  private projectedDetachRevision = -1;
+  private projectedAdditional: readonly Element[] = noAdditionalChildren;
+  private insertionHint:
+    | { readonly index: number; readonly after: RenderBox | null; readonly revision: number }
+    | undefined;
   private readonly _buildScope = new BuildScope({
     scheduleRebuild: () => {
       if (this.ready && this.active) this.renderObject.markNeedsLayout();
@@ -198,7 +205,6 @@ export class SliverMultiBoxAdaptorElement
   private splitChild:
     | {
         index: number;
-        widget: SliverMultiBoxAdaptorWidget;
         preparation: SubtreePreparation;
         valid(): boolean;
       }
@@ -304,13 +310,12 @@ export class SliverMultiBoxAdaptorElement
           this.adaptorWidget.delegate.build(this, index),
         );
         if (child) {
-          this._childElements.set(index, child);
+          this.setChildAt(index, child);
           owner._didProduceFiniteChild(this._preparationScope!);
         } else {
           this.preparedMissingIndex = index;
           return true;
         }
-        this.syncElementChildren();
         index++;
         return index === count;
       });
@@ -357,23 +362,82 @@ export class SliverMultiBoxAdaptorElement
   }
   /** @internal Concrete source slivers can own an offstage prototype subtree. */
   protected get additionalChildren(): readonly Element[] {
-    return [];
+    return noAdditionalChildren;
+  }
+  override _didDetachChild(): void {
+    this.detachedChildRevision++;
+  }
+  private setChildAt(index: number, child: Element | undefined): void {
+    const store = this._childElements,
+      previous = store.get(index),
+      revision = store.revision;
+    if (child) store.set(index, child);
+    else store.delete(index);
+
+    // The stream mutates one end at a time. Keep the ordered store snapshot
+    // lazy for visitors and update the lifecycle projection at its old boundary.
+    if (
+      store.revision !== revision &&
+      this.projectedRevision === revision &&
+      this.projectedAdditional.length === 0 &&
+      this.additionalChildren.length === 0
+    ) {
+      const first = this.children[0],
+        last = this.children.at(-1);
+      let projected = false;
+      if (
+        !previous &&
+        child?.parent === this &&
+        child.slot === index &&
+        this.projectedDetachRevision === this.detachedChildRevision
+      ) {
+        if (!last || (typeof last.slot === 'number' && last.slot < index)) {
+          this.children.push(child);
+          projected = true;
+        } else if (typeof first?.slot === 'number' && index < first.slot) {
+          this.children.unshift(child);
+          projected = true;
+        }
+      } else if (
+        !child &&
+        previous &&
+        previous.parent !== this &&
+        this.projectedDetachRevision + 1 === this.detachedChildRevision
+      ) {
+        if (last === previous) {
+          this.children.pop();
+          projected = true;
+        } else if (first === previous) {
+          this.children.shift();
+          projected = true;
+        }
+      }
+      if (projected) {
+        this.projectedRevision = store.revision;
+        this.projectedDetachRevision = this.detachedChildRevision;
+        return;
+      }
+    }
+    this.syncElementChildren();
   }
   private syncElementChildren(): void {
     const additional = this.additionalChildren;
     if (
       this.projectedRevision === this._childElements.revision &&
-      additional.length === this.projectedAdditional.length &&
-      additional.every((child, index) => child === this.projectedAdditional[index]) &&
-      this.children.every((child) => child.parent === this)
+      this.projectedDetachRevision === this.detachedChildRevision &&
+      (additional === this.projectedAdditional ||
+        (additional.length === this.projectedAdditional.length &&
+          additional.every((child, index) => child === this.projectedAdditional[index])))
     )
       return;
-    this.children = [
-      ...additional,
-      ...this._childElements.orderedEntries().map(([, child]) => child),
-    ].filter((child) => child.parent === this);
+    const children: Element[] = [];
+    for (const child of additional) if (child.parent === this) children.push(child);
+    for (const [, child] of this._childElements.orderedEntries())
+      if (child.parent === this) children.push(child);
+    this.children = children;
     this.projectedRevision = this._childElements.revision;
-    this.projectedAdditional = [...additional];
+    this.projectedDetachRevision = this.detachedChildRevision;
+    this.projectedAdditional = additional.length ? [...additional] : noAdditionalChildren;
   }
   private renderBox(child: Element | undefined): RenderBox | null {
     if (!child) return null;
@@ -390,8 +454,10 @@ export class SliverMultiBoxAdaptorElement
     child: Element | undefined,
     widget: Widget | null,
   ): Element | undefined {
+    const previousIndex = this._currentlyUpdatingChildIndex;
     this._currentlyUpdatingChildIndex = index;
     try {
+      if (child?.parent !== this) child = undefined;
       const cache = this.owner.maybeDormantChildren;
       if (!child && cache) {
         const cached = cache.peek(this, index);
@@ -401,18 +467,24 @@ export class SliverMultiBoxAdaptorElement
           else cache.evictAt(this, index);
         }
       }
-      const reconcile = () => this.reconcile(child ? [child] : [], widget ? [widget] : [])[0],
-        bounded = this.boundedChildren,
+      const bounded = this.boundedChildren,
         next = bounded
-          ? this.owner.viewWorkBudget.withChild(this, child, this.requestBudgetLayout, reconcile)
-          : reconcile();
+          ? this.owner.viewWorkBudget.withChild(this, child, this.requestBudgetLayout, () =>
+              this.reconcileSingleChild(child, widget ?? undefined),
+            )
+          : this.reconcileSingleChild(child, widget ?? undefined);
       if (bounded && next && next !== child) {
         this.newChildBuilt = true;
         if (index === this.preparationTarget) this.owner.viewWorkBudget.didPrepare(next);
       }
       return next;
+    } catch (error) {
+      const occupied = this._childElements.get(index);
+      if (occupied && occupied.parent !== this) this._childElements.delete(index);
+      this.syncElementChildren();
+      throw error;
     } finally {
-      this._currentlyUpdatingChildIndex = null;
+      this._currentlyUpdatingChildIndex = previousIndex;
     }
   }
   protected override performRebuild(): void {
@@ -513,19 +585,26 @@ export class SliverMultiBoxAdaptorElement
       'invalid-sliver-create-scope',
       'Create child requires an unlocked manager and actual predecessor',
     );
+    const previous = this.insertionHint;
+    this.insertionHint = { index, after, revision: this.renderObject._activeChildRevision };
+    try {
+      this.createChildInLayout(index);
+    } finally {
+      this.insertionHint = previous;
+    }
+  }
+  private createChildInLayout(index: number): void {
     const split = this.splitChild;
     if (split && !split.valid()) {
-      split.preparation.cancel();
-      this.splitChild = undefined;
+      this.cancelSplitChild();
     } else if (split?.index === index) {
       if (!split.preparation.ready)
         this.owner._requiredPreparationCompletion(() => split.preparation.complete());
       this._currentlyUpdatingChildIndex = index;
       try {
         const child = split.preparation.adopt(index);
-        this._childElements.set(index, child);
+        this.setChildAt(index, child);
         this.owner._didRequireColdChild(true);
-        this.syncElementChildren();
         this.splitChild = undefined;
       } finally {
         this._currentlyUpdatingChildIndex = null;
@@ -537,10 +616,10 @@ export class SliverMultiBoxAdaptorElement
       oldData = this.renderBox(old)?.parentData,
       oldOffset = oldData instanceof SliverMultiBoxAdaptorParentData ? oldData.layoutOffset : null;
     this.owner.buildScope(this, () => {
-      const child = this.updateChildAt(index, old, this.adaptorWidget.delegate.build(this, index));
-      if (child) this._childElements.set(index, child);
-      else this._childElements.delete(index);
-      this.syncElementChildren();
+      this.setChildAt(
+        index,
+        this.updateChildAt(index, old, this.adaptorWidget.delegate.build(this, index)),
+      );
     });
     this.finishQueuedChildren();
     if (
@@ -565,8 +644,7 @@ export class SliverMultiBoxAdaptorElement
     let needsSync = this._buildScope.hasDirty;
     this.owner.buildScope(this, () => {
       this.updateChildAt(index, this._childElements.get(index), null);
-      this._childElements.delete(index);
-      this.syncElementChildren();
+      this.setChildAt(index, undefined);
       needsSync ||= this._buildScope.hasDirty;
     });
     this.owner.maybeViewWorkBudget?.forget(retired);
@@ -602,6 +680,28 @@ export class SliverMultiBoxAdaptorElement
     }
     return before;
   }
+  private creationPredecessor(index: number): RenderBox | null {
+    const hint = this.insertionHint,
+      render = this.renderObject;
+    if (hint?.index === index && hint.revision === render._activeChildRevision) {
+      const after = hint.after,
+        data = after?.parentData;
+      if (
+        !after ||
+        (after.parent === render &&
+          data instanceof SliverMultiBoxAdaptorParentData &&
+          !data.keptAlive &&
+          (data.previousSibling
+            ? render.childAfter(data.previousSibling) === after
+            : render.firstChild === after) &&
+          render.indexOf(after) < index)
+      ) {
+        const next = after ? render.childAfter(after) : render.firstChild;
+        if (!next || render.indexOf(next) > index) return after;
+      }
+    }
+    return this.precedingBox(index);
+  }
   private slotIndex(slot: unknown): number {
     invariant(
       typeof slot === 'number' && Number.isSafeInteger(slot) && slot >= 0,
@@ -620,7 +720,7 @@ export class SliverMultiBoxAdaptorElement
       previous = this._currentlyUpdatingChildIndex;
     this._currentlyUpdatingChildIndex = index;
     try {
-      this.renderObject.insert(child, this.precedingBox(index) ?? undefined);
+      this.renderObject.insert(child, this.creationPredecessor(index) ?? undefined);
     } finally {
       this._currentlyUpdatingChildIndex = previous;
     }
@@ -748,9 +848,18 @@ export class SliverMultiBoxAdaptorElement
       },
     });
   }
+  private cancelSplitChild(): void {
+    const previous = this.splitChild;
+    this.splitChild = undefined;
+    previous?.preparation.cancel();
+  }
   private offerSplitPreparation(): void {
+    const previous = this.splitChild;
     const policy = this.adaptorWidget.childPolicy;
-    if (policy === 'legacy' || policy.mode !== 'split' || this._unpublishedScope) return;
+    if (policy === 'legacy' || policy.mode !== 'split' || this._unpublishedScope) {
+      if (previous) this.cancelSplitChild();
+      return;
+    }
     const render = this.renderObject;
     // Extent callbacks and unsupported slivers are rejected before a cold
     // delegate is called. They retain the ordinary required child path.
@@ -759,32 +868,35 @@ export class SliverMultiBoxAdaptorElement
       render.itemExtentBuilder !== null ||
       render.itemExtent === null ||
       render.itemExtent <= 0
-    )
+    ) {
+      if (previous) this.cancelSplitChild();
       return;
+    }
     const c = render.constraints,
       scroll = c.scrollOffset;
     if (this.previousScroll !== undefined && scroll !== this.previousScroll)
       this.preparationDirection = scroll > this.previousScroll ? 1 : -1;
     this.previousScroll = scroll;
-    const edge = this.preparationDirection > 0 ? render.lastChild : render.firstChild;
+    const direction = this.preparationDirection;
+    const edge = direction > 0 ? render.lastChild : render.firstChild;
     const count = this.estimatedChildCount;
-    if (!edge || count === null) return;
-    const index = render.indexOf(edge) + this.preparationDirection;
-    if (index < 0 || index >= count || this._childElements.has(index)) return;
-    const old = this.splitChild;
-    if (old?.index === index && old.valid()) return;
-    if (old) {
-      old.preparation.cancel();
-      this.splitChild = undefined;
-    }
+    const index = edge ? render.indexOf(edge) + direction : -1;
+    const eligible =
+      count !== null && index >= 0 && index < count && !this._childElements.has(index);
+    if (eligible && previous?.index === index && previous.valid()) return;
+    if (previous) this.cancelSplitChild();
+    if (!eligible) return;
     const widget = this.adaptorWidget;
     const valid = () =>
       this.active &&
       this.widget === widget &&
+      this.preparationDirection === direction &&
       render.attached &&
       render.constraints.crossAxisExtent === c.crossAxisExtent &&
       render.constraints.viewportMainAxisExtent === c.viewportMainAxisExtent &&
       render.constraints.axisDirection === c.axisDirection &&
+      render.constraints.crossAxisDirection === c.crossAxisDirection &&
+      render.constraints.growthDirection === c.growthDirection &&
       !this._childElements.has(index);
     this.owner._offerPreparation({
       owner: this,
@@ -807,7 +919,7 @@ export class SliverMultiBoxAdaptorElement
           render._preparationChildConstraints(index),
         );
         const live = () => valid() && this.owner._ownsPreparationScope(preparation.scope);
-        this.splitChild = { index, widget, preparation, valid: live };
+        this.splitChild = { index, preparation, valid: live };
         return preparation;
       },
     });
@@ -881,8 +993,7 @@ export class SliverMultiBoxAdaptorElement
     this.owner.maybeViewWorkBudget?.cancelOwner(this);
     const errors: unknown[] = [];
     try {
-      this.splitChild?.preparation.cancel();
-      this.splitChild = undefined;
+      this.cancelSplitChild();
     } catch (error) {
       errors.push(error);
     }

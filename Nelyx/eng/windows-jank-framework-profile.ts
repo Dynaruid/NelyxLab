@@ -5,7 +5,376 @@ import {
   StatefulElement as WorkProfileStatefulElement,
   RenderObjectElement as WorkProfileRenderElement,
 } from '@nelyx/core/framework/widgets/framework';
-import { RenderObject as WorkProfileRenderObject } from '@nelyx/core/framework/rendering/object';
+import {
+  RenderObject as WorkProfileRenderObject,
+  RenderBox as WorkProfileRenderBox,
+} from '@nelyx/core/framework/rendering/object';
+import { RenderSliver as WorkProfileRenderSliver } from '@nelyx/core/framework/rendering/sliver';
+import { RenderSliverFillViewport as WorkProfilePage } from '@nelyx/core/framework/rendering/sliver-fill';
+import { RenderViewport as WorkProfileViewport } from '@nelyx/core/framework/rendering/viewport';
+import { SliverMultiBoxAdaptorElement as WorkProfileSliver } from '@nelyx/core/framework/widgets/sliver';
+import { SliverGridGeometry as WorkProfileTile } from '@nelyx/core/framework/rendering/sliver-grid';
+import { RenderRichParagraph as WorkProfileParagraph } from '@nelyx/core/framework/rendering/paragraph';
+import { SemanticsNode as WorkProfileSemanticsNode } from '@nelyx/core/framework/semantics/semantics';
+import { Semantics as WorkProfileSemanticsWidget } from '@nelyx/core/framework/widgets/semantics';
+import { TextLayoutCache as WorkProfileTextCache } from '@nelyx/core/hosting/text-layout-cache';
+import { ViewRuntime as WorkProfileViewRuntime } from '@nelyx/core/hosting/runtime';
+import { NativeTextLayoutService as WorkProfileTextService } from '@nelyx/skia-native/text';
+
+export function installSliverLayoutProfile(root, host, diagnostics, active) {
+  const frames = new Map(),
+    restore = [],
+    generations = new WeakMap(),
+    pageElements = new WeakMap(),
+    attachedSemanticsNodes = new WeakSet(),
+    owner = root.buildOwner;
+  const semanticsStages = [
+    'semantics',
+    'semantics-flush',
+    'semantics-snapshot',
+    'semantics-freeze',
+    'semantics-publish',
+  ];
+  let frame,
+    nestedMs = 0,
+    generation = 0,
+    nextPage = 0,
+    semanticsHandoff = { updates: 0, resets: 0, upserts: 0, removed: 0, maxMs: 0 };
+  function patch(target, name, wrap) {
+    const descriptor = Object.getOwnPropertyDescriptor(target, name),
+      original = target[name];
+    Object.defineProperty(target, name, {
+      configurable: true,
+      writable: true,
+      value: wrap(original),
+    });
+    restore.push(() => {
+      if (descriptor) Object.defineProperty(target, name, descriptor);
+      else delete target[name];
+    });
+  }
+  function observe(target, name, kind, count, trace) {
+    patch(
+      target,
+      name,
+      (original) =>
+        function (...args) {
+          if (!frame) {
+            const result = original.apply(this, args);
+            trace?.call(this, args, result);
+            return result;
+          }
+          const began = host.now(),
+            parentNested = nestedMs;
+          nestedMs = 0;
+          try {
+            const result = original.apply(this, args);
+            trace?.call(this, args, result);
+            const label = count?.call(this, args, result);
+            if (label) frame.counts[label] = (frame.counts[label] ?? 0) + 1;
+            return result;
+          } finally {
+            const elapsed = host.now() - began;
+            const totals = (frame.work[kind] ??= [0, 0, 0]);
+            totals[0]++;
+            totals[1] += elapsed;
+            totals[2] += Math.max(0, elapsed - nestedMs);
+            nestedMs = parentNested + elapsed;
+          }
+        },
+    );
+  }
+  function preparationEvent(action, scope, slot) {
+    const previous = generations.get(scope);
+    const event = {
+      generation: previous?.generation ?? ++generation,
+      slot: slot ?? previous?.slot,
+    };
+    generations.set(scope, event);
+    host.log('FAST_SLIVER_PREPARATION ' + JSON.stringify({ action, ...event, at: host.now() }));
+    return event;
+  }
+  patch(
+    WorkProfileViewRuntime.prototype,
+    'flushPointerInput',
+    (original) =>
+      function (...args) {
+        if (this.owner === root.context.owner && this.frameDiagnostics !== diagnostics) {
+          const previous = this.frameDiagnostics;
+          this.frameDiagnostics = diagnostics;
+          restore.push(() => {
+            this.frameDiagnostics = previous;
+          });
+        }
+        return original.apply(this, args);
+      },
+  );
+  observe(WorkProfileRenderBox.prototype, 'performLayoutInScope', 'boxLayout');
+  observe(WorkProfileRenderSliver.prototype, 'performLayoutInScope', 'sliverLayout');
+  observe(WorkProfileRenderObject.prototype, 'performLayoutInScope', 'otherLayout');
+  observe(WorkProfileSliver.prototype, 'createChild', 'requiredSlot');
+  function logPage(action, value) {
+    host.log('FAST_SLIVER_PAGE ' + JSON.stringify({ action, ...value, frame: frame?.sequence }));
+  }
+  // Weak identities distinguish a returning index from a returning Element.
+  patch(
+    WorkProfileSliver.prototype,
+    'createChild',
+    (original) =>
+      function (index, position) {
+        const result = original.call(this, index, position);
+        if (this.owner === owner && this.renderObject instanceof WorkProfilePage) {
+          const element = this._childElements.get(index);
+          if (element) {
+            let page = pageElements.get(element);
+            if (!page) {
+              page = { index, element: ++nextPage };
+              pageElements.set(element, page);
+            }
+            logPage('required', page);
+          }
+        }
+        return result;
+      },
+  );
+  patch(
+    WorkProfileSliver.prototype,
+    'removeChild',
+    (original) =>
+      function (child) {
+        const page =
+          this.owner === owner && this.renderObject instanceof WorkProfilePage
+            ? pageElements.get(this._childElements.get(this.renderObject.indexOf(child)))
+            : undefined;
+        if (page) logPage('removed', page);
+        return original.call(this, child);
+      },
+  );
+  patch(
+    WorkProfileElement.prototype,
+    'unmount',
+    (original) =>
+      function (...args) {
+        const page = pageElements.get(this);
+        const result = original.apply(this, args);
+        if (page) logPage('unmounted', page);
+        return result;
+      },
+  );
+  observe(WorkProfileElement.prototype, 'rebuild', 'dirtyRebuild');
+  observe(WorkProfileSliver.prototype, 'updateChildAt', 'reconcileSlot', ([, old], child) =>
+    child ? (child === old ? 'updated' : 'produced') : old ? 'removed' : 'empty',
+  );
+  observe(WorkProfileTile.prototype, 'getBoxConstraints', 'tileConstraints');
+  observe(WorkProfileParagraph.prototype, 'layoutCanonical', 'paragraphLayout');
+  observe(WorkProfileTextService.prototype, 'layout', 'textService');
+  observe(WorkProfileTextCache.prototype, 'reuse', 'textCache', (_args, hit) =>
+    hit ? 'textCacheHit' : 'textCacheMiss',
+  );
+  observe(WorkProfileSemanticsWidget.prototype, 'createRenderObject', 'semanticsRenderCreate');
+  observe(WorkProfileRenderObject.prototype, 'clearSemantics', 'semanticsClear');
+  observe(WorkProfileSemanticsNode.prototype, 'attach', 'semanticsAttach', undefined, function () {
+    const kind = attachedSemanticsNodes.has(this) ? 'reattached' : 'firstAttach';
+    attachedSemanticsNodes.add(this);
+    if (frame) frame.counts[kind] = (frame.counts[kind] ?? 0) + 1;
+  });
+  observe(WorkProfileSemanticsNode.prototype, 'detach', 'semanticsDetach', () => 'detached');
+  patch(
+    host,
+    'publishSemantics',
+    (original) =>
+      function (update) {
+        if (!active()) return original.call(this, update);
+        const began = host.now();
+        const result = original.call(this, update);
+        semanticsHandoff.updates++;
+        semanticsHandoff.resets += update.reset ? 1 : 0;
+        semanticsHandoff.upserts += update.upserts.length;
+        semanticsHandoff.removed += update.removed.length;
+        semanticsHandoff.maxMs = Math.max(semanticsHandoff.maxMs, host.now() - began);
+        return result;
+      },
+  );
+  observe(WorkProfileRenderElement.prototype, '_commitRenderChildren', 'commit');
+  observe(owner, 'buildScope', 'buildScope');
+  observe(owner, 'deactivateChildren', 'deactivate');
+  observe(owner, '_retireInactiveSubtreeWithoutGlobalKeys', 'earlyRetirement');
+  observe(owner, 'finalizeTree', 'finalize');
+  observe(owner, '_requiredPreparationCompletion', 'completePreparation');
+  observe(owner, '_createPreparationScope', 'startPreparation', undefined, (_args, scope) => {
+    preparationEvent('started', scope, owner.activePreparationCandidate?.index);
+  });
+  observe(owner, '_adoptPreparation', 'promote', undefined, ([scope, , , slot]) => {
+    const adoption = preparationEvent('adopted', scope, slot);
+    if (frame) frame.promotion = adoption;
+  });
+  observe(owner, '_disposePreparationScope', 'disposePreparation', undefined, ([scope]) => {
+    preparationEvent('cancelled', scope);
+  });
+  observe(owner, '_cancelPreparation', 'cancelPreparation');
+  observe(
+    WorkProfileViewport.prototype,
+    '_attemptLayout',
+    'viewportAttempt',
+    (_args, correction) => correction !== 0 && 'corrections',
+  );
+  function lifetime(name) {
+    let activeElements = 0;
+    const element = Reflect.get(root, 'root');
+    const pending = element ? [element] : [];
+    while (pending.length) {
+      const current = pending.pop();
+      if (!current.active) continue;
+      activeElements++;
+      pending.push(...current.children);
+    }
+    host.log(
+      'FAST_SLIVER_PROFILE ' +
+        JSON.stringify({
+          kind: 'lifetime',
+          name,
+          activeElements,
+          detachedRoots: owner.inactive.size,
+          preparationElements: owner.preparationStats.elements,
+          preparationActive: owner.preparationStats.active,
+          preparationWake: !!owner.preparationWake,
+          schedulerDisposed: root.scheduler.disposed,
+          resources: root.context.resources.accountedTotals,
+        }),
+    );
+  }
+  return {
+    build(build, scene) {
+      if (!active()) return build(scene);
+      const sequence = scene.token.sequence;
+      if (frames.size >= 2048 || frames.has(sequence) || frame)
+        throw Error('Sliver layout profile frame budget or token differs');
+      frame = { sequence, work: {}, counts: {}, input: scene.token.inputSequence ?? 0 };
+      frames.set(sequence, frame);
+      nestedMs = 0;
+      try {
+        return build(scene);
+      } finally {
+        frame = undefined;
+      }
+    },
+    report(name, samples, inputs, surfaces) {
+      const peak = samples.reduce(
+        (result, sample) =>
+          sample.stage === 'layout' && (!result || sample.duration > result.duration)
+            ? sample
+            : result,
+        undefined,
+      );
+      if (!peak || !frames.has(peak.frame))
+        throw Error('Peak sliver layout has no frame observation');
+      const { work, counts, input, promotion } = frames.get(peak.frame);
+      const stages = samples.filter(
+        (sample) =>
+          sample.frame === peak.frame ||
+          (sample.frame === 0 &&
+            sample.input === input &&
+            (sample.stage === 'input-queue' || sample.stage === 'input-dispatch')),
+      );
+      const submit = stages.find((sample) => sample.stage === 'submit');
+      const dispatch = stages.find((sample) => sample.stage === 'input-dispatch');
+      let delivery, receipt, fence;
+      for (let i = 0; i < inputs.length; i += 10) {
+        if (inputs[i + 1] === input && inputs[i + 9]) {
+          receipt = inputs[i + 4];
+          delivery = inputs[i + 5];
+        }
+      }
+      for (let i = 0; i < surfaces.length; i += 11)
+        if (surfaces[i + 4] === peak.frame) fence = surfaces[i + 10];
+      const round = (value) => Math.round(value * 1000) / 1000;
+      host.log(
+        'FAST_SLIVER_PROFILE ' +
+          JSON.stringify({
+            name,
+            frame: peak.frame,
+            input,
+            promotion,
+            counts,
+            timing: {
+              receipt,
+              delivery,
+              dispatchStart: dispatch?.begin,
+              dispatchEnd: dispatch?.end,
+              layoutStart: peak.begin,
+              submitStart: submit?.begin,
+              submitEnd: submit?.end,
+              fence,
+            },
+            stages: Object.fromEntries(
+              stages
+                .filter((sample) =>
+                  [
+                    'build',
+                    'layout',
+                    'paint',
+                    'compose',
+                    ...semanticsStages,
+                    'input-geometry',
+                    'capture',
+                    'capture-transfer',
+                    'pending',
+                    'admission',
+                    'submit',
+                    'input-queue',
+                    'input-dispatch',
+                  ].includes(sample.stage),
+                )
+                .map((sample) => [sample.stage, round(sample.duration)]),
+            ),
+            work: Object.fromEntries(
+              Object.entries(work).map(([kind, times]) => [kind, times.map(round)]),
+            ),
+          }),
+      );
+      const semanticsPeak = samples.reduce(
+        (result, sample) =>
+          sample.stage === 'semantics' && (!result || sample.duration > result.duration)
+            ? sample
+            : result,
+        undefined,
+      );
+      const peakFrame = frames.get(semanticsPeak?.frame);
+      if (peakFrame) {
+        host.log(
+          'FAST_SLIVER_PROFILE ' +
+            JSON.stringify({
+              kind: 'accessibility',
+              name,
+              frame: peakFrame.sequence,
+              stages: Object.fromEntries(
+                samples
+                  .filter(
+                    (sample) =>
+                      sample.frame === peakFrame.sequence && semanticsStages.includes(sample.stage),
+                  )
+                  .map((sample) => [sample.stage, round(sample.duration)]),
+              ),
+              firstAttach: peakFrame.counts.firstAttach ?? 0,
+              reattached: peakFrame.counts.reattached ?? 0,
+              detached: peakFrame.counts.detached ?? 0,
+              attachMs: round(peakFrame.work.semanticsAttach?.[2] ?? 0),
+              detachMs: round(peakFrame.work.semanticsDetach?.[2] ?? 0),
+              handoff: { ...semanticsHandoff, maxMs: round(semanticsHandoff.maxMs) },
+            }),
+        );
+      }
+      semanticsHandoff = { updates: 0, resets: 0, upserts: 0, removed: 0, maxMs: 0 };
+      lifetime(name);
+      frames.clear();
+    },
+    dispose() {
+      frames.clear();
+      for (const undo of restore.reverse()) undo();
+      lifetime('closed');
+    },
+  };
+}
 
 export function installFrameworkWorkProfile(root, host, active) {
   const owner = root.buildOwner,

@@ -1,6 +1,6 @@
 # Nelyx 공통 프레임워크 FPS·버벅임 개선 계획
 
-작성일 2026-11-18 · 검토 기준 `3c2b4335` · 상태 **계획 작성 완료 / 구현 대기 / performanceAccepted=false**
+작성일 2026-11-18 · 기준선 `3c2b4335` · 상태 **W6-1~4 구현 및 검증 완료 / 부분 개선 / performanceAccepted=false**
 
 ## 1. 목표와 우선순위
 
@@ -98,15 +98,115 @@ pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -Scenario gallery -Ru
 pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -App testbed -Scenario list -Runs 1
 pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -App testbed -Scenario testbed -Runs 1
 npm.cmd run run:windows --workspace @nelyx/demo -- -- 10000
+npm.cmd run build:web --workspace @nelyx/demo
+node Nelyx/eng/check-source-web.mjs
 ```
 
 검증마다 20분 timeout을 적용하고 앱 실행은 정상 종료까지 확인한다. Windows 전체 실행은 진단 최대 3회, 달력 기본 비교 6회와 조건부 준비 비교 6회, Gallery/목록 전후 4회, Testbed 혼합 1회, 최종 일반 1회 및 원인 수정·무효 표본 보완 4회로 최대 25회를 계획한다. 임시 경로는 실행에 필요한 소유 범위에서 만들고 `finally`에서 정리한다. 현재 dist를 유지하고 이 문서에 비교 범위·결과·잔여 항목을 남긴다. [저장소 검증 규칙](.github/copilot-instructions.md)
 
 ## 5. 완료 체크리스트
 
-- [ ] W6-1에서 제거한 반복과 자식 순서·수명 회귀 결과를 기록했다.
-- [ ] W6-2에서 배치 재사용의 자격과 resize·입력 geometry·접근성 전환을 확인했다.
-- [ ] W6-3에서 긴 frame에 남은 실제 작업을 짚었고, 선택한 수정의 동기 비용·선택 CPU·회수 비용을 확인했다.
-- [ ] 현재 공급에서 FPS·정체·입력 지연·기능·자원 수락 조건을 판정했고, 일반 CLI 실행과 정상 종료를 확인했다.
+- [x] W6-1에서 제거한 반복과 자식 순서·수명 회귀 결과를 기록했다.
+- [x] W6-2에서 배치 재사용의 자격과 resize·입력 geometry·접근성 전환을 확인했다.
+- [x] W6-3에서 긴 frame에 남은 실제 작업을 짚었고, 선택한 수정의 동기 비용·선택 CPU·회수 비용을 확인했다.
+- [x] 현재 공급에서 FPS·정체·입력 지연·기능·자원 수락 조건을 판정했고, 일반 CLI 실행과 정상 종료를 확인했다.
 
-이번 문서의 근거는 현재 Source와 이전 실행 기록이다. 위 구현과 새 제품 성능 측정은 **대기** 상태다.
+## 6. 구현과 Source 확인
+
+- **W6-1** 필수 슬롯은 실제 활성 체인의 revision과 앞뒤 인덱스가 맞을 때 레이아웃이 전달한 선행 자식을 사용한다. 범위를 벗어나거나 render 순서가 바뀌면 기존 검색을 사용한다. Element 투영은 store revision과 자식 분리 revision을 함께 확인하고 끝 삽입·회수를 반영한다. 키 재배치, GlobalKey retake, prototype 자식과 일반 투영 경로를 유지한다. [Element](Nelyx/src/framework/widgets/sliver.ts) · [render adaptor](Nelyx/src/framework/rendering/sliver-multi-box-adaptor.ts)
+- **W6-2** 고정 extent와 FillViewport에서 크기·방향·활성 슬롯·자식의 현재 배치가 모두 같은 범위에 한해 기존 layout 결과를 쓴다. Grid는 매번 delegate의 layout 결과를 받아 규칙 타일의 수치와 방향을 확인한다. dirty 자식, 대기 layout callback, 사용자 정의 box layout 및 타일 geometry, 비연속 범위에서는 일반 경로가 실행된다. 현재 offset으로 paint/cache extent와 가시성을 계산한다. [고정 extent](Nelyx/src/framework/rendering/sliver-fixed-extent-list.ts) · [Grid](Nelyx/src/framework/rendering/sliver-grid.ts)
+- **W6-3** 단일 슬롯은 같은 Element 조정 로직을 직접 호출해 입력·출력 배열의 생성을 줄인다. 사용자 정의 조정은 기존 배열 호출을 유지한다. 규칙 Grid가 처음 배치할 때 각 타일의 폭·높이가 같으면 불변 박스 제약을 공유한다. `split`은 방향·축·delegate·대상 슬롯의 자격을 확인하고 무효가 된 준비를 취소한다. 취소 시 준비 root를 먼저 회수하고 남아 있는 Element를 정리한다. [Element 조정·회수](Nelyx/src/framework/widgets/framework.ts) · [준비 자격](Nelyx/src/framework/widgets/sliver.ts)
+
+연속 슬롯 fixture는 최초 delegate 예외 뒤 앞선 자식의 보존과 다음 layout의 복구, 콜백이 관측한 순서, 양쪽 경계의 회수, 키 이동, GlobalKey retake, keep-alive 복귀와 underflow를 확인했다. 연속 삽입의 선행 검색 방문 수는 0이었고, 이미 배치된 범위에서 고정 extent와 규칙 Grid의 적용 제약 검증은 0회였다. 4개 타일의 첫 layout은 불변 제약 객체 1개를 사용했고, 사용자 정의 타일 layout은 각각의 제약을 받았다. Grid delegate의 실제 layout과 scroll extent estimate 호출을 모두 확인했다. [Source 회귀](Nelyx/eng/check-child-reconciliation.mjs)
+
+### W6-3 긴 프레임 진단
+
+W6-1·2 공급의 Windows direct Hermes 진단에서 frame token으로 자식 생성·갱신·회수, 실제 layout, 입력, surface fence를 연결했다. 보통·빠른 정방향·빠른 역방향 중 필수 자식 생산이 겹친 역방향 frame이 가장 길었다. 아래 수치는 서로 다른 단일 진단이며, 포함 시간은 합산하지 않는다.
+
+| 진단의 역방향 최대 layout frame | layout / 필수 자식 확보 (ms) | 슬롯 생산·갱신·회수 | 실제 Box layout 호출 | 주요 하위 구간 |
+| --- | ---: | ---: | ---: | --- |
+| `legacy`, frame 183 | 191.441 / 139.926 | 81 / 2 / 2 | 646 | box 자체 18.449ms, Grid 제약 83회 0.196ms, 텍스트 서비스 74회 모두 캐시 hit, finalize 18.724ms |
+| `split`, frame 179 | 217.502 / 147.869 | 81 / 2 / 2 | 646 | dirty rebuild 2,136회 136.760ms, deactivate 14.985ms, finalize 28.209ms |
+
+진단은 viewport의 평상시 양쪽 layout 시도도 기록했다. 두 최대 frame에서 scroll offset correction은 0회였다. 역방향 `legacy` 최대 layout frame에 연결된 입력은 native 도착부터 JS 전달까지 7.516ms, 전달 이후 layout 시작까지 0.281ms, 도착부터 해당 surface fence까지 281.704ms가 걸렸다. 이 원인 분해를 근거로 필수 슬롯 생산과 준비 회수를 줄였다. 해당 frame의 모든 텍스트 요청은 캐시에 적중했다.
+
+`split`의 W6-1·2 진단은 준비 시작 7회·게시 3회·취소 4회, 선택 작업 342 slice·537.527ms를 기록했다. 필수 cold 16회 중 준비 cursor를 3회 채택했고, 그중 동기 완결 1회에 31.660ms가 들었다. 최대 slice는 4.630ms다. 준비 후 닫기에서 활성 세대·남은 Element·resource producer는 0이었다. [frame별 계측](Nelyx/eng/windows-jank-framework-profile.ts)
+
+최종 `split` 진단에서 131·135·136번 슬롯의 준비 세대를 각각 채택했다. 132번 슬롯의 후속 세대 4개는 방향 전환 이후의 기능 검사와 종료에서 모두 회수했다. 역방향 최대 layout은 frame 182의 202.632ms였다. 슬롯 생산·갱신·회수는 77·2·2개였고, dirty rebuild 2,108회의 배타 시간은 114.932ms, deactivate 두 번은 47.230ms였다. 이후 `finalizeTree`에 25.137ms, paint에 11.857ms, semantics에 26.995ms가 들었다. Box layout 638회 중 날짜 Grid의 타일 제약 생성은 2회였고, 텍스트 요청 74회는 캐시에 적중했다. 선택한 입력은 native 도착부터 JS 전달까지 11.666ms, 도착부터 해당 surface fence까지 317.290ms였다. 진단 계측 비용이 포함되므로 실행 간 프레임 소요 시간의 비교는 §7의 일반 표본을 사용한다.
+
+## 7. Windows 성능 비교
+
+동일 direct Hermes bytecode, 엔진 revision `b464dba92ad87bcfb77fae381a49a2394d9836d9`, 물리 client 2560×1459, DPI 192, refresh 165Hz에서 60Hz 가상 touch를 주입했다. 계측 profile을 끈 실행에 기존 surface fence와 합성 desktop marker 관측을 적용했다. 기준선 `legacy` 1회에서 입력을 모두 수락했지만 첫 정방향이 +3개월에 정착했다. 계획의 +4개월을 충족한 보완 표본을 사용했다. 표의 FPS와 간격·지연은 각 3회에서 중앙값을 산출했다. ≥100ms 진행 정체에는 실제 활성 구간 내 frame별 위치 변화가 사용된다.
+
+### 기본 `legacy`
+
+| 활성 구간 | 엔진 FPS | desktop FPS 하한 | 엔진 >50ms 간격 횟수 / 총 ms | 엔진 ≥100ms 진행 정체 범위 | desktop ≥100ms 진행 정체 범위 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 정방향 100ms | 30.32 → 33.89 | 30.16 → 30.98 | 8 / 977.0 → 9 / 965.3 | 7 → 7 | 6–7 → 6–7 |
+| 정방향 50ms | 27.25 → 29.37 | 23.89 → 25.53 | 7 / 859.1 → 6 / 763.9 | 5 → 4–5 | 5 → 4–5 |
+| 역방향 50ms | 20.45 → 17.63 | 19.80 → 14.81 | 8 / 1,232.8 → 9 / 1,237.3 | 5–7 → 6–9 | 5–7 → 6–7 |
+
+| 활성 구간 | 엔진 간격 p95 / p99 / 최장 (ms) | desktop 간격 p95 / p99 / 최장 (ms) | 입력→surface p95 / p99 / 최장 (ms) |
+| --- | ---: | ---: | ---: |
+| 정방향 100ms | 121.7 / 201.8 / 201.8 → 118.4 / 126.2 / 126.2 | 121.2 / 205.7 / 205.7 → 115.8 / 126.6 / 126.6 | 330.2 / 347.2 / 347.2 → 244.0 / 255.0 / 255.0 |
+| 정방향 50ms | 160.1 / 202.4 / 202.4 → 166.4 / 211.0 / 211.0 | 158.5 / 208.3 / 208.3 → 163.0 / 200.3 / 200.3 | 441.0 / 441.0 / 441.0 → 377.8 / 377.8 / 377.8 |
+| 역방향 50ms | 233.0 / 265.6 / 265.6 → 186.1 / 200.4 / 200.4 | 231.0 / 279.3 / 279.3 → 191.2 / 200.9 / 200.9 | 496.2 / 512.2 / 512.2 → 414.2 / 418.1 / 418.1 |
+
+두 정방향은 FPS 중앙값이 상승했다. 세 구간의 입력→surface p95가 줄었고 역방향 최장 간격도 짧아졌다. 역방향의 FPS·50ms 초과 간격 빈도·100ms 이상 정체 수에서는 개선이 이어지지 않았다. 후보 3회가 모두 touch 48/30/60개와 gesture 6/6/12회, 월 이동 +4/+3/−6에 도달했고 모든 native 입력을 수락했다. 세 후보의 세 구간에 각각 100ms 이상 엔진 간격과 진행 정체가 있어 **부분 개선 / performanceAccepted=false**로 판정했다.
+
+기준선·후보 Core의 package build inputs는 각각 `72313883ff7b545aab108769fc3e3ce90893d2650d90b901796a91f7c82b2195`, `806db23a83cae125215311d8652224fb680c97fb9c8f683afd678b62708663fd`다. Demo Windows·Web과 Testbed Windows의 Core는 현재 Source와 dist source-map 입력 646개 및 설치 파일 해시를 대조했다. `legacy` 비교의 Hermes bundle SHA-256은 `2867c74b50fc818aac8a0e6c94cebe1b5181ca8fed17c913cbbe5222c261a7ed` → `3c2d05967b02ca41e088a2b099032816334667170f05f2c2096805b0e79aaf5b`다. probe 진입점·host·renderer·VM toolchain의 해시는 변경 전후에 일치했다.
+
+### 선택 준비 `split`
+
+| 활성 구간 | 엔진 FPS | desktop FPS 하한 | 엔진 >50ms 간격 횟수 / 총 ms | 엔진 ≥100ms 진행 정체 범위 | desktop ≥100ms 진행 정체 범위 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 정방향 100ms | 33.73 → 33.58 | 33.01 → 30.24 | 9 / 984.3 → 9 / 974.5 | 6–7 → 6–7 | 6–7 → 6–7 |
+| 정방향 50ms | 32.55 → 29.30 | 32.37 → 25.97 | 6 / 692.5 → 8 / 772.9 | 4–5 → 4–5 | 4–5 → 5–6 |
+| 역방향 50ms | 19.75 → 20.49 | 19.07 → 18.49 | 8 / 1,270.0 → 10 / 1,238.9 | 5–7 → 6–9 | 5–7 → 7–9 |
+
+| 활성 구간 | 엔진 간격 p95 / p99 / 최장 (ms) | desktop 간격 p95 / p99 / 최장 (ms) | 입력→surface p95 / p99 / 최장 (ms) |
+| --- | ---: | ---: | ---: |
+| 정방향 100ms | 129.4 / 145.4 / 145.4 → 128.9 / 169.5 / 169.5 | 129.0 / 145.4 / 145.4 → 133.5 / 167.7 / 167.7 | 254.8 / 260.6 / 260.6 → 294.6 / 310.6 / 310.6 |
+| 정방향 50ms | 135.6 / 201.7 / 201.7 → 124.7 / 157.7 / 157.7 | 132.8 / 206.3 / 206.3 → 123.4 / 151.8 / 151.8 | 350.3 / 350.3 / 350.3 → 368.5 / 368.5 / 368.5 |
+| 역방향 50ms | 211.6 / 279.9 / 279.9 → 170.4 / 233.5 / 233.5 | 212.5 / 290.4 / 290.4 → 170.2 / 229.5 / 229.5 | 511.7 / 515.6 / 515.6 → 492.7 / 508.7 / 508.7 |
+
+전후 3회 모두 touch와 월 이동을 충족했다. 각 실행에서 준비 4세대 중 3세대를 채택했다. 선택 준비 CPU 중앙값은 477.215 → 426.654ms, slice 수 중앙값은 324 → 262회, 필수 동기 완결 중앙값은 11.715 → 9.227ms였다. 후보의 최대 선택 slice는 6.050ms였다. 정방향 표시 FPS 저하와 역방향 정체 증가가 관찰되어 **performanceAccepted=false**다. `split` 비교 bundle SHA-256은 `c4c432a52143873b29a7a305ebca5a020be265a59c6abfb708cd2e7261123eeb` → `9e8b21686998f61f9d9267dd18effa02d1abe043371ec7414151bd15bde93c70`다.
+
+후보의 100ms 이상 프레임 간격은 보통 정방향·빠른 정방향·빠른 역방향 순으로, `legacy` 엔진 7·3–5·6–9회와 desktop 6–7·4–5·6–7회였다. `split` 엔진은 5–6·3–4·5–8회, desktop은 5–6·4–5·6–8회였다.
+
+### 공통 화면
+
+| Windows 전후 1회씩, cold / return / warm | 엔진 FPS | desktop FPS 하한 | 엔진·desktop ≥100ms 간격 / 진행 정체 |
+| --- | --- | --- | --- |
+| Demo Gallery | 74.58 / 76.83 / 76.26 → 73.24 / 76.01 / 75.61 | 72.20 / 60.15 / 57.25 → 72.70 / 60.70 / 58.79 | 전 구간 0 / 0 |
+| Testbed 가변 목록 | 75.96 / 78.32 / 76.81 → 76.36 / 80.00 / 74.43 | 73.46 / 59.08 / 58.45 → 71.26 / 60.91 / 57.95 | 전 구간 0 / 0 |
+
+Gallery의 한글·이모지 입력과 resize, 가변 목록에서 UIA의 cold/return/warm 항목 복원을 확인했다. Gallery return 입력→surface p95는 28.511 → 46.529ms, 가변 목록 cold는 29.565 → 36.827ms였다. 각 화면 1회 비교의 지연 변동도 결과에 포함했다.
+
+## 8. 기능·수명 검증
+
+- **Source** Core 빌드·타입 검사, 자식 조정, Source framework, frame publication과 subtree preparation, semantics geometry 20개, retained paint, 진단 호환성, 변경 파일 lint·format을 확인했다. RTL과 scale 전환, pinned header의 가림 영역을 반영한 `ensureVisible`, 사용자 정의 extent와 대기 layout callback도 확인했다.
+- **Windows** 달력 Tab 포커스의 UIA 게시, 현재 월을 유지한 resize, 날짜 확정 및 UIA 상태 문구, 재열기와 Cancel을 W6-1·2의 `split` 진단에서 통과했다. W6-1·2 `legacy` 진단은 세 구간을 측정한 뒤 진단 코드가 닫힌 달력 State를 읽어서 종료 검증에 실패했다. 진단의 달력 관측을 활성 구간에 한정했고 이후 기능 검사에서 정상 종료했다.
+- **최종 `split` 달력과 종료** 위 기능을 다시 통과했다. 닫은 뒤 active Element, detached root, 준비 Element·활성 세대·wake와 resource producer는 모두 0이었고 scheduler는 dispose 상태였다. 공유 저장소에는 native drain 직전 resident 자원 64개가 관측됐다. native host는 GPU drain과 VM callback 정리를 마친 뒤 종료 코드 0을 기록했다. [Windows 진단](Nelyx/eng/windows-jank-framework-profile.ts) · [native 종료](Nelyx/sdk/native/windows-hermes/main.cpp#L277)
+- **Windows 날짜 옵션** 현재 공급의 `showDatePicker`에 `ko-KR`, 2024-02-10~03-20, 초기값 02-15, 12일을 제외하는 predicate를 넣어 검사했다. dialog의 locale override가 적용됐다. 양 끝 월의 이동 버튼과 범위 밖 날짜가 비활성으로 게시됐고, 비활성 날짜를 누른 뒤 확정 결과는 02-15였다. 재열어 다음 월에서 돌아온 뒤 윤일 02-29를 확정했다. UIA 검색은 이름과 tooltip HelpText를 사용했다. native 입력 40개를 모두 수락하고 exit 0으로 종료했다.
+- **Windows Testbed 혼합** 현재 공급에서 스크롤과 입력, 가변 목록 진입·복원, 한글·이모지 입력과 정상 종료를 확인했다. native 입력은 118개 수신·전달·수락, reject 0개였고 wheel 이동 합계 288을 전달했다.
+- **일반 CLI와 Windows 가상 입력** `npm.cmd run run:windows --workspace @nelyx/demo -- -- 10000`이 기본 `src/index.ts`를 direct Hermes bytecode로 실행했다. 첫 surface frame을 게시하고 강제 종료 없이 exit 0을 기록했다. 실행 bundle SHA-256은 `bcd9a44c16e2d8f3a74fedb62a720b260f94717b4ac9f6b246ce453956263a80`이다. Windows 입력 검사 6개가 통과했고, 달력 cadence 세 구간 모두 60Hz 부근에서 계획한 touch 수를 확인했다. [가상 입력 검사](Nelyx/eng/check-windows-input.mjs)
+- **Web** 현재 정적 Metro·Ganesh WebGL2 빌드에서 Playwright와 SwiftShader로 첫 frame, Gallery wheel 왕복, 테마와 viewport 변경 후 한글·이모지 입력 보존, 달력 한 달 전후 이동과 닫기를 통과했다. `application.js` SHA-256은 `7188cfed4006490ef14d7ce31c2911a86f91e5ad5a015f40826a955ff205c0eb`다. Web 검증 범위는 해당 기능이다. [Web 검사](Nelyx/eng/check-source-web.mjs)
+
+## 9. 역방향에서 월과 접근성 노드의 수명
+
+달력의 PageView는 `allowImplicitScrolling` 기본값인 `false`를 사용한다. viewport의 기본 cache extent가 0이므로, 월이 활성 범위를 벗어나고 keep-alive 조건에도 들지 않으면 Sliver가 해당 슬롯을 회수한다. 이후 같은 인덱스를 요청하면 새 Element와 그 달의 Grid·날짜 자식을 만들어 연결한다. Source에서 일반 슬롯 왕복의 unmount와 재생성을 확인했다. 이전 `work2.md`의 실제 달력 9개 인덱스에서도 같은 인덱스의 root identity가 바뀌었고, 중첩 Scrollable·Scrollbar의 일반 GlobalKey로 인해 대상 월은 당시 dormant cache의 자격에 들지 않았다. 전환 프레임 안의 deactivate와 finalize는 위젯·렌더 객체 수명 작업을 측정한다. [PageView](Nelyx/src/framework/widgets/page-view.ts#L398) · [회수 경로](Nelyx/src/framework/rendering/sliver-multi-box-adaptor.ts#L439) · [기존 자격 조사](work2.md)
+
+각 날짜는 `Semantics` 위젯에서 label·enabled·selected 상태를 게시한다. render semantics가 현재 가시 트리를 구성할 때 새 노드를 만들거나 기존 노드를 연결하고, 화면에서 빠진 노드는 해제한다. Core 게시 후 Windows bridge는 delta를 해석해 UI thread에 전달한다. UIA 트리는 동일 ID의 provider를 재사용할 수 있다. JS 노드 해제, bridge 전달과 네이티브 COM 객체 수명에는 각각 별도의 경계가 있다. [날짜 접근성 위젯](packages/material/src/generated/date/calendar_date_picker.generated.ts#L2219) · [노드 조립](Nelyx/src/framework/rendering/semantics-pipeline.ts#L601) · [Windows 게시](Nelyx/sdk/native/windows-hermes/main.cpp#L226) · [UIA 트리](Nelyx/engine/platform/windows/interop/SemanticsTree.h)
+
+최종 `legacy`에서 `NELYX_JANK_SLIVER_PROFILE=1`과 `NELYX_NATIVE_GC_STATS=1`을 함께 사용해 `-Diagnostic -NoScreen`으로 한 차례 원인을 확인했다. 빠른 역방향에서 재진입한 여섯 월 모두 새 Element였다. 예를 들어 132번 월의 Element 3은 정방향 frame 77에서 unmount됐고, 역방향 frame 176에서 Element 13으로 생성됐다. 133번 월의 Element 4도 frame 114에서 unmount된 뒤 frame 176에서 Element 14로 생성됐다. 이 프레임에서 다른 두 월도 회수됐다. layout 199.679ms 중 dirty rebuild의 배타 시간은 142.840ms였고 deactivate 두 번에 8.345ms, layout 뒤 finalize에 22.777ms가 들었다. [월 identity와 frame 계측](Nelyx/eng/windows-jank-framework-profile.ts)
+
+같은 frame 176은 역방향 semantics 최대 frame이었다. 전체 21.214ms 중 `flush`에 18.247ms, snapshot에 2.532ms가 들었다. JS 노드 63개가 처음 연결됐고 65개가 분리됐다. 연결·분리 메서드의 배타 시간 합계는 0.319ms였다. 앞선 layout의 `Semantics` backing render 객체 생성 177회는 2.178ms였고, finalize 안의 `clearSemantics` 호출은 0.936ms였다. 역방향 구간의 native bridge 전달 13회에는 upsert 642개·삭제 193개가 있었으며, 가장 긴 전달은 0.288ms였다. `flush` 시간에는 트리와 geometry 재구성이 포함된다. bridge 전달 시각은 UI thread의 COM provider 생성·해제 및 UIA 이벤트 처리 시간을 포함하지 않는다.
+
+Hermes 통계상 보통 정방향·빠른 정방향·빠른 역방향의 전체 VM 할당 증가량은 119.92·98.21·131.12MB였다. GC 기록은 32·26·35회, GC wall time 증가량은 103.10·81.17·138.79ms였다. 역방향 끝까지의 누적 최대 단일 pause는 13.182ms였다. 구간 집계에는 진단 비용이 들어가고 통계는 GC 전 mutex 대기와 개별 frame의 GC 겹침을 제공하지 않는다. 이 진단에서 긴 역방향 frame의 가장 큰 관측 구역은 되돌아간 월의 필수 layout 안에서 실행된 rebuild였다. 종료까지 native 입력 174개를 모두 수락했고 종료 코드는 0이었다. [Hermes 통계 수집](Nelyx/eng/windows-jank-heap-profile.ts)
+
+## 10. 종료 판정과 검증 범위
+
+Source와 Windows UIA·달력 옵션·일반 CLI·Testbed·Web을 확인했고, 현재 공급의 입력 지연과 성능·수명 결과를 위에 기록했다. 달력의 30fps와 진행 정체 0회 조건은 미달했다. 특히 `legacy` 빠른 역방향의 엔진 FPS 중앙값은 20.45 → 17.63으로 하락했다. 이번 성능 측정은 Windows 가상 touch, native surface fence, desktop marker 샘플링에 한정된다. 물리 trackpad, 화면 scanout, 네이티브 COM provider 해제 시간과 장시간 힙 증가는 관측 범위에 포함되지 않았다.
+
+Windows 앱은 총 27회 실행했다. 날짜 옵션 검사에서 선택을 UIA 이름으로 확인하던 방식을 실제 확정값으로 교체했고, PowerShell 검사 코드와 활성 월 이동 버튼의 tooltip 조회를 보완했다. 이 기능 검사의 재실행으로 계획보다 2회 늘었다. 성능 판정에는 계획대로 모드별 전후 3회씩의 유효 표본을 사용했다. 검증용 진입점·패키지·브라우저 임시 디렉터리를 정리했고, 최초 날짜 검사에서 생긴 중복 Hermes toolchain은 휴지통으로 보냈다. 일반 CLI와 Web의 현재 빌드 출력 및 공급 해시를 확인했다.

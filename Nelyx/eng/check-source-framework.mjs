@@ -92,9 +92,13 @@ import {PageController,PageView,PageMetrics} from './Nelyx/src/framework/widgets
 import {Axis} from './Nelyx/src/framework/painting/basic-types.ts';
 import {RenderSliverFillViewport} from './Nelyx/src/framework/rendering/sliver-fill.ts';
 import {LayoutBuilder} from './Nelyx/src/framework/widgets/layout-builder.ts';
-import {ListView,GridView} from './Nelyx/src/framework/widgets/scroll-view.ts';
+import {ListView,GridView,CustomScrollView} from './Nelyx/src/framework/widgets/scroll-view.ts';
 import {ScrollController} from './Nelyx/src/framework/widgets/scroll-controller.ts';
 import {RenderSliverList} from './Nelyx/src/framework/rendering/sliver-list.ts';
+import {RenderSliverFixedExtentList,RenderSliverVariedExtentList} from './Nelyx/src/framework/rendering/sliver-fixed-extent-list.ts';
+import {SliverFixedExtentList} from './Nelyx/src/framework/widgets/sliver.ts';
+import {SliverPersistentHeader,SliverPersistentHeaderDelegate} from './Nelyx/src/framework/widgets/sliver-persistent-header.ts';
+import {RenderSliverPersistentHeader} from './Nelyx/src/framework/rendering/sliver-persistent-header.ts';
 import {RenderSliverGrid,SliverGridDelegate,SliverGridRegularTileLayout} from './Nelyx/src/framework/rendering/sliver-grid.ts';
 import {PaintingContext} from './Nelyx/src/framework/painting/context.ts';
 import {PageStorage,PageStorageBucket,PageStorageKey} from './Nelyx/src/framework/widgets/page-storage.ts';
@@ -144,7 +148,7 @@ function harness(child,direction='ltr'){
   const context={owner,resources,assets:new Map(),text:{layout(){throw Error('Unexpected text service use');}},clock:{now:()=>now},editing:{capabilities:{},dispose(){}},semantics:{capability:'unavailable',bind(){throw Error('Unavailable semantics transport used');},dispose(){}},readMetrics:()=>metrics,readStatus:()=>status,requestFrame(){},reportError:(error)=>errors.push(error)};
   const view=new FrameworkRoot(context,{id:'source-test',createRoot:()=>new Directionality(direction,new Builder(context=>{rootElement=context;return child;}))});
   const frame=()=>{now+=16;const result=view.build({token:{owner,metrics,sequence:++sequence},resources});try{return [...result.commands];}finally{releaseSceneFrameSource(result);}};
-  return {view,frame,errors,update(next){child=next;rootElement.markNeedsBuild();},resize(width,height){metrics={...metrics,logicalWidth:width,logicalHeight:height,physicalWidth:width,physicalHeight:height,viewportGeneration:metrics.viewportGeneration+1};},pointer(kind,pointer=1,x=10,y=10){now+=5;view.pointer({kind,pointer,x,y,device:'touch',buttons:kind==='up'?0:1,timestamp:now,viewportGeneration:metrics.viewportGeneration});},close(){status='closing';view.dispose();resources.dispose();assert.deepEqual(errors,[]);}};
+  return {view,frame,errors,update(next){child=next;rootElement.markNeedsBuild();},resize(width,height,scale=metrics.scale){metrics={...metrics,logicalWidth:width,logicalHeight:height,physicalWidth:width*scale,physicalHeight:height*scale,scale,viewportGeneration:metrics.viewportGeneration+1};},pointer(kind,pointer=1,x=10,y=10){now+=5;view.pointer({kind,pointer,x,y,device:'touch',buttons:kind==='up'?0:1,timestamp:now,viewportGeneration:metrics.viewportGeneration});},close(){status='closing';view.dispose();resources.dispose();assert.deepEqual(errors,[]);}};
 }
 // Arbitrary subclasses execute layout/paint/hit and a custom recognizer enters the Source arena.
 class UserTap extends TapGestureRecognizer {
@@ -195,6 +199,10 @@ for(const fraction of [0.5,1,1.5])for(const [axis,direction,reverse] of [[Axis.h
     view.resize(axis===Axis.horizontal?0:120,axis===Axis.vertical?0:80);view.frame();
     controller.jumpToPage(4);assert.equal(controller.page,4,'Zero-size viewport lost the cached page');
     view.resize(120,80);view.frame();assert.equal(controller.page,4,'Resize did not restore the cached page');
+    if(fraction===1&&direction==='rtl'){
+      view.resize(120,80,1.5);view.frame();
+      assert.equal(controller.page,4,'Scale change with the same logical extent displaced the RTL page');
+    }
     cases.push({fraction,axis:axis===Axis.horizontal?'horizontal':'vertical',direction,reverse,pixels:controller.position.pixels,page:controller.page});
   }finally{view.close();assert(!controller.hasClients,'Source disposal left an attached position');controller.dispose();}
 }
@@ -227,6 +235,27 @@ for(const empty of [false,true]){
 // A variable-height list and an arbitrary grid delegate execute the same Source child manager.
 const slivers=[];
 function findRender(node,type){if(node instanceof type)return node;for(const child of node.children){const found=findRender(child,type);if(found)return found;}return null;}
+{
+  class Header extends SliverPersistentHeaderDelegate {
+    get minExtent(){return 20;}get maxExtent(){return 20;}
+    build(){return new TestWidget();}shouldRebuild(){return false;}
+  }
+  const controller=new ScrollController();
+  const view=harness(new CustomScrollView({controller,cacheExtent:0,slivers:[
+    new SliverPersistentHeader({delegate:new Header(),pinned:true}),
+    SliverFixedExtentList.builder({itemCount:20,itemExtent:20,itemBuilder:()=>new TestWidget()}),
+  ]}));
+  try {
+    view.frame();controller.jumpTo(26);view.frame();controller.jumpTo(29);view.frame();
+    const header=findRender(view.view.pipeline.root,RenderSliverPersistentHeader);
+    const sliver=findRender(view.view.pipeline.root,RenderSliverFixedExtentList);
+    assert.equal(header.geometry.maxScrollObstructionExtent,20);
+    const target=sliver.lastChild,index=sliver.indexOf(target);
+    assert.equal(target.parentData.layoutOffset,index*20);
+    await controller.position.ensureVisible(target);view.frame();
+    assert.equal(controller.offset,index*20,'Reveal used stale fixed extent or ignored the pinned header');
+  } finally {view.close();controller.dispose();}
+}
 function recordSliver(view,controller,type,kind){
   const render=findRender(view.view.pipeline.root,type);assert(render,'Source sliver was replaced');
   const rows=[];for(let child=render.firstChild;child!==null;child=render.childAfter(child))rows.push({index:render.indexOf(child),offset:child.parentData.layoutOffset,height:child.size.height,cross:child.parentData.crossAxisOffset??0});
@@ -236,6 +265,19 @@ const extents=[17,43,29,61,23,37,52,31],listController=new ScrollController();
 const list=harness(ListView.builder({controller:listController,cacheExtent:0,itemCount:extents.length,itemBuilder:(_context,index)=>new SizedBox(undefined,extents[index],new TestWidget())}));
 try{list.frame();listController.jumpTo(60);list.frame();listController.jumpTo(200);list.frame();slivers.push(recordSliver(list,listController,RenderSliverList,'variable-list'));}
 finally{list.close();assert(!listController.hasClients);listController.dispose();}
+{
+  const controller=new ScrollController(), calls=[];
+  const view=harness(ListView.builder({controller,cacheExtent:0,itemCount:extents.length,
+    itemExtentBuilder:(index,dimensions)=>{calls.push(dimensions.scrollOffset);return extents[index]??null;},
+    itemBuilder:()=>new TestWidget()}));
+  try{
+    view.frame();
+    const before=calls.length;
+    controller.jumpTo(1);view.frame();
+    assert(findRender(view.view.pipeline.root,RenderSliverVariedExtentList));
+    assert(calls.length>before&&calls.includes(1),'User extent callback did not receive the current scroll offset');
+  }finally{view.close();controller.dispose();}
+}
 class UserGridDelegate extends SliverGridDelegate{
   calls=0;getLayout(constraints){++this.calls;assert.equal(constraints.crossAxisExtent,120);return new SliverGridRegularTileLayout({crossAxisCount:2,mainAxisStride:40,crossAxisStride:60,childMainAxisExtent:35,childCrossAxisExtent:55,reverseCrossAxis:false});}
   shouldRelayout(){return false;}

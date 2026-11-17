@@ -13,6 +13,7 @@ import type { TransformMatrix } from '../../ui/geometry.ts';
 import type { Rect, SemanticsNode } from '../../ui/types.ts';
 import type { Matrix4 } from '../../math/matrix4.ts';
 import type { PaintingContext } from '../painting/context.ts';
+import type { BoxConstraints } from './constraints.ts';
 
 export interface EstimateMaxScrollOffsetOptions {
   readonly firstIndex?: number | null;
@@ -137,6 +138,7 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
   }
   protected readonly childManager: RenderSliverBoxChildManager;
   private readonly activeChildren: RenderBox[] = [];
+  private activeChildRevision = 0;
   private readonly _keepAliveBucket = new Map<number, RenderBox>();
   private readonly danglingKeepAlives = new Set<RenderBox>();
   private _debugChildIntegrityEnabled = true;
@@ -155,6 +157,50 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
   }
   get childCount(): number {
     return this.activeChildren.length;
+  }
+  /** @internal Changes whenever the active chain or its slot indices change. */
+  get _activeChildRevision(): number {
+    return this.activeChildRevision;
+  }
+  protected sameChildLayoutEnvironment(
+    previous: SliverConstraints,
+    current: SliverConstraints,
+  ): boolean {
+    return (
+      previous.axisDirection === current.axisDirection &&
+      previous.growthDirection === current.growthDirection &&
+      previous.crossAxisDirection === current.crossAxisDirection &&
+      previous.viewportMainAxisExtent === current.viewportMainAxisExtent &&
+      previous.crossAxisExtent === current.crossAxisExtent
+    );
+  }
+  protected canReuseChildRange(
+    firstIndex: number,
+    lastIndex: number | null,
+    revision: number,
+    box: BoxConstraints,
+    matchesPlacement: (data: SliverMultiBoxAdaptorParentData, index: number) => boolean,
+  ): boolean {
+    // An open end or a previous underflow may call the delegate again.
+    if (
+      revision !== this.activeChildRevision ||
+      lastIndex === null ||
+      this.activeChildren.length !== lastIndex - firstIndex + 1
+    )
+      return false;
+    let index = firstIndex;
+    for (const child of this.activeChildren) {
+      const data = this.data(child);
+      if (
+        child.parent !== this ||
+        data.index !== index ||
+        !child._canReuseSliverLayout(box) ||
+        !matchesPlacement(data, index)
+      )
+        return false;
+      ++index;
+    }
+    return true;
   }
   get debugChildIntegrityEnabled(): boolean {
     return this._debugChildIntegrityEnabled;
@@ -233,30 +279,34 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
     return true;
   }
   override insert(child: RenderObject, after?: RenderObject): void {
-    if (
-      !(
-        child instanceof RenderBox &&
-        (!after || (after instanceof RenderBox && this.activeChildren.includes(after)))
-      )
-    )
+    // Resolve the streaming tail with no active array search.
+    const position = !after
+      ? 0
+      : after === this.lastChild
+        ? this.activeChildren.length
+        : after instanceof RenderBox
+          ? this.activeChildren.indexOf(after) + 1
+          : 0;
+    if (!(child instanceof RenderBox && (!after || position > 0)))
       invariant(
         false,
         'invalid-sliver-insertion',
         'Insert requires a box and an active preceding child',
       );
-    if ([...this._keepAliveBucket.values()].includes(child))
+    if (child.parent === this && this.data(child).keptAlive)
       invariant(
         false,
         'cached-sliver-insertion',
         'Cached child must be obtained through its keep-alive bucket',
       );
+    const alreadyParented = Boolean(child.parent);
     try {
       super.insert(child, after);
     } finally {
-      if (child.parent === this && !this.activeChildren.includes(child)) {
-        const index = after ? this.activeChildren.indexOf(after as RenderBox) + 1 : 0;
-        this.activeChildren.splice(index, 0, child);
-        this.syncSiblingsAt(index);
+      if (!alreadyParented && child.parent === this) {
+        this.activeChildren.splice(position, 0, child);
+        this.syncSiblingsAt(position);
+        this.activeChildRevision++;
       }
     }
     this._debugVerifyChildOrder();
@@ -268,6 +318,7 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
     if (!data.keptAlive) {
       if (!(!after || (after instanceof RenderBox && this.activeChildren.includes(after))))
         invariant(false, 'invalid-sliver-insertion', 'Move requires an active preceding child');
+      this.activeChildRevision++;
       super.move(child, after);
       const previousIndex = this.activeChildren.indexOf(child);
       this.activeChildren.splice(previousIndex, 1);
@@ -308,6 +359,7 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
         if (active >= 0) {
           this.activeChildren.splice(active, 1);
           this.syncSiblingsAt(active);
+          this.activeChildRevision++;
         }
         if (index !== null && this._keepAliveBucket.get(index) === child)
           this._keepAliveBucket.delete(index);
@@ -360,6 +412,7 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
         const position = after ? this.activeChildren.indexOf(after) + 1 : 0;
         this.activeChildren.splice(position, 0, child);
         this.syncSiblingsAt(position);
+        this.activeChildRevision++;
         this.childManager.didObtainChild?.(child);
       } else {
         // Required admission may reclaim optional bucket entries, never an
@@ -394,6 +447,7 @@ export abstract class RenderSliverMultiBoxAdaptor extends RenderSliverWithKeepAl
       const position = this.activeChildren.indexOf(child);
       this.activeChildren.splice(position, 1);
       this.syncSiblingsAt(position);
+      this.activeChildRevision++;
       data.previousSibling = null;
       data.nextSibling = null;
       data._keptAlive = true;

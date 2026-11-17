@@ -1,7 +1,7 @@
 param(
   [Parameter(Mandatory)][string]$Package,
   [ValidateSet('NelyxHermesHost.exe','NelyxJscHost.exe')][string]$HostExecutable = 'NelyxHermesHost.exe',
-  [Parameter(Mandatory)][ValidateSet('Setup','SetupGallery','SetupTestbed','SetupList','SnapshotList','Capture','Wheel','Editor','Swipe','Snapshot','Close')][string]$Action,
+  [Parameter(Mandatory)][ValidateSet('Setup','SetupGallery','SetupTestbed','SetupList','SnapshotList','Capture','Wheel','Editor','Swipe','Snapshot','CalendarLifecycle','Close')][string]$Action,
   [int]$Count = 0, [int]$MoveMs = 6, [int]$GapMs = 16, [int]$Direction = 1,
   [ValidateRange(1,240)][double]$InputHz = 60,
   [string]$ExpectedMonth = '', [string]$CapturePath = '', [int]$Delta = -120
@@ -27,7 +27,7 @@ function Get-Buttons {
     try {
       $current=$node.Current; $rect=$current.BoundingRectangle
       if ($null -ne $current.ControlType -and !$current.IsOffscreen -and $rect.Width -gt 0 -and $rect.Height -gt 0) {
-        [pscustomobject]@{ Name=$current.Name; Id=$current.AutomationId; X=$rect.X; Y=$rect.Y; Width=$rect.Width; Height=$rect.Height }
+        [pscustomobject]@{ Name=$current.Name; Id=$current.AutomationId; X=$rect.X; Y=$rect.Y; Width=$rect.Width; Height=$rect.Height; Focused=$current.HasKeyboardFocus; Enabled=$current.IsEnabled }
       }
     } catch [System.Windows.Automation.ElementNotAvailableException] { }
   }
@@ -179,6 +179,39 @@ try {
     [void][FastCalendarInput]::ShowWindow($window,3);Start-Sleep -Milliseconds 500
     Click-Button 'Show all' ''
     Write-Output 'GALLERY_UI_EDITOR_PASS';return
+  }
+  if ($Action -eq 'CalendarLifecycle') {
+    Assert-Foreground
+    $original=Get-Calendar -WaitForDialog
+    [FastCalendarInput]::Key(9,0,0)
+    [FastCalendarInput]::Key(9,0,2)
+    Start-Sleep -Milliseconds 550
+    $focused=@(Get-Buttons | Where-Object Focused)
+    if ($focused.Count -ne 1) { throw 'Calendar Tab did not publish one focused button' }
+    [void][FastCalendarInput]::ShowWindow($window,9)
+    if (![FastCalendarInput]::SetWindowPos($window,[IntPtr]::Zero,40,40,1200,900,4)) { throw 'Calendar resize rejected' }
+    Start-Sleep -Milliseconds 500
+    $resized=Get-Calendar -WaitForDialog
+    if ($resized.Header -ne $original.Header) { throw 'Calendar month changed on resize' }
+    $day=@(Get-Buttons | Where-Object { $_.Name -match '^15,\s' -and $_.Enabled })
+    if ($day.Count -ne 1) { throw 'Calendar date 15 is unavailable after resize' }
+    Click-Button $day[0].Name ''
+    Click-Button 'OK' ''
+    $monthName=($original.Header -split '\r?\n')[-1]
+    $month=[DateTime]::ParseExact($monthName,'MMMM yyyy',[Globalization.CultureInfo]::InvariantCulture)
+    $selected='Selected date: '+$month.AddDays(14).ToString('yyyy-MM-dd')
+    [void][FastCalendarInput]::ShowWindow($window,3)
+    Start-Sleep -Milliseconds 500
+    $root=[System.Windows.Automation.AutomationElement]::FromHandle($window)
+    $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$selected)
+    if (!$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$condition)) { throw "Calendar did not commit $selected" }
+    Click-Button 'Choose date' ''
+    $reopened=Get-Calendar -WaitForDialog
+    if ($reopened.Header -ne $original.Header) { throw 'Reopened calendar lost the selected month' }
+    Click-Button 'Cancel' ''
+    if (@(Get-Buttons | Where-Object { $_.Name -like 'Select year*' }).Count) { throw 'Calendar did not close after Cancel' }
+    Write-Output ('FAST_UI_CALENDAR_FEATURES '+(@{ Focus=$focused[0].Name; AfterResize=$resized.Header; Selected=$selected; Reopened=$reopened.Header; Closed=$true } | ConvertTo-Json -Compress))
+    return
   }
   $calendar=Get-Calendar
   if ($Action -eq 'Snapshot') {

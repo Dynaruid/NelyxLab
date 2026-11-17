@@ -16,7 +16,7 @@
     "pack": "nelyx pack --app ../.. --target windows"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.17.0-5efb766dee8f48d173d7c87a3056ebfe069cdaba2585ccee370cd21de2c59bf0.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.17.0-58d33716ec9f7bf76def59641c31de51dd7dddbe798cb30e063c6999571ba131.tgz",
     "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.21.0-843b68dc9654b5af9c562aed32906493b8a2582ed76d1f4d97cbe7a837dc5dd3.tgz",
     "@nelyx/skia-rn": "file:../../.nelyx/supply/windows/nelyx-skia-rn-0.6.0-5178f9558b3c980e10e9f70443be5b34ea534794bdce5fab075016b32df65fc3.tgz",
     "react": "19.2.0",
@@ -37,7 +37,7 @@
     "@react-native-windows/find-dotnet-tools": "0.0.0",
     "@types/react": "19.2.2",
     "typescript": "7.0.2",
-    "@nelyx/cli": "file:../../.nelyx/supply/windows/nelyx-cli-0.11.0-ac03ff398f90d4f690437f091961fb72b815f6455f4ee5e6a88da8dfff2d098c.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/windows/nelyx-cli-0.11.0-b685b5f3966f815a59b67cc9254c52093d9b9221891807193c99afa555fbb95d.tgz",
     "@nelyx/static-aot": "file:../../.nelyx/supply/windows/nelyx-static-aot-0.1.0-f4028f3ed44ce471920b6a3530d3720dfdde422d75d8c8dbb7d180cc8d5c850f.tgz",
     "@nelyx/tooling-contracts": "file:../../.nelyx/supply/windows/nelyx-tooling-contracts-0.1.0-772c05ea1814228a9c75ec9e48335d706741ebec5b3f26566bb6da152ad6455d.tgz"
   }

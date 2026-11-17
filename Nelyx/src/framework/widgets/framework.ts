@@ -926,12 +926,17 @@ export class BuildOwner {
       } catch (error) {
         errors.push(error);
       }
-    for (const root of new Set([...preparation.roots, ...preparation.elements]))
+    const retire = (element: Element): void => {
       try {
-        if (root.mounted) root.unmount();
+        if (element.mounted) element.unmount();
       } catch (error) {
         errors.push(error);
       }
+    };
+    for (const root of preparation.roots) retire(root);
+    // Root teardown unregisters its descendants. Only failed or partial
+    // mounts can leave ownership here after the known roots have retired.
+    for (const element of preparation.elements) retire(element);
     preparation.renderChildren.dispose();
     preparation.reservations.clear();
     preparation.retakenParents.clear();
@@ -1364,6 +1369,7 @@ export class BuildOwner {
           }
       }
     for (const child of children) {
+      child.parent?._didDetachChild?.();
       child.parent = undefined;
       this.inactive.add(child);
       try {
@@ -1792,6 +1798,8 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     this.children = this.children.filter((value) => value !== child);
     this.markRenderTreeSyncDirty();
   }
+  /** @internal Invalidate a lazy parent's projection when an owned child detaches. */
+  _didDetachChild?(): void;
   override debugDescribeChildren(): readonly DiagnosticsNode[] {
     const children: DiagnosticsNode[] = [];
     this.visitChildren((child) => children.push(child.toDiagnosticsNode()));
@@ -2107,37 +2115,58 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     return widget;
   }
   protected abstract build(): readonly Widget[];
+  /** The lazy slot already knows the single old and new child. */
+  protected reconcileSingleChild(
+    old: Element | undefined,
+    widget: Widget | undefined,
+  ): Element | undefined {
+    if (this.reconcile !== Element.prototype.reconcile)
+      return this.reconcile(old ? [old] : [], widget ? [widget] : [])[0];
+    return this.reconcileOneChild(old, widget);
+  }
+  private reconcileOneChild(
+    old: Element | undefined,
+    widget: Widget | undefined,
+  ): Element | undefined {
+    let child: Element | undefined;
+    try {
+      if (!widget) {
+        if (old?.parent === this) this.owner.deactivateChild(old);
+        return undefined;
+      }
+      if (widget.key instanceof GlobalKey) this.owner.reserve(widget.key, this);
+      const slot = this.slotForChild(0, undefined);
+      child = old && Widget.canUpdate(old.widget, widget) ? old : undefined;
+      if (!child) {
+        if (old?.parent === this) this.owner.deactivateChild(old);
+        child = this.owner.retake(widget, this, slot);
+      }
+      if (child) {
+        if (!sameSlot(child.slot, slot)) this.updateSlotForChild(child, slot);
+        if (child.widget !== widget) child.update(widget);
+      } else {
+        child = widget.createElement();
+        child.mount(this, this.owner, slot);
+      }
+      return child;
+    } catch (error) {
+      if (child && child !== old && child.parent === this) {
+        try {
+          child.unmount();
+        } catch (failure) {
+          throw new AggregateError([error, failure], 'Reconciliation and new child cleanup failed');
+        }
+      }
+      throw error;
+    }
+  }
   protected reconcile(previous: readonly Element[], widgets: readonly Widget[]): Element[] {
+    if (previous.length <= 1 && widgets.length <= 1) {
+      const child = this.reconcileOneChild(previous[0], widgets[0]);
+      return child ? [child] : [];
+    }
     const next: Element[] = [];
     try {
-      // Components and single-child render objects do not have sibling keys to
-      // index. Keep their normal slot, GlobalKey and failure-cleanup protocol
-      // without allocating the maps/sets needed by a multi-child update.
-      if (previous.length <= 1 && widgets.length <= 1) {
-        const old = previous[0],
-          widget = widgets[0];
-        if (!widget) {
-          if (old?.parent === this) this.owner.deactivateChild(old);
-          return next;
-        }
-        if (widget.key instanceof GlobalKey) this.owner.reserve(widget.key, this);
-        const slot = this.slotForChild(0, undefined);
-        let child = old && Widget.canUpdate(old.widget, widget) ? old : undefined;
-        if (!child) {
-          if (old?.parent === this) this.owner.deactivateChild(old);
-          child = this.owner.retake(widget, this, slot);
-        }
-        if (child) {
-          next.push(child);
-          if (!sameSlot(child.slot, slot)) this.updateSlotForChild(child, slot);
-          if (child.widget !== widget) child.update(widget);
-        } else {
-          child = widget.createElement();
-          next.push(child);
-          child.mount(this, this.owner, slot);
-        }
-        return next;
-      }
       // Most multi-child groups have positional children. Allocate key indexes
       // only when a key is encountered; retain Key.equals/hash and the complete
       // duplicate-key preflight before updating any child.
@@ -2306,6 +2335,7 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     this.children = [];
     this.clearDependencies();
     this.owner.unregister(this);
+    this.parent?._didDetachChild?.();
     this.parent = undefined;
     this.parentRenderOwner = undefined;
     this._parentDataScope = null;

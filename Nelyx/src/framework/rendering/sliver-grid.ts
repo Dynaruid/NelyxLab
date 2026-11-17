@@ -5,8 +5,7 @@ import {
   SliverMultiBoxAdaptorParentData,
 } from './sliver-multi-box-adaptor.ts';
 import type { RenderSliverBoxChildManager } from './sliver-multi-box-adaptor.ts';
-import { SliverGeometry } from './sliver.ts';
-import type { SliverConstraints } from './sliver.ts';
+import { SliverConstraints, SliverGeometry } from './sliver.ts';
 import type { BoxConstraints } from './constraints.ts';
 import type { RenderObject, RenderBox } from './object.ts';
 import { axisDirectionIsReversed } from '../painting/basic-types.ts';
@@ -132,11 +131,25 @@ export class SliverGridRegularTileLayout
           (this.crossAxisStride - this.childCrossAxisExtent)
       : start;
   }
+  private mainAxisOffsetFor(index: number): number {
+    return truncateDivide(index, this.crossAxisCount) * this.mainAxisStride;
+  }
+  private crossAxisOffsetFor(index: number): number {
+    return this._getOffsetFromStartInCrossAxis(
+      modulo(index, this.crossAxisCount) * this.crossAxisStride,
+    );
+  }
+  /** @internal Validate retained offsets without constructing a tile geometry. */
+  _matchesChildPlacement(index: number, data: SliverGridParentData): boolean {
+    return (
+      data.layoutOffset === this.mainAxisOffsetFor(index) &&
+      data.crossAxisOffset === this.crossAxisOffsetFor(index)
+    );
+  }
   getGeometryForChildIndex(index: number): SliverGridGeometry {
-    const crossAxisStart = modulo(index, this.crossAxisCount) * this.crossAxisStride;
     return new SliverGridGeometry({
-      scrollOffset: truncateDivide(index, this.crossAxisCount) * this.mainAxisStride,
-      crossAxisOffset: this._getOffsetFromStartInCrossAxis(crossAxisStart),
+      scrollOffset: this.mainAxisOffsetFor(index),
+      crossAxisOffset: this.crossAxisOffsetFor(index),
       mainAxisExtent: this.childMainAxisExtent,
       crossAxisExtent: this.childCrossAxisExtent,
     });
@@ -148,6 +161,7 @@ export class SliverGridRegularTileLayout
     return this.mainAxisStride * mainAxisCount - spacing;
   }
 }
+const regularTileGeometry = SliverGridRegularTileLayout.prototype.getGeometryForChildIndex;
 export abstract class SliverGridDelegate {
   abstract getLayout(constraints: SliverConstraints): SliverGridLayout;
   abstract shouldRelayout(oldDelegate: SliverGridDelegate): boolean;
@@ -326,6 +340,14 @@ export class SliverGridParentData extends SliverMultiBoxAdaptorParentData {
 }
 export class RenderSliverGrid extends RenderSliverMultiBoxAdaptor {
   private _gridDelegate: SliverGridDelegate;
+  private childPlacement:
+    | {
+        constraints: SliverConstraints;
+        layout: SliverGridRegularTileLayout;
+        box: BoxConstraints;
+        revision: number;
+      }
+    | undefined;
   constructor({
     childManager,
     gridDelegate,
@@ -364,6 +386,8 @@ export class RenderSliverGrid extends RenderSliverMultiBoxAdaptor {
   }
   protected override performLayout(_constraints: SliverConstraints): void {
     const constraints = this.constraints;
+    const previous = this.childPlacement;
+    this.childPlacement = undefined;
     this.childManager.didStartLayout();
     this.childManager.setDidUnderflow(false);
     const scrollOffset = constraints.scrollOffset + constraints.cacheOrigin,
@@ -387,6 +411,39 @@ export class RenderSliverGrid extends RenderSliverMultiBoxAdaptor {
           : this.calculateTrailingGarbage({ lastIndex: targetLastIndex }),
       );
     else this.collectGarbage(0, 0);
+    // Always ask the delegate. Its result can depend on inherited data even
+    // when the screen and delegate instance have not changed.
+    const regular =
+      this.constructor === RenderSliverGrid &&
+      constraints.constructor === SliverConstraints &&
+      layout instanceof SliverGridRegularTileLayout &&
+      layout.constructor === SliverGridRegularTileLayout &&
+      layout.getGeometryForChildIndex === regularTileGeometry &&
+      Number.isFinite(layout.mainAxisStride) &&
+      layout.mainAxisStride >= 0;
+    const oldLayout = previous?.layout;
+    const samePlacement =
+      regular &&
+      previous &&
+      oldLayout &&
+      this.sameChildLayoutEnvironment(previous.constraints, constraints) &&
+      layout.crossAxisCount === oldLayout.crossAxisCount &&
+      layout.mainAxisStride === oldLayout.mainAxisStride &&
+      layout.crossAxisStride === oldLayout.crossAxisStride &&
+      layout.childMainAxisExtent === oldLayout.childMainAxisExtent &&
+      layout.childCrossAxisExtent === oldLayout.childCrossAxisExtent &&
+      layout.reverseCrossAxis === oldLayout.reverseCrossAxis;
+    const reuse =
+      samePlacement &&
+      this.firstChild !== null &&
+      this.canReuseChildRange(
+        firstIndex,
+        targetLastIndex,
+        previous.revision,
+        previous.box,
+        (data, index) =>
+          data instanceof SliverGridParentData && layout._matchesChildPlacement(index, data),
+      );
     const firstGeometry = layout.getGeometryForChildIndex(firstIndex);
     if (
       this.firstChild === null &&
@@ -397,13 +454,23 @@ export class RenderSliverGrid extends RenderSliverMultiBoxAdaptor {
       this.childManager.didFinishLayout();
       return;
     }
+    const sharedConstraints = regular
+      ? samePlacement
+        ? previous.box
+        : firstGeometry.getBoxConstraints(constraints)
+      : undefined;
+    if (sharedConstraints && !samePlacement) Object.freeze(sharedConstraints);
     const leadingScrollOffset = firstGeometry.scrollOffset;
-    let trailingScrollOffset = firstGeometry.trailingScrollOffset,
-      trailingChildWithLayout: RenderBox | null = null,
+    let trailingScrollOffset = reuse
+        ? this.childScrollOffset(this.lastChild!)! + layout.childMainAxisExtent
+        : firstGeometry.trailingScrollOffset,
+      trailingChildWithLayout: RenderBox | null = reuse ? this.lastChild : null,
       reachedEnd = false;
     for (let index = this.indexOf(this.firstChild!) - 1; index >= firstIndex; --index) {
       const geometry = layout.getGeometryForChildIndex(index),
-        child = this.insertAndLayoutLeadingChild(geometry.getBoxConstraints(constraints));
+        child = this.insertAndLayoutLeadingChild(
+          sharedConstraints ?? geometry.getBoxConstraints(constraints),
+        );
       invariant(
         child !== null,
         'missing-grid-leading-child',
@@ -416,7 +483,7 @@ export class RenderSliverGrid extends RenderSliverMultiBoxAdaptor {
       trailingScrollOffset = Math.max(trailingScrollOffset, geometry.trailingScrollOffset);
     }
     if (trailingChildWithLayout === null) {
-      this.firstChild!.layout(firstGeometry.getBoxConstraints(constraints));
+      this.firstChild!.layout(sharedConstraints ?? firstGeometry.getBoxConstraints(constraints));
       const data = this.firstChild!.parentData as SliverGridParentData;
       data.layoutOffset = firstGeometry.scrollOffset;
       data.crossAxisOffset = firstGeometry.crossAxisOffset;
@@ -428,7 +495,7 @@ export class RenderSliverGrid extends RenderSliverMultiBoxAdaptor {
       ++index
     ) {
       const geometry = layout.getGeometryForChildIndex(index),
-        childConstraints = geometry.getBoxConstraints(constraints);
+        childConstraints = sharedConstraints ?? geometry.getBoxConstraints(constraints);
       let child = this.childAfter(trailingChildWithLayout!);
       if (child === null || this.indexOf(child) !== index) {
         child = this.insertAndLayoutChild(childConstraints, { after: trailingChildWithLayout });
@@ -480,6 +547,16 @@ export class RenderSliverGrid extends RenderSliverMultiBoxAdaptor {
         constraints.overlap !== 0,
     });
     if (estimatedTotalExtent === trailingScrollOffset) this.childManager.setDidUnderflow(true);
+    const placement =
+      regular && sharedConstraints
+        ? {
+            constraints,
+            layout,
+            box: sharedConstraints,
+            revision: this._activeChildRevision,
+          }
+        : undefined;
     this.childManager.didFinishLayout();
+    this.childPlacement = placement;
   }
 }
