@@ -5,6 +5,8 @@ export function installBuildProfile(root, host, active) {
     work = installFrameworkWorkProfile(root, host, active);
   const names = [],
     times = [],
+    nested = [],
+    origins = [],
     values = new Map();
   const owner = root.buildOwner,
     buildScope = owner.buildScope,
@@ -33,13 +35,15 @@ export function installBuildProfile(root, host, active) {
   };
   root.buildOwner._setElementBuildObserver({
     active,
-    begin(element) {
+    begin(element, origin) {
       if (names.length >= 64) {
         invalid = true;
         throw Error('Build profile nesting budget exceeded');
       }
       const token = names.length;
       names.push(element.widget.constructor.name);
+      origins.push(origin);
+      nested.push(0);
       times.push(host.now());
       return token;
     },
@@ -49,16 +53,32 @@ export function installBuildProfile(root, host, active) {
         throw Error('Build profile nesting differs');
       }
       const elapsed = host.now() - times.pop(),
+        own = elapsed - nested.pop(),
+        origin = origins.pop() ?? 'dirty',
         name = names.pop();
+      if (token) nested[token - 1] += elapsed;
       let value = values.get(name);
       if (!value) {
         if (values.size >= 256) {
           invalid = true;
           throw Error('Build profile type budget exceeded');
         }
-        values.set(name, (value = { count: 0, totalMs: 0, maxMs: 0 }));
+        values.set(
+          name,
+          (value = {
+            count: 0,
+            totalMs: 0,
+            exclusiveMs: 0,
+            maxMs: 0,
+            dirty: 0,
+            parentUpdate: 0,
+            mount: 0,
+          }),
+        );
       }
       value.count++;
+      value[origin]++;
+      value.exclusiveMs += own;
       value.totalMs += elapsed;
       value.maxMs = Math.max(value.maxMs, elapsed);
     },

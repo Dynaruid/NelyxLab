@@ -59,7 +59,8 @@ import { resolveTextConfiguration } from './text-input.ts';
 import type { InlineSpan } from '../painting/inline-span.ts';
 import { RichText } from './rich-text.ts';
 import { Alignment, AlignmentDirectional, AlignmentGeometry } from '../painting/alignment.ts';
-import { EdgeInsets, EdgeInsetsGeometry } from '../painting/edge-insets.ts';
+import { InitialRenderConfiguration } from './initial-render-configuration.ts';
+import { EdgeInsets, EdgeInsetsDirectional, EdgeInsetsGeometry } from '../painting/edge-insets.ts';
 import { Decoration } from '../painting/decoration.ts';
 import type { DecorationPosition } from '../painting/decoration.ts';
 import { BoxDecoration } from '../painting/box-decoration.ts';
@@ -218,15 +219,36 @@ export class Padding extends BoxWidget<RenderPadding> {
       padding instanceof EdgeInsetsGeometry
         ? padding
         : new EdgeInsets(padding.left, padding.top, padding.right, padding.bottom);
+    if (
+      new.target === Padding &&
+      (Object.getPrototypeOf(this.padding) === EdgeInsets.prototype ||
+        Object.getPrototypeOf(this.padding) === EdgeInsetsDirectional.prototype)
+    )
+      paddingConfiguration.register(this, this.padding);
   }
-  make(): RenderPadding {
-    return new RenderPadding(this.padding);
+  override _hasInitialRenderObjectConfiguration(): boolean {
+    return paddingConfiguration.matches(this);
+  }
+  make(context?: BuildContext): RenderPadding {
+    return new RenderPadding(
+      this.padding,
+      undefined,
+      context && paddingConfiguration.matches(this)
+        ? (context.maybeDependOn(Directionality)?.direction ?? null)
+        : null,
+    );
   }
   configure(render: RenderPadding, context: BuildContext): void {
     render.padding = this.padding;
     render.textDirection = context.maybeDependOn(Directionality)?.direction ?? null;
   }
 }
+const boxConfigurationHooks = ['createRenderObject', 'updateRenderObject', 'make', 'configure'];
+const paddingConfiguration = new InitialRenderConfiguration(
+  Padding.prototype,
+  boxConfigurationHooks,
+  ['padding'],
+);
 /** Hosts supply measured insets; keep layout composition outside inherited-data definitions. */
 export function safeArea(child: Widget, data: MediaData): Widget {
   return new Padding(
@@ -271,8 +293,15 @@ export class Align extends BoxWidget<RenderPositionedBox> {
   get y(): number {
     return this.alignment.resolve('ltr').y;
   }
-  make(): RenderPositionedBox {
-    return new RenderPositionedBox();
+  make(context?: BuildContext): RenderPositionedBox {
+    if (!context || !centerConfiguration.matches(this)) return new RenderPositionedBox();
+    return new RenderPositionedBox({
+      alignment: this.alignment,
+      textDirection: context.maybeDependOn(Directionality)?.direction ?? 'ltr',
+      shrink: this.shrink,
+      widthFactor: this.widthFactor ?? null,
+      heightFactor: this.heightFactor ?? null,
+    });
   }
   configure(render: RenderPositionedBox, context: BuildContext): void {
     render.alignment = this.alignment;
@@ -285,8 +314,24 @@ export class Align extends BoxWidget<RenderPositionedBox> {
 export class Center extends Align {
   constructor(child?: Widget, options: Omit<AlignOptions, 'alignment'> = {}) {
     super(child, { ...options, alignment: { x: 0, y: 0 } });
+    if (new.target === Center)
+      centerConfiguration.register(
+        this,
+        this.alignment,
+        this.shrink,
+        this.widthFactor,
+        this.heightFactor,
+      );
+  }
+  override _hasInitialRenderObjectConfiguration(): boolean {
+    return centerConfiguration.matches(this);
   }
 }
+const centerConfiguration = new InitialRenderConfiguration(
+  Center.prototype,
+  boxConfigurationHooks,
+  ['alignment', 'shrink', 'widthFactor', 'heightFactor'],
+);
 export class ConstrainedBox extends BoxWidget<RenderConstrainedBox> {
   constructor(
     child: Widget | undefined,

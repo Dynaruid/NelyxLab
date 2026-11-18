@@ -723,19 +723,22 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
           [ButtonActivateIntent, this.buttonAction],
         ]),
         child: new Focus(
-          new MouseRegion(DefaultSelectionStyle.merge({ mouseCursor: cursor, child: semantics }), {
-            cursor,
-            onEnter: () => {
-              if (!this.live) return;
-              this.hovered = true;
-              if (this.enabled) this.updateHighlight('hover', true);
-            },
-            onExit: () => {
-              if (!this.live) return;
-              this.hovered = false;
-              this.updateHighlight('hover', false);
-            },
-          }),
+          new MouseRegion(
+            DefaultSelectionStyle.merge({ mouseCursor: cursor, child: semantics }),
+            Object.freeze({
+              cursor,
+              onEnter: () => {
+                if (!this.live) return;
+                this.hovered = true;
+                if (this.enabled) this.updateHighlight('hover', true);
+              },
+              onExit: () => {
+                if (!this.live) return;
+                this.hovered = false;
+                this.updateHighlight('hover', false);
+              },
+            }),
+          ),
           {
             focusNode: this.focus,
             canRequestFocus: canRequest,

@@ -285,14 +285,18 @@ export class BuildScope {
 /** @internal Explicit diagnostic only; never an alternative build scheduler. */
 export interface ElementBuildDiagnosticObserver {
   active(): boolean;
-  begin(element: Element): number | undefined;
+  begin(element: Element, origin: 'dirty' | 'parentUpdate' | 'mount'): number | undefined;
   end(token: number): void;
 }
 // Keep diagnostic try/finally frames off the ordinary rebuild callback path.
-function diagnosticRebuild(element: Element, observer: ElementBuildDiagnosticObserver): void {
+function diagnosticRebuild(
+  element: Element,
+  observer: ElementBuildDiagnosticObserver,
+  origin: 'dirty' | 'parentUpdate' | 'mount',
+): void {
   let token: number | undefined;
   try {
-    token = observer.begin(element);
+    token = observer.begin(element, origin);
   } catch {
     /* Diagnostic failure cannot suppress Source. */
   }
@@ -966,6 +970,30 @@ export class BuildOwner {
     );
   }
   private elementBuildObserver: ElementBuildDiagnosticObserver | undefined;
+  private activeBuildObserver: ElementBuildDiagnosticObserver | undefined;
+  private activeBuildScope: BuildScope | undefined;
+  private inlineDepth = 0;
+  /** @internal Preparation must retain its own interruptible build units. Bound
+   * nested user builds on Hermes; the dirty queue continues deeper branches. */
+  _canRebuildChild(element: Element): boolean {
+    return (
+      this.inlineDepth < 32 &&
+      !element._unpublishedScope &&
+      !!element.parent &&
+      this.currentElement === element.parent &&
+      this.activeBuildScope === element.buildScope
+    );
+  }
+  /** @internal Never flush a scope recursively to deliver a parent update. */
+  _rebuildChild(element: Element, origin: 'parentUpdate' | 'mount'): void {
+    ++this.inlineDepth;
+    try {
+      if (this.activeBuildObserver) diagnosticRebuild(element, this.activeBuildObserver, origin);
+      else element.rebuild();
+    } finally {
+      --this.inlineDepth;
+    }
+  }
   /** @internal Installed only by an explicitly profiling native App host. */
   _setElementBuildObserver(observer: ElementBuildDiagnosticObserver | undefined): void {
     this.elementBuildObserver = observer;
@@ -1309,7 +1337,7 @@ export class BuildOwner {
     this.globals.delete(key);
     key.bind(undefined);
   }
-  reserve(key: GlobalKey, parent: Element): void {
+  reserve(key: GlobalKey, parent: Element, rollback?: (() => void)[]): void {
     if (this.preparation) {
       const child = this.globals.get(key);
       if (
@@ -1322,6 +1350,11 @@ export class BuildOwner {
       ? this.preparationFor(parent._preparationScope).reservations
       : this.reservations;
     const reservation = reservations.get(key) ?? { key, parents: new Set<Element>() };
+    if (rollback && !reservation.parents.has(parent))
+      rollback.push(() => {
+        reservation.parents.delete(parent);
+        if (!reservation.parents.size) reservations.delete(key);
+      });
     reservation.parents.add(parent);
     reservations.set(key, reservation);
   }
@@ -1505,6 +1538,8 @@ export class BuildOwner {
     const dirtyStarted = now?.() ?? 0;
     const candidate = this.elementBuildObserver;
     const observer = candidate && activeBuildObserver(candidate) ? candidate : undefined;
+    this.activeBuildObserver = observer;
+    this.activeBuildScope = scope;
     try {
       scope._flushDirtyElements(
         (element) => {
@@ -1521,7 +1556,7 @@ export class BuildOwner {
             );
           if (element.dirty) {
             this.currentElement = element;
-            if (observer) diagnosticRebuild(element, observer);
+            if (observer) diagnosticRebuild(element, observer, 'dirty');
             else element.rebuild();
           }
         },
@@ -1532,6 +1567,8 @@ export class BuildOwner {
       failed = true;
       failure = error;
     } finally {
+      this.activeBuildObserver = undefined;
+      this.activeBuildScope = undefined;
       if (costs) costs.dirtyFlushMs += now!() - dirtyStarted;
       this.currentElement = undefined;
       this.building = false;
@@ -1903,16 +1940,37 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     this.updateInheritedTypes();
     owner.register(this);
     this.attachNotificationTree();
-    owner.schedule(this);
+    if (!this.canBuildFromParent()) owner.schedule(this);
+  }
+  protected canBuildFromParent(): boolean {
+    if (!this.owner._canRebuildChild(this)) return false;
+    const type = this.constructor;
+    return (
+      type === StatelessElement ||
+      type === StatefulElement ||
+      type === InheritedElement ||
+      type === ParentDataElement ||
+      type === RenderObjectElement ||
+      type === SingleChildRenderObjectElement ||
+      type === MultiChildRenderObjectElement ||
+      type === LeafRenderObjectElement
+    );
+  }
+  protected finishFirstBuild(): void {
+    if (this.canBuildFromParent()) this.owner._rebuildChild(this, 'mount');
   }
   update(widget: Widget): void {
+    this.installWidget(widget);
+    if (this.canBuildFromParent()) this.owner._rebuildChild(this, 'parentUpdate');
+    else this.markNeedsBuild();
+  }
+  protected installWidget(widget: Widget): void {
     assertOutsideRenderPaint();
     if (!(this.active && Widget.canUpdate(this.widget, widget)))
       invariant(false, 'invalid-widget-update', 'Widget type/key changed or Element is inactive');
     this.widget = widget;
     if (this instanceof InheritedElement && indexedInheritedType(widget) !== this.indexedType)
       this.refreshInheritedTypes();
-    this.markNeedsBuild();
   }
   markNeedsBuild(): void {
     assertOutsideRenderPaint();
@@ -2128,31 +2186,41 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
     old: Element | undefined,
     widget: Widget | undefined,
   ): Element | undefined {
-    let child: Element | undefined;
+    let child: Element | undefined,
+      adopted = false;
+    let reservations: (() => void)[] | undefined;
     try {
       if (!widget) {
         if (old?.parent === this) this.owner.deactivateChild(old);
         return undefined;
       }
-      if (widget.key instanceof GlobalKey) this.owner.reserve(widget.key, this);
+      if (widget.key instanceof GlobalKey)
+        this.owner.reserve(widget.key, this, (reservations = []));
       const slot = this.slotForChild(0, undefined);
-      child = old && Widget.canUpdate(old.widget, widget) ? old : undefined;
+      child =
+        old?.parent === this && (old.widget === widget || Widget.canUpdate(old.widget, widget))
+          ? old
+          : undefined;
       if (!child) {
         if (old?.parent === this) this.owner.deactivateChild(old);
         child = this.owner.retake(widget, this, slot);
+        adopted = !!child;
       }
       if (child) {
+        if (child.parent !== this) return undefined;
         if (!sameSlot(child.slot, slot)) this.updateSlotForChild(child, slot);
-        if (child.widget !== widget) child.update(widget);
+        if (child.parent === this && child.widget !== widget) child.update(widget);
       } else {
         child = widget.createElement();
         child.mount(this, this.owner, slot);
       }
-      return child;
+      return child.parent === this ? child : undefined;
     } catch (error) {
-      if (child && child !== old && child.parent === this) {
+      if (reservations) for (const release of reservations) release();
+      if (child && (adopted || child !== old) && child.parent === this) {
         try {
-          child.unmount();
+          if (adopted) this.owner.deactivateChild(child);
+          else child.unmount();
         } catch (failure) {
           throw new AggregateError([error, failure], 'Reconciliation and new child cleanup failed');
         }
@@ -2166,85 +2234,129 @@ export abstract class Element extends DiagnosticableTree implements BuildContext
       return child ? [child] : [];
     }
     const next: Element[] = [];
+    let projection = this.children;
+    let mounted: Element[] | undefined, adopted: Element[] | undefined;
+    let reservations: (() => void)[] | undefined;
+    // Reject duplicates before any lifecycle callback or structural mutation.
+    let keys: KeyMap<boolean> | undefined;
+    for (const widget of widgets)
+      if (widget.key) {
+        if (keys?.has(widget.key))
+          invariant(
+            false,
+            'duplicate-key',
+            `Duplicate sibling key in ${this.widget.constructor.name}`,
+          );
+        (keys ??= new KeyMap<boolean>()).set(widget.key, true);
+      }
     try {
-      // Most multi-child groups have positional children. Allocate key indexes
-      // only when a key is encountered; retain Key.equals/hash and the complete
-      // duplicate-key preflight before updating any child.
-      let keys: KeyMap<boolean> | undefined;
-      for (const widget of widgets)
-        if (widget.key) {
-          if (keys?.has(widget.key))
-            invariant(
-              false,
-              'duplicate-key',
-              `Duplicate sibling key in ${this.widget.constructor.name}`,
-            );
-          (keys ??= new KeyMap<boolean>()).set(widget.key, true);
-        }
-      // Flutter Element.updateChildren first consumes matching children in
-      // declaration order, before indexing the unmatched remainder. Stable
-      // sibling groups need no old-key map or retirement set. Check ownership
-      // at each step: a preceding callback may retake a later GlobalKey child.
-      // Reference: flutter/flutter a2886f44205b1c46388a1e17e4e75d0a71541edf,
-      // packages/flutter/lib/src/widgets/framework.dart, updateChildren.
-      let first = 0;
-      while (first < previous.length && first < widgets.length) {
-        const child = previous[first]!,
-          widget = widgets[first]!;
-        if (child.parent !== this || !Widget.canUpdate(child.widget, widget)) break;
-        if (widget.key instanceof GlobalKey) this.owner.reserve(widget.key, this);
-        const slot = this.slotForChild(first, next.at(-1));
-        next.push(child);
-        if (!sameSlot(child.slot, slot)) this.updateSlotForChild(child, slot);
-        if (child.widget !== widget) child.update(widget);
-        ++first;
-      }
-      if (first === previous.length && first === widgets.length) return next;
-      let keyed: KeyMap<Element> | undefined;
-      let remaining: Set<Element> | undefined;
-      for (let index = first; index < previous.length; ++index) {
-        const child = previous[index]!;
-        if (child.parent !== this) continue;
-        (remaining ??= new Set()).add(child);
-        if (child.widget.key) (keyed ??= new KeyMap<Element>()).set(child.widget.key, child);
-      }
-      for (let index = first; index < widgets.length; index++) {
-        const widget = widgets[index]!;
-        if (widget.key instanceof GlobalKey) this.owner.reserve(widget.key, this);
-        const slot = this.slotForChild(index, next.at(-1));
-        let child = widget.key ? keyed?.get(widget.key) : previous[index];
-        if (!child || !remaining?.has(child) || !Widget.canUpdate(child.widget, widget))
-          child = undefined;
-        if (child) remaining!.delete(child);
-        else {
-          if (widgets.length === 1 && remaining) {
-            for (const old of remaining) if (old.parent === this) this.owner.deactivateChild(old);
-            remaining.clear();
+      const matches = (child: Element, widget: Widget) =>
+        child.parent === this &&
+        (child.widget === widget || Widget.canUpdate(child.widget, widget));
+      // forgetChild replaces the projection. A nested callback may have taken
+      // even an already processed sibling; it cannot be a slot predecessor.
+      const forgetMoved = () => {
+        while (projection !== this.children) {
+          projection = this.children;
+          let length = 0;
+          for (const child of next) {
+            if (child.parent !== this) continue;
+            if (next[length] !== child) {
+              const slot = this.slotForChild(length, next[length - 1]);
+              if (!sameSlot(child.slot, slot)) this.updateSlotForChild(child, slot);
+            }
+            next[length++] = child;
           }
+          next.length = length;
+        }
+      };
+      const append = (widget: Widget, child?: Element) => {
+        forgetMoved();
+        if (widget.key instanceof GlobalKey)
+          this.owner.reserve(widget.key, this, (reservations ??= []));
+        const slot = this.slotForChild(next.length, next.at(-1));
+        if (!child || child.parent !== this) {
           child = this.owner.retake(widget, this, slot);
+          if (child) (adopted ??= []).push(child);
         }
         if (child) {
-          next.push(child);
+          if (child.parent !== this) return;
           if (!sameSlot(child.slot, slot)) this.updateSlotForChild(child, slot);
-          if (child.widget !== widget) child.update(widget);
+          if (child.parent === this && child.widget !== widget) child.update(widget);
         } else {
           child = widget.createElement();
-          next.push(child);
+          (mounted ??= []).push(child);
           child.mount(this, this.owner, slot);
         }
+        if (child.parent === this) next.push(child);
+      };
+      let first = 0,
+        oldEnd = previous.length,
+        newEnd = widgets.length;
+      while (first < oldEnd && first < newEnd && matches(previous[first]!, widgets[first]!)) {
+        append(widgets[first]!, previous[first]!);
+        ++first;
       }
-      if (remaining?.size)
-        this.owner.deactivateChildren([...remaining].filter((child) => child.parent === this));
+      // Discover the suffix backwards, but update it forwards after the new
+      // middle so both callbacks and render insertion see their predecessors.
+      while (
+        first < oldEnd &&
+        first < newEnd &&
+        matches(previous[oldEnd - 1]!, widgets[newEnd - 1]!)
+      ) {
+        --oldEnd;
+        --newEnd;
+      }
+      let keyed: KeyMap<Element> | undefined;
+      for (let i = first; i < oldEnd; ++i) {
+        const child = previous[i]!;
+        if (child.parent !== this) continue;
+        if (child.widget.key) (keyed ??= new KeyMap<Element>()).set(child.widget.key, child);
+        else this.owner.deactivateChild(child);
+      }
+      for (let i = first; i < newEnd; ++i) {
+        const widget = widgets[i]!;
+        let child = widget.key ? keyed?.get(widget.key) : undefined;
+        if (child && matches(child, widget)) keyed!.delete(widget.key!);
+        else child = undefined;
+        append(widget, child);
+      }
+      for (let i = newEnd; i < widgets.length; ++i) {
+        const child = previous[oldEnd++]!,
+          widget = widgets[i]!;
+        append(widget, matches(child, widget) ? child : undefined);
+      }
+      if (keyed)
+        for (const child of keyed.values())
+          if (child.parent === this) this.owner.deactivateChild(child);
+      forgetMoved();
       return next;
     } catch (error) {
       const errors: unknown[] = [error];
-      for (const created of next)
-        if (!previous.includes(created) && created.parent === this)
-          try {
-            created.unmount();
-          } catch (failure) {
-            errors.push(failure);
-          }
+      const cleanup = (operation: () => void) => {
+        try {
+          operation();
+        } catch (failure) {
+          errors.push(failure);
+        }
+      };
+      if (mounted)
+        for (const child of mounted) if (child.parent === this) cleanup(() => child.unmount());
+      if (adopted)
+        for (const child of adopted)
+          if (child.parent === this && !previous.includes(child))
+            cleanup(() => this.owner.deactivateChild(child));
+      if (reservations) for (const release of reservations) cleanup(release);
+      // Do not undo user callbacks or reclaim retired/stolen children. Publish
+      // the surviving old order, without slots pointing to aborted mounts.
+      this.children = previous.filter((child) => child.parent === this);
+      this.children.forEach((child, i, siblings) =>
+        cleanup(() => {
+          const slot = this.slotForChild(i, siblings[i - 1]);
+          if (!sameSlot(child.slot, slot)) this.updateSlotForChild(child, slot);
+        }),
+      );
+      if (this instanceof RenderObjectElement) cleanup(() => this._commitRenderChildren());
       if (errors.length > 1)
         throw new AggregateError(errors, 'Reconciliation and new child cleanup failed');
       throw error;
@@ -2465,6 +2577,10 @@ export abstract class ComponentElement extends Element {
   }
 }
 class StatelessElement extends ComponentElement {
+  override mount(parent: Element | undefined, owner: BuildOwner, slot?: unknown): void {
+    super.mount(parent, owner, slot);
+    this.finishFirstBuild();
+  }
   protected build(): readonly Widget[] {
     return [(this.widget as StatelessWidget).build(this)];
   }
@@ -2574,10 +2690,14 @@ export class StatefulElement extends ComponentElement {
     state.initState();
     state._debugSetLifecycle('initialized');
     this.dependenciesPending = true;
+    this.finishFirstBuild();
   }
   override update(widget: Widget): void {
-    super.update(widget);
+    this.installWidget(widget);
+    const inline = this.canBuildFromParent();
+    if (!inline) this.markNeedsBuild();
     this.state!.update(widget as StatefulWidget);
+    if (inline && this.active) this.owner._rebuildChild(this, 'parentUpdate');
   }
   override dependenciesChanged(): void {
     this.dependenciesPending = true;
@@ -2628,13 +2748,20 @@ export abstract class ProxyWidget extends Widget {
   }
 }
 export abstract class ProxyElement extends ComponentElement {
+  override mount(parent: Element | undefined, owner: BuildOwner, slot?: unknown): void {
+    super.mount(parent, owner, slot);
+    this.finishFirstBuild();
+  }
   protected build(): readonly Widget[] {
     return [(this.widget as ProxyWidget).child];
   }
   override update(widget: Widget): void {
     const old = this.widget as ProxyWidget;
-    super.update(widget);
+    this.installWidget(widget);
+    const inline = this.canBuildFromParent();
+    if (!inline) this.markNeedsBuild();
     this.updated(old);
+    if (inline && this.active) this.owner._rebuildChild(this, 'parentUpdate');
   }
   protected updated(old: ProxyWidget): void {
     this.notifyClients(old);
@@ -2804,19 +2931,23 @@ export class RenderObjectElement extends Element {
     }
     this.renderProjection = Object.freeze([this.render]);
     this.attachRenderObject(slot);
+    this.finishFirstBuild();
   }
   override markNeedsBuild(): void {
     this.initiallyConfiguredWidget = undefined;
     super.markNeedsBuild();
   }
-  protected build(): readonly Widget[] {
-    const widget = this.widget as RenderObjectWidget,
-      configured = this.initiallyConfiguredWidget;
+  private applyRenderConfiguration(widget: RenderObjectWidget): void {
+    const configured = this.initiallyConfiguredWidget;
     // Consume before running any hook/getter. A failed first child build or a
     // reentrant invalidation must not suppress the next configuration update.
     this.initiallyConfiguredWidget = undefined;
     if (widget !== configured || !widget._hasInitialRenderObjectConfiguration())
       widget.updateRenderObject(this, this.render!);
+  }
+  protected build(): readonly Widget[] {
+    const widget = this.widget as RenderObjectWidget;
+    this.applyRenderConfiguration(widget);
     return widget.childWidgets;
   }
   private previousRender(slot: unknown, child: RenderObject): RenderObject | undefined {

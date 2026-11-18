@@ -71,7 +71,10 @@ const logged=[],profile=installBuildProfile(view,{now:()=>++time,log:line=>logge
 const frame=()=>{time+=16;const result=view.build({token:{owner,metrics,sequence:++sequence},resources});releaseSceneFrameSource(result);};
 try{
   frame();controller.jumpToPage(1);frame();controller.jumpToPage(0);frame();
-  const value=profile.snapshot().children;
+  const {types,children:value}=profile.snapshot();
+  assert(types.some(([,v])=>v.mount>0),'Inline first builds were not observed');
+  assert(types.some(([,v])=>v.totalMs>v.exclusiveMs),'Nested child time was not subtracted');
+  for(const [,v] of types){assert.equal(v.count,v.dirty+v.parentUpdate+v.mount);assert(v.exclusiveMs>=0&&v.exclusiveMs<=v.totalMs);}
   assert.equal(value.intervals.freshChild.count,3);
   assert.equal(value.intervals.retirement.count,2);
   assert.equal(value.intervals.resume,undefined);

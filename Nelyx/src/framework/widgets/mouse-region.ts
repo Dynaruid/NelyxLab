@@ -7,6 +7,10 @@ import { RenderMouseRegion } from '../rendering/mouse-region.ts';
 import type { RenderMouseRegionOptions } from '../rendering/mouse-region.ts';
 import type { RenderBox } from '../rendering/object.ts';
 import { MouseCursor } from '../../services/mouse-cursor.ts';
+import {
+  InitialRenderConfiguration,
+  stablePointerOptions,
+} from './initial-render-configuration.ts';
 export interface MouseRegionOptions extends Omit<RenderMouseRegionOptions, 'child'> {
   readonly key?: Key | null;
 }
@@ -16,6 +20,11 @@ export class MouseRegion extends RenderObjectWidget {
     readonly options: MouseRegionOptions = {},
   ) {
     super(options.key ?? null);
+    if (new.target === MouseRegion && Object.isFrozen(options))
+      mouseConfiguration.register(this, options);
+  }
+  override _hasInitialRenderObjectConfiguration(): boolean {
+    return mouseConfiguration.matches(this) && stablePointerOptions(this.options, mouseFields);
   }
   get onEnter(): MouseRegionOptions['onEnter'] {
     return this.options.onEnter;
@@ -51,3 +60,9 @@ export class MouseRegion extends RenderObjectWidget {
     render.hitTestBehavior = this.options.hitTestBehavior ?? null;
   }
 }
+const mouseFields = ['onEnter', 'onExit', 'onHover', 'cursor', 'opaque', 'hitTestBehavior'];
+const mouseConfiguration = new InitialRenderConfiguration(
+  MouseRegion.prototype,
+  ['createRenderObject', 'updateRenderObject', 'cursor'],
+  ['options'],
+);

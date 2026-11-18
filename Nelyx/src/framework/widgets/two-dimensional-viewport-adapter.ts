@@ -472,7 +472,6 @@ export abstract class TwoDimensionalElementHost extends ViewportElementMixin(
   override performRebuild(): void {
     try {
       this.sourcePerformRebuild();
-      this.owner.parentRebuilt(this);
     } finally {
       this.syncManagedChildren();
     }

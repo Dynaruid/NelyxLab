@@ -113,6 +113,7 @@ class _LayoutBuilderElement<I> extends SingleChildRenderObjectElement {
   private _needsBuild = true;
   private _previousLayoutInfo: I | undefined;
   private built: Widget | undefined;
+  private configuredForLayout = false;
   private deferred: { scheduler: FrameScheduler; id: number } | undefined;
   override get buildScope(): BuildScope {
     return this._buildScope;
@@ -160,21 +161,34 @@ class _LayoutBuilderElement<I> extends SingleChildRenderObjectElement {
     );
     const old = this.widget as AbstractLayoutBuilder<I>;
     this.widget = widget;
-    widget.updateRenderObject(this, this.renderObject);
+    const previous = this.owner.currentElement;
+    this.owner.currentElement = this;
+    this.configuredForLayout = true;
+    try {
+      widget.updateRenderObject(this, this.renderObject);
+    } catch (error) {
+      this.configuredForLayout = false;
+      throw error;
+    } finally {
+      this.owner.currentElement = previous;
+    }
     this.renderObject._updateCallback(this._rebuildWithConstraints);
     if (widget.updateShouldRebuild(old)) {
       this._needsBuild = true;
       this.renderObject.scheduleLayoutCallback();
-    }
+    } else if (!this._needsBuild) this.configuredForLayout = false;
   }
   override markNeedsBuild(): void {
     assertOutsideRenderPaint();
     invariant(this.mounted, 'unmounted-element', 'Rebuild after unmount');
     this._needsBuild = true;
+    this.configuredForLayout = false;
     if (this.ready && this.active) this.renderObject.scheduleLayoutCallback();
   }
   protected override build(): readonly Widget[] {
-    (this.widget as AbstractLayoutBuilder<I>).updateRenderObject(this, this.renderObject);
+    if (!this.configuredForLayout)
+      (this.widget as AbstractLayoutBuilder<I>).updateRenderObject(this, this.renderObject);
+    this.configuredForLayout = false;
     return this.built ? [this.built] : [];
   }
   private readonly _rebuildWithConstraints = (_constraints: Constraints): void => {

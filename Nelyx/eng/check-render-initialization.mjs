@@ -25,7 +25,17 @@ if (!process.argv.includes('--child')) {
 import assert from 'node:assert/strict';
 import {Widget,Element,BuildOwner,InheritedWidget,LeafRenderObjectWidget,RenderObjectElement} from './Nelyx/src/framework/widgets/framework.ts';
 import {RenderBox} from './Nelyx/src/framework/rendering/object.ts';
-import {Text,SizedBox} from './Nelyx/src/framework/widgets/basic.ts';
+import {Text,SizedBox,Padding,Center,Align} from './Nelyx/src/framework/widgets/basic.ts';
+import {EdgeInsetsDirectional} from './Nelyx/src/framework/painting/edge-insets.ts';
+import {BoxConstraints} from './Nelyx/src/framework/rendering/constraints.ts';
+import {Semantics} from './Nelyx/src/framework/widgets/semantics.ts';
+import {SemanticsConfiguration} from './Nelyx/src/framework/semantics/semantics.ts';
+import {nativeSemanticsRange} from './Nelyx/src/framework/rendering/semantics-transport.ts';
+import {MouseRegion} from './Nelyx/src/framework/widgets/mouse-region.ts';
+import {Listener} from './Nelyx/src/framework/widgets/listener.ts';
+import {Listener as LegacyListener} from './Nelyx/src/framework/widgets/gesture-detector.ts';
+import {HitTestBehavior} from './Nelyx/src/framework/rendering/pointer-listener.ts';
+import {PointerHoverEvent,PointerExitEvent,PointerPanZoomStartEvent} from './Nelyx/src/framework/gestures/events.ts';
 import {RichText} from './Nelyx/src/framework/widgets/rich-text.ts';
 import {TextSpan} from './Nelyx/src/framework/painting/text-span.ts';
 import {DefaultTextStyle} from './Nelyx/src/framework/widgets/default-text-style.ts';
@@ -187,11 +197,86 @@ for(const method of ['toPlainText','visitDirectChildren']){
   try{f.flush();assert.equal(calls,1,'Initial update hid a live span prototype hook');assert.equal(element.renderObject.semantics.name,method==='toPlainText'?'parentchild!':'parent');}
   finally{if(descriptor)Object.defineProperty(TextSpan.prototype,method,descriptor);else delete TextSpan.prototype[method];f.close();}
 }
+// Observe a setter or method on the actual renderer, without modifying the widget's hooks.
+function countWrites(render,name){
+  let owner=render,count=0;
+  while(!Object.hasOwn(owner,name))owner=Object.getPrototypeOf(owner);
+  const descriptor=Object.getOwnPropertyDescriptor(owner,name);
+  Object.defineProperty(render,name,descriptor.set?{...descriptor,set(value){count++;descriptor.set.call(this,value);}}:{...descriptor,value(...args){count++;return descriptor.value.apply(this,args);}});
+  return ()=>count;
+}
+for(const [widget,hook] of [
+  [new Padding(new EdgeInsetsDirectional(1,0,3,0)),'textDirection'],[new Center(),'alignment'],
+  [new Semantics({label:'first'}),'updateProperties'],[new MouseRegion(null,Object.freeze({})),'cursor'],
+  [new Listener(null,Object.freeze({})),'updateCallbacks'],
+]){
+  const f=fixture(widget),writes=countWrites(f.root.renderObject,hook);
+  try{f.flush();assert.equal(writes(),0,widget.constructor.name+' duplicated first configuration');f.root.markNeedsBuild();f.flush();assert.equal(writes(),1);}
+  finally{f.close();}
+}
+{
+  const center=new Center(new SizedBox(10,6),{widthFactor:2,heightFactor:3}),widget=new Padding(new EdgeInsetsDirectional(2,0,8,0),center),f=fixture(new Directionality('rtl',widget));
+  try{
+    f.flush();const pad=findRender(f.root).renderObject,box=pad.child,limits=new BoxConstraints(0,100,0,100);
+    pad.layout(limits);assert.equal(box.layoutOffset.x,8);assert.equal(box.size.width,20);assert.equal(box.size.height,18);assert.equal(box.child.layoutOffset.x,5);
+    f.root.update(new Directionality('ltr',widget));f.flush();pad.layout(limits);assert.equal(box.layoutOffset.x,2);assert.equal(box.textDirection,'ltr');
+  }finally{f.close();}
+}
+{
+  let count=0;class CustomAlign extends Align{configure(render,context){count++;super.configure(render,context);render.widthFactor=7;}}
+  const f=fixture(new CustomAlign(undefined));try{f.flush();assert.equal(count,1);assert.equal(f.root.renderObject.widthFactor,7);}finally{f.close();}
+}
+{
+  const seen=[],mouse=(name)=>Object.freeze({opaque:false,hitTestBehavior:'translucent',onHover:()=>seen.push(name+' hover'),onExit:()=>seen.push(name+' exit')}),f=fixture(new MouseRegion(null,mouse('old')));
+  try{
+    f.flush();const render=f.root.renderObject;
+    assert.equal(render.opaque,false);assert.equal(render.hitTestBehavior,'translucent');render.handleEvent(new PointerHoverEvent(),{});render.onExit(new PointerExitEvent());
+    f.root.update(new MouseRegion(null,mouse('new')));f.flush();render.handleEvent(new PointerHoverEvent(),{});render.onExit(new PointerExitEvent());assert.deepEqual(seen,['old hover','old exit','new hover','new exit']);
+    f.root.update(new MouseRegion());f.flush();assert.equal(render.opaque,true);assert.equal(render.hitTestBehavior,'opaque');assert.equal(render.onExit,undefined);
+  }finally{f.close();}
+}
+{
+  const seen=[],listener=(name)=>new Listener(null,Object.freeze({onPointerPanZoomStart:()=>seen.push(name),behavior:HitTestBehavior.opaque})),f=fixture(listener('old'));
+  try{f.flush();const render=f.root.renderObject;assert.equal(render.behavior,HitTestBehavior.opaque);render.handleEvent(new PointerPanZoomStartEvent(),{});f.root.update(listener('new'));f.flush();render.handleEvent(new PointerPanZoomStartEvent(),{});assert.deepEqual(seen,['old','new']);}finally{f.close();}
+  const callback=()=>{},g=fixture(new LegacyListener(new SizedBox(),callback));try{g.flush();assert.equal(g.root.renderObject.onPointer,callback);}finally{g.close();}
+}
+for(const Type of [Listener,MouseRegion]){
+  const key=Type===Listener?'onPointerHover':'onHover',options={},f=fixture(new Type(null,options));
+  try{options[key]=()=>{};f.flush();assert.equal(f.root.renderObject[key],options[key]);}finally{f.close();}
+  let reads=0;const accessor=Object.freeze({get [key](){reads++;return undefined;}}),g=fixture(new Type(null,accessor));
+  try{g.flush();assert.equal(reads,2,'Admission evaluated or skipped an option accessor');}finally{g.close();}
+}
+{
+  let called='';const source=(name)=>new Semantics({container:true,transportId:'day',label:name,onTap:()=>{called=name;}}),f=fixture(new Directionality('rtl',source('first')));
+  try{
+    f.flush();const element=findRender(f.root),render=element.renderObject;
+    for(const name of ['first','next']){if(name==='next'){element.update(source(name));f.flush();}const config=new SemanticsConfiguration();render.describeSemanticsConfiguration(config);assert.equal(render.semantics.id,'day');assert.equal(config.label,name);assert.equal(config.textDirection,'rtl');config.onTap();assert.equal(called,name);}
+  }finally{f.close();}
+  const host=(name)=>new Semantics(new SizedBox(10,10),{id:'host',role:'button',name,enabled:true}),g=fixture(host('old'));
+  try{g.flush();const render=g.root.renderObject;for(const name of ['old','new']){if(name==='new'){g.root.update(host(name));g.flush();}render.layout(BoxConstraints.tightFor(10,10));const nodes=[];render.collectSemantics(nodes);assert.equal(nodes[0].id,'host');assert.equal(nodes[0].name,name);}}finally{g.close();}
+}
+{
+  const options={label:'x'},widget=new Semantics(options),f=fixture(widget);
+  try{const render=f.root.renderObject,setRange=countWrites(render,'setRange'),setValue=()=>{};options.transportRange={min:0,max:2,value:1};options.transportRangeActions={setValue};f.flush();assert.equal(setRange(),1,'Added range was not configured');assert.deepEqual(nativeSemanticsRange(render),{range:options.transportRange,actions:{setValue}});}finally{f.close();}
+}
+for(const invalidate of ['provider','widget']){
+  const widget=new Semantics({label:'first'}),f=fixture(new Directionality('rtl',widget));
+  try{
+    f.root.rebuild();const element=findRender(f.root),render=element.renderObject,writes=countWrites(render,'updateProperties');
+    if(invalidate==='provider')f.root.update(new Directionality('ltr',widget));else element.update(new Semantics({label:'next'}));
+    f.flush();const config=new SemanticsConfiguration();render.describeSemanticsConfiguration(config);
+    assert.equal(writes(),1);assert.equal(config.textDirection,invalidate==='provider'?'ltr':'rtl');assert.equal(config.label,invalidate==='provider'?'first':'next');
+  }finally{f.close();}
+}
+for(const widget of [new Center(),new Padding(new EdgeInsetsDirectional(1,0,2,0)),new Listener(null,Object.freeze({})),new MouseRegion(null,Object.freeze({})),new Semantics()]){
+  let called=0;const f=fixture(widget),original=widget.updateRenderObject;
+  try{Object.defineProperty(widget,'updateRenderObject',{get(){called++;return original;}});f.flush();assert.equal(called,1,'Live update getter was skipped or called during admission');}finally{f.close();}
+}
 // Unqualified sizing adapters still configure their renderer on the first build.
 {
   const f=fixture(new SizedBox(37,19));try{f.flush();assert.equal(f.root.renderObject.additional.maxWidth,37);assert.equal(f.root.renderObject.additional.maxHeight,19);}finally{f.close();}
 }
-console.log('Render initialization: one-time configuration, invalidation/retry, live custom hooks, ambient/metrics ownership, GlobalKey movement, real plain/rich text and cleanup PASS.');
+console.log('Render initialization: one-time configuration, invalidation/retry, live custom hooks, ambient/metrics ownership, GlobalKey movement, real plain/rich text, calendar widget configuration and cleanup PASS.');
 `,
     },
     bundle: true,

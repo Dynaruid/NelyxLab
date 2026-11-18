@@ -189,6 +189,7 @@ export class SliverMultiBoxAdaptorElement
   private _currentlyUpdatingChildIndex: number | null = null;
   private _didUnderflow = false;
   private _rebuildChildren = true;
+  private configureOnRebuild = true;
   private readonly _replaceMovedChildren: boolean;
   private layoutStarted = 0;
   private newChildBuilt = false;
@@ -322,6 +323,7 @@ export class SliverMultiBoxAdaptorElement
     }
   }
   override markNeedsBuild(): void {
+    this.configureOnRebuild = true;
     this._rebuildChildren = true;
     super.markNeedsBuild();
   }
@@ -334,6 +336,21 @@ export class SliverMultiBoxAdaptorElement
     const old = this.adaptorWidget,
       already = this._rebuildChildren;
     super.update(widget);
+    this._rebuildChildren = already;
+    const previous = this.owner.currentElement;
+    if (previous && previous === this.parent && !this._unpublishedScope) {
+      this.configureOnRebuild = false;
+      this.owner.currentElement = this;
+      try {
+        widget.updateRenderObject(this, this.renderObject);
+      } catch (error) {
+        this.configureOnRebuild = true;
+        this._rebuildChildren = true;
+        throw error;
+      } finally {
+        this.owner.currentElement = previous;
+      }
+    }
     const policy = widget.childPolicy;
     this.owner.maybeDormantChildren?.trimOwner(
       this,
@@ -346,11 +363,15 @@ export class SliverMultiBoxAdaptorElement
       this.creationCost = undefined;
       this.owner.maybeViewWorkBudget?.cancelOwner(this);
     }
-    this._rebuildChildren =
-      already ||
-      (widget.delegate !== old.delegate &&
-        (widget.delegate.constructor !== old.delegate.constructor ||
-          widget.delegate.shouldRebuild(old.delegate)));
+    // Existing slots may move or replace render children; only the manager's
+    // layout callback may drain this scope. Do not flush it from the parent's update.
+    if (
+      !this._rebuildChildren &&
+      widget.delegate !== old.delegate &&
+      (widget.delegate.constructor !== old.delegate.constructor ||
+        widget.delegate.shouldRebuild(old.delegate))
+    )
+      this._rebuildChildren = true;
   }
   protected override slotForChild(_index: number, _previous: Element | undefined): unknown {
     invariant(
@@ -489,7 +510,10 @@ export class SliverMultiBoxAdaptorElement
   }
   protected override performRebuild(): void {
     this.dirty = false;
-    this.adaptorWidget.updateRenderObject(this, this.renderObject);
+    if (this.configureOnRebuild) {
+      this.configureOnRebuild = false;
+      this.adaptorWidget.updateRenderObject(this, this.renderObject);
+    }
     if (!this._rebuildChildren) return;
     this._rebuildChildren = false;
     const remapped = new Map<number, Element | null>(),

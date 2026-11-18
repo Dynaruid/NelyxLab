@@ -161,7 +161,7 @@ export function installSliverLayoutProfile(root, host, diagnostics, active) {
         return result;
       },
   );
-  observe(WorkProfileElement.prototype, 'rebuild', 'dirtyRebuild');
+  observe(WorkProfileElement.prototype, 'rebuild', 'elementRebuild');
   observe(WorkProfileSliver.prototype, 'updateChildAt', 'reconcileSlot', ([, old], child) =>
     child ? (child === old ? 'updated' : 'produced') : old ? 'removed' : 'empty',
   );

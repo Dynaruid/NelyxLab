@@ -8,6 +8,10 @@ import type { PointerListenerCallbacks } from '../rendering/pointer-listener.ts'
 import type { RenderBox } from '../rendering/object.ts';
 import { IterableProperty, EnumProperty } from '../../foundation/diagnostic-properties.ts';
 import type { DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.ts';
+import {
+  InitialRenderConfiguration,
+  stablePointerOptions,
+} from './initial-render-configuration.ts';
 export interface ListenerOptions extends PointerListenerCallbacks {
   readonly behavior?: HitTestBehavior;
   readonly key?: Key | null;
@@ -20,6 +24,13 @@ export class Listener extends RenderObjectWidget {
     readonly options: ListenerOptions = {},
   ) {
     super(options.key ?? null);
+    if (new.target === Listener && Object.isFrozen(options))
+      listenerConfiguration.register(this, options);
+  }
+  override _hasInitialRenderObjectConfiguration(): boolean {
+    return (
+      listenerConfiguration.matches(this) && stablePointerOptions(this.options, listenerFields)
+    );
   }
   get onPointerDown(): ListenerOptions['onPointerDown'] {
     return this.options.onPointerDown;
@@ -90,3 +101,20 @@ export class Listener extends RenderObjectWidget {
     properties.add(new EnumProperty('behavior', this.behavior));
   }
 }
+const listenerConfiguration = new InitialRenderConfiguration(
+  Listener.prototype,
+  ['createRenderObject', 'updateRenderObject', 'behavior'],
+  ['options'],
+);
+const listenerFields = [
+  'onPointerDown',
+  'onPointerMove',
+  'onPointerUp',
+  'onPointerHover',
+  'onPointerCancel',
+  'onPointerPanZoomStart',
+  'onPointerPanZoomUpdate',
+  'onPointerPanZoomEnd',
+  'onPointerSignal',
+  'behavior',
+];

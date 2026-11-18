@@ -142,8 +142,14 @@ export abstract class WheelElementHost extends RenderObjectElement {
     }
   }
   override performRebuild(): void {
+    // The generated update requests a delegate rebuild while the parent is
+    // still building. Keep slot mutation inside the wheel's own layout scope.
+    if (!this.fromCoreRebuild) {
+      this.sourceRebuildPending = true;
+      return;
+    }
     try {
-      if (this.fromCoreRebuild && !this.sourceRebuildPending) {
+      if (!this.sourceRebuildPending) {
         this.performRebuildBase();
         return;
       }
@@ -155,7 +161,6 @@ export abstract class WheelElementHost extends RenderObjectElement {
         this.sourceRebuildPending = true;
         throw error;
       }
-      this.owner.parentRebuilt(this);
     } finally {
       this.facadeMoves = false;
       this.syncManagedChildren();

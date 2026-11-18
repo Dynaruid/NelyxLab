@@ -10,7 +10,7 @@ try {
       loader: 'ts',
       contents: `
 import assert from 'node:assert/strict';
-import {Widget,Element,BuildOwner,IndexedSlot,LeafRenderObjectWidget} from './Nelyx/src/framework/widgets/framework.ts';
+import {Widget,Element,BuildOwner,IndexedSlot,LeafRenderObjectWidget,MultiChildRenderObjectWidget,State,StatefulWidget} from './Nelyx/src/framework/widgets/framework.ts';
 import {LocalKey} from './Nelyx/src/foundation/key.ts';
 import {GlobalKey} from './Nelyx/src/framework/widgets/global-key.ts';
 import {AxisDirection} from './Nelyx/src/framework/painting/basic-types.ts';
@@ -36,6 +36,74 @@ class ItemElement extends Element {
   protected slotForChild(index,previous){return new IndexedSlot(index,previous);}
   update(widget){updates.push(widget.value);if(widget.fail)throw Error('update failed');super.update(widget);}
   replace(widgets){this.children=this.reconcile(this.children,widgets);this.owner.parentRebuilt(this);}
+}
+function checkSuffix() {
+  const events = [];
+  class Box extends RenderBox { performLayout(c) { return c.smallest; } }
+  class Leaf extends LeafRenderObjectWidget { createRenderObject() { return new Box(); } }
+  class Group extends MultiChildRenderObjectWidget { createRenderObject() { return new Box(); } }
+  class Entry extends StatefulWidget {
+    constructor(readonly name, key = null, readonly updated?) { super(key); }
+    createState() { return new EntryState(); }
+  }
+  class Tail extends Entry {}
+  class EntryState extends State {
+    initState() { events.push('mount '+this.widget.name); }
+    didUpdateWidget() { events.push('update '+this.widget.name); this.widget.updated?.(); }
+    deactivate() { events.push('retire '+this.widget.name); }
+    build() { return new Leaf(); }
+  }
+  const a = new CollisionKey('a'), b = new CollisionKey('b'), fresh = new GlobalKey('fresh');
+  const owner = new BuildOwner({} as any,()=>{});
+  const root = new Group([]).createElement(), destination = new Item('destination').createElement();
+  root.mount(undefined,owner); destination.mount(undefined,owner); owner.flushBuild();
+  const replace = widgets => { root.children = root.reconcile(root.children,widgets); owner.parentRebuilt(root); };
+  const settle = () => { owner.flushBuild(); owner.finalizeTree(); };
+  const order = () => {
+    assert.deepEqual(root.renderObject.children,root.children.flatMap(c => c.renderObjects));
+    root.children.forEach((child,i) => { assert.equal(child.slot.index,i); assert.equal(child.slot.value,root.children[i-1]); });
+  };
+  try {
+    replace([new Entry('A',a),new Entry('old'),new Entry('B',b),new Tail('T'),new Tail('U')]); settle();
+    const [A,old,B,T,U] = root.children.map(c => c.stateObject);
+    events.length = 0;
+    replace([new Entry('B',b),new Entry('new'),new Entry('A',a),new Entry('insert'),new Tail('T'),new Tail('U')]); settle();
+    assert.deepEqual(events,['retire old','update B','mount new','update A','mount insert','update T','update U']);
+    const stateAt = i => root.children[i].stateObject;
+    assert.equal(stateAt(0),B); assert.equal(stateAt(2),A); assert.equal(stateAt(4),T); assert.equal(stateAt(5),U);
+    assert(!old.mounted); order();
+    replace([new Entry('B',b),new Tail('T'),new Tail('U')]); settle();
+    assert.equal(stateAt(1),T); assert.equal(stateAt(2),U); order();
+    // An aborted insertion and suffix update must leave only surviving children,
+    // in the old order, including renders, with no speculative key reservation.
+    const before = [...root.children];
+    replace([new Entry('A',a),...before.map(c => c.widget)]); settle();
+    const original = [...root.children]; let aborted;
+    const fail = () => { aborted = fresh.currentElement; throw Error('suffix failed'); };
+    assert.throws(() => replace([new Entry('B',b),new Leaf(fresh),new Entry('A',a),new Tail('T',null,fail),new Tail('U')]),/suffix failed/);
+    assert(aborted && !aborted.mounted); assert.equal(fresh.currentElement,undefined);
+    assert(!owner.reservations.has(fresh)); assert.deepEqual(root.children,original); order();
+    replace([new Entry('B',b),new Entry('A',a),new Tail('T'),new Tail('U')]); settle(); order();
+    // During a middle callback the destination can take a scanned suffix.
+    // Processing that GlobalKey again must go through retake, not stale reuse.
+    const g = new GlobalKey('suffix-retake'), tail = new Tail('G',g);
+    replace([new Entry('A',a),new Entry('B',b),tail]); settle();
+    const moving = g.currentElement;
+    replace([new Entry('B',b,() => destination.replace([tail])),new Entry('A',a),tail]);
+    destination.replace([]); settle(); order();
+    assert.equal(g.currentElement,moving); assert.equal(moving.parent,root);
+    // A lazy singleton can hold a stale pointer to the identical widget.
+    const reclaimed = destination.reconcileSingleChild(moving,tail);
+    assert.equal(reclaimed,moving); assert.equal(reclaimed.parent,destination);
+    assert(owner.reservations.get(g).parents.has(destination));
+    destination.children = [reclaimed]; replace([]); settle();
+    replace([tail,new Entry('A',a),new Entry('B',b)]); destination.replace([]); settle();
+    replace([tail,new Entry('B',b,() => destination.replace([tail])),new Entry('A',a)]);
+    settle(); order();
+    assert.equal(g.currentElement.parent,destination);
+    assert.deepEqual(root.children.map(c => c.widget.name),['B','A']);
+    destination.replace([]); settle();
+  } finally { root.unmount(); destination.unmount(); owner.dispose(); }
 }
 function checkSliverStream() {
   const owner = new BuildOwner({} as any,()=>{});
@@ -258,6 +326,7 @@ try {
   // Unkeyed positional updates retain their existing element semantics.
   root.replace([new Item('one'),new Item('two')]);flush();const unkeyed=[...root.children];
   root.replace([new Item('changed'),new Item('two')]);flush();assert.deepEqual(root.children,unkeyed);
+  checkSuffix();
   checkSliverStream();
   console.log('Child reconciliation: stable-prefix allocation bound, colliding keys, order/slots, duplicate preflight, failure retention, GlobalKey retake and positional identity PASS.');
 } finally {root.unmount();owner.dispose();}

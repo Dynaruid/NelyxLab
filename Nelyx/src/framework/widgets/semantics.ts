@@ -29,6 +29,8 @@ import type { SemanticsSortKey, SemanticsPropertiesOptions } from '../semantics/
 import { setSemanticsTransportRange } from '../rendering/semantics-transport.ts';
 import { valueEquals } from '../painting/value-equality.ts';
 
+import { InitialRenderConfiguration } from './initial-render-configuration.ts';
+
 const semanticPropertyFields = Object.keys(
   new SemanticsProperties(),
 ) as (keyof SemanticsProperties)[];
@@ -194,6 +196,33 @@ export class Semantics extends _SemanticsBase {
     super(configuration);
     this.options = first instanceof Widget ? (options ?? {}) : first;
     this.hostOptions = host;
+    if (new.target === Semantics && (first instanceof Widget || !('properties' in first)))
+      semanticsConfiguration.register(
+        this,
+        this.properties,
+        this.container,
+        this.explicitChildNodes,
+        this.excludeSemantics,
+        this.blockUserActions,
+        this.localeForSubtree,
+        this.hostOptions,
+        this.options,
+      );
+  }
+  override _hasInitialRenderObjectConfiguration(): boolean {
+    if (!semanticsConfiguration.matches(this)) return false;
+    // Source properties and structure were captured by the constructor. Only the
+    // transport envelope is read live; ranges/actions are copied by the renderer.
+    const options = this.options;
+    if ('transportRange' in options || 'transportRangeActions' in options) return false;
+    if (!('transportId' in options))
+      return this.hostOptions === null || this.hostOptions === options;
+    const id = Object.getOwnPropertyDescriptor(options, 'transportId');
+    return (
+      id !== undefined &&
+      'value' in id &&
+      (id.value != null) === (this.hostOptions !== null && this.hostOptions !== options)
+    );
   }
   static fromProperties(options: SemanticsFromPropertiesOptions): Semantics {
     return new Semantics(options);
@@ -235,6 +264,27 @@ export class Semantics extends _SemanticsBase {
     this.properties.debugFillProperties(properties);
   }
 }
+const semanticsConfiguration = new InitialRenderConfiguration(
+  Semantics.prototype,
+  [
+    'createRenderObject',
+    'updateRenderObject',
+    'getTextDirection',
+    'transportRange',
+    'transportRangeActions',
+    'transportOptions',
+  ],
+  [
+    'properties',
+    'container',
+    'explicitChildNodes',
+    'excludeSemantics',
+    'blockUserActions',
+    'localeForSubtree',
+    'hostOptions',
+    'options',
+  ],
+);
 export class SliverSemantics extends _SemanticsBase {
   constructor(options: SemanticsWidgetOptions | SemanticsFromPropertiesOptions = {}) {
     super(

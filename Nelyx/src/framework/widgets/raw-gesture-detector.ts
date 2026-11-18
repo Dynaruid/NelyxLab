@@ -248,11 +248,14 @@ export class RawGestureDetectorState extends State<RawGestureDetector> {
   };
   override build(_context: BuildContext): Widget {
     const behavior = this.widget.behavior ?? this.defaultBehavior;
-    let result: Widget = new Listener(this.widget.child, {
-      onPointerDown: this.handlePointerDown,
-      onPointerPanZoomStart: this.handlePointerPanZoomStart,
-      behavior,
-    });
+    let result: Widget = new Listener(
+      this.widget.child,
+      Object.freeze({
+        onPointerDown: this.handlePointerDown,
+        onPointerPanZoomStart: this.handlePointerPanZoomStart,
+        behavior,
+      }),
+    );
     if (!this.widget.excludeFromSemantics)
       result = new GestureSemantics(result, behavior, this.updateSemanticsForRenderObject);
     return result;

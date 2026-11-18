@@ -70,8 +70,15 @@ if (!process.argv.includes('--child')) {
       contents: `
 import assert from 'node:assert/strict';
 import {FrameworkRoot} from './Nelyx/src/framework/widgets/root.ts';
-import {LeafRenderObjectWidget} from './Nelyx/src/framework/widgets/framework.ts';
-import {Builder,SizedBox} from './Nelyx/src/framework/widgets/basic.ts';
+import {ErrorWidget,LeafRenderObjectWidget,State,StatefulElement,StatefulWidget} from './Nelyx/src/framework/widgets/framework.ts';
+import {Builder,SizedBox,Flexible,Row} from './Nelyx/src/framework/widgets/basic.ts';
+import {ValueKey} from './Nelyx/src/foundation/key.ts';
+import {ChangeNotifier} from './Nelyx/src/foundation/notifier.ts';
+import {InheritedNotifier} from './Nelyx/src/framework/widgets/inherited-notifier.ts';
+import {SliverChildDelegate} from './Nelyx/src/framework/widgets/scroll-delegate.ts';
+import {SliverPrototypeExtentList} from './Nelyx/src/framework/widgets/sliver-prototype-extent-list.ts';
+import {ListWheelScrollView} from './Nelyx/src/framework/widgets/list-wheel-scroll-view.ts';
+import {TwoDimensionalScrollView} from './Nelyx/src/framework/widgets/two-dimensional-scroll-view.ts';
 import {FlutterError} from './Nelyx/src/foundation/flutter-error.ts';
 import {FoundationPlatform} from './Nelyx/src/foundation/platform.ts';
 import {RenderBox,PipelineOwner} from './Nelyx/src/framework/rendering/object.ts';
@@ -95,7 +102,7 @@ import {LayoutBuilder} from './Nelyx/src/framework/widgets/layout-builder.ts';
 import {ListView,GridView,CustomScrollView} from './Nelyx/src/framework/widgets/scroll-view.ts';
 import {ScrollController} from './Nelyx/src/framework/widgets/scroll-controller.ts';
 import {RenderSliverList} from './Nelyx/src/framework/rendering/sliver-list.ts';
-import {RenderSliverFixedExtentList,RenderSliverVariedExtentList} from './Nelyx/src/framework/rendering/sliver-fixed-extent-list.ts';
+import {RenderSliverFixedExtentBoxAdaptor,RenderSliverFixedExtentList,RenderSliverVariedExtentList} from './Nelyx/src/framework/rendering/sliver-fixed-extent-list.ts';
 import {SliverFixedExtentList} from './Nelyx/src/framework/widgets/sliver.ts';
 import {SliverPersistentHeader,SliverPersistentHeaderDelegate} from './Nelyx/src/framework/widgets/sliver-persistent-header.ts';
 import {RenderSliverPersistentHeader} from './Nelyx/src/framework/rendering/sliver-persistent-header.ts';
@@ -150,6 +157,74 @@ function harness(child,direction='ltr'){
   const frame=()=>{now+=16;const result=view.build({token:{owner,metrics,sequence:++sequence},resources});try{return [...result.commands];}finally{releaseSceneFrameSource(result);}};
   return {view,frame,errors,update(next){child=next;rootElement.markNeedsBuild();},resize(width,height,scale=metrics.scale){metrics={...metrics,logicalWidth:width,logicalHeight:height,physicalWidth:width*scale,physicalHeight:height*scale,scale,viewportGeneration:metrics.viewportGeneration+1};},pointer(kind,pointer=1,x=10,y=10){now+=5;view.pointer({kind,pointer,x,y,device:'touch',buttons:kind==='up'?0:1,timestamp:now,viewportGeneration:metrics.viewportGeneration});},close(){status='closing';view.dispose();resources.dispose();assert.deepEqual(errors,[]);}};
 }
+// A sibling callback observes the preceding child's complete subtree update,
+// not merely its new configuration. Consuming an already dirty child must not
+// lose an invalidation delivered later in the same traversal.
+{
+  const events=[], states=new Map(); let invalidateAfterA=false;
+  class Branch extends StatefulWidget {
+    constructor(name){super();this.name=name;}
+    createState(){return new BranchState();}
+  }
+  class BranchState extends State {
+    initState(){states.set(this.widget.name,this);events.push(this.widget.name+'.init');}
+    didUpdateWidget(){events.push(this.widget.name+'.update');if(this.widget.name==='B'&&invalidateAfterA)states.get('A').context.markNeedsBuild();}
+    build(){const name=this.widget.name;events.push(name+'.build');return new Builder(()=>{events.push(name+'.child');return new TestWidget();});}
+  }
+  const branches=()=>new Row([new Branch('A'),new Branch('B')]);
+  const test=harness(branches());
+  try {
+    test.frame();assert.deepEqual(events,['A.init','A.build','A.child','B.init','B.build','B.child']);
+    events.length=0;states.get('A').setState(()=>{});test.update(branches());test.frame();
+    assert.deepEqual(events,['A.update','A.build','A.child','B.update','B.build','B.child']);
+    events.length=0;invalidateAfterA=true;states.get('A').setState(()=>{});test.update(branches());test.frame();
+    assert.deepEqual(events,['A.update','A.build','A.child','B.update','B.build','B.child','A.build','A.child']);
+    events.length=0;const same=states.get('A').widget;states.get('A').setState(()=>{});invalidateAfterA=false;
+    test.update(new Row([same,states.get('B').widget]));test.frame();assert.deepEqual(events,['A.build','A.child']);
+  } finally { test.close(); }
+}
+{
+  const events=[];let state;
+  class Reader extends StatefulWidget{createState(){return state=new ReaderState();}}
+  class ReaderState extends State{
+    didUpdateWidget(){events.push('update');}
+    didChangeDependencies(){events.push('dep:'+Directionality.of(this.context));}
+    build(context){events.push('build:'+Directionality.of(context));return new TestWidget();}
+  }
+  const test=harness(new Directionality('ltr',new Reader()));
+  try{test.frame();events.length=0;state.setState(()=>{});test.update(new Directionality('rtl',new Reader()));test.frame();assert.deepEqual(events,['update','dep:rtl','build:rtl']);}finally{test.close();}
+}
+{
+  const events=[];let element;
+  class Extended extends StatefulElement{
+    mount(...args){super.mount(...args);this.ready=true;}
+    update(widget){this.ready=false;super.update(widget);this.ready=true;}
+  }
+  class Extension extends StatefulWidget{
+    createElement(){return element=new Extended(this);}
+    createState(){return new class extends State{build(c){assert(c.ready);events.push('ready');return new TestWidget();}};}
+  }
+  const test=harness(new Extension());
+  try{test.frame();test.update(new Extension());test.frame();assert.deepEqual(events,['ready','ready']);element.update(new Extension());assert.equal(events.length,2);test.frame();assert.equal(events.length,3);}finally{test.close();}
+}
+{
+  let context, fallback;
+  const failure=new Error('nested child failure'), previous=ErrorWidget.builder, handler=FlutterError.onError;
+  const branch=fail=>new Builder(c=>{context=c;if(fail)throw failure;return new TestWidget();});
+  const test=harness(branch(false));
+  try{
+    test.frame();const original=context;FlutterError.onError=()=>{};ErrorWidget.builder=()=>fallback=new TestWidget();
+    test.update(branch(true));test.frame();assert.equal(context,original);assert.equal(original.children[0].widget,fallback);
+    assert.deepEqual(test.errors.splice(0).map(d=>d.exception),[failure]);
+    test.update(branch(false));test.frame();assert.equal(context,original);assert.notEqual(original.children[0].widget,fallback);
+  }finally{ErrorWidget.builder=previous;FlutterError.onError=handler;test.close();}
+}
+{
+  let visits=0;
+  const deep=()=>{let child=new TestWidget();for(let i=0;i<128;i++){const next=child;child=new Builder(()=>{visits++;return next;});}return child;};
+  const test=harness(deep());
+  try{test.frame();assert.equal(visits,128);test.update(deep());test.frame();assert.equal(visits,256);}finally{test.close();}
+}
 // Arbitrary subclasses execute layout/paint/hit and a custom recognizer enters the Source arena.
 class UserTap extends TapGestureRecognizer {
   acceptGesture(pointer){trace.push('arena-accept');super.acceptGesture(pointer);}
@@ -180,6 +255,98 @@ try{
   layoutElement.markNeedsBuild();layout.frame();assert.equal(layoutBuilds,2);
   layout.resize(140,80);layout.frame();assert.equal(layoutBuilds,3,'Changed constraints did not reach LayoutBuilder');
 }finally{layout.close();}
+// Split parent build from layout: update configuration once, but never borrow
+// the parent's scope to run a constraints builder or mutate lazy children.
+{
+  const events=[];
+  class ProbeLayout extends LayoutBuilder {
+    updateRenderObject(element){assert.equal(element.owner.currentElement,element);events.push('configure');}
+    updateShouldRebuild(){events.push('decision');return true;}
+  }
+  const widget=()=>new ProbeLayout((context,constraints)=>{
+    assert(context.renderObject.debugDoingThisLayout);events.push(constraints.maxWidth);return new TestWidget();
+  });
+  const view=harness(widget());
+  try{
+    view.frame();events.length=0;view.update(widget());view.view.buildOwner.flushBuild();
+    assert.deepEqual(events,['configure','decision']);view.frame();assert.deepEqual(events,['configure','decision',120]);
+  }finally{view.close();}
+}
+{
+  let element;const events=[],keys=['a','b','c'].map(k=>new ValueKey(k));
+  class Rows extends SliverChildDelegate {
+    constructor(order){super();this.order=order;}
+    get estimatedChildCount(){return this.order.length;}
+    build(context,index){assert(context.renderObject.debugDoingThisLayout);events.push(index);return this.order[index]?new TestWidget(this.order[index]):null;}
+    findIndexByKey(key){return this.order.indexOf(key);}
+    shouldRebuild(){events.push('decision');assert.equal(element.renderObject.itemExtent,25);
+      assert.throws(()=>element.owner.buildScope(element),/already building/);
+      assert.throws(()=>element.renderObject._invokeChildManagerLayoutCallback(()=>{}),/performing layout/);return true;}
+  }
+  class ProbeSliver extends SliverFixedExtentList {
+    updateRenderObject(context,render){element=context;assert.equal(context.owner.currentElement,context);events.push('configure');super.updateRenderObject(context,render);}
+  }
+  const widget=(order,itemExtent)=>new CustomScrollView({cacheExtent:0,slivers:[new ProbeSliver({itemExtent,delegate:new Rows(order)})]});
+  const view=harness(widget(keys,20));
+  try{
+    view.frame();const entries=[...element.children];assert.equal(entries.length,3);events.length=0;
+    view.update(widget([...keys].reverse(),25));view.view.buildOwner.flushBuild();
+    assert.deepEqual(events,['configure','decision']);assert.deepEqual(element.children,entries);
+    view.frame();assert.deepEqual(element.children,[...entries].reverse());
+    assert.deepEqual(events.slice(2).filter(i=>i<3),[0,1,2]);
+    assert.deepEqual(element.children.map(e=>[e.slot,e.renderObject.parentData.index,e.renderObject.parentData.layoutOffset]),[[0,0,0],[1,1,25],[2,2,50]]);
+    events.length=0;view.update(widget([...keys,new ValueKey('d')],25));view.view.buildOwner.flushBuild();
+    assert.deepEqual(events,['configure','decision']);view.frame();assert.deepEqual(element.children.slice(0,3),entries);
+    assert.equal(element.children[3].renderObject.parentData.layoutOffset,75);assert.equal(events.filter(i=>i===3).length,1);
+  }finally{view.close();}
+}
+{
+  const rows=SliverPrototypeExtentList.list({children:[new TestWidget(),new TestWidget()],prototypeItem:new SizedBox(1,20)}),view=harness(new CustomScrollView({slivers:[rows]}));
+  try{
+    view.frame();const render=findRender(view.view.pipeline.root,RenderSliverFixedExtentBoxAdaptor);
+    const previous=render.child,first=render.firstChild;
+    view.update(new CustomScrollView({slivers:[new SliverPrototypeExtentList({delegate:rows.delegate,prototypeItem:new Builder(()=>new SizedBox(1,40))})]}));
+    view.frame();assert.equal(previous.parent,undefined);assert.notEqual(render.child,previous);assert.equal(render.firstChild,first);
+    assert.equal(render.itemExtent,40);assert.equal(render.childAfter(first).parentData.layoutOffset,40);
+  }finally{view.close();}
+}
+for(const kind of ['wheel','2d']){
+  const built=[],elements=[];
+  const widget=revision=>{
+    const item=(context,...slot)=>{assert(context.renderObject.debugDoingThisLayout,kind+' builder outside its own layout');
+      if(slot.every(i=>i===0)){built.push(revision);return new Builder(e=>{elements.push(e);return new TestWidget();});}
+      return new TestWidget();};
+    return kind==='wheel'?new ListWheelScrollView({itemExtent:20,itemCount:8,itemBuilder:item}):new TwoDimensionalScrollView({rowCount:4,columnCount:4,rowExtent:20,columnExtent:30,cellBuilder:item});
+  };
+  const view=harness(widget(0));
+  try{
+    view.frame();view.update(widget(1));view.frame();assert(built.includes(0));assert.equal(built.filter(n=>n===1).length,1,kind+' duplicate/missing slot update');
+    assert(elements.length>=2);assert(elements.every(e=>e===elements[0]),kind+' lost retained child');
+  }finally{view.close();}
+}
+{
+  const old=new ChangeNotifier(),next=new ChangeNotifier(),seen=[];
+  const reader=new Builder(context=>{seen.push(context.dependOn(InheritedNotifier).notifier);return new TestWidget();});
+  const view=harness(new InheritedNotifier(old,reader));
+  try{
+    view.frame();old.notifyListeners();old.notifyListeners();view.update(new InheritedNotifier(next,reader));view.frame();
+    old.notifyListeners();view.frame();assert.deepEqual(seen,[old,next]);
+    next.notifyListeners();next.notifyListeners();view.frame();assert.deepEqual(seen,[old,next,next]);
+  }finally{view.close();assert(!next.hasListeners);old.dispose();next.dispose();}
+}
+{
+  let previous,replacement;const observed=[];
+  class Replacement extends TestWidget{createRenderObject(){return replacement=super.createRenderObject();}}
+  const row=(flex,replace)=>new Row([new Flexible(new Builder(context=>{
+    if(previous)observed.push(previous.parentData.flex);
+    return replace?new Replacement():new TestWidget();}),flex)]);
+  const view=harness(row(1,false));
+  try{
+    view.frame();previous=findRender(view.view.pipeline.root,TestBox);view.update(row(3,true));view.frame();
+    assert.deepEqual(observed,[3]);assert.equal(previous.parent,undefined);
+    assert.equal(replacement.parentData.flex,3,'Replacement child did not receive the new parent data');
+  }finally{view.close();}
+}
 // The original PagePosition conversion must survive zero-size layout and delayed page commands.
 const cases=[];
 for(const fraction of [0.5,1,1.5])for(const [axis,direction,reverse] of [[Axis.horizontal,'ltr',false],[Axis.horizontal,'rtl',false],[Axis.horizontal,'ltr',true],[Axis.vertical,'ltr',true]]){

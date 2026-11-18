@@ -132,6 +132,11 @@ if (!process.argv.includes('--child')) {
     const label = () =>
       month.evaluate((element) => element.getAttribute('aria-label') ?? element.textContent);
     const originalMonth = await label();
+    const selectedDay = page
+      .getByRole('button', { name: /^\d{1,2},/ })
+      .and(page.locator('[aria-selected="true"]'));
+    const selectedLabel = await selectedDay.getAttribute('aria-label');
+    assert(selectedLabel);
     await tap(button('Next month'));
     for (let attempt = 0; attempt < 30 && (await label()) === originalMonth; attempt++)
       await page.waitForTimeout(100);
@@ -140,6 +145,7 @@ if (!process.argv.includes('--child')) {
     for (let attempt = 0; attempt < 30 && (await label()) !== originalMonth; attempt++)
       await page.waitForTimeout(100);
     assert.equal(await label(), originalMonth);
+    await button(selectedLabel).and(selectedDay).waitFor();
     await tap(button('Cancel'));
     await button('Cancel').waitFor({ state: 'hidden' });
     await page.waitForTimeout(500);
