@@ -285,7 +285,7 @@ async function finish() {
       'FAST_CPU_PROFILE ' +
         JSON.stringify({ name: active.name, ...samplingSummary(host.cpuProfile('end')) }),
     );
-  host.log('FAST_PHASE_RESULT ' + JSON.stringify(result));
+  logMotionPhase(line => host.log(line), 'FAST_PHASE_RESULT ', result);
   if (planIndex === plans.length) host.log('FAST_ALL_DONE');
 }
 export function main() {

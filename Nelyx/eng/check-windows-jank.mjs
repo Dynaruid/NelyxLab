@@ -65,12 +65,15 @@ const app = path.join(
   root,
   appName === 'testbed' ? 'sample/nelyx-testbed-app-2' : 'sample/nelyx-demo-app',
 );
-const scrollScenario = ['gallery', 'list'].includes(scenario);
+const listScenario = scenario === 'list' || scenario === 'fixed-list';
+const scrollScenario = scenario === 'gallery' || listScenario;
+const sustained = process.argv.includes('--sustained');
+if (sustained && !scrollScenario) throw Error('Sustained input requires a scroll scenario');
 const screenEnabled =
-  !process.argv.includes('--no-screen') && ['calendar', 'gallery', 'list'].includes(scenario);
+  !process.argv.includes('--no-screen') && (scenario === 'calendar' || scrollScenario);
 if (
-  !['calendar', 'gallery', 'boundaries', 'testbed', 'list'].includes(scenario) ||
-  (scenario === 'list' && appName !== 'testbed') ||
+  !['calendar', 'gallery', 'boundaries', 'testbed', 'list', 'fixed-list'].includes(scenario) ||
+  (listScenario && appName !== 'testbed') ||
   !['demo', 'testbed'].includes(appName) ||
   !['bytecode', 'static-aot'].includes(hermesMode) ||
   !['hermes', 'jsc'].includes(engine) ||
@@ -119,6 +122,7 @@ if (!process.argv.includes('--child')) {
           '-Preparation',
           preparation,
           ...(diagnostic ? ['-Diagnostic'] : []),
+          ...(sustained ? ['-Sustained'] : []),
           '-SummaryPath',
           summary,
           ...(!screenEnabled ? ['-NoScreen'] : []),
@@ -234,11 +238,12 @@ const plans = [
   { Count: 12, MoveMs: 6, GapMs: 16, Direction: -1 },
 ];
 const wheels = [
-  // Same +/-1200 total delta, spread over ~817ms instead of ten 90ms notches.
-  { Count: 50, Delta: -24, InputHz: 60 },
-  { Count: 50, Delta: 24, InputHz: 60 },
-  { Count: 50, Delta: -24, InputHz: 60 },
-];
+  ...(sustained ? [{ Name: 'slow-start', Count: 24, Delta: -1 }] : []),
+  ...['cold-down', 'return-up', 'warm-down'].map((Name, index) => ({
+    Name, Count: sustained ? 180 : 50, Delta: index === 1 ? 24 : -24,
+  })),
+].map(plan => ({ ...plan, InputHz: 60 }));
+const wheelInput = ({ Count, Delta, InputHz }) => ({ Count, Delta, InputHz });
 const galleryPhases = [];
 const listSnapshots = [];
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -464,10 +469,31 @@ function enqueue(task) {
 }
 function publicMotion(motion) {
   if (!motion) return motion;
-  const { framePositions: _positions, ...summary } = motion;
+  const { framePositions: _positions, frameInputs: _inputs, inputStamps: _stamps, ...summary } = motion;
   return summary;
 }
+const evidence = new Map();
+function phaseResult(line) {
+  const result = JSON.parse(line.slice(line.indexOf(' ') + 1));
+  const rows = evidence.get(result.name);
+  if (!rows?.framePositions?.length || rows.frameInputs?.length !== rows.framePositions.length ||
+      rows.inputStamps?.length !== result.accepted) throw Error('Incomplete phase motion trace');
+  Object.assign(result.motion, rows);
+  evidence.delete(result.name);
+  return result;
+}
 function onLine(line) {
+  if (line.startsWith('JANK_MOTION_ROWS ')) {
+    const {name, key, start, rows} = JSON.parse(line.slice('JANK_MOTION_ROWS '.length));
+    if (!['framePositions', 'frameInputs', 'inputStamps'].includes(key) || rows.length > 64)
+      throw Error('Invalid phase motion rows');
+    const phase = evidence.get(name) ?? {};
+    const values = phase[key] ??= [];
+    if (start !== values.length || start + rows.length > 4096) throw Error('Motion rows out of order');
+    values.push(...rows);
+    evidence.set(name, phase);
+    return;
+  }
   if (line.startsWith('FAST_SLIVER_SHORT_SCENES ')) {
     const { name, rows } = JSON.parse(line.slice('FAST_SLIVER_SHORT_SCENES '.length));
     if (!shortScenes.has(name)) shortScenes.set(name, []);
@@ -580,31 +606,32 @@ function onLine(line) {
         await ui('Close');
       } else {
         await ui(
-          scenario === 'list' ? 'SetupList' : scenario === 'gallery' ? 'SetupGallery' : 'Setup',
+          listScenario ? 'SetupList' : scenario === 'gallery' ? 'SetupGallery' : 'Setup',
         );
         await startScreen();
         if (scrollScenario) {
           if (!galleryReady) throw Error('Gallery owner unavailable');
-          await ui('Wheel', wheels[0]);
+          await ui('Wheel', wheelInput(wheels[0]));
         }
       }
     });
   }
   if (line.startsWith('GALLERY_PHASE_RESULT ')) {
-    const result = JSON.parse(line.slice('GALLERY_PHASE_RESULT '.length)),
+    const result = phaseResult(line),
       index = galleryPhases.length;
     galleryPhases.push(result);
     enqueue(async () => {
       if (
-        index >= 3 ||
+        index >= wheels.length ||
+        result.name !== wheels[index].Name ||
         result.accepted !== wheels[index].Count ||
         result.inputToSurface.n !== wheels[index].Count ||
-        Math.abs(Math.abs(result.delta) - 480) > 1e-6 ||
-        Math.sign(result.end - result.start) !== (index === 1 ? -1 : 1)
+        Math.abs(result.delta + wheels[index].Count * wheels[index].Delta * 48 / 120) > 1e-6 ||
+        Math.abs(result.end - result.start - result.delta) > 1e-6
       )
         throw Error('Gallery input/progress validation failed');
-      if (scenario === 'list') await ui('SnapshotList');
-      if (index < 2) await ui('Wheel', wheels[index + 1]);
+      if (listScenario) await ui('SnapshotList');
+      if (index + 1 < wheels.length) await ui('Wheel', wheelInput(wheels[index + 1]));
     });
   }
   if (line === 'GALLERY_ALL_DONE' && !finished) {
@@ -620,7 +647,7 @@ function onLine(line) {
   }
   if (line.startsWith('FAST_CALENDAR_READY ')) enqueue(() => ui('Swipe', plans[0]));
   if (line.startsWith('FAST_PHASE_RESULT ')) {
-    const result = JSON.parse(line.slice(18)),
+    const result = phaseResult(line),
       index = phases.length;
     phases.push(result);
     enqueue(async () => {
@@ -683,8 +710,8 @@ try {
       .replace(/^export /gm, '');
     const names =
       template === 'windows-jank-probe.ts'
-        ? 'motionMetrics, distribution, samplingSummary'
-        : 'motionMetrics, distribution';
+        ? 'motionMetrics, distribution, samplingSummary, logMotionPhase'
+        : 'motionMetrics, distribution, logMotionPhase';
     const metrics =
       'const { ' + names + ' } = (() => {\n' + module + '\nreturn { ' + names + ' };\n})();';
     let source = fs
@@ -703,7 +730,10 @@ try {
       )
       .replace(
         'const listScenario = false; // @jank-testbed',
-        `const listScenario = ${scenario === 'list'};`,
+        `const listScenario = ${listScenario};`,
+      )
+      .replace(
+        '/* @wheel-plans */ []', JSON.stringify(wheels),
       )
       .replace(
         '// @jank-list-fixture',
@@ -852,6 +882,9 @@ try {
   const hash = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
   identity = {
     ...runtimeIdentity,
+    executableSha256: hash(built.executable),
+    bridgeSourceSha256: hash(path.join(roots['@nelyx/sdk'], 'src/backends/native-hermes/interaction.ts')),
+    bridgeDistSha256: hash(path.join(roots['@nelyx/sdk'], 'dist/backends/native-hermes/interaction.js')),
     rendererSha256: hash(path.join(app, '.nelyx/native-windows/host/nelyx_host_skia.lib')),
     baseHostSourceSha256: hash(path.join(roots['@nelyx/sdk'], 'native/windows-hermes/main.cpp')),
     installedSdkInputsSha256: windowsBuildInputs(runner),
@@ -896,8 +929,12 @@ try {
       resolve({ code, signal });
     });
   });
-  lines(native.stdout, onLine);
-  lines(native.stderr, onLine);
+  const receive = line => {
+    try { onLine(line); }
+    catch (error) { failure ??= error; native.kill(); }
+  };
+  lines(native.stdout, receive);
+  lines(native.stderr, receive);
   const exited = await nativeExit;
   await queue;
   if (failure) throw failure;
@@ -916,8 +953,8 @@ try {
     (scenario === 'calendar' &&
       (phases.length !== 3 || drivers.length !== 3 || snapshots.length !== 3)) ||
     (scrollScenario &&
-      (galleryPhases.length !== 3 ||
-        drivers.length !== 3 ||
+      (galleryPhases.length !== wheels.length ||
+        drivers.length !== wheels.length ||
         (scenario === 'gallery' && !editorFinal))) ||
     exitReceipt?.exitCode !== 0 ||
     exitReceipt.mode !== runtimeMode ||
@@ -940,10 +977,10 @@ try {
           exitReceipt,
         }),
     );
-  if (scenario === 'list') {
-    const ids = listSnapshots.map((snapshot) => snapshot.Items.join(','));
+  if (listScenario) {
+    const ids = listSnapshots.slice(sustained ? 1 : 0).map((snapshot) => snapshot.Items.join(','));
     if (ids.length !== 4 || ids[0] === ids[1] || ids[0] !== ids[2] || ids[1] !== ids[3])
-      throw Error('Variable list UIA cold/return/warm membership differs');
+      throw Error('List UIA cold/return/warm membership differs');
     console.log('LIST_UI_PASS ' + JSON.stringify({ snapshots: listSnapshots }));
   }
   const report = {
@@ -952,7 +989,7 @@ try {
     displayed,
     markerCost,
     performanceSample:
-      scenario === 'calendar' &&
+      (scenario === 'calendar' || scrollScenario) && screenEnabled &&
       !diagnostic &&
       process.env.NELYX_NATIVE_CPU_PROFILE !== '1' &&
       process.env.NELYX_JANK_BUILD_PROFILE !== '1' &&
@@ -987,7 +1024,7 @@ try {
       motion: publicMotion(p.motion),
     })),
     galleryPhases: galleryPhases.map((p) => ({
-      name: p.name,
+      name: p.name, accepted: p.accepted, delta: p.delta, start: p.start, end: p.end,
       motion: publicMotion(p.motion),
       inputQueue: p.inputQueue,
       inputToSurface: p.inputToSurface,

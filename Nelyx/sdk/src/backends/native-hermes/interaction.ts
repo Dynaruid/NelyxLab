@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { ViewMetrics, SemanticsNode } from '@nelyx/core/ui/types';
 import type { NativeHermesBridge } from './bridge.ts';
-import type { NativeInteraction } from '../../runtime/native-interaction.ts';
+import { sameSemantics, type NativeInteraction } from '../../runtime/native-interaction.ts';
 import {
   windowsSemanticsPacket,
   performWindowsSemanticsAction,
@@ -15,15 +15,32 @@ interface NativeSemanticSnapshot {
   readonly packet: WindowsSemanticsPacket;
   readonly parent: number;
 }
+// The receiver stamps retained records with the new commit while applying order.
+// Compare the projected values only. Descendants have their own records.
+function sameWindowsRecord(previous: NativeSemanticSnapshot, next: NativeSemanticSnapshot) {
+  const a = previous.packet, b = next.packet;
+  if (previous.parent !== next.parent) return false;
+  if (previous.node === next.node) return true;
+  const old = previous.node, node = next.node;
+  return a.source === b.source && a.role === b.role &&
+    a.bounds.x === b.bounds.x && a.bounds.y === b.bounds.y &&
+    a.bounds.width === b.bounds.width && a.bounds.height === b.bounds.height &&
+    a.enabled === b.enabled && a.focused === b.focused && a.focusable === b.focusable &&
+    a.canActivate === b.canActivate && a.isSlider === b.isSlider &&
+    old.name === node.name && (old.tooltip ?? '') === (node.tooltip ?? '') &&
+    (old.semanticsIdentifier ?? old.id) === (node.semanticsIdentifier ?? node.id) &&
+    (old.isLink === true) === (node.isLink === true) &&
+    (old.selected ?? null) === (node.selected ?? null) &&
+    (old.checked ?? null) === (node.checked ?? null) &&
+    (b.text !== null || (old.value ?? null) === (node.value ?? null)) &&
+    sameSemantics(a.range, b.range) && sameSemantics(a.text, b.text);
+}
 export function connectNativeInteraction(
   interaction: NativeInteraction,
   bridge: NativeHermesBridge,
   metrics: () => ViewMetrics,
 ) {
-  let semanticSnapshots = new Map<
-      string,
-      { node: SemanticsNode; packet: WindowsSemanticsPacket; parent: number }
-    >(),
+  let semanticSnapshots = new Map<string, NativeSemanticSnapshot>(),
     queued = false,
     previousFocus = '';
   let live = true,
@@ -59,10 +76,8 @@ export function connectNativeInteraction(
           },
           records: unknown[] = [],
           order: string[] = [],
-          next = new Map<
-            string,
-            { node: SemanticsNode; packet: WindowsSemanticsPacket; parent: number }
-          >();
+          next = new Map<string, NativeSemanticSnapshot>();
+        const commit = interaction.snapshot();
         const walk = (nodes: readonly SemanticsNode[], parent = -1) => {
           for (const node of nodes) {
             if (order.length >= 4096) throw new Error('Native semantics node budget exceeded');
@@ -71,17 +86,12 @@ export function connectNativeInteraction(
                 node,
                 interaction.owner,
                 surface,
-                interaction.snapshot(),
+                commit,
               ),
-              previous = semanticSnapshots.get(node.id);
+              previous = semanticSnapshots.get(node.id),
+              snapshot = { node, packet, parent };
             order.push(node.id);
-            if (
-              reset ||
-              previous?.node !== node ||
-              previous.parent !== parent ||
-              previous.packet.viewport !== packet.viewport ||
-              previous.packet.surfaceGeneration !== packet.surfaceGeneration
-            )
+            if (reset || !previous || !sameWindowsRecord(previous, snapshot))
               records.push({
                 packet,
                 name: node.name,
@@ -93,13 +103,12 @@ export function connectNativeInteraction(
                 automationId: node.semanticsIdentifier ?? node.id,
                 isLink: node.isLink === true,
               });
-            next.set(node.id, { node, packet, parent });
+            next.set(node.id, snapshot);
             if (node.children) walk(node.children, index);
           }
         };
         walk(interaction.semanticNodes);
         const removed = reset ? [] : [...semanticSnapshots.keys()].filter((id) => !next.has(id));
-        semanticSnapshots = next;
         const actions = new Map<string, NativeSemanticSnapshot>();
         for (const [id, snapshot] of next)
           if (
@@ -109,9 +118,6 @@ export function connectNativeInteraction(
             snapshot.packet.text !== null
           )
             actions.set(id, snapshot);
-        if (actions.size) actionSnapshots.set(interaction.snapshot(), actions);
-        while (actionSnapshots.size > 16)
-          actionSnapshots.delete(actionSnapshots.keys().next().value!);
         if (bridge.diagnostics) {
           const focused = [...next.values()]
             .filter((value) => value.packet.focused)
@@ -125,7 +131,7 @@ export function connectNativeInteraction(
         bridge.publishSemantics({
           protocol: 1,
           owner: interaction.owner,
-          commit: interaction.snapshot(),
+          commit,
           viewport: m.viewportGeneration,
           surface: m.nativeSurfaceGeneration,
           reset,
@@ -133,6 +139,10 @@ export function connectNativeInteraction(
           removed,
           order,
         });
+        semanticSnapshots = next;
+        if (actions.size) actionSnapshots.set(commit, actions);
+        while (actionSnapshots.size > 16)
+          actionSnapshots.delete(actionSnapshots.keys().next().value!);
         semanticScope = { viewport: m.viewportGeneration, surface: m.nativeSurfaceGeneration };
       } while (publishAgain);
     } finally {

@@ -59,6 +59,27 @@ try {
   assert.throws(() => displayedMotion(result, { ...screen, Invalid: 1 }), /integrity/);
   assert.throws(() => displayedMotion(result, { ...screen, Started: 101 }), /coverage/);
   assert.throws(() => displayedMotion(result, { ...screen, Changes: [[130, 1]] }), /not observed/);
+  function cadence(times, offsets) {
+    const frames = times.map((at, i) => frame(i+1, i+1, at, offsets[i], false));
+    const motion = motionMetrics({
+      events: times.map((at, i) => ({id:i+1, stamp:i === 0 ? 0 : at-1})),
+      frames, surfaces: times.flatMap((at,i)=>surface(i+1,at)),
+      startPixels:0, endPixels:offsets.at(-1),
+    });
+    return displayedMotion(motion, { ...screen, Started:0, Ended:times.at(-1),
+      Changes:times.map((at,i)=>[at,i+1]), SampleGaps:[[60,86]] });
+  }
+  const uniform = cadence([30, 190/3, 290/3, 130], [1,2,3,4]);
+  const uneven = cadence([30, 45, 115, 130], [1,2,3,4]);
+  const repeated = cadence([30, 45, 115, 130], [1,1,3,4]);
+  assert.equal(uniform.averageFpsLowerBound, uneven.averageFpsLowerBound);
+  assert.equal(uniform.excessMsPerSecond, 0);
+  assert.equal(uneven.progressOver50ms.count, 1);
+  assert.equal(uneven.progressIntervals.p95, 70);
+  assert.equal(repeated.progressIntervals.n, 2);
+  assert.equal(repeated.firstMovementDelayMs, 30);
+  assert.deepEqual(repeated.delayedSteps, [{frame:3,intervalMs:85,deltaPixels:2,observationGap:true}]);
+  assert.equal(repeated.inputToDesktop.n,4);
   console.log(
     'JANK_METRICS PASS: unique frames, full active denominator, final fence, idle exclusion, missing evidence',
   );

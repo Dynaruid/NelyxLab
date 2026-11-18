@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('calendar','gallery','boundaries','testbed','list')][string]$Scenario = 'calendar',
+  [ValidateSet('calendar','gallery','boundaries','testbed','list','fixed-list')][string]$Scenario = 'calendar',
   [ValidateRange(1,30)][int]$Runs = 3,
   [switch]$RunOnce, [switch]$NoScreen, [string]$SummaryPath = '',
   [ValidateSet('demo','testbed')][string]$App = 'demo',
@@ -7,7 +7,7 @@ param(
   [ValidateSet('hermes','jsc')][string]$Engine = 'hermes',
   [ValidateSet('interpreter','jit')][string]$JscMode = 'interpreter',
   [ValidateSet('legacy','split')][string]$Preparation = 'legacy',
-  [switch]$Diagnostic,
+  [switch]$Diagnostic, [switch]$Sustained,
   [string]$CompilerCache = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -17,6 +17,7 @@ try {
   $taskArguments = @((Join-Path $PSScriptRoot 'check-windows-jank.mjs'), '--scenario', $Scenario, '--runs', $Runs, '--app', $App, '--hermes-mode', $HermesMode)
   $taskArguments += @('--engine', $Engine, '--jsc-mode', $JscMode)
   $taskArguments += @('--preparation', $Preparation)
+  if ($Sustained) { $taskArguments += '--sustained' }
   if ($Diagnostic) { $taskArguments += '--diagnostic' }
   if ($RunOnce) { $taskArguments += '--child' }
   if ($NoScreen) { $taskArguments += '--no-screen' }

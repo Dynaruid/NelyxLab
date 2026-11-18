@@ -6,9 +6,9 @@ const host = globalThis.NelyxNativeHost;
 const summary = distribution;
 const listScenario = false; // @jank-testbed
 // @jank-list-fixture
-const diagnostics = new FrameDiagnostics({ now: () => host.now() }, 16384);
-const plans = ['cold-down', 'return-up', 'warm-down'];
-const wheelSamples = 50; // 50 x 24 Win32 units = the previous 10 x 120 total.
+const diagnosticEnabled = false; // @page-diagnostic
+const diagnostics = diagnosticEnabled ? new FrameDiagnostics({ now: () => host.now() }, 16384) : undefined;
+const plans = /* @wheel-plans */ [];
 let root,
   component,
   position,
@@ -20,6 +20,7 @@ let root,
   events = [];
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function drain() {
+  if (!diagnostics) return;
   const data = diagnostics.drain();
   if (data.invalid || data.overwritten) throw Error('Gallery samples lost');
   if (phase) {
@@ -79,6 +80,8 @@ async function finish() {
     if (!own.has(inputs[i]) || inputs[i + 3] !== 4) continue;
     if (!inputs[i + 9]) throw Error('Gallery wheel rejected');
     accepted++;
+    if (Math.abs(inputs[i + 8] + plans[planIndex].Delta * 48 / 120) > 1e-6)
+      throw Error('Native wheel sample differs from plan');
     delta += inputs[i + 8];
     queue.push(inputs[i + 5] - inputs[i + 4]);
     for (let j = 0; j < surfaces.length; j += 11)
@@ -87,21 +90,21 @@ async function finish() {
         break;
       }
   }
+  const plan = plans[planIndex], expectedDelta = -plan.Count * plan.Delta * 48 / 120;
   if (
-    accepted !== wheelSamples ||
-    latency.length !== wheelSamples ||
-    Math.abs(Math.abs(delta) - 480) > 1e-6 ||
+    accepted !== plan.Count ||
+    latency.length !== plan.Count ||
+    Math.abs(delta - expectedDelta) > 1e-6 ||
     Math.abs(delta - events.reduce((n, e) => n + e.delta, 0)) > 1e-6
   )
     throw Error('Gallery wheel accounting mismatch');
-  const direction = planIndex === 1 ? -1 : 1;
-  if ((position.pixels - phase.start) * direction <= 0)
-    throw Error('Gallery did not move in the injected direction');
+  if (Math.abs(position.pixels - phase.start - expectedDelta) > 1e-6)
+    throw Error('Gallery controller movement differs from scheduled distance');
   const stages = {};
   for (const stage of ['build', 'layout', 'paint', 'compose', 'semantics', 'composition-match'])
     stages[stage] = summary(samples.filter((s) => s.stage === stage).map((s) => s.duration));
   const result = {
-    name: plans[planIndex],
+    name: plan.Name,
     accepted,
     delta,
     start: phase.start,
@@ -121,7 +124,7 @@ async function finish() {
   };
   phase = undefined;
   planIndex++;
-  host.log('GALLERY_PHASE_RESULT ' + JSON.stringify(result));
+  logMotionPhase(line => host.log(line), 'GALLERY_PHASE_RESULT ', result);
   if (planIndex === plans.length) host.log('GALLERY_ALL_DONE');
 }
 export function main() {
@@ -146,7 +149,7 @@ export function main() {
         }, 80);
         root.build = (scene) => {
           const at = host.now(),
-            value = build({ ...scene, frameDiagnostics: diagnostics });
+            value = build(diagnostics ? { ...scene, frameDiagnostics: diagnostics } : scene);
           locate();
           if (phase) {
             if (frames.length >= 2048) throw Error('Gallery frame budget');
@@ -166,20 +169,20 @@ export function main() {
           if (event.kind === 'wheel' && planIndex < plans.length) {
             if (!position) throw Error('Gallery scroll owner unavailable');
             if (!phase) {
-              diagnostics.drain();
+              diagnostics?.drain();
               host.takeFrameTrace();
               frames = [];
               samples = [];
               events = [];
               phase = { start: position.pixels };
             }
-            if (events.length >= wheelSamples) throw Error('Extra gallery wheel packet');
+            if (events.length >= plans[planIndex].Count) throw Error('Extra gallery wheel packet');
             events.push({ id: event.inputSequence, delta: event.deltaY, stamp: event.timestamp });
           }
           pointer(event);
           if (
             event.kind === 'wheel' &&
-            events.length === wheelSamples &&
+            events.length === plans[planIndex]?.Count &&
             phase &&
             !phase.finishing
           ) {

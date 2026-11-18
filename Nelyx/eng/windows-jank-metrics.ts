@@ -24,6 +24,7 @@ export interface ScreenObservation {
   readonly Changes: readonly (readonly [number, number])[];
   readonly MaximumIntervalMs: number;
   readonly MaximumCaptureMs: number;
+  readonly SampleGaps?: readonly (readonly [number, number])[];
 }
 const round = (n: number): number => Math.round(n * 1000) / 1000;
 export function distribution(values: readonly number[]) {
@@ -119,6 +120,8 @@ export function motionMetrics({
     progressIntervals: distribution(progress),
     progressAtLeast100ms: stalls(progress, 100, seconds),
     displayedFps: 'notVerified',
+    frameInputs: frames.map(frame => [frame.frame, frame.input] as const),
+    inputStamps: events.map(event => [event.id, event.stamp] as const),
     framePositions: frames.map((frame) => [frame.frame, frame.pixels] as const),
     startPixels,
     endPixels,
@@ -150,14 +153,32 @@ export function displayedMotion(
   const seconds = (end - motion.start) / 1000,
     intervals = [],
     progress = [];
-  let frameAt = motion.start,
-    progressAt = motion.start,
-    pixels = motion.startPixels;
+  const movement: number[] = [], distances: number[] = [], delayedSteps = [];
+  let firstMovement: number | undefined;
+  let frameAt = motion.start, progressAt = motion.start, pixels = motion.startPixels;
+  const frameInputs = new Map(motion.frameInputs);
+  const latency = [];
+  let inputIndex = 0;
   for (const frame of frames) {
     intervals.push(frame.at - frameAt);
     frameAt = frame.at;
-    if (Math.abs(frame.pixels - pixels) > 1e-6) {
-      progress.push(frame.at - progressAt);
+    const input = frameInputs.get(frame.frame)!;
+    while (inputIndex < motion.inputStamps.length && motion.inputStamps[inputIndex]![0] <= input) {
+      latency.push(frame.at - motion.inputStamps[inputIndex++]![1]);
+    }
+    const delta = frame.pixels - pixels;
+    if (Math.abs(delta) > 1e-6) {
+      const gap = frame.at - progressAt;
+      progress.push(gap);
+      if (firstMovement === undefined) firstMovement = frame.at;
+      else {
+        movement.push(gap);
+        distances.push(Math.abs(delta));
+        if (gap > 1000 / 30) delayedSteps.push({
+          frame: frame.frame, intervalMs: round(gap), deltaPixels: round(delta),
+          observationGap: screen.SampleGaps?.some(([start, end]) => start < frame.at && end > progressAt),
+        });
+      }
       progressAt = frame.at;
       pixels = frame.pixels;
     }
@@ -167,6 +188,15 @@ export function displayedMotion(
     boundary: 'composed-desktop-frame-tag-observation',
     durationMs: round(end - motion.start),
     observedFrames: frames.length,
+    progressIntervals: distribution(movement),
+    movementPixels: distribution(distances),
+    firstMovementDelayMs: firstMovement === undefined ? null : round(firstMovement - motion.start),
+    lastInputToFinalDisplayMs: round(end - motion.inputStamps.at(-1)![1]),
+    inputToDesktop: distribution(latency),
+    progressOverBudgetThrough50ms: stalls(movement.filter(ms => ms <= 50), 1000 / 30, seconds, false),
+    progressOver50ms: stalls(movement, 50, seconds, false),
+    excessMsPerSecond: round(movement.reduce((sum, ms) => sum + Math.max(0, ms - 1000 / 30), 0) / seconds),
+    delayedSteps,
     averageFpsLowerBound: round(frames.length / seconds),
     frameIntervals: distribution(intervals),
     framesOver50ms: stalls(intervals, 50, seconds, false),
@@ -176,6 +206,18 @@ export function displayedMotion(
     maximumCaptureMs: round(screen.MaximumCaptureMs),
     scanout: 'notVerified',
   };
+}
+// The native log has an 8 KiB limit. Send phase evidence after motion settles.
+export function logMotionPhase(
+  log: (line: string) => void, prefix: string,
+  result: { name: string; motion: ReturnType<typeof motionMetrics> }
+) {
+  const { framePositions, frameInputs, inputStamps, ...motion } = result.motion;
+  for (const [key, rows] of Object.entries({framePositions, frameInputs, inputStamps})) {
+    for (let start = 0; start < rows.length; start += 64)
+      log('JANK_MOTION_ROWS ' + JSON.stringify({name: result.name, key, start, rows: rows.slice(start, start + 64)}));
+  }
+  log(prefix + JSON.stringify({...result, motion}));
 }
 // Optional sampling is a separate diagnostic run, never a performance sample.
 export function samplingSummary(text: string) {

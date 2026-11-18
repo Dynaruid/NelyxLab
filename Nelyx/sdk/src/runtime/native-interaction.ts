@@ -46,7 +46,7 @@ import { freezeSemantics, flattenSemantics } from '@nelyx/core/framework/semanti
 
 /** Native props depend on action availability, not the identity of a freshly
  * captured Core callback. Dispatch always resolves the current node below. */
-function sameSemantics(a: unknown, b: unknown): boolean {
+export function sameSemantics(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (typeof a === 'function' && typeof b === 'function') return true;
   if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;

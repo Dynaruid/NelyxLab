@@ -29,6 +29,7 @@ public static partial class JankScreen {
  public sealed class Observation {
   public double Started,Ended,MaximumCaptureMs,MaximumIntervalMs;
   public int Captures,Invalid; public double RequestedHz=240;
+  public List<double[]> SampleGaps=new List<double[]>();
   public List<double[]> Changes=new List<double[]>();
  }
  static double Now() { return Stopwatch.GetTimestamp()*1000.0/Stopwatch.Frequency; }
@@ -56,6 +57,7 @@ public static partial class JankScreen {
     if(!BitBlt(memory,0,0,width,1,screen,origin.X+left,origin.Y+top,0x40cc0020)||!GdiFlush())throw new Exception("Screen capture failed");
     double completed=Now(),sample=(at+completed)/2;
     result.MaximumCaptureMs=Math.Max(result.MaximumCaptureMs,completed-at);
+    if(previous>0 && sample-previous>1000.0/60)result.SampleGaps.Add(new double[]{previous,sample});
     if(previous>0)result.MaximumIntervalMs=Math.Max(result.MaximumIntervalMs,sample-previous);
     previous=sample;result.Captures++;
     uint code=0;bool valid=true;
