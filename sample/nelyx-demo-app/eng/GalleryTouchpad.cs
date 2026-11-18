@@ -66,8 +66,9 @@ public static class GalleryTouchpad
 
     public static void Close(IntPtr device) { DestroySyntheticPointerDevice(device); }
 
-    public static double[] Swipe(IntPtr device, IntPtr window, int x, int y, bool fingersUp) {
+    public static double[] Swipe(IntPtr device, IntPtr window, int x, int y, bool fingersUp, int distance) {
         const int steps = 48, periodMs = 16;
+        if (distance < 1 || distance > 7200) throw new ArgumentOutOfRangeException(nameof(distance));
         const uint confidence = 0x4000, inRange = 2, inContact = 4;
         var frame = new Contact[2];
         for (int i = 0; i < frame.Length; i++) {
@@ -100,7 +101,7 @@ public static class GalleryTouchpad
                     GetForegroundWindow() != window)
                     throw new InvalidOperationException("Demo lost the cursor or foreground during a gesture.");
                 for (int i = 0; i < frame.Length; i++) {
-                    int travel = 7200 * Math.Min(step, steps) / steps;
+                    int travel = distance * Math.Min(step, steps) / steps;
                     frame[i].Pointer.Himetric.Y = fingersUp ? 8100 - travel : 900 + travel;
                     frame[i].Pointer.Flags = step > steps ? confidence : confidence | inRange | inContact;
                     frame[i].Pointer.Time = (uint)(1 + step * periodMs);

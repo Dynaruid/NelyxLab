@@ -61,7 +61,12 @@ import { OutlineInputBorder } from '@nelyx/material/input-border';
 import { showDialog } from '@nelyx/material/dialog';
 import { showDatePicker, DateTime } from '@nelyx/material/date-picker';
 import { PageViewPreparation } from '@nelyx/core/framework/widgets/page-view';
-import { GallerySection, GallerySectionExtents, GalleryUpdates } from './gallery-section.ts';
+import {
+  GallerySection,
+  GallerySectionExtents,
+  GalleryUpdates,
+  galleryCardPart,
+} from './gallery-section.ts';
 import { ImageDemo } from './image-demo.ts';
 import { column, flow, inset, icon } from './layout.ts';
 import { demoRangeTheme } from './range-demo-shapes.ts';
@@ -107,6 +112,11 @@ const demos: readonly Demo[] = [
   { id: 'text-fields', title: 'Text fields', group: 'Text inputs' },
   { id: 'image', title: 'Local and network images', group: 'Images' },
 ];
+const textFieldOptions = { id: 'text-field-options' } as const;
+const messageActions = { id: 'message-actions' } as const;
+type GalleryEntry = Demo | typeof textFieldOptions | typeof messageActions;
+const isTextFieldsPart = (entry: GalleryEntry): boolean =>
+  entry.id === 'text-fields' || !('title' in entry);
 
 export class ComponentsScreen extends StatefulWidget {
   constructor(
@@ -164,12 +174,9 @@ class ComponentsState extends State<ComponentsScreen> {
   // still reads current theme/dependencies and values whenever it runs.
   private readonly sectionWidgets = new Map<string, Widget>();
   private readonly sectionKeys = new Map(
-    demos.map(
+    [...demos, textFieldOptions, messageActions].map(
       (demo) =>
-        [
-          demo.id,
-          demo.id === 'text-fields' ? new GlobalKey('Demo editors') : new ValueKey(demo.id),
-        ] as const,
+        [demo.id, isTextFieldsPart(demo) ? new GlobalKey(demo.id) : new ValueKey(demo.id)] as const,
     ),
   );
   private readonly primaryMessageScroll = new ScrollController();
@@ -359,8 +366,12 @@ class ComponentsState extends State<ComponentsScreen> {
       // Editors stay with one scroll owner when the window crosses the breakpoint.
       const primary = items.filter((demo, index) => demo.id === 'text-fields' || index % 2 === 0);
       const secondary = items.filter((demo, index) => demo.id !== 'text-fields' && index % 2 !== 0);
-      const list = (entries: readonly Demo[], controller: ScrollController): Widget =>
-        ListView.builder({
+      const list = (sections: readonly Demo[], controller: ScrollController): Widget => {
+        // Partition the catalog into columns before expanding the Text fields card.
+        const entries = sections.flatMap<GalleryEntry>((section) =>
+          section.id === 'text-fields' ? [section, textFieldOptions, messageActions] : [section],
+        );
+        return ListView.builder({
           controller,
           primary: false,
           extentIndex: (controller === this.firstScroll
@@ -376,6 +387,7 @@ class ComponentsState extends State<ComponentsScreen> {
           },
           itemBuilder: (_, index) => this.sectionWidget(entries[index]!),
         });
+      };
       return new DecoratedBox(
         new Column(
           [
@@ -462,38 +474,43 @@ class ComponentsState extends State<ComponentsScreen> {
       );
     });
   }
-  private sectionWidget(entry: Demo): Widget {
-    let widget = this.sectionWidgets.get(entry.id);
+  private sectionWidget(entry: GalleryEntry): Widget {
+    const { id } = entry;
+    let widget = this.sectionWidgets.get(id);
     if (!widget) {
+      // Keep each part of the editor card alive after its first normal layout.
+      const retainMounted = isTextFieldsPart(entry);
       widget = new GallerySection(
         new RepaintBoundary(
-          new ListenableBuilder(this.updates.section(entry.id), (context) =>
-            this.section(context, entry),
+          new ListenableBuilder(
+            this.updates.section(retainMounted ? 'text-fields' : id),
+            (context) => this.section(context, entry),
           ),
         ),
-        entry.id === 'text-fields',
-        this.sectionKeys.get(entry.id)!,
+        retainMounted,
+        this.sectionKeys.get(id)!,
       );
-      this.sectionWidgets.set(entry.id, widget);
+      this.sectionWidgets.set(id, widget);
     }
     return widget;
   }
-  private section(context: BuildContext, demo: Demo): Widget {
+  private section(context: BuildContext, demo: GalleryEntry): Widget {
+    if (!('title' in demo))
+      return demo.id === textFieldOptions.id
+        ? galleryCardPart(context, this.textFieldOptions(), 'middle')
+        : galleryCardPart(context, this.messageActions(), 'last');
+
     const colors = Theme.of(context).colorScheme;
+    const child = column(
+      new Text(demo.group, { fontSize: 11, color: colors.primary }),
+      new Text(demo.title, { fontSize: 18, color: colors.onSurface }),
+      new SizedBox(0, 2),
+      this.demo(context, demo.id),
+    );
+    if (demo.id === 'text-fields') return galleryCardPart(context, child, 'first');
     return new Padding(
       EdgeInsets.only({ bottom: 16 }),
-      Card.outlined({
-        margin: EdgeInsets.zero,
-        child: inset(
-          20,
-          column(
-            new Text(demo.group, { fontSize: 11, color: colors.primary }),
-            new Text(demo.title, { fontSize: 18, color: colors.onSurface }),
-            new SizedBox(0, 2),
-            this.demo(context, demo.id),
-          ),
-        ),
-      }),
+      Card.outlined({ margin: EdgeInsets.zero, child: inset(20, child) }),
     );
   }
   private demo(context: BuildContext, id: string): Widget {
@@ -921,142 +938,144 @@ class ComponentsState extends State<ComponentsScreen> {
             onChanged: () => update(() => {}),
             onSubmitted: () => this.record('Message submitted'),
           }),
-          new TextFieldTapRegion(
-            flow(
-              new TextButton({
-                id: 'toggle-secure-input',
-                child: new Text(this.obscureMessage ? 'Show input' : 'Secure input'),
-                onPressed: () =>
-                  update(() => {
-                    this.obscureMessage = !this.obscureMessage;
-                  }),
-              }),
-              new TextButton({
-                child: new Text('Clear messages'),
-                onPressed: () => {
-                  if (!this.filled.isComposing && !this.outlined.isComposing) {
-                    this.filled.clear();
-                    this.outlined.clear();
-                    update(() => {});
-                  }
-                },
-              }),
-              new TextButton({
-                child: new Text('Undo message'),
-                onPressed: () => {
-                  this.outlined.undo();
-                  update(() => {});
-                },
-              }),
-            ),
-          ),
-          new TextFieldTapRegion(
-            flow(
-              new TextButton({
-                id: 'toggle-message-lines',
-                child: new Text(this.multilineMessage ? 'Use one line' : 'Use multiple lines'),
-                onPressed: () =>
-                  update(() => {
-                    this.multilineMessage = !this.multilineMessage;
-                  }),
-              }),
-              new TextButton({
-                id: 'toggle-message-selection',
-                child: new Text(this.interactiveMessage ? 'Disable selection' : 'Enable selection'),
-                onPressed: () =>
-                  update(() => {
-                    this.interactiveMessage = !this.interactiveMessage;
-                  }),
-              }),
-            ),
-          ),
-          new TextFieldTapRegion(
-            flow(
-              ...[false, true].map(
-                (end) =>
-                  new TextButton({
-                    id: end ? 'message-scroll-end' : 'message-scroll-top',
-                    child: new Text(end ? 'Scroll to end' : 'Scroll to top'),
-                    onPressed: () => {
-                      if (
-                        this.messageScroll.hasClients &&
-                        this.messageScroll.position.hasContentDimensions
-                      ) {
-                        ++this.messageAnimation;
-                        this.messageScroll.jumpTo(
-                          end ? this.messageScroll.position.maxScrollExtent : 0,
-                        );
-                        this.record(end ? 'Message scroll end' : 'Message scroll top');
-                      }
-                    },
-                  }),
-              ),
-              new TextButton({
-                id: 'message-load-long',
-                child: new Text('Load long message'),
-                onPressed: () => {
-                  this.outlined.text = Array.from(
-                    { length: 12 },
-                    (_, i) => `${i + 1}. 안녕하세요 · Nelyx 🌿`,
-                  ).join('\n');
-                  update(() => {});
-                },
-              }),
-              new TextButton({
-                id: 'message-scroll-curve',
-                child: new Text('Animate message'),
-                onPressed: () => {
-                  if (
-                    !this.messageScroll.hasClients ||
-                    !this.messageScroll.position.hasContentDimensions
-                  )
-                    return;
-                  const revision = ++this.messageAnimation,
-                    target =
-                      this.messageScroll.offset < this.messageScroll.position.maxScrollExtent / 2
-                        ? this.messageScroll.position.maxScrollExtent
-                        : 0;
-                  this.record('Message scrolling…');
-                  void this.messageScroll
-                    .animateTo(target, { duration: 900, curve: curvedMessageScroll })
-                    .then(
-                      () => {
-                        if (this.mounted && revision === this.messageAnimation)
-                          this.record('Message scroll finished');
-                      },
-                      (error: unknown) => {
-                        if (this.mounted && revision === this.messageAnimation)
-                          this.record('Message scroll failed: ' + String(error));
-                      },
-                    );
-                },
-              }),
-              new TextButton({
-                id: 'message-scroll-cancel',
-                child: new Text('Stop scrolling'),
-                onPressed: () => {
-                  ++this.messageAnimation;
-                  if (this.messageScroll.hasClients)
-                    this.messageScroll.jumpTo(this.messageScroll.offset);
-                  this.record('Message scrolling stopped');
-                },
-              }),
-              new TextButton({
-                id: 'message-scroll-controller',
-                child: new Text('Switch scroll controller'),
-                onPressed: () => {
-                  ++this.messageAnimation;
-                  update(() => {
-                    this.messageAlternate = !this.messageAlternate;
-                  });
-                  this.record('Message scroll controller changed');
-                },
-              }),
-            ),
-          ),
         );
       default:
         throw Error('Unknown component: ' + id);
     }
+  }
+  private textFieldOptions(): Widget {
+    const update = (change: () => void) => this.updates.change('text-fields', change);
+    return column(
+      new TextFieldTapRegion(
+        flow(
+          new TextButton({
+            id: 'toggle-secure-input',
+            child: new Text(this.obscureMessage ? 'Show input' : 'Secure input'),
+            onPressed: () =>
+              update(() => {
+                this.obscureMessage = !this.obscureMessage;
+              }),
+          }),
+          new TextButton({
+            child: new Text('Clear messages'),
+            onPressed: () => {
+              if (!this.filled.isComposing && !this.outlined.isComposing) {
+                this.filled.clear();
+                this.outlined.clear();
+                update(() => {});
+              }
+            },
+          }),
+          new TextButton({
+            child: new Text('Undo message'),
+            onPressed: () => {
+              this.outlined.undo();
+              update(() => {});
+            },
+          }),
+        ),
+      ),
+      new TextFieldTapRegion(
+        flow(
+          new TextButton({
+            id: 'toggle-message-lines',
+            child: new Text(this.multilineMessage ? 'Use one line' : 'Use multiple lines'),
+            onPressed: () =>
+              update(() => {
+                this.multilineMessage = !this.multilineMessage;
+              }),
+          }),
+          new TextButton({
+            id: 'toggle-message-selection',
+            child: new Text(this.interactiveMessage ? 'Disable selection' : 'Enable selection'),
+            onPressed: () =>
+              update(() => {
+                this.interactiveMessage = !this.interactiveMessage;
+              }),
+          }),
+        ),
+      ),
+    );
+  }
+  private messageActions(): Widget {
+    const update = (change: () => void) => this.updates.change('text-fields', change);
+    return new TextFieldTapRegion(
+      flow(
+        ...[false, true].map(
+          (end) =>
+            new TextButton({
+              id: end ? 'message-scroll-end' : 'message-scroll-top',
+              child: new Text(end ? 'Scroll to end' : 'Scroll to top'),
+              onPressed: () => {
+                if (
+                  this.messageScroll.hasClients &&
+                  this.messageScroll.position.hasContentDimensions
+                ) {
+                  ++this.messageAnimation;
+                  this.messageScroll.jumpTo(end ? this.messageScroll.position.maxScrollExtent : 0);
+                  this.record(end ? 'Message scroll end' : 'Message scroll top');
+                }
+              },
+            }),
+        ),
+        new TextButton({
+          id: 'message-load-long',
+          child: new Text('Load long message'),
+          onPressed: () => {
+            this.outlined.text = Array.from(
+              { length: 12 },
+              (_, i) => `${i + 1}. 안녕하세요 · Nelyx 🌿`,
+            ).join('\n');
+            update(() => {});
+          },
+        }),
+        new TextButton({
+          id: 'message-scroll-curve',
+          child: new Text('Animate message'),
+          onPressed: () => {
+            if (!this.messageScroll.hasClients || !this.messageScroll.position.hasContentDimensions)
+              return;
+            const revision = ++this.messageAnimation,
+              target =
+                this.messageScroll.offset < this.messageScroll.position.maxScrollExtent / 2
+                  ? this.messageScroll.position.maxScrollExtent
+                  : 0;
+            this.record('Message scrolling…');
+            void this.messageScroll
+              .animateTo(target, { duration: 900, curve: curvedMessageScroll })
+              .then(
+                () => {
+                  if (this.mounted && revision === this.messageAnimation)
+                    this.record('Message scroll finished');
+                },
+                (error: unknown) => {
+                  if (this.mounted && revision === this.messageAnimation)
+                    this.record('Message scroll failed: ' + String(error));
+                },
+              );
+          },
+        }),
+        new TextButton({
+          id: 'message-scroll-cancel',
+          child: new Text('Stop scrolling'),
+          onPressed: () => {
+            ++this.messageAnimation;
+            if (this.messageScroll.hasClients) this.messageScroll.jumpTo(this.messageScroll.offset);
+            this.record('Message scrolling stopped');
+          },
+        }),
+        new TextButton({
+          id: 'message-scroll-controller',
+          child: new Text('Switch scroll controller'),
+          onPressed: () => {
+            ++this.messageAnimation;
+            update(() => {
+              this.messageAlternate = !this.messageAlternate;
+            });
+            this.record('Message scroll controller changed');
+          },
+        }),
+      ),
+    );
   }
 }

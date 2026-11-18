@@ -133,7 +133,7 @@ public:
     data->emitter.DispatchEvent(L"windowsPointer",[payload](IJSValueWriter const& writer) noexcept {WriteValue(writer,*payload);});
   }
   void precision(WindowsPrecisionEvent const& event){
-    requireUi();if(!data||data->failed||!data->status.bound||!data->emitter||(!pointerGeometryReady()&&event.kind!="panZoomEnd"&&event.kind!="inertiaCancel")){windowsInputTrace(WindowsInputStage::PrecisionSurfaceDrop,data?data->status.reactTag:0,event.origin.generation,0,windowsInputKind(event.kind),!data?1:data->failed?2:!data->status.bound?3:!data->emitter?4:5,true);if(windowsPrecisionDiagnosticsEnabled())windowsPrecisionDiagnostic("surface-rejected kind="+event.kind);return;}
+    requireUi();if(!data||data->failed||!data->status.bound||!data->emitter||(!pointerGeometryReady()&&event.kind!="panZoomEnd"&&event.kind!="cancel"&&event.kind!="inertiaCancel")){windowsInputTrace(WindowsInputStage::PrecisionSurfaceDrop,data?data->status.reactTag:0,event.origin.generation,0,windowsInputKind(event.kind),!data?1:data->failed?2:!data->status.bound?3:!data->emitter?4:5,true);if(windowsPrecisionDiagnosticsEnabled())windowsPrecisionDiagnostic("surface-rejected kind="+event.kind);return;}
     using namespace winrt::Microsoft::ReactNative;
     auto payload=std::make_shared<JSValueObject>(JSValueObject{{"protocol",1},{"kind",event.kind},{"device","trackpad"},
       {"pointer",double(event.pointer)},{"buttons",0},{"x",event.origin.x},{"y",event.origin.y},{"panX",event.panX},{"panY",event.panY},

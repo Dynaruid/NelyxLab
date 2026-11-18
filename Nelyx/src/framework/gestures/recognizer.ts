@@ -301,7 +301,7 @@ export abstract class OneSequenceGestureRecognizer extends GestureRecognizer {
   /** Source default arena hooks intentionally do nothing. */
   override acceptGesture(_pointer: number): void {}
   override rejectGesture(_pointer: number): void {}
-  protected abstract didStopTrackingLastPointer(pointer: number): void;
+  protected abstract didStopTrackingLastPointer(pointer: number, event?: PointerEvent): void;
   protected resolve(disposition: GestureDisposition): void {
     const entries = [...this.entries.values()];
     this.entries.clear();
@@ -353,11 +353,11 @@ export abstract class OneSequenceGestureRecognizer extends GestureRecognizer {
       throw error;
     }
   }
-  protected stopTrackingPointer(pointer: number): void {
+  protected stopTrackingPointer(pointer: number, event?: PointerEvent): void {
     if (this.trackedPointers.has(pointer)) {
       this.binding.pointerRouter.removeRoute(pointer, this.route);
       this.trackedPointers.delete(pointer);
-      if (this.trackedPointers.size === 0) this.didStopTrackingLastPointer(pointer);
+      if (this.trackedPointers.size === 0) this.didStopTrackingLastPointer(pointer, event);
     }
   }
   protected stopTrackingIfPointerNoLongerDown(event: PointerEvent): void {
@@ -366,7 +366,7 @@ export abstract class OneSequenceGestureRecognizer extends GestureRecognizer {
       event instanceof PointerCancelEvent ||
       event instanceof PointerPanZoomEndEvent
     )
-      this.stopTrackingPointer(event.pointer);
+      this.stopTrackingPointer(event.pointer, event);
   }
   override dispose(): void {
     if (!this.beginDispose()) return;

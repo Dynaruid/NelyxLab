@@ -15,6 +15,7 @@ import type {
 } from '@nelyx/core/framework/widgets/framework';
 import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
+import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
 import {
   CurvedAnimation,
   AlwaysStoppedAnimation,
@@ -245,9 +246,11 @@ function shouldShowOnDrag(theme: SliderThemeData, discrete: boolean): boolean {
       : mode !== ShowValueIndicator.never;
 }
 const one = new AlwaysStoppedAnimation(1);
+const thumbSemanticsSize = 48;
 interface RangePaintModel {
   readonly owner: MaterialRangeSliderState;
   readonly theme: SliderThemeData;
+  readonly labels: RangeLabels | null;
   readonly direction: 'ltr' | 'rtl';
   readonly screen: Size;
   readonly scale: number;
@@ -273,6 +276,8 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
   hoverStart = false;
   hoverEnd = false;
   private hovering = false;
+  private resolveHoverTheme = false;
+  private paintHover = false;
   private dragging = false;
   private suspended = false;
   private retired = false;
@@ -330,6 +335,15 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     render?.markNeedsSemanticsUpdate();
     this.entry?.markNeedsBuild();
   };
+  private readonly hoverPaintChanged = () => {
+    const render = this.renderer();
+    if (
+      this.paintHover ||
+      (render && !this.active && !render.hasVisibleIndicators && render.hasCurrentThumbBounds())
+    )
+      render?.markHoverPaint();
+    else this.animationChanged();
+  };
   private readonly focusChanged = () => {
     if (this.live) {
       this.setState(() => {});
@@ -370,14 +384,9 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
       curve: Curves.fastOutSlowIn,
     });
     this.enableAnimation = new CurvedAnimation({ parent: this.enable, curve: Curves.easeInOut });
-    for (const controller of [
-      this.startPosition,
-      this.endPosition,
-      this.overlay,
-      this.indicator,
-      this.enable,
-    ])
+    for (const controller of [this.startPosition, this.endPosition, this.indicator, this.enable])
       controller.addListener(this.animationChanged);
+    this.overlay.addListener(this.hoverPaintChanged);
     this.startFocusNode.addListener(this.focusChanged);
     this.endFocusNode.addListener(this.focusChanged);
     this.team = new GestureArenaTeam((this.context as Element).owner.gestureBinding.gestureArena);
@@ -711,17 +720,46 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     );
     return result;
   }
+  private readonly enterHover = () => {
+    if (!this.live || this.hovering) return;
+    this.hovering = true;
+    if (this.resolveHoverTheme) this.setState(() => {});
+  };
+  private readonly exitHover = () => {
+    if (!this.live) return;
+    this.hovering = false;
+    this.updateThumbHover(false, false);
+    if (this.resolveHoverTheme) this.setState(() => {});
+  };
   private hover(global: Point): void {
     const render = this.renderer();
     if (!this.enabled || !render) return;
     const p = render.globalToLocal(global),
       [a, b] = render.centers(),
       radius = this.theme!.overlayShape!.getPreferredSize(true, false).width / 2;
-    this.hoverStart = Math.abs(p.x - a.dx) <= radius && Math.abs(p.y - a.dy) <= radius;
-    this.hoverEnd = Math.abs(p.x - b.dx) <= radius && Math.abs(p.y - b.dy) <= radius;
-    if (this.hovering && (this.hoverStart || this.hoverEnd)) this.overlay.forward();
-    else this.overlay.reverse();
-    this.animationChanged();
+    this.updateThumbHover(
+      Math.abs(p.x - a.dx) <= radius && Math.abs(p.y - a.dy) <= radius,
+      Math.abs(p.x - b.dx) <= radius && Math.abs(p.y - b.dy) <= radius,
+    );
+  }
+  private updateThumbHover(start: boolean, end: boolean): void {
+    const changed = start !== this.hoverStart || end !== this.hoverEnd;
+    this.hoverStart = start;
+    this.hoverEnd = end;
+    const overlay = this.overlay;
+    if (this.hovering && (start || end)) {
+      if (
+        !overlay.isCompleted &&
+        !(overlay.isAnimating && overlay.status === AnimationStatus.forward)
+      )
+        overlay.forward();
+    } else if (
+      !overlay.isDismissed &&
+      !(overlay.isAnimating && overlay.status === AnimationStatus.reverse)
+    ) {
+      overlay.reverse();
+    }
+    if (changed) this.hoverPaintChanged();
   }
   private retireOverlay(): void {
     const entry = this.entry;
@@ -820,6 +858,17 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
       theme = Theme.of(context),
       defaults = materialRangeSliderDefaults(context, w.year2023 ?? ambient.year2023 ?? true),
       states = emptyWidgetStateSet();
+    // Region membership affects only these state properties. Custom shapes can
+    // still observe thumb animation during paint through their render owner.
+    this.resolveHoverTheme =
+      w.mouseCursor !== null || w.overlayColor !== null || ambient.mouseCursor !== null;
+    this.paintHover =
+      !this.resolveHoverTheme &&
+      ambient.overlayShape === null &&
+      ambient.rangeTrackShape === null &&
+      ambient.rangeThumbShape === null &&
+      ambient.rangeTickMarkShape === null &&
+      ambient.rangeValueIndicatorShape === null;
     if (w.onChanged === null) states.add(WidgetState.disabled);
     if (this.hovering && w.onChanged !== null) states.add(WidgetState.hovered);
     if (this.dragging) states.add(WidgetState.dragged);
@@ -871,6 +920,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     const model: RangePaintModel = {
       owner: this,
       theme: effective,
+      labels: w.labels,
       direction: this.direction,
       screen: new Size(media.width, media.height),
       scale: media.textScale,
@@ -911,21 +961,8 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
           w.mouseCursor?.resolve(states) ??
           ambient.mouseCursor?.resolve(states) ??
           (this.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic),
-        onEnter: () => {
-          if (this.live) {
-            this.hovering = true;
-            this.setState(() => {});
-          }
-        },
-        onExit: () => {
-          if (this.live) {
-            this.hovering = false;
-            this.hoverStart = false;
-            this.hoverEnd = false;
-            this.overlay.reverse();
-            this.setState(() => {});
-          }
-        },
+        onEnter: this.enterHover,
+        onExit: this.exitHover,
         onHover: (event) => this.hover(event.position),
       }),
     ]);
@@ -963,41 +1000,62 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
   update(model: RangePaintModel): void {
     const old = this.model;
     this.model = model;
-    if (model.textContext) {
-      if (old.textContext) {
-        this.startLabel._updateContext(model.textContext);
-        this.endLabel._updateContext(model.textContext);
-      } else {
-        this.startLabel.dispose();
-        this.endLabel.dispose();
-        this.startLabel = new TextPainter({}, model.textContext);
-        this.endLabel = new TextPainter({}, model.textContext);
-      }
+    if (model.textContext && !old.textContext) {
+      this.startLabel.dispose();
+      this.endLabel.dispose();
+      this.startLabel = new TextPainter({}, model.textContext);
+      this.endLabel = new TextPainter({}, model.textContext);
     }
     model.owner.updateValues();
-    this.updateLabels();
+    this.updateLabels(old.textContext ? model.textContext : null);
     this.markNeedsLayout();
     this.markNeedsPaint();
     this.markNeedsSemanticsUpdate();
   }
-  private updateLabels(): void {
+  markHoverPaint(): void {
+    this.markNeedsPaintOnly();
+  }
+  hasCurrentThumbBounds(): boolean {
+    if (this.needsLayout) return false;
+    // A custom track can move the thumbs while its overlay animates. The
+    // existing child positions must still agree with the current track.
+    const centers = this.centers(),
+      half = thumbSemanticsSize / 2;
+    return this.children.every((child, index) => {
+      const center = centers[index]!;
+      return child.layoutOffset.x === center.dx - half && child.layoutOffset.y === center.dy - half;
+    });
+  }
+  private updateLabels(context: ParagraphContext | null = null): void {
     const m = this.model,
-      labels = m.owner.widget.labels;
-    if (labels === null) return;
+      style = m.theme.valueIndicatorTextStyle;
     for (const [painter, text] of [
-      [this.startLabel, labels.start],
-      [this.endLabel, labels.end],
+      [this.startLabel, m.labels?.start],
+      [this.endLabel, m.labels?.end],
     ] as const) {
-      painter.text = new TextSpan({ text, style: m.theme.valueIndicatorTextStyle });
+      const revision = painter._inputRevision;
+      if (context) painter._updateContext(context);
+      if (text === undefined) {
+        painter.text = null;
+        continue;
+      }
+      const previous = painter.text;
+      if (
+        !(previous instanceof TextSpan) ||
+        previous.text !== text ||
+        (style !== previous.style && !style?.equals(previous.style))
+      )
+        painter.text = new TextSpan({ text, style });
       painter.textDirection = m.direction;
       painter.textScaleFactor = m.scale;
-      painter.layout();
+      if (painter._inputRevision !== revision) painter.layout();
     }
   }
   override systemFontsDidChange(): void {
-    this.startLabel.markNeedsLayout();
-    this.endLabel.markNeedsLayout();
-    this.updateLabels();
+    for (const painter of [this.startLabel, this.endLabel]) {
+      painter.markNeedsLayout();
+      if (painter.text !== null) painter.layout();
+    }
     super.systemFontsDidChange();
   }
   protected override computeMinIntrinsicWidth(_height: number): number {
@@ -1023,11 +1081,13 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
   protected override performLayout(constraints: BoxConstraints): Size {
     const size = this.computeDryLayout(constraints);
     this.size = size;
-    const [start, end] = this.centers(),
-      centers = this.model.direction === 'rtl' ? [end, start] : [start, end];
+    // The centers already follow text direction; the children follow thumb identity.
+    const centers = this.centers(),
+      extent = thumbSemanticsSize,
+      half = extent / 2;
     this.children.forEach((child, index) => {
-      (child as RenderBox).layout(new BoxConstraints(48, 48, 48, 48));
-      child.layoutOffset = new Offset(centers[index]!.dx - 24, centers[index]!.dy - 24);
+      (child as RenderBox).layout(new BoxConstraints(extent, extent, extent, extent));
+      child.layoutOffset = new Offset(centers[index]!.dx - half, centers[index]!.dy - half);
     });
     return size;
   }
@@ -1105,19 +1165,25 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
       sizeWithOverflow: m.screen.isEmpty ? new Size(this.size.width, this.size.height) : m.screen,
     };
   }
+  get hasVisibleIndicators(): boolean {
+    const m = this.model,
+      o = m.owner,
+      t = m.theme;
+    return (
+      this.attached &&
+      o.live &&
+      o.enabled &&
+      o.widget.labels !== null &&
+      (t.showValueIndicator === ShowValueIndicator.alwaysVisible ||
+        (shouldShowOnDrag(t, o.discrete) && !o.indicatorAnimation.isDismissed))
+    );
+  }
   paintIndicators(context: PaintingContext): void {
+    if (!this.hasVisibleIndicators) return;
     const m = this.model,
       o = m.owner,
       t = m.theme,
       always = t.showValueIndicator === ShowValueIndicator.alwaysVisible;
-    if (
-      !this.attached ||
-      !o.live ||
-      !o.enabled ||
-      o.widget.labels === null ||
-      (!always && (!shouldShowOnDrag(t, o.discrete) || o.indicatorAnimation.isDismissed))
-    )
-      return;
     const [start, end] = this.centers(),
       lastStart = o.selected === Thumb.start,
       bottom = lastStart ? Thumb.end : Thumb.start,

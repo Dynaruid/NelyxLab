@@ -45,7 +45,7 @@ import type {
 } from './drag-details.ts';
 import { VelocityTracker, Velocity } from './velocity-tracker.ts';
 import type { VelocityEstimate } from './velocity-tracker.ts';
-import { kMinFlingVelocity, kMaxFlingVelocity } from './constants.ts';
+import { kMinFlingVelocity, kMaxFlingVelocity, kPrecisePointerHitSlop } from './constants.ts';
 export type GestureVelocityTrackerBuilder = (event: PointerEvent) => VelocityTracker;
 type DragState = 'ready' | 'possible' | 'accepted';
 type DragDirection = 'horizontal' | 'vertical';
@@ -54,12 +54,15 @@ export interface DragGestureRecognizerOptions extends GestureRecognizerOptions {
   readonly multitouchDragStrategy?: MultitouchDragStrategy;
   readonly velocityTrackerBuilder?: GestureVelocityTrackerBuilder;
   readonly onlyAcceptDragOnThreshold?: boolean;
+  /** @internal Axis recognition for Windows Scrollable's precision touchpad stream. */
+  readonly trackpadScroll?: boolean;
 }
 export abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer {
   dragStartBehavior: DragStartBehavior;
   multitouchDragStrategy: MultitouchDragStrategy;
   velocityTrackerBuilder: GestureVelocityTrackerBuilder;
   onlyAcceptDragOnThreshold: boolean;
+  private readonly trackpadScroll: boolean;
   onDown: GestureDragDownCallback | null = null;
   onStart: GestureDragStartCallback | null = null;
   onUpdate: GestureDragUpdateCallback | null = null;
@@ -90,6 +93,7 @@ export abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer
         options.allowedButtonsFilter ?? ((buttons) => buttons === kPrimaryButton),
     });
     this.dragStartBehavior = options.dragStartBehavior ?? DragStartBehavior.start;
+    this.trackpadScroll = options.trackpadScroll ?? false;
     this.multitouchDragStrategy =
       options.multitouchDragStrategy ?? MultitouchDragStrategy.latestPointer;
     this.velocityTrackerBuilder =
@@ -338,12 +342,7 @@ export abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer
               untransformedEndPosition: localPosition,
             }).distance *
               Math.sign(this.getPrimaryValueFromOffset(movedLocally) ?? 1);
-          if (
-            this.hasSufficientGlobalDistanceToAccept(
-              event.kind,
-              this.gestureSettings?.touchSlop ?? null,
-            )
-          ) {
+          if (this.hasSufficientDragDistance(event)) {
             this.hasDragThresholdBeenMet = true;
             if (this.acceptedActivePointers.includes(event.pointer)) this.checkDrag(event.pointer);
             else this.resolve(GestureDisposition.accepted);
@@ -360,8 +359,27 @@ export abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer
         if (!this.isDisposed) this.recordMoveDeltaForMultitouch(event.pointer, localDelta);
       }
     } finally {
-      if (terminal && !this.isDisposed) this.giveUpPointer(event.pointer);
+      if (terminal && !this.isDisposed) this.giveUpPointer(event.pointer, event);
     }
+  }
+  private hasSufficientDragDistance(event: PointerMoveEvent | PointerPanZoomUpdateEvent): boolean {
+    if (this.trackpadScroll && event instanceof PointerPanZoomUpdateEvent) {
+      const axis = this.getPrimaryDragAxis(),
+        offset = this.pendingDragOffset!.local;
+      if (axis !== null) {
+        const primary = axis === 'horizontal' ? offset.dx : offset.dy;
+        const cross = axis === 'horizontal' ? offset.dy : offset.dx;
+        // DirectManipulation has already recognized the two-finger pan.
+        return (
+          Math.abs(primary) >= Math.abs(cross) &&
+          Math.abs(this.globalDistanceMoved) > kPrecisePointerHitSlop
+        );
+      }
+    }
+    return this.hasSufficientGlobalDistanceToAccept(
+      event.kind,
+      this.gestureSettings?.touchSlop ?? null,
+    );
   }
   override acceptGesture(pointer: number): void {
     if (this.isDisposed) return;
@@ -377,11 +395,14 @@ export abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer
   override rejectGesture(pointer: number): void {
     if (!this.isDisposed) this.giveUpPointer(pointer);
   }
-  protected override didStopTrackingLastPointer(pointer: number): void {
+  protected override didStopTrackingLastPointer(pointer: number, event?: PointerEvent): void {
     invariant(this.state !== 'ready', 'ready-drag-stop', 'No drag is tracking');
     try {
       if (this.state === 'possible') {
         this.resolve(GestureDisposition.rejected);
+        this.checkCancel();
+      } else if (event instanceof PointerCancelEvent && event.kind === PointerDeviceKind.trackpad) {
+        // A cancelled precise pan has no release velocity.
         this.checkCancel();
       } else this.checkEnd(pointer);
     } finally {
@@ -391,9 +412,9 @@ export abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer
       this.state = 'ready';
     }
   }
-  private giveUpPointer(pointer: number): void {
+  private giveUpPointer(pointer: number, event?: PointerEvent): void {
     try {
-      this.stopTrackingPointer(pointer);
+      this.stopTrackingPointer(pointer, event);
     } finally {
       const index = this.acceptedActivePointers.indexOf(pointer);
       try {
@@ -422,7 +443,9 @@ export abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer
       timestamp = this.lastPendingEventTimestamp,
       transform = this.lastTransform;
     let localUpdateDelta: Offset;
-    if (this.dragStartBehavior === DragStartBehavior.start) {
+    const preservePan =
+      this.trackpadScroll && this.getKindForPointer(pointer) === PointerDeviceKind.trackpad;
+    if (this.dragStartBehavior === DragStartBehavior.start && !preservePan) {
       this.initialPosition = this.initialPosition!.add(delta);
       localUpdateDelta = Offset.zero;
     } else localUpdateDelta = this.getDeltaForDetails(delta.local);

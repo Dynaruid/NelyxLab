@@ -72,7 +72,8 @@ public:
     trace("cancel");
     const bool active=needsUpdate(),end=running,cancelInertia=inertia;
     running=inertia=interacting=resetting=false;disarm();
-    if(end)send("panZoomCancel");if(cancelInertia)send("inertiaCancel");origin.reset();
+    // The shared pointer protocol cancels a cached pan path with PointerCancel.
+    if(end)send("cancel");if(cancelInertia)send("inertiaCancel");origin.reset();
     if(available&&active){
       // Retire native contacts too: otherwise a new contact can remain in the
       // old RUNNING viewport without another start callback after cancellation.
@@ -142,9 +143,10 @@ private:
   void interaction(DIRECTMANIPULATION_INTERACTION_TYPE type){
     windowsInputTrace(WindowsInputStage::PrecisionInteraction,0,origin?origin->generation:0,pointer,double(type),diagnosticFlags(),true);
     trace(("interaction-"+std::to_string(type)).c_str());
+    // A real interaction can end while its viewport is resetting.
+    if(type==DIRECTMANIPULATION_INTERACTION_END)interacting=false;
     if(resetting)return; // Synthesized reset callbacks do not own real input.
     if(type==DIRECTMANIPULATION_INTERACTION_BEGIN)interacting=true;
-    else if(type==DIRECTMANIPULATION_INTERACTION_END)interacting=false;
     // A contact can wait before it starts moving; RUNNING alone does not own
     // the manual update lifetime. END also needs a final status drain.
     arm();
@@ -161,7 +163,9 @@ private:
   void status(DIRECTMANIPULATION_STATUS current,DIRECTMANIPULATION_STATUS previous){
     windowsInputTrace(WindowsInputStage::PrecisionState,0,origin?origin->generation:0,pointer,double(current),double(unsigned(previous)|(diagnosticFlags()<<16)),true);
     lastStatus=current;trace(("status-from-"+std::to_string(previous)).c_str());
-    if(resetting){if(current==DIRECTMANIPULATION_READY)resetting=false;return;}
+    // ReleaseAllContacts, Stop and ZoomToRect can report READY and a stale
+    // RUNNING in the same call stack. Only the completed update drains a reset.
+    if(resetting)return;
     if(current==DIRECTMANIPULATION_RUNNING&&!running){
       if(inertia)send("inertiaCancel");inertia=false;
       winrt::com_ptr<IDirectManipulationContent> content;winrt::check_hresult(viewport->GetPrimaryContent(IID_PPV_ARGS(content.put())));

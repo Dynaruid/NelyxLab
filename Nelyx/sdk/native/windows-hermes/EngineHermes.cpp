@@ -49,6 +49,17 @@ public:
         result.setValueAtIndex(rt, 1, double(ticks(kernel) + ticks(user)) / 10000.);
         return jsi::Value(std::move(result));
       }));
+    // Windows thread time accounting can advance in coarse ticks. Preserve
+    // cycles as their own counter for short intervals instead of converting
+    // them to time using an assumed CPU frequency.
+    api.setProperty(rt, "cpuProfileCycles", jsi::Function::createFromHostFunction(
+      rt, jsi::PropNameID::forAscii(rt, "cpuProfileCycles"), 0,
+      [](auto& rt, auto const&, auto const*, size_t) {
+        ULONG64 cycles = 0;
+        if (!QueryThreadCycleTime(GetCurrentThread(), &cycles))
+          throw jsi::JSError(rt, "Runtime thread CPU cycle counter unavailable");
+        return jsi::Value(double(cycles));
+      }));
     wchar_t descriptorFlag[2]{};
     if (GetEnvironmentVariableW(L"NELYX_HERMES_DESCRIPTOR_PROFILE", descriptorFlag, 2) == 1 && descriptorFlag[0] == L'1') {
       using DescriptorProfile = void (*)(unsigned, double*);

@@ -1437,11 +1437,7 @@ export type PointerCancelEventOptions = Pick<
 >;
 export class PointerCancelEvent extends PointerEvent {
   constructor(options: PointerCancelEventOptions = {}) {
-    invariant(
-      options.kind !== PointerDeviceKind.trackpad,
-      'invalid-trackpad-event',
-      'Trackpad uses pan-zoom events',
-    );
+    // A cancelled pan uses the same terminal event as other active pointers.
     super({
       viewId: options.viewId,
       timeStamp: options.timeStamp,

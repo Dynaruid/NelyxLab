@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 import { FoundationBuildMode } from '../../foundation/constants.ts';
+import { FoundationPlatform } from '../../foundation/platform.ts';
 import {
   StatefulWidget,
   InheritedWidget,
@@ -461,7 +462,9 @@ export class ScrollableState extends TickerProviderStateMixin<Scrollable> implem
           this.widget.axis === Axis.vertical
             ? VerticalDragGestureRecognizer
             : HorizontalDragGestureRecognizer,
-        context = this.context;
+        context = this.context,
+        host = FoundationPlatform.hostEnvironment,
+        trackpadScroll = host.kind === 'native' && host.operatingSystem === 'windows';
       invariant(
         context instanceof Element,
         'invalid-scrollable-context',
@@ -478,11 +481,13 @@ export class ScrollableState extends TickerProviderStateMixin<Scrollable> implem
                     binding: context.owner.gestureBinding,
                     supportedDevices: this.scrollConfiguration.dragDevices,
                     debugOwner: this,
+                    trackpadScroll,
                   })
                 : new HorizontalDragGestureRecognizer({
                     binding: context.owner.gestureBinding,
                     supportedDevices: this.scrollConfiguration.dragDevices,
                     debugOwner: this,
+                    trackpadScroll,
                   }),
             (recognizer) => {
               recognizer.onDown = (details) => this.handleDragDown(details);

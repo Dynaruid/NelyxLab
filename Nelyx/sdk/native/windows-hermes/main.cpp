@@ -72,11 +72,56 @@ public:
       if(action.text){auto const& text=*action.text;event.setProperty(rt,"kind",text.kind==Nelyx::WindowsSemantics::TextActionKind::SetText?"set-text":text.kind==Nelyx::WindowsSemantics::TextActionKind::SetSelection?"set-selection":"scroll-range");event.setProperty(rt,"revision",double(text.revision));event.setProperty(rt,"generation",double(text.generation));event.setProperty(rt,"text",jsi::String::createFromUtf8(rt,utf8(text.text)));event.setProperty(rt,"anchor",text.anchor);event.setProperty(rt,"focus",text.focus);event.setProperty(rt,"start",text.anchor);event.setProperty(rt,"end",text.focus);event.setProperty(rt,"alignToTop",text.alignToTop);}else {event.setProperty(rt,"kind",jsi::String::createFromUtf8(rt,action.kind));if(action.value)event.setProperty(rt,"value",*action.value);}emit(rt,"semantics",std::move(event));});},[this](auto task){postUi(std::move(task));});
     semantics->metrics(viewport,surfaceEpoch);editors=std::make_shared<NH::Editors>(window,[this](auto task){postUi(std::move(task));},[this](auto event){loop->invokeAsync([this,event=std::move(event)](auto& rt){emitEditor(rt,event);});});editors->metrics(viewport,surfaceEpoch);keyboard=std::make_unique<NH::Keyboard>(window,editors,[this](auto event){loop->invokeAsync([this,event=std::move(event)](auto& rt){emitKeyboard(rt,event);});});
     precision=RNSkia::WindowsPrecisionTrackpad::create(window,[this](POINT point)->std::optional<RNSkia::WindowsPrecisionPoint>{if(!started||closeRequested||!ScreenToClient(window,&point))return {};const auto scale=dpi.load()/96.;return RNSkia::WindowsPrecisionPoint{point.x/scale,point.y/scale,scale,viewport};},[this](auto const& e){if(!started||closeRequested)return;Pointer p{e.kind,"trackpad",e.origin.x,e.origin.y,e.deltaX,e.deltaY,e.timestamp,e.panX,e.panY,e.scale,e.pointer,0,e.origin.generation,++inputSequence};enqueuePointer(std::move(p));});
+    // Keep DirectManipulation on the HWND owner. A waitable timer lets it
+    // wake between queued messages when a low-priority WM_TIMER would wait.
+    winrt::handle precisionTimer{CreateWaitableTimerExW(nullptr, nullptr,
+        CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_MODIFY_STATE | SYNCHRONIZE)};
+    const HANDLE precisionWake = precisionTimer.get();
+    const auto armPrecision = [precisionWake] {
+      LARGE_INTEGER delay{};
+      delay.QuadPart = -14 * 10'000; // Relative 14 ms in 100 ns units.
+      winrt::check_bool(SetWaitableTimer(precisionWake, &delay, 0, nullptr, nullptr, FALSE));
+    };
+    if (precisionWake) precision->coordinate(armPrecision);
+    const auto nextMessage = [&](MSG& message) -> BOOL {
+      if (!precisionWake) return GetMessageW(&message, nullptr, 0, 0);
+      for (;;) {
+        const auto ready = MsgWaitForMultipleObjectsEx(1, &precisionWake, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+        if (ready == WAIT_OBJECT_0) {
+          if (precision->pollActive()) {
+            precision->pollFrame();
+            if (precision->pollActive()) armPrecision();
+          }
+        } else if (ready != WAIT_OBJECT_0 + 1) {
+          return -1;
+        }
+        // Process a queued event between polls, including cancel and shutdown.
+        if (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) return message.message != WM_QUIT;
+      }
+    };
     surface->onPresented=[this](uint64_t frame,const auto& id,int width,int height,uint64_t generation){if(trace)trace->surface({frame,id.owner,id.context,id.viewport,id.frame,id.input,id.submission,generation,width,height,now()});if(frame==1&&!closeRequested){ShowWindow(window,SW_SHOWNORMAL);std::cout<<"NELYX_NATIVE_FIRST_FRAME {\"mode\":\""<<this->mode<<"\",\"host\":\""<<NH::engineContract().host<<"\",\"displayed\":\"unobserved\"}"<<std::endl;}};
     thread=std::thread([this]{execute();});if(duration>0)SetTimer(window,1,duration,nullptr);
-    MSG message{};for(;;){const auto result=GetMessageW(&message,nullptr,0,0);if(result==0)break;if(result<0){std::cerr<<"NELYX_NATIVE_MESSAGE_ERROR GetMessage failed"<<std::endl;TerminateProcess(GetCurrentProcess(),2);return 2;}
-      try{if(wheelDriver&&(message.message>=WM_KEYFIRST&&message.message<=WM_KEYLAST||message.message==WM_POINTERDOWN||message.message==WM_LBUTTONDOWN||message.message==WM_RBUTTONDOWN||message.message==WM_MBUTTONDOWN||message.message==WM_XBUTTONDOWN))++wheelForeign;if(editors&&!closeRequested&&editors->filter(message)){if(keyboard)keyboard->consumed(message);continue;}if(started&&!closeRequested&&keyboard&&message.message!=WM_CHAR)keyboard->flush();TranslateMessage(&message);DispatchMessageW(&message);}
-      catch(std::exception const& error){std::cerr<<"NELYX_NATIVE_MESSAGE_ERROR "<<error.what()<<std::endl;exitCode=1;requestClose();}}
+    MSG message{};
+    for (;;) {
+      try {
+        const auto result = nextMessage(message);
+        if (result == 0) break;
+        if (result < 0) {
+          std::cerr << "NELYX_NATIVE_MESSAGE_ERROR message wait failed" << std::endl;
+          TerminateProcess(GetCurrentProcess(), 2);
+          return 2;
+        }
+        if(wheelDriver&&(message.message>=WM_KEYFIRST&&message.message<=WM_KEYLAST||message.message==WM_POINTERDOWN||message.message==WM_LBUTTONDOWN||message.message==WM_RBUTTONDOWN||message.message==WM_MBUTTONDOWN||message.message==WM_XBUTTONDOWN))++wheelForeign;
+        if(editors&&!closeRequested&&editors->filter(message)){if(keyboard)keyboard->consumed(message);continue;}
+        if(started&&!closeRequested&&keyboard&&message.message!=WM_CHAR)keyboard->flush();
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+      } catch (std::exception const& error) {
+        std::cerr << "NELYX_NATIVE_MESSAGE_ERROR " << error.what() << std::endl;
+        exitCode = 1;
+        requestClose();
+      }
+    }
     if(thread.joinable())thread.join();const auto frameCount=surface->frames();keyboard.reset();precision.reset();editors->close();semantics->close();editors.reset();semantics.reset();surface->close();surface.reset();DestroyWindow(window);window=nullptr;CoUninitialize();
     std::cout<<"NELYX_NATIVE_EXIT {\"exitCode\":"<<exitCode<<",\"mode\":\""<<mode<<"\",\"runtime\":\""<<NH::engineContract().runtime<<"\",\"displayed\":\"unobserved\",\"surfaceFrames\":"<<frameCount<<",\"inputReceived\":"<<inputSequence<<",\"inputDelivered\":"<<inputDelivered<<",\"inputAccepted\":"<<inputAccepted<<",\"inputRejected\":"<<inputRejected<<",\"wheelReceivedY\":"<<wheelReceivedY<<",\"wheelDeliveredY\":"<<wheelDeliveredY<<"}"<<std::endl;return exitCode;
   }

@@ -138,7 +138,9 @@ export function pointerEventToTransport(
         ? 'touch'
         : event.kind === PointerDeviceKind.stylus || event.kind === PointerDeviceKind.invertedStylus
           ? 'pen'
-          : 'unknown';
+          : event.kind === PointerDeviceKind.trackpad
+            ? 'trackpad'
+            : 'unknown';
   const local = event.localPosition,
     delta = event instanceof PointerScrollEvent ? event.scrollDelta : event.localDelta;
   return {

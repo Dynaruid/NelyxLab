@@ -96,7 +96,8 @@ try {
     foreach ($phase in 'down','back') {
         $arrived = $false
         for ($stroke = 1; $stroke -le 14; $stroke++) {
-            $gaps.AddRange([GalleryTouchpad]::Swipe($device,$window,$x,$y,$fingersUp))
+            # Shorter gestures keep both sections observable between UIA publications.
+            $gaps.AddRange([GalleryTouchpad]::Swipe($device,$window,$x,$y,$fingersUp,3000))
             $strokeCount++
             # UIA publication is throttled by the Demo. Observe only between gestures.
             Start-Sleep -Milliseconds 500

@@ -365,7 +365,7 @@ export class GestureBinding implements HitTestTarget, HitTestable, HitTestDispat
       ...(last
         ? {
             viewId: last.viewId,
-            kind: last.kind === PointerDeviceKind.trackpad ? PointerDeviceKind.touch : last.kind,
+            kind: last.kind,
             device: last.device,
             position: last.position,
             buttons: 0,
