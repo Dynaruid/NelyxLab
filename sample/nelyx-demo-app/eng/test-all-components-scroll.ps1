@@ -4,13 +4,15 @@
 Runs a two-finger scroll on the left of the Windows Demo's All components page.
 .DESCRIPTION
 Opens the last normal Demo bytecode package in its own window. Injects two touchpad
-contacts at 16 ms intervals. Keep the window in front and the mouse still.
+contacts at 16 ms intervals by default. Use -InputIntervalMs 8 for 125 Hz input.
+Keep the window in front and the mouse still.
 CursorX and CursorY are fractions of the left column's visible scroll area.
 #>
 [CmdletBinding()]
 param(
     [ValidateRange(0.01,0.99)][double]$CursorX = 0.5,
-    [ValidateRange(0.05,0.95)][double]$CursorY = 0.80
+    [ValidateRange(0.05,0.95)][double]$CursorY = 0.80,
+    [ValidateSet(8,16)][int]$InputIntervalMs = 16
 )
 $ErrorActionPreference = 'Stop'
 if (!$IsWindows) { throw 'This test requires Windows with synthetic precision touchpad support.' }
@@ -97,7 +99,7 @@ try {
         $arrived = $false
         for ($stroke = 1; $stroke -le 14; $stroke++) {
             # Shorter gestures keep both sections observable between UIA publications.
-            $gaps.AddRange([GalleryTouchpad]::Swipe($device,$window,$x,$y,$fingersUp,3000))
+            $gaps.AddRange([GalleryTouchpad]::Swipe($device,$window,$x,$y,$fingersUp,3000,$InputIntervalMs))
             $strokeCount++
             # UIA publication is throttled by the Demo. Observe only between gestures.
             Start-Sleep -Milliseconds 500
@@ -139,7 +141,7 @@ try {
     $gaps.Sort()
     [pscustomobject]@{
         Page = 'All components'; Column = 'left'; Input = 'PT_TOUCHPAD / panZoom'
-        TargetIntervalMs = 16; Strokes = $strokeCount; Intervals = $gaps.Count
+        TargetIntervalMs = $InputIntervalMs; Strokes = $strokeCount; Intervals = $gaps.Count
         SendP50Ms = [math]::Round($gaps[[int][math]::Ceiling($gaps.Count * .50) - 1], 2)
         SendP95Ms = [math]::Round($gaps[[int][math]::Ceiling($gaps.Count * .95) - 1], 2)
         SendMaxMs = [math]::Round($gaps[$gaps.Count - 1], 2)

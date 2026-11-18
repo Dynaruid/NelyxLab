@@ -79,7 +79,9 @@ public:
     const HANDLE precisionWake = precisionTimer.get();
     const auto armPrecision = [precisionWake] {
       LARGE_INTEGER delay{};
-      delay.QuadPart = -14 * 10'000; // Relative 14 ms in 100 ns units.
+      // Sample active contacts twice per 60 Hz frame so a device report that
+      // just missed a poll can still reach the next frame callback.
+      delay.QuadPart = -8 * 10'000;
       winrt::check_bool(SetWaitableTimer(precisionWake, &delay, 0, nullptr, nullptr, FALSE));
     };
     if (precisionWake) precision->coordinate(armPrecision);

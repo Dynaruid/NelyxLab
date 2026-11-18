@@ -15,8 +15,8 @@
     "pack": "nelyx pack --app ../.. --target windows --host native"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.17.0-7111787afe61187bee12902f6c8152ecb6d5cbd3f03cf244b1f86f5b1ea6511c.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.21.0-ceb6b0e75944b0b25ccc2d566b661c8946639f7dade967532837ab0e36fa4f5b.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.17.0-56a7ff09efea380413ab4fae390e62cb1cdefdff34227c0a52f9e8d78c061426.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.21.0-feb48a7429100770d9e2a5c2ab141b35ecdacc0992cd5ab5bb284b3ae7b79826.tgz",
     "@nelyx/skia-rn": "file:../../.nelyx/supply/windows/nelyx-skia-rn-0.6.0-47d4b52d4a8d2158b319013d8df137f6208e048e3e19a51e455aa72b2c2966e2.tgz",
     "react": "19.2.0",
     "react-native": "0.83.10",

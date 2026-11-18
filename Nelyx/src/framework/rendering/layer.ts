@@ -459,6 +459,7 @@ export class PictureLayer extends Layer {
 export class ContainerLayer extends Layer {
   private first: Layer | null = null;
   private last: Layer | null = null;
+  private descendantLeaders = 0;
   private childSnapshot: readonly Layer[] | null = emptyLayerChildren;
   get firstChild(): Layer | null {
     return this.first;
@@ -474,6 +475,13 @@ export class ContainerLayer extends Layer {
     const values: Layer[] = [];
     for (let child = this.first; child; child = child.nextSibling) values.push(child);
     return (this.childSnapshot = Object.freeze(values));
+  }
+  private changeChildLeaderCount(child: Layer, sign: 1 | -1): void {
+    if (!(child instanceof ContainerLayer)) return;
+    const count = child.descendantLeaders + Number(child instanceof LeaderLayer);
+    if (count === 0) return;
+    for (let node: ContainerLayer | null = this; node; node = node.parent)
+      node.descendantLeaders += sign * count;
   }
   append(child: Layer): void {
     this.assertMutable();
@@ -499,6 +507,7 @@ export class ContainerLayer extends Layer {
     this.last = child;
     this.childSnapshot = null;
     this.changeChildCompositionCallbacks(child, 1);
+    this.changeChildLeaderCount(child, 1);
     this.redepthChild(child);
     this.markNeedsAddToScene();
     if (this.owner) child.attach(this.owner);
@@ -526,6 +535,7 @@ export class ContainerLayer extends Layer {
     // Detach observers can still inspect the old parent chain.
     if (child.attached) attempt(errors, () => child.detach());
     this.changeChildCompositionCallbacks(child, -1);
+    this.changeChildLeaderCount(child, -1);
     child._parent = null;
     child._previous = null;
     child._next = null;
@@ -611,8 +621,21 @@ export class ContainerLayer extends Layer {
     this.assertMutable();
     try {
       if (this instanceof LeaderLayer) this.link._checkLeaders();
-      for (const node of this.depthFirstIterateChildren())
-        if (node instanceof LeaderLayer) node.link._checkLeaders();
+      if (this.descendantLeaders) {
+        // Snapshot before checking links, as a custom link can change the tree.
+        const leaders: LeaderLayer[] = [];
+        let node = this.firstChild;
+        while (node) {
+          if (node instanceof LeaderLayer) leaders.push(node);
+          if (node instanceof ContainerLayer && node.descendantLeaders) {
+            node = node.firstChild;
+            continue;
+          }
+          while (node.parent !== this && !node.nextSibling) node = node.parent!;
+          node = node.nextSibling;
+        }
+        for (const leader of leaders) leader.link._checkLeaders();
+      }
       this.updateSubtreeNeedsAddToScene();
       this._addToSceneWithRetainedRendering(builder);
       this._fireCompositionCallbacks(true);

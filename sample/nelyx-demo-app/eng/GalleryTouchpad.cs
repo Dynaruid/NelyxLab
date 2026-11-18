@@ -67,7 +67,13 @@ public static class GalleryTouchpad
     public static void Close(IntPtr device) { DestroySyntheticPointerDevice(device); }
 
     public static double[] Swipe(IntPtr device, IntPtr window, int x, int y, bool fingersUp, int distance) {
-        const int steps = 48, periodMs = 16;
+        return Swipe(device, window, x, y, fingersUp, distance, 16);
+    }
+
+    public static double[] Swipe(IntPtr device, IntPtr window, int x, int y, bool fingersUp, int distance, int periodMs) {
+        if (periodMs != 8 && periodMs != 16) throw new ArgumentOutOfRangeException(nameof(periodMs));
+        // Keep the same travel distance and the same 768 ms motion at both rates.
+        int steps = 768 / periodMs;
         if (distance < 1 || distance > 7200) throw new ArgumentOutOfRangeException(nameof(distance));
         const uint confidence = 0x4000, inRange = 2, inContact = 4;
         var frame = new Contact[2];

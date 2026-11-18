@@ -112,9 +112,16 @@ const demos: readonly Demo[] = [
   { id: 'text-fields', title: 'Text fields', group: 'Text inputs' },
   { id: 'image', title: 'Local and network images', group: 'Images' },
 ];
+const filledField = { id: 'filled-editor' } as const;
+const outlinedField = { id: 'outlined-editor' } as const;
 const textFieldOptions = { id: 'text-field-options' } as const;
 const messageActions = { id: 'message-actions' } as const;
-type GalleryEntry = Demo | typeof textFieldOptions | typeof messageActions;
+type GalleryEntry =
+  | Demo
+  | typeof filledField
+  | typeof outlinedField
+  | typeof textFieldOptions
+  | typeof messageActions;
 const isTextFieldsPart = (entry: GalleryEntry): boolean =>
   entry.id === 'text-fields' || !('title' in entry);
 
@@ -174,7 +181,7 @@ class ComponentsState extends State<ComponentsScreen> {
   // still reads current theme/dependencies and values whenever it runs.
   private readonly sectionWidgets = new Map<string, Widget>();
   private readonly sectionKeys = new Map(
-    [...demos, textFieldOptions, messageActions].map(
+    [...demos, filledField, outlinedField, textFieldOptions, messageActions].map(
       (demo) =>
         [demo.id, isTextFieldsPart(demo) ? new GlobalKey(demo.id) : new ValueKey(demo.id)] as const,
     ),
@@ -369,7 +376,9 @@ class ComponentsState extends State<ComponentsScreen> {
       const list = (sections: readonly Demo[], controller: ScrollController): Widget => {
         // Partition the catalog into columns before expanding the Text fields card.
         const entries = sections.flatMap<GalleryEntry>((section) =>
-          section.id === 'text-fields' ? [section, textFieldOptions, messageActions] : [section],
+          section.id === 'text-fields'
+            ? [section, filledField, outlinedField, textFieldOptions, messageActions]
+            : [section],
         );
         return ListView.builder({
           controller,
@@ -495,10 +504,18 @@ class ComponentsState extends State<ComponentsScreen> {
     return widget;
   }
   private section(context: BuildContext, demo: GalleryEntry): Widget {
-    if (!('title' in demo))
-      return demo.id === textFieldOptions.id
-        ? galleryCardPart(context, this.textFieldOptions(), 'middle')
-        : galleryCardPart(context, this.messageActions(), 'last');
+    if (!('title' in demo)) {
+      switch (demo.id) {
+        case 'filled-editor':
+          return galleryCardPart(context, this.filledEditor(), 'middle');
+        case 'outlined-editor':
+          return galleryCardPart(context, this.outlinedEditor(), 'middle');
+        case 'text-field-options':
+          return galleryCardPart(context, this.textFieldOptions(), 'middle');
+        case 'message-actions':
+          return galleryCardPart(context, this.messageActions(), 'last');
+      }
+    }
 
     const colors = Theme.of(context).colorScheme;
     const child = column(
@@ -890,58 +907,58 @@ class ComponentsState extends State<ComponentsScreen> {
           new Switch({ id: 'switch-disabled', value: true, onChanged: null }),
         );
       case 'text-fields':
-        return column(
-          new Focus(
-            column(
-              new TextButton({
-                id: 'demo-test-keyboard',
-                child: new Text('Test keyboard'),
-                onPressed: () => this.keyboardFocus.requestFocus(),
-              }),
-              new Semantics({
-                child: new Text(this.keyboardMessage, { fontSize: 12 }),
-                identifier: 'demo-keyboard-result',
-                liveRegion: true,
-              }),
-            ),
-            { focusNode: this.keyboardFocus },
+        return new Focus(
+          column(
+            new TextButton({
+              id: 'demo-test-keyboard',
+              child: new Text('Test keyboard'),
+              onPressed: () => this.keyboardFocus.requestFocus(),
+            }),
+            new Semantics({
+              child: new Text(this.keyboardMessage, { fontSize: 12 }),
+              identifier: 'demo-keyboard-result',
+              liveRegion: true,
+            }),
           ),
-          new TextField({
-            id: 'field-filled',
-            controller: this.filled,
-            maxLength: 20,
-            enableInteractiveSelection: this.interactiveMessage,
-            obscureText: this.obscureMessage,
-            decoration: new InputDecoration({
-              filled: true,
-              labelText: 'Write something',
-              hintText: 'Korean · emoji · 20 graphemes',
-              helperText: '조합 입력은 확정 후 길이를 제한합니다.',
-            }),
-            onSubmitted: (text) => this.record('Submitted: ' + text),
-          }),
-          new TextField({
-            id: 'field-outlined',
-            controller: this.outlined,
-            scrollController: this.messageScroll,
-            enableInteractiveSelection: this.interactiveMessage,
-            minLines: this.multilineMessage ? 2 : null,
-            maxLines: this.multilineMessage ? 4 : 1,
-            decoration: new InputDecoration({
-              labelText: 'Your message',
-              border: new OutlineInputBorder(),
-              helperText: this.multilineMessage
-                ? 'Enter로 줄바꿈 · Ctrl+Enter로 제출'
-                : 'Enter로 제출',
-              errorText: this.outlined.text.length === 0 ? '메시지를 입력하세요.' : null,
-            }),
-            onChanged: () => update(() => {}),
-            onSubmitted: () => this.record('Message submitted'),
-          }),
+          { focusNode: this.keyboardFocus },
         );
       default:
         throw Error('Unknown component: ' + id);
     }
+  }
+  private filledEditor(): Widget {
+    return new TextField({
+      id: 'field-filled',
+      controller: this.filled,
+      maxLength: 20,
+      enableInteractiveSelection: this.interactiveMessage,
+      obscureText: this.obscureMessage,
+      decoration: new InputDecoration({
+        filled: true,
+        labelText: 'Write something',
+        hintText: 'Korean · emoji · 20 graphemes',
+        helperText: '조합 입력은 확정 후 길이를 제한합니다.',
+      }),
+      onSubmitted: (text) => this.record('Submitted: ' + text),
+    });
+  }
+  private outlinedEditor(): Widget {
+    return new TextField({
+      id: 'field-outlined',
+      controller: this.outlined,
+      scrollController: this.messageScroll,
+      enableInteractiveSelection: this.interactiveMessage,
+      minLines: this.multilineMessage ? 2 : null,
+      maxLines: this.multilineMessage ? 4 : 1,
+      decoration: new InputDecoration({
+        labelText: 'Your message',
+        border: new OutlineInputBorder(),
+        helperText: this.multilineMessage ? 'Enter로 줄바꿈 · Ctrl+Enter로 제출' : 'Enter로 제출',
+        errorText: this.outlined.text.length === 0 ? '메시지를 입력하세요.' : null,
+      }),
+      onChanged: () => this.updates.change('text-fields', () => {}),
+      onSubmitted: () => this.record('Message submitted'),
+    });
   }
   private textFieldOptions(): Widget {
     const update = (change: () => void) => this.updates.change('text-fields', change);
