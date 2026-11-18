@@ -13,6 +13,7 @@ import {
   WidgetState,
   WidgetStatesController,
   WidgetStateProperty,
+  WidgetStatePropertyAll,
   WidgetStateMouseCursor,
 } from '@nelyx/core/framework/widgets/widget-state';
 import type { DartSet } from '@nelyx/core/foundation/dart-collections';
@@ -21,9 +22,11 @@ import type { DartTypeWitness } from '@nelyx/core/foundation/dart-type-witness';
 import { Padding, ConstrainedBox, Align, Text } from '@nelyx/core/framework/widgets/basic';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
-import '@nelyx/core/framework/widgets/icon-theme-data';
+import type { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
+import { ChangeNotifier } from '@nelyx/core/foundation/notifier';
+import { valueEquals } from '@nelyx/core/framework/painting/value-equality';
 import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
 import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
@@ -32,6 +35,7 @@ import { Size } from '@nelyx/core/ui/size';
 import type { Clip } from '@nelyx/core/ui/clip';
 import { EdgeInsets, EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
 import { Alignment } from '@nelyx/core/framework/painting/alignment';
+import type { AlignmentGeometry } from '@nelyx/core/framework/painting/alignment';
 import { StadiumBorder } from '@nelyx/core/framework/painting/stadium-border';
 import { BorderSide } from '@nelyx/core/framework/painting/borders';
 import { SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
@@ -59,6 +63,44 @@ import {
 } from './internal/button/style-properties.ts';
 import { ButtonInputPadding } from './internal/button/input-padding.ts';
 export { IconAlignment } from './icon-alignment.ts';
+const hoverStyleProperties = [
+  'textStyle',
+  'foregroundColor',
+  'backgroundColor',
+  'overlayColor',
+  'shadowColor',
+  'surfaceTintColor',
+  'elevation',
+  'padding',
+  'minimumSize',
+  'fixedSize',
+  'maximumSize',
+  'iconColor',
+  'iconSize',
+  'side',
+  'shape',
+  'mouseCursor',
+] as const;
+const hoverInvariantProperties = new WeakSet<object>([WidgetStateMouseCursor.adaptiveClickable]);
+const builtInHoverPaintProperties = new WeakSet<object>();
+function supportsPaintHover(style: ButtonStyle | null): boolean {
+  return (
+    style === null ||
+    (Object.getPrototypeOf(style) === ButtonStyle.prototype &&
+      !style.backgroundBuilder &&
+      !style.foregroundBuilder &&
+      hoverStyleProperties.every((key) => {
+        const property = style[key];
+        return (
+          property === null ||
+          Object.getPrototypeOf(property) === WidgetStatePropertyAll.prototype ||
+          hoverInvariantProperties.has(property) ||
+          ((key === 'overlayColor' || key === 'elevation') &&
+            builtInHoverPaintProperties.has(property))
+        );
+      }))
+  );
+}
 export type MaterialButtonVariant = 'filled' | 'text' | 'outlined' | 'elevated' | 'tonal';
 export interface MaterialButtonColors {
   readonly foreground: Color;
@@ -249,7 +291,7 @@ export abstract class ButtonStyleButton extends StatefulWidget {
             EdgeInsets.symmetric({ horizontal: 6 }),
             scale,
           );
-    return new ButtonStyle({
+    const style = new ButtonStyle({
       textStyle: textAll(theme.textTheme.labelLarge),
       foregroundColor: colorProperty(
         (states) => resolveMaterialButtonColors(colors, variant, states).foreground,
@@ -311,6 +353,19 @@ export abstract class ButtonStyleButton extends StatefulWidget {
       alignment: Alignment.center,
       splashFactory: theme.splashFactory,
     });
+    // Keep the stock guarantees when an icon variant copies the style.
+    for (const property of [
+      style.foregroundColor,
+      style.backgroundColor,
+      style.shadowColor,
+      style.surfaceTintColor,
+      style.iconColor,
+      style.side,
+    ])
+      if (property !== null) hoverInvariantProperties.add(property);
+    builtInHoverPaintProperties.add(style.overlayColor!);
+    builtInHoverPaintProperties.add(style.elevation!);
+    return style;
   }
   themeStyleOf(context: BuildContext): ButtonStyle | null {
     const variant = this.variant;
@@ -324,6 +379,14 @@ export abstract class ButtonStyleButton extends StatefulWidget {
   }
   createState(): ButtonStyleState {
     return new ButtonStyleState();
+  }
+}
+class ButtonElevation extends ChangeNotifier {
+  value = 0;
+  animateTo(value: number): void {
+    if (value === this.value) return;
+    this.value = value;
+    this.notifyListeners();
   }
 }
 class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
@@ -342,6 +405,16 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
   private delay: AnimationController | null = null;
   private background: Color | null = null;
   private elevation: number | null = null;
+  private previousStates = 0;
+  private paintElevation: ButtonElevation | null = null;
+  private resolveHoverElevation: (() => number) | null = null;
+  private content: {
+    readonly child: Widget | null;
+    readonly padding: EdgeInsetsGeometry;
+    readonly alignment: AlignmentGeometry;
+    readonly icons: IconThemeData;
+    readonly widget: Widget;
+  } | null = null;
   private get controller(): WidgetStatesController {
     return this.widget.options.statesController ?? this.internal!;
   }
@@ -349,7 +422,21 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
     return this.mounted && !this.retired && !this.suspended && (this.context as Element).active;
   }
   private readonly statesChanged = () => {
-    if (this.live) this.setState(() => {});
+    if (!this.live) return;
+    let next = 0;
+    for (const state of this.controller.value) next |= 1 << state.index;
+    const change = this.previousStates ^ next;
+    this.previousStates = next;
+    if (
+      this.resolveHoverElevation &&
+      change === 1 << WidgetState.hovered.index &&
+      !this.controller.value.contains(WidgetState.pressed)
+    ) {
+      this.elevation = this.resolveHoverElevation();
+      this.paintElevation!.animateTo(this.elevation);
+      return;
+    }
+    this.setState(() => {});
   };
   private connect(): void {
     if (!this.widget.options.statesController) this.internal = new WidgetStatesController();
@@ -397,7 +484,9 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
       this.controller.removeListener(this.statesChanged);
       this.internal?.dispose();
       this.delay?.dispose();
+      this.paintElevation?.dispose();
     } finally {
+      this.content = null;
       super.dispose();
     }
   }
@@ -435,7 +524,8 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
       duration = direct((s) => s.animationDuration),
       alignment = direct((s) => s.alignment),
       padding = resolve((s) => s.padding),
-      elevation = numeric(resolve((s) => s.elevation));
+      resolveElevation = () => numeric(resolve((s) => s.elevation)),
+      elevation = resolveElevation();
     invariant(
       shape !== null &&
         minimum !== null &&
@@ -505,16 +595,33 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
       iconSize = numeric(resolve((s) => s.iconSize)),
       iconTheme = IconTheme.of(context),
       border = shape.copyWith(side === null ? {} : { side });
-    let child: Widget | null = o.child;
-    const foregroundBuilder = direct((s) => s.foregroundBuilder);
-    if (foregroundBuilder) child = foregroundBuilder(context, states, child);
-    let result: Widget = new Padding(
-      effectivePadding,
-      new Align(child ?? undefined, { alignment, widthFactor: 1, heightFactor: 1 }),
-    );
-    const backgroundBuilder = direct((s) => s.backgroundBuilder);
-    if (backgroundBuilder) result = backgroundBuilder(context, states, result);
-    result = new IconTheme(iconTheme.copyWith({ color: iconColor, size: iconSize }), result);
+    const foregroundBuilder = direct((s) => s.foregroundBuilder),
+      backgroundBuilder = direct((s) => s.backgroundBuilder),
+      icons = iconTheme.copyWith({ color: iconColor, size: iconSize }),
+      content = this.content;
+    let result: Widget;
+    if (
+      !foregroundBuilder &&
+      !backgroundBuilder &&
+      content?.child === o.child &&
+      valueEquals(content.padding, effectivePadding) &&
+      valueEquals(content.alignment, alignment) &&
+      content.icons.equals(icons)
+    ) {
+      result = content.widget;
+    } else {
+      const child = foregroundBuilder ? foregroundBuilder(context, states, o.child) : o.child;
+      result = new Padding(
+        effectivePadding,
+        new Align(child ?? undefined, { alignment, widthFactor: 1, heightFactor: 1 }),
+      );
+      if (backgroundBuilder) result = backgroundBuilder(context, states, result);
+      result = new IconTheme(icons, result);
+      this.content =
+        foregroundBuilder || backgroundBuilder
+          ? null
+          : { child: o.child, padding: effectivePadding, alignment, icons, widget: result };
+    }
     const overlay = colorProperty((next) => {
       for (const style of styles) {
         const color = style?.overlayColor?.resolve(next);
@@ -547,8 +654,23 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
       splashFactory: direct((s) => s.splashFactory),
     });
     if (o.tooltip != null) result = new Tooltip({ message: o.tooltip, child: result });
+    this.resolveHoverElevation = null;
+    let paintElevation: ButtonElevation | null = null;
+    if (
+      !o.statesController &&
+      background !== null &&
+      !this.delay?.isAnimating &&
+      styles.every(supportsPaintHover)
+    ) {
+      paintElevation = this.paintElevation ??= new ButtonElevation();
+      // Widget updates supply their own target. Notify the surface only for
+      // subsequent hover changes between builds.
+      paintElevation.value = elevation;
+      this.resolveHoverElevation = () => resolveElevation()!;
+    }
     result = new Material({
       elevation,
+      paintElevation,
       color: background,
       shadowColor: resolve((s) => s.shadowColor),
       surfaceTintColor: resolve((s) => s.surfaceTintColor),

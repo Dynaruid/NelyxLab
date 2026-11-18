@@ -4500,6 +4500,18 @@ RenderObject._registerInputGeometryHooks(RenderObject.prototype);
 
 RenderObject._registerInputGeometryHooks(RenderBox.prototype);
 
+const defaultSemanticsAssembly = RenderObject.prototype.assembleSemanticsNode;
+/** @internal Custom assembly hooks still run when semantic coordinates change. */
+export function usesDefaultSemanticsAssembly(render: RenderObject): boolean {
+  let current: object | null = render;
+  while (current) {
+    const descriptor = Object.getOwnPropertyDescriptor(current, 'assembleSemanticsNode');
+    if (descriptor) return descriptor.value === defaultSemanticsAssembly;
+    current = Object.getPrototypeOf(current);
+  }
+  return false;
+}
+
 const numericSemanticsBoundsHooks = new Map<string, PropertyDescriptor>();
 for (const [prototype, names] of [
   [RenderObject.prototype, ['semanticBounds', 'parent']],

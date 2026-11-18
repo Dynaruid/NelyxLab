@@ -185,6 +185,9 @@ export abstract class ImplicitlyAnimatedWidgetState<
       this.curvedAnimation = this.createCurve();
     }
     this.controller.duration = this.widget.duration;
+    this.retargetTweens();
+  }
+  protected retargetTweens(): void {
     if (this.constructTweens()) {
       this.forEachTween((tween, targetValue) => {
         if (tween !== null) {

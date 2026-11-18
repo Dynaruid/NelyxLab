@@ -21,6 +21,7 @@ import {
 import { Curves } from '@nelyx/core/framework/animation/curves';
 import { SliderControl } from '@nelyx/core/framework/widgets/slider-control';
 import type {
+  SliderHoverPaint,
   SliderVisualState,
   SliderTrackGeometry,
 } from '@nelyx/core/framework/widgets/slider-control';
@@ -44,11 +45,12 @@ import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-da
 import { tickerScheduler } from '@nelyx/core/internal/framework/widgets/ticker-scheduler';
 import { scrollChromeTimer } from '@nelyx/core/internal/framework/widgets/scroll-chrome-timers';
 import type { Disposable } from '@nelyx/core/foundation/disposable';
+import type { ValueListenable } from '@nelyx/core/foundation/notifier';
 import {
   RenderBox,
   RelayoutWhenSystemFontsChangeMixin,
 } from '@nelyx/core/framework/rendering/object';
-import type { RenderObject } from '@nelyx/core/framework/rendering/object';
+import type { PipelineOwner, RenderObject } from '@nelyx/core/framework/rendering/object';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import type { PaintingContext } from '@nelyx/core/framework/painting/context';
 import { TextPainter } from '@nelyx/core/framework/painting/text-painter';
@@ -74,7 +76,7 @@ import {
   SliderInteraction,
 } from './slider-theme.ts';
 import { sliderThemeFieldNames } from './generated/slider/slider-theme-fields.generated.ts';
-import { materialSliderDefaults } from './internal/slider/slider-defaults.ts';
+import { materialSliderDefaults, sliderOverlayColor } from './internal/slider/slider-defaults.ts';
 import { RectangularSliderValueIndicatorShape } from './slider-shapes.ts';
 export interface SliderOptions extends WidgetOptions {
   /** @dartType double */ readonly value: number;
@@ -249,6 +251,8 @@ function showWhenDragged(theme: SliderThemeData, discrete: boolean): boolean {
 interface SliderPaintModel {
   readonly theme: SliderThemeData;
   readonly visual: SliderVisualState;
+  readonly hoverPaint: ValueListenable<SliderHoverPaint> | undefined;
+  readonly overlayPrimary: Color | null;
   readonly enabled: boolean;
   readonly divisions: number | null;
   readonly secondary: number | null;
@@ -557,6 +561,17 @@ class MaterialSliderState extends TickerProviderStateMixin<Slider> {
         effective.showValueIndicator !== ShowValueIndicator.never &&
         (this.indicatorPolicy || effective.showValueIndicator === ShowValueIndicator.alwaysVisible),
     );
+    // Custom controls may use hover to choose the cursor or use overlay color
+    // in their own shape calculations. Only stock shapes use this paint path.
+    const paintHover =
+      o.overlayColor == null &&
+      (o.mouseCursor == null || o.mouseCursor instanceof MouseCursor) &&
+      ambient.mouseCursor === null &&
+      ambient.trackShape === null &&
+      ambient.thumbShape === null &&
+      ambient.overlayShape === null &&
+      ambient.tickMarkShape === null &&
+      ambient.valueIndicatorShape === null;
     let control: Widget = new SliderControl({
       value: widget.value,
       min: widget.min,
@@ -617,7 +632,8 @@ class MaterialSliderState extends TickerProviderStateMixin<Slider> {
       },
       onInteractionChange: (value) => this.interaction(value),
       onFocusHighlightChange: (value) => this.focusHighlight(value),
-      builder: (buildContext, visual) => {
+      paintHover,
+      builder: (buildContext, visual, hoverPaint) => {
         effective = resolve(visual);
         const media = MediaQuery.of(buildContext),
           scale = Math.min(media.textScale, 1.3),
@@ -631,6 +647,11 @@ class MaterialSliderState extends TickerProviderStateMixin<Slider> {
           {
             theme: effective,
             visual,
+            hoverPaint,
+            overlayPrimary:
+              hoverPaint && o.activeColor == null && ambient.overlayColor === null
+                ? new Color(theme.colorScheme.primary)
+                : null,
             enabled,
             divisions: widget.divisions,
             secondary:
@@ -684,6 +705,8 @@ class SliderPaintWidget extends LeafRenderObjectWidget {
 abstract class SliderRenderBase extends RenderBox {}
 class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRenderBase) {
   private painter: TextPainter;
+  private hoverOverlayTheme: SliderThemeData | null = null;
+  private readonly hoverChanged = () => this.markNeedsPaintOnly();
   constructor(public model: SliderPaintModel) {
     super();
     this.painter = new TextPainter({}, model.textContext);
@@ -691,7 +714,12 @@ class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRend
   }
   update(model: SliderPaintModel): void {
     const old = this.model;
+    if (old.hoverPaint !== model.hoverPaint && this.attached) {
+      old.hoverPaint?.removeListener(this.hoverChanged);
+      model.hoverPaint?.addListener(this.hoverChanged);
+    }
     this.model = model;
+    this.hoverOverlayTheme = null;
     if (model.textContext) {
       if (old.textContext) this.painter._updateContext(model.textContext);
       else {
@@ -702,6 +730,17 @@ class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRend
     this.updateLabel();
     this.markNeedsLayout();
     this.markNeedsPaint();
+  }
+  override attach(owner: PipelineOwner): void {
+    super.attach(owner);
+    this.model.hoverPaint?.addListener(this.hoverChanged);
+  }
+  override detach(): void {
+    try {
+      super.detach();
+    } finally {
+      if (!this.attached) this.model.hoverPaint?.removeListener(this.hoverChanged);
+    }
   }
   private updateLabel(): void {
     const m = this.model;
@@ -749,10 +788,22 @@ class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRend
       m.divisions !== null,
     );
   }
+  private get pressProgress(): number {
+    return this.model.hoverPaint?.value.pressProgress ?? this.model.visual.pressProgress;
+  }
+  private overlayTheme(): SliderThemeData {
+    const { theme, visual, hoverPaint, overlayPrimary } = this.model,
+      hovered = hoverPaint?.value.showHoverHighlight;
+    if (hovered === undefined || hovered === visual.showHoverHighlight || !overlayPrimary)
+      return theme;
+    return (this.hoverOverlayTheme ??= theme.copyWith({
+      overlayColor: sliderOverlayColor(overlayPrimary, visual, hovered),
+    }));
+  }
   private componentOptions(always = false) {
     const m = this.model;
     return {
-      activationAnimation: always ? stoppedOne : new AlwaysStoppedAnimation(m.visual.pressProgress),
+      activationAnimation: always ? stoppedOne : new AlwaysStoppedAnimation(this.pressProgress),
       enableAnimation: always ? stoppedOne : m.owner.enableAnimation,
       isDiscrete: m.divisions !== null,
       labelPainter: this.painter,
@@ -832,7 +883,8 @@ class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRend
       isEnabled: m.enabled,
     });
     const options = this.componentOptions();
-    if (m.visual.pressProgress !== 0) t.overlayShape!.paint(context, center, options);
+    if (this.pressProgress !== 0)
+      t.overlayShape!.paint(context, center, { ...options, sliderTheme: this.overlayTheme() });
     if (discrete) {
       const tickWidth = t.tickMarkShape!.getPreferredSize({
           isEnabled: m.enabled,

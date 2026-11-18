@@ -11,6 +11,7 @@ import type { WidgetOptions, BuildContext, State } from '@nelyx/core/framework/w
 import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
 import { ValueNotifier } from '@nelyx/core/foundation/notifier';
+import type { ValueListenable } from '@nelyx/core/foundation/notifier';
 import { Curves } from '@nelyx/core/framework/animation/curves';
 import {
   Padding,
@@ -77,6 +78,8 @@ export interface InputDecoratorOptions extends WidgetOptions {
   readonly textAlignVertical?: TextAlignVertical | null;
   readonly isFocused?: boolean;
   readonly isHovering?: boolean;
+  /** @internal Hover input from the TextField's mounted pointer region. */
+  readonly hoverListenable?: ValueListenable<boolean> | null;
   readonly expands?: boolean;
   readonly isEmpty?: boolean;
   readonly child?: Widget | null;
@@ -87,7 +90,8 @@ export class InputDecorator extends StatefulWidget {
   readonly textAlign: TextAlign | null;
   readonly textAlignVertical: TextAlignVertical | null;
   readonly isFocused: boolean;
-  readonly isHovering: boolean;
+  private readonly initialHovering: boolean;
+  readonly hoverListenable: ValueListenable<boolean> | null;
   readonly expands: boolean;
   readonly isEmpty: boolean;
   readonly child: Widget | null;
@@ -103,10 +107,14 @@ export class InputDecorator extends StatefulWidget {
     this.textAlign = options.textAlign ?? null;
     this.textAlignVertical = options.textAlignVertical ?? null;
     this.isFocused = options.isFocused ?? false;
-    this.isHovering = options.isHovering ?? false;
+    this.initialHovering = options.isHovering ?? false;
+    this.hoverListenable = options.hoverListenable ?? null;
     this.expands = options.expands ?? false;
     this.isEmpty = options.isEmpty ?? false;
     this.child = options.child ?? null;
+  }
+  get isHovering(): boolean {
+    return this.hoverListenable?.value ?? this.initialHovering;
   }
   static containerOf(context: BuildContext): RenderBox<RenderObject> | null {
     const render = context
@@ -151,6 +159,28 @@ interface Visual {
   readonly prefixIcon: Color;
   readonly suffixIcon: Color;
   readonly base: TextStyle;
+}
+const decorationContentFields = [
+  'base',
+  'label',
+  'floating',
+  'hint',
+  'helper',
+  'error',
+  'counter',
+  'prefix',
+  'suffix',
+  'icon',
+  'prefixIcon',
+  'suffixIcon',
+] as const;
+function sameBorderLayout(a: InputBorder, b: InputBorder): boolean {
+  return (
+    a.isOutline === b.isOutline &&
+    a.borderSide.strokeOffset === b.borderSide.strokeOffset &&
+    (a instanceof OutlineInputBorder ? a.gapPadding : null) ===
+      (b instanceof OutlineInputBorder ? b.gapPadding : null)
+  );
 }
 const transitionDuration = 167;
 class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
@@ -218,15 +248,25 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
       !this.context.active
     )
       return;
-    const v = this.visual();
-    this.borderPaint.value = Object.freeze({
-      border: v.border,
-      fill: Color.alphaBlend(
+    const v = this.visual(),
+      fill = Color.alphaBlend(
         v.hover.withValues({ alpha: v.hover.a * this.hover.value }),
         v.fill,
       ).toARGB32(),
+      progress = Curves.fastOutSlowIn.transform(this.floating.value),
+      current = this.borderPaint.value;
+    if (
+      current.fill === fill &&
+      current.direction === this.paintDirection &&
+      current.progress === progress &&
+      valueEquals(current.border, v.border)
+    )
+      return;
+    this.borderPaint.value = Object.freeze({
+      border: v.border,
+      fill,
       direction: this.paintDirection,
-      progress: Curves.fastOutSlowIn.transform(this.floating.value),
+      progress,
     });
   }
   private readonly borderChanged = () => {
@@ -235,12 +275,7 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
     const border = this.visual().border,
       layout = this.layoutBorder;
     // Stroke offset and outline gap also position the floating label.
-    const layoutChanged =
-      layout !== null &&
-      (layout.isOutline !== border.isOutline ||
-        layout.borderSide.strokeOffset !== border.borderSide.strokeOffset ||
-        (layout instanceof OutlineInputBorder ? layout.gapPadding : null) !==
-          (border instanceof OutlineInputBorder ? border.gapPadding : null));
+    const layoutChanged = layout !== null && !sameBorderLayout(layout, border);
     if (
       layoutChanged ||
       !this.begin.label.equals(this.end.label) ||
@@ -249,6 +284,19 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
       this.animationChanged();
   };
   private readonly hoverChanged = () => this.updateBorderPaint();
+  private readonly hoverInputChanged = () => {
+    if (!this.end || !this.mounted || !(this.context as Element).active) return;
+    const previous = this.end,
+      next = this.resolve();
+    this.updateVisualTarget(next);
+    this.syncHover(false);
+    if (
+      !sameBorderLayout(previous.border, next.border) ||
+      decorationContentFields.some((field) => !valueEquals(previous[field], next[field]))
+    )
+      this.animationChanged();
+    else this.updateBorderPaint();
+  };
   private readonly floatingChanged = () => {
     this.updateBorderPaint();
     this.animationChanged();
@@ -263,6 +311,7 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
     this.border.addListener(this.borderChanged);
     this.hover.addListener(this.hoverChanged);
     this.hint.addListener(this.animationChanged);
+    this.widget.hoverListenable?.addListener(this.hoverInputChanged);
   }
   private states(): DartSet<WidgetState> {
     const states = emptyWidgetStateSet();
@@ -421,15 +470,12 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
       floating: TextStyle.lerp(this.begin.floating, this.end.floating, t)!,
     };
   }
-  private sync(): void {
-    this.decoration = this.widget.decoration.applyDefaults(InputDecorationTheme.of(this.context));
-    const next = this.resolve(),
-      initial = this.end === null;
-    if (initial) {
+  private updateVisualTarget(next: Visual): void {
+    const previousTarget = this.end;
+    if (previousTarget === null) {
       this.end = next;
       this.begin = next;
     } else {
-      const previousTarget = this.end!;
       if (
         !valueEquals(previousTarget.border, next.border) ||
         !previousTarget.fill.equals(next.fill) ||
@@ -442,9 +488,20 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
         this.border.forward();
       } else this.end = next;
     }
+  }
+  private syncHover(initial: boolean): void {
+    const target = this.widget.isHovering ? 1 : 0;
+    if (initial) this.hover.value = target;
+    else if (this.hoverTarget !== target) this.hover.animateTo(target, { duration: 15 });
+    this.hoverTarget = target;
+  }
+  private sync(): void {
+    this.decoration = this.widget.decoration.applyDefaults(InputDecorationTheme.of(this.context));
+    const initial = this.end === null;
+    this.updateVisualTarget(this.resolve());
+    this.syncHover(initial);
     for (const [controller, value, duration, target] of [
       [this.floating, this.shouldFloat() ? 1 : 0, transitionDuration, 'floatingTarget'],
-      [this.hover, this.widget.isHovering ? 1 : 0, 15, 'hoverTarget'],
       [this.hint, this.hintVisible() ? 1 : 0, this.decoration.hintFadeDuration ?? 20, 'hintTarget'],
     ] as const) {
       if (initial) {
@@ -462,9 +519,14 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
   }
   override didUpdateWidget(old: InputDecorator): void {
     super.didUpdateWidget(old);
+    if (old.hoverListenable !== this.widget.hoverListenable) {
+      old.hoverListenable?.removeListener(this.hoverInputChanged);
+      this.widget.hoverListenable?.addListener(this.hoverInputChanged);
+    }
     this.sync();
   }
   override dispose(): void {
+    this.widget.hoverListenable?.removeListener(this.hoverInputChanged);
     try {
       for (const controller of [this.floating, this.border, this.hover, this.hint])
         controller.dispose();
@@ -508,11 +570,30 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
     if (d.icon)
       slots.set(
         'icon',
-        new Padding(
-          EdgeInsetsDirectional.only({ end: 16 }),
-          IconTheme.merge({ data: new IconThemeData({ color: v.icon, size: 24 }), child: d.icon }),
-        ),
+        this.stableChild(
+          'icon',
+          [d.icon, v.icon],
+          () =>
+            new Padding(
+              EdgeInsetsDirectional.only({ end: 16 }),
+              IconTheme.merge({
+                data: new IconThemeData({ color: v.icon, size: 24 }),
+                child: d.icon!,
+              }),
+            ),
+        )!,
       );
+    const putOpacity = (slot: DecorationSlot, child: Widget | null, opacity: number): void => {
+      if (child)
+        slots.set(
+          slot,
+          this.stableChild(
+            'opacity:' + slot,
+            [child, opacity],
+            () => new Opacity(child, { opacity }),
+          )!,
+        );
+    };
     const withStyle = (
       slot: DecorationSlot,
       child: Widget | null,
@@ -549,7 +630,7 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
     );
     const inlineHidden =
       d.floatingLabelBehavior === FloatingLabelBehavior.never && this.withdrawn();
-    if (label) slots.set('label', new Opacity(label, { opacity: inlineHidden ? 0 : 1 }));
+    putOpacity('label', label, inlineHidden ? 0 : 1);
     const hint = withStyle(
       'hint',
       d.hint,
@@ -558,12 +639,12 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
       d.hintMaxLines,
       d.hintTextDirection ?? direction,
     );
-    if (hint) slots.set('hint', new Opacity(hint, { opacity: this.hint.value }));
+    putOpacity('hint', hint, this.hint.value);
     const prefix = withStyle('prefix', d.prefix, d.prefixText, v.prefix),
       suffix = withStyle('suffix', d.suffix, d.suffixText, v.suffix),
       affixOpacity = !this.hasLabel() || this.withdrawn() ? 1 : 0;
-    if (prefix) slots.set('prefix', new Opacity(prefix, { opacity: affixOpacity }));
-    if (suffix) slots.set('suffix', new Opacity(suffix, { opacity: affixOpacity }));
+    putOpacity('prefix', prefix, affixOpacity);
+    putOpacity('suffix', suffix, affixOpacity);
     for (const [slot, child, constraints, color] of [
       ['prefixIcon', d.prefixIcon, d.prefixIconConstraints, v.prefixIcon],
       ['suffixIcon', d.suffixIcon, d.suffixIconConstraints, v.suffixIcon],
@@ -603,7 +684,11 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
     );
     slots.set(
       'helperError',
-      new AnimatedSwitcher({ duration: transitionDuration, child: helperChild }),
+      this.stableChild(
+        'helper:switcher',
+        [helperChild],
+        () => new AnimatedSwitcher({ duration: transitionDuration, child: helperChild }),
+      )!,
     );
     const counter = withStyle(
       'counter',

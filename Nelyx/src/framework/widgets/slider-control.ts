@@ -44,6 +44,8 @@ import type { Size, Offset, TransformMatrix } from '../../ui/geometry.ts';
 import { identity } from '../../ui/geometry.ts';
 import { clampDouble } from '../../ui/math.ts';
 import { invariant } from '../../foundation/errors.ts';
+import { ValueNotifier } from '../../foundation/notifier.ts';
+import type { ValueListenable } from '../../foundation/notifier.ts';
 export type SliderInteraction = 'tapAndSlide' | 'tapOnly' | 'slideOnly' | 'slideThumb';
 export type SliderPolicy = 'material' | 'cupertino';
 export function discretizeSliderValue(value: number, divisions: number | null): number {
@@ -83,6 +85,7 @@ export interface SliderVisualState extends Omit<ControlVisualState, 'focusNode'>
   readonly direction: 'ltr' | 'rtl';
   readonly geometry: SliderGeometry;
 }
+export type SliderHoverPaint = Pick<SliderVisualState, 'showHoverHighlight' | 'pressProgress'>;
 export interface SliderControlOptions extends WidgetOptions {
   readonly value: number;
   readonly min?: number;
@@ -111,7 +114,13 @@ export interface SliderControlOptions extends WidgetOptions {
   readonly resolveMouseCursor?: (visual: SliderVisualState) => MouseCursor;
   readonly onInteractionChange?: (active: boolean) => void;
   readonly onFocusHighlightChange?: (focused: boolean) => void;
-  readonly builder: (context: BuildContext, visual: SliderVisualState) => Widget;
+  /** @internal The builder can paint hover/overlay changes using the third argument. */
+  readonly paintHover?: boolean;
+  readonly builder: (
+    context: BuildContext,
+    visual: SliderVisualState,
+    hoverPaint?: ValueListenable<SliderHoverPaint>,
+  ) => Widget;
 }
 export class SliderControl extends StatefulWidget {
   readonly options: Readonly<SliderControlOptions>;
@@ -191,6 +200,8 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
   private focusHighlight = false;
   private hoverHighlight = false;
   private hoveringThumb = false;
+  private hoverPaint: ValueNotifier<SliderHoverPaint> | null = null;
+  private updatingHoverState = false;
   private readonly action = new SliderAdjustmentAction(this);
   private readonly rangeActions = { setValue: (value: number) => this.setSemanticValue(value) };
   private get live(): boolean {
@@ -233,8 +244,36 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
     return this.widget.options.policy === 'material' ? this.quantize(this.fraction) : this.fraction;
   }
   private readonly visualChanged = () => {
-    if (this.live) this.setState(() => {});
+    if (this.live && !this.updatingHoverState) this.setState(() => {});
   };
+  private get paintsHover(): boolean {
+    return this.ownsStates && this.widget.options.paintHover === true;
+  }
+  private hoverVisual(): SliderHoverPaint {
+    return {
+      showHoverHighlight: this.hoverHighlight,
+      pressProgress:
+        this.widget.options.policy === 'material'
+          ? Curves.fastOutSlowIn.transform(this.overlay.value)
+          : this.overlay.value,
+    };
+  }
+  private readonly overlayChanged = () => {
+    if (!this.live) return;
+    if (!this.paintsHover) {
+      this.visualChanged();
+    } else if (this.hoverPaint) {
+      this.hoverPaint.value = this.hoverVisual();
+    }
+  };
+  private setHovered(value: boolean): void {
+    this.updatingHoverState = this.paintsHover;
+    try {
+      this.states.update(WidgetState.hovered, value);
+    } finally {
+      this.updatingHoverState = false;
+    }
+  }
   private connectStates(): void {
     this.ownsStates = this.widget.options.statesController == null;
     this.states = this.widget.options.statesController ?? new WidgetStatesController();
@@ -260,7 +299,7 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
     });
     this.overlay = new AnimationController({ vsync: this, duration: 200 });
     this.position.addListener(this.visualChanged);
-    this.overlay.addListener(this.visualChanged);
+    this.overlay.addListener(this.overlayChanged);
     this.team = new GestureArenaTeam((this.context as Element).owner.gestureBinding.gestureArena);
   }
   private settle(): void {
@@ -504,6 +543,7 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
       () => this.team.dispose(),
       () => this.position.dispose(),
       () => this.overlay.dispose(),
+      () => this.hoverPaint?.dispose(),
       () => this.disconnectStates(),
       () => this.internalNode?.dispose(),
       () => super.dispose(),
@@ -563,18 +603,24 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
       enabled = this.interactive,
       material = options.policy === 'material',
       node = material ? this.node : null,
-      states = this.states.value;
+      states = this.states.value,
+      hover = this.hoverVisual();
+    const hoverPaint = this.paintsHover
+      ? (this.hoverPaint ??= new ValueNotifier(
+          hover,
+          (a, b) =>
+            a.showHoverHighlight === b.showHoverHighlight && a.pressProgress === b.pressProgress,
+        ))
+      : undefined;
+    if (hoverPaint) hoverPaint.value = hover;
     const visual: SliderVisualState = Object.freeze({
+        ...hover,
         states,
         focusNode: node,
         pressed: this.active,
         hovered: states.contains(WidgetState.hovered),
         focused: node?.hasFocus ?? false,
         showFocusHighlight: this.focusHighlight,
-        showHoverHighlight: this.hoverHighlight,
-        pressProgress: material
-          ? Curves.fastOutSlowIn.transform(this.overlay.value)
-          : this.overlay.value,
         dragging: this.active,
         hoveringThumb: this.hoveringThumb,
         position: this.position,
@@ -586,7 +632,7 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
         options.resolveMouseCursor?.(visual) ??
         options.mouseCursor ??
         (enabled ? SystemMouseCursors.click : SystemMouseCursors.basic),
-      body = options.builder(context, visual),
+      body = options.builder(context, visual, hoverPaint),
       gesture = new RawGestureDetector(body, {
         key: new ValueKey(options.policy),
         gestures: this.recognizers(),
@@ -602,11 +648,11 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
       child: new MouseRegion(gesture, {
         cursor,
         onEnter: () => {
-          if (this.interactive) this.states.update(WidgetState.hovered, true);
+          if (this.interactive) this.setHovered(true);
         },
         onExit: () => {
           if (this.live) {
-            this.states.update(WidgetState.hovered, false);
+            this.setHovered(false);
             this.hoveringThumb = false;
             this.updateOverlay();
           }
@@ -683,10 +729,10 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
             options.onFocusHighlightChange?.(value);
           },
           onShowHoverHighlight: (value) => {
-            if (this.live && this.hoverHighlight !== value)
-              this.setState(() => {
-                this.hoverHighlight = value;
-              });
+            if (this.live && this.hoverHighlight !== value) {
+              this.hoverHighlight = value;
+              this.overlayChanged();
+            }
           },
         })
       : semantics;

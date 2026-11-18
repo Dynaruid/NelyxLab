@@ -68,6 +68,8 @@ export interface MaterialOptions extends WidgetOptions {
   readonly type?: MaterialType;
   /** @dartType double */
   readonly elevation?: number;
+  /** @internal Paint target for a shaped Material's elevation animation. */
+  readonly paintElevation?: ValueListenable<number> | null;
   readonly color?: Color | null;
   readonly shadowColor?: Color | null;
   readonly surfaceTintColor?: Color | null;
@@ -84,6 +86,7 @@ export class Material extends StatefulWidget {
   readonly type: MaterialType;
   /** @dartType double */
   readonly elevation: number;
+  readonly paintElevation: ValueListenable<number> | null;
   readonly color: Color | null;
   readonly shadowColor: Color | null;
   readonly surfaceTintColor: Color | null;
@@ -102,6 +105,7 @@ export class Material extends StatefulWidget {
     key = null,
     type = MaterialType.canvas,
     elevation = 0,
+    paintElevation = null,
     color = null,
     shadowColor = null,
     surfaceTintColor = null,
@@ -133,6 +137,7 @@ export class Material extends StatefulWidget {
     );
     this.type = type;
     this.elevation = elevation;
+    this.paintElevation = paintElevation;
     this.color = color;
     this.shadowColor = shadowColor;
     this.surfaceTintColor = surfaceTintColor;
@@ -279,6 +284,7 @@ class MaterialState extends TickerProviderStateMixin<Material> {
       borderOnForeground: widget.borderOnForeground,
       clipBehavior: widget.clipBehavior,
       elevation: widget.elevation,
+      paintElevation: widget.paintElevation,
       color: background!,
       shadowColor: shadow,
       surfaceTintColor: widget.surfaceTintColor,
@@ -337,6 +343,7 @@ interface InteriorOptions extends ImplicitlyAnimatedWidgetOptions {
   readonly borderOnForeground: boolean;
   readonly clipBehavior: Clip;
   readonly elevation: number;
+  readonly paintElevation: ValueListenable<number> | null;
   readonly color: Color;
   readonly shadowColor: Color;
   readonly surfaceTintColor: Color | null;
@@ -360,7 +367,16 @@ class MaterialInteriorState extends ImplicitlyAnimatedWidgetState<MaterialInteri
   override initState(): void {
     super.initState();
     this.controller.addListener(this.updateVisual);
+    this.widget.options.paintElevation?.addListener(this.elevationChanged);
   }
+  override didUpdateWidget(old: MaterialInterior): void {
+    super.didUpdateWidget(old);
+    if (old.options.paintElevation !== this.widget.options.paintElevation) {
+      old.options.paintElevation?.removeListener(this.elevationChanged);
+      this.widget.options.paintElevation?.addListener(this.elevationChanged);
+    }
+  }
+  private readonly elevationChanged = () => this.retargetTweens();
   private visual() {
     const elevation = this.elevation!.evaluate(this.animation);
     return {
@@ -420,6 +436,7 @@ class MaterialInteriorState extends ImplicitlyAnimatedWidgetState<MaterialInteri
     render.clipper = null;
   }
   override dispose(): void {
+    this.widget.options.paintElevation?.removeListener(this.elevationChanged);
     this.controller.removeListener(this.updateVisual);
     this.renderer = null;
     try {
@@ -431,7 +448,11 @@ class MaterialInteriorState extends ImplicitlyAnimatedWidgetState<MaterialInteri
 
   protected forEachTween(visitor: TweenVisitor): void {
     const w = this.widget.options;
-    this.elevation = visitor(this.elevation, w.elevation, (value) => new Tween({ begin: value }));
+    this.elevation = visitor(
+      this.elevation,
+      w.paintElevation?.value ?? w.elevation,
+      (value) => new Tween({ begin: value }),
+    );
     this.shadow = visitor<Color | null>(
       this.shadow,
       w.shadowColor,

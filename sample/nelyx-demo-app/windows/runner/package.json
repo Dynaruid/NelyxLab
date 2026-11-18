@@ -16,13 +16,13 @@
     "pack": "nelyx pack --app ../.. --target windows --host native"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.17.0-58d33716ec9f7bf76def59641c31de51dd7dddbe798cb30e063c6999571ba131.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.17.0-0b6875550a63fe150ac9994e1973245f2fe357e916f07d2c9a7663672262ea74.tgz",
     "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.21.0-843b68dc9654b5af9c562aed32906493b8a2582ed76d1f4d97cbe7a837dc5dd3.tgz",
     "@nelyx/skia-rn": "file:../../.nelyx/supply/windows/nelyx-skia-rn-0.6.0-5178f9558b3c980e10e9f70443be5b34ea534794bdce5fab075016b32df65fc3.tgz",
     "react": "19.2.0",
     "react-native": "0.83.10",
     "react-native-windows": "0.83.2",
-    "@nelyx/material": "file:../../.nelyx/supply/windows/nelyx-material-0.2.0-e48d4d14948b14210a3726c0f8b5b28e53d972a34d690fde1a62f5b5dee5b611.tgz",
+    "@nelyx/material": "file:../../.nelyx/supply/windows/nelyx-material-0.2.0-a103626570b935ce771df8bdf0dab0fa6049e29e44d98a4e9fd34766ef7bb0a1.tgz",
     "@nelyx/skia-native": "file:../../.nelyx/supply/windows/nelyx-skia-native-0.1.0-b2de8b1b3e8bda0ca364d3c591b5635a67384e49a2b6e2434495daf0d1e9a48d.tgz",
     "@nelyx/cupertino": "file:../../.nelyx/supply/windows/nelyx-cupertino-0.2.0-a202288a21e0884b134d6e536ddefe3756abc0087e2943adfb342c01a1fe7f2f.tgz"
   },

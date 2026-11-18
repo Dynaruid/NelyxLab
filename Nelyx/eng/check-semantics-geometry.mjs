@@ -19,6 +19,7 @@ import {RenderBlockSemantics} from './Nelyx/src/framework/rendering/semantics-an
 import {RenderFractionalTranslation} from './Nelyx/src/framework/rendering/fractional-translation.ts';
 import {BoxConstraints} from './Nelyx/src/framework/rendering/constraints.ts';
 import {semanticsFor,pipelineSemantics} from './Nelyx/src/framework/rendering/semantics-pipeline.ts';
+import {SemanticsNode} from './Nelyx/src/framework/semantics/semantics.ts';
 import {Offset} from './Nelyx/src/ui/offset.ts';
 import {Rect} from './Nelyx/src/ui/rect.ts';
 import {FoundationBuildMode} from './Nelyx/src/foundation/constants.ts';
@@ -29,6 +30,18 @@ class Box extends RenderBox {
   describeSemanticsConfiguration(config){super.describeSemanticsConfiguration(config);if(this.label){config.label=this.label;config.textDirection='ltr';}config.isSemanticBoundary=this.boundary;}
   describeApproximatePaintClip(){return this.clip?Rect.fromLTWH(0,0,this.size.width,this.size.height):null;}
   change(){this.markNeedsSemanticsUpdate();}
+}
+class AssemblyBox extends Box {
+  assembleSemanticsNode(node,config,children){super.assembleSemanticsNode(node,config,children);}
+}
+class TransparentBox extends Box {
+  describeSemanticsConfiguration(config){RenderBox.prototype.describeSemanticsConfiguration.call(this,config);}
+}
+class FocusedBox extends Box {
+  focused=false;
+  describeSemanticsConfiguration(config){
+    super.describeSemanticsConfiguration(config);config.isFocusable=true;config.isFocused=this.focused;
+  }
 }
 function fixture(root){
   const owner=new PipelineOwner();owner.setRoot(root);owner.enableSemantics({onSemanticsUpdate(){}});
@@ -43,6 +56,32 @@ let cases=0;
 try {
   for(const mode of ['release','debug']){
     FoundationBuildMode.mode=mode;
+    for(const Root of [Box,AssemblyBox]){
+      const leaf=new FocusedBox('moving date',true),wrapper=new TransparentBox('',false,[leaf]);
+      const root=new Root('',true,[wrapper],true),current=fixture(root);
+      const update=SemanticsNode.prototype.updateWith;
+      let commits=0;
+      SemanticsNode.prototype.updateWith=function(config){commits++;return update.call(this,config);};
+      try {
+        current.frame();
+        const parent=semanticsFor(root).cachedSemanticsNode,node=semanticsFor(leaf).cachedSemanticsNode;
+        assert.equal(semanticsFor(wrapper).parentData,semanticsFor(leaf).parentData,'Transparent wrapper allocated new inherited semantics');
+        commits=0;
+        leaf.layoutOffset=new Offset(12,0);current.frame();
+        assert.equal(commits,Root===Box?0:1,'Offset-only layout did not preserve the assembly contract');
+        assert.equal(node.transform.storage[12],12);
+        assert.equal(node.parent,parent);
+
+        leaf.focused=true;leaf.change();leaf.layoutOffset=new Offset(14,0);current.frame();
+        assert.equal(node.getSemanticsData().flagsCollection.isFocused.toBoolOrNull(),true,'Mixed configuration and geometry lost focus');
+        leaf.layoutOffset=new Offset(200,0);current.frame();
+        assert.equal(node.parent,null,'Clipped node stayed in the published tree');
+        leaf.layoutOffset=new Offset(9,0);current.frame();
+        assert.equal(semanticsFor(leaf).cachedSemanticsNode,node);
+        assert.equal(node.parent,parent,'Unclipped node did not rejoin with its original identity');
+        cases++;
+      } finally {SemanticsNode.prototype.updateWith=update;current.close();}
+    }
     for(const ancestorTarget of [false,true]){
       const leaf=new Box('clipped date',true),root=new Box('',true,[leaf],true),current=fixture(root);
       try {
@@ -85,7 +124,7 @@ try {
     }
   }
 } finally {FoundationBuildMode.mode=previousMode;}
-console.log('SEMANTICS_GEOMETRY PASS '+JSON.stringify({cases,coverage:['missing-ancestor-geometry','invisible-child-parent-assembly','configuration-only-root-target','stable-node-identity','clip-return','modal-blocking-with-background-motion','debug-and-release','transport-retirement']}));
+console.log('SEMANTICS_GEOMETRY PASS '+JSON.stringify({cases,coverage:['retained-offset-only-assembly','custom-assembly','mixed-focus-and-motion','inherited-data-reuse','missing-ancestor-geometry','invisible-child-parent-assembly','configuration-only-root-target','stable-node-identity','clip-return','modal-blocking-with-background-motion','debug-and-release','transport-retirement']}));
 `,
     },
     bundle: true,

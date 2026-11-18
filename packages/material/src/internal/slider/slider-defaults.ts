@@ -22,6 +22,15 @@ export const sliderDefaultThumbSize = WidgetStateProperty.resolveWith<Size | nul
         ? pressedSize
         : normalSize,
 );
+export function sliderOverlayColor(
+  primary: Color,
+  visual: SliderVisualState,
+  hovered = visual.showHoverHighlight,
+): Color {
+  return primary.withOpacity(
+    visual.dragging ? 0.1 : hovered ? 0.08 : visual.showFocusHighlight ? 0.1 : 0,
+  );
+}
 export function materialSliderDefaults(
   context: BuildContext,
   year2023: boolean,
@@ -34,9 +43,6 @@ export function materialSliderDefaults(
     on = new Color(c.onSurface),
     modern = !year2023,
     s = sliderDefaultShapes;
-  const overlay = p.withOpacity(
-    visual.dragging ? 0.1 : visual.showHoverHighlight ? 0.08 : visual.showFocusHighlight ? 0.1 : 0,
-  );
   return new SliderThemeData({
     trackHeight: modern ? 16 : 4,
     activeTrackColor: p,
@@ -55,7 +61,7 @@ export function materialSliderDefaults(
     disabledThumbColor: modern
       ? on.withOpacity(0.38)
       : Color.alphaBlend(on.withOpacity(0.38), new Color(c.surface)),
-    overlayColor: overlay,
+    overlayColor: sliderOverlayColor(p, visual),
     valueIndicatorColor: modern ? new Color(c.inverseSurface) : p,
     valueIndicatorTextStyle: (modern
       ? theme.textTheme.labelLarge

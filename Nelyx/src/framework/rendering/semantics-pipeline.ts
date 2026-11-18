@@ -2,7 +2,7 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Rendering-library semantics fragments from the pinned rendering/object.dart.
 import type { RenderObject, PipelineOwner } from './object.ts';
-import { captureNumericSemanticsBounds } from './object.ts';
+import { captureNumericSemanticsBounds, usesDefaultSemanticsAssembly } from './object.ts';
 import type { SemanticsGeometryService, SemanticsRect } from '../../hosting/semantics-geometry.ts';
 import type { FrameBuildToken } from '../../ui/types.ts';
 import type { FrameDiagnostics } from '../../ui/frame-diagnostics.ts';
@@ -155,6 +155,8 @@ class _IncompleteSemanticsFragment extends _SemanticsFragment {
   }
 }
 
+const noExplicitSiblingChildren: readonly _RenderObjectSemantics[] = [];
+
 // The render owner holds its fragment on its existing private child-table
 // object, never as a child entry. This adds no RenderObject field. GC follows the ordinary
 // owner cycle, and a private symbol cannot collide with named table metadata.
@@ -196,7 +198,7 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
   private previousGeometry: _SemanticsGeometry | null = null;
   readonly configProvider: _SemanticsConfigurationProvider;
   parentInSemanticsTree: _RenderObjectSemantics | null = null;
-  private currentTreeShapeToken: object = {};
+  private currentTreeShapeToken: object | undefined;
   firstAncestorNodeWithCleanGeometry: _RenderObjectSemantics | null = null;
   constructor(readonly renderObject: RenderObject) {
     super();
@@ -334,28 +336,33 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
       'Parent data may be null only at the render root',
     );
     this.configProvider.reset();
-    const config = this.configProvider.effective,
+    const parent = this.parentData,
+      config = this.configProvider.effective,
       tags = this.tagsForChildren(),
       explicit =
         this.isRoot ||
         config.explicitChildNodes ||
-        (!this.contributesToSemanticsTree && (this.parentData?.explicitChildNodes ?? true));
-    const blocked = (this.parentData?.blocksUserActions ?? false) || config.isBlockingUserActions,
+        (!this.contributesToSemanticsTree && (parent?.explicitChildNodes ?? true));
+    const merged = (parent?.mergeIntoParent ?? false) || config.isMergingSemanticsOfDescendants,
+      blocked = (parent?.blocksUserActions ?? false) || config.isBlockingUserActions,
       focusBlock =
-        this.parentData?.accessibilityFocusBlockType === AccessibilityFocusBlockType.blockSubtree
+        parent?.accessibilityFocusBlockType === AccessibilityFocusBlockType.blockSubtree
           ? AccessibilityFocusBlockType.blockSubtree
           : config.accessibilityFocusBlockType,
-      locale = config.localeForSubtree ?? this.parentData?.localeForChildren ?? null;
+      locale = config.localeForSubtree ?? parent?.localeForChildren ?? null;
     this.siblingMergeGroups.length = 0;
     this.mergeUp.length = 0;
-    const childData = new _SemanticsParentData(
-      (this.parentData?.mergeIntoParent ?? false) || config.isMergingSemanticsOfDescendants,
-      blocked,
-      explicit,
-      tags,
-      locale,
-      focusBlock,
-    );
+    // A layout wrapper often forwards every inherited property unchanged.
+    const childData =
+      parent !== null &&
+      parent.mergeIntoParent === merged &&
+      parent.blocksUserActions === blocked &&
+      parent.explicitChildNodes === explicit &&
+      parent.tagsForChildren === tags &&
+      parent.localeForChildren === locale &&
+      parent.accessibilityFocusBlockType === focusBlock
+        ? parent
+        : new _SemanticsParentData(merged, blocked, explicit, tags, locale, focusBlock);
     this.collectChildren(childData);
     const oldChildren = this.childrenInSemanticsTree.length
       ? new Set(this.childrenInSemanticsTree)
@@ -444,8 +451,8 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
         check(!child.renderObject.needsLayout, 'Semantic children require completed layout');
         child.didUpdateParentData(effectiveData);
         for (const fragment of child.mergeUp) {
-          const config = fragment.configToMergeUp;
-          if (delegate !== null && config !== null) {
+          const config = delegate === null ? null : fragment.configToMergeUp;
+          if (config !== null) {
             configs!.push(config);
             byConfig!.set(config, fragment);
           } else mergeUp.push(fragment);
@@ -481,7 +488,7 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
     }
   }
   private didUpdateParentData(data: _SemanticsParentData): void {
-    if (this.parentData?.equals(data)) return;
+    if (this.parentData === data || this.parentData?.equals(data)) return;
     const dirty = this.parentDataDirty;
     this.markNeedsBuild();
     this.parentData = data;
@@ -534,7 +541,8 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
     // their forming ancestors. Pure motion can keep the other child nodes.
     if (rebuild && this.built) this.markNeedsBuild();
   }
-  private explicitSiblingChildren(): _RenderObjectSemantics[] {
+  private explicitSiblingChildren(): readonly _RenderObjectSemantics[] {
+    if (this.siblingMergeGroups.length === 0) return noExplicitSiblingChildren;
     return this.siblingMergeGroups
       .flat()
       .filter(
@@ -603,6 +611,32 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
     if (!this.built) this.buildSemantics(new Set());
     else this.buildSubtree(new Set());
   }
+  /** An offset-only update can refresh node geometry without repeating assembly. */
+  hasRetainedGeometryAssembly(): boolean {
+    const node = this.cachedSemanticsNode;
+    if (
+      this.geometry === null ||
+      this.parentDataDirty ||
+      !this.built ||
+      node === null ||
+      this.siblingMergeGroups.length > 0 ||
+      this.producedSiblingNodesAndOwners.size > 0 ||
+      (this.configProvider.effective.isSemanticBoundary &&
+        !usesDefaultSemanticsAssembly(this.renderObject))
+    )
+      return false;
+    // Geometry work does not reorder fragments. Prove that the visible
+    // nodes are still owned by this parent and no hidden node is left in it.
+    let visible = 0;
+    for (const child of this.childrenInSemanticsTree) {
+      if (child.parentDataDirty || !child.built || child.semanticsNodes.length !== 1) return false;
+      const childNode = child.semanticsNodes[0]!;
+      if (childNode.isInvisible) continue;
+      if (childNode.parent !== node) return false;
+      ++visible;
+    }
+    return visible === node.childrenCount;
+  }
   private buildSemantics(used: Set<number>): void {
     check(this.shouldFormSemanticsNode, 'Cannot build a non-forming fragment');
     if (this.cachedSemanticsNode !== null)
@@ -630,8 +664,13 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
       child.buildSemantics(used);
       children.push(...child.semanticsNodes);
     }
+    // Assembly can change child state while building later siblings. Cull
+    // after all builds, using the temporary child array as the output buffer.
+    let visible = 0;
+    for (const child of children)
+      if (!_RenderObjectSemantics.shouldDrop(child)) children[visible++] = child;
+    children.length = visible;
     const node = this.cachedSemanticsNode!,
-      visible = children.filter((child) => !_RenderObjectSemantics.shouldDrop(child)),
       hidden =
         this.configProvider.original.isHidden ||
         (!(this.parentData?.mergeIntoParent ?? false) && this.geometry!.hidden);
@@ -642,7 +681,7 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
     if (this.configProvider.effective.isSemanticBoundary) {
       if (this.needsMergingSiblingNodesIntoSelf) {
         const inner = new SemanticsNode({ showOnScreen: () => this.renderObject.showOnScreen() });
-        this.renderObject.assembleSemanticsNode(inner, this.configProvider.effective, visible);
+        this.renderObject.assembleSemanticsNode(inner, this.configProvider.effective, children);
         const config = new SemanticsConfiguration();
         config.isSemanticBoundary = true;
         config.isMergingSemanticsOfDescendants = true;
@@ -650,7 +689,7 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
           config,
           childrenInInversePaintOrder: [inner, ...this.producedSiblingNodesAndOwners.keys()],
         });
-      } else this.renderObject.assembleSemanticsNode(node, this.configProvider.effective, visible);
+      } else this.renderObject.assembleSemanticsNode(node, this.configProvider.effective, children);
     } else {
       check(
         !this.configProvider.effective.isMergingSemanticsOfDescendants,
@@ -658,7 +697,7 @@ export class _RenderObjectSemantics extends _SemanticsFragment {
       );
       node.updateWith({
         config: this.configProvider.effective,
-        childrenInInversePaintOrder: visible,
+        childrenInInversePaintOrder: children,
       });
     }
   }
@@ -1352,6 +1391,7 @@ export class RenderSemanticsPipeline {
     geometryPaths.set(this.pipeline, new Map());
     let nodes: RenderObject[] = [];
     try {
+      let offsetOnly = this.dirty.size === 0 && !owner.hasPendingUpdates;
       for (const pending of [this.pendingConfigurations, this.pendingGeometryConfigurations])
         for (const render of pending) {
           if (render.owner !== this.pipeline) {
@@ -1361,7 +1401,11 @@ export class RenderSemanticsPipeline {
           if (render.needsLayout) continue;
           // Unvisited new fragments are collected by their parent's structural
           // update. Hidden/private render children need no fragment at all.
-          existingSemanticsFor(render)?.applyPendingUpdate();
+          const semantics = existingSemanticsFor(render);
+          if (semantics) {
+            offsetOnly = false;
+            semantics.applyPendingUpdate();
+          }
           pending.delete(render);
         }
       nodes = [...this.dirty]
@@ -1461,10 +1505,9 @@ export class RenderSemanticsPipeline {
         }
         for (const target of targets) assemble(target);
       }
-      // Offset changes preserve configurations and parent data. Geometry can
-      // still change clipping/visibility, so assemble its affected subtree even
-      // when there were no configuration updates in this flush.
-      for (const target of moved) assemble(target);
+      // Geometry is current even when membership and configuration can be reused.
+      for (const target of moved)
+        if (!offsetOnly || !target.hasRetainedGeometryAssembly()) assemble(target);
       if (FoundationBuildMode.debug && root)
         _RenderObjectSemantics.debugCheckForBuilds(semanticsFor(root));
       owner.sendSemanticsUpdate();

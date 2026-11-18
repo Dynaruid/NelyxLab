@@ -41,6 +41,7 @@ import { WidgetState, WidgetStateTextStyle } from '@nelyx/core/framework/widgets
 import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
 import { Color } from '@nelyx/core/ui/color';
 import { invariant } from '@nelyx/core/foundation/errors';
+import { ValueNotifier } from '@nelyx/core/foundation/notifier';
 import {
   DiagnosticPropertiesBuilder,
   DiagnosticsProperty,
@@ -220,7 +221,7 @@ class TextFieldState extends State<TextField> {
   private ownsController = false;
   private focus!: FocusNode;
   private ownsFocus = false;
-  private hovering = false;
+  private readonly hovering = new ValueNotifier(false);
   private queued = false;
   private editorCache:
     | {
@@ -244,6 +245,11 @@ class TextFieldState extends State<TextField> {
       }
     } else this.setState(() => {});
   };
+  private setHovering(value: boolean): void {
+    if (this.hovering.value === value || !this.mounted || !(this.context as Element).active) return;
+    this.hovering.value = value;
+    if (this.widget.options.style instanceof WidgetStateTextStyle) this.changed();
+  }
   private connectController(previous?: TextEditingController): void {
     this.ownsController = this.widget.options.controller == null;
     this.controller =
@@ -293,6 +299,7 @@ class TextFieldState extends State<TextField> {
       this.focus.removeListener(this.changed);
       if (this.ownsController) this.controller.dispose();
       if (this.ownsFocus) this.focus.dispose();
+      this.hovering.dispose();
     } finally {
       this.editorCache = undefined;
       super.dispose();
@@ -306,7 +313,7 @@ class TextFieldState extends State<TextField> {
       states = emptyWidgetStateSet();
     if (!enabled) states.add(WidgetState.disabled);
     if (this.focus.hasFocus) states.add(WidgetState.focused);
-    if (this.hovering) states.add(WidgetState.hovered);
+    if (this.hovering.value) states.add(WidgetState.hovered);
     let decoration = o.decoration === undefined ? new InputDecoration() : o.decoration;
     const hasError = decoration?.error != null || decoration?.errorText != null;
     if (hasError) states.add(WidgetState.error);
@@ -440,7 +447,8 @@ class TextFieldState extends State<TextField> {
           textAlignVertical: o.textAlignVertical ?? null,
           expands: o.expands ?? false,
           isFocused: this.focus.hasFocus,
-          isHovering: this.hovering,
+          isHovering: this.hovering.value,
+          hoverListenable: o.style instanceof WidgetStateTextStyle ? null : this.hovering,
           isEmpty: this.controller.text.length === 0,
           child: editor,
         })
@@ -465,18 +473,8 @@ class TextFieldState extends State<TextField> {
               }),
               {
                 cursor: enabled ? SystemMouseCursors.text : SystemMouseCursors.basic,
-                onEnter: () => {
-                  if (!this.hovering)
-                    this.setState(() => {
-                      this.hovering = true;
-                    });
-                },
-                onExit: () => {
-                  if (this.hovering)
-                    this.setState(() => {
-                      this.hovering = false;
-                    });
-                },
+                onEnter: () => this.setHovering(true),
+                onExit: () => this.setHovering(false),
               },
             ),
             { excluding: !enabled },
