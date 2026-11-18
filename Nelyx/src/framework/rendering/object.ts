@@ -309,21 +309,9 @@ export class ContainerBoxParentData<T extends RenderObject = RenderObject> exten
     this.nextSibling = undefined;
   }
 }
-const layoutQueues = new WeakMap<PipelineOwner, Set<RenderObject>>();
-const layoutCallbackQueues = new WeakMap<PipelineOwner, Set<RenderObject>>();
-const detachRevisions = new WeakMap<RenderObject, number>();
-const recoveringDetach = new WeakSet<RenderObject>();
-const treeTransitions = new WeakMap<PipelineOwner, number>();
-function enterTreeTransition(owner: PipelineOwner | undefined): PipelineOwner | undefined {
-  if (owner) treeTransitions.set(owner, (treeTransitions.get(owner) ?? 0) + 1);
-  return owner;
-}
-function leaveTreeTransition(owner: PipelineOwner | undefined): void {
-  if (!owner) return;
-  const count = treeTransitions.get(owner)! - 1;
-  if (count) treeTransitions.set(owner, count);
-  else treeTransitions.delete(owner);
-}
+// A transition can cross virtual hooks. Keep its depth on the captured owner
+// so a nested mutation cannot unlock the outer transaction.
+const treeTransitionDepth = Symbol('treeTransitionDepth');
 function attempt(errors: unknown[], callback: () => void): void {
   try {
     callback();
@@ -334,39 +322,6 @@ function attempt(errors: unknown[], callback: () => void): void {
 function throwFailures(errors: unknown[], message: string): void {
   if (errors.length === 1) throw errors[0];
   if (errors.length) throw new AggregateError(errors, message);
-}
-/** A failing subclass hook must not leave the base ownership state attached. */
-function detachRenderTree(node: RenderObject, errors: unknown[]): void {
-  const revision = detachRevisions.get(node) ?? 0,
-    count = errors.length,
-    alreadyRecovering = recoveringDetach.has(node);
-  recoveringDetach.add(node);
-  try {
-    attempt(errors, () => node.detach());
-    if ((detachRevisions.get(node) ?? 0) === revision) {
-      if (errors.length === count)
-        errors.push(new Error(`${node.constructor.name}.detach must call super.detach()`));
-      attempt(errors, () => RenderObject.prototype.detach.call(node));
-    }
-  } finally {
-    if (!alreadyRecovering) recoveringDetach.delete(node);
-  }
-}
-function attachRenderTree(node: RenderObject, owner: PipelineOwner): void {
-  const revision = detachRevisions.get(node) ?? 0;
-  try {
-    node.attach(owner);
-    if (!(node.owner === owner))
-      invariant(
-        false,
-        'invalid-render-owner',
-        'attach must call super.attach and retain the requested pipeline',
-      );
-  } catch (error) {
-    const errors = [error];
-    if ((detachRevisions.get(node) ?? 0) === revision) detachRenderTree(node, errors);
-    throwFailures(errors, 'Attaching render subtree failed');
-  }
 }
 /** Explicit replacement for the source process-wide painting/scheduler pair. */
 export interface SystemFontsRelayoutContext {
@@ -448,6 +403,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
   private currentRoot: RenderObject | undefined;
   private dead = false;
   private changingRoot = false;
+  [treeTransitionDepth] = 0;
   private readonly dirtyLayout = new Set<RenderObject>();
   private readonly layoutCallbacks = new Set<RenderObject>();
   // Synchronous pass scratch only. Clear even when a virtual layout hook fails.
@@ -556,8 +512,6 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
         : {}),
     };
     this.invalidate = () => this.requestVisualUpdate();
-    layoutQueues.set(this, this.dirtyLayout);
-    layoutCallbackQueues.set(this, this.layoutCallbacks);
     if (FoundationBuildMode.debug && Listenable.debugInstrumentationEnabled)
       Listenable.debugMaybeDispatchCreated?.('PipelineOwner', this);
   }
@@ -686,7 +640,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
         !this.flushingLayout &&
         !this.flushingSemantics &&
         !this.changingRoot &&
-        !treeTransitions.has(this) &&
+        this[treeTransitionDepth] === 0 &&
         !layoutQueries.length
       )
     )
@@ -779,7 +733,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
         !this.dead &&
         !this.changingRoot &&
         !this.flushingLayout &&
-        !treeTransitions.has(this) &&
+        this[treeTransitionDepth] === 0 &&
         !layoutQueries.length
       )
     )
@@ -793,17 +747,26 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
     if (this.currentRoot === root && (!root || root.owner === this)) return;
     this.changingRoot = true;
     try {
-      if (root && root.owner !== this) attachRenderTree(root, this);
+      if (root && root.owner !== this) RenderObject._attachSubtree(root, this);
       const previous = this.currentRoot,
         errors: unknown[] = [];
       this.currentRoot = root;
-      if (previous && previous !== root) detachRenderTree(previous, errors);
+      if (previous && previous !== root) RenderObject._detachSubtree(previous, errors);
       attempt(errors, () => existingPipelineSemantics(this)?.rootChanged(previous, root));
       attempt(errors, this.invalidate);
       throwFailures(errors, 'Replacing pipeline root failed');
     } finally {
       this.changingRoot = false;
     }
+  }
+  /** @internal A pending layout callback prevents clean-layout reuse. */
+  _hasLayoutCallback(node: RenderObject): boolean {
+    return this.layoutCallbacks.has(node);
+  }
+  /** @internal Retire both kinds of pending layout with their render owner. */
+  _forgetLayout(node: RenderObject): void {
+    this.dirtyLayout.delete(node);
+    this.layoutCallbacks.delete(node);
   }
   requestLayout(node: RenderObject): void {
     assertOutsideRenderPaint();
@@ -831,7 +794,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
         !this.dead &&
         !this.flushingLayout &&
         !this.changingRoot &&
-        !treeTransitions.has(this) &&
+        this[treeTransitionDepth] === 0 &&
         !layoutQueries.length
       )
     )
@@ -947,7 +910,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
         !this.flushingLayout &&
         !this.flushingSemantics &&
         !this.flushingCompositing &&
-        !treeTransitions.has(this) &&
+        this[treeTransitionDepth] === 0 &&
         !layoutQueries.length
       )
     )
@@ -970,7 +933,7 @@ export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
     this.layoutCallbacks.clear();
     this.paintRetirements.clear();
     this.dirtyCompositing.clear();
-    if (root) detachRenderTree(root, errors);
+    if (root) RenderObject._detachSubtree(root, errors);
     throwFailures(errors, 'Pipeline teardown failed');
   }
 }
@@ -1141,7 +1104,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       editors = 0;
     const check = (node: RenderObject, depth: number): boolean => {
       if (!numericGeometryObjects.has(node)) return reject('foreign-render-object');
-      if (node.pipelineOwner && node.inputGeometrySubtreeWork === 0) return true;
+      if (node.pipelineOwner && node.inputGeometryBranches === 0) return true;
       if (
         ++count > limits.nodes ||
         depth > inputGeometryProtocol.depth ||
@@ -1325,6 +1288,53 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   private layoutDirty = true;
   private changingChildren = false;
   private changingAttachment = false;
+  private detachRevision = 0;
+  private recoveringDetach = false;
+  /** @internal A virtual detach may throw or omit super. Run base cleanup once,
+   * preserving hook failures in their original order. Allocate on failure only. */
+  static _detachSubtree(node: RenderObject, errors?: unknown[]): unknown[] | undefined {
+    const revision = node.detachRevision;
+    const recovering = node.recoveringDetach;
+    node.recoveringDetach = true;
+    try {
+      try {
+        node.detach();
+        if (node.detachRevision === revision)
+          (errors ??= []).push(
+            new Error(`${node.constructor.name}.detach must call super.detach()`),
+          );
+      } catch (error) {
+        (errors ??= []).push(error);
+      }
+      if (node.detachRevision === revision) {
+        try {
+          RenderObject.prototype.detach.call(node);
+        } catch (error) {
+          (errors ??= []).push(error);
+        }
+      }
+      return errors;
+    } finally {
+      node.recoveringDetach = recovering;
+    }
+  }
+  /** @internal Capture the revision before dispatching to the virtual hook. */
+  static _attachSubtree(node: RenderObject, owner: PipelineOwner): void {
+    const revision = node.detachRevision;
+    try {
+      node.attach(owner);
+      if (node.owner !== owner)
+        invariant(
+          false,
+          'invalid-render-owner',
+          'attach must call super.attach and retain the requested pipeline',
+        );
+    } catch (error) {
+      const errors = [error];
+      if (node.detachRevision === revision) RenderObject._detachSubtree(node, errors);
+      throwFailures(errors, 'Attaching render subtree failed');
+    }
+  }
   private treeTransition = false;
   parentData: ParentData | undefined;
   onPointer: ((event: PointerEvent) => void | boolean) | undefined;
@@ -1410,12 +1420,17 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   private doingLayoutCallback = false;
   private layoutRevision = 0;
   private inputGeometryOwnWork = 0;
-  private inputGeometrySubtreeWork = 0;
+  private inputGeometryBranches = 0;
   private inputGeometryProvider = false;
   private changeInputGeometryWork(delta: number): void {
-    if (delta)
-      for (let node: RenderObject | undefined = this; node; node = node.parent)
-        node.inputGeometrySubtreeWork += delta;
+    if (!delta) return;
+    // Count local work and occupied direct children. Ancestors depend only on
+    // whether this branch is empty, even when several editors share it.
+    for (let node: RenderObject | undefined = this; node; node = node.parent) {
+      const previous = node.inputGeometryBranches;
+      node.inputGeometryBranches += delta;
+      if (previous !== 0 && node.inputGeometryBranches !== 0) break;
+    }
   }
   private refreshInputGeometryWork(): void {
     let prototype: object | null = this,
@@ -1685,7 +1700,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       !this.parentUsesSize &&
       this.lastConstraints !== undefined &&
       (constraints === this.lastConstraints || constraints.equals(this.lastConstraints)) &&
-      !(this.owner && layoutCallbackQueues.get(this.owner)?.has(this))
+      !this.owner?._hasLayoutCallback(this)
     );
   }
   /** Pipeline-only re-layout preserves the parent's size dependency. */
@@ -1730,10 +1745,10 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     if (child.parent) invariant(false, 'render-parent', 'Adopt requires an unparented child');
     this.setupParentData(child);
     child.renderParent = this;
-    this.changeInputGeometryWork(child.inputGeometrySubtreeWork);
+    if (child.inputGeometryBranches) this.changeInputGeometryWork(1);
     child.layoutDirty = true;
     child.boundary = undefined;
-    if (this.owner) attachRenderTree(child, this.owner);
+    if (this.owner) RenderObject._attachSubtree(child, this.owner);
     this.redepthChild(child);
     this.markNeedsCompositingBitsUpdate();
   }
@@ -1759,17 +1774,17 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   private releaseChild(child: RenderObject, errors: unknown[], alreadyDetached = false): void {
     attempt(errors, () => child.parentData?.detach());
     child.parentData = undefined;
-    if (child.parent === this) this.changeInputGeometryWork(-child.inputGeometrySubtreeWork);
+    if (child.parent === this && child.inputGeometryBranches) this.changeInputGeometryWork(-1);
     child.renderParent = undefined;
     // Source dropChild only detaches an attached child. A retired lazy subtree
     // already completed that transition; tearing down each descendant must not
     // walk/detach the same remaining subtree again. Attach-failure recovery
     // still explicitly invokes detachRenderTree, including before super.attach.
-    if (!alreadyDetached && child.attached) detachRenderTree(child, errors);
+    if (!alreadyDetached && child.attached) RenderObject._detachSubtree(child, errors);
   }
   private adoptForMutation(child: RenderObject): void {
     const previous = child.parentData,
-      revision = detachRevisions.get(child) ?? 0;
+      revision = child.detachRevision;
     child.treeTransition = true;
     try {
       this.adoptChild(child);
@@ -1781,11 +1796,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         );
     } catch (error) {
       const errors = [error];
-      this.releaseChild(
-        child,
-        errors,
-        !child.attached && (detachRevisions.get(child) ?? 0) !== revision,
-      );
+      this.releaseChild(child, errors, !child.attached && child.detachRevision !== revision);
       child.parentData = previous;
       throwFailures(errors, 'Render child adoption failed');
     } finally {
@@ -1826,14 +1837,15 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       );
     this.changingChildren = true;
     const errors: unknown[] = [],
-      transition = enterTreeTransition(this.owner);
+      transition = this.owner;
+    if (transition) transition[treeTransitionDepth]++;
     try {
       callback(errors);
     } catch (error) {
       errors.push(error);
     } finally {
       this.changingChildren = false;
-      leaveTreeTransition(transition);
+      if (transition) transition[treeTransitionDepth]--;
     }
     throwFailures(errors, 'Render child mutation failed');
   }
@@ -2017,17 +2029,17 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       );
     if (this.owner === owner) return;
     this.changingAttachment = true;
-    const transition = enterTreeTransition(owner);
-    this.pipelineOwner = owner;
-    this.compositingDirty = true;
-    owner._scheduleCompositingBits(this);
-    this.layoutDirty = true;
-    this.boundary = undefined;
-    committedInputGeometries.delete(this);
+    owner[treeTransitionDepth]++;
     try {
+      this.pipelineOwner = owner;
+      this.compositingDirty = true;
+      owner._scheduleCompositingBits(this);
+      this.layoutDirty = true;
+      this.boundary = undefined;
+      committedInputGeometries.delete(this);
       this.refreshInputGeometryWork();
       this.clearCachedLayoutData();
-      for (const child of this.children) attachRenderTree(child, owner);
+      for (const child of this.children) RenderObject._attachSubtree(child, owner);
       if (owner.semanticsOwner) {
         // New fragments follow the parent's structural commit. Reattached
         // fragments join that same commit without evaluating user annotations
@@ -2037,11 +2049,11 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     } catch (error) {
       const errors = [error];
       this.changingAttachment = false;
-      detachRenderTree(this, errors);
+      RenderObject._detachSubtree(this, errors);
       throwFailures(errors, 'Attaching render tree failed');
     } finally {
       this.changingAttachment = false;
-      leaveTreeTransition(transition);
+      owner[treeTransitionDepth]--;
     }
   }
   detach(): void {
@@ -2050,7 +2062,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       !(
         !this.changingAttachment &&
         !layoutQueries.length &&
-        (!this.parent?.owner || recoveringDetach.has(this))
+        (!this.parent?.owner || this.recoveringDetach)
       )
     )
       invariant(
@@ -2059,37 +2071,56 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'Detach the parent before its child; attachment and measurement must be idle',
       );
     this.changingAttachment = true;
-    detachRevisions.set(this, (detachRevisions.get(this) ?? 0) + 1);
-    const owner = this.owner,
-      errors: unknown[] = [],
-      transition = enterTreeTransition(owner);
-    this.pipelineOwner = undefined;
-    owner?._forgetPaintRetirement(this);
-    attempt(errors, () => disposeRetainedPaint(this));
-    owner?._forgetCompositingBits(this);
-    this.paintCoalesces = false;
-    this.paintInvalidationBarrier = this.paintInvalidationBoundary = undefined;
-    this.paintBatch = this.paintContentsBatch = null;
-    this.boundary = undefined;
-    this.layoutDirty = true;
-    committedInputGeometries.delete(this);
-    layoutQueues.get(owner!)?.delete(this);
-    layoutCallbackQueues.get(owner!)?.delete(this);
-    if (owner) existingPipelineSemantics(owner)?.detached(this);
+    this.detachRevision++;
+    const owner = this.owner;
+    let errors: unknown[] | undefined;
+    if (owner) owner[treeTransitionDepth]++;
     try {
-      attempt(errors, () => this.clearCachedLayoutData());
+      this.pipelineOwner = undefined;
+      owner?._forgetPaintRetirement(this);
+      try {
+        disposeRetainedPaint(this);
+      } catch (error) {
+        (errors ??= []).push(error);
+      }
+      owner?._forgetCompositingBits(this);
+      this.paintCoalesces = false;
+      this.paintInvalidationBarrier = this.paintInvalidationBoundary = undefined;
+      this.paintBatch = this.paintContentsBatch = null;
+      this.boundary = undefined;
+      this.layoutDirty = true;
+      committedInputGeometries.delete(this);
+      owner?._forgetLayout(this);
+      if (owner) {
+        try {
+          existingPipelineSemantics(owner)?.detached(this);
+        } catch (error) {
+          (errors ??= []).push(error);
+        }
+      }
+      try {
+        this.clearCachedLayoutData();
+      } catch (error) {
+        (errors ??= []).push(error);
+      }
       this.clearLayoutDependencies();
       if (this.layoutDependents) {
         const snapshot1 = [...this.layoutDependents];
-        for (const dependent of snapshot1) attempt(errors, () => dependent.markNeedsLayout());
+        for (const dependent of snapshot1) {
+          try {
+            dependent.markNeedsLayout();
+          } catch (error) {
+            (errors ??= []).push(error);
+          }
+        }
       }
       this.layoutDependents?.clear();
-      for (const child of this.children) detachRenderTree(child, errors);
+      for (const child of this.children) errors = RenderObject._detachSubtree(child, errors);
     } finally {
       this.changingAttachment = false;
-      leaveTreeTransition(transition);
+      if (owner) owner[treeTransitionDepth]--;
     }
-    throwFailures(errors, 'Detaching render tree failed');
+    if (errors) throwFailures(errors, 'Detaching render tree failed');
   }
   private invalidateLayout(
     visited: Set<RenderObject> | undefined,
@@ -2655,7 +2686,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
     };
     const visit = (render: RenderObject): void => {
       if (trace) geometryVisits++;
-      if (render.attached && render.inputGeometrySubtreeWork === 0) return;
+      if (render.attached && render.inputGeometryBranches === 0) return;
       const previous = committedInputGeometries.get(render),
         before = parentDisplayed;
       parentDisplayed = parentDisplayed && render.attached && !render.needsLayout;

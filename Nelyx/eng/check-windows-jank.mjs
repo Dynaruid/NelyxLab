@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { execute } from '../sdk/tooling/cli/src/commands.mjs';
-import { displayedMotion } from './windows-jank-metrics.ts';
+import { displayedMotion, distribution } from './windows-jank-metrics.ts';
 import { buildNativeHost } from './build-native-hermes.mjs';
 import {
   buildNativeApplication,
@@ -214,8 +214,13 @@ if (
     (fs.existsSync(compilerCache) && fs.lstatSync(compilerCache).isSymbolicLink()))
 )
   throw Error('Compiler cache is outside this execution');
-const entry = path.join(app, '.windows-jank-probe.ts');
-const output = path.join(app, '.nelyx/native-windows/windows-jank-probe');
+// A developer's retained probe may occupy the default name. Keep the selected
+// basename stable across trials so the entry path in the HBC stays comparable.
+const probeName = fs.existsSync(path.join(app, '.windows-jank-probe.ts'))
+  ? 'windows-jank-run-probe'
+  : 'windows-jank-probe';
+const entry = path.join(app, '.' + probeName + '.ts');
+const output = path.join(app, '.nelyx/native-windows', probeName);
 const session = fs.mkdtempSync(path.join(root, '.tmp/calendar-fast-session-'));
 const capture = path.join(session, 'calendar.png');
 const controller = new AbortController(),
@@ -252,6 +257,7 @@ let native,
 let screenChild, screenExit, screenData, markerCost, identity, preparationStats;
 let representationTrace;
 const representationReports = [];
+const shortScenes = new Map();
 let displayed = [];
 let currentView, measurementView;
 const screenStop = path.join(session, 'screen.stop'),
@@ -308,6 +314,28 @@ async function stopScreen() {
     name: phase.name,
     ...displayedMotion(phase.motion, screenData),
   }));
+  if (sliverProfile) {
+    const desktop = new Map(screenData.Changes.map(([at, frame]) => [frame, at]));
+    for (const { name, motion } of phases) {
+      const rows = (shortScenes.get(name) ?? []).filter(
+        ([id, , , , fence]) =>
+          id <= motion.finalFrame && fence >= motion.start && fence <= motion.end,
+      );
+      const shown = rows.filter(([id]) => desktop.has(id));
+      console.log(
+        'FAST_SHORT_SCENE_DELAYS ' +
+          JSON.stringify({
+            name,
+            sceneToSubmit: distribution(rows.map(([, end, begin]) => begin - end)),
+            submitCall: distribution(rows.map(([, , begin, end]) => end - begin)),
+            submitStartToFence: distribution(rows.map(([, , begin, , fence]) => fence - begin)),
+            fenceToObservedDesktop: distribution(
+              shown.map(([id, , , , fence]) => desktop.get(id) - fence),
+            ),
+          }),
+      );
+    }
+  }
   console.log(
     'JANK_DISPLAY_RESULT ' +
       JSON.stringify({
@@ -440,6 +468,12 @@ function publicMotion(motion) {
   return summary;
 }
 function onLine(line) {
+  if (line.startsWith('FAST_SLIVER_SHORT_SCENES ')) {
+    const { name, rows } = JSON.parse(line.slice('FAST_SLIVER_SHORT_SCENES '.length));
+    if (!shortScenes.has(name)) shortScenes.set(name, []);
+    shortScenes.get(name).push(...rows);
+    return;
+  }
   if (line.startsWith('FAST_REPRESENTATION_')) {
     try {
       const payload = line.slice(line.indexOf(' ') + 1);
@@ -696,7 +730,7 @@ try {
           )
           .replace(
             '  phase = undefined;',
-            '  sliverLayoutProfile.report(active.name, samples, inputs, surfaces);\n  phase = undefined;',
+            '  sliverLayoutProfile.report(active.name, samples, inputs, surfaces, frames);\n  phase = undefined;',
           )
           .replace(
             '            dispose();',

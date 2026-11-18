@@ -94,6 +94,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       if (
         ![
           '--before',
+          '--render-before',
           '--diagnose-before',
           '--parent-only',
           '--cold-only',

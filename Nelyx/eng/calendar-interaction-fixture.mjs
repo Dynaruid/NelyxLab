@@ -2,9 +2,13 @@
 import assert from 'node:assert/strict';
 import { FrameworkRoot } from '@nelyx/core/framework/widgets/root';
 import { PageView } from '@nelyx/core/framework/widgets/page-view';
+import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
+import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
+import { Axis } from '@nelyx/core/framework/painting/basic-types';
 import { Builder, SizedBox } from '@nelyx/core/framework/widgets/basic';
 import { Directionality, Localizations } from '@nelyx/core/framework/widgets/app-data';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
 import { FlutterError } from '@nelyx/core/foundation/flutter-error';
 import { ResourceRegistry } from '@nelyx/core/hosting/resources';
 import { releaseSceneFrameSource } from '@nelyx/core/ui/frame';
@@ -14,9 +18,16 @@ import { RRect } from '@nelyx/core/ui/rrect';
 import { PlatformChannelBinding } from '../src/services/channel-binding.ts';
 import { MaterialApp } from '@nelyx/material/app';
 import { Material } from '@nelyx/material/material';
+import { Ink } from '@nelyx/material/ink-decoration';
+import { InkResponse } from '@nelyx/material/ink-well';
 import { ThemeData } from '@nelyx/material/theme-data';
 import { MaterialLocalizations } from '@nelyx/material/material-localizations';
-import { CalendarDatePicker, DateTime, showDatePicker } from '@nelyx/material/date-picker';
+import {
+  CalendarDatePicker,
+  DateTime,
+  GregorianCalendarDelegate,
+  showDatePicker,
+} from '@nelyx/material/date-picker';
 
 FoundationPlatform.configure({ kind: 'native', operatingSystem: 'windows' });
 FlutterError.onError = (d) => {
@@ -44,8 +55,14 @@ function flatten(roots) {
 function harness(home) {
   const owner = { id: 'calendar-interaction', generation: 1 },
     resources = new ResourceRegistry();
-  const font = resources.allocateId('font');
-  resources.register({ ...font, kind: 'font' }, () => {});
+  let liveResources = 0;
+  function resourceFor(kind) {
+    const id = resources.allocateId(kind);
+    resources.register({ ...id, kind }, () => liveResources--);
+    liveResources++;
+    return id;
+  }
+  const font = resourceFor('font');
   let metrics = {
     logicalWidth: 440,
     logicalHeight: 600,
@@ -97,9 +114,8 @@ function harness(home) {
       text: {
         layout(raw) {
           const input = freezeTextInput(raw),
-            resource = resources.allocateId('paragraph'),
+            resource = resourceFor('paragraph'),
             width = Math.min(input.text.length * 7, input.maxWidth ?? Infinity);
-          resources.register({ ...resource, kind: 'paragraph' }, () => {});
           return {
             input,
             resource,
@@ -190,14 +206,14 @@ function harness(home) {
       );
       return n;
     },
-    tap(n) {
+    press(n) {
       const { x, y, width, height } = n.bounds;
       assert(width > 0 && height > 0);
-      pointerId++;
-      for (const kind of ['down', 'up'])
+      const pointer = ++pointerId;
+      const send = (kind) =>
         view.pointer({
           kind,
-          pointer: pointerId,
+          pointer,
           x: x + width / 2,
           y: y + height / 2,
           device: 'touch',
@@ -205,6 +221,11 @@ function harness(home) {
           timestamp: ++time,
           viewportGeneration: metrics.viewportGeneration,
         });
+      send('down');
+      return () => send('up');
+    },
+    tap(n) {
+      this.press(n)();
     },
     activate(n) {
       assert.equal(typeof n.activate, 'function');
@@ -243,8 +264,49 @@ function harness(home) {
       } finally {
         resources.dispose();
       }
+      assert.equal(resources.accountedTotals.resident, 0);
+      assert.equal(resources.accountedTotals.producers, 0);
+      assert.equal(liveResources, 0, 'Font or paragraph survived fixture disposal');
     },
   };
+}
+async function nestedLists() {
+  const controller = new ScrollController();
+  const cells = [];
+  const fixture = harness(
+    ListView.builder({
+      controller,
+      itemCount: 80,
+      itemExtent: 60,
+      itemBuilder: (_context, row) =>
+        ListView.builder({
+          scrollDirection: Axis.horizontal,
+          primary: false,
+          itemCount: 40,
+          itemExtent: 50,
+          itemBuilder: (_inner, column) => {
+            cells.push([row, column]);
+            return new SizedBox(50, 60);
+          },
+        }),
+    }),
+  );
+  try {
+    await fixture.pump();
+    assert(cells.some(([r, c]) => r === 0 && c === 0));
+    for (const row of [40, 0]) {
+      cells.length = 0;
+      controller.position.jumpToWithoutSettling(row * 60);
+      await fixture.pump();
+      assert(
+        cells.some(([r, c]) => r === row && c === 0),
+        'nested lazy row was not recreated',
+      );
+    }
+  } finally {
+    fixture.close();
+    controller.dispose();
+  }
 }
 function identity(e) {
   assert(e?.stateObject?.mounted);
@@ -263,8 +325,22 @@ async function pageLifecycle() {
     picked = [];
   let host,
     rtl = false;
+  const generated = [],
+    tested = [];
+  class Delegate extends GregorianCalendarDelegate {
+    getDay(year, month, day) {
+      const result = super.getDay(year, month, day);
+      generated.push(result);
+      return result;
+    }
+  }
   const calendar = new CalendarDatePicker({
     ...options,
+    calendarDelegate: new Delegate(),
+    selectableDayPredicate: (d) => {
+      tested.push(d);
+      return options.selectableDayPredicate(d);
+    },
     onDisplayedMonthChanged: (d) => months.push(d.month),
     onDateChanged: (d) => picked.push(d),
   });
@@ -292,10 +368,29 @@ async function pageLifecycle() {
       Array.from({ length: m === 1 ? 31 : 28 }, (_, i) => [m, i + 1, identity(f.day(m, i + 1))]),
     );
     for (const page of [0.55, 0.45]) {
+      tested.length = generated.length = 0;
       await step(page);
       for (const [m, d, old] of retained) same(f.day(m, d), old);
+      for (const month of [1, 2]) {
+        const days = generated.filter((date) => date.month === month && tested.includes(date));
+        assert.deepEqual(
+          days.map((date) => date.day),
+          Array.from({ length: month === 1 ? 31 : 28 }, (_, i) => i + 1),
+        );
+      }
     }
+    await step(0);
+    const oldAction = f.node(/^15, .*January/);
+    const oldFocus = jan.focus;
+    oldFocus.requestFocus();
+    await f.pump();
+    assert(oldFocus.hasPrimaryFocus);
+    const release = f.press(oldAction);
     await step(2);
+    release();
+    f.activate(oldAction);
+    await f.pump();
+    assert(!oldFocus.hasPrimaryFocus);
     assert(!f.day(1, 15) && !jan.state.mounted && !jan.element.mounted);
     await step(0);
     for (const [m, d, old] of retained.filter(([m]) => m === 1)) {
@@ -402,12 +497,69 @@ async function dialog() {
     f.close();
   }
 }
+async function firstMarchHit() {
+  const months = [],
+    picked = [];
+  const fixture = harness(
+    new CalendarDatePicker({
+      ...options,
+      initialDate: date(2, 15),
+      onDisplayedMonthChanged: (d) => months.push(d.month),
+      onDateChanged: (d) => picked.push([d.month, d.day]),
+    }),
+  );
+  const materialOf = Material.of;
+  let inkReads = 0;
+  Material.of = function (context) {
+    if (context.widget instanceof Ink || context.widget instanceof InkResponse) inkReads++;
+    return materialOf.call(this, context);
+  };
+  try {
+    fixture.resize(360, 400);
+    await fixture.pump();
+    const pos = fixture.page();
+    pos.jumpToWithoutSettling(1.1 * pos.viewportDimension);
+    await fixture.pump(1);
+    assert.equal(inkReads, 0, 'An idle release ink build searched for the Material renderer');
+    const response = flatten([fixture.day(3, 2)]).find((e) => e.widget instanceof InkResponse);
+    assert(response, 'March 2 has no ink response');
+    const mode = FoundationBuildMode.mode;
+    try {
+      FoundationBuildMode.mode = 'debug';
+      assert(response.widget.debugCheckContext(response));
+      assert.equal(inkReads, 1, 'Debug ink lost its Material validation');
+    } finally {
+      FoundationBuildMode.mode = mode;
+    }
+    assert.deepEqual(months, []);
+    const second = fixture.node(/^2, Sunday, March/);
+    const { x, y, width, height } = second.bounds;
+    assert(x < 360 && x + width > 324 && y >= 0 && y + height <= 400);
+    fixture.tap({
+      ...second,
+      bounds: {
+        x: Math.max(324, x),
+        y,
+        width: Math.min(360, x + width) - Math.max(324, x),
+        height,
+      },
+    });
+    await fixture.pump();
+    assert.deepEqual(picked, [[3, 2]]);
+    assert(inkReads > 1, 'A live ink interaction did not resolve its Material renderer');
+  } finally {
+    Material.of = materialOf;
+    fixture.close();
+  }
+}
 const lease = PlatformChannelBinding.bind(messenger);
 try {
   await pageLifecycle();
   await dialog();
+  await nestedLists();
+  await firstMarchHit();
   console.log(
-    'CALENDAR_INTERACTION PASS: working-tree Source; live and evicted day identity; callbacks [2,1,3,1]; disabled hit, keyboard LTR/RTL, day hit/confirm, semantics action, resize, locale and dialog reopen/cancel.',
+    'CALENDAR_INTERACTION PASS: 59 retained dates, delegate and predicate, evicted pointer and semantics actions, partial March hit, nested lists, keyboard LTR/RTL, resize, locale, dialog confirm/cancel and disposal.',
   );
 } finally {
   lease.dispose();

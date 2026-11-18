@@ -24,7 +24,7 @@ if (!process.argv.includes('--child')) {
       contents: `
 import assert from 'node:assert/strict';
 import {Widget,Element,BuildOwner,InheritedWidget,LeafRenderObjectWidget,RenderObjectElement} from './Nelyx/src/framework/widgets/framework.ts';
-import {RenderBox} from './Nelyx/src/framework/rendering/object.ts';
+import {PipelineOwner,RenderBox} from './Nelyx/src/framework/rendering/object.ts';
 import {Text,SizedBox,Padding,Center,Align} from './Nelyx/src/framework/widgets/basic.ts';
 import {EdgeInsetsDirectional} from './Nelyx/src/framework/painting/edge-insets.ts';
 import {BoxConstraints} from './Nelyx/src/framework/rendering/constraints.ts';
@@ -61,6 +61,149 @@ class Data extends InheritedWidget {
 class ProbeBox extends RenderBox {
   value=0;
   protected performLayout(constraints){return constraints.smallest;}
+}
+// Two editing branches share a parent. Move a whole populated branch between
+// pipelines, then remove its last observer. Commit through the public root.
+{
+  const first = new PipelineOwner(),
+    second = new PipelineOwner();
+  const root = new ProbeBox(),
+    other = new ProbeBox(),
+    branch = new ProbeBox();
+  const notifications = [];
+  class Observer extends ProbeBox {
+    constructor(readonly name: string) {
+      super();
+    }
+    protected didCommitTextInputGeometry() {
+      notifications.push(this.name);
+    }
+  }
+  const left = new Observer('left'),
+    right = new Observer('right');
+  branch.setChildren([left, right]);
+  root.setChildren([branch]);
+  first.setRoot(root);
+  second.setRoot(other);
+  function commit(node, expected) {
+    notifications.length = 0;
+    node.commitTextInputGeometries({
+      owner: { id: node === root ? 'first' : 'second', generation: 1 },
+      metrics: {
+        logicalWidth: 100, logicalHeight: 100, physicalWidth: 100, physicalHeight: 100,
+        scale: 1, viewportGeneration: 1, rendererGeneration: 1,
+        nativeContextGeneration: null, nativeSurfaceGeneration: null,
+      },
+    }).commit();
+    assert.deepEqual(notifications, expected);
+  }
+  try {
+    commit(root, ['left', 'right']);
+    root.remove(branch);
+    other.insert(branch);
+    commit(root, []);
+    commit(other, ['left', 'right']);
+    branch.remove(left);
+    commit(other, ['right']);
+    branch.remove(right);
+    commit(other, []);
+    branch.insert(left);
+    commit(other, ['left']);
+  } finally {
+    first.dispose();
+    second.dispose();
+  }
+}
+// Retire all siblings even when virtual hooks fail on opposite sides of super.
+// Recovery must unlock only the captured pipeline and cancel its pending work.
+{
+  const owner = new PipelineOwner(),
+    independent = new PipelineOwner(),
+    root = new ProbeBox(),
+    branch = new ProbeBox();
+  const before = Error('before base detach'),
+    after = Error('after base detach'),
+    calls = [];
+  class EarlyFailure extends ProbeBox {
+    detach() {
+      calls.push('before');
+      assert.throws(() => owner.flushLayout());
+      independent.flushLayout();
+      throw before;
+    }
+  }
+  class LateFailure extends ProbeBox {
+    detach() {
+      super.detach();
+      assert.throws(() => owner.flushLayout());
+      calls.push('after');
+      throw after;
+    }
+  }
+  const early = new EarlyFailure(),
+    late = new LateFailure(),
+    leaf = new ProbeBox();
+  early.insert(leaf);
+  branch.setChildren([early, late]);
+  root.insert(branch);
+  owner.setRoot(root);
+  owner.requestLayoutCallback(early);
+  try {
+    assert.throws(
+      () => root.remove(branch),
+      (error) => {
+        assert.deepEqual(error.errors, [before, after]);
+        return true;
+      },
+    );
+    assert.deepEqual(calls, ['before', 'after']);
+    for (const node of [branch, early, leaf, late]) assert.equal(node.owner, undefined);
+    assert.equal(root.owner, owner);
+    assert.equal(owner._hasLayoutCallback(early), false);
+    owner.setRoot(new ProbeBox());
+    owner.flushLayout();
+  } finally {
+    owner.dispose();
+    independent.dispose();
+  }
+}
+// A failing attach followed by a detach hook that omits super must recover
+// the child, keep the previous root and report both causes to the caller.
+{
+  const owner = new PipelineOwner(),
+    root = new ProbeBox(),
+    failure = Error('attach failed');
+  let detaches = 0;
+  class Broken extends ProbeBox {
+    attach(pipeline) {
+      super.attach(pipeline);
+      throw failure;
+    }
+    detach() {
+      detaches++;
+    }
+  }
+  const broken = new Broken(),
+    leaf = new ProbeBox();
+  owner.setRoot(root);
+  broken.insert(leaf);
+  try {
+    assert.throws(
+      () => owner.setRoot(broken),
+      (error) => {
+        assert.equal(error.errors[0], failure);
+        assert.match(error.errors[1].message, /must call super.detach/);
+        return true;
+      },
+    );
+    assert.equal(detaches, 1);
+    assert.equal(broken.owner, undefined);
+    assert.equal(leaf.owner, undefined);
+    assert.equal(owner.root, root);
+    owner.flushLayout();
+  } finally {
+    owner.dispose();
+  }
 }
 let updates=0,creates=0;
 class Probe extends LeafRenderObjectWidget {

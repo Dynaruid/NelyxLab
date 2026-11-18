@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 
+// Function definition sites survive the consumer bundle's directory prefix.
+// Count a category once per non-GC stack, including native callees.
+const costSites = {
+  layoutMembership: /\/rendering\/object\.[jt]s:\d+ layoutMutationAllowed$/,
+  renderSynchronization:
+    /\/widgets\/framework\.[jt]s:\d+ (?:markRenderTreeSyncDirty|_scheduleRenderChildren|flushRenderTree|_commitRenderChildren)$/,
+  calendarBuild: /\/generated\/date\/calendar_date_picker\.generated\.[jt]s:\d+ build$/,
+  fieldProtection: /\/ui\/value-math\.[jt]s:\d+ protect$/,
+  integerChecks: /\/ui\/value-math\.[jt]s:\d+ checkedInteger$/,
+  typeWitness: /\/foundation\/dart-type-witness\.[jt]s:\d+ /,
+};
+
 // Diagnostic upper bounds, not estimates of removable time. Include all Dart
 // collections (even other domains), callbacks and GC in their own buckets. A
 // sample is counted once per candidate regardless of nesting. No raw trace is
@@ -89,6 +101,8 @@ export function representationSamplingProfile(trace, frames, sourceMap) {
       newDays,
       rebuiltDays,
       samples: 0,
+      ...Object.fromEntries(Object.keys(costSites).map((key) => [key, 0])),
+      lifecycle: { create: 0, update: 0, retire: 0, other: 0 },
       collectionUpper: 0,
       policy: 0,
       definePropertiesUpper: 0,
@@ -127,6 +141,9 @@ export function representationSamplingProfile(trace, frames, sourceMap) {
           ? `${(definition?.source ?? normalized ?? '[unmapped]').replaceAll('\\', '/').replace(/^.*\/node_modules\//, '')}:${definition?.line ?? '?'} ${entry.name.split('(')[0] || '<anonymous>'}`
           : entry.name.split('(')[0],
     };
+    value.costs = Object.entries(costSites)
+      .filter(([, pattern]) => pattern.test(value.site))
+      .map(([key]) => key);
     nodes.set(id, value);
     return value;
   }
@@ -156,6 +173,8 @@ export function representationSamplingProfile(trace, frames, sourceMap) {
     const visited = new Set(),
       sources = new Set(),
       branches = new Set();
+    const costs = new Set();
+    let lifecycle;
     let nearestJs, nativeLeaf;
     for (let depth = 0; id !== undefined; depth++) {
       if (depth >= 512 || visited.has(id)) throw Error('Representation stack is cyclic or deep');
@@ -165,6 +184,14 @@ export function representationSamplingProfile(trace, frames, sourceMap) {
       if (entry.category === 'JavaScript') {
         nearestJs ??= entry.site;
         branches.add(entry.site);
+        for (const cost of entry.costs) costs.add(cost);
+        // Nearest lifecycle boundary wins in mixed frames. Methods which do
+        // work for several phases (e.g. rebuild) inherit their caller's phase.
+        if (!lifecycle && /\/widgets\/(?:framework|sliver)\.[jt]s:\d+ /.test(entry.site)) {
+          if (/^(?:unmount|deactivate|removeChild)$/.test(name)) lifecycle = 'retire';
+          else if (/^(?:mount|inflateWidget|createChild)$/.test(name)) lifecycle = 'create';
+          else if (/^(?:update|updateChildAt)$/.test(name)) lifecycle = 'update';
+        }
         if (!entry.source) unmapped = true;
         else sources.add(entry.source);
         collection ||=
@@ -182,6 +209,8 @@ export function representationSamplingProfile(trace, frames, sourceMap) {
     // Suspended GC has a saved JS parent. Never attribute it to that parent.
     frame.gc += Number(gc);
     if (!gc) {
+      for (const cost of costs) frame[cost]++;
+      frame.lifecycle[lifecycle ?? 'other']++;
       frame.collectionUpper += Number(collection);
       frame.policy += Number(policy);
       frame.definePropertiesUpper += Number(descriptor);
@@ -209,6 +238,7 @@ export function representationSamplingProfile(trace, frames, sourceMap) {
       'newDays',
       'rebuiltDays',
       'samples',
+      ...Object.keys(costSites),
       'collectionUpper',
       'policy',
       'definePropertiesUpper',
@@ -217,6 +247,12 @@ export function representationSamplingProfile(trace, frames, sourceMap) {
     ])
       result[key] = selected.reduce((total, frame) => total + frame[key], 0);
     result.collectionUpperShare = result.samples ? result.collectionUpper / result.samples : null;
+    result.lifecycle = Object.fromEntries(
+      ['create', 'update', 'retire', 'other'].map((key) => [
+        key,
+        selected.reduce((sum, frame) => sum + frame.lifecycle[key], 0),
+      ]),
+    );
     result.definePropertiesUpperShare = result.samples
       ? result.definePropertiesUpper / result.samples
       : null;

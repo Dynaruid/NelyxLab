@@ -55,6 +55,40 @@ assert.equal(report.long.collectionUpper, 2);
 assert.equal(report.long.policy, 1);
 assert.equal(report.long.definePropertiesUpper, 1);
 assert.equal(report.long.gc, 1);
+const renderCost = representationSamplingProfile(
+  {
+    stackFrames: {
+      1: { name: 'mount', category: 'JavaScript', line: '2', column: '1' },
+      2: {
+        name: 'layoutMutationAllowed',
+        category: 'JavaScript',
+        line: '1',
+        column: '1',
+        parent: 1,
+      },
+      3: { name: 'flushRenderTree', category: 'JavaScript', line: '2', column: '1', parent: 2 },
+      4: {
+        name: '_commitRenderChildren',
+        category: 'JavaScript',
+        line: '2',
+        column: '1',
+        parent: 3,
+      },
+      5: { name: '[GC young]', category: 'Metadata', parent: 4 },
+      6: { name: 'unmount', category: 'JavaScript', line: '2', column: '1', parent: 1 },
+    },
+    samples: [4, 5, 6].map((sf, i) => ({ ts: 101000 + 1000 * i, sf })),
+  },
+  frames,
+  {
+    ...map,
+    sources: ['/framework/rendering/object.js', '/framework/widgets/framework.js'],
+    mappings: 'AAAA;ACAA',
+  },
+);
+assert.equal(renderCost.long.layoutMembership, 1);
+assert.equal(renderCost.long.renderSynchronization, 1);
+assert.deepEqual(renderCost.long.lifecycle, { create: 1, update: 0, retire: 1, other: 0 });
 assert.equal(report.long.unmapped, 0);
 assert.equal(report.newMonth.frames, 1);
 assert.equal(report.existingMonth.frames, 1);

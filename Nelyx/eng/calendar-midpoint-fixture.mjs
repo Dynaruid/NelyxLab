@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { FrameworkRoot } from '@nelyx/core/framework/widgets/root';
 import { flattenSemantics } from '@nelyx/core/framework/semantics/semantics';
 import { PageView } from '@nelyx/core/framework/widgets/page-view';
+import { RenderObjectElement } from '@nelyx/core/framework/widgets/framework';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import { FlutterError } from '@nelyx/core/foundation/flutter-error';
 import { ResourceRegistry } from '@nelyx/core/hosting/resources';
@@ -227,6 +228,10 @@ export function exercise(direction, observe, publish) {
         (e) => e.widget.constructor.name === '_Day',
       );
       assert.equal(days.length, cold ? 31 : 28);
+      if (cold) {
+        const renderDays = days.flatMap(tree).filter((e) => e instanceof RenderObjectElement);
+        assert.equal(new Set(renderDays.map((e) => e.renderObject)).size, 279);
+      }
       const size = days[0].renderObjects[0].size;
       assert(size.width > 0 && size.height > 0);
       const marchLabels = cold

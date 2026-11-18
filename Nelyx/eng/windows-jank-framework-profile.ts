@@ -112,6 +112,10 @@ export function installSliverLayoutProfile(root, host, diagnostics, active) {
   observe(WorkProfileRenderBox.prototype, 'performLayoutInScope', 'boxLayout');
   observe(WorkProfileRenderSliver.prototype, 'performLayoutInScope', 'sliverLayout');
   observe(WorkProfileRenderObject.prototype, 'performLayoutInScope', 'otherLayout');
+  observe(WorkProfileRenderObject.prototype, 'layoutMutationAllowed', 'layoutMembership');
+  observe(WorkProfileElement.prototype, 'markRenderTreeSyncDirty', 'registerRenderOwner');
+  observe(owner, '_scheduleRenderChildren', 'admitRenderOwner');
+  observe(owner, 'flushRenderTree', 'flushRenderOwners');
   observe(WorkProfileSliver.prototype, 'createChild', 'requiredSlot');
   function logPage(action, value) {
     host.log('FAST_SLIVER_PAGE ' + JSON.stringify({ action, ...value, frame: frame?.sequence }));
@@ -258,7 +262,27 @@ export function installSliverLayoutProfile(root, host, diagnostics, active) {
         frame = undefined;
       }
     },
-    report(name, samples, inputs, surfaces) {
+    report(name, samples, inputs, surfaces, scenes) {
+      const shortScenes = new Map(
+        scenes.filter((scene) => scene.cpu <= 1000 / 30).map((scene) => [scene.frame, scene]),
+      );
+      const submits = new Map(
+        samples
+          .filter((sample) => sample.stage === 'submit')
+          .map((sample) => [sample.frame, sample]),
+      );
+      const shortRows = [];
+      for (let i = 0; i < surfaces.length; i += 11) {
+        const id = surfaces[i + 4],
+          scene = shortScenes.get(id),
+          submit = submits.get(id);
+        if (scene && submit)
+          shortRows.push([id, scene.end, submit.begin, submit.end, surfaces[i + 10]]);
+      }
+      for (let i = 0; i < shortRows.length; i += 20)
+        host.log(
+          'FAST_SLIVER_SHORT_SCENES ' + JSON.stringify({ name, rows: shortRows.slice(i, i + 20) }),
+        );
       const peak = samples.reduce(
         (result, sample) =>
           sample.stage === 'layout' && (!result || sample.duration > result.duration)

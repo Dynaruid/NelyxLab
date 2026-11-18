@@ -2,6 +2,7 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Pinned ink_decoration.dart on the existing image, decoration and Material ink owners.
 import { Element, StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
 import type { Widget, WidgetOptions, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { createFrameworkAnchorKey } from '@nelyx/core/framework/widgets/global-key';
 import { Padding, Builder, SizedBox, ConstrainedBox } from '@nelyx/core/framework/widgets/basic';
@@ -176,7 +177,7 @@ class InkState extends State<Ink> {
     }
   }
   build(context: BuildContext): Widget {
-    Material.of(context);
+    if (FoundationBuildMode.debug) Material.of(context);
     let result: Widget = new Padding(
       this.widget.paddingIncludingDecoration,
       new Builder((c) => this.buildContents(c)),

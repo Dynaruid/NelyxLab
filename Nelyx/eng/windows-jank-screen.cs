@@ -5,7 +5,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-public static class JankScreen {
+public static partial class JankScreen {
  [StructLayout(LayoutKind.Sequential)] struct Point { public int X,Y; }
  [StructLayout(LayoutKind.Sequential)] struct BitmapInfo {
   public uint Size; public int Width,Height; public ushort Planes,Bits;

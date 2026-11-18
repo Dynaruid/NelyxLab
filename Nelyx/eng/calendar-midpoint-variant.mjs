@@ -115,8 +115,9 @@ export async function variant(mode, ref, exercise, paired) {
             '--diff-filter=M',
             ref,
             '--',
-            'Nelyx/src',
-            'packages/material/src',
+            ...(mode === '--render-before'
+              ? ['Nelyx/src/framework/rendering']
+              : ['Nelyx/src', 'packages/material/src']),
           )
             .trim()
             .split(/\r?\n/)

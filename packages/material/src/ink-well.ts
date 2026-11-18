@@ -2,6 +2,7 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Original observable ink response contracts on the current State/arena/focus/keep-alive owners.
 import { StatefulWidget, InheritedWidget, Element } from '@nelyx/core/framework/widgets/framework';
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
 import type {
   Widget,
   WidgetOptions,
@@ -219,8 +220,10 @@ export class InkResponse extends StatefulWidget {
     return null;
   }
   debugCheckContext(context: BuildContext): boolean {
-    Material.of(context);
-    Directionality.of(context);
+    if (FoundationBuildMode.debug) {
+      Material.of(context);
+      Directionality.of(context);
+    }
     return true;
   }
   createState(): State {
@@ -251,6 +254,7 @@ class ParentInkScope extends InheritedWidget {
     return old.state !== this.state;
   }
 }
+const noInkFeatures: readonly InteractiveInkFeature[] = Object.freeze([]);
 class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
   private semanticsTap = () => this.simulateTap();
   private semanticsLongPress = () => this.simulateLongPress();
@@ -260,10 +264,10 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
   private focus!: FocusNode;
   private manager!: FocusManager;
   private parent: InkResponseState | null = null;
-  private readonly childrenPressed = new Set<InkResponseState>();
-  private readonly splashes = new Set<InteractiveInkFeature>();
+  private childrenPressed?: Set<InkResponseState>;
+  private splashes?: Set<InteractiveInkFeature>;
   private currentSplash: InteractiveInkFeature | null = null;
-  private readonly highlights = new Map<HighlightKind, InkHighlight>();
+  private highlights?: Map<HighlightKind, InkHighlight>;
   private hovered = false;
   private focused = false;
   private live = false;
@@ -304,7 +308,7 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
     return this.primary() || this.secondary();
   }
   protected get wantKeepAlive(): boolean {
-    return this.splashes.size > 0 || this.highlights.size > 0;
+    return !!(this.splashes?.size || this.highlights?.size);
   }
   private bindControllers(): void {
     const o = this.widget.options;
@@ -332,19 +336,19 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
   }
   override didChangeDependencies(): void {
     super.didChangeDependencies();
-    const parent = this.context.findAncestorWidgetOfExactType(ParentInkScope)?.state ?? null;
+    const parent = this.context.maybeDependOn(ParentInkScope)?.state ?? null;
     if (parent !== this.parent) {
       this.parent?.markChild(this, false);
       this.parent = parent;
-      if (this.childrenPressed.size) this.parent?.markChild(this, true);
+      if (this.childrenPressed?.size) this.parent?.markChild(this, true);
     }
     if (this.live) this.updateFocusHighlights();
   }
   private markChild(child: InkResponseState, pressed: boolean): void {
-    const before = this.childrenPressed.size > 0;
-    if (pressed) this.childrenPressed.add(child);
-    else this.childrenPressed.delete(child);
-    const after = this.childrenPressed.size > 0;
+    const before = !!this.childrenPressed?.size;
+    if (pressed) (this.childrenPressed ??= new Set()).add(child);
+    else this.childrenPressed?.delete(child);
+    const after = !!this.childrenPressed?.size;
     if (before !== after) this.parent?.markChild(this, after);
   }
   private statesFor(type: HighlightKind) {
@@ -387,7 +391,7 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
       this.changing = false;
     }
     if (type === 'pressed') this.parent?.markChild(this, value);
-    const old = this.highlights.get(type);
+    const old = this.highlights?.get(type);
     if (value === (old !== undefined && old.active)) return;
     if (value) {
       if (old) old.activate();
@@ -408,11 +412,11 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
           textDirection: Directionality.of(this.context),
           fadeDuration: type === 'pressed' ? 200 : (o.hoverDuration ?? 50),
           onRemoved: () => {
-            this.highlights.delete(type);
+            this.highlights?.delete(type);
             if (this.live) this.updateKeepAlive();
           },
         });
-        this.highlights.set(type, feature);
+        (this.highlights ??= new Map()).set(type, feature);
         this.updateKeepAlive();
       }
     } else old?.deactivate();
@@ -468,7 +472,7 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
       customBorder: o.customBorder ?? null,
       onRemoved: () => {
         if (splash) {
-          this.splashes.delete(splash);
+          this.splashes?.delete(splash);
           if (this.currentSplash === splash) this.currentSplash = null;
           if (this.live) this.updateKeepAlive();
         }
@@ -476,7 +480,7 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
       textDirection: Directionality.of(this.context),
     });
     if (splash.debugDisposed) return;
-    this.splashes.add(splash);
+    (this.splashes ??= new Set()).add(splash);
     this.currentSplash?.cancel();
     this.currentSplash = splash;
     this.updateKeepAlive();
@@ -518,7 +522,7 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
   }
   handleTapDown(details: TapDownDetails): void {
     if (!this.live) return;
-    if (!this.childrenPressed.size) this.startSplash(details);
+    if (!this.childrenPressed?.size) this.startSplash(details);
     this.widget.options.onTapDown?.(details);
   }
   handleTapUp(details: TapUpDetails): void {
@@ -565,7 +569,7 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
   }
   handleSecondaryTapDown(details: TapDownDetails): void {
     if (!this.live) return;
-    if (!this.childrenPressed.size) this.startSplash(details);
+    if (!this.childrenPressed?.size) this.startSplash(details);
     this.widget.options.onSecondaryTapDown?.(details);
   }
   handleSecondaryTapUp(details: TapUpDetails): void {
@@ -585,16 +589,20 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
     this.widget.options.onSecondaryTapCancel?.();
     this.updateHighlight('pressed', false);
   }
+  private snapshotFeatures(): readonly InteractiveInkFeature[] {
+    if (!this.splashes?.size && !this.highlights?.size) return noInkFeatures;
+    return [...(this.splashes ?? noInkFeatures), ...(this.highlights?.values() ?? noInkFeatures)];
+  }
   private retireInk(): void {
     this.activationTimer?.dispose();
     this.activationTimer = null;
     this.currentSplash = null;
-    const all = [...this.splashes, ...this.highlights.values()];
-    this.splashes.clear();
-    this.highlights.clear();
+    const all = this.snapshotFeatures();
+    this.splashes?.clear();
+    this.highlights?.clear();
     for (const feature of all) feature.dispose();
     this.parent?.markChild(this, false);
-    this.childrenPressed.clear();
+    this.childrenPressed?.clear();
     this.changing = true;
     try {
       this.controller.update(WidgetState.pressed, false);
@@ -650,12 +658,11 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
       o.highlightShape !== old.options.highlightShape ||
       o.borderRadius !== old.options.borderRadius
     ) {
-      this.highlights.get('hover')?.dispose();
-      this.highlights.get('focus')?.dispose();
+      this.highlights?.get('hover')?.dispose();
+      this.highlights?.get('focus')?.dispose();
       if (this.hovered && this.enabled) this.updateHighlight('hover', true, false);
     }
-    for (const feature of [...this.splashes, ...this.highlights.values()])
-      feature.customBorder = o.customBorder ?? null;
+    for (const feature of this.snapshotFeatures()) feature.customBorder = o.customBorder ?? null;
     if (this.enabled !== (this.primary(old.options) || this.secondary(old.options))) {
       this.changing = true;
       try {
@@ -667,7 +674,7 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
       if (!this.enabled) {
         this.currentSplash?.cancel();
         this.currentSplash = null;
-        this.highlights.get('hover')?.dispose();
+        this.highlights?.get('hover')?.dispose();
         this.updateHighlight('pressed', false);
       }
       this.updateHighlight('hover', this.hovered, false);
@@ -677,7 +684,8 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
   build(context: BuildContext): Widget {
     super.build(context);
     this.widget.debugCheckContext(context);
-    for (const [type, feature] of this.highlights) feature.color = this.colorFor(type, true);
+    if (this.highlights)
+      for (const [type, feature] of this.highlights) feature.color = this.colorFor(type, true);
     if (this.currentSplash)
       this.currentSplash.color =
         this.widget.options.overlayColor?.resolve(this.controller.value) ??
