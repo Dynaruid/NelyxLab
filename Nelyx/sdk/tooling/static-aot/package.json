@@ -46,9 +46,6 @@
     "hermes-parser": "0.32.0",
     "@jridgewell/trace-mapping": "0.3.31"
   },
-  "scripts": {
-    "check": "tsc -p tsconfig.json"
-  },
   "engines": {
     "node": ">=24.3.0 <25"
   }

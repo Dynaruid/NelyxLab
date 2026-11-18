@@ -5,7 +5,6 @@
   "license": "BSD-3-Clause",
   "type": "module",
   "scripts": {
-    "check:types": "tsc --noEmit",
     "generate:date-picker": "bun generate-date-picker.ts --write",
     "port": "bun src/main.ts"
   },

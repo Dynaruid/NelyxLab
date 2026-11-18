@@ -21,7 +21,6 @@ The sample's local Android supplier archive referenced by `package.json` must al
 From this runner directory, for the sample's `emulator-vulkan` profile:
 
 ```powershell
-npm run check
 npx --no-install nelyx build --app ../.. --target android --architecture x86_64 --configuration Release
 npx --no-install nelyx run --app ../.. --target android --device emulator-5554
 ```

@@ -96,14 +96,6 @@ State의 책임입니다. View당 미게시 세대 1개, optional 보관분과 �
 [work5](../../work5.md)에 기록합니다.
 후속 개선에서 실제 날짜 선행 생산을 확인했습니다. 전체 성능 수락은 미완료이며 기본 동기 경로를 유지합니다.
 
-```powershell
-pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -Scenario calendar -HermesMode bytecode -Preparation legacy -Runs 3
-pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -Scenario calendar -HermesMode bytecode -Preparation split -Runs 3
-```
-
-`-Diagnostic -Runs 1 -NoScreen`은 성능 수락에서 제외하는 진단 실행입니다.
-기준선/후보 비교 시 CPU·build·GC profiling 환경 변수도 끕니다.
-
 Android는 OpenJDK 21·SDK 36·NDK와 대상 아키텍처의 렌더러 공급이 필요합니다.
 현재 기본값은 x86_64 에뮬레이터용 `emulator-vulkan`입니다.
 
@@ -126,13 +118,6 @@ ARM64 기기는 `package.json`의 `nelyx.targets.android.profile`을 `graphite-v
 
 ## 개발
 
-```powershell
-npm.cmd run check --workspace @nelyx/demo
-npm.cmd run check:web --workspace @nelyx/demo
-npm.cmd run check:windows --workspace @nelyx/demo
-```
-
-첫 명령은 공통 UI, 나머지는 준비·설치한 플랫폼 러너의 타입을 검사합니다.
 각 `prepare:<platform>` 명령은 현재 SDK 공급과 해당 러너 설치를 수행합니다.
 앱 설정·폰트·이미지 선언은 [package.json](package.json)의 `nelyx`에 있습니다.
 

@@ -56,6 +56,7 @@ public:
   int run(std::filesystem::path bundle,std::filesystem::path root,std::string mode,int duration,int width,int height){
     this->bundle=std::filesystem::absolute(bundle);assetRoot=std::filesystem::canonical(root);this->mode=mode;
     memoryProbe=NH::MemoryProbe(flag(L"NELYX_NATIVE_MEMORY_PROBE"));
+    semanticsTimingEnabled=flag(L"NELYX_NATIVE_SEMANTICS_TIMING");
     if(flag(L"NELYX_NATIVE_FRAME_TRACE"))trace=std::make_unique<NH::FrameTrace<>>();gcStats=flag(L"NELYX_NATIVE_GC_STATS");sampleProfiling=flag(L"NELYX_NATIVE_CPU_PROFILE");if((gcStats||sampleProfiling)&&!trace)throw std::runtime_error("Native profiling requires NELYX_NATIVE_FRAME_TRACE=1");if(sampleProfiling&&mode!="bytecode")throw std::runtime_error("The sampling diagnostic currently requires bytecode");
     if(memoryProbe.enabled()&&!trace)throw std::runtime_error("Native memory observation requires NELYX_NATIVE_FRAME_TRACE=1");
     if(!NH::engineContract().profiling&&(gcStats||sampleProfiling||memoryProbe.enabled()))throw std::runtime_error("The selected engine does not expose Hermes profiling or heap counters");
@@ -223,7 +224,32 @@ private:
     });
     method("requestClose",0,[this](auto&,auto const&,auto*,size_t){postUi([this]{requestClose();});return jsi::Value::undefined();});
     method("listen",1,[this](auto& rt,auto const&,auto* args,size_t count){if(count!=1||events)throw jsi::JSError(rt,"Native listener requires single owner");events.emplace(args[0].getObject(rt).getFunction(rt));return jsi::Value::undefined();});
-    method("publishSemantics",1,[this](auto& rt,auto const&,auto* args,size_t count){if(count!=1)throw jsi::JSError(rt,"Native semantics snapshot required");auto update=NH::readSemanticsDelta(NH::Packet(rt,jsi::Value(rt,args[0])));auto weak=nativeContext;postUi([this,update=std::move(update),weak]()mutable{semantics->update(std::move(update),weak);});return jsi::Value::undefined();});
+    method("publishSemantics",1,[this](auto& rt,auto const&,auto* args,size_t count){
+      if(count!=1)throw jsi::JSError(rt,"Native semantics snapshot required");
+      const double start=semanticsTimingEnabled?now():0;
+      auto update=NH::readSemanticsDelta(NH::Packet(rt,jsi::Value(rt,args[0])));
+      auto weak=nativeContext;
+      if(!semanticsTimingEnabled){
+        postUi([this,update=std::move(update),weak]()mutable{semantics->update(std::move(update),weak);});
+      }else{
+        const double queued=now();
+        postUi([this,update=std::move(update),weak,start,queued]()mutable{
+          const auto commit=update.commit,viewport=update.viewport;
+          const double begin=now();
+          semantics->update(std::move(update),weak);
+          const double end=now();
+          if(semanticsTimings.size()==4096)throw std::runtime_error("Semantics timing budget exceeded");
+          semanticsTimings.push_back({double(commit),double(viewport),queued-start,begin-queued,end-begin});
+        });
+      }
+      return jsi::Value::undefined();
+    });
+    if(semanticsTimingEnabled)method("takeSemanticsTimings",0,[this](auto& rt,auto const&,auto*,size_t){
+      auto rows=onUi([this]{decltype(semanticsTimings) result;result.swap(semanticsTimings);return result;});
+      jsi::Array values(rt,rows.size()*5);size_t index=0;
+      for(const auto& row:rows)for(double value:row)values.setValueAtIndex(rt,index++,value);
+      return values;
+    });
     method("pressedKeys",0,[this](auto& rt,auto const&,auto*,size_t){auto keys=onUi([this]{return keyboard->snapshot();});jsi::Array result(rt,keys.size());for(size_t i=0;i<keys.size();++i){jsi::Object key(rt);key.setProperty(rt,"keyCode",double(keys[i].keyCode));key.setProperty(rt,"scanCode",double(keys[i].scanCode));result.setValueAtIndex(rt,i,std::move(key));}return result;});
     method("editor",2,[this](auto& rt,auto const&,auto* args,size_t count){if(count!=2)throw jsi::JSError(rt,"Native editor command required");auto command=NH::readEditorCommand(args[0].getString(rt).utf8(rt),NH::Packet(rt,jsi::Value(rt,args[1])));postUi([this,command=std::move(command)]()mutable{auto operation=command.operation;std::string error,status="ok";uint64_t revision=0;try{if(command.kind=="keyboardText"){auto result=editors->keyboardText(command,keyboard->epoch());status=result.first;revision=result.second;}else editors->execute(std::move(command));}catch(std::exception const& failure){error=failure.what();}loop->invokeAsync([this,operation,error=std::move(error),status=std::move(status),revision](auto& rt){jsi::Object reply(rt);reply.setProperty(rt,"operation",double(operation));reply.setProperty(rt,"error",jsi::String::createFromUtf8(rt,error));reply.setProperty(rt,"status",jsi::String::createFromUtf8(rt,status));reply.setProperty(rt,"revision",double(revision));emit(rt,"editor-ack",std::move(reply));});});return jsi::Value::undefined();});
     method("log",1,[](auto& rt,auto const&,auto* args,size_t count){if(count!=1||!args[0].isString())throw jsi::JSError(rt,"Native log requires text");std::cout<<args[0].getString(rt).utf8(rt).substr(0,8192)<<std::endl;return jsi::Value::undefined();});
@@ -300,6 +326,9 @@ private:
   HWND window=nullptr;HCURSOR activeCursor=nullptr;std::filesystem::path bundle,assetRoot;std::string mode;std::thread thread;
   std::shared_ptr<NH::RuntimeLoop> loop=std::make_shared<NH::RuntimeLoop>(now);std::shared_ptr<NH::WindowSurface> surface;std::shared_ptr<RNSkia::RNSkView> view;
   std::unique_ptr<NH::FrameTrace<>> trace;bool gcStats=false,sampleProfiling=false;uint64_t frameTurn=0;
+  bool semanticsTimingEnabled=false;
+  // Owned solely by the UI thread. Diagnostics drain between measured phases.
+  std::vector<std::array<double,5>> semanticsTimings;
   NH::MemoryProbe memoryProbe;std::weak_ptr<nelyx::vulkan::Device> memoryDevice;uint64_t memoryWheelReceived=0,memoryWheelAbsolute=0,memoryWheelForeign=0;int64_t memoryWheelNet=0;double memoryWheelDeliveredAbsoluteY=0;
   std::unique_ptr<NH::NativeWheelDriver> wheelDriver;std::optional<POINT> savedWheelCursor;POINT wheelPoint{};LONG_PTR wheelCookie=0;uint32_t wheelObserved=0;uint64_t wheelEpoch=0;int wheelReceived=0,wheelForeign=0;int64_t wheelNet=0,wheelAbsolute=0;
   std::optional<POINT> savedDiagnosticCursor;POINT diagnosticPoint{};uint64_t keyboardMessages=0;std::atomic<uint64_t> semanticsActions{0};

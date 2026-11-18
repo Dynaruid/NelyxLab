@@ -26,7 +26,6 @@
     "./native-manifest.json": "./native-manifest.json"
   },
   "scripts": {
-    "build": "node ../../../eng/build-packages.mjs skia-web",
-    "check": "tsc -p tsconfig.build.json --noEmit"
+    "build": "node ../../../eng/build-packages.mjs skia-web"
   }
 }

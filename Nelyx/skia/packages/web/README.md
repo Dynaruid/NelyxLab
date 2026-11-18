@@ -27,7 +27,6 @@ From the repository root, after `npm ci`:
 
 ```powershell
 npm run build:skia
-npm run check --workspace @nelyx/skia-web
 ```
 
 Follow the [Web sample guide](../../../../sample/nelyx-testbed-app-2/README.md#web) to build and serve an app. Full graphics recovery, physical input/IME, screen readers, and performance require further qualification.

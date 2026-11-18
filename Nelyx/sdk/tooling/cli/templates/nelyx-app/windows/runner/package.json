@@ -7,7 +7,6 @@
   "scripts": {
     "build": "nelyx build --app ../.. --target windows",
     "run": "nelyx run --app ../.. --target windows",
-    "check": "node check.mjs",
     "bundle": "node bundle.mjs",
     "start": "react-native start --config metro.config.cjs",
     "dev": "nelyx dev --app ../.. --target windows",

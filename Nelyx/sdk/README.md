@@ -2,7 +2,7 @@
 
 **English** | [한국어](README.ko.md)
 
-Consumer projects require **TypeScript >=7.0.0**; generated runners pin **7.0.2**. Runner checks resolve the installed compiler through its public package metadata and verify its executable version. Generated configuration uses relative paths and an explicit app root without the removed `baseUrl` option.
+Consumer projects require **TypeScript >=7.0.0**; generated runners pin **7.0.2**. The compiler helper resolves the installed compiler through its public package metadata and checks the executable version. Generated configuration uses relative paths and an explicit app root without the removed `baseUrl` option.
 
 `@nelyx/sdk` connects the [Core framework](../README.md) to platform applications, rendering surfaces, input, assets, OS services, and host lifetime. Shared application code stays in `src/`; each platform runner supplies registration and build configuration.
 
@@ -174,13 +174,12 @@ Release application-owned services and await asynchronous disposal. Closing a Vi
 
 Native host sources live in [native/](native/), and runtime pins/overlays in [../upstream/](../upstream/). The [project guide](../../README.md#project-status) describes platform limitations.
 
-## Build and check
+## Build
 
 From the repository root, after `npm ci`:
 
 ```powershell
 npm run build:sdk
-npm run check --workspace @nelyx/sdk
 ```
 
 The SDK build also builds Core, design and renderer packages, then prepares provider and CLI inputs. Use the [CLI guide](tooling/cli/README.md) for target builds and the [Metro guide](tooling/metro/README.md) for runner configuration.

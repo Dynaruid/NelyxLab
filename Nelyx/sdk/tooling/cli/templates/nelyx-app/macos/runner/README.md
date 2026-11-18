@@ -17,7 +17,6 @@ In NelyxLab, use `npm run build:sdk` and `npm run prepare:sample -- macos` from 
 From this runner directory:
 
 ```powershell
-npm run check
 npm run bundle
 npm run build
 npm run run

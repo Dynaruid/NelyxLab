@@ -81,14 +81,6 @@ Use the current-source Windows runner to select the control or candidate; see
 The current candidate produces dates ahead in the native Demo calendar. Full performance acceptance is pending,
 and it remains disabled by default.
 
-```powershell
-pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -Scenario calendar -HermesMode bytecode -Preparation legacy -Runs 3
-pwsh.exe -NoProfile -File Nelyx/eng/check-windows-jank.ps1 -Scenario calendar -HermesMode bytecode -Preparation split -Runs 3
-```
-
-`-Diagnostic -Runs 1 -NoScreen` selects a diagnostic run, which is excluded from
-performance acceptance. Do not enable CPU/build/GC profiling for the comparison.
-
 Android defaults to the x86_64 `emulator-vulkan` profile. Select a standard JDK 21
 (Temurin is available on this Windows machine), then run from the repository root:
 
@@ -107,8 +99,6 @@ set `nelyx.targets.android.profile` to `graphite-vulkan` and pass
 See the [Korean guide](README.ko.md) for complete commands and the
 [Testbed guide](../nelyx-testbed-app-2/README.md) for platform prerequisites.
 
-`npm.cmd run check --workspace @nelyx/demo` checks shared UI types. After preparing
-a runner, `check:web`, `check:windows`, or `check:android` checks that target.
 Each `prepare:<platform>` supplies current SDK archives and installs that runner.
 [package.json](package.json) declares the entrypoint, assets and profiles.
 

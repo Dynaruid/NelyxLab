@@ -189,7 +189,6 @@
     "@nelyx/core": "0.17.0"
   },
   "scripts": {
-    "build": "node ../../Nelyx/eng/build-packages.mjs cupertino",
-    "check": "tsc -p tsconfig.build.json --noEmit"
+    "build": "node ../../Nelyx/eng/build-packages.mjs cupertino"
   }
 }

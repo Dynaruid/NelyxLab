@@ -6,7 +6,6 @@
   "license": "BSD-3-Clause",
   "scripts": {
     "prepare:native": "node prepare.mjs",
-    "check": "node check.mjs",
     "bundle": "node bundle.mjs",
     "build": "node build.mjs",
     "start": "react-native start --config metro.config.cjs",

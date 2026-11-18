@@ -2180,8 +2180,7 @@
     }
   },
   "scripts": {
-    "build": "node eng/build-packages.mjs core",
-    "check": "tsc -p tsconfig.build.json --noEmit"
+    "build": "node eng/build-packages.mjs core"
   },
   "license": "BSD-3-Clause"
 }

@@ -6,8 +6,9 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { emitDart } from './src/dart-emitter.ts';
-import { verifyDatePicker, verifyDateCompiler } from './verify-date-picker.ts';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+if (process.argv.includes('--verify'))
+  throw Error('The standalone date-picker verification suite was removed.');
 process.chdir(root);
 const argument = (name: string): string | undefined => {
   const index = process.argv.indexOf(name);
@@ -1298,17 +1299,6 @@ for (const source of new Set(ir.records.map((r: any) => r.source))) {
   for (const key of Object.keys(local.typeImports))
     if (local.imports[key]) delete local.typeImports[key];
   try {
-    if (process.argv.includes('--verify'))
-      verifyDateCompiler(
-        rows.filter((r: any) => r.ir).map((r: any) => r.ir),
-        {
-          ...local,
-          source,
-          sha256: rows[0].sourceSha256,
-          symbols: rows.map((r: any) => r.symbol),
-          destination: outputRoot + '/' + path.basename(source, '.dart') + '.generated.ts',
-        },
-      );
     let output = emitDart(
       rows.filter((r: any) => r.ir).map((r: any) => r.ir),
       {
@@ -1353,10 +1343,3 @@ else if (process.argv.includes('--check')) {
   fs.mkdirSync(outputRoot, { recursive: true });
   for (const [file, output] of outputs) fs.writeFileSync(file, output);
 }
-if (!errors.length && process.argv.includes('--verify'))
-  verifyDatePicker(
-    ir,
-    root,
-    path.resolve(argument('--source') ?? 'reference/flutter-master'),
-    argument('--dart') ?? process.env.DART_EXECUTABLE ?? 'dart',
-  );

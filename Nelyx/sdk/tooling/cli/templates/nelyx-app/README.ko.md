@@ -12,7 +12,6 @@ Node.js **>=24.3.0 <25**와 npm을 사용합니다. 새로 만든 Web 앱은 앱
 
 ```powershell
 npm --prefix web/runner install --workspaces=false
-npm --prefix web/runner run check
 npm --prefix web/runner run dev
 ```
 

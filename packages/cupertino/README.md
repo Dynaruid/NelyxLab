@@ -49,7 +49,6 @@ From the repository root, after `npm ci`:
 
 ```powershell
 npm run build:designs
-npm run check --workspace @nelyx/cupertino
 ```
 
 Use `npm run build:sdk` for the full package set. Supply and reinstall the selected runner after changing local packages. The [Testbed](../../sample/nelyx-testbed-app-2/README.md) consumes the public components and routes.

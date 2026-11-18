@@ -23,13 +23,12 @@ The package includes platform adapters and CMake recipes under `native/vulkan/`,
 
 On resize, an Nelyx recording for the previous backing is released after its GPU completion is confirmed. The host retains the displayed front buffer until a frame for the new backing arrives. Queued uploads and recordings without confirmed completion remain owned.
 
-## Build and check
+## Build
 
 From the repository root after installing workspace dependencies:
 
 ```powershell
 npm run build:skia
-npm run check --workspace @nelyx/skia-rn
 ```
 
 The package build emits ESM, declarations, and source maps. Native binary builds are separate; see the [Skia supply guide](../../README.md). Platform qualification remains `notVerified`.

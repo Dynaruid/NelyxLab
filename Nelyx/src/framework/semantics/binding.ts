@@ -13,6 +13,7 @@ import { AccessibilityFeatures } from '../../ui/accessibility-features.ts';
 import { PlatformDispatcher } from '../../ui/platform-dispatcher.ts';
 import type { FrameScheduler } from '../scheduler/scheduler.ts';
 import { SemanticsDebug } from './debug.ts';
+import { frozenSemanticsOrder } from './semantics.ts';
 import { FlutterError } from '../../foundation/flutter-error.ts';
 import { FlutterErrorDetails } from '../../foundation/assertions.ts';
 export interface SemanticsBindingOptions {
@@ -202,6 +203,27 @@ export class SemanticsBinding {
     legacyViewId?: number | string,
   ): void {
     if (!this.live || !this.accessibilityEnabled) return;
+    const published = frozenSemanticsOrder(nodes);
+    if (published) {
+      // Most scrolling publications expire before a client requests a rectangle.
+      // These bounds and their traversal order belong to this immutable commit.
+      let index: Map<number | string, Rect> | undefined;
+      this._updateViewSemanticsRectResolver(
+        viewId,
+        (id) => {
+          if (!index) {
+            index = new Map();
+            for (const node of published) {
+              index.set(node.id, node.bounds);
+              if (node.sourceNodeId !== undefined) index.set(node.sourceNodeId, node.bounds);
+            }
+          }
+          return index.get(id) ?? null;
+        },
+        legacyViewId,
+      );
+      return;
+    }
     const rects = new Map<number | string, Rect>();
     const visit = (node: SemanticsNode) => {
       const rect = Object.freeze({ ...node.bounds });

@@ -9,10 +9,9 @@ Nelyx 프레임워크 소스 이전과 생성 코드 관리를 위한 독립적�
 ```powershell
 node Nelyx/eng/framework-inventory.mjs --source C:/path/to/flutter-git
 node tools/Nelyx.FrameworkToTypeScript/framework-ports.mjs --source C:/path/to/flutter-git --dart C:/path/to/dart.exe --check
-node Nelyx/eng/check-flutter-framework.mjs --source C:/path/to/flutter-git --flutter C:/path/to/installed-flutter --dates check
 ```
 
-마지막 명령은 고정 원본의 실제 Flutter 테스트와 Source 구현을 대조하고 날짜 선택기 75개 선언을 재생성 검사합니다. 설치된 tester engine identity는 별도로 출력합니다. 임시 입력과 결과는 한 실행 안에서 삭제하며, 원본 일치·동작 수락·제품 시각/물리 입력/성능 결과를 구별합니다. `--dates write`는 검토한 생성기 변경을 제품 출력에 반영합니다. 새 이식 범위를 검토한 뒤에만 `framework-ports.mjs --write`로 현재 출처를 갱신합니다.
+새 이식 범위를 검토한 뒤에만 `framework-ports.mjs --write`로 현재 출처를 갱신합니다.
 
 ## 개발 환경
 
@@ -21,14 +20,11 @@ node Nelyx/eng/check-flutter-framework.mjs --source C:/path/to/flutter-git --flu
 ```powershell
 cd tools/Nelyx.FrameworkToTypeScript
 bun install --frozen-lockfile
-bun run check:types
 ```
 
-패키지 의존성은 [package.json](package.json)·[bun.lock](bun.lock)에 고정되어 있습니다. 타입 검사는 native TypeScript CLI를, AST 분석·출력은 별도의 TypeScript Compiler API를 사용합니다.
+패키지 의존성은 [package.json](package.json)·[bun.lock](bun.lock)에 고정되어 있습니다. AST 분석과 출력에는 TypeScript Compiler API를 사용합니다.
 
-독립 emitter 회귀 테스트는 2026-11-07 사용자 요청으로 제거했습니다. 저장소 전체 린트는 루트에서 `npm run lint`로 실행합니다.
-
-JS/TS 포맷 기준은 루트의 [Oxfmt 설정](../../.oxfmtrc.json)을 공유합니다. 루트에서 `npm run format:check`로 확인하고 `npm run format`으로 적용합니다. 생성 결과를 직접 정리하면 기존 base/fingerprint를 보존하고 adopted 출력의 현재 productHash와 소유권 SHA를 갱신하세요. 포맷 변경은 원본 동작이나 네이티브 실행의 검증을 대신하지 않습니다.
+JS/TS 포맷 기준은 루트의 [Oxfmt 설정](../../.oxfmtrc.json)을 공유합니다. 루트에서 `npm run format`으로 적용합니다. 생성 결과를 직접 정리하면 기존 base/fingerprint를 보존하고 adopted 출력의 현재 productHash와 소유권 SHA를 갱신하세요. 포맷 변경은 원본 동작이나 네이티브 실행의 검증을 대신하지 않습니다.
 
 Dart 분석은 대응하는 Dart SDK와 [dart/](dart/)의 analyzer 입력을, C# 분석은 .NET과 [roslyn/](roslyn/)의 SourceReader를 사용합니다. 선택한 입력 언어와 recipe에 필요한 도구만 준비하세요.
 

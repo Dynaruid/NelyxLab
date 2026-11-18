@@ -12,7 +12,6 @@ Use Node.js **>=24.3.0 <25** and npm. For a newly created Web app, run from the 
 
 ```powershell
 npm --prefix web/runner install --workspaces=false
-npm --prefix web/runner run check
 npm --prefix web/runner run dev
 ```
 

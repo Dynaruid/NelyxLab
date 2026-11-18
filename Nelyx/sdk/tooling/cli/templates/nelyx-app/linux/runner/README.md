@@ -19,7 +19,6 @@ Use a Linux host with C++ tools, CMake/Ninja, GTK4 development packages, X11, Vu
 
 ```text
 npx --no-install nelyx prepare --app ../.. --target linux --native-inputs <inputs.json>
-npm run check
 npx --no-install nelyx build --app ../.. --target linux --native-inputs <inputs.json> --hermes-source <pinned-hermes-source>
 npm run run
 ```

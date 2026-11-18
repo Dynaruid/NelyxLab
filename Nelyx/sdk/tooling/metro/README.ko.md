@@ -2,7 +2,7 @@
 
 [English](README.md) | **한국어**
 
-소비자 프로젝트는 **TypeScript >=7.0.0**을 사용하며 생성 runner는 **7.0.2**로 고정합니다. Runner 검사는 설치된 compiler의 공개 package metadata와 실제 실행 버전을 확인합니다. 생성 설정은 폐지된 `baseUrl` 없이 상대 paths와 명시한 app root를 사용합니다.
+소비자 프로젝트는 **TypeScript >=7.0.0**을 사용하며 생성 runner는 **7.0.2**로 고정합니다. 컴파일러 도구는 설치된 패키지의 공개 메타데이터에서 실행 파일을 찾고 버전을 확인합니다. 생성 설정은 폐지된 `baseUrl` 없이 상대 paths와 명시한 app root를 사용합니다.
 
 `@nelyx/metro`는 Nelyx의 독립 플랫폼 runner를 위한 Metro 설정, 자산 준비, Web 번들과 개발 서버를 제공합니다. Node.js **>=24.3.0 <25**를 사용합니다. 명시적인 빌드·개발 작업은 [CLI](../cli/README.ko.md)가 담당합니다.
 
@@ -46,7 +46,6 @@ module.exports = createRunnerConfig({
 
 Windows Hermes는 TDZ·readonly binding·반복별 capture를 유지합니다. Lowering이 삽입한 TDZ prefix를 정식 statement로 감싸 compact 출력도 유효하게 생성합니다. 중복 TDZ 제거는 `customTransformOptions.nelyxTemporalRefOptimization: true`로만 켜는 실험 옵션이며 **기본 off**입니다. 동작 검사는 통과했지만 앱 FPS 비교에서 일관된 이익을 입증하지 못했습니다. Web·Android·V8·JSC 변환에는 적용하지 않습니다.
 
-저장소 회귀의 `node Nelyx/eng/check-hermes-temporal-refs.mjs --native`는 canonical VM에서 control·후보를 확인하고, `node Nelyx/eng/check-source-framework.mjs --hermes-lowering`는 명시적으로 후보를 켠 Source fixture를 Node에서 실행합니다. 두 검사 모두 20분 timeout과 임시 출력 정리를 적용합니다.
 
 ## 자산과 로컬 패키지
 
@@ -59,14 +58,6 @@ Windows Hermes는 TDZ·readonly binding·반복별 capture를 유지합니다. L
 ## 런타임 목록
 
 `inspectRuntimeInventory({runner, appRoot, signal})`은 설치된 Windows Release serializer, 모듈 그래프, 시작 호출과 source map을 조사합니다. Static AOT 도구용 구문 목록을 메모리로 반환하며 앱을 컴파일·발행하지는 않습니다. 사용자 serializer와 호환되지 않는 Metro 버전은 거절합니다.
-
-## 선언 확인
-
-저장소 루트에서 `npm ci` 후 실행합니다.
-
-```powershell
-npm run check:metro-types
-```
 
 Runner 빌드·실행은 [Testbed 가이드](../../../../sample/nelyx-testbed-app-2/README.ko.md)를 참고하세요.
 

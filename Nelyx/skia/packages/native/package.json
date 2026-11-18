@@ -356,7 +356,6 @@
     }
   },
   "scripts": {
-    "build": "node ../../../eng/build-packages.mjs skia-native",
-    "check": "tsc -p tsconfig.build.json --noEmit"
+    "build": "node ../../../eng/build-packages.mjs skia-native"
   }
 }

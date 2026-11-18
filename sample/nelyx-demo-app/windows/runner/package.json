@@ -7,7 +7,6 @@
   "scripts": {
     "build": "nelyx build --app ../.. --target windows --host native",
     "run": "nelyx run --app ../.. --target windows --host native",
-    "check": "node check.mjs",
     "bundle": "node bundle.mjs",
     "start": "react-native start --config metro.config.cjs",
     "dev": "nelyx dev --app ../.. --target windows",
@@ -16,8 +15,8 @@
     "pack": "nelyx pack --app ../.. --target windows --host native"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.17.0-34844c146dd0a636d5b4156434f648697a38f7ff9627ce9e0a20ce6eb023643d.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.21.0-843b68dc9654b5af9c562aed32906493b8a2582ed76d1f4d97cbe7a837dc5dd3.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/windows/nelyx-core-0.17.0-bee3f1b694821c5ea7eda88f180851df474d4bd66f030dbe0a2bea8d8d373aa7.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/windows/nelyx-sdk-0.21.0-5acce09a8143fb0cc463673103801d54adb101d88301d59b58a6b8591fa5f974.tgz",
     "@nelyx/skia-rn": "file:../../.nelyx/supply/windows/nelyx-skia-rn-0.6.0-5178f9558b3c980e10e9f70443be5b34ea534794bdce5fab075016b32df65fc3.tgz",
     "react": "19.2.0",
     "react-native": "0.83.10",

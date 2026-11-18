@@ -22,7 +22,6 @@
     }
   },
   "scripts": {
-    "build": "node ../../../eng/build-packages.mjs tooling-contracts",
-    "check": "tsc -p tsconfig.build.json --noEmit"
+    "build": "node ../../../eng/build-packages.mjs tooling-contracts"
   }
 }

@@ -2,7 +2,7 @@
 
 **English** | [한국어](README.ko.md)
 
-Consumer projects require **TypeScript >=7.0.0**; generated runners pin **7.0.2**. Runner checks resolve the installed compiler through its public package metadata and verify its executable version. Generated configuration uses relative paths and an explicit app root without the removed `baseUrl` option.
+Consumer projects require **TypeScript >=7.0.0**; generated runners pin **7.0.2**. The compiler helper resolves the installed compiler through its public package metadata and checks the executable version. Generated configuration uses relative paths and an explicit app root without the removed `baseUrl` option.
 
 Workspace `tsc` uses native TypeScript 7.0.2 through the `@typescript/native` alias. Shader/declaration AST transforms and original API inventory retain Microsoft's TypeScript 6 compatibility API. Package builds require the native 7.x project check before compatibility-API emit. See [Microsoft's API transition guidance](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/).
 
@@ -90,13 +90,12 @@ Each requested frame paints and submits to the renderer. Renderer admission (`ac
 
 For low-level scene consumers, `FrameworkRoot.build(scene)` returns a `FrameRecording`. Respect owner gates such as first-frame deferral through `shouldSubmitFrame()`, and call `frameSubmitted(token)` after renderer admission. The capture and disposal contracts live in [ui/frame.ts](src/ui/frame.ts); recordings and submitted GPU work have separate resource lifetimes.
 
-## Build and check
+## Build
 
 From the repository root, after `npm ci`:
 
 ```powershell
 npm run build:core
-npm run check --workspace @nelyx/core
 ```
 
 Use `npm run build:sdk` to build the complete package set. When consuming locally packed packages, supply and reinstall the runner after changes; see the [CLI guide](sdk/tooling/cli/README.md#supply-and-install).

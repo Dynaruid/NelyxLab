@@ -18,7 +18,6 @@ Use Visual Studio C++ tools, the Windows SDK, and a matching RNW 0.83.2 / JSI21 
 
 ```text
 npx --no-install nelyx prepare --app ../.. --target windows --native-inputs <inputs.json>
-npm run check
 npm run build
 npm run run
 ```

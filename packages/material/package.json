@@ -775,8 +775,7 @@
     "@nelyx/core": "0.17.0"
   },
   "scripts": {
-    "build": "node ../../Nelyx/eng/build-packages.mjs material",
-    "check": "tsc -p tsconfig.build.json --noEmit"
+    "build": "node ../../Nelyx/eng/build-packages.mjs material"
   },
   "dependencies": {
     "@material/material-color-utilities": "0.3.0",

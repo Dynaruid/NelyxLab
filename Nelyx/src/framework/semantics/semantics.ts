@@ -1079,7 +1079,14 @@ function freezeTextNavigation(node: TransportSemanticsNode): SemanticsTextNaviga
 }
 // Only arrays produced by this validator are trusted. Object.freeze on public
 // input alone neither validates its tree nor freezes its nested values.
-const frozenSemanticsTrees = new WeakSet<readonly TransportSemanticsNode[]>();
+const frozenSemanticsTrees = new WeakMap<
+  readonly TransportSemanticsNode[],
+  readonly TransportSemanticsNode[]
+>();
+/** @internal Only validated immutable snapshots can share their traversal order. */
+export function frozenSemanticsOrder(nodes: readonly TransportSemanticsNode[]) {
+  return frozenSemanticsTrees.get(nodes);
+}
 /** Bounded, unique tree snapshot used by platform bridges. Functions remain in the JS owner. */
 export function freezeSemantics(
   nodes: readonly TransportSemanticsNode[],
@@ -1089,7 +1096,9 @@ export function freezeSemantics(
     sourceIds = new Set<number>(),
     ancestors = new Set<TransportSemanticsNode>();
   let count = 0;
+  const preorder: TransportSemanticsNode[] = [];
   const visit = (node: TransportSemanticsNode, depth: number): TransportSemanticsNode => {
+    const index = count;
     invariant(
       ++count <= 2048 && depth <= 64 && !ancestors.has(node),
       'semantics-budget',
@@ -1343,7 +1352,7 @@ export function freezeSemantics(
     ancestors.add(node);
     const children = node.children?.map((child) => visit(child, depth + 1));
     ancestors.delete(node);
-    return Object.freeze({
+    const frozen = Object.freeze({
       ...node,
       bounds,
       ...(textNavigation ? { textNavigation } : {}),
@@ -1360,14 +1369,18 @@ export function freezeSemantics(
       ...(node.actions ? { actions: Object.freeze({ ...node.actions }) } : {}),
       ...(children ? { children: Object.freeze(children) } : {}),
     });
+    preorder[index] = frozen;
+    return frozen;
   };
   const snapshot = Object.freeze(nodes.map((node) => visit(node, 0)));
-  frozenSemanticsTrees.add(snapshot);
+  frozenSemanticsTrees.set(snapshot, Object.freeze(preorder));
   return snapshot;
 }
 export function flattenSemantics(
   nodes: readonly TransportSemanticsNode[],
 ): readonly TransportSemanticsNode[] {
+  const cached = frozenSemanticsOrder(nodes);
+  if (cached) return cached;
   const output: TransportSemanticsNode[] = [];
   const visit = (node: TransportSemanticsNode) => {
     output.push(node);

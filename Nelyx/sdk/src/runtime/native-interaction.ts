@@ -1279,7 +1279,9 @@ export class NativeInteraction {
     return accepted;
   }
   private validated(nodes: readonly SemanticsNode[]): Map<string, SemanticsNode> {
-    return new Map(flattenSemantics(nodes).map((node) => [node.id, node]));
+    const index = new Map<string, SemanticsNode>();
+    for (const node of flattenSemantics(nodes)) index.set(node.id, node);
+    return index;
   }
   private replaceNodes(next: Map<string, SemanticsNode>): void {
     const lifetimes = new Map<string, object>();

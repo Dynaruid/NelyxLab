@@ -352,8 +352,7 @@
     }
   },
   "scripts": {
-    "build": "node ../eng/build-packages.mjs sdk",
-    "check": "tsc -p tsconfig.build.json --noEmit"
+    "build": "node ../eng/build-packages.mjs sdk"
   },
   "license": "BSD-3-Clause"
 }

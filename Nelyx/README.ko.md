@@ -2,7 +2,7 @@
 
 [English](README.md) | **한국어**
 
-소비자 프로젝트는 **TypeScript >=7.0.0**을 사용하며 생성 runner는 **7.0.2**로 고정합니다. Runner 검사는 설치된 compiler의 공개 package metadata와 실제 실행 버전을 확인합니다. 생성 설정은 폐지된 `baseUrl` 없이 상대 paths와 명시한 app root를 사용합니다.
+소비자 프로젝트는 **TypeScript >=7.0.0**을 사용하며 생성 runner는 **7.0.2**로 고정합니다. 컴파일러 도구는 설치된 패키지의 공개 메타데이터에서 실행 파일을 찾고 버전을 확인합니다. 생성 설정은 폐지된 `baseUrl` 없이 상대 paths와 명시한 app root를 사용합니다.
 
 Workspace의 `tsc`는 `@typescript/native` alias의 native TypeScript 7.0.2를 사용합니다. Shader/declaration AST 변환과 원래 API inventory는 Microsoft TypeScript 6 호환 API를 유지합니다. 패키지 빌드는 호환 API emit 전에 native 7.x 프로젝트 검사를 통과해야 합니다. [Microsoft API 전환 안내](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)를 참고하세요.
 
@@ -90,13 +90,12 @@ export function main() {
 
 낮은 수준의 scene 소비자가 사용하는 `FrameworkRoot.build(scene)`은 `FrameRecording`을 반환합니다. `shouldSubmitFrame()`의 첫 프레임 지연 같은 owner 조건을 확인하고, renderer가 제출을 받아들인 뒤 `frameSubmitted(token)`을 호출하세요. 캡처·해제 계약은 [ui/frame.ts](src/ui/frame.ts)에 있으며, recording과 제출된 GPU 작업의 자원 수명은 별도로 관리합니다.
 
-## 빌드와 확인
+## 빌드
 
 저장소 루트에서 `npm ci` 후 실행합니다.
 
 ```powershell
 npm run build:core
-npm run check --workspace @nelyx/core
 ```
 
 전체 패키지 빌드는 `npm run build:sdk`를 사용합니다. 로컬 archive로 소비할 때는 변경 후 runner에 다시 공급하고 설치하세요. [CLI 가이드](sdk/tooling/cli/README.ko.md#공급과-설치)에 절차가 있습니다.

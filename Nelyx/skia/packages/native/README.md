@@ -28,7 +28,6 @@ From the repository root, after `npm ci`:
 
 ```powershell
 npm run build:skia
-npm run check --workspace @nelyx/skia-native
 ```
 
 Package builds prepare sources and TypeScript output. Target-native binaries require the [Skia supply recipes](../../README.md). See the [project guide](../../../../README.md#project-status) for platform limits.

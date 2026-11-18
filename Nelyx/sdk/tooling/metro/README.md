@@ -2,7 +2,7 @@
 
 **English** | [한국어](README.ko.md)
 
-Consumer projects require **TypeScript >=7.0.0**; generated runners pin **7.0.2**. Runner checks resolve the installed compiler through its public package metadata and verify its executable version. Generated configuration uses relative paths and an explicit app root without the removed `baseUrl` option.
+Consumer projects require **TypeScript >=7.0.0**; generated runners pin **7.0.2**. The compiler helper resolves the installed compiler through its public package metadata and checks the executable version. Generated configuration uses relative paths and an explicit app root without the removed `baseUrl` option.
 
 `@nelyx/metro` provides Metro configuration, asset preparation, Web bundles, and development servers for Nelyx's independent platform runners. Use Node.js **>=24.3.0 <25**. The [CLI](../cli/README.md) owns explicit build and development operations.
 
@@ -46,7 +46,6 @@ Engine-specific transforms are selected through runner/CLI configuration. Keep c
 
 Windows Hermes preserves TDZ, readonly bindings, and per-iteration captures. Its lowering normalizes generated TDZ prefixes into statements so compact output remains valid. Redundant TDZ pruning is an experimental transformer option, `customTransformOptions.nelyxTemporalRefOptimization: true`, and defaults to off: behavioral qualification passed, but the App FPS comparison did not establish a consistent benefit. This option does not affect Web, Android, V8, or JSC transforms.
 
-Repository regressions: `node Nelyx/eng/check-hermes-temporal-refs.mjs --native` checks the control and candidate on the canonical VM; `node Nelyx/eng/check-source-framework.mjs --hermes-lowering` executes the explicitly opted-in Source fixture on Node. Both use a 20-minute timeout and remove their temporary outputs.
 
 ## Assets and local packages
 
@@ -59,14 +58,6 @@ After supplying new local archives, run `npm ci --workspaces=false` in the runne
 ## Runtime inventory
 
 `inspectRuntimeInventory({runner, appRoot, signal})` inspects the installed Windows Release serializer, module graph, startup calls, and source maps. It returns an in-memory syntactic inventory for Static AOT tooling; it does not compile or publish an application. Custom serializers and incompatible Metro versions are rejected.
-
-## Check declarations
-
-From the repository root, after `npm ci`:
-
-```powershell
-npm run check:metro-types
-```
 
 Use the [Testbed guide](../../../../sample/nelyx-testbed-app-2/README.md) to build or serve a runner.
 

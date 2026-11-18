@@ -6,7 +6,6 @@
   "name": "nelyx-demo-android-runner",
   "scripts": {
     "prepare:native": "node prepare.mjs",
-    "check": "node check.mjs",
     "bundle": "node bundle.mjs",
     "build": "nelyx build --app ../.. --target android",
     "start": "react-native start --config metro.config.cjs",

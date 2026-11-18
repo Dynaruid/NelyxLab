@@ -62,7 +62,6 @@ From the repository root, after `npm ci`:
 
 ```powershell
 npm run build:designs
-npm run check --workspace @nelyx/material
 ```
 
 Use `npm run build:sdk` for the full package set. Supply and reinstall the selected runner after changing local packages. The Testbed demonstrates components through their public APIs.

@@ -70,22 +70,9 @@ Native targets require their platform toolchain and matching renderer inputs. Wi
 
 The shared application exports `main()` from `src/index.ts`. A platform runner registers it and provides the rendering surface. Import APIs through package subpaths such as `@nelyx/core/framework/widgets/basic`, `@nelyx/material/widgets`, and `@nelyx/sdk/platforms/web/surface`. See the [Widget example](Nelyx/README.md#widget-applications).
 
-## Development checks
+## Source maintenance
 
-After `npm ci`, run `npm run lint` from the repository root. Oxlint checks the Core, SDK, design packages, samples, templates, and conversion tools. Warnings and unused suppression comments fail the command.
-
-The [lint configuration](.oxlintrc.json) permits intentional unused rest exclusions, `_`-prefixed parameters, effectful short-circuit expressions, and owner/traversal references to `this`. Numeric edge cases, input filters, protocol data, and language fixtures use local exceptions with explanations. Generated sources remain in the inspection scope.
-
-Run `npm run format:check` to check formatting, or `npm run format` to apply it. The [Oxfmt configuration](.oxfmtrc.json) uses two spaces, a 100-column print width, single quotes, semicolons, and LF line endings. Both commands cover JS/TS sources and the two lint/format configuration files. Import order and embedded code strings are preserved; historical metadata and build outputs are outside the formatting scope. Lint exceptions use explicit ranges so line wrapping keeps their intended scope.
-
-Run `npm run check:types` for workspace types. See the [conversion tool guide](tools/Nelyx.FrameworkToTypeScript/README.md) for managed-source maintenance.
-
-Standalone tests, fixtures, API/structure audits and performance experiment tools were removed at the user's request on 2026-11-07. Product input, ABI and lifetime checks, build tools and generated-source ownership remain. Preview remaining local validation output with [cleanup-validation-once.ps1](cleanup-validation-once.ps1).
-
-```powershell
-pwsh -NoProfile -File ./cleanup-validation-once.ps1        # Preview
-pwsh -NoProfile -File ./cleanup-validation-once.ps1 -Apply # Remove
-```
+Run `npm run format` at the repository root to format JS/TS sources and configuration files using the [Oxfmt settings](.oxfmtrc.json). See the [conversion tool guide](tools/Nelyx.FrameworkToTypeScript/README.md) for generated-source maintenance.
 
 ## Documentation
 

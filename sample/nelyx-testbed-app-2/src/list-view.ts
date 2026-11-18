@@ -6,6 +6,7 @@ import { Icon } from '@nelyx/core/framework/widgets/icon';
 import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
 import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
+import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { Wrap } from '@nelyx/core/framework/widgets/wrap';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { Color } from '@nelyx/core/ui/color';
@@ -47,6 +48,8 @@ class ListViewPageState extends State<ListViewPage> {
 
   build(context: BuildContext): Widget {
     const colors = Theme.of(context).colorScheme;
+    const selectionStatus =
+      this.selected === null ? '항목을 선택하세요.' : '선택: ' + itemLabel(this.selected);
     return new RepaintBoundary(
       new Material({
         color: new Color(colors.surface),
@@ -150,10 +153,18 @@ class ListViewPageState extends State<ListViewPage> {
             new Divider({ height: 1 }),
             new Padding(
               EdgeInsets.symmetric({ horizontal: 20, vertical: 12 }),
-              new Text(
-                this.selected === null ? '항목을 선택하세요.' : '선택: ' + itemLabel(this.selected),
-                { fontSize: 14, color: colors.onSurfaceVariant, maxLines: 1 },
-              ),
+              new Semantics({
+                identifier: 'list-view-selection-status',
+                container: true,
+                label: selectionStatus,
+                liveRegion: true,
+                excludeSemantics: true,
+                child: new Text(selectionStatus, {
+                  fontSize: 14,
+                  color: colors.onSurfaceVariant,
+                  maxLines: 1,
+                }),
+              }),
             ),
           ],
           { crossAlign: 'stretch' },

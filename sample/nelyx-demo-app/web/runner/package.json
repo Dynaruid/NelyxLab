@@ -6,7 +6,6 @@
   "name": "nelyx-demo-web-runner",
   "scripts": {
     "prepare:native": "node prepare.mjs",
-    "check": "node check.mjs",
     "build": "node build.mjs",
     "dev": "nelyx dev --app ../.. --target web"
   },

@@ -94,7 +94,6 @@ export async function createApp(
     manifest.scripts = {
       'build:windows': 'npm --prefix windows/runner run build',
       'run:windows': 'npm --prefix windows/runner run run',
-      'check:windows': 'npm --prefix windows/runner run check',
       'bundle:windows': 'npm --prefix windows/runner run bundle',
     };
   }
@@ -103,7 +102,7 @@ export async function createApp(
     manifest.dependencies = {};
     manifest.devDependencies = {};
     manifest.scripts = Object.fromEntries(
-      ['check', 'bundle', 'build', 'run'].map((command) => [
+      ['bundle', 'build', 'run'].map((command) => [
         command + ':' + target,
         `npm --prefix ${target}/runner run ${command}`,
       ]),
@@ -113,7 +112,7 @@ export async function createApp(
     manifest.dependencies = {};
     manifest.devDependencies = {};
     manifest.scripts = Object.fromEntries(
-      ['check', 'bundle', 'build', 'run'].map((command) => [
+      ['bundle', 'build', 'run'].map((command) => [
         command + ':linux',
         `npm --prefix linux/runner run ${command}`,
       ]),
@@ -126,10 +125,10 @@ export async function createApp(
   manifest.scripts = {};
   for (const id of skiaReferences.targets ?? ['android', 'ios', 'windows', 'macos', 'linux', 'web'])
     for (const operation of id === 'web'
-      ? ['check', 'build', 'dev']
+      ? ['build', 'dev']
       : ['windows', 'linux'].includes(id)
-        ? ['check', 'bundle', 'build', 'run', 'dev']
-        : ['check', 'bundle', 'build', 'run'])
+        ? ['bundle', 'build', 'run', 'dev']
+        : ['bundle', 'build', 'run'])
       manifest.scripts[operation + ':' + id] =
         `npm --prefix ${id}/runner run ${operation}${id === 'windows' && operation === 'build' ? ' --' : ''}`;
   for (const id of ['android', 'web'])

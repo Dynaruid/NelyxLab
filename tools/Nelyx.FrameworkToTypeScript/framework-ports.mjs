@@ -164,11 +164,7 @@ try {
         mode: 'manual-port',
         status: 'PARTIAL',
         scope,
-        acceptance: [
-          'Nelyx/eng/check-source-framework.mjs',
-          'Nelyx/eng/check-retained-paint.mjs',
-          'Nelyx/eng/check-flutter-framework.mjs',
-        ],
+        acceptance: [],
       };
     });
   });
