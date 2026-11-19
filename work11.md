@@ -2,7 +2,7 @@
 
 2026-11-19 · `PAUSED / PARTIAL`
 
-Flutter의 동일 리비전에서 Material 3와 Cupertino의 전체 공개 API를 해석하고, 두 디자인 패키지의 누락 기능을 의존성이 연결된 단위로 일괄 이식한다. 속성·기본값·상태 전이·레이아웃·입력·접근성까지 원본과 대조한다. Dart 변환기의 공통 한계는 먼저 해결하고, 플랫폼과 맞닿는 동작은 Nelyx Core와 호스트에 연결한다. 완성된 패키지는 Demo와 Testbed의 정상 실행 경로에서 사용한다.
+고정 Flutter 리비전의 Material 3와 Cupertino 위젯 전체를 한 배치에 넣고, 생성 가능한 TypeScript를 두 패키지 소스에 먼저 이식한다. 첫 배치에서 드러난 오류는 두 패키지에 걸쳐 같은 원인끼리 고치고 영향받은 코드를 재생성한다. 그다음 위젯별 속성·기본값·상태 전이·레이아웃·입력·접근성을 원본과 대조하고, 공개 패키지를 Demo와 Testbed의 정상 경로에서 검증한다.
 
 ## 1. 현재 소스에서 확인한 범위
 
@@ -34,17 +34,17 @@ Testbed에는 SDK API가 이미 있어도 데모가 `planned`인 경우가 있�
 
 ## 3. 일괄 처리 경로
 
-`고정 Git blob → 해석된 공개 API와 의존성 → 변환 단위 → Body IR → 생성 또는 어댑터 합성 → 검증 → 공개 패키지 반영`
+`두 패키지 전체 목록 → 일괄 변환 → 패키지 소스에 일괄 이식 → 공통 오류 수정·재생성 → 위젯별 보정 → 공개 API·앱 검증`
 
 1. **해석된 인벤토리**. `flutter-source.mjs`로 원본을 읽고 pin에 맞는 Dart SDK와 package config를 준비한다. Analyzer가 library namespace, `export show/hide`, `part of`, 재공개, 상속 및 실제 참조를 해석하도록 한다. 같은 이름의 private 심벌은 library URI와 소유 선언·멤버를 포함한 식별자로 구별한다. 파일/blob과 선언 span, 공개 엔트리, API 형태, 전이 의존성, Nelyx 소유자와 검증 항목을 연결한다. [원본 로더](tools/Nelyx.FrameworkToTypeScript/flutter-source.mjs) · [현재 패키지 인벤토리](Nelyx/eng/framework-inventory.mjs)
-2. **의존성 단위**. 타입 참조와 실행 시 초기화 참조를 그래프에 표시한다. 상호 참조가 있는 구현은 강한 연결 요소(SCC)로 묶고, 타입과 값 import 및 초기화 순서를 확인한다. 하나의 공개 기능에 필요한 private helper, 기본 테마·focus·overlay를 함께 생성하고 검증한다. 변환기에서 공통으로 막히는 패턴은 진단별로 수집하여 한 번 고치고 영향을 받은 단위를 재생성한다. 단위 간 Core 의존성이 생기면 공통 소유자의 작업으로 올린다.
-3. **기존 파이프라인 재사용**. `body_ir.dart → body-ir.ts → dart-emitter.ts`를 body 변환 경로로 사용한다. `batch.ts`의 generate/compose/validate/promote 흐름에 기능군 recipe와 현재 validator를 연결한다. 기존 `generate-*` 도구가 이미 관리하는 테마·아이콘·날짜·숫자 타입 출력은 해당 도구의 소유권을 유지하고, 기능군 실행에서 해당 생성기를 호출한다. 두 생성기가 같은 제품 파일을 관리하는 경우에는 먼저 한 소유자를 확정한다. [Body IR](tools/Nelyx.FrameworkToTypeScript/dart/bin/body_ir.dart) · [IR 스키마](tools/Nelyx.FrameworkToTypeScript/src/body-ir.ts) · [Dart emitter](tools/Nelyx.FrameworkToTypeScript/src/dart-emitter.ts) · [batch](tools/Nelyx.FrameworkToTypeScript/src/batch.ts) · [도구 안내](tools/Nelyx.FrameworkToTypeScript/README.md)
-4. **기존 카탈로그 접합**. `design_catalog.dart`의 구문 인벤토리와 이전 W11/W12 소유권 표에서 파일·기능군·목적지 연결을 가져와 현재 해석 결과에 대조한다. 이전 `design-package-plan.mjs`는 고정된 임시 경로를 가정하고 W12가 채택한 매핑을 다시 쓰려 하면 중단한다. W11 입력은 호출자가 원본과 출력 위치를 지정할 수 있게 만들고, 기존 매핑은 비교 입력으로 사용한다. 현재 `batch scan/plan`은 등록 recipe를 연결하는 기능이므로, W11에서는 두 공개 라이브러리 전체를 조사하고 해석된 그래프에서 recipe 후보를 만든다. 실행은 한 번의 호출로 전체 또는 지정 기능군을 받아 의존성이 준비된 단위부터 진행한다. 차단된 단위의 진단과 계속 실행할 수 있는 단위를 출력한다. [과거 카탈로그](tools/Nelyx.FrameworkToTypeScript/data/work8/w11-design-package-plan.json) · [카탈로그 생성기](tools/Nelyx.FrameworkToTypeScript/design-package-plan.mjs) · [batch 계획](tools/Nelyx.FrameworkToTypeScript/src/batch-plan.ts)
-5. **결정론적 승격**. 원본 pin·blob·선택 span, SDK/analyzer와 도구·recipe·binding 해시를 기준으로 입력을 확인한다. 깨끗한 임시 위치에서 생성·포맷 후 반복 결과의 바이트 일치를 검사한다. 원본과 채택 코드가 모두 바뀐 경우에는 기존 base와 현재 제품 diff로 충돌을 표시한다. 현재 작업트리의 로컬 수정도 기준에 포함한다. 통과한 단위의 코드·공개 export·출처·소유권을 함께 반영한다. [생성 소유권 안내](tools/Nelyx.FrameworkToTypeScript/data/README.md) · [현재 모듈 소유권](tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json)
+2. **한 번에 넣을 입력**. 두 공개 라이브러리의 범위를 합쳐 기존 생성·채택 코드, 새로 변환할 선언, 근거가 있는 M2 전용 제외 항목을 원본에 매핑한다. M2 여부가 불분명한 선언도 추적한다. 새 위젯과 함께 필요한 private helper·테마·상태·렌더 선언을 선택하고, 타입 참조와 값 초기화 순환은 강한 연결 요소(SCC)로 묶어 배치 내부 순서를 정한다. 현재 등록 recipe가 없는 선언까지 W11-00 목록과 대조한다. [카탈로그](tools/Nelyx.FrameworkToTypeScript/data/work8/w11-design-package-plan.json) · [batch 계획](tools/Nelyx.FrameworkToTypeScript/src/batch-plan.ts)
+3. **첫 배치에서 실제 TS 쓰기**. 기존 `designs:probe --family all --graph --emitter`는 후보 해시와 차단 진단을 출력한다. W11-01에서 이 도구의 전체 그래프와 `body_ir.dart → body-ir.ts → dart-emitter.ts`를 재사용해, 한 번의 호출로 생성 가능한 모듈을 `packages/material/src`와 `packages/cupertino/src`의 소유 경로에 쓰도록 한다. 기존 테마·아이콘·날짜 생성물과 채택한 수동 이식은 원본 심벌을 현재 파일에 연결한다. 목적지에 로컬 수정이나 소유권 충돌이 있으면 해당 차이를 보존하고 다음 모듈로 진행한다. [전체 그래프](tools/Nelyx.FrameworkToTypeScript/design-body-probe.mjs) · [후보 생성](tools/Nelyx.FrameworkToTypeScript/src/design-emitter-probe.ts) · [모듈 소유권](tools/Nelyx.FrameworkToTypeScript/data/work8/w12-product-module-layout.json)
+4. **첫 배치 마감**. 모듈 하나의 IR·emitter·외부 바인딩 오류는 원본 위치와 영향받는 선언에 기록하고 나머지 모듈을 끝까지 처리한다. 배치가 끝나면 두 패키지 각각에 대해 소스에 쓴 선언, 기존 구현에 연결한 선언, 차단된 선언, 범위 판정 대기 또는 제외한 선언을 W11-00 목록과 대조한다. 누락된 항목은 차단 사유에 포함한다. 실제 TS가 있는 이식분과 body를 생성하지 못한 항목을 구별하며, 빈 구현으로 차단 수를 줄이지 않는다. 개별 위젯의 실행 통과는 후속 검증에서 확인한다.
+5. **오류 수정과 재생성**. 두 패키지의 차단 진단과 이식한 소스의 TypeScript 컴파일 오류를 모은다. 원본·IR·생성 코드에서 공통 원인을 찾아 전이 의존성이 많이 걸린 변환 규칙, import·초기화, Core 바인딩부터 수정한다. 해당 단위와 소비자를 함께 재생성하고 컴파일해 같은 원인의 오류가 양쪽에서 줄었는지 본다. 생성 코드의 수정은 emitter·recipe에, 기존 채택 코드의 수정은 해당 소유 파일에 반영한다. 공개 export와 서브패스는 구현·타입·동작이 확인된 뒤 기존 `batch.ts`의 검증·승격 절차를 활용해 연결한다. 같은 pin·SDK·recipe로 재생성한 결과와 제품 소스의 바이트를 대조한다. [Dart emitter](tools/Nelyx.FrameworkToTypeScript/src/dart-emitter.ts) · [batch](tools/Nelyx.FrameworkToTypeScript/src/batch.ts) · [생성 소유권 안내](tools/Nelyx.FrameworkToTypeScript/data/README.md)
 
 ### 컴파일러·컨버터에서 바꿀 지점
 
-현재 IR은 지원하지 않는 AST나 바인딩을 선언 단위에서 거절한다. 예를 들어 `body_ir.dart`는 generator body를 거절하고, `class-model.ts`는 제네릭·제약·상태가 있는 mixin에 검증된 적용 규칙을 요구한다. 생성 규칙은 실제 기능군에서 반복되는 패턴부터 추가한다. 헷갈리는 lowering은 원본의 최소 예제를 Dart와 TS 양쪽에서 실행해 의미를 먼저 확정한다. [Analyzer body 수집](tools/Nelyx.FrameworkToTypeScript/dart/bin/body_ir.dart) · [클래스 모델](tools/Nelyx.FrameworkToTypeScript/src/class-model.ts)
+현재 IR은 지원하지 않는 AST나 바인딩을 선언 단위에서 거절한다. 예를 들어 `body_ir.dart`는 generator body를 거절하고, `class-model.ts`는 제네릭·제약·상태가 있는 mixin에 검증된 적용 규칙을 요구한다. 첫 배치 후 반복되는 패턴의 Dart 원본·IR·생성 로직을 읽고 규칙을 수정한다. 의미 차이가 남는 lowering은 최소 예제를 Dart와 TS 양쪽에서 실행해 수정 결과를 확인한다. [Analyzer body 수집](tools/Nelyx.FrameworkToTypeScript/dart/bin/body_ir.dart) · [클래스 모델](tools/Nelyx.FrameworkToTypeScript/src/class-model.ts)
 
 | 변환 경계 | 구현 방향과 통과 확인 |
 | --- | --- |
@@ -55,22 +55,22 @@ Testbed에는 SDK API가 이미 있어도 데모가 `planned`인 경우가 있�
 | 비동기와 플랫폼 | `Future`·`Stream`·`TickerFuture`, route 결과·취소·오류, 외부 서비스 응답의 순서를 검증한다. 필요한 플랫폼 기능은 해당 호스트에 어댑터를 추가하고 지원 플랫폼과 검증 상태를 API에 연결한다. |
 | 제품 컴파일과 배포 | 정확히 같은 패키지 export와 TS 타입을 Node/Metro 및 각 호스트에서 확인한다. 정적 Hermes 지원 경로도 후보의 source/body/native 대응 검사로 검증한다. 결과 차이가 확인된 lowering만 AOT 도구에서 수정한다. [패키지 컴파일](Nelyx/eng/build-packages.mjs) · [Static Hermes AOT](Nelyx/sdk/tooling/static-aot/README.md) |
 
-한 기능군의 자동 변환이 Core나 호스트의 새 기능을 요구하면 그 바인딩을 먼저 연결한다. 변환 규칙이 해당 기능에만 적용되고 재사용 효과가 작으면 수동 이식이나 좁은 합성 어댑터를 택할 수 있다. 두 경로 모두 원본 대응·동작 검증·패키지 진입점 검증을 통과해야 한다. 미해결 선언은 사유와 의존 단위를 드러내고 그 기능의 완료를 보류한다.
+Core나 호스트 기능이 필요한 선언은 첫 배치에서 해당 소유자와 누락된 바인딩을 기록한다. 공통 바인딩을 고친 뒤에도 특정 위젯에만 남는 차이는 수동 이식이나 좁은 어댑터로 보완한다. 생성 코드와 채택 코드 모두 원본 대응·동작·패키지 진입점을 검증한다.
 
 ## 4. 실행 순서
 
-W11-00에서 실제 의존 그래프를 얻고 W11-01의 예비 이식으로 변환 규칙을 검증한다. 이후 기능군 단위로 생성·수정·검증한다. 공통 문제는 도구·Core에 수정해 해당 기능군을 함께 다시 검증한다.
+재개 순서는 **W11-00의 기존 목록 확인 → W11-01의 두 패키지 일괄 변환·소스 이식 → W11-02의 공통 오류 수정 → W11-03~06의 동작 보정 → W11-07~08의 패키지·앱 검증**이다. W11-03~06의 번호는 이식 후 남은 문제를 찾을 기능 영역을 가리킨다. 여러 영역에 걸친 결함은 같은 수정에서 처리한다.
 
 | 단계 | 주요 작업 | 종료 조건 |
 | --- | --- | --- |
-| **W11-00 · 전체 분모와 기준판** | 두 umbrella의 공개 선언·멤버와 전이 의존성을 해석한다. 현재 공개 API, 채택 코드, M2 전용 항목, Core/호스트 선행 기능을 매핑한다. 현재 패키지 빌드와 Windows Demo의 스크롤·RangeSlider를 기준으로 삼는다. | 공개 심벌과 필요한 의존성이 모두 소유자·기능군·검증 항목에 연결된다. 미해결 바인딩마다 원본 위치와 영향 범위가 나온다. |
-| **W11-01 · 변환기와 대표 이식** | 공개 API 스캔·recipe 생성, 해결된 심벌 바인딩과 진단을 현재 도구에 붙인다. `SegmentedButton<T>`와 `CupertinoSlidingSegmentedControl<T>`을 먼저 생성·이식한다. `CupertinoPicker`의 wheel controller 및 private render 의존성을 대상으로 다음 단위의 차단 패턴을 분류한다. | 두 대표 컨트롤이 실제 패키지 import로 실행된다. 선택·비활성화·키보드·RTL·접근성 및 제네릭 옵션이 원본 대조를 통과한다. 같은 입력의 재생성 결과가 일치한다. |
-| **W11-02 · 디자인 기반과 공통 소유자** | Theme/ThemeData, `copyWith`·`lerp`·동등성, 색·타이포그래피, WidgetState, theme default와 아이콘·셰이더를 채운다. Flutter `flutter_localizations`에서 필요한 locale·delegate와 문자열·날짜 규칙을 확인하고 기존 자산·locale 생성 경로에 연결한다. 뒤 단계에서 사용하는 Focus/Actions, Overlay/Navigator, scroll·restoration·semantics의 누락을 실제 참조에서 확인해 Core에 보완한다. | light/dark, high contrast, text scale, RTL, locale/delegate 변경을 대표 앱에서 비교한다. Material Color Utilities 대응과 palette·locale·asset의 pin/출처 및 라이선스를 확인한다. |
-| **W11-03 · 컨트롤·작은 조합** | 버튼·FAB, segmented, chip, toggle, 단일/범위 slider, 진행률·활동 표시, list tile·form row의 공개 멤버와 기본값을 기능군으로 채운다. 현재 확인된 구현도 누락된 생성자·콜백·theme option 기준으로 검사한다. | controlled 값·focus·hover·drag·disabled 및 소유 객체 교체/해제 경로가 동작한다. 기존 W10 RangeSlider 회귀와 새 컨트롤 검증이 통과한다. |
-| **W11-04 · 화면 구조·내비게이션·오버레이** | Material Scaffold/ScaffoldMessenger·AppBar·Drawer·Navigation 계열, tabs, dialogs/sheets, Snackbar, MenuAnchor·dropdown·SearchAnchor를 이식한다. Cupertino page/sliver navigation, tab/nested route, sheet, action sheet, context menu와 전환·back gesture를 연결한다. | 화면과 route가 열리고 종료·취소 시 결과와 focus가 귀환한다. 중첩 탐색·barrier·키보드 IME inset·접근성 dismiss를 정상 앱에서 확인한다. |
-| **W11-05 · 입력·폼·날짜/시간** | Material TextField/Form·Autocomplete, DatePicker와 TimePicker의 공개 옵션/입력 모드를 채운다. 기존 날짜 생성기와 달력 경로를 재사용한다. Cupertino wheel picker·date/time/timer picker·search·form과 복원·localization을 이식한다. | 편집·검증·선택·취소 후 값과 호출 순서가 맞는다. 끝 범위, locale, 달력 입력 모드, keyboard/IME·스크롤, 복원 수명 사례를 실제 진입점에서 통과한다. |
-| **W11-06 · 데이터·복합 스크롤** | Material DataTable·PaginatedDataTable, Stepper·ExpansionPanel, CarouselView, SliverAppBar와 복합 목록을 처리한다. Cupertino SliverRefreshControl과 큰 목록·고정/축소 내비게이션 조합의 미해결 동작을 완료한다. | row/selection 업데이트, 페이지·정렬, 중첩 스크롤, lazy/keep-alive, 스크롤 복귀, 언마운트·리소스 해제를 검증한다. |
-| **W11-07 · 라이브러리 전체 대조와 패키지** | 대표 목록 이후 남은 전체 공개 선언·공개 멤버·필요한 private body를 `W11-00` 분모로 닫는다. aliases, docs, package export와 resource/notice 표를 최신 생성 및 채택 코드에 맞춘다. | 범위 내 미구현 API·미해결 바인딩·사유 없는 불일치가 0개다. ESM·선언·서브패스가 현재 패키지에서 해석되고 독립 앱에서 단일 Core를 사용한다. |
+| **W11-00 · 전체 분모와 기준판** | 기존 Analyzer 목록과 현재 소유 경로를 대조한다. M2 범위 판정 대기와 Core/호스트 의존성도 첫 배치 입력에 표시한다. 기존 패키지·Windows Demo 스크롤·RangeSlider 결과를 회귀 기준으로 사용한다. | 두 패키지의 공개 선언·멤버 및 필요한 의존성을 첫 배치 입력에서 추적할 수 있다. |
+| **W11-01 · 전체 변환·소스 이식** | 3절의 파일 쓰기 경로를 연결하고 두 패키지 전체를 한 번에 처리한다. 기존 segmented control과 picker는 채택 구현으로 연결한다. | 각 패키지에 생성 가능한 TS를 실제로 썼고, W11-00 목록에서 각 선언의 목적지 또는 차단·범위 판정 사유를 찾을 수 있다. 이 시점의 컴파일·동작 오류를 다음 단계로 넘긴다. |
+| **W11-02 · 공통 원인 수정·재생성** | 실제 배치 오류를 기준으로 생성자·mixin·상수·타입·import와 Core 바인딩을 고친다. Theme/ThemeData, WidgetState, 색·타이포그래피, 아이콘·셰이더, locale·delegate와 Focus/Actions·Overlay/Navigator·scroll·restoration·semantics의 공통 누락을 원본 소유자에 맞춰 보완한다. | 영향받은 양쪽 모듈과 소비자를 재생성·컴파일해 수정한 오류의 해소를 확인한다. 남은 선언과 기능별 차이는 W11-03~07에서 추적한다. 테마·locale·자산은 light/dark, high contrast, text scale, RTL 및 출처·라이선스를 대조한다. |
+| **W11-03 · 컨트롤·작은 조합** | 이식된 버튼·FAB, segmented, chip, toggle, 단일/범위 slider, 진행률·활동 표시, list tile·form row의 누락된 생성자·콜백·테마 기본값을 보정한다. | controlled 값·focus·hover·drag·disabled 및 소유 객체 교체/해제 경로가 동작한다. 기존 W10 RangeSlider 회귀와 새 컨트롤 검증이 통과한다. |
+| **W11-04 · 화면 구조·내비게이션·오버레이** | 이식된 Material Scaffold/ScaffoldMessenger·AppBar·Drawer·Navigation, tabs, dialogs/sheets, Snackbar, MenuAnchor·dropdown·SearchAnchor의 배치와 route 동작을 보정한다. Cupertino page/sliver navigation, tab/nested route, sheet, action sheet, context menu의 전환·back gesture를 연결한다. | 화면과 route가 열리고 종료·취소 시 결과와 focus가 귀환한다. 중첩 탐색·barrier·키보드 IME inset·접근성 dismiss를 정상 앱에서 확인한다. |
+| **W11-05 · 입력·폼·날짜/시간** | 이식된 Material TextField/Form·Autocomplete, DatePicker·TimePicker 및 Cupertino wheel·date/time/timer picker·search·form의 옵션·입력 모드·복원·현지화를 보정한다. 기존 날짜 생성기와 달력 경로를 재사용한다. | 편집·검증·선택·취소 후 값과 호출 순서가 맞는다. 끝 범위, locale, 달력 입력 모드, keyboard/IME·스크롤, 복원 수명 사례를 실제 진입점에서 통과한다. |
+| **W11-06 · 데이터·복합 스크롤** | 이식된 Material DataTable·PaginatedDataTable, Stepper·ExpansionPanel, CarouselView, SliverAppBar 및 복합 목록의 동작을 보정한다. Cupertino SliverRefreshControl과 큰 목록·고정/축소 내비게이션 조합을 대조한다. | row/selection 업데이트, 페이지·정렬, 중첩 스크롤, lazy/keep-alive, 스크롤 복귀, 언마운트·리소스 해제를 검증한다. |
+| **W11-07 · 라이브러리 전체 대조와 패키지** | 첫 배치의 차단·충돌·범위 판정 대기 항목을 다시 대조한다. 전체 공개 선언·공개 멤버·필요한 private body를 W11-00 분모로 확인하고, aliases, docs, package export와 resource/notice 표를 갱신한다. | 범위 내 미구현 API·미해결 바인딩·사유 없는 불일치가 0개다. ESM·선언·서브패스가 현재 패키지에서 해석되고 독립 앱에서 단일 Core를 사용한다. |
 | **W11-08 · 제품 통합과 재생성** | Demo의 실제 조작 경로와 Testbed의 Material/Cupertino 데모를 최신 공급에서 검증한다. Web·Windows·Android에서 릴리스 경로와 배포 자산을 확인한다. Apple 호스트는 대응 툴체인에서 iOS/macOS 앱과 플랫폼 기능을 확인한다. 마지막으로 현재 pin의 전체 선택 단위를 재생성해 제품 소스·배포 결과와 대조한다. | 공개 API와 각 호스트의 실행 근거를 범위별로 기록한다. 실제 환경을 확보하지 못한 항목은 해당 호스트의 검증 대기 상태로 남는다. 재생성과 기존 앱 회귀 검사가 통과한다. |
 
 ## 5. 검증 및 완료 기준
@@ -81,7 +81,7 @@ W11-00에서 실제 의존 그래프를 얻고 W11-01의 예비 이식으로 변
 - **배포 단위**. 현 체크아웃으로 Core 및 두 패키지 dist를 빌드하고, 공급·설치된 패키지의 export/type/runtime 바이트와 소스 identity를 확인한다. 현지화·Material/Cupertino 아이콘 폰트·필요한 셰이더와 BSD 및 자산별 notice가 독립 소비자 앱에서도 해석돼야 한다. 새로운 API와 기존 호출 방식을 모두 실제 진입점에서 사용한다. [앱 패키지 공급](Nelyx/eng/prepare-app-packages.mjs) · [Material 출처](packages/material/licenses/design-foundation-sources.json) · [Cupertino 출처](packages/cupertino/licenses/design-foundation-sources.json)
 - **실행 예산과 작업물**. 각 검증은 20분 timeout을 적용하고 대부분의 반복은 30회 이내에서 원인 판정에 필요한 만큼 수행한다. 준비·빌드가 오래 걸리면 도구 단계와 기능군을 작게 나눈다. 임시 Flutter 분석·비교·소비자 디렉터리와 브라우저 프로필, 진단 번들은 성공·실패·중단 모두 `finally`에서 정리한다. 유지되는 자료는 현재 소스·recipe·출처·소유권과 현재 dist/공급이다. 새 단계의 결과는 이 문서의 단계 행에 요약한다. [저장소 지침](.github/copilot-instructions.md)
 
-현재 저장소에서 W11 시작과 회귀 확인에 쓰는 진입점이다. 새 자동 변환 명령과 기능군 검증기는 W11-01에서 구현한다. 아래 테스트 호출은 20분 제한을 집행하는 검증 runner로 실행한다.
+아래는 현재 저장소의 인벤토리 조회와 이식 후 빌드·회귀 검증에 쓰는 진입점이다. W11-01의 전체 소스 쓰기 기능은 구현 대기다. 테스트 호출은 20분 제한을 집행하는 검증 runner로 실행한다.
 
 ```powershell
 $flutterRepo = 'C:/Users/parti/flutter'
@@ -96,6 +96,8 @@ npm.cmd run run:windows --workspace @nelyx/testbed-2 -- --host native-hermes -- 
 **W11 완료**는 W11-00의 Material 3·Cupertino 공개 범위가 제품에 연결되고, 기능군별 원본/실행 대조 및 현재 패키지 소비 앱 검증이 통과한 상태다. 남은 API와 기능, 호스트 검증 대기는 해당 단계에 기록한다.
 
 ## 6. 실행 결과
+
+아래는 작업 방식 변경 전까지의 실행 기록이다. W11-01의 전체 소스 이식과 W11-02의 후속 수정 결과는 재개 후 기록한다.
 
 | 단계 | 현재 결과 | 남은 작업 |
 | --- | --- | --- |
@@ -133,7 +135,9 @@ npm.cmd run run:windows --workspace @nelyx/testbed-2 -- --host native-hermes -- 
 
 사용자 요청으로 전체 이식을 일시 중지했다. 마지막 제품 검증은 Pagination·Stepper·SliverRefresh를 포함한 Testbed Web Release, 엄격 타입 검사, 패키지 동작 검사와 원본 출처 확인이다. 소스와 테스트 변경 사항은 커밋하지 않고 현재 작업트리에 보존했다. Windows direct Hermes와 Android 에뮬레이터의 동작 확인은 앞선 Material modal 빌드까지이며, 그 이후 추가한 기능의 네이티브 검증은 남아 있다.
 
-재개 시 W11-05의 `CupertinoDatePicker`부터 진행한다. 고정 Flutter 원본과 기존 Core wheel API만 조사했고, 구현·공개 export·Testbed 시연·검증 변경은 시작하지 않았다. 전체 변환 배치에는 구문 통과 후보 462개와 차단 1,266개가 남아 있다. 후보는 제품 승격을 뜻하지 않는다. 그 밖의 미이식 API와 검증 항목은 6절에서 이어간다.
+**재개 첫 작업은 W11-01의 두 패키지 전체 변환·소스 이식이다.** 기존 W11-00 목록과 소유 경로를 읽고, 전체 그래프의 emitter 출력을 두 패키지의 실제 TS 파일로 쓰는 경로를 연결한 뒤 첫 배치를 끝까지 실행한다. 직전 예비 실행의 1,728개 모듈 시도 중 462개는 구문 통과 후보였고 1,266개는 차단됐다(IR 14개, emitter 1,252개). 이 수치는 과거 진단 집계다. 첫 배치에서 실제로 쓴 소스와 기존 구현에 연결한 항목을 확인한 뒤, 양쪽의 공통 차단과 컴파일 오류부터 고친다.
+
+`CupertinoDatePicker`도 첫 배치 입력에 포함한다. 중단 시점에는 고정 Flutter 원본과 Core wheel API를 조사했다. 해당 위젯에 남은 동작 차이와 Testbed 시연은 이식 후 W11-05에서 보완한다.
 
 W11-05 작업 중 [CupertinoSearchTextField](packages/cupertino/src/search-field.ts)를 공개 서브패스와 `widgets`에 추가했다. 기존 Cupertino 편집 위젯에 검색 제출·지우기·교체 가능한 suffix, 외부 controller·FocusNode 연결, 내부 텍스트 복원 등록을 합성했다. [현지화 생성기](tools/Nelyx.FrameworkToTypeScript/generate-cupertino-search-localizations.mjs)는 고정 Flutter ARB에서 placeholder를 재생성하며, [이식 출처](tools/Nelyx.FrameworkToTypeScript/data/framework-ports.json)는 원본 선언 span과 제품 해시를 확인한다.
 
