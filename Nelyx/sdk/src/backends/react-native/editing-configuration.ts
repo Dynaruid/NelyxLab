@@ -20,12 +20,14 @@ export function nativeEditingConfiguration(
         phone: 'phone-pad',
         email: 'email-address',
         url: 'url',
+        datetime: platform === 'ios' ? 'numbers-and-punctuation' : 'default',
       } as const
     )[configuration.keyboardType],
     autoComplete: hint ?? 'off',
   };
   if (platform === 'android') props.importantForAutofill = hint ? 'yes' : 'no';
-  if (platform === 'ios')
+  if (platform === 'ios') {
+    props.keyboardAppearance = configuration.keyboardAppearance ?? 'default';
     props.textContentType = hint
       ? ((
           {
@@ -39,5 +41,6 @@ export function nativeEditingConfiguration(
           } as Record<string, string>
         )[hint] ?? hint)
       : 'none';
+  }
   return props;
 }

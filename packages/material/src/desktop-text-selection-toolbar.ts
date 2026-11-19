@@ -1,27 +1,40 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/desktop_text_selection_toolbar.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
+// Flutter: packages/flutter/lib/src/material/desktop_text_selection_toolbar_button.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
-import {
-  Padding,
-  Column,
-  SizedBox,
-  PhysicalModel,
-  ConstrainedBox,
-  Text,
-  Align,
-} from '@nelyx/core/framework/widgets/basic';
-import { Semantics } from '@nelyx/core/framework/widgets/semantics';
-import { HitTestBehavior } from '@nelyx/core/framework/rendering/pointer-listener';
-import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector';
+import { Padding, Column, SizedBox, Text } from '@nelyx/core/framework/widgets/basic';
 import { CustomSingleChildLayout } from '@nelyx/core/framework/widgets/custom-layout';
 import { DesktopTextSelectionToolbarLayoutDelegate } from '@nelyx/core/framework/widgets/desktop-text-selection-toolbar-layout-delegate';
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { Alignment } from '@nelyx/core/framework/painting/alignment';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
-import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
+import { RoundedRectangleBorder } from '@nelyx/core/framework/painting/rounded-rectangle-border';
+import { SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
+import { Color } from '@nelyx/core/ui/color';
 import { Offset } from '@nelyx/core/ui/offset';
+import { Size } from '@nelyx/core/ui/size';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { FontWeight } from '@nelyx/core/ui/typography';
+import { kMinInteractiveDimension } from './constants.ts';
+import { Material, MaterialType } from './material.ts';
+import { TextButton } from './text-button.ts';
 import { Theme } from './theme.ts';
+
+const screenPadding = 8;
+const toolbarWidth = 222;
+const buttonPadding = EdgeInsets.fromLTRB(20, 0, 20, 3);
+const fontStyle = new TextStyle({
+  inherit: false,
+  fontSize: 14,
+  letterSpacing: -0.15,
+  fontWeight: FontWeight.w400,
+});
+const lightForeground = new Color(0xdd000000);
+const darkForeground = new Color(0xffffffff);
+
 export class DesktopTextSelectionToolbar extends StatelessWidget {
   readonly anchor: Offset;
   readonly children: readonly Widget[];
@@ -39,28 +52,28 @@ export class DesktopTextSelectionToolbar extends StatelessWidget {
     this.children = Object.freeze([...children]);
   }
   build(context: BuildContext): Widget {
-    const top = MediaQuery.of(context).safeArea.top + 8;
+    const top = MediaQuery.paddingOf(context).top + screenPadding;
     return new Padding(
       {
-        left: 8,
+        left: screenPadding,
         top,
-        right: 8,
-        bottom: 8,
+        right: screenPadding,
+        bottom: screenPadding,
       },
       new CustomSingleChildLayout(
         new SizedBox(
-          222,
+          toolbarWidth,
           undefined,
-          new PhysicalModel({
-            color: Theme.of(context).colorScheme.surface,
+          new Material({
+            type: MaterialType.card,
             borderRadius: BorderRadius.circular(7),
             clipBehavior: 'antiAlias',
             elevation: 1,
-            child: new Column(this.children, { mainSize: 'min', crossAlign: 'stretch' }),
+            child: new Column(this.children, { mainSize: 'min' }),
           }),
         ),
         new DesktopTextSelectionToolbarLayoutDelegate({
-          anchor: this.anchor.subtract(new Offset(8, top)),
+          anchor: this.anchor.subtract(new Offset(screenPadding, top)),
         }),
       ),
     );
@@ -100,44 +113,36 @@ export class DesktopTextSelectionToolbarButton extends StatelessWidget {
       onPressed,
       label: text,
       child: new Text(text, {
-        fontSize: 14,
-        style: new TextStyle({ letterSpacing: -0.15 }),
-        color: Theme.of(context).brightness === 'dark' ? 0xffffffff : 0xdd000000,
+        style: fontStyle.copyWith({
+          color: (Theme.of(context).colorScheme.brightness === 'dark'
+            ? darkForeground
+            : lightForeground
+          ).toARGB32(),
+        }),
         overflow: 'ellipsis',
       }),
     });
   }
-  build(_context: BuildContext): Widget {
-    const body = new GestureDetector(
-      new SizedBox(
-        Infinity,
-        undefined,
-        new ConstrainedBox(
-          new Padding(
-            {
-              left: 20,
-              top: 0,
-              right: 20,
-              bottom: 3,
-            },
-            new Align(this.child, { alignment: { x: -1, y: 0 }, heightFactor: 1 }),
-          ),
-          new BoxConstraints(48, Infinity, 36),
-        ),
-      ),
-      {
-        ...(this.onPressed ? { onTap: this.onPressed } : {}),
-        excludeFromSemantics: true,
-        behavior: HitTestBehavior.opaque,
-      },
+  build(context: BuildContext): Widget {
+    const color =
+      Theme.of(context).colorScheme.brightness === 'dark' ? darkForeground : lightForeground;
+    return new SizedBox(
+      Infinity,
+      undefined,
+      new TextButton({
+        onPressed: this.onPressed,
+        child: this.child,
+        ...(this.label ? { semanticsLabel: this.label } : {}),
+        style: TextButton.styleFrom({
+          alignment: Alignment.centerLeft,
+          enabledMouseCursor: SystemMouseCursors.basic,
+          disabledMouseCursor: SystemMouseCursors.basic,
+          foregroundColor: color,
+          shape: new RoundedRectangleBorder(),
+          minimumSize: new Size(kMinInteractiveDimension, 36),
+          padding: buttonPadding,
+        }),
+      }),
     );
-    return new Semantics({
-      button: true,
-      label: this.label,
-      enabled: this.onPressed !== null,
-      onTap: this.onPressed,
-      excludeSemantics: true,
-      child: body,
-    });
   }
 }

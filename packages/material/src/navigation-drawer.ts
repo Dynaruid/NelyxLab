@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Adapted from Flutter packages/flutter/lib/src/material/navigation_drawer.dart
+// at 71e4717a61786faab4c7aa39825989305ed29e8a.
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
 import { Alignment } from '@nelyx/core/framework/painting/alignment';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
@@ -32,6 +34,7 @@ import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ti
 import { emptyWidgetStateSet, WidgetState } from '@nelyx/core/framework/widgets/widget-state';
 import { Color } from '@nelyx/core/ui/color';
 import { Drawer } from './drawer.ts';
+import { Ink } from './ink-decoration.ts';
 import { InkWell } from './ink-well.ts';
 import { Material, MaterialType } from './material.ts';
 import { MaterialLocalizations } from './material-localizations.ts';
@@ -302,7 +305,7 @@ class NavigationDrawerTileState extends SingleTickerProviderStateMixin<Navigatio
         ),
       }),
     );
-    return backgroundColor ? new Material({ color: backgroundColor, child: tile }) : tile;
+    return backgroundColor ? new Ink({ color: backgroundColor, child: tile }) : tile;
   }
 
   override dispose(): void {

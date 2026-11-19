@@ -5,6 +5,7 @@ import type { BuildContext, Widget, WidgetOptions } from './framework.ts';
 import { TickerProviderStateMixin } from './ticker-provider.ts';
 import { AnimationController } from '../animation/animation-controller.ts';
 import { Curves } from '../animation/curves.ts';
+import type { Curve } from '../animation/curves.ts';
 import { WidgetState, WidgetStatesController } from './widget-state.ts';
 import type { DartSet } from '../../foundation/dart-collections.ts';
 import { FocusNode } from './focus.ts';
@@ -18,6 +19,9 @@ import { Semantics } from './semantics.ts';
 import type { SemanticsWidgetOptions } from './semantics.ts';
 import { SystemMouseCursors } from '../../services/mouse-cursor.ts';
 import { HitTestBehavior } from '../rendering/pointer-listener.ts';
+import { RenderBox } from '../rendering/object.ts';
+import { Rect } from '../../ui/rect.ts';
+import type { Offset } from '../../ui/geometry.ts';
 import { MouseRegion } from './mouse-region.ts';
 import type { MouseCursor } from '../../services/mouse-cursor.ts';
 import { invariant } from '../../foundation/errors.ts';
@@ -33,6 +37,14 @@ export interface ControlVisualState {
   readonly showFocusHighlight: boolean;
   readonly showHoverHighlight: boolean;
   readonly pressProgress: number;
+}
+export interface ControlPointerPressOptions {
+  readonly hitSlop: number;
+  readonly pressDuration: number;
+  readonly releaseDuration: number;
+  readonly pressCurve: Curve;
+  readonly releaseCurve: Curve;
+  readonly progressCurve: Curve;
 }
 export interface ControlInteractionOptions extends WidgetOptions {
   readonly enabled?: boolean;
@@ -50,6 +62,11 @@ export interface ControlInteractionOptions extends WidgetOptions {
   readonly onShowFocusHighlight?: (focused: boolean) => void;
   readonly onShowHoverHighlight?: (hovered: boolean) => void;
   readonly requestFocusOnPointer?: boolean;
+  readonly hitTestBehavior?: HitTestBehavior;
+  /** A parent gesture owner can handle pointer activation while the control keeps focus and semantics. */
+  readonly pointerGesturesEnabled?: boolean;
+  /** An accepted tap can leave and re-enter the control before release. */
+  readonly pointerPress?: ControlPointerPressOptions;
   readonly preserveInteractionOnDeactivate?: boolean;
   readonly mouseCursorResolver?: (states: DartSet<WidgetState>) => MouseCursor;
   readonly dragStartBehavior?: GestureOptions['dragStartBehavior'];
@@ -111,6 +128,7 @@ export class ControlInteractionState extends TickerProviderStateMixin<ControlInt
   private readonly semanticsKey = createFrameworkAnchorKey('Control semantics');
   private motion!: AnimationController;
   private held = false;
+  private pointerInside = false;
   private focusHighlight = false;
   private hoverHighlight = false;
   private retiring = false;
@@ -151,7 +169,11 @@ export class ControlInteractionState extends TickerProviderStateMixin<ControlInt
     this.controller.update(WidgetState.disabled, !this.widget.enabled);
     this.controller.update(WidgetState.selected, this.widget.options.selected ?? false);
     this.controller.update(WidgetState.hovered, this.hovering && this.widget.enabled);
-    if (!this.widget.enabled) this.release();
+    if (
+      !this.widget.enabled ||
+      (this.widget.options.pointerPress && this.widget.options.pointerGesturesEnabled === false)
+    )
+      this.release();
   }
   override initState(): void {
     super.initState();
@@ -186,10 +208,40 @@ export class ControlInteractionState extends TickerProviderStateMixin<ControlInt
       this.controller.update(WidgetState.pressed, value);
     } finally {
       if (this.live) {
-        this.motion.animateTo(value ? 1 : 0, { duration: 100, curve: Curves.easeInOut });
+        this.setPressPosition(value);
         this.widget.options.onHighlightChanged?.(value);
       }
     }
+  }
+  private setPressPosition(inside: boolean): void {
+    if (this.pointerInside === inside) return;
+    this.pointerInside = inside;
+    const profile = this.widget.options.pointerPress;
+    if (profile) this.animatePointerPress();
+    else this.motion.animateTo(inside ? 1 : 0, { duration: 100, curve: Curves.easeInOut });
+  }
+  private animatePointerPress(): void {
+    const profile = this.widget.options.pointerPress,
+      inside = this.pointerInside,
+      target = inside ? 1 : 0;
+    if (!profile || this.motion.isAnimating || this.motion.value === target) return;
+    void this.motion
+      .animateTo(target, {
+        duration: inside ? profile.pressDuration : profile.releaseDuration,
+        curve: inside ? profile.pressCurve : profile.releaseCurve,
+      })
+      .then(() => {
+        if (this.live && this.pointerInside !== inside) this.animatePointerPress();
+      });
+  }
+  private containsPointer(position: Offset, slop: number): boolean {
+    if (!this.live) return false;
+    const render = this.context.findRenderObject();
+    if (!(render instanceof RenderBox) || !render.hasSize) return false;
+    const { x, y, width, height } = render.paintBounds;
+    return Rect.fromLTWH(x, y, width, height)
+      .inflate(slop)
+      .contains(render.globalToLocal(position));
   }
   private release(): void {
     this.press(false);
@@ -201,6 +253,7 @@ export class ControlInteractionState extends TickerProviderStateMixin<ControlInt
       return;
     }
     this.held = false;
+    this.pointerInside = false;
     this.hovering = false;
     try {
       this.motion.stop();
@@ -236,7 +289,8 @@ export class ControlInteractionState extends TickerProviderStateMixin<ControlInt
     const options = this.widget.options,
       enabled = this.widget.enabled,
       states = this.controller.value,
-      node = this.focusNode;
+      node = this.focusNode,
+      pointerPress = options.pointerPress;
     const body = this.widget.builder(
       context,
       Object.freeze({
@@ -247,93 +301,114 @@ export class ControlInteractionState extends TickerProviderStateMixin<ControlInt
         focused: node.hasFocus,
         showFocusHighlight: this.focusHighlight,
         showHoverHighlight: this.hoverHighlight,
-        pressProgress: this.motion.value,
+        pressProgress:
+          pointerPress?.progressCurve.transform(this.motion.value) ?? this.motion.value,
       }),
     );
     const gestures = options.gestures;
-    const gesture = new GestureDetector(body, {
-      behavior: HitTestBehavior.opaque,
-      excludeFromSemantics: true,
-      enabled,
-      ...(options.dragStartBehavior ? { dragStartBehavior: options.dragStartBehavior } : {}),
-      onTap: () => {
-        if (this.canActivate) {
-          if (options.requestFocusOnPointer ?? true) node.requestFocus();
-          this.activateControl();
-        }
-      },
-      onTapDown: (details) => {
-        this.press(true);
-        if (this.live && enabled) gestures?.onTapDown?.(details);
-      },
-      onTapUp: (details) => {
-        try {
-          if (this.live && this.widget.enabled) gestures?.onTapUp?.(details);
-        } finally {
-          this.release();
-        }
-      },
-      onTapCancel: () => {
-        try {
-          if (this.live) gestures?.onTapCancel?.();
-        } finally {
-          this.release();
-        }
-      },
-      ...(options.onLongPress
-        ? {
-            onLongPress: () => {
+    const activateTap = () => {
+      if (this.canActivate) {
+        if (options.requestFocusOnPointer ?? true) node.requestFocus();
+        this.activateControl();
+      }
+    };
+    const gesture =
+      options.pointerGesturesEnabled === false
+        ? body
+        : new GestureDetector(body, {
+            behavior: options.hitTestBehavior ?? HitTestBehavior.opaque,
+            excludeFromSemantics: true,
+            enabled,
+            ...(options.dragStartBehavior ? { dragStartBehavior: options.dragStartBehavior } : {}),
+            onTap: pointerPress ? null : activateTap,
+            ...(pointerPress
+              ? {
+                  trackTapMovementAfterAcceptance: true,
+                  onTapMove: (details) => {
+                    if (this.held)
+                      this.setPressPosition(
+                        this.containsPointer(details.globalPosition, pointerPress.hitSlop),
+                      );
+                  },
+                }
+              : {}),
+            onTapDown: (details) => {
+              this.press(true);
+              if (this.live && enabled) gestures?.onTapDown?.(details);
+            },
+            onTapUp: (details) => {
               try {
-                if (this.live && this.widget.enabled) this.widget.options.onLongPress?.();
+                if (this.live && this.widget.enabled) gestures?.onTapUp?.(details);
+              } finally {
+                this.release();
+              }
+              if (
+                pointerPress &&
+                this.containsPointer(details.globalPosition, pointerPress.hitSlop)
+              )
+                activateTap();
+            },
+            onTapCancel: () => {
+              try {
+                if (this.live) gestures?.onTapCancel?.();
               } finally {
                 this.release();
               }
             },
-          }
-        : {}),
-      ...(gestures?.onHorizontalDragStart
-        ? {
-            onHorizontalDragStart: (details) => {
-              if (this.live && this.widget.enabled) {
-                this.press(true);
-                if (this.widget.options.requestFocusOnPointer ?? true) node.requestFocus();
-                this.widget.options.gestures?.onHorizontalDragStart?.(details);
-              }
-            },
-          }
-        : {}),
-      ...(gestures?.onHorizontalDragUpdate
-        ? {
-            onHorizontalDragUpdate: (details) => {
-              if (this.live && this.widget.enabled)
-                this.widget.options.gestures?.onHorizontalDragUpdate?.(details);
-            },
-          }
-        : {}),
-      ...(gestures?.onHorizontalDragEnd
-        ? {
-            onHorizontalDragEnd: (details) => {
-              try {
-                if (this.live && this.widget.enabled)
-                  this.widget.options.gestures?.onHorizontalDragEnd?.(details);
-              } finally {
-                this.release();
-              }
-            },
-          }
-        : {}),
-      ...(gestures?.onHorizontalDragCancel
-        ? {
-            onHorizontalDragCancel: () => {
-              try {
-                if (this.live) this.widget.options.gestures?.onHorizontalDragCancel?.();
-              } finally {
-                this.release();
-              }
-            },
-          }
-        : {}),
-    });
+            ...(options.onLongPress
+              ? {
+                  onLongPress: () => {
+                    try {
+                      if (this.live && this.widget.enabled) this.widget.options.onLongPress?.();
+                    } finally {
+                      this.release();
+                    }
+                  },
+                }
+              : {}),
+            ...(gestures?.onHorizontalDragStart
+              ? {
+                  onHorizontalDragStart: (details) => {
+                    if (this.live && this.widget.enabled) {
+                      this.press(true);
+                      if (this.widget.options.requestFocusOnPointer ?? true) node.requestFocus();
+                      this.widget.options.gestures?.onHorizontalDragStart?.(details);
+                    }
+                  },
+                }
+              : {}),
+            ...(gestures?.onHorizontalDragUpdate
+              ? {
+                  onHorizontalDragUpdate: (details) => {
+                    if (this.live && this.widget.enabled)
+                      this.widget.options.gestures?.onHorizontalDragUpdate?.(details);
+                  },
+                }
+              : {}),
+            ...(gestures?.onHorizontalDragEnd
+              ? {
+                  onHorizontalDragEnd: (details) => {
+                    try {
+                      if (this.live && this.widget.enabled)
+                        this.widget.options.gestures?.onHorizontalDragEnd?.(details);
+                    } finally {
+                      this.release();
+                    }
+                  },
+                }
+              : {}),
+            ...(gestures?.onHorizontalDragCancel
+              ? {
+                  onHorizontalDragCancel: () => {
+                    try {
+                      if (this.live) this.widget.options.gestures?.onHorizontalDragCancel?.();
+                    } finally {
+                      this.release();
+                    }
+                  },
+                }
+              : {}),
+          });
     const hover = (value: boolean) => {
       if (!this.live) return;
       this.hovering = value;

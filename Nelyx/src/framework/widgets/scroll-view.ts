@@ -5,8 +5,15 @@ import type { BuildContext, WidgetOptions } from './framework.ts';
 import type { Key } from '../../foundation/key.ts';
 import type { Clip } from '../../ui/clip.ts';
 import { Axis, AxisDirection } from '../painting/basic-types.ts';
+import { BoxConstraints } from '../rendering/constraints.ts';
+import { RenderSliverToBoxAdapter } from '../rendering/sliver.ts';
+import type { RenderBox } from '../rendering/object.ts';
 import type { ViewportOffset } from '../rendering/viewport-offset.ts';
-import { ScrollCacheExtent, SliverPaintOrder } from '../rendering/viewport.ts';
+import {
+  RenderShrinkWrappingViewport,
+  ScrollCacheExtent,
+  SliverPaintOrder,
+} from '../rendering/viewport.ts';
 import { Viewport, ShrinkWrappingViewport } from './viewport.ts';
 import { Scrollable } from './scrollable.ts';
 import type { ScrollController } from './scroll-controller.ts';
@@ -17,7 +24,12 @@ import { ScrollConfiguration } from './scroll-configuration.ts';
 import type { ScrollBehavior } from './scroll-configuration.ts';
 import { DragStartBehavior } from '../gestures/recognizer.ts';
 import { HitTestBehavior } from '../rendering/pointer-listener.ts';
-import { SliverPadding, getAxisDirectionFromAxisReverseAndDirectionality } from './basic.ts';
+import {
+  Padding,
+  SliverPadding,
+  SliverToBoxAdapter,
+  getAxisDirectionFromAxisReverseAndDirectionality,
+} from './basic.ts';
 import { Directionality, MediaQuery } from './app-data.ts';
 import '../painting/edge-insets.ts';
 import type { EdgeInsetsGeometry } from '../painting/edge-insets.ts';
@@ -50,6 +62,7 @@ import { invariant } from '../../foundation/errors.ts';
 import { protect } from '../../ui/value-math.ts';
 import { normalizeSliverChildPolicy } from './view-work-budget.ts';
 import type { SliverChildPolicy } from './view-work-budget.ts';
+import type { Size } from '../../ui/geometry.ts';
 export type { SliverChildPolicy } from './view-work-budget.ts';
 export class ScrollViewKeyboardDismissBehavior {
   static readonly manual = new ScrollViewKeyboardDismissBehavior(0, 'manual');
@@ -292,6 +305,104 @@ export class CustomScrollView extends ScrollView {
     return this.slivers;
   }
 }
+
+export interface SingleBoxScrollViewOptions extends Omit<
+  ScrollViewOptions,
+  'shrinkWrap' | 'center' | 'anchor' | 'paintOrder'
+> {
+  readonly child: Widget;
+  readonly padding?: EdgeInsetsGeometry | null;
+}
+
+/** Uses the shared scroll position and viewport for one eagerly measured child. */
+export class SingleBoxScrollView extends ScrollView {
+  private readonly sliver: SliverToBoxAdapter;
+
+  constructor({ child, padding = null, ...options }: SingleBoxScrollViewOptions) {
+    super({ ...options, shrinkWrap: true });
+    this.sliver = new SliverToBoxAdapter({ child: padding ? new Padding(padding, child) : child });
+  }
+
+  override buildSlivers(): readonly Widget[] {
+    return [this.sliver];
+  }
+
+  override buildViewport(
+    _context: BuildContext,
+    offset: ViewportOffset,
+    axisDirection: AxisDirection,
+    slivers: readonly Widget[],
+  ): Widget {
+    return new SingleBoxViewport({
+      offset,
+      axisDirection,
+      slivers,
+      scrollCacheExtent: this.childLayoutCacheExtent,
+      clipBehavior: this.clipBehavior,
+    });
+  }
+}
+
+class SingleBoxViewport extends ShrinkWrappingViewport {
+  override createRenderObject(context: BuildContext): RenderShrinkWrappingViewport {
+    return new RenderSingleBoxViewport({
+      axisDirection: this.axisDirection,
+      crossAxisDirection: Viewport.getDefaultCrossAxisDirection(context, this.axisDirection),
+      offset: this.offset,
+      clipBehavior: this.clipBehavior,
+      scrollCacheExtent: this.scrollCacheExtent,
+    });
+  }
+}
+
+class RenderSingleBoxViewport extends RenderShrinkWrappingViewport {
+  private get box(): RenderBox | null {
+    const sliver = this.firstChild;
+    return sliver instanceof RenderSliverToBoxAdapter ? sliver.child : null;
+  }
+
+  protected override computeMinIntrinsicWidth(height: number): number {
+    return this.box?.getMinIntrinsicWidth(height) ?? 0;
+  }
+  protected override computeMaxIntrinsicWidth(height: number): number {
+    return this.box?.getMaxIntrinsicWidth(height) ?? 0;
+  }
+  protected override computeMinIntrinsicHeight(width: number): number {
+    return this.box?.getMinIntrinsicHeight(width) ?? 0;
+  }
+  protected override computeMaxIntrinsicHeight(width: number): number {
+    return this.box?.getMaxIntrinsicHeight(width) ?? 0;
+  }
+
+  private withBoundedCrossAxis(constraints: BoxConstraints): BoxConstraints {
+    if (this.axis === Axis.vertical) {
+      if (constraints.hasBoundedWidth) return constraints;
+      return constraints.tighten(constraints.constrainWidth(this.getMaxIntrinsicWidth(Infinity)));
+    }
+    if (constraints.hasBoundedHeight) return constraints;
+    return constraints.tighten(
+      undefined,
+      constraints.constrainHeight(this.getMaxIntrinsicHeight(Infinity)),
+    );
+  }
+
+  protected override computeDryLayout(constraints: BoxConstraints): Size {
+    const bounded = this.withBoundedCrossAxis(constraints);
+    if (this.axis === Axis.vertical) {
+      const width = bounded.maxWidth;
+      const child = this.box?.getDryLayout(BoxConstraints.tightFor(width));
+      return { width, height: bounded.constrainHeight(child?.height ?? 0) };
+    }
+    const height = bounded.maxHeight;
+    const child = this.box?.getDryLayout(BoxConstraints.tightFor(undefined, height));
+    return { width: bounded.constrainWidth(child?.width ?? 0), height };
+  }
+
+  protected override performLayout(constraints: BoxConstraints): Size {
+    return super.performLayout(this.withBoundedCrossAxis(constraints));
+  }
+}
+
 export interface BoxScrollViewOptions extends Omit<
   ScrollViewOptions,
   'scrollBehavior' | 'center' | 'anchor' | 'paintOrder'

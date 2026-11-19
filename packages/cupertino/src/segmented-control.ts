@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/segmented_control.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
 import type { PaintingContext } from '@nelyx/core/framework/painting/context';
+import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
+import { RoundedSuperellipseBorder } from '@nelyx/core/framework/painting/rounded-superellipse-border';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
@@ -14,10 +18,7 @@ import { HitTestBehavior } from '@nelyx/core/framework/rendering/pointer-listene
 import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { Center, Padding } from '@nelyx/core/framework/widgets/basic';
 import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
-import { FocusNode } from '@nelyx/core/framework/widgets/focus';
-import { Focus } from '@nelyx/core/framework/widgets/focus-scope';
 import {
-  Element,
   MultiChildRenderObjectWidget,
   State,
   StatefulWidget,
@@ -30,18 +31,17 @@ import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
 import { MouseRegion } from '@nelyx/core/framework/widgets/mouse-region';
 import { UnconstrainedBox } from '@nelyx/core/framework/widgets/overflow-box';
 import { RadioGroup } from '@nelyx/core/framework/widgets/radio-group';
-import type { RadioClient, RadioGroupRegistry } from '@nelyx/core/framework/widgets/radio-group';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
-import { SingleActivator } from '@nelyx/core/framework/widgets/shortcuts';
 import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
-import { LogicalKeyboardKey } from '@nelyx/core/services/keyboard-key';
 import { SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
 import { Color } from '@nelyx/core/ui/color';
 import type { Size } from '@nelyx/core/ui/geometry';
 import { Paint } from '@nelyx/core/ui/paint';
 import { Radius } from '@nelyx/core/ui/radius';
 import { Rect } from '@nelyx/core/ui/rect';
-import { RRect } from '@nelyx/core/ui/rrect';
+import type { Path } from '@nelyx/core/ui/path';
+import { SegmentFocusButton } from './internal/segmented-control-focus.ts';
+import type { SegmentFocusButtonState } from './internal/segmented-control-focus.ts';
 import type { TextBaseline } from '@nelyx/core/ui/typography';
 import { resolveCupertinoColor } from './internal/colors/color-values.ts';
 import type { CupertinoColor } from './internal/colors/color-values.ts';
@@ -51,7 +51,13 @@ const noDisabledChildren = new Set<never>();
 const defaultPadding = EdgeInsets.symmetric({ horizontal: 16 });
 const defaultDisabledText = new Color(0x737a7a7a);
 const corner = Radius.circular(3);
-const activateSegment = new SingleActivator(LogicalKeyboardKey.space);
+const leftShape = new RoundedSuperellipseBorder({
+  borderRadius: BorderRadius.only({ topLeft: corner, bottomLeft: corner }),
+});
+const rightShape = new RoundedSuperellipseBorder({
+  borderRadius: BorderRadius.only({ topRight: corner, bottomRight: corner }),
+});
+const innerShape = new RoundedSuperellipseBorder({ borderRadius: BorderRadius.zero });
 
 export interface CupertinoSegmentedControlOptions<T extends {}> extends WidgetOptions {
   readonly children: ReadonlyMap<T, Widget>;
@@ -121,62 +127,10 @@ export class CupertinoSegmentedControl<T extends {}> extends StatefulWidget {
   }
 }
 
-class SegmentButton extends StatefulWidget {
-  constructor(
-    readonly token: object,
-    readonly value: number,
-    readonly enabled: boolean,
-    readonly child: Widget,
-    key: GlobalKey<SegmentButtonState>,
-  ) {
-    super(key);
-  }
-  createState(): SegmentButtonState {
-    return new SegmentButtonState();
-  }
-}
-
-class SegmentButtonState extends State<SegmentButton> implements RadioClient<number> {
-  private registry: RadioGroupRegistry<number> | null = null;
-  readonly focusNode = new FocusNode({ debugLabel: 'Cupertino bordered segment' });
-  readonly tristate = false;
-  get enabled(): boolean {
-    return this.widget.enabled;
-  }
-  get radioValue(): number {
-    return this.widget.value;
-  }
-  build(context: BuildContext): Widget {
-    const registry = this.enabled ? RadioGroup.maybeOf<number>(context, this.widget.token) : null;
-    if (this.registry !== registry) {
-      this.registry?.unregisterClient(this);
-      this.registry = registry;
-      registry?.registerClient(this);
-    }
-    return new Focus(this.widget.child, {
-      focusNode: this.focusNode,
-      canRequestFocus: this.enabled,
-      onKeyEvent: (_node, event) => {
-        // Core's RadioGroup supplies arrows and traversal, but not Space activation.
-        const registry = this.registry;
-        if (!registry || !activateSegment.accepts(event, (context as Element).owner.keyboard))
-          return 'ignored';
-        if (registry.groupValue !== this.radioValue) registry.onChanged(this.radioValue);
-        return 'handled';
-      },
-    });
-  }
-  override dispose(): void {
-    this.registry?.unregisterClient(this);
-    this.focusNode.dispose();
-    super.dispose();
-  }
-}
-
 interface Segment<T> {
   value: T;
   readonly radioId: number;
-  readonly key: GlobalKey<SegmentButtonState>;
+  readonly key: GlobalKey<SegmentFocusButtonState>;
   readonly animation: AnimationController;
   selected: boolean;
 }
@@ -305,7 +259,7 @@ class SegmentedControlState<T extends {}> extends TickerProviderStateMixin<
           new Center(child),
         ),
       );
-      return new SegmentButton(
+      return new SegmentFocusButton(
         this.groupToken,
         segment.radioId,
         !disabled,
@@ -382,6 +336,7 @@ class SegmentStrip extends MultiChildRenderObjectWidget {
 }
 
 class RenderSegmentStrip extends RenderBox {
+  private paths: readonly (Path | null)[] = [];
   constructor(private style: SegmentStrip) {
     super();
   }
@@ -446,30 +401,25 @@ class RenderSegmentStrip extends RenderBox {
     const { width, height } = this.measure(constraints);
     const tight = BoxConstraints.tightFor(width, height);
     const count = this.children.length;
-    this.children.forEach((child, index) => {
+    this.paths = this.children.map((child, index) => {
       child.layout(tight, { parentUsesSize: true });
-      child.layoutOffset = { x: (this.style.rtl ? count - 1 - index : index) * width, y: 0 };
+      const position = this.style.rtl ? count - 1 - index : index;
+      const x = position * width;
+      child.layoutOffset = { x, y: 0 };
+      if (width <= 0 || height <= 0) return null;
+      const shape = position === 0 ? leftShape : position === count - 1 ? rightShape : innerShape;
+      return shape.getOuterPath(Rect.fromLTWH(x, 0, width, height));
     });
     return constraints.constrain({ width: width * count, height });
   }
   override paint(context: PaintingContext): void {
-    const { rtl, background, border } = this.style;
+    const { background, border } = this.style;
     const stroke = new Paint({ color: border.toARGB32(), style: 'stroke', strokeWidth: 1 });
-    const last = this.children.length - 1;
     this.children.forEach((child, index) => {
-      const { width, height } = child.size;
-      if (width > 0 && height > 0) {
-        const rect = Rect.fromLTWH(child.layoutOffset.x, 0, width, height);
-        const shape = RRect.fromRectAndCorners(
-          rect,
-          index === (rtl ? last : 0)
-            ? { topLeft: corner, bottomLeft: corner }
-            : index === (rtl ? 0 : last)
-              ? { topRight: corner, bottomRight: corner }
-              : {},
-        );
-        context.canvas.drawRRect(shape, new Paint({ color: background[index]!.toARGB32() }));
-        context.canvas.drawRRect(shape, stroke);
+      const path = this.paths[index];
+      if (path) {
+        context.drawPath(path, new Paint({ color: background[index]!.toARGB32() }));
+        context.drawPath(path, stroke);
       }
       this.paintChild(context, child);
     });

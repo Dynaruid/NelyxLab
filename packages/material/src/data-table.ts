@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Behavior reference: Flutter material/data_table.dart at 71e4717a61786faab4c7aa39825989305ed29e8a.
 import { UniqueKey, ValueKey } from '@nelyx/core/foundation/key';
 import type { LocalKey } from '@nelyx/core/foundation/key';
+import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
+import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
+import { CurvedAnimation } from '@nelyx/core/framework/animation/animations';
+import { Curves } from '@nelyx/core/framework/animation/curves';
 import type { TapDownDetails } from '@nelyx/core/framework/gestures/tap';
 import { Alignment, AlignmentDirectional } from '@nelyx/core/framework/painting/alignment';
 import type { Decoration } from '@nelyx/core/framework/painting/decoration';
@@ -12,19 +17,22 @@ import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { FixedColumnWidth, IntrinsicColumnWidth } from '@nelyx/core/framework/rendering/table';
 import type { TableColumnWidth } from '@nelyx/core/framework/rendering/table';
 import { Directionality } from '@nelyx/core/framework/widgets/app-data';
-import { Center, Expanded, Row, SizedBox } from '@nelyx/core/framework/widgets/basic';
+import { Center, Expanded, Row, SizedBox, Transform } from '@nelyx/core/framework/widgets/basic';
 import { Container } from '@nelyx/core/framework/widgets/container';
 import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
-import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
+import { StatefulWidget, StatelessWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { Icon } from '@nelyx/core/framework/widgets/icon';
 import { AnimatedDefaultTextStyle } from '@nelyx/core/framework/widgets/implicit-animations';
 import { MouseRegion } from '@nelyx/core/framework/widgets/mouse-region';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { TableCell, TableRow } from '@nelyx/core/framework/widgets/table';
+import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
+import { AnimatedBuilder, FadeTransition } from '@nelyx/core/framework/widgets/transitions';
 import { emptyWidgetStateSet, WidgetState } from '@nelyx/core/framework/widgets/widget-state';
 import type { WidgetStateProperty } from '@nelyx/core/framework/widgets/widget-state';
 import type { MouseCursor } from '@nelyx/core/services/mouse-cursor';
+import { Matrix4 } from '@nelyx/core/math/matrix4';
 import type { Clip } from '@nelyx/core/ui/clip';
 import { Color } from '@nelyx/core/ui/color';
 import { SemanticsRole } from '@nelyx/core/ui/semantics';
@@ -178,6 +186,7 @@ export interface DataTableOptions extends WidgetOptions {
 const headingKey = new UniqueKey();
 const sortIconSize = 16;
 const sortGap = 2;
+const sortDuration = 150;
 function states(selected = false, disabled = false) {
   const result = emptyWidgetStateSet();
   if (selected) result.add(WidgetState.selected);
@@ -356,11 +365,7 @@ export class DataTable extends StatelessWidget {
       if (column.onSort) {
         if (mainAxisAlignment === 'center') label.unshift(new SizedBox(sortIconSize + sortGap, 0));
         label.push(
-          sorted
-            ? new Icon(this.sortAscending ? Icons.arrow_upward : Icons.arrow_downward, {
-                size: sortIconSize,
-              })
-            : new SizedBox(sortIconSize, 0),
+          new SortArrow(sorted, sorted ? this.sortAscending : null),
           new SizedBox(sortGap, 0),
         );
       }
@@ -371,7 +376,7 @@ export class DataTable extends StatelessWidget {
         child: new AnimatedDefaultTextStyle({
           style: headingStyle,
           softWrap: false,
-          duration: 150,
+          duration: sortDuration,
           child: new Row(label, {
             textDirection: column.numeric ? 'rtl' : direction,
             mainAxisAlignment,
@@ -500,5 +505,93 @@ export class DataTable extends StatelessWidget {
         ),
       }),
     });
+  }
+}
+
+class SortArrow extends StatefulWidget {
+  constructor(
+    readonly visible: boolean,
+    readonly ascending: boolean | null,
+  ) {
+    super();
+  }
+  createState(): SortArrowState {
+    return new SortArrowState();
+  }
+}
+
+class SortArrowState extends TickerProviderStateMixin<SortArrow> {
+  private opacity!: AnimationController;
+  private fade!: CurvedAnimation;
+  private turn!: AnimationController;
+  private baseAngle = 0;
+  private ascending: boolean | null = null;
+  private readonly icon = new Icon(Icons.arrow_upward, { size: sortIconSize });
+
+  override initState(): void {
+    super.initState();
+    const arrow = this.widget;
+    this.ascending = arrow.ascending;
+    this.baseAngle = arrow.ascending === false ? Math.PI : 0;
+    this.opacity = new AnimationController({
+      duration: sortDuration,
+      vsync: this,
+      value: arrow.visible ? 1 : 0,
+    });
+    this.fade = new CurvedAnimation({ parent: this.opacity, curve: Curves.fastOutSlowIn });
+    this.turn = new AnimationController({ duration: sortDuration, vsync: this });
+    this.turn.addStatusListener((status) => {
+      if (status !== AnimationStatus.completed) return;
+      this.baseAngle = (this.baseAngle + Math.PI) % (2 * Math.PI);
+      this.turn.value = 0;
+    });
+  }
+
+  override didUpdateWidget(old: SortArrow): void {
+    super.didUpdateWidget(old);
+    const arrow = this.widget;
+    const ascending = arrow.ascending ?? this.ascending;
+    const reset =
+      arrow.visible && !old.visible && this.opacity.status === AnimationStatus.dismissed;
+    if (reset) {
+      this.turn.stop();
+      this.turn.value = 0;
+      this.baseAngle = ascending === false ? Math.PI : 0;
+    }
+    if (old.visible !== arrow.visible) {
+      if (arrow.visible) void this.opacity.forward();
+      else void this.opacity.reverse();
+    }
+    if (this.ascending !== ascending && !reset) {
+      if (this.turn.status === AnimationStatus.dismissed) void this.turn.forward();
+      else void this.turn.reverse();
+    }
+    this.ascending = ascending;
+  }
+
+  build(): Widget {
+    return new FadeTransition({
+      opacity: this.fade,
+      child: new AnimatedBuilder({
+        animation: this.turn,
+        child: this.icon,
+        builder: (_context, child) => {
+          const transform = Matrix4.rotationZ(
+            this.baseAngle + Math.PI * Curves.easeIn.transform(this.turn.value),
+          );
+          transform.setTranslationRaw(0, -1.5, 0);
+          return new Transform(child ?? undefined, transform.storage, null, {
+            alignment: Alignment.center,
+          });
+        },
+      }),
+    });
+  }
+
+  override dispose(): void {
+    this.fade.dispose();
+    this.opacity.dispose();
+    this.turn.dispose();
+    super.dispose();
   }
 }

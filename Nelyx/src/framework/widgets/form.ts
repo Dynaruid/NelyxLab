@@ -3,8 +3,15 @@
 import { invariant } from '../../foundation/errors.ts';
 import { StatefulWidget, State, InheritedWidget } from './framework.ts';
 import type { BuildContext, Widget, WidgetOptions } from './framework.ts';
+import { Focus } from './focus-scope.ts';
+import { RestorableBool, RestorableValue, RestorationMixin } from './restoration.ts';
 
-export type AutovalidateMode = 'disabled' | 'always' | 'onUserInteraction';
+export type AutovalidateMode =
+  | 'disabled'
+  | 'always'
+  | 'onUserInteraction'
+  | 'onUnfocus'
+  | 'onUserInteractionIfError';
 export interface FormOptions extends WidgetOptions {
   readonly child: Widget;
   readonly onChanged?: () => void;
@@ -114,10 +121,12 @@ export interface FormFieldOptions<T> extends WidgetOptions {
   readonly initialValue: T;
   readonly builder: (field: FormFieldState<T>) => Widget;
   readonly validator?: (value: T) => string | null;
+  readonly forceErrorText?: string | null;
   readonly onSaved?: (value: T) => void;
   readonly onReset?: () => void;
   readonly enabled?: boolean;
   readonly autovalidateMode?: AutovalidateMode;
+  readonly restorationId?: string | null;
 }
 export class FormField<T> extends StatefulWidget {
   constructor(readonly options: FormFieldOptions<T>) {
@@ -127,22 +136,25 @@ export class FormField<T> extends StatefulWidget {
     return new FormFieldState<T>();
   }
 }
-export class FormFieldState<T> extends State<FormField<T>> implements RegisteredField {
+export class FormFieldState<T> extends RestorationMixin<FormField<T>> implements RegisteredField {
   private current!: T;
-  private error: string | null = null;
-  private interacted = false;
+  private error!: RestorableValue<string | null>;
+  private readonly interacted = new RestorableBool(false);
   private form: FormState | null = null;
+  private readonly validateOnBlur = (hasFocus: boolean): void => {
+    if (!hasFocus && this.mounted && this.enabled) this.validate();
+  };
   get value(): T {
     return this.current;
   }
   get errorText(): string | null {
-    return this.error;
+    return this.error.value;
   }
   get hasError(): boolean {
-    return this.error !== null;
+    return this.errorText !== null;
   }
   get hasInteractedByUser(): boolean {
-    return this.interacted;
+    return this.interacted.value;
   }
   get enabled(): boolean {
     return this.widget.options.enabled ?? true;
@@ -150,6 +162,26 @@ export class FormFieldState<T> extends State<FormField<T>> implements Registered
   override initState(): void {
     super.initState();
     this.current = this.widget.options.initialValue;
+    this.error = new RestorableValue(this.widget.options.forceErrorText ?? null, (value) => {
+      invariant(
+        value === null || typeof value === 'string',
+        'invalid-restored-form-error',
+        'Expected a restored validation message',
+      );
+      return value;
+    });
+  }
+  override get restorationId(): string | null {
+    return this.widget.options.restorationId ?? null;
+  }
+  override restoreState(): void {
+    this.registerForRestoration(this.error, 'error_text');
+    this.registerForRestoration(this.interacted, 'has_interacted_by_user');
+  }
+  override didUpdateWidget(old: FormField<T>): void {
+    super.didUpdateWidget(old);
+    if (old.options.forceErrorText !== this.widget.options.forceErrorText)
+      this.error.value = this.widget.options.forceErrorText ?? null;
   }
   override didChangeDependencies(): void {
     super.didChangeDependencies();
@@ -169,6 +201,8 @@ export class FormFieldState<T> extends State<FormField<T>> implements Registered
     this.form?.unregister(this);
     this.form = null;
     super.dispose();
+    this.error.dispose();
+    this.interacted.dispose();
   }
   rebuild(): void {
     if (this.mounted) this.setState(() => {});
@@ -176,7 +210,7 @@ export class FormFieldState<T> extends State<FormField<T>> implements Registered
   didChange(value: T): void {
     this.setState(() => {
       this.current = value;
-      this.interacted = true;
+      this.interacted.value = true;
     });
     this.form?.fieldChanged();
   }
@@ -186,7 +220,9 @@ export class FormFieldState<T> extends State<FormField<T>> implements Registered
   }
   validate(): boolean {
     this.setState(() => {
-      this.error = this.enabled ? (this.widget.options.validator?.(this.current) ?? null) : null;
+      this.error.value =
+        this.widget.options.forceErrorText ??
+        (this.enabled ? (this.widget.options.validator?.(this.current) ?? null) : null);
     });
     return !this.hasError;
   }
@@ -194,22 +230,37 @@ export class FormFieldState<T> extends State<FormField<T>> implements Registered
     this.widget.options.onSaved?.(this.current);
   }
   reset(): void {
+    this.resetValue(this.widget.options.initialValue);
+  }
+  protected resetValue(value: T): void {
     this.setState(() => {
-      this.current = this.widget.options.initialValue;
-      this.error = null;
-      this.interacted = false;
+      this.current = value;
+      this.error.value = null;
+      this.interacted.value = false;
     });
     this.widget.options.onReset?.();
     this.form?.fieldChanged(false);
   }
   build(): Widget {
     const mode = this.widget.options.autovalidateMode ?? this.form?.autovalidateMode ?? 'disabled';
+    const interacted = this.hasInteractedByUser || this.form?.hasInteractedByUser;
     if (
       this.enabled &&
       (mode === 'always' ||
-        (mode === 'onUserInteraction' && (this.interacted || this.form?.hasInteractedByUser)))
+        (interacted &&
+          (mode === 'onUserInteraction' || (mode === 'onUserInteractionIfError' && this.hasError))))
     )
-      this.error = this.widget.options.validator?.(this.current) ?? null;
-    return this.widget.options.builder(this);
+      this.error.value =
+        this.widget.options.forceErrorText ?? this.widget.options.validator?.(this.current) ?? null;
+    const child = this.widget.options.builder(this);
+    return mode === 'onUnfocus' ||
+      (this.form?.autovalidateMode === 'onUnfocus' && mode !== 'always')
+      ? new Focus(child, {
+          canRequestFocus: false,
+          skipTraversal: true,
+          includeSemantics: false,
+          onFocusChange: this.validateOnBlur,
+        })
+      : child;
   }
 }

@@ -42,6 +42,10 @@
       "types": "./dist/services/text-editing.d.ts",
       "default": "./dist/services/text-editing.js"
     },
+    "./services/spell-check": {
+      "types": "./dist/services/spell-check.d.ts",
+      "default": "./dist/services/spell-check.js"
+    },
     "./version": {
       "types": "./dist/version.d.ts",
       "default": "./dist/version.js"
@@ -145,6 +149,10 @@
     "./foundation/notifier": {
       "types": "./dist/foundation/notifier.d.ts",
       "default": "./dist/foundation/notifier.js"
+    },
+    "./foundation/licenses": {
+      "types": "./dist/foundation/licenses.d.ts",
+      "default": "./dist/foundation/licenses.js"
     },
     "./ui/geometry": {
       "types": "./dist/ui/geometry.d.ts",
@@ -273,6 +281,10 @@
     "./framework/widgets/app-data": {
       "types": "./dist/framework/widgets/app-data.d.ts",
       "default": "./dist/framework/widgets/app-data.js"
+    },
+    "./framework/widgets/display-feature-sub-screen": {
+      "types": "./dist/framework/widgets/display-feature-sub-screen.d.ts",
+      "default": "./dist/framework/widgets/display-feature-sub-screen.js"
     },
     "./framework/semantics/semantics": {
       "types": "./dist/framework/semantics/semantics.d.ts",
@@ -1238,6 +1250,10 @@
       "types": "./dist/framework/widgets/overlay.d.ts",
       "default": "./dist/framework/widgets/overlay.js"
     },
+    "./framework/widgets/drag-boundary": {
+      "types": "./dist/framework/widgets/drag-boundary.d.ts",
+      "default": "./dist/framework/widgets/drag-boundary.js"
+    },
     "./framework/widgets/drag-target": {
       "types": "./dist/framework/widgets/drag-target.d.ts",
       "default": "./dist/framework/widgets/drag-target.js"
@@ -1381,6 +1397,14 @@
     "./framework/animation/animation-controller": {
       "types": "./dist/framework/animation/animation-controller.d.ts",
       "default": "./dist/framework/animation/animation-controller.js"
+    },
+    "./internal/foundation/license-notices": {
+      "types": "./dist/foundation/license-notices.d.ts",
+      "default": "./dist/foundation/license-notices.js"
+    },
+    "./framework/widgets/expansible": {
+      "types": "./dist/framework/widgets/expansible.d.ts",
+      "default": "./dist/framework/widgets/expansible.js"
     },
     "./framework/widgets/page-storage": {
       "types": "./dist/framework/widgets/page-storage.d.ts",
@@ -1645,6 +1669,14 @@
     "./framework/widgets/animated-size": {
       "default": "./dist/framework/widgets/animated-size.js",
       "types": "./dist/framework/widgets/animated-size.d.ts"
+    },
+    "./framework/widgets/spell-check": {
+      "types": "./dist/framework/widgets/spell-check.d.ts",
+      "default": "./dist/framework/widgets/spell-check.js"
+    },
+    "./framework/widgets/autocomplete": {
+      "types": "./dist/framework/widgets/autocomplete.d.ts",
+      "default": "./dist/framework/widgets/autocomplete.js"
     },
     "./framework/rendering/animated-size": {
       "default": "./dist/framework/rendering/animated-size.js",

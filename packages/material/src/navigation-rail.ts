@@ -1,24 +1,27 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/navigation_rail.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { invariant } from '@nelyx/core/foundation/errors';
 import type { Animation } from '@nelyx/core/framework/animation/animation';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
-import { Curves } from '@nelyx/core/framework/animation/curves';
+import { Curves, Interval } from '@nelyx/core/framework/animation/curves';
 import { CurvedAnimation } from '@nelyx/core/framework/animation/animations';
-import { Alignment } from '@nelyx/core/framework/painting/alignment';
+import { Alignment, AlignmentDirectional } from '@nelyx/core/framework/painting/alignment';
 import type { ShapeBorder } from '@nelyx/core/framework/painting/borders';
-import { ColorShapeDecoration } from '@nelyx/core/framework/painting/color-shape-decoration';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
 import { StadiumBorder } from '@nelyx/core/framework/painting/stadium-border';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import type { MainAxisAlignment } from '@nelyx/core/framework/rendering/boxes';
+import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import type { RenderBox } from '@nelyx/core/framework/rendering/object';
+import { Directionality } from '@nelyx/core/framework/widgets/app-data';
 import {
   Align,
-  Center,
   Column,
-  DecoratedBox,
-  Expanded,
+  Center,
+  ConstrainedBox,
+  Flexible,
   Padding,
   Positioned,
   Row,
@@ -27,6 +30,7 @@ import {
 } from '@nelyx/core/framework/widgets/basic';
 import { ClipRect } from '@nelyx/core/framework/widgets/clip';
 import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
+import { ExcludeFocus } from '@nelyx/core/framework/widgets/focus-scope';
 import { InheritedWidget, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type {
   BuildContext,
@@ -36,16 +40,22 @@ import type {
 } from '@nelyx/core/framework/widgets/framework';
 import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
 import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
-import { AnimatedOpacity, AnimatedScale } from '@nelyx/core/framework/widgets/implicit-animations';
 import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-builder';
 import { Opacity } from '@nelyx/core/framework/widgets/opacity';
-import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
+import { IgnorePointer } from '@nelyx/core/framework/widgets/pointer-blocking';
+import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
+import { SingleBoxScrollView } from '@nelyx/core/framework/widgets/scroll-view';
 import { ExcludeSemantics, Semantics } from '@nelyx/core/framework/widgets/semantics';
-import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
+import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { Color } from '@nelyx/core/ui/color';
+import { Rect } from '@nelyx/core/ui/rect';
 import { SemanticsRole } from '@nelyx/core/ui/semantics';
+import { MaterialLocalizations } from './material-localizations.ts';
+import type { RectCallback } from './ink-feature.ts';
 import { InkWell } from './ink-well.ts';
-import { Material } from './material.ts';
+import type { InkWellOptions } from './ink-well.ts';
+import { Material, MaterialType } from './material.ts';
+import { NavigationIndicator } from './navigation-bar.ts';
 import { NavigationRailLabelType } from './navigation-rail-label-type.ts';
 import { NavigationRailTheme } from './navigation-rail-theme.ts';
 import type { NavigationRailThemeData } from './navigation-rail-theme.ts';
@@ -55,6 +65,15 @@ export { NavigationRailLabelType } from './navigation-rail-label-type.ts';
 
 const duration = 200;
 const indicatorShape = new StadiumBorder();
+const indicatorWidth = 56;
+const indicatorHeight = 32;
+const horizontalPadding = 8;
+const verticalSpacing = 12;
+const iconLabelSpacing = 4;
+const spacer = new SizedBox(undefined, 8);
+const labelFadeIn = new Interval(0.25, 0.75);
+const labelFadeOut = new Interval(0.75, 1);
+const expandedLabelFade = new Interval(0, 0.25);
 
 export interface NavigationRailDestinationOptions {
   readonly icon: Widget;
@@ -171,9 +190,10 @@ class RailExtension extends InheritedWidget {
   }
 }
 
-class NavigationRailState extends SingleTickerProviderStateMixin<NavigationRail> {
+class NavigationRailState extends TickerProviderStateMixin<NavigationRail> {
   private controller!: AnimationController;
   private extension!: CurvedAnimation;
+  private selection: AnimationController[] = [];
 
   override initState(): void {
     super.initState();
@@ -183,16 +203,37 @@ class NavigationRailState extends SingleTickerProviderStateMixin<NavigationRail>
       value: this.widget.extended ? 1 : 0,
     });
     this.extension = new CurvedAnimation({ parent: this.controller, curve: Curves.easeInOut });
+    this.resetSelection();
   }
 
   override didUpdateWidget(old: NavigationRail): void {
     super.didUpdateWidget(old);
-    if (old.extended === this.widget.extended) return;
-    if (this.widget.extended) this.controller.forward();
-    else this.controller.reverse();
+    const { extended, destinations, selectedIndex } = this.widget;
+    if (old.extended !== extended) {
+      if (extended) this.controller.forward();
+      else this.controller.reverse();
+    }
+    if (old.destinations.length !== destinations.length) this.resetSelection();
+    else if (old.selectedIndex !== selectedIndex) {
+      if (old.selectedIndex !== null) this.selection[old.selectedIndex]!.reverse();
+      if (selectedIndex !== null) this.selection[selectedIndex]!.forward();
+    }
+  }
+
+  private resetSelection(): void {
+    for (const controller of this.selection) controller.dispose();
+    this.selection = this.widget.destinations.map(
+      (_, index) =>
+        new AnimationController({
+          duration,
+          vsync: this,
+          value: this.widget.selectedIndex === index ? 1 : 0,
+        }),
+    );
   }
 
   override dispose(): void {
+    for (const controller of this.selection) controller.dispose();
     this.extension.dispose();
     this.controller.dispose();
     super.dispose();
@@ -207,6 +248,8 @@ class NavigationRailState extends SingleTickerProviderStateMixin<NavigationRail>
 
   private buildRail(context: BuildContext): Widget {
     const { options, destinations, extended } = this.widget;
+    const direction = Directionality.of(context);
+    const localizations = MaterialLocalizations.of(context);
     const rail = NavigationRailTheme.of(context);
     const { colorScheme } = Theme.of(context);
     const narrowWidth = options.minWidth ?? rail.minWidth ?? 80;
@@ -234,7 +277,7 @@ class NavigationRailState extends SingleTickerProviderStateMixin<NavigationRail>
     const trailingAtBottom = options.trailingAtBottom ?? false;
     let group: Widget = new Column(
       [
-        ...(leading && !leadingAtTop ? [new Center(leading)] : []),
+        ...(leading && !leadingAtTop ? [leading, spacer] : []),
         ...(destinations.length
           ? [
               new Semantics({
@@ -242,58 +285,59 @@ class NavigationRailState extends SingleTickerProviderStateMixin<NavigationRail>
                 explicitChildNodes: true,
                 role: SemanticsRole.tabBar,
                 child: new Column(
-                  destinations.map((destination, index) =>
-                    this.buildDestination(
-                      context,
-                      destination,
-                      index,
-                      rail,
-                      narrowWidth,
-                      fraction,
-                      labelType,
-                    ),
-                  ),
-                  { mainSize: 'min', crossAlign: 'stretch' },
+                  destinations.map((destination, index) => {
+                    const selection = this.selection[index]!;
+                    return new ListenableBuilder(selection, (context) =>
+                      this.buildDestination(
+                        context,
+                        destination,
+                        index,
+                        selection,
+                        rail,
+                        narrowWidth,
+                        width,
+                        fraction,
+                        labelType,
+                        localizations.tabLabel({
+                          tabIndex: index + 1,
+                          tabCount: destinations.length,
+                        }),
+                      ),
+                    );
+                  }),
+                  { mainSize: 'min' },
                 ),
               }),
             ]
           : []),
-        ...(trailing && !trailingAtBottom ? [new Center(trailing)] : []),
+        ...(trailing && !trailingAtBottom ? [trailing] : []),
       ],
-      { mainSize: 'min', crossAlign: 'stretch' },
+      {
+        mainSize: options.mainAxisAlignment == null ? 'min' : 'max',
+        mainAxisAlignment: options.mainAxisAlignment ?? 'start',
+      },
     );
     if (options.scrollable)
-      group = new ListView({
-        shrinkWrap: true,
+      group = new SingleBoxScrollView({
         primary: false,
-        children: [group],
-        padding: EdgeInsets.zero,
+        child: group,
       });
     const alignment = options.groupAlignment ?? rail.groupAlignment ?? -1;
-    const start = leading && leadingAtTop ? [new Center(leading)] : [];
-    const end = trailing && trailingAtBottom ? [new Center(trailing)] : [];
-    const body =
-      options.mainAxisAlignment && !options.scrollable
-        ? new Column([...start, group, ...end], {
-            mainAxisAlignment: options.mainAxisAlignment,
-            crossAlign: 'stretch',
-          })
-        : new Column(
-            [
-              ...start,
-              new Expanded(new Align(group, { alignment: new Alignment(0, alignment) })),
-              ...end,
-            ],
-            { crossAlign: 'stretch' },
-          );
+    const start = leading && leadingAtTop ? [spacer, leading, spacer] : [spacer];
+    const end = trailing && trailingAtBottom ? [trailing] : [];
+    const body = new Column([
+      ...start,
+      new Flexible(new Align(group, { alignment: new Alignment(0, alignment), widthFactor: 1 })),
+      ...end,
+    ]);
     return new Material({
       color: options.backgroundColor ?? rail.backgroundColor ?? new Color(colorScheme.surface),
       elevation,
-      child: new SizedBox(
-        width,
-        undefined,
-        new Padding(EdgeInsets.only({ top: 8, bottom: 8 }), body),
-      ),
+      child: new SafeArea({
+        left: direction === 'ltr',
+        right: direction === 'rtl',
+        child: new ConstrainedBox(body, new BoxConstraints(width)),
+      }),
     });
   }
 
@@ -301,14 +345,18 @@ class NavigationRailState extends SingleTickerProviderStateMixin<NavigationRail>
     context: BuildContext,
     destination: NavigationRailDestination,
     index: number,
+    animation: Animation<number>,
     theme: NavigationRailThemeData,
     narrowWidth: number,
+    minimumWidth: number,
     fraction: number,
     labelType: NavigationRailLabelType,
+    indexLabel: string,
   ): Widget {
     const { options, selectedIndex } = this.widget;
     const selected = index === selectedIndex;
     const { colorScheme: colors, textTheme } = Theme.of(context);
+    const disabledColor = new Color(colors.onSurface).withOpacity(0.38);
     const iconStyle =
       (selected
         ? (options.selectedIconTheme ?? theme.selectedIconTheme)
@@ -317,9 +365,7 @@ class NavigationRailState extends SingleTickerProviderStateMixin<NavigationRail>
         size: 24,
         color: new Color(selected ? colors.onSecondaryContainer : colors.onSurfaceVariant),
       });
-    const icons = destination.disabled
-      ? iconStyle.copyWith({ opacity: 0.38 * (iconStyle.opacity ?? 1) })
-      : iconStyle;
+    const icons = destination.disabled ? iconStyle.copyWith({ color: disabledColor }) : iconStyle;
     const textStyle =
       (selected
         ? (options.selectedLabelTextStyle ?? theme.selectedLabelTextStyle)
@@ -327,10 +373,9 @@ class NavigationRailState extends SingleTickerProviderStateMixin<NavigationRail>
       (textTheme.labelMedium ?? new TextStyle({ fontSize: 12 })).copyWith({
         color: colors.onSurface,
       });
-    const labelStyle =
-      destination.disabled && textStyle.color !== null
-        ? textStyle.copyWith({ color: new Color(textStyle.color).withOpacity(0.38).toARGB32() })
-        : textStyle;
+    const labelStyle = destination.disabled
+      ? textStyle.copyWith({ color: disabledColor.toARGB32() })
+      : textStyle;
     const label = new DefaultTextStyle(labelStyle, destination.label, {
       maxLines: 1,
       overflow: 'ellipsis',
@@ -347,73 +392,167 @@ class NavigationRailState extends SingleTickerProviderStateMixin<NavigationRail>
       theme.indicatorColor ??
       new Color(colors.secondaryContainer);
     const showIndicator = options.useIndicator ?? theme.useIndicator ?? true;
-    const icon = new SizedBox(
-      narrowWidth,
-      40,
-      new Stack(
+    const glyph = new ExcludeSemantics(
+      new IconTheme(icons, selected ? destination.selectedIcon : destination.icon),
+    );
+    const icon = showIndicator
+      ? new Stack(
+          [
+            new NavigationIndicator({
+              width: indicatorWidth,
+              height: indicatorHeight,
+              shape,
+              color,
+              animation,
+            }),
+            glyph,
+          ],
+          { alignment: Alignment.center },
+        )
+      : glyph;
+    const direction = Directionality.of(context);
+    const pad = (
+      destination.padding ??
+      (labelType === NavigationRailLabelType.none
+        ? EdgeInsets.zero
+        : EdgeInsets.symmetric({ horizontal: horizontalPadding }))
+    ).resolve(direction);
+    const iconOffset = Math.max(0, ((icons.size ?? 24) - indicatorHeight) / 2);
+    const noLabel = labelType === NavigationRailLabelType.none;
+    const withLabel = labelType === NavigationRailLabelType.all;
+    const labelHeight = withLabel ? 1 : Curves.easeInOut.transform(animation.value);
+    const caption = (opacity: number) =>
+      new ExcludeFocus(
+        new IgnorePointer(
+          new Opacity(label, {
+            opacity,
+            alwaysIncludeSemantics: true,
+          }),
+        ),
+        { excluding: opacity === 0 },
+      );
+    let visual: Widget;
+    if (noLabel) {
+      const iconPart = new Column(
         [
-          ...(showIndicator
-            ? [
-                new AnimatedScale({
-                  duration,
-                  scale: selected ? 1 : 0.55,
-                  child: new AnimatedOpacity({
-                    duration,
-                    opacity: selected ? 1 : 0,
-                    child: new SizedBox(
-                      56,
-                      32,
-                      new DecoratedBox(undefined, {
-                        decoration: new ColorShapeDecoration(shape, color),
+          new SizedBox(undefined, verticalSpacing / 2),
+          new SizedBox(narrowWidth, undefined, new Center(icon)),
+          new SizedBox(undefined, verticalSpacing / 2),
+        ],
+        { mainSize: 'min' },
+      );
+      visual =
+        fraction === 0
+          ? new Stack([iconPart, Positioned.fill(caption(0))])
+          : new ConstrainedBox(
+              new ClipRect(
+                new Row(
+                  [
+                    iconPart,
+                    new Flexible(
+                      new Align(caption(expandedLabelFade.transform(fraction)), {
+                        widthFactor: fraction,
+                        heightFactor: 1,
+                        alignment: AlignmentDirectional.centerStart,
                       }),
                     ),
-                  }),
-                }),
-              ]
-            : []),
-          new ExcludeSemantics(
-            new IconTheme(icons, selected ? destination.selectedIcon : destination.icon),
-          ),
-        ],
-        { alignment: Alignment.center },
-      ),
-    );
-    let visual: Widget;
-    if (fraction > 0) {
-      visual = new SizedBox(
-        undefined,
-        56,
-        new Row([
-          icon,
-          new Expanded(
-            new ClipRect(new Opacity(label, { opacity: fraction, alwaysIncludeSemantics: true })),
-          ),
-        ]),
-      );
-    } else if (
-      labelType === NavigationRailLabelType.all ||
-      (labelType === NavigationRailLabelType.selected && selected)
-    ) {
-      visual = new Column([icon, label], { mainSize: 'min', spacing: 2 });
+                    new SizedBox(horizontalPadding * fraction),
+                  ],
+                  { mainSize: 'min' },
+                ),
+              ),
+              new BoxConstraints(minimumWidth),
+            );
     } else {
-      visual = new Stack([
-        new SizedBox(undefined, 56, new Center(icon)),
-        Positioned.fill(new Opacity(label, { opacity: 0, alwaysIncludeSemantics: true })),
-      ]);
+      visual = new ClipRect(
+        new Column(
+          [
+            icon,
+            new SizedBox(undefined, labelHeight * iconLabelSpacing),
+            ...(labelHeight === 0
+              ? []
+              : [
+                  new Align(
+                    caption(
+                      withLabel
+                        ? 1
+                        : (selected ? labelFadeIn : labelFadeOut).transform(animation.value),
+                    ),
+                    {
+                      alignment: Alignment.topCenter,
+                      widthFactor: 1,
+                      heightFactor: labelHeight,
+                    },
+                  ),
+                ]),
+            new SizedBox(undefined, verticalSpacing),
+          ],
+          { mainSize: 'min' },
+        ),
+      );
+      if (labelHeight === 0) visual = new Stack([visual, Positioned.fill(caption(0))]);
     }
     const activate = destination.disabled ? null : () => options.onDestinationSelected?.(index);
+    const primary = new Color(colors.primary);
+    const inkCenter =
+      noLabel && fraction > 0
+        ? (direction === 'ltr' ? pad.left : pad.right) + narrowWidth / 2
+        : null;
+    const padded = new Padding(pad, visual);
     return new Semantics({
       container: true,
       role: SemanticsRole.tab,
       selected,
       enabled: !destination.disabled,
       onTap: activate,
-      child: new InkWell({
-        onTap: activate,
-        canRequestFocus: !destination.disabled,
-        excludeFromSemantics: true,
-        child: new Padding(destination.padding ?? EdgeInsets.symmetric({ vertical: 4 }), visual),
-      }),
+      child: new Stack(
+        [
+          new ExcludeFocus(
+            new Material({
+              type: MaterialType.transparency,
+              child: new RailIndicatorInkWell(
+                {
+                  onTap: activate,
+                  canRequestFocus: !destination.disabled,
+                  excludeFromSemantics: true,
+                  customBorder: showIndicator ? shape : null,
+                  splashColor: primary.alpha < 255 ? primary : primary.withOpacity(0.12),
+                  hoverColor: primary.alpha < 255 ? primary : primary.withOpacity(0.04),
+                  child: noLabel
+                    ? padded
+                    : new ConstrainedBox(padded, new BoxConstraints(narrowWidth)),
+                },
+                direction,
+                inkCenter,
+                pad.top + iconOffset + (noLabel ? verticalSpacing / 2 : 0),
+              ),
+            }),
+            { excluding: destination.disabled },
+          ),
+          new Semantics({ label: indexLabel }),
+        ],
+        { fit: 'passthrough' },
+      ),
     });
+  }
+}
+
+class RailIndicatorInkWell extends InkWell {
+  constructor(
+    options: InkWellOptions,
+    private readonly direction: 'ltr' | 'rtl',
+    private readonly center: number | null,
+    private readonly top: number,
+  ) {
+    super(options);
+  }
+
+  override getRectCallback(reference: RenderBox): RectCallback {
+    return () => {
+      const width = reference.size.width;
+      const center = this.center ?? width / 2;
+      const x = this.direction === 'ltr' ? center : width - center;
+      return Rect.fromLTWH(x - indicatorWidth / 2, this.top, indicatorWidth, indicatorHeight);
+    };
   }
 }

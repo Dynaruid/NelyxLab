@@ -18,6 +18,18 @@
       "types": "./dist/widgets.d.ts",
       "default": "./dist/widgets.js"
     },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "default": "./dist/constants.js"
+    },
+    "./debug": {
+      "types": "./dist/debug.d.ts",
+      "default": "./dist/debug.js"
+    },
+    "./cupertino-focus-halo": {
+      "types": "./dist/cupertino-focus-halo.d.ts",
+      "default": "./dist/cupertino-focus-halo.js"
+    },
     "./search-field": {
       "types": "./dist/search-field.d.ts",
       "default": "./dist/search-field.js"
@@ -42,6 +54,14 @@
       "types": "./dist/sliding-segmented-control.d.ts",
       "default": "./dist/sliding-segmented-control.js"
     },
+    "./context-menu": {
+      "types": "./dist/context-menu.d.ts",
+      "default": "./dist/context-menu.js"
+    },
+    "./context-menu-action": {
+      "types": "./dist/context-menu-action.d.ts",
+      "default": "./dist/context-menu-action.js"
+    },
     "./text-selection": {
       "types": "./dist/text-selection.d.ts",
       "default": "./dist/text-selection.js"
@@ -61,6 +81,10 @@
     "./text-selection-toolbar": {
       "types": "./dist/text-selection-toolbar.d.ts",
       "default": "./dist/text-selection-toolbar.js"
+    },
+    "./spell-check-suggestions-toolbar": {
+      "types": "./dist/spell-check-suggestions-toolbar.d.ts",
+      "default": "./dist/spell-check-suggestions-toolbar.js"
     },
     "./text-selection-toolbar-button": {
       "types": "./dist/text-selection-toolbar-button.d.ts",
@@ -152,6 +176,10 @@
     },
     "./assets/CupertinoIcons.ttf": "./assets/CupertinoIcons.ttf",
     "./licenses/CupertinoIcons-LICENSE.txt": "./licenses/CupertinoIcons-LICENSE.txt",
+    "./expansion-tile": {
+      "types": "./dist/expansion-tile.d.ts",
+      "default": "./dist/expansion-tile.js"
+    },
     "./list-tile": {
       "types": "./dist/list-tile.d.ts",
       "default": "./dist/list-tile.js"
@@ -167,6 +195,10 @@
     "./nav-bar": {
       "types": "./dist/nav-bar.d.ts",
       "default": "./dist/nav-bar.js"
+    },
+    "./menu-anchor": {
+      "types": "./dist/menu-anchor.d.ts",
+      "default": "./dist/menu-anchor.js"
     },
     "./bottom-tab-bar": {
       "types": "./dist/bottom-tab-bar.d.ts",

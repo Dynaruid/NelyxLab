@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-import { TextFormField as CoreTextFormField } from '@nelyx/core/framework/widgets/text-form-field';
+// Flutter: packages/flutter/lib/src/material/text_form_field.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
+import {
+  TextFormField as CoreTextFormField,
+  TextFormFieldState,
+} from '@nelyx/core/framework/widgets/text-form-field';
 import type { AutovalidateMode } from '@nelyx/core/framework/widgets/form';
 import type { Widget } from '@nelyx/core/framework/widgets/framework';
 import { TextField } from './text-field.ts';
@@ -13,10 +18,13 @@ export interface TextFormFieldOptions extends TextFieldOptions {
   readonly onReset?: () => void;
   readonly autovalidateMode?: AutovalidateMode;
   readonly errorBuilder?: (error: string) => Widget;
+  readonly forceErrorText?: string | null;
+  readonly onFieldSubmitted?: (value: string) => void;
 }
 /** Validation and controller lifetime use the same Core TextFormField state. */
 export class TextFormField extends CoreTextFormField {
-  constructor(options: TextFormFieldOptions) {
+  constructor(readonly materialOptions: TextFormFieldOptions) {
+    const options = materialOptions;
     const {
       initialValue,
       validator,
@@ -24,12 +32,16 @@ export class TextFormField extends CoreTextFormField {
       onReset,
       autovalidateMode,
       errorBuilder,
+      forceErrorText,
+      onFieldSubmitted,
       ...fieldOptions
     } = options;
     super({
       id: options.id,
       label: options.decoration?.labelText ?? options.decoration?.hintText ?? '',
       key: options.key ?? null,
+      restorationId: options.restorationId ?? null,
+      forceErrorText: forceErrorText ?? null,
       ...(options.controller ? { controller: options.controller } : {}),
       ...(initialValue === undefined ? {} : { initialValue }),
       ...(validator ? { validator } : {}),
@@ -53,8 +65,26 @@ export class TextFormField extends CoreTextFormField {
           key: null,
           controller: field.controller,
           decoration,
+          ...(onFieldSubmitted ? { onSubmitted: onFieldSubmitted } : {}),
         });
       },
     });
+  }
+  override createState(): TextFormFieldState {
+    return new MaterialTextFormFieldState();
+  }
+}
+
+class MaterialTextFormFieldState extends TextFormFieldState {
+  private initialText = '';
+  override initState(): void {
+    super.initState();
+    this.initialText = this.controller.text;
+  }
+  protected override get resetText(): string {
+    return this.initialText;
+  }
+  protected override didApplyReset(): void {
+    (this.widget as TextFormField).materialOptions.onChanged?.(this.controller.text);
   }
 }

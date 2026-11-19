@@ -3,9 +3,13 @@
 // Adapted from packages/flutter/lib/src/cupertino/dialog.dart at
 // 71e4717a61786faab4c7aa39825989305ed29e8a.
 import { invariant } from '@nelyx/core/foundation/errors';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
+import { RoundedSuperellipseBorder } from '@nelyx/core/framework/painting/rounded-superellipse-border';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { ShapeBorderClipper } from '@nelyx/core/framework/rendering/shape-border-clipper';
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { BackdropFilter } from '@nelyx/core/framework/widgets/backdrop-filter';
 import {
@@ -19,41 +23,64 @@ import {
   Padding,
   SizedBox,
 } from '@nelyx/core/framework/widgets/basic';
-import { ClipRRect } from '@nelyx/core/framework/widgets/clip';
-import { ControlInteraction } from '@nelyx/core/framework/widgets/control-interaction';
+import { ClipPath } from '@nelyx/core/framework/widgets/clip';
+import {
+  ControlInteraction,
+  ControlInteractionState,
+} from '@nelyx/core/framework/widgets/control-interaction';
 import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
 import type { FocusNode } from '@nelyx/core/framework/widgets/focus';
-import {
-  InheritedWidget,
-  State,
-  StatefulWidget,
-  StatelessWidget,
-} from '@nelyx/core/framework/widgets/framework';
+import { Element, State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
-import { LayoutBuilder } from '@nelyx/core/framework/widgets/layout-builder';
+import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
 import { ScrollConfiguration } from '@nelyx/core/framework/widgets/scroll-configuration';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
-import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
+import { SingleBoxScrollView } from '@nelyx/core/framework/widgets/scroll-view';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
-import type { MouseCursor } from '@nelyx/core/services/mouse-cursor';
-import { Color } from '@nelyx/core/ui/color';
+import { MouseCursor, SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
 import { ImageFilter } from '@nelyx/core/ui/image-filter';
+import { Radius } from '@nelyx/core/ui/radius';
 import { SemanticsRole } from '@nelyx/core/ui/semantics';
 import { FontWeight } from '@nelyx/core/ui/typography';
 import { CupertinoColors } from './colors.ts';
+import { kCupertinoButtonSizeBorderRadius } from './constants.ts';
+import { CupertinoFocusHalo } from './cupertino-focus-halo.ts';
+import { CupertinoLocalizations } from './cupertino-localizations.ts';
 import { CupertinoUserInterfaceLevel, CupertinoUserInterfaceLevelData } from './interface-level.ts';
 import type { CupertinoColor } from './internal/colors/color-values.ts';
 import { resolveCupertinoColor } from './internal/colors/color-values.ts';
 import { CupertinoScrollbar } from './scrollbar.ts';
 import { CupertinoTheme } from './theme.ts';
+import {
+  DialogOverscrollBackground,
+  PriorityDialogColumn,
+  dialogDivider,
+  dialogDividerThickness,
+} from './internal/dialog-layout.ts';
+import {
+  DialogActionBackground,
+  DialogSlideScope,
+  DialogSlidingActions,
+  dialogSlideRegion,
+  type DialogSlideTarget,
+} from './internal/sliding-dialog-actions.ts';
 
 const edge = 8;
-const radius = 12;
-const dividerThickness = 0.3;
+const cancelButtonPadding = 8;
 const actionMinHeight = 57.17;
 const actionsSectionMinHeight = 84;
 const blur = ImageFilter.blur({ sigmaX: 30, sigmaY: 30 });
+const mainClipper = new ShapeBorderClipper({
+  shape: new RoundedSuperellipseBorder({ borderRadius: BorderRadius.circular(12) }),
+});
+const cancelClipper = new ShapeBorderClipper({
+  shape: new RoundedSuperellipseBorder({ borderRadius: BorderRadius.circular(14) }),
+});
+const actionsHaloRadius = kCupertinoButtonSizeBorderRadius.large.copyWith({
+  topLeft: Radius.zero,
+  topRight: Radius.zero,
+});
 
 const palette = {
   light: {
@@ -107,25 +134,24 @@ export class CupertinoActionSheet extends StatefulWidget {
   }
 }
 
-class ActionSheetSlot extends InheritedWidget {
-  constructor(
-    readonly cancel: boolean,
-    child: Widget,
-  ) {
-    super(child);
-  }
-  override updateShouldNotify(old: this): boolean {
-    return old.cancel !== this.cancel;
-  }
-}
-
 class ActionSheetState extends State<CupertinoActionSheet> {
   private messageController?: ScrollController;
   private actionController?: ScrollController;
+  private pressedIndex: number | null = null;
 
   override dispose(): void {
     this.messageController?.dispose();
     this.actionController?.dispose();
+    super.dispose();
+  }
+
+  private highlight(index: number, pressed: boolean): void {
+    if (!this.mounted || !(this.context as Element).active) return;
+    const next = pressed ? index : this.pressedIndex === index ? null : this.pressedIndex;
+    if (next !== this.pressedIndex)
+      this.setState(() => {
+        this.pressedIndex = next;
+      });
   }
 
   override build(context: BuildContext): Widget {
@@ -176,19 +202,28 @@ class ActionSheetState extends State<CupertinoActionSheet> {
     const children: Widget[] = [];
 
     if (hasContent || hasActions) {
-      const content = hasContent
+      const contentController = hasContent
+        ? (messageScrollController ?? (this.messageController ??= new ScrollController()))
+        : null;
+      const content = contentController
         ? new DecoratedBox(
-            new ListView({
-              primary: false,
-              shrinkWrap: true,
-              padding: new EdgeInsets(16, 13.5, 16, 13.5),
-              controller:
-                messageScrollController ?? (this.messageController ??= new ScrollController()),
-              children: [
-                ...(title == null ? [] : [contentText(title, colors.content, message != null)]),
-                ...(title != null && message != null ? [new SizedBox(undefined, 4)] : []),
-                ...(message == null ? [] : [contentText(message, colors.content, title == null)]),
-              ],
+            new CupertinoScrollbar({
+              controller: contentController,
+              child: new SingleBoxScrollView({
+                primary: false,
+                padding: new EdgeInsets(16, 13.5, 16, 13.5),
+                controller: contentController,
+                child: new Column(
+                  [
+                    ...(title == null ? [] : [contentText(title, colors.content, message != null)]),
+                    ...(title != null && message != null ? [new SizedBox(undefined, 4)] : []),
+                    ...(message == null
+                      ? []
+                      : [contentText(message, colors.content, title == null)]),
+                  ],
+                  sheetColumn,
+                ),
+              }),
             }),
             colors.background,
           )
@@ -196,65 +231,69 @@ class ActionSheetState extends State<CupertinoActionSheet> {
       const controller = hasActions
         ? (actionScrollController ?? (this.actionController ??= new ScrollController()))
         : null;
-      const divider = () =>
-        new SizedBox(undefined, dividerThickness, new DecoratedBox(undefined, colors.divider));
       const actionList =
         controller == null
           ? null
-          : new CupertinoScrollbar({
-              controller,
-              child: new ListView({
-                primary: false,
-                shrinkWrap: true,
-                padding: EdgeInsets.zero,
-                controller,
-                children: rows.flatMap((row, index) => [
-                  ...(index === 0 ? [] : [divider()]),
-                  row instanceof CupertinoActionSheetAction
-                    ? row
-                    : new DecoratedBox(row, colors.background),
-                ]),
+          : new DialogOverscrollBackground(
+              colors.background,
+              CupertinoFocusHalo.withRRect({
+                borderRadius: actionsHaloRadius,
+                child: new CupertinoScrollbar({
+                  controller,
+                  child: new SingleBoxScrollView({
+                    primary: false,
+                    controller,
+                    child: new Column(
+                      rows.flatMap((row, index) => [
+                        ...(index === 0
+                          ? []
+                          : [
+                              dialogDivider(
+                                this.pressedIndex === index - 1 || this.pressedIndex === index
+                                  ? colors.background
+                                  : colors.divider,
+                              ),
+                            ]),
+                        new DialogActionBackground(
+                          row,
+                          colors.background,
+                          colors.pressed,
+                          (value) => this.highlight(index, value),
+                        ),
+                      ]),
+                      sheetColumn,
+                    ),
+                  }),
+                }),
               }),
-            });
-      let main: Widget = content ?? actionList!;
-      if (content != null && actionList != null) {
-        main = new LayoutBuilder((_context, constraints) => {
-          // Reserve room for actions before giving the header its scroll viewport.
-          const reserve =
-            (rows.length === 1 ? actionMinHeight : actionsSectionMinHeight) + dividerThickness;
-          return new Column(
-            [
-              new ConstrainedBox(
-                content,
-                new BoxConstraints(0, Infinity, 0, Math.max(0, constraints.maxHeight - reserve)),
-              ),
-              new Flexible(new Column([divider(), new Flexible(actionList)], sheetColumn)),
-            ],
-            sheetColumn,
-          );
-        });
-      }
+            );
+      const main =
+        content && actionList
+          ? new PriorityDialogColumn(
+              content,
+              new Column([dialogDivider(colors.divider), new Flexible(actionList)], sheetColumn),
+              actionsSectionMinHeight + dialogDividerThickness,
+            )
+          : (content ?? actionList!);
       children.push(
         new Flexible(
-          new ClipRRect(new BackdropFilter({ filter: blur, child: main }), {
-            borderRadius: radius,
+          new ClipPath(new BackdropFilter({ filter: blur, child: main }), {
+            clipper: mainClipper,
           }),
         ),
       );
     }
 
     if (cancelButton != null) {
-      if (hasContent || hasActions) children.push(new SizedBox(undefined, edge));
+      if (hasContent || hasActions) children.push(new SizedBox(undefined, cancelButtonPadding));
       children.push(
-        new ClipRRect(
-          new ActionSheetSlot(
-            true,
-            cancelButton instanceof CupertinoActionSheetAction
-              ? cancelButton
-              : new DecoratedBox(cancelButton, colors.cancel),
+        CupertinoFocusHalo.withRRect({
+          borderRadius: kCupertinoButtonSizeBorderRadius.large,
+          child: new ClipPath(
+            new DialogActionBackground(cancelButton, colors.cancel, colors.cancelPressed),
+            { clipper: cancelClipper },
           ),
-          { borderRadius: radius },
-        ),
+        }),
       );
     }
     return new Semantics({
@@ -263,10 +302,10 @@ class ActionSheetState extends State<CupertinoActionSheet> {
       scopesRoute: true,
       namesRoute: true,
       role: SemanticsRole.dialog,
-      label: 'Alert',
+      label: CupertinoLocalizations.of(context).alertDialogLabel,
       child: new ScrollConfiguration({
         behavior: ScrollConfiguration.of(context).copyWith({ scrollbars: false }),
-        child: new Column(children, sheetColumn),
+        child: new DialogSlidingActions(new Column(children, sheetColumn)),
       }),
     });
   }
@@ -278,8 +317,10 @@ function contentText(child: Widget, color: number, bold: boolean): Widget {
   return new DefaultTextStyle(
     new TextStyle({
       fontFamily: 'CupertinoSystemText',
+      inherit: false,
       fontSize: 13,
       fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
+      textBaseline: 'alphabetic',
       color,
     }),
     child,
@@ -299,12 +340,37 @@ export interface CupertinoActionSheetActionOptions extends WidgetOptions {
   readonly semanticsLabel?: string;
 }
 
-export class CupertinoActionSheetAction extends StatelessWidget {
+export class CupertinoActionSheetAction extends StatefulWidget {
   readonly options: Readonly<CupertinoActionSheetActionOptions>;
 
   constructor(options: CupertinoActionSheetActionOptions) {
     super(options.key ?? null);
     this.options = Object.freeze({ ...options });
+  }
+  override createState(): State<CupertinoActionSheetAction> {
+    return new ActionSheetActionState();
+  }
+}
+
+class ActionSheetActionState
+  extends State<CupertinoActionSheetAction>
+  implements DialogSlideTarget
+{
+  private readonly control = new GlobalKey<ControlInteractionState>(
+    'Cupertino action sheet action',
+    ControlInteractionState,
+  );
+
+  didEnter(_fromPointerDown: boolean, innerEnabled: boolean): boolean {
+    return innerEnabled;
+  }
+  didLeave(): void {}
+  didConfirm(): void {
+    const control = this.control.currentState;
+    if (control?.canActivate) {
+      control.focusNode.requestFocus();
+      control.activateControl();
+    }
   }
 
   override build(context: BuildContext): Widget {
@@ -318,10 +384,10 @@ export class CupertinoActionSheetAction extends StatelessWidget {
       mouseCursor,
       id,
       semanticsLabel,
-    } = this.options;
+    } = this.widget.options;
     const theme = CupertinoTheme.of(context);
     const colors = palette[theme.brightness];
-    const cancel = context.maybeDependOn(ActionSheetSlot)?.cancel ?? false;
+    const scope = context.maybeDependOn(DialogSlideScope);
     const scaler = MediaQuery.maybeTextScalerOf(context);
     const body = scaler?.scale(17) || 17;
     const size =
@@ -337,6 +403,8 @@ export class CupertinoActionSheetAction extends StatelessWidget {
       .toARGB32();
     const text = new TextStyle({
       fontFamily: 'CupertinoSystemDisplay',
+      inherit: false,
+      textBaseline: 'alphabetic',
       fontSize: (size * 17) / body,
       fontWeight: isDefaultAction ? FontWeight.w600 : FontWeight.w400,
       color: isDestructiveAction
@@ -353,30 +421,32 @@ export class CupertinoActionSheetAction extends StatelessWidget {
       ),
       new BoxConstraints(0, Infinity, actionMinHeight, Infinity),
     );
-    return new ControlInteraction(
-      (_context, state) =>
-        new DecoratedBox(
-          state.showFocusHighlight ? new DecoratedBox(bodyWidget, focus) : bodyWidget,
-          state.pressed
-            ? cancel
-              ? colors.cancelPressed
-              : colors.pressed
-            : cancel
-              ? colors.cancel
-              : colors.background,
-        ),
-      {
-        onPressed,
-        focusNode: focusNode ?? null,
-        ...(mouseCursor === undefined ? {} : { mouseCursor }),
-        semantics: {
-          button: true,
-          label: semanticsLabel ?? null,
-          excludeSemantics: semanticsLabel !== undefined,
-          identifier: id ?? null,
-          transportId: id ?? null,
+    return dialogSlideRegion(
+      scope,
+      this,
+      new ControlInteraction(
+        (_context, state) =>
+          new DecoratedBox(
+            state.showFocusHighlight ? new DecoratedBox(bodyWidget, focus) : bodyWidget,
+            scope ? 0 : state.pressed ? colors.pressed : colors.background,
+          ),
+        {
+          key: this.control,
+          onPressed,
+          pointerGesturesEnabled: !scope,
+          focusNode: focusNode ?? null,
+          mouseCursor:
+            mouseCursor ??
+            (FoundationPlatform.isWeb ? SystemMouseCursors.click : MouseCursor.defer),
+          semantics: {
+            button: true,
+            label: semanticsLabel ?? null,
+            excludeSemantics: semanticsLabel !== undefined,
+            identifier: id ?? null,
+            transportId: id ?? null,
+          },
         },
-      },
+      ),
     );
   }
 }

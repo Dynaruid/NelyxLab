@@ -1,19 +1,28 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/sheet.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { invariant } from '@nelyx/core/foundation/errors';
 import { Listenable } from '@nelyx/core/foundation/notifier';
-import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
 import type { Animation } from '@nelyx/core/framework/animation/animation';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
+import { CurvedAnimation } from '@nelyx/core/framework/animation/animations';
 import { Curves } from '@nelyx/core/framework/animation/curves';
-import type { Curve } from '@nelyx/core/framework/animation/curves';
+import { Tween } from '@nelyx/core/framework/animation/tween';
+import { IOSScrollViewFlingVelocityTracker } from '@nelyx/core/framework/gestures/velocity-tracker';
 import { Alignment } from '@nelyx/core/framework/painting/alignment';
 import { AxisDirection } from '@nelyx/core/framework/painting/basic-types';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import { ColorShapeDecoration } from '@nelyx/core/framework/painting/color-shape-decoration';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { RoundedSuperellipseBorder } from '@nelyx/core/framework/painting/rounded-superellipse-border';
+import { RenderBox } from '@nelyx/core/framework/rendering/object';
+import { HitTestBehavior } from '@nelyx/core/framework/rendering/pointer-listener';
 import { ShapeBorderClipper } from '@nelyx/core/framework/rendering/shape-border-clipper';
+import {
+  AnnotatedRegion,
+  systemUiOverlayStyleAnnotation,
+} from '@nelyx/core/framework/widgets/annotated-region';
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import {
   Align,
@@ -27,16 +36,21 @@ import {
 } from '@nelyx/core/framework/widgets/basic';
 import { ClipPath } from '@nelyx/core/framework/widgets/clip';
 import { FractionalTranslation } from '@nelyx/core/framework/widgets/fractional-translation';
-import { InheritedWidget, State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
-import type {
-  BuildContext,
+import {
   Element,
-  Widget,
-  WidgetOptions,
+  InheritedWidget,
+  State,
+  StatefulWidget,
 } from '@nelyx/core/framework/widgets/framework';
+import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector';
 import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-builder';
-import { Navigator, NavigatorController, PopScope } from '@nelyx/core/framework/widgets/navigation';
+import {
+  Navigator,
+  NavigatorController,
+  PopScope,
+  routeOf,
+} from '@nelyx/core/framework/widgets/navigation';
 import type { Route } from '@nelyx/core/framework/widgets/navigation';
 import { PageRoute } from '@nelyx/core/framework/widgets/pages';
 import type { RouteSettings } from '@nelyx/core/framework/widgets/pages';
@@ -47,6 +61,7 @@ import type { ScrollPosition } from '@nelyx/core/framework/widgets/scroll-positi
 import { ScrollPositionWithSingleContext } from '@nelyx/core/framework/widgets/scroll-position-with-single-context';
 import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { pageRouteTransitionBinding } from '@nelyx/core/internal/framework/widgets/page-route-gesture';
+import { SystemUiOverlayStyle } from '@nelyx/core/services/system-ui-overlay-style';
 import { Color } from '@nelyx/core/ui/color';
 import { clampDouble } from '@nelyx/core/ui/math';
 import { Radius } from '@nelyx/core/ui/radius';
@@ -59,10 +74,25 @@ import { CupertinoPageRoute } from './route.ts';
 import { CupertinoTheme } from './theme.ts';
 
 const defaultTopGap = 0.08;
-const stretchDistance = 0.008;
+const stretchedTopGap = 0.072;
+const stretchDistance = defaultTopGap - stretchedTopGap;
 const coverScale = 0.0835;
+const deviceCornerSmoothing = 0.9;
+const roundedDeviceCornersThreshold = 20;
+const sheetMinimumFlingVelocity = 2;
+const droppedSheetDragDuration = 300;
 const primaryCurve = Curves.fastEaseInToSlowEaseOut;
 const primaryReverseCurve = primaryCurve.flipped;
+const bottomUp = new Tween({ begin: new Offset(0, 1), end: Offset.zero });
+const bottomUpOverOtherSheet = new Tween({ begin: new Offset(0, 1), end: new Offset(0, -0.02) });
+const midUp = new Tween({ begin: Offset.zero, end: new Offset(0, -0.005) });
+const topDown = new Tween({ begin: Offset.zero, end: new Offset(0, 0.07) });
+const contrastOpacity = new Tween({ begin: 0, end: 0.1 });
+const coveredScale = new Tween({ begin: 1, end: 1 - coverScale });
+const sheetStatusBarStyle = new SystemUiOverlayStyle({
+  statusBarBrightness: 'dark',
+  statusBarIconBrightness: 'light',
+});
 const sheetClip = new ShapeBorderClipper({
   shape: new RoundedSuperellipseBorder({
     borderRadius: new BorderRadius({ topLeft: Radius.circular(12), topRight: Radius.circular(12) }),
@@ -71,8 +101,8 @@ const sheetClip = new ShapeBorderClipper({
 const dragHandleShape = new RoundedSuperellipseBorder({ borderRadius: BorderRadius.circular(18) });
 const transparent = new Color(0);
 const dragPolicy = {
-  minFlingVelocity: 2,
-  droppedDuration: 300,
+  minFlingVelocity: sheetMinimumFlingVelocity,
+  droppedDuration: droppedSheetDragDuration,
   stayThreshold: 0.52,
   curve: Curves.easeOut,
 };
@@ -85,18 +115,14 @@ function checkTopGap(topGap: number): void {
   );
 }
 
-function animationValue(animation: Animation<number>, forward: Curve, reverse: Curve): number {
-  const value = animation.value;
-  if (value === 0 || value === 1) return value;
-  return (animation.status === AnimationStatus.reverse ? reverse : forward).transform(value);
-}
-
 export interface CupertinoSheetTransitionOptions extends WidgetOptions {
   readonly primaryRouteAnimation: Animation<number>;
   readonly secondaryRouteAnimation: Animation<number>;
   readonly child: Widget;
   readonly linearTransition: boolean;
   readonly topGap?: number;
+  /** @internal Whether the previous route is a sheet in this Navigator. */
+  readonly coveringSheet?: boolean;
 }
 
 export class CupertinoSheetTransition extends StatefulWidget {
@@ -105,6 +131,7 @@ export class CupertinoSheetTransition extends StatefulWidget {
   readonly child: Widget;
   readonly linearTransition: boolean;
   readonly topGap: number;
+  readonly coveringSheet: boolean;
 
   constructor({
     primaryRouteAnimation,
@@ -112,6 +139,7 @@ export class CupertinoSheetTransition extends StatefulWidget {
     child,
     linearTransition,
     topGap = defaultTopGap,
+    coveringSheet = false,
     key = null,
   }: CupertinoSheetTransitionOptions) {
     super(key);
@@ -121,6 +149,7 @@ export class CupertinoSheetTransition extends StatefulWidget {
     this.child = child;
     this.linearTransition = linearTransition;
     this.topGap = topGap;
+    this.coveringSheet = coveringSheet;
   }
 
   static delegateTransition(
@@ -131,57 +160,123 @@ export class CupertinoSheetTransition extends StatefulWidget {
     child: Widget | null,
   ): Widget {
     if (child === null) return new SizedBox();
-    const coversSheet = CupertinoSheetRoute.hasParentSheet(context);
-    const linear = Navigator.of(context).userGestureInProgress;
-    const tint = new Color(
-      CupertinoTheme.brightnessOf(context) === 'dark' ? 0xffc8c8c8 : 0xff000000,
+    const coversSheet =
+      routeOf(context) instanceof CupertinoSheetRoute ||
+      CupertinoSheetRoute.hasParentSheet(context);
+    return new CoveredSheetTransition(
+      secondaryAnimation,
+      coversSheet,
+      !coversSheet && (Navigator.maybeOf(context)?.userGestureInProgress ?? false),
+      child,
     );
-    const deviceRadius = MediaQuery.viewPaddingOf(context).top * 0.9;
-    const initialRadius = deviceRadius > 20 ? deviceRadius : 0;
-    return new ListenableBuilder(secondaryAnimation, () => {
-      const progress = linear
-        ? secondaryAnimation.value
-        : animationValue(secondaryAnimation, Curves.linearToEaseOut, Curves.easeInToLinear);
-      if (progress === 0) return child;
-      let surface = child;
-      if (coversSheet) surface = new ClipPath(surface, { clipper: sheetClip });
-      else {
-        const top = Radius.circular(initialRadius + (12 - initialRadius) * progress);
-        const bottom = Radius.circular(12 * progress);
-        const clipper = new ShapeBorderClipper({
-          shape: new RoundedSuperellipseBorder({
-            borderRadius: new BorderRadius({
-              topLeft: top,
-              topRight: top,
-              bottomLeft: bottom,
-              bottomRight: bottom,
-            }),
-          }),
-        });
-        surface = new ClipPath(
-          new Stack([
-            surface,
-            SizedBox.expand(new ColoredBox({ color: tint.withOpacity(0.1 * progress).toARGB32() })),
-          ]),
-          { clipper },
-        );
-      }
-      return new FractionalTranslation(
-        Transform.scale(surface, {
-          scale: 1 - coverScale * progress,
-          alignment: Alignment.topCenter,
-          filterQuality: 'medium',
-        }),
-        {
-          translation: new Offset(0, (coversSheet ? -0.005 : 0.07) * progress),
-          transformHitTests: !coversSheet,
-        },
-      );
-    });
   }
 
   override createState(): State<CupertinoSheetTransition> {
     return new CupertinoSheetTransitionState();
+  }
+}
+
+class CoveredSheetTransition extends StatefulWidget {
+  constructor(
+    readonly animation: Animation<number>,
+    readonly coversSheet: boolean,
+    readonly linear: boolean,
+    readonly child: Widget,
+  ) {
+    super();
+  }
+  override createState(): State<CoveredSheetTransition> {
+    return new CoveredSheetTransitionState();
+  }
+}
+
+class CoveredSheetTransitionState extends State<CoveredSheetTransition> {
+  private curve!: CurvedAnimation;
+  private createCurve(): CurvedAnimation {
+    return new CurvedAnimation({
+      parent: this.widget.animation,
+      curve: Curves.linearToEaseOut,
+      reverseCurve: Curves.easeInToLinear,
+    });
+  }
+  override initState(): void {
+    super.initState();
+    this.curve = this.createCurve();
+  }
+  override didUpdateWidget(old: CoveredSheetTransition): void {
+    super.didUpdateWidget(old);
+    if (old.animation !== this.widget.animation) {
+      this.curve.dispose();
+      this.curve = this.createCurve();
+    }
+  }
+  override build(context: BuildContext): Widget {
+    const { linear, coversSheet, animation, child } = this.widget;
+    const tint = new Color(
+      CupertinoTheme.brightnessOf(context) === 'dark' ? 0xffc8c8c8 : 0xff000000,
+    );
+    const deviceRadius = (MediaQuery.maybeViewPaddingOf(context)?.top ?? 0) * deviceCornerSmoothing;
+    const initialRadius = deviceRadius > roundedDeviceCornersThreshold ? deviceRadius : 0;
+    const gap = MediaQuery.of(context).height * defaultTopGap;
+    return new ListenableBuilder({
+      listenable: this.curve,
+      child,
+      builder: (_context, child) => {
+        const progress = linear ? animation.value : this.curve.value;
+        const inner = child ?? new SizedBox();
+        let panel: Widget = new ClipPath(inner, { clipper: sheetClip });
+        if (!coversSheet) {
+          const top = Radius.circular(
+            progress === 0 ? 0 : initialRadius + (12 - initialRadius) * progress,
+          );
+          const bottom = Radius.circular(12 * progress);
+          const clipper = new ShapeBorderClipper({
+            shape: new RoundedSuperellipseBorder({
+              borderRadius: new BorderRadius({
+                topLeft: top,
+                topRight: top,
+                bottomLeft: bottom,
+                bottomRight: bottom,
+              }),
+            }),
+          });
+          panel = new ClipPath(
+            new Stack([
+              inner,
+              SizedBox.expand(
+                new ColoredBox({
+                  color: tint.withOpacity(contrastOpacity.transform(progress)).toARGB32(),
+                }),
+              ),
+            ]),
+            { clipper, clipBehavior: progress === 0 ? 'none' : 'antiAlias' },
+          );
+        }
+        const moved = new FractionalTranslation(
+          Transform.scale(panel, {
+            scale: coveredScale.transform(progress),
+            alignment: Alignment.topCenter,
+            filterQuality: 'medium',
+          }),
+          {
+            translation: (coversSheet ? midUp : topDown).transform(progress),
+            transformHitTests: !coversSheet,
+          },
+        );
+        if (coversSheet) return moved;
+        return new Stack([
+          new AnnotatedRegion(new SizedBox(Infinity, gap), {
+            annotationType: systemUiOverlayStyleAnnotation,
+            value: sheetStatusBarStyle,
+          }),
+          moved,
+        ]);
+      },
+    });
+  }
+  override dispose(): void {
+    this.curve.dispose();
+    super.dispose();
   }
 }
 
@@ -199,9 +294,37 @@ class SheetStretchScope extends InheritedWidget {
 
 class CupertinoSheetTransitionState extends SingleTickerProviderStateMixin<CupertinoSheetTransition> {
   private stretch!: AnimationController;
+  private enterCurve!: CurvedAnimation;
+  private coverCurve!: CurvedAnimation;
   override initState(): void {
     super.initState();
     this.stretch = new AnimationController({ vsync: this, duration: 1 });
+    this.makeCurves();
+  }
+
+  private makeCurves(): void {
+    this.enterCurve = new CurvedAnimation({
+      parent: this.widget.primaryRouteAnimation,
+      curve: primaryCurve,
+      reverseCurve: primaryReverseCurve,
+    });
+    this.coverCurve = new CurvedAnimation({
+      parent: this.widget.secondaryRouteAnimation,
+      curve: Curves.linearToEaseOut,
+      reverseCurve: Curves.easeInToLinear,
+    });
+  }
+
+  override didUpdateWidget(old: CupertinoSheetTransition): void {
+    super.didUpdateWidget(old);
+    if (
+      old.primaryRouteAnimation !== this.widget.primaryRouteAnimation ||
+      old.secondaryRouteAnimation !== this.widget.secondaryRouteAnimation
+    ) {
+      this.enterCurve.dispose();
+      this.coverCurve.dispose();
+      this.makeCurves();
+    }
   }
 
   override build(context: BuildContext): Widget {
@@ -211,15 +334,17 @@ class CupertinoSheetTransitionState extends SingleTickerProviderStateMixin<Cuper
       linearTransition,
       child,
       topGap,
+      coveringSheet,
     } = this.widget;
     const height = MediaQuery.of(context).height;
-    const incomingEnd = CupertinoSheetRoute.hasParentSheet(context) ? -0.02 : 0;
+    const incoming =
+      coveringSheet || CupertinoSheetRoute.hasParentSheet(context)
+        ? bottomUpOverOtherSheet
+        : bottomUp;
     const surface = new SheetStretchScope(this.stretch, child);
     return new ListenableBuilder(Listenable.merge([primary, secondary, this.stretch]), () => {
-      const enter = linearTransition
-        ? primary.value
-        : animationValue(primary, primaryCurve, primaryReverseCurve);
-      const cover = animationValue(secondary, Curves.linearToEaseOut, Curves.easeInToLinear);
+      const enter = linearTransition ? primary.value : this.enterCurve.value;
+      const cover = this.coverCurve.value;
       return new Padding(
         EdgeInsets.fromLTRB(
           0,
@@ -230,21 +355,23 @@ class CupertinoSheetTransitionState extends SingleTickerProviderStateMixin<Cuper
         new FractionalTranslation(
           Transform.scale(
             new FractionalTranslation(surface, {
-              translation: new Offset(0, 1 + (incomingEnd - 1) * enter),
+              translation: incoming.transform(enter),
             }),
             {
-              scale: 1 - coverScale * cover,
+              scale: coveredScale.transform(cover),
               alignment: Alignment.topCenter,
               filterQuality: 'medium',
             },
           ),
-          { translation: new Offset(0, -0.005 * cover), transformHitTests: false },
+          { translation: midUp.transform(cover), transformHitTests: false },
         ),
       );
     });
   }
 
   override dispose(): void {
+    this.enterCurve.dispose();
+    this.coverCurve.dispose();
     this.stretch.dispose();
     super.dispose();
   }
@@ -272,6 +399,7 @@ export class CupertinoSheetRoute<T = unknown> extends PageRoute<T> {
   readonly showDragHandle: boolean;
   readonly topGap: number;
   private readonly customTopGap: boolean;
+  private previousIsSheet = false;
 
   constructor({
     builder = null,
@@ -320,6 +448,10 @@ export class CupertinoSheetRoute<T = unknown> extends PageRoute<T> {
   override canTransitionTo(next: Route): boolean {
     return !this.customTopGap && next instanceof CupertinoSheetRoute;
   }
+  override didChangePrevious(previous: Route | null): void {
+    this.previousIsSheet = previous instanceof CupertinoSheetRoute;
+    super.didChangePrevious(previous);
+  }
 
   static hasParentSheet(context: BuildContext): boolean {
     return context.maybeDependOn(CupertinoSheetScope) !== undefined;
@@ -359,6 +491,7 @@ export class CupertinoSheetRoute<T = unknown> extends PageRoute<T> {
       child,
       linearTransition: this.popGestureInProgress,
       topGap: this.topGap,
+      coveringSheet: this.previousIsSheet,
     });
   }
 }
@@ -441,14 +574,32 @@ class CupertinoSheetSurface extends StatefulWidget {
   }
 }
 
+type SheetDragSource = 'surface' | SheetScrollPosition;
+type SheetDragStart = (source: SheetDragSource) => boolean;
+type SheetDragUpdate = (source: SheetDragSource, delta: number) => void;
+type SheetDragEnd = (source: SheetDragSource, velocity: number) => void;
+type GetSheetDragged = () => boolean;
+
 class CupertinoSheetSurfaceState extends State<CupertinoSheetSurface> {
   private gesture: CupertinoBackGestureController | null = null;
+  private dragSource: SheetDragSource | null = null;
   private stretch: AnimationController | null = null;
-  private height = 0;
   private readonly controller = new SheetScrollController(this);
 
-  beginDrag(): boolean {
-    if (this.gesture !== null) return true;
+  private get height(): number {
+    if (!this.mounted) return 0;
+    const context = this.context;
+    if (context instanceof Element && !context.active) return 0;
+    const render = context.findRenderObject();
+    return render instanceof RenderBox && render.attached && render.hasSize
+      ? render.size.height
+      : 0;
+  }
+
+  readonly isDraggedDown: GetSheetDragged = () => (this.widget.route.animation?.value ?? 1) < 1;
+
+  readonly beginDrag: SheetDragStart = (source) => {
+    if (this.gesture !== null) return this.dragSource === source;
     const route = this.widget.route;
     const binding = pageRouteTransitionBinding(route);
     if (
@@ -462,32 +613,53 @@ class CupertinoSheetSurfaceState extends State<CupertinoSheetSurface> {
     )
       return false;
     this.gesture = new CupertinoBackGestureController(binding, dragPolicy);
+    this.dragSource = source;
     return true;
-  }
+  };
 
-  dragBy(delta: number): void {
+  readonly dragBy: SheetDragUpdate = (source, delta) => {
     const gesture = this.gesture;
-    if (!gesture) return;
-    const stretch = this.stretch;
+    const height = this.height;
+    if (!gesture || this.dragSource !== source || height <= 0) return;
+    const stretch = source === 'surface' ? this.stretch : null;
     if (stretch && this.widget.route.animation?.value === 1 && (stretch.value > 0 || delta < 0))
-      stretch.value = clampDouble(stretch.value - delta / (this.height * stretchDistance), 0, 1);
-    else gesture.dragUpdate(delta / this.height);
-  }
+      stretch.value = clampDouble(stretch.value - delta / (height * stretchDistance), 0, 1);
+    else gesture.dragUpdate(delta / (source === 'surface' ? height : height * (1 - defaultTopGap)));
+  };
 
-  endDrag(velocity: number): void {
+  readonly endDrag: SheetDragEnd = (source, velocity) => {
+    if (this.dragSource !== source) return;
     const gesture = this.gesture;
     this.gesture = null;
+    this.dragSource = null;
     if (!gesture) return;
-    if (this.stretch && this.stretch.value > 0) {
+    const height = this.height;
+    if (source === 'surface' && this.stretch && this.stretch.value > 0) {
       this.stretch.animateBack(0, { duration: 180, curve: Curves.easeOut });
       gesture.close();
-    } else gesture.dragEnd(velocity / this.height);
+    } else gesture.dragEnd(height > 0 ? velocity / height : 0);
+  };
+
+  ownsScrollDrag(position: SheetScrollPosition): boolean {
+    return this.dragSource === position;
+  }
+
+  transferScrollDrag(from: SheetScrollPosition, to: SheetScrollPosition): void {
+    if (this.dragSource === from) this.dragSource = to;
+  }
+
+  retireScrollDrag(position: SheetScrollPosition): void {
+    if (!this.mounted || this.dragSource !== position) return;
+    const context = this.context;
+    if (!(context instanceof Element)) return;
+    context.owner.postFrame(() => {
+      if (this.mounted && context.active) this.endDrag(position, 0);
+    });
   }
 
   override build(context: BuildContext): Widget {
     const route = this.widget.route;
     const data = MediaQuery.of(context);
-    this.height = data.height;
     this.stretch = context.maybeDependOn(SheetStretchScope)?.controller ?? null;
     const builder = new Builder((context) =>
       route.scrollableBuilder
@@ -496,40 +668,46 @@ class CupertinoSheetSurfaceState extends State<CupertinoSheetSurface> {
     );
     let child: Widget = builder;
     if (route.showDragHandle) {
-      child = new Stack([
-        new MediaQuery({ ...data, padding: EdgeInsets.fromLTRB(0, 15, 0, 0) }, builder),
-        new Align(
-          new Padding(
-            EdgeInsets.fromLTRB(0, 5, 0, 0),
-            new SizedBox(
-              36,
-              5,
-              new DecoratedBox(undefined, {
-                decoration: new ColorShapeDecoration(
-                  dragHandleShape,
-                  resolveCupertinoColor(CupertinoColors.tertiaryLabel, context),
-                ),
-              }),
+      child = new Stack(
+        [
+          new MediaQuery({ ...data, padding: EdgeInsets.fromLTRB(0, 15, 0, 0) }, builder),
+          new Align(
+            new Padding(
+              EdgeInsets.fromLTRB(0, 5, 0, 0),
+              new SizedBox(
+                36,
+                5,
+                new DecoratedBox(undefined, {
+                  decoration: new ColorShapeDecoration(
+                    dragHandleShape,
+                    resolveCupertinoColor(CupertinoColors.tertiaryLabel, context),
+                  ),
+                }),
+              ),
             ),
+            { alignment: Alignment.topCenter },
           ),
-          { alignment: Alignment.topCenter },
-        ),
-      ]);
+        ],
+        { fit: 'expand' },
+      );
     }
     if (!route.enableDrag) return child;
     return new GestureDetector(child, {
+      behavior: HitTestBehavior.translucent,
+      velocityTrackerBuilder: (event) => new IOSScrollViewFlingVelocityTracker(event.kind),
       onVerticalDragStart: () => {
-        this.beginDrag();
+        this.beginDrag('surface');
       },
-      onVerticalDragUpdate: (details) => this.dragBy(details.primaryDelta ?? 0),
-      onVerticalDragEnd: (details) => this.endDrag(details.primaryVelocity ?? 0),
-      onVerticalDragCancel: () => this.endDrag(0),
+      onVerticalDragUpdate: (details) => this.dragBy('surface', details.primaryDelta ?? 0),
+      onVerticalDragEnd: (details) => this.endDrag('surface', details.primaryVelocity ?? 0),
+      onVerticalDragCancel: () => this.endDrag('surface', 0),
     });
   }
 
   override dispose(): void {
     const gesture = this.gesture;
     this.gesture = null;
+    this.dragSource = null;
     if (gesture) (this.context as Element).owner.postFrame(() => gesture.close());
     this.controller.dispose();
     super.dispose();
@@ -546,39 +724,59 @@ class SheetScrollController extends ScrollController {
     context: ScrollContext,
     oldPosition: ScrollPosition | null,
   ): ScrollPosition {
-    return new SheetScrollPosition(physics, context, oldPosition, this.surface);
+    return new SheetScrollPosition(
+      physics,
+      context,
+      oldPosition,
+      this.surface,
+      this.initialScrollOffset,
+      this.keepScrollOffset,
+    );
   }
 }
 
 class SheetScrollPosition extends ScrollPositionWithSingleContext {
-  private draggingSheet = false;
-
   constructor(
     physics: ScrollPhysics,
     context: ScrollContext,
     oldPosition: ScrollPosition | null,
     private readonly surface: CupertinoSheetSurfaceState,
+    initialPixels: number,
+    keepScrollOffset: boolean,
   ) {
-    super({ physics, context, oldPosition });
+    super({ physics, context, oldPosition, initialPixels, keepScrollOffset });
+    if (oldPosition instanceof SheetScrollPosition)
+      this.surface.transferScrollDrag(oldPosition, this);
+  }
+
+  override _restoreAbsorbedPosition(other: ScrollPosition): boolean {
+    const restored = super._restoreAbsorbedPosition(other);
+    if (restored && other instanceof SheetScrollPosition)
+      this.surface.transferScrollDrag(other, this);
+    return restored;
   }
 
   override applyUserOffset(delta: number): void {
-    if (
-      !this.draggingSheet &&
+    const canDragSheet =
       this.axisDirection === AxisDirection.down &&
       this.pixels <= this.minScrollExtent &&
-      delta > 0
-    )
-      this.draggingSheet = this.surface.beginDrag();
-    if (this.draggingSheet) this.surface.dragBy(delta);
+      (delta > 0 || this.surface.isDraggedDown());
+    if (canDragSheet && this.surface.beginDrag(this)) this.surface.dragBy(this, delta);
     else super.applyUserOffset(delta);
   }
 
   override goBallistic(velocity: number): void {
-    if (this.draggingSheet) {
-      this.draggingSheet = false;
-      this.surface.endDrag(-velocity);
-      super.goBallistic(0);
-    } else super.goBallistic(velocity);
+    // Super may call this before the derived position finishes initializing.
+    if (this.surface?.ownsScrollDrag(this)) {
+      const dismissingFling = velocity < 0 && this.pixels <= this.minScrollExtent;
+      this.surface.endDrag(this, dismissingFling ? -velocity : 0);
+      if (dismissingFling) velocity = 0;
+    }
+    super.goBallistic(velocity);
+  }
+
+  override dispose(): void {
+    this.surface.retireScrollDrag(this);
+    super.dispose();
   }
 }

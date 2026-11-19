@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Functional pinned progress painter/default/controller contracts on the existing Core owners.
+// Flutter: packages/flutter/lib/src/material/progress_indicator.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
@@ -33,6 +34,7 @@ import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import type { BorderRadiusGeometry } from '@nelyx/core/framework/painting/border-radius';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
+import { valueEquals } from '@nelyx/core/framework/painting/value-equality';
 import { CupertinoActivityIndicator } from '@nelyx/cupertino/activity-indicator';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { Theme } from './theme.ts';
@@ -44,6 +46,12 @@ const linearDuration = 1800,
   circularDuration = 1333 * 2222,
   epsilon = 0.001,
   twoPi = Math.PI * 2;
+const trackGapRampDownThreshold = 0.01;
+const valueControllerAssertion =
+  'A progress indicator cannot have both a value and a controller.\n' +
+  'The "value" property is for a determinate indicator with a specific progress, ' +
+  'while the "controller" is for controlling the animation of an indeterminate indicator.\n' +
+  'To resolve this, provide only one of the two properties.';
 const lineCurves = [
   new Interval(0, 750 / linearDuration, { curve: new Cubic(0.2, 0, 0.8, 1) }),
   new Interval(333 / linearDuration, (333 + 750) / linearDuration, {
@@ -79,7 +87,8 @@ export function materialLinearProgressSegments(
           }),
         );
     },
-    effectiveGap = (x: number) => (gap * clampDouble(x, 0, 0.01)) / 0.01;
+    effectiveGap = (x: number) =>
+      (gap * clampDouble(x, 0, trackGapRampDownThreshold)) / trackGapRampDownThreshold;
   if (value !== null) {
     const v = clampDouble(value, 0, 1),
       start = gap > 0 ? v + effectiveGap(v) : 0;
@@ -169,7 +178,7 @@ export abstract class ProgressIndicator<
     invariant(
       options.value == null || options.controller == null,
       'conflicting-progress-controller',
-      'Determinate progress cannot have an animation controller',
+      valueControllerAssertion,
     );
     this.options = Object.freeze({ ...options });
   }
@@ -347,8 +356,21 @@ class LinearPainter extends CustomPainter {
       rows.filter((r) => !r.track).forEach(draw);
     } else rows.forEach(draw);
   }
-  shouldRepaint(_old: CustomPainter): boolean {
-    return true;
+  shouldRepaint(old: CustomPainter): boolean {
+    return (
+      !(old instanceof LinearPainter) ||
+      old.value !== this.value ||
+      old.phase !== this.phase ||
+      old.phaseSource !== this.phaseSource ||
+      old.colorSource !== this.colorSource ||
+      !valueEquals(old.color, this.color) ||
+      !valueEquals(old.track, this.track) ||
+      old.direction !== this.direction ||
+      !valueEquals(old.radius, this.radius) ||
+      !valueEquals(old.stopColor, this.stopColor) ||
+      old.stopRadius !== this.stopRadius ||
+      old.gap !== this.gap
+    );
   }
 }
 class CircularPainter extends CustomPainter {
@@ -420,8 +442,22 @@ class CircularPainter extends CustomPainter {
       }),
     );
   }
-  shouldRepaint(_old: CustomPainter): boolean {
-    return true;
+  shouldRepaint(old: CustomPainter): boolean {
+    return (
+      !(old instanceof CircularPainter) ||
+      old.value !== this.value ||
+      old.phase !== this.phase ||
+      old.phaseSource !== this.phaseSource ||
+      old.colorSource !== this.colorSource ||
+      !valueEquals(old.color, this.color) ||
+      !valueEquals(old.track, this.track) ||
+      old.width !== this.width ||
+      old.align !== this.align ||
+      old.cap !== this.cap ||
+      old.gap !== this.gap ||
+      old.year2023 !== this.year2023 ||
+      old.headScale !== this.headScale
+    );
   }
 }
 class ProgressIndicatorState extends SingleTickerProviderStateMixin<ProgressIndicator> {
@@ -660,6 +696,13 @@ class RefreshPainter extends CircularPainter {
         strokeWidth: this.width,
         style: 'fill',
       }),
+    );
+  }
+  override shouldRepaint(old: CustomPainter): boolean {
+    return (
+      !(old instanceof RefreshPainter) ||
+      old.arrowheadScale !== this.arrowheadScale ||
+      super.shouldRepaint(old)
     );
   }
 }

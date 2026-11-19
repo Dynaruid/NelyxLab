@@ -5,6 +5,7 @@
 #include "LaunchUri.h"
 #include <Windows.h>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <functional>
 #include <ReactPropertyBag.h>
@@ -108,6 +109,16 @@ struct NelyxPlatformServices {
     try{auto uri=ReadLaunchUri();if(uri)promise.Resolve(winrt::Microsoft::ReactNative::JSValue{winrt::to_string(*uri)});else promise.Resolve(winrt::Microsoft::ReactNative::JSValue{});}
     catch(std::exception const& error){promise.Reject(error.what());}
     catch(...){promise.Reject("Windows launch URI unavailable");}
+  }
+  REACT_SYNC_METHOD(getExecutableName)
+  std::string getExecutableName() noexcept {
+    try {
+      std::vector<wchar_t> buffer(32768);
+      const auto length=GetModuleFileNameW(nullptr,buffer.data(),static_cast<DWORD>(buffer.size()));
+      if(!length||length>=buffer.size())return {};
+      const std::wstring_view path(buffer.data(),length);
+      return winrt::to_string(winrt::hstring(path.substr(path.find_last_of(L"\\/")+1)));
+    } catch (...) {return {};}
   }
   REACT_SYNC_METHOD(getPreferredLocales)
   winrt::Microsoft::ReactNative::JSValueObject getPreferredLocales() noexcept {

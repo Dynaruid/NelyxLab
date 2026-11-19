@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/button_style_button.dart and button.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { SingleChildRenderObjectWidget } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { RenderShiftedBox } from '@nelyx/core/framework/rendering/shifted-box';
@@ -7,22 +9,29 @@ import type { HitTestEntry, TextBaseline } from '@nelyx/core/framework/rendering
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import type { Size, Offset, TransformMatrix } from '@nelyx/core/ui/geometry';
 import { contains, identity, multiply } from '@nelyx/core/ui/geometry';
+type PaddingAxis = 'horizontal' | 'vertical';
+
 export class ButtonInputPadding extends SingleChildRenderObjectWidget {
   constructor(
     readonly minSize: Size,
     child: Widget,
+    readonly groupAxis: PaddingAxis | null = null,
   ) {
     super(child);
   }
   createRenderObject(): RenderButtonInputPadding {
-    return new RenderButtonInputPadding(this.minSize);
+    return new RenderButtonInputPadding(this.minSize, this.groupAxis);
   }
   updateRenderObject(_context: BuildContext, render: RenderButtonInputPadding): void {
     render.minSize = this.minSize;
+    render.groupAxis = this.groupAxis;
   }
 }
 export class RenderButtonInputPadding extends RenderShiftedBox {
-  constructor(private minimum: Size) {
+  constructor(
+    private minimum: Size,
+    public groupAxis: PaddingAxis | null = null,
+  ) {
     super();
   }
   get minSize(): Size {
@@ -89,17 +98,25 @@ export class RenderButtonInputPadding extends RenderShiftedBox {
     };
     return size;
   }
+  protected fallbackHitPoint(_position: Offset, size: Size): Offset {
+    return { x: size.width / 2, y: size.height / 2 };
+  }
   override hitTest(
     position: Offset,
     result: HitTestEntry[],
     toLocal: TransformMatrix = identity,
   ): boolean {
     if (!contains({ x: 0, y: 0, ...this.size }, position)) return false;
-    if (super.hitTest(position, result, toLocal)) return true;
+    if (this.groupAxis === null && super.hitTest(position, result, toLocal)) return true;
     const child = this.child;
     if (!child) return false;
-    const center = { x: child.size.width / 2, y: child.size.height / 2 };
-    return child.hitTest(center, result, multiply([0, 0, 0, 0, center.x, center.y], toLocal));
+    const point =
+      this.groupAxis === 'horizontal'
+        ? { x: position.x - child.layoutOffset.x, y: child.size.height / 2 }
+        : this.groupAxis === 'vertical'
+          ? { x: child.size.width / 2, y: position.y - child.layoutOffset.y }
+          : this.fallbackHitPoint(position, child.size);
+    return child.hitTest(point, result, multiply([0, 0, 0, 0, point.x, point.y], toLocal));
   }
 }
 RenderShiftedBox._registerGeometryLayoutSemantics(RenderButtonInputPadding.prototype);

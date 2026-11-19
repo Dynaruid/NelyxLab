@@ -118,6 +118,14 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
     }
     return offset;
   }
+  /** A variable layout may reserve visible space before its first child. */
+  protected get includesLeadingLayoutSpace(): boolean {
+    return false;
+  }
+  /** A variable layout may place its terminal edge after the last child's painted edge. */
+  protected trailingLayoutOffset(lastIndex: number, _exhausted: boolean): number {
+    return this.indexToLayoutOffset(-1, lastIndex + 1);
+  }
   private _getChildIndexForScrollOffset(scrollOffset: number, callback: ItemExtentBuilder): number {
     if (scrollOffset === 0) return 0;
     let position = 0,
@@ -305,7 +313,7 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
         this.indexToLayoutOffset(deprecatedExtraItemExtent, firstIndex);
       trailingChildWithLayout = this.firstChild;
     }
-    let estimatedMaxScrollOffset = Infinity;
+    let exhausted = false;
     for (
       let index = this.indexOf(trailingChildWithLayout!) + 1;
       targetLastIndex === null || index <= targetLastIndex;
@@ -317,7 +325,7 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
           after: trailingChildWithLayout,
         });
         if (child === null) {
-          estimatedMaxScrollOffset = this.indexToLayoutOffset(deprecatedExtraItemExtent, index);
+          exhausted = true;
           break;
         }
       } else child.layout(childConstraints ?? this._getChildConstraints(index));
@@ -329,10 +337,11 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
     }
     const lastIndex = this.indexOf(this.lastChild!),
       leadingScrollOffset = this.indexToLayoutOffset(deprecatedExtraItemExtent, firstIndex),
-      trailingScrollOffset = this.indexToLayoutOffset(deprecatedExtraItemExtent, lastIndex + 1);
+      trailingScrollOffset = this.trailingLayoutOffset(lastIndex, exhausted);
     if (FoundationBuildMode.debug) {
       invariant(
-        firstIndex === 0 ||
+        this.includesLeadingLayoutSpace ||
+          firstIndex === 0 ||
           this.childScrollOffset(this.firstChild!)! - scrollOffset <= precisionErrorTolerance,
         'invalid-fixed-sliver-leading-offset',
         'Leading child offset must not exceed cache offset',
@@ -345,8 +354,8 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
         'Laid-out children must fit the requested index range',
       );
     }
-    estimatedMaxScrollOffset = Math.min(
-      estimatedMaxScrollOffset,
+    const estimatedMaxScrollOffset = Math.min(
+      exhausted ? trailingScrollOffset : Infinity,
       this.estimateMaxScrollOffset(constraints, {
         firstIndex,
         lastIndex,
@@ -354,12 +363,13 @@ export abstract class RenderSliverFixedExtentBoxAdaptor extends RenderSliverMult
         trailingScrollOffset,
       }),
     );
-    const paintExtent = this.calculatePaintOffset(constraints, {
-        from: leadingScrollOffset,
+    const paintStart = this.includesLeadingLayoutSpace ? 0 : leadingScrollOffset,
+      paintExtent = this.calculatePaintOffset(constraints, {
+        from: paintStart,
         to: trailingScrollOffset,
       }),
       cacheExtent = this.calculateCacheOffset(constraints, {
-        from: leadingScrollOffset,
+        from: paintStart,
         to: trailingScrollOffset,
       }),
       targetEndScrollOffsetForPaint = constraints.scrollOffset + constraints.remainingPaintExtent,

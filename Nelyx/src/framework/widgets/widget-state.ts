@@ -16,4 +16,5 @@ export {
 export { WidgetStateBorderSide } from './widget-state-border-side.ts';
 export { WidgetStateColor } from './widget-state-color.ts';
 export { WidgetStateMouseCursor } from './widget-state-mouse-cursor.ts';
+export { WidgetStateOutlinedBorder } from './widget-state-outlined-border.ts';
 export { WidgetStateTextStyle } from './widget-state-text-style.ts';

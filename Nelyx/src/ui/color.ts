@@ -66,6 +66,15 @@ const finalColorFields = Object.freeze({
   b: finalColorField,
   colorSpace: finalColorField,
 });
+const colorArgbFallbacks = new WeakMap<Color, number>();
+/** @internal Retains a numeric fallback for colors whose channels require a state. */
+export function setColorArgbFallback(color: Color, value: number): void {
+  colorArgbFallbacks.set(color, value);
+}
+/** @internal Projection used by styles that retain state-dependent colors. */
+export function colorArgbFallback(color: Color): number {
+  return colorArgbFallbacks.get(color) ?? color.toARGB32();
+}
 
 /** Floating components retain color space and precision. toARGB32 is an explicit lossy conversion. */
 export class Color {

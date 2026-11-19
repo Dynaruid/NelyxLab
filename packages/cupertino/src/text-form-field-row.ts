@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/text_form_field_row.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import {
   TextFormField as CoreTextFormField,
   TextFormFieldState,
@@ -51,6 +53,7 @@ export class CupertinoTextFormFieldRow extends CoreTextFormField {
       id: input.id,
       label: input.placeholder ?? '',
       key: input.key ?? null,
+      restorationId: input.restorationId ?? null,
       enabled: input.enabled ?? true,
       ...(input.controller ? { controller: input.controller } : {}),
       ...(initialValue === undefined ? {} : { initialValue }),

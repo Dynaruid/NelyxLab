@@ -10,6 +10,12 @@ import { FoundationBuildMode } from '../foundation/constants.ts';
 import { invariant } from '../foundation/errors.ts';
 import { objectRuntimeType } from '../foundation/object.ts';
 import { hashValues } from '../framework/painting/value-equality.ts';
+
+export const SmartQuotesType = Object.freeze({ disabled: 'disabled', enabled: 'enabled' } as const);
+export type SmartQuotesType = (typeof SmartQuotesType)[keyof typeof SmartQuotesType];
+export const SmartDashesType = Object.freeze({ disabled: 'disabled', enabled: 'enabled' } as const);
+export type SmartDashesType = (typeof SmartDashesType)[keyof typeof SmartDashesType];
+
 export interface TextEditingValueOptions {
   readonly text?: string;
   readonly selection?: TextSelection;

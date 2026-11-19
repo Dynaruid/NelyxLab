@@ -1,23 +1,33 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/search_field.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatefulWidget, Element } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import { Padding } from '@nelyx/core/framework/widgets/basic';
-import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { ControlInteraction } from '@nelyx/core/framework/widgets/control-interaction';
-import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
+import type { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
+import { EditorTextRestoration } from '@nelyx/core/framework/widgets/editable-text';
 import { FocusNode } from '@nelyx/core/framework/widgets/focus';
 import { Icon } from '@nelyx/core/framework/widgets/icon';
 import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
 import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
 import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-builder';
-import { RestorableProperty, RestorationMixin } from '@nelyx/core/framework/widgets/restoration';
+import { Opacity } from '@nelyx/core/framework/widgets/opacity';
+import { RestorationMixin } from '@nelyx/core/framework/widgets/restoration';
+import { ScrollUpdateNotification } from '@nelyx/core/framework/widgets/scroll-notification';
+import type { ScrollNotification } from '@nelyx/core/framework/widgets/scroll-notification';
+import { ScrollNotificationObserver } from '@nelyx/core/framework/widgets/scroll-notification-observer';
+import type { ScrollNotificationObserverState } from '@nelyx/core/framework/widgets/scroll-notification-observer';
+import { RenderBox } from '@nelyx/core/framework/rendering/object';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import { BoxDecoration } from '@nelyx/core/framework/painting/box-decoration';
 import { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import { invariant } from '@nelyx/core/foundation/errors';
 import type { Color } from '@nelyx/core/ui/color';
+import { clampDouble } from '@nelyx/core/ui/math';
 import { CupertinoColors, CupertinoDynamicColor } from './colors.ts';
 import { CupertinoIcons } from './icons.ts';
 import { CupertinoLocalizations } from './cupertino-localizations.ts';
@@ -42,9 +52,12 @@ export interface CupertinoSearchTextFieldOptions extends Pick<
   | 'autofocus'
   | 'onTap'
   | 'autocorrect'
+  | 'smartDashesType'
+  | 'smartQuotesType'
   | 'enabled'
   | 'cursorWidth'
   | 'cursorHeight'
+  | 'cursorRadius'
   | 'cursorColor'
 > {
   readonly backgroundColor?: Color | null;
@@ -78,50 +91,15 @@ const inputPadding = EdgeInsetsGeometry.fromSTEB(5.5, 8, 5.5, 8);
 const prefixInsets = EdgeInsetsGeometry.fromSTEB(6, 8, 0, 8);
 const suffixInsets = EdgeInsetsGeometry.fromSTEB(0, 8, 5, 8);
 const defaultRadius = BorderRadius.circular(9);
-
-class SearchTextRestoration extends RestorableProperty<string> {
-  readonly controller: TextEditingController;
-  private readonly changed = () => this.notifyListeners();
-  constructor(private readonly initial?: TextEditingController['value']) {
-    super();
-    this.controller = new TextEditingController(initial?.text);
-    if (initial) {
-      this.controller.selection = initial.selection;
-      this.controller.clearHistory();
-    }
-    this.controller.addListener(this.changed);
-  }
-  get value(): string {
-    return this.controller.text;
-  }
-  set value(text: string) {
-    this.controller.text = text;
-  }
-  toPrimitives(): string {
-    return this.value;
-  }
-  restore(value: unknown): void {
-    invariant(
-      typeof value === 'string',
-      'invalid-search-restoration',
-      'Expected restored search text',
-    );
-    this.controller.reset(value);
-  }
-  reset(): void {
-    this.controller.reset(this.initial?.text ?? '');
-    if (this.initial) this.controller.selection = this.initial.selection;
-  }
-  override dispose(): void {
-    this.controller.removeListener(this.changed);
-    this.controller.dispose();
-    super.dispose();
-  }
-}
+const minimumVisibleHeightFraction = 4 / 5;
 
 class CupertinoSearchTextFieldState extends RestorationMixin<CupertinoSearchTextField> {
-  private localText: SearchTextRestoration | null = null;
+  private localText: EditorTextRestoration | null = null;
   private localFocus: FocusNode | null = null;
+  private observer: ScrollNotificationObserverState | null = null;
+  private fadeExtent = 0;
+  private measureQueued = false;
+  private maximumIconHeight = 0;
   get restorationId(): string | null {
     return this.widget.options.restorationId ?? null;
   }
@@ -130,8 +108,49 @@ class CupertinoSearchTextFieldState extends RestorationMixin<CupertinoSearchText
   }
   override initState(): void {
     super.initState();
-    if (!this.widget.options.controller) this.localText = new SearchTextRestoration();
+    if (!this.widget.options.controller) this.localText = new EditorTextRestoration();
     if (!this.widget.options.focusNode) this.localFocus = new FocusNode();
+  }
+  override didChangeDependencies(): void {
+    super.didChangeDependencies();
+    const observer = ScrollNotificationObserver.maybeOf(this.context);
+    if (observer === this.observer) return;
+    this.observer?.removeListener(this.onScroll);
+    this.observer = observer;
+    observer?.addListener(this.onScroll);
+    if (!observer) this.fadeExtent = 0;
+  }
+  private readonly onScroll = (notification: ScrollNotification): void => {
+    if (
+      !(notification instanceof ScrollUpdateNotification) ||
+      this.measureQueued ||
+      !(this.context instanceof Element)
+    )
+      return;
+    this.measureQueued = true;
+    this.context.owner.postFrame(() => {
+      this.measureQueued = false;
+      if (!this.mounted || !this.observer || this.maximumIconHeight <= 0) return;
+      const render = this.context.findRenderObject();
+      if (!(render instanceof RenderBox) || !render.hasSize) return;
+      const threshold = this.maximumIconHeight * minimumVisibleHeightFraction;
+      const fade =
+        1 -
+        clampDouble((render.size.height - threshold) / (this.maximumIconHeight - threshold), 0, 1);
+      if (this.fadeExtent !== fade)
+        this.setState(() => {
+          this.fadeExtent = fade;
+        });
+    });
+  };
+  private animatedInsets(context: BuildContext, insets: EdgeInsetsGeometry): EdgeInsetsGeometry {
+    if (this.fadeExtent === 0) return insets;
+    const resolved = insets.resolve(Directionality.of(context));
+    return EdgeInsetsGeometry.lerp(
+      insets,
+      resolved.copyWith({ top: resolved.top / 2 }),
+      this.fadeExtent,
+    )!;
   }
   restoreState(): void {
     if (this.localText) this.registerForRestoration(this.localText, 'controller');
@@ -148,7 +167,8 @@ class CupertinoSearchTextFieldState extends RestorationMixin<CupertinoSearchText
     else this.localFocus ??= new FocusNode();
     super.didUpdateWidget(old);
     if (!options.controller && !this.localText) {
-      this.localText = new SearchTextRestoration(old.options.controller?.value);
+      const previous = old.options.controller;
+      this.localText = new EditorTextRestoration(previous?.text, previous?.selection);
       this.registerForRestoration(this.localText, 'controller');
     }
     if ((retiredText || retiredFocus) && this.context instanceof Element) {
@@ -159,6 +179,8 @@ class CupertinoSearchTextFieldState extends RestorationMixin<CupertinoSearchText
     }
   }
   override dispose(): void {
+    this.observer?.removeListener(this.onScroll);
+    this.observer = null;
     super.dispose();
     this.localText?.dispose();
     this.localFocus?.dispose();
@@ -189,6 +211,11 @@ class CupertinoSearchTextFieldState extends RestorationMixin<CupertinoSearchText
     const o = this.widget.options;
     const focus = o.focusNode ?? this.localFocus!;
     const size = MediaQuery.textScalerOf(context).scale(o.itemSize ?? 20);
+    const prefixPadding = o.prefixInsets ?? prefixInsets;
+    const suffixPadding = o.suffixInsets ?? suffixInsets;
+    this.maximumIconHeight = size + Math.max(prefixPadding.vertical, suffixPadding.vertical);
+    const opacity = 1 - this.fadeExtent;
+    const placeholderColor = CupertinoColors.secondaryLabel.resolveFrom(context);
     const color = CupertinoDynamicColor.resolve(
       o.itemColor ?? CupertinoColors.secondaryLabel,
       context,
@@ -215,50 +242,59 @@ class CupertinoSearchTextFieldState extends RestorationMixin<CupertinoSearchText
           ...(o.autofocus === undefined ? {} : { autofocus: o.autofocus }),
           ...(o.onTap ? { onTap: o.onTap } : {}),
           ...(o.autocorrect === undefined ? {} : { autocorrect: o.autocorrect }),
+          smartDashesType: o.smartDashesType ?? null,
+          smartQuotesType: o.smartQuotesType ?? null,
           ...(o.enabled === undefined ? {} : { enabled: o.enabled }),
           ...(o.cursorWidth === undefined ? {} : { cursorWidth: o.cursorWidth }),
           ...(o.cursorHeight === undefined ? {} : { cursorHeight: o.cursorHeight }),
+          ...(o.cursorRadius === undefined ? {} : { cursorRadius: o.cursorRadius }),
           ...(o.cursorColor ? { cursorColor: o.cursorColor } : {}),
           controller: this.controller,
           focusNode: focus,
           decoration,
-          padding: o.padding ?? inputPadding,
+          padding: this.animatedInsets(context, o.padding ?? inputPadding),
           placeholder: o.placeholder ?? strings.searchTextFieldPlaceholderLabel,
           placeholderStyle:
             o.placeholderStyle ??
             new TextStyle({
-              color: CupertinoColors.secondaryLabel.resolveFrom(context).toARGB32(),
+              color: placeholderColor.withOpacity(placeholderColor.a * opacity).toARGB32(),
             }),
-          prefix: new Padding(
-            o.prefixInsets ?? prefixInsets,
-            new IconTheme(
-              new IconThemeData({
-                color,
-                size: size >= 30 && focus.hasFocus ? 0 : size,
-                applyTextScaling: false,
-              }),
-              o.prefixIcon ?? new Icon(CupertinoIcons.search),
+          prefix: new Opacity(
+            new Padding(
+              this.animatedInsets(context, prefixPadding),
+              new IconTheme(
+                new IconThemeData({
+                  color,
+                  size: size >= 30 && focus.hasFocus ? 0 : size,
+                  applyTextScaling: false,
+                }),
+                o.prefixIcon ?? new Icon(CupertinoIcons.search),
+              ),
             ),
+            { opacity },
           ),
-          suffix: new Padding(
-            o.suffixInsets ?? suffixInsets,
-            new ControlInteraction(
-              () =>
-                new IconTheme(
-                  new IconThemeData({ color, size, applyTextScaling: false }),
-                  o.suffixIcon ?? new Icon(CupertinoIcons.xmark_circle_fill),
-                ),
-              {
-                enabled: o.enabled !== false,
-                onPressed: this.tapSuffix,
-                requestFocusOnPointer: false,
-                semantics: {
-                  transportId: o.id + '-suffix',
-                  button: true,
-                  ...(o.onSuffixTap ? {} : { label: strings.clearButtonLabel }),
+          suffix: new Opacity(
+            new Padding(
+              this.animatedInsets(context, suffixPadding),
+              new ControlInteraction(
+                () =>
+                  new IconTheme(
+                    new IconThemeData({ color, size, applyTextScaling: false }),
+                    o.suffixIcon ?? new Icon(CupertinoIcons.xmark_circle_fill),
+                  ),
+                {
+                  enabled: o.enabled !== false,
+                  onPressed: this.tapSuffix,
+                  requestFocusOnPointer: false,
+                  semantics: {
+                    transportId: o.id + '-suffix',
+                    button: true,
+                    ...(o.onSuffixTap ? {} : { label: strings.clearButtonLabel }),
+                  },
                 },
-              },
+              ),
             ),
+            { opacity },
           ),
           suffixMode: o.suffixMode ?? OverlayVisibilityMode.editing,
           textInputAction: 'search',

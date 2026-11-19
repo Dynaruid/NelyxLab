@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/text_selection_toolbar.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import {
   StatelessWidget,
   StatefulWidget,
@@ -11,10 +12,14 @@ import { AnimatedSize } from '@nelyx/core/framework/widgets/animated-size';
 import { UniqueKey } from '@nelyx/core/foundation/key';
 import { RenderProxyBox } from '@nelyx/core/framework/rendering/boxes';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
-import { Padding, Text, ConstrainedBox, PhysicalModel } from '@nelyx/core/framework/widgets/basic';
-import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector';
+import { Padding } from '@nelyx/core/framework/widgets/basic';
 import { CustomSingleChildLayout } from '@nelyx/core/framework/widgets/custom-layout';
-import { TextSelectionToolbarLayoutDelegate } from '@nelyx/core/framework/widgets/text-selection-toolbar-layout-delegate';
+import { Icon } from '@nelyx/core/framework/widgets/icon';
+import {
+  RenderTextSelectionToolbarItem,
+  TextSelectionToolbarItem,
+  TextSelectionToolbarLayoutDelegate,
+} from '@nelyx/core/framework/widgets/text-selection-toolbar-layout-delegate';
 import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import { RenderBox } from '@nelyx/core/framework/rendering/object';
@@ -31,8 +36,18 @@ import {
   identity,
 } from '@nelyx/core/ui/geometry';
 import type { SemanticsNode, Rect } from '@nelyx/core/ui/types';
+import { Color } from '@nelyx/core/ui/color';
+import { CupertinoTextSelectionToolbar } from '@nelyx/cupertino/text-selection-toolbar';
+import { IconButton } from './icon-button.ts';
+import { Icons } from './icons.ts';
+import { defaultMaterialColorScheme } from './internal/theme/default-color-schemes.ts';
+import { Material, MaterialType } from './material.ts';
 import { Theme } from './theme.ts';
 import { MaterialLocalizations } from './material-localizations.ts';
+
+const toolbarHeight = 44;
+const toolbarContentDistance = 8;
+
 export type ToolbarBuilder = (context: BuildContext, child: Widget) => Widget;
 export interface TextSelectionToolbarOptions extends WidgetOptions {
   readonly anchorAbove: Offset;
@@ -42,7 +57,7 @@ export interface TextSelectionToolbarOptions extends WidgetOptions {
 }
 export class TextSelectionToolbar extends StatelessWidget {
   static readonly kHandleSize = 22;
-  static readonly kToolbarContentDistanceBelow = 20;
+  static readonly kToolbarContentDistanceBelow = TextSelectionToolbar.kHandleSize - 2;
   readonly anchorAbove: Offset;
   readonly anchorBelow: Offset;
   readonly children: readonly Widget[];
@@ -63,32 +78,36 @@ export class TextSelectionToolbar extends StatelessWidget {
   }
   static defaultToolbarBuilder(context: BuildContext, child: Widget): Widget {
     const colors = Theme.of(context).colorScheme,
-      defaultSurface = colors.surface === (colors.brightness === 'dark' ? 0xff141218 : 0xfffef7ff),
+      defaultSurface = colors.surface === defaultMaterialColorScheme(colors.brightness).surface,
       color = defaultSurface
         ? colors.brightness === 'dark'
           ? 0xff424242
           : 0xffffffff
         : colors.surface;
-    return new PhysicalModel({
-      color,
+    return new Material({
+      type: MaterialType.card,
+      color: new Color(color),
       elevation: 1,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(toolbarHeight / 2),
       clipBehavior: 'antiAlias',
       child,
     });
   }
   build(context: BuildContext): Widget {
-    const above = this.anchorAbove.subtract(new Offset(0, 8)),
-      below = this.anchorBelow.add(new Offset(0, 20)),
-      top = MediaQuery.of(context).safeArea.top + 8,
-      adjustment = new Offset(8, top),
-      fitsAbove = 44 <= above.dy - 8 - top;
+    const screenPadding = CupertinoTextSelectionToolbar.kToolbarScreenPadding;
+    const above = this.anchorAbove.subtract(new Offset(0, toolbarContentDistance)),
+      below = this.anchorBelow.add(
+        new Offset(0, TextSelectionToolbar.kToolbarContentDistanceBelow),
+      ),
+      top = MediaQuery.paddingOf(context).top + screenPadding,
+      adjustment = new Offset(screenPadding, top),
+      fitsAbove = toolbarHeight <= above.dy - toolbarContentDistance - top;
     return new Padding(
       {
-        left: 8,
+        left: screenPadding,
         top,
-        right: 8,
-        bottom: 8,
+        right: screenPadding,
+        bottom: screenPadding,
       },
       new CustomSingleChildLayout(
         new ToolbarOverflow({
@@ -140,23 +159,18 @@ class ToolbarOverflowState extends State<ToolbarOverflow> {
     const localizations = MaterialLocalizations.of(context),
       label = this.open ? localizations.backButtonTooltip : localizations.moreButtonTooltip,
       direction = Directionality.of(context),
-      nav = new GestureDetector(
-        new ConstrainedBox(
-          new Text(this.open ? '←' : '⋮', {
-            fontSize: 22,
-            color: Theme.of(context).colorScheme.onSurface,
-          }),
-          BoxConstraints.tightFor(48, 44),
-        ),
-        {
-          onTap: () =>
+      nav = new Material({
+        type: MaterialType.card,
+        color: new Color(0),
+        child: new IconButton({
+          icon: new Icon(this.open ? Icons.arrow_back : Icons.more_vert),
+          onPressed: () =>
             this.setState(() => {
               this.open = !this.open;
             }),
-          label,
-          semanticsId: 'selection-toolbar-overflow',
-        },
-      );
+          tooltip: label,
+        }),
+      });
     return new TrailingEdgeAlign(
       new AnimatedSize({
         duration: 140,
@@ -232,7 +246,7 @@ class ToolbarItems extends MultiChildRenderObjectWidget {
     readonly above: boolean,
     readonly direction: 'ltr' | 'rtl',
   ) {
-    super(children);
+    super(children.map((child) => new TextSelectionToolbarItem(child)));
   }
   createRenderObject(): RenderToolbarItems {
     return new RenderToolbarItems(this.open, this.above, this.direction);
@@ -264,11 +278,17 @@ class RenderToolbarItems extends RenderBox {
   protected override performLayout(constraints: BoxConstraints): Size {
     const children = this.children,
       nav = children[0];
-    this.visible.clear();
+    const before = this.visible;
+    this.visible = new Set();
     if (!nav) return constraints.smallest;
     const sized = this.open
       ? constraints.loosen()
-      : new BoxConstraints(0, constraints.maxWidth, 0, Math.min(44, constraints.maxHeight));
+      : new BoxConstraints(
+          0,
+          constraints.maxWidth,
+          0,
+          Math.min(toolbarHeight, constraints.maxHeight),
+        );
     let width = 0,
       last = -1;
     for (let i = 0; i < children.length; i++) {
@@ -280,9 +300,17 @@ class RenderToolbarItems extends RenderBox {
     }
     if (last !== -1 && last === children.length - 2 && width - nav.size.width <= sized.maxWidth)
       last = -1;
-    for (let i = 0; i < children.length; i++)
-      if (i === 0 ? last !== -1 : last === -1 || i > last === this.open)
-        this.visible.add(children[i]!);
+    for (const [i, child] of children.entries()) {
+      const visible = i === 0 ? last !== -1 : last === -1 || i > last === this.open;
+      if (visible) this.visible.add(child);
+      if (child instanceof RenderTextSelectionToolbarItem) child.setVisible(visible);
+    }
+    if (
+      before.size !== this.visible.size ||
+      [...before].some((child) => !this.visible.has(child))
+    ) {
+      this.markNeedsSemanticsUpdate();
+    }
     const content = children.slice(1).filter((child) => this.visible.has(child));
     let result: Size;
     if (this.open) {
@@ -325,6 +353,9 @@ class RenderToolbarItems extends RenderBox {
       result = constraints.constrain({ width: total, height });
     }
     return result;
+  }
+  override paintsChild(child: RenderObject): boolean {
+    return this.visible.has(child);
   }
   override paint(context: PaintingContext): void {
     for (const child of this.children)

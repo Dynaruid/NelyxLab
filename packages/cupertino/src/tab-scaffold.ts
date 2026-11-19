@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/tab_scaffold.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { invariant } from '@nelyx/core/foundation/errors';
 import { ValueKey } from '@nelyx/core/foundation/key';
 import { ChangeNotifier } from '@nelyx/core/foundation/notifier';
@@ -16,6 +18,7 @@ import { FocusScopeNode } from '@nelyx/core/framework/widgets/focus';
 import { FocusScope } from '@nelyx/core/framework/widgets/focus-scope';
 import { Element, State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
+import { HeroMode } from '@nelyx/core/framework/widgets/heroes';
 import { Offstage } from '@nelyx/core/framework/widgets/offstage';
 import { RestorableProperty, RestorationOwner } from '@nelyx/core/framework/widgets/restoration';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
@@ -153,6 +156,7 @@ class CupertinoTabScaffoldState extends State<CupertinoTabScaffold> {
   private readonly visited = new Map<number, FocusScopeNode>();
   private readonly removed = new Set<FocusScopeNode>();
   private focusIndex: number | null = null;
+  private parentScope: FocusScopeNode | null = null;
   private readonly persistence = new RestorationOwner(this, (bucket, _initial, needsRestore) => {
     if (bucket && this.ownedController) {
       if (needsRestore && bucket.contains('controller')) {
@@ -220,39 +224,49 @@ class CupertinoTabScaffoldState extends State<CupertinoTabScaffold> {
       activeScope = new FocusScopeNode({ debugLabel: `Cupertino tab ${index}` });
       this.visited.set(index, activeScope);
     }
-    if (this.focusIndex !== index) {
+    const parentScope = FocusScope.of(context);
+    if (this.focusIndex !== index || this.parentScope !== parentScope) {
       this.focusIndex = index;
+      this.parentScope = parentScope;
       const scope = activeScope;
       (context as Element).owner.postFrame(() => {
-        if (this.mounted && this.controller.index === index && scope.attached)
-          FocusScope.of(context, { createDependency: false }).setFirstFocus(scope);
+        if (
+          this.mounted &&
+          this.controller.index === index &&
+          this.parentScope === parentScope &&
+          scope.attached
+        )
+          parentScope.setFirstFocus(scope);
       });
     }
     return new Stack(
       [...this.visited].map(([tab, node]) => {
         const active = tab === index;
         return Positioned.fill(
-          new Offstage(
-            new TickerMode(
-              active,
-              new FocusScope(
-                new Semantics({
-                  role: SemanticsRole.tabPanel,
-                  container: true,
-                  explicitChildNodes: true,
-                  child: new Builder((context) => this.widget.tabBuilder(context, tab)),
-                }),
-                {
-                  node,
-                  includeSemantics: false,
-                  canRequestFocus: active,
-                  descendantsAreFocusable: active,
-                  descendantsAreTraversable: active,
-                },
+          new HeroMode({
+            enabled: active,
+            child: new Offstage(
+              new TickerMode(
+                active,
+                new FocusScope(
+                  new Semantics({
+                    role: SemanticsRole.tabPanel,
+                    container: true,
+                    explicitChildNodes: true,
+                    child: new Builder((context) => this.widget.tabBuilder(context, tab)),
+                  }),
+                  {
+                    node,
+                    includeSemantics: false,
+                    canRequestFocus: active,
+                    descendantsAreFocusable: active,
+                    descendantsAreTraversable: active,
+                  },
+                ),
               ),
+              { offstage: !active },
             ),
-            { offstage: !active },
-          ),
+          }),
           { key: new ValueKey(tab) },
         );
       }),

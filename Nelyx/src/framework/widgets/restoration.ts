@@ -63,6 +63,7 @@ export class RestorationOwner {
       bucket: RestorationBucket | null,
       initialRestore: boolean,
       needsRestore: boolean,
+      oldBucket: RestorationBucket | null,
     ) => void,
   ) {}
   get bucket(): RestorationBucket | null {
@@ -100,7 +101,7 @@ export class RestorationOwner {
     this.generation = generation;
     this.manager = manager;
     try {
-      if (initial || this.current !== old) this.restore(this.current, initial, needsRestore);
+      if (initial || this.current !== old) this.restore(this.current, initial, needsRestore, old);
     } finally {
       if (old !== null && old !== this.current) old.dispose();
     }
@@ -321,21 +322,24 @@ export abstract class RestorationMixin<W extends StatefulWidget = StatefulWidget
     { id: string; changed: () => void }
   >();
   private restoring = false;
-  private readonly restoration = new RestorationOwner(this, (bucket, initial, needsRestore) => {
-    if (needsRestore) {
-      this.restoring = true;
-      try {
-        for (const [property, { id }] of this.registered) {
-          if (bucket?.contains(id)) property.restore(bucket.read(id));
-          else property.reset();
+  private readonly restoration = new RestorationOwner(
+    this,
+    (bucket, initial, needsRestore, oldBucket) => {
+      if (needsRestore) {
+        this.restoring = true;
+        try {
+          for (const [property, { id }] of this.registered) {
+            if (bucket?.contains(id)) property.restore(bucket.read(id));
+            else property.reset();
+          }
+          this.restoreState(oldBucket, initial);
+        } finally {
+          this.restoring = false;
         }
-        this.restoreState(bucket, initial);
-      } finally {
-        this.restoring = false;
       }
       for (const [property, { id }] of this.registered) bucket?.write(id, property.toPrimitives());
-    }
-  });
+    },
+  );
   get bucket(): RestorationBucket | null {
     return this.restoration.bucket;
   }

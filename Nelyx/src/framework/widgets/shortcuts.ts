@@ -14,7 +14,7 @@ import {
   KeyboardLockMode,
 } from '../../services/hardware-keyboard.ts';
 import type { HardwareKeyboard } from '../../services/hardware-keyboard.ts';
-import { Actions } from './actions.ts';
+import { Actions, VoidCallbackAction, VoidCallbackIntent } from './actions.ts';
 import type { Intent } from './actions.ts';
 import { Focus } from './focus-scope.ts';
 import type { KeyEventResult } from './focus.ts';
@@ -565,6 +565,7 @@ export class ShortcutRegistrar extends StatefulWidget {
 class ShortcutRegistrarState extends State<ShortcutRegistrar> {
   private registry!: ShortcutRegistry;
   private manager!: ShortcutManager;
+  private readonly callbackActions = new Map([[VoidCallbackIntent, new VoidCallbackAction()]]);
   private readonly changed = () => {
     this.manager.shortcuts = this.registry.shortcuts;
   };
@@ -589,7 +590,10 @@ class ShortcutRegistrarState extends State<ShortcutRegistrar> {
   build(): Widget {
     return new ShortcutRegistrarScope(
       this.registry,
-      Shortcuts.manager(this.manager, this.widget.child),
+      Shortcuts.manager(
+        this.manager,
+        new Actions({ actions: this.callbackActions, child: this.widget.child }),
+      ),
     );
   }
 }

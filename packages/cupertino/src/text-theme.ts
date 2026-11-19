@@ -2,7 +2,7 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Functional port of cupertino/text_theme.dart at Flutter
 // 71e4717a61786faab4c7aa39825989305ed29e8a, on Core's ARGB TextStyle ABI.
-import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { TextStyle, resolveTextStyleColors } from '@nelyx/core/framework/painting/text-style';
 import { FontWeight, TextDecoration } from '@nelyx/core/ui/typography';
 import type { BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { Diagnosticable } from '@nelyx/core/foundation/diagnosticable';
@@ -189,9 +189,19 @@ export class CupertinoTextThemeData extends Diagnosticable(class {}) {
     );
   }
   resolveFrom(context: BuildContext): CupertinoTextThemeData {
-    // Explicit Core TextStyles already carry resolved ARGB color fields.
+    const styles = Object.fromEntries(
+      roles.map((role) => {
+        const style = this.specified[role];
+        return [
+          role,
+          style === null
+            ? null
+            : resolveTextStyleColors(style, (color) => resolveCupertinoColor(color, context)),
+        ];
+      }),
+    );
     return new CupertinoTextThemeData(
-      { ...this.specified, primaryColor: resolveCupertinoColor(this.primary, context) },
+      { ...styles, primaryColor: resolveCupertinoColor(this.primary, context) },
       {
         label: resolveCupertinoColor(this.defaults.label, context),
         inactive: resolveCupertinoColor(this.defaults.inactive, context),
@@ -228,38 +238,10 @@ export class CupertinoTextThemeData extends Diagnosticable(class {}) {
       properties.add(new DiagnosticsProperty(role, this[role], { defaultValue: standard[role] }));
   }
 }
-class DefaultCupertinoTextThemeData extends CupertinoTextThemeData {
-  constructor(
-    primaryColor: CupertinoColor,
-    private readonly label: CupertinoColor,
-    private readonly inactive: CupertinoColor,
-  ) {
-    super({ primaryColor });
-    Object.freeze(this);
-  }
-  override get textStyle(): TextStyle {
-    return super.textStyle.copyWith({ color: cupertinoColorValue(this.label) });
-  }
-  override get tabLabelTextStyle(): TextStyle {
-    return super.tabLabelTextStyle.copyWith({ color: cupertinoColorValue(this.inactive) });
-  }
-  override get navTitleTextStyle(): TextStyle {
-    return super.navTitleTextStyle.copyWith({ color: cupertinoColorValue(this.label) });
-  }
-  override get navLargeTitleTextStyle(): TextStyle {
-    return super.navLargeTitleTextStyle.copyWith({ color: cupertinoColorValue(this.label) });
-  }
-  override get pickerTextStyle(): TextStyle {
-    return super.pickerTextStyle.copyWith({ color: cupertinoColorValue(this.label) });
-  }
-  override get dateTimePickerTextStyle(): TextStyle {
-    return super.dateTimePickerTextStyle.copyWith({ color: cupertinoColorValue(this.label) });
-  }
-}
 /** @internal ThemeData's source default helper; explicit styles remain separate. */
 export function defaultCupertinoTextTheme(
   primary: CupertinoColor,
   colors: CupertinoTextDefaults,
 ): CupertinoTextThemeData {
-  return new DefaultCupertinoTextThemeData(primary, colors.label, colors.inactive);
+  return new CupertinoTextThemeData({ primaryColor: primary }, colors);
 }

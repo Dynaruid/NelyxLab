@@ -27,7 +27,7 @@ import { TextScaler } from './text-scaler.ts';
 import type { StrutStyle } from './strut-style.ts';
 import type { TextOverflow } from './text-painter.ts';
 import { RenderComparison } from './basic-types.ts';
-import { Color } from '../../ui/color.ts';
+import { Color, colorArgbFallback } from '../../ui/color.ts';
 import { FoundationBuildMode } from '../../foundation/constants.ts';
 import { Diagnosticable } from '../../foundation/diagnosticable.ts';
 import { DiagnosticsProperty, StringProperty } from '../../foundation/diagnostics.ts';
@@ -42,10 +42,12 @@ import {
 import { objectRuntimeType } from '../../foundation/object.ts';
 import { fixed, protect } from '../../ui/value-math.ts';
 
+type TextStyleColor = number | Color;
+
 export interface TextStyleOptions {
   readonly inherit?: boolean;
-  readonly color?: number | null;
-  readonly backgroundColor?: number | null;
+  readonly color?: TextStyleColor | null;
+  readonly backgroundColor?: TextStyleColor | null;
   readonly fontFamily?: string | null;
   readonly fontFamilyFallback?: readonly string[] | null;
   readonly package?: string | null;
@@ -62,7 +64,7 @@ export interface TextStyleOptions {
   readonly background?: Paint | null;
   readonly shadows?: readonly Shadow[] | null;
   readonly decoration?: TextDecoration | null;
-  readonly decorationColor?: number | null;
+  readonly decorationColor?: TextStyleColor | null;
   readonly decorationThickness?: number | null;
   readonly decorationStyle?: TextDecorationStyle | null;
   readonly fontFeatures?: readonly FontFeature[] | null;
@@ -71,10 +73,10 @@ export interface TextStyleOptions {
   readonly overflow?: TextOverflow | null;
 }
 export interface TextStyleApplyOptions {
-  readonly color?: number | null;
-  readonly backgroundColor?: number | null;
+  readonly color?: TextStyleColor | null;
+  readonly backgroundColor?: TextStyleColor | null;
   readonly decoration?: TextDecoration | null;
-  readonly decorationColor?: number | null;
+  readonly decorationColor?: TextStyleColor | null;
   readonly decorationStyle?: TextDecorationStyle | null;
   readonly decorationThicknessFactor?: number;
   readonly decorationThicknessDelta?: number;
@@ -140,6 +142,47 @@ const paintFields = [
 ] as const;
 const paintIdentities = new WeakMap<Paint, number>();
 let nextPaintIdentity = 0;
+type ContextualTextColors = Readonly<{
+  color?: Color;
+  backgroundColor?: Color;
+  decorationColor?: Color;
+}>;
+const contextualTextColors = new WeakMap<TextStyle, ContextualTextColors>();
+function contextualColor(value: TextStyleColor | null): Color | undefined {
+  return value instanceof Color && Object.getPrototypeOf(value) !== Color.prototype
+    ? value
+    : undefined;
+}
+function sameContextualColors(left: TextStyle, right: TextStyle): boolean {
+  const a = contextualTextColors.get(left);
+  const b = contextualTextColors.get(right);
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+  const equal = (x: Color | undefined, y: Color | undefined) =>
+    x === y || (x !== undefined && y !== undefined && x.equals(y));
+  return (
+    equal(a.color, b.color) &&
+    equal(a.backgroundColor, b.backgroundColor) &&
+    equal(a.decorationColor, b.decorationColor)
+  );
+}
+
+/** @internal Design themes resolve contextual color receivers before paragraph construction. */
+export function resolveTextStyleColors(
+  style: TextStyle,
+  resolve: (color: Color) => Color,
+): TextStyle {
+  const colors = contextualTextColors.get(style);
+  if (colors === undefined) return style;
+  return style.copyWith({
+    color: colors.color === undefined ? null : resolve(colors.color).toARGB32(),
+    backgroundColor:
+      colors.backgroundColor === undefined ? null : resolve(colors.backgroundColor).toARGB32(),
+    decorationColor:
+      colors.decorationColor === undefined ? null : resolve(colors.decorationColor).toARGB32(),
+  });
+}
+
 const unscaledRuns = new WeakMap<TextStyle, TextRunStyle>();
 /** @internal Exact immutable, paint-free values with an already captured run.
  * A Proxy, subclass or borrowed mutable Paint never acquires this identity. */
@@ -155,7 +198,7 @@ const mergedStyles = new WeakMap<
 const copiedStyles = new WeakMap<
   TextStyle,
   {
-    color: number | null;
+    color: TextStyleColor | null;
     fontSize: number | null;
     locale: string | null;
     debug: boolean;
@@ -221,8 +264,11 @@ export class TextStyle extends Diagnosticable(class {}) {
       'invalid-text-style',
       'TextStyle inherit must be boolean',
     );
-    this.color = o.color ?? null;
-    this.backgroundColor = o.backgroundColor ?? null;
+    const color = o.color ?? null,
+      backgroundColor = o.backgroundColor ?? null;
+    this.color = color instanceof Color ? colorArgbFallback(color) : color;
+    this.backgroundColor =
+      backgroundColor instanceof Color ? colorArgbFallback(backgroundColor) : backgroundColor;
     this.packageName = o.package ?? null;
     // The pinned constructor interpolates a null family as the literal "null" when package is specified.
     this.fontFamily =
@@ -277,7 +323,24 @@ export class TextStyle extends Diagnosticable(class {}) {
     this.fontFeatures = o.fontFeatures ? Object.freeze([...o.fontFeatures]) : null;
     this.fontVariations = o.fontVariations ? Object.freeze([...o.fontVariations]) : null;
     this.decoration = o.decoration ?? null;
-    this.decorationColor = o.decorationColor ?? null;
+    const decorationColor = o.decorationColor ?? null;
+    this.decorationColor =
+      decorationColor instanceof Color ? colorArgbFallback(decorationColor) : decorationColor;
+    if (
+      this.color !== color ||
+      this.backgroundColor !== backgroundColor ||
+      this.decorationColor !== decorationColor
+    ) {
+      const textColor = contextualColor(color);
+      const fillColor = contextualColor(backgroundColor);
+      const lineColor = contextualColor(decorationColor);
+      if (textColor !== undefined || fillColor !== undefined || lineColor !== undefined)
+        contextualTextColors.set(this, {
+          ...(textColor === undefined ? {} : { color: textColor }),
+          ...(fillColor === undefined ? {} : { backgroundColor: fillColor }),
+          ...(lineColor === undefined ? {} : { decorationColor: lineColor }),
+        });
+    }
     this.decorationThickness = o.decorationThickness ?? null;
     this.decorationStyle = o.decorationStyle ?? null;
     this.debugLabel = o.debugLabel ?? null;
@@ -323,10 +386,11 @@ export class TextStyle extends Diagnosticable(class {}) {
           null);
   }
   private options(): TextStyleOptions {
+    const colors = contextualTextColors.get(this);
     return {
       inherit: this.inherit,
-      color: this.color,
-      backgroundColor: this.backgroundColor,
+      color: colors?.color ?? this.color,
+      backgroundColor: colors?.backgroundColor ?? this.backgroundColor,
       fontFamily: this.rawFontFamily,
       fontFamilyFallback: this.rawFontFamilyFallback,
       package: this.packageName,
@@ -346,7 +410,7 @@ export class TextStyle extends Diagnosticable(class {}) {
       fontFeatures: this.fontFeatures,
       fontVariations: this.fontVariations,
       decoration: this.decoration,
-      decorationColor: this.decorationColor,
+      decorationColor: colors?.decorationColor ?? this.decorationColor,
       decorationStyle: this.decorationStyle,
       decorationThickness: this.decorationThickness,
       overflow: this.overflow,
@@ -361,14 +425,17 @@ export class TextStyle extends Diagnosticable(class {}) {
         o.background ?? null,
       );
     const original = this.options(),
-      result = { ...original };
+      result = { ...original },
+      colors = contextualTextColors.get(this);
     for (const key of Object.keys(original) as (keyof TextStyleOptions)[])
       if (o[key] != null) (result as Record<string, unknown>)[key] = o[key];
     result.color =
-      this.foreground === null && o.foreground == null ? (o.color ?? this.color) : null;
+      this.foreground === null && o.foreground == null
+        ? (o.color ?? colors?.color ?? this.color)
+        : null;
     result.backgroundColor =
       this.background === null && o.background == null
-        ? (o.backgroundColor ?? this.backgroundColor)
+        ? (o.backgroundColor ?? colors?.backgroundColor ?? this.backgroundColor)
         : null;
     result.debugLabel = FoundationBuildMode.debug
       ? (o.debugLabel ?? (this.debugLabel === null ? null : `(${this.debugLabel}).copyWith`))
@@ -412,11 +479,14 @@ export class TextStyle extends Diagnosticable(class {}) {
     }
     const modified = (value: number | null, factor: number, delta: number) =>
       value === null ? null : value * factor + delta;
+    const colors = contextualTextColors.get(this);
     return TextStyle.fromAppliedOptions({
       ...this.options(),
-      color: this.foreground === null ? (o.color ?? this.color) : null,
+      color: this.foreground === null ? (o.color ?? colors?.color ?? this.color) : null,
       backgroundColor:
-        this.background === null ? (o.backgroundColor ?? this.backgroundColor) : null,
+        this.background === null
+          ? (o.backgroundColor ?? colors?.backgroundColor ?? this.backgroundColor)
+          : null,
       fontFamily: o.fontFamily ?? this.rawFontFamily,
       fontFamilyFallback: o.fontFamilyFallback ?? this.rawFontFamilyFallback,
       package: o.package ?? this.packageName,
@@ -439,7 +509,7 @@ export class TextStyle extends Diagnosticable(class {}) {
       fontFeatures: o.fontFeatures ?? this.fontFeatures,
       fontVariations: o.fontVariations ?? this.fontVariations,
       decoration: o.decoration ?? this.decoration,
-      decorationColor: o.decorationColor ?? this.decorationColor,
+      decorationColor: o.decorationColor ?? colors?.decorationColor ?? this.decorationColor,
       decorationStyle: o.decorationStyle ?? this.decorationStyle,
       decorationThickness: modified(
         this.decorationThickness,
@@ -461,15 +531,22 @@ export class TextStyle extends Diagnosticable(class {}) {
       Object.getPrototypeOf(ordinaryTextStyleParent) !== ordinaryTextStyleRoot
     )
       return new TextStyle(o);
+    const color = o.color ?? null,
+      backgroundColor = o.backgroundColor ?? null,
+      decorationColor = o.decorationColor ?? null;
+    if (
+      color instanceof Color ||
+      backgroundColor instanceof Color ||
+      decorationColor instanceof Color
+    )
+      return new TextStyle(o);
     const inherit = o.inherit ?? true;
     invariant(
       typeof inherit === 'boolean',
       'invalid-text-style',
       'TextStyle inherit must be boolean',
     );
-    const color = o.color ?? null,
-      backgroundColor = o.backgroundColor ?? null,
-      packageName = o.package ?? null,
+    const packageName = o.package ?? null,
       fontFamily =
         packageName === null
           ? (o.fontFamily ?? null)
@@ -520,7 +597,6 @@ export class TextStyle extends Diagnosticable(class {}) {
       fontFeatures = o.fontFeatures ? Object.freeze([...o.fontFeatures]) : null,
       fontVariations = o.fontVariations ? Object.freeze([...o.fontVariations]) : null,
       decoration = o.decoration ?? null,
-      decorationColor = o.decorationColor ?? null,
       decorationThickness = o.decorationThickness ?? null,
       decorationStyle = o.decorationStyle ?? null,
       debugLabel = o.debugLabel ?? null,
@@ -847,6 +923,7 @@ export class TextStyle extends Diagnosticable(class {}) {
       (other instanceof TextStyle &&
         other.constructor === this.constructor &&
         this.packageName === other.packageName &&
+        sameContextualColors(this, other) &&
         this.compareTo(other) === RenderComparison.identical)
     );
   }
@@ -976,9 +1053,9 @@ export class TextStyle extends Diagnosticable(class {}) {
   }
 }
 function assertPaintColors(
-  color: number | null,
+  color: TextStyleColor | null,
   foreground: Paint | null,
-  backgroundColor: number | null,
+  backgroundColor: TextStyleColor | null,
   background: Paint | null,
 ): void {
   invariant(

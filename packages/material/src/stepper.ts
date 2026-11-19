@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/stepper.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { invariant } from '@nelyx/core/foundation/errors';
-import { Curves } from '@nelyx/core/framework/animation/curves';
+import { ValueKey } from '@nelyx/core/foundation/key';
+import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
+import type { Animation } from '@nelyx/core/framework/animation/animation';
+import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
+import { Curves, Interval } from '@nelyx/core/framework/animation/curves';
+import { CurveTween } from '@nelyx/core/framework/animation/tween';
 import { Alignment } from '@nelyx/core/framework/painting/alignment';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import type { BoxBorder } from '@nelyx/core/framework/painting/box-border';
@@ -14,6 +22,7 @@ import { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import { hashValues, valueEquals } from '@nelyx/core/framework/painting/value-equality';
 import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';
 import { AnimatedSize } from '@nelyx/core/framework/widgets/animated-size';
+import { AnimatedSwitcher } from '@nelyx/core/framework/widgets/animated-switcher';
 import { Directionality } from '@nelyx/core/framework/widgets/app-data';
 import {
   Align,
@@ -21,6 +30,7 @@ import {
   ColoredBox,
   Column,
   Expanded,
+  KeyedSubtree,
   Padding,
   PositionedDirectional,
   Row,
@@ -30,7 +40,8 @@ import {
 } from '@nelyx/core/framework/widgets/basic';
 import { ClipRect } from '@nelyx/core/framework/widgets/clip';
 import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
-import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
+import { ExcludeFocus } from '@nelyx/core/framework/widgets/focus-scope';
+import { Element, State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import { Icon } from '@nelyx/core/framework/widgets/icon';
@@ -38,11 +49,14 @@ import {
   AnimatedContainer,
   AnimatedDefaultTextStyle,
 } from '@nelyx/core/framework/widgets/implicit-animations';
+import { IgnorePointer } from '@nelyx/core/framework/widgets/pointer-blocking';
 import type { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
 import type { ScrollPhysics } from '@nelyx/core/framework/widgets/scroll-physics';
 import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
 import { Scrollable } from '@nelyx/core/framework/widgets/scrollable';
-import { Semantics } from '@nelyx/core/framework/widgets/semantics';
+import { ExcludeSemantics, Semantics } from '@nelyx/core/framework/widgets/semantics';
+import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
+import { FadeTransition, SizeTransition } from '@nelyx/core/framework/widgets/transitions';
 import { Visibility } from '@nelyx/core/framework/widgets/visibility';
 import { emptyWidgetStateSet, WidgetState } from '@nelyx/core/framework/widgets/widget-state';
 import type { WidgetStateProperty } from '@nelyx/core/framework/widgets/widget-state';
@@ -255,7 +269,12 @@ export interface StepperOptions extends WidgetOptions {
 }
 
 const iconSize = 24;
+const maximumIconSize = 80;
+const triangleRatio = 0.866025;
+const triangleHeight = iconSize * triangleRatio;
 const animation = { duration: 200, curve: Curves.fastOutSlowIn };
+const contentFade = new Interval(0.4, 1, { curve: animation.curve });
+const circleFade = new Interval(0, 0.6, { curve: animation.curve }).flipped;
 const defaultHeaderPadding = EdgeInsets.symmetric({ horizontal: 24 });
 const defaultVerticalPadding = EdgeInsetsDirectional.only({ start: 60, end: 24, bottom: 24 });
 const defaultHorizontalPadding = EdgeInsets.all(24);
@@ -321,7 +340,7 @@ export class Stepper extends StatefulWidget {
     );
     for (const size of [stepIconHeight, stepIconWidth]) {
       invariant(
-        size === null || (size >= iconSize && size <= 80),
+        size === null || (size >= iconSize && size <= maximumIconSize),
         'invalid-stepper-icon-size',
         'Step icon dimensions must be between 24 and 80',
       );
@@ -360,9 +379,11 @@ export class Stepper extends StatefulWidget {
 class StepperState extends State<Stepper> {
   private headerKeys: GlobalKey[] = [];
   override initState(): void {
+    super.initState();
     this.headerKeys = this.widget.steps.map(() => new GlobalKey());
   }
   override didUpdateWidget(old: Stepper): void {
+    super.didUpdateWidget(old);
     invariant(
       old.steps.length === this.widget.steps.length,
       'changed-stepper-length',
@@ -432,19 +453,32 @@ class StepperState extends State<Stepper> {
         child: new Center(glyph),
       });
     };
-    const indicator =
-      step.state === StepState.error
-        ? new Center(
-            new SizedBox(
-              width,
-              (height * Math.sqrt(3)) / 2,
-              new CustomPaint(new Align(glyph, { alignment: new Alignment(0, 0.8) }), {
-                painter: new ErrorIndicatorPainter(style?.errorColor ?? this.errorColor(theme)),
-              }),
-            ),
-          )
-        : circle();
-    return pad(new SizedBox(width, height, indicator), stepIconMargin ?? defaultIconPadding);
+    const error = step.state === StepState.error;
+    const indicator = error
+      ? new Center(
+          new SizedBox(
+            width,
+            stepIconHeight === null ? triangleHeight : height * triangleRatio,
+            new CustomPaint(new Align(glyph, { alignment: new Alignment(0, 0.8) }), {
+              painter: new ErrorIndicatorPainter(style?.errorColor ?? this.errorColor(theme)),
+            }),
+          ),
+        )
+      : circle();
+    const fade = error ? contentFade : circleFade;
+    return pad(
+      new SizedBox(
+        width,
+        height,
+        new AnimatedSwitcher({
+          duration: animation.duration,
+          switchInCurve: fade,
+          switchOutCurve: fade,
+          child: new KeyedSubtree({ key: new ValueKey(error), child: indicator }),
+        }),
+      ),
+      stepIconMargin ?? defaultIconPadding,
+    );
   }
   private headerText(theme: ThemeData, step: Step, child: Widget, small = false): Widget {
     const base = (small ? theme.textTheme.bodySmall : theme.textTheme.bodyLarge) ?? new TextStyle();
@@ -478,7 +512,7 @@ class StepperState extends State<Stepper> {
       if (context) void Scrollable.ensureVisible(context, animation);
       this.widget.onStepTapped?.(index);
     };
-    const onTap = enabled && (vertical || this.widget.onStepTapped !== null) ? press : null;
+    const onTap = enabled ? press : null;
     const options = { onTap, canRequestFocus: onTap !== null, child };
     return new Semantics({
       container: true,
@@ -513,7 +547,7 @@ class StepperState extends State<Stepper> {
               ),
               backgroundColor: dark ? null : new Color(theme.colorScheme.primary),
             }),
-            child: label('Continue'),
+            child: label(labels.continueButtonLabel),
           }),
           pad(
             new TextButton({
@@ -572,22 +606,15 @@ class StepperState extends State<Stepper> {
         ),
         true,
       );
-      const body = new AnimatedSize({
-        ...animation,
-        alignment: Alignment.topCenter,
-        child: new Visibility(
-          pad(
-            new Column([this.content(step), this.controls(context, theme, index)], {
-              mainAxisSize: 'min',
-            }),
-            contentPadding,
-          ),
-          {
-            visible: index === w.currentStep,
-            maintainState: true,
-          },
+      const body = new StepperBody(
+        index === w.currentStep,
+        pad(
+          new Column([this.content(step), this.controls(context, theme, index)], {
+            mainAxisSize: 'min',
+          }),
+          contentPadding,
         ),
-      });
+      );
       const panel = last
         ? body
         : new Stack([
@@ -712,6 +739,75 @@ class StepperState extends State<Stepper> {
     return this.widget.type === StepperType.vertical
       ? this.vertical(context, theme)
       : this.horizontal(context, theme);
+  }
+}
+
+class StepperBody extends StatefulWidget {
+  constructor(
+    readonly expanded: boolean,
+    readonly child: Widget,
+  ) {
+    super();
+  }
+  override createState(): State<StepperBody> {
+    return new StepperBodyState();
+  }
+}
+
+class StepperBodyState extends SingleTickerProviderStateMixin<StepperBody> {
+  private controller!: AnimationController;
+  private size!: Animation<number>;
+  private opacity!: Animation<number>;
+
+  private readonly onStatus = (status: AnimationStatus): void => {
+    if (
+      status === AnimationStatus.dismissed &&
+      this.mounted &&
+      this.context instanceof Element &&
+      this.context.active
+    )
+      this.setState(() => {});
+  };
+  override initState(): void {
+    super.initState();
+    this.controller = new AnimationController({
+      vsync: this,
+      duration: animation.duration,
+      value: this.widget.expanded ? 1 : 0,
+    });
+    this.size = this.controller.drive(new CurveTween({ curve: animation.curve }));
+    this.opacity = this.controller.drive(new CurveTween({ curve: contentFade }));
+    this.controller.addStatusListener(this.onStatus);
+  }
+  override didUpdateWidget(old: StepperBody): void {
+    super.didUpdateWidget(old);
+    if (old.expanded === this.widget.expanded) return;
+    if (this.widget.expanded) this.controller.forward();
+    else this.controller.reverse();
+  }
+  override build(): Widget {
+    const { expanded, child } = this.widget;
+    const panel = new ExcludeFocus(
+      new IgnorePointer(new ExcludeSemantics({ excluding: !expanded, child }), {
+        ignoring: !expanded,
+      }),
+      { excluding: !expanded },
+    );
+    return new SizeTransition({
+      sizeFactor: this.size,
+      alignment: Alignment.topCenter,
+      child: new FadeTransition({
+        opacity: this.opacity,
+        child: new Visibility(panel, {
+          maintainState: true,
+          visible: expanded || !this.controller.isDismissed,
+        }),
+      }),
+    });
+  }
+  override dispose(): void {
+    this.controller.dispose();
+    super.dispose();
   }
 }
 

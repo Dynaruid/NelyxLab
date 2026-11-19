@@ -32,7 +32,7 @@ type NativeServices = Pick<
   | 'AppState'
   | 'BackHandler'
 > &
-  Partial<Pick<typeof import('react-native'), 'Linking'>>;
+  Partial<Pick<typeof import('react-native'), 'Linking' | 'StatusBar'>>;
 const backOwners = new WeakMap<object, PluginPlatformMessagePort>();
 /** Public RN modules dispatch to each platform's actual OS implementation. */
 export function createReactNativePlatformMessages(
@@ -218,6 +218,7 @@ export function createReactNativePlatformMessages(
   const preferred = nativeLocaleModule(
     native.NativeModules.NelyxPlatformServices ?? (target === 'linux' ? linuxHost : undefined),
   );
+  const executableName = preferred?.getExecutableName?.();
   const nativePop =
     typeof preferred?.popSystemNavigator === 'function'
       ? (animated: boolean | null) => preferred.popSystemNavigator!(animated ?? false)
@@ -340,6 +341,30 @@ export function createReactNativePlatformMessages(
       ? readNativeAccessibilityFeatures(native.NativeModules.NelyxPlatformServices, target)
       : undefined;
   installOsServices(port, {
+    ...((target === 'ios' || target === 'android') && native.StatusBar
+      ? {
+          setSystemUiOverlayStyle(style) {
+            if (target === 'ios') {
+              const brightness = style.get('statusBarBrightness');
+              if (brightness === 'Brightness.dark' || brightness === 'Brightness.light')
+                native.StatusBar!.setBarStyle(
+                  brightness === 'Brightness.dark' ? 'light-content' : 'dark-content',
+                );
+              return;
+            }
+            const brightness = style.get('statusBarIconBrightness');
+            if (brightness === 'Brightness.dark' || brightness === 'Brightness.light')
+              native.StatusBar!.setBarStyle(
+                brightness === 'Brightness.light' ? 'light-content' : 'dark-content',
+              );
+            const color = style.get('statusBarColor');
+            if (typeof color === 'number' && Number.isInteger(color)) {
+              const rgba = ((color << 8) | (color >>> 24)) >>> 0;
+              native.StatusBar!.setBackgroundColor('#' + rgba.toString(16).padStart(8, '0'));
+            }
+          },
+        }
+      : {}),
     ...(target === 'android'
       ? {
           playSystemSound: (type: string) => feedback('sound', type),
@@ -351,6 +376,7 @@ export function createReactNativePlatformMessages(
         accessibility = accessibilityFeatures();
       return {
         ...locale(),
+        ...(executableName ? { executableName } : {}),
         ...(accessibility ? { accessibility } : {}),
         localeObservation: preferred ? 'poll' : 'resume',
         brightness: brightness === 'light' || brightness === 'dark' ? brightness : null,

@@ -135,7 +135,16 @@ class NelyxInputConnectionView(private val reactContext: ThemedReactContext): Vi
         multiline=flag("multiline",false);readOnly=flag("readOnly",false);obscured=flag("obscureText",false);require(!obscured||!multiline)
         val keyboard=if(value?.hasKey("keyboardType")==true)value.getString("keyboardType") ?: "text" else "text"
         val capitalization=if(value?.hasKey("capitalization")==true)value.getString("capitalization") ?: "sentences" else "sentences"
-        var kind=when(keyboard){"text"->InputType.TYPE_CLASS_TEXT;"number"->InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED;"decimal"->InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED or InputType.TYPE_NUMBER_FLAG_DECIMAL;"phone"->InputType.TYPE_CLASS_PHONE;"email"->InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS;"url"->InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI;else->throw IllegalArgumentException("Unknown input keyboard")}
+        var kind = when (keyboard) {
+            "text" -> InputType.TYPE_CLASS_TEXT
+            "number" -> InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED
+            "decimal" -> InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            "phone" -> InputType.TYPE_CLASS_PHONE
+            "email" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+            "url" -> InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            "datetime" -> InputType.TYPE_CLASS_DATETIME
+            else -> throw IllegalArgumentException("Unknown input keyboard")
+        }
         if(kind and InputType.TYPE_MASK_CLASS==InputType.TYPE_CLASS_TEXT){
             kind=kind or when(capitalization){"none"->0;"sentences"->InputType.TYPE_TEXT_FLAG_CAP_SENTENCES;"words"->InputType.TYPE_TEXT_FLAG_CAP_WORDS;"characters"->InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS;else->throw IllegalArgumentException("Unknown input capitalization")}
             if(multiline)kind=kind or InputType.TYPE_TEXT_FLAG_MULTI_LINE
@@ -149,7 +158,8 @@ class NelyxInputConnectionView(private val reactContext: ThemedReactContext): Vi
             val mapped=mutableListOf<String>();if(!readOnly&&hints!=null)for(index in 0 until hints.size()){val hint=requireNotNull(hints.getString(index));require(hint.length<=100&&hint.matches(Regex("^[a-zA-Z][a-zA-Z0-9-]*$")));mapped.add(when(hint){"email"->"emailAddress";"name"->"personName";"current-password"->"password";"new-password"->"newPassword";"one-time-code"->"smsOTPCode";"tel"->"phone";"street-address"->"postalAddress";"postal-code"->"postalCode";else->hint})}
             setAutofillHints(*mapped.toTypedArray());importantForAutofill=if(mapped.isEmpty())IMPORTANT_FOR_AUTOFILL_NO else IMPORTANT_FOR_AUTOFILL_YES
         }
-        if(Build.VERSION.SDK_INT>=33)isAutoHandwritingEnabled=!readOnly&&!obscured
+        if(Build.VERSION.SDK_INT>=33)
+            isAutoHandwritingEnabled=flag("stylusHandwritingEnabled",true)&&!readOnly&&!obscured
     }
     fun configureAction(value: String){inputAction=value;actionCode=when(value){"enter"->EditorInfo.IME_ACTION_NONE;"done"->EditorInfo.IME_ACTION_DONE;"go"->EditorInfo.IME_ACTION_GO;"next"->EditorInfo.IME_ACTION_NEXT;"previous"->EditorInfo.IME_ACTION_PREVIOUS;"search"->EditorInfo.IME_ACTION_SEARCH;"send"->EditorInfo.IME_ACTION_SEND;else->throw IllegalArgumentException("Unknown input action")}}
     override fun onCheckIsTextEditor(): Boolean=acceptsSoftInput

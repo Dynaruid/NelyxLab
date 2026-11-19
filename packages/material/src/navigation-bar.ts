@@ -1,7 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/navigation_bar.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { invariant } from '@nelyx/core/foundation/errors';
+import { LocalKey } from '@nelyx/core/foundation/key';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import type { Animation } from '@nelyx/core/framework/animation/animation';
+import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
+import {
+  CurvedAnimation,
+  kAlwaysCompleteAnimation,
+  kAlwaysDismissedAnimation,
+} from '@nelyx/core/framework/animation/animations';
 import { Curves } from '@nelyx/core/framework/animation/curves';
 import { Alignment } from '@nelyx/core/framework/painting/alignment';
 import { ColorShapeDecoration } from '@nelyx/core/framework/painting/color-shape-decoration';
@@ -12,42 +21,56 @@ import { StadiumBorder } from '@nelyx/core/framework/painting/stadium-border';
 import { RoundedRectangleBorder } from '@nelyx/core/framework/painting/rounded-rectangle-border';
 import type { ShapeBorder } from '@nelyx/core/framework/painting/borders';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { MultiChildLayoutDelegate } from '@nelyx/core/framework/rendering/custom-layout';
+import { RenderBox } from '@nelyx/core/framework/rendering/object';
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import {
   DecoratedBox,
   Expanded,
+  KeyedSubtree,
   Padding,
-  Positioned,
   Row,
   SizedBox,
   Stack,
   Text,
   Transform,
 } from '@nelyx/core/framework/widgets/basic';
+import { CustomMultiChildLayout, LayoutId } from '@nelyx/core/framework/widgets/custom-layout';
+import { FocusNode } from '@nelyx/core/framework/widgets/focus';
+import { ExcludeFocus } from '@nelyx/core/framework/widgets/focus-scope';
 import {
   InheritedWidget,
-  State,
   StatefulWidget,
   StatelessWidget,
 } from '@nelyx/core/framework/widgets/framework';
-import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
+import type {
+  BuildContext,
+  State,
+  Widget,
+  WidgetOptions,
+} from '@nelyx/core/framework/widgets/framework';
+import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
 import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
-import {
-  AnimatedAlign,
-  AnimatedOpacity,
-  AnimatedScale,
-} from '@nelyx/core/framework/widgets/implicit-animations';
+import { AnimatedOpacity } from '@nelyx/core/framework/widgets/implicit-animations';
 import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
-import { AnimatedBuilder } from '@nelyx/core/framework/widgets/transitions';
+import { AnimatedBuilder, FadeTransition } from '@nelyx/core/framework/widgets/transitions';
+import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { emptyWidgetStateSet, WidgetState } from '@nelyx/core/framework/widgets/widget-state';
 import type { WidgetStateProperty } from '@nelyx/core/framework/widgets/widget-state';
 import { Color } from '@nelyx/core/ui/color';
+import type { Size } from '@nelyx/core/ui/geometry';
+import { Offset } from '@nelyx/core/ui/offset';
 import { Radius } from '@nelyx/core/ui/radius';
+import { Rect } from '@nelyx/core/ui/rect';
 import { SemanticsRole } from '@nelyx/core/ui/semantics';
-import { InkWell } from './ink-well.ts';
+import { InkResponse } from './ink-well.ts';
+import type { InkResponseOptions } from './ink-well.ts';
+import type { RectCallback } from './ink-feature.ts';
 import { Material } from './material.ts';
+import { MaterialLocalizations } from './material-localizations.ts';
 import { NavigationBarTheme } from './navigation-bar-theme.ts';
 import type { NavigationBarThemeData } from './navigation-bar-theme.ts';
 import { NavigationDestinationLabelBehavior } from './navigation-destination-label-behavior.ts';
@@ -126,13 +149,17 @@ export class NavigationBar extends StatelessWidget {
               this.destinations.map((destination, index) => {
                 const child =
                   destination instanceof NavigationDestination
-                    ? new DestinationScope(this, index, theme, duration, destination)
+                    ? destination
                     : new Semantics({
                         role: SemanticsRole.tab,
                         selected: index === this.selectedIndex,
                         child: destination,
                       });
-                return new Expanded(child, 1, destination.key);
+                return new Expanded(
+                  new DestinationScope(this, index, theme, duration, child),
+                  1,
+                  destination.key instanceof LocalKey ? destination.key : null,
+                );
               }),
               { crossAlign: 'stretch' },
             ),
@@ -211,16 +238,60 @@ class NavigationTile extends StatefulWidget {
   }
 }
 
-class NavigationTileState extends State<NavigationTile> {
+class NavigationTileState extends SingleTickerProviderStateMixin<NavigationTile> {
+  private selection!: AnimationController;
+  private labelVisibility!: CurvedAnimation;
+  private readonly iconKey = new GlobalKey('Navigation destination icon');
+  private readonly focus = new FocusNode({ debugLabel: 'Navigation destination' });
   private hovered = false;
   private focused = false;
   private pressed = false;
 
+  private get selected(): boolean {
+    const { bar, index } = this.widget.scope;
+    return bar.selectedIndex === index;
+  }
+
+  override initState(): void {
+    super.initState();
+    this.selection = new AnimationController({
+      vsync: this,
+      duration: this.widget.scope.duration,
+      value: this.selected ? 1 : 0,
+    });
+    this.labelVisibility = new CurvedAnimation({
+      parent: this.selection,
+      curve: Curves.easeInOutCubicEmphasized,
+      reverseCurve: Curves.easeInOutCubicEmphasized.flipped,
+    });
+  }
+
+  override didUpdateWidget(old: NavigationTile): void {
+    super.didUpdateWidget(old);
+    const previous = old.scope.bar.selectedIndex === old.scope.index;
+    this.selection.duration = this.widget.scope.duration;
+    if (previous !== this.selected) {
+      if (this.selected) this.selection.forward();
+      else this.selection.reverse();
+    }
+    if (!this.widget.destination.enabled) {
+      this.pressed = false;
+      this.hovered = false;
+    }
+  }
+
+  override dispose(): void {
+    this.labelVisibility.dispose();
+    this.selection.dispose();
+    this.focus.dispose();
+    super.dispose();
+  }
+
   override build(context: BuildContext): Widget {
     const { destination, scope } = this.widget;
-    const { index, bar, theme, duration } = scope;
+    const { index, bar, theme } = scope;
     const { enabled, label, icon, selectedIcon } = destination;
-    const selected = bar.selectedIndex === index;
+    const selected = this.selected;
     const options = bar.options;
     const { textTheme, colorScheme: colors } = Theme.of(context);
     const states = emptyWidgetStateSet();
@@ -253,63 +324,55 @@ class NavigationTileState extends State<NavigationTile> {
       });
     const behavior =
       options.labelBehavior ?? theme.labelBehavior ?? NavigationDestinationLabelBehavior.alwaysShow;
-    const showLabel =
-      behavior === NavigationDestinationLabelBehavior.alwaysShow ||
-      (behavior === NavigationDestinationLabelBehavior.onlyShowSelected && selected);
+    const labelAnimation =
+      behavior === NavigationDestinationLabelBehavior.alwaysShow
+        ? kAlwaysCompleteAnimation
+        : behavior === NavigationDestinationLabelBehavior.alwaysHide
+          ? kAlwaysDismissedAnimation
+          : this.labelVisibility;
     const fill =
       options.indicatorColor ?? theme.indicatorColor ?? new Color(colors.secondaryContainer);
     const shape = options.indicatorShape ?? theme.indicatorShape ?? indicatorShape;
     const activate = enabled ? () => options.onDestinationSelected?.(index) : null;
     const labelWidget = new Padding(
       options.labelPadding ?? theme.labelPadding ?? EdgeInsets.only({ top: 4 }),
-      new Text(label, { maxLines: 1, softWrap: false, style: labelStyle, textAlign: 'center' }),
-    );
-    const indicator = new AnimatedScale({
-      duration,
-      scale: selected ? 1 : 0.4,
-      child: new AnimatedOpacity({
-        duration,
-        opacity: selected ? 1 : 0,
-        child: new SizedBox(
-          64,
-          32,
-          new DecoratedBox(undefined, { decoration: new ColorShapeDecoration(shape, fill) }),
-        ),
+      MediaQuery.withClampedTextScaling({
+        maxScaleFactor: 1.3,
+        child: new Text(label, {
+          maxLines: 1,
+          softWrap: false,
+          style: labelStyle,
+          textAlign: 'center',
+        }),
       }),
-    });
-    const icons =
-      selectedIcon === null
-        ? icon
-        : new Stack([
-            new AnimatedOpacity({ duration, opacity: selected ? 0 : 1, child: icon }),
-            new AnimatedOpacity({ duration, opacity: selected ? 1 : 0, child: selectedIcon }),
-          ]);
-    const iconWidget = new Stack([indicator, new IconTheme(iconTheme, icons)], {
-      alignment: Alignment.center,
-    });
-    const visual = new Stack(
+    );
+    const indicator = new NavigationIndicator({ animation: this.selection, shape, color: fill });
+    const iconWidget = new Stack(
       [
-        Positioned.fill(
-          new AnimatedAlign({
-            alignment: showLabel ? new Alignment(0, -0.38) : Alignment.center,
-            duration,
-            child: iconWidget,
-          }),
-        ),
-        new Positioned(
-          new AnimatedOpacity({
-            opacity: showLabel ? 1 : 0,
-            duration,
+        indicator,
+        IconTheme.merge({ data: iconTheme, child: selected ? (selectedIcon ?? icon) : icon }),
+      ],
+      { alignment: Alignment.center },
+    );
+    const visual = new CustomMultiChildLayout(
+      [
+        new LayoutId(new KeyedSubtree({ key: this.iconKey, child: iconWidget }), 'icon'),
+        new LayoutId(
+          new FadeTransition({
+            opacity: labelAnimation,
             child: labelWidget,
+            alwaysIncludeSemantics: true,
           }),
-          { left: 0, right: 0, bottom: 10 },
+          'label',
         ),
       ],
-      { alignment: Alignment.bottomCenter },
+      new NavigationTileLayout(labelAnimation),
     );
-    const tile = new InkWell({
-      child: MediaQuery.withClampedTextScaling({ maxScaleFactor: 1.3, child: visual }),
+    const tile = new DestinationInkResponse(this.iconKey, {
+      child: visual,
       onTap: activate,
+      focusNode: this.focus,
+      customBorder: shape,
       canRequestFocus: enabled,
       excludeFromSemantics: true,
       overlayColor: options.overlayColor ?? theme.overlayColor,
@@ -327,21 +390,79 @@ class NavigationTileState extends State<NavigationTile> {
         }),
     });
     const tooltip = destination.tooltip ?? label;
+    const indexLabel = FoundationPlatform.isWeb
+      ? ''
+      : MaterialLocalizations.of(context).tabLabel({
+          tabIndex: index + 1,
+          tabCount: bar.destinations.length,
+        });
     return new Semantics({
       container: true,
       excludeSemantics: true,
       role: SemanticsRole.tab,
-      label,
+      label: [label, indexLabel].filter(Boolean).join(', '),
       selected,
       enabled,
       focusable: enabled,
       focused: enabled && this.focused,
+      onFocus: enabled ? () => this.focus.requestFocus() : null,
       onTap: activate,
-      child:
+      child: new ExcludeFocus(
         tooltip.length === 0
           ? tile
-          : new Tooltip({ message: tooltip, child: tile, excludeFromSemantics: true }),
+          : new Tooltip({
+              message: tooltip,
+              child: tile,
+              excludeFromSemantics: true,
+              preferBelow: false,
+              verticalOffset: 42,
+            }),
+        { excluding: !enabled },
+      ),
     });
+  }
+}
+
+class NavigationTileLayout extends MultiChildLayoutDelegate {
+  constructor(private readonly visibility: Animation<number>) {
+    super({ relayout: visibility });
+  }
+
+  override performLayout(size: Size): void {
+    const loose = BoxConstraints.loose(size);
+    const icon = this.layoutChild('icon', loose);
+    const label = this.layoutChild('label', loose);
+    const top = (size.height - icon.height - label.height * this.visibility.value) / 2;
+    this.positionChild('icon', { x: (size.width - icon.width) / 2, y: top });
+    this.positionChild('label', { x: (size.width - label.width) / 2, y: top + icon.height });
+  }
+
+  override shouldRelayout(old: NavigationTileLayout): boolean {
+    return old.visibility !== this.visibility;
+  }
+}
+
+class DestinationInkResponse extends InkResponse {
+  constructor(
+    private readonly icon: GlobalKey,
+    options: InkResponseOptions,
+  ) {
+    super({
+      ...options,
+      containedInkWell: true,
+      highlightShape: 'rectangle',
+      highlightColor: transparent,
+    });
+  }
+
+  override getRectCallback(reference: RenderBox): RectCallback {
+    return () => {
+      const context = this.icon.currentElement;
+      const icon = context?.active ? context.findRenderObject() : null;
+      if (!(icon instanceof RenderBox) || !icon.hasSize || !icon.attached) return Rect.zero;
+      const position = reference.globalToLocal(icon.localToGlobal(Offset.zero));
+      return Rect.fromLTWH(position.x, position.y, icon.size.width, icon.size.height);
+    };
   }
 }
 

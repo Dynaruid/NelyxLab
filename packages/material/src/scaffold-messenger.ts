@@ -9,8 +9,9 @@ import type { AnimationStyle } from '@nelyx/core/framework/animation/animation-s
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { Element, InheritedWidget, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
-import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
+import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { scrollChromeTimer } from '@nelyx/core/internal/framework/widgets/scroll-chrome-timers';
+import { MaterialBanner, MaterialBannerClosedReason } from './banner.ts';
 import { SnackBar, SnackBarClosedReason } from './snack-bar.ts';
 
 export class ScaffoldFeatureController<T extends Widget, R> {
@@ -56,12 +57,15 @@ class ScaffoldMessengerScope extends InheritedWidget {
   constructor(
     readonly messenger: ScaffoldMessengerState,
     readonly snack: SnackBar | null,
+    readonly banner: MaterialBanner | null,
     child: Widget,
   ) {
     super(child);
   }
   override updateShouldNotify(old: ScaffoldMessengerScope): boolean {
-    return this.messenger !== old.messenger || this.snack !== old.snack;
+    return (
+      this.messenger !== old.messenger || this.snack !== old.snack || this.banner !== old.banner
+    );
   }
 }
 
@@ -70,6 +74,10 @@ interface SnackPresentation {
   readonly style: AnimationStyle | null;
   readonly resolve: (value: SnackBarClosedReason) => void;
 }
+interface BannerPresentation {
+  readonly banner: MaterialBanner;
+  readonly resolve: (value: MaterialBannerClosedReason) => void;
+}
 
 export interface ShowSnackBarOptions {
   readonly snackBarAnimationStyle?: AnimationStyle | null;
@@ -77,13 +85,20 @@ export interface ShowSnackBarOptions {
 export interface CloseSnackBarOptions {
   readonly reason?: SnackBarClosedReason;
 }
+export interface CloseMaterialBannerOptions {
+  readonly reason?: MaterialBannerClosedReason;
+}
 
-export class ScaffoldMessengerState extends SingleTickerProviderStateMixin<ScaffoldMessenger> {
+export class ScaffoldMessengerState extends TickerProviderStateMixin<ScaffoldMessenger> {
   private readonly scaffolds = new Set<object>();
+  private readonly presentationSlots = new Map<symbol, Set<number>>();
   private readonly snacks: SnackPresentation[] = [];
+  private readonly banners: BannerPresentation[] = [];
   private animation!: AnimationController;
+  private bannerAnimation: AnimationController | null = null;
   private timer: Disposable | null = null;
   private closing: SnackBarClosedReason | null = null;
+  private closingBanner: MaterialBannerClosedReason | null = null;
   private accessibleNavigation = false;
 
   /** @internal Each mounted Scaffold registers against its nearest messenger. */
@@ -94,8 +109,27 @@ export class ScaffoldMessengerState extends SingleTickerProviderStateMixin<Scaff
     };
   }
 
+  /** @internal Match root Scaffold presentation positions between routes. */
+  _reservePresentationSlot(route: symbol): Disposable & { readonly ordinal: number } {
+    let occupied = this.presentationSlots.get(route);
+    if (!occupied) this.presentationSlots.set(route, (occupied = new Set()));
+    let ordinal = 0;
+    while (occupied.has(ordinal)) ordinal++;
+    occupied.add(ordinal);
+    return {
+      ordinal,
+      dispose: () => {
+        if (!occupied.delete(ordinal) || occupied.size > 0) return;
+        if (this.presentationSlots.get(route) === occupied) this.presentationSlots.delete(route);
+      },
+    };
+  }
+
   get currentSnackBar(): SnackBar | null {
     return this.snacks[0]?.snack ?? null;
+  }
+  get currentMaterialBanner(): MaterialBanner | null {
+    return this.banners[0]?.banner ?? null;
   }
 
   override initState(): void {
@@ -191,18 +225,106 @@ export class ScaffoldMessengerState extends SingleTickerProviderStateMixin<Scaff
       });
   };
 
+  showMaterialBanner(
+    materialBanner: MaterialBanner,
+  ): ScaffoldFeatureController<MaterialBanner, MaterialBannerClosedReason> {
+    invariant(
+      this.mounted && this.scaffolds.size > 0,
+      'missing-material-banner-scaffold',
+      'Show a MaterialBanner from a messenger with a mounted Scaffold',
+    );
+    if (!this.bannerAnimation) {
+      this.bannerAnimation = MaterialBanner.createAnimationController({ vsync: this });
+      this.bannerAnimation.addStatusListener(this.bannerStatusChanged);
+    }
+    const banner = materialBanner.withAnimation(this.bannerAnimation.view, {
+      fallbackKey: new UniqueKey(),
+    });
+    let resolve!: BannerPresentation['resolve'];
+    const closed = new Promise<MaterialBannerClosedReason>((complete) => {
+      resolve = complete;
+    });
+    const entry = { banner, resolve };
+    const start = this.banners.length === 0;
+    this.setState(() => {
+      this.banners.push(entry);
+    });
+    if (start) this.startBanner();
+    return new ScaffoldFeatureController(banner, closed, () => {
+      const index = this.banners.indexOf(entry);
+      if (index === 0) this.hideCurrentMaterialBanner();
+      else if (index > 0) {
+        this.banners.splice(index, 1);
+        resolve(MaterialBannerClosedReason.hide);
+      }
+    });
+  }
+
+  hideCurrentMaterialBanner({
+    reason = MaterialBannerClosedReason.hide,
+  }: CloseMaterialBannerOptions = {}): void {
+    const animation = this.bannerAnimation;
+    if (!animation || !this.banners.length || this.closingBanner) return;
+    this.closingBanner = reason;
+    if (this.accessibleNavigation || animation.isDismissed) this.retireBanner(reason);
+    else animation.reverse();
+  }
+
+  removeCurrentMaterialBanner({
+    reason = MaterialBannerClosedReason.remove,
+  }: CloseMaterialBannerOptions = {}): void {
+    if (this.banners.length) this.retireBanner(reason);
+  }
+
+  clearMaterialBanners(): void {
+    for (const entry of this.banners.splice(1)) entry.resolve(MaterialBannerClosedReason.remove);
+    this.hideCurrentMaterialBanner();
+  }
+
+  private startBanner(): void {
+    const animation = this.bannerAnimation!;
+    animation.value = 0;
+    if (!this.banners.length) return;
+    if (this.accessibleNavigation) animation.value = 1;
+    else animation.forward();
+  }
+
+  private retireBanner(reason: MaterialBannerClosedReason): void {
+    const current = this.banners[0]!;
+    this.closingBanner = null;
+    this.setState(() => {
+      this.banners.shift();
+    });
+    current.resolve(reason);
+    this.startBanner();
+  }
+
+  private readonly bannerStatusChanged = (status: AnimationStatus): void => {
+    if (this.mounted && status === AnimationStatus.dismissed && this.closingBanner)
+      this.retireBanner(this.closingBanner);
+  };
+
   override build(context: BuildContext): Widget {
     this.accessibleNavigation =
       context.maybeDependOn(MediaQuery)?.data.accessibleNavigation ?? false;
-    return new ScaffoldMessengerScope(this, this.currentSnackBar, this.widget.child);
+    return new ScaffoldMessengerScope(
+      this,
+      this.currentSnackBar,
+      this.currentMaterialBanner,
+      this.widget.child,
+    );
   }
 
   override dispose(): void {
     this.timer?.dispose();
     this.animation.removeStatusListener(this.statusChanged);
     this.animation.dispose();
+    this.bannerAnimation?.removeStatusListener(this.bannerStatusChanged);
+    this.bannerAnimation?.dispose();
     for (const entry of this.snacks) entry.resolve(SnackBarClosedReason.remove);
     this.snacks.length = 0;
+    for (const entry of this.banners) entry.resolve(MaterialBannerClosedReason.remove);
+    this.banners.length = 0;
     this.scaffolds.clear();
     super.dispose();
   }

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/tab_view.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { invariant } from '@nelyx/core/foundation/errors';
 import { Element, State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
@@ -13,6 +15,7 @@ import {
 import type {
   Route,
   RouteDescriptor,
+  NavigatorObserver,
   RouteResolver,
   RouteTransition,
 } from '@nelyx/core/framework/widgets/navigation';
@@ -31,7 +34,7 @@ export interface CupertinoTabViewOptions extends WidgetOptions {
   readonly routes?: Readonly<Record<string, WidgetBuilder>> | null;
   readonly onGenerateRoute?: RouteResolver | null;
   readonly onUnknownRoute?: RouteResolver | null;
-  readonly navigatorObservers?: readonly CupertinoTabNavigatorObserver[];
+  readonly navigatorObservers?: readonly (CupertinoTabNavigatorObserver | NavigatorObserver)[];
   readonly restorationScopeId?: string | null;
 }
 
@@ -42,7 +45,7 @@ export class CupertinoTabView extends StatefulWidget {
   readonly routes: Readonly<Record<string, WidgetBuilder>> | null;
   readonly onGenerateRoute: RouteResolver | null;
   readonly onUnknownRoute: RouteResolver | null;
-  readonly navigatorObservers: readonly CupertinoTabNavigatorObserver[];
+  readonly navigatorObservers: readonly (CupertinoTabNavigatorObserver | NavigatorObserver)[];
   readonly restorationScopeId: string | null;
 
   constructor({
@@ -84,7 +87,7 @@ class CupertinoTabViewState extends State<CupertinoTabView> {
   private readonly retired = new Set<NavigatorController>();
   private removeObservers: readonly (() => void)[] = [];
 
-  private readonly resolve: RouteResolver = (settings: RouteDescriptor) => {
+  private readonly resolve = (settings: RouteDescriptor): Route => {
     const { builder, defaultTitle, routes, onGenerateRoute, onUnknownRoute } = this.widget;
     const root = settings.name === '/' && builder !== null;
     const page = root
@@ -98,7 +101,20 @@ class CupertinoTabViewState extends State<CupertinoTabView> {
         title: root ? defaultTitle : null,
         settings: new RouteSettings({ name: settings.name, arguments: settings.argumentsValue }),
       });
-    return onGenerateRoute?.(settings) ?? onUnknownRoute?.(settings) ?? null;
+    const generated = onGenerateRoute?.(settings);
+    if (generated) return generated;
+    invariant(
+      onUnknownRoute,
+      'unknown-named-route',
+      `CupertinoTabView could not resolve "${settings.name}" with its builder, routes or onGenerateRoute. Supply onUnknownRoute to handle this route.`,
+    );
+    const fallback = onUnknownRoute(settings);
+    invariant(
+      fallback,
+      'invalid-cupertino-tab-fallback',
+      `CupertinoTabView.onUnknownRoute must return a Route for "${settings.name}".`,
+    );
+    return fallback;
   };
 
   override initState(): void {
@@ -107,9 +123,7 @@ class CupertinoTabViewState extends State<CupertinoTabView> {
   }
 
   private createNavigator(): void {
-    const initial = this.resolve({ name: '/', argumentsValue: null });
-    invariant(initial, 'missing-cupertino-tab-root', 'CupertinoTabView requires a route for /');
-    this.initialRoute = initial;
+    this.initialRoute = this.resolve({ name: '/', argumentsValue: null });
     this.navigatorKey =
       this.widget.navigatorKey ?? new GlobalKey('CupertinoTabView navigator', NavigatorState);
     this.controller = new NavigatorController();
@@ -118,9 +132,11 @@ class CupertinoTabViewState extends State<CupertinoTabView> {
 
   private updateObservers(): void {
     for (const remove of this.removeObservers) remove();
-    this.removeObservers = [...new Set(this.widget.navigatorObservers)].map((observer) =>
-      this.controller.observeTransitions(observer),
-    );
+    this.removeObservers = [...new Set(this.widget.navigatorObservers)]
+      .filter(
+        (observer): observer is CupertinoTabNavigatorObserver => typeof observer === 'function',
+      )
+      .map((observer) => this.controller.observeTransitions(observer));
   }
 
   override didUpdateWidget(old: CupertinoTabView): void {
@@ -142,6 +158,9 @@ class CupertinoTabViewState extends State<CupertinoTabView> {
       child: new Navigator(this.controller, this.initialRoute, this.navigatorKey, {
         enabled: TickerMode.of(context),
         onGenerateRoute: this.resolve,
+        observers: [...new Set(this.widget.navigatorObservers)].filter(
+          (observer): observer is NavigatorObserver => typeof observer !== 'function',
+        ),
         ...(restorationId === null ? {} : { restorationId }),
       }),
     });

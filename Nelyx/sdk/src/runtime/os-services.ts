@@ -25,6 +25,7 @@ export interface OsServiceHost {
   vibrateHapticFeedback?(type: string | null): PromiseLike<void> | void;
   pop?(animated: boolean | null): PromiseLike<void> | void;
   setFrameworkHandlesBack?(enabled: boolean): PromiseLike<void> | void;
+  setSystemUiOverlayStyle?(style: ReadonlyMap<string, unknown>): PromiseLike<void> | void;
   navigation?(method: string, args: unknown): Promise<unknown> | unknown;
 }
 export function unsupported(method: string): never {
@@ -47,6 +48,9 @@ export function installOsServices(port: PluginPlatformMessagePort, host: OsServi
     const value = host.readEnvironment();
     return new Map<string, unknown>([
       ['revision', ++revision],
+      ...(value.executableName
+        ? [['executableName', value.executableName] as [string, unknown]]
+        : []),
       ['locales', value.locales],
       ['localeSource', value.localeSource],
       ...(value.localeObservation
@@ -140,6 +144,16 @@ export function installOsServices(port: PluginPlatformMessagePort, host: OsServi
           });
         if (!host.setFrameworkHandlesBack) unsupported(call.method);
         await host.setFrameworkHandlesBack(call.arguments);
+        return null;
+      }
+      case 'SystemChrome.setSystemUIOverlayStyle': {
+        if (!host.setSystemUiOverlayStyle) throw new MissingPluginException();
+        if (!(call.arguments instanceof Map))
+          throw new PlatformException({
+            code: 'invalid-arguments',
+            message: 'Expected a system UI overlay style map',
+          });
+        await host.setSystemUiOverlayStyle(call.arguments);
         return null;
       }
       default:

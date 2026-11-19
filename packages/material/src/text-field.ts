@@ -1,13 +1,25 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/text_field.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 // M3 field composition. Core owns the editor, focus, formatting and controller.
-import { StatefulWidget, State, Element } from '@nelyx/core/framework/widgets/framework';
-import type { Widget, WidgetOptions, BuildContext } from '@nelyx/core/framework/widgets/framework';
-import { EditableText, TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
+import { StatefulWidget, Element } from '@nelyx/core/framework/widgets/framework';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
+import type {
+  Widget,
+  WidgetOptions,
+  BuildContext,
+  State,
+} from '@nelyx/core/framework/widgets/framework';
+import { EditableText, EditorTextRestoration } from '@nelyx/core/framework/widgets/editable-text';
 import type {
   EditableTextOptions,
   EditableTextState,
+  TextEditingController,
 } from '@nelyx/core/framework/widgets/editable-text';
+import {
+  RestorationMixin,
+  UnmanagedRestorationScope,
+} from '@nelyx/core/framework/widgets/restoration';
 import {
   materialTextSelectionHandleControls,
   desktopTextSelectionHandleControls,
@@ -17,6 +29,10 @@ import {
   cupertinoDesktopTextSelectionHandleControls,
 } from '@nelyx/cupertino/text-selection';
 import { AdaptiveTextSelectionToolbar } from './adaptive-text-selection-toolbar.ts';
+import { SpellCheckSuggestionsToolbar } from './spell-check-suggestions-toolbar.ts';
+import { CupertinoSpellCheckSuggestionsToolbar } from '@nelyx/cupertino/spell-check-suggestions-toolbar';
+import { CupertinoTextField } from '@nelyx/cupertino/text-field';
+import { SpellCheckConfiguration } from '@nelyx/core/framework/widgets/spell-check';
 import { TextMagnifier } from './magnifier.ts';
 import { FocusNode } from '@nelyx/core/framework/widgets/focus';
 import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
@@ -29,13 +45,20 @@ import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary'
 import { HitTestBehavior } from '@nelyx/core/framework/rendering/pointer-listener';
 import { validateEditableLinePolicy } from '@nelyx/core/framework/rendering/editable';
 import { SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
+import type { MouseCursor } from '@nelyx/core/services/mouse-cursor';
+import type { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import type { TextAlignVertical } from '@nelyx/core/framework/painting/text-align-vertical';
 import type { TextAlign } from '@nelyx/core/ui/typography';
+import { TextDecoration } from '@nelyx/core/ui/typography';
 import type { TextInputAction } from '@nelyx/core/hosting/interaction';
 import type { EditingKeyboardType, EditingCapitalization } from '@nelyx/core/hosting/interaction';
 import { LengthLimitingTextInputFormatter } from '@nelyx/core/services/input-formatters';
-import type { TextInputFormatter } from '@nelyx/core/services/input-formatters';
+import type {
+  MaxLengthEnforcement,
+  TextInputFormatter,
+} from '@nelyx/core/services/input-formatters';
+import type { SmartDashesType, SmartQuotesType } from '@nelyx/core/services/text-input';
 import { graphemeBoundaries } from '@nelyx/core/foundation/grapheme-boundaries';
 import { WidgetState, WidgetStateTextStyle } from '@nelyx/core/framework/widgets/widget-state';
 import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
@@ -51,11 +74,25 @@ import { InputDecorator } from './input-decorator.ts';
 import { Theme } from './theme.ts';
 import { TextSelectionTheme } from './text-selection-theme.ts';
 
+export type InputCounterWidgetBuilder = (
+  context: BuildContext,
+  details: {
+    readonly currentLength: number;
+    readonly maxLength: number | null;
+    readonly isFocused: boolean;
+  },
+) => Widget | null;
+export type { MaxLengthEnforcement } from '@nelyx/core/services/input-formatters';
+
 /** M3 field composed with shared Core/Skia layout and editing state. */
 export interface TextFieldOptions extends WidgetOptions {
   readonly id: string;
+  readonly restorationId?: string | null;
   readonly controller?: TextEditingController | null;
   readonly focusNode?: FocusNode | null;
+  readonly canRequestFocus?: boolean;
+  readonly mouseCursor?: MouseCursor | null;
+  readonly scrollPadding?: EdgeInsets;
   readonly groupId?: EditableTextOptions['groupId'];
   readonly onTapOutside?: EditableTextOptions['onTapOutside'];
   readonly onTapUpOutside?: EditableTextOptions['onTapUpOutside'];
@@ -71,42 +108,75 @@ export interface TextFieldOptions extends WidgetOptions {
   readonly autocorrect?: boolean;
   readonly enableSuggestions?: boolean;
   readonly keyboardType?: EditingKeyboardType;
+  readonly keyboardAppearance?: 'light' | 'dark' | null;
+  readonly smartDashesType?: SmartDashesType | null;
+  readonly smartQuotesType?: SmartQuotesType | null;
+  /** @deprecated Use stylusHandwritingEnabled. */
+  readonly scribbleEnabled?: boolean;
+  readonly stylusHandwritingEnabled?: boolean;
   readonly textCapitalization?: EditingCapitalization;
   readonly autofillHints?: readonly string[] | null;
   readonly textInputAction?: TextInputAction;
   readonly inputFormatters?: readonly TextInputFormatter[];
   readonly maxLength?: number | null;
+  readonly maxLengthEnforcement?: MaxLengthEnforcement | null;
   readonly minLines?: number | null;
   readonly maxLines?: number | null;
   readonly expands?: boolean;
   readonly scrollController?: EditableTextOptions['scrollController'];
   readonly scrollPhysics?: EditableTextOptions['scrollPhysics'];
+  readonly scrollBehavior?: EditableTextOptions['scrollBehavior'];
   readonly cursorColor?: Color | null;
   readonly cursorErrorColor?: Color | null;
   readonly cursorWidth?: number;
   readonly cursorHeight?: number;
+  readonly cursorRadius?: EditableTextOptions['cursorRadius'];
+  readonly showCursor?: boolean | null;
   readonly strutStyle?: EditableTextOptions['strutStyle'];
   readonly textScaler?: EditableTextOptions['textScaler'];
   readonly enableInteractiveSelection?: boolean | null;
   readonly selectionControls?: EditableTextOptions['selectionControls'];
+  readonly selectionHeightStyle?: EditableTextOptions['selectionHeightStyle'];
+  readonly selectionWidthStyle?: EditableTextOptions['selectionWidthStyle'];
+  readonly dragStartBehavior?: EditableTextOptions['dragStartBehavior'];
+  readonly onSelectionChanged?: EditableTextOptions['onSelectionChanged'];
   readonly contextMenuBuilder?: EditableTextOptions['contextMenuBuilder'];
+  readonly spellCheckConfiguration?: SpellCheckConfiguration | null;
   readonly magnifierConfiguration?: EditableTextOptions['magnifierConfiguration'];
   readonly onChanged?: (text: string) => void;
   readonly onEditingComplete?: () => void;
   readonly onSubmitted?: (text: string) => void;
   readonly onTap?: () => void;
-  readonly buildCounter?:
-    | ((
-        context: BuildContext,
-        details: {
-          readonly currentLength: number;
-          readonly maxLength: number | null;
-          readonly isFocused: boolean;
-        },
-      ) => Widget | null)
-    | null;
+  readonly onTapAlwaysCalled?: boolean;
+  readonly buildCounter?: InputCounterWidgetBuilder | null;
 }
 export class TextField extends StatefulWidget {
+  static readonly materialMisspelledTextStyle = new TextStyle({
+    decoration: TextDecoration.underline,
+    decorationColor: 0xfff44336,
+    decorationStyle: 'wavy',
+  });
+
+  static defaultSpellCheckSuggestionsToolbarBuilder(
+    _context: BuildContext,
+    editableTextState: EditableTextState,
+  ): Widget {
+    return ['iOS', 'macOS'].includes(FoundationPlatform.defaultTargetPlatform)
+      ? CupertinoSpellCheckSuggestionsToolbar.editableText({ editableTextState })
+      : SpellCheckSuggestionsToolbar.editableText({ editableTextState });
+  }
+
+  static inferAndroidSpellCheckConfiguration(
+    configuration?: SpellCheckConfiguration | null,
+  ): SpellCheckConfiguration {
+    if (!configuration?.spellCheckEnabled) return SpellCheckConfiguration.disabled();
+    return configuration.copyWith({
+      misspelledTextStyle: configuration.misspelledTextStyle ?? this.materialMisspelledTextStyle,
+      spellCheckSuggestionsToolbarBuilder:
+        configuration.spellCheckSuggestionsToolbarBuilder ??
+        this.defaultSpellCheckSuggestionsToolbarBuilder,
+    });
+  }
   get enableInteractiveSelection(): boolean {
     return (
       this.options.enableInteractiveSelection ??
@@ -215,10 +285,10 @@ export class TextField extends StatefulWidget {
       properties.add(new DiagnosticsProperty(name, this[name]));
   }
 }
-class TextFieldState extends State<TextField> {
+class TextFieldState extends RestorationMixin<TextField> {
   private readonly editorKey = new GlobalKey('Material TextField editor');
   private controller!: TextEditingController;
-  private ownsController = false;
+  private localText: EditorTextRestoration | null = null;
   private focus!: FocusNode;
   private ownsFocus = false;
   private readonly hovering = new ValueNotifier(false);
@@ -229,6 +299,7 @@ class TextFieldState extends State<TextField> {
         readonly style: TextStyle;
         readonly controller: TextEditingController;
         readonly focus: FocusNode;
+        readonly hasError: boolean;
         readonly editor: EditableText;
       }
     | undefined;
@@ -250,14 +321,17 @@ class TextFieldState extends State<TextField> {
     this.hovering.value = value;
     if (this.widget.options.style instanceof WidgetStateTextStyle) this.changed();
   }
+  override get restorationId(): string | null {
+    return this.widget.options.restorationId ?? null;
+  }
+  override restoreState(): void {
+    if (this.localText) this.registerForRestoration(this.localText, 'controller');
+  }
   private connectController(previous?: TextEditingController): void {
-    this.ownsController = this.widget.options.controller == null;
-    this.controller =
-      this.widget.options.controller ?? new TextEditingController(previous?.text ?? '');
-    if (this.ownsController && previous) {
-      this.controller.selection = previous.selection;
-      this.controller.clearHistory();
-    }
+    this.localText = this.widget.controller
+      ? null
+      : new EditorTextRestoration(previous?.text, previous?.selection);
+    this.controller = this.widget.controller ?? this.localText!.controller;
     this.controller.addListener(this.changed);
   }
   private connectFocus(): void {
@@ -275,15 +349,21 @@ class TextFieldState extends State<TextField> {
     this.editorCache = undefined;
   }
   override didUpdateWidget(old: TextField): void {
+    const changedController = old.controller !== this.widget.controller;
+    const retiredText = changedController ? this.localText : null;
+    if (retiredText) {
+      this.unregisterFromRestoration(retiredText);
+      this.localText = null;
+    }
     super.didUpdateWidget(old);
     const context = this.context;
     invariant(context instanceof Element, 'invalid-field-context', 'TextField requires an Element');
-    if (old.controller !== this.widget.controller) {
-      const previous = this.controller,
-        owned = this.ownsController;
+    if (changedController) {
+      const previous = this.controller;
       previous.removeListener(this.changed);
       this.connectController(previous);
-      if (owned) context.owner.postFrame(() => previous.dispose());
+      if (retiredText) context.owner.postFrame(() => retiredText.dispose());
+      if (this.localText) this.registerForRestoration(this.localText, 'controller');
     }
     if (old.focusNode !== this.widget.focusNode) {
       const previous = this.focus,
@@ -297,7 +377,7 @@ class TextFieldState extends State<TextField> {
     try {
       this.controller.removeListener(this.changed);
       this.focus.removeListener(this.changed);
-      if (this.ownsController) this.controller.dispose();
+      this.localText?.dispose();
       if (this.ownsFocus) this.focus.dispose();
       this.hovering.dispose();
     } finally {
@@ -315,20 +395,34 @@ class TextFieldState extends State<TextField> {
     if (this.focus.hasFocus) states.add(WidgetState.focused);
     if (this.hovering.value) states.add(WidgetState.hovered);
     let decoration = o.decoration === undefined ? new InputDecoration() : o.decoration;
-    const hasError = decoration?.error != null || decoration?.errorText != null;
+    const currentLength = graphemeBoundaries(this.controller.text).length - 1;
+    const maxLength = o.maxLength ?? null;
+    const overLimit = maxLength !== null && maxLength > 0 && currentLength > maxLength;
+    const hasError =
+      decoration !== null &&
+      (decoration.error !== null || decoration.errorText !== null || overLimit);
     if (hasError) states.add(WidgetState.error);
     const given = o.style instanceof WidgetStateTextStyle ? o.style.resolve(states) : o.style;
-    const style = (theme.textTheme.bodyLarge ?? new TextStyle({ fontSize: 16 }))
-      .copyWith({
-        color: enabled
-          ? theme.colorScheme.onSurface
-          : new Color(theme.colorScheme.onSurface).withOpacity(0.38).toARGB32(),
-      })
-      .merge(given);
-    const currentLength = graphemeBoundaries(this.controller.text).length - 1,
-      maxLength = o.maxLength ?? null;
+    const defaultStyle = theme.textTheme.bodyLarge ?? new TextStyle({ fontSize: 16 });
+    const style = (
+      enabled || defaultStyle.color === null
+        ? defaultStyle
+        : defaultStyle.copyWith({
+            color: new Color(defaultStyle.color).withOpacity(0.38).toARGB32(),
+          })
+    ).merge(given);
     if (decoration) {
       decoration = decoration.copyWith({ enabled });
+      if (overLimit) {
+        decoration = decoration.copyWith({
+          ...(decoration.error === null ? { errorText: decoration.errorText ?? '' } : {}),
+          counterStyle:
+            decoration.errorStyle ??
+            (theme.textTheme.bodySmall ?? new TextStyle({ fontSize: 12 })).copyWith({
+              color: theme.colorScheme.error,
+            }),
+        });
+      }
       if (decoration.counter === null && decoration.counterText === null) {
         if (o.buildCounter) {
           const counter = o.buildCounter(context, {
@@ -352,8 +446,14 @@ class TextFieldState extends State<TextField> {
     }
     const formatters = [
       ...(o.inputFormatters ?? []),
-      ...(maxLength !== null && maxLength > 0
-        ? [new LengthLimitingTextInputFormatter(maxLength)]
+      ...(maxLength !== null && maxLength > 0 && o.maxLengthEnforcement !== 'none'
+        ? [
+            new LengthLimitingTextInputFormatter(
+              maxLength,
+              o.maxLengthEnforcement ??
+                LengthLimitingTextInputFormatter.getDefaultMaxLengthEnforcement(theme.platform),
+            ),
+          ]
         : []),
     ];
     // Hover decoration can change while the editor's inputs stay identical.
@@ -364,6 +464,7 @@ class TextFieldState extends State<TextField> {
         cached?.widget === this.widget &&
         cached.controller === this.controller &&
         cached.focus === this.focus &&
+        cached.hasError === hasError &&
         cached.style.equals(style);
     const editor = reuse
       ? cached.editor
@@ -388,22 +489,45 @@ class TextFieldState extends State<TextField> {
               o.contextMenuBuilder === undefined
                 ? TextField.defaultContextMenuBuilder
                 : o.contextMenuBuilder,
+            spellCheckConfiguration: ['iOS', 'macOS'].includes(
+              FoundationPlatform.defaultTargetPlatform,
+            )
+              ? CupertinoTextField.inferIOSSpellCheckConfiguration(
+                  o.spellCheckConfiguration,
+                  context,
+                )
+              : TextField.inferAndroidSpellCheckConfiguration(o.spellCheckConfiguration),
             magnifierConfiguration:
               o.magnifierConfiguration ?? TextMagnifier.adaptiveMagnifierConfiguration,
             cursorWidth: o.cursorWidth ?? 2,
             ...(o.cursorHeight !== undefined ? { cursorHeight: o.cursorHeight } : {}),
+            ...(o.cursorRadius !== undefined ? { cursorRadius: o.cursorRadius } : {}),
+            showCursor: o.showCursor ?? null,
+            ...(o.selectionHeightStyle ? { selectionHeightStyle: o.selectionHeightStyle } : {}),
+            ...(o.selectionWidthStyle ? { selectionWidthStyle: o.selectionWidthStyle } : {}),
+            ...(o.dragStartBehavior ? { dragStartBehavior: o.dragStartBehavior } : {}),
+            ...(o.onSelectionChanged ? { onSelectionChanged: o.onSelectionChanged } : {}),
+            forcePressEnabled: theme.platform === 'iOS',
+            restorationId: 'editable',
+            ...(o.scrollPadding ? { scrollPadding: o.scrollPadding } : {}),
             ...(o.strutStyle ? { strutStyle: o.strutStyle } : {}),
             ...(o.textScaler ? { textScaler: o.textScaler } : {}),
             enableInteractiveSelection: this.widget.enableInteractiveSelection,
             groupId: this.widget.groupId,
             ...(o.onTapOutside !== undefined ? { onTapOutside: o.onTapOutside } : {}),
             ...(o.onTapUpOutside !== undefined ? { onTapUpOutside: o.onTapUpOutside } : {}),
+            ...(o.onTap ? { onTap: o.onTap, onTapAlwaysCalled: o.onTapAlwaysCalled ?? false } : {}),
             configuration: {
               readOnly: o.readOnly ?? false,
               obscureText: o.obscureText ?? false,
               autocorrect: o.autocorrect ?? true,
               enableSuggestions: o.enableSuggestions ?? true,
               keyboardType: o.keyboardType ?? 'text',
+              keyboardAppearance: o.keyboardAppearance ?? theme.brightness,
+              smartDashesType: o.smartDashesType ?? null,
+              smartQuotesType: o.smartQuotesType ?? null,
+              stylusHandwritingEnabled:
+                (o.scribbleEnabled ?? true) && (o.stylusHandwritingEnabled ?? true),
               capitalization: o.textCapitalization ?? 'none',
               autofillHints: o.autofillHints ?? null,
             },
@@ -418,6 +542,7 @@ class TextFieldState extends State<TextField> {
             expands: o.expands ?? false,
             scrollController: o.scrollController ?? null,
             scrollPhysics: o.scrollPhysics ?? null,
+            scrollBehavior: o.scrollBehavior ?? null,
             cursorColor: hasError
               ? (o.cursorErrorColor?.toARGB32() ?? theme.colorScheme.error)
               : (o.cursorColor?.toARGB32() ?? selection.cursorColor ?? theme.colorScheme.primary),
@@ -437,8 +562,11 @@ class TextFieldState extends State<TextField> {
         style,
         controller: this.controller,
         focus: this.focus,
+        hasError,
         editor,
       };
+    const editorScope = new UnmanagedRestorationScope({ bucket: this.bucket, child: editor });
+    const input = o.canRequestFocus === false ? new ExcludeFocus(editorScope) : editorScope;
     const child = decoration
       ? new InputDecorator({
           decoration,
@@ -450,9 +578,9 @@ class TextFieldState extends State<TextField> {
           isHovering: this.hovering.value,
           hoverListenable: o.style instanceof WidgetStateTextStyle ? null : this.hovering,
           isEmpty: this.controller.text.length === 0,
-          child: editor,
+          child: input,
         })
-      : editor;
+      : input;
     // Keep other controls' retained recordings intact while this field's
     // hover border, selection or caret changes.
     return new RepaintBoundary(
@@ -466,13 +594,15 @@ class TextFieldState extends State<TextField> {
                 excludeFromSemantics: true,
                 onTap: enabled
                   ? () => {
-                      this.focus.requestFocus();
+                      if (o.canRequestFocus !== false) this.focus.requestFocus();
                       o.onTap?.();
                     }
                   : null,
               }),
               {
-                cursor: enabled ? SystemMouseCursors.text : SystemMouseCursors.basic,
+                cursor: enabled
+                  ? (o.mouseCursor ?? SystemMouseCursors.text)
+                  : SystemMouseCursors.basic,
                 onEnter: () => this.setHovering(true),
                 onExit: () => this.setHovering(false),
               },

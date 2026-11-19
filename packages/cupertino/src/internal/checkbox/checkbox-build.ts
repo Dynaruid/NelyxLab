@@ -14,23 +14,20 @@ import { Size } from '@nelyx/core/ui/size';
 import { BorderSide, withSourceBorderSideColor } from '@nelyx/core/framework/painting/borders';
 import { RoundedRectangleBorder } from '@nelyx/core/framework/painting/rounded-rectangle-border';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
-import { HSLColor } from '@nelyx/core/framework/painting/colors';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import { CupertinoTheme } from '../../theme.ts';
 import { CupertinoColors, CupertinoDynamicColor } from '../../colors.ts';
 import type { CupertinoCheckbox } from '../../checkbox.ts';
 import { CupertinoCheckboxPainter } from './checkbox-painter.ts';
 import type { CupertinoCheckboxPaintValues } from './checkbox-painter.ts';
+import { kMinInteractiveDimensionCupertino } from '../../constants.ts';
+import { cupertinoFocusOutlineColor } from '../toggle/control-values.ts';
 import {
   _kDefaultFillColor,
   _kDisabledCheckColor,
   _kDefaultCheckColor,
   _kDefaultBorderColor,
   _kDisabledBorderColor,
-  kCupertinoFocusColorOpacity,
-  kCupertinoFocusColorBrightness,
-  kCupertinoFocusColorSaturation,
-  kMinInteractiveDimensionCupertino,
 } from '../../generated/checkbox/checkbox-defaults.generated.ts';
 const radius = BorderRadius.circular(4);
 for (const r of [radius.topLeft, radius.topRight, radius.bottomLeft, radius.bottomRight])
@@ -81,12 +78,7 @@ export function resolveCupertinoCheckbox(
         : selected
           ? (w.checkColor ?? resolve(_kDefaultCheckColor))
           : CupertinoColors.white,
-    focusColor:
-      w.focusColor ??
-      HSLColor.fromColor(activeColor.withOpacity(kCupertinoFocusColorOpacity))
-        .withLightness(kCupertinoFocusColorBrightness)
-        .withSaturation(kCupertinoFocusColorSaturation)
-        .toColor(),
+    focusColor: w.focusColor ?? cupertinoFocusOutlineColor(activeColor),
     side: effectiveSide,
     shape: w.shape ?? defaultShape,
     brightness: CupertinoTheme.of(context).specifiedBrightness,

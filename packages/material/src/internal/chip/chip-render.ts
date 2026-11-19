@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Pinned chip.dart private layout/hit/paint on the current Core render protocol.
+// Flutter: packages/flutter/lib/src/material/chip.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import {
   MultiChildRenderObjectWidget,
   SingleChildRenderObjectWidget,
@@ -15,6 +15,7 @@ import type {
 } from '@nelyx/core/framework/rendering/object';
 import { RenderConstrainedBox, RenderProxyBox } from '@nelyx/core/framework/rendering/boxes';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { LayerHandle, type OpacityLayer } from '@nelyx/core/framework/rendering/layer';
 import type { PaintingContext } from '@nelyx/core/framework/painting/context';
 import type { SemanticsConfiguration } from '@nelyx/core/framework/semantics/semantics';
 import type { Animation } from '@nelyx/core/framework/animation/animation';
@@ -106,6 +107,9 @@ export class RenderChip extends RenderBox {
   private direction: 'ltr' | 'rtl';
   private deleteRect = Rect.zero;
   private pressRect = Rect.zero;
+  private readonly avatarOpacity = new LayerHandle<OpacityLayer>();
+  private readonly labelOpacity = new LayerHandle<OpacityLayer>();
+  private readonly deleteOpacity = new LayerHandle<OpacityLayer>();
   private subscriptions: { animation: Animation<number>; listener: () => void }[] = [];
   private readonly layoutChanged = () => {
     if (this.attached) this.markNeedsLayout();
@@ -182,14 +186,23 @@ export class RenderChip extends RenderBox {
     try {
       super.detach();
     } finally {
-      this.stopListening();
+      if (!this.attached) this.releaseResources();
     }
   }
   override dispose(): void {
     try {
       super.dispose();
     } finally {
-      if (this.debugDisposed) this.stopListening();
+      if (this.debugDisposed) this.releaseResources();
+    }
+  }
+  private releaseResources(): void {
+    try {
+      this.stopListening();
+    } finally {
+      this.avatarOpacity.dispose();
+      this.labelOpacity.dispose();
+      this.deleteOpacity.dispose();
     }
   }
   protected override computeMinIntrinsicWidth(height: number): number {
@@ -440,16 +453,25 @@ export class RenderChip extends RenderBox {
   private paintGroup(
     context: PaintingContext,
     child: RenderBox<RenderObject>,
-    paint: () => void,
+    opacity: LayerHandle<OpacityLayer>,
+    paint: (context: PaintingContext) => void,
   ): void {
-    const color = this.disabledColor,
-      layer = color.alpha !== 255;
-    if (layer)
-      context.saveLayer(this.boxRect(child).inflate(20), new Paint({ color: color.toARGB32() }));
+    const color = this.disabledColor;
+    if (color.alpha === 255) {
+      opacity.dispose();
+      paint(context);
+      return;
+    }
+    if (this.needsCompositing) {
+      opacity.layer = context.pushOpacity(Offset.zero, color.alpha, paint, opacity.layer);
+      return;
+    }
+    opacity.dispose();
+    context.saveLayer(this.boxRect(child).inflate(20), new Paint({ color: color.toARGB32() }));
     try {
-      paint();
+      paint(context);
     } finally {
-      if (layer) context.restore();
+      context.restore();
     }
   }
   private paintCheck(context: PaintingContext): void {
@@ -514,14 +536,24 @@ export class RenderChip extends RenderBox {
     );
   }
   override paint(context: PaintingContext): void {
-    if (this.theme.showAvatar || !this.options.avatarDrawerAnimation.isDismissed)
-      this.paintGroup(context, this.avatar, () => {
-        this.paintChild(context, this.avatar);
-        this.paintCheck(context);
+    if (this.theme.showAvatar || !this.options.avatarDrawerAnimation.isDismissed) {
+      this.paintGroup(context, this.avatar, this.avatarOpacity, (group) => {
+        this.paintChild(group, this.avatar);
+        this.paintCheck(group);
       });
-    if (this.deleteIconShowing)
-      this.paintGroup(context, this.deleteIcon, () => this.paintChild(context, this.deleteIcon));
-    this.paintGroup(context, this.label, () => this.paintChild(context, this.label));
+    } else {
+      this.avatarOpacity.dispose();
+    }
+    if (this.deleteIconShowing) {
+      this.paintGroup(context, this.deleteIcon, this.deleteOpacity, (group) => {
+        this.paintChild(group, this.deleteIcon);
+      });
+    } else {
+      this.deleteOpacity.dispose();
+    }
+    this.paintGroup(context, this.label, this.labelOpacity, (group) => {
+      this.paintChild(group, this.label);
+    });
   }
 }
 export class ChipRedirectingHitDetectionWidget extends SingleChildRenderObjectWidget {

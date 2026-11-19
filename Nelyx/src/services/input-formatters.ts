@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Nelyx editing policy. Offsets are UTF-16; native composition is never rewritten.
 import { invariant } from '../foundation/errors.ts';
+import { FoundationPlatform } from '../foundation/platform.ts';
+import type { TargetPlatform } from '../foundation/platform.ts';
 import { validateEditingContent } from '../ui/editing.ts';
 import { graphemeBoundaries } from '../foundation/grapheme-boundaries.ts';
 import type { TextEditingValue } from '../ui/types.ts';
@@ -26,9 +28,14 @@ export abstract class TextInputFormatter {
     })();
   }
 }
-/** Limits extended graphemes with the pinned characters automaton. Active IME composition is retained until commit. */
+export type MaxLengthEnforcement = 'none' | 'enforced' | 'truncateAfterCompositionEnds';
+
+/** Limits extended graphemes with the pinned characters automaton. */
 export class LengthLimitingTextInputFormatter extends TextInputFormatter {
-  constructor(readonly maxLength: number) {
+  constructor(
+    readonly maxLength: number,
+    readonly maxLengthEnforcement: MaxLengthEnforcement | null = null,
+  ) {
     super();
     invariant(
       Number.isSafeInteger(maxLength) && maxLength >= 0,
@@ -36,20 +43,35 @@ export class LengthLimitingTextInputFormatter extends TextInputFormatter {
       'Text limit must be a nonnegative integer',
     );
   }
-  formatEditUpdate(_oldValue: EditingContent, newValue: EditingContent): EditingContent {
-    if (newValue.composing.status === 'active') return newValue;
+  static getDefaultMaxLengthEnforcement(platform?: TargetPlatform): MaxLengthEnforcement {
+    if (FoundationPlatform.isWeb) return 'truncateAfterCompositionEnds';
+    const target = platform ?? FoundationPlatform.defaultTargetPlatform;
+    return target === 'android' || target === 'windows'
+      ? 'enforced'
+      : 'truncateAfterCompositionEnds';
+  }
+  formatEditUpdate(oldValue: EditingContent, newValue: EditingContent): EditingContent {
+    if (this.maxLengthEnforcement === 'none' || newValue.composing.status === 'active')
+      return newValue;
     const end = graphemeBoundaries(newValue.text)[this.maxLength] ?? newValue.text.length;
     const text = newValue.text.slice(0, end);
-    return text === newValue.text
-      ? newValue
-      : snapshotEditingContent({
-          ...newValue,
-          text,
-          selection: {
-            anchor: Math.min(newValue.selection.anchor, text.length),
-            focus: Math.min(newValue.selection.focus, text.length),
-          },
-        });
+    if (text === newValue.text) return newValue;
+    if (
+      this.maxLengthEnforcement !== null &&
+      (this.maxLengthEnforcement === 'enforced'
+        ? oldValue.selection.anchor === oldValue.selection.focus
+        : oldValue.composing.status !== 'active') &&
+      graphemeBoundaries(oldValue.text).length - 1 === this.maxLength
+    )
+      return oldValue;
+    return snapshotEditingContent({
+      ...newValue,
+      text,
+      selection: {
+        anchor: Math.min(newValue.selection.anchor, text.length),
+        focus: Math.min(newValue.selection.focus, text.length),
+      },
+    });
   }
 }
 /** Whole-value validation. Use this for structured input; rejected edits retain the previous selection. */

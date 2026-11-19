@@ -7,6 +7,8 @@ import { tickerScheduler } from './ticker-scheduler.ts';
 import { ChangeNotifier } from '../../foundation/notifier.ts';
 import { StatefulWidget, Element } from './framework.ts';
 import type { Widget, BuildContext, WidgetOptions } from './framework.ts';
+import { LayoutChangedNotification } from './notification-listener.ts';
+import { ViewportNotificationMixin } from './scroll-notification.ts';
 import { SingleTickerProviderStateMixin } from './ticker-provider.ts';
 import { AnimationController } from '../animation/animation-controller.ts';
 import { TickerCanceled } from '../animation/ticker-future.ts';
@@ -103,6 +105,27 @@ export interface DraggableScrollableSheetOptions extends WidgetOptions {
   readonly snap?: boolean;
   readonly snapSizes?: readonly number[];
   readonly snapAnimationDuration?: number;
+  readonly shouldCloseOnMinExtent?: boolean;
+}
+
+export class DraggableScrollableNotification extends ViewportNotificationMixin(
+  LayoutChangedNotification,
+) {
+  constructor(
+    readonly extent: number,
+    readonly minExtent: number,
+    readonly maxExtent: number,
+    readonly initialExtent: number,
+    readonly context: BuildContext,
+    readonly shouldCloseOnMinExtent: boolean,
+    private readonly resetSheet: () => void,
+  ) {
+    super();
+  }
+
+  reset(): void {
+    this.resetSheet();
+  }
 }
 export class DraggableScrollableSheet extends StatefulWidget {
   readonly builder: DraggableScrollableSheetOptions['builder'];
@@ -114,6 +137,7 @@ export class DraggableScrollableSheet extends StatefulWidget {
   readonly snap: boolean;
   readonly snapSizes: readonly number[];
   readonly snapAnimationDuration: number;
+  readonly shouldCloseOnMinExtent: boolean;
   constructor({
     builder,
     controller = null,
@@ -124,6 +148,7 @@ export class DraggableScrollableSheet extends StatefulWidget {
     snap = false,
     snapSizes = [],
     snapAnimationDuration = 200,
+    shouldCloseOnMinExtent = true,
     key = null,
   }: DraggableScrollableSheetOptions) {
     super(key);
@@ -166,6 +191,7 @@ export class DraggableScrollableSheet extends StatefulWidget {
     this.snap = snap;
     this.snapSizes = Object.freeze([...new Set([minChildSize, ...snapSizes, maxChildSize])]);
     this.snapAnimationDuration = snapAnimationDuration;
+    this.shouldCloseOnMinExtent = shouldCloseOnMinExtent;
   }
   createState(): DraggableScrollableSheetState {
     return new DraggableScrollableSheetState();
@@ -227,7 +253,7 @@ export class DraggableScrollableSheetState extends SingleTickerProviderStateMixi
         tickerScheduler(this.context).addPostFrameCallback(
           () => {
             const state = token.current;
-            if (state?.live) state.controller._changed();
+            if (state?.live) state.notifyExtentChanged();
           },
           { debugLabel: 'sheet bounds change' },
         );
@@ -249,7 +275,23 @@ export class DraggableScrollableSheetState extends SingleTickerProviderStateMixi
     if (next === this.fraction || !this.live) return;
     this.fraction = next;
     this.setState(() => {});
+    this.notifyExtentChanged();
+  }
+  private notifyExtentChanged(): void {
     this.controller._changed();
+    if (!this.live) return;
+    const { minChildSize, maxChildSize, initialChildSize, shouldCloseOnMinExtent } = this.widget;
+    new DraggableScrollableNotification(
+      this.fraction,
+      minChildSize,
+      maxChildSize,
+      initialChildSize,
+      this.context,
+      shouldCloseOnMinExtent,
+      () => {
+        if (this._attached()) this.controller.reset();
+      },
+    ).dispatch(this.context);
   }
   private stopMotion(): void {
     this.revision++;

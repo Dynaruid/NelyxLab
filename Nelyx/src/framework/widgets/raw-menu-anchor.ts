@@ -224,6 +224,7 @@ export interface RawMenuAnchorOptions extends WidgetOptions {
   readonly child?: Widget | null;
   readonly builder?: RawMenuAnchorChildBuilder | null;
   readonly childFocusNode?: FocusNode | null;
+  readonly restoreFocusOnClose?: boolean;
   readonly consumeOutsideTaps?: boolean;
   readonly useRootOverlay?: boolean;
   readonly onOpen?: (() => void) | null;
@@ -400,7 +401,8 @@ class RawMenuAnchorState extends MenuBranchState<RawMenuAnchor> {
     this.history = null;
     history?.remove();
     if (notify) {
-      if (isCurrentRoute(this.context)) this.widget.options.childFocusNode?.requestFocus();
+      if (this.widget.options.restoreFocusOnClose !== false && isCurrentRoute(this.context))
+        this.widget.options.childFocusNode?.requestFocus();
       this.changed();
       this.widget.options.onClose?.();
     }

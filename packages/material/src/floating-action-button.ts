@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/floating_action_button.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { Element, State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
+import { Directionality } from '@nelyx/core/framework/widgets/app-data';
 import { Align, ConstrainedBox, Padding, Row, SizedBox } from '@nelyx/core/framework/widgets/basic';
 import { Hero, HeroControllerScope } from '@nelyx/core/framework/widgets/heroes';
 import { routeTokenOf } from '@nelyx/core/framework/widgets/navigation';
@@ -20,6 +22,7 @@ import {
   WidgetStateMouseCursor,
 } from '@nelyx/core/framework/widgets/widget-state';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { RenderConstraintsTransformBox } from '@nelyx/core/framework/rendering/overflow-box';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import type { ShapeBorder } from '@nelyx/core/framework/painting/borders';
 import { EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
@@ -83,7 +86,7 @@ export interface FloatingActionButtonExtendedOptions extends FloatingActionButto
   readonly extendedTextStyle?: TextStyle | null;
 }
 
-const defaultHeroTag = Object.freeze({});
+const defaultHeroTag = Object.freeze({ toString: () => '<default FloatingActionButton tag>' });
 const objectHeroTags = new WeakMap<object, string>();
 let nextObjectTag = 0;
 function heroKey(tag: FloatingActionButtonHeroTag): string {
@@ -248,6 +251,28 @@ export class FloatingActionButton extends StatefulWidget {
   }
 }
 
+class FabChildOverflowBox extends ConstraintsTransformBox {
+  constructor(child: Widget) {
+    super(child, { constraintsTransform: ConstraintsTransformBox.unconstrained });
+  }
+  protected override make(context: BuildContext): RenderConstraintsTransformBox {
+    return new RenderFabChildOverflowBox({
+      alignment: this.alignment,
+      textDirection: Directionality.of(context),
+      constraintsTransform: this.constraintsTransform,
+    });
+  }
+}
+
+class RenderFabChildOverflowBox extends RenderConstraintsTransformBox {
+  protected override computeMinIntrinsicWidth(): number {
+    return 0;
+  }
+  protected override computeMinIntrinsicHeight(): number {
+    return 0;
+  }
+}
+
 class FloatingActionButtonState extends State<FloatingActionButton> {
   private readonly states = new WidgetStatesController();
   private readonly statesChanged = () => {
@@ -327,16 +352,23 @@ class FloatingActionButtonState extends State<FloatingActionButton> {
       color: foreground.toARGB32(),
     });
 
+    const icon =
+      w.child === null
+        ? null
+        : IconTheme.merge({
+            data: new IconThemeData({ size: fab.iconSize ?? size?.iconSize ?? 24 }),
+            child: w.child,
+          });
     const child =
       size === null
-        ? new ConstraintsTransformBox(
+        ? new FabChildOverflowBox(
             new Padding(
               w.extendedPadding ??
                 fab.extendedPadding ??
                 EdgeInsetsDirectional.only({ start: w.child !== null ? 16 : 20, end: 20 }),
               new Row(
                 [
-                  ...(w.child === null ? [] : [w.child]),
+                  ...(icon === null ? [] : [icon]),
                   ...(w.isExtended && label !== null ? [label] : []),
                 ],
                 {
@@ -345,14 +377,10 @@ class FloatingActionButtonState extends State<FloatingActionButton> {
                 },
               ),
             ),
-            { constraintsTransform: ConstraintsTransformBox.unconstrained },
           )
-        : w.child;
+        : icon;
     const content = IconTheme.merge({
-      data: new IconThemeData({
-        color: foreground,
-        size: size === null ? null : (fab.iconSize ?? size.iconSize),
-      }),
+      data: new IconThemeData({ color: foreground }),
       child: new Align(child ?? undefined, { widthFactor: 1, heightFactor: 1 }),
     });
     const material = (child: Widget) =>

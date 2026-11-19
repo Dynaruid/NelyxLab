@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Pinned material.dart surface/ink contracts on the existing Core render and ticker owners.
+// Flutter: packages/flutter/lib/src/material/material.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import {
   StatefulWidget,
   State,
@@ -50,6 +51,7 @@ import { DiagnosticsProperty } from '@nelyx/core/foundation/diagnostics';
 import type { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
 import { Theme } from './theme.ts';
 import { ElevationOverlay } from './elevation-overlay.ts';
+import { ReadonlyThemeMap } from './internal/theme/theme-types.ts';
 import {
   MaterialInkRender,
   MaterialInkController,
@@ -64,6 +66,16 @@ import { RenderPhysicalShape } from '@nelyx/core/framework/rendering/clip';
 export { InkFeature, MaterialInkController } from './internal/material/material-ink-owner.ts';
 export type { InkFeatureOptions } from './internal/material/material-ink-owner.ts';
 export { MaterialType } from './generated/material/material-values.generated.ts';
+const cardAndButtonRadius = BorderRadius.circular(2);
+Object.freeze(cardAndButtonRadius);
+/** Default radii of the Material surface types. The circle uses its own shape. */
+export const kMaterialEdges: ReadonlyMap<MaterialType, BorderRadius | null> = new ReadonlyThemeMap([
+  [MaterialType.canvas, null],
+  [MaterialType.card, cardAndButtonRadius],
+  [MaterialType.circle, null],
+  [MaterialType.button, cardAndButtonRadius],
+  [MaterialType.transparency, null],
+]);
 export interface MaterialOptions extends WidgetOptions {
   readonly type?: MaterialType;
   /** @dartType double */
@@ -261,10 +273,7 @@ class MaterialState extends TickerProviderStateMixin<Material> {
       widget.type === MaterialType.circle
         ? new CircleBorder()
         : new RoundedRectangleBorder({
-            borderRadius:
-              widget.type === MaterialType.card || widget.type === MaterialType.button
-                ? BorderRadius.circular(2)
-                : BorderRadius.zero,
+            borderRadius: kMaterialEdges.get(widget.type) ?? BorderRadius.zero,
           });
 
     if (widget.type === MaterialType.transparency)

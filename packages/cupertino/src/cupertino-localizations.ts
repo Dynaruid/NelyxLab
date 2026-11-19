@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/localizations.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import type { DateTime } from '@nelyx/core/foundation/date-time';
 import { InheritedWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
-import { Localizations } from '@nelyx/core/framework/widgets/app-data';
+import { Localizations, LocalizationsDelegate } from '@nelyx/core/framework/widgets/app-data';
+import type { Locale } from '@nelyx/core/ui/locale';
 import { selectionMessages } from './generated/localizations/selection-localizations-data.ts';
 import { clearButtonLabels } from './internal/input/clear-localizations.ts';
+import { dialogLabels } from './internal/dialog-labels.ts';
+import { contextMenuLabels } from './internal/context-menu-labels.ts';
+import { expansionTileLabels } from './internal/expansion-tile-labels.ts';
+import { noSpellCheckReplacementLabels } from './internal/spell-check-labels.ts';
 import { searchPlaceholderLabels } from './generated/localizations/search-localizations-data.generated.ts';
 import {
   pickerFormats,
@@ -28,6 +34,7 @@ export enum DatePickerDateTimeOrder {
 }
 
 export class CupertinoLocalizations {
+  private standaloneMonthFormat: Intl.DateTimeFormat | null | undefined;
   private readonly messages: Readonly<Record<string, string>>;
   private readonly formats: PickerFormats;
   private readonly digits: readonly string[];
@@ -56,9 +63,11 @@ export class CupertinoLocalizations {
         },
         selectionMessages.en,
         pickerMessages.en,
+        expansionTileLabels.en,
         ...candidates.map((key) => ({
           ...selectionMessages[key],
           ...pickerMessages[key],
+          ...expansionTileLabels[key],
           ...(searchPlaceholderLabels[key] === undefined
             ? {}
             : { searchTextFieldPlaceholderLabel: searchPlaceholderLabels[key] }),
@@ -66,13 +75,33 @@ export class CupertinoLocalizations {
             ? {}
             : { clearButtonLabel: clearButtonLabels[key] }),
         })),
+        {
+          noSpellCheckReplacementsLabel: candidates.reduce(
+            (label, key) => noSpellCheckReplacementLabels[key] ?? label,
+            noSpellCheckReplacementLabels.en!,
+          ),
+          menuDismissLabel: candidates.reduce(
+            (label, key) => contextMenuLabels[key]?.menuDismissLabel ?? label,
+            contextMenuLabels.en!.menuDismissLabel!,
+          ),
+          modalBarrierDismissLabel: candidates.reduce(
+            (label, key) => dialogLabels[key]?.[0] ?? label,
+            dialogLabels.en![0]!,
+          ),
+          alertDialogLabel: candidates.reduce(
+            (label, key) => dialogLabels[key]?.[1] ?? label,
+            dialogLabels.en![1]!,
+          ),
+        },
       ),
     );
   }
   static of(context: BuildContext): CupertinoLocalizations {
+    const localizations = context.maybeDependOn(Localizations);
     return (
       context.maybeDependOn(CupertinoLocalizationsScope)?.data ??
-      new CupertinoLocalizations(context.maybeDependOn(Localizations)?.locale ?? 'en')
+      localizations?.resource(CupertinoLocalizations) ??
+      new CupertinoLocalizations(localizations?.locale ?? 'en')
     );
   }
   static get supportedLocales(): readonly string[] {
@@ -88,6 +117,36 @@ export class CupertinoLocalizations {
   }
   get clearButtonLabel(): string {
     return this.message('clearButtonLabel');
+  }
+  get noSpellCheckReplacementsLabel(): string {
+    return this.message('noSpellCheckReplacementsLabel');
+  }
+  get collapsedHint(): string {
+    return this.message('collapsedHint');
+  }
+  get expandedHint(): string {
+    return this.message('expandedHint');
+  }
+  get expansionTileExpandedTapHint(): string {
+    return this.message('expansionTileExpandedTapHint');
+  }
+  get expansionTileCollapsedTapHint(): string {
+    return this.message('expansionTileCollapsedTapHint');
+  }
+  get expansionTileExpandedHint(): string {
+    return this.message('expansionTileExpandedHint');
+  }
+  get expansionTileCollapsedHint(): string {
+    return this.message('expansionTileCollapsedHint');
+  }
+  get modalBarrierDismissLabel(): string {
+    return this.message('modalBarrierDismissLabel');
+  }
+  get menuDismissLabel(): string {
+    return this.message('menuDismissLabel');
+  }
+  get alertDialogLabel(): string {
+    return this.message('alertDialogLabel');
   }
   get copyButtonLabel(): string {
     return this.message('copyButtonLabel');
@@ -163,6 +222,24 @@ export class CupertinoLocalizations {
     return this.formats.months[month - 1] ?? this.number(month);
   }
 
+  datePickerStandaloneMonth(month: number): string {
+    const tag = this.locale.replaceAll('_', '-');
+    if (this.standaloneMonthFormat === undefined) {
+      try {
+        this.standaloneMonthFormat = Intl.DateTimeFormat.supportedLocalesOf([tag]).length
+          ? new Intl.DateTimeFormat(tag, { month: 'long', timeZone: 'UTC', calendar: 'gregory' })
+          : null;
+      } catch {
+        this.standaloneMonthFormat = null;
+      }
+    }
+    if (!this.standaloneMonthFormat || month < 1 || month > 12) return this.datePickerMonth(month);
+    const [first, ...rest] = Array.from(
+      this.standaloneMonthFormat.format(new Date(Date.UTC(2024, month - 1, 1))),
+    );
+    return first ? first.toLocaleUpperCase(tag) + rest.join('') : this.datePickerMonth(month);
+  }
+
   datePickerDayOfMonth(day: number, weekday?: number): string {
     const value = this.formats.days[day - 1] ?? this.number(day);
     const weekdayLabel = weekday === undefined ? undefined : this.formats.weekdays[weekday - 1];
@@ -215,11 +292,41 @@ export class CupertinoLocalizations {
     return this.formats.timerSecondLabels[second] ?? '';
   }
 }
+class CupertinoLocalizationsDelegate extends LocalizationsDelegate<CupertinoLocalizations> {
+  readonly type = CupertinoLocalizations;
+  isSupported(locale: Locale): boolean {
+    return locale.languageCode === 'en';
+  }
+  load(_locale: Locale): DefaultCupertinoLocalizations {
+    return new DefaultCupertinoLocalizations();
+  }
+  shouldReload(_previous: this): boolean {
+    return false;
+  }
+  toString(): string {
+    return 'DefaultCupertinoLocalizations.delegate(en_US)';
+  }
+}
+
 export class DefaultCupertinoLocalizations extends CupertinoLocalizations {
+  static readonly delegate: LocalizationsDelegate<CupertinoLocalizations> = Object.freeze(
+    new CupertinoLocalizationsDelegate(),
+  );
+  static load(_locale: Locale): Promise<DefaultCupertinoLocalizations> {
+    return Promise.resolve(new DefaultCupertinoLocalizations());
+  }
   constructor() {
     super('en');
   }
 }
+/** The app's bundled locale catalog supports region-specific formats. */
+export const cupertinoCatalogDelegate: LocalizationsDelegate<CupertinoLocalizations> =
+  Object.freeze({
+    type: CupertinoLocalizations,
+    isSupported: () => true,
+    load: (locale: Locale) => new CupertinoLocalizations(locale.toLanguageTag()),
+    shouldReload: () => false,
+  });
 export class CupertinoLocalizationsScope extends InheritedWidget {
   constructor(
     readonly data: CupertinoLocalizations,

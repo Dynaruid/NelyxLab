@@ -169,12 +169,13 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
   return function ApplicationSurface(props: Props) {
     const {
       react: { createElement, useEffect, useRef, useState },
-      native: { PixelRatio, View },
+      native: { PixelRatio, ScrollView, View },
       skia: { Skia, SkiaGraphiteView },
     } = adapter.backend();
     const latest = useRef(props);
     latest.current = props;
     const ref = useRef<SkiaGraphiteViewRef>(null);
+    const statusBarScroll = useRef<import('react-native').ScrollView>(null);
     const keyboardHost = useRef<import('react-native').View>(null);
     const androidKeyboardHost =
       useRef<import('./android-keyboard.tsx').AndroidKeyboardHandle>(null);
@@ -752,6 +753,25 @@ export function createReactNativeSurface<Props extends ReactNativeSurfaceProps>(
         style: { flex: 1 },
         onLayout: (event) => mount(owner, event),
       }),
+      props.definition.createView && adapter.target === 'ios'
+        ? createElement(ScrollView, {
+            key: `status-bar:${owner.epoch}`,
+            ref: statusBarScroll,
+            style: { position: 'absolute', width: 1, height: 1, left: -1, top: 0 },
+            contentContainerStyle: { height: 2 },
+            contentOffset: { x: 0, y: 1 },
+            contentInsetAdjustmentBehavior: 'never',
+            automaticallyAdjustContentInsets: false,
+            showsVerticalScrollIndicator: false,
+            accessibilityElementsHidden: true,
+            scrollsToTop: true,
+            onScrollToTop: () => {
+              if (!current(owner)) return;
+              statusBarScroll.current?.scrollTo({ y: 1, animated: false });
+              if (owner.active && owner.nativeVisible) owner.application?.view.handleStatusBarTap();
+            },
+          })
+        : null,
       props.definition.createView &&
       (props.definition.accessibilityEnabled !== false || adapter.target !== 'windows')
         ? createElement(InteractionControls, {

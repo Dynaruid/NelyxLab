@@ -127,6 +127,7 @@ export class CupertinoSliverRefreshControl extends StatefulWidget {
 class CupertinoRefreshState extends State<CupertinoSliverRefreshControl> {
   mode = RefreshIndicatorMode.inactive;
   private held = false;
+  private pulledExtent = 0;
 
   private arm(): void {
     this.mode = RefreshIndicatorMode.armed;
@@ -159,7 +160,10 @@ class CupertinoRefreshState extends State<CupertinoSliverRefreshControl> {
 
   private finish(): void {
     this.setState(() => {
-      this.mode = RefreshIndicatorMode.done;
+      this.mode =
+        this.pulledExtent <= this.widget.refreshTriggerPullDistance * 0.1
+          ? RefreshIndicatorMode.inactive
+          : RefreshIndicatorMode.done;
       this.held = false;
     });
   }
@@ -173,6 +177,7 @@ class CupertinoRefreshState extends State<CupertinoSliverRefreshControl> {
           refreshIndicatorExtent: extent,
         } = this.widget;
         const pulled = constraints.maxHeight;
+        this.pulledExtent = pulled;
         switch (this.mode) {
           case RefreshIndicatorMode.inactive:
           case RefreshIndicatorMode.drag:
@@ -188,7 +193,7 @@ class CupertinoRefreshState extends State<CupertinoSliverRefreshControl> {
         }
         return pulled > 0 && builder
           ? builder(context, this.mode, pulled, trigger, extent)
-          : new SizedBox(0, 0);
+          : SizedBox.expand();
       }),
       this.held ? this.widget.refreshIndicatorExtent : 0,
     );

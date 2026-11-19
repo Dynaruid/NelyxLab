@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/route.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, WidgetOptions, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import type { Animation } from '@nelyx/core/framework/animation/animation';
+import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
 import { CurvedAnimation } from '@nelyx/core/framework/animation/animations';
 import { Curves } from '@nelyx/core/framework/animation/curves';
 import { Tween } from '@nelyx/core/framework/animation/tween';
@@ -15,11 +17,22 @@ import { Tolerance } from '@nelyx/core/framework/physics/tolerance';
 import { Offset } from '@nelyx/core/ui/offset';
 import type { ImageFilter } from '@nelyx/core/ui/image-filter';
 import type { Decoration } from '@nelyx/core/framework/painting/decoration';
-import { SlideTransition, DecoratedBoxTransition } from '@nelyx/core/framework/widgets/transitions';
+import {
+  SlideTransition,
+  DecoratedBoxTransition,
+  FadeTransition,
+  ScaleTransition,
+} from '@nelyx/core/framework/widgets/transitions';
 import { Directionality } from '@nelyx/core/framework/widgets/app-data';
+import { DisplayFeatureSubScreen } from '@nelyx/core/framework/widgets/display-feature-sub-screen';
 import { cupertinoEdgeShadowTween } from './internal/route/edge-shadow.ts';
-import { PageRoute, PageRouteBuilder } from '@nelyx/core/framework/widgets/pages';
-import type { PageRouteOptions, RouteSettings } from '@nelyx/core/framework/widgets/pages';
+import { Page, PageRoute, PageRouteBuilder } from '@nelyx/core/framework/widgets/pages';
+import type {
+  PageOptions,
+  PageRouteOptions,
+  RouteSettings,
+  RouteTransitionsBuilder,
+} from '@nelyx/core/framework/widgets/pages';
 import { Navigator, Route } from '@nelyx/core/framework/widgets/navigation';
 import { Align, Builder } from '@nelyx/core/framework/widgets/basic';
 import { FractionalTranslation } from '@nelyx/core/framework/widgets/fractional-translation';
@@ -32,6 +45,7 @@ import type { ValueListenable } from '@nelyx/core/foundation/notifier';
 import { Color } from '@nelyx/core/ui/color';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { CupertinoDynamicColor } from './colors.ts';
+import { CupertinoLocalizations } from './cupertino-localizations.ts';
 import { coreCupertinoColor, resolveCupertinoColor } from './internal/colors/color-values.ts';
 import type { CupertinoColor } from './internal/colors/color-values.ts';
 import { CupertinoUserInterfaceLevel, CupertinoUserInterfaceLevelData } from './interface-level.ts';
@@ -60,10 +74,12 @@ export interface CupertinoModalPopupRouteOptions {
   readonly filter?: ImageFilter | null;
   readonly settings?: RouteSettings | null;
   readonly requestFocus?: boolean | null;
+  readonly anchorPoint?: Offset | null;
 }
 
 export class CupertinoModalPopupRoute<T = unknown> extends PageRouteBuilder<T> {
   readonly builder: CupertinoModalPopupRouteOptions['builder'];
+  readonly anchorPoint: Offset | null;
   declare readonly semanticsDismissible: boolean;
 
   constructor({
@@ -75,6 +91,7 @@ export class CupertinoModalPopupRoute<T = unknown> extends PageRouteBuilder<T> {
     filter = null,
     settings = null,
     requestFocus = null,
+    anchorPoint = null,
   }: CupertinoModalPopupRouteOptions) {
     super({
       settings,
@@ -92,7 +109,7 @@ export class CupertinoModalPopupRoute<T = unknown> extends PageRouteBuilder<T> {
       pageBuilder: () =>
         new CupertinoUserInterfaceLevel({
           data: CupertinoUserInterfaceLevelData.elevated,
-          child: new Builder(builder),
+          child: new DisplayFeatureSubScreen({ anchorPoint, child: new Builder(builder) }),
         }),
       transitionsBuilder: (_context, animation, _secondary, child) =>
         new Align(
@@ -103,6 +120,7 @@ export class CupertinoModalPopupRoute<T = unknown> extends PageRouteBuilder<T> {
         ),
     });
     this.builder = builder;
+    this.anchorPoint = anchorPoint;
   }
 
   get filter(): ImageFilter | null {
@@ -142,6 +160,115 @@ export function showCupertinoModalPopup<T = unknown>(
     new CupertinoModalPopupRoute<T>({
       ...options,
       barrierColor: barrierColor === null ? null : resolveCupertinoColor(barrierColor, context),
+      settings: routeSettings,
+    }),
+  );
+}
+
+const dialogScale = new Tween<number>({ begin: 1.3, end: 1 });
+
+export interface CupertinoDialogRouteOptions {
+  readonly context: BuildContext;
+  readonly builder: (context: BuildContext) => Widget;
+  readonly barrierDismissible?: boolean;
+  readonly barrierColor?: CupertinoColor | null;
+  readonly barrierLabel?: string | null;
+  readonly transitionDuration?: number;
+  readonly transitionBuilder?: RouteTransitionsBuilder | null;
+  readonly settings?: RouteSettings | null;
+  readonly requestFocus?: boolean | null;
+  readonly anchorPoint?: Offset | null;
+}
+
+export class CupertinoDialogRoute<T = unknown> extends PageRouteBuilder<T> {
+  transitionBuilder: RouteTransitionsBuilder | null;
+  readonly anchorPoint: Offset | null;
+
+  constructor({
+    builder,
+    context,
+    barrierDismissible = true,
+    barrierColor,
+    barrierLabel,
+    transitionDuration = 250,
+    transitionBuilder = null,
+    settings = null,
+    requestFocus = null,
+    anchorPoint = null,
+  }: CupertinoDialogRouteOptions) {
+    super({
+      settings,
+      opaque: false,
+      barrierDismissible,
+      barrierColor: resolveCupertinoColor(barrierColor ?? kCupertinoModalBarrierColor, context),
+      barrierLabel: barrierLabel ?? CupertinoLocalizations.of(context).modalBarrierDismissLabel,
+      requestFocus,
+      traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
+      transitionDuration,
+      reverseTransitionDuration: transitionDuration,
+      pageBuilder: () =>
+        new Semantics({
+          scopesRoute: true,
+          explicitChildNodes: true,
+          child: new DisplayFeatureSubScreen({ anchorPoint, child: new Builder(builder) }),
+        }),
+    });
+    this.transitionBuilder = transitionBuilder;
+    this.anchorPoint = anchorPoint;
+  }
+
+  override createSimulation({ forward }: { readonly forward: boolean }): SpringSimulation {
+    return new SpringSimulation(
+      popupSpring,
+      this.animation?.value ?? (forward ? 0 : 1),
+      forward ? 1 : 0,
+      0,
+      { tolerance: popupTolerance, snapToEnd: true },
+    );
+  }
+  override buildTransitions(
+    context: BuildContext,
+    animation: Animation<number>,
+    secondary: Animation<number>,
+    child: Widget,
+  ): Widget {
+    if (this.transitionBuilder) return this.transitionBuilder(context, animation, secondary, child);
+    return new FadeTransition({
+      opacity: animation,
+      child:
+        animation.status === AnimationStatus.reverse
+          ? child
+          : new ScaleTransition({
+              scale: animation.drive(dialogScale),
+              child,
+            }),
+    });
+  }
+}
+
+export interface ShowCupertinoDialogOptions extends Omit<
+  CupertinoDialogRouteOptions,
+  'context' | 'settings' | 'transitionDuration' | 'transitionBuilder'
+> {
+  readonly useRootNavigator?: boolean;
+  readonly routeSettings?: RouteSettings | null;
+}
+
+export function showCupertinoDialog<T = unknown>(
+  context: BuildContext,
+  {
+    barrierDismissible = false,
+    useRootNavigator = true,
+    routeSettings = null,
+    ...options
+  }: ShowCupertinoDialogOptions,
+): Promise<T | undefined> {
+  const navigator = Navigator.of(context, { rootNavigator: useRootNavigator });
+  return navigator.push(
+    new CupertinoDialogRoute<T>({
+      ...options,
+      barrierDismissible,
+      context,
       settings: routeSettings,
     }),
   );
@@ -382,7 +509,7 @@ class CupertinoFullscreenDialogTransitionState extends State<CupertinoFullscreen
 /** Source mixin policy on the existing canonical PageRoute adapter. */
 export abstract class CupertinoRouteTransitionMixin<T = unknown> extends PageRoute<T> {
   static readonly kTransitionDuration = 500;
-  abstract readonly title: string | null;
+  abstract get title(): string | null;
   abstract buildContent(context: BuildContext): Widget;
   private previousTitleNotifier: ValueNotifier<string | null> | null = null;
   get previousTitle(): ValueListenable<string | null> {
@@ -512,7 +639,7 @@ export interface CupertinoPageRouteOptions extends Pick<
 }
 export class CupertinoPageRoute<T = unknown> extends CupertinoRouteTransitionMixin<T> {
   readonly builder: (context: BuildContext) => Widget;
-  override readonly title: string | null;
+  private readonly routeTitle: string | null;
   override readonly maintainState: boolean;
   constructor({
     builder,
@@ -522,8 +649,11 @@ export class CupertinoPageRoute<T = unknown> extends CupertinoRouteTransitionMix
   }: CupertinoPageRouteOptions) {
     super(options);
     this.builder = builder;
-    this.title = title;
+    this.routeTitle = title;
     this.maintainState = maintainState;
+  }
+  override get title(): string | null {
+    return this.routeTitle;
   }
   /** @dartReturn Widget? Function(BuildContext, Animation<double>, Animation<double>, bool, Widget?)? */
   override get delegatedTransition(): DelegatedTransitionBuilder | null {
@@ -536,6 +666,71 @@ export class CupertinoPageRoute<T = unknown> extends CupertinoRouteTransitionMix
     return super.debugLabel + '(' + this.settings.name + ')';
   }
 }
+
+export interface CupertinoPageOptions<T = unknown> extends PageOptions<T> {
+  readonly child: Widget;
+  readonly title?: string | null;
+  readonly maintainState?: boolean;
+  readonly fullscreenDialog?: boolean;
+  readonly allowSnapshotting?: boolean;
+}
+
+export class CupertinoPage<T = unknown> extends Page<T> {
+  readonly child: Widget;
+  readonly title: string | null;
+  readonly maintainState: boolean;
+  readonly fullscreenDialog: boolean;
+  readonly allowSnapshotting: boolean;
+
+  constructor({
+    child,
+    title = null,
+    maintainState = true,
+    fullscreenDialog = false,
+    allowSnapshotting = true,
+    ...settings
+  }: CupertinoPageOptions<T>) {
+    super(settings);
+    this.child = child;
+    this.title = title;
+    this.maintainState = maintainState;
+    this.fullscreenDialog = fullscreenDialog;
+    this.allowSnapshotting = allowSnapshotting;
+  }
+
+  override createRoute(_context: BuildContext): PageRoute<T> {
+    return new PageBasedCupertinoRoute(this);
+  }
+}
+
+class PageBasedCupertinoRoute<T> extends CupertinoRouteTransitionMixin<T> {
+  constructor(page: CupertinoPage<T>) {
+    super({ settings: page, allowSnapshotting: page.allowSnapshotting });
+  }
+
+  private get page(): CupertinoPage<T> {
+    return this.settings as CupertinoPage<T>;
+  }
+  override get title(): string | null {
+    return this.page.title;
+  }
+  override get fullscreenDialog(): boolean {
+    return this.page.fullscreenDialog;
+  }
+  override get maintainState(): boolean {
+    return this.page.maintainState;
+  }
+  override get delegatedTransition(): DelegatedTransitionBuilder | null {
+    return this.fullscreenDialog ? null : CupertinoPageTransition.delegatedTransition;
+  }
+  override buildContent(): Widget {
+    return this.page.child;
+  }
+  override get debugLabel(): string {
+    return super.debugLabel + '(' + this.settings.name + ')';
+  }
+}
+
 export class CupertinoPageTransitionsBuilder extends PageTransitionsBuilder {
   override get transitionDuration(): number {
     return CupertinoRouteTransitionMixin.kTransitionDuration;

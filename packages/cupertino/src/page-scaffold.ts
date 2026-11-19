@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/page_scaffold.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
+import { Curves } from '@nelyx/core/framework/animation/curves';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { InheritedWidget, StatelessWidget } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
@@ -14,6 +16,7 @@ import {
 } from '@nelyx/core/framework/widgets/basic';
 import { AppTheme, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import type { PreferredSizeWidget } from '@nelyx/core/framework/widgets/preferred-size';
+import { withStatusBarScrollTarget } from '@nelyx/core/framework/widgets/primary-scroll-controller';
 import { ScrollNotificationObserver } from '@nelyx/core/framework/widgets/scroll-notification-observer';
 import { Color } from '@nelyx/core/ui/color';
 import { resolveCupertinoColor } from './internal/colors/color-values.ts';
@@ -101,7 +104,7 @@ export class CupertinoPageScaffold extends StatelessWidget {
           this.child,
         ),
       );
-      return new ScrollNotificationObserver({
+      const page = new ScrollNotificationObserver({
         child: new ColoredBox({
           color: background.toARGB32(),
           child: new CupertinoPageScaffoldBackgroundColor({
@@ -125,15 +128,17 @@ export class CupertinoPageScaffold extends StatelessWidget {
           }),
         }),
       });
+      return withStatusBarScrollTarget(context, page, 500, Curves.linearToEaseOut);
     }
 
     const theme = AppTheme.of(context);
-    return new DecoratedBox(
+    const page = new DecoratedBox(
       new Column([new CupertinoNavigationBar(this.title, this.onBack), new Expanded(this.body)], {
         mainSize: 'max',
         crossAlign: 'stretch',
       }),
       theme.background,
     );
+    return withStatusBarScrollTarget(context, page, 500, Curves.linearToEaseOut);
   }
 }

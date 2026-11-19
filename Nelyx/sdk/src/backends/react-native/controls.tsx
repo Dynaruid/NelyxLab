@@ -4,7 +4,7 @@ import { nativeControlInputProps } from './control-input.ts';
 import { windowsSurfaceEnvelope } from './windows-surface-envelope.ts';
 // SPDX-License-Identifier: BSD-3-Clause
 import type { ReactNode, Ref } from 'react';
-import type { TextInput } from 'react-native';
+import type { HostComponent, TextInput, ViewProps } from 'react-native';
 import type { ReactNativeBackend } from './registration.ts';
 import type { NativeInteraction } from '../../runtime/native-interaction.ts';
 import { createAndroidEditor } from './android-editor.tsx';
@@ -40,11 +40,20 @@ export interface NativeButtonProps extends NativeLayerProps {
   readonly interaction?: NativeInteraction;
   readonly controlId?: string;
 }
+interface AppleEditorTraitsProps extends ViewProps {
+  readonly editorOptions: {
+    readonly smartDashesType: 'enabled' | 'disabled';
+    readonly smartQuotesType: 'enabled' | 'disabled';
+    readonly stylusHandwritingEnabled: boolean;
+    readonly multiline: boolean;
+  };
+}
 /** Components are created once per platform composition and resolve initialized modules when rendered. */
 export function createReactNativeControls(
   getBackend: () => Pick<ReactNativeBackend, 'react' | 'native'>,
 ) {
   const AndroidEditor = createAndroidEditor(getBackend);
+  let AppleEditorTraits: HostComponent<AppleEditorTraitsProps> | null | undefined;
   function NativeLayer({ style, children, passThrough }: NativeLayerProps) {
     const { react, native } = getBackend();
     return react.createElement(
@@ -158,7 +167,14 @@ export function createReactNativeControls(
       configuration =
         props.interaction?.editorConfiguration(props.controlId ?? 'editor') ??
         freezeEditingConfiguration();
-    return react.createElement(host.TextInput, {
+    if (host.Platform.OS === 'ios' && props.interaction && AppleEditorTraits === undefined) {
+      AppleEditorTraits = host.UIManager.getViewManagerConfig('NelyxTextInputTraits')
+        ? host.requireNativeComponent<AppleEditorTraitsProps>('NelyxTextInputTraits')
+        : null;
+    }
+    const traits = props.interaction && AppleEditorTraits;
+    const { position, left, top, right, bottom, width, height, ...editorStyle } = props.style ?? {};
+    const input = react.createElement(host.TextInput, {
       ref: native,
       accessibilityLabel: node?.name ?? props.label,
       ...nativeEditingConfiguration(configuration, host.Platform.OS),
@@ -176,7 +192,7 @@ export function createReactNativeControls(
       defaultValue:
         props.interaction?.editorValue(props.controlId ?? 'editor')?.text ?? props.initialValue,
       maxLength: props.maxLength,
-      style: props.style,
+      style: traits ? { ...editorStyle, alignSelf: 'stretch', flexGrow: 1 } : props.style,
       returnKeyType: action === 'enter' ? 'default' : action,
       submitBehavior: configuration.multiline && action === 'enter' ? 'newline' : 'submit',
       ...nativeControlInputProps(host.Platform.OS, props.interaction, node),
@@ -206,6 +222,26 @@ export function createReactNativeControls(
           props.onBlur();
       },
     });
+    return traits
+      ? react.createElement(
+          traits,
+          {
+            style: { position, left, top, right, bottom, width, height } as ViewProps['style'],
+            accessible: false,
+            pointerEvents: 'box-none',
+            editorOptions: {
+              smartDashesType: configuration.smartDashesType ?? 'enabled',
+              smartQuotesType: configuration.smartQuotesType ?? 'enabled',
+              multiline: configuration.multiline,
+              stylusHandwritingEnabled:
+                configuration.stylusHandwritingEnabled !== false &&
+                !configuration.readOnly &&
+                !configuration.obscureText,
+            },
+          },
+          input,
+        )
+      : input;
   }
   function NativeTextField(
     props: NativeTextFieldProps & { readonly ref?: Ref<NativeTextFieldHandle> },

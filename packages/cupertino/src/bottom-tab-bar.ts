@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/bottom_tab_bar.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { invariant } from '@nelyx/core/foundation/errors';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import { BorderSide } from '@nelyx/core/framework/painting/borders';

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/theme.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatelessWidget, Widget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { Tween } from '@nelyx/core/framework/animation/tween';
@@ -24,9 +25,10 @@ import {
 } from './theme-data.ts';
 import { MaterialThemeScope, maybeMaterialThemeScopeOf } from './internal/theme/theme-scope.ts';
 import { materialScriptCategoryOf } from './material-localizations.ts';
+import { kThemeChangeDuration } from './constants.ts';
 
 /** Source Duration represented by the existing host millisecond API. */
-export const kThemeAnimationDuration = 200;
+export const kThemeAnimationDuration = kThemeChangeDuration;
 export interface ThemeOptions extends WidgetOptions {
   readonly data: ThemeData;
   readonly child: Widget;

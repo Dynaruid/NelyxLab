@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/action_buttons.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import { Builder } from '@nelyx/core/framework/widgets/basic';
 import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
@@ -9,6 +10,7 @@ import { Navigator } from '@nelyx/core/framework/widgets/navigation';
 import type { Color } from '@nelyx/core/ui/color';
 import { ActionIconTheme } from './action-icon-theme.ts';
 import type { ButtonStyle } from './button-style.ts';
+import { debugCheckHasMaterialLocalizations } from './debug.ts';
 import { IconButton } from './icon-button.ts';
 import { Icons } from './icons.ts';
 import { MaterialLocalizations } from './material-localizations.ts';
@@ -96,22 +98,22 @@ abstract class ActionButton extends IconButton {
   }
 
   override build(): Widget {
-    return new Builder(
-      (context) =>
-        new IconButton({
-          icon: this.icon,
-          color: this.color,
-          style: this.style,
-          tooltip: MaterialLocalizations.of(context)[labels[this.kind]],
-          onPressed:
-            this.onPressed ??
-            (() => {
-              if (this.kind === 'drawer') Scaffold.of(context).openDrawer();
-              else if (this.kind === 'endDrawer') Scaffold.of(context).openEndDrawer();
-              else void Navigator.of(context).maybePop();
-            }),
-        }),
-    );
+    return new Builder((context) => {
+      debugCheckHasMaterialLocalizations(context);
+      return new IconButton({
+        icon: this.icon,
+        color: this.color,
+        style: this.style,
+        tooltip: MaterialLocalizations.of(context)[labels[this.kind]],
+        onPressed:
+          this.onPressed ??
+          (() => {
+            if (this.kind === 'drawer') Scaffold.of(context).openDrawer();
+            else if (this.kind === 'endDrawer') Scaffold.of(context).openEndDrawer();
+            else void Navigator.of(context).maybePop();
+          }),
+      });
+    });
   }
 }
 

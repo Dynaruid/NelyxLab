@@ -44,6 +44,7 @@ class MaterialSwitchState extends State<MaterialSwitch> {
       semanticLabel,
       value,
       onChanged,
+      activeColor,
       activeThumbColor,
       activeTrackColor,
       inactiveThumbColor,

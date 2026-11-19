@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/tabs.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
 import { invariant } from '@nelyx/core/foundation/errors';
 import type { DartSet } from '@nelyx/core/foundation/dart-collections';
 import { Listenable } from '@nelyx/core/foundation/notifier';
+import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import type { Animation } from '@nelyx/core/framework/animation/animation';
 import { Curves } from '@nelyx/core/framework/animation/curves';
 import { DragStartBehavior } from '@nelyx/core/framework/gestures/recognizer';
@@ -20,6 +24,7 @@ import { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';
 import { RenderBox } from '@nelyx/core/framework/rendering/object';
+import { RenderAbstractViewport } from '@nelyx/core/framework/rendering/viewport';
 import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import {
   Align,
@@ -58,7 +63,11 @@ import { NotificationListener } from '@nelyx/core/framework/widgets/notification
 import { PageController, PageMetrics, PageView } from '@nelyx/core/framework/widgets/page-view';
 import type { PreferredSizeWidget } from '@nelyx/core/framework/widgets/preferred-size';
 import { ScrollConfiguration } from '@nelyx/core/framework/widgets/scroll-configuration';
+import type { ScrollContext } from '@nelyx/core/framework/widgets/scroll-context';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
+import type { ScrollPosition } from '@nelyx/core/framework/widgets/scroll-position';
+import { ScrollPositionWithSingleContext } from '@nelyx/core/framework/widgets/scroll-position-with-single-context';
+import type { ScrollPositionWithSingleContextOptions } from '@nelyx/core/framework/widgets/scroll-position-with-single-context';
 import {
   ScrollEndNotification,
   ScrollNotification,
@@ -70,6 +79,7 @@ import { CustomScrollView } from '@nelyx/core/framework/widgets/scroll-view';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import {
   WidgetState,
+  WidgetStateColor,
   WidgetStateProperty,
   emptyWidgetStateSet,
 } from '@nelyx/core/framework/widgets/widget-state';
@@ -88,8 +98,14 @@ import { clampDouble } from '@nelyx/core/ui/math';
 import { Radius } from '@nelyx/core/ui/radius';
 import { Rect } from '@nelyx/core/ui/rect';
 import { SemanticsRole } from '@nelyx/core/ui/semantics';
+import type { TextDirection } from '@nelyx/core/ui/typography';
 import { InkWell } from './ink-well.ts';
-import { kTabLabelPadding } from './constants.ts';
+import {
+  kDefaultIconDarkColor,
+  kDefaultIconLightColor,
+  kTabLabelPadding,
+  kTabScrollDuration,
+} from './constants.ts';
 import { colorProperty } from './internal/button/style-properties.ts';
 import { Material, MaterialType } from './material.ts';
 import { MaterialLocalizations } from './material-localizations.ts';
@@ -231,6 +247,14 @@ export class TabBar extends StatefulWidget implements PreferredSizeWidget {
     return { width: Infinity, height: height + this.indicatorWeight };
   }
 
+  get tabHasTextAndIcon(): boolean {
+    return this.tabs.some(
+      (tab) =>
+        'preferredSize' in tab &&
+        (tab as PreferredSizeWidget).preferredSize.height === textAndIconHeight,
+    );
+  }
+
   override createState(): State<TabBar> {
     return new TabBarState();
   }
@@ -239,6 +263,80 @@ export class TabBar extends StatefulWidget implements PreferredSizeWidget {
 interface TabGeometry {
   readonly tab: GlobalKey;
   readonly label: GlobalKey;
+}
+
+const attachTabBar = Symbol('attachTabBar');
+const detachTabBar = Symbol('detachTabBar');
+
+class TabBarScrollPosition extends ScrollPositionWithSingleContext {
+  private needsCorrection = true;
+  constructor(
+    options: ScrollPositionWithSingleContextOptions,
+    readonly selectionOffset: () => number | null,
+  ) {
+    super(options);
+  }
+  markNeedsPixelsCorrection(): void {
+    this.needsCorrection = true;
+  }
+  override applyContentDimensions(minimum: number, maximum: number): boolean {
+    let corrected = false;
+    if (this.needsCorrection && this.viewportDimension > 0) {
+      const offset = this.selectionOffset();
+      if (offset !== null) {
+        this.needsCorrection = false;
+        const target = clampDouble(offset, minimum, maximum);
+        if (target !== this.pixels) {
+          this.correctPixels(target);
+          corrected = true;
+        }
+      }
+    }
+    return super.applyContentDimensions(minimum, maximum) && !corrected;
+  }
+}
+
+export class TabBarScrollController extends ScrollController {
+  private tabBar: TabBarState | null = null;
+  debugCheckHasTabBarState(): boolean {
+    if (FoundationBuildMode.debug)
+      invariant(
+        this.tabBar,
+        'missing-tab-bar-scroll-owner',
+        'TabBarScrollController requires a mounted TabBar',
+      );
+    return true;
+  }
+  [attachTabBar](tabBar: TabBarState): void {
+    invariant(
+      !this.tabBar || this.tabBar === tabBar,
+      'duplicate-tab-bar-scroll-owner',
+      'Use a separate controller for each TabBar',
+    );
+    this.tabBar = tabBar;
+  }
+  [detachTabBar](tabBar: TabBarState): void {
+    if (this.tabBar === tabBar) this.tabBar = null;
+  }
+  override createScrollPosition(
+    physics: ScrollPhysics,
+    context: ScrollContext,
+    oldPosition: ScrollPosition | null,
+  ): ScrollPosition {
+    this.debugCheckHasTabBarState();
+    this.ensureAlive();
+    return new TabBarScrollPosition(
+      {
+        physics,
+        context,
+        oldPosition,
+        initialPixels: this.initialScrollOffset,
+        keepScrollOffset: this.keepScrollOffset,
+        debugLabel: this.debugLabel,
+      },
+      () => this.tabBar?.selectionOffset() ?? null,
+    );
+  }
 }
 
 function selectionFraction(controller: TabController, index: number): number {
@@ -255,12 +353,35 @@ class TabBarState extends State<TabBar> {
   private owner: TabController | null = null;
   private animation: Animation<number> | null = null;
   private listenable: Listenable | null = null;
-  private readonly scroller = new ScrollController();
+  private readonly scroller = new TabBarScrollController();
+  private boundScroller: TabBarScrollController | null = null;
   private readonly paintKey = new GlobalKey('TabBar indicator');
   private readonly geometries: TabGeometry[] = [];
   private indicator: BoxPainter | null = null;
   private centeredIndex: number | null = null;
   private centeredScroller: ScrollController | null = null;
+  private centeredPage: number | null = null;
+  private centeringToken = 0;
+
+  private bindScrollController(controller: ScrollController): void {
+    const target = controller instanceof TabBarScrollController ? controller : null;
+    if (target === this.boundScroller) return;
+    target?.[attachTabBar](this);
+    this.boundScroller?.[detachTabBar](this);
+    this.boundScroller = target;
+    this.centeredIndex = null;
+    this.centeredPage = null;
+  }
+
+  selectionOffset(index = this.owner?.index): number | null {
+    const render =
+      index === undefined ? null : this.geometries[index]?.tab.currentContext?.findRenderObject();
+    if (!(render instanceof RenderBox && render.attached && render.hasSize)) return null;
+    const viewport = RenderAbstractViewport.maybeOf(render);
+    if (!viewport) return null;
+    const offset = viewport.getOffsetToReveal(render, 0.5, { axis: Axis.horizontal }).offset;
+    return Number.isFinite(offset) ? offset : null;
+  }
 
   override build(context: BuildContext): Widget {
     const { options, controller, tabs, isScrollable, primary, indicatorWeight } = this.widget;
@@ -272,11 +393,16 @@ class TabBarState extends State<TabBar> {
     );
     const animation = owner.animation;
     invariant(animation, 'disposed-tab-controller', 'TabBar requires a live TabController');
+    const scrollController = options.scrollController ?? this.scroller;
+    this.bindScrollController(scrollController);
     if (owner !== this.owner || animation !== this.animation) {
       this.owner = owner;
       this.animation = animation;
       this.listenable = Listenable.merge([owner, animation]);
       this.centeredIndex = null;
+      this.centeredPage = null;
+      for (const position of scrollController.positions)
+        if (position instanceof TabBarScrollPosition) position.markNeedsPixelsCorrection();
     }
     if (tabs.length === 0) return new SizedBox(Infinity, this.widget.preferredSize.height);
     this.geometries.length = Math.min(this.geometries.length, tabs.length);
@@ -334,7 +460,9 @@ class TabBarState extends State<TabBar> {
     const underlineAnimation =
       options.indicatorAnimation ??
       local.indicatorAnimation ??
-      (rounded ? TabIndicatorAnimation.elastic : TabIndicatorAnimation.linear);
+      (underlineSize === TabBarIndicatorSize.label
+        ? TabIndicatorAnimation.elastic
+        : TabIndicatorAnimation.linear);
     const configuration = createLocalImageConfiguration(context);
     const geometries = [...this.geometries];
     const painter = new TabIndicatorPainter(
@@ -360,50 +488,61 @@ class TabBarState extends State<TabBar> {
       owner,
       underlineAnimation,
       configuration,
+      direction,
     );
 
-    const selectedStyle = (
-      options.labelStyle ??
-      local.labelStyle ??
-      theme.textTheme.titleSmall ??
-      new TextStyle()
-    ).copyWith({
-      color:
-        options.labelColor?.toARGB32() ??
-        local.labelColor?.toARGB32() ??
-        options.labelStyle?.color ??
-        local.labelStyle?.color ??
-        (primary ? colors.primary : colors.onSurface),
-    });
-    const unselectedStyle = (
-      options.unselectedLabelStyle ??
-      local.unselectedLabelStyle ??
-      options.labelStyle ??
-      local.labelStyle ??
-      theme.textTheme.titleSmall ??
-      new TextStyle()
-    ).copyWith({
-      color:
-        options.unselectedLabelColor?.toARGB32() ??
-        local.unselectedLabelColor?.toARGB32() ??
-        options.unselectedLabelStyle?.color ??
-        local.unselectedLabelStyle?.color ??
-        options.labelColor?.toARGB32() ??
-        local.labelColor?.toARGB32() ??
-        colors.onSurfaceVariant,
-    });
+    const baseStyle = theme.textTheme.titleSmall ?? new TextStyle();
+    const selectedStyle = baseStyle
+      .merge(options.labelStyle ?? local.labelStyle)
+      .copyWith({ inherit: true });
+    const unselectedStyle = baseStyle
+      .merge(options.unselectedLabelStyle ?? local.unselectedLabelStyle ?? options.labelStyle)
+      .copyWith({ inherit: true });
+    const selectedStyleColor = options.labelStyle?.color ?? local.labelStyle?.color;
+    const unselectedStyleColor =
+      options.unselectedLabelStyle?.color ?? local.unselectedLabelStyle?.color;
+    const selectedColor =
+      options.labelColor ??
+      local.labelColor ??
+      new Color(selectedStyleColor ?? (primary ? colors.primary : colors.onSurface));
+    const unselectedColor =
+      options.unselectedLabelColor ??
+      local.unselectedLabelColor ??
+      (unselectedStyleColor === null || unselectedStyleColor === undefined
+        ? null
+        : new Color(unselectedStyleColor));
+    const defaultUnselected = new Color(colors.onSurfaceVariant);
+    const iconTheme = IconTheme.of(context);
+    const defaultIconColor =
+      colors.brightness === 'dark' ? kDefaultIconLightColor : kDefaultIconDarkColor;
+    const customIconTheme = iconTheme.color?.equals(defaultIconColor) ? null : iconTheme;
+    const localizations = MaterialLocalizations.of(context);
+    const activeStates = emptyWidgetStateSet();
+    activeStates.add(WidgetState.selected);
+    const activeColor =
+      selectedColor instanceof WidgetStateColor
+        ? selectedColor.resolve(activeStates)
+        : selectedColor;
+    const inactiveColor =
+      selectedColor instanceof WidgetStateColor
+        ? selectedColor.resolve(emptyWidgetStateSet())
+        : unselectedColor;
     const padding = options.labelPadding ?? local.labelPadding ?? kTabLabelPadding;
-    const scrollController = options.scrollController ?? this.scroller;
+    const hasTallTabs = this.widget.tabHasTextAndIcon;
     const strip = new ListenableBuilder(this.listenable!, (context) => {
       const fill = alignment === TabAlignment.fill;
       const height = this.widget.preferredSize.height;
       const buttons = tabs.map((tab, index) => {
         const selected = owner.index === index;
-        const style = TextStyle.lerp(
-          unselectedStyle,
-          selectedStyle,
-          selectionFraction(owner, index),
-        )!;
+        const fraction = selectionFraction(owner, index);
+        const style = TextStyle.lerp(unselectedStyle, selectedStyle, fraction)!.copyWith({
+          color: Color.lerp(inactiveColor ?? defaultUnselected, activeColor, fraction)!.toARGB32(),
+        });
+        const iconColor = Color.lerp(
+          inactiveColor ?? customIconTheme?.color ?? defaultUnselected,
+          activeColor,
+          fraction,
+        );
         const select = () => {
           owner.animateTo(index);
           options.onTap?.(index);
@@ -422,7 +561,8 @@ class TabBarState extends State<TabBar> {
             style,
             IconTheme.merge({
               data: new IconThemeData({
-                color: style.color === null ? null : new Color(style.color),
+                size: customIconTheme?.size ?? 24,
+                color: iconColor,
               }),
               child: tab,
             }),
@@ -464,7 +604,16 @@ class TabBarState extends State<TabBar> {
           }),
           child: new Padding(
             EdgeInsets.fromLTRB(0, 0, 0, indicatorWeight),
-            new Padding(padding, label),
+            new Padding(
+              hasTallTabs &&
+                'preferredSize' in tab &&
+                (tab as PreferredSizeWidget).preferredSize.height === tabHeight
+                ? padding.add(
+                    EdgeInsets.symmetric({ vertical: (textAndIconHeight - tabHeight) / 2 }),
+                  )
+                : padding,
+              label,
+            ),
           ),
         });
         const button = new Semantics({
@@ -473,6 +622,9 @@ class TabBarState extends State<TabBar> {
           button: true,
           enabled: true,
           selected,
+          label: FoundationPlatform.isWeb
+            ? null
+            : localizations.tabLabel({ tabIndex: index + 1, tabCount: tabs.length }),
           onTap: select,
           child: ink,
         });
@@ -565,18 +717,46 @@ class TabBarState extends State<TabBar> {
     geometries: readonly TabGeometry[],
   ): void {
     const index = owner.index;
-    if (this.centeredScroller === scroller && this.centeredIndex === index) return;
+    const page =
+      !owner.indexIsChanging && owner.offset !== 0
+        ? clampDouble(owner.animation!.value, 0, owner.length - 1)
+        : null;
+    if (
+      this.centeredScroller === scroller &&
+      this.centeredIndex === index &&
+      this.centeredPage === page
+    )
+      return;
     this.centeredScroller = scroller;
     this.centeredIndex = index;
-    const duration = owner.indexIsChanging ? owner.animationDuration : 0;
+    this.centeredPage = page;
+    const token = ++this.centeringToken;
+    const duration = owner.indexIsChanging ? kTabScrollDuration : 0;
     (this.context as Element).owner.postFrame(() => {
       if (
         !this.mounted ||
+        !this.widget.isScrollable ||
+        this.owner !== owner ||
+        token !== this.centeringToken ||
         this.centeredScroller !== scroller ||
         this.centeredIndex !== index ||
         !scroller.hasClients
       )
         return;
+      if (page !== null && scroller.position.hasContentDimensions) {
+        const lower = this.selectionOffset(Math.floor(page));
+        const upper = this.selectionOffset(Math.ceil(page));
+        if (lower !== null && upper !== null) {
+          const { minScrollExtent, maxScrollExtent } = scroller.position;
+          const offset = lerpDouble(
+            clampDouble(lower, minScrollExtent, maxScrollExtent),
+            clampDouble(upper, minScrollExtent, maxScrollExtent),
+            page - Math.floor(page),
+          )!;
+          if (scroller.offset !== offset) scroller.jumpTo(offset);
+          return;
+        }
+      }
       const render = geometries[index]?.tab.currentContext?.findRenderObject();
       if (render?.attached && scroller.position.hasContentDimensions)
         void scroller.position.ensureVisible(render, {
@@ -589,6 +769,7 @@ class TabBarState extends State<TabBar> {
 
   override dispose(): void {
     this.indicator?.dispose();
+    this.boundScroller?.[detachTabBar](this);
     this.scroller.dispose();
     super.dispose();
   }
@@ -602,6 +783,7 @@ class TabIndicatorPainter extends CustomPainter {
     readonly controller: TabController,
     readonly effect: TabIndicatorAnimation,
     readonly configuration: ReturnType<typeof createLocalImageConfiguration>,
+    readonly direction: TextDirection,
   ) {
     super({ repaint: animation });
   }
@@ -609,32 +791,55 @@ class TabIndicatorPainter extends CustomPainter {
   override paint(canvas: Canvas, size: Size): void {
     const { controller, configuration } = this;
     const value = clampDouble(this.animation.value, 0, controller.length - 1);
-    const elastic = this.effect === TabIndicatorAnimation.elastic;
-    const changing = controller.indexIsChanging && value !== controller.index;
-    const fromIndex = elastic && changing ? controller.previousIndex : Math.floor(value);
-    const toIndex = elastic && changing ? controller.index : Math.ceil(value);
+    const rect =
+      this.effect === TabIndicatorAnimation.elastic
+        ? this.elasticRect(size, value)
+        : this.linearRect(size, value);
+    if (rect)
+      this.indicator.paint(canvas, rect.topLeft, configuration.copyWith({ size: rect.size }));
+  }
+
+  private linearRect(size: Size, value: number): Rect | null {
+    const increasing = this.controller.index > value;
+    const fromIndex = increasing ? Math.floor(value) : Math.ceil(value);
+    const toIndex = clampDouble(fromIndex + (increasing ? 1 : -1), 0, this.controller.length - 1);
     const from = this.rectFor(size, fromIndex);
     const to = this.rectFor(size, toIndex);
-    if (!from || !to) return;
-    let rect = Rect.lerp(from, to, value - Math.floor(value))!;
-    if (elastic && fromIndex !== toIndex) {
-      const selectionMovesBackward = !changing && value < controller.index;
-      const begin = selectionMovesBackward ? to : from;
-      const end = selectionMovesBackward ? from : to;
-      const progress = changing
-        ? clampDouble(1 - Math.abs(value - toIndex) / Math.abs(fromIndex - toIndex), 0, 1)
-        : Math.abs(value - controller.index);
-      const slow = 1 - Math.cos((progress * Math.PI) / 2);
-      const fast = Math.sin((progress * Math.PI) / 2);
-      const movesRight = end.left > begin.left;
-      rect = Rect.fromLTRB(
-        lerpDouble(begin.left, end.left, movesRight ? slow : fast)!,
-        begin.top,
-        lerpDouble(begin.right, end.right, movesRight ? fast : slow)!,
-        begin.bottom,
-      );
-    }
-    this.indicator.paint(canvas, rect.topLeft, configuration.copyWith({ size: rect.size }));
+    return from && to ? Rect.lerp(from, to, Math.abs(value - fromIndex)) : null;
+  }
+
+  private elasticRect(size: Size, value: number): Rect | null {
+    const { controller } = this;
+    const ltr = this.direction === 'ltr';
+    const remaining = Math.abs(controller.index - value);
+    const adjacent = remaining === 0 || !controller.indexIsChanging;
+    const toIndex = adjacent ? (ltr ? Math.ceil(value) : Math.floor(value)) : controller.index;
+    const fromIndex = adjacent
+      ? clampDouble(toIndex + (ltr ? -1 : 1), 0, controller.length - 1)
+      : controller.previousIndex;
+    const from = this.rectFor(size, fromIndex);
+    const to = this.rectFor(size, toIndex);
+    if (!from || !to) return null;
+    const bounds = Rect.lerp(from, to, Math.abs(value - fromIndex))!;
+    const steps = Math.abs(controller.index - controller.previousIndex);
+    const progress = controller.indexIsChanging
+      ? 1 - clampDouble(remaining / (steps || 1), 0, 1)
+      : remaining;
+    if (this.animation.isCompleted || progress === 1) return bounds;
+
+    const increasing = controller.indexIsChanging
+      ? controller.index > value
+      : value > controller.index;
+    const movesRight = ltr ? increasing : !increasing && value !== controller.index;
+    const [begin, end] = controller.indexIsChanging || movesRight ? [from, to] : [to, from];
+    const slow = 1 - Math.cos((progress * Math.PI) / 2);
+    const fast = Math.sin((progress * Math.PI) / 2);
+    return Rect.fromLTRB(
+      lerpDouble(begin.left, end.left, movesRight ? slow : fast)!,
+      bounds.top,
+      lerpDouble(begin.right, end.right, movesRight ? fast : slow)!,
+      bounds.bottom,
+    );
   }
 
   override shouldRepaint(): boolean {
@@ -754,7 +959,26 @@ class TabBarViewState extends State<TabBarView> {
     if (this.driving || this.selectedIndex === controller.index) return;
     const target = controller.index;
     this.selectedIndex = target;
-    if (!pages.hasClients) return;
+    if (!pages.hasClients) {
+      (this.context as Element).owner.postFrame(() => {
+        if (
+          this.mounted &&
+          this.pages === pages &&
+          this.controller === controller &&
+          pages.hasClients &&
+          this.selectedIndex === target &&
+          !this.warp
+        ) {
+          this.driving = true;
+          try {
+            pages.jumpToPage(target);
+          } finally {
+            this.driving = false;
+          }
+        }
+      });
+      return;
+    }
     const from = Math.max(
       0,
       Math.min(this.widgets.length - 1, Math.round(pages.page ?? controller.previousIndex)),
@@ -971,7 +1195,7 @@ export class TabPageSelector extends StatelessWidget {
                   backgroundColor: Color.lerp(
                     base,
                     selected,
-                    Curves.fastOutSlowIn.transform(selectionFraction(controller, index)),
+                    selectionFraction(controller, index),
                   )!,
                   borderColor: selected,
                   size: this.indicatorSize,

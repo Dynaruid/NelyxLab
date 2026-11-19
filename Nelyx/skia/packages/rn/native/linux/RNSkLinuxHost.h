@@ -74,6 +74,17 @@ private:
     scope=std::make_shared<RNSkVulkanRuntime>(runtime,std::move(invoker),1,std::move(ports),[services=serviceOwner]{services->close();});
     viewSession->bind(scope,false); // Cleanup is registered before GPU activation.
     facebook::jsi::Object api(runtime);
+    api.setProperty(runtime,"getExecutableName",facebook::jsi::Function::createFromHostFunction(runtime,
+      facebook::jsi::PropNameID::forAscii(runtime,"getExecutableName"),0,
+      [weak=weak_from_this()](facebook::jsi::Runtime& current,const facebook::jsi::Value&,const facebook::jsi::Value*,size_t)->facebook::jsi::Value {
+        auto owner=weak.lock();
+        if(!owner)throw facebook::jsi::JSError(current,"Linux native host owner expired");
+        owner->requireRuntime(current);
+        const std::unique_ptr<gchar,decltype(&g_free)> path(g_file_read_link("/proc/self/exe",nullptr),g_free);
+        if(!path)return facebook::jsi::Value::null();
+        const std::unique_ptr<gchar,decltype(&g_free)> name(g_filename_display_basename(path.get()),g_free);
+        return facebook::jsi::String::createFromUtf8(current,name.get());
+      }));
     api.setProperty(runtime,"getPreferredLocales",facebook::jsi::Function::createFromHostFunction(runtime,
       facebook::jsi::PropNameID::forAscii(runtime,"getPreferredLocales"),0,
       [weak=weak_from_this()](facebook::jsi::Runtime& current,const facebook::jsi::Value&,const facebook::jsi::Value*,size_t)->facebook::jsi::Value {

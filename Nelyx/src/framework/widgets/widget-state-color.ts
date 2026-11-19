@@ -3,7 +3,7 @@
 // Finite Color/property multiple-interface bridge on canonical Core values.
 import { widgetStateDiagnosticableType } from './widget-state-diagnostic-source-adapter.ts';
 import { DartMapHash } from '../../foundation/dart-map-equality.ts';
-import { Color } from '../../ui/color.ts';
+import { Color, setColorArgbFallback } from '../../ui/color.ts';
 import { sourceColorType, constSourceColor } from '../../ui/color-source-adapter.ts';
 import {
   SourceWidgetStateProperty as Property,
@@ -85,6 +85,7 @@ export abstract class WidgetStateColor extends Color implements Property<Color> 
     });
     captureDartType(proxy, stateColorType);
     captureDartType(proxy, mappedColorType);
+    setColorArgbFallback(proxy, 0);
     return proxy;
   }
   static get transparent(): WidgetStateColor {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/card.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, WidgetOptions, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { Padding } from '@nelyx/core/framework/widgets/basic';

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Adapted from Flutter packages/flutter/lib/src/material/segmented_button.dart
+// at 71e4717a61786faab4c7aa39825989305ed29e8a.
 import { ValueKey } from '@nelyx/core/foundation/key';
 import type { DartSet } from '@nelyx/core/foundation/dart-collections';
 import { Axis } from '@nelyx/core/framework/painting/basic-types';
@@ -617,22 +619,29 @@ class SegmentGroupRender extends RenderBox {
     this.children.forEach((child, index) => {
       const value = child.getDryBaseline(tight, baseline);
       if (value !== null)
-        result = Math.min(result, value + (this.options.horizontal ? 0 : index * segment.height));
+        result = Math.min(
+          result,
+          value + (this.options.horizontal ? 0 : this.visualIndex(index) * segment.height),
+        );
     });
     return Number.isFinite(result) ? result : null;
   }
   protected override performLayout(constraints: BoxConstraints): Size {
     const { size, segment } = this.measure(constraints);
     const tight = BoxConstraints.tight(segment);
-    const { horizontal, textDirection } = this.options;
+    const { horizontal } = this.options;
     this.children.forEach((child, i) => {
       child.layout(tight, { parentUsesSize: true });
-      const index = horizontal && textDirection === 'rtl' ? this.children.length - 1 - i : i;
+      const index = this.visualIndex(i);
       child.layoutOffset = horizontal
         ? { x: index * segment.width, y: 0 }
         : { x: 0, y: index * segment.height };
     });
     return size;
+  }
+
+  private visualIndex(index: number): number {
+    return this.options.textDirection === 'rtl' ? this.children.length - 1 - index : index;
   }
 
   protected override computeDistanceToActualBaseline(baseline: TextBaseline): number | null {
@@ -667,7 +676,10 @@ class SegmentGroupRender extends RenderBox {
           { x: divider, y: bounds.bottom },
           side.toPaint(),
         );
-      else context.drawLine({ x: 0, y }, { x: bounds.width, y }, side.toPaint());
+      else {
+        const dividerY = textDirection === 'rtl' ? y + child.size.height : y;
+        context.drawLine({ x: 0, y: dividerY }, { x: bounds.width, y: dividerY }, side.toPaint());
+      }
     });
     context.restore();
     if (enabledSegments.every(Boolean) || !enabledSegments.some(Boolean)) {

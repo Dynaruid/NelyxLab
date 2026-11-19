@@ -90,6 +90,7 @@ export function createBrowserEditContext({
         phone: 'tel',
         email: 'email',
         url: 'url',
+        datetime: 'text',
       } as const
     )[configuration.keyboardType ?? 'text'],
   );

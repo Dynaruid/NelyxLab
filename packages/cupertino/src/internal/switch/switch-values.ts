@@ -10,7 +10,6 @@ import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { FoundationPlatform } from '@nelyx/core/foundation/platform';
 import { MouseCursor, SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
 import { DartDouble } from '@nelyx/core/foundation/dart-numeric';
-import { HSLColor } from '@nelyx/core/framework/painting/colors';
 import { Curves } from '@nelyx/core/framework/animation/curves';
 import { BoxShadow } from '@nelyx/core/framework/painting/box-shadow';
 import { Offset } from '@nelyx/core/ui/offset';
@@ -24,6 +23,7 @@ import { CupertinoTheme } from '../../theme.ts';
 import { coreCupertinoColor, resolveCupertinoColor } from '../colors/color-values.ts';
 import type { CupertinoColor } from '../colors/color-values.ts';
 import type { CupertinoSwitch } from '../../switch.ts';
+import { cupertinoFocusOutlineColor } from '../toggle/control-values.ts';
 /** @dartType double */ export const disabledOpacity = 0.5;
 /** @dartType double */ export const trackWidth = 51;
 /** @dartType double */ export const trackHeight = 31;
@@ -140,11 +140,7 @@ export function resolveCupertinoSwitchPaint(
     activeReaction: transparent,
     inactiveReaction: transparent,
     focusColor: resolveCupertinoColor(
-      w.focusColor ??
-        HSLColor.fromColor(activeTrack.withOpacity(0.8))
-          .withLightness(0.69)
-          .withSaturation(0.835)
-          .toColor(),
+      w.focusColor ?? cupertinoFocusOutlineColor(activeTrack),
       context,
     ),
     hoverColor: transparent,

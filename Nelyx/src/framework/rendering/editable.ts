@@ -15,6 +15,7 @@ import type { TextBaseline } from './object.ts';
 import type { TextLayoutGeometry, TextInputHitOptions } from '../../ui/types.ts';
 import type { ParagraphContext } from '../../ui/paragraph.ts';
 import type { TextPainterOptions } from '../painting/text-painter.ts';
+import type { BoxHeightStyle, BoxWidthStyle } from '../../ui/text-box.ts';
 import { TextScaler } from '../painting/text-scaler.ts';
 import { TextPainter } from '../painting/text-painter.ts';
 import { textLimits, isCapturedTextLayout } from '../../ui/text.ts';
@@ -23,6 +24,8 @@ import type { TextSelection, Composition, TextLayout } from '../../ui/types.ts';
 import { TextSelection as Selection } from '../../services/text-editing.ts';
 import { TextPosition } from '../../ui/text-position.ts';
 import { Rect } from '../../ui/rect.ts';
+import { RRect } from '../../ui/rrect.ts';
+import type { Radius } from '../../ui/radius.ts';
 import { Paint } from '../../ui/paint.ts';
 import { graphemeBoundaries } from '../../foundation/grapheme-boundaries.ts';
 import type { SemanticsTextNavigation, SemanticsTextParagraph } from '../../ui/types.ts';
@@ -33,6 +36,7 @@ export interface EditableLinePolicy {
   readonly minLines: number | null;
   readonly maxLines: number | null;
   readonly expands: boolean;
+  readonly forceLine?: boolean;
 }
 /** Source configuration; the editable's painter owns the captured paragraph. */
 export interface EditableTextLayout extends EditableLinePolicy {
@@ -48,6 +52,11 @@ export interface EditablePaintValue {
   readonly selectionColor: number;
   readonly cursorWidth?: number;
   readonly cursorHeight?: number;
+  readonly cursorOffset?: Offset;
+  readonly cursorRadius?: Radius | null;
+  readonly paintCursorAboveText?: boolean;
+  readonly selectionHeightStyle?: BoxHeightStyle;
+  readonly selectionWidthStyle?: BoxWidthStyle;
   readonly obscureText?: boolean;
   readonly affinity?: 'upstream' | 'downstream';
   /** Core gesture target when a handle moves the anchor rather than the focus. */
@@ -249,11 +258,23 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
       'invalid-cursor-size',
       'Cursor dimensions must be positive and finite',
     );
-    if (JSON.stringify(value) === JSON.stringify(this.visual)) return;
+    invariant(
+      value.cursorOffset?.isFinite !== false,
+      'invalid-cursor-offset',
+      'Cursor offset must be finite',
+    );
+    const radiusChanged =
+      value.cursorRadius?.x !== this.visual.cursorRadius?.x ||
+      value.cursorRadius?.y !== this.visual.cursorRadius?.y;
+    if (!radiusChanged && JSON.stringify(value) === JSON.stringify(this.visual)) return;
+    const offsetChanged =
+      value.cursorOffset?.dx !== this.visual.cursorOffset?.dx ||
+      value.cursorOffset?.dy !== this.visual.cursorOffset?.dy;
     if (
       value.selection.anchor !== this.visual.selection.anchor ||
       value.selection.focus !== this.visual.selection.focus ||
-      value.affinity !== this.visual.affinity
+      value.affinity !== this.visual.affinity ||
+      offsetChanged
     ) {
       this.epoch++;
       this.caretRevealPending = true;
@@ -269,6 +290,7 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
       value.cursorHeight !== this.visual.cursorHeight
     )
       this.caretRevealPending = true;
+    const widthChanged = value.cursorWidth !== this.visual.cursorWidth;
     this.visual = Object.freeze({
       ...value,
       selection: Object.freeze({ ...value.selection }),
@@ -277,6 +299,7 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
         ? { graphemeOffsets: Object.freeze([...value.graphemeOffsets]) }
         : {}),
     });
+    if (widthChanged && this.layoutValue?.forceLine === false) this.markNeedsLayout();
     this.markNeedsPaint();
   }
   constructor(height = 48) {
@@ -352,18 +375,20 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
     painter.ellipsis = null;
     painter.locale = o.locale ?? null;
     painter.strutStyle = o.strutStyle ?? null;
-    painter.textWidthBasis = 'parent';
+    painter.textWidthBasis = o.textWidthBasis ?? 'parent';
     painter.textHeightBehavior = o.textHeightBehavior ?? null;
     painter.hyphens = o.hyphens ?? 'manual';
     const changed =
       !previous ||
       previous.minLines !== value.minLines ||
       previous.maxLines !== value.maxLines ||
-      previous.expands !== value.expands;
+      previous.expands !== value.expands ||
+      previous.forceLine !== (value.forceLine === false ? false : undefined);
     this.layoutValue = Object.freeze({
       minLines: value.minLines,
       maxLines: value.maxLines,
       expands: value.expands,
+      ...(value.forceLine === false ? { forceLine: false } : {}),
     });
     if (changed || painter._needsLayout) {
       this.caretRevealPending = true;
@@ -412,19 +437,25 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
           0,
           Math.min(
             Math.max(0, this.size.width, this.paragraph!.maxIntrinsicWidth) - width,
-            offset.dx,
+            offset.dx + (this.visual.cursorOffset?.dx ?? 0),
           ),
         ),
-        offset.dy,
+        offset.dy + (this.visual.cursorOffset?.dy ?? 0),
         width,
         height,
       ),
     );
   }
-  getBoxesForSelection(selection: Selection): readonly Rect[] {
+  getBoxesForSelection(
+    selection: Selection,
+    options?: {
+      readonly boxHeightStyle?: BoxHeightStyle;
+      readonly boxWidthStyle?: BoxWidthStyle;
+    },
+  ): readonly Rect[] {
     return Object.freeze(
       this.requireParagraph()
-        .getBoxesForSelection(selection)
+        .getBoxesForSelection(selection, options)
         .map((box) => this.localRect(box.toRect())),
     );
   }
@@ -936,6 +967,19 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
       ? this.editingGeometry
       : null;
   }
+  private paintCursor(context: PaintingContext): void {
+    const { selection, focused, cursorVisible, cursorRadius, cursorColor, affinity } = this.visual;
+    if (!focused || !cursorVisible || selection.anchor !== selection.focus) return;
+    const caret = this.getLocalRectForCaret(
+      new TextPosition({
+        offset: selection.focus,
+        affinity: affinity ?? 'downstream',
+      }),
+    );
+    const paint = new Paint({ color: cursorColor, isAntiAlias: cursorRadius != null });
+    if (cursorRadius) context.drawRRect(RRect.fromRectAndRadius(caret, cursorRadius), paint);
+    else context.drawRect(caret, paint);
+  }
   override paint(context: PaintingContext): void {
     if (!this.layoutValue) return;
     this.requireParagraph();
@@ -947,8 +991,13 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
       if (this.visual.focused && !this.visual.obscureText && selection.anchor !== selection.focus)
         for (const box of this.getBoxesForSelection(
           new Selection({ baseOffset: selection.anchor, extentOffset: selection.focus }),
+          {
+            boxHeightStyle: this.visual.selectionHeightStyle ?? 'tight',
+            boxWidthStyle: this.visual.selectionWidthStyle ?? 'tight',
+          },
         ))
           context.drawRect(box, new Paint({ color: this.visual.selectionColor }));
+      if (this.visual.paintCursorAboveText === false) this.paintCursor(context);
       const previous = this.paragraph;
       this.measurements!.paint(context.canvas, new Offset(-this.scrollX, this.top - this.scrollY));
       this.paragraph = this.measurements!._layoutSnapshot();
@@ -965,16 +1014,7 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
             Rect.fromLTWH(box.left, box.bottom - 1, box.width, 1),
             new Paint({ color: this.visual.cursorColor, isAntiAlias: false }),
           );
-      if (this.visual.focused && this.visual.cursorVisible && selection.anchor === selection.focus)
-        context.drawRect(
-          this.getLocalRectForCaret(
-            new TextPosition({
-              offset: selection.focus,
-              affinity: this.visual.affinity ?? 'downstream',
-            }),
-          ),
-          new Paint({ color: this.visual.cursorColor, isAntiAlias: false }),
-        );
+      if (this.visual.paintCursorAboveText !== false) this.paintCursor(context);
     } finally {
       context.restore();
     }
@@ -1047,7 +1087,8 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
     constraints: BoxConstraints,
     baseline: TextBaseline,
   ): number | null {
-    return this.baseline(constraints.maxWidth, this.computeDryLayout(constraints).height, baseline);
+    const size = this.computeDryLayout(constraints);
+    return this.baseline(size.width, size.height, baseline);
   }
   protected override computeDistanceToActualBaseline(baseline: TextBaseline): number | null {
     return this.baseline(this.size.width, this.size.height, baseline);
@@ -1064,26 +1105,36 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
   protected computeMaxIntrinsicHeight(width: number): number {
     return this.preferredTextHeight(width);
   }
-  protected computeDryLayout(constraints: BoxConstraints): Size {
+  private layoutWidth(constraints: BoxConstraints): number {
+    if (this.layoutValue?.forceLine === false) {
+      const intrinsic = this.geometry(Infinity)?.maxIntrinsicWidth ?? 0;
+      return constraints.constrainWidth(intrinsic + (this.visual.cursorWidth ?? 1));
+    }
     invariant(constraints.hasBoundedWidth, 'unbounded-editor', 'EditableText needs bounded width');
+    return constraints.maxWidth;
+  }
+  private measure(constraints: BoxConstraints, width: number): Size {
     return constraints.constrain({
-      width: constraints.maxWidth,
+      width,
       height:
         this.layoutValue?.expands && constraints.hasBoundedHeight
           ? constraints.maxHeight
-          : this.preferredTextHeight(constraints.maxWidth),
+          : this.preferredTextHeight(width),
     });
   }
+  protected computeDryLayout(constraints: BoxConstraints): Size {
+    return this.measure(constraints, this.layoutWidth(constraints));
+  }
   protected performLayout(constraints: BoxConstraints): Size {
-    invariant(constraints.hasBoundedWidth, 'unbounded-editor', 'EditableText needs bounded width');
     invariant(
       !this.layoutValue?.expands || constraints.hasBoundedHeight,
       'unbounded-expanded-editor',
       'Expanded editors require bounded height',
     );
     const previousParagraph = this.paragraph;
-    this.ensureParagraph(constraints.maxWidth);
-    const size = this.computeDryLayout(constraints);
+    const width = this.layoutWidth(constraints);
+    this.ensureParagraph(width);
+    const size = this.measure(constraints, width);
     const reveal =
       this.caretRevealPending ||
       previousParagraph !== this.paragraph ||

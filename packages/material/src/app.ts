@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Functional App composition on the shared Nelyx routing/theme/input ABI.
+// Flutter: packages/flutter/lib/src/material/app.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import {
   StatelessWidget,
   StatefulWidget,
@@ -17,6 +18,17 @@ import { AppFocus } from '@nelyx/core/framework/widgets/app-focus';
 import type { AppFocusOptions } from '@nelyx/core/framework/widgets/app-focus';
 import { Builder } from '@nelyx/core/framework/widgets/basic';
 import {
+  AnnotatedRegion,
+  systemUiOverlayStyleAnnotation,
+} from '@nelyx/core/framework/widgets/annotated-region';
+import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
+import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';
+import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
+import { SystemUiOverlayStyle } from '@nelyx/core/services/system-ui-overlay-style';
+import type { Canvas } from '@nelyx/core/ui/canvas';
+import type { Size } from '@nelyx/core/ui/geometry';
+import { Paint } from '@nelyx/core/ui/paint';
+import {
   AppTheme,
   Directionality,
   Localizations,
@@ -26,19 +38,24 @@ import {
 import type { AppThemeData } from '@nelyx/core/framework/widgets/app-data';
 import { Overlay, OverlayEntry } from '@nelyx/core/framework/widgets/overlay';
 import { TapRegionSurface } from '@nelyx/core/framework/widgets/tap-region';
+import { ShortcutRegistrar } from '@nelyx/core/framework/widgets/shortcuts';
 import { DefaultSelectionStyle } from '@nelyx/core/framework/widgets/default-selection-style';
 import { ScrollConfiguration } from '@nelyx/core/framework/widgets/scroll-configuration';
 import type { ScrollBehavior } from '@nelyx/core/framework/widgets/scroll-configuration';
 import { HeroControllerScope } from '@nelyx/core/framework/widgets/heroes';
 import { CupertinoThemeData } from '@nelyx/cupertino/theme';
+import { cupertinoCatalogDelegate } from '@nelyx/cupertino/cupertino-localizations';
 import { Theme, AnimatedTheme, kThemeAnimationDuration } from './theme.ts';
 import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
+import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { FontWeight, TextDecoration } from '@nelyx/core/ui/typography';
 import { MaterialPageRoute } from './page.ts';
 import { RouteSettings } from '@nelyx/core/framework/widgets/pages';
 import { Curves } from '@nelyx/core/framework/animation/curves';
 import type { Curve } from '@nelyx/core/framework/animation/curves';
 import { AnimationStyle } from '@nelyx/core/framework/animation/animation-style';
 import { ThemeData } from './theme-data.ts';
+import { materialCatalogDelegate } from './material-localizations.ts';
 import { ColorScheme } from './color-scheme.ts';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { MaterialScrollBehavior } from './scroll-behavior.ts';
@@ -62,6 +79,7 @@ export interface MaterialAppOptions
   readonly themeMode?: ThemeMode | null;
   readonly scrollBehavior?: ScrollBehavior | null;
   readonly scaffoldMessengerKey?: GlobalKey<ScaffoldMessengerState> | null;
+  readonly debugShowMaterialGrid?: boolean;
   readonly builder?: (context: BuildContext, child: Widget) => Widget;
 }
 type RouterAppOptions<T> = Omit<
@@ -71,6 +89,8 @@ type RouterAppOptions<T> = Omit<
   | 'routes'
   | 'initialRoute'
   | 'navigatorController'
+  | 'navigatorKey'
+  | 'navigatorObservers'
   | 'navigatorRestorationId'
   | 'onGenerateRoute'
   | 'onUnknownRoute'
@@ -103,6 +123,16 @@ export function selectMaterialAppTheme(
   );
 }
 const defaultBehavior = Object.freeze(new MaterialScrollBehavior());
+const fallbackTextStyle = new TextStyle({
+  color: 0xd0ff0000,
+  fontFamily: 'monospace',
+  fontSize: 48,
+  fontWeight: FontWeight.w900,
+  decoration: TextDecoration.underline,
+  decorationColor: 0xffffff00,
+  decorationStyle: 'double',
+  debugLabel: 'fallback style; consider putting your text in a Material',
+});
 const palette = (theme: ThemeData): AppThemeData => ({
   background: theme.colorScheme.surface,
   surface: theme.colorScheme.surface,
@@ -117,18 +147,24 @@ function themed(
   child: Widget,
   options?: MaterialAppOptions,
 ): Widget {
-  const content = new AppTheme(
+  const selection = new AppTheme(
     colors,
     new DefaultSelectionStyle({
       cursorColor: data.textSelectionTheme.cursorColor ?? data.colorScheme.primary,
       selectionColor:
         data.textSelectionTheme.selectionColor ??
         ((data.colorScheme.primary & 0xffffff) | 0x66000000) >>> 0,
-      child: new Builder(
-        (context) => new DefaultTextStyle(Theme.of(context).textTheme.bodyMedium!, child),
-      ),
+      child: options
+        ? new DefaultTextStyle(fallbackTextStyle, child)
+        : new Builder(
+            (context) => new DefaultTextStyle(Theme.of(context).textTheme.bodyMedium!, child),
+          ),
     }),
   );
+  const content = new AnnotatedRegion(selection, {
+    annotationType: systemUiOverlayStyleAnnotation,
+    value: data.brightness === 'dark' ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+  });
   return options && !options.themeAnimationStyle?.equals(AnimationStyle.noAnimation)
     ? new AnimatedTheme({
         data,
@@ -191,6 +227,7 @@ export class MaterialApp extends StatelessWidget {
       themeAnimationStyle,
       scrollBehavior,
       scaffoldMessengerKey,
+      debugShowMaterialGrid: _debugShowMaterialGrid,
       builder,
       shortcuts,
       actions,
@@ -199,6 +236,11 @@ export class MaterialApp extends StatelessWidget {
     return new WidgetsApp({
       ...app,
       supportedLocales: app.supportedLocales ?? ['ko-KR'],
+      localizationsDelegates: [
+        ...(app.localizationsDelegates ?? []),
+        materialCatalogDelegate,
+        cupertinoCatalogDelegate,
+      ],
       pageRouteBuilder: (settings, builder) =>
         new MaterialPageRoute({
           settings: new RouteSettings({ name: settings.name, arguments: settings.argumentsValue }),
@@ -236,7 +278,12 @@ export class MaterialApp extends StatelessWidget {
     });
   }
   build(): Widget {
-    if (this.options) return this.child;
+    if (this.options)
+      return FoundationBuildMode.debug
+        ? new CustomPaint(this.child, {
+            foregroundPainter: this.options.debugShowMaterialGrid ? materialGrid : null,
+          })
+        : this.child;
     const colors = this.theme instanceof ThemeData ? palette(this.theme) : this.theme;
     const data =
       this.theme instanceof ThemeData
@@ -272,6 +319,28 @@ export class MaterialApp extends StatelessWidget {
     });
   }
 }
+
+// MaterialApp uses GridPaper from widgets/grid_paper.dart at the pinned revision.
+const materialGrid = new (class extends CustomPainter {
+  override paint(canvas: Canvas, size: Size): void {
+    const line = new Paint({ color: 0xe0f9bbe0 });
+    for (let x = 0; x <= size.width; x += 4) {
+      line.strokeWidth = x % 8 === 0 ? 1 : 0.25;
+      canvas.drawLine({ x, y: 0 }, { x, y: size.height }, line);
+    }
+    for (let y = 0; y <= size.height; y += 4) {
+      line.strokeWidth = y % 8 === 0 ? 1 : 0.25;
+      canvas.drawLine({ x: 0, y }, { x: size.width, y }, line);
+    }
+  }
+  override shouldRepaint(): boolean {
+    return false;
+  }
+  override hitTest(): boolean {
+    return false;
+  }
+})();
+
 class MaterialAppOverlay extends StatefulWidget {
   constructor(readonly child: Widget) {
     super();
@@ -287,7 +356,9 @@ class MaterialAppOverlayState extends State<MaterialAppOverlay> {
     if (old.child !== this.widget.child) this.entry.markNeedsBuild();
   }
   build(): Widget {
-    return new TapRegionSurface(new Overlay({ initialEntries: [this.entry] }));
+    return new ShortcutRegistrar(
+      new TapRegionSurface(new Overlay({ initialEntries: [this.entry] })),
+    );
   }
   override dispose(): void {
     this.entry.dispose();

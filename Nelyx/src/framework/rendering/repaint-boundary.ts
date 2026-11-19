@@ -11,6 +11,15 @@ export class RenderRepaintBoundary extends RenderConstrainedBox {
   override get isRepaintBoundary(): boolean {
     return true;
   }
+  get canCaptureImage(): boolean {
+    return (
+      this.attached &&
+      this.hasSize &&
+      this.size.width > 0 &&
+      this.size.height > 0 &&
+      retainedPaintLayer(this)?.supportsRasterization() === true
+    );
+  }
   toImage(options: {
     readonly rasterizer: PictureRasterizer;
     readonly pixelRatio?: number;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Original observable ink response contracts on the current State/arena/focus/keep-alive owners.
+// Flutter: packages/flutter/lib/src/material/ink_well.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatefulWidget, InheritedWidget, Element } from '@nelyx/core/framework/widgets/framework';
 import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
 import type {
@@ -35,7 +36,8 @@ import {
   WidgetStateProperty,
 } from '@nelyx/core/framework/widgets/widget-state';
 import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
-import { MouseCursor, SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
+import { WidgetStateMouseCursor } from '@nelyx/core/framework/widgets/widget-state-mouse-cursor';
+import { MouseCursor } from '@nelyx/core/services/mouse-cursor';
 import { Color } from '@nelyx/core/ui/color';
 import { Offset } from '@nelyx/core/ui/offset';
 import '@nelyx/core/ui/rect';
@@ -383,13 +385,8 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
   }
   private updateHighlight(type: HighlightKind, value: boolean, callOnHover = true): void {
     if (!this.live) return;
-    this.changing = true;
-    try {
-      if (type === 'pressed') this.controller.update(WidgetState.pressed, value);
-      else if (type === 'hover' && callOnHover) this.controller.update(WidgetState.hovered, value);
-    } finally {
-      this.changing = false;
-    }
+    if (type === 'pressed') this.controller.update(WidgetState.pressed, value);
+    else if (type === 'hover' && callOnHover) this.controller.update(WidgetState.hovered, value);
     if (type === 'pressed') this.parent?.markChild(this, value);
     const old = this.highlights?.get(type);
     if (value === (old !== undefined && old.active)) return;
@@ -450,12 +447,7 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
             return new Offset(point.x, point.y);
           })()
         : new Offset(reference.size.width / 2, reference.size.height / 2);
-    this.changing = true;
-    try {
-      this.controller.update(WidgetState.pressed, true);
-    } finally {
-      this.changing = false;
-    }
+    this.controller.update(WidgetState.pressed, true);
     let splash: InteractiveInkFeature | null = null;
     splash = factory.create({
       controller: Material.of(this.context),
@@ -505,10 +497,11 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
       this.feedback();
       this.widget.options.onTap();
     }
-    this.activationTimer = scrollChromeTimer(100, () => {
-      this.activationTimer = null;
-      if (this.live) this.updateHighlight('pressed', false);
-    });
+    if (this.live)
+      this.activationTimer = scrollChromeTimer(100, () => {
+        this.activationTimer = null;
+        if (this.live) this.updateHighlight('pressed', false);
+      });
   }
   simulateTap(): void {
     if (!this.live || !this.widget.options.onTap) return;
@@ -692,11 +685,14 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
         this.widget.options.splashColor ??
         Theme.of(context).splashColor;
     const o = this.widget.options,
+      states = this.controller.value,
       cursor =
-        o.mouseCursor instanceof MouseCursor
-          ? o.mouseCursor
-          : (o.mouseCursor?.resolve(this.controller.value) ??
-            (this.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic)),
+        o.mouseCursor instanceof WidgetStateMouseCursor
+          ? o.mouseCursor.resolve(states)
+          : o.mouseCursor instanceof MouseCursor
+            ? o.mouseCursor
+            : (o.mouseCursor?.resolve(states) ??
+              WidgetStateMouseCursor.adaptiveClickable.resolve(states)),
       canRequest =
         MediaQuery.maybeNavigationModeOf(context) === 'directional' ||
         (this.enabled && (o.canRequestFocus ?? true));
@@ -754,12 +750,7 @@ class InkResponseState extends AutomaticKeepAliveClientMixin<InkResponse> {
             onFocusChange: (value) => {
               if (!this.live) return;
               this.focused = value;
-              this.changing = true;
-              try {
-                this.controller.update(WidgetState.focused, value);
-              } finally {
-                this.changing = false;
-              }
+              this.controller.update(WidgetState.focused, value);
               this.updateFocusHighlights();
               o.onFocusChange?.(value);
             },

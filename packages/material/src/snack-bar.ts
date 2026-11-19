@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/snack_bar.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { invariant } from '@nelyx/core/foundation/errors';
 import { UniqueKey } from '@nelyx/core/foundation/key';
 import type { Key } from '@nelyx/core/foundation/key';
 import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
 import type { Animation } from '@nelyx/core/framework/animation/animation';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
-import { Curves } from '@nelyx/core/framework/animation/curves';
+import { CurvedAnimation } from '@nelyx/core/framework/animation/animations';
+import { Curves, Interval, Threshold } from '@nelyx/core/framework/animation/curves';
 import type { TickerProvider } from '@nelyx/core/framework/animation/ticker';
-import { AlignmentDirectional } from '@nelyx/core/framework/painting/alignment';
+import { Alignment, AlignmentDirectional } from '@nelyx/core/framework/painting/alignment';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import type { ShapeBorder } from '@nelyx/core/framework/painting/borders';
 import { EdgeInsets, EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
@@ -55,13 +57,15 @@ import { ScaffoldMessenger } from './scaffold-messenger.ts';
 import { SnackBarBehavior } from './snack-bar-behavior.ts';
 import { SnackBarTheme } from './snack-bar-theme.ts';
 import { TextButton } from './text-button.ts';
+import { TextButtonTheme, TextButtonThemeData } from './text-button-theme.ts';
 import { Theme } from './theme.ts';
 
 export { SnackBarBehavior };
 const transitionDuration = 250;
 const floatingShape = new RoundedRectangleBorder({ borderRadius: BorderRadius.circular(4) });
 const floatingMargin = EdgeInsets.fromLTRB(15, 5, 15, 10);
-const floatingHeightCurve = Curves.fastOutSlowIn;
+const floatingOpacityCurve = new Interval(0.4, 0.6, { curve: Curves.easeInCirc });
+const fullHeightUntilDismissed = new Threshold(0);
 const reasonToken = Symbol('SnackBarClosedReason');
 
 export class SnackBarClosedReason {
@@ -262,6 +266,7 @@ export class SnackBar extends StatefulWidget {
 
 class SnackBarState extends State<SnackBar> {
   private readonly dismissKey = new UniqueKey();
+  private floatingHeight: CurvedAnimation | null = null;
   private wasVisible = false;
   private readonly statusChanged = (status: AnimationStatus) => {
     if (status !== AnimationStatus.completed || this.wasVisible) return;
@@ -272,6 +277,14 @@ class SnackBarState extends State<SnackBar> {
   };
 
   private listen(animation: Animation<number> | null): void {
+    this.floatingHeight?.dispose();
+    this.floatingHeight = animation
+      ? new CurvedAnimation({
+          parent: animation,
+          curve: Curves.easeInOutQuart,
+          reverseCurve: fullHeightUntilDismissed,
+        })
+      : null;
     animation?.addStatusListener(this.statusChanged);
     this.statusChanged(animation?.status ?? AnimationStatus.completed);
   }
@@ -302,6 +315,10 @@ class SnackBarState extends State<SnackBar> {
     );
     const showClose = options.showCloseIcon ?? snack.showCloseIcon ?? false;
     const horizontal = floating ? 16 : 24;
+    const margin = options.margin ?? snack.insetPadding ?? floatingMargin;
+    const trailingPadding = options.padding?.resolve('ltr').right ?? horizontal;
+    const actionMargin = trailingPadding / 2;
+    const iconMargin = trailingPadding / 12;
     const padding =
       options.padding ??
       EdgeInsetsDirectional.fromSTEB(horizontal, 0, action || showClose ? 0 : horizontal, 0);
@@ -310,12 +327,36 @@ class SnackBarState extends State<SnackBar> {
     const closeButton = showClose
       ? new IconButton({
           icon: new Icon(Icons.close),
+          iconSize: 24,
           tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           onPressed: close,
           color:
             options.closeIconColor ?? snack.closeIconColor ?? new Color(colors.onInverseSurface),
         })
       : null;
+    const controls = [
+      ...(action
+        ? [
+            new Padding(
+              EdgeInsets.symmetric({ horizontal: actionMargin }),
+              new TextButtonTheme(
+                new TextButtonThemeData({
+                  style: TextButton.styleFrom({
+                    foregroundColor: new Color(
+                      theme.brightness === 'dark' ? colors.primary : colors.secondary,
+                    ),
+                    padding: EdgeInsets.symmetric({ horizontal }),
+                  }),
+                }),
+                action,
+              ),
+            ),
+          ]
+        : []),
+      ...(closeButton
+        ? [new Padding(EdgeInsets.symmetric({ horizontal: iconMargin }), closeButton)]
+        : []),
+    ];
     const label = new DefaultTextStyle(
       snack.contentTextStyle ??
         (theme.textTheme.bodyMedium ?? new TextStyle()).copyWith({
@@ -343,23 +384,31 @@ class SnackBarState extends State<SnackBar> {
                 },
               )
             : 0;
-        const endWidth = actionWidth + (action ? horizontal / 2 : 0) + (showClose ? 24 : 0);
+        const endWidth = actionWidth + (action ? actionMargin : 0) + (showClose ? 24 : 0);
+        const snackBarWidth =
+          options.width ??
+          Math.max(0, (media?.width ?? constraints.maxWidth) - margin.resolve('ltr').horizontal);
         const overflow =
-          action &&
           endWidth >
-            constraints.maxWidth *
-              (options.actionOverflowThreshold ?? snack.actionOverflowThreshold ?? 0.25);
-        const text = new Padding(EdgeInsets.symmetric({ vertical: 14 }), label);
+          snackBarWidth *
+            (options.actionOverflowThreshold ?? snack.actionOverflowThreshold ?? 0.25);
+        const text = options.padding
+          ? label
+          : new Padding(EdgeInsets.symmetric({ vertical: 14 }), label);
         const inline = new Row([
           new Expanded(text),
-          ...(action && !overflow ? [action] : []),
-          ...(closeButton ? [closeButton] : []),
+          ...(overflow
+            ? [new SizedBox(Math.min(constraints.maxWidth, snackBarWidth * 0.4))]
+            : controls),
         ]);
         return overflow
           ? new Column(
               [
                 inline,
-                new Align(action, { alignment: AlignmentDirectional.centerEnd, heightFactor: 1 }),
+                new Padding(
+                  EdgeInsets.only({ bottom: 14 }),
+                  new Row(controls, { mainAxisAlignment: 'end' }),
+                ),
               ],
               { mainAxisSize: 'min' },
             )
@@ -374,7 +423,6 @@ class SnackBarState extends State<SnackBar> {
       child: floating ? contents : new SafeArea({ top: false, child: contents }),
     });
     if (floating) {
-      const margin = options.margin ?? snack.insetPadding ?? floatingMargin;
       const resolved = margin.resolve(Directionality.of(context));
       const insets =
         width == null ? margin : EdgeInsets.fromLTRB(0, resolved.top, 0, resolved.bottom);
@@ -406,22 +454,34 @@ class SnackBarState extends State<SnackBar> {
         child: card,
       }),
     });
-    if (!animation || media?.accessibleNavigation) return surface;
-    return new ListenableBuilder(animation, () => {
-      const fraction = floating
-        ? floatingHeightCurve.transform(animation.value)
-        : Curves.easeInOut.transform(animation.value);
-      const child = floating
-        ? new Opacity(surface, { opacity: Math.min(1, animation.value * 2) })
+    const floatingHeight = this.floatingHeight;
+    const transition =
+      animation && !media?.accessibleNavigation
+        ? new ListenableBuilder(
+            animation,
+            () =>
+              new Align(
+                floating
+                  ? new Opacity(surface, {
+                      opacity: floatingOpacityCurve.transform(animation.value),
+                    })
+                  : surface,
+                {
+                  alignment: floating ? Alignment.bottomLeft : AlignmentDirectional.topStart,
+                  heightFactor:
+                    floating && floatingHeight
+                      ? floatingHeight.value
+                      : Curves.fastOutSlowIn.transform(animation.value),
+                },
+              ),
+          )
         : surface;
-      return new ClipRect(
-        new Align(child, { alignment: AlignmentDirectional.topStart, heightFactor: fraction }),
-      );
-    });
+    return new ClipRect(transition, { clipBehavior: options.clipBehavior ?? 'hardEdge' });
   }
 
   override dispose(): void {
     this.widget.animation?.removeStatusListener(this.statusChanged);
+    this.floatingHeight?.dispose();
     super.dispose();
   }
 }

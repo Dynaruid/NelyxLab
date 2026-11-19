@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/text_selection_toolbar_text_button.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
-import { ConstrainedBox, Padding, Align } from '@nelyx/core/framework/widgets/basic';
-import { Semantics } from '@nelyx/core/framework/widgets/semantics';
-import { HitTestBehavior } from '@nelyx/core/framework/rendering/pointer-listener';
-import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector';
-import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
 import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
 import type { AlignmentGeometry } from '@nelyx/core/framework/painting/alignment';
+import { RoundedRectangleBorder } from '@nelyx/core/framework/painting/rounded-rectangle-border';
+import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { Color } from '@nelyx/core/ui/color';
+import { Size } from '@nelyx/core/ui/size';
+import { FontWeight } from '@nelyx/core/ui/typography';
+import { kMinInteractiveDimension } from './constants.ts';
+import { defaultMaterialColorScheme } from './internal/theme/default-color-schemes.ts';
+import { TextButton } from './text-button.ts';
+import { Theme } from './theme.ts';
 export interface TextSelectionToolbarTextButtonOptions extends WidgetOptions {
   readonly child: Widget;
   readonly padding: EdgeInsetsGeometry;
@@ -57,32 +62,27 @@ export class TextSelectionToolbarTextButton extends StatelessWidget {
       label: options.label ?? this.label,
     });
   }
-  build(_context: BuildContext): Widget {
-    const body = new GestureDetector(
-      new ConstrainedBox(
-        new Padding(
-          this.padding,
-          new Align(this.child, {
-            ...(this.alignment ? { alignment: this.alignment } : {}),
-            widthFactor: 1,
-            heightFactor: 1,
-          }),
-        ),
-        new BoxConstraints(48, Infinity, 48),
-      ),
-      {
-        ...(this.onPressed ? { onTap: this.onPressed } : {}),
-        excludeFromSemantics: true,
-        behavior: HitTestBehavior.opaque,
-      },
-    );
-    return new Semantics({
-      button: true,
-      label: this.label,
-      enabled: this.onPressed !== null,
-      onTap: this.onPressed,
-      excludeSemantics: true,
-      child: body,
+  build(context: BuildContext): Widget {
+    const { brightness, onSurface } = Theme.of(context).colorScheme;
+    const foreground =
+      onSurface === defaultMaterialColorScheme(brightness).onSurface
+        ? brightness === 'dark'
+          ? 0xffffffff
+          : 0xff000000
+        : onSurface;
+    return new TextButton({
+      onPressed: this.onPressed,
+      child: this.child,
+      ...(this.label ? { semanticsLabel: this.label } : {}),
+      style: TextButton.styleFrom({
+        backgroundColor: new Color(0),
+        foregroundColor: new Color(foreground),
+        shape: new RoundedRectangleBorder(),
+        minimumSize: new Size(kMinInteractiveDimension, kMinInteractiveDimension),
+        padding: this.padding,
+        alignment: this.alignment,
+        textStyle: new TextStyle({ fontWeight: FontWeight.w400 }),
+      }),
     });
   }
 }

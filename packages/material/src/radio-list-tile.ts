@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Full nondeprecated public field projection from retained resolved IR; functional Core build below.
+// Flutter: packages/flutter/lib/src/material/radio_list_tile.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import type { DartDouble } from '@nelyx/core/foundation/dart-numeric';
 import { invariant } from '@nelyx/core/foundation/errors';
 import type { BorderSide, ShapeBorder } from '@nelyx/core/framework/painting/borders';
@@ -23,6 +24,10 @@ export interface RadioListTileOptions<T> extends WidgetOptions {
   readonly groupToken?: object | symbol;
   readonly groupRegistry?: RadioGroupRegistry<T>;
   readonly value: T;
+  /** @deprecated Set the value on a RadioGroup. */
+  readonly groupValue?: T | null;
+  /** @deprecated Provide the change callback to a RadioGroup. */
+  readonly onChanged?: ((value: T | null) => void) | null;
   readonly mouseCursor?: MouseCursor | null;
   readonly toggleable?: boolean;
   readonly activeColor?: Color | null;
@@ -85,11 +90,6 @@ export class RadioListTile<T> extends StatefulWidget {
   constructor(options: RadioListTileOptions<T>) {
     super(options.key ?? null);
     invariant(
-      !('groupValue' in options || 'onChanged' in options),
-      'deprecated-toggle-tile-option',
-      'RadioListTile has no deprecated groupValue/onChanged option',
-    );
-    invariant(
       options.isThreeLine !== true || options.subtitle != null,
       'invalid-three-line-tile',
       'A three-line tile requires a subtitle',
@@ -112,6 +112,14 @@ export class RadioListTile<T> extends StatefulWidget {
   }
   get value(): T {
     return this.options.value;
+  }
+  /** @deprecated Use RadioGroup. */
+  get groupValue(): T | null {
+    return this.options.groupValue ?? null;
+  }
+  /** @deprecated Use RadioGroup. */
+  get onChanged(): ((value: T | null) => void) | null {
+    return this.options.onChanged ?? null;
   }
   get mouseCursor(): MouseCursor | null {
     return this.options.mouseCursor ?? null;

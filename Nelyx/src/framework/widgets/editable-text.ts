@@ -3,6 +3,7 @@
 // Reviewed adaptation of selected Doroti Widgets/editable_text.cs controller/session ownership.
 import type { InputFocusRequest } from '../../ui/input.ts';
 import { AutofillGroup } from './autofill.ts';
+import { SizedBox } from './basic.ts';
 import type { AutofillGroupState } from './autofill.ts';
 import type { Disposable } from '../../foundation/disposable.ts';
 import { getEditableButtonItems, ClipboardStatus } from './text-selection.ts';
@@ -46,6 +47,7 @@ import { StatefulWidget, State, Element, RenderObjectWidget } from './framework.
 import type { Widget, BuildContext, BuildOwner } from './framework.ts';
 import { RenderBox } from '../rendering/object.ts';
 import { Scrollable } from './scrollable.ts';
+import { RestorableProperty } from './restoration.ts';
 import type { ScrollableState } from './scrollable.ts';
 import type { ScrollController } from './scroll-controller.ts';
 import { ScrollPhysics } from './scroll-physics.ts';
@@ -71,7 +73,12 @@ import { DirectionalFocusAction, DirectionalFocusIntent } from './focus-traversa
 import { TextFieldTapRegion } from './tap-region.ts';
 import type { TapRegionCallback, TapRegionUpCallback } from './tap-region.ts';
 import type { PointerDownEvent, PointerUpEvent } from '../gestures/events.ts';
-import { MediaQuery } from './app-data.ts';
+import { Localizations, MediaQuery } from './app-data.ts';
+import { Locale } from '../../ui/locale.ts';
+import { DefaultSpellCheckService } from '../../services/spell-check.ts';
+import type { SuggestionSpan } from '../../services/spell-check.ts';
+import { SpellCheckSession } from './spell-check.ts';
+import type { SpellCheckConfiguration } from './spell-check.ts';
 import { snapshotEditingContent, TextEditingDelta } from '../../services/input-formatters.ts';
 import type { EditingContent, TextInputFormatter } from '../../services/input-formatters.ts';
 import { RenderEditable, validateEditableLinePolicy } from '../rendering/editable.ts';
@@ -82,9 +89,11 @@ import type {
   EditableSelectionLinks,
 } from '../rendering/editable.ts';
 import { TextPainter } from '../painting/text-painter.ts';
+import type { TextWidthBasis } from '../painting/text-painter.ts';
 import { TextSpan } from '../painting/text-span.ts';
 import type { TextStyle } from '../painting/text-style.ts';
-import type { TextAlign } from '../../ui/typography.ts';
+import type { TextAlign, TextHeightBehavior } from '../../ui/typography.ts';
+import type { BoxHeightStyle, BoxWidthStyle } from '../../ui/text-box.ts';
 import { resolveTextConfiguration } from './text-input.ts';
 import { DefaultSelectionStyle } from './default-selection-style.ts';
 import { freezeEditorStyle } from '../../hosting/editor-style.ts';
@@ -102,9 +111,11 @@ import {
   TapAndPanGestureRecognizer,
   TapAndHorizontalDragGestureRecognizer,
 } from '../gestures/tap-and-drag.ts';
+import type { TapDragUpDetails } from '../gestures/tap-and-drag.ts';
 import { LongPressGestureRecognizer } from '../gestures/long-press.ts';
 import { TapGestureRecognizer } from '../gestures/tap.ts';
 import { DragStartBehavior } from '../gestures/recognizer.ts';
+import { ForcePressGestureRecognizer } from '../gestures/force-press.ts';
 import { Ticker } from '../animation/ticker.ts';
 import { HitTestBehavior } from '../rendering/pointer-listener.ts';
 import type { Offset } from '../../ui/geometry.ts';
@@ -135,6 +146,7 @@ import { Clipboard, ClipboardData } from '../../services/clipboard.ts';
 import type { TextMagnifierConfiguration } from './magnifier.ts';
 import { MagnifierInfo } from './magnifier.ts';
 import { Offset as SourceOffset } from '../../ui/offset.ts';
+import type { Radius } from '../../ui/radius.ts';
 import { Rect as SourceRect } from '../../ui/rect.ts';
 import {
   bounds,
@@ -488,11 +500,15 @@ export class TextEditingController extends ChangeNotifier {
     this.replace('', { anchor: 0, focus: 0 }, onApplied);
   }
   /** Reset Core history with the accepted value; OS synchronization is separate. */
-  reset(text = '', onApplied?: () => void): void {
+  reset(
+    text = '',
+    onApplied?: () => void,
+    selection: TextSelection = { anchor: text.length, focus: text.length },
+  ): void {
     this.ensureAlive();
     this.pendingReset = text;
     try {
-      this.replace(text, { anchor: text.length, focus: text.length }, onApplied);
+      this.replace(text, selection, onApplied);
     } catch (error) {
       this.pendingReset = undefined;
       throw error;
@@ -546,8 +562,53 @@ export class TextEditingController extends ChangeNotifier {
     this.redoValues = [];
   }
 }
+
+/** Text persistence adapted from Flutter widgets/restoration_properties.dart at
+ * 71e4717a61786faab4c7aa39825989305ed29e8a. The bucket stores the plain text. */
+export class EditorTextRestoration extends RestorableProperty<string> {
+  readonly controller: TextEditingController;
+  private readonly changed = () => this.notifyListeners();
+  private readonly acceptedRestore = () => this.onRestored?.(this.controller);
+
+  constructor(
+    private readonly initialText = '',
+    private readonly initialSelection?: TextSelection,
+    private readonly onRestored?: (controller: TextEditingController) => void,
+  ) {
+    super();
+    this.controller = new TextEditingController(initialText);
+    if (initialSelection) this.controller.selection = initialSelection;
+    this.controller.addListener(this.changed);
+  }
+
+  get value(): string {
+    return this.controller.text;
+  }
+  set value(text: string) {
+    this.controller.text = text;
+  }
+  toPrimitives(): string {
+    return this.controller.text;
+  }
+  restore(value: unknown): void {
+    invariant(typeof value === 'string', 'invalid-editor-restoration', 'Expected restored text');
+    this.controller.reset(value, this.acceptedRestore);
+  }
+  reset(): void {
+    this.controller.reset(this.initialText, this.acceptedRestore, this.initialSelection);
+  }
+  override dispose(): void {
+    this.controller.removeListener(this.changed);
+    this.controller.dispose();
+    super.dispose();
+  }
+}
+
 export interface EditableTextOptions {
   readonly groupId?: NonNullable<unknown>;
+  readonly scrollPadding?: import('../painting/edge-insets.ts').EdgeInsets;
+  readonly onTap?: (() => void) | null;
+  readonly onTapAlwaysCalled?: boolean;
   readonly onTapOutside?: TapRegionCallback | null;
   readonly onTapUpOutside?: TapRegionUpCallback | null;
   readonly configuration?: EditingConfigurationOptions;
@@ -558,15 +619,30 @@ export interface EditableTextOptions {
   readonly inputFormatters?: readonly TextInputFormatter[];
   /** Painted through the owning View's Core paragraph engine. */
   readonly textStyle?: TextStyle;
+  /** Rich spans in the read-only editor must describe the controller's plain text. */
+  readonly textSpan?: TextSpan;
+  readonly spellCheckConfiguration?: SpellCheckConfiguration | null;
   readonly textAlign?: TextAlign;
   readonly textDirection?: 'ltr' | 'rtl';
+  readonly textWidthBasis?: TextWidthBasis;
+  readonly textHeightBehavior?: TextHeightBehavior;
+  readonly forceLine?: boolean;
   readonly cursorColor?: number;
   readonly selectionColor?: number;
   readonly strutStyle?: StrutStyle;
   readonly textScaler?: TextScaler;
   readonly cursorWidth?: number;
   readonly cursorHeight?: number;
+  readonly cursorOffset?: SourceOffset;
+  readonly cursorRadius?: Radius | null;
+  readonly paintCursorAboveText?: boolean;
+  readonly selectionHeightStyle?: BoxHeightStyle;
+  readonly selectionWidthStyle?: BoxWidthStyle;
+  readonly dragStartBehavior?: DragStartBehavior;
+  readonly forcePressEnabled?: boolean;
+  readonly showCursor?: boolean | null;
   readonly selectionControls?: TextSelectionControls | null;
+  readonly showCollapsedSelectionHandles?: boolean;
   readonly enableInteractiveSelection?: boolean;
   readonly onSelectionChanged?:
     | ((selection: SourceSelection, cause: SelectionChangedCause | null) => void)
@@ -597,6 +673,7 @@ function editableLinePolicy(options: EditableTextOptions | undefined): EditableL
     maxLines,
     minLines: options?.minLines ?? null,
     expands: options?.expands ?? false,
+    ...(options?.forceLine === false ? { forceLine: false } : {}),
   };
   validateEditableLinePolicy(policy);
   invariant(
@@ -624,6 +701,11 @@ export class EditableText extends StatefulWidget {
       'invalid-editor-group',
       'EditableText groupId must not be null',
     );
+    invariant(
+      inputOptions?.textSpan === undefined || inputOptions.configuration?.readOnly === true,
+      'editable-rich-content',
+      'EditableText rich spans require a read-only controller',
+    );
     const policy = editableLinePolicy(inputOptions);
     freezeEditingConfiguration({
       ...inputOptions?.configuration,
@@ -644,6 +726,11 @@ export class EditableText extends StatefulWidget {
   }
 }
 export class EditableTextState extends State<EditableText> implements TextSelectionDelegate {
+  private readonly spellCheck = new SpellCheckSession(() => this.invalidated());
+  private spellLocale: Locale | null = null;
+  private spellLocaleTag: string | null = null;
+  private defaultSpellCheckService: DefaultSpellCheckService | null = null;
+  private spellToolbar: SuggestionSpan | null = null;
   private readonly renderKey = new GlobalKey('EditableText renderer');
   private readonly scrollableKey = new GlobalKey<ScrollableState>('EditableText scrollable');
   private layoutViewportGeneration = -1;
@@ -1061,6 +1148,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     if (
       !this.isCurrentEditingOwner(this.editingIdentity) ||
       !this.focus?.hasPrimaryFocus ||
+      this.widget.inputOptions?.showCursor === false ||
       this.widget.controller.isComposing ||
       this.widget.controller.selection.anchor !== this.widget.controller.selection.focus ||
       maybeTickerScheduler(this.context)?.visible === false
@@ -1112,6 +1200,9 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   private readonly startHandleVisible = new ValueNotifier(false);
   private readonly endHandleVisible = new ValueNotifier(false);
   private clipboardStatus = ClipboardStatus.unknown;
+  private legacyClipboardStatus: ValueNotifier<ClipboardStatus> | null = null;
+  private secondaryTapDown: SourceOffset | null = null;
+  private toolbarLocation: SourceOffset | null = null;
   private handleAnchor: number | undefined;
   private handleCollapsed = false;
   private handleDragDy = 0;
@@ -1385,23 +1476,38 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     );
     const binding = this.context.owner.gestureBinding,
       options = { binding, debugOwner: this };
-    const tap = (global: SourceOffset, kind: PointerDeviceKind | null) => {
+    const tap = (details: TapDragUpDetails) => {
+      if (!this.mounted || this.widget.inputOptions?.enabled === false) return;
       if (!this.selectionEnabled) {
         this.requestKeyboard();
-        return;
+      } else {
+        const render = this.editableRender();
+        if (!render?.hasSize || render.needsLayout) return;
+        const at = tryUnprojectMatrix4Point(
+          fullTransform(render.getTransformTo(null)),
+          details.globalPosition,
+        );
+        if (!at) return;
+        this.stopSelectionDrag();
+        this.selectAt(at);
+        const suggestions =
+          details.consecutiveTapCount === 1 && this.showSpellCheckSuggestionsToolbar();
+        if (!suggestions && details.kind === PointerDeviceKind.touch) {
+          this.overlayRequested = true;
+          this.queueSelectionOverlay();
+        }
       }
-      const render = this.editableRender();
-      if (!render?.hasSize || render.needsLayout) return;
-      const at = tryUnprojectMatrix4Point(fullTransform(render.getTransformTo(null)), global);
-      if (!at) return;
-      this.stopSelectionDrag();
-      this.selectAt(at);
-      if (kind === PointerDeviceKind.touch) {
-        this.overlayRequested = true;
-        this.queueSelectionOverlay();
-      }
+      if (!this.mounted) return;
+      const options = this.widget.inputOptions;
+      const onTap = options?.onTap;
+      if (
+        onTap &&
+        options.enabled !== false &&
+        (details.consecutiveTapCount === 1 || options.onTapAlwaysCalled)
+      )
+        this.editingCallback('onTap', onTap);
     };
-    return new Map<GestureRecognizerType, GestureRecognizerFactory>([
+    const factories = new Map<GestureRecognizerType, GestureRecognizerFactory>([
       [
         TapAndPanGestureRecognizer,
         new GestureRecognizerFactoryWithHandlers(
@@ -1412,8 +1518,9 @@ export class EditableTextState extends State<EditableText> implements TextSelect
               supportedDevices: new Set([PointerDeviceKind.mouse]),
             }),
           (recognizer) => {
-            recognizer.dragStartBehavior = DragStartBehavior.down;
-            recognizer.onTapUp = (details) => tap(details.globalPosition, details.kind);
+            recognizer.dragStartBehavior =
+              this.widget.inputOptions?.dragStartBehavior ?? DragStartBehavior.down;
+            recognizer.onTapUp = tap;
             recognizer.onDragStart = (details) => this.beginTextDrag(details.globalPosition);
             recognizer.onDragUpdate = (details) => this.updateTextDrag(details.globalPosition);
             recognizer.onDragEnd = () => this.endTextDrag();
@@ -1433,8 +1540,9 @@ export class EditableTextState extends State<EditableText> implements TextSelect
               ),
             }),
           (recognizer) => {
-            recognizer.dragStartBehavior = DragStartBehavior.down;
-            recognizer.onTapUp = (details) => tap(details.globalPosition, details.kind);
+            recognizer.dragStartBehavior =
+              this.widget.inputOptions?.dragStartBehavior ?? DragStartBehavior.down;
+            recognizer.onTapUp = tap;
             recognizer.onDragStart = (details) => this.beginTextDrag(details.globalPosition);
             recognizer.onDragUpdate = (details) => this.updateTextDrag(details.globalPosition);
             recognizer.onDragEnd = () => this.endTextDrag();
@@ -1481,14 +1589,42 @@ export class EditableTextState extends State<EditableText> implements TextSelect
           TapGestureRecognizer,
           () => new TapGestureRecognizer(options),
           (recognizer) => {
-            recognizer.onSecondaryTapUp = () => {
+            recognizer.onSecondaryTapDown = (details) => {
+              this.secondaryTapDown = details.globalPosition;
+            };
+            recognizer.onSecondaryTapCancel = () => {
+              this.secondaryTapDown = null;
+            };
+            recognizer.onSecondaryTapUp = (details) => {
               this.focus?.requestFocus();
-              this.showToolbar();
+              this.showToolbar(this.secondaryTapDown ?? details.globalPosition);
+              this.secondaryTapDown = null;
             };
           },
         ),
       ],
     ]);
+    if (this.widget.inputOptions?.forcePressEnabled) {
+      factories.set(
+        ForcePressGestureRecognizer,
+        new GestureRecognizerFactoryWithHandlers(
+          ForcePressGestureRecognizer,
+          () => new ForcePressGestureRecognizer(options),
+          (recognizer) => {
+            recognizer.onStart = (details) => {
+              if (!this.selectionEnabled) return;
+              this.stopSelectionDrag();
+              this.focus?.requestFocus();
+              this.selectAt(details.localPosition, false, true, SelectionChangedCause.forcePress);
+            };
+            recognizer.onEnd = () => {
+              this.showToolbar();
+            };
+          },
+        ),
+      );
+    }
+    return factories;
   }
 
   private selection(): SourceSelection {
@@ -1522,16 +1658,25 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   }
   get cutEnabled(): boolean {
     return (
+      !!this.context.services.binaryMessenger &&
       !this.boundConfiguration.readOnly &&
       !this.boundConfiguration.obscureText &&
       !this.selection().isCollapsed
     );
   }
   get copyEnabled(): boolean {
-    return !this.boundConfiguration.obscureText && !this.selection().isCollapsed;
+    return (
+      !!this.context.services.binaryMessenger &&
+      !this.boundConfiguration.obscureText &&
+      !this.selection().isCollapsed
+    );
   }
   get pasteEnabled(): boolean {
-    return !this.boundConfiguration.readOnly && this.clipboardStatus === ClipboardStatus.pasteable;
+    return (
+      !this.boundConfiguration.readOnly &&
+      !!this.context.services.binaryMessenger &&
+      !this.widget.controller.isComposing
+    );
   }
   get selectAllEnabled(): boolean {
     if (
@@ -1647,6 +1792,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
           this.clipboardStatus = available
             ? ClipboardStatus.pasteable
             : ClipboardStatus.notPasteable;
+          if (this.legacyClipboardStatus) this.legacyClipboardStatus.value = this.clipboardStatus;
           this.selectionOverlay?.markNeedsBuild();
         }
       },
@@ -1754,24 +1900,149 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   }
   hideToolbar(hideHandles = true): void {
     this.toolbarRequested = false;
+    this.clearSpellToolbar();
     if (hideHandles) {
       this.overlayRequested = false;
       this.selectionOverlay?.hide();
     } else this.selectionOverlay?.hideToolbar();
   }
-  showToolbar(): boolean {
+  showToolbar(location: SourceOffset | null = null): boolean {
+    const options = this.widget.inputOptions;
     if (
       !this.mounted ||
       !this.selectionEnabled ||
-      this.widget.inputOptions?.enabled === false ||
-      !this.widget.inputOptions?.contextMenuBuilder
+      options?.enabled === false ||
+      (!options?.contextMenuBuilder && !options?.selectionControls?.buildToolbar)
     )
       return false;
+    if (this.spellToolbar) this.hideToolbar(false);
+    this.toolbarLocation = location;
     this.overlayRequested = true;
     this.toolbarRequested = true;
     this.queueSelectionOverlay();
     this.refreshClipboardStatus();
     return true;
+  }
+
+  private updateSpellCheck(): void {
+    const configuration = this.widget.inputOptions?.spellCheckConfiguration;
+    const controller = this.widget.controller;
+    if (
+      !configuration?.spellCheckEnabled ||
+      this.boundConfiguration.readOnly ||
+      this.boundConfiguration.obscureText ||
+      this.widget.inputOptions?.enabled === false ||
+      controller.text.length === 0 ||
+      controller.isComposing
+    ) {
+      this.spellCheck.clear();
+      return;
+    }
+    let service = configuration.spellCheckService;
+    if (service === null) {
+      const channel = this.context.services.platformServices?.channels.spellCheck;
+      if (!channel) {
+        this.spellCheck.clear();
+        return;
+      }
+      if (this.defaultSpellCheckService?.spellCheckChannel !== channel)
+        this.defaultSpellCheckService = new DefaultSpellCheckService(channel);
+      service = this.defaultSpellCheckService;
+    }
+    const tag = this.context.maybeDependOn(Localizations)?.locale ?? 'en';
+    if (this.spellLocaleTag !== tag || this.spellLocale === null) {
+      this.spellLocaleTag = tag;
+      try {
+        const locale = new Intl.Locale(tag.replaceAll('_', '-'));
+        this.spellLocale = Locale.fromSubtags({
+          languageCode: locale.language,
+          scriptCode: locale.script ?? null,
+          countryCode: locale.region ?? null,
+        });
+      } catch {
+        this.spellLocale = new Locale('en');
+      }
+    }
+    this.spellCheck.update(controller.text, this.spellLocale, service);
+  }
+
+  findSuggestionSpanAtCursorIndex(offset: number): SuggestionSpan | null {
+    if (
+      !this.widget.inputOptions?.spellCheckConfiguration?.spellCheckEnabled ||
+      this.widget.inputOptions?.enabled === false ||
+      this.widget.controller.isComposing ||
+      this.boundConfiguration.readOnly ||
+      this.boundConfiguration.obscureText
+    )
+      return null;
+    return this.spellCheck.find(this.widget.controller.text, offset);
+  }
+
+  showSpellCheckSuggestionsToolbar(): boolean {
+    if (
+      !this.mounted ||
+      !this.selectionEnabled ||
+      this.widget.inputOptions?.enabled === false ||
+      !this.widget.inputOptions?.spellCheckConfiguration?.spellCheckSuggestionsToolbarBuilder ||
+      !Overlay.maybeOf(this.context)
+    )
+      return false;
+    const value = this.textEditingValue;
+    const suggestion = this.findSuggestionSpanAtCursorIndex(value.selection.extentOffset);
+    if (!suggestion) {
+      if (this.spellToolbar) this.hideToolbar(false);
+      return false;
+    }
+    this.hideToolbar(false);
+    const { range } = suggestion;
+    this.userUpdateTextEditingValue(
+      value.copyWith({
+        selection: new SourceSelection({
+          baseOffset: range.start,
+          extentOffset: range.end,
+        }),
+      }),
+      SelectionChangedCause.tap,
+    );
+    if (!this.mounted) return false;
+    this.setState(() => {
+      this.spellToolbar = suggestion;
+      this.overlayRequested = true;
+    });
+    this.queueSelectionOverlay();
+    return true;
+  }
+
+  private clearSpellToolbar(): void {
+    if (this.spellToolbar === null) return;
+    this.spellToolbar = null;
+    if (this.mounted && this.context instanceof Element && this.context.active)
+      this.setState(() => {});
+  }
+
+  replaceSpellCheckSuggestion(
+    span: SuggestionSpan,
+    replacement: string,
+    { collapseSelection = false } = {},
+  ): void {
+    if (!this.mounted) return;
+    const current = this.textEditingValue;
+    if (this.findSuggestionSpanAtCursorIndex(current.selection.baseOffset) !== span) return;
+    let value = current.replaced(span.range, replacement);
+    if (collapseSelection)
+      value = value.copyWith({
+        selection: SourceSelection.collapsed({
+          offset: span.range.start + replacement.length,
+        }),
+      });
+    this.userUpdateTextEditingValue(value, SelectionChangedCause.toolbar);
+    if (!this.mounted) return;
+    this.hideToolbar();
+    if (this.context instanceof Element)
+      this.context.owner.postFrame(() => {
+        if (this.mounted && this.context instanceof Element && this.context.active)
+          this.bringIntoView(this.textEditingValue.selection.extent);
+      });
   }
   private queueSelectionOverlay(): void {
     if (
@@ -1797,6 +2068,11 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   }
   private syncSelectionOverlay(): void {
     if (
+      this.spellToolbar &&
+      this.findSuggestionSpanAtCursorIndex(this.spellToolbar.range.start) !== this.spellToolbar
+    )
+      this.hideToolbar(false);
+    if (
       !this.selectionEnabled ||
       !this.focus?.hasPrimaryFocus ||
       this.widget.inputOptions?.enabled === false ||
@@ -1804,6 +2080,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     ) {
       this.overlayRequested = false;
       this.toolbarRequested = false;
+      this.clearSpellToolbar();
       this.selectionOverlay?.hide();
       return;
     }
@@ -1865,18 +2142,80 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     overlay.lineHeightAtStart = start.height;
     overlay.lineHeightAtEnd = end.height;
     overlay.selectionEndpoints = endpoints;
-    overlay.showHandles();
-    overlay.markNeedsBuild();
+    const spell = this.spellToolbar;
     if (
-      this.toolbarRequested &&
-      this.widget.inputOptions?.contextMenuBuilder &&
-      !overlay.toolbarIsVisible
+      spell ||
+      (selection.isCollapsed && this.widget.inputOptions?.showCollapsedSelectionHandles === false)
     )
-      overlay.showToolbar({
-        context: this.renderKey.currentContext!,
-        contextMenuBuilder: (context) =>
-          this.widget.inputOptions!.contextMenuBuilder!(context, this),
-      });
+      overlay.hideHandles();
+    else overlay.showHandles();
+    overlay.markNeedsBuild();
+    if (spell && !overlay.toolbarIsVisible) {
+      const builder =
+        this.widget.inputOptions?.spellCheckConfiguration?.spellCheckSuggestionsToolbarBuilder;
+      if (builder)
+        overlay.showSpellCheckSuggestionsToolbar({
+          context: this.renderKey.currentContext!,
+          builder: (context) => builder(context, this),
+        });
+    }
+    if (this.toolbarRequested && !overlay.toolbarIsVisible) {
+      const options = this.widget.inputOptions;
+      if (options?.selectionControls?.buildToolbar) {
+        overlay.showToolbar({
+          context: this.renderKey.currentContext!,
+          contextMenuBuilder: (context) => this.buildControlsToolbar(context),
+        });
+      } else if (options?.contextMenuBuilder) {
+        overlay.showToolbar({
+          context: this.renderKey.currentContext!,
+          contextMenuBuilder: (context) =>
+            this.widget.inputOptions!.contextMenuBuilder!(context, this),
+        });
+      }
+    }
+  }
+
+  private buildControlsToolbar(context: BuildContext): Widget {
+    const controls = this.widget.inputOptions?.selectionControls;
+    const render = this.editableRender();
+    if (!controls?.buildToolbar || !render?.hasSize || render.needsLayout) return SizedBox.shrink();
+    const selection = this.selection();
+    const endpoints = render.getEndpointsForSelection(selection);
+    const first = endpoints[0];
+    const last = endpoints.at(-1);
+    if (!first || !last) return SizedBox.shrink();
+    const point = (local: SourceOffset) => {
+      const global = render.localToGlobal(local);
+      return new SourceOffset(global.x, global.y);
+    };
+    const region = SourceRect.fromPoints(
+      point(SourceOffset.zero),
+      point(new SourceOffset(render.size.width, render.size.height)),
+    );
+    const lineHeight = render.getLocalRectForCaret(
+      new TextPosition({ offset: selection.start }),
+    ).height;
+    const endHeight = render.getLocalRectForCaret(
+      new TextPosition({ offset: selection.end }),
+    ).height;
+    const midpoint = new SourceOffset(
+      last.point.dy - first.point.dy > endHeight / 2
+        ? region.width / 2
+        : (first.point.dx + last.point.dx) / 2,
+      first.point.dy - lineHeight,
+    );
+    this.legacyClipboardStatus ??= new ValueNotifier(this.clipboardStatus);
+    return controls.buildToolbar(
+      context,
+      region,
+      lineHeight,
+      midpoint,
+      endpoints,
+      this,
+      this.legacyClipboardStatus,
+      this.toolbarLocation,
+    );
   }
   private dragHandle(end: boolean, global: SourceOffset): void {
     if (!this.selectionEnabled) return;
@@ -2831,6 +3170,16 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       }
     }
     this.syncBlink();
+    if (this.spellToolbar) {
+      const { range } = this.spellToolbar;
+      const selection = this.selection();
+      if (
+        selection.start !== range.start ||
+        selection.end !== range.end ||
+        this.findSuggestionSpanAtCursorIndex(range.start) !== this.spellToolbar
+      )
+        this.hideToolbar(false);
+    }
     this.selectionOverlay?.markNeedsBuild();
     this.queueSelectionOverlay();
     if (this.context.owner.building)
@@ -2963,7 +3312,19 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     )
       return;
     const caret = intersect(render.getLocalRectForCaret(position), { x: 0, y: 0, ...render.size });
-    render?.showOnScreen(caret && caret.width > 0 && caret.height > 0 ? caret : undefined);
+    const padding = this.widget.inputOptions?.scrollPadding;
+    if (caret && caret.width > 0 && caret.height > 0) {
+      render.showOnScreen(
+        padding
+          ? {
+              x: caret.x - padding.left,
+              y: caret.y - padding.top,
+              width: caret.width + padding.horizontal,
+              height: caret.height + padding.vertical,
+            }
+          : caret,
+      );
+    } else render.showOnScreen();
   }
   private reveal(): void {
     if (!this.selectionDrag)
@@ -3015,6 +3376,8 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       };
     try {
       this.clipboardStatus = ClipboardStatus.unknown;
+      this.legacyClipboardStatus?.dispose();
+      this.legacyClipboardStatus = null;
       if (
         this.autofillGroup &&
         this.boundConfiguration.autofillHints &&
@@ -3248,6 +3611,8 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.selectionOverlay = undefined;
     this.overlayRequested = false;
     this.toolbarRequested = false;
+    this.spellToolbar = null;
+    this.spellCheck.clear();
     this.overlayScheduled = false;
     this.handleAnchor = undefined;
     this.restoreToolbarAfterDrag = false;
@@ -3402,6 +3767,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     });
   }
   override didUpdateWidget(old: EditableText): void {
+    if (old.inputOptions?.showCursor !== this.widget.inputOptions?.showCursor) this.syncBlink();
     if (!this.selectionEnabled) {
       this.stopSelectionDrag();
       this.hideToolbar();
@@ -3414,7 +3780,11 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     ) {
       this.selectionOverlay?.dispose();
       this.selectionOverlay = undefined;
-      if (!this.widget.inputOptions?.contextMenuBuilder) this.toolbarRequested = false;
+      if (
+        !this.widget.inputOptions?.contextMenuBuilder &&
+        !this.widget.inputOptions?.selectionControls?.buildToolbar
+      )
+        this.toolbarRequested = false;
     }
     const identityChanged =
         old.id !== this.widget.id ||
@@ -3473,6 +3843,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     release(() => painter?.dispose());
     release(() => this.startHandleVisible.dispose());
     release(() => this.endHandleVisible.dispose());
+    release(() => this.legacyClipboardStatus?.dispose());
     if (errors.length === 1) throw errors[0];
     if (errors.length) throw new AggregateError(errors, 'Editable state retirement failed');
   }
@@ -3495,6 +3866,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         ...(options?.textDirection ? { direction: options.textDirection } : {}),
         ...(options?.strutStyle ? { strutStyle: options.strutStyle } : {}),
         ...(options?.textScaler ? { textScaler: options.textScaler } : {}),
+        ...(options?.textHeightBehavior ? { textHeightBehavior: options.textHeightBehavior } : {}),
       }),
       { font, scale, style, scaler, painterOptions } = resolved,
       run = style.toRunStyle(scaler),
@@ -3543,6 +3915,13 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       families = [...new Set([...(run.fontFamilies ?? []), ...(family ? [family] : [])])],
       selection = DefaultSelectionStyle.of(this.context),
       baselines = this.lineMetrics.baselines;
+    const rich = options?.textSpan;
+    const misspelledStyle = options?.spellCheckConfiguration?.misspelledTextStyle;
+    const span =
+      rich && rich.toPlainText({ includeSemanticsLabels: false }) === text
+        ? new TextSpan({ style, children: [rich] })
+        : ((misspelledStyle && this.spellCheck.buildSpan(text, style, misspelledStyle)) ??
+          new TextSpan({ text, style }));
     return {
       style: freezeEditorStyle({
         fontFamilies: families,
@@ -3563,13 +3942,18 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       }),
       baselines,
       layout: {
-        options: { ...painterOptions, text: new TextSpan({ text, style }) },
+        options: {
+          ...painterOptions,
+          text: span,
+          textWidthBasis: options?.textWidthBasis ?? 'parent',
+        },
         context: { text: services.text, resources: services.resources, font, scale },
       },
     };
   }
   build(): Widget {
     this.layoutViewportGeneration = this.context.services.readMetrics().viewportGeneration;
+    this.updateSpellCheck();
     this.queueSelectionOverlay();
     const options = this.widget.inputOptions,
       minHeight = options?.minHeight ?? 48;
@@ -3641,13 +4025,29 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         composing: this.widget.controller.composing,
         affinity: this.selectionAffinity,
         focused,
-        cursorVisible: this.cursorVisible,
+        cursorVisible: this.cursorVisible && options?.showCursor !== false,
         cursorColor:
           options?.cursorColor ?? selection.cursorColor ?? resolved?.style.color ?? 0xff000000,
         selectionColor:
-          options?.selectionColor ?? selection.selectionColor ?? DefaultSelectionStyle.defaultColor,
+          (this.spellToolbar
+            ? options?.spellCheckConfiguration?.misspelledSelectionColor?.toARGB32()
+            : undefined) ??
+          options?.selectionColor ??
+          selection.selectionColor ??
+          DefaultSelectionStyle.defaultColor,
         ...(options?.cursorWidth !== undefined ? { cursorWidth: options.cursorWidth } : {}),
         ...(options?.cursorHeight !== undefined ? { cursorHeight: options.cursorHeight } : {}),
+        ...(options?.cursorOffset !== undefined ? { cursorOffset: options.cursorOffset } : {}),
+        ...(options?.cursorRadius !== undefined ? { cursorRadius: options.cursorRadius } : {}),
+        ...(options?.paintCursorAboveText !== undefined
+          ? { paintCursorAboveText: options.paintCursorAboveText }
+          : {}),
+        ...(options?.selectionHeightStyle
+          ? { selectionHeightStyle: options.selectionHeightStyle }
+          : {}),
+        ...(options?.selectionWidthStyle
+          ? { selectionWidthStyle: options.selectionWidthStyle }
+          : {}),
         obscureText: this.boundConfiguration.obscureText,
         graphemeOffsets: graphemeBoundaries(this.widget.controller.text),
       };
@@ -3683,7 +4083,9 @@ export class EditableTextState extends State<EditableText> implements TextSelect
           enabled,
           paint,
           this.renderKey,
-          options?.selectionControls || options?.contextMenuBuilder
+          options?.selectionControls ||
+            options?.contextMenuBuilder ||
+            options?.spellCheckConfiguration?.spellCheckSuggestionsToolbarBuilder
             ? this.selectionLinks
             : undefined,
           this.boundConfiguration,

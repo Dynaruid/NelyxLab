@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Functional port of the pinned activity_indicator.dart, on the owning Core ticker/painter.
+// Flutter: packages/flutter/lib/src/cupertino/activity_indicator.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatefulWidget, StatelessWidget, State } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';

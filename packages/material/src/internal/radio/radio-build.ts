@@ -4,6 +4,7 @@
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import { CupertinoRadio } from '@nelyx/cupertino/radio';
 import { RawRadio, RadioGroup } from '@nelyx/core/framework/widgets/radio-group';
+import type { RadioGroupRegistry } from '@nelyx/core/framework/widgets/radio-group';
 import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
 import { WidgetState } from '@nelyx/core/framework/widgets/widget-state';
 import { emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
@@ -157,9 +158,21 @@ export function resolveRadioCursor<T>(
 export function buildMaterialRadio<T>(
   w: RadioOptions<T>,
   context: BuildContext,
+  legacyRegistry: RadioGroupRegistry<T>,
   adaptive = false,
   useCupertinoCheckmarkStyle = false,
 ): Widget {
+  const registry =
+    w.groupRegistry ??
+    (w.groupToken === undefined ? null : RadioGroup.maybeOf<T>(context, w.groupToken));
+  const hasSelectionOwner = registry !== null || w.onChanged != null;
+  const enabled = w.enabled ?? hasSelectionOwner;
+  invariant(
+    !enabled || hasSelectionOwner,
+    'missing-radio-registry',
+    'Enabled Radio requires a RadioGroup, registry, or selection callback',
+  );
+  const groupRegistry = registry ?? legacyRegistry;
   if (adaptive && ['iOS', 'macOS'].includes(Theme.of(context).platform)) {
     const {
       key: _,
@@ -177,10 +190,14 @@ export function buildMaterialRadio<T>(
       backgroundColor,
       side,
       innerRadius,
+      groupValue,
+      onChanged,
       ...interaction
     } = w;
     return new CupertinoRadio({
       ...interaction,
+      groupRegistry,
+      enabled,
       ...(id === undefined ? {} : { id }),
       semanticLabel: semanticLabel ?? null,
       mouseCursor: mouseCursor ?? null,
@@ -191,15 +208,6 @@ export function buildMaterialRadio<T>(
   }
   const theme = RadioTheme.of(context),
     defaults = radioDefaultsM3(context);
-  const registry =
-    w.groupRegistry ??
-    (w.groupToken === undefined ? null : RadioGroup.maybeOf<T>(context, w.groupToken));
-  const enabled = w.enabled ?? registry !== null;
-  invariant(
-    !enabled || registry !== null,
-    'missing-radio-registry',
-    'Enabled Radio needs a typed RadioGroup ancestor or an explicit registry',
-  );
   const target =
       w.materialTapTargetSize ?? theme.materialTapTargetSize ?? defaults.materialTapTargetSize!,
     density = w.visualDensity ?? theme.visualDensity ?? defaults.visualDensity!,
@@ -221,10 +229,13 @@ export function buildMaterialRadio<T>(
     backgroundColor,
     side,
     innerRadius,
+    groupValue,
+    onChanged,
     ...interaction
   } = w;
   return new RawRadio({
     ...interaction,
+    groupRegistry,
     enabled,
     motion: 'source',
     mouseCursorResolver: (states) => resolveRadioCursor(w, theme, states),

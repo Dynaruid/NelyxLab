@@ -1,15 +1,25 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Nelyx delegate API with Flutter-shaped selected compatibility; no implicit snap/stretch policy.
+// Nelyx delegate API on the shared sliver layout builder.
 import { invariant } from '../../foundation/errors.ts';
 import { AbstractLayoutBuilder } from './layout-builder.ts';
 import type { BuildContext, Widget, WidgetOptions } from './framework.ts';
 import { Widget as WidgetValue } from './framework.ts';
 import { RenderSliverPersistentHeader } from '../rendering/sliver-persistent-header.ts';
-import type { PersistentHeaderLayoutInfo } from '../rendering/sliver-persistent-header.ts';
+import type {
+  FloatingHeaderSnapConfiguration,
+  OverScrollHeaderStretchConfiguration,
+  PersistentHeaderLayoutInfo,
+} from '../rendering/sliver-persistent-header.ts';
 
 export abstract class SliverPersistentHeaderDelegate {
   abstract get minExtent(): number;
   abstract get maxExtent(): number;
+  get snapConfiguration(): FloatingHeaderSnapConfiguration | null {
+    return null;
+  }
+  get stretchConfiguration(): OverScrollHeaderStretchConfiguration | null {
+    return null;
+  }
   abstract build(context: BuildContext, shrinkOffset: number, overlapsContent: boolean): Widget;
   abstract shouldRebuild(old: SliverPersistentHeaderDelegate): boolean;
 }
@@ -75,6 +85,8 @@ export class SliverPersistentHeader extends AbstractLayoutBuilder<PersistentHead
       maxExtent: this.delegate.maxExtent,
       pinned: this.pinned,
       floating: this.floating,
+      snapConfiguration: this.delegate.snapConfiguration,
+      stretchConfiguration: this.delegate.stretchConfiguration,
     });
   }
   override updateRenderObject(_context: BuildContext, render: RenderSliverPersistentHeader): void {
@@ -84,6 +96,8 @@ export class SliverPersistentHeader extends AbstractLayoutBuilder<PersistentHead
       maxExtent: this.delegate.maxExtent,
       pinned: this.pinned,
       floating: this.floating,
+      snapConfiguration: this.delegate.snapConfiguration,
+      stretchConfiguration: this.delegate.stretchConfiguration,
     });
   }
 }

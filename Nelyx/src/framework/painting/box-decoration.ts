@@ -3,6 +3,7 @@
 // Adapted from the pinned Flutter painting/box_decoration.dart.
 import { invariant } from '../../foundation/errors.ts';
 import { FoundationBuildMode } from '../../foundation/constants.ts';
+import { applyDartType, captureDartType } from '../../foundation/dart-type-witness.ts';
 import { Canvas } from '../../ui/canvas.ts';
 import { Rect } from '../../ui/rect.ts';
 import { Path } from '../../ui/path.ts';
@@ -53,6 +54,7 @@ export class BoxDecoration extends Decoration {
     shape = 'rectangle',
   }: BoxDecorationOptions = {}) {
     super();
+    captureDartType(this, sourceBoxDecorationType);
     invariant(
       image === null || image instanceof DecorationImage,
       'invalid-decoration-image',
@@ -208,6 +210,13 @@ export class BoxDecoration extends Decoration {
     return `BoxDecoration(color: ${this.color}, image: ${this.image}, border: ${this.border}, borderRadius: ${this.borderRadius}, boxShadow: ${this.boxShadow}, gradient: ${this.gradient}, backgroundBlendMode: ${this.backgroundBlendMode}, shape: ${this.shape})`;
   }
 }
+export const sourceBoxDecorationType = applyDartType<BoxDecoration>(
+  BoxDecoration,
+  'BoxDecoration',
+  [],
+  [],
+);
+
 class _BoxDecorationPainter extends BoxPainter {
   private imagePainter: DecorationImagePainter | null = null;
   private background: Paint | null = null;

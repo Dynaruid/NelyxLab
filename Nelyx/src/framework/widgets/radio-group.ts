@@ -34,6 +34,26 @@ export abstract class RadioGroupRegistry<T> {
   abstract registerClient(client: RadioClient<T>): void;
   abstract unregisterClient(client: RadioClient<T>): void;
 }
+
+/** Adapts the deprecated controlled Radio and CupertinoRadio options to RawRadio. */
+export class LegacyRadioGroupRegistry<T> extends RadioGroupRegistry<T> {
+  constructor(
+    private readonly read: () => {
+      readonly groupValue?: T | null;
+      readonly onChanged?: ((value: T | null) => void) | null;
+    },
+  ) {
+    super();
+  }
+  override get groupValue(): T | null {
+    return this.read().groupValue ?? null;
+  }
+  override get onChanged(): (value: T | null) => void {
+    return (value) => this.read().onChanged?.(value);
+  }
+  override registerClient(_client: RadioClient<T>): void {}
+  override unregisterClient(_client: RadioClient<T>): void {}
+}
 export interface RadioGroupOptions<T> extends WidgetOptions {
   readonly typeToken: object | symbol;
   readonly groupValue: T | null;

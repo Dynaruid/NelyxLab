@@ -6,9 +6,10 @@ import { TextRange } from '@nelyx/core/ui/text-range';
 import type { FocusNode } from '@nelyx/core/framework/widgets/focus';
 import { TextFormField } from '../../text-form-field.ts';
 import type { TextFormFieldOptions } from '../../text-form-field.ts';
-/** Desktop date input uses the text keyboard; date parsing stays in original Dart. */
+import type { EditingKeyboardType } from '@nelyx/core/hosting/interaction';
+/** The date picker retains its locale-specific text parser. */
 export const TextInputType = Object.freeze({ datetime: 'datetime' } as const);
-export type TextInputType = 'datetime' | 'text' | 'number' | 'decimal' | 'phone' | 'email' | 'url';
+export type TextInputType = EditingKeyboardType;
 export class SourceDateEditingController {
   readonly core: TextEditingController;
   constructor({ text = '' }: { text?: string | null } = {}) {
@@ -57,7 +58,7 @@ export function dateTextFormField({
     ...options,
     id,
     controller: controller.core,
-    keyboardType: keyboardType === 'datetime' ? 'text' : keyboardType,
+    keyboardType,
     onSubmitted: onFieldSubmitted,
     ...(focusNode ? { focusNode } : {}),
   });

@@ -2,8 +2,72 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 import { SingleChildLayoutDelegate } from '../rendering/custom-layout.ts';
 import { BoxConstraints } from '../rendering/constraints.ts';
+import { RenderProxyBox } from '../rendering/boxes.ts';
 import { Offset } from '../../ui/offset.ts';
 import type { Size } from '../../ui/geometry.ts';
+import { FocusNode } from './focus.ts';
+import { Focus } from './focus-scope.ts';
+import { SingleChildRenderObjectWidget, State, StatefulWidget } from './framework.ts';
+import type { Widget } from './framework.ts';
+
+/** @internal Restricts focus to the items the selection toolbar lays out on the current page. */
+export class TextSelectionToolbarItem extends StatefulWidget {
+  constructor(readonly child: Widget) {
+    super();
+  }
+
+  override createState(): State<TextSelectionToolbarItem> {
+    return new TextSelectionToolbarItemState();
+  }
+}
+
+class TextSelectionToolbarItemState extends State<TextSelectionToolbarItem> {
+  private readonly focusNode = new FocusNode({
+    canRequestFocus: false,
+    skipTraversal: true,
+    descendantsAreFocusable: false,
+  });
+
+  override build(): Widget {
+    return new ToolbarItemFocus(
+      Focus.withExternalFocusNode(this.widget.child, {
+        focusNode: this.focusNode,
+        includeSemantics: false,
+      }),
+      this.focusNode,
+    );
+  }
+
+  override dispose(): void {
+    this.focusNode.dispose();
+    super.dispose();
+  }
+}
+
+class ToolbarItemFocus extends SingleChildRenderObjectWidget {
+  constructor(
+    child: Widget,
+    private readonly focusNode: FocusNode,
+  ) {
+    super(child);
+  }
+
+  override createRenderObject(): RenderTextSelectionToolbarItem {
+    return new RenderTextSelectionToolbarItem(this.focusNode);
+  }
+}
+
+/** @internal The toolbar calls this after determining which children it can display. */
+export class RenderTextSelectionToolbarItem extends RenderProxyBox {
+  constructor(private readonly focusNode: FocusNode) {
+    super();
+  }
+
+  setVisible(visible: boolean): void {
+    this.focusNode.descendantsAreFocusable = visible;
+  }
+}
+
 export class TextSelectionToolbarLayoutDelegate extends SingleChildLayoutDelegate {
   readonly anchorAbove: Offset;
   readonly anchorBelow: Offset;

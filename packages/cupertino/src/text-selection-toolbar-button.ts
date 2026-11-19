@@ -1,29 +1,47 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/text_selection_toolbar_button.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
+// Flutter: packages/flutter/lib/src/cupertino/desktop_text_selection_toolbar_button.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
+import { Alignment } from '@nelyx/core/framework/painting/alignment';
+import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
+import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';
+import { Text, SizedBox } from '@nelyx/core/framework/widgets/basic';
+import type { ContextMenuButtonItem } from '@nelyx/core/framework/widgets/context-menu-button-item';
+import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
 import { StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
-import { Text, Padding, DecoratedBox, Align, SizedBox } from '@nelyx/core/framework/widgets/basic';
-import { HitTestBehavior } from '@nelyx/core/framework/rendering/pointer-listener';
-import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector';
-import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { MouseRegion } from '@nelyx/core/framework/widgets/mouse-region';
-import { TextStyle } from '@nelyx/core/framework/painting/text-style';
-import type { ContextMenuButtonItem } from '@nelyx/core/framework/widgets/context-menu-button-item';
-import { CupertinoLocalizations } from './cupertino-localizations.ts';
-import { CupertinoTheme } from './theme.ts';
-import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
-import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';
 import type { Canvas } from '@nelyx/core/ui/canvas';
+import { Color } from '@nelyx/core/ui/color';
 import type { Size } from '@nelyx/core/ui/geometry';
 import { Offset } from '@nelyx/core/ui/offset';
 import { Path } from '@nelyx/core/ui/path';
 import { Paint } from '@nelyx/core/ui/paint';
-import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
-import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
-import { CurveTween, Tween } from '@nelyx/core/framework/animation/tween';
-import type { Animation } from '@nelyx/core/framework/animation/animation';
-import { Curves } from '@nelyx/core/framework/animation/curves';
-import { FadeTransition } from '@nelyx/core/framework/widgets/transitions';
+import { FontWeight } from '@nelyx/core/ui/typography';
+import { CupertinoButton } from './button.ts';
+import { CupertinoColors, CupertinoDynamicColor } from './colors.ts';
+import { CupertinoLocalizations } from './cupertino-localizations.ts';
+import { CupertinoTheme } from './theme.ts';
+
+const mobileStyle = new TextStyle({
+  inherit: false,
+  fontSize: 15,
+  letterSpacing: -0.15,
+  fontWeight: FontWeight.w400,
+});
+const desktopStyle = mobileStyle.copyWith({ fontSize: 14 });
+const mobilePadding = EdgeInsets.symmetric({ vertical: 18, horizontal: 16 });
+const desktopPadding = EdgeInsets.fromLTRB(8, 2, 8, 5);
+const toolbarTextColor = CupertinoDynamicColor.withBrightness({
+  color: CupertinoColors.black,
+  darkColor: CupertinoColors.white,
+});
+const toolbarPressedColor = CupertinoDynamicColor.withBrightness({
+  color: new Color(0x10000000),
+  darkColor: new Color(0x10ffffff),
+});
+
 export interface CupertinoTextSelectionToolbarButtonOptions extends WidgetOptions {
   readonly child?: Widget | null;
   readonly onPressed?: (() => void) | null;
@@ -91,75 +109,55 @@ export class CupertinoTextSelectionToolbarButton extends StatefulWidget {
 }
 class CupertinoToolbarButtonState extends State<CupertinoTextSelectionToolbarButton> {
   private pressed = false;
+
+  override didUpdateWidget(old: CupertinoTextSelectionToolbarButton): void {
+    super.didUpdateWidget(old);
+    if (this.widget.onPressed === null) this.pressed = false;
+  }
+
+  override deactivate(): void {
+    this.pressed = false;
+    super.deactivate();
+  }
+
   build(context: BuildContext): Widget {
-    const dark = CupertinoTheme.of(context).brightness === 'dark',
-      label =
-        this.widget.text ??
-        (this.widget.buttonItem
-          ? CupertinoTextSelectionToolbarButton.getButtonLabel(context, this.widget.buttonItem)
-          : ''),
-      child =
-        this.widget.child ??
-        (this.widget.buttonItem?.type.name === 'liveTextInput'
-          ? new SizedBox(
-              13,
-              13,
-              new CustomPaint(undefined, {
-                painter: new LiveTextIconPainter(dark ? 0xffffffff : 0xff000000),
-              }),
-            )
-          : new Text(label, {
-              style: new TextStyle({
-                inherit: false,
-                fontSize: 15,
-                letterSpacing: -0.15,
-                color: this.widget.onPressed ? (dark ? 0xffffffff : 0xff000000) : 0xff8e8e93,
-              }),
-              overflow: 'ellipsis',
-            }));
-    const body = new GestureDetector(
-      new DecoratedBox(
-        new Padding(
-          {
-            left: 16,
-            top: 18,
-            right: 16,
-            bottom: 18,
-          },
-          child,
-        ),
-        this.pressed ? (dark ? 0x10ffffff : 0x10000000) : 0,
-      ),
-      {
-        ...(this.widget.onPressed
-          ? {
-              onTapDown: () =>
-                this.setState(() => {
-                  this.pressed = true;
-                }),
-              onTapUp: () => {
-                this.setState(() => {
-                  this.pressed = false;
-                });
-              },
-              onTap: this.widget.onPressed,
-              onTapCancel: () =>
-                this.setState(() => {
-                  this.pressed = false;
-                }),
-            }
-          : {}),
-        excludeFromSemantics: true,
-        behavior: HitTestBehavior.opaque,
+    const { text, buttonItem, onPressed, child } = this.widget;
+    const label =
+      text ??
+      (buttonItem ? CupertinoTextSelectionToolbarButton.getButtonLabel(context, buttonItem) : '');
+    const resolvedColor = toolbarTextColor.resolveFrom(context).toARGB32();
+    const content =
+      child ??
+      (buttonItem?.type.name === 'liveTextInput'
+        ? new SizedBox(
+            13,
+            13,
+            new CustomPaint(undefined, {
+              painter: new LiveTextIconPainter(resolvedColor),
+            }),
+          )
+        : new Text(label, {
+            style: mobileStyle.copyWith({
+              color: onPressed
+                ? resolvedColor
+                : CupertinoColors.inactiveGray.resolveFrom(context).toARGB32(),
+            }),
+            overflow: 'ellipsis',
+          }));
+    return new CupertinoButton({
+      child: content,
+      onPressed,
+      onHighlightChanged: (pressed) => {
+        if (this.mounted && this.widget.onPressed && this.pressed !== pressed)
+          this.setState(() => {
+            this.pressed = pressed;
+          });
       },
-    );
-    return new Semantics({
-      button: true,
-      label,
-      enabled: this.widget.onPressed !== null,
-      onTap: this.widget.onPressed,
-      excludeSemantics: true,
-      child: body,
+      ...(label ? { semanticsLabel: label } : {}),
+      color: this.pressed ? toolbarPressedColor : CupertinoColors.transparent,
+      disabledColor: CupertinoColors.transparent,
+      padding: mobilePadding,
+      pressedOpacity: 1,
     });
   }
 }
@@ -223,98 +221,39 @@ export class CupertinoDesktopTextSelectionToolbarButton extends CupertinoTextSel
     return new DesktopButtonState();
   }
 }
-class DesktopButtonState extends SingleTickerProviderStateMixin<CupertinoDesktopTextSelectionToolbarButton> {
+class DesktopButtonState extends State<CupertinoDesktopTextSelectionToolbarButton> {
   private hovered = false;
-  private held = false;
-  private controller!: AnimationController;
-  private opacity!: Animation<number>;
-  override initState(): void {
-    super.initState();
-    this.controller = new AnimationController({
-      vsync: this,
-      duration: 200,
-      value: 0,
-    });
-    this.opacity = this.controller
-      .drive(new CurveTween({ curve: Curves.decelerate }))
-      .drive(new Tween({ begin: 1, end: 0.7 }));
-  }
-  private press(held: boolean): void {
-    this.held = held;
-    this.animate();
-  }
-  private animate(): void {
-    if (this.controller.isAnimating) return;
-    const held = this.held;
-    this.controller
-      .animateTo(held ? 1 : 0, {
-        duration: held ? 120 : 180,
-        curve: held ? Curves.easeInOutCubicEmphasized : Curves.easeOutCubic,
-      })
-      .then(() => {
-        if (this.mounted && held !== this.held) this.animate();
-      });
-  }
-  override dispose(): void {
-    this.controller.dispose();
-    super.dispose();
-  }
+
   build(context: BuildContext): Widget {
-    const theme = CupertinoTheme.of(context),
-      label =
-        this.widget.text ??
-        (this.widget.buttonItem
-          ? CupertinoTextSelectionToolbarButton.getButtonLabel(context, this.widget.buttonItem)
-          : ''),
-      child =
-        this.widget.child ??
-        new Text(label, {
-          style: new TextStyle({
-            inherit: false,
-            fontSize: 14,
-            letterSpacing: -0.15,
-            color: this.hovered
-              ? theme.primaryContrastingColor
-              : theme.brightness === 'dark'
-                ? 0xffffffff
-                : 0xff000000,
-          }),
-          overflow: 'ellipsis',
-        });
-    const body = new SizedBox(
+    const theme = CupertinoTheme.of(context);
+    const { text, buttonItem, onPressed, child } = this.widget;
+    const label =
+      text ??
+      (buttonItem ? CupertinoTextSelectionToolbarButton.getButtonLabel(context, buttonItem) : '');
+    const foreground = this.hovered
+      ? theme.primaryContrastingColor
+      : toolbarTextColor.resolveFrom(context).toARGB32();
+    const content =
+      child ??
+      new Text(label, {
+        style: desktopStyle.copyWith({ color: foreground }),
+        overflow: 'ellipsis',
+      });
+    return new SizedBox(
       Infinity,
       undefined,
       new MouseRegion(
-        new GestureDetector(
-          new FadeTransition({
-            opacity: this.opacity,
-            child: new DecoratedBox(
-              new Padding(
-                {
-                  left: 8,
-                  top: 2,
-                  right: 8,
-                  bottom: 5,
-                },
-                new Align(child, { alignment: { x: -1, y: 0 }, heightFactor: 1 }),
-              ),
-              this.hovered ? theme.primaryColor : 0,
-              4,
-            ),
-          }),
-          {
-            ...(this.widget.onPressed
-              ? {
-                  onTap: this.widget.onPressed,
-                  onTapDown: () => this.press(true),
-                  onTapUp: () => this.press(false),
-                  onTapCancel: () => this.press(false),
-                }
-              : {}),
-            excludeFromSemantics: true,
-            behavior: HitTestBehavior.opaque,
-          },
-        ),
+        new CupertinoButton({
+          child: content,
+          onPressed,
+          ...(label ? { semanticsLabel: label } : {}),
+          ...(this.hovered ? { color: theme.primaryColor } : {}),
+          alignment: Alignment.centerLeft,
+          borderRadius: 4,
+          minSize: 0,
+          padding: desktopPadding,
+          pressedOpacity: 0.7,
+        }),
         {
           onEnter: () =>
             this.setState(() => {
@@ -327,13 +266,5 @@ class DesktopButtonState extends SingleTickerProviderStateMixin<CupertinoDesktop
         },
       ),
     );
-    return new Semantics({
-      button: true,
-      label,
-      enabled: this.widget.onPressed !== null,
-      onTap: this.widget.onPressed,
-      excludeSemantics: true,
-      child: body,
-    });
   }
 }

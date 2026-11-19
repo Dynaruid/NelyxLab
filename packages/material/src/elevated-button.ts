@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/elevated_button.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { ButtonStyleButton } from './button-style-button.ts';
 import type { MaterialButtonOptions, MaterialButtonVariant } from './button-style-button.ts';
 import { Text } from '@nelyx/core/framework/widgets/basic';

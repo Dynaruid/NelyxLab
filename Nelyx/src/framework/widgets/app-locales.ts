@@ -2,6 +2,7 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Functional basicLocaleListResolution port on Nelyx's locale-tag ABI.
 import { invariant } from '../../foundation/errors.ts';
+import { Locale } from '../../ui/locale.ts';
 import { languageAliases, regionAliases } from './locale-data.generated.ts';
 interface LocaleParts {
   readonly language: string;
@@ -31,6 +32,14 @@ export function canonicalLocaleTag(locale: string): string {
   const p = parts(locale),
     script = p.script === null ? null : p.script[0]!.toUpperCase() + p.script.slice(1);
   return [p.language, script, p.region].filter((value) => value !== null).join('-');
+}
+export function localeFromTag(tag: string): Locale {
+  const { language, script, region } = parts(tag);
+  return Locale.fromSubtags({
+    languageCode: language,
+    scriptCode: script === null ? null : script[0]!.toUpperCase() + script.slice(1),
+    countryCode: region,
+  });
 }
 export type LocaleListResolutionCallback = (
   preferred: readonly string[] | null,

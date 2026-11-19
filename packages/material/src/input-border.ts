@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/input_border.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 // Standard input borders on the canonical Core shape/path/canvas owners.
-import { ShapeBorder, BorderSide } from '@nelyx/core/framework/painting/borders';
+// Flutter: packages/flutter/lib/src/material/input_border.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
+import { ShapeBorder, BorderSide, OutlinedBorder } from '@nelyx/core/framework/painting/borders';
 import type { ShapeBorderOptions } from '@nelyx/core/framework/painting/borders';
 import { BoxBorder } from '@nelyx/core/framework/painting/box-border';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
@@ -15,7 +17,7 @@ import type { RRect } from '@nelyx/core/ui/rrect';
 import type { Canvas } from '@nelyx/core/ui/canvas';
 import type { Paint } from '@nelyx/core/ui/paint';
 import { invariant } from '@nelyx/core/foundation/errors';
-import { hashValues } from '@nelyx/core/framework/painting/value-equality';
+import { hashValues, valueEquals } from '@nelyx/core/framework/painting/value-equality';
 import { lerpDouble } from '@nelyx/core/internal/ui/lerp-double.generated';
 
 export interface InputBorderOptions {
@@ -28,6 +30,17 @@ export interface InputBorderPaintOptions extends ShapeBorderOptions {
   readonly gapExtent?: number;
   /** @dartType double */
   readonly gapPercentage?: number;
+}
+
+export interface ShapedInputBorderOptions extends InputBorderOptions {
+  readonly shape: ShapeBorder;
+  readonly gapPadding?: number;
+}
+
+export interface ShapedInputBorderCopyOptions {
+  readonly borderSide?: BorderSide | null;
+  readonly shape?: ShapeBorder | null;
+  readonly gapPadding?: number | null;
 }
 let noInputBorder: InputBorder | null = null;
 export abstract class InputBorder extends ShapeBorder {
@@ -47,6 +60,141 @@ export abstract class InputBorder extends ShapeBorder {
    * @dartParam gapExtent double
    * @dartParam gapPercentage double */
   abstract override paint(canvas: Canvas, rect: Rect, options?: InputBorderPaintOptions): void;
+}
+
+export class ShapedInputBorder extends InputBorder {
+  readonly shape: ShapeBorder;
+  readonly gapPadding: number;
+
+  constructor({ shape, borderSide = new BorderSide(), gapPadding = 4 }: ShapedInputBorderOptions) {
+    super({ borderSide });
+    invariant(
+      Number.isFinite(gapPadding) && gapPadding >= 0,
+      'invalid-shaped-input-gap',
+      'Input border gap padding must be nonnegative',
+    );
+    this.shape = shape;
+    this.gapPadding = gapPadding;
+  }
+
+  get isOutline(): boolean {
+    return true;
+  }
+  override get dimensions(): EdgeInsetsGeometry {
+    return EdgeInsets.all(this.borderSide.width);
+  }
+  copyWith({
+    borderSide,
+    shape,
+    gapPadding,
+  }: ShapedInputBorderCopyOptions = {}): ShapedInputBorder {
+    return new ShapedInputBorder({
+      borderSide: borderSide ?? this.borderSide,
+      shape: shape ?? this.shape,
+      gapPadding: gapPadding ?? this.gapPadding,
+    });
+  }
+  scale(t: number): ShapedInputBorder {
+    return new ShapedInputBorder({
+      borderSide: this.borderSide.scale(t),
+      shape: this.shape.scale(t),
+      gapPadding: this.gapPadding * t,
+    });
+  }
+  override lerpFrom(from: ShapeBorder | null, t: number): ShapeBorder | null {
+    return from instanceof ShapedInputBorder
+      ? new ShapedInputBorder({
+          borderSide: BorderSide.lerp(from.borderSide, this.borderSide, t),
+          shape: ShapeBorder.lerp(from.shape, this.shape, t)!,
+          gapPadding: from.gapPadding,
+        })
+      : super.lerpFrom(from, t);
+  }
+  override lerpTo(to: ShapeBorder | null, t: number): ShapeBorder | null {
+    return to instanceof ShapedInputBorder
+      ? new ShapedInputBorder({
+          borderSide: BorderSide.lerp(this.borderSide, to.borderSide, t),
+          shape: ShapeBorder.lerp(this.shape, to.shape, t)!,
+          gapPadding: to.gapPadding,
+        })
+      : super.lerpTo(to, t);
+  }
+  getInnerPath(rect: Rect, options: ShapeBorderOptions = {}): Path {
+    return this.shape.getInnerPath(rect.deflate(this.borderSide.width), options);
+  }
+  getOuterPath(rect: Rect, options: ShapeBorderOptions = {}): Path {
+    return this.shape.getOuterPath(rect, options);
+  }
+  override get preferPaintInterior(): boolean {
+    return this.shape.preferPaintInterior;
+  }
+  override paintInterior(
+    canvas: Canvas,
+    rect: Rect,
+    paint: Paint,
+    options: ShapeBorderOptions = {},
+  ): void {
+    if (this.shape.preferPaintInterior) this.shape.paintInterior(canvas, rect, paint, options);
+    else canvas.drawPath(this.shape.getOuterPath(rect, options), paint);
+  }
+  paint(
+    canvas: Canvas,
+    rect: Rect,
+    {
+      gapStart = null,
+      gapExtent = 0,
+      gapPercentage = 0,
+      textDirection = null,
+    }: InputBorderPaintOptions = {},
+  ): void {
+    invariant(
+      gapPercentage >= 0 && gapPercentage <= 1,
+      'invalid-input-gap-percentage',
+      'Input gap percentage must be within [0,1]',
+    );
+    if (this.borderSide.style === 'none') return;
+    const bounds = rect.deflate(this.borderSide.width / 2);
+    const options = { textDirection };
+    const paint = this.borderSide.toPaint();
+    if (gapStart === null || gapExtent <= 0 || gapPercentage === 0) {
+      if (this.shape instanceof OutlinedBorder)
+        this.shape.copyWith({ side: this.borderSide }).paint(canvas, bounds, options);
+      else canvas.drawPath(this.shape.getOuterPath(bounds, options), paint);
+      return;
+    }
+    invariant(
+      textDirection !== null,
+      'missing-text-direction',
+      'An input border label gap requires textDirection',
+    );
+    const extent = (gapExtent + 2 * this.gapPadding) * gapPercentage;
+    const start = Math.max(
+      0,
+      textDirection === 'rtl' ? gapStart + this.gapPadding - extent : gapStart - this.gapPadding,
+    );
+    const edge = (x: number) => Math.min(bounds.right, Math.max(bounds.left, x));
+    const gap = Rect.fromLTRB(edge(start), bounds.top - 1, edge(start + extent), bounds.top + 1);
+    canvas.save();
+    try {
+      canvas.clipRect(gap, { clipOp: 'difference' });
+      canvas.drawPath(this.shape.getOuterPath(bounds, options), paint);
+    } finally {
+      canvas.restore();
+    }
+  }
+  equals(other: unknown): boolean {
+    return (
+      this === other ||
+      (other instanceof ShapedInputBorder &&
+        other.constructor === this.constructor &&
+        this.borderSide.equals(other.borderSide) &&
+        valueEquals(this.shape, other.shape) &&
+        this.gapPadding === other.gapPadding)
+    );
+  }
+  get hashCode(): number {
+    return hashValues(this.borderSide, this.shape, this.gapPadding);
+  }
 }
 class NoInputBorder extends InputBorder {
   constructor() {

@@ -36,7 +36,3 @@ export const _kDefaultCheckColor = constCupertinoDynamicColorWithBrightness({
   dartDoubleType,
   [DartDouble.fromSource(0.08), DartDouble.fromSource(0.14)],
 );
-/** @dartType double */ export const kMinInteractiveDimensionCupertino = 44;
-/** @dartType double */ export const kCupertinoFocusColorOpacity = 0.8;
-/** @dartType double */ export const kCupertinoFocusColorBrightness = 0.69;
-/** @dartType double */ export const kCupertinoFocusColorSaturation = 0.835;

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Adapted from Flutter packages/flutter/lib/src/material/slider.dart
+// at 71e4717a61786faab4c7aa39825989305ed29e8a.
 // Pinned Slider state/render contracts on Core View input, ticker, layer and text owners.
 import {
   StatefulWidget,
@@ -75,9 +77,14 @@ import {
   ShowValueIndicator,
   SliderInteraction,
 } from './slider-theme.ts';
+import type { SemanticFormatterCallback } from './slider-theme.ts';
 import { sliderThemeFieldNames } from './generated/slider/slider-theme-fields.generated.ts';
 import { materialSliderDefaults, sliderOverlayColor } from './internal/slider/slider-defaults.ts';
 import { RectangularSliderValueIndicatorShape } from './slider-shapes.ts';
+
+/** Paints the value indicator in the slider's overlay. */
+export type PaintValueIndicator = (context: PaintingContext, offset: Offset) => void;
+
 export interface SliderOptions extends WidgetOptions {
   /** @dartType double */ readonly value: number;
   readonly onChanged: ((value: number) => void) | null;
@@ -94,7 +101,7 @@ export interface SliderOptions extends WidgetOptions {
   readonly secondaryActiveColor?: Color | null;
   readonly overlayColor?: WidgetStateProperty<Color | null> | null;
   readonly mouseCursor?: MouseCursor | WidgetStateProperty<MouseCursor | null> | null;
-  readonly semanticFormatterCallback?: ((value: number) => string) | null;
+  readonly semanticFormatterCallback?: SemanticFormatterCallback | null;
   readonly focusNode?: FocusNode | null;
   readonly autofocus?: boolean;
   readonly allowedInteraction?: SliderInteraction | null;

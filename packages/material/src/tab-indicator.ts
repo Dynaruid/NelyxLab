@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/tab_indicator.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { BorderSide } from '@nelyx/core/framework/painting/borders';
 import type { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import { BoxPainter, Decoration } from '@nelyx/core/framework/painting/decoration';

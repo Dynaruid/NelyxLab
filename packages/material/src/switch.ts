@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Adapted from Flutter packages/flutter/lib/src/material/switch.dart
+// at 71e4717a61786faab4c7aa39825989305ed29e8a.
 import { invariant } from '@nelyx/core/foundation/errors';
 import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
@@ -23,6 +25,8 @@ export interface SwitchOptions extends Omit<BaseOptions, 'mouseCursor' | 'onFocu
   readonly onChanged: ((value: boolean) => void) | null;
   readonly semanticLabel?: string | null;
   readonly id?: string;
+  /** @deprecated Use activeThumbColor or activeTrackColor. */
+  readonly activeColor?: Color | null;
   readonly activeThumbColor?: Color | null;
   readonly activeTrackColor?: Color | null;
   readonly inactiveThumbColor?: Color | null;
@@ -60,11 +64,6 @@ export class Switch extends StatelessWidget {
    */
   constructor(options: SwitchOptions) {
     super(options.key ?? null);
-    invariant(
-      !('activeColor' in options),
-      'deprecated-switch-option',
-      'Switch uses activeThumbColor and activeTrackColor',
-    );
     invariant(
       typeof options.value === 'boolean',
       'invalid-switch-value',
@@ -108,6 +107,10 @@ export class Switch extends StatelessWidget {
   }
   get onChanged(): ((value: boolean) => void) | null {
     return this.options.onChanged;
+  }
+  /** @deprecated Use activeThumbColor or activeTrackColor. */
+  get activeColor(): Color | null {
+    return this.options.activeColor ?? null;
   }
   get activeThumbColor(): Color | null {
     return this.options.activeThumbColor ?? null;
@@ -184,7 +187,7 @@ export class Switch extends StatelessWidget {
     return this.options.padding ?? null;
   }
   get applyCupertinoTheme(): boolean | null {
-    return adaptiveSwitches.get(this) ?? null;
+    return adaptiveSwitches.has(this) ? (adaptiveSwitches.get(this) ?? null) : false;
   }
   build(context: BuildContext): Widget {
     const adaptive = adaptiveSwitches.has(this);

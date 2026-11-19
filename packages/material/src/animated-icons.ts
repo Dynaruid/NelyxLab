@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/animated_icons/animated_icons.dart
+// Flutter: packages/flutter/lib/src/material/animated_icons/animated_icons_data.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { invariant } from '@nelyx/core/foundation/errors';
 import type { Animation } from '@nelyx/core/framework/animation/animation';
 import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';

@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { invariant } from '../foundation/errors.ts';
-export type EditingKeyboardType = 'text' | 'number' | 'decimal' | 'phone' | 'email' | 'url';
+import type { SmartDashesType, SmartQuotesType } from '../services/text-input.ts';
+export type EditingKeyboardType =
+  | 'text'
+  | 'number'
+  | 'decimal'
+  | 'phone'
+  | 'email'
+  | 'url'
+  | 'datetime';
 export type EditingCapitalization = 'none' | 'sentences' | 'words' | 'characters';
 export interface EditingConfiguration {
   readonly multiline: boolean;
@@ -9,6 +17,10 @@ export interface EditingConfiguration {
   readonly autocorrect: boolean;
   readonly enableSuggestions: boolean;
   readonly keyboardType: EditingKeyboardType;
+  readonly keyboardAppearance?: 'light' | 'dark' | null;
+  readonly smartDashesType?: SmartDashesType | null;
+  readonly smartQuotesType?: SmartQuotesType | null;
+  readonly stylusHandwritingEnabled?: boolean;
   readonly capitalization: EditingCapitalization;
   /** Ordered semantic hints; null/empty disables autofill. No field values enter this configuration. */
   readonly autofillHints: readonly string[] | null;
@@ -23,6 +35,10 @@ const defaults: EditingConfiguration = {
   autocorrect: true,
   enableSuggestions: true,
   keyboardType: 'text',
+  keyboardAppearance: null,
+  smartDashesType: null,
+  smartQuotesType: null,
+  stylusHandwritingEnabled: true,
   capitalization: 'sentences',
   autofillHints: null,
   autofillSection: null,
@@ -45,6 +61,7 @@ export function freezeEditingConfiguration(
     'obscureText',
     'autocorrect',
     'enableSuggestions',
+    'stylusHandwritingEnabled',
   ] as const)
     invariant(
       typeof value[key] === 'boolean',
@@ -52,15 +69,24 @@ export function freezeEditingConfiguration(
       'Editing flags must be booleans',
     );
   invariant(
+    (value.smartDashesType == null || ['enabled', 'disabled'].includes(value.smartDashesType)) &&
+      (value.smartQuotesType == null || ['enabled', 'disabled'].includes(value.smartQuotesType)),
+    'invalid-editing-configuration',
+    'Smart dashes and quotes must be enabled or disabled',
+  );
+  invariant(
     !(value.multiline && value.obscureText),
     'invalid-editing-configuration',
     'Obscured editing requires a single line',
   );
   invariant(
-    ['text', 'number', 'decimal', 'phone', 'email', 'url'].includes(value.keyboardType) &&
-      ['none', 'sentences', 'words', 'characters'].includes(value.capitalization),
+    ['text', 'number', 'decimal', 'phone', 'email', 'url', 'datetime'].includes(
+      value.keyboardType,
+    ) &&
+      ['none', 'sentences', 'words', 'characters'].includes(value.capitalization) &&
+      (value.keyboardAppearance == null || ['light', 'dark'].includes(value.keyboardAppearance)),
     'invalid-editing-configuration',
-    'Unknown keyboard or capitalization',
+    'Unknown keyboard type, appearance or capitalization',
   );
   invariant(
     !value.obscureText || ['text', 'number', 'decimal'].includes(value.keyboardType),
@@ -95,6 +121,9 @@ export function freezeEditingConfiguration(
   );
   return Object.freeze({
     ...value,
+    keyboardAppearance: value.keyboardAppearance ?? null,
+    smartDashesType: value.smartDashesType ?? (value.obscureText ? 'disabled' : 'enabled'),
+    smartQuotesType: value.smartQuotesType ?? (value.obscureText ? 'disabled' : 'enabled'),
     ...(value.obscureText
       ? { autocorrect: false, enableSuggestions: false, capitalization: 'none' as const }
       : {}),

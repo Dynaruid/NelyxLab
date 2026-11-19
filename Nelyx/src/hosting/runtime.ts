@@ -123,6 +123,7 @@ export interface ViewControllerContext extends ViewServices {
 export interface ViewController {
   build(context: SceneContext): SceneFrameSource;
   setVisible?(visible: boolean): void;
+  handleStatusBarTap?(): void;
   /** Owner gate, for example first-frame deferral. Native admission alone
    * cannot suppress a requested future frame: present may be unobserved. */
   shouldSubmitFrame?(): boolean;
@@ -714,6 +715,9 @@ export class ViewRuntime implements Disposable {
       this.task?.dispose();
       this.task = undefined;
     }
+  }
+  handleStatusBarTap(): void {
+    if (this.state === 'open' && this.visible) this.controller?.handleStatusBarTap?.();
   }
   private buildPending(forced = false): false | void {
     if (!this.dirty) return;

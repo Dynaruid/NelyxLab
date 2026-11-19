@@ -3,10 +3,10 @@
 // Doroti Widget/default/paint responsibility split; shared typed registry and input belong to Core.
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import { RawRadio, RadioGroup } from '@nelyx/core/framework/widgets/radio-group';
+import type { RadioGroupRegistry } from '@nelyx/core/framework/widgets/radio-group';
 import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
 import { WidgetState } from '@nelyx/core/framework/widgets/widget-state';
 import type { DartSet } from '@nelyx/core/foundation/dart-collections';
-import { HSLColor } from '@nelyx/core/framework/painting/colors';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { WidgetStateMouseCursor } from '@nelyx/core/framework/widgets/widget-state-mouse-cursor';
 import type { FocusNode } from '@nelyx/core/framework/widgets/focus';
@@ -22,12 +22,7 @@ import {
   _kDefaultInnerColor,
   _kDefaultOuterColor,
 } from '../../generated/radio/radio-defaults.generated.ts';
-// These three source constants already have one verified common focus-data owner.
-import {
-  kCupertinoFocusColorOpacity,
-  kCupertinoFocusColorBrightness,
-  kCupertinoFocusColorSaturation,
-} from '../../generated/checkbox/checkbox-defaults.generated.ts';
+import { cupertinoFocusOutlineColor } from '../toggle/control-values.ts';
 import { CupertinoRadioPainter } from './radio-painter.ts';
 import type { CupertinoRadioPaintValues } from './radio-painter.ts';
 
@@ -65,12 +60,7 @@ export function resolveCupertinoRadio<T>(
     fillColor,
     borderColor,
     focusColor:
-      w.focusColor === null
-        ? HSLColor.fromColor(activeColor.withOpacity(kCupertinoFocusColorOpacity))
-            .withLightness(kCupertinoFocusColorBrightness)
-            .withSaturation(kCupertinoFocusColorSaturation)
-            .toColor()
-        : resolve(w.focusColor),
+      w.focusColor === null ? cupertinoFocusOutlineColor(activeColor) : resolve(w.focusColor),
     brightness: CupertinoTheme.of(context).specifiedBrightness,
     isActive: !disabled,
   };
@@ -79,6 +69,7 @@ export function buildCupertinoRadio<T>(
   w: CupertinoRadio<T>,
   context: BuildContext,
   focusNode: FocusNode,
+  legacyRegistry: RadioGroupRegistry<T>,
 ): Widget {
   const options = w.options,
     registry =
@@ -86,11 +77,12 @@ export function buildCupertinoRadio<T>(
       (options.groupToken === undefined
         ? null
         : RadioGroup.maybeOf<T>(context, options.groupToken));
-  const enabled = w.enabled ?? registry !== null;
+  const hasSelectionOwner = registry !== null || w.onChanged !== null;
+  const enabled = w.enabled ?? hasSelectionOwner;
   invariant(
-    !enabled || registry !== null,
+    !enabled || hasSelectionOwner,
     'missing-radio-registry',
-    'Enabled CupertinoRadio needs a typed RadioGroup ancestor or an explicit registry',
+    'Enabled CupertinoRadio requires a RadioGroup, registry, or selection callback',
   );
   const {
     key: _,
@@ -102,11 +94,14 @@ export function buildCupertinoRadio<T>(
     focusColor,
     useCheckmarkStyle,
     mouseCursor,
+    groupValue,
+    onChanged,
     enabled: __,
     ...interaction
   } = options;
   return new RawRadio({
     ...interaction,
+    groupRegistry: registry ?? legacyRegistry,
     enabled,
     focusNode,
     motion: 'source',

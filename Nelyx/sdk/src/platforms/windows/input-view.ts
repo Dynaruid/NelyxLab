@@ -16,7 +16,7 @@ import type {
 // input scope, not a native text control or an alternative editor configuration.
 function inputScope(configuration: EditingConfiguration): number {
   if (configuration.obscureText) return 31;
-  return { text: 57, number: 29, decimal: 29, phone: 32, email: 5, url: 1 }[
+  return { text: 57, number: 29, decimal: 29, phone: 32, email: 5, url: 1, datetime: 57 }[
     configuration.keyboardType
   ];
 }

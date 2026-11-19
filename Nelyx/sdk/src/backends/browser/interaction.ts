@@ -369,6 +369,7 @@ export function createDomInteraction(
           phone: 'tel',
           email: 'email',
           url: 'url',
+          datetime: 'text',
         } as const
       )[configuration.keyboardType];
       element.autocapitalize = configuration.capitalization;

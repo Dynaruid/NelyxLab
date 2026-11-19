@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/typography.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 // M3-only Typography. Doroti typography.cs responsibilities; pinned Flutter values/methods.
 import { Diagnosticable } from '@nelyx/core/foundation/diagnosticable';
 import { DiagnosticsProperty } from '@nelyx/core/foundation/diagnostics';

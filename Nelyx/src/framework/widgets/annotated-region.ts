@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 import { invariant } from '../../foundation/errors.ts';
+import type { SystemUiOverlayStyle } from '../../services/system-ui-overlay-style.ts';
 import { AnnotationType } from '../rendering/layer.ts';
 import { RenderAnnotatedRegion } from '../rendering/annotated-region.ts';
 import { SingleChildRenderObjectWidget, Widget } from './framework.ts';
 import type { WidgetOptions, BuildContext } from './framework.ts';
 import type { RenderObject } from '../rendering/object.ts';
 const runtimeTypes = new WeakMap<object, WeakMap<object, object>>();
+export const systemUiOverlayStyleAnnotation = new AnnotationType<SystemUiOverlayStyle>(
+  'SystemUiOverlayStyle',
+);
 export interface AnnotatedRegionOptions<T extends {}> extends WidgetOptions {
   readonly value: T;
   readonly annotationType: AnnotationType<T>;

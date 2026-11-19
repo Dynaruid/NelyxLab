@@ -88,6 +88,7 @@ export interface GestureOptions extends Partial<
   readonly onTapDown?: GestureTapDownCallback | null;
   readonly onTapUp?: GestureTapUpCallback | null;
   readonly onTapMove?: GestureTapMoveCallback | null;
+  readonly trackTapMovementAfterAcceptance?: boolean;
   readonly onTapCancel?: GestureTapCancelCallback | null;
   readonly onSecondaryTap?: GestureTapCallback | null;
   readonly onSecondaryTapDown?: GestureTapDownCallback | null;
@@ -218,6 +219,8 @@ export class GestureDetector extends StatelessWidget {
             (instance) => {
               for (const name of tapCallbacks)
                 (instance as unknown as Record<string, unknown>)[name] = options[name] ?? null;
+              instance.trackMovementAfterAcceptance =
+                options.trackTapMovementAfterAcceptance ?? false;
               instance.gestureSettings = gestureSettings;
               instance.supportedDevices = options.supportedDevices ?? null;
             },

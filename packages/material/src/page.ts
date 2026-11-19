@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// material/page.dart on the canonical Core PageRoute policy and controller owner.
-import { PageRoute } from '@nelyx/core/framework/widgets/pages';
-import type { PageRouteOptions } from '@nelyx/core/framework/widgets/pages';
+// Flutter: packages/flutter/lib/src/material/page.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
+import { Page, PageRoute } from '@nelyx/core/framework/widgets/pages';
+import type { PageOptions, PageRouteOptions } from '@nelyx/core/framework/widgets/pages';
 import { Route } from '@nelyx/core/framework/widgets/navigation';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import type { Animation } from '@nelyx/core/framework/animation/animation';
@@ -127,6 +127,61 @@ export class MaterialPageRoute<T = unknown> extends MaterialRouteTransitionMixin
   }
   override buildContent(context: BuildContext): Widget {
     return this.builder(context);
+  }
+  override get debugLabel(): string {
+    return super.debugLabel + '(' + this.settings.name + ')';
+  }
+}
+
+export interface MaterialPageOptions<T = unknown> extends PageOptions<T> {
+  readonly child: Widget;
+  readonly maintainState?: boolean;
+  readonly fullscreenDialog?: boolean;
+  readonly allowSnapshotting?: boolean;
+}
+
+export class MaterialPage<T = unknown> extends Page<T> {
+  readonly child: Widget;
+  readonly maintainState: boolean;
+  readonly fullscreenDialog: boolean;
+  readonly allowSnapshotting: boolean;
+
+  constructor({
+    child,
+    maintainState = true,
+    fullscreenDialog = false,
+    allowSnapshotting = true,
+    ...settings
+  }: MaterialPageOptions<T>) {
+    super(settings);
+    this.child = child;
+    this.maintainState = maintainState;
+    this.fullscreenDialog = fullscreenDialog;
+    this.allowSnapshotting = allowSnapshotting;
+  }
+
+  override createRoute(_context: BuildContext): PageRoute<T> {
+    return new PageBasedMaterialRoute(this);
+  }
+}
+
+class PageBasedMaterialRoute<T> extends MaterialRouteTransitionMixin<T> {
+  constructor(page: MaterialPage<T>) {
+    super({ settings: page, allowSnapshotting: page.allowSnapshotting });
+  }
+
+  private get page(): MaterialPage<T> {
+    return this.settings as MaterialPage<T>;
+  }
+
+  override get fullscreenDialog(): boolean {
+    return this.page.fullscreenDialog;
+  }
+  override get maintainState(): boolean {
+    return this.page.maintainState;
+  }
+  override buildContent(): Widget {
+    return this.page.child;
   }
   override get debugLabel(): string {
     return super.debugLabel + '(' + this.settings.name + ')';

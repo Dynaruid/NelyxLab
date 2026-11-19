@@ -4,7 +4,20 @@ import type {
   ControlInteractionOptions,
   ControlVisualState,
 } from '@nelyx/core/framework/widgets/control-interaction';
-import { Color } from '@nelyx/core/ui/color';
+import type { Color } from '@nelyx/core/ui/color';
+import { HSLColor } from '@nelyx/core/framework/painting/colors';
+import {
+  kCupertinoFocusColorBrightness,
+  kCupertinoFocusColorOpacity,
+  kCupertinoFocusColorSaturation,
+} from '../../constants.ts';
+
+export function cupertinoFocusOutlineColor(color: Color): Color {
+  return HSLColor.fromColor(color.withOpacity(kCupertinoFocusColorOpacity))
+    .withLightness(kCupertinoFocusColorBrightness)
+    .withSaturation(kCupertinoFocusColorSaturation)
+    .toColor();
+}
 export function disabledColor(color: Color, disabled: boolean): Color {
   return disabled ? color.withAlpha(Math.round(color.alpha * 0.5)) : color;
 }

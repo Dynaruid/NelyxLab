@@ -61,6 +61,8 @@ export interface PlatformAccessibility {
 }
 export interface PlatformEnvironment {
   readonly revision: number;
+  /** Basename of the running native executable, when supplied by the host. */
+  readonly executableName?: string;
   readonly locales: readonly string[] | null;
   readonly localeSource: 'native' | 'runtime' | 'unavailable';
   readonly brightness: 'light' | 'dark' | null;
@@ -106,6 +108,7 @@ function lifecycle(value: unknown): AppLifecycleState | null {
 function environment(value: unknown): PlatformEnvironment {
   if (!(value instanceof Map)) throw new TypeError('Invalid platform environment');
   const revision = value.get('revision'),
+    executableName = value.get('executableName'),
     locales = value.get('locales'),
     localeSource = value.get('localeSource'),
     brightness = value.get('brightness'),
@@ -114,6 +117,11 @@ function environment(value: unknown): PlatformEnvironment {
   if (
     !Number.isSafeInteger(revision) ||
     revision < 0 ||
+    (executableName !== undefined &&
+      (typeof executableName !== 'string' ||
+        executableName.length === 0 ||
+        executableName.length > 1024 ||
+        executableName.includes('\0'))) ||
     !(
       locales === null ||
       (Array.isArray(locales) &&
@@ -174,6 +182,7 @@ function environment(value: unknown): PlatformEnvironment {
   }
   return Object.freeze({
     revision,
+    ...(executableName !== undefined ? { executableName } : {}),
     locales: locales === null ? null : Object.freeze([...locales]),
     localeSource,
     ...(observation !== undefined

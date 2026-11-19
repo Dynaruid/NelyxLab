@@ -27,6 +27,7 @@ import { BottomSheetThemeData } from './bottom-sheet-theme-data.ts';
 import { DataTableThemeData } from './data-table-theme-data.ts';
 import { DatePickerThemeData } from './date-picker-theme-data.ts';
 import { DropdownMenuThemeData } from './dropdown-menu-theme-data.ts';
+import { ButtonThemeData } from './button-theme.ts';
 import { NavigationRailThemeData } from './navigation-rail-theme-data.ts';
 import { PopupMenuThemeData } from './popup-menu-theme-data.ts';
 import { SnackBarThemeData } from './snack-bar-theme-data.ts';
@@ -63,6 +64,7 @@ import type { CupertinoThemeDataOptions } from '@nelyx/cupertino/theme';
 import type { BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { Colors, MaterialColor } from './colors.ts';
 import { TextSelectionThemeData } from './text-selection-theme-data.ts';
+import { ButtonBarThemeData } from './button-bar-theme-data.ts';
 import { ColorScheme } from './color-scheme.ts';
 import { TextTheme } from './text-theme.ts';
 import { DividerThemeData } from './divider-theme-data.ts';
@@ -115,6 +117,7 @@ import { valueEquals, hashValues } from '@nelyx/core/framework/painting/value-eq
 import { lerpDouble } from '@nelyx/core/internal/ui/lerp-double.generated';
 const primaryIconWhite = new IconThemeData({ color: Colors.white }),
   primaryIconBlack = new IconThemeData({ color: Colors.black });
+const defaultButtonBarTheme = new ButtonBarThemeData();
 class AdaptationMap extends Map<object, ThemeAdaptation> {
   override set(key: object, value: ThemeAdaptation): this {
     if (!(value instanceof Adaptation))
@@ -155,6 +158,8 @@ export interface ThemeDataOptions {
   readonly dataTableTheme?: DataTableThemeData | null;
   readonly datePickerTheme?: DatePickerThemeData | null;
   readonly dropdownMenuTheme?: DropdownMenuThemeData | null;
+  readonly buttonBarTheme?: ButtonBarThemeData | null;
+  readonly buttonTheme?: ButtonThemeData | null;
   readonly navigationRailTheme?: NavigationRailThemeData | null;
   readonly popupMenuTheme?: PopupMenuThemeData | null;
   readonly snackBarTheme?: SnackBarThemeData | null;
@@ -310,7 +315,7 @@ export type ThemeDataRawOptions = Pick<
   | 'timePickerTheme'
   | 'toggleButtonsTheme'
   | 'tooltipTheme'
->;
+> & { readonly buttonTheme?: ButtonThemeData; readonly buttonBarTheme?: ButtonBarThemeData };
 const themeDataFields = [
   'cupertinoOverrideTheme',
   'extensions',
@@ -361,6 +366,8 @@ const themeDataFields = [
   'dividerTheme',
   'drawerTheme',
   'dropdownMenuTheme',
+  'buttonBarTheme',
+  'buttonTheme',
   'elevatedButtonTheme',
   'expansionTileTheme',
   'filledButtonTheme',
@@ -401,8 +408,6 @@ function rejectRemovedThemeOptions(options: object): void {
   for (const name of [
     'useMaterial3',
     'applyElevationOverlayColor',
-    'buttonTheme',
-    'buttonBarTheme',
     'dialogBackgroundColor',
     'indicatorColor',
   ])
@@ -419,6 +424,8 @@ export class ThemeData extends Diagnosticable(class {}) {
   readonly dataTableTheme: DataTableThemeData;
   readonly datePickerTheme: DatePickerThemeData;
   readonly dropdownMenuTheme: DropdownMenuThemeData;
+  readonly buttonBarTheme: ButtonBarThemeData;
+  readonly buttonTheme: ButtonThemeData;
   readonly navigationRailTheme: NavigationRailThemeData;
   readonly popupMenuTheme: PopupMenuThemeData;
   readonly snackBarTheme: SnackBarThemeData;
@@ -656,6 +663,19 @@ export class ThemeData extends Diagnosticable(class {}) {
       materialSchemeColor(colorScheme, colorScheme.brightness === 'dark' ? 'surface' : 'primary');
     const swatch = options.primarySwatch ?? Colors.blue,
       isDark = brightness === 'dark';
+    this.buttonBarTheme = options.buttonBarTheme ?? defaultButtonBarTheme;
+    this.buttonTheme =
+      options.buttonTheme ??
+      new ButtonThemeData({
+        colorScheme,
+        buttonColor: isDark ? swatch.shade600 : Colors.grey.shade300,
+        disabledColor,
+        focusColor: this.focusColor,
+        hoverColor: this.hoverColor,
+        highlightColor: options.highlightColor ?? null,
+        splashColor,
+        materialTapTargetSize: this.materialTapTargetSize,
+      });
     this.primaryColorLight =
       options.primaryColorLight ?? (isDark ? Colors.grey.shade500 : swatch.shade100);
     this.primaryColorDark = options.primaryColorDark ?? (isDark ? Colors.black : swatch.shade700);
@@ -770,6 +790,23 @@ export class ThemeData extends Diagnosticable(class {}) {
     rejectRemovedThemeOptions(options);
     const result = Object.create(ThemeData.prototype) as ThemeData;
     for (const field of themeDataFields) {
+      if (field === 'buttonBarTheme') {
+        Object.defineProperty(result, field, {
+          value: options.buttonBarTheme ?? defaultButtonBarTheme,
+          enumerable: true,
+        });
+        continue;
+      }
+      if (field === 'buttonTheme') {
+        const value =
+          options.buttonTheme ??
+          new ButtonThemeData({
+            colorScheme: options.colorScheme,
+            materialTapTargetSize: options.materialTapTargetSize,
+          });
+        Object.defineProperty(result, field, { value, enumerable: true });
+        continue;
+      }
       if (!(field in options)) throw new TypeError('ThemeData.raw requires ' + field);
       const value = options[field];
       if (
@@ -884,6 +921,8 @@ export class ThemeData extends Diagnosticable(class {}) {
       dividerTheme: options.dividerTheme ?? this.dividerTheme,
       drawerTheme: options.drawerTheme ?? this.drawerTheme,
       dropdownMenuTheme: options.dropdownMenuTheme ?? this.dropdownMenuTheme,
+      buttonBarTheme: options.buttonBarTheme ?? this.buttonBarTheme,
+      buttonTheme: options.buttonTheme ?? this.buttonTheme,
       elevatedButtonTheme: options.elevatedButtonTheme ?? this.elevatedButtonTheme,
       expansionTileTheme: options.expansionTileTheme ?? this.expansionTileTheme,
       filledButtonTheme: options.filledButtonTheme ?? this.filledButtonTheme,
@@ -986,6 +1025,8 @@ export class ThemeData extends Diagnosticable(class {}) {
       dividerTheme: DividerThemeData.lerp(a.dividerTheme, b.dividerTheme, t),
       drawerTheme: DrawerThemeData.lerp(a.drawerTheme, b.drawerTheme, t)!,
       dropdownMenuTheme: DropdownMenuThemeData.lerp(a.dropdownMenuTheme, b.dropdownMenuTheme, t),
+      buttonBarTheme: ButtonBarThemeData.lerp(a.buttonBarTheme, b.buttonBarTheme, t)!,
+      buttonTheme: t < 0.5 ? a.buttonTheme : b.buttonTheme,
       elevatedButtonTheme: ElevatedButtonThemeData.lerp(
         a.elevatedButtonTheme,
         b.elevatedButtonTheme,
@@ -1125,6 +1166,8 @@ export class ThemeData extends Diagnosticable(class {}) {
       this.dividerTheme,
       this.drawerTheme,
       this.dropdownMenuTheme,
+      this.buttonBarTheme,
+      this.buttonTheme,
       this.elevatedButtonTheme,
       this.expansionTileTheme,
       this.filledButtonTheme,
@@ -1470,6 +1513,20 @@ export class ThemeData extends Diagnosticable(class {}) {
         defaultValue: defaultData.dropdownMenuTheme,
         level: 'debug',
         typeName: 'DropdownMenuThemeData',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('buttonBarTheme', this.buttonBarTheme, {
+        defaultValue: defaultData.buttonBarTheme,
+        level: 'debug',
+        typeName: 'ButtonBarThemeData',
+      }),
+    );
+    properties.add(
+      new DiagnosticsProperty('buttonTheme', this.buttonTheme, {
+        defaultValue: defaultData.buttonTheme,
+        level: 'debug',
+        typeName: 'ButtonThemeData',
       }),
     );
     properties.add(

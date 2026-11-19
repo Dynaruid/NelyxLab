@@ -258,7 +258,33 @@ private:
       });
       method("heapInfo",0,[this](auto& rt,auto const&,auto*,size_t){jsi::Object result(rt),heap(rt);for(auto const& [key,value]:rt.instrumentation().getHeapInfo(false))heap.setProperty(rt,key.c_str(),double(value));result.setProperty(rt,"heap",std::move(heap));result.setProperty(rt,"gcStatsEnabled",gcStats);if(gcStats){auto data=rt.instrumentation().getRecordedGCStats();if(data.size()>4*1024*1024)throw jsi::JSError(rt,"Native GC report exceeds 4 MiB");result.setProperty(rt,"gc",jsi::String::createFromUtf8(rt,data));}return result;});
     }
-    method("environment",0,[this](auto& rt,auto const&,auto*,size_t){auto e=onUi([this]{return NH::readEnvironment(window);});jsi::Object value(rt);jsi::Array locales(rt,e.locales.size());for(size_t i=0;i<e.locales.size();++i)locales.setValueAtIndex(rt,i,jsi::String::createFromUtf8(rt,utf8(e.locales[i])));value.setProperty(rt,"locales",std::move(locales));value.setProperty(rt,"localeSource","native");value.setProperty(rt,"localeObservation","poll");value.setProperty(rt,"brightness",e.light?"light":"dark");value.setProperty(rt,"lifecycle",!e.visible?"hidden":e.active?"resumed":"inactive");value.setProperty(rt,"textScale",e.textScale);jsi::Object accessibility(rt);accessibility.setProperty(rt,"features",e.features);accessibility.setProperty(rt,"supportedFeatures",4|16|32);accessibility.setProperty(rt,"semanticsEnabled",jsi::Value::null());accessibility.setProperty(rt,"source","native");accessibility.setProperty(rt,"observation","poll");value.setProperty(rt,"accessibility",std::move(accessibility));jsi::Object capabilities(rt);for(auto name:{"clipboardRead","clipboardWrite","navigation"})capabilities.setProperty(rt,name,"available");value.setProperty(rt,"capabilities",std::move(capabilities));return value;});
+    const auto executableName=utf8(NH::loadedPath(nullptr).filename().wstring());
+    method("environment",0,[this,executableName](auto& rt,auto const&,auto*,size_t){
+      const auto e=onUi([this]{return NH::readEnvironment(window);});
+      jsi::Object value(rt);
+      value.setProperty(rt,"executableName",jsi::String::createFromUtf8(rt,executableName));
+      jsi::Array locales(rt,e.locales.size());
+      for(size_t i=0;i<e.locales.size();++i)
+        locales.setValueAtIndex(rt,i,jsi::String::createFromUtf8(rt,utf8(e.locales[i])));
+      value.setProperty(rt,"locales",std::move(locales));
+      value.setProperty(rt,"localeSource","native");
+      value.setProperty(rt,"localeObservation","poll");
+      value.setProperty(rt,"brightness",e.light?"light":"dark");
+      value.setProperty(rt,"lifecycle",!e.visible?"hidden":e.active?"resumed":"inactive");
+      value.setProperty(rt,"textScale",e.textScale);
+      jsi::Object accessibility(rt);
+      accessibility.setProperty(rt,"features",e.features);
+      accessibility.setProperty(rt,"supportedFeatures",4|16|32);
+      accessibility.setProperty(rt,"semanticsEnabled",jsi::Value::null());
+      accessibility.setProperty(rt,"source","native");
+      accessibility.setProperty(rt,"observation","poll");
+      value.setProperty(rt,"accessibility",std::move(accessibility));
+      jsi::Object capabilities(rt);
+      for(auto name:{"clipboardRead","clipboardWrite","navigation"})
+        capabilities.setProperty(rt,name,"available");
+      value.setProperty(rt,"capabilities",std::move(capabilities));
+      return value;
+    });
     method("service",3,[this](auto& rt,auto const&,auto* args,size_t count){
       if(count!=3||!args[0].isNumber()||!args[1].isString()||!args[2].isString())throw jsi::JSError(rt,"Native service packet required");
       const auto id=NH::Packet(rt,jsi::Value(rt,args[0])).counter(false);auto kind=NH::Packet(rt,jsi::Value(rt,args[1])).string(64);auto text=NH::Packet(rt,jsi::Value(rt,args[2])).text(1024*1024);

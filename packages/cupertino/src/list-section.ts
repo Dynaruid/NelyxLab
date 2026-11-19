@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Managed resolved public API projection; behavior uses canonical Core owners.
+// Flutter: packages/flutter/lib/src/cupertino/list_section.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { Widget, StatelessWidget } from '@nelyx/core/framework/widgets/framework';
 import type { WidgetOptions, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import '@nelyx/core/framework/widgets/basic';

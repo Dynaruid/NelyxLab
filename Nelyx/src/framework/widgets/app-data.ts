@@ -11,6 +11,8 @@ import { DeviceGestureSettings } from '../gestures/gesture-settings.ts';
 import type { BorderRadius } from '../painting/border-radius.ts';
 import { EdgeInsets } from '../painting/edge-insets.ts';
 import { invariant } from '../../foundation/errors.ts';
+import type { Rect } from '../../ui/rect.ts';
+import type { Locale } from '../../ui/locale.ts';
 const defaultGestureSettings = new DeviceGestureSettings();
 const mediaAspects = {
   safeArea: Symbol('MediaQuery.safeArea'),
@@ -20,6 +22,7 @@ const mediaAspects = {
   brightness: Symbol('MediaQuery.platformBrightness'),
   contrast: Symbol('MediaQuery.highContrast'),
   radii: Symbol('MediaQuery.displayCornerRadii'),
+  displayFeatures: Symbol('MediaQuery.displayFeatures'),
   text: Symbol('MediaQuery.textScaler'),
   scale: Symbol('MediaQuery.devicePixelRatio'),
   textMetrics: Symbol('MediaQuery.textMetrics'),
@@ -32,11 +35,18 @@ export const NavigationMode = Object.freeze({
   directional: 'directional',
 } as const);
 export type NavigationMode = (typeof NavigationMode)[keyof typeof NavigationMode];
+export interface DisplayFeature {
+  readonly bounds: Rect;
+  readonly type: 'unknown' | 'fold' | 'hinge' | 'cutout';
+  readonly state: 'unknown' | 'postureFlat' | 'postureHalfOpened';
+}
+
 export interface MediaData {
   readonly padding?: EdgeInsets;
   readonly viewPadding?: EdgeInsets;
   readonly viewInsets?: EdgeInsets;
   readonly displayCornerRadii?: BorderRadius | null;
+  readonly displayFeatures?: readonly DisplayFeature[];
   readonly platformBrightness?: 'light' | 'dark';
   readonly width: number;
   readonly height: number;
@@ -154,6 +164,24 @@ function equalMediaValue(a: unknown, b: unknown): boolean {
       (a as { equals(other: unknown): boolean }).equals(b))
   );
 }
+function displayFeaturesChanged(a: MediaData, b: MediaData): boolean {
+  const before = a.displayFeatures;
+  const after = b.displayFeatures;
+  return (
+    before !== after &&
+    ((before?.length ?? 0) !== (after?.length ?? 0) ||
+      (before?.some((feature, index) => {
+        const next = after?.[index];
+        return (
+          !next ||
+          feature.type !== next.type ||
+          feature.state !== next.state ||
+          !feature.bounds.equals(next.bounds)
+        );
+      }) ??
+        false))
+  );
+}
 function mediaAspectChanged(a: MediaData, b: MediaData, aspect: symbol): boolean {
   switch (aspect) {
     case mediaAspects.safeArea:
@@ -172,6 +200,8 @@ function mediaAspectChanged(a: MediaData, b: MediaData, aspect: symbol): boolean
       return (a.highContrast ?? false) !== (b.highContrast ?? false);
     case mediaAspects.radii:
       return !equalMediaValue(a.displayCornerRadii ?? null, b.displayCornerRadii ?? null);
+    case mediaAspects.displayFeatures:
+      return displayFeaturesChanged(a, b);
     case mediaAspects.text:
       return !(a.textScaler ?? TextScaler.linear(a.textScale)).equals(
         b.textScaler ?? TextScaler.linear(b.textScale),
@@ -255,6 +285,84 @@ export class MediaQuery extends InheritedModel<symbol> {
   }: MediaQueryRemovePaddingOptions): MediaQuery {
     return new MediaQuery(removeMediaPadding(this.of(context), sides), child, { key });
   }
+  /** Flutter widgets/media_query.dart at 71e4717a61786faab4c7aa39825989305ed29e8a. */
+  static removeViewInsets({
+    context,
+    child,
+    key = null,
+    removeLeft = false,
+    removeTop = false,
+    removeRight = false,
+    removeBottom = false,
+  }: MediaQueryRemovePaddingOptions): MediaQuery {
+    const data = this.of(context);
+    if (!(removeLeft || removeTop || removeRight || removeBottom))
+      return new MediaQuery(data, child, { key });
+    const view = mediaViewPadding(data);
+    const insets = mediaViewInsets(data);
+    const viewPadding = view.copyWith({
+      left: removeLeft ? Math.max(0, view.left - insets.left) : null,
+      top: removeTop ? Math.max(0, view.top - insets.top) : null,
+      right: removeRight ? Math.max(0, view.right - insets.right) : null,
+      bottom: removeBottom ? Math.max(0, view.bottom - insets.bottom) : null,
+    });
+    const viewInsets = insets.copyWith({
+      left: removeLeft ? 0 : null,
+      top: removeTop ? 0 : null,
+      right: removeRight ? 0 : null,
+      bottom: removeBottom ? 0 : null,
+    });
+    return new MediaQuery(
+      {
+        ...data,
+        padding: mediaPadding(data),
+        viewPadding,
+        viewInsets,
+        safeArea: {
+          left: viewPadding.left,
+          top: viewPadding.top,
+          right: viewPadding.right,
+          bottom: viewPadding.bottom,
+        },
+        keyboardInset: viewInsets.bottom,
+      },
+      child,
+      { key },
+    );
+  }
+  /** Flutter widgets/media_query.dart at 71e4717a61786faab4c7aa39825989305ed29e8a. */
+  static removeDisplayFeatures(data: MediaData, subScreen: Rect, child: Widget): MediaQuery {
+    const right = data.width - subScreen.right;
+    const bottom = data.height - subScreen.bottom;
+    const trim = (insets: EdgeInsets) =>
+      new EdgeInsets(
+        Math.max(0, insets.left - subScreen.left),
+        Math.max(0, insets.top - subScreen.top),
+        Math.max(0, insets.right - right),
+        Math.max(0, insets.bottom - bottom),
+      );
+    const viewPadding = trim(mediaViewPadding(data));
+    const viewInsets = trim(mediaViewInsets(data));
+    return new MediaQuery(
+      {
+        ...captureMediaData(data),
+        padding: trim(mediaPadding(data)),
+        viewPadding,
+        viewInsets,
+        safeArea: {
+          left: viewPadding.left,
+          top: viewPadding.top,
+          right: viewPadding.right,
+          bottom: viewPadding.bottom,
+        },
+        keyboardInset: viewInsets.bottom,
+        displayFeatures: (data.displayFeatures ?? []).filter((feature) =>
+          subScreen.overlaps(feature.bounds),
+        ),
+      },
+      child,
+    );
+  }
   static maybePlatformBrightnessOf(context: BuildContext): 'light' | 'dark' | null {
     const data = maybeMediaAspectData(context, mediaAspects.brightness);
     return data ? (data.platformBrightness ?? 'light') : null;
@@ -268,6 +376,9 @@ export class MediaQuery extends InheritedModel<symbol> {
   }
   static displayCornerRadiiOf(context: BuildContext): BorderRadius | null {
     return mediaAspectData(context, mediaAspects.radii, this).displayCornerRadii ?? null;
+  }
+  static maybeDisplayFeaturesOf(context: BuildContext): readonly DisplayFeature[] | null {
+    return maybeMediaAspectData(context, mediaAspects.displayFeatures)?.displayFeatures ?? null;
   }
   static textScalerOf(context: BuildContext): TextScaler {
     const data = mediaAspectData(context, mediaAspects.text, this);
@@ -315,6 +426,7 @@ export class MediaQuery extends InheritedModel<symbol> {
       padding: _oldPadding,
       viewPadding: _oldViewPadding,
       viewInsets: _oldViewInsets,
+      displayFeatures: _oldDisplayFeatures,
       ...oldData
     } = oldCaptured;
     const {
@@ -323,6 +435,7 @@ export class MediaQuery extends InheritedModel<symbol> {
       padding: _padding,
       viewPadding: _viewPadding,
       viewInsets: _viewInsets,
+      displayFeatures: _displayFeatures,
       ...data
     } = captured;
     return (
@@ -337,6 +450,7 @@ export class MediaQuery extends InheritedModel<symbol> {
       oldSafe.right !== safe.right ||
       oldSafe.bottom !== safe.bottom ||
       JSON.stringify(oldData) !== JSON.stringify(data) ||
+      displayFeaturesChanged(oldCaptured, captured) ||
       mediaAspectChanged(oldCaptured, captured, mediaAspects.radii) ||
       mediaAspectChanged(oldCaptured, captured, mediaAspects.gesture)
     );
@@ -372,6 +486,7 @@ function captureMediaData(data: MediaData): MediaData {
     'viewPadding',
     'viewInsets',
     'displayCornerRadii',
+    'displayFeatures',
     'platformBrightness',
     'width',
     'height',
@@ -481,17 +596,39 @@ export class AppTheme extends InheritedTheme {
     return old.data !== this.data;
   }
 }
+export type LocalizationResource<T extends object = object> = abstract new (...args: never[]) => T;
+
+/** Loads one typed resource for the selected application locale. */
+export abstract class LocalizationsDelegate<T extends object = object> {
+  abstract readonly type: LocalizationResource<T>;
+  abstract isSupported(locale: Locale): boolean;
+  abstract load(locale: Locale): T | PromiseLike<T>;
+  abstract shouldReload(previous: this): boolean;
+}
+
+const emptyResources = new Map<LocalizationResource, object>();
+
 export class Localizations extends InheritedWidget {
   constructor(
     readonly locale: string,
     readonly messages: Readonly<Record<string, Readonly<Record<string, string>>>>,
     readonly fallback: string,
     child: Widget,
+    private readonly resources: ReadonlyMap<LocalizationResource, object> = emptyResources,
   ) {
     super(child);
   }
-  static of(context: BuildContext): Localizations {
-    return context.dependOn(Localizations);
+  static of(context: BuildContext): Localizations;
+  static of<T extends object>(context: BuildContext, type: LocalizationResource<T>): T | null;
+  static of<T extends object>(
+    context: BuildContext,
+    type?: LocalizationResource<T>,
+  ): Localizations | T | null {
+    if (type === undefined) return context.dependOn(Localizations);
+    return context.maybeDependOn(Localizations)?.resource(type) ?? null;
+  }
+  resource<T extends object>(type: LocalizationResource<T>): T | null {
+    return (this.resources.get(type) as T | undefined) ?? null;
   }
   text(key: string): string {
     return (
@@ -503,7 +640,10 @@ export class Localizations extends InheritedWidget {
   }
   updateShouldNotify(old: this): boolean {
     return (
-      old.locale !== this.locale || old.messages !== this.messages || old.fallback !== this.fallback
+      old.locale !== this.locale ||
+      old.messages !== this.messages ||
+      old.fallback !== this.fallback ||
+      old.resources !== this.resources
     );
   }
 }

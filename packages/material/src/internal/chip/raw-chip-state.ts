@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/chip.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
@@ -10,6 +11,9 @@ import { AnimatedSwitcher } from '@nelyx/core/framework/widgets/animated-switche
 import { Listenable } from '@nelyx/core/foundation/notifier';
 import {
   WidgetState,
+  WidgetStateColor,
+  WidgetStateOutlinedBorder,
+  WidgetStateTextStyle,
   WidgetStatesController,
   WidgetStateProperty,
 } from '@nelyx/core/framework/widgets/widget-state';
@@ -20,6 +24,8 @@ import { CircleBorder } from '@nelyx/core/framework/painting/circle-border';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
 import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
+import { resolveTextStyleColors } from '@nelyx/core/framework/painting/text-style';
+import type { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import { MediaQuery, Directionality } from '@nelyx/core/framework/widgets/app-data';
 import { Center } from '@nelyx/core/framework/widgets/basic';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
@@ -146,6 +152,11 @@ export class RawChipState extends TickerProviderStateMixin<RawChip> {
   override didUpdateWidget(old: RawChip): void {
     super.didUpdateWidget(old);
     const w = this.widget;
+    if (!this.canTap) {
+      this.tapping = false;
+      this.statesController.update(WidgetState.pressed, false);
+      this.statesController.update(WidgetState.hovered, false);
+    }
     if (old.isEnabled !== w.isEnabled) {
       this.statesController.update(WidgetState.disabled, !w.isEnabled);
       if (w.isEnabled) this.enableController.forward();
@@ -210,10 +221,16 @@ export class RawChipState extends TickerProviderStateMixin<RawChip> {
   };
   private shape(chip: ChipThemeData, defaults: ChipThemeData): OutlinedBorder {
     const states = this.statesController.value,
+      resolve = (shape: OutlinedBorder | null): OutlinedBorder | null =>
+        shape instanceof WidgetStateOutlinedBorder ? shape.resolve(states) : shape,
       resolvedSide =
         WidgetStateProperty.resolveAs(nullableSourceBorderSideType, this.widget.side, states) ??
         WidgetStateProperty.resolveAs(nullableSourceBorderSideType, chip.side, states),
-      shape = this.widget.shape ?? chip.shape ?? defaults.shape ?? new StadiumBorder();
+      shape =
+        resolve(this.widget.shape) ??
+        resolve(chip.shape) ??
+        resolve(defaults.shape) ??
+        new StadiumBorder();
     if (resolvedSide !== null) return shape.copyWith({ side: resolvedSide });
     return !shape.side.equals(BorderSide.none)
       ? shape
@@ -299,7 +316,16 @@ export class RawChipState extends TickerProviderStateMixin<RawChip> {
         splashFactory: new UnconstrainedInkSplashFactory(theme.splashFactory),
         customBorder: new CircleBorder(),
         onTap: w.isEnabled ? w.onDeleted : null,
-        child: new IconTheme(iconTheme.copyWith({ color, size }), w.deleteIcon),
+        child: new IconTheme(
+          iconTheme.copyWith({
+            color:
+              color instanceof WidgetStateColor
+                ? color.resolve(this.statesController.value)
+                : color,
+            size,
+          }),
+          w.deleteIcon,
+        ),
       });
     return new EnsureMinSemanticsSize(
       this.tooltip(
@@ -311,6 +337,9 @@ export class RawChipState extends TickerProviderStateMixin<RawChip> {
     );
   }
   build(context: BuildContext): Widget {
+    const states = this.statesController.value;
+    const resolveStyle = (style: TextStyle | null): TextStyle | null =>
+      style instanceof WidgetStateTextStyle ? style.resolve(states) : style;
     const w = this.widget,
       theme = Theme.of(context),
       chip = ChipTheme.of(context),
@@ -321,13 +350,18 @@ export class RawChipState extends TickerProviderStateMixin<RawChip> {
       elevation = w.elevation ?? chip.elevation ?? defaults.elevation ?? 0,
       press = w.pressElevation ?? chip.pressElevation ?? defaults.pressElevation ?? 0,
       padding = w.padding ?? chip.padding ?? defaults.padding,
-      labelStyle = (chip.labelStyle ?? defaults.labelStyle)?.merge(w.labelStyle),
+      labelStyle = resolveStyle(chip.labelStyle ?? defaults.labelStyle)?.merge(
+        resolveStyle(w.labelStyle),
+      ),
       iconTheme = w.iconTheme ?? chip.iconTheme ?? defaults.iconTheme,
       showCheckmark = w.showCheckmark ?? chip.showCheckmark ?? defaults.showCheckmark;
     invariant(
       padding !== null && labelStyle !== undefined && labelStyle !== null && showCheckmark !== null,
       'missing-chip-defaults',
       'Chip defaults require padding, labelStyle and showCheckmark',
+    );
+    const resolvedLabelStyle = resolveTextStyleColors(labelStyle, (color) =>
+      color instanceof WidgetStateColor ? color.resolve(states) : color,
     );
     let avatar = w.avatar;
     if (iconTheme !== null && avatar !== null) {
@@ -346,7 +380,7 @@ export class RawChipState extends TickerProviderStateMixin<RawChip> {
         EdgeInsets.symmetric({ horizontal: 8 - 4 * Math.min(1, Math.max(0, ratio - 1)) }),
       contents = new ChipRenderWidget({
         theme: {
-          label: new DefaultTextStyle(labelStyle, w.label, {
+          label: new DefaultTextStyle(resolvedLabelStyle, w.label, {
             overflow: 'fade',
             textAlign: 'start',
             maxLines: 1,

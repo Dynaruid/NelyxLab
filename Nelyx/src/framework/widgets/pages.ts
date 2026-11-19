@@ -4,6 +4,7 @@
 import { Route } from './navigation.ts';
 import type { Widget, BuildContext } from './framework.ts';
 import type { Animation } from '../animation/animation.ts';
+import type { AnimationController } from '../animation/animation-controller.ts';
 import {
   ProxyAnimation,
   kAlwaysCompleteAnimation,
@@ -16,31 +17,16 @@ import type { TraversalEdgeBehavior } from './focus-traversal-policy.ts';
 import type { RouteTransitionBinding, RouteTransitionPolicy } from './route-transition-policy.ts';
 import { invariant } from '../../foundation/errors.ts';
 import { objectRuntimeType } from '../../foundation/object.ts';
-import { diagnosticValueString } from '../../foundation/debug.ts';
+import type { ValueListenable } from '../../foundation/notifier.ts';
 import type { DelegatedTransitionBuilder } from './transitions.ts';
 import { bindPageRouteTransition } from './page-route-gesture.ts';
-export class RouteSettings {
-  readonly name: string | null;
-  readonly arguments: unknown;
-  constructor({
-    name = null,
-    arguments: argumentsValue = null,
-  }: { readonly name?: string | null; readonly arguments?: unknown } = {}) {
-    this.name = name;
-    this.arguments = argumentsValue;
-    if (new.target === RouteSettings) Object.freeze(this);
-  }
-  toString(): string {
-    return (
-      objectRuntimeType(this, 'RouteSettings') +
-      '(' +
-      (this.name === null ? 'none' : '"' + this.name + '"') +
-      ', ' +
-      diagnosticValueString(this.arguments) +
-      ')'
-    );
-  }
-}
+import { RouteSettings } from './page-settings.ts';
+export { Page, RouteSettings } from './page-settings.ts';
+export type {
+  PageOptions,
+  PopInvokedWithResultCallback,
+  RouteSettingsOptions,
+} from './page-settings.ts';
 /** @dartType Widget Function(BuildContext, Animation<double>, Animation<double>) */
 export type RoutePageBuilder = (
   context: BuildContext,
@@ -62,19 +48,22 @@ export interface PageRouteOptions {
   readonly fullscreenDialog?: boolean;
   readonly allowSnapshotting?: boolean;
   readonly barrierDismissible?: boolean;
+  readonly barrierOnTapHint?: string | null;
   readonly barrierFilter?: ImageFilter | null;
   readonly semanticsDismissible?: boolean | null;
+  readonly transitionAnimationController?: AnimationController | null;
 }
 export abstract class PageRoute<T = unknown> extends Route<T> {
-  readonly settings: RouteSettings;
-  readonly fullscreenDialog: boolean;
+  private readonly isFullscreenDialog: boolean;
   readonly allowSnapshotting: boolean;
   readonly requestFocus: boolean | null;
   readonly traversalEdgeBehavior: TraversalEdgeBehavior | null;
   readonly directionalTraversalEdgeBehavior: TraversalEdgeBehavior | null;
   private readonly dismissible: boolean;
   readonly barrierFilter: ImageFilter | null;
+  readonly barrierOnTapHint: string | null;
   readonly semanticsDismissible: boolean | null;
+  readonly transitionAnimationController: AnimationController | null;
   private binding: RouteTransitionBinding | null = null;
   private closed = false;
   private result: T | null = null;
@@ -96,8 +85,10 @@ export abstract class PageRoute<T = unknown> extends Route<T> {
     fullscreenDialog = false,
     allowSnapshotting = true,
     barrierDismissible = false,
+    barrierOnTapHint = null,
     barrierFilter = null,
     semanticsDismissible = null,
+    transitionAnimationController = null,
   }: PageRouteOptions = {}) {
     let route: PageRoute<T>;
     const actualSettings = settings ?? new RouteSettings();
@@ -110,26 +101,35 @@ export abstract class PageRoute<T = unknown> extends Route<T> {
         ),
       actualSettings.name ?? '',
       actualSettings.arguments,
+      true,
+      actualSettings,
     );
     route = this;
-    this.settings = actualSettings;
     this.requestFocus = requestFocus;
     this.traversalEdgeBehavior = traversalEdgeBehavior;
     this.directionalTraversalEdgeBehavior = directionalTraversalEdgeBehavior;
-    this.fullscreenDialog = fullscreenDialog;
+    this.isFullscreenDialog = fullscreenDialog;
     this.allowSnapshotting = allowSnapshotting;
     this.dismissible = barrierDismissible;
+    this.barrierOnTapHint = barrierOnTapHint;
     this.barrierFilter = barrierFilter;
     this.semanticsDismissible = semanticsDismissible;
+    this.transitionAnimationController = transitionAnimationController;
   }
   override get opaque(): boolean {
     return true;
+  }
+  get fullscreenDialog(): boolean {
+    return this.isFullscreenDialog;
   }
   get barrierDismissible(): boolean {
     return this.dismissible;
   }
   abstract get barrierColor(): Color | null;
   abstract get barrierLabel(): string | null;
+  get barrierSemanticsBottomInset(): ValueListenable<number> | null {
+    return null;
+  }
   abstract get maintainState(): boolean;
   abstract get transitionDuration(): number;
   get reverseTransitionDuration(): number {
@@ -304,6 +304,9 @@ export abstract class PageRoute<T = unknown> extends Route<T> {
     get barrierLabel() {
       return owner(this).barrierLabel;
     },
+    get barrierOnTapHint() {
+      return owner(this).barrierOnTapHint;
+    },
     get barrierDismissible() {
       return owner(this).barrierDismissible;
     },
@@ -312,6 +315,12 @@ export abstract class PageRoute<T = unknown> extends Route<T> {
     },
     get semanticsDismissible() {
       return owner(this).semanticsDismissible;
+    },
+    get barrierSemanticsBottomInset() {
+      return owner(this).barrierSemanticsBottomInset;
+    },
+    get transitionAnimationController() {
+      return owner(this).transitionAnimationController;
     },
     createSimulation(forward) {
       return owner(this).createSimulation({ forward });
@@ -389,9 +398,12 @@ type PolicyRoute = Route &
     | 'directionalTraversalEdgeBehavior'
     | 'barrierColor'
     | 'barrierLabel'
+    | 'barrierOnTapHint'
+    | 'barrierSemanticsBottomInset'
     | 'barrierDismissible'
     | 'barrierFilter'
     | 'semanticsDismissible'
+    | 'transitionAnimationController'
     | 'createSimulation'
   >;
 const owners = new WeakMap<RouteTransitionPolicy, PolicyRoute>();

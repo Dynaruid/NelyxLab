@@ -26,6 +26,10 @@ export interface OverflowBarOptions extends WidgetOptions {
   readonly overflowAlignment?: OverflowBarAlignment;
   readonly overflowDirection?: VerticalDirection;
   readonly textDirection?: 'ltr' | 'rtl' | null;
+  /** @internal Used by a ButtonBar with an explicit Row sizing policy. */
+  readonly mainAxisSize?: 'min' | 'max';
+  /** @internal Measures the row before applying the column's width constraint. */
+  readonly measureUnconstrainedWidth?: boolean;
   readonly children?: readonly Widget[];
 }
 /** A horizontal bar which uses a vertical column when the children exceed its width. */
@@ -36,6 +40,8 @@ export class OverflowBar extends MultiChildRenderObjectWidget {
   readonly overflowAlignment: OverflowBarAlignment;
   readonly overflowDirection: VerticalDirection;
   readonly textDirection: 'ltr' | 'rtl' | null;
+  readonly mainAxisSize: 'min' | 'max' | null;
+  readonly measureUnconstrainedWidth: boolean;
   /** @dartParam spacing double
    * @dartParam overflowSpacing double */
   constructor(options: OverflowBarOptions = {}) {
@@ -46,6 +52,8 @@ export class OverflowBar extends MultiChildRenderObjectWidget {
     this.overflowAlignment = options.overflowAlignment ?? OverflowBarAlignment.start;
     this.overflowDirection = options.overflowDirection ?? VerticalDirection.down;
     this.textDirection = options.textDirection ?? null;
+    this.mainAxisSize = options.mainAxisSize ?? null;
+    this.measureUnconstrainedWidth = options.measureUnconstrainedWidth ?? false;
   }
   createRenderObject(context: BuildContext): RenderObject {
     return new RenderOverflowBar(this, this.textDirection ?? Directionality.of(context));
@@ -99,6 +107,8 @@ class RenderOverflowBar extends RenderBox {
       old.overflowSpacing !== options.overflowSpacing ||
       old.overflowAlignment !== options.overflowAlignment ||
       old.overflowDirection !== options.overflowDirection ||
+      old.mainAxisSize !== options.mainAxisSize ||
+      old.measureUnconstrainedWidth !== options.measureUnconstrainedWidth ||
       this.direction !== direction
     ) {
       this.direction = direction;
@@ -106,34 +116,47 @@ class RenderOverflowBar extends RenderBox {
     }
   }
   private measure(constraints: BoxConstraints, dry: boolean): Measurement {
-    const sizes = this.children.map((child) => {
-      const loose = constraints.loosen();
-      if (dry) return child.getDryLayout(loose);
-      child.layout(loose, { parentUsesSize: true });
-      return child.size;
-    });
-    const childrenWidth = sizes.reduce((n, size) => n + size.width, 0),
-      maxHeight = Math.max(0, ...sizes.map((size) => size.height));
+    const loose = constraints.loosen();
+    const options = this.options;
+    const measureChildren = (childConstraints: BoxConstraints) =>
+      this.children.map((child) => {
+        if (dry) return child.getDryLayout(childConstraints);
+        child.layout(childConstraints, { parentUsesSize: true });
+        return child.size;
+      });
+    const horizontal = options.measureUnconstrainedWidth
+      ? loose.copyWith({ maxWidth: Infinity })
+      : loose;
+    let sizes = measureChildren(horizontal);
     if (!sizes.length)
       return {
         sizes,
         size: constraints.smallest,
         width: 0,
-        childrenWidth,
-        maxHeight,
+        childrenWidth: 0,
+        maxHeight: 0,
         overflow: false,
       };
-    const width = childrenWidth + this.options.spacing * (sizes.length - 1),
+    const childrenWidth = sizes.reduce((n, size) => n + size.width, 0);
+    const width = childrenWidth + options.spacing * (sizes.length - 1),
       overflow = width > constraints.maxWidth;
+    if (overflow && options.measureUnconstrainedWidth) {
+      sizes = measureChildren(constraints.copyWith({ minWidth: 0 }));
+    }
+    const maxHeight = Math.max(0, ...sizes.map((size) => size.height));
+    const expand =
+      options.mainAxisSize === null
+        ? options.alignment !== null
+        : options.mainAxisSize === 'max' && Number.isFinite(constraints.maxWidth);
     const desired = overflow
       ? {
           width: constraints.maxWidth,
           height:
             sizes.reduce((n, size) => n + size.height, 0) +
-            this.options.overflowSpacing * (sizes.length - 1),
+            options.overflowSpacing * (sizes.length - 1),
         }
       : {
-          width: this.options.alignment === null ? width : constraints.maxWidth,
+          width: expand ? constraints.maxWidth : width,
           height: maxHeight,
         };
     return {

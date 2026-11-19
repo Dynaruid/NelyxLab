@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/button_style_button.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 // Source state/style/layout/material/ink responsibilities on canonical Nelyx owners.
 import { StatefulWidget, Element } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext, State } from '@nelyx/core/framework/widgets/framework';
@@ -22,7 +23,12 @@ import type { DartTypeWitness } from '@nelyx/core/foundation/dart-type-witness';
 import { Padding, ConstrainedBox, Align, Text } from '@nelyx/core/framework/widgets/basic';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
-import type { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
+import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
+import {
+  AnimatedWidgetBaseState,
+  ImplicitlyAnimatedWidget,
+} from '@nelyx/core/framework/widgets/implicit-animations';
+import type { TweenVisitor } from '@nelyx/core/framework/widgets/implicit-animations';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import type { SemanticsRole } from '@nelyx/core/ui/semantics';
 import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
@@ -31,6 +37,7 @@ import { valueEquals } from '@nelyx/core/framework/painting/value-equality';
 import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
 import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
+import { Tween } from '@nelyx/core/framework/animation/tween';
 import { Color } from '@nelyx/core/ui/color';
 import { Size } from '@nelyx/core/ui/size';
 import type { Clip } from '@nelyx/core/ui/clip';
@@ -163,7 +170,12 @@ export interface MaterialButtonOptions extends Omit<
   readonly clipBehavior?: Clip | null;
   readonly isSemanticButton?: boolean;
   /** @internal Semantic role and state for Material menu actions. */
-  readonly menuSemantics?: { readonly role: SemanticsRole; readonly checked?: boolean; readonly mixed?: boolean; readonly radio?: boolean };
+  readonly menuSemantics?: {
+    readonly role: SemanticsRole;
+    readonly checked?: boolean;
+    readonly mixed?: boolean;
+    readonly radio?: boolean;
+  };
   /** @internal Source selectable-icon state. */ readonly selected?: boolean | null;
 }
 export abstract class ButtonStyleButton extends StatefulWidget {
@@ -416,6 +428,7 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
     readonly padding: EdgeInsetsGeometry;
     readonly alignment: AlignmentGeometry;
     readonly icons: IconThemeData;
+    readonly duration: number;
     readonly widget: Widget;
   } | null = null;
   private get controller(): WidgetStatesController {
@@ -609,6 +622,7 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
       content?.child === o.child &&
       valueEquals(content.padding, effectivePadding) &&
       valueEquals(content.alignment, alignment) &&
+      content.duration === duration &&
       content.icons.equals(icons)
     ) {
       result = content.widget;
@@ -619,11 +633,18 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
         new Align(child ?? undefined, { alignment, widthFactor: 1, heightFactor: 1 }),
       );
       if (backgroundBuilder) result = backgroundBuilder(context, states, result);
-      result = new IconTheme(icons, result);
+      result = new ButtonIconTheme(icons, result, duration);
       this.content =
         foregroundBuilder || backgroundBuilder
           ? null
-          : { child: o.child, padding: effectivePadding, alignment, icons, widget: result };
+          : {
+              child: o.child,
+              padding: effectivePadding,
+              alignment,
+              icons,
+              duration,
+              widget: result,
+            };
     }
     const overlay = colorProperty((next) => {
       for (const style of styles) {
@@ -717,5 +738,32 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
         ),
       ),
     });
+  }
+}
+
+class ButtonIconTheme extends ImplicitlyAnimatedWidget {
+  constructor(
+    readonly data: IconThemeData,
+    readonly child: Widget,
+    duration: number,
+  ) {
+    super({ duration });
+  }
+  createState(): AnimatedWidgetBaseState<ButtonIconTheme> {
+    return new ButtonIconThemeState();
+  }
+}
+
+class ButtonIconThemeState extends AnimatedWidgetBaseState<ButtonIconTheme> {
+  private icons: Tween<IconThemeData> | null = null;
+  protected override forEachTween(visitor: TweenVisitor): void {
+    this.icons = visitor(
+      this.icons,
+      this.widget.data,
+      (begin) => new Tween({ begin, interpolator: IconThemeData.lerp }),
+    );
+  }
+  build(): Widget {
+    return new IconTheme(this.icons!.evaluate(this.animation), this.widget.child);
   }
 }

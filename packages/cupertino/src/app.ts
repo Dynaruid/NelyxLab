@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/app.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 // Functional Cupertino application composition on Nelyx WidgetsApp contracts.
 import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
@@ -7,6 +9,11 @@ import type { WidgetsAppOptions } from '@nelyx/core/framework/widgets/app';
 import { AppFocus } from '@nelyx/core/framework/widgets/app-focus';
 import type { AppFocusOptions } from '@nelyx/core/framework/widgets/app-focus';
 import { Builder } from '@nelyx/core/framework/widgets/basic';
+import {
+  AnnotatedRegion,
+  systemUiOverlayStyleAnnotation,
+} from '@nelyx/core/framework/widgets/annotated-region';
+import { SystemUiOverlayStyle } from '@nelyx/core/services/system-ui-overlay-style';
 import { AppTheme } from '@nelyx/core/framework/widgets/app-data';
 import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
 import { ScrollConfiguration } from '@nelyx/core/framework/widgets/scroll-configuration';
@@ -18,6 +25,7 @@ import type { RouterOptions } from '@nelyx/core/framework/widgets/router';
 import { HeroControllerScope } from '@nelyx/core/framework/widgets/heroes';
 import { RouteSettings } from '@nelyx/core/framework/widgets/pages';
 import { CupertinoPageRoute } from './route.ts';
+import { cupertinoCatalogDelegate } from './cupertino-localizations.ts';
 import { CupertinoTheme, CupertinoThemeData } from './theme.ts';
 import { CupertinoScrollBehavior } from './scroll-behavior.ts';
 import { CupertinoUserInterfaceLevel, CupertinoUserInterfaceLevelData } from './interface-level.ts';
@@ -43,6 +51,8 @@ export class CupertinoApp extends StatelessWidget {
     | 'routes'
     | 'initialRoute'
     | 'navigatorController'
+    | 'navigatorKey'
+    | 'navigatorObservers'
     | 'navigatorRestorationId'
     | 'onGenerateRoute'
     | 'onUnknownRoute'
@@ -56,6 +66,7 @@ export class CupertinoApp extends StatelessWidget {
     const { key: _key, theme, scrollBehavior, builder, shortcuts, actions, ...app } = this.options;
     return new WidgetsApp({
       ...app,
+      localizationsDelegates: [...(app.localizationsDelegates ?? []), cupertinoCatalogDelegate],
       pageRouteBuilder: (settings, builder) =>
         new CupertinoPageRoute({
           settings: new RouteSettings({ name: settings.name, arguments: settings.argumentsValue }),
@@ -75,7 +86,7 @@ export class CupertinoApp extends StatelessWidget {
                   routed = navigator
                     ? new HeroControllerScope({ navigator, child: content })
                     : content;
-                return new AppTheme(
+                const styled = new AppTheme(
                   {
                     background: data.scaffoldBackgroundColor,
                     surface: data.barBackgroundColor,
@@ -96,6 +107,13 @@ export class CupertinoApp extends StatelessWidget {
                     }),
                   ),
                 );
+                return new AnnotatedRegion(styled, {
+                  annotationType: systemUiOverlayStyleAnnotation,
+                  value:
+                    CupertinoTheme.brightnessOf(context) === 'dark'
+                      ? SystemUiOverlayStyle.light
+                      : SystemUiOverlayStyle.dark,
+                });
               }),
             ),
           }),

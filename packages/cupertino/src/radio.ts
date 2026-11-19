@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/radio.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import type { RawRadioOptions } from '@nelyx/core/framework/widgets/radio-group';
+import { LegacyRadioGroupRegistry } from '@nelyx/core/framework/widgets/radio-group';
 import type { RadioGroupRegistry } from '@nelyx/core/framework/widgets/radio-group';
 import { FocusNode } from '@nelyx/core/framework/widgets/focus';
 import type { MouseCursor } from '@nelyx/core/services/mouse-cursor';
@@ -18,6 +21,10 @@ export interface CupertinoRadioOptions<T> extends Omit<
   readonly semanticLabel?: string | null;
   readonly id?: string;
   readonly enabled?: boolean | null;
+  /** @deprecated Use RadioGroup or groupRegistry. */
+  readonly groupValue?: T | null;
+  /** @deprecated Use RadioGroup or groupRegistry. */
+  readonly onChanged?: ((value: T | null) => void) | null;
   readonly mouseCursor?: MouseCursor | null;
   readonly activeColor?: CupertinoColor | null;
   readonly inactiveColor?: CupertinoColor | null;
@@ -29,11 +36,6 @@ export class CupertinoRadio<T> extends StatefulWidget {
   readonly options: Readonly<CupertinoRadioOptions<T>>;
   constructor(options: CupertinoRadioOptions<T>) {
     super(options.key ?? null);
-    invariant(
-      !('groupValue' in options) && !('onChanged' in options),
-      'deprecated-cupertino-radio-option',
-      'CupertinoRadio uses a typed RadioGroup or groupRegistry',
-    );
     for (const color of [
       options.activeColor,
       options.inactiveColor,
@@ -52,6 +54,12 @@ export class CupertinoRadio<T> extends StatefulWidget {
   }
   get groupRegistry(): RadioGroupRegistry<T> | null {
     return this.options.groupRegistry ?? null;
+  }
+  get groupValue(): T | null {
+    return this.options.groupValue ?? null;
+  }
+  get onChanged(): ((value: T | null) => void) | null {
+    return this.options.onChanged ?? null;
   }
   get enabled(): boolean | null {
     return this.options.enabled ?? null;
@@ -91,12 +99,13 @@ export class CupertinoRadio<T> extends StatefulWidget {
 }
 class CupertinoRadioState<T> extends State<CupertinoRadio<T>> {
   private internalFocusNode: FocusNode | null = null;
+  private readonly legacyRegistry = new LegacyRadioGroupRegistry<T>(() => this.widget.options);
   build(context: BuildContext): Widget {
     const widget = this.widget,
       focusNode =
         widget.focusNode ??
         (this.internalFocusNode ??= new FocusNode({ debugLabel: 'CupertinoRadio' }));
-    return buildCupertinoRadio(widget, context, focusNode);
+    return buildCupertinoRadio(widget, context, focusNode, this.legacyRegistry);
   }
   override dispose(): void {
     try {

@@ -2,6 +2,7 @@
 import { PlatformException } from '@nelyx/core/services/message-codec';
 export interface NativeLocaleModule {
   getPreferredLocales(): unknown;
+  getExecutableName?(): string | null;
   popSystemNavigator?(animated: boolean): PromiseLike<void> | void;
 }
 export function nativeLocaleModule(value: unknown): NativeLocaleModule | undefined {

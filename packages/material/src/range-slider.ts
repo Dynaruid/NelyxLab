@@ -85,6 +85,8 @@ import { captureSourceSize } from '@nelyx/core/ui/size-source';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { Theme } from './theme.ts';
 import { SliderTheme, SliderThemeData, ShowValueIndicator, Thumb } from './slider-theme.ts';
+import type { SemanticFormatterCallback } from './slider-theme.ts';
+export type { PaintValueIndicator as PaintRangeValueIndicator } from './slider.ts';
 import { sliderThemeFieldNames } from './generated/slider/slider-theme-fields.generated.ts';
 import { RangeValues, RangeLabels } from './range-slider-values.ts';
 import type { RangeThumbSelector } from './range-slider-values.ts';
@@ -107,7 +109,7 @@ export interface RangeSliderOptions extends WidgetOptions {
   readonly inactiveColor?: Color | null;
   readonly overlayColor?: WidgetStateProperty<Color | null> | null;
   readonly mouseCursor?: WidgetStateProperty<MouseCursor | null> | null;
-  readonly semanticFormatterCallback?: ((value: number) => string) | null;
+  readonly semanticFormatterCallback?: SemanticFormatterCallback | null;
   readonly padding?: EdgeInsetsGeometry | null;
   readonly year2023?: boolean | null;
   /** Nelyx host identifier; the two source thumb nodes use id-start and id-end. */ readonly id?: string;

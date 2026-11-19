@@ -85,6 +85,7 @@ const cupConfig: SwitchConfig = Object.freeze({
 });
 const transparent = new Color(0),
   white = new Color(0xffffffff);
+const collapsedSwitchHeight = 40;
 function property(
   resolve: (states: DartSet<WidgetState>) => Color | null,
 ): WidgetStateProperty<Color | null> {
@@ -145,8 +146,8 @@ export function switchSize(w: Switch, context: BuildContext, adaptive: boolean):
   const target =
     w.materialTapTargetSize ?? style.materialTapTargetSize ?? theme.materialTapTargetSize;
   return new Size(
-    52 + padding.horizontal,
-    (target === MaterialTapTargetSize.padded ? 56 : 40) + padding.vertical,
+    m3Config.trackWidth + padding.horizontal,
+    collapsedSwitchHeight + (target === MaterialTapTargetSize.padded ? 8 : 0) + padding.vertical,
   );
 }
 export function switchEnvironment(
@@ -218,11 +219,13 @@ export function resolveSwitchPaint(
   const { style, defaults, config } = e,
     active = copy(states, true),
     inactive = copy(states, false);
+  const activeThumbOverride = w.activeThumbColor ?? (config.isCupertino ? null : w.activeColor);
+  const activeTrackOverride = w.activeTrackColor ?? (config.isCupertino ? w.activeColor : null);
   const widgetThumb = (s: DartSet<WidgetState>) =>
     s.contains(WidgetState.disabled)
       ? w.inactiveThumbColor
       : s.contains(WidgetState.selected)
-        ? w.activeThumbColor
+        ? activeThumbOverride
         : w.inactiveThumbColor;
   const thumb = (s: DartSet<WidgetState>) =>
     w.thumbColor?.resolve(s) ?? widgetThumb(s) ?? style.thumbColor?.resolve(s) ?? null;
@@ -232,7 +235,7 @@ export function resolveSwitchPaint(
     inactiveColor = b ?? defaults.thumbColor!.resolve(inactive)!;
   const activeTrackColor =
     w.trackColor?.resolve(active) ??
-    w.activeTrackColor ??
+    activeTrackOverride ??
     (e.applyCupertinoTheme ? e.cupertinoPrimary : style.trackColor?.resolve(active)) ??
     widgetThumb(active)?.withAlpha(0x80) ??
     defaults.trackColor!.resolve(active)!;

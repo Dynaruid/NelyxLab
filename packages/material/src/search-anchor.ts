@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/search_anchor.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
+import type { Animation } from '@nelyx/core/framework/animation/animation';
+import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
+import { CurvedAnimation } from '@nelyx/core/framework/animation/animations';
+import { Curves, Interval } from '@nelyx/core/framework/animation/curves';
 import { FlutterErrorDetails } from '@nelyx/core/foundation/assertions';
 import type { DartDouble } from '@nelyx/core/foundation/dart-numeric';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { FlutterError } from '@nelyx/core/foundation/flutter-error';
+import { nullableDartType } from '@nelyx/core/foundation/dart-type-witness';
+import { Alignment } from '@nelyx/core/framework/painting/alignment';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import type { BorderSide, OutlinedBorder } from '@nelyx/core/framework/painting/borders';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
@@ -14,7 +21,7 @@ import { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { SingleChildLayoutDelegate } from '@nelyx/core/framework/rendering/custom-layout';
 import { RenderBox } from '@nelyx/core/framework/rendering/object';
-import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import {
   Builder,
   Column,
@@ -27,32 +34,50 @@ import {
 } from '@nelyx/core/framework/widgets/basic';
 import { CustomSingleChildLayout } from '@nelyx/core/framework/widgets/custom-layout';
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
+import { ExcludeFocus } from '@nelyx/core/framework/widgets/focus-scope';
 import { FocusNode } from '@nelyx/core/framework/widgets/focus';
 import { Element, State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector';
 import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import { Icon } from '@nelyx/core/framework/widgets/icon';
+import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
+import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
 import { AnimatedOpacity } from '@nelyx/core/framework/widgets/implicit-animations';
 import { InheritedTheme } from '@nelyx/core/framework/widgets/inherited-theme';
+import { LayoutBuilder } from '@nelyx/core/framework/widgets/layout-builder';
 import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-builder';
 import { MouseRegion } from '@nelyx/core/framework/widgets/mouse-region';
-import { Navigator, type NavigatorController } from '@nelyx/core/framework/widgets/navigation';
+import {
+  Navigator,
+  NavigatorState,
+  type NavigatorController,
+} from '@nelyx/core/framework/widgets/navigation';
+import { Opacity } from '@nelyx/core/framework/widgets/opacity';
+import { OverflowBox } from '@nelyx/core/framework/widgets/overflow-box';
 import { PageRouteBuilder } from '@nelyx/core/framework/widgets/pages';
 import { IgnorePointer } from '@nelyx/core/framework/widgets/pointer-blocking';
 import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
 import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
-import { FadeTransition } from '@nelyx/core/framework/widgets/transitions';
-import { WidgetState, emptyWidgetStateSet } from '@nelyx/core/framework/widgets/widget-state';
-import type { WidgetStateProperty } from '@nelyx/core/framework/widgets/widget-state';
+import { AnimatedBuilder, FadeTransition } from '@nelyx/core/framework/widgets/transitions';
+import {
+  WidgetState,
+  WidgetStateProperty,
+  WidgetStatesController,
+  emptyWidgetStateSet,
+} from '@nelyx/core/framework/widgets/widget-state';
 import { Color } from '@nelyx/core/ui/color';
+import { sourceColorType } from '@nelyx/core/ui/color-source';
 import { bounds } from '@nelyx/core/ui/geometry';
 import type { Offset, Size } from '@nelyx/core/ui/geometry';
 import { Rect } from '@nelyx/core/ui/rect';
-import { SemanticsRole } from '@nelyx/core/ui/semantics';
+import { SemanticsInputType, SemanticsRole } from '@nelyx/core/ui/semantics';
 import { BackButton } from './action-buttons.ts';
+import { ButtonStyle } from './button-style.ts';
+import { kDefaultIconDarkColor, kDefaultIconLightColor } from './constants.ts';
 import { Divider } from './divider.ts';
+import { DividerTheme } from './divider-theme.ts';
 import { IconButton } from './icon-button.ts';
 import { Icons } from './icons.ts';
 import { InkWell } from './ink-well.ts';
@@ -65,14 +90,23 @@ import { SearchViewTheme } from './search-view-theme.ts';
 import { TextField } from './text-field.ts';
 import type { TextFieldOptions } from './text-field.ts';
 import { Theme } from './theme.ts';
+import { MaterialTapTargetSize } from './theme-data.ts';
 
 const stadium = new StadiumBorder();
 const viewShape = new RoundedRectangleBorder({ borderRadius: BorderRadius.circular(28) });
 const fullShape = new RoundedRectangleBorder();
 const noColor = new Color(0);
-const barInsets = EdgeInsets.symmetric({ horizontal: 16 });
-const headerInsets = EdgeInsets.symmetric({ horizontal: 8 });
-const barLimits = new BoxConstraints(360, 800, 56, 56);
+const barInsets = EdgeInsets.symmetric({ horizontal: 8 });
+const barLimits = new BoxConstraints(360, 800, 56);
+const viewLimits = new BoxConstraints(360, Infinity, 240);
+const fullViewHeaderHeight = 72;
+const openViewDuration = 600;
+const anchorFadeDuration = 150;
+const viewFadeInterval = new Interval(0, 1 / 2);
+const viewIconsFadeInterval = new Interval(1 / 6, 2 / 6);
+const viewDividerFadeInterval = new Interval(0, 1 / 6);
+const viewListFadeInterval = new Interval(133 / openViewDuration, 233 / openViewDuration);
+const disabledSearchBarOpacity = 0.38;
 let nextSearchField = 0;
 
 export type SearchAnchorChildBuilder = (
@@ -118,7 +152,13 @@ export class SearchController extends TextEditingController {
 
 type FieldSettings = Pick<
   TextFieldOptions,
-  'textCapitalization' | 'textInputAction' | 'keyboardType' | 'contextMenuBuilder' | 'onTapOutside'
+  | 'textCapitalization'
+  | 'textInputAction'
+  | 'keyboardType'
+  | 'contextMenuBuilder'
+  | 'onTapOutside'
+  | 'smartDashesType'
+  | 'smartQuotesType'
 >;
 
 export interface SearchBarOptions extends WidgetOptions, FieldSettings {
@@ -144,6 +184,7 @@ export interface SearchBarOptions extends WidgetOptions, FieldSettings {
   readonly enabled?: boolean;
   readonly autoFocus?: boolean;
   readonly readOnly?: boolean;
+  readonly scrollPadding?: EdgeInsets;
 }
 
 export class SearchBar extends StatefulWidget {
@@ -159,93 +200,159 @@ export class SearchBar extends StatefulWidget {
 
 class SearchBarState extends State<SearchBar> {
   private readonly ownedFocus = new FocusNode();
+  private readonly inkStates = new WidgetStatesController();
   private hovered = false;
+  private pressed = false;
+
+  private readonly syncPressed = () => {
+    const pressed = this.inkStates.value.contains(WidgetState.pressed);
+    if (pressed === this.pressed) return;
+    this.pressed = pressed;
+    (this.context as Element).owner.postFrame(() => {
+      if (this.mounted) this.setState(() => {});
+    });
+  };
+
+  override initState(): void {
+    super.initState();
+    this.inkStates.addListener(this.syncPressed);
+  }
 
   override build(context: BuildContext): Widget {
     const o = this.widget.options;
     const theme = SearchBarTheme.of(context);
     const { colorScheme, textTheme } = Theme.of(context);
     const focus = o.focusNode ?? this.ownedFocus;
+    const iconTheme = IconTheme.of(context);
+    const defaultIconColor =
+      colorScheme.brightness === 'light' ? kDefaultIconDarkColor : kDefaultIconLightColor;
+    const themedIcon = (child: Widget, color: number): Widget =>
+      IconTheme.merge({
+        data: iconTheme.color?.equals(defaultIconColor)
+          ? new IconThemeData({ color: new Color(color) })
+          : iconTheme,
+        child,
+      });
+    const defaultOverlay = WidgetStateProperty.resolveWith(
+      nullableDartType(sourceColorType),
+      (states) => {
+        const color = new Color(colorScheme.onSurface);
+        if (states.contains(WidgetState.pressed)) return color.withOpacity(0.1);
+        if (states.contains(WidgetState.hovered)) return color.withOpacity(0.08);
+        return noColor;
+      },
+    );
     return new ListenableBuilder(focus, () => {
       const states = emptyWidgetStateSet();
       if (o.enabled === false) states.add(WidgetState.disabled);
       if (focus.hasFocus) states.add(WidgetState.focused);
       if (this.hovered) states.add(WidgetState.hovered);
+      if (this.pressed && o.enabled !== false) states.add(WidgetState.pressed);
       const shape = o.shape?.resolve(states) ?? theme.shape?.resolve(states) ?? stadium;
       const side = o.side?.resolve(states) ?? theme.side?.resolve(states);
+      const padding = o.padding?.resolve(states) ?? theme.padding?.resolve(states) ?? barInsets;
       const body = new Padding(
-        o.padding?.resolve(states) ?? theme.padding?.resolve(states) ?? barInsets,
-        new Row(
-          [
-            ...(o.leading ? [o.leading] : []),
-            new Expanded(
-              new SearchField({
-                controller: o.controller ?? null,
-                focusNode: focus,
-                autofocus: o.autoFocus ?? false,
-                enabled: o.enabled ?? true,
-                readOnly: o.readOnly ?? false,
-                ...(o.keyboardType === undefined ? {} : { keyboardType: o.keyboardType }),
-                ...(o.textCapitalization === undefined
-                  ? {}
-                  : { textCapitalization: o.textCapitalization }),
-                ...(o.textInputAction === undefined ? {} : { textInputAction: o.textInputAction }),
-                ...(o.contextMenuBuilder === undefined
-                  ? {}
-                  : { contextMenuBuilder: o.contextMenuBuilder }),
-                ...(o.onTapOutside === undefined ? {} : { onTapOutside: o.onTapOutside }),
-                decoration: new InputDecoration({
-                  border: InputBorder.none,
-                  hintText: o.hintText ?? null,
-                  hintStyle:
-                    o.hintStyle?.resolve(states) ??
-                    theme.hintStyle?.resolve(states) ??
+        padding,
+        new Row([
+          ...(o.leading ? [themedIcon(o.leading, colorScheme.onSurface)] : []),
+          new Expanded(
+            new Padding(
+              padding,
+              new Semantics({
+                inputType: SemanticsInputType.search,
+                child: new SearchField({
+                  controller: o.controller ?? null,
+                  focusNode: focus,
+                  autofocus: o.autoFocus ?? false,
+                  enabled: o.enabled ?? true,
+                  readOnly: o.readOnly ?? false,
+                  ...(o.keyboardType === undefined ? {} : { keyboardType: o.keyboardType }),
+                  smartDashesType: o.smartDashesType ?? null,
+                  smartQuotesType: o.smartQuotesType ?? null,
+                  textCapitalization:
+                    o.textCapitalization ?? theme.textCapitalization?.name ?? 'none',
+                  ...(o.textInputAction === undefined
+                    ? {}
+                    : { textInputAction: o.textInputAction }),
+                  ...(o.contextMenuBuilder === undefined
+                    ? {}
+                    : { contextMenuBuilder: o.contextMenuBuilder }),
+                  ...(o.onTapOutside === undefined ? {} : { onTapOutside: o.onTapOutside }),
+                  ...(o.scrollPadding === undefined ? {} : { scrollPadding: o.scrollPadding }),
+                  decoration: new InputDecoration({
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    isDense: true,
+                    hintText: o.hintText ?? null,
+                    hintStyle:
+                      o.hintStyle?.resolve(states) ??
+                      theme.hintStyle?.resolve(states) ??
+                      o.textStyle?.resolve(states) ??
+                      theme.textStyle?.resolve(states) ??
+                      (textTheme.bodyLarge ?? new TextStyle()).copyWith({
+                        color: colorScheme.onSurfaceVariant,
+                      }),
+                    contentPadding: EdgeInsets.zero,
+                  }),
+                  style:
+                    o.textStyle?.resolve(states) ??
+                    theme.textStyle?.resolve(states) ??
                     (textTheme.bodyLarge ?? new TextStyle()).copyWith({
-                      color: colorScheme.onSurfaceVariant,
+                      color: colorScheme.onSurface,
                     }),
-                  contentPadding: EdgeInsets.zero,
+                  ...(o.onTap ? { onTap: o.onTap, onTapAlwaysCalled: true } : {}),
+                  ...(o.onChanged ? { onChanged: o.onChanged } : {}),
+                  ...(o.onSubmitted ? { onSubmitted: o.onSubmitted } : {}),
                 }),
-                style:
-                  o.textStyle?.resolve(states) ??
-                  theme.textStyle?.resolve(states) ??
-                  textTheme.bodyLarge,
-                ...(o.onTap ? { onTap: o.onTap } : {}),
-                ...(o.onChanged ? { onChanged: o.onChanged } : {}),
-                ...(o.onSubmitted ? { onSubmitted: o.onSubmitted } : {}),
               }),
             ),
-            ...(o.trailing ?? []),
-          ],
-          { spacing: 8 },
-        ),
+          ),
+          ...Array.from(o.trailing ?? [], (child) =>
+            themedIcon(child, colorScheme.onSurfaceVariant),
+          ),
+        ]),
+      );
+      const enabled = o.enabled ?? true;
+      const bar = new ConstrainedBox(
+        new Material({
+          color:
+            o.backgroundColor?.resolve(states) ??
+            theme.backgroundColor?.resolve(states) ??
+            new Color(colorScheme.surfaceContainerHigh),
+          elevation:
+            o.elevation?.resolve(states)?.value ?? theme.elevation?.resolve(states)?.value ?? 6,
+          shadowColor:
+            o.shadowColor?.resolve(states) ??
+            theme.shadowColor?.resolve(states) ??
+            new Color(colorScheme.shadow),
+          surfaceTintColor:
+            o.surfaceTintColor?.resolve(states) ??
+            theme.surfaceTintColor?.resolve(states) ??
+            noColor,
+          shape: side ? shape.copyWith({ side }) : shape,
+          clipBehavior: 'antiAlias',
+          child: new InkWell({
+            customBorder: side ? shape.copyWith({ side }) : shape,
+            onTap: enabled
+              ? () => {
+                  o.onTap?.();
+                  if (!focus.hasFocus) focus.requestFocus();
+                }
+              : null,
+            canRequestFocus: false,
+            excludeFromSemantics: o.onTap == null,
+            overlayColor: o.overlayColor ?? theme.overlayColor ?? defaultOverlay,
+            statesController: this.inkStates,
+            child: body,
+          }),
+        }),
+        o.constraints ?? theme.constraints ?? barLimits,
       );
       return new MouseRegion(
-        new ConstrainedBox(
-          new Material({
-            color:
-              o.backgroundColor?.resolve(states) ??
-              theme.backgroundColor?.resolve(states) ??
-              new Color(colorScheme.surfaceContainerHigh),
-            elevation:
-              o.elevation?.resolve(states)?.value ?? theme.elevation?.resolve(states)?.value ?? 6,
-            shadowColor:
-              o.shadowColor?.resolve(states) ?? theme.shadowColor?.resolve(states) ?? null,
-            surfaceTintColor:
-              o.surfaceTintColor?.resolve(states) ??
-              theme.surfaceTintColor?.resolve(states) ??
-              noColor,
-            shape: side ? shape.copyWith({ side }) : shape,
-            clipBehavior: 'antiAlias',
-            child: new InkWell({
-              customBorder: shape,
-              onTap: o.enabled === false ? null : (o.onTap ?? (() => focus.requestFocus())),
-              canRequestFocus: false,
-              excludeFromSemantics: true,
-              overlayColor: o.overlayColor ?? theme.overlayColor,
-              child: body,
-            }),
-          }),
-          o.constraints ?? theme.constraints ?? barLimits,
+        new Opacity(
+          new ExcludeFocus(new IgnorePointer(bar, { ignoring: !enabled }), { excluding: !enabled }),
+          { opacity: enabled ? 1 : disabledSearchBarOpacity },
         ),
         {
           onEnter: () =>
@@ -261,6 +368,8 @@ class SearchBarState extends State<SearchBar> {
     });
   }
   override dispose(): void {
+    this.inkStates.removeListener(this.syncPressed);
+    this.inkStates.dispose();
     this.ownedFocus.dispose();
     super.dispose();
   }
@@ -398,6 +507,7 @@ export class SearchAnchor extends StatefulWidget {
   static bar(options: SearchAnchorBarOptions): SearchAnchor {
     return new SearchAnchor({
       ...options,
+      viewHintText: options.viewHintText ?? options.barHintText ?? null,
       headerHeight: options.viewHeaderHeight ?? options.headerHeight ?? null,
       headerTextStyle: options.viewHeaderTextStyle ?? options.headerTextStyle ?? null,
       headerHintStyle: options.viewHeaderHintStyle ?? options.headerHintStyle ?? null,
@@ -408,7 +518,6 @@ export class SearchAnchor extends StatefulWidget {
       builder: (_context, controller) =>
         new SearchBar({
           controller,
-          enabled: options.enabled ?? true,
           leading: options.barLeading ?? new Icon(Icons.search),
           trailing: options.barTrailing ?? null,
           hintText: options.barHintText ?? null,
@@ -421,11 +530,25 @@ export class SearchAnchor extends StatefulWidget {
           padding: options.barPadding ?? null,
           textStyle: options.barTextStyle ?? null,
           hintStyle: options.barHintStyle ?? null,
-          readOnly: true,
+          ...(options.keyboardType === undefined ? {} : { keyboardType: options.keyboardType }),
+          smartDashesType: options.smartDashesType ?? null,
+          smartQuotesType: options.smartQuotesType ?? null,
+          ...(options.textCapitalization === undefined
+            ? {}
+            : { textCapitalization: options.textCapitalization }),
+          ...(options.textInputAction === undefined
+            ? {}
+            : { textInputAction: options.textInputAction }),
+          ...(options.contextMenuBuilder === undefined
+            ? {}
+            : { contextMenuBuilder: options.contextMenuBuilder }),
+          ...(options.onTapOutside === undefined ? {} : { onTapOutside: options.onTapOutside }),
           onTap: () => {
             controller.openView();
             options.onTap?.();
           },
+          onChanged: () => controller.openView(),
+          onSubmitted: options.onSubmitted ?? null,
         }),
     });
   }
@@ -444,6 +567,8 @@ interface OpenSearch {
 class SearchAnchorState extends State<SearchAnchor> implements SearchViewOwner {
   private readonly key = new GlobalKey('Material search anchor');
   private readonly owned = new SearchController();
+  private readonly ownedViews = new Set<PageRouteBuilder<string>>();
+  private disposed = false;
   private controller!: SearchController;
   private opened: OpenSearch | null = null;
   private viewport: Size | null = null;
@@ -493,14 +618,23 @@ class SearchAnchorState extends State<SearchAnchor> implements SearchViewOwner {
     });
   }
 
+  private anchorBounds(): Rect | null {
+    if (!this.mounted) return null;
+    const anchor = this.key.currentContext?.findRenderObject();
+    if (!(anchor instanceof RenderBox) || !anchor.hasSize || !anchor.attached) return null;
+    const navigator = this.context
+      .findAncestorStateOfType(NavigatorState)
+      ?.context.findRenderObject();
+    const target = navigator instanceof RenderBox && navigator.attached ? navigator : null;
+    const rect = bounds(anchor.getTransformTo(target), anchor.size);
+    return Rect.fromLTWH(rect.x, rect.y, rect.width, rect.height);
+  }
+
   openView(): void {
     if (this.opened || this.widget.options.enabled === false) return;
     const navigator = Navigator.of(this.context);
-    const anchor = this.key.currentContext?.findRenderObject();
-    const rect =
-      anchor instanceof RenderBox && anchor.hasSize && anchor.attached
-        ? bounds(anchor.getTransformTo(null), anchor.size)
-        : { x: 0, y: 0, width: 360, height: 56 };
+    const anchor = this.anchorBounds() ?? Rect.fromLTWH(0, 0, 360, 56);
+    const direction = Directionality.of(this.context);
     const platform = Theme.of(this.context).platform;
     const o = this.widget.options;
     const full =
@@ -512,20 +646,20 @@ class SearchAnchorState extends State<SearchAnchor> implements SearchViewOwner {
       barrierDismissible: !full,
       barrierColor: noColor,
       barrierLabel: MaterialLocalizations.of(this.context).modalBarrierDismissLabel,
-      transitionDuration: 600,
-      reverseTransitionDuration: 300,
-      pageBuilder: () =>
+      transitionDuration: openViewDuration,
+      reverseTransitionDuration: openViewDuration,
+      pageBuilder: (_context, animation) =>
         themes.wrap(
           new SearchView(
             o,
             controller,
             full,
-            Rect.fromLTWH(rect.x, rect.y, rect.width, rect.height),
+            () => this.anchorBounds() ?? anchor,
+            direction,
+            animation,
             () => this.closeView(null),
           ),
         ),
-      transitionsBuilder: (_context, animation, _secondary, child) =>
-        new FadeTransition({ opacity: animation, child }),
     });
     const open = { navigator, route, controller, full };
     this.setState(() => {
@@ -539,6 +673,13 @@ class SearchAnchorState extends State<SearchAnchor> implements SearchViewOwner {
         this.opened = null;
       });
       throw error;
+    }
+    if (controller === this.owned) {
+      this.ownedViews.add(route);
+      void route.completed.then(() => {
+        this.ownedViews.delete(route);
+        if (this.disposed && this.ownedViews.size === 0) this.owned.dispose();
+      });
     }
     void result
       .then(() => {
@@ -563,22 +704,29 @@ class SearchAnchorState extends State<SearchAnchor> implements SearchViewOwner {
 
   closeView(value: string | null): void {
     const open = this.opened;
-    if (!open || open.navigator.routes.at(-1)?.route !== open.route) return;
+    if (!open || !open.navigator.isAttached) return;
+    const routes = open.navigator.routes;
+    if (!routes.some((entry) => entry.route === open.route)) return;
     if (value !== null) open.controller.text = value;
-    open.navigator.pop(value ?? undefined);
+    if (routes.at(-1)?.route === open.route) open.navigator.pop(value ?? undefined);
+    else open.navigator.removeRoute(open.route, value ?? undefined);
   }
   override build(context: BuildContext): Widget {
     const { builder, enabled = true } = this.widget.options;
+    const active = enabled && !this.isOpen;
     return new AnimatedOpacity({
       key: this.key,
-      opacity: enabled ? (this.isOpen ? 0 : 1) : 0.38,
-      duration: 167,
-      child: new IgnorePointer(
-        new GestureDetector(builder(context, this.controller), {
-          onTap: () => this.openView(),
-          excludeFromSemantics: true,
-        }),
-        { ignoring: !enabled || this.isOpen },
+      opacity: enabled ? (this.isOpen ? 0 : 1) : disabledSearchBarOpacity,
+      duration: anchorFadeDuration,
+      child: new ExcludeFocus(
+        new IgnorePointer(
+          new GestureDetector(builder(context, this.controller), {
+            onTap: () => this.openView(),
+            excludeFromSemantics: true,
+          }),
+          { ignoring: !active },
+        ),
+        { excluding: !active },
       ),
     });
   }
@@ -587,10 +735,10 @@ class SearchAnchorState extends State<SearchAnchor> implements SearchViewOwner {
     const open = this.opened;
     if (open)
       (this.context as Element).owner.postFrame(() => {
-        if (open.navigator.isAttached && open.navigator.routes.at(-1)?.route === open.route)
-          open.navigator.pop();
+        if (open.navigator.isAttached) open.navigator.removeRoute(open.route);
       });
-    this.owned.dispose();
+    this.disposed = true;
+    if (!this.ownedViews.size) this.owned.dispose();
     super.dispose();
   }
 }
@@ -600,7 +748,9 @@ class SearchView extends StatefulWidget {
     readonly options: Readonly<SearchAnchorOptions>,
     readonly controller: SearchController,
     readonly full: boolean,
-    readonly anchor: Rect,
+    readonly anchor: () => Rect,
+    readonly direction: 'ltr' | 'rtl',
+    readonly animation: Animation<number>,
     readonly close: () => void,
   ) {
     super();
@@ -614,9 +764,50 @@ class SearchViewState extends State<SearchView> {
   private suggestions: readonly Widget[] = [];
   private version = 0;
   private query: string | undefined;
+  private motion!: CurvedAnimation;
+  private surfaceFade!: CurvedAnimation;
+  private iconsFade!: CurvedAnimation;
+  private dividerFade!: CurvedAnimation;
+  private listFade!: CurvedAnimation;
+  private anchorRect!: Rect;
+  private readonly refreshAnchor = (status: AnimationStatus): void => {
+    if (status !== AnimationStatus.reverse || !this.mounted) return;
+    this.setState(() => {
+      this.anchorRect = this.widget.anchor();
+    });
+  };
 
   override initState(): void {
     super.initState();
+    const parent = this.widget.animation;
+    this.anchorRect = this.widget.anchor();
+    parent.addStatusListener(this.refreshAnchor);
+    const motionCurve = Curves.easeInOutCubicEmphasized;
+    this.motion = new CurvedAnimation({
+      parent,
+      curve: motionCurve,
+      reverseCurve: motionCurve.flipped,
+    });
+    this.surfaceFade = new CurvedAnimation({
+      parent,
+      curve: viewFadeInterval,
+      reverseCurve: viewFadeInterval.flipped,
+    });
+    this.iconsFade = new CurvedAnimation({
+      parent: this.motion,
+      curve: viewIconsFadeInterval,
+      reverseCurve: viewIconsFadeInterval.flipped,
+    });
+    this.dividerFade = new CurvedAnimation({
+      parent: this.motion,
+      curve: viewDividerFadeInterval,
+      reverseCurve: viewFadeInterval.flipped,
+    });
+    this.listFade = new CurvedAnimation({
+      parent: this.motion,
+      curve: viewListFadeInterval,
+      reverseCurve: viewListFadeInterval.flipped,
+    });
     this.widget.controller.addListener(this.refresh);
   }
   override didChangeDependencies(): void {
@@ -654,126 +845,197 @@ class SearchViewState extends State<SearchView> {
     const local = SearchViewTheme.of(context);
     const { colorScheme, textTheme } = Theme.of(context);
     const shape = o.viewShape ?? local.shape ?? (full ? fullShape : viewShape);
-    const side = full ? null : (o.viewSide ?? local.side);
+    const side = o.viewSide ?? local.side;
     const shrink = !full && (o.shrinkWrap ?? local.shrinkWrap ?? false);
+    const limits = o.viewConstraints ?? local.constraints ?? viewLimits;
+    const headerStyle = o.headerTextStyle ?? local.headerTextStyle;
+    const headerPadding = o.viewBarPadding ?? local.barPadding ?? barInsets;
     const header = new SizedBox(
       undefined,
-      o.headerHeight ?? local.headerHeight ?? 56,
+      o.headerHeight ?? local.headerHeight ?? (full ? fullViewHeaderHeight : 56),
       new Padding(
-        o.viewBarPadding ?? local.barPadding ?? headerInsets,
-        new Row(
-          [
-            o.viewLeading ?? new BackButton({ onPressed: this.widget.close }),
-            new Expanded(
-              new SearchField({
-                controller,
-                autofocus: true,
-                style: o.headerTextStyle ?? local.headerTextStyle ?? textTheme.bodyLarge,
-                decoration: new InputDecoration({
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                  hintText: o.viewHintText ?? null,
-                  hintStyle:
-                    o.headerHintStyle ??
-                    local.headerHintStyle ??
+        headerPadding,
+        new Row([
+          o.viewLeading ??
+            new BackButton({
+              style: new ButtonStyle({ tapTargetSize: MaterialTapTargetSize.shrinkWrap }),
+              onPressed: this.widget.close,
+            }),
+          new Expanded(
+            new Padding(
+              headerPadding,
+              new Semantics({
+                inputType: SemanticsInputType.search,
+                child: new SearchField({
+                  controller,
+                  autofocus: true,
+                  style:
+                    headerStyle ??
                     (textTheme.bodyLarge ?? new TextStyle()).copyWith({
-                      color: colorScheme.onSurfaceVariant,
+                      color: colorScheme.onSurface,
                     }),
+                  decoration: new InputDecoration({
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    isDense: true,
+                    hintText: o.viewHintText ?? null,
+                    hintStyle:
+                      o.headerHintStyle ??
+                      local.headerHintStyle ??
+                      headerStyle ??
+                      (textTheme.bodyLarge ?? new TextStyle()).copyWith({
+                        color: colorScheme.onSurfaceVariant,
+                      }),
+                  }),
+                  ...(o.textCapitalization === undefined
+                    ? {}
+                    : { textCapitalization: o.textCapitalization }),
+                  ...(o.keyboardType === undefined ? {} : { keyboardType: o.keyboardType }),
+                  smartDashesType: o.smartDashesType ?? null,
+                  smartQuotesType: o.smartQuotesType ?? null,
+                  ...(o.textInputAction === undefined
+                    ? {}
+                    : { textInputAction: o.textInputAction }),
+                  ...(o.contextMenuBuilder === undefined
+                    ? {}
+                    : { contextMenuBuilder: o.contextMenuBuilder }),
+                  ...(o.onTapOutside === undefined ? {} : { onTapOutside: o.onTapOutside }),
+                  ...(o.viewOnChanged ? { onChanged: o.viewOnChanged } : {}),
+                  ...(o.viewOnSubmitted ? { onSubmitted: o.viewOnSubmitted } : {}),
                 }),
-                ...(o.textCapitalization === undefined
-                  ? {}
-                  : { textCapitalization: o.textCapitalization }),
-                ...(o.keyboardType === undefined ? {} : { keyboardType: o.keyboardType }),
-                ...(o.textInputAction === undefined ? {} : { textInputAction: o.textInputAction }),
-                ...(o.contextMenuBuilder === undefined
-                  ? {}
-                  : { contextMenuBuilder: o.contextMenuBuilder }),
-                ...(o.onTapOutside === undefined ? {} : { onTapOutside: o.onTapOutside }),
-                ...(o.viewOnChanged ? { onChanged: o.viewOnChanged } : {}),
-                ...(o.viewOnSubmitted ? { onSubmitted: o.viewOnSubmitted } : {}),
               }),
             ),
-            ...(o.viewTrailing ?? [
-              new ListenableBuilder(
-                controller,
-                (context) =>
-                  new IconButton({
-                    icon: new Icon(Icons.close),
-                    tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-                    onPressed: controller.text ? () => controller.clear() : null,
-                  }),
+          ),
+          ...Array.from(
+            o.viewTrailing ?? [
+              new ListenableBuilder(controller, (context) =>
+                controller.text
+                  ? new IconButton({
+                      icon: new Icon(Icons.close),
+                      tooltip: MaterialLocalizations.of(context).clearButtonTooltip,
+                      onPressed: () => controller.clear(),
+                    })
+                  : new SizedBox(0, 0),
               ),
-            ]),
-          ],
-          { spacing: 8 },
-        ),
+            ],
+          ),
+        ]),
       ),
     );
+    const keyboard = MediaQuery.maybeViewInsetsOf(context) ?? EdgeInsets.zero;
     const content =
       o.viewBuilder?.(this.suggestions) ??
       new ListView({
         children: this.suggestions,
-        padding: EdgeInsets.zero,
+        padding: full ? EdgeInsets.only({ bottom: keyboard.bottom }) : EdgeInsets.zero,
         primary: false,
         shrinkWrap: shrink,
       });
-    const panel = new Semantics({
-      container: true,
-      explicitChildNodes: true,
-      role: SemanticsRole.dialog,
-      label: o.viewHintText ?? null,
-      child: new Material({
+    const top = full ? MediaQuery.paddingOf(context).top : 0;
+    const viewHeader =
+      top === 0
+        ? header
+        : new AnimatedBuilder({
+            animation: this.motion,
+            child: header,
+            builder: (_context, child) =>
+              new Padding(EdgeInsets.only({ top: top * this.motion.value }), child ?? undefined),
+          });
+    const contentTransition = new FadeTransition({ opacity: this.listFade, child: content });
+    const divider = new FadeTransition({
+      opacity: this.dividerFade,
+      child: new Divider({
+        height: 1,
         color:
-          o.viewBackgroundColor ??
-          local.backgroundColor ??
-          new Color(colorScheme.surfaceContainerHigh),
-        elevation: o.viewElevation ?? local.elevation ?? 6,
-        surfaceTintColor: o.viewSurfaceTintColor ?? local.surfaceTintColor ?? noColor,
-        shape: side ? shape.copyWith({ side }) : shape,
-        clipBehavior: 'antiAlias',
-        child: new SafeArea({
-          top: full,
-          bottom: full,
-          left: full,
-          right: full,
-          child: new Column(
-            [
-              header,
-              new Divider({
-                height: 1,
-                color: o.dividerColor ?? local.dividerColor ?? new Color(colorScheme.outline),
-              }),
-              shrink
-                ? new Flexible(
-                    new Padding(o.viewPadding ?? local.padding ?? EdgeInsets.zero, content),
-                  )
-                : new Expanded(
-                    new Padding(o.viewPadding ?? local.padding ?? EdgeInsets.zero, content),
-                  ),
-            ],
-            { mainAxisSize: shrink ? 'min' : 'max', crossAxisAlignment: 'stretch' },
-          ),
-        }),
+          o.dividerColor ??
+          local.dividerColor ??
+          DividerTheme.of(context).color ??
+          new Color(colorScheme.outline),
       }),
     });
-    const keyboard = MediaQuery.maybeViewInsetsOf(context) ?? EdgeInsets.zero;
-    if (full) return new Padding(keyboard, panel);
-    const insets = (MediaQuery.maybePaddingOf(context) ?? EdgeInsets.zero)
-      .add(keyboard)
-      .resolve('ltr');
-    return new CustomSingleChildLayout(
-      panel,
-      new SearchViewLayout(
-        this.widget.anchor,
-        insets,
-        o.viewConstraints ?? local.constraints ?? null,
-        shrink,
+    const panelContent = new SafeArea({
+      top: false,
+      bottom: full,
+      left: full,
+      right: full,
+      child: new Column(
+        [
+          new FadeTransition({ opacity: this.iconsFade, child: viewHeader }),
+          ...(!shrink || limits.minHeight > 0 || this.suggestions.length > 0 || o.viewBuilder
+            ? [divider]
+            : []),
+          shrink ? new Flexible(contentTransition) : new Expanded(contentTransition),
+        ],
+        { mainAxisSize: shrink ? 'min' : 'max', crossAxisAlignment: 'stretch' },
       ),
+    });
+    const insets = full
+      ? EdgeInsets.zero
+      : MediaQuery.paddingOf(context).add(keyboard).resolve('ltr');
+    const viewPadding = full
+      ? EdgeInsets.zero
+      : (o.viewPadding ?? local.padding ?? EdgeInsets.zero);
+    const layout = new SearchViewLayout(
+      this.anchorRect,
+      insets,
+      limits,
+      shrink,
+      full,
+      this.widget.direction,
+      this.motion,
+    );
+    return new Directionality(
+      this.widget.direction,
+      new LayoutBuilder((_context, constraints) => {
+        const target = layout.targetSize(constraints.biggest);
+        // Keep the search editor and result wraps stable while the Material clip expands.
+        const contentWidth = Math.max(
+          0,
+          target.width - viewPadding.resolve(this.widget.direction).horizontal,
+        );
+        const panel = new Semantics({
+          container: true,
+          explicitChildNodes: true,
+          role: SemanticsRole.dialog,
+          label: o.viewHintText ?? null,
+          child: new Material({
+            color:
+              o.viewBackgroundColor ??
+              local.backgroundColor ??
+              new Color(colorScheme.surfaceContainerHigh),
+            elevation: o.viewElevation ?? local.elevation ?? 6,
+            surfaceTintColor: o.viewSurfaceTintColor ?? local.surfaceTintColor ?? noColor,
+            shape: side ? shape.copyWith({ side }) : shape,
+            clipBehavior: 'antiAlias',
+            child: new OverflowBox(panelContent, {
+              alignment: Alignment.topLeft,
+              minWidth: 0,
+              maxWidth: contentWidth,
+              fit: 'deferToChild',
+            }),
+          }),
+        });
+        return new CustomSingleChildLayout(
+          new FadeTransition({
+            opacity: this.surfaceFade,
+            child: full ? panel : new Padding(viewPadding, panel),
+          }),
+          layout,
+        );
+      }),
     );
   }
   override dispose(): void {
     ++this.version;
     this.widget.controller.removeListener(this.refresh);
+    this.widget.animation.removeStatusListener(this.refreshAnchor);
+    this.listFade.dispose();
+    this.dividerFade.dispose();
+    this.iconsFade.dispose();
+    this.surfaceFade.dispose();
+    this.motion.dispose();
     super.dispose();
   }
 }
@@ -782,34 +1044,75 @@ class SearchViewLayout extends SingleChildLayoutDelegate {
   constructor(
     readonly anchor: Rect,
     readonly insets: EdgeInsets,
-    readonly limits: BoxConstraints | null,
+    readonly limits: BoxConstraints,
     readonly shrink: boolean,
+    readonly full: boolean,
+    readonly direction: 'ltr' | 'rtl',
+    readonly motion: Animation<number>,
   ) {
-    super();
+    super({ relayout: motion });
+  }
+  targetSize(screen: Size): Size {
+    if (this.full) return screen;
+    const available = this.insets.deflateSize(screen);
+    return {
+      width: Math.min(
+        Math.max(0, available.width),
+        this.limits.maxWidth,
+        Math.max(this.limits.minWidth, this.anchor.width),
+      ),
+      height: Math.min(
+        Math.max(0, available.height),
+        this.limits.maxHeight,
+        Math.max(this.limits.minHeight, (screen.height * 2) / 3),
+      ),
+    };
+  }
+  private interpolate(start: number, end: number): number {
+    return start + (end - start) * this.motion.value;
   }
   override getConstraintsForChild(constraints: BoxConstraints): BoxConstraints {
-    const { width, height } = this.insets.deflateSize(constraints.biggest);
-    const limits = this.limits;
-    const w = Math.min(
+    const anchor = this.anchor;
+    const target = this.targetSize(constraints.biggest);
+    const width = Math.max(
+      0,
+      Math.min(constraints.maxWidth, this.interpolate(anchor.width, target.width)),
+    );
+    const height = Math.max(
+      0,
+      Math.min(constraints.maxHeight, this.interpolate(anchor.height, target.height)),
+    );
+    return new BoxConstraints(
       width,
-      Math.min(limits?.maxWidth ?? Infinity, Math.max(limits?.minWidth ?? 360, this.anchor.width)),
-    );
-    const h = Math.min(
+      width,
+      this.shrink ? Math.min(height, this.limits.minHeight) : height,
       height,
-      Math.min(limits?.maxHeight ?? Infinity, Math.max(limits?.minHeight ?? 80, (height * 2) / 3)),
     );
-    return new BoxConstraints(w, w, this.shrink ? Math.min(h, limits?.minHeight ?? 56) : h, h);
   }
   override getPositionForChild(size: Size, child: Size): Offset {
+    const anchor = this.anchor;
+    const target = this.targetSize(size);
+    const targetX = this.full
+      ? 0
+      : Math.max(
+          this.insets.left,
+          Math.min(
+            this.direction === 'rtl' ? anchor.right - target.width : anchor.left,
+            size.width - this.insets.right - target.width,
+          ),
+        );
+    const targetY = this.full
+      ? 0
+      : Math.max(
+          this.insets.top,
+          Math.min(
+            anchor.top,
+            size.height - this.insets.bottom - (this.shrink ? child.height : target.height),
+          ),
+        );
     return {
-      x: Math.max(
-        this.insets.left,
-        Math.min(this.anchor.left, size.width - this.insets.right - child.width),
-      ),
-      y: Math.max(
-        this.insets.top,
-        Math.min(this.anchor.top, size.height - this.insets.bottom - child.height),
-      ),
+      x: this.interpolate(anchor.left, targetX),
+      y: this.interpolate(anchor.top, targetY),
     };
   }
   override shouldRelayout(): boolean {

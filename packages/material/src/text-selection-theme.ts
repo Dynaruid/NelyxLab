@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/text_selection_theme.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { InheritedTheme } from '@nelyx/core/framework/widgets/inherited-theme';
 import { DefaultSelectionStyle } from '@nelyx/core/framework/widgets/default-selection-style';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';

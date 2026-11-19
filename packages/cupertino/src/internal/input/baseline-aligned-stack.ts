@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Selected _BaselineAlignedStack from pinned cupertino/text_field.dart on Core.
+// Flutter: packages/flutter/lib/src/cupertino/text_field.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { MultiChildRenderObjectWidget } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { KeyedSubtree } from '@nelyx/core/framework/widgets/basic';
@@ -54,6 +55,13 @@ class RenderBaselineAlignedStack extends RenderBox {
     return 2;
   }
   configure(hasPlaceholder: boolean, configuration: BaselineStackConfiguration): void {
+    if (
+      this.hasPlaceholder === hasPlaceholder &&
+      this.configuration.vertical.y === configuration.vertical.y &&
+      this.configuration.editorBaseline === configuration.editorBaseline &&
+      this.configuration.placeholderBaseline === configuration.placeholderBaseline
+    )
+      return;
     this.hasPlaceholder = hasPlaceholder;
     this.configuration = configuration;
     this.markNeedsLayout();

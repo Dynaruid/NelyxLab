@@ -1,13 +1,24 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/date_picker.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { DateTime } from '@nelyx/core/foundation/date-time';
 import { invariant } from '@nelyx/core/foundation/errors';
-import { ValueKey } from '@nelyx/core/foundation/key';
 import { Curves } from '@nelyx/core/framework/animation/curves';
-import { Alignment } from '@nelyx/core/framework/painting/alignment';
-import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
+import { AlignmentDirectional } from '@nelyx/core/framework/painting/alignment';
+import { EdgeInsets, EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
+import { TextStyle } from '@nelyx/core/framework/painting/text-style';
+import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { MultiChildLayoutDelegate } from '@nelyx/core/framework/rendering/custom-layout';
 import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
-import { Align, Expanded, Padding, Row, SizedBox, Text } from '@nelyx/core/framework/widgets/basic';
+import {
+  Align,
+  ConstrainedBox,
+  Padding,
+  SizedBox,
+  Text,
+} from '@nelyx/core/framework/widgets/basic';
+import { CustomMultiChildLayout, LayoutId } from '@nelyx/core/framework/widgets/custom-layout';
+import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
 import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type {
   BuildContext,
@@ -23,6 +34,7 @@ import {
   ScrollStartNotification,
 } from '@nelyx/core/framework/widgets/scroll-notification';
 import { ExcludeSemantics, Semantics } from '@nelyx/core/framework/widgets/semantics';
+import type { Size } from '@nelyx/core/ui/geometry';
 import { CupertinoColors } from './colors.ts';
 import {
   CupertinoLocalizations,
@@ -38,6 +50,7 @@ import {
   FixedExtentScrollController,
 } from './picker.ts';
 import { CupertinoTheme } from './theme.ts';
+import { measurePickerText, observePickerFonts } from './internal/picker-text-metrics.ts';
 
 export { DateTime, DatePickerDateOrder, DatePickerDateTimeOrder };
 
@@ -75,8 +88,24 @@ export interface CupertinoDatePickerOptions extends WidgetOptions {
 }
 
 const Mode = CupertinoDatePickerMode;
+const columnPadding = 12;
+const defaultPickerTextStyle = new TextStyle({ letterSpacing: -0.83 });
 
 export class CupertinoDatePicker extends StatefulWidget {
+  static getColumnWidth({
+    texts,
+    context,
+    textStyle,
+  }: {
+    readonly texts: readonly string[];
+    readonly context: BuildContext;
+    readonly textStyle?: TextStyle;
+  }): number {
+    const style = textStyle ?? CupertinoTheme.of(context).textTheme.dateTimePickerTextStyle;
+    return measurePickerText(context, style, Directionality.of(context), (measure) =>
+      texts.reduce((maximum, value) => Math.max(maximum, measure(value).width), 0),
+    );
+  }
   readonly onDateTimeChanged: CupertinoDatePickerOptions['onDateTimeChanged'];
   readonly mode: CupertinoDatePickerMode;
   readonly initialDateTime: DateTime;
@@ -184,6 +213,11 @@ export class CupertinoDatePicker extends StatefulWidget {
 
 type WheelColumn = 'year' | 'month' | 'day' | 'date' | 'hour' | 'minute' | 'meridiem';
 type Column = WheelColumn | 'separator';
+type ColumnBuilder = (
+  offAxisFraction: number,
+  positionItem: (child: Widget) => Widget,
+  selectionOverlay: Widget | null,
+) => Widget;
 type Indices = Record<WheelColumn, number>;
 const calendarOrders = {
   dmy: ['day', 'month', 'year'],
@@ -191,16 +225,6 @@ const calendarOrders = {
   ymd: ['year', 'month', 'day'],
   ydm: ['year', 'day', 'month'],
 } as const;
-const widths: Record<Column, number> = {
-  year: 74,
-  month: 104,
-  day: 52,
-  date: 150,
-  hour: 56,
-  minute: 56,
-  meridiem: 64,
-  separator: 20,
-};
 const dayMilliseconds = 86_400_000;
 const wrap = (index: number, length: number): number => ((index % length) + length) % length;
 const civilDay = ({ year, month, day }: DateTime) => {
@@ -216,6 +240,8 @@ class DatePickerState extends State<CupertinoDatePicker> {
   private readonly controllers = new Map<WheelColumn, FixedExtentScrollController>();
   private readonly scrolling = new Set<WheelColumn>();
   private correction = false;
+  private readonly columnWidths = new Map<Column, number>();
+  private removeFontListener: (() => void) | undefined;
 
   private get calendar(): boolean {
     return this.widget.mode === Mode.date || this.widget.mode === Mode.monthYear;
@@ -235,6 +261,9 @@ class DatePickerState extends State<CupertinoDatePicker> {
 
   override initState(): void {
     super.initState();
+    this.removeFontListener = observePickerFonts(this.context, () => {
+      if (this.mounted) this.setState(() => this.columnWidths.clear());
+    });
     this.initial = this.widget.initialDateTime;
     this.selection = this.indices(this.initial);
     this.lastReported = this.value();
@@ -245,6 +274,9 @@ class DatePickerState extends State<CupertinoDatePicker> {
   override didUpdateWidget(old: CupertinoDatePicker): void {
     super.didUpdateWidget(old);
     const picker = this.widget;
+    if (old.showDayOfWeek !== picker.showDayOfWeek) this.columnWidths.delete('day');
+    if (old.minimumYear !== picker.minimumYear || old.maximumYear !== picker.maximumYear)
+      this.columnWidths.delete('year');
     invariant(
       old.mode === picker.mode,
       'changed-cupertino-date-mode',
@@ -276,6 +308,11 @@ class DatePickerState extends State<CupertinoDatePicker> {
       old.selectableDayPredicate !== picker.selectableDayPredicate
     )
       this.scheduleCorrection();
+  }
+
+  override didChangeDependencies(): void {
+    super.didChangeDependencies();
+    this.columnWidths.clear();
   }
 
   private dayAt(index: number): DateTime {
@@ -436,7 +473,7 @@ class DatePickerState extends State<CupertinoDatePicker> {
       if (!moves.length) return;
       this.correction = true;
       const animations = moves.map(({ controller, item }) =>
-        controller.animateToItem(item, { duration: 200, curve: Curves.easeOut }),
+        controller.animateToItem(item, { duration: 200, curve: Curves.easeInOut }),
       );
       void Promise.allSettled(animations).then((results) => {
         if (!this.mounted) return;
@@ -506,7 +543,10 @@ class DatePickerState extends State<CupertinoDatePicker> {
           index <= (picker.maximumDate?.year ?? index);
         break;
       case 'month':
-        label = strings.datePickerMonth(index + 1);
+        label =
+          picker.mode === Mode.monthYear
+            ? strings.datePickerStandaloneMonth(index + 1)
+            : strings.datePickerMonth(index + 1);
         enabled = this.inRange(new DateTime(year, index + 1), new DateTime(year, index + 2));
         break;
       case 'day': {
@@ -565,133 +605,292 @@ class DatePickerState extends State<CupertinoDatePicker> {
         break;
     }
     const style = CupertinoTheme.of(context).textTheme.dateTimePickerTextStyle;
-    const text = new Align(
-      new Padding(
-        EdgeInsets.symmetric({ horizontal: column === 'separator' ? 0 : 4 }),
-        new Text(label, {
-          maxLines: 1,
-          softWrap: false,
-          style: enabled
-            ? style
-            : style.copyWith({
-                color: resolveCupertinoColor(CupertinoColors.inactiveGray, context).toARGB32(),
-              }),
-        }),
-      ),
-      { alignment: Alignment.center },
-    );
+    const text = new Text(label, {
+      maxLines: 1,
+      softWrap: false,
+      style: enabled
+        ? style
+        : style.copyWith({
+            color: resolveCupertinoColor(CupertinoColors.inactiveGray, context).toARGB32(),
+          }),
+    });
     if (!enabled || column === 'separator') return new ExcludeSemantics({ child: text });
     return description === null
       ? text
       : new Semantics({ label: description, excludeSemantics: true, child: text });
   }
 
-  override build(): Widget {
+  private labels(column: Column, local: CupertinoLocalizations): readonly string[] {
+    switch (column) {
+      case 'date':
+        return [
+          local.todayLabel,
+          ...Array.from({ length: 12 }, (_, index) =>
+            local.datePickerMediumDate(new DateTime(2018, index + 1, 25)),
+          ),
+        ];
+      case 'day':
+        return [
+          ...Array.from({ length: 31 }, (_, index) => local.datePickerDayOfMonth(index + 1)),
+          ...(this.widget.showDayOfWeek
+            ? Array.from({ length: 7 }, (_, index) => local.datePickerDayOfMonth(31, index + 1))
+            : []),
+        ];
+      case 'year':
+        return [
+          local.datePickerYear(2018),
+          local.datePickerYear(this.initial.year),
+          local.datePickerYear(this.widget.minimumYear),
+          ...(this.widget.maximumYear === null
+            ? []
+            : [local.datePickerYear(this.widget.maximumYear)]),
+        ];
+      case 'month':
+        return Array.from({ length: 12 }, (_, index) =>
+          this.widget.mode === Mode.monthYear
+            ? local.datePickerStandaloneMonth(index + 1)
+            : local.datePickerMonth(index + 1),
+        );
+      case 'hour':
+        return Array.from({ length: 24 }, (_, index) => local.datePickerHour(index));
+      case 'minute':
+        return Array.from({ length: 60 }, (_, index) => local.datePickerMinute(index));
+      case 'meridiem':
+        return [local.anteMeridiemAbbreviation, local.postMeridiemAbbreviation];
+      case 'separator':
+        return [':'];
+    }
+  }
+
+  private wheelBuilder(
+    context: BuildContext,
+    column: Column,
+    strings: CupertinoLocalizations,
+    today: number,
+  ): ColumnBuilder {
+    return (offAxisFraction, positionItem, selectionOverlay) => {
+      const picker = this.widget;
+      const common = {
+        itemExtent: picker.itemExtent,
+        useMagnifier: true,
+        magnification: 2.35 / 2.1,
+        squeeze: 1.25,
+        offAxisFraction,
+        backgroundColor: picker.backgroundColor,
+        changeReportingBehavior: picker.changeReportingBehavior,
+        selectionOverlay,
+      };
+      const childAt = (ctx: BuildContext, index: number): Widget | null => {
+        const item = this.item(ctx, column, index, strings, today);
+        return item === null ? null : positionItem(item);
+      };
+      if (column === 'separator')
+        return new ExcludeSemantics({
+          child: new CupertinoPicker({
+            ...common,
+            onSelectedItemChanged: null,
+            children: [childAt(context, 0)!],
+          }),
+        });
+      const options = {
+        ...common,
+        scrollController: this.controllers.get(column)!,
+        onSelectedItemChanged: (index: number) => this.changed(column, index),
+      };
+      const count = {
+        year: null,
+        date: null,
+        month: 12,
+        day: 31,
+        hour: 24,
+        minute: 60 / picker.minuteInterval,
+        meridiem: 2,
+      }[column];
+      const wheel =
+        count === null
+          ? CupertinoPicker.builder({ ...options, itemBuilder: childAt })
+          : new CupertinoPicker({
+              ...options,
+              looping: column !== 'meridiem',
+              children: Array.from({ length: count }, (_, index) => childAt(context, index)!),
+            });
+      return new NotificationListener({
+        notificationType: ScrollNotification,
+        child: wheel,
+        onNotification: (notification) => {
+          if (notification.depth !== 0) return false;
+          if (notification instanceof ScrollStartNotification) this.scrolling.add(column);
+          if (notification instanceof ScrollEndNotification) {
+            this.scrolling.delete(column);
+            if (this.mounted) {
+              this.setState(() => {});
+              this.scheduleCorrection();
+            }
+          }
+          return false;
+        },
+      });
+    };
+  }
+
+  override build(context: BuildContext): Widget {
     const picker = this.widget;
+    const strings = CupertinoLocalizations.of(context);
+    const direction = Directionality.of(context);
+    const style = CupertinoTheme.of(context).textTheme.dateTimePickerTextStyle;
+    const rtl = direction === 'rtl';
+    const columns = this.columns(strings, rtl);
+    const needsMeasurement = columns.filter((column) => !this.columnWidths.has(column));
+    if (needsMeasurement.length) {
+      measurePickerText(context, style, direction, (measure) => {
+        for (const column of needsMeasurement)
+          this.columnWidths.set(
+            column,
+            this.labels(column, strings).reduce(
+              (width, label) => Math.max(width, measure(label).width),
+              0,
+            ),
+          );
+      });
+    }
+    const widths = columns.map((column) => this.columnWidths.get(column)!);
+    const maximumWidth = Math.max(
+      320,
+      widths.reduce(
+        (total, width) => total + width + 2 * columnPadding,
+        (picker.mode === Mode.monthYear ? 3 : 4) * columnPadding,
+      ),
+    );
     return MediaQuery.withNoTextScaling({
       child: new LayoutBuilder((context, constraints) => {
-        const strings = CupertinoLocalizations.of(context);
-        const rtl = Directionality.of(context) === 'rtl';
-        const columns = this.columns(strings, rtl);
         const today = civilDay(DateTime.now());
-        const base = columns.map((column) =>
-          column === 'day' && picker.showDayOfWeek ? 94 : widths[column],
-        );
-        const width = Math.min(
-          constraints.maxWidth,
-          Math.max(
-            320,
-            base.reduce((sum, item) => sum + item, 0),
-          ),
-        );
         const wheels = columns.map((column, i) => {
-          const key = new ValueKey(column);
+          const first = i === 0,
+            last = i === columns.length - 1;
           const overlay = picker.selectionOverlayBuilder
             ? picker.selectionOverlayBuilder(context, {
                 selectedIndex: i,
                 columnCount: columns.length,
               })
             : new CupertinoPickerDefaultSelectionOverlay({
-                capStartEdge: i === 0,
-                capEndEdge: i === columns.length - 1,
+                capStartEdge: first,
+                capEndEdge: last,
               });
-          const common = {
-            itemExtent: picker.itemExtent,
-            useMagnifier: true,
-            magnification: 2.35 / 2.1,
-            squeeze: 1.25,
-            offAxisFraction: (rtl ? 1 : -1) * (i / Math.max(1, columns.length - 1) - 0.5) * 0.9,
-            backgroundColor: picker.backgroundColor,
-            changeReportingBehavior: picker.changeReportingBehavior,
-            selectionOverlay: overlay,
-          };
-          if (column === 'separator')
-            return new Expanded(
-              new ExcludeSemantics({
-                child: new CupertinoPicker({
-                  ...common,
-                  onSelectedItemChanged: null,
-                  children: [this.item(context, column, 0, strings, today)!],
-                }),
-              }),
-              base[i],
-              key,
+          const offAxis =
+            picker.mode === Mode.date
+              ? (i - 1) * 0.3
+              : picker.mode === Mode.monthYear
+                ? first
+                  ? -0.3
+                  : 0.5
+                : first
+                  ? -0.45
+                  : i >= 2 || columns.length === 2
+                    ? 0.45
+                    : 0;
+          const maxItemWidth = widths[i]! + columnPadding;
+          const positionItem = (child: Widget): Widget => {
+            const alignment = last
+              ? AlignmentDirectional.centerStart
+              : AlignmentDirectional.centerEnd;
+            if (this.calendar) {
+              const contents = new Align(
+                new SizedBox(
+                  maxItemWidth,
+                  undefined,
+                  new Align(child, {
+                    alignment: first
+                      ? AlignmentDirectional.centerStart
+                      : AlignmentDirectional.centerEnd,
+                  }),
+                ),
+                { alignment },
+              );
+              return first
+                ? contents
+                : new Padding(EdgeInsetsDirectional.only({ end: columnPadding }), contents);
+            }
+            const contents =
+              first || last
+                ? new ConstrainedBox(child, new BoxConstraints(0, maxItemWidth))
+                : child;
+            return new Padding(
+              EdgeInsetsDirectional.only(last ? { start: columnPadding } : { end: columnPadding }),
+              new Align(contents, { alignment }),
             );
-          const options = {
-            ...common,
-            scrollController: this.controllers.get(column)!,
-            onSelectedItemChanged: (index: number) => this.changed(column, index),
           };
-          const count = {
-            year: null,
-            date: null,
-            month: 12,
-            day: 31,
-            hour: 24,
-            minute: 60 / picker.minuteInterval,
-            meridiem: 2,
-          }[column];
-          const wheel =
-            count === null
-              ? CupertinoPicker.builder({
-                  ...options,
-                  itemBuilder: (ctx, index) => this.item(ctx, column, index, strings, today),
-                })
-              : new CupertinoPicker({
-                  ...options,
-                  looping: column !== 'meridiem',
-                  children: Array.from({ length: count }, (_, index) =>
-                    this.item(context, column, index, strings, today)!,
-                  ),
-                });
-          return new Expanded(
-            new NotificationListener({
-              notificationType: ScrollNotification,
-              child: wheel,
-              onNotification: (notification) => {
-                if (notification.depth !== 0) return false;
-                if (notification instanceof ScrollStartNotification) this.scrolling.add(column);
-                if (notification instanceof ScrollEndNotification) {
-                  this.scrolling.delete(column);
-                  if (this.mounted) {
-                    this.setState(() => {});
-                    this.scheduleCorrection();
-                  }
-                }
-                return false;
-              },
-            }),
-            base[i],
-            key,
+          return new LayoutId(
+            this.wheelBuilder(
+              context,
+              column,
+              strings,
+              today,
+            )(rtl ? -offAxis : offAxis, positionItem, overlay),
+            column,
           );
         });
-        return new Align(new SizedBox(width, 216, new Row(wheels, { crossAlign: 'stretch' })));
+        return DefaultTextStyle.merge(
+          new SizedBox(
+            constraints.hasBoundedWidth ? constraints.maxWidth : maximumWidth,
+            216,
+            new CustomMultiChildLayout(
+              wheels,
+              new DatePickerLayoutDelegate(columns, widths, maximumWidth, rtl),
+            ),
+          ),
+          defaultPickerTextStyle,
+        );
       }),
     });
   }
 
   override dispose(): void {
+    this.removeFontListener?.();
     for (const controller of this.controllers.values()) controller.dispose();
     super.dispose();
+  }
+}
+
+class DatePickerLayoutDelegate extends MultiChildLayoutDelegate {
+  constructor(
+    private readonly columns: readonly Column[],
+    private readonly widths: readonly number[],
+    private readonly maximumWidth: number,
+    private readonly rtl: boolean,
+  ) {
+    super();
+  }
+
+  override performLayout(size: Size): void {
+    const available = Math.min(size.width, this.maximumWidth);
+    const widths = this.widths.map((width) => width + 2 * columnPadding);
+    const needs = widths.reduce((sum, width) => sum + width, 0);
+    const last = widths.length - 1;
+    const edgeExtra = (available - needs) / 2;
+    const reduceAll = Math.min(widths[0]!, widths[last]!) + edgeExtra < 0;
+    let x = (size.width - available) / 2;
+    for (let slot = 0; slot < widths.length; slot++) {
+      const index = this.rtl ? last - slot : slot;
+      const base = widths[index]!;
+      const width = reduceAll
+        ? (base * available) / needs
+        : base + (index === 0 || index === last ? edgeExtra : 0);
+      const child = this.columns[index]!;
+      this.layoutChild(child, BoxConstraints.tight({ width, height: size.height }));
+      this.positionChild(child, { x, y: 0 });
+      x += width;
+    }
+  }
+
+  override shouldRelayout(old: DatePickerLayoutDelegate): boolean {
+    return (
+      this.maximumWidth !== old.maximumWidth ||
+      this.rtl !== old.rtl ||
+      this.columns.length !== old.columns.length ||
+      this.columns.some(
+        (column, index) =>
+          column !== old.columns[index] || this.widths[index] !== old.widths[index],
+      )
+    );
   }
 }

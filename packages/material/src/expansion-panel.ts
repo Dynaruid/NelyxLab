@@ -1,31 +1,41 @@
 // SPDX-License-Identifier: BSD-3-Clause
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/expansion_panel.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { invariant } from '@nelyx/core/foundation/errors';
-import { Curves } from '@nelyx/core/framework/animation/curves';
+import { ValueKey } from '@nelyx/core/foundation/key';
+import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
+import type { Animation } from '@nelyx/core/framework/animation/animation';
+import { Curves, Interval } from '@nelyx/core/framework/animation/curves';
+import { CurveTween } from '@nelyx/core/framework/animation/tween';
 import { Alignment } from '@nelyx/core/framework/painting/alignment';
 import { EdgeInsets, EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
 import { valueEquals } from '@nelyx/core/framework/painting/value-equality';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
-import { AnimatedSize } from '@nelyx/core/framework/widgets/animated-size';
 import {
   Column,
   ConstrainedBox,
   Expanded,
   Padding,
   Row,
-  SizedBox,
 } from '@nelyx/core/framework/widgets/basic';
+import { ExcludeFocus } from '@nelyx/core/framework/widgets/focus-scope';
 import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
-import { Icon } from '@nelyx/core/framework/widgets/icon';
 import { AnimatedContainer } from '@nelyx/core/framework/widgets/implicit-animations';
-import { MergeSemantics, Semantics } from '@nelyx/core/framework/widgets/semantics';
-import { Visibility } from '@nelyx/core/framework/widgets/visibility';
+import { IgnorePointer } from '@nelyx/core/framework/widgets/pointer-blocking';
+import {
+  ExcludeSemantics,
+  MergeSemantics,
+  Semantics,
+} from '@nelyx/core/framework/widgets/semantics';
+import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
+import { FadeTransition, SizeTransition } from '@nelyx/core/framework/widgets/transitions';
 import type { Color } from '@nelyx/core/ui/color';
-import { Divider } from './divider.ts';
-import { IconButton } from './icon-button.ts';
-import { Icons } from './icons.ts';
+import { kMinInteractiveDimension } from './constants.ts';
+import { ExpandIcon } from './expand-icon.ts';
 import { InkWell } from './ink-well.ts';
-import { Material } from './material.ts';
+import { MaterialGap, MaterialSlice, MergeableMaterial } from './mergeable-material.ts';
+import { MaterialLocalizations } from './material-localizations.ts';
 
 export type ExpansionPanelCallback = (panelIndex: number, isExpanded: boolean) => void;
 export type ExpansionPanelHeaderBuilder = (context: BuildContext, isExpanded: boolean) => Widget;
@@ -91,8 +101,9 @@ export interface ExpansionPanelListRadioOptions<T extends {} = {}> extends Omit<
   readonly initialOpenPanelValue?: T | null;
 }
 
-const headerPadding = EdgeInsets.symmetric({ vertical: 16 });
-const collapsedHeader = new BoxConstraints(0, Infinity, 48);
+const headerPadding = EdgeInsets.symmetric({ vertical: 64 - kMinInteractiveDimension });
+const collapsedHeader = new BoxConstraints(0, Infinity, kMinInteractiveDimension);
+const expandIconPadding = EdgeInsets.all(12);
 
 export class ExpansionPanelList extends StatefulWidget {
   private radioMode = false;
@@ -203,78 +214,131 @@ class ExpansionPanelListState extends State<ExpansionPanelList> {
       elevation,
       dividerColor,
     } = this.widget;
-    return new Column(
-      children.map((panel, index) => {
-        const expanded = this.expanded(panel);
-        const previous = children[index - 1];
-        const split = previous !== undefined && expanded !== this.expanded(previous);
-        const press = () => this.press(index, panel);
-        const hint = expanded ? 'Collapse' : 'Expand';
-        const glyph = new Icon(
-          expanded ? Icons.expand_less : Icons.expand_more,
-          expandIconColor ? { color: expandIconColor } : {},
-        );
-        const header = new Row([
-          new Expanded(
-            new AnimatedContainer({
-              duration,
-              curve: Curves.fastOutSlowIn,
-              margin: expanded ? expandedHeaderPadding : EdgeInsets.zero,
-              child: new ConstrainedBox(panel.headerBuilder(context, expanded), collapsedHeader),
+    const localizations = MaterialLocalizations.of(context);
+    const items: (MaterialSlice | MaterialGap)[] = [];
+    for (const [index, panel] of children.entries()) {
+      const expanded = this.expanded(panel);
+      const previous = children[index - 1];
+      if (previous && (expanded || this.expanded(previous))) {
+        items.push(new MaterialGap({ key: new ValueKey(index * 2 - 1), size: gap }));
+      }
+      const press = () => this.press(index, panel);
+      const hint = expanded
+        ? localizations.expandedIconTapHint
+        : localizations.collapsedIconTapHint;
+      const glyph = new ExpandIcon({
+        color: expandIconColor,
+        isExpanded: expanded,
+        onPressed: press,
+        padding: expandIconPadding,
+        splashColor: panel.splashColor,
+        highlightColor: panel.highlightColor,
+      });
+      const header = new Row([
+        new Expanded(
+          new AnimatedContainer({
+            duration,
+            curve: Curves.fastOutSlowIn,
+            margin: expanded ? expandedHeaderPadding : EdgeInsets.zero,
+            child: new ConstrainedBox(panel.headerBuilder(context, expanded), collapsedHeader),
+          }),
+        ),
+        new Padding(
+          EdgeInsetsDirectional.only({ end: 8 }),
+          panel.canTapOnHeader
+            ? new ExcludeFocus(new ExcludeSemantics(new IgnorePointer(glyph)))
+            : new Semantics({ label: hint, container: true, child: glyph }),
+        ),
+      ]);
+      const tappableHeader = panel.canTapOnHeader
+        ? new MergeSemantics({
+            child: new Semantics({
+              button: true,
+              onTapHint: hint,
+              child: new InkWell({
+                child: header,
+                onTap: press,
+                splashColor: panel.splashColor,
+                highlightColor: panel.highlightColor,
+              }),
             }),
+          })
+        : header;
+      items.push(
+        new MaterialSlice({
+          key: new ValueKey(index * 2),
+          color: panel.backgroundColor,
+          child: new Column(
+            [tappableHeader, new ExpansionPanelBody(panel.body, expanded, duration)],
+            { mainSize: 'min', crossAlign: 'stretch' },
           ),
-          new Padding(
-            EdgeInsetsDirectional.only({ end: 8 }),
-            panel.canTapOnHeader
-              ? new SizedBox(48, 48, glyph)
-              : new IconButton({
-                  icon: glyph,
-                  onPressed: press,
-                  tooltip: hint,
-                  splashColor: panel.splashColor,
-                  highlightColor: panel.highlightColor,
-                }),
-          ),
-        ]);
-        return new Column(
-          [
-            new AnimatedSize({ duration, child: new SizedBox(undefined, split ? gap : 0) }),
-            new Material({
-              color: panel.backgroundColor,
-              elevation: expanded ? elevation : 0,
-              child: new Column(
-                [
-                  panel.canTapOnHeader
-                    ? new MergeSemantics({
-                        child: new Semantics({
-                          button: true,
-                          child: new InkWell({
-                            child: header,
-                            onTap: press,
-                            splashColor: panel.splashColor,
-                            highlightColor: panel.highlightColor,
-                          }),
-                        }),
-                      })
-                    : header,
-                  new AnimatedSize({
-                    duration,
-                    alignment: Alignment.topCenter,
-                    curve: Curves.fastOutSlowIn,
-                    child: new Visibility(panel.body, { visible: expanded, maintainState: true }),
-                  }),
-                ],
-                { mainSize: 'min', crossAlign: 'stretch' },
-              ),
-            }),
-            !expanded && index + 1 < children.length && !this.expanded(children[index + 1]!)
-              ? new Divider({ height: 1, color: dividerColor })
-              : new SizedBox(0, 0),
-          ],
-          { mainSize: 'min', crossAlign: 'stretch' },
-        );
+        }),
+      );
+    }
+    return new MergeableMaterial({ children: items, elevation, dividerColor, hasDividers: true });
+  }
+}
+
+class ExpansionPanelBody extends StatefulWidget {
+  constructor(
+    readonly child: Widget,
+    readonly expanded: boolean,
+    readonly duration: number,
+  ) {
+    super();
+  }
+
+  override createState(): State<ExpansionPanelBody> {
+    return new ExpansionPanelBodyState();
+  }
+}
+
+const bodyFade = new Interval(0.4, 1, { curve: Curves.fastOutSlowIn });
+class ExpansionPanelBodyState extends SingleTickerProviderStateMixin<ExpansionPanelBody> {
+  private controller!: AnimationController;
+  private size!: Animation<number>;
+  private opacity!: Animation<number>;
+
+  override initState(): void {
+    super.initState();
+    this.controller = new AnimationController({
+      vsync: this,
+      value: this.widget.expanded ? 1 : 0,
+      duration: this.widget.duration,
+    });
+    this.size = this.controller.drive(new CurveTween({ curve: Curves.fastOutSlowIn }));
+    this.opacity = this.controller.drive(new CurveTween({ curve: bodyFade }));
+  }
+
+  override didUpdateWidget(old: ExpansionPanelBody): void {
+    super.didUpdateWidget(old);
+    this.controller.duration = this.widget.duration;
+    if (old.expanded !== this.widget.expanded) {
+      if (this.widget.expanded) this.controller.forward();
+      else this.controller.reverse();
+    }
+  }
+
+  override build(): Widget {
+    const { expanded, child } = this.widget;
+    return new SizeTransition({
+      sizeFactor: this.size,
+      alignment: Alignment.topCenter,
+      child: new FadeTransition({
+        opacity: this.opacity,
+        child: new ExcludeFocus(
+          new ExcludeSemantics({
+            child: new IgnorePointer(child, { ignoring: !expanded }),
+            excluding: !expanded,
+          }),
+          { excluding: !expanded },
+        ),
       }),
-      { mainSize: 'min', crossAlign: 'stretch' },
-    );
+    });
+  }
+
+  override dispose(): void {
+    this.controller.dispose();
+    super.dispose();
   }
 }

@@ -8,6 +8,7 @@ import type { Color } from '../../ui/color.ts';
 import type { ImageFilter } from '../../ui/image-filter.ts';
 import type { Simulation } from '../physics/simulation.ts';
 import type { NavigatorController } from './navigation.ts';
+import type { ValueListenable } from '../../foundation/notifier.ts';
 export interface RouteTransitionBinding {
   readonly animation: AnimationController;
   readonly secondaryAnimation: Animation<number>;
@@ -23,13 +24,16 @@ export interface RouteTransitionBinding {
 export interface RouteTransitionPolicy {
   readonly barrierColor: Color | null;
   readonly barrierLabel: string | null;
+  readonly barrierOnTapHint?: string | null;
   readonly barrierDismissible: boolean;
   readonly barrierFilter?: ImageFilter | null;
   readonly semanticsDismissible?: boolean | null;
+  readonly barrierSemanticsBottomInset?: ValueListenable<number> | null;
   readonly maintainState: boolean;
   readonly requestFocus: boolean | null;
   readonly traversalEdgeBehavior: TraversalEdgeBehavior | null;
   readonly directionalTraversalEdgeBehavior: TraversalEdgeBehavior | null;
+  readonly transitionAnimationController?: AnimationController | null;
   transitionDuration(context: BuildContext): number;
   reverseTransitionDuration(context: BuildContext): number;
   createSimulation?(forward: boolean): Simulation | null;

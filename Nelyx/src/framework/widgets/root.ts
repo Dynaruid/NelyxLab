@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { invariant } from '../../foundation/errors.ts';
 import { initializeFoundationBindings } from '../../foundation/binding.ts';
+import { FoundationPlatform } from '../../foundation/platform.ts';
 import type { SemanticsBinding } from '../../hosting/interaction.ts';
 import type {
   ApplicationDefinition,
@@ -17,6 +18,7 @@ import type {
 } from '../../ui/types.ts';
 import type { PointerEvent, KeyEvent } from '../../ui/input.ts';
 import { transform, inversePaintTransform, captureTransform } from '../../ui/geometry.ts';
+import { Offset as SourceOffset } from '../../ui/offset.ts';
 import { BuildOwner } from './framework.ts';
 import type { Widget, Element } from './framework.ts';
 import { PipelineOwner, PipelineManifold, RenderBox, RenderObject } from '../rendering/object.ts';
@@ -80,8 +82,13 @@ import { KeyMessage } from '../../services/key-message.ts';
 import type { RawKeyboard } from '../../services/raw-keyboard.ts';
 import { KeyEventManager } from '../../services/key-event-manager.ts';
 import { SystemChannelSet } from '../../services/system-channels.ts';
+import { MissingPluginException } from '../../services/message-codec.ts';
+import { systemUiOverlayStyleToPlatformMap } from '../../services/system-ui-overlay-style-source.ts';
+import type { SystemUiOverlayStyle } from '../../services/system-ui-overlay-style.ts';
 import type { RawKeyMessage } from '../../services/raw-key-event.ts';
 import type { KeyEventResult } from './focus.ts';
+import { scrollToTopFromStatusBar } from './primary-scroll-controller.ts';
+import { systemUiOverlayStyleAnnotation } from './annotated-region.ts';
 const keyboardOwners = new WeakMap<HardwareKeyboard, FrameworkRoot>();
 const keyboardDispatches = new WeakSet<HardwareKeyboard>();
 interface LogicalPointerStream {
@@ -228,6 +235,7 @@ export class FrameworkRoot implements ViewController {
   private readonly rawKeyboard: RawKeyboard;
   private readonly keyEventManager: KeyEventManager;
   private readonly layerRoot = new LayerHandle(new OffsetLayer());
+  private lastStatusBarStyle: SystemUiOverlayStyle | null = null;
   private root: Element | undefined;
   private pipelineInvalidatedDuringFrame = false;
   private closed = false;
@@ -1296,6 +1304,14 @@ export class FrameworkRoot implements ViewController {
     withRenderPaint(() => paintRenderObject(render, painting, true));
     painting.restore();
   }
+  handleStatusBarTap(): void {
+    if (!this.isInputLive()) return;
+    const result = new HitTestResult();
+    this.gestureBinding.hitTestInView(result, SourceOffset.zero, this.context.owner.id);
+    void scrollToTopFromStatusBar(result)?.catch((error: unknown) =>
+      this.context.reportError?.(error),
+    );
+  }
   pointer(event: PointerEvent): void {
     if (!this.isInputLive()) return;
     invariant(
@@ -1691,8 +1707,38 @@ export class FrameworkRoot implements ViewController {
       prepared.render.paintVersion === prepared.paintVersion
     );
   }
-  frameSubmitted(_token: FrameBuildToken): void {
+  frameSubmitted(token: FrameBuildToken): void {
     this.scheduler.markFirstFrameSubmitted();
+    this.applyStatusBarStyle(token);
+  }
+
+  private applyStatusBarStyle(token: FrameBuildToken): void {
+    const channel = this.context.platformServices?.channels.platform;
+    const platform = FoundationPlatform.hostEnvironment.operatingSystem;
+    if (
+      !channel ||
+      !this.isInputLive() ||
+      FoundationPlatform.isWeb ||
+      (platform !== 'ios' && platform !== 'android')
+    )
+      return;
+    const { logicalWidth, environment } = token.metrics;
+    const style = this.findAnnotation(systemUiOverlayStyleAnnotation, {
+      x: logicalWidth / 2,
+      y: (environment?.safeArea.top ?? 0) / 2,
+    });
+    if (!style || style.equals(this.lastStatusBarStyle)) return;
+    this.lastStatusBarStyle = style;
+    void channel
+      .invokeMethod(
+        'SystemChrome.setSystemUIOverlayStyle',
+        new Map(Object.entries(systemUiOverlayStyleToPlatformMap(style))),
+      )
+      .catch((error: unknown) => {
+        if (!(error instanceof MissingPluginException) && this.isViewOpen()) {
+          this.context.reportError?.(error);
+        }
+      });
   }
   dispose(): void {
     this.preparedFrame = undefined;

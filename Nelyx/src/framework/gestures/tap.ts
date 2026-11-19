@@ -315,6 +315,12 @@ export abstract class BaseTapGestureRecognizer extends PrimaryPointerGestureReco
   }
 }
 export class TapGestureRecognizer extends BaseTapGestureRecognizer {
+  /** Keep delivering moves after acceptance so a control can track its own bounds. */
+  trackMovementAfterAcceptance = false;
+  override get postAcceptSlopTolerance(): number | null {
+    return this.trackMovementAfterAcceptance ? null : super.postAcceptSlopTolerance;
+  }
+
   onTapDown: GestureTapDownCallback | null = null;
   onTapUp: GestureTapUpCallback | null = null;
   onTap: GestureTapCallback | null = null;

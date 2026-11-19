@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Own bounded transition lifetime over canonical Route entries and Core tickers.
 import type { RouteEntry, Route, NavigatorController } from './navigation.ts';
+import { State, StatefulWidget } from './framework.ts';
 import type { BuildContext, Widget } from './framework.ts';
 import type { TickerProvider } from '../animation/ticker.ts';
 import { AnimationController } from '../animation/animation-controller.ts';
@@ -14,21 +15,56 @@ import {
 import { TickerCanceled } from '../animation/ticker-future.ts';
 import type { RouteTransitionPolicy } from './route-transition-policy.ts';
 import { invariant } from '../../foundation/errors.ts';
-import { Builder, ClipRect, ColoredBox, SizedBox, Stack } from './basic.ts';
+import type { Key } from '../../foundation/key.ts';
+import { Builder, ClipRect, ColoredBox, Padding, Positioned, SizedBox, Stack } from './basic.ts';
 import { BackdropFilter } from './backdrop-filter.ts';
 import { AnimatedBuilder } from './transitions.ts';
 import { GestureDetector } from './gesture-detector.ts';
+import { ListenableBuilder } from './listenable-builder.ts';
 import { Semantics, BlockSemantics, ExcludeSemantics } from './semantics.ts';
 import { Color } from '../../ui/color.ts';
 import { Curves } from '../animation/curves.ts';
 import { HitTestBehavior } from '../rendering/pointer-listener.ts';
+import { EdgeInsets } from '../painting/edge-insets.ts';
 import { FoundationPlatform } from '../../foundation/platform.ts';
 import { Listenable } from '../../foundation/notifier.ts';
 import { GlobalKey } from './global-key.ts';
 import { RepaintBoundary } from './repaint-boundary.ts';
+import { RouteContentGeometry } from './route-content-geometry.ts';
+import { PrimaryScrollController } from './primary-scroll-controller.ts';
+import { ScrollController } from './scroll-controller.ts';
+
+class RoutePrimaryScrollScope extends StatefulWidget {
+  constructor(
+    readonly builder: (context: BuildContext) => Widget,
+    key: Key,
+  ) {
+    super(key);
+  }
+  override createState(): State<RoutePrimaryScrollScope> {
+    return new RoutePrimaryScrollState();
+  }
+}
+
+class RoutePrimaryScrollState extends State<RoutePrimaryScrollScope> {
+  private readonly controller = new ScrollController();
+
+  override build(): Widget {
+    return new PrimaryScrollController({
+      controller: this.controller,
+      child: new Builder(this.widget.builder),
+    });
+  }
+
+  override dispose(): void {
+    this.controller.dispose();
+    super.dispose();
+  }
+}
 interface Motion {
   readonly policy: RouteTransitionPolicy;
   readonly primary: AnimationController;
+  readonly releasePrimary: () => void;
   readonly secondary: ProxyAnimation;
   readonly changed: () => void;
   readonly barrierId: string;
@@ -37,6 +73,7 @@ interface Motion {
   removeTrainHopping: (() => void) | null;
 }
 let nextNavigationIdentity = 0;
+const borrowedRouteControllers = new WeakSet<AnimationController>();
 export class NavigationTransitions {
   private readonly identity = ++nextNavigationIdentity;
   private nextBarrierIdentity = 0;
@@ -51,7 +88,11 @@ export class NavigationTransitions {
   >();
   private readonly adjacencies = new Map<
     symbol,
-    { readonly previous: Route | null; readonly next: Route | null }
+    {
+      readonly previous: Route | null;
+      readonly previousSettings: Route['settings'] | null;
+      readonly next: Route | null;
+    }
   >();
   private readonly pendingRetirements = new Set<symbol>();
   private closed = false;
@@ -68,15 +109,15 @@ export class NavigationTransitions {
     const previous = this.live,
       oldRendered = this.rendered,
       nextTokens = new Set(entries.map((e) => e.token)),
+      removedTop = previous.at(-1)?.token,
       simplePop =
-        previous.length === entries.length + 1 &&
-        entries.every((e, i) => previous[i]?.token === e.token);
+        previous.length > entries.length && entries.every((e, i) => previous[i]?.token === e.token);
     this.live = entries;
     // Retired routes keep their original keyed subtree until reverse finishes.
     for (const old of previous)
       if (!nextTokens.has(old.token)) {
         const motion = this.motions.get(old.token);
-        if (simplePop && motion) {
+        if (simplePop && old.token === removedTop && motion) {
           this.exiting.add(old.token);
           entries.at(-1)?.route.didPopNext(old.route);
           this.animate(motion, false);
@@ -96,13 +137,27 @@ export class NavigationTransitions {
         );
         continue;
       }
-      const primary = new AnimationController({
-          vsync: this.vsync,
-          value: initial || previous.length === 0 ? 1 : 0,
-          duration: 300,
-          reverseDuration: 300,
-          debugLabel: 'Navigator route ' + entry.name,
-        }),
+      const provided = policy.transitionAnimationController ?? null;
+      invariant(
+        provided === null ||
+          (provided.lowerBound === 0 &&
+            provided.upperBound === 1 &&
+            !borrowedRouteControllers.has(provided)),
+        'invalid-route-animation-controller',
+        'A provided route animation controller must cover [0, 1] and belong to one route at a time',
+      );
+      const initialValue = initial || previous.length === 0 ? 1 : 0;
+      const originalDuration = provided?.duration ?? null;
+      const originalReverseDuration = provided?.reverseDuration ?? null;
+      const primary =
+          provided ??
+          new AnimationController({
+            vsync: this.vsync,
+            value: initialValue,
+            duration: 300,
+            reverseDuration: 300,
+            debugLabel: 'Navigator route ' + entry.name,
+          }),
         secondary = new ProxyAnimation(kAlwaysDismissedAnimation),
         retirementListeners = new Set<() => void>(),
         changed = () => {
@@ -110,6 +165,20 @@ export class NavigationTransitions {
             this.queueRetirement(entry.token);
           this.changed();
         };
+      const releasePrimary = (): void => {
+        if (!provided) {
+          primary.dispose();
+          return;
+        }
+        try {
+          if (provided.isAnimating) provided.stop();
+        } finally {
+          provided.duration = originalDuration;
+          provided.reverseDuration = originalReverseDuration;
+          borrowedRouteControllers.delete(provided);
+        }
+      };
+      if (provided) borrowedRouteControllers.add(provided);
       let attached = false;
       try {
         policy.attach({
@@ -130,8 +199,9 @@ export class NavigationTransitions {
           },
         });
         attached = true;
-        primary.duration = policy.transitionDuration(context);
-        primary.reverseDuration = policy.reverseTransitionDuration(context);
+        primary.duration = originalDuration ?? policy.transitionDuration(context);
+        primary.reverseDuration =
+          originalReverseDuration ?? originalDuration ?? policy.reverseTransitionDuration(context);
         invariant(
           [primary.duration, primary.reverseDuration].every(
             (v) => v !== null && Number.isFinite(v) && v >= 0,
@@ -139,10 +209,12 @@ export class NavigationTransitions {
           'invalid-route-duration',
           'Route durations must be finite nonnegative milliseconds',
         );
+        if (provided) primary.value = initialValue;
         primary.addStatusListener(changed);
         const motion: Motion = {
           policy,
           primary,
+          releasePrimary,
           secondary,
           changed,
           retirementListeners,
@@ -154,7 +226,7 @@ export class NavigationTransitions {
         if (primary.value === 0) fresh.push(motion);
       } catch (error) {
         secondary.parent = null;
-        primary.dispose();
+        releasePrimary();
         if (attached)
           try {
             policy.detach();
@@ -200,9 +272,11 @@ export class NavigationTransitions {
       const previous = this.live[i - 1]?.route ?? null,
         nextRoute = nextEntry?.route ?? null,
         old = this.adjacencies.get(entry.token);
-      if (!old || old.previous !== previous) entry.route.didChangePrevious(previous);
+      const previousSettings = previous?.settings ?? null;
+      if (!old || old.previous !== previous || old.previousSettings !== previousSettings)
+        entry.route.didChangePrevious(previous);
       if (!old || old.next !== nextRoute) entry.route.didChangeNext(nextRoute);
-      this.adjacencies.set(entry.token, { previous, next: nextRoute });
+      this.adjacencies.set(entry.token, { previous, previousSettings, next: nextRoute });
       const motion = this.motions.get(entry.token);
       if (!motion) continue;
       const next = nextEntry && this.motions.get(nextEntry.token),
@@ -296,16 +370,18 @@ export class NavigationTransitions {
   page(entry: RouteEntry): Widget {
     let page = this.pages.get(entry.token);
     if (!page || page.builder !== entry.builder || page.revision !== this.pageRevision) {
+      const key = page?.widget.key ?? new GlobalKey();
+      const builder = (context: BuildContext) =>
+        new RepaintBoundary(
+          entry.route.transitionPolicy?.buildPage(context) ?? entry.builder(context),
+        );
       page = {
         builder: entry.builder,
         revision: this.pageRevision,
-        widget: new Builder(
-          (context) =>
-            new RepaintBoundary(
-              entry.route.transitionPolicy?.buildPage(context) ?? entry.builder(context),
-            ),
-          { key: page?.widget.key ?? new GlobalKey() },
-        ),
+        widget:
+          FoundationPlatform.defaultTargetPlatform === 'iOS' && !FoundationPlatform.isWeb
+            ? new RoutePrimaryScrollScope(builder, key)
+            : new Builder(builder, { key }),
       };
       this.pages.set(entry.token, page);
     }
@@ -315,6 +391,7 @@ export class NavigationTransitions {
     for (let i = this.rendered.length - 1; i >= 0; i--) {
       const entry = this.rendered[i]!,
         motion = this.motions.get(entry.token);
+      if (i === this.rendered.length - 1 && this.gesture() && i > 0) continue;
       if (
         entry.opaque &&
         (!motion ||
@@ -335,21 +412,43 @@ export class NavigationTransitions {
         dismissible &&
         (policy.semanticsDismissible ??
           ['android', 'iOS', 'macOS'].includes(FoundationPlatform.defaultTargetPlatform)),
-      action = semanticsDismissible && policy.barrierLabel !== null ? onDismiss : null;
-    const semantics = new Semantics({
-      transportId: motion.barrierId,
-      label: semanticsDismissible ? policy.barrierLabel : null,
-      onTap: action,
-      onDismiss: action,
-      child: new GestureDetector(SizedBox.expand(), {
-        behavior: HitTestBehavior.opaque,
-        ...(dismissible ? { onTap: onDismiss } : {}),
-      }),
+      action = semanticsDismissible && policy.barrierLabel !== null ? onDismiss : null,
+      bottomInset = policy.barrierSemanticsBottomInset;
+    const semantics = (child: Widget) =>
+      new Semantics({
+        ...(bottomInset ? { container: true } : {}),
+        transportId: motion.barrierId,
+        label: semanticsDismissible ? policy.barrierLabel : null,
+        onTap: action,
+        onDismiss: action,
+        onTapHint: action ? (policy.barrierOnTapHint ?? null) : null,
+        child,
+      });
+    const hitTarget = new GestureDetector(SizedBox.expand(), {
+      behavior: HitTestBehavior.opaque,
+      ...(bottomInset ? { excludeFromSemantics: true } : {}),
+      ...(dismissible ? { onTap: onDismiss } : {}),
     });
+    const content =
+      bottomInset && semanticsDismissible
+        ? new Stack([
+            hitTarget,
+            Positioned.fill(
+              new ListenableBuilder(
+                bottomInset,
+                () =>
+                  new Padding(
+                    EdgeInsets.only({ bottom: bottomInset.value }),
+                    semantics(SizedBox.expand()),
+                  ),
+              ),
+            ),
+          ])
+        : semantics(hitTarget);
     const barrier = new AnimatedBuilder({
       animation: motion.primary,
       child: new BlockSemantics({
-        child: new ExcludeSemantics({ excluding: !semanticsDismissible, child: semantics }),
+        child: new ExcludeSemantics({ excluding: !semanticsDismissible, child: content }),
       }),
       builder: (_context, child) =>
         new ColoredBox({
@@ -364,7 +463,9 @@ export class NavigationTransitions {
     });
     const transitions = new AnimatedBuilder({
       animation: Listenable.merge([motion.primary, motion.secondary]),
-      child,
+      child: new Builder(
+        (inside) => new RouteContentGeometry(context, inside, motion.primary, child),
+      ),
       builder: (context, child) =>
         motion.policy.buildTransitions(context, motion.primary, motion.secondary, child!),
     });
@@ -412,7 +513,7 @@ export class NavigationTransitions {
         remove?.();
       },
       () => motion.policy.detach(),
-      () => motion.primary.dispose(),
+      motion.releasePrimary,
     ])
       try {
         cleanup();

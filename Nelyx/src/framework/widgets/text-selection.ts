@@ -10,6 +10,7 @@ import { Offset as OffsetValue } from '../../ui/offset.ts';
 import { Size } from '../../ui/size.ts';
 import type { TextSelectionHandleType } from '../rendering/selection.ts';
 import { ValueNotifier } from '../../foundation/notifier.ts';
+import type { ValueListenable } from '../../foundation/notifier.ts';
 import { ServicesBinding } from '../../services/binding.ts';
 import type { AppLifecycleState } from '../../services/binding.ts';
 import { Clipboard } from '../../services/clipboard.ts';
@@ -17,6 +18,11 @@ import type { Disposable } from '../../foundation/disposable.ts';
 import { FlutterError } from '../../foundation/flutter-error.ts';
 import { FlutterErrorDetails } from '../../foundation/assertions.ts';
 import { ErrorDescription } from '../../foundation/diagnostics.ts';
+import { ListenableBuilder } from './listenable-builder.ts';
+import type { TextSelectionDelegate } from '../../services/text-input.ts';
+import { SelectionChangedCause } from '../../services/text-input.ts';
+import type { Rect } from '../../ui/rect.ts';
+import type { TextSelectionPoint } from '../rendering/editable.ts';
 export class ClipboardStatus {
   static readonly pasteable = new ClipboardStatus(0, 'pasteable');
   static readonly unknown = new ClipboardStatus(1, 'unknown');
@@ -131,7 +137,20 @@ export class ClipboardStatusNotifier extends ValueNotifier<ClipboardStatus> {
     super.dispose();
   }
 }
-/** Handle geometry and painting; selection actions belong to contextMenuBuilder. */
+export interface TextSelectionControls {
+  /** @deprecated Use contextMenuBuilder. */
+  buildToolbar?(
+    context: BuildContext,
+    globalEditableRegion: Rect,
+    textLineHeight: number,
+    selectionMidpoint: Offset,
+    endpoints: readonly TextSelectionPoint[],
+    delegate: TextSelectionDelegate,
+    clipboardStatus: ValueListenable<ClipboardStatus> | null,
+    lastSecondaryTapDownPosition: Offset | null,
+  ): Widget;
+}
+
 export abstract class TextSelectionControls {
   abstract buildHandle(
     context: BuildContext,
@@ -141,8 +160,80 @@ export abstract class TextSelectionControls {
   ): Widget;
   abstract getHandleAnchor(type: TextSelectionHandleType, textLineHeight: number): Offset;
   abstract getHandleSize(textLineHeight: number): Size;
+
+  canCut(delegate: TextSelectionDelegate): boolean {
+    return delegate.cutEnabled && !delegate.textEditingValue.selection.isCollapsed;
+  }
+  canCopy(delegate: TextSelectionDelegate): boolean {
+    return delegate.copyEnabled && !delegate.textEditingValue.selection.isCollapsed;
+  }
+  canPaste(delegate: TextSelectionDelegate): boolean {
+    return delegate.pasteEnabled;
+  }
+  canSelectAll(delegate: TextSelectionDelegate): boolean {
+    const { text, selection } = delegate.textEditingValue;
+    return delegate.selectAllEnabled && text.length > 0 && selection.isCollapsed;
+  }
+  handleCut(delegate: TextSelectionDelegate): void {
+    delegate.cutSelection(SelectionChangedCause.toolbar);
+  }
+  handleCopy(delegate: TextSelectionDelegate): void {
+    delegate.copySelection(SelectionChangedCause.toolbar);
+  }
+  handlePaste(delegate: TextSelectionDelegate): Promise<void> {
+    return delegate.pasteText(SelectionChangedCause.toolbar);
+  }
+  handleSelectAll(delegate: TextSelectionDelegate): void {
+    delegate.selectAll(SelectionChangedCause.toolbar);
+  }
+
+  protected buildToolbarItems(
+    context: BuildContext,
+    delegate: TextSelectionDelegate,
+    clipboardStatus: ValueListenable<ClipboardStatus> | null,
+    toolbar: (context: BuildContext, items: readonly ContextMenuButtonItem[]) => Widget,
+  ): Widget {
+    const build = (buildContext: BuildContext): Widget => {
+      const status = clipboardStatus?.value;
+      const canPaste = this.canPaste(delegate);
+      if (canPaste && status === ClipboardStatus.unknown) return SizedBox.shrink();
+      const items: ContextMenuButtonItem[] = [];
+      const add = (type: ContextMenuButtonType, onPressed: () => void) =>
+        items.push(new ContextMenuButtonItem({ type, onPressed }));
+      if (this.canCut(delegate)) add(ContextMenuButtonType.cut, () => this.handleCut(delegate));
+      if (this.canCopy(delegate)) add(ContextMenuButtonType.copy, () => this.handleCopy(delegate));
+      if (canPaste && status === ClipboardStatus.pasteable) {
+        add(
+          ContextMenuButtonType.paste,
+          () =>
+            void this.handlePaste(delegate).catch((exception) => {
+              FlutterError.reportError(
+                new FlutterErrorDetails({ exception, library: 'widget library' }),
+              );
+            }),
+        );
+      }
+      if (this.canSelectAll(delegate)) {
+        add(ContextMenuButtonType.selectAll, () => this.handleSelectAll(delegate));
+      }
+      return items.length ? toolbar(buildContext, items) : SizedBox.shrink();
+    };
+    return clipboardStatus ? new ListenableBuilder(clipboardStatus, build) : build(context);
+  }
 }
 export class EmptyTextSelectionControls extends TextSelectionControls {
+  override canCopy(_delegate: TextSelectionDelegate): boolean {
+    return false;
+  }
+  override canCut(_delegate: TextSelectionDelegate): boolean {
+    return false;
+  }
+  override canPaste(_delegate: TextSelectionDelegate): boolean {
+    return false;
+  }
+  override canSelectAll(_delegate: TextSelectionDelegate): boolean {
+    return false;
+  }
   override getHandleSize(_height: number): Size {
     return Size.zero;
   }

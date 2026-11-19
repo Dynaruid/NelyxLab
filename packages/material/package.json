@@ -18,6 +18,10 @@
       "types": "./dist/date-picker.d.ts",
       "default": "./dist/date-picker.js"
     },
+    "./date-range-picker": {
+      "types": "./dist/date-range-picker.d.ts",
+      "default": "./dist/date-range-picker.js"
+    },
     "./widgets": {
       "types": "./dist/widgets.d.ts",
       "default": "./dist/widgets.js"
@@ -25,6 +29,10 @@
     "./text-selection": {
       "types": "./dist/text-selection.d.ts",
       "default": "./dist/text-selection.js"
+    },
+    "./selectable-text": {
+      "types": "./dist/selectable-text.d.ts",
+      "default": "./dist/selectable-text.js"
     },
     "./selection-area": {
       "types": "./dist/selection-area.d.ts",
@@ -57,6 +65,14 @@
     "./text-selection-toolbar-text-button": {
       "types": "./dist/text-selection-toolbar-text-button.d.ts",
       "default": "./dist/text-selection-toolbar-text-button.js"
+    },
+    "./spell-check-suggestions-toolbar": {
+      "types": "./dist/spell-check-suggestions-toolbar.d.ts",
+      "default": "./dist/spell-check-suggestions-toolbar.js"
+    },
+    "./spell-check-suggestions-toolbar-layout-delegate": {
+      "types": "./dist/spell-check-suggestions-toolbar-layout-delegate.d.ts",
+      "default": "./dist/spell-check-suggestions-toolbar-layout-delegate.js"
     },
     "./desktop-text-selection-toolbar": {
       "types": "./dist/desktop-text-selection-toolbar.d.ts",
@@ -105,6 +121,10 @@
     "./button-style": {
       "types": "./dist/button-style.d.ts",
       "default": "./dist/button-style.js"
+    },
+    "./button-theme": {
+      "types": "./dist/button-theme.d.ts",
+      "default": "./dist/button-theme.js"
     },
     "./progress-indicator": {
       "types": "./dist/progress-indicator.d.ts",
@@ -296,13 +316,37 @@
       "types": "./dist/menu-anchor.d.ts",
       "default": "./dist/menu-anchor.js"
     },
+    "./menu-accelerator-label": {
+      "types": "./dist/menu-accelerator-label.d.ts",
+      "default": "./dist/menu-accelerator-label.js"
+    },
     "./search-anchor": {
       "types": "./dist/search-anchor.d.ts",
       "default": "./dist/search-anchor.js"
     },
+    "./search": {
+      "types": "./dist/search.d.ts",
+      "default": "./dist/search.js"
+    },
     "./app-bar": {
       "types": "./dist/app-bar.d.ts",
       "default": "./dist/app-bar.js"
+    },
+    "./sliver-app-bar": {
+      "types": "./dist/sliver-app-bar.d.ts",
+      "default": "./dist/sliver-app-bar.js"
+    },
+    "./flexible-space-bar": {
+      "types": "./dist/flexible-space-bar.d.ts",
+      "default": "./dist/flexible-space-bar.js"
+    },
+    "./shadows": {
+      "types": "./dist/shadows.d.ts",
+      "default": "./dist/shadows.js"
+    },
+    "./mergeable-material": {
+      "types": "./dist/mergeable-material.d.ts",
+      "default": "./dist/mergeable-material.js"
     },
     "./time": {
       "types": "./dist/time.d.ts",
@@ -319,6 +363,10 @@
     "./dialog": {
       "types": "./dist/dialog.d.ts",
       "default": "./dist/dialog.js"
+    },
+    "./about": {
+      "types": "./dist/about.d.ts",
+      "default": "./dist/about.js"
     },
     "./radio": {
       "types": "./dist/radio.d.ts",
@@ -472,6 +520,22 @@
       "types": "./dist/card-theme.d.ts",
       "default": "./dist/card-theme.js"
     },
+    "./button": {
+      "types": "./dist/button.d.ts",
+      "default": "./dist/button.js"
+    },
+    "./material-button": {
+      "types": "./dist/material-button.d.ts",
+      "default": "./dist/material-button.js"
+    },
+    "./reorderable-list": {
+      "types": "./dist/reorderable-list.d.ts",
+      "default": "./dist/reorderable-list.js"
+    },
+    "./carousel": {
+      "types": "./dist/carousel.d.ts",
+      "default": "./dist/carousel.js"
+    },
     "./carousel-view-theme-data": {
       "types": "./dist/carousel-view-theme-data.d.ts",
       "default": "./dist/carousel-view-theme-data.js"
@@ -491,6 +555,10 @@
     "./expansion-tile-theme-data": {
       "types": "./dist/expansion-tile-theme-data.d.ts",
       "default": "./dist/expansion-tile-theme-data.js"
+    },
+    "./expansion-tile": {
+      "types": "./dist/expansion-tile.d.ts",
+      "default": "./dist/expansion-tile.js"
     },
     "./expansion-tile-theme": {
       "types": "./dist/expansion-tile-theme.d.ts",
@@ -580,6 +648,10 @@
       "types": "./dist/floating-action-button.d.ts",
       "default": "./dist/floating-action-button.js"
     },
+    "./floating-action-button-location": {
+      "types": "./dist/floating-action-button-location.d.ts",
+      "default": "./dist/floating-action-button-location.js"
+    },
     "./floating-action-button-theme-data": {
       "types": "./dist/floating-action-button-theme-data.d.ts",
       "default": "./dist/floating-action-button-theme-data.js"
@@ -640,6 +712,10 @@
       "types": "./dist/material-banner-theme.d.ts",
       "default": "./dist/material-banner-theme.js"
     },
+    "./bottom-app-bar": {
+      "types": "./dist/bottom-app-bar.d.ts",
+      "default": "./dist/bottom-app-bar.js"
+    },
     "./bottom-app-bar-theme-data": {
       "types": "./dist/bottom-app-bar-theme-data.d.ts",
       "default": "./dist/bottom-app-bar-theme-data.js"
@@ -699,6 +775,18 @@
     "./dropdown-menu-theme": {
       "types": "./dist/dropdown-menu-theme.d.ts",
       "default": "./dist/dropdown-menu-theme.js"
+    },
+    "./dropdown-menu": {
+      "types": "./dist/dropdown-menu.d.ts",
+      "default": "./dist/dropdown-menu.js"
+    },
+    "./dropdown-menu-form-field": {
+      "types": "./dist/dropdown-menu-form-field.d.ts",
+      "default": "./dist/dropdown-menu-form-field.js"
+    },
+    "./dropdown": {
+      "types": "./dist/dropdown.d.ts",
+      "default": "./dist/dropdown.js"
     },
     "./navigation-rail-theme-data": {
       "types": "./dist/navigation-rail-theme-data.d.ts",
@@ -764,9 +852,21 @@
       "types": "./dist/toggle-buttons-theme.d.ts",
       "default": "./dist/toggle-buttons-theme.js"
     },
+    "./toggle-buttons": {
+      "types": "./dist/toggle-buttons.d.ts",
+      "default": "./dist/toggle-buttons.js"
+    },
+    "./autocomplete": {
+      "types": "./dist/autocomplete.d.ts",
+      "default": "./dist/autocomplete.js"
+    },
     "./popup-menu-position": {
       "types": "./dist/popup-menu-position.d.ts",
       "default": "./dist/popup-menu-position.js"
+    },
+    "./popup-menu": {
+      "types": "./dist/popup-menu.d.ts",
+      "default": "./dist/popup-menu.js"
     },
     "./snack-bar-behavior": {
       "types": "./dist/snack-bar-behavior.d.ts",
@@ -783,6 +883,10 @@
     "./bottom-navigation-bar-landscape-layout": {
       "types": "./dist/bottom-navigation-bar-landscape-layout.d.ts",
       "default": "./dist/bottom-navigation-bar-landscape-layout.js"
+    },
+    "./bottom-navigation-bar": {
+      "types": "./dist/bottom-navigation-bar.d.ts",
+      "default": "./dist/bottom-navigation-bar.js"
     },
     "./tab-alignment": {
       "types": "./dist/tab-alignment.d.ts",
@@ -835,6 +939,66 @@
     "./constants": {
       "types": "./dist/constants.d.ts",
       "default": "./dist/constants.js"
+    },
+    "./motion": {
+      "types": "./dist/motion.d.ts",
+      "default": "./dist/motion.js"
+    },
+    "./curves": {
+      "types": "./dist/curves.d.ts",
+      "default": "./dist/curves.js"
+    },
+    "./arc": {
+      "types": "./dist/arc.d.ts",
+      "default": "./dist/arc.js"
+    },
+    "./grid-tile": {
+      "types": "./dist/grid-tile.d.ts",
+      "default": "./dist/grid-tile.js"
+    },
+    "./grid-tile-bar": {
+      "types": "./dist/grid-tile-bar.d.ts",
+      "default": "./dist/grid-tile-bar.js"
+    },
+    "./drawer-header": {
+      "types": "./dist/drawer-header.d.ts",
+      "default": "./dist/drawer-header.js"
+    },
+    "./user-accounts-drawer-header": {
+      "types": "./dist/user-accounts-drawer-header.d.ts",
+      "default": "./dist/user-accounts-drawer-header.js"
+    },
+    "./button-bar": {
+      "types": "./dist/button-bar.d.ts",
+      "default": "./dist/button-bar.js"
+    },
+    "./button-bar-theme": {
+      "types": "./dist/button-bar-theme.d.ts",
+      "default": "./dist/button-bar-theme.js"
+    },
+    "./button-bar-theme-data": {
+      "types": "./dist/button-bar-theme-data.d.ts",
+      "default": "./dist/button-bar-theme-data.js"
+    },
+    "./debug": {
+      "types": "./dist/debug.d.ts",
+      "default": "./dist/debug.js"
+    },
+    "./expand-icon": {
+      "types": "./dist/expand-icon.d.ts",
+      "default": "./dist/expand-icon.js"
+    },
+    "./material-state": {
+      "types": "./dist/material-state.d.ts",
+      "default": "./dist/material-state.js"
+    },
+    "./material-state-mixin": {
+      "types": "./dist/material-state-mixin.d.ts",
+      "default": "./dist/material-state-mixin.js"
+    },
+    "./banner": {
+      "types": "./dist/banner.d.ts",
+      "default": "./dist/banner.js"
     },
     "./refresh-indicator": {
       "types": "./dist/refresh-indicator.d.ts",

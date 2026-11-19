@@ -149,6 +149,15 @@ class NelyxPlatformServices(private val context: ReactApplicationContext) : Reac
         }
     }
     @ReactMethod(isBlockingSynchronousMethod = true)
+    fun getExecutableName(): String? {
+        if (!live) return null
+        return try {
+            android.system.Os.readlink("/proc/self/exe").substringAfterLast('/')
+        } catch (_: android.system.ErrnoException) {
+            null
+        }
+    }
+    @ReactMethod(isBlockingSynchronousMethod = true)
     fun getPreferredLocales(): WritableMap {
         if (!live) return Arguments.createMap().apply { putString("error", "Platform services module is retired") }
         return try {

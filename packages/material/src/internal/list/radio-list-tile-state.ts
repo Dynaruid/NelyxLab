@@ -37,11 +37,11 @@ class RadioListTileState<T> extends State<RadioListTile<T>> implements RadioClie
     return this.widget.toggleable;
   }
   get enabled(): boolean {
-    return this.widget.enabled ?? this.registry !== null;
+    return this.widget.enabled ?? (this.registry !== null || this.widget.onChanged !== null);
   }
   private readonly internalRegistry = new TileRadioRegistry(this);
   get groupValue(): T | null {
-    return this.registry?.groupValue ?? null;
+    return this.registry?.groupValue ?? this.widget.groupValue;
   }
   private resolve(): void {
     const o = this.widget.options,
@@ -49,9 +49,9 @@ class RadioListTileState<T> extends State<RadioListTile<T>> implements RadioClie
         o.groupRegistry ??
         (o.groupToken === undefined ? null : RadioGroup.maybeOf<T>(this.context, o.groupToken));
     invariant(
-      this.widget.enabled !== true || next !== null,
+      this.widget.enabled !== true || next !== null || this.widget.onChanged !== null,
       'missing-radio-registry',
-      'Enabled RadioListTile requires a typed group or registry',
+      'Enabled RadioListTile requires a typed group, registry or onChanged callback',
     );
     if (next !== this.registry) {
       this.registry?.unregisterClient(this);
@@ -76,8 +76,10 @@ class RadioListTileState<T> extends State<RadioListTile<T>> implements RadioClie
     }
   }
   readonly handleChange = (value: T | null): void => {
-    if (!this.retired && this.mounted && (this.context as Element).active && this.enabled)
-      this.registry!.onChanged(value);
+    if (!this.retired && this.mounted && (this.context as Element).active && this.enabled) {
+      this.registry?.onChanged(value);
+      this.widget.onChanged?.(value);
+    }
   };
   private readonly handleTap = (): void => {
     const checked = dartValueEquals(this.radioValue, this.groupValue);

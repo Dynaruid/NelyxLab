@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/material/radio.dart
+// Revision: 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import type { RawRadioOptions } from '@nelyx/core/framework/widgets/radio-group';
+import { LegacyRadioGroupRegistry } from '@nelyx/core/framework/widgets/radio-group';
 import type { RadioGroupRegistry } from '@nelyx/core/framework/widgets/radio-group';
 import { FocusNode } from '@nelyx/core/framework/widgets/focus';
 import type { Color } from '@nelyx/core/ui/color';
@@ -21,6 +24,10 @@ export interface RadioOptions<T> extends Omit<
   readonly id?: string;
   readonly mouseCursor?: MouseCursor | null;
   readonly enabled?: boolean | null;
+  /** @deprecated Use RadioGroup or groupRegistry. */
+  readonly groupValue?: T | null;
+  /** @deprecated Use RadioGroup or groupRegistry. */
+  readonly onChanged?: ((value: T | null) => void) | null;
   readonly activeColor?: Color | null;
   readonly fillColor?: WidgetStateProperty<Color | null> | null;
   readonly focusColor?: Color | null;
@@ -48,11 +55,6 @@ export class Radio<T> extends StatefulWidget {
   constructor(options: RadioOptions<T>) {
     super(options.key ?? null);
     invariant(
-      !('groupValue' in options) && !('onChanged' in options),
-      'deprecated-radio-option',
-      'Radio uses a typed RadioGroup or groupRegistry',
-    );
-    invariant(
       options.splashRadius == null ||
         (Number.isFinite(options.splashRadius) && options.splashRadius >= 0),
       'invalid-radio-radius',
@@ -78,6 +80,12 @@ export class Radio<T> extends StatefulWidget {
   }
   get groupRegistry(): RadioGroupRegistry<T> | null {
     return this.options.groupRegistry ?? null;
+  }
+  get groupValue(): T | null {
+    return this.options.groupValue ?? null;
+  }
+  get onChanged(): ((value: T | null) => void) | null {
+    return this.options.onChanged ?? null;
   }
   get toggleable(): boolean {
     return this.options.toggleable ?? false;
@@ -135,6 +143,7 @@ export class Radio<T> extends StatefulWidget {
 }
 class RadioState<T> extends State<Radio<T>> {
   private internalFocusNode: FocusNode | null = null;
+  private readonly legacyRegistry = new LegacyRadioGroupRegistry<T>(() => this.widget.options);
   build(context: BuildContext): Widget {
     const widget = this.widget,
       focusNode =
@@ -142,6 +151,7 @@ class RadioState<T> extends State<Radio<T>> {
     return buildMaterialRadio(
       { ...widget.options, focusNode },
       context,
+      this.legacyRegistry,
       adaptiveRadios.has(widget),
       widget.useCupertinoCheckmarkStyle,
     );

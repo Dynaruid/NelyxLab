@@ -15,6 +15,7 @@ import { FlutterErrorDetails } from '../../foundation/assertions.ts';
 import { ErrorDescription } from '../../foundation/diagnostics.ts';
 import { protect } from '../../ui/value-math.ts';
 
+export type IndexedWidgetBuilder = (context: BuildContext, index: number) => Widget;
 export type NullableIndexedWidgetBuilder = (context: BuildContext, index: number) => Widget | null;
 export type SemanticIndexCallback = (widget: Widget, localIndex: number) => number | null;
 export type ChildIndexGetter = (key: Key) => number | null;

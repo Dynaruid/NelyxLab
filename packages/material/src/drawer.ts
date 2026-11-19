@@ -403,7 +403,11 @@ export class DrawerControllerState extends SingleTickerProviderStateMixin<Drawer
       includeSemantics: false,
       traversalEdgeBehavior: 'closedLoop',
       onKeyEvent: (_node, event) => {
-        if (event instanceof KeyDownEvent && event.logicalKey.equals(LogicalKeyboardKey.escape)) {
+        if (
+          this.widget.drawerBarrierDismissible &&
+          event instanceof KeyDownEvent &&
+          event.logicalKey.equals(LogicalKeyboardKey.escape)
+        ) {
           this.close();
           return 'handled';
         }

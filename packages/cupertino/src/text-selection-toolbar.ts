@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
+// Flutter: packages/flutter/lib/src/cupertino/text_selection_toolbar.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import {
   StatelessWidget,
   StatefulWidget,
@@ -11,19 +12,26 @@ import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/
 import { Padding, Center, ColoredBox } from '@nelyx/core/framework/widgets/basic';
 import { GestureDetector } from '@nelyx/core/framework/widgets/gesture-detector';
 import { CustomSingleChildLayout } from '@nelyx/core/framework/widgets/custom-layout';
-import { TextSelectionToolbarLayoutDelegate } from '@nelyx/core/framework/widgets/text-selection-toolbar-layout-delegate';
+import {
+  RenderTextSelectionToolbarItem,
+  TextSelectionToolbarItem,
+  TextSelectionToolbarLayoutDelegate,
+} from '@nelyx/core/framework/widgets/text-selection-toolbar-layout-delegate';
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { RenderBox } from '@nelyx/core/framework/rendering/object';
 import { RenderProxyBox } from '@nelyx/core/framework/rendering/boxes';
 import type { RenderObject, HitTestEntry } from '@nelyx/core/framework/rendering/object';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { ClipPathLayer, LayerHandle } from '@nelyx/core/framework/rendering/layer';
 import type { PaintingContext } from '@nelyx/core/framework/painting/context';
 import { Offset } from '@nelyx/core/ui/offset';
+import { Color } from '@nelyx/core/ui/color';
 import { RRect } from '@nelyx/core/ui/rrect';
 import { Rect } from '@nelyx/core/ui/rect';
 import { Path } from '@nelyx/core/ui/path';
 import { Paint } from '@nelyx/core/ui/paint';
 import type { Offset as Point, Size, TransformMatrix } from '@nelyx/core/ui/geometry';
+import type { TextBaseline } from '@nelyx/core/ui/typography';
 import {
   contains,
   inversePaintTransform,
@@ -32,6 +40,7 @@ import {
   identity,
 } from '@nelyx/core/ui/geometry';
 import type { SemanticsNode, Rect as Bounds } from '@nelyx/core/ui/types';
+import { CupertinoColors, CupertinoDynamicColor } from './colors.ts';
 import { CupertinoTheme } from './theme.ts';
 import { CupertinoTextSelectionToolbarButton } from './text-selection-toolbar-button.ts';
 import { BoxShadow } from '@nelyx/core/framework/painting/box-shadow';
@@ -41,6 +50,29 @@ import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-p
 import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
 import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
 import { Curves } from '@nelyx/core/framework/animation/curves';
+
+const toolbarRadius = 8;
+const toolbarContentDistance = 8;
+const toolbarArrowHalfWidth = 7;
+const toolbarArrowHeight = 7;
+const toolbarMinimumWidth = 2 * (toolbarArrowHalfWidth + toolbarRadius);
+const arrowScreenPadding = 26;
+const chevronSize = 10;
+const chevronThickness = 2;
+const toolbarTransitionDuration = 125;
+const backgroundColor = CupertinoDynamicColor.withBrightness({
+  color: new Color(0xfff6f6f6),
+  darkColor: new Color(0xff222222),
+});
+const dividerColor = CupertinoDynamicColor.withBrightness({
+  color: new Color(0xffd6d6d6),
+  darkColor: new Color(0xff424242),
+});
+const chevronColor = CupertinoDynamicColor.withBrightness({
+  color: CupertinoColors.black,
+  darkColor: CupertinoColors.white,
+});
+
 export type CupertinoToolbarBuilder = (
   context: BuildContext,
   anchorAbove: Offset,
@@ -81,26 +113,33 @@ export class CupertinoTextSelectionToolbar extends StatelessWidget {
   ): Widget {
     const dark = CupertinoTheme.of(context).brightness === 'dark';
     return new ToolbarShape(
-      new ColoredBox({ color: dark ? 0xff222222 : 0xfff6f6f6, child }),
+      new ColoredBox({ color: backgroundColor.resolveFrom(context).toARGB32(), child }),
       above,
       below,
       dark ? null : 0x33000000,
     );
   }
   build(context: BuildContext): Widget {
-    const media = MediaQuery.of(context),
-      top = media.safeArea.top + 8,
-      left = media.safeArea.left + 26,
-      right = media.width - media.safeArea.right - 26,
+    const { kToolbarScreenPadding: padding } = CupertinoTextSelectionToolbar;
+    const mediaPadding = MediaQuery.paddingOf(context),
+      top = mediaPadding.top + padding,
+      left = mediaPadding.left + arrowScreenPadding,
+      right = MediaQuery.of(context).width - mediaPadding.right - arrowScreenPadding,
       clamp = (x: number) => Math.max(left, Math.min(right, x)),
-      above = new Offset(clamp(this.anchorAbove.dx), this.anchorAbove.dy - 8 - top),
-      below = new Offset(clamp(this.anchorBelow.dx), this.anchorBelow.dy + 8 - top);
+      above = new Offset(
+        clamp(this.anchorAbove.dx),
+        this.anchorAbove.dy - toolbarContentDistance - top,
+      ),
+      below = new Offset(
+        clamp(this.anchorBelow.dx),
+        this.anchorBelow.dy + toolbarContentDistance - top,
+      );
     return new Padding(
       {
-        left: 8,
+        left: padding,
         top,
-        right: 8,
-        bottom: 8,
+        right: padding,
+        bottom: padding,
       },
       new CustomSingleChildLayout(
         new ToolbarContent(this.children, above, below, this.toolbarBuilder),
@@ -123,6 +162,7 @@ class ToolbarContent extends StatefulWidget {
   }
 }
 interface Paging {
+  page: number;
   next: boolean;
   previous: boolean;
 }
@@ -130,13 +170,13 @@ class ToolbarContentState extends TickerProviderStateMixin<ToolbarContent> {
   private page = 0;
   private nextPage: number | null = null;
   private controller!: AnimationController;
-  private readonly paging: Paging = { next: false, previous: false };
+  private readonly paging: Paging = { page: 0, next: false, previous: false };
   override initState(): void {
     super.initState();
     this.controller = new AnimationController({
       value: 1,
       vsync: this,
-      duration: 125,
+      duration: toolbarTransitionDuration,
     });
   }
   private readonly statusChanged = (status: AnimationStatus) => {
@@ -149,10 +189,10 @@ class ToolbarContentState extends TickerProviderStateMixin<ToolbarContent> {
     this.controller.removeStatusListener(this.statusChanged);
   };
   private move(delta: number): void {
-    if (delta > 0 ? this.paging.next : this.paging.previous) {
-      this.controller.reverse();
+    if (this.nextPage === null && (delta > 0 ? this.paging.next : this.paging.previous)) {
+      this.nextPage = this.paging.page + delta;
       this.controller.addStatusListener(this.statusChanged);
-      this.nextPage = this.page + delta;
+      this.controller.reverse();
     }
   }
   override didUpdateWidget(old: ToolbarContent): void {
@@ -172,13 +212,13 @@ class ToolbarContentState extends TickerProviderStateMixin<ToolbarContent> {
     super.dispose();
   }
   build(context: BuildContext): Widget {
-    const dark = CupertinoTheme.of(context).brightness === 'dark',
+    const color = chevronColor.resolveFrom(context).toARGB32(),
       center = (child: Widget) => new Center(child, { widthFactor: 1, heightFactor: 1 }),
       button = (delta: number) =>
         center(
           new CupertinoTextSelectionToolbarButton({
             onPressed: () => this.move(delta),
-            child: new Chevron(delta < 0, dark ? 0xffffffff : 0xff000000),
+            child: new Chevron(delta < 0, color),
           }),
         ),
       media = MediaQuery.of(context);
@@ -189,7 +229,7 @@ class ToolbarContentState extends TickerProviderStateMixin<ToolbarContent> {
       new FadeTransition({
         opacity: this.controller,
         child: new AnimatedSize({
-          duration: 125,
+          duration: toolbarTransitionDuration,
           curve: Curves.decelerate,
           child: new GestureDetector(
             new ToolbarItems(
@@ -197,7 +237,7 @@ class ToolbarContentState extends TickerProviderStateMixin<ToolbarContent> {
               this.page,
               this.paging,
               1 / media.scale,
-              dark ? 0xff424242 : 0xffd6d6d6,
+              dividerColor.resolveFrom(context).toARGB32(),
             ),
             {
               onHorizontalDragEnd: (details) => {
@@ -239,19 +279,19 @@ class RenderChevron extends RenderBox {
     this.markNeedsPaint();
   }
   protected override performLayout(constraints: BoxConstraints): Size {
-    return constraints.constrain({ width: 10, height: 10 });
+    return constraints.constrain({ width: chevronSize, height: chevronSize });
   }
   protected override computeMinIntrinsicWidth(): number {
-    return 10;
+    return chevronSize;
   }
   protected override computeMaxIntrinsicWidth(): number {
-    return 10;
+    return chevronSize;
   }
   protected override computeMinIntrinsicHeight(): number {
-    return 10;
+    return chevronSize;
   }
   protected override computeMaxIntrinsicHeight(): number {
-    return 10;
+    return chevronSize;
   }
   override paint(context: PaintingContext): void {
     const s = this.size.height,
@@ -262,7 +302,7 @@ class RenderChevron extends RenderBox {
       paint = new Paint({
         color: this.color,
         style: 'stroke',
-        strokeWidth: 2,
+        strokeWidth: chevronThickness,
         strokeCap: 'round',
         strokeJoin: 'round',
       });
@@ -278,7 +318,7 @@ class ToolbarItems extends MultiChildRenderObjectWidget {
     readonly divider: number,
     readonly color: number,
   ) {
-    super(children);
+    super(children.map((child) => new TextSelectionToolbarItem(child)));
   }
   createRenderObject(): RenderToolbarItems {
     return new RenderToolbarItems(this.page, this.paging, this.divider, this.color);
@@ -310,19 +350,21 @@ class RenderToolbarItems extends RenderBox {
   }
   protected override performLayout(constraints: BoxConstraints): Size {
     const [back, next, ...items] = this.children;
-    this.visible.clear();
+    const before = this.visible;
+    this.visible = new Set();
     if (!back || !next) return constraints.smallest;
     let height = 0;
     for (const child of this.children)
       height = Math.max(height, child.getMaxIntrinsicHeight(constraints.maxWidth));
+    height = constraints.constrainHeight(height);
     const slot = new BoxConstraints(0, constraints.maxWidth, height, height);
     back.layout(slot, { parentUsesSize: true });
     next.layout(slot, { parentUsesSize: true });
-    let x = 0,
-      current = 0,
-      width = 0;
+    let x = 0;
+    let current = 0;
+    let hasNext = false;
+    const pageItems: RenderObject[] = [];
     for (let i = 0; i < items.length; i++) {
-      if (current > this.page) break;
       const child = items[i]!,
         reserved =
           current === 0
@@ -334,8 +376,13 @@ class RenderToolbarItems extends RenderBox {
         new BoxConstraints(0, Math.max(0, constraints.maxWidth - reserved), height, height),
         { parentUsesSize: true },
       );
-      if (x + reserved + child.size.width > constraints.maxWidth) {
+      if (pageItems.length > 0 && x + reserved + child.size.width > constraints.maxWidth) {
+        if (current === this.page) {
+          hasNext = true;
+          break;
+        }
         current++;
+        pageItems.length = 0;
         x = back.size.width + this.divider;
         child.layout(
           new BoxConstraints(
@@ -349,25 +396,36 @@ class RenderToolbarItems extends RenderBox {
       }
       child.layoutOffset = { x, y: 0 };
       x += child.size.width + this.divider;
-      if (current === this.page) {
-        this.visible.add(child);
-        width = x;
-      }
+      pageItems.push(child);
+    }
+    for (const child of pageItems) this.visible.add(child);
+    let width = Math.max(0, x - this.divider);
+    if (hasNext) {
+      next.layoutOffset = { x, y: 0 };
+      this.visible.add(next);
+      width = x + next.size.width;
     }
     if (current > 0) {
-      if (this.page !== current) {
-        next.layoutOffset = { x: width, y: 0 };
-        this.visible.add(next);
-        width += next.size.width;
-      }
-      if (this.page > 0) {
-        back.layoutOffset = { x: 0, y: 0 };
-        this.visible.add(back);
-      }
-    } else width -= this.divider;
-    this.paging.next = this.page !== current;
-    this.paging.previous = this.page > 0;
-    return constraints.constrain({ width: Math.max(0, width), height });
+      back.layoutOffset = { x: 0, y: 0 };
+      this.visible.add(back);
+    }
+    this.paging.page = current;
+    this.paging.next = hasNext;
+    this.paging.previous = current > 0;
+    for (const child of this.children) {
+      if (child instanceof RenderTextSelectionToolbarItem)
+        child.setVisible(this.visible.has(child));
+    }
+    if (
+      before.size !== this.visible.size ||
+      [...before].some((child) => !this.visible.has(child))
+    ) {
+      this.markNeedsSemanticsUpdate();
+    }
+    return constraints.constrain({ width, height });
+  }
+  override paintsChild(child: RenderObject): boolean {
+    return this.visible.has(child);
   }
   override paint(context: PaintingContext): void {
     for (const child of this.children)
@@ -441,6 +499,8 @@ class ToolbarShape extends SingleChildRenderObjectWidget {
   }
 }
 class RenderToolbarShape extends RenderProxyBox {
+  private readonly pathLayer = new LayerHandle<ClipPathLayer>();
+
   constructor(
     private above: Offset,
     private below: Offset,
@@ -450,39 +510,79 @@ class RenderToolbarShape extends RenderProxyBox {
   }
   configure(above: Offset, below: Offset, shadow: number | null): void {
     this.assertCanMutateLayoutProperty();
-    this.above = above;
-    this.below = below;
-    this.shadow = shadow;
-    this.markNeedsLayout();
+    if (!above.equals(this.above) || !below.equals(this.below)) {
+      this.above = above;
+      this.below = below;
+      this.markNeedsLayout();
+    }
+    if (shadow !== this.shadow) {
+      this.shadow = shadow;
+      this.markNeedsPaint();
+    }
   }
+
+  private childConstraints(constraints: BoxConstraints): BoxConstraints {
+    return new BoxConstraints(toolbarMinimumWidth).enforce(constraints.loosen());
+  }
+
+  private isAbove(childHeight: number): boolean {
+    return this.above.dy >= childHeight - toolbarArrowHeight;
+  }
+
+  protected override computeDryBaseline(
+    constraints: BoxConstraints,
+    baseline: TextBaseline,
+  ): number | null {
+    const child = this.child;
+    if (!child) return null;
+    const inner = this.childConstraints(constraints);
+    const result = child.getDryBaseline(inner, baseline);
+    if (result === null) return null;
+    return result - (this.isAbove(child.getDryLayout(inner).height) ? toolbarArrowHeight : 0);
+  }
+
   protected override performLayout(constraints: BoxConstraints): Size {
     if (!this.child) return constraints.smallest;
-    this.child.layout(new BoxConstraints(30).enforce(constraints.loosen()), {
+    this.child.layout(this.childConstraints(constraints), {
       parentUsesSize: true,
     });
-    this.child.layoutOffset = { x: 0, y: this.above.dy >= this.child.size.height - 7 ? -7 : 0 };
+    this.child.layoutOffset = {
+      x: 0,
+      y: this.isAbove(this.child.size.height) ? -toolbarArrowHeight : 0,
+    };
     return constraints.constrain({
       width: this.child.size.width,
-      height: Math.max(0, this.child.size.height - 7),
+      height: Math.max(0, this.child.size.height - toolbarArrowHeight),
     });
   }
   override paint(context: PaintingContext): void {
-    if (!this.child) return;
-    const above = this.above.dy >= this.child.size.height - 7,
+    if (!this.child) {
+      this.pathLayer.dispose();
+      return;
+    }
+    const above = this.isAbove(this.child.size.height),
       anchor = above ? this.above : this.below,
-      global = this.localToGlobal(Offset.zero),
-      tip = Math.max(15, Math.min(this.size.width - 15, anchor.dx - global.x)),
-      top = above ? 0 : 7,
-      bottom = above ? this.size.height - 7 : this.size.height,
+      tipMargin = toolbarRadius + toolbarArrowHalfWidth,
+      tip = Math.max(
+        tipMargin,
+        Math.min(this.size.width - tipMargin, this.globalToLocal(anchor).x),
+      ),
+      top = above ? 0 : Math.min(toolbarArrowHeight, this.size.height),
+      bottom = above ? Math.max(0, this.size.height - toolbarArrowHeight) : this.size.height,
       right = this.size.width,
-      r = RRect.fromRectXY(Rect.fromLTRB(0, top, right, bottom), 8, 8).scaleRadii(),
+      r = RRect.fromRectXY(
+        Rect.fromLTRB(0, top, right, bottom),
+        toolbarRadius,
+        toolbarRadius,
+      ).scaleRadii(),
       path = new Path();
-    if (right < 30) path.addRRect(r);
+    if (right < toolbarMinimumWidth) path.addRRect(r);
     else {
       const base = above ? bottom : top;
-      path.moveTo(tip + (above ? 7 : -7), base);
-      path.lineTo(tip, base + (above ? 7 : -7));
-      path.lineTo(tip + (above ? -7 : 7), base);
+      const direction = above ? 1 : -1;
+      path.moveTo(tip + direction * toolbarArrowHalfWidth, base);
+      path.lineTo(tip, base + direction * toolbarArrowHeight);
+      path.lineTo(tip - direction * toolbarArrowHalfWidth, base);
       // Source arcTo quarter circles represented exactly as rational conics.
       const corners = [
         () => {
@@ -507,17 +607,40 @@ class RenderToolbarShape extends RenderProxyBox {
     }
     if (this.shadow !== null)
       context.drawRRect(
-        RRect.fromRectXY(Rect.fromLTRB(0, top, right, bottom + 7), 8, 8),
+        RRect.fromRectXY(
+          Rect.fromLTRB(0, top, right, bottom + toolbarArrowHeight),
+          toolbarRadius,
+          toolbarRadius,
+        ),
         new BoxShadow({ color: this.shadow, blurRadius: 15 }).toPaint(),
       );
-    context.save();
+    const layer = this.pathLayer.layer ?? new ClipPathLayer();
+    this.pathLayer.layer = layer;
+    layer.clipPath = path;
+    layer.clipBehavior = 'antiAlias';
+    context.pushLayer(layer, (inner) => super.paint(inner), undefined, {
+      x: 0,
+      y: 0,
+      ...this.size,
+    });
+  }
+
+  override detach(): void {
     try {
-      context.clipPath(path);
-      super.paint(context);
+      super.detach();
     } finally {
-      context.restore();
+      if (!this.attached) this.pathLayer.dispose();
     }
   }
+
+  override dispose(): void {
+    try {
+      super.dispose();
+    } finally {
+      if (this.debugDisposed) this.pathLayer.dispose();
+    }
+  }
+
   override hitTest(
     position: Point,
     result: HitTestEntry[],
@@ -528,9 +651,9 @@ class RenderToolbarShape extends RenderProxyBox {
       !contains(
         {
           x: this.child.layoutOffset.x,
-          y: this.child.layoutOffset.y + 7,
+          y: this.child.layoutOffset.y + toolbarArrowHeight,
           width: this.child.size.width,
-          height: Math.max(0, this.child.size.height - 14),
+          height: Math.max(0, this.child.size.height - 2 * toolbarArrowHeight),
         },
         position,
       )
