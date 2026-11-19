@@ -77,7 +77,10 @@ import type { Offset as Point } from '@nelyx/core/ui/geometry';
 import { Size } from '@nelyx/core/ui/size';
 import { Rect } from '@nelyx/core/ui/rect';
 import { Color } from '@nelyx/core/ui/color';
+import { Paint } from '@nelyx/core/ui/paint';
+import { Path } from '@nelyx/core/ui/path';
 import { clampDouble } from '@nelyx/core/ui/math';
+import { PointerDeviceKind } from '@nelyx/core/ui/pointer';
 import { captureSourceSize } from '@nelyx/core/ui/size-source';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { Theme } from './theme.ts';
@@ -85,7 +88,10 @@ import { SliderTheme, SliderThemeData, ShowValueIndicator, Thumb } from './slide
 import { sliderThemeFieldNames } from './generated/slider/slider-theme-fields.generated.ts';
 import { RangeValues, RangeLabels } from './range-slider-values.ts';
 import type { RangeThumbSelector } from './range-slider-values.ts';
-import { RectangularRangeSliderValueIndicatorShape } from './slider-shapes.ts';
+import {
+  RectangularRangeSliderValueIndicatorShape,
+  RoundRangeSliderTickMarkShape,
+} from './slider-shapes.ts';
 import { materialRangeSliderDefaults } from './internal/slider/range-slider-defaults.ts';
 import { materialRangeSliderPaintThemes } from './internal/slider/range-paint-policy.ts';
 export interface RangeSliderOptions extends WidgetOptions {
@@ -247,8 +253,12 @@ function shouldShowOnDrag(theme: SliderThemeData, discrete: boolean): boolean {
 }
 const one = new AlwaysStoppedAnimation(1);
 const thumbSemanticsSize = 48;
+const ticksPerPath = 16;
+const roundTickPaint = RoundRangeSliderTickMarkShape.prototype.paint;
 interface RangePaintModel {
   readonly owner: MaterialRangeSliderState;
+  readonly id: string | undefined;
+  readonly enabled: boolean;
   readonly theme: SliderThemeData;
   readonly labels: RangeLabels | null;
   readonly direction: 'ltr' | 'rtl';
@@ -284,9 +294,11 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
   private team!: GestureArenaTeam;
   private timer: Disposable | null = null;
   private entry: OverlayEntry | null = null;
+  private indicatorKey: GlobalKey | null = null;
   private pendingOverlay = false;
   private overlayWanted = false;
   private nextValues!: RangeValues;
+  private pendingMouseDrag: { thumb: Thumb; values: RangeValues } | null = null;
   private theme: SliderThemeData | null = null;
   private inputValues!: RangeValues;
   private inputMin = 0;
@@ -329,12 +341,15 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
   }
   private readonly animationChanged = () => {
     if (!this.live) return;
-    const render = this.renderer();
-    render?.markNeedsLayout();
-    render?.markNeedsPaint();
-    render?.markNeedsSemanticsUpdate();
-    this.entry?.markNeedsBuild();
+    this.renderer()?.updateThumbs();
+    this.markIndicatorPaint();
   };
+  markIndicatorPaint(): void {
+    const context = this.indicatorKey?.currentContext;
+    if (!(context instanceof Element) || !context.active) return;
+    const render = context.findRenderObject();
+    if (render instanceof RangeIndicatorRender) render.invalidateIndicator();
+  }
   private readonly hoverPaintChanged = () => {
     const render = this.renderer();
     if (
@@ -391,17 +406,18 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     this.endFocusNode.addListener(this.focusChanged);
     this.team = new GestureArenaTeam((this.context as Element).owner.gestureBinding.gestureArena);
   }
-  updateValues(): void {
-    const raw = this.normalized();
+  private updateValues(): void {
+    const raw = this.normalized(),
+      mouseDrag = this.pendingMouseDrag,
+      sameScale =
+        this.inputMin === this.widget.min &&
+        this.inputMax === this.widget.max &&
+        this.inputDivisions === this.widget.divisions;
+    // The final move and pointer-up can arrive before the same parent rebuild.
+    this.pendingMouseDrag = null;
     // Keep controlled off-grid input stable through ambient/layout-only rebuilds.
     // Quantization belongs to a changed parent input or an interaction callback.
-    if (
-      raw.equals(this.inputValues) &&
-      this.inputMin === this.widget.min &&
-      this.inputMax === this.widget.max &&
-      this.inputDivisions === this.widget.divisions
-    )
-      return;
+    if (raw.equals(this.inputValues) && sameScale) return;
     this.inputValues = raw;
     this.inputMin = this.widget.min;
     this.inputMax = this.widget.max;
@@ -409,11 +425,15 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     const next = this.discrete ? this.quantized(raw) : raw;
     if (next.equals(this.values)) return;
     this.values = next;
-    for (const [controller, target] of [
-      [this.startPosition, next.start],
-      [this.endPosition, next.end],
+    for (const [thumb, controller, target] of [
+      [Thumb.start, this.startPosition, next.start],
+      [Thumb.end, this.endPosition, next.end],
     ] as const) {
-      if (!this.discrete) controller.value = target;
+      const followsMouse =
+        sameScale &&
+        mouseDrag?.thumb === thumb &&
+        target === (thumb === Thumb.start ? mouseDrag.values.start : mouseDrag.values.end);
+      if (!this.discrete || followsMouse) controller.value = target;
       else {
         const distance = Math.abs(target - controller.value);
         controller.duration = distance === 0 ? 0 : Math.round(75000 / distance) / 1000;
@@ -468,17 +488,21 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     );
     return result;
   }
-  private emit(values: RangeValues): void {
+  private emit(values: RangeValues, mouseThumb: Thumb | null = null): void {
     if (!this.live || !this.enabled) return;
-    const projected = this.projected(values);
-    if (!projected.equals(this.widget.values)) this.widget.onChanged?.(projected);
+    const projected = this.projected(values),
+      pending = mouseThumb === null ? null : this.pendingMouseDrag;
+    // A reversal can restore the widget's value before the parent has rebuilt.
+    if (projected.equals(this.widget.values) && (!pending || values.equals(pending.values))) return;
+    this.pendingMouseDrag = mouseThumb === null ? null : { thumb: mouseThumb, values };
+    this.widget.onChanged?.(projected);
   }
   private startCallback(values: RangeValues): void {
     this.dragging = true;
     this.setState(() => {});
     this.widget.onChangeStart?.(this.projected(values));
   }
-  private start(global: Point): void {
+  private start(global: Point, fromMouseDrag = false): void {
     if (!this.live || !this.enabled || this.active) return;
     const value = clampDouble(this.fraction(global), 0, 1);
     this.selected = this.select(value, 0);
@@ -495,7 +519,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
         : new RangeValues(current.start, value);
     this.startCallback(current);
     if (!this.live || !this.enabled) return;
-    this.emit(this.quantized(this.nextValues));
+    this.emit(this.quantized(this.nextValues), fromMouseDrag ? this.selected : null);
     if (!this.live || !this.enabled) return;
     this.overlay.forward();
     if (this.theme && shouldShowOnDrag(this.theme, this.discrete)) {
@@ -530,7 +554,10 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
       this.selected === Thumb.start
         ? new RangeValues(Math.min(drag, current.end - separation), current.end)
         : new RangeValues(current.start, Math.max(drag, current.start + separation));
-    this.emit(this.quantized(this.nextValues));
+    this.emit(
+      this.quantized(this.nextValues),
+      details.kind === PointerDeviceKind.mouse ? this.selected : null,
+    );
   }
   private end(): void {
     if (!this.live) return;
@@ -552,6 +579,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
   private cancel(): void {
     this.active = false;
     this.dragging = false;
+    this.pendingMouseDrag = null;
     this.cancelTimer();
     this.overlay.stop();
     this.indicator.stop();
@@ -694,7 +722,11 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
           return drag;
         },
         (drag) => {
-          drag.onStart = (details) => this.start(details.globalPosition);
+          drag.onStart = (details) =>
+            this.start(
+              details.globalPosition,
+              details.kind === PointerDeviceKind.mouse && details.sourceTimeStamp !== null,
+            );
           drag.onUpdate = (details) => this.dragUpdate(details);
           drag.onEnd = () => this.end();
           drag.onCancel = () => this.end();
@@ -764,6 +796,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
   private retireOverlay(): void {
     const entry = this.entry;
     this.entry = null;
+    this.indicatorKey = null;
     if (entry) {
       if (entry.overlay !== null) entry.remove();
       entry.dispose();
@@ -772,6 +805,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
   private ensureOverlay(context: BuildContext, wanted: boolean): void {
     this.overlayWanted = wanted;
     if (this.pendingOverlay) return;
+    if (wanted ? this.entry?.overlay === Overlay.maybeOf(context) : this.entry === null) return;
     this.pendingOverlay = true;
     tickerScheduler(context).addPostFrameCallback(
       () => {
@@ -782,26 +816,22 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
           return;
         }
         const overlay = Overlay.of(context);
-        if (this.entry?.overlay === overlay) {
-          this.entry.markNeedsBuild();
-          return;
-        }
+        if (this.entry?.overlay === overlay) return;
         this.retireOverlay();
+        const key = new GlobalKey('RangeSlider indicator');
         const entry = new OverlayEntry({
           builder: () => {
             // Removal can be deferred until the owning Overlay finishes its
             // current build. A retired entry must not read an inactive owner.
             if (!this.live || this.entry !== entry) return SizedBox.shrink();
-            return new Directionality(
-              this.direction,
-              new CompositedTransformFollower(new RangeIndicatorWidget(this), {
-                link: this.link,
-                showWhenUnlinked: false,
-              }),
-            );
+            return new CompositedTransformFollower(new RangeIndicatorWidget(this, key), {
+              link: this.link,
+              showWhenUnlinked: false,
+            });
           },
         });
         this.entry = entry;
+        this.indicatorKey = key;
         overlay.insert(entry);
       },
       { debugLabel: 'RangeSlider.valueIndicator' },
@@ -919,6 +949,8 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     );
     const model: RangePaintModel = {
       owner: this,
+      id: w.options.id,
+      enabled: this.enabled,
       theme: effective,
       labels: w.labels,
       direction: this.direction,
@@ -991,6 +1023,12 @@ abstract class RangeRenderBase extends RenderBox {}
 class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(RangeRenderBase) {
   private startLabel: TextPainter;
   private endLabel: TextPainter;
+  private tickGeometry?: {
+    rect: Rect;
+    divisions: number;
+    radius: number;
+    groups: readonly { centers: readonly Offset[]; path: Path }[];
+  };
   constructor(public model: RangePaintModel) {
     super();
     this.startLabel = new TextPainter({}, model.textContext);
@@ -1006,11 +1044,17 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
       this.startLabel = new TextPainter({}, model.textContext);
       this.endLabel = new TextPainter({}, model.textContext);
     }
-    model.owner.updateValues();
     this.updateLabels(old.textContext ? model.textContext : null);
-    this.markNeedsLayout();
-    this.markNeedsPaint();
-    this.markNeedsSemanticsUpdate();
+    if (!old.preferred.equals(model.preferred)) this.markNeedsLayout();
+    if (old.id !== model.id || old.enabled !== model.enabled) this.markNeedsSemanticsUpdate();
+    this.updateThumbs();
+    model.owner.markIndicatorPaint();
+  }
+  updateThumbs(): void {
+    // The semantic hit boxes have fixed constraints. Move their offsets when
+    // only the thumb positions change so the surrounding card stays laid out.
+    if (this.hasSize && !this.needsLayout) this.positionSemanticThumbs();
+    this.markNeedsPaintOnly();
   }
   markHoverPaint(): void {
     this.markNeedsPaintOnly();
@@ -1056,6 +1100,7 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
       painter.markNeedsLayout();
       if (painter.text !== null) painter.layout();
     }
+    this.model.owner.markIndicatorPaint();
     super.systemFontsDidChange();
   }
   protected override computeMinIntrinsicWidth(_height: number): number {
@@ -1081,15 +1126,19 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
   protected override performLayout(constraints: BoxConstraints): Size {
     const size = this.computeDryLayout(constraints);
     this.size = size;
+    const extent = thumbSemanticsSize;
+    const thumbConstraints = new BoxConstraints(extent, extent, extent, extent);
+    for (const child of this.children) (child as RenderBox).layout(thumbConstraints);
+    this.positionSemanticThumbs();
+    return size;
+  }
+  private positionSemanticThumbs(): void {
     // The centers already follow text direction; the children follow thumb identity.
     const centers = this.centers(),
-      extent = thumbSemanticsSize,
-      half = extent / 2;
+      half = thumbSemanticsSize / 2;
     this.children.forEach((child, index) => {
-      (child as RenderBox).layout(new BoxConstraints(extent, extent, extent, extent));
       child.layoutOffset = new Offset(centers[index]!.dx - half, centers[index]!.dy - half);
     });
-    return size;
   }
   inputTrackRect(): Rect {
     return this.model.theme.rangeTrackShape!.getPreferredRect({
@@ -1118,15 +1167,14 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
     );
   }
   override get semanticsTransport(): SemanticsTransportProperties | null {
-    const o = this.model.owner,
-      id = o.widget.options.id;
+    const { id, enabled } = this.model;
     return id === undefined
       ? null
       : {
           id,
           role: 'group',
           name: '',
-          enabled: o.enabled,
+          enabled,
         };
   }
   protected override get hasSourceSemanticsConfiguration(): boolean {
@@ -1223,6 +1271,71 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
       });
     }
   }
+  private paintRoundTicks(
+    context: PaintingContext,
+    rect: Rect,
+    divisions: number,
+    radius: number,
+    start: Offset,
+    end: Offset,
+  ): void {
+    let geometry = this.tickGeometry;
+    if (
+      !geometry ||
+      !rect.equals(geometry.rect) ||
+      divisions !== geometry.divisions ||
+      radius !== geometry.radius
+    ) {
+      const groups: { centers: Offset[]; path: Path }[] = [];
+      for (let first = 0; first <= divisions; first += ticksPerPath) {
+        const centers: Offset[] = [],
+          path = new Path();
+        for (let i = first; i <= divisions && i < first + ticksPerPath; ++i) {
+          const center = new Offset(
+            rect.left + (i / divisions) * (rect.width - rect.height) + rect.height / 2,
+            rect.center.dy,
+          );
+          centers.push(center);
+          path.addOval(Rect.fromCircle({ center, radius }));
+        }
+        groups.push({ centers, path });
+      }
+      this.tickGeometry = geometry = { rect, divisions, radius, groups };
+    }
+    const { theme, owner } = this.model,
+      amount = owner.enableAnimation.value,
+      active = new Paint({
+        color: Color.lerp(
+          theme.disabledActiveTickMarkColor,
+          theme.activeTickMarkColor,
+          amount,
+        )!.toARGB32(),
+      }),
+      inactive = new Paint({
+        color: Color.lerp(
+          theme.disabledInactiveTickMarkColor,
+          theme.inactiveTickMarkColor,
+          amount,
+        )!.toARGB32(),
+      }),
+      low = Math.min(start.dx, end.dx),
+      high = Math.max(start.dx, end.dx);
+    // Reuse the contours in each uniformly colored group. Only the groups
+    // crossed by a thumb need individual dots.
+    for (const { centers, path } of geometry.groups) {
+      const first = centers[0]!.dx,
+        last = centers[centers.length - 1]!.dx;
+      if (last <= low || first >= high) context.canvas.drawPath(path, inactive);
+      else if (first > low && last < high) context.canvas.drawPath(path, active);
+      else
+        for (const center of centers)
+          context.canvas.drawCircle(
+            center,
+            radius,
+            low < center.dx && center.dx < high ? active : inactive,
+          );
+    }
+  }
   override paint(context: PaintingContext): void {
     const m = this.model,
       o = m.owner,
@@ -1262,27 +1375,43 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
         t.overlayShape!.paint(context, center, this.componentOptions(label, value));
     }
     if (o.discrete) {
-      const tickWidth = t.rangeTickMarkShape!.getPreferredSize({
+      const ticks = t.rangeTickMarkShape!,
+        tickWidth = ticks.getPreferredSize({
           sliderTheme: t,
           isEnabled: o.enabled,
         }).width,
         trackWidth = rect.width - rect.height,
         divisions = o.widget.divisions!;
-      if (trackWidth / divisions >= 3 * tickWidth)
-        for (let i = 0; i <= divisions; i++)
-          t.rangeTickMarkShape!.paint(
-            context,
-            new Offset(rect.left + (i / divisions) * trackWidth + rect.height / 2, rect.center.dy),
-            {
-              parentBox: this,
-              sliderTheme: t,
-              enableAnimation: o.enableAnimation,
-              textDirection: m.direction,
-              startThumbCenter: start,
-              endThumbCenter: end,
-              isEnabled: o.enabled,
-            },
-          );
+      if (trackWidth / divisions >= 3 * tickWidth) {
+        if (
+          divisions >= ticksPerPath &&
+          tickWidth > 0 &&
+          !(t.trackGap !== null && t.trackGap > 0) &&
+          Object.getPrototypeOf(ticks) === RoundRangeSliderTickMarkShape.prototype &&
+          ticks.paint === roundTickPaint
+        ) {
+          this.paintRoundTicks(context, rect, divisions, tickWidth / 2, start, end);
+        } else {
+          for (let i = 0; i <= divisions; i++) {
+            ticks.paint(
+              context,
+              new Offset(
+                rect.left + (i / divisions) * trackWidth + rect.height / 2,
+                rect.center.dy,
+              ),
+              {
+                parentBox: this,
+                sliderTheme: t,
+                enableAnimation: o.enableAnimation,
+                textDirection: m.direction,
+                startThumbCenter: start,
+                endThumbCenter: end,
+                isEnabled: o.enabled,
+              },
+            );
+          }
+        }
+      }
     }
     const lastStart = o.selected === Thumb.start,
       bottom = lastStart ? Thumb.end : Thumb.start,
@@ -1312,8 +1441,11 @@ class MaterialRangeSliderRender extends RelayoutWhenSystemFontsChangeMixin(Range
   }
 }
 class RangeIndicatorWidget extends LeafRenderObjectWidget {
-  constructor(readonly owner: MaterialRangeSliderState) {
-    super();
+  constructor(
+    readonly owner: MaterialRangeSliderState,
+    key: GlobalKey,
+  ) {
+    super(key);
   }
   createRenderObject(): RangeIndicatorRender {
     return new RangeIndicatorRender(this.owner);
@@ -1324,12 +1456,15 @@ class RangeIndicatorWidget extends LeafRenderObjectWidget {
       'invalid-range-indicator-render',
       'Range indicator requires its owning render box',
     );
-    render.markNeedsPaint();
+    render.invalidateIndicator();
   }
 }
 class RangeIndicatorRender extends RenderBox {
   constructor(readonly slider: MaterialRangeSliderState) {
     super();
+  }
+  invalidateIndicator(): void {
+    this.markNeedsPaintOnly();
   }
   protected override computeDryLayout(constraints: BoxConstraints): Size {
     return new Size(constraints.smallest.width, constraints.smallest.height);

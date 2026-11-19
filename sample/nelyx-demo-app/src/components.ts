@@ -14,7 +14,10 @@ import {
   Text,
   SizedBox,
   DecoratedBox,
+  Stack,
+  Positioned,
 } from '@nelyx/core/framework/widgets/basic';
+import { Opacity } from '@nelyx/core/framework/widgets/opacity';
 import { LayoutBuilder } from '@nelyx/core/framework/widgets/layout-builder';
 import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-builder';
 import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
@@ -806,93 +809,132 @@ class ComponentsState extends State<ComponentsScreen> {
             ),
           ),
         });
-      case 'sliders':
-        return column(
-          new Slider({
-            id: 'slider-value',
-            value: this.slider,
-            min: 0,
-            max: 100,
-            divisions: 10,
-            label: String(this.slider),
-            onChanged: (value) =>
-              update(() => {
-                this.slider = value;
-              }),
-          }),
-          new Text('Value ' + Math.round(this.slider), { fontSize: 12 }),
-          new RangeSlider({
-            id: 'range-value',
-            values: this.range,
-            labels: new RangeLabels(
-              String(Math.round(this.range.start)),
-              String(Math.round(this.range.end)),
+      case 'sliders': {
+        const preview = (
+          id: string,
+          buildSlider: (context: BuildContext) => Widget,
+          widestLabel: string,
+          readLabel: () => string,
+        ) => {
+          const changes = this.updates.section(id);
+          const label = (value: string) => new Text(value, { fontSize: 12 });
+          return new RepaintBoundary(
+            column(
+              new ListenableBuilder(changes, buildSlider),
+              // Keep the value readout's size independent of the digits changing during a drag.
+              new Stack([
+                new Opacity(label(widestLabel), { opacity: 0 }),
+                Positioned.fill(new ListenableBuilder(changes, () => label(readLabel()))),
+              ]),
             ),
-            min: 0,
-            max: 100,
-            divisions: 10,
-            onChanged: (values) =>
-              update(() => {
-                this.range = values;
-              }),
-          }),
-          new Text('Range ' + Math.round(this.range.start) + ' – ' + Math.round(this.range.end), {
-            fontSize: 12,
-          }),
-          new Directionality(
-            this.rangeRtl ? 'rtl' : 'ltr',
-            new SliderTheme(
-              this.rangeCustom ? demoRangeTheme : SliderTheme.of(context),
-              new RangeSlider({
-                id: 'range-custom',
-                values: this.customRange,
+          );
+        };
+        const updateOptions = (change: () => void) =>
+          this.updates.change('range-custom-options', change, ['range-custom']);
+        return column(
+          preview(
+            'slider-value',
+            () =>
+              new Slider({
+                id: 'slider-value',
+                value: this.slider,
                 min: 0,
                 max: 100,
-                divisions: 200,
+                divisions: 10,
+                label: String(this.slider),
+                onChanged: (value) =>
+                  this.updates.change('slider-value', () => {
+                    this.slider = value;
+                  }),
+              }),
+            'Value 100',
+            () => 'Value ' + Math.round(this.slider),
+          ),
+          preview(
+            'range-value',
+            () =>
+              new RangeSlider({
+                id: 'range-value',
+                values: this.range,
+                min: 0,
+                max: 100,
+                divisions: 10,
                 labels: new RangeLabels(
-                  this.customRange.start.toFixed(1),
-                  this.customRange.end.toFixed(1),
+                  String(Math.round(this.range.start)),
+                  String(Math.round(this.range.end)),
                 ),
-                onChanged: this.rangeEnabled
-                  ? (values) =>
-                      update(() => {
-                        this.customRange = values;
-                      })
-                  : null,
+                onChanged: (values) => {
+                  if (!this.range.equals(values))
+                    this.updates.change('range-value', () => {
+                      this.range = values;
+                    });
+                },
+              }),
+            'Range 100 – 100',
+            () => 'Range ' + Math.round(this.range.start) + ' – ' + Math.round(this.range.end),
+          ),
+          preview(
+            'range-custom',
+            (context) =>
+              new Directionality(
+                this.rangeRtl ? 'rtl' : 'ltr',
+                new SliderTheme(
+                  this.rangeCustom ? demoRangeTheme : SliderTheme.of(context),
+                  new RangeSlider({
+                    id: 'range-custom',
+                    values: this.customRange,
+                    min: 0,
+                    max: 100,
+                    divisions: 200,
+                    labels: new RangeLabels(
+                      this.customRange.start.toFixed(1),
+                      this.customRange.end.toFixed(1),
+                    ),
+                    onChanged: this.rangeEnabled
+                      ? (values) => {
+                          if (!this.customRange.equals(values))
+                            this.updates.change('range-custom', () => {
+                              this.customRange = values;
+                            });
+                        }
+                      : null,
+                  }),
+                ),
+              ),
+            'Custom range 100.0 – 100.0',
+            () =>
+              `Custom range ${this.customRange.start.toFixed(1)} – ${this.customRange.end.toFixed(1)}`,
+          ),
+          new ListenableBuilder(this.updates.section('range-custom-options'), () =>
+            flow(
+              new TextButton({
+                id: 'range-toggle-enabled',
+                child: new Text(this.rangeEnabled ? 'Disable range' : 'Enable range'),
+                onPressed: () =>
+                  updateOptions(() => {
+                    this.rangeEnabled = !this.rangeEnabled;
+                  }),
+              }),
+              new TextButton({
+                id: 'range-toggle-direction',
+                child: new Text(this.rangeRtl ? 'Use LTR' : 'Use RTL'),
+                onPressed: () =>
+                  updateOptions(() => {
+                    this.rangeRtl = !this.rangeRtl;
+                  }),
+              }),
+              new TextButton({
+                id: 'range-toggle-style',
+                child: new Text(this.rangeCustom ? 'Use standard shapes' : 'Use custom shapes'),
+                onPressed: () =>
+                  updateOptions(() => {
+                    this.rangeCustom = !this.rangeCustom;
+                  }),
               }),
             ),
           ),
-          new Text(
-            `Custom range ${this.customRange.start.toFixed(1)} – ${this.customRange.end.toFixed(1)}`,
-            { fontSize: 12 },
-          ),
-          flow(
-            new TextButton({
-              id: 'range-toggle-enabled',
-              child: new Text(this.rangeEnabled ? 'Disable range' : 'Enable range'),
-              onPressed: () =>
-                update(() => {
-                  this.rangeEnabled = !this.rangeEnabled;
-                }),
-            }),
-            new TextButton({
-              id: 'range-toggle-direction',
-              child: new Text(this.rangeRtl ? 'Use LTR' : 'Use RTL'),
-              onPressed: () =>
-                update(() => {
-                  this.rangeRtl = !this.rangeRtl;
-                }),
-            }),
-            new TextButton({
-              id: 'range-toggle-style',
-              child: new Text(this.rangeCustom ? 'Use standard shapes' : 'Use custom shapes'),
-              onPressed: () =>
-                update(() => {
-                  this.rangeCustom = !this.rangeCustom;
-                }),
-            }),
-          ),
         );
+      }
       case 'switches':
         return flow(
           new Switch({

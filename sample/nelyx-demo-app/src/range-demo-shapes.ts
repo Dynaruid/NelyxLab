@@ -10,15 +10,13 @@ import { SliderThemeData } from '@nelyx/material/slider-theme';
 import {
   RangeSliderTrackShape,
   RangeSliderThumbShape,
-  RangeSliderTickMarkShape,
+  RoundRangeSliderTickMarkShape,
   RangeSliderValueIndicatorShape,
   SliderComponentShape,
 } from '@nelyx/material/slider-shapes';
 import type {
   RangeSliderTrackPaintOptions,
   RangeSliderThumbPaintOptions,
-  RangeSliderTickMarkPaintOptions,
-  RangeSliderTickMarkSizeOptions,
   SliderComponentPaintOptions,
   RangeSliderIndicatorSizeOptions,
   RangeSliderIndicatorShiftOptions,
@@ -84,31 +82,6 @@ export class DemoRangeThumb extends RangeSliderThumbShape {
         options.enableAnimation.value,
       ),
       4,
-    );
-  }
-}
-export class DemoRangeTick extends RangeSliderTickMarkShape {
-  override getPreferredSize(_options: RangeSliderTickMarkSizeOptions): Size {
-    return new Size(0.4, 0.4);
-  }
-  override paint(
-    context: PaintingContext,
-    center: Offset,
-    options: RangeSliderTickMarkPaintOptions,
-  ): void {
-    const between =
-        center.dx > Math.min(options.startThumbCenter.dx, options.endThumbCenter.dx) &&
-        center.dx < Math.max(options.startThumbCenter.dx, options.endThumbCenter.dx),
-      t = options.sliderTheme;
-    draw(
-      context,
-      Rect.fromLTWH(center.dx - 0.2, center.dy - 0.2, 0.4, 0.4),
-      blend(
-        between ? t.disabledActiveTickMarkColor : t.disabledInactiveTickMarkColor,
-        between ? t.activeTickMarkColor : t.inactiveTickMarkColor,
-        options.enableAnimation.value,
-      ),
-      0.2,
     );
   }
 }
@@ -179,7 +152,7 @@ export class DemoRangeIndicator extends RangeSliderValueIndicatorShape {
 export const demoRangeTheme = new SliderThemeData({
   rangeTrackShape: new DemoRangeTrack(),
   rangeThumbShape: new DemoRangeThumb(),
-  rangeTickMarkShape: new DemoRangeTick(),
+  rangeTickMarkShape: new RoundRangeSliderTickMarkShape({ tickMarkRadius: 0.2 }),
   overlayShape: new DemoRangeOverlay(),
   rangeValueIndicatorShape: new DemoRangeIndicator(),
 });

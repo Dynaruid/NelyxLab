@@ -21,7 +21,7 @@
     "react": "19.2.0",
     "react-native": "0.83.10",
     "react-native-windows": "0.83.2",
-    "@nelyx/material": "file:../../.nelyx/supply/windows/nelyx-material-0.2.0-eb5027e8a17455396e9c9d32644b89038b5e9472ed75ef6a47c83930d4d2494c.tgz",
+    "@nelyx/material": "file:../../.nelyx/supply/windows/nelyx-material-0.2.0-c7e248eb668cd696b7d40d275186472a5b31b1b4813f8ffe7a81420160b0a80c.tgz",
     "@nelyx/skia-native": "file:../../.nelyx/supply/windows/nelyx-skia-native-0.1.0-d20b52979e1aeca34517d44307541dc6db4cd48bdb0dae908182d69c6b68abfe.tgz",
     "@nelyx/cupertino": "file:../../.nelyx/supply/windows/nelyx-cupertino-0.2.0-96857159cb2562ae12e9f54acb50f0dc1fa642804da539274a8a5282030c56c7.tgz"
   },

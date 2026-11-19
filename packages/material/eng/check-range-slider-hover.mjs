@@ -29,7 +29,10 @@ import { MaterialApp } from '@nelyx/material/app';
 import { Material } from '@nelyx/material/material';
 import { RangeSlider } from '@nelyx/material/range-slider';
 import { RangeLabels, RangeValues } from '@nelyx/material/range-slider-values';
-import { RoundedRectRangeSliderTrackShape } from '@nelyx/material/slider-shapes';
+import {
+  RoundedRectRangeSliderTrackShape,
+  RoundRangeSliderTickMarkShape,
+} from '@nelyx/material/slider-shapes';
 import { ShowValueIndicator, SliderTheme, SliderThemeData } from '@nelyx/material/slider-theme';
 
 if (!process.argv.includes('--child')) {
@@ -47,7 +50,12 @@ FlutterError.onError = ({ exception }) => {
 function fixture(
   custom,
   stateful,
-  { track = new RoundedRectRangeSliderTrackShape(), showValueIndicator = null } = {},
+  {
+    track = new RoundedRectRangeSliderTrackShape(),
+    showValueIndicator = null,
+    divisions = null,
+    tickShape = null,
+  } = {},
 ) {
   let at = 0,
     sequence = 0,
@@ -58,6 +66,7 @@ function fixture(
     sliderBuilds: 0,
     layout: 0,
     semantics: 0,
+    indicatorBuilds: 0,
     labelCalls: 0,
     paragraphs: 0,
   };
@@ -71,7 +80,11 @@ function fixture(
     labels: new RangeLabels('lower', 'upper'),
     direction: 'ltr',
   });
-  const theme = new SliderThemeData({ rangeTrackShape: track, showValueIndicator });
+  const theme = new SliderThemeData({
+    rangeTrackShape: track,
+    rangeTickMarkShape: tickShape,
+    showValueIndicator,
+  });
   const cursor = stateful
     ? WidgetStateProperty.resolveWith(nullableDartType(sourceMouseCursorType), (states) =>
         captureSourceMouseCursor(
@@ -178,9 +191,11 @@ function fixture(
                             id: 'range',
                             labels,
                             values,
+                            divisions,
                             mouseCursor: cursor,
                             onChanged: (values) => {
-                              options.value = { ...options.value, values };
+                              if (options.value.acceptChanges !== false)
+                                options.value = { ...options.value, values };
                             },
                           });
                           return new Directionality(
@@ -218,14 +233,14 @@ function fixture(
     }
     return commands;
   }
-  function hover(x, y) {
+  function mouse(kind, x, y) {
     view.pointer({
-      kind: 'hover',
+      kind,
       pointer: 1,
       device: 'mouse',
       x,
       y,
-      buttons: 0,
+      buttons: kind === 'down' || kind === 'move' ? 1 : 0,
       timestamp: at,
       viewportGeneration: 1,
     });
@@ -280,6 +295,7 @@ function fixture(
   countMethod(render, 'markNeedsSemanticsUpdate', 'semantics');
   countMethod(render.startLabel, 'layout', 'labelCalls');
   countMethod(render.endLabel, 'layout', 'labelCalls');
+  if (state.entry) countMethod(state.entry, 'markNeedsBuild', 'indicatorBuilds');
   const rebuild = Element.prototype.rebuild;
   Element.prototype.rebuild = function (...args) {
     if (this.active && this.dirty) counts.widgets++;
@@ -291,7 +307,8 @@ function fixture(
     options,
     controller,
     tick,
-    hover,
+    mouse,
+    hover: (x, y) => mouse('hover', x, y),
     pan,
     measure(run) {
       const before = { ...counts };
@@ -475,6 +492,105 @@ for (const [custom, stateful] of [
 }
 
 if (!baseline) {
+  for (const [custom, direction, divisions] of [
+    [false, 'ltr', 20],
+    [true, 'rtl', 200],
+  ]) {
+    const f = fixture(custom, false, {
+      divisions,
+      tickShape: custom ? new RoundRangeSliderTickMarkShape({ tickMarkRadius: 0.1 }) : null,
+    });
+    const { state, render, options, tick, mouse, node } = f;
+    function input(kind, value) {
+      const rect = render.inputTrackRect(),
+        visual = direction === 'rtl' ? 1 - value : value,
+        point = render.localToGlobal(new Offset(rect.left + visual * rect.width, rect.center.dy));
+      mouse(kind, point.x, point.y);
+    }
+    function assertThumb(thumb, expected) {
+      const isStart = thumb === 'start',
+        position = isStart ? state.startPosition : state.endPosition,
+        center = render.localToGlobal(render.centers()[isStart ? 0 : 1]),
+        { bounds, numericRange } = node(thumb);
+      assert.equal(position.value, expected, 'The first frame must paint the accepted mouse value');
+      assert(!position.isAnimating, 'The dragged thumb must not ease toward the accepted value');
+      assert.equal(numericRange.value, expected);
+      assert(Math.abs(bounds.x + bounds.width / 2 - center.x) < 0.001);
+    }
+    try {
+      options.value = { ...options.value, direction };
+      tick();
+      const scroll = f.controller.position.pixels;
+      input('down', 0.25);
+      await Promise.resolve();
+      tick();
+      const dragWork = f.measure(() => {
+        input('move', 0.4);
+        tick();
+        assertThumb('start', 0.4);
+        assertThumb('end', 0.75);
+        tick();
+      });
+      assert.equal(dragWork.layout, 0, 'Moving the thumb must not relayout its fixed-size box');
+      assert.equal(
+        dragWork.indicatorBuilds,
+        0,
+        'Moving the indicator must reuse its overlay entry',
+      );
+
+      if (custom) {
+        const tickPaths = tick(1, true).filter(
+          (command) =>
+            command.op === 'drawPath' &&
+            command.path.operations.every((item) => item.verb === 'addOval'),
+        );
+        assert(
+          tickPaths.length >= 2 && tickPaths.length < divisions / 4,
+          'Dense marks must share path recordings',
+        );
+        assert(
+          tickPaths.reduce((count, command) => count + command.path.operations.length, 0) >=
+            divisions - 32,
+        );
+        assert.equal(
+          new Set(tickPaths.map((command) => command.paint.color)).size,
+          2,
+          'Both sides of the range must be painted',
+        );
+      }
+
+      input('move', 0.45);
+      input('move', 0.4);
+      tick();
+      assertThumb('start', 0.4);
+
+      input('move', 0.3);
+      input('up', 0.3);
+      tick();
+      assertThumb('start', 0.3);
+
+      input('down', 0.75);
+      await Promise.resolve();
+      input('move', 0.6);
+      tick();
+      assertThumb('end', 0.6);
+      options.value = { ...options.value, acceptChanges: false };
+      input('move', 0.65);
+      input('up', 0.65);
+      tick();
+      assertThumb('end', 0.6);
+      assert.equal(f.controller.position.pixels, scroll);
+
+      options.value = { ...options.value, values: new RangeValues(0.3, 0.65) };
+      tick();
+      assert(state.endPosition.isAnimating, 'An external value change after drag still eases');
+      tick(7);
+      assertThumb('end', 0.65);
+    } finally {
+      f.close();
+    }
+  }
+
   class MovingTrack extends RoundedRectRangeSliderTrackShape {
     dx = 0;
     getPreferredRect(options) {
@@ -491,7 +607,7 @@ if (!baseline) {
     moving.tick();
     track.dx = 12;
     const changed = moving.measure(() => moving.tick(3));
-    assert(changed.layout > 0 && changed.semantics > 0, 'Moved custom thumb bounds must publish');
+    assert.equal(changed.layout, 0, 'A moved custom track should only change thumb geometry');
     assert.equal(moving.node('start').bounds.x, start + 12);
     assert.equal(moving.node('end').bounds.x, end + 12);
     assert.equal(moving.measure(() => moving.tick(6)).layout, 0);
