@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { execute } from '../../Nelyx/sdk/tooling/cli/src/commands.mjs';
-import { designInventory } from './design-inventory.mjs';
+import { designInventory, selectDesignBodyUnits } from './design-inventory.mjs';
 import { openFlutterSource } from './flutter-source.mjs';
 
 const families = new Map([
@@ -49,16 +49,23 @@ const { values } = parseArgs({
     dart: { type: 'string' },
     family: { type: 'string', default: 'all' },
     emitter: { type: 'boolean' },
+    summary: { type: 'boolean' },
     graph: { type: 'boolean' },
+    'with-dependencies': { type: 'boolean' },
     coverage: { type: 'string' },
   },
 });
 const validFamily =
   values.family === 'all' ||
   (values.graph ? /^W11-0[1-7]$/.test(values.family) : families.has(values.family));
-if (!values.source || !values.dart || !validFamily || (values.coverage && !values.graph))
+if (
+  !values.source ||
+  !values.dart ||
+  !validFamily ||
+  ((values.coverage || values['with-dependencies']) && !values.graph)
+)
   throw Error(
-    'design-body-probe --source <Flutter Git repository> --dart <Dart executable> [--family <W11 family>] [--graph [--coverage <resolved JSON>]] [--emitter]',
+    'design-body-probe --source <Flutter Git repository> --dart <Dart executable> [--family <W11 family>] [--graph [--coverage <resolved JSON>] [--with-dependencies]] [--emitter] [--summary]',
   );
 
 const deadline = Date.now() + 1_200_000;
@@ -91,10 +98,11 @@ try {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, source.read(file));
   }
-  const modules = graph
-    ? graph.bodyUnits
-        .filter((unit) => values.family === 'all' || unit.families.includes(values.family))
-        .flatMap((unit) => unit.recipeInputs.map((entry) => ({ ...entry, unit: unit.id })))
+  const units = graph
+    ? selectDesignBodyUnits(graph.bodyUnits, values.family, values['with-dependencies'])
+    : null;
+  const modules = units
+    ? units.flatMap((unit) => unit.recipeInputs.map((entry) => ({ ...entry, unit: unit.id })))
     : [...families]
         .filter(([family]) => values.family === 'all' || family === values.family)
         .flatMap(([, selections]) =>
@@ -157,7 +165,13 @@ try {
   console.log(
     JSON.stringify({
       revision: source.revision,
-      scope: { family: values.family, graph: !!graph, modules: modules.length },
+      scope: {
+        family: values.family,
+        graph: !!graph,
+        withDependencies: values['with-dependencies'] ?? false,
+        units: units?.length ?? null,
+        modules: modules.length,
+      },
       dart: {
         expectedRevision,
         installedRevision,
@@ -168,14 +182,18 @@ try {
       ),
       frontendSha256: hash(fs.readFileSync(frontend)),
       bodyIrSha256: hash(first),
-      records: result.records.map(({ source, symbol, spanSha256, ir, diagnostic }) => ({
-        source,
-        symbol,
-        spanSha256,
-        reference: ir?.reference?.id,
-        status: diagnostic ? 'blocked-in-body-ir' : 'body-ir-ready',
-        diagnostic,
-      })),
+      recordCount: result.records.length,
+      blockedRecords: result.records.filter((record) => record.diagnostic).length,
+      records: values.summary
+        ? undefined
+        : result.records.map(({ source, symbol, spanSha256, ir, diagnostic }) => ({
+            source,
+            symbol,
+            spanSha256,
+            reference: ir?.reference?.id,
+            status: diagnostic ? 'blocked-in-body-ir' : 'body-ir-ready',
+            diagnostic,
+          })),
     }),
   );
   if (values.emitter) {
@@ -185,7 +203,12 @@ try {
     fs.writeFileSync(plan, JSON.stringify(modules));
     await execute(
       'bun',
-      [path.join(import.meta.dirname, 'src/design-emitter-probe.ts'), output, plan],
+      [
+        path.join(import.meta.dirname, 'src/design-emitter-probe.ts'),
+        output,
+        plan,
+        ...(values.summary ? ['--summary'] : []),
+      ],
       {
         timeout,
         signal: abort.signal,

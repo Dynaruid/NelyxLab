@@ -162,8 +162,36 @@ function designBodyUnits(records, files) {
     }
   }
   const tops = new Map([...topLevel.values()].map((record) => [record.id, record]));
-  return components([...tops.values()], (record) => edges.get(record.id)).map((ids, id) => {
+  const groups = components([...tops.values()], (record) => edges.get(record.id));
+  const unitsByDeclaration = new Map(groups.flatMap((ids, unit) => ids.map((id) => [id, unit])));
+  const typeDependencies = new Map();
+  const sharedDependencies = new Map();
+  const add = (map, unit, dependency) => {
+    if (!map.has(unit)) map.set(unit, new Set());
+    map.get(unit).add(dependency);
+  };
+  for (const record of design) {
+    const unit = unitsByDeclaration.get(declarationOf.get(record.id));
+    if (unit === undefined) continue;
+    for (const phase of ['type', ...executionPhases]) {
+      for (const id of record.dependencyPhases[phase] ?? []) {
+        const target = unitsByDeclaration.get(declarationOf.get(id));
+        if (target === undefined) add(sharedDependencies, unit, id);
+        else if (target !== unit && phase === 'type') add(typeDependencies, unit, target);
+      }
+    }
+  }
+  return groups.map((ids, id) => {
     const declarations = ids.map((id) => tops.get(id));
+    const dependencies = [
+      ...new Set(
+        ids.flatMap((key) =>
+          [...edges.get(key)]
+            .map((target) => unitsByDeclaration.get(target))
+            .filter((target) => target !== id),
+        ),
+      ),
+    ].sort((a, b) => a - b);
     const inputs = new Map();
     for (const declaration of declarations) {
       const source = declaration.origin.file;
@@ -181,9 +209,32 @@ function designBodyUnits(records, files) {
       id,
       families: [...new Set(declarations.map((record) => record.family))].sort(),
       declarations: ids,
+      dependencies,
+      typeDependencies: [...(typeDependencies.get(id) ?? [])].sort((a, b) => a - b),
+      sharedDependencies: [...(sharedDependencies.get(id) ?? [])].sort(),
       recipeInputs: [...inputs.values()],
     };
   });
+}
+
+export function selectDesignBodyUnits(units, family, includeDependencies = false) {
+  const selected = new Set(
+    units
+      .filter((unit) => family === 'all' || unit.families.includes(family))
+      .map((unit) => unit.id),
+  );
+  if (includeDependencies) {
+    const byId = new Map(units.map((unit) => [unit.id, unit]));
+    for (const id of selected) {
+      const unit = byId.get(id);
+      for (const dependency of [...unit.dependencies, ...unit.typeDependencies]) {
+        if (!byId.has(dependency))
+          throw Error(`Missing design Body IR dependency ${dependency} of ${id}`);
+        selected.add(dependency);
+      }
+    }
+  }
+  return units.filter((unit) => selected.has(unit.id));
 }
 
 function currentExports(coverage) {

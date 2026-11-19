@@ -20,8 +20,9 @@ import {ColorScheme} from '@nelyx/material/color-scheme';
 | Buttons | `filled-button`, `text-button`, `outlined-button`, `elevated-button`, `icon-button` |
 | Selection | `checkbox`, `radio`, `switch`, `segmented-button`, `slider`, `range-slider` |
 | Text and forms | `text-field`, `text-form-field`, `input-decoration` |
-| Surfaces and feedback | `material`, `card`, `ink-well`, `tooltip`, `progress-indicator` |
+| Surfaces and feedback | `material`, `card`, `bottom-sheet`, `ink-well`, `tooltip`, `progress-indicator` |
 | Navigation and scrolling | `page`, `page-transitions-theme`, `scrollbar`, `scroll-behavior` |
+| Data | `data-table`, `data-table-theme`, `data-table-source`, `paginated-data-table` |
 | Assets | `icons`, `icon-assets` |
 
 All names are relative to `@nelyx/material/`. See [package.json](package.json) for the full export list.
@@ -49,6 +50,46 @@ const scrollbarTheme = new ScrollbarThemeData({thickness});
 ```
 
 Use the declarations for the selected component's exact value and callback types.
+
+## Floating action buttons
+
+Import `FloatingActionButton` from `@nelyx/material/floating-action-button`. Use the constructor or `.small()`, `.large()`, and `.extended()` (required `label`, optional `icon`). Set `onPressed: null` to disable activation without changing the default Material 3 colors. Use `FloatingActionButtonThemeData` for family-wide overrides.
+
+With a Hero-enabled navigator, use distinct `heroTag` values for multiple buttons on one route, or pass `null` to opt out. FABs register with Core Hero; Flutter's default flight tween and inherited-theme interpolation are not implemented, and end-to-end route flights are not covered by the check. Material 2 is not supported by the current Material theme.
+
+Run the mounted package regression with `node packages/material/eng/check-floating-action-button.mjs` after building Material.
+
+## Bottom sheets
+
+Import `BottomSheet` and `showModalBottomSheet<T>` from `@nelyx/material/bottom-sheet`. The inline widget leaves dismissal to its owner. The modal uses Core's nearest navigator by default, resolves with the value passed to `Navigator.pop`, and resolves to `undefined` on dismissal. Set `useRootNavigator` to use the outer navigator. The optional handle closes the sheet on activation; swipe-to-dismiss, draggable scrolling, and custom transition controllers are not available.
+
+## Data tables
+
+Import `DataTable`, `DataColumn`, `DataRow`, and `DataCell` from `@nelyx/material/data-table` or `@nelyx/material/widgets`. Sorting and selection are controlled: reorder `rows` in `DataColumn.onSort`, update `sortColumnIndex` and `sortAscending`, and rebuild with new `DataRow.selected` values in selection callbacks. Use `DataRow.byIndex` with a stable record index when reordering. A cell gesture takes precedence over its row's gestures; an edit icon is visual and does not edit the value on its own.
+
+Table style overrides fall back to `DataTableTheme` and then `ThemeData.dataTableTheme`. The table measures all rows and does not scroll by itself.
+
+Parity limits against Flutter `71e4717a61786faab4c7aa39825989305ed29e8a`: sort arrows switch immediately, without Flutter's fade, rotation, or baseline offset; dropdown underlines are not suppressed; and the Material-local `TableBorder` provides border painting but not Flutter's factories, interpolation, or value methods. Visual options are available through `DataTable.options` rather than individual Dart-style properties. Source semantics retain the table, row, header, and cell roles and the mixed checkbox state. The current host transport does not preserve all those roles or the mixed state. There is no separate semantic sort-direction property.
+
+Run `node packages/material/eng/check-data-table.mjs` after building Material. The Material Testbed has a sortable/selectable example under **Containment → Data table**.
+
+### Paginated data table
+
+Import `PaginatedDataTable`, `PaginatedDataTableState`, and `DataTableSource` from `@nelyx/material/widgets`, or use the `paginated-data-table` and `data-table-source` subpaths. See **Containment → Paginated data table** in the Material Testbed.
+
+- Reuse a caller-owned `DataTableSource`: return rows in display order, key them by record identity, and call `notifyListeners()` when rows, counts or selection change. Return `null` for an unloaded row. The table subscribes to the current source, caches requested rows until notified, and detaches without disposing the source.
+- `onPageChanged` reports the zero-based first row after navigation. Use `state.pageTo(rowIndex)` for programmatic navigation and a `PageStorageKey` for restoring the current page. If an exact count shrinks past the current page, the view moves to the last valid page without a navigation callback. Approximate counts permit forward navigation while rows are still loading.
+- Page size is controlled: use `onRowsPerPageChanged` to update `rowsPerPage` and rebuild. Row selection, select-all, and sorting use the underlying `DataTable` callbacks. Default select-all covers selectable rows on the current page; the header count comes from the entire source.
+
+The footer wraps and offers inline choices rather than Flutter's scrolling footer and dropdown. Pagination labels are English-only. Horizontal table scrolling, Flutter's `controller`/`primary`/`dragStartBehavior` options, and Flutter's exact card/header/footer/last-page spacing are not implemented. Host-native interaction and pixel parity are not verified by the mounted test.
+
+## Expansion panels
+
+Import `ExpansionPanel`, `ExpansionPanelRadio`, and `ExpansionPanelList` from `@nelyx/material/expansion-panel`. Update each regular panel's `isExpanded` in response to `expansionCallback`. With `ExpansionPanelList.radio()`, the list manages one open panel and reports the previous panel closing before the next one opens. Panel height and gaps animate; Flutter's exact cross-fade and merged-surface shadows are not reproduced.
+
+## Stepper
+
+Import `Stepper`, `Step`, `StepState`, and `StepperType` from `@nelyx/material/stepper`. The caller owns `currentStep`; disabled steps do not accept header activation. Use `controlsBuilder` for application-specific Continue and Cancel controls and provide bounded height for a horizontal stepper. Panel height animates, but Flutter's exact cross-fade and error-icon transitions are not reproduced.
 
 ## Icons and assets
 

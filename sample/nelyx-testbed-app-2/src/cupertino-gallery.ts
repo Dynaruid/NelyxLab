@@ -43,20 +43,26 @@ import {
   CupertinoPicker,
   FixedExtentScrollController,
 } from '@nelyx/cupertino/picker';
+import { CupertinoTimerPicker } from '@nelyx/cupertino/timer-picker';
+import { CupertinoSegmentedControl } from '@nelyx/cupertino/segmented-control';
 import { CupertinoSlidingSegmentedControl } from '@nelyx/cupertino/sliding-segmented-control';
 import { CupertinoActivityIndicator } from '@nelyx/cupertino/activity-indicator';
 import { CupertinoListTile, CupertinoListTileChevron } from '@nelyx/cupertino/list-tile';
 import { CupertinoListSection } from '@nelyx/cupertino/list-section';
 import { CupertinoTextField, OverlayVisibilityMode } from '@nelyx/cupertino/text-field';
+import { CupertinoSearchTextField } from '@nelyx/cupertino/search-field';
 import { CupertinoTextFormFieldRow } from '@nelyx/cupertino/text-form-field-row';
 import { Form } from '@nelyx/core/framework/widgets/form';
 import type { FormState } from '@nelyx/core/framework/widgets/form';
 import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import { CupertinoFormSection } from '@nelyx/cupertino/form-section';
 import { CupertinoAlertDialog } from '@nelyx/cupertino/dialog';
+import { CupertinoActionSheet, CupertinoActionSheetAction } from '@nelyx/cupertino/action-sheet';
 import { categories } from './catalog.ts';
 import type { CategoryId, ComponentDemo } from './catalog.ts';
 import { cupertinoDemos, visibleCupertinoDemos } from './cupertino-catalog.ts';
+import { CupertinoPageRoute } from '@nelyx/cupertino/route';
+import { CupertinoRefreshDemo } from './cupertino-refresh-demo.ts';
 
 const groups = categories.filter((group) => group.id !== 'images');
 const accents = [0xff007aff, 0xff248a3d, 0xffaf52de, 0xffc93400] as const;
@@ -80,7 +86,9 @@ export class CupertinoGalleryValues {
   checked: boolean | null = true;
   radio = 'first';
   slider = 40;
+  timerDuration = 3_915_000;
   segment = 'Daily';
+  borderedSegment = 'Day';
   animating = false;
   interactiveSelection = true;
   lastAction = 'Cupertino 컴포넌트를 눌러보세요.';
@@ -287,6 +295,47 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
       )
       .then(() => {
         if (this.mounted) this.record('Cupertino dialog closed');
+      })
+      .catch((error) => {
+        if (this.mounted) this.record(String(error));
+      });
+  }
+  private openActionSheet(): void {
+    type Result = 'Saved' | 'Deleted' | 'Cancelled';
+    const close = (result: Result) => () => {
+      void this.navigator.pop(result);
+    };
+    void this.navigator
+      .push(
+        createDialogRoute<Result>({
+          name: 'cupertino-action-sheet',
+          barrierColor: 0x66000000,
+          barrierLabel: 'Dismiss action sheet',
+          builder: () =>
+            new CupertinoActionSheet({
+              title: new Text('Manage item'),
+              message: new Text('Choose what to do with this item.'),
+              actions: [
+                new CupertinoActionSheetAction({
+                  child: new Text('Save item'),
+                  isDefaultAction: true,
+                  onPressed: close('Saved'),
+                }),
+                new CupertinoActionSheetAction({
+                  child: new Text('Delete item'),
+                  isDestructiveAction: true,
+                  onPressed: close('Deleted'),
+                }),
+              ],
+              cancelButton: new CupertinoActionSheetAction({
+                child: new Text('Cancel'),
+                onPressed: close('Cancelled'),
+              }),
+            }),
+        }),
+      )
+      .then((result) => {
+        if (this.mounted) this.record('Action sheet: ' + (result ?? 'Dismissed'));
       })
       .catch((error) => {
         if (this.mounted) this.record(String(error));
@@ -505,6 +554,36 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
       this.updates.change(id, change, id === 'sliders' ? ['activity'] : []);
     const v = this.values;
     switch (id) {
+      case 'refresh':
+        return this.button('open-refresh-list', 'Open refresh list', () => {
+          void this.navigator
+            .push(
+              new CupertinoPageRoute<void>({
+                builder: () =>
+                  new CupertinoPageScaffold(
+                    'Refresh list',
+                    new CupertinoRefreshDemo((message) => this.record(message)),
+                    () => {
+                      void this.navigator.pop();
+                    },
+                  ),
+              }),
+            )
+            .catch((error) => {
+              if (this.mounted) this.record(String(error));
+            });
+        });
+      case 'timer-picker':
+        return new CupertinoTimerPicker({
+          initialTimerDuration: v.timerDuration,
+          minuteInterval: 5,
+          secondInterval: 15,
+          changeReportingBehavior: ChangeReportingBehavior.onScrollEnd,
+          onTimerDurationChanged: (duration) => {
+            v.timerDuration = duration;
+            this.record(`Timer: ${duration / 1000} seconds`);
+          },
+        });
       case 'picker':
         return new Row(
           [
@@ -540,6 +619,22 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
           ],
           { spacing: 12 },
         );
+      case 'segmented-control':
+        return new CupertinoSegmentedControl({
+          children: new Map([
+            ['Day', new Text('Day')],
+            ['Week', new Text('Week')],
+            ['Month', new Text('Month')],
+          ]),
+          groupValue: v.borderedSegment,
+          disabledChildren: new Set(['Month']),
+          onValueChanged: (value) => {
+            update(() => {
+              v.borderedSegment = value;
+              v.lastAction = 'Bordered segment: ' + value;
+            });
+          },
+        });
       case 'segmented':
         return new CupertinoSlidingSegmentedControl<string>({
           children: new Map([
@@ -621,6 +716,10 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
         return column(
           new Text('고정 Close action을 제공하는 기본 API입니다.', { fontSize: 13 }),
           this.button('cupertino-open-dialog', 'Open dialog', () => this.openDialog()),
+        );
+      case 'action-sheet':
+        return this.button('cupertino-open-action-sheet', 'Open action sheet', () =>
+          this.openActionSheet(),
         );
       case 'navigation':
         return column(
@@ -715,6 +814,20 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
             min: 0,
             max: 100,
             onChanged: null,
+          }),
+        );
+      case 'search':
+        return column(
+          new CupertinoSearchTextField({
+            id: 'cupertino-search',
+            restorationId: 'cupertino-search',
+            onChanged: (text) => this.record('Search changed: ' + (text || '(empty)')),
+            onSubmitted: (text) => this.record('Search submitted: ' + text),
+          }),
+          new CupertinoSearchTextField({
+            id: 'cupertino-search-disabled',
+            placeholder: 'Disabled search',
+            enabled: false,
           }),
         );
       case 'text-field':

@@ -90,6 +90,20 @@ const definitions = [
     'cupertino',
   ],
   [
+    'cupertino/segmented_control.dart',
+    'segmented-control',
+    [
+      'CupertinoSegmentedControl',
+      '_SegmentButton',
+      '_SegmentButtonState',
+      '_SegmentedControlState',
+      '_SegmentedControlRenderWidget',
+      '_RenderSegmentedControl',
+    ],
+    'Classic controlled segmented control on Core focus, gesture, animation, layout and semantics. Rounded superellipse and native parity await qualification.',
+    'cupertino',
+  ],
+  [
     'cupertino/picker.dart',
     'picker',
     [
@@ -101,6 +115,91 @@ const definitions = [
       '_CupertinoPickerListWheelChildDelegateWrapper',
     ],
     'List, builder and looping picker over the generated Core wheel, with adjustable semantics and the Cupertino selection overlay. Flutter and host parity await qualification.',
+    'cupertino',
+  ],
+  [
+    'cupertino/search_field.dart',
+    'search-field',
+    ['CupertinoSearchTextField', '_CupertinoSearchTextFieldState'],
+    'Search input over the Cupertino text field and Core editing, focus and restoration owners. Scroll-collapse visuals, cursor and iOS input traits await qualification.',
+    'cupertino',
+  ],
+  [
+    'cupertino/dialog.dart',
+    'action-sheet',
+    ['CupertinoActionSheet', 'CupertinoActionSheetAction'],
+    'Action sheet and button composition on Core layout, scrolling and input owners. Pixel and native route parity await qualification.',
+    'cupertino',
+  ],
+  [
+    'material/floating_action_button.dart',
+    'floating-action-button',
+    ['FloatingActionButton'],
+    'Material 3 floating action button variants on the shared button and Core Hero owners. Scaffold positioning and full source and host parity await qualification.',
+    'material',
+  ],
+  [
+    'material/bottom_sheet.dart',
+    'bottom-sheet',
+    ['BottomSheet', 'showModalBottomSheet'],
+    'Material 3 inline and modal sheet composition on Core navigation, insets and animation. Drag, persistent Scaffold integration and native parity await qualification.',
+    'material',
+  ],
+  [
+    'material/data_table.dart',
+    'data-table',
+    ['DataTable', 'DataColumn', 'DataRow', 'DataCell', 'TableRowInkWell'],
+    'Material data rows, cells, sorting and selection over Core table and input owners. Exact rendering and host qualification remain open.',
+    'material',
+  ],
+  [
+    'material/expansion_panel.dart',
+    'expansion-panel',
+    ['ExpansionPanel', 'ExpansionPanelRadio', 'ExpansionPanelList', '_ExpansionPanelListState'],
+    'Controlled and radio expansion state over Core Material, layout and animation. Flutter cross-fade, merged surfaces and native parity await qualification.',
+    'material',
+  ],
+  [
+    'cupertino/date_picker.dart',
+    'timer-picker',
+    ['CupertinoTimerPicker', 'CupertinoTimerPickerMode'],
+    'Timer modes and change notifications on the shared Cupertino wheel. Full Flutter and native parity await qualification.',
+    'cupertino',
+  ],
+  [
+    'material/paginated_data_table.dart',
+    'paginated-data-table',
+    ['PaginatedDataTable', 'PaginatedDataTableState'],
+    'Paginated Core table layout and source lifecycle. Flutter footer and native parity await qualification.',
+    'material',
+  ],
+  [
+    'material/data_table_source.dart',
+    'data-table-source',
+    ['DataTableSource'],
+    'Observable row source using the existing Core notifier.',
+    'material',
+  ],
+  [
+    'material/stepper.dart',
+    'stepper',
+    [
+      'Stepper',
+      'Step',
+      'StepState',
+      'StepperType',
+      'ControlsDetails',
+      'StepStyle',
+      '_StepperState',
+    ],
+    'Controlled stepper on the shared layout, scroll, ink and animation owners. Exact transitions and host parity await qualification.',
+    'material',
+  ],
+  [
+    'cupertino/refresh.dart',
+    'refresh',
+    ['CupertinoSliverRefreshControl', 'RefreshIndicatorMode'],
+    'Refresh state machine and asynchronous lifecycle on Core overscroll and sliver geometry. Native effects and pinned navigation combinations await qualification.',
     'cupertino',
   ],
 ];
@@ -169,8 +268,19 @@ try {
           declaration.spanSha256
       )
         throw Error('Original declaration span differs: ' + symbol);
+      const kind = {
+        ClassDeclarationImpl: 'CLASS',
+        EnumDeclarationImpl: 'ENUM',
+        FunctionDeclarationImpl: 'FUNCTION',
+      }[declaration.kind];
+      if (!kind) throw Error('Unsupported port declaration kind: ' + declaration.kind);
       const qualifiedId =
-        'package:flutter/' + file.slice('packages/flutter/lib/'.length) + '::' + symbol + ':CLASS';
+        'package:flutter/' +
+        file.slice('packages/flutter/lib/'.length) +
+        '::' +
+        symbol +
+        ':' +
+        kind;
       const output = designPackage
         ? `packages/${designPackage}/src/${target}.ts`
         : `Nelyx/src/framework/${target}.ts`;

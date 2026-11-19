@@ -1177,6 +1177,17 @@ export function freezeSemantics(
       'Semantics focusable must be boolean',
     );
     invariant(
+      (node.checkable === undefined ||
+        node.checkable === 'checkbox' ||
+        node.checkable === 'radio') &&
+        (node.checkedMixed === undefined ||
+          (node.checkedMixed === true &&
+            node.checked === undefined &&
+            node.checkable === 'checkbox')),
+      'invalid-semantics-check-state',
+      'Mixed state requires a checkbox and cannot coexist with a binary value',
+    );
+    invariant(
       node.sourceRole === undefined || Object.values(SemanticsRole).includes(node.sourceRole),
       'invalid-semantics-source-role',
       'Unknown source semantics role',

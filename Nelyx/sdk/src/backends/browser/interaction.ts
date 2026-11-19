@@ -28,6 +28,20 @@ interface Editor {
   composing: boolean;
   used: boolean;
 }
+const sourceDomRoles = new Map<SemanticsRole, string>([
+  [SemanticsRole.dialog, 'dialog'],
+  [SemanticsRole.progressBar, 'progressbar'],
+  [SemanticsRole.loadingSpinner, 'progressbar'],
+  [SemanticsRole.table, 'table'],
+  [SemanticsRole.row, 'row'],
+  [SemanticsRole.cell, 'cell'],
+  [SemanticsRole.columnHeader, 'columnheader'],
+]);
+const passiveDomRoles: Partial<Record<SemanticsNode['role'], string>> = {
+  text: 'note',
+  image: 'img',
+  list: 'list',
+};
 const inputCarrierStyle = {
   pointerEvents: 'none',
   opacity: '0',
@@ -87,6 +101,7 @@ export function createDomInteraction(
     else delete element.dataset.semanticsIdentifier;
     if (node.role === 'button') {
       if (node.isLink) element.setAttribute('role', 'link');
+      else if (node.checkable) element.setAttribute('role', node.checkable);
       else element.removeAttribute('role');
     }
     if (
@@ -641,7 +656,6 @@ export function createDomInteraction(
     }
     if (element.dataset.nelyxEditContext === 'true') {
       element.tabIndex = node.focusable === false ? -1 : 0;
-      element.setAttribute('aria-disabled', String(!node.enabled));
       if (node.focusable === false && document.activeElement === element) element.blur();
     }
     cursor?.add(element);
@@ -714,16 +728,10 @@ export function createDomInteraction(
           'role',
           node.isSlider
             ? 'slider'
-            : node.sourceRole === SemanticsRole.progressBar ||
-                node.sourceRole === SemanticsRole.loadingSpinner
-              ? 'progressbar'
-              : node.role === 'text'
-                ? 'note'
-                : node.role === 'image'
-                  ? 'img'
-                  : node.role === 'list'
-                    ? 'list'
-                    : 'group',
+            : ((node.sourceRole === undefined ? undefined : sourceDomRoles.get(node.sourceRole)) ??
+                node.checkable ??
+                passiveDomRoles[node.role] ??
+                'group'),
         );
         element = control;
       }
@@ -756,11 +764,14 @@ export function createDomInteraction(
       order.set(actualParent, siblings);
       if (node.selected !== undefined) element.setAttribute('aria-selected', String(node.selected));
       else element.removeAttribute('aria-selected');
-      if (node.checked !== undefined) element.setAttribute('aria-checked', String(node.checked));
+      if (node.checkedMixed === true) element.setAttribute('aria-checked', 'mixed');
+      else if (node.checked !== undefined)
+        element.setAttribute('aria-checked', String(node.checked));
       else element.removeAttribute('aria-checked');
       if (node.value !== undefined) element.setAttribute('aria-valuetext', node.value);
       else element.removeAttribute('aria-valuetext');
-      if (node.isSlider) element.setAttribute('aria-disabled', String(!node.enabled));
+      if (node.isSlider || node.checkable || element.dataset.nelyxEditContext === 'true')
+        element.setAttribute('aria-disabled', String(!node.enabled));
       else element.removeAttribute('aria-disabled');
       const progress = node.sourceRole === SemanticsRole.progressBar,
         loading = node.sourceRole === SemanticsRole.loadingSpinner;

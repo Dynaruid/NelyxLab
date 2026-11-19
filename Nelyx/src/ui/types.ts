@@ -472,6 +472,8 @@ export interface SemanticsNode {
   readonly value?: string;
   readonly selected?: boolean;
   readonly checked?: boolean;
+  readonly checkedMixed?: true;
+  readonly checkable?: 'checkbox' | 'radio';
   readonly focused?: boolean;
   readonly focusable?: boolean;
   readonly scrollPosition?: number;

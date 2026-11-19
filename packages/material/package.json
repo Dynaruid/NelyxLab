@@ -520,6 +520,18 @@
       "types": "./dist/menu-theme.d.ts",
       "default": "./dist/menu-theme.js"
     },
+    "./stepper": {
+      "types": "./dist/stepper.d.ts",
+      "default": "./dist/stepper.js"
+    },
+    "./expansion-panel": {
+      "types": "./dist/expansion-panel.d.ts",
+      "default": "./dist/expansion-panel.js"
+    },
+    "./floating-action-button": {
+      "types": "./dist/floating-action-button.d.ts",
+      "default": "./dist/floating-action-button.js"
+    },
     "./floating-action-button-theme-data": {
       "types": "./dist/floating-action-button-theme-data.d.ts",
       "default": "./dist/floating-action-button-theme-data.js"
@@ -596,9 +608,25 @@
       "types": "./dist/bottom-navigation-bar-theme.d.ts",
       "default": "./dist/bottom-navigation-bar-theme.js"
     },
+    "./bottom-sheet": {
+      "types": "./dist/bottom-sheet.d.ts",
+      "default": "./dist/bottom-sheet.js"
+    },
     "./bottom-sheet-theme-data": {
       "types": "./dist/bottom-sheet-theme-data.d.ts",
       "default": "./dist/bottom-sheet-theme-data.js"
+    },
+    "./data-table": {
+      "types": "./dist/data-table.d.ts",
+      "default": "./dist/data-table.js"
+    },
+    "./data-table-source": {
+      "types": "./dist/data-table-source.d.ts",
+      "default": "./dist/data-table-source.js"
+    },
+    "./paginated-data-table": {
+      "types": "./dist/paginated-data-table.d.ts",
+      "default": "./dist/paginated-data-table.js"
     },
     "./data-table-theme-data": {
       "types": "./dist/data-table-theme-data.d.ts",

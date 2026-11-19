@@ -18,9 +18,21 @@
       "types": "./dist/widgets.d.ts",
       "default": "./dist/widgets.js"
     },
+    "./search-field": {
+      "types": "./dist/search-field.d.ts",
+      "default": "./dist/search-field.js"
+    },
     "./picker": {
       "types": "./dist/picker.d.ts",
       "default": "./dist/picker.js"
+    },
+    "./timer-picker": {
+      "types": "./dist/timer-picker.d.ts",
+      "default": "./dist/timer-picker.js"
+    },
+    "./segmented-control": {
+      "types": "./dist/segmented-control.d.ts",
+      "default": "./dist/segmented-control.js"
     },
     "./sliding-segmented-control": {
       "types": "./dist/sliding-segmented-control.d.ts",
@@ -77,6 +89,10 @@
     "./internal/scrollbar.generated": {
       "types": "./dist/generated/scrollbar/scrollbar.generated.d.ts",
       "default": "./dist/generated/scrollbar/scrollbar.generated.js"
+    },
+    "./refresh": {
+      "types": "./dist/refresh.d.ts",
+      "default": "./dist/refresh.js"
     },
     "./scrollbar": {
       "types": "./dist/scrollbar.d.ts",
@@ -171,6 +187,10 @@
     "./dialog": {
       "types": "./dist/dialog.d.ts",
       "default": "./dist/dialog.js"
+    },
+    "./action-sheet": {
+      "types": "./dist/action-sheet.d.ts",
+      "default": "./dist/action-sheet.js"
     },
     "./radio": {
       "types": "./dist/radio.d.ts",

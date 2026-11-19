@@ -70,6 +70,14 @@ try {
     return [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2];
   };
   const clickPointer = async (locator) => page.mouse.click(...(await center(locator)));
+  const wheelIntoView = async (locator, step = 240) => {
+    await page.mouse.move(1244, 700);
+    for (let i = 0; i < 8 && !(await locator.isVisible()); i++) {
+      await page.mouse.wheel(0, step);
+      await locator.waitFor({ timeout: 750 }).catch(() => {});
+    }
+    await locator.waitFor();
+  };
 
   const material = page.getByRole('group', { name: 'Segmented buttons 기본 API' });
   await selected(material, 'List');
@@ -88,10 +96,8 @@ try {
   await clickPointer(button('Weekly'));
   await selected(cupertino, 'Weekly');
   await clickPointer(button('Yearly'));
-  assert.equal(
-    await cupertino.locator('[aria-selected=true]').getAttribute('aria-label'),
-    'Weekly',
-  );
+  await selected(cupertino, 'Weekly');
+  assert.notEqual(await button('Yearly').getAttribute('aria-selected'), 'true');
   await page.keyboard.press('ArrowLeft');
   await selected(cupertino, 'Daily');
   await page.mouse.move(...(await center(button('Daily'))));
@@ -101,8 +107,15 @@ try {
   await page.mouse.up();
   await selected(cupertino, 'Weekly');
 
+  const borderedDay = button('Day');
+  const borderedWeek = button('Week');
+  await borderedDay.and(page.locator('[aria-selected=true]')).waitFor();
+  await clickPointer(borderedWeek);
+  await borderedWeek.and(page.locator('[aria-selected=true]')).waitFor();
+  assert.equal(await button('Month').isDisabled(), true);
+
   await button('Selection').evaluate((element) => element.click());
-  await page.locator('[aria-label="5개 섹션 · 스크롤하여 탐색"]').waitFor();
+  await page.locator('[aria-label="6개 섹션 · 스크롤하여 탐색"]').waitFor();
   await page.mouse.move(1244, 700);
   await page.mouse.wheel(0, 600);
   const wheel = (value) =>
@@ -130,6 +143,94 @@ try {
   await wheel('Large').waitFor();
   await page.locator('[aria-label="Portion: Large"]').waitFor();
 
+  await page.mouse.move(1244, 700);
+  await page.mouse.wheel(0, 400);
+  await wheel('1 hour').waitFor();
+  await wheel('5 min.').waitFor();
+  const timerSeconds = wheel('15 sec.');
+  await timerSeconds.focus();
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  await page.keyboard.press('ArrowUp');
+  await wheel('30 sec.').waitFor();
+  await page.locator('[aria-label="Timer: 3930 seconds"]').waitFor();
+
+  await button('Text inputs').evaluate((element) => element.click());
+  await page.locator('[aria-label="2개 섹션 · 스크롤하여 탐색"]').waitFor();
+  await page.mouse.move(1244, 700);
+  await page.mouse.wheel(0, 600);
+  const search = page.getByRole('textbox', { name: '검색', exact: true });
+  await search.waitFor();
+  assert.equal(await page.getByRole('textbox', { name: 'Disabled search' }).isDisabled(), true);
+  await clickPointer(search);
+  await page.keyboard.type('wheel');
+  await page.locator('[aria-label="Search changed: wheel"]').waitFor();
+  await page.keyboard.press('Enter');
+  await page.locator('[aria-label="Search submitted: wheel"]').waitFor();
+  await clickPointer(button('삭제'));
+  await page.locator('[aria-label="Search changed: (empty)"]').waitFor();
+  await button('삭제').waitFor({ state: 'detached' });
+
+  await button('Containment').evaluate((element) => element.click());
+  const openSheet = button('Open action sheet');
+  await wheelIntoView(openSheet);
+  const showCupertinoSheet = () => openSheet.evaluate((element) => element.click());
+  await showCupertinoSheet();
+  const sheet = page.getByRole('dialog', { name: 'Alert', exact: true });
+  await sheet.waitFor();
+  const save = sheet.getByRole('button', { name: 'Save item', exact: true });
+  const cancel = sheet.getByRole('button', { name: 'Cancel', exact: true });
+  const [, saveY] = await center(save);
+  const [, cancelY] = await center(cancel);
+  assert.ok(cancelY > saveY && cancelY > page.viewportSize().height / 2);
+  await clickPointer(sheet.getByRole('button', { name: 'Delete item', exact: true }));
+  await page.locator('[aria-label="Action sheet: Deleted"]').waitFor();
+  await sheet.waitFor({ state: 'detached' });
+  await showCupertinoSheet();
+  await clickPointer(cancel);
+  await page.locator('[aria-label="Action sheet: Cancelled"]').waitFor();
+  await sheet.waitFor({ state: 'detached' });
+  await showCupertinoSheet();
+  await sheet.waitFor();
+  await page.mouse.click(30, 100);
+  await page.locator('[aria-label="Action sheet: Dismissed"]').waitFor();
+  await sheet.waitFor({ state: 'detached' });
+
+  const refreshButton = button('Open refresh list');
+  await wheelIntoView(refreshButton);
+  await refreshButton.evaluate((element) => element.click());
+  const refreshItems = page.getByRole('group', { name: 'Refresh items', exact: true });
+  await refreshItems.waitFor();
+  await page.waitForFunction(() => {
+    const bounds = document.querySelector('[aria-label="Refresh items"]')?.getBoundingClientRect();
+    return bounds && bounds.width > 1000 && window.innerHeight - bounds.top >= 420;
+  });
+  const refreshBox = await refreshItems.getByRole('list').boundingBox();
+  assert.ok(refreshBox);
+  const refreshX = refreshBox.x + refreshBox.width / 2;
+  const refreshY = refreshBox.y + 12;
+  const touch = await page.context().newCDPSession(page);
+  try {
+    const point = (y) => [{ x: refreshX, y }];
+    await touch.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: point(refreshY),
+    });
+    for (let i = 1; i <= 14; i++) {
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: point(refreshY + 28 * i),
+      });
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+    }
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await touch.detach();
+  }
+  await page.locator('[aria-label="Cupertino refresh completed: 1"]').waitFor();
+  await refreshItems.getByRole('list', { name: /Item 25/ }).waitFor();
+  await button('Back').evaluate((element) => element.click());
+  await refreshItems.waitFor({ state: 'detached' });
+
   await clickPointer(button('Material 3'));
   await button('Cupertino').waitFor();
   await clickPointer(button('Selection'));
@@ -140,12 +241,83 @@ try {
   await clickPointer(page.getByRole('button', { name: /^cancel$/i }));
   await dateButton.waitFor();
   assert.equal(await dateButton.getAttribute('aria-label'), original);
+
+  await clickPointer(button('Containment'));
+  const openBottomSheet = button('Open bottom sheet');
+  await clickPointer(openBottomSheet);
+  const saveSheet = button('Save from sheet');
+  assert.ok((await center(saveSheet))[1] > page.viewportSize().height / 2);
+  await clickPointer(saveSheet);
+  await page.getByRole('note', { name: /Bottom sheet saved$/ }).waitFor();
+  await saveSheet.waitFor({ state: 'detached' });
+  await clickPointer(openBottomSheet);
+  await saveSheet.waitFor();
+  await page.mouse.click(30, 100);
+  await page.getByRole('note', { name: /Bottom sheet dismissed$/ }).waitFor();
+  await saveSheet.waitFor({ state: 'detached' });
+
+  const controlledBody = page.locator('[aria-label*="Controlled panel body"]').first();
+  await clickPointer(button('Controlled details'));
+  await controlledBody.waitFor();
+  await clickPointer(button('Controlled details'));
+  await controlledBody.waitFor({ state: 'detached' });
+  const firstRadio = page.locator('[aria-label*="Radio first body"]').first();
+  const secondRadio = page.locator('[aria-label*="Radio second body"]').first();
+  await firstRadio.waitFor();
+  await clickPointer(button('Radio second'));
+  await secondRadio.waitFor();
+  await firstRadio.waitFor({ state: 'detached' });
+  await page.getByRole('note', { name: /Panel 0: closed → Panel 1: open$/ }).waitFor();
+
+  const dataTable = page
+    .getByRole('group', { name: 'Data table 기본 API', exact: true })
+    .getByRole('table');
+  const quantity = dataTable.getByRole('columnheader').getByRole('button', { name: 'Qty' });
+  await wheelIntoView(quantity);
+  const selectAll = dataTable.getByRole('checkbox', { name: '전체 선택', exact: true });
+  await selectAll.waitFor();
+  assert.equal(await selectAll.getAttribute('aria-checked'), 'mixed');
+  await clickPointer(quantity);
+  await page.getByRole('note', { name: /Data table: Qty ascending$/ }).waitFor();
+  await page.mouse.move(1244, 700);
+  await page.mouse.wheel(0, 260);
+  const pearRow = dataTable.getByRole('row', { name: 'Pear 3' });
+  await clickPointer(pearRow.getByRole('cell').getByRole('button', { name: 'Pear', exact: true }));
+  await page.getByRole('note', { name: /Data table: Pear selected$/ }).waitFor();
+  await pearRow.and(page.locator('[aria-selected="true"]')).waitFor();
+
+  const nextPage = button('Next page').or(page.locator('button[aria-description="Next page"]'));
+  await wheelIntoView(nextPage);
+  await clickPointer(nextPage);
+  await page.getByRole('note', { name: /Paginated table: first row index 3$/ }).waitFor();
+  await clickPointer(button('Rows per page: 3'));
+  const fiveRows = button('5 rows per page');
+  await wheelIntoView(fiveRows, 140);
+  await clickPointer(fiveRows);
+  await page.getByRole('note', { name: /Paginated table: 5 rows per page$/ }).waitFor();
+
+  const continueStep = button('Continue step');
+  await wheelIntoView(continueStep);
+  await clickPointer(continueStep);
+  await page.getByRole('note', { name: /Stepper: Review step$/ }).waitFor();
+  const unavailableStep = page.getByRole('button', { name: /Unavailable step$/ });
+  assert.equal(await unavailableStep.isDisabled(), true);
+  const reviewStep = page.getByRole('button', { name: /Review step$/ });
+  await wheelIntoView(reviewStep.and(page.locator('[aria-selected="true"]')), 180);
+
+  await clickPointer(button('Actions'));
+  const extendedFab = button('New item');
+  await clickPointer(extendedFab);
+  await page.getByRole('note', { name: /Extended FAB pressed$/ }).waitFor();
+  const fabs = page.getByRole('group', { name: /Floating action buttons/ });
+  assert.equal(await fabs.getByRole('button', { disabled: true }).count(), 1);
+
   assert.deepEqual(
     failures.filter((message) => !message.includes('favicon.ico')),
     [],
   );
   console.log(
-    'W11 Testbed Web: segmented controls, Cupertino wheel input and semantics, and date picker cancellation passed',
+    'W11 Testbed Web passed: segmented controls, FAB, picker, timer, search, sheets, panels, refresh, data tables, Stepper and date picker',
   );
 } catch (error) {
   if (failures.length) console.error(failures.join('\n'));

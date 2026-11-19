@@ -580,8 +580,14 @@ export class SemanticsTransportSnapshot {
       if (data.value || metadata?.value !== undefined) result.value = data.value;
       if (flags.isSelected !== Tristate.none)
         result.selected = flags.isSelected === Tristate.isTrue;
-      if (flags.isChecked === CheckedState.isTrue || flags.isChecked === CheckedState.isFalse)
-        result.checked = flags.isChecked === CheckedState.isTrue;
+      if (flags.isChecked !== CheckedState.none) {
+        result.checkable =
+          flags.isInMutuallyExclusiveGroup && flags.isChecked !== CheckedState.mixed
+            ? 'radio'
+            : 'checkbox';
+        if (flags.isChecked === CheckedState.mixed) result.checkedMixed = true;
+        else result.checked = flags.isChecked === CheckedState.isTrue;
+      }
       if (flags.isFocused !== Tristate.none) {
         result.focused = flags.isFocused === Tristate.isTrue;
         result.focusable = true;

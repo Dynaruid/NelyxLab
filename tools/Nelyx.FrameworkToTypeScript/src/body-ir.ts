@@ -744,7 +744,7 @@ export interface ModuleRecipe {
       target: string;
       policy: 'no-derived-state-observation';
       sourceConstructor?: string;
-      namedArguments?: 'options';
+      namedArguments?: 'options' | 'core-widget-key' | 'core-widget-child';
       mixins?: string[];
       baseType?: string;
       /** Exact producer constructor ABI: prepend witnesses for resolved source arguments. */

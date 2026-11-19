@@ -6,6 +6,7 @@ import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framewo
 import { Localizations } from '@nelyx/core/framework/widgets/app-data';
 import { selectionMessages } from './generated/localizations/selection-localizations-data.ts';
 import { clearButtonLabels } from './internal/input/clear-localizations.ts';
+import { searchPlaceholderLabels } from './generated/localizations/search-localizations-data.generated.ts';
 export class CupertinoLocalizations {
   private readonly messages: Readonly<Record<string, string>>;
   constructor(readonly locale = 'en') {
@@ -23,10 +24,16 @@ export class CupertinoLocalizations {
     ];
     this.messages = Object.freeze(
       Object.assign(
-        { clearButtonLabel: clearButtonLabels.en },
+        {
+          clearButtonLabel: clearButtonLabels.en,
+          searchTextFieldPlaceholderLabel: searchPlaceholderLabels.en,
+        },
         selectionMessages.en,
         ...candidates.map((key) => ({
           ...selectionMessages[key],
+          ...(searchPlaceholderLabels[key] === undefined
+            ? {}
+            : { searchTextFieldPlaceholderLabel: searchPlaceholderLabels[key] }),
           ...(clearButtonLabels[key] === undefined
             ? {}
             : { clearButtonLabel: clearButtonLabels[key] }),
@@ -65,6 +72,9 @@ export class CupertinoLocalizations {
   }
   get lookUpButtonLabel(): string {
     return this.message('lookUpButtonLabel');
+  }
+  get searchTextFieldPlaceholderLabel(): string {
+    return this.message('searchTextFieldPlaceholderLabel');
   }
   get searchWebButtonLabel(): string {
     return this.message('searchWebButtonLabel');

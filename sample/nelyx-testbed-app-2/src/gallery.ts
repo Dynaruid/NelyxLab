@@ -21,7 +21,8 @@ import { FocusTraversalGroup } from '@nelyx/core/framework/widgets/focus-travers
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
 import { TextFieldTapRegion } from '@nelyx/core/framework/widgets/tap-region';
-import { NavigatorController, Route } from '@nelyx/core/framework/widgets/navigation';
+import { Navigator, NavigatorController, Route } from '@nelyx/core/framework/widgets/navigation';
+import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
 import { RadioGroup } from '@nelyx/core/framework/widgets/radio-group';
 import { Icon } from '@nelyx/core/framework/widgets/icon';
 import type { IconData } from '@nelyx/core/framework/widgets/icon-data';
@@ -36,6 +37,7 @@ import { FilledButton } from '@nelyx/material/filled-button';
 import { ElevatedButton } from '@nelyx/material/elevated-button';
 import { OutlinedButton } from '@nelyx/material/outlined-button';
 import { TextButton } from '@nelyx/material/text-button';
+import { FloatingActionButton } from '@nelyx/material/floating-action-button';
 import { ButtonSegment, SegmentedButton } from '@nelyx/material/segmented-button';
 import { DateTime, showDatePicker } from '@nelyx/material/date-picker';
 import { IconButton } from '@nelyx/material/icon-button';
@@ -64,6 +66,15 @@ import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import { InputDecoration } from '@nelyx/material/input-decoration';
 import { OutlineInputBorder } from '@nelyx/material/input-border';
 import { AlertDialog, showDialog } from '@nelyx/material/dialog';
+import { showModalBottomSheet } from '@nelyx/material/bottom-sheet';
+import {
+  ExpansionPanel,
+  ExpansionPanelList,
+  ExpansionPanelRadio,
+} from '@nelyx/material/expansion-panel';
+import { MaterialDataTableDemo } from './material-data-table-demo.ts';
+import { MaterialPaginatedDataTableDemo } from './material-paginated-data-table-demo.ts';
+import { MaterialStepperDemo } from './material-stepper-demo.ts';
 import { categories, demos, visibleDemos } from './catalog.ts';
 import type { CategoryId, ComponentDemo } from './catalog.ts';
 import { CupertinoGallery, CupertinoGalleryValues } from './cupertino-gallery.ts';
@@ -99,6 +110,8 @@ export class ComponentsGallery extends StatefulWidget {
   }
 }
 class GalleryState extends State<ComponentsGallery> {
+  private readonly expandedPanels = new Set<number>();
+  private previousPanelAction: string | null = null;
   private pageRevision = 0;
   private readonly updates = new GalleryUpdates();
   private cupertino = false;
@@ -635,6 +648,40 @@ class GalleryState extends State<ComponentsGallery> {
     const update = (change: () => void) => this.updates.change(id, change);
     const colors = Theme.of(context).colorScheme;
     switch (id) {
+      case 'fab':
+        return flow(
+          new FloatingActionButton({
+            child: new Icon(Icons.add),
+            tooltip: 'Add',
+            heroTag: null,
+            onPressed: () => this.record('Default FAB pressed'),
+          }),
+          FloatingActionButton.small({
+            child: new Icon(Icons.add),
+            tooltip: 'Quick add',
+            heroTag: null,
+            onPressed: () => this.record('Small FAB pressed'),
+          }),
+          FloatingActionButton.large({
+            child: new Icon(Icons.add),
+            tooltip: 'Create',
+            heroTag: null,
+            onPressed: () => this.record('Large FAB pressed'),
+          }),
+          FloatingActionButton.extended({
+            icon: new Icon(Icons.add),
+            label: new Text('New item'),
+            heroTag: null,
+            onPressed: () => this.record('Extended FAB pressed'),
+          }),
+          new FloatingActionButton({
+            child: new Icon(Icons.add),
+            tooltip: 'Add unavailable',
+            heroTag: null,
+            onPressed: null,
+            disabledElevation: 0,
+          }),
+        );
       case 'segmented':
         return new SegmentedButton<string>({
           segments: [
@@ -790,12 +837,90 @@ class GalleryState extends State<ComponentsGallery> {
           Card.outlined({ margin: EdgeInsets.zero, child: content('Outlined card') }),
         );
       }
+      case 'expansion-panel':
+        return column(
+          new ExpansionPanelList({
+            children: [
+              new ExpansionPanel({
+                headerBuilder: () => new Text('Controlled details'),
+                body: new Text('Controlled panel body'),
+                canTapOnHeader: true,
+                isExpanded: this.expandedPanels.has(0),
+              }),
+            ],
+            expansionCallback: (index, expanded) =>
+              update(() => {
+                if (expanded) this.expandedPanels.add(index);
+                else this.expandedPanels.delete(index);
+              }),
+          }),
+          ExpansionPanelList.radio<string>({
+            initialOpenPanelValue: 'first',
+            children: ['first', 'second'].map(
+              (value) =>
+                new ExpansionPanelRadio({
+                  value,
+                  canTapOnHeader: true,
+                  headerBuilder: () => new Text(`Radio ${value}`),
+                  body: new Text(`Radio ${value} body`),
+                }),
+            ),
+            expansionCallback: (index, expanded) => {
+              const action = `Panel ${index}: ${expanded ? 'open' : 'closed'}`;
+              this.record(
+                this.previousPanelAction ? `${this.previousPanelAction} → ${action}` : action,
+              );
+              this.previousPanelAction = action;
+            },
+          }),
+        );
+      case 'bottom-sheet':
+        return new OutlinedButton({
+          id: 'open-bottom-sheet',
+          child: new Text('Open bottom sheet'),
+          onPressed: () => {
+            void showModalBottomSheet<'saved'>(context, {
+              useSafeArea: true,
+              showDragHandle: true,
+              barrierLabel: 'Dismiss bottom sheet',
+              builder: (sheetContext) =>
+                new SafeArea({
+                  top: false,
+                  child: new Padding(
+                    EdgeInsets.all(16),
+                    column(
+                      new Text('Material bottom sheet'),
+                      new FilledButton({
+                        id: 'save-bottom-sheet',
+                        child: new Text('Save from sheet'),
+                        onPressed: () => Navigator.of(sheetContext).pop<'saved'>('saved'),
+                      }),
+                    ),
+                  ),
+                }),
+            }).then(
+              (result) => {
+                if (this.mounted)
+                  this.record(result ? 'Bottom sheet saved' : 'Bottom sheet dismissed');
+              },
+              (error: unknown) => {
+                if (this.mounted) this.record(String(error));
+              },
+            );
+          },
+        });
       case 'dialog':
         return new OutlinedButton({
           id: 'open-dialog',
           child: new Text('Open basic dialog'),
           onPressed: () => this.openDialog(),
         });
+      case 'data-table':
+        return new MaterialDataTableDemo((action) => this.record(action));
+      case 'paginated-data-table':
+        return new MaterialPaginatedDataTableDemo((action) => this.record(action));
+      case 'stepper':
+        return new MaterialStepperDemo((action) => this.record(action));
       case 'dividers':
         return column(
           new Text('Above', { fontSize: 12 }),

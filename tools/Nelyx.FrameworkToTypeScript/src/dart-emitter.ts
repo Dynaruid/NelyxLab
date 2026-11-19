@@ -8565,7 +8565,89 @@ export function emitDart(
               blocked('Superclass requires an exact imported constructor adapter', n);
             target = adapter!.target;
             const values = base.args ?? [];
-            if (adapter!.namedArguments === 'options') {
+            if (adapter!.namedArguments === 'core-widget-key') {
+              const sourceName = baseType.reference.name;
+              const sourceLibrary = 'package:flutter/src/widgets/framework.dart';
+              if (
+                ![
+                  'Widget',
+                  'StatelessWidget',
+                  'StatefulWidget',
+                  'RenderObjectWidget',
+                  'LeafRenderObjectWidget',
+                ].includes(sourceName) ||
+                baseType.reference.id !== `${sourceLibrary}::${sourceName}:CLASS` ||
+                base.constructor.id !==
+                  `${sourceLibrary}::${sourceName}.${sourceName}.new:CONSTRUCTOR` ||
+                target !== sourceName ||
+                recipe.imports?.[target] !== '@nelyx/core/framework/widgets/framework' ||
+                adapter.mixins?.length ||
+                adapter.typeWitnessArguments ||
+                values.length > 1 ||
+                values.some((value) => value.name !== 'key')
+              )
+                blocked(
+                  'Core widget key forwarding requires an exact key-only base constructor',
+                  n,
+                );
+              arguments_ = values.map((value) => argumentValue(value));
+            } else if (adapter!.namedArguments === 'core-widget-child') {
+              const sourceName = baseType.reference.name;
+              const inherited = sourceName === 'InheritedTheme' || sourceName === 'InheritedWidget';
+              const optional = sourceName === 'SingleChildRenderObjectWidget';
+              const sourceFile = sourceName === 'InheritedTheme' ? 'inherited_theme' : 'framework';
+              const sourceLibrary = `package:flutter/src/widgets/${sourceFile}.dart`;
+              const hostFile = sourceName === 'InheritedTheme' ? 'inherited-theme' : 'framework';
+              const child = values.find((value) => value.name === 'child');
+              const key = values.find((value) => value.name === 'key');
+              if (
+                !(inherited || optional || sourceName === 'ProxyWidget') ||
+                baseType.reference.id !== `${sourceLibrary}::${sourceName}:CLASS` ||
+                base.constructor.id !==
+                  `${sourceLibrary}::${sourceName}.${sourceName}.new:CONSTRUCTOR` ||
+                target !== sourceName ||
+                recipe.imports?.[target] !== `@nelyx/core/framework/widgets/${hostFile}` ||
+                adapter.mixins?.length ||
+                adapter.typeWitnessArguments ||
+                values.length !== Number(child !== undefined) + Number(key !== undefined) ||
+                (!child && !optional)
+              )
+                blocked(
+                  'Core widget child forwarding requires an exact child/key base constructor',
+                  n,
+                );
+              if (
+                child &&
+                key &&
+                values[0] === key &&
+                values.some(
+                  ({ value }) =>
+                    value.kind !== 'literal' &&
+                    !(value.kind === 'identifier' && value.reference?.local),
+                )
+              )
+                blocked('Core widget child forwarding cannot reorder effectful super arguments', n);
+              const childValue = child ? argumentValue(child) : f.createVoidZero();
+              arguments_ = [
+                child && optional
+                  ? f.createBinaryExpression(
+                      childValue,
+                      ts.SyntaxKind.QuestionQuestionToken,
+                      f.createVoidZero(),
+                    )
+                  : childValue,
+              ];
+              if (key) {
+                const keyValue = argumentValue(key);
+                arguments_.push(
+                  inherited
+                    ? keyValue
+                    : f.createObjectLiteralExpression([
+                        f.createPropertyAssignment('key', keyValue),
+                      ]),
+                );
+              }
+            } else if (adapter!.namedArguments === 'options') {
               const positional = values.filter((value) => value.name === null),
                 named = values.filter((value) => value.name !== null);
               arguments_ = [

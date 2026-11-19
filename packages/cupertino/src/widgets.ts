@@ -44,6 +44,19 @@ export type {
   CupertinoPickerDefaultSelectionOverlayOptions,
   CupertinoPickerOptions,
 } from './picker.ts';
+export { CupertinoSliverRefreshControl, RefreshIndicatorMode } from './refresh.ts';
+export type {
+  CupertinoSliverRefreshControlOptions,
+  RefreshCallback,
+  RefreshControlIndicatorBuilder,
+} from './refresh.ts';
+export { CupertinoTimerPicker, CupertinoTimerPickerMode } from './timer-picker.ts';
+export type {
+  CupertinoTimerPickerOptions,
+  CupertinoTimerPickerSelectionOverlayBuilder,
+} from './timer-picker.ts';
+export { CupertinoSegmentedControl } from './segmented-control.ts';
+export type { CupertinoSegmentedControlOptions } from './segmented-control.ts';
 export { CupertinoSlidingSegmentedControl } from './sliding-segmented-control.ts';
 export type { CupertinoSlidingSegmentedControlOptions } from './sliding-segmented-control.ts';
 export { CupertinoThumbPainter } from './thumb-painter.ts';
@@ -55,6 +68,8 @@ export { CupertinoNavigationBar } from './nav-bar.ts';
 export { CupertinoPageScaffold } from './page-scaffold.ts';
 export { CupertinoTextField, OverlayVisibilityMode } from './text-field.ts';
 export type { CupertinoTextFieldOptions } from './text-field.ts';
+export { CupertinoSearchTextField } from './search-field.ts';
+export type { CupertinoSearchTextFieldOptions } from './search-field.ts';
 export { CupertinoTextFormFieldRow } from './text-form-field-row.ts';
 export type { CupertinoTextFormFieldRowOptions } from './text-form-field-row.ts';
 export { CupertinoFormRow } from './form-row.ts';
@@ -62,6 +77,11 @@ export type { CupertinoFormRowOptions } from './form-row.ts';
 export { CupertinoFormSection } from './form-section.ts';
 export type { CupertinoFormSectionOptions } from './form-section.ts';
 export { CupertinoAlertDialog } from './dialog.ts';
+export { CupertinoActionSheet, CupertinoActionSheetAction } from './action-sheet.ts';
+export type {
+  CupertinoActionSheetOptions,
+  CupertinoActionSheetActionOptions,
+} from './action-sheet.ts';
 
 export type { CupertinoSwitchOptions } from './switch.ts';
 export { CupertinoPageTransition, CupertinoFullscreenDialogTransition } from './route.ts';

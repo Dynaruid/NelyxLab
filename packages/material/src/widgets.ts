@@ -192,6 +192,24 @@ export type { TooltipThemeDataOptions } from './tooltip-theme.ts';
 export { TooltipVisibility } from './tooltip-visibility.ts';
 export { VisualDensity, MaterialTapTargetSize } from './theme-data.ts';
 export type { VisualDensityOptions } from './theme-data.ts';
+export { ControlsDetails, Step, StepState, StepStyle, Stepper, StepperType } from './stepper.ts';
+export type {
+  ControlsDetailsOptions,
+  ControlsWidgetBuilder,
+  StepIconBuilder,
+  StepOptions,
+  StepperOptions,
+  StepStyleOptions,
+} from './stepper.ts';
+export { ExpansionPanel, ExpansionPanelList, ExpansionPanelRadio } from './expansion-panel.ts';
+export type {
+  ExpansionPanelOptions,
+  ExpansionPanelListOptions,
+  ExpansionPanelRadioOptions,
+  ExpansionPanelListRadioOptions,
+  ExpansionPanelCallback,
+  ExpansionPanelHeaderBuilder,
+} from './expansion-panel.ts';
 export { Chip, RawChip } from './chip.ts';
 export type {
   ChipOptions,
@@ -302,6 +320,13 @@ export {
   FloatingActionButtonTheme,
 } from './floating-action-button-theme.ts';
 export type { FloatingActionButtonThemeDataOptions } from './floating-action-button-theme-data.ts';
+export { FloatingActionButton } from './floating-action-button.ts';
+export type {
+  FloatingActionButtonOptions,
+  FloatingActionButtonSizedOptions,
+  FloatingActionButtonExtendedOptions,
+  FloatingActionButtonHeroTag,
+} from './floating-action-button.ts';
 export { DialogThemeData, DialogTheme } from './dialog-theme.ts';
 export type { DialogThemeDataOptions } from './dialog-theme-data.ts';
 export { MenuStyle } from './menu-style.ts';
@@ -336,8 +361,30 @@ export {
   BottomNavigationBarTheme,
 } from './bottom-navigation-bar-theme.ts';
 export type { BottomNavigationBarThemeDataOptions } from './bottom-navigation-bar-theme-data.ts';
+export { BottomSheet, showModalBottomSheet } from './bottom-sheet.ts';
+export type { BottomSheetOptions, ModalBottomSheetOptions } from './bottom-sheet.ts';
 export { BottomSheetThemeData } from './bottom-sheet-theme-data.ts';
 export type { BottomSheetThemeDataOptions } from './bottom-sheet-theme-data.ts';
+export {
+  DataTable,
+  DataColumn,
+  DataRow,
+  DataCell,
+  TableBorder,
+  TableRowInkWell,
+} from './data-table.ts';
+export type {
+  DataTableOptions,
+  DataColumnOptions,
+  DataColumnSortCallback,
+  DataRowOptions,
+  DataCellOptions,
+  TableBorderOptions,
+  TableRowInkWellOptions,
+} from './data-table.ts';
+export { DataTableSource } from './data-table-source.ts';
+export { PaginatedDataTable, PaginatedDataTableState } from './paginated-data-table.ts';
+export type { PaginatedDataTableOptions } from './paginated-data-table.ts';
 export { DataTableThemeData, DataTableTheme } from './data-table-theme.ts';
 export type { DataTableThemeDataOptions } from './data-table-theme-data.ts';
 export { DatePickerThemeData, DatePickerTheme } from './date-picker-theme.ts';

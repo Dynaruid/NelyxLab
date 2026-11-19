@@ -760,6 +760,168 @@
       "acceptance": []
     },
     {
+      "id": "a6620adefb578ee9ef70",
+      "qualifiedId": "package:flutter/src/cupertino/segmented_control.dart::CupertinoSegmentedControl:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/segmented_control.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "265d8fa6c6c121c508f9da05d442c37de813868e",
+        "fileSha256": "2eb050e6652735e1e6b0d1c4caf80f7c36054eedc91dcef8f1ee607cd1094e72",
+        "canonicalSpan": {
+          "offset": 969,
+          "length": 7122,
+          "line": 31,
+          "sha256": "4f841148e79d8bfd28298ae12e888fe6eb5e5eb6d55f0ba630d449d963a48981",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/segmented-control.ts",
+        "module": "@nelyx/cupertino/segmented-control",
+        "sha256": "6b32a3facc76edfa3aad76f9dab3f3b19629d0ae0095545a0d77a963823f521d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Classic controlled segmented control on Core focus, gesture, animation, layout and semantics. Rounded superellipse and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "f7685137a54a6c601b2b",
+      "qualifiedId": "package:flutter/src/cupertino/segmented_control.dart::_SegmentButton:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/segmented_control.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "265d8fa6c6c121c508f9da05d442c37de813868e",
+        "fileSha256": "2eb050e6652735e1e6b0d1c4caf80f7c36054eedc91dcef8f1ee607cd1094e72",
+        "canonicalSpan": {
+          "offset": 8093,
+          "length": 392,
+          "line": 193,
+          "sha256": "59ca29748b3de26eaddc12217bd08f4c80310c4d94a217a35f7c52524334f771",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/segmented-control.ts",
+        "module": "@nelyx/cupertino/segmented-control",
+        "sha256": "6b32a3facc76edfa3aad76f9dab3f3b19629d0ae0095545a0d77a963823f521d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Classic controlled segmented control on Core focus, gesture, animation, layout and semantics. Rounded superellipse and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "6776acafcb16b6004290",
+      "qualifiedId": "package:flutter/src/cupertino/segmented_control.dart::_SegmentButtonState:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/segmented_control.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "265d8fa6c6c121c508f9da05d442c37de813868e",
+        "fileSha256": "2eb050e6652735e1e6b0d1c4caf80f7c36054eedc91dcef8f1ee607cd1094e72",
+        "canonicalSpan": {
+          "offset": 8487,
+          "length": 1311,
+          "line": 210,
+          "sha256": "0ac36705f251a0798acaefac09f68f0429edd6ed2211d196ce0583267969c56d",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/segmented-control.ts",
+        "module": "@nelyx/cupertino/segmented-control",
+        "sha256": "6b32a3facc76edfa3aad76f9dab3f3b19629d0ae0095545a0d77a963823f521d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Classic controlled segmented control on Core focus, gesture, animation, layout and semantics. Rounded superellipse and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "5afadbc16e41bd3af922",
+      "qualifiedId": "package:flutter/src/cupertino/segmented_control.dart::_SegmentedControlState:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/segmented_control.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "265d8fa6c6c121c508f9da05d442c37de813868e",
+        "fileSha256": "2eb050e6652735e1e6b0d1c4caf80f7c36054eedc91dcef8f1ee607cd1094e72",
+        "canonicalSpan": {
+          "offset": 9800,
+          "length": 9165,
+          "line": 269,
+          "sha256": "3f7cdaf2103efb723f15f16c565d13470c389517f929c319ecd2fd01aab94dab",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/segmented-control.ts",
+        "module": "@nelyx/cupertino/segmented-control",
+        "sha256": "6b32a3facc76edfa3aad76f9dab3f3b19629d0ae0095545a0d77a963823f521d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Classic controlled segmented control on Core focus, gesture, animation, layout and semantics. Rounded superellipse and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "21d0cea4e9683716422e",
+      "qualifiedId": "package:flutter/src/cupertino/segmented_control.dart::_SegmentedControlRenderWidget:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/segmented_control.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "265d8fa6c6c121c508f9da05d442c37de813868e",
+        "fileSha256": "2eb050e6652735e1e6b0d1c4caf80f7c36054eedc91dcef8f1ee607cd1094e72",
+        "canonicalSpan": {
+          "offset": 18967,
+          "length": 1041,
+          "line": 553,
+          "sha256": "f2df4024e13eaedcb84cef0c318c5547f2c10f85293ee02647cd2e70b523c8a3",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/segmented-control.ts",
+        "module": "@nelyx/cupertino/segmented-control",
+        "sha256": "6b32a3facc76edfa3aad76f9dab3f3b19629d0ae0095545a0d77a963823f521d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Classic controlled segmented control on Core focus, gesture, animation, layout and semantics. Rounded superellipse and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "771a9a5952d898fe9df9",
+      "qualifiedId": "package:flutter/src/cupertino/segmented_control.dart::_RenderSegmentedControl:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/segmented_control.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "265d8fa6c6c121c508f9da05d442c37de813868e",
+        "fileSha256": "2eb050e6652735e1e6b0d1c4caf80f7c36054eedc91dcef8f1ee607cd1094e72",
+        "canonicalSpan": {
+          "offset": 20197,
+          "length": 8764,
+          "line": 595,
+          "sha256": "c4d2314137d02ba1c0e6a7305d85dba7d938df6ce45ee0b24d49b4c4c4b9eb44",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/segmented-control.ts",
+        "module": "@nelyx/cupertino/segmented-control",
+        "sha256": "6b32a3facc76edfa3aad76f9dab3f3b19629d0ae0095545a0d77a963823f521d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Classic controlled segmented control on Core focus, gesture, animation, layout and semantics. Rounded superellipse and native parity await qualification.",
+      "acceptance": []
+    },
+    {
       "id": "cb0b998462be95463f69",
       "qualifiedId": "package:flutter/src/cupertino/picker.dart::CupertinoPicker:CLASS",
       "package": "@nelyx/cupertino",
@@ -919,6 +1081,816 @@
       "mode": "manual-port",
       "status": "PARTIAL",
       "scope": "List, builder and looping picker over the generated Core wheel, with adjustable semantics and the Cupertino selection overlay. Flutter and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "3f678348afc69e490b8f",
+      "qualifiedId": "package:flutter/src/cupertino/search_field.dart::CupertinoSearchTextField:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/search_field.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "aeb8588e1efffff0deaf6da8292567f2df768d05",
+        "fileSha256": "456a2d8a1bb34013282c61c6ba89ae63ce9b9188cba0f82d9a8d6762bd471149",
+        "canonicalSpan": {
+          "offset": 956,
+          "length": 13520,
+          "line": 30,
+          "sha256": "48221151fa2a1cb9d695ce6f7c379acf79f271088ff5791f0187ca079656c073",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/search-field.ts",
+        "module": "@nelyx/cupertino/search-field",
+        "sha256": "6dacbc0a57f041cc50e34dba503cb5fdc6a8018735ae33968d8bdf0a1bada0e4"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Search input over the Cupertino text field and Core editing, focus and restoration owners. Scroll-collapse visuals, cursor and iOS input traits await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "16346ea58d81d7f44e05",
+      "qualifiedId": "package:flutter/src/cupertino/search_field.dart::_CupertinoSearchTextFieldState:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/search_field.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "aeb8588e1efffff0deaf6da8292567f2df768d05",
+        "fileSha256": "456a2d8a1bb34013282c61c6ba89ae63ce9b9188cba0f82d9a8d6762bd471149",
+        "canonicalSpan": {
+          "offset": 14478,
+          "length": 7825,
+          "line": 366,
+          "sha256": "13710a7794592bc92d246e030c52be84f49f3ca2e96cd17963c6d0f436d3d3b7",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/search-field.ts",
+        "module": "@nelyx/cupertino/search-field",
+        "sha256": "6dacbc0a57f041cc50e34dba503cb5fdc6a8018735ae33968d8bdf0a1bada0e4"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Search input over the Cupertino text field and Core editing, focus and restoration owners. Scroll-collapse visuals, cursor and iOS input traits await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "f528db19f6ccc97fb301",
+      "qualifiedId": "package:flutter/src/cupertino/dialog.dart::CupertinoActionSheet:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/dialog.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "b8feab23ae2f7371797d34dd198e6df7d423cb40",
+        "fileSha256": "415bfeeb313f3ddbf617ac1d0dd55eff8539a1fb9e4a5e8e0a02a08ef8823d71",
+        "canonicalSpan": {
+          "offset": 36965,
+          "length": 3799,
+          "line": 1030,
+          "sha256": "673aad6c22069948c047441682e95ceb7a61645bff52a24d47deea1f0a204fb6",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/action-sheet.ts",
+        "module": "@nelyx/cupertino/action-sheet",
+        "sha256": "e39e259c63265b43338b3bac812adec14c2b7d2a40cd51b594ba3cd5b2de9fbe"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Action sheet and button composition on Core layout, scrolling and input owners. Pixel and native route parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "38610b0f7ea2fde9728e",
+      "qualifiedId": "package:flutter/src/cupertino/dialog.dart::CupertinoActionSheetAction:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/dialog.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "b8feab23ae2f7371797d34dd198e6df7d423cb40",
+        "fileSha256": "415bfeeb313f3ddbf617ac1d0dd55eff8539a1fb9e4a5e8e0a02a08ef8823d71",
+        "canonicalSpan": {
+          "offset": 49891,
+          "length": 2217,
+          "line": 1379,
+          "sha256": "42e223a8516d165b01248df350f1f8c23a1af2e2ea6105b168b7fec93e3d6112",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/action-sheet.ts",
+        "module": "@nelyx/cupertino/action-sheet",
+        "sha256": "e39e259c63265b43338b3bac812adec14c2b7d2a40cd51b594ba3cd5b2de9fbe"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Action sheet and button composition on Core layout, scrolling and input owners. Pixel and native route parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "46a44ce6d203b996447e",
+      "qualifiedId": "package:flutter/src/material/floating_action_button.dart::FloatingActionButton:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/floating_action_button.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "4b78e44dab99c9114b91adeb61eac187a9e1d0e6",
+        "fileSha256": "cb478527aa8449901dda380699bc1090e4ff172e132884834154b0b6de120c3a",
+        "canonicalSpan": {
+          "offset": 814,
+          "length": 24531,
+          "line": 32,
+          "sha256": "e96594dd6dac3e4d8b74a39fde66974eb44d7c4135f3e99dc1d850f40f8f559c",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/floating-action-button.ts",
+        "module": "@nelyx/material/floating-action-button",
+        "sha256": "12adab16c88746b884e6366968abc5bdcfb3b12af5cd654732ce8252bd3d176f"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 floating action button variants on the shared button and Core Hero owners. Scaffold positioning and full source and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "dd5d0576f261dc0762b0",
+      "qualifiedId": "package:flutter/src/material/bottom_sheet.dart::BottomSheet:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/bottom_sheet.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "0be5f7baf316fcc990831b432527208e4b698e2e",
+        "fileSha256": "3bfc843f20397e433d5e850d442dd21a4f899c1a662f54ee0738e83290d8749c",
+        "canonicalSpan": {
+          "offset": 1476,
+          "length": 8366,
+          "line": 47,
+          "sha256": "1a00beb7185d734362c35605206d95cb5f5d28668fac135be3cfcf26e850ce55",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/bottom-sheet.ts",
+        "module": "@nelyx/material/bottom-sheet",
+        "sha256": "38cdc11c8435ac1ee921b2761613afd322bcb567c9c253595e74e67fa548d317"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 inline and modal sheet composition on Core navigation, insets and animation. Drag, persistent Scaffold integration and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "4b21ca1d40986e45cf2b",
+      "qualifiedId": "package:flutter/src/material/bottom_sheet.dart::showModalBottomSheet:FUNCTION",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/bottom_sheet.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "0be5f7baf316fcc990831b432527208e4b698e2e",
+        "fileSha256": "3bfc843f20397e433d5e850d442dd21a4f899c1a662f54ee0738e83290d8749c",
+        "canonicalSpan": {
+          "offset": 44075,
+          "length": 5677,
+          "line": 1209,
+          "sha256": "eb84eed297b85082b5b673718bb3405b39d65faa498b8135905ed39202cf8b07",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/bottom-sheet.ts",
+        "module": "@nelyx/material/bottom-sheet",
+        "sha256": "38cdc11c8435ac1ee921b2761613afd322bcb567c9c253595e74e67fa548d317"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 inline and modal sheet composition on Core navigation, insets and animation. Drag, persistent Scaffold integration and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "10f2fb1318e7edfa5aa7",
+      "qualifiedId": "package:flutter/src/material/data_table.dart::DataTable:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/data_table.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "69236bf6c13256facacd49d09246727bbcab29c0",
+        "fileSha256": "aa1a11501ffa1f2d0dfdf2d76f57208b307e5492f84eac9893f7d92f4b5c428c",
+        "canonicalSpan": {
+          "offset": 13993,
+          "length": 33752,
+          "line": 387,
+          "sha256": "40aa37f61f13dec307abbfc4e4200222b73cadaf1a688f82e6b3050123fabbe3",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/data-table.ts",
+        "module": "@nelyx/material/data-table",
+        "sha256": "22d4b4e09b7e2610a23e4f6ad1d2d79ff5a2f88fc2503fa2a44f18df1a5df80b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material data rows, cells, sorting and selection over Core table and input owners. Exact rendering and host qualification remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "b808ad6c5705090cd290",
+      "qualifiedId": "package:flutter/src/material/data_table.dart::DataColumn:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/data_table.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "69236bf6c13256facacd49d09246727bbcab29c0",
+        "fileSha256": "aa1a11501ffa1f2d0dfdf2d76f57208b307e5492f84eac9893f7d92f4b5c428c",
+        "canonicalSpan": {
+          "offset": 875,
+          "length": 4190,
+          "line": 34,
+          "sha256": "c64181251ec8d545f13b4415e4efff2ea3a24cc488b17b5d0d633902270cce8f",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/data-table.ts",
+        "module": "@nelyx/material/data-table",
+        "sha256": "22d4b4e09b7e2610a23e4f6ad1d2d79ff5a2f88fc2503fa2a44f18df1a5df80b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material data rows, cells, sorting and selection over Core table and input owners. Exact rendering and host qualification remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "b9c793740cac73563793",
+      "qualifiedId": "package:flutter/src/material/data_table.dart::DataRow:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/data_table.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "69236bf6c13256facacd49d09246727bbcab29c0",
+        "fileSha256": "aa1a11501ffa1f2d0dfdf2d76f57208b307e5492f84eac9893f7d92f4b5c428c",
+        "canonicalSpan": {
+          "offset": 5067,
+          "length": 5220,
+          "line": 139,
+          "sha256": "753560471b5cdac605dd98c47466436a57f3074d95a897826363c7fc8937e6cb",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/data-table.ts",
+        "module": "@nelyx/material/data-table",
+        "sha256": "22d4b4e09b7e2610a23e4f6ad1d2d79ff5a2f88fc2503fa2a44f18df1a5df80b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material data rows, cells, sorting and selection over Core table and input owners. Exact rendering and host qualification remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "0824642ed61e1302a9aa",
+      "qualifiedId": "package:flutter/src/material/data_table.dart::DataCell:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/data_table.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "69236bf6c13256facacd49d09246727bbcab29c0",
+        "fileSha256": "aa1a11501ffa1f2d0dfdf2d76f57208b307e5492f84eac9893f7d92f4b5c428c",
+        "canonicalSpan": {
+          "offset": 10289,
+          "length": 3702,
+          "line": 283,
+          "sha256": "2f58f92723d5c77de16c56db55086df28819d516456e08d61caf9ab1be2938d2",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/data-table.ts",
+        "module": "@nelyx/material/data-table",
+        "sha256": "22d4b4e09b7e2610a23e4f6ad1d2d79ff5a2f88fc2503fa2a44f18df1a5df80b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material data rows, cells, sorting and selection over Core table and input owners. Exact rendering and host qualification remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "e4289f64e236e4a398cc",
+      "qualifiedId": "package:flutter/src/material/data_table.dart::TableRowInkWell:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/data_table.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "69236bf6c13256facacd49d09246727bbcab29c0",
+        "fileSha256": "aa1a11501ffa1f2d0dfdf2d76f57208b307e5492f84eac9893f7d92f4b5c428c",
+        "canonicalSpan": {
+          "offset": 47747,
+          "length": 2506,
+          "line": 1259,
+          "sha256": "2b4f373c79f6d7b59aa324701e2b476f983e519b01f9ed2c7a0f6c819b933547",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/data-table.ts",
+        "module": "@nelyx/material/data-table",
+        "sha256": "22d4b4e09b7e2610a23e4f6ad1d2d79ff5a2f88fc2503fa2a44f18df1a5df80b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material data rows, cells, sorting and selection over Core table and input owners. Exact rendering and host qualification remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "a9c458c9efa90197a517",
+      "qualifiedId": "package:flutter/src/material/expansion_panel.dart::ExpansionPanel:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/expansion_panel.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "aa8847c46920429b0ec9b297baa10d906c6474af",
+        "fileSha256": "959bfc21c11a4a9ef093e313519f249815503dfc74a6a4601baccf3beb5e645b",
+        "canonicalSpan": {
+          "offset": 1821,
+          "length": 2615,
+          "line": 61,
+          "sha256": "2fdd3eabab8bdc7685d56e0a31e06ac5396d304d8e3d90647b299f4557fbce1b",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/expansion-panel.ts",
+        "module": "@nelyx/material/expansion-panel",
+        "sha256": "0e30c6c7bfb8f238892ae742336cb6b248627d920fbcc4c98294a4fd2cfa8714"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled and radio expansion state over Core Material, layout and animation. Flutter cross-fade, merged surfaces and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "f30d170569c4f4bc2f57",
+      "qualifiedId": "package:flutter/src/material/expansion_panel.dart::ExpansionPanelRadio:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/expansion_panel.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "aa8847c46920429b0ec9b297baa10d906c6474af",
+        "fileSha256": "959bfc21c11a4a9ef093e313519f249815503dfc74a6a4601baccf3beb5e645b",
+        "canonicalSpan": {
+          "offset": 4438,
+          "length": 968,
+          "line": 135,
+          "sha256": "6c4f99ea3f2ca292afa201557502b106f71215fe341ac7d918ce1d33d4df03dc",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/expansion-panel.ts",
+        "module": "@nelyx/material/expansion-panel",
+        "sha256": "0e30c6c7bfb8f238892ae742336cb6b248627d920fbcc4c98294a4fd2cfa8714"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled and radio expansion state over Core Material, layout and animation. Flutter cross-fade, merged surfaces and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "9dc26a780fc19b758be9",
+      "qualifiedId": "package:flutter/src/material/expansion_panel.dart::ExpansionPanelList:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/expansion_panel.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "aa8847c46920429b0ec9b297baa10d906c6474af",
+        "fileSha256": "959bfc21c11a4a9ef093e313519f249815503dfc74a6a4601baccf3beb5e645b",
+        "canonicalSpan": {
+          "offset": 5408,
+          "length": 5225,
+          "line": 163,
+          "sha256": "5cc59e033cd737195386ba448fa1b20f62508f78bc5eb0e56116cc7b93482e06",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/expansion-panel.ts",
+        "module": "@nelyx/material/expansion-panel",
+        "sha256": "0e30c6c7bfb8f238892ae742336cb6b248627d920fbcc4c98294a4fd2cfa8714"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled and radio expansion state over Core Material, layout and animation. Flutter cross-fade, merged surfaces and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "5d78e6cc610d26583876",
+      "qualifiedId": "package:flutter/src/material/expansion_panel.dart::_ExpansionPanelListState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/expansion_panel.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "aa8847c46920429b0ec9b297baa10d906c6474af",
+        "fileSha256": "959bfc21c11a4a9ef093e313519f249815503dfc74a6a4601baccf3beb5e645b",
+        "canonicalSpan": {
+          "offset": 10635,
+          "length": 6867,
+          "line": 290,
+          "sha256": "559a95f757d432aca32f6b7aba01ec0c269f4b1086232e1dc73b0c0a2a11856b",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/expansion-panel.ts",
+        "module": "@nelyx/material/expansion-panel",
+        "sha256": "0e30c6c7bfb8f238892ae742336cb6b248627d920fbcc4c98294a4fd2cfa8714"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled and radio expansion state over Core Material, layout and animation. Flutter cross-fade, merged surfaces and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "1b69baa08830931d7e03",
+      "qualifiedId": "package:flutter/src/cupertino/date_picker.dart::CupertinoTimerPicker:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/date_picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c1aeb9c20725bcb4ee823fbb236309e4fe6d021f",
+        "fileSha256": "6b143692dcbece382c161f08630e0774c7d4a8abba3ef71cc4a7fdfe4e17f1eb",
+        "canonicalSpan": {
+          "offset": 80358,
+          "length": 5593,
+          "line": 2158,
+          "sha256": "ed20b466281282df1bfbcbe5c0256ab44c0b039a0b5e1db110c5437b21203fd9",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/timer-picker.ts",
+        "module": "@nelyx/cupertino/timer-picker",
+        "sha256": "13399126f54c406ca6ad8b03bc42537fe8c813fe03f9a523cf475bb0dc543fdd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Timer modes and change notifications on the shared Cupertino wheel. Full Flutter and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "f1e490d20475925eb402",
+      "qualifiedId": "package:flutter/src/cupertino/date_picker.dart::CupertinoTimerPickerMode:ENUM",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/date_picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c1aeb9c20725bcb4ee823fbb236309e4fe6d021f",
+        "fileSha256": "6b143692dcbece382c161f08630e0774c7d4a8abba3ef71cc4a7fdfe4e17f1eb",
+        "canonicalSpan": {
+          "offset": 79741,
+          "length": 615,
+          "line": 2135,
+          "sha256": "7c16bf6834d2b8764a33ef2180aa992a3d63db7fb7548db8f735df0a688332be",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/timer-picker.ts",
+        "module": "@nelyx/cupertino/timer-picker",
+        "sha256": "13399126f54c406ca6ad8b03bc42537fe8c813fe03f9a523cf475bb0dc543fdd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Timer modes and change notifications on the shared Cupertino wheel. Full Flutter and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "9bcf30256d08aaef522b",
+      "qualifiedId": "package:flutter/src/material/paginated_data_table.dart::PaginatedDataTable:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/paginated_data_table.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c108098d641a85b11d27bfeb2306875e82c5107d",
+        "fileSha256": "6fba3eb15deea9fdbaf36d05bac127b03a037fd9e32493e95ad158cb138d73ba",
+        "canonicalSpan": {
+          "offset": 737,
+          "length": 11789,
+          "line": 28,
+          "sha256": "43bace6c4368139d4c9979ba18415409c7a1decfa90dc8014fbe010d168da342",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/paginated-data-table.ts",
+        "module": "@nelyx/material/paginated-data-table",
+        "sha256": "bf67f64eb469acbb625d567b2444fc8363735aefdd846c404ff86ba3d01c251c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Paginated Core table layout and source lifecycle. Flutter footer and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "0a557de3000d5c89f3b5",
+      "qualifiedId": "package:flutter/src/material/paginated_data_table.dart::PaginatedDataTableState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/paginated_data_table.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c108098d641a85b11d27bfeb2306875e82c5107d",
+        "fileSha256": "6fba3eb15deea9fdbaf36d05bac127b03a037fd9e32493e95ad158cb138d73ba",
+        "canonicalSpan": {
+          "offset": 12528,
+          "length": 12831,
+          "line": 336,
+          "sha256": "ab43e61bc71a44d10ff2989b274d66e694a72eebca9f1de5b6339eb5b428b519",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/paginated-data-table.ts",
+        "module": "@nelyx/material/paginated-data-table",
+        "sha256": "bf67f64eb469acbb625d567b2444fc8363735aefdd846c404ff86ba3d01c251c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Paginated Core table layout and source lifecycle. Flutter footer and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "4a5d3274cb7148ac1a9a",
+      "qualifiedId": "package:flutter/src/material/data_table_source.dart::DataTableSource:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/data_table_source.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "3cd9289aa4b4bf77c2d0b7b6e4eeef8a6d7710e8",
+        "fileSha256": "c106f078866890192620ddca80ddf3902881f7fe6950df6f7b16a3959014c219",
+        "canonicalSpan": {
+          "offset": 289,
+          "length": 3328,
+          "line": 12,
+          "sha256": "ee826843577705587524edb4b0a6ce3e4e2f5d0011ec7d0760dae93478498f87",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/data-table-source.ts",
+        "module": "@nelyx/material/data-table-source",
+        "sha256": "fd912c007dc0baf46d5d3d3699b6a1efcd3a529fe27449105e53ad278bf35982"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Observable row source using the existing Core notifier.",
+      "acceptance": []
+    },
+    {
+      "id": "a6814f5e614477578d3f",
+      "qualifiedId": "package:flutter/src/material/stepper.dart::Stepper:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/stepper.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "39af17ae7c21e4148d84ac9e8d53cf57772cf183",
+        "fileSha256": "d298f802c3146f473632ed81b3cb0246863a8fe23866d8b9e3cfe58aab4c9018",
+        "canonicalSpan": {
+          "offset": 6006,
+          "length": 8040,
+          "line": 184,
+          "sha256": "25e09277b2f5e1adde48ce6b9c5f926951ac54834d64d91ebbde3da371deaa47",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/stepper.ts",
+        "module": "@nelyx/material/stepper",
+        "sha256": "7a124a322da1b1edce9343221e546d314ae5e82f6b58d6950a558b6f80cdfd22"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled stepper on the shared layout, scroll, ink and animation owners. Exact transitions and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "e0b2cf71b385bb3cb750",
+      "qualifiedId": "package:flutter/src/material/stepper.dart::Step:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/stepper.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "39af17ae7c21e4148d84ac9e8d53cf57772cf183",
+        "fileSha256": "d298f802c3146f473632ed81b3cb0246863a8fe23866d8b9e3cfe58aab4c9018",
+        "canonicalSpan": {
+          "offset": 4485,
+          "length": 1519,
+          "line": 134,
+          "sha256": "1b744c4b79d33fc37ac0bee6af89c8e80b461c5f59eeda80ec52ae349c88a008",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/stepper.ts",
+        "module": "@nelyx/material/stepper",
+        "sha256": "7a124a322da1b1edce9343221e546d314ae5e82f6b58d6950a558b6f80cdfd22"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled stepper on the shared layout, scroll, ink and animation owners. Exact transitions and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "fff7aa42332b69264b1b",
+      "qualifiedId": "package:flutter/src/material/stepper.dart::StepState:ENUM",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/stepper.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "39af17ae7c21e4148d84ac9e8d53cf57772cf183",
+        "fileSha256": "d298f802c3146f473632ed81b3cb0246863a8fe23866d8b9e3cfe58aab4c9018",
+        "canonicalSpan": {
+          "offset": 752,
+          "length": 520,
+          "line": 26,
+          "sha256": "1293d6ae32bb4f3356925399d1de18ab8afc2bf580c7e1f3cbce8a972a70cdfc",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/stepper.ts",
+        "module": "@nelyx/material/stepper",
+        "sha256": "7a124a322da1b1edce9343221e546d314ae5e82f6b58d6950a558b6f80cdfd22"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled stepper on the shared layout, scroll, ink and animation owners. Exact transitions and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "04301112e5e80cf345f0",
+      "qualifiedId": "package:flutter/src/material/stepper.dart::StepperType:ENUM",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/stepper.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "39af17ae7c21e4148d84ac9e8d53cf57772cf183",
+        "fileSha256": "d298f802c3146f473632ed81b3cb0246863a8fe23866d8b9e3cfe58aab4c9018",
+        "canonicalSpan": {
+          "offset": 1274,
+          "length": 241,
+          "line": 50,
+          "sha256": "6725c2b5ff81bed040efbcd73b9b41c8dd8ec823ceb76fbefea96116256a2972",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/stepper.ts",
+        "module": "@nelyx/material/stepper",
+        "sha256": "7a124a322da1b1edce9343221e546d314ae5e82f6b58d6950a558b6f80cdfd22"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled stepper on the shared layout, scroll, ink and animation owners. Exact transitions and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "ffd88d6be1f9058cbd1a",
+      "qualifiedId": "package:flutter/src/material/stepper.dart::ControlsDetails:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/stepper.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "39af17ae7c21e4148d84ac9e8d53cf57772cf183",
+        "fileSha256": "d298f802c3146f473632ed81b3cb0246863a8fe23866d8b9e3cfe58aab4c9018",
+        "canonicalSpan": {
+          "offset": 1517,
+          "length": 1609,
+          "line": 59,
+          "sha256": "d79889e014fb32fd2a64526c7ec0cbdc322d4e0b94fde09f59b8b1d9e885b9ab",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/stepper.ts",
+        "module": "@nelyx/material/stepper",
+        "sha256": "7a124a322da1b1edce9343221e546d314ae5e82f6b58d6950a558b6f80cdfd22"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled stepper on the shared layout, scroll, ink and animation owners. Exact transitions and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "bf8a0228d6b3416138f2",
+      "qualifiedId": "package:flutter/src/material/stepper.dart::StepStyle:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/stepper.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "39af17ae7c21e4148d84ac9e8d53cf57772cf183",
+        "fileSha256": "d298f802c3146f473632ed81b3cb0246863a8fe23866d8b9e3cfe58aab4c9018",
+        "canonicalSpan": {
+          "offset": 35612,
+          "length": 5495,
+          "line": 1023,
+          "sha256": "2fd7954a417b3b550cdc0d2b101f276a52142854ac5a8782d1e46c73c9fb39a0",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/stepper.ts",
+        "module": "@nelyx/material/stepper",
+        "sha256": "7a124a322da1b1edce9343221e546d314ae5e82f6b58d6950a558b6f80cdfd22"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled stepper on the shared layout, scroll, ink and animation owners. Exact transitions and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "d9d580790a34ff863eb8",
+      "qualifiedId": "package:flutter/src/material/stepper.dart::_StepperState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/stepper.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "39af17ae7c21e4148d84ac9e8d53cf57772cf183",
+        "fileSha256": "d298f802c3146f473632ed81b3cb0246863a8fe23866d8b9e3cfe58aab4c9018",
+        "canonicalSpan": {
+          "offset": 14048,
+          "length": 20777,
+          "line": 412,
+          "sha256": "303b83de6c9cdd00ddf410eccb5bdc7947cd632c8073e1552648fec3e9b02225",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/stepper.ts",
+        "module": "@nelyx/material/stepper",
+        "sha256": "7a124a322da1b1edce9343221e546d314ae5e82f6b58d6950a558b6f80cdfd22"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled stepper on the shared layout, scroll, ink and animation owners. Exact transitions and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "adaadb220529d21792a8",
+      "qualifiedId": "package:flutter/src/cupertino/refresh.dart::CupertinoSliverRefreshControl:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/refresh.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a015fb124f19772644c84b29180d51c5551b9202",
+        "fileSha256": "97ec5a6d129e7751d66560d69453065fb5966574ae9373e6cd0debc01547a4e0",
+        "canonicalSpan": {
+          "offset": 8628,
+          "length": 9905,
+          "line": 228,
+          "sha256": "0bd98eb0a170cd2f5ef7e5a7989744653deadfdb47c6e92b42fa7c4ec843dea7",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/refresh.ts",
+        "module": "@nelyx/cupertino/refresh",
+        "sha256": "d4ecea0dd2bd54e3491adbc9e523b3834473865833db3881b04b494b158a00f1"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Refresh state machine and asynchronous lifecycle on Core overscroll and sliver geometry. Native effects and pinned navigation combinations await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "ab937c007463a6047d1f",
+      "qualifiedId": "package:flutter/src/cupertino/refresh.dart::RefreshIndicatorMode:ENUM",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/refresh.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a015fb124f19772644c84b29180d51c5551b9202",
+        "fileSha256": "97ec5a6d129e7751d66560d69453065fb5966574ae9373e6cd0debc01547a4e0",
+        "canonicalSpan": {
+          "offset": 6850,
+          "length": 725,
+          "line": 182,
+          "sha256": "66314cdfc174367fcd567d4ce5a8c6efc4d815daf4fa9fc0fa67cfeb9f177d9e",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/refresh.ts",
+        "module": "@nelyx/cupertino/refresh",
+        "sha256": "d4ecea0dd2bd54e3491adbc9e523b3834473865833db3881b04b494b158a00f1"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Refresh state machine and asynchronous lifecycle on Core overscroll and sliver geometry. Native effects and pinned navigation combinations await qualification.",
       "acceptance": []
     }
   ]
