@@ -135,7 +135,7 @@ Source 알고리즘을 먼저 유지해 Hermes bytecode와 Web에서 같은 결�
 - 자격 검사 뒤 비교 도중 외부 코드가 실행되지 않는 증명. 비교 뒤 build 적용에서 생기는 예외의 원래 부분 적용과 후속 재시도.
 - 다른 fragment가 같은 configuration을 공유하는 경우, identity 중복 그룹, 작은 그룹과 큰 그룹, 임시 상태 회수.
 
-기존 semantics Source 회귀에 집중 사례를 추가하고, 실제 pinned Hermes에서도 동일 결과와 관측 순서를 확인한다. Source/Flutter 이식 소유권 기록이 닿는 부분은 [생성·출처 규칙](tools/Nelyx.FrameworkToTypeScript/README.md)에 맞춰 갱신한다. generic public `isCompatibleWith`의 의미를 교체하거나 생성 날짜 코드를 직접 수정하지 않는다.
+기존 semantics Source 회귀에 집중 사례를 추가하고, 실제 pinned Hermes에서도 동일 결과와 관측 순서를 확인한다. Source/Flutter 이식 부분은 [W11의 패키지 직접 수정 원칙](work11.md)에 따라 출처와 고지를 보존한다. generic public `isCompatibleWith`의 의미를 교체하거나 생성 날짜 코드를 직접 수정하지 않는다.
 
 ### H4-02 준비 비용을 포함한 순이익
 

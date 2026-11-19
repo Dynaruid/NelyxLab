@@ -174,7 +174,7 @@ View당 준비 세대는 첫 버전에서 최대 1개로 시작한다. Element·
 - 공통 옵션 전달, 허용 검사, default legacy 동작을 일관되게 연결한다. `allowImplicitScrolling`이나 cache extent 변경을 새 준비 정책의 대체 스위치로 쓰지 않는다.
 - 실제 달력의 cold 월·기존 월 rebuild·빠른 역방향과 부분 노출된 두 페이지를 분리해 확인한다. 후보 경로 참여율과 동기 fallback 사유/비용을 보고한다.
 - 날짜 선택, disabled 날짜, locale/Theme/범위 변경, focus 이동, 월 정착과 callback 순서를 검증한다. 준비 중 설정 변경과 방향 반전을 포함한다.
-- 생성 소스 변경이 필요하면 [변환기·생성 소유권 규칙](tools/Nelyx.FrameworkToTypeScript/README.md)에 따라 소유 입력/adapter·관련 검증을 함께 갱신한다. 달력만 수동 복제한 fast path를 만들지 않는다.
+- 생성 소스 변경이 필요하면 [W11 패키지 이전 계획](work11.md)에 따라 소유 패키지의 TypeScript와 관련 adapter·검증을 직접 수정한다. 달력만 수동 복제한 fast path를 만들지 않는다.
 
 **Gate:** 실제 날짜 생산이 후보 경로를 사용해야 한다. 전부 legacy fallback인 실행, 빈 페이지·반응 없는 임시 화면을 성공으로 세지 않는다.
 

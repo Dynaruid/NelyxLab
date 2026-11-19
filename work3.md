@@ -85,7 +85,7 @@ emptyWidgetStateSet
 - 제거 대상: 이 집합의 범용 hash bucket·entry 객체와 반복 hash/equality dispatch.
 - 유지 대상: 매 build의 새로운 mutable set identity, controller의 값 교체·알림, 외부 resolver가 받는 실제 집합, callback 순서.
 - 일반 Set, 사용자 key policy, 복합 WidgetStatesConstraint map은 기존 경로를 유지한다.
-- generated 날짜 build는 바꾸지 않는다. 후보의 연결점은 [공통 adapter](Nelyx/src/framework/widgets/widget-state-constraint-source-adapter.ts)와 [컬렉션 구현](Nelyx/src/foundation/dart-collections.ts)이다. 생성 선언 변경이 필요해지면 [생성 소유권 규칙](tools/Nelyx.FrameworkToTypeScript/README.md)을 따른다.
+- generated 날짜 build는 바꾸지 않는다. 후보의 연결점은 [공통 adapter](Nelyx/src/framework/widgets/widget-state-constraint-source-adapter.ts)와 [컬렉션 구현](Nelyx/src/foundation/dart-collections.ts)이다. 생성 선언 자체를 바꿔야 하는 후속 작업은 [W11 패키지 이전 계획](work11.md)에 따라 소유 패키지에서 직접 처리한다.
 
 ### 4.3 구현 전에 풀어야 할 계약
 

@@ -7,10 +7,6 @@ Metadata for framework conversion and managed product sources. SDK builds and ap
 | [packages.json](packages.json) | Canonical workspace package owners |
 | [work8/](work8/) | Recipes, manual declarations, host mappings, and generated/adopted output ownership |
 
-## Maintaining managed output
+## Historical ownership
 
-Preserve source pins, numeric annotations, licenses, generated/adopted ownership, base fingerprints, and direct product edits. Before reusing a recipe, connect a current product validator; missing validation must fail.
-
-[product-module-layout.mjs](../product-module-layout.mjs) connects canonical module destinations to managed owners. Feature generators also validate their source and output identities before writing. Preserve ownership metadata and direct product changes when updating managed output.
-
-Ownership metadata describes how sources are maintained; it does not qualify current runtime behavior. See the [tool guide](../README.md) for setup and boundaries.
+The recipes, fingerprints and [module layout](../product-module-layout.mjs) describe the original conversion. Leave these records frozen. For product changes, edit and test the owning package directly, retaining source attribution, numeric annotations and licenses. Matching historical output hashes is not a release condition. See the [W11 migration plan](../../../work11.md).

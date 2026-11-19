@@ -4,6 +4,10 @@ Cupertino components, themes, and iOS-style route transitions for Nelyx applicat
 
 Start with the [project guide](../../README.md) or explore the [Testbed](../../sample/nelyx-testbed-app-2/README.md). This package implements a subset of the Cupertino library.
 
+## Maintaining widgets
+
+Move existing candidates from `src/generated/flutter-design` into the owning feature modules as described in the [W11 migration plan](../../work11.md). Edit and test the package TypeScript directly, preserving upstream notices. Unpromoted candidates are not public imports.
+
 ## Imports
 
 Use the component aggregate or a feature subpath:

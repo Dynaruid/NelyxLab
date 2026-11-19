@@ -4,6 +4,10 @@ Material 3 components and themes for Nelyx applications. The package builds on t
 
 Start with the [project guide](../../README.md) or explore the [Testbed](../../sample/nelyx-testbed-app-2/README.md). Component coverage is incomplete; available themes and declarations do not imply every Material component is implemented.
 
+## Maintaining widgets
+
+Move existing candidates from `src/generated/flutter-design` into the owning feature modules as described in the [W11 migration plan](../../work11.md). Edit and test the package TypeScript directly, preserving upstream notices. Unpromoted candidates are not public imports.
+
 ## Imports
 
 Use the component aggregate or a feature subpath:
@@ -109,7 +113,7 @@ Import `Stepper`, `Step`, `StepState`, and `StepperType` from `@nelyx/material/s
 
 ## Icons and assets
 
-Import `AnimatedIcon` and `AnimatedIcons` from `@nelyx/material/animated-icons`. Provide a Core `Animation<number>` as `progress`. The painter uses the pinned Flutter tracks for all 14 icons and reads size, color, and opacity from `IconTheme` unless the widget overrides them. Generate or check the tracks with the [animated icon generator](../../tools/Nelyx.FrameworkToTypeScript/generate-material-animated-icons.mjs).
+Import `AnimatedIcon` and `AnimatedIcons` from `@nelyx/material/animated-icons`. Provide a Core `Animation<number>` as `progress`. The painter uses the pinned Flutter tracks for all 14 icons and reads size, color, and opacity from `IconTheme` unless the widget overrides them. Maintain the checked-in tracks in this package and verify changes through playback and reverse playback.
 
 Material Icons metadata is exported from `@nelyx/material/icon-assets`. Declare the exported font and license through the application's `nelyx.assets` configuration, keeping `packageSource` and notice metadata together. See the [SDK asset guide](../../Nelyx/sdk/README.md#assets).
 

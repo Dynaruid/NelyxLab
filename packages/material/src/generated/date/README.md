@@ -52,18 +52,14 @@ keep their original order. The compiler oracle compares the actual generated
 day/year value expressions with the original helpers, including user getters,
 resolvers and exceptions. No runtime AST analysis or resolver-result cache is used.
 
-From the repository root, with Bun and the system Dart SDK (validated with
-Dart 3.12.2; minimum 3.12). Dependency versions and hashes remain locked:
+## Maintaining the date picker
+
+The recipe and oracle above describe the original conversion. Edit the checked-in
+TypeScript and its package adapters directly; do not regenerate it or update the
+converter. Preserve source attribution and verify changed calendar, input or
+restoration behavior through the public picker. Build from the repository root:
 
 ```powershell
-dart pub get --directory tools/Nelyx.FrameworkToTypeScript/dart --enforce-lockfile
-bun tools/Nelyx.FrameworkToTypeScript/generate-date-picker.ts --write --source reference/flutter-master
 npm.cmd run build:core
 npm.cmd run build --workspace @nelyx/material
-bun tools/Nelyx.FrameworkToTypeScript/generate-date-picker.ts --check --verify --source reference/flutter-master
 ```
-
-`--check` re-analyzes the original files and compares current generated output.
-`--verify` also exercises compiler rejection boundaries and compares current dist
-with an executable Dart oracle built from unchanged original member spans.
-Temporary analysis/oracle files are removed in `finally`; no IR/log archive is kept.
