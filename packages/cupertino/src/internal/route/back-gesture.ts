@@ -5,6 +5,7 @@ import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framewo
 import type { PageRoute } from '@nelyx/core/framework/widgets/pages';
 import { pageRouteTransitionBinding } from '@nelyx/core/internal/framework/widgets/page-route-gesture';
 import { Curves } from '@nelyx/core/framework/animation/curves';
+import type { Curve } from '@nelyx/core/framework/animation/curves';
 import type { AnimationStatusListener } from '@nelyx/core/framework/animation/animation';
 import { HorizontalDragGestureRecognizer } from '@nelyx/core/framework/gestures/monodrag';
 import type {
@@ -21,16 +22,28 @@ import { invariant } from '@nelyx/core/foundation/errors';
 
 /** @dartType double */
 const backGestureWidth = 20;
-/** @dartType double */
-const minFlingVelocity = 1;
-const droppedSwipeDuration = 350;
+interface CupertinoBackGesturePolicy {
+  readonly minFlingVelocity: number;
+  readonly droppedDuration: number;
+  readonly stayThreshold: number;
+  readonly curve: Curve;
+}
+const pageBackPolicy: CupertinoBackGesturePolicy = {
+  minFlingVelocity: 1,
+  droppedDuration: 350,
+  stayThreshold: 0.5,
+  curve: Curves.fastEaseInToSlowEaseOut,
+};
 /** Own typed contact to the single mounted Navigator route/controller lifetime. */
 type Binding = NonNullable<ReturnType<typeof pageRouteTransitionBinding>>;
 export class CupertinoBackGestureController {
   private closed = false;
   private statusListener: AnimationStatusListener | null = null;
   private removeRetirement: (() => void) | null = null;
-  constructor(private readonly binding: Binding) {
+  constructor(
+    private readonly binding: Binding,
+    private readonly policy = pageBackPolicy,
+  ) {
     binding.navigator.didStartUserGesture();
     this.removeRetirement = binding.addRetirementListener(() => this.close());
   }
@@ -50,20 +63,20 @@ export class CupertinoBackGestureController {
       isCurrent = getIsCurrent();
     const animateForward = !isCurrent
       ? getIsActive()
-      : Math.abs(velocity) >= minFlingVelocity
+      : Math.abs(velocity) >= this.policy.minFlingVelocity
         ? velocity <= 0
-        : controller.value > 0.5;
+        : controller.value > this.policy.stayThreshold;
     if (animateForward)
       controller.animateTo(1, {
-        duration: droppedSwipeDuration,
-        curve: Curves.fastEaseInToSlowEaseOut,
+        duration: this.policy.droppedDuration,
+        curve: this.policy.curve,
       });
     else {
       if (isCurrent) navigator.pop();
       if (controller.isAnimating)
         controller.animateBack(0, {
-          duration: droppedSwipeDuration,
-          curve: Curves.fastEaseInToSlowEaseOut,
+          duration: this.policy.droppedDuration,
+          curve: this.policy.curve,
         });
     }
     if (controller.isAnimating) {

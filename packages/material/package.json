@@ -268,6 +268,50 @@
       "types": "./dist/scaffold.d.ts",
       "default": "./dist/scaffold.js"
     },
+    "./scaffold-messenger": {
+      "types": "./dist/scaffold-messenger.d.ts",
+      "default": "./dist/scaffold-messenger.js"
+    },
+    "./snack-bar": {
+      "types": "./dist/snack-bar.d.ts",
+      "default": "./dist/snack-bar.js"
+    },
+    "./animated-icons": {
+      "types": "./dist/animated-icons.d.ts",
+      "default": "./dist/animated-icons.js"
+    },
+    "./action-buttons": {
+      "types": "./dist/action-buttons.d.ts",
+      "default": "./dist/action-buttons.js"
+    },
+    "./drawer": {
+      "types": "./dist/drawer.d.ts",
+      "default": "./dist/drawer.js"
+    },
+    "./navigation-drawer": {
+      "types": "./dist/navigation-drawer.d.ts",
+      "default": "./dist/navigation-drawer.js"
+    },
+    "./menu-anchor": {
+      "types": "./dist/menu-anchor.d.ts",
+      "default": "./dist/menu-anchor.js"
+    },
+    "./search-anchor": {
+      "types": "./dist/search-anchor.d.ts",
+      "default": "./dist/search-anchor.js"
+    },
+    "./app-bar": {
+      "types": "./dist/app-bar.d.ts",
+      "default": "./dist/app-bar.js"
+    },
+    "./time": {
+      "types": "./dist/time.d.ts",
+      "default": "./dist/time.js"
+    },
+    "./time-picker": {
+      "types": "./dist/time-picker.d.ts",
+      "default": "./dist/time-picker.js"
+    },
     "./text-field": {
       "types": "./dist/text-field.d.ts",
       "default": "./dist/text-field.js"
@@ -459,6 +503,10 @@
     "./navigation-bar-theme": {
       "types": "./dist/navigation-bar-theme.d.ts",
       "default": "./dist/navigation-bar-theme.js"
+    },
+    "./navigation-bar": {
+      "types": "./dist/navigation-bar.d.ts",
+      "default": "./dist/navigation-bar.js"
     },
     "./navigation-drawer-theme-data": {
       "types": "./dist/navigation-drawer-theme-data.d.ts",
@@ -660,6 +708,10 @@
       "types": "./dist/navigation-rail-theme.d.ts",
       "default": "./dist/navigation-rail-theme.js"
     },
+    "./navigation-rail": {
+      "types": "./dist/navigation-rail.d.ts",
+      "default": "./dist/navigation-rail.js"
+    },
     "./popup-menu-theme-data": {
       "types": "./dist/popup-menu-theme-data.d.ts",
       "default": "./dist/popup-menu-theme-data.js"
@@ -683,6 +735,18 @@
     "./tab-bar-theme": {
       "types": "./dist/tab-bar-theme.d.ts",
       "default": "./dist/tab-bar-theme.js"
+    },
+    "./tab-controller": {
+      "types": "./dist/tab-controller.d.ts",
+      "default": "./dist/tab-controller.js"
+    },
+    "./tab-indicator": {
+      "types": "./dist/tab-indicator.d.ts",
+      "default": "./dist/tab-indicator.js"
+    },
+    "./tabs": {
+      "types": "./dist/tabs.d.ts",
+      "default": "./dist/tabs.js"
     },
     "./time-picker-theme-data": {
       "types": "./dist/time-picker-theme-data.d.ts",

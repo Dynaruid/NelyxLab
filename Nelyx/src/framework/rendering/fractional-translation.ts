@@ -91,13 +91,10 @@ export class RenderFractionalTranslation extends RenderProxyBox {
     result: HitTestEntry[],
     toLocal: TransformMatrix = identity,
   ): boolean {
-    invariant(
-      this.hasSize && !this.needsLayout,
-      'unlaid-fractional-hit',
-      'Fractional hit testing requires current layout',
-    );
     const child = this.child;
-    if (!child) return false;
+    // Inputs between frames can use the last measured box, as RenderBox does.
+    // A newly installed branch has no geometry until its first layout.
+    if (!this.hasSize || !child?.hasSize) return false;
     const inverse = inversePaintTransform(
       this.transformHitTests ? this.childTransform(child) : super.childTransform(child),
     );

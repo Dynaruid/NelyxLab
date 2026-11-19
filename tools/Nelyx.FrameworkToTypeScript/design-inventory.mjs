@@ -10,6 +10,8 @@ import { openFlutterSource } from './flutter-source.mjs';
 const root = path.resolve(import.meta.dirname, '../..');
 const packages = ['material', 'cupertino'];
 const tooling = 'tools/Nelyx.FrameworkToTypeScript/';
+const animatedIconFramesFile =
+  'packages/material/src/generated/animated-icons/animated-icon-frames.generated.ts';
 const local = (file) => fs.readFileSync(path.join(root, file));
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const decode = (bytes) => JSON.parse(bytes.toString('utf8'));
@@ -86,10 +88,42 @@ function owner(library) {
   return 'runtime-binding';
 }
 
+// These private defaults are selected only on the false branch of useMaterial3
+// at the recorded Flutter pin. NavigationRail also reads an M2 width in shared
+// layout, so its default class remains in scope.
+const material2Defaults = new Set([
+  'app_bar.dart::_AppBarDefaultsM2',
+  'banner.dart::_BannerDefaultsM2',
+  'bottom_app_bar.dart::_BottomAppBarDefaultsM2',
+  'card.dart::_CardDefaultsM2',
+  'checkbox.dart::_CheckboxDefaultsM2',
+  'date_picker_theme.dart::_DatePickerDefaultsM2',
+  'dialog.dart::_DialogDefaultsM2',
+  'divider.dart::_DividerDefaultsM2',
+  'drawer.dart::_DrawerDefaultsM2',
+  'expansion_tile.dart::_ExpansionTileDefaultsM2',
+  'floating_action_button.dart::_FABDefaultsM2',
+  'input_decorator.dart::_InputDecoratorDefaultsM2',
+  'list_tile.dart::_LisTileDefaultsM2',
+  'navigation_bar.dart::_NavigationBarDefaultsM2',
+  'popup_menu.dart::_PopupMenuDefaultsM2',
+  'progress_indicator.dart::_CircularProgressIndicatorDefaultsM2',
+  'progress_indicator.dart::_LinearProgressIndicatorDefaultsM2',
+  'radio.dart::_RadioDefaultsM2',
+  'range_slider.dart::_RangeSliderDefaultsM2',
+  'slider.dart::_SliderDefaultsM2',
+  'snack_bar.dart::_SnackbarDefaultsM2',
+  'switch.dart::_SwitchDefaultsM2',
+  'tabs.dart::_TabsDefaultsM2',
+  'time_picker.dart::_TimePickerDefaultsM2',
+]);
+
 function designScope(library, symbol) {
   if (namespace(library) === 'cupertino') return 'cupertino';
   if (namespace(library) !== 'material') return 'shared';
   const declaration = symbol.split('.')[0];
+  if (material2Defaults.has(`${library.slice(library.lastIndexOf('/') + 1)}::${declaration}`))
+    return 'material-2-only';
   if (/^_.*(?:Defaults|Theme)M2$/.test(declaration)) return 'material-2-defaults-review';
   if (library.endsWith('/toggle_buttons.dart') && declaration === 'ToggleButtons')
     return 'material-2-api-review';
@@ -345,6 +379,13 @@ export function designInventory(repository, { coverageFile } = {}) {
   if (prior.revision !== source.revision) throw Error('Historical design mapping pin differs');
   const priorByPath = new Map(prior.units.map((unit) => [unit.source, unit]));
   const iconCatalog = decode(local(`${tooling}data/work8/w11-icon-data-ownership.json`));
+  const animatedIconParts = new Map(
+    fs.existsSync(path.join(root, animatedIconFramesFile))
+      ? [...local(animatedIconFramesFile).toString().matchAll(
+          /^  \/\/ animated_icons\/data\/([a-z_]+)\.g\.dart \(Git blob ([a-f0-9]{40})\)$/gm,
+        )].map(([, name, blob]) => [name, blob])
+      : [],
+  );
   const matches = currentExports(coverage);
   const byId = new Map(coverage.items.map((item) => [item.id, item]));
   const files = new Map(coverage.source.files.map((file) => [file.id, file]));
@@ -436,6 +477,28 @@ export function designInventory(repository, { coverageFile } = {}) {
       );
     const publicIn = publicById.get(id) ?? [];
     const dependencyPhases = checkedPhases(item);
+    const bindings = productBindings(matches, item, symbol, productOwner);
+    if (
+      library === 'package:flutter/src/material/animated_icons.dart' &&
+      item.kind === 'TOP_LEVEL_VARIABLE' &&
+      symbol.startsWith('_$')
+    ) {
+      const name = symbol.slice(2);
+      const blob = animatedIconParts.get(name);
+      if (blob) {
+        if (
+          file.path !== `packages/flutter/lib/src/material/animated_icons/data/${name}.g.dart` ||
+          source.blob(file.path) !== blob
+        )
+          throw Error(`Generated animated icon source differs: ${item.upstreamId}`);
+        bindings.push({
+          module: '@nelyx/material/animated-icons',
+          file: animatedIconFramesFile,
+          match: 'mapped-origin',
+          ownership: 'generated',
+        });
+      }
+    }
     records.push({
       id,
       upstreamId: item.upstreamId,
@@ -463,7 +526,7 @@ export function designInventory(repository, { coverageFile } = {}) {
         ]),
       ].sort(),
       historicalDestination: priorByPath.get(file.path)?.destination,
-      bindings: productBindings(matches, item, symbol, productOwner),
+      bindings,
       qualification: 'pending',
     });
   }

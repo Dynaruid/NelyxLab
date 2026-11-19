@@ -55,6 +55,18 @@ export type {
   CupertinoTimerPickerOptions,
   CupertinoTimerPickerSelectionOverlayBuilder,
 } from './timer-picker.ts';
+export {
+  CupertinoDatePicker,
+  CupertinoDatePickerMode,
+  DatePickerDateOrder,
+  DatePickerDateTimeOrder,
+  DateTime,
+} from './date-picker.ts';
+export type {
+  CupertinoDatePickerOptions,
+  SelectableDayPredicate,
+  SelectionOverlayBuilder,
+} from './date-picker.ts';
 export { CupertinoSegmentedControl } from './segmented-control.ts';
 export type { CupertinoSegmentedControlOptions } from './segmented-control.ts';
 export { CupertinoSlidingSegmentedControl } from './sliding-segmented-control.ts';
@@ -65,7 +77,22 @@ export { Icon } from '@nelyx/core/framework/widgets/icon';
 export type { IconOptions } from '@nelyx/core/framework/widgets/icon';
 export { CupertinoIcons } from './icons.ts';
 export { CupertinoNavigationBar } from './nav-bar.ts';
-export { CupertinoPageScaffold } from './page-scaffold.ts';
+export type { CupertinoNavigationBarOptions } from './nav-bar.ts';
+export { BottomNavigationBarItem, CupertinoTabBar } from './bottom-tab-bar.ts';
+export type { BottomNavigationBarItemOptions, CupertinoTabBarOptions } from './bottom-tab-bar.ts';
+export {
+  CupertinoTabScaffold,
+  CupertinoTabController,
+  RestorableCupertinoTabController,
+} from './tab-scaffold.ts';
+export type { CupertinoTabScaffoldOptions } from './tab-scaffold.ts';
+export { CupertinoTabView } from './tab-view.ts';
+export type { CupertinoTabViewOptions, CupertinoTabNavigatorObserver } from './tab-view.ts';
+export { CupertinoPageScaffold, CupertinoPageScaffoldBackgroundColor } from './page-scaffold.ts';
+export type {
+  CupertinoPageScaffoldOptions,
+  ObstructingPreferredSizeWidget,
+} from './page-scaffold.ts';
 export { CupertinoTextField, OverlayVisibilityMode } from './text-field.ts';
 export type { CupertinoTextFieldOptions } from './text-field.ts';
 export { CupertinoSearchTextField } from './search-field.ts';
@@ -90,8 +117,22 @@ export type {
   CupertinoFullscreenDialogTransitionOptions,
 } from './route.ts';
 export {
+  CupertinoModalPopupRoute,
+  kCupertinoModalBarrierColor,
+  showCupertinoModalPopup,
   CupertinoRouteTransitionMixin,
   CupertinoPageRoute,
   CupertinoPageTransitionsBuilder,
 } from './route.ts';
-export type { CupertinoPageRouteOptions } from './route.ts';
+export type {
+  CupertinoModalPopupRouteOptions,
+  CupertinoPageRouteOptions,
+  ShowCupertinoModalPopupOptions,
+} from './route.ts';
+export { CupertinoSheetRoute, CupertinoSheetTransition, showCupertinoSheet } from './sheet.ts';
+export type {
+  CupertinoSheetRouteOptions,
+  CupertinoSheetScrollableBuilder,
+  CupertinoSheetTransitionOptions,
+  ShowCupertinoSheetOptions,
+} from './sheet.ts';

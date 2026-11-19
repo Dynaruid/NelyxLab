@@ -25,6 +25,7 @@ const mediaAspects = {
   textMetrics: Symbol('MediaQuery.textMetrics'),
   gesture: Symbol('MediaQuery.gestureSettings'),
   navigation: Symbol('MediaQuery.navigationMode'),
+  timeFormat: Symbol('MediaQuery.alwaysUse24HourFormat'),
 };
 export const NavigationMode = Object.freeze({
   traditional: 'traditional',
@@ -60,6 +61,7 @@ export interface MediaData {
   readonly deterministicCursor?: boolean;
   readonly navigationMode?: NavigationMode;
   readonly gestureSettings?: DeviceGestureSettings;
+  readonly alwaysUse24HourFormat?: boolean;
 }
 export interface MediaQueryRemovePaddingOptions extends WidgetOptions {
   readonly context: BuildContext;
@@ -190,6 +192,8 @@ function mediaAspectChanged(a: MediaData, b: MediaData, aspect: symbol): boolean
       );
     case mediaAspects.navigation:
       return (a.navigationMode ?? 'traditional') !== (b.navigationMode ?? 'traditional');
+    case mediaAspects.timeFormat:
+      return (a.alwaysUse24HourFormat ?? false) !== (b.alwaysUse24HourFormat ?? false);
     default:
       return true;
   }
@@ -299,6 +303,9 @@ export class MediaQuery extends InheritedModel<symbol> {
   static navigationModeOf(context: BuildContext): NavigationMode {
     return mediaAspectData(context, mediaAspects.navigation).navigationMode ?? 'traditional';
   }
+  static alwaysUse24HourFormatOf(context: BuildContext): boolean {
+    return mediaAspectData(context, mediaAspects.timeFormat).alwaysUse24HourFormat ?? false;
+  }
   updateShouldNotify(old: this): boolean {
     const oldCaptured = captureMediaData(old.data),
       captured = captureMediaData(this.data);
@@ -386,6 +393,7 @@ function captureMediaData(data: MediaData): MediaData {
     'autoPlayVideos',
     'deterministicCursor',
     'navigationMode',
+    'alwaysUse24HourFormat',
     'gestureSettings',
     'textScale',
     'textScaler',

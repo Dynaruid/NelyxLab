@@ -28,6 +28,8 @@ import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { FontWeight } from '@nelyx/core/ui/typography';
 import { resolveCupertinoColor } from './internal/colors/color-values.ts';
 import type { CupertinoColor } from './internal/colors/color-values.ts';
+import { CupertinoLocalizations } from './cupertino-localizations.ts';
+import type { SelectionOverlayBuilder } from './date-picker.ts';
 import {
   ChangeReportingBehavior,
   CupertinoPicker,
@@ -42,10 +44,7 @@ export enum CupertinoTimerPickerMode {
   hms = 'hms',
 }
 
-export type CupertinoTimerPickerSelectionOverlayBuilder = (
-  context: BuildContext,
-  column: { readonly selectedIndex: number; readonly columnCount: number },
-) => Widget | null;
+export type CupertinoTimerPickerSelectionOverlayBuilder = SelectionOverlayBuilder;
 
 export interface CupertinoTimerPickerOptions extends WidgetOptions {
   readonly mode?: CupertinoTimerPickerMode;
@@ -137,10 +136,11 @@ export class CupertinoTimerPicker extends StatefulWidget {
 
 type Unit = 'hour' | 'minute' | 'second';
 
-function unitLabel(unit: Unit, value: number): string {
-  if (unit === 'hour') return value === 1 ? 'hour' : 'hours';
-  return unit === 'minute' ? 'min.' : 'sec.';
-}
+const unitFormat = {
+  hour: { value: 'timerPickerHour', label: 'timerPickerHourLabel' },
+  minute: { value: 'timerPickerMinute', label: 'timerPickerMinuteLabel' },
+  second: { value: 'timerPickerSecond', label: 'timerPickerSecondLabel' },
+} as const;
 
 class TimerPickerState extends State<CupertinoTimerPicker> {
   private columns: readonly Unit[] = [];
@@ -216,6 +216,8 @@ class TimerPickerState extends State<CupertinoTimerPicker> {
           })
         : picker.selectionOverlayBuilder(context, { selectedIndex: index, columnCount: count });
     const style = CupertinoTheme.of(context).textTheme.pickerTextStyle;
+    const strings = CupertinoLocalizations.of(context);
+    const format = unitFormat[unit];
     const numberStyle = style.copyWith({ fontSize: ((style.fontSize ?? 32) * 34) / 32 });
     const wheel = new CupertinoPicker({
       scrollController: this.controllers.get(unit)!,
@@ -229,9 +231,10 @@ class TimerPickerState extends State<CupertinoTimerPicker> {
       onSelectedItemChanged: (item) => this.report(unit, item * step),
       children: Array.from({ length: unit === 'hour' ? 24 : 60 / step }, (_, item) => {
         const value = item * step;
-        const label = unitLabel(unit, value);
+        const number = strings[format.value](value);
+        const label = strings[format.label](value);
         return new Semantics({
-          label: rtl ? `${label} ${value}` : `${value} ${label}`,
+          label: rtl ? `${label} ${number}` : `${number} ${label}`,
           excludeSemantics: true,
           child: new Padding(
             EdgeInsetsDirectional.only({ start: leading }),
@@ -240,7 +243,7 @@ class TimerPickerState extends State<CupertinoTimerPicker> {
                 numberWidth,
                 undefined,
                 new Align(
-                  new Text(String(value), {
+                  new Text(number, {
                     maxLines: 1,
                     softWrap: false,
                     style: numberStyle,
@@ -279,7 +282,7 @@ class TimerPickerState extends State<CupertinoTimerPicker> {
               child: new Padding(
                 EdgeInsetsDirectional.only({ start: labelStart }),
                 new Align(
-                  new Text(unitLabel(unit, unit === 'hour' ? this.settledHour : 0), {
+                  new Text(strings[format.label](unit === 'hour' ? this.settledHour : 0), {
                     maxLines: 1,
                     softWrap: false,
                     style: new TextStyle({ fontSize: 17, fontWeight: FontWeight.w600 }),

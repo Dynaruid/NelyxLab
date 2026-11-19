@@ -16,10 +16,10 @@ import {CupertinoThemeData} from '@nelyx/cupertino/theme';
 | Area | Subpaths |
 | --- | --- |
 | Application and theme | `app`, `theme`, `colors`, `text-theme` |
-| Page structure | `page-scaffold`, `nav-bar`, `list-tile`, `list-section` |
-| Controls | `button`, `checkbox`, `radio`, `switch`, `slider`, `picker`, `timer-picker`, `segmented-control`, `sliding-segmented-control` |
+| Page structure | `page-scaffold`, `nav-bar`, `bottom-tab-bar`, `tab-scaffold`, `tab-view`, `list-tile`, `list-section` |
+| Controls | `button`, `checkbox`, `radio`, `switch`, `slider`, `picker`, `date-picker`, `timer-picker`, `segmented-control`, `sliding-segmented-control` |
 | Text and forms | `text-field`, `search-field`, `text-form-field-row`, `form-row`, `form-section` |
-| Feedback and navigation | `activity-indicator`, `dialog`, `action-sheet`, `route` |
+| Feedback and navigation | `activity-indicator`, `dialog`, `action-sheet`, `sheet`, `route` |
 | Scrolling and selection | `refresh`, `scrollbar`, `scroll-behavior`, `text-selection` |
 | Assets | `icons`, `icon-assets` |
 
@@ -37,7 +37,7 @@ Use `CupertinoPicker` with a list of children or `CupertinoPicker.builder` to co
 
 `CupertinoTimerPicker` is available from `@nelyx/cupertino/timer-picker` or `@nelyx/cupertino/widgets`. Its initial and reported durations are numbers in **milliseconds**, following Core. The initial value must be in `[0, 86_400_000)`. Both intervals must be positive integer divisors of 60 and divide the initial whole-minute and whole-second counts respectively, even for a hidden column. The `hm`, `ms`, and `hms` modes report only visible components, at whole-second precision; minute and second wheels wrap independently, without carrying into the next unit. Mounting does not emit a change; use a new key to reset the initial selection or change mode. The default is to report during scrolling; pass `ChangeReportingBehavior.onScrollEnd` from `@nelyx/cupertino/picker` to report on settle. A `selectionOverlayBuilder` can replace or suppress the overlay for each column.
 
-The picker follows [the pinned Flutter timer picker](https://github.com/flutter/flutter/blob/71e4717a61786faab4c7aa39825989305ed29e8a/packages/flutter/lib/src/cupertino/date_picker.dart). Timer numerals and unit labels currently use English; exact Flutter font measurement, baseline placement, and narrow-width golden parity are not implemented.
+`CupertinoDatePicker` supports `date`, `time`, `dateAndTime`, and `monthYear`. Its initial value and callback use the shared Core `DateTime`, also exported from Material's `date-picker`. Use a new key to reset the initial value or change modes. The active locale supplies column order, wheel labels, and timer units. An explicit `dateOrder` overrides the calendar column order. [Pinned Flutter picker source](https://github.com/flutter/flutter/blob/71e4717a61786faab4c7aa39825989305ed29e8a/packages/flutter/lib/src/cupertino/date_picker.dart)
 
 `CupertinoSearchTextField` configures the editor for Search submission and provides a localized placeholder and a clear action. Use `onSuffixTap` to replace the clear action. `restorationId` restores text under a Core restoration scope when the field owns its controller; restore caller-owned controllers at the application level.
 
@@ -53,9 +53,17 @@ The Testbed **Sliver refresh** demo adds a row after asynchronous completion. Na
 
 ## Routes
 
+Use `CupertinoPageScaffold({ navigationBar, child })` with `new CupertinoNavigationBar({ middle, trailing })` for a fixed toolbar with implicit route dismissal. The scaffold reserves space for an opaque toolbar and supplies top padding to the child's `MediaQuery` when content extends beneath a translucent toolbar. The toolbar can also include a preferred-size bottom widget.
+
 The `route` module supplies CupertinoPageRoute, page/fullscreen dialog transitions, and the back-gesture integration. Use the shared Core navigation and animation owners. Borrowed animation controllers retain their caller-owned lifetime.
 
-`CupertinoActionSheet` bottom-aligns a title/message and a scrollable list of actions, with an optional separate cancel button. Explicit `messageScrollController` and `actionScrollController` instances remain caller-owned. Present the sheet with a Core modal route (the Testbed uses `createDialogRoute`); wire each `CupertinoActionSheetAction.onPressed` to return a result or dismiss the route as appropriate. Actions do not dismiss automatically. The widgets do not implement Flutter's `showCupertinoModalPopup` transition or its slide-across-actions selection gesture.
+`CupertinoActionSheet` bottom-aligns a title and message, a scrollable list of actions, and an optional cancel button. Explicit `messageScrollController` and `actionScrollController` instances remain caller-owned. Present it with `showCupertinoModalPopup(context, { builder })` and wire each action to pop the route with a result. The route uses Core navigation and focus, a bottom-up spring, and a theme-aware scrim. Set `barrierDismissible` and `semanticsDismissible` to configure dismissal. Foldable display placement and sliding across sheet actions still require parity work.
+
+`showCupertinoSheet<T>` presents a draggable sheet and returns its route result. Use `scrollableBuilder(context, controller)` to hand a downward drag from the top of a list to the sheet. Set `useNestedNavigation` for pages inside the sheet. Call `CupertinoSheetRoute.popSheet(context)` to dismiss the outer sheet from an inner page.
+
+## Tabs and nested navigation
+
+Build a `CupertinoTabBar` with at least two `BottomNavigationBarItem` instances. `CupertinoTabScaffold` mounts each tab on first selection and retains its state when hidden. Use `CupertinoTabView` for independent named route stacks and an optional `CupertinoTabController` to select tabs programmatically. View observers receive Core `RouteTransition` events. The scaffold can save its internally owned selection using `restorationId`.
 
 ## Icons and assets
 

@@ -19,11 +19,15 @@ W11 디자인 스캔은 두 공개 라이브러리에서 도달하는 Analyzer �
 npm.cmd --prefix tools/Nelyx.FrameworkToTypeScript run designs:resolve -- --source C:/path/to/flutter-git --dart C:/path/to/pinned/dart.exe --write
 npm.cmd --prefix tools/Nelyx.FrameworkToTypeScript run designs:scan -- --source C:/path/to/flutter-git --family W11-01
 npm.cmd --prefix tools/Nelyx.FrameworkToTypeScript run designs:probe -- --source C:/path/to/flutter-git --dart C:/path/to/pinned/dart.exe --family W11-01 --graph --emitter
+npm.cmd --prefix tools/Nelyx.FrameworkToTypeScript run designs:probe -- --source C:/path/to/flutter-git --dart C:/path/to/pinned/dart.exe --write --summary
+npm.cmd --prefix tools/Nelyx.FrameworkToTypeScript run designs:probe -- --source C:/path/to/flutter-git --dart C:/path/to/pinned/dart.exe --check --summary
 ```
 
 스캔에서 `--output`을 생략하면 집계를 출력합니다. `--family`는 해당 기능군과 선행 참조 단위를 고릅니다. 새 기준판은 타입, 런타임 타입 검사, 상속, 상수, 지연·인스턴스 초기화, 인자 기본값, 실행, 선언 주석, 문서 링크를 구분합니다.
 
 `designs:probe --graph`는 실행 참조의 강한 연결 요소를 Body IR 단위로 구성합니다. `--with-dependencies`를 함께 주면 선택 기능군의 전이 실행·타입 의존성도 포함합니다. 실행 단위는 의존성부터 처리하며, 순환 가능한 타입 참조와 Core·외부 바인딩은 인벤토리에 별도로 기록합니다. 같은 Git 입력을 서로 다른 임시 경로에서 해석해 결과 바이트를 비교하고 Dart 리비전을 기록합니다. `--emitter`는 모듈별 TypeScript 후보의 해시와 첫 차단 바인딩을 출력합니다. `--summary`를 붙이면 전체 선언 로그 대신 집계와 차단 유형별 개수가 출력됩니다. 단위 전체가 확인된 `dart:core` Duration 상수이고 정수 밀리초로 손실 없이 표현할 수 있을 때만 해당 단위에 밀리초 lowering을 적용합니다. 후보 생성은 제품 승격이 아니며 정적 타입, 원본 동작, 배포를 별도로 검증해야 합니다.
+
+`--write`는 두 패키지 전체 그래프를 처리해 소유 패키지의 `src/generated/flutter-design`에 후보를 씁니다. 기존 패키지 심벌과 로컬 수정이 있는 파일은 보존합니다. 소비자 공개 경로는 제품 검증을 거친 파일을 연결합니다. `--check`는 현재 후보를 재생성해 바이트 차이·누락·충돌·현재 소유권에서 벗어난 파일을 보고하며 파일을 수정하지 않습니다. `--summary`를 뺀 실행 보고서에는 원본 위치, 목적지와 차단 사유, TypeScript 진단이 포함됩니다.
 
 ## 개발 환경
 

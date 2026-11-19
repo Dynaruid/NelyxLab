@@ -4,6 +4,1410 @@
   "coverageStatus": "Identity and explicitly partial port scope. This does not promote original or product acceptance.",
   "origins": [
     {
+      "id": "66d06b7ad01ec994d566",
+      "qualifiedId": "package:flutter/src/widgets/raw_menu_anchor.dart::RawMenuOverlayInfo:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/raw_menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "117a6f6c674b578a574f11eea1f10e77ff5fd53a",
+        "fileSha256": "981498307135d0472c5486a1ae8e674a3251378808d7b5e1159ff85b73e9bf62",
+        "canonicalSpan": {
+          "offset": 1474,
+          "length": 1496,
+          "line": 43,
+          "sha256": "e9f084dc8fbece6d7f6d105a952880a83c5c82f047ef276dfee0ae87df9d7d67",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/raw-menu-anchor.ts",
+        "module": "@nelyx/core/framework/widgets/raw-menu-anchor",
+        "sha256": "24a66cafcff67ca378a13f3abc1e4044e622d144edae4ed342f03f2759f4e7ac"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared controller, cascade grouping and anchored overlay with Core Overlay, TapRegion and Navigator. The overlay builder receives the transformed anchor bounds.",
+      "acceptance": []
+    },
+    {
+      "id": "4ba9dac225d1659fe927",
+      "qualifiedId": "package:flutter/src/widgets/raw_menu_anchor.dart::RawMenuAnchorOverlayBuilder:TYPE_ALIAS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/raw_menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "117a6f6c674b578a574f11eea1f10e77ff5fd53a",
+        "fileSha256": "981498307135d0472c5486a1ae8e674a3251378808d7b5e1159ff85b73e9bf62",
+        "canonicalSpan": {
+          "offset": 2972,
+          "length": 496,
+          "line": 95,
+          "sha256": "e68d83a84924ff517f1bc380e45a3699a9995e05f1e20d62ee98024612f52ce4",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/raw-menu-anchor.ts",
+        "module": "@nelyx/core/framework/widgets/raw-menu-anchor",
+        "sha256": "24a66cafcff67ca378a13f3abc1e4044e622d144edae4ed342f03f2759f4e7ac"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared controller, cascade grouping and anchored overlay with Core Overlay, TapRegion and Navigator. The overlay builder receives the transformed anchor bounds.",
+      "acceptance": []
+    },
+    {
+      "id": "0351e041bf6a95c4df87",
+      "qualifiedId": "package:flutter/src/widgets/raw_menu_anchor.dart::RawMenuAnchorChildBuilder:TYPE_ALIAS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/raw_menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "117a6f6c674b578a574f11eea1f10e77ff5fd53a",
+        "fileSha256": "981498307135d0472c5486a1ae8e674a3251378808d7b5e1159ff85b73e9bf62",
+        "canonicalSpan": {
+          "offset": 3470,
+          "length": 597,
+          "line": 108,
+          "sha256": "d3b7f743af2333fc02a87737442d17c1037b4875420ce8f69a06eb66ddcc3a06",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/raw-menu-anchor.ts",
+        "module": "@nelyx/core/framework/widgets/raw-menu-anchor",
+        "sha256": "24a66cafcff67ca378a13f3abc1e4044e622d144edae4ed342f03f2759f4e7ac"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared controller, cascade grouping and anchored overlay with Core Overlay, TapRegion and Navigator. The overlay builder receives the transformed anchor bounds.",
+      "acceptance": []
+    },
+    {
+      "id": "ff2aa42e6aebb0276ca3",
+      "qualifiedId": "package:flutter/src/widgets/raw_menu_anchor.dart::RawMenuAnchorOpenRequestedCallback:TYPE_ALIAS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/raw_menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "117a6f6c674b578a574f11eea1f10e77ff5fd53a",
+        "fileSha256": "981498307135d0472c5486a1ae8e674a3251378808d7b5e1159ff85b73e9bf62",
+        "canonicalSpan": {
+          "offset": 4069,
+          "length": 289,
+          "line": 125,
+          "sha256": "3f69f7352db70c114d59ef5ea98c573bfe9e30d94e67986b6b3209a606e94bd6",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/raw-menu-anchor.ts",
+        "module": "@nelyx/core/framework/widgets/raw-menu-anchor",
+        "sha256": "24a66cafcff67ca378a13f3abc1e4044e622d144edae4ed342f03f2759f4e7ac"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared controller, cascade grouping and anchored overlay with Core Overlay, TapRegion and Navigator. The overlay builder receives the transformed anchor bounds.",
+      "acceptance": []
+    },
+    {
+      "id": "670e4b5712226c325070",
+      "qualifiedId": "package:flutter/src/widgets/raw_menu_anchor.dart::RawMenuAnchorCloseRequestedCallback:TYPE_ALIAS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/raw_menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "117a6f6c674b578a574f11eea1f10e77ff5fd53a",
+        "fileSha256": "981498307135d0472c5486a1ae8e674a3251378808d7b5e1159ff85b73e9bf62",
+        "canonicalSpan": {
+          "offset": 4360,
+          "length": 268,
+          "line": 134,
+          "sha256": "775bfecbc4926b7f313e0fe45cd5b4d15244ed00c437667bd4e49e077171c6ae",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/raw-menu-anchor.ts",
+        "module": "@nelyx/core/framework/widgets/raw-menu-anchor",
+        "sha256": "24a66cafcff67ca378a13f3abc1e4044e622d144edae4ed342f03f2759f4e7ac"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared controller, cascade grouping and anchored overlay with Core Overlay, TapRegion and Navigator. The overlay builder receives the transformed anchor bounds.",
+      "acceptance": []
+    },
+    {
+      "id": "abbb4a4a5576eea896d0",
+      "qualifiedId": "package:flutter/src/widgets/raw_menu_anchor.dart::RawMenuAnchor:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/raw_menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "117a6f6c674b578a574f11eea1f10e77ff5fd53a",
+        "fileSha256": "981498307135d0472c5486a1ae8e674a3251378808d7b5e1159ff85b73e9bf62",
+        "canonicalSpan": {
+          "offset": 5119,
+          "length": 13047,
+          "line": 158,
+          "sha256": "ba3d8a672f18c62cbf1605a2ce5237d1eb0c70331cd9b163da7fdb1bb68d228e",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/raw-menu-anchor.ts",
+        "module": "@nelyx/core/framework/widgets/raw-menu-anchor",
+        "sha256": "24a66cafcff67ca378a13f3abc1e4044e622d144edae4ed342f03f2759f4e7ac"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared controller, cascade grouping and anchored overlay with Core Overlay, TapRegion and Navigator. The overlay builder receives the transformed anchor bounds.",
+      "acceptance": []
+    },
+    {
+      "id": "e19be1726a552afed031",
+      "qualifiedId": "package:flutter/src/widgets/raw_menu_anchor.dart::RawMenuAnchorGroup:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/raw_menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "117a6f6c674b578a574f11eea1f10e77ff5fd53a",
+        "fileSha256": "981498307135d0472c5486a1ae8e674a3251378808d7b5e1159ff85b73e9bf62",
+        "canonicalSpan": {
+          "offset": 31268,
+          "length": 2078,
+          "line": 885,
+          "sha256": "4ef337c511cb9daf4957b451f0043ca7046b0ff558067b338b38b44635e74eec",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/raw-menu-anchor.ts",
+        "module": "@nelyx/core/framework/widgets/raw-menu-anchor",
+        "sha256": "24a66cafcff67ca378a13f3abc1e4044e622d144edae4ed342f03f2759f4e7ac"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared controller, cascade grouping and anchored overlay with Core Overlay, TapRegion and Navigator. The overlay builder receives the transformed anchor bounds.",
+      "acceptance": []
+    },
+    {
+      "id": "1d1ecf259ec26d87533e",
+      "qualifiedId": "package:flutter/src/widgets/raw_menu_anchor.dart::MenuController:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/raw_menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "117a6f6c674b578a574f11eea1f10e77ff5fd53a",
+        "fileSha256": "981498307135d0472c5486a1ae8e674a3251378808d7b5e1159ff85b73e9bf62",
+        "canonicalSpan": {
+          "offset": 35107,
+          "length": 3751,
+          "line": 1009,
+          "sha256": "a1f909189324e15716ca91f1de8cd934a13f121414d47873295436c2707b9d54",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/raw-menu-anchor.ts",
+        "module": "@nelyx/core/framework/widgets/raw-menu-anchor",
+        "sha256": "24a66cafcff67ca378a13f3abc1e4044e622d144edae4ed342f03f2759f4e7ac"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared controller, cascade grouping and anchored overlay with Core Overlay, TapRegion and Navigator. The overlay builder receives the transformed anchor bounds.",
+      "acceptance": []
+    },
+    {
+      "id": "d9f7d4007734ddf23fd6",
+      "qualifiedId": "package:flutter/src/widgets/raw_menu_anchor.dart::DismissMenuAction:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/raw_menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "117a6f6c674b578a574f11eea1f10e77ff5fd53a",
+        "fileSha256": "981498307135d0472c5486a1ae8e674a3251378808d7b5e1159ff85b73e9bf62",
+        "canonicalSpan": {
+          "offset": 38860,
+          "length": 897,
+          "line": 1107,
+          "sha256": "40fd3ca756d35798385aa91689a3bb120feb39a23a3ed32c5adac17f3cfea63f",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/raw-menu-anchor.ts",
+        "module": "@nelyx/core/framework/widgets/raw-menu-anchor",
+        "sha256": "24a66cafcff67ca378a13f3abc1e4044e622d144edae4ed342f03f2759f4e7ac"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared controller, cascade grouping and anchored overlay with Core Overlay, TapRegion and Navigator. The overlay builder receives the transformed anchor bounds.",
+      "acceptance": []
+    },
+    {
+      "id": "b54926c010a34d400a3c",
+      "qualifiedId": "package:flutter/src/material/menu_anchor.dart::MenuAnchor:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "b2a6e58e6295b3cf5f39d4b1a53b5abf49dc595a",
+        "fileSha256": "3335e99494a51dc8b30ab98c3f804bf5ca55fcc7dced08059b4838004fd91330",
+        "canonicalSpan": {
+          "offset": 7323,
+          "length": 11693,
+          "line": 201,
+          "sha256": "d5c7ee91dd7ac94f521cd6fe430214ed630aa4985464140a0a582445957bb199",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/menu-anchor.ts",
+        "module": "@nelyx/material/menu-anchor",
+        "sha256": "411ab6d8288abceea79a18be839b5a3d614e5b6b4e4c8f91d74c46506ca408cd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material panels and actions using the shared menu controller, focus scope, selection, and anchored layout. Intrinsic sizing, shortcuts and native motion await parity.",
+      "acceptance": []
+    },
+    {
+      "id": "f3b1a6d4ab3445004cd1",
+      "qualifiedId": "package:flutter/src/material/menu_anchor.dart::MenuAnchorChildBuilder:TYPE_ALIAS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "b2a6e58e6295b3cf5f39d4b1a53b5abf49dc595a",
+        "fileSha256": "3335e99494a51dc8b30ab98c3f804bf5ca55fcc7dced08059b4838004fd91330",
+        "canonicalSpan": {
+          "offset": 5241,
+          "length": 583,
+          "line": 135,
+          "sha256": "17a027bcd07a50be6034e47665b98cb8622e0f7fa9553740a85bbffbdd91c7a4",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/menu-anchor.ts",
+        "module": "@nelyx/material/menu-anchor",
+        "sha256": "411ab6d8288abceea79a18be839b5a3d614e5b6b4e4c8f91d74c46506ca408cd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material panels and actions using the shared menu controller, focus scope, selection, and anchored layout. Intrinsic sizing, shortcuts and native motion await parity.",
+      "acceptance": []
+    },
+    {
+      "id": "e36d23491f8016bb59ad",
+      "qualifiedId": "package:flutter/src/material/menu_anchor.dart::MenuBar:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "b2a6e58e6295b3cf5f39d4b1a53b5abf49dc595a",
+        "fileSha256": "3335e99494a51dc8b30ab98c3f804bf5ca55fcc7dced08059b4838004fd91330",
+        "canonicalSpan": {
+          "offset": 28436,
+          "length": 5326,
+          "line": 781,
+          "sha256": "bacc420c51ca7aad0c1d70cc6f7409f1295456c4d08d0f092e239936e419c4ae",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/menu-anchor.ts",
+        "module": "@nelyx/material/menu-anchor",
+        "sha256": "411ab6d8288abceea79a18be839b5a3d614e5b6b4e4c8f91d74c46506ca408cd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material panels and actions using the shared menu controller, focus scope, selection, and anchored layout. Intrinsic sizing, shortcuts and native motion await parity.",
+      "acceptance": []
+    },
+    {
+      "id": "b9e08fa81ffb61fa99c6",
+      "qualifiedId": "package:flutter/src/material/menu_anchor.dart::MenuItemButton:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "b2a6e58e6295b3cf5f39d4b1a53b5abf49dc595a",
+        "fileSha256": "3335e99494a51dc8b30ab98c3f804bf5ca55fcc7dced08059b4838004fd91330",
+        "canonicalSpan": {
+          "offset": 33764,
+          "length": 10115,
+          "line": 906,
+          "sha256": "9a250e49ad5d695fff0f1da52fbabdca18e7aa8f962ade3b409f721dbb0dbd6b",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/menu-anchor.ts",
+        "module": "@nelyx/material/menu-anchor",
+        "sha256": "411ab6d8288abceea79a18be839b5a3d614e5b6b4e4c8f91d74c46506ca408cd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material panels and actions using the shared menu controller, focus scope, selection, and anchored layout. Intrinsic sizing, shortcuts and native motion await parity.",
+      "acceptance": []
+    },
+    {
+      "id": "ab8dc916c76eb9868bd3",
+      "qualifiedId": "package:flutter/src/material/menu_anchor.dart::SubmenuButton:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "b2a6e58e6295b3cf5f39d4b1a53b5abf49dc595a",
+        "fileSha256": "3335e99494a51dc8b30ab98c3f804bf5ca55fcc7dced08059b4838004fd91330",
+        "canonicalSpan": {
+          "offset": 61069,
+          "length": 11381,
+          "line": 1721,
+          "sha256": "20eb5e11cfe1180747ae8ccdfd2fc3780becf0b9b36531cc4c3e6639a368d7f2",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/menu-anchor.ts",
+        "module": "@nelyx/material/menu-anchor",
+        "sha256": "411ab6d8288abceea79a18be839b5a3d614e5b6b4e4c8f91d74c46506ca408cd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material panels and actions using the shared menu controller, focus scope, selection, and anchored layout. Intrinsic sizing, shortcuts and native motion await parity.",
+      "acceptance": []
+    },
+    {
+      "id": "da2045e00b336f81058c",
+      "qualifiedId": "package:flutter/src/material/menu_anchor.dart::CheckboxMenuButton:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "b2a6e58e6295b3cf5f39d4b1a53b5abf49dc595a",
+        "fileSha256": "3335e99494a51dc8b30ab98c3f804bf5ca55fcc7dced08059b4838004fd91330",
+        "canonicalSpan": {
+          "offset": 48399,
+          "length": 6394,
+          "line": 1331,
+          "sha256": "8a1bfefbf949095a34fe29ee48d3f23009e41b4c3d1aabd2c803adf7a5af8a3f",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/menu-anchor.ts",
+        "module": "@nelyx/material/menu-anchor",
+        "sha256": "411ab6d8288abceea79a18be839b5a3d614e5b6b4e4c8f91d74c46506ca408cd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material panels and actions using the shared menu controller, focus scope, selection, and anchored layout. Intrinsic sizing, shortcuts and native motion await parity.",
+      "acceptance": []
+    },
+    {
+      "id": "4bcdf76fa91a7cd2a96d",
+      "qualifiedId": "package:flutter/src/material/menu_anchor.dart::RadioMenuButton:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/menu_anchor.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "b2a6e58e6295b3cf5f39d4b1a53b5abf49dc595a",
+        "fileSha256": "3335e99494a51dc8b30ab98c3f804bf5ca55fcc7dced08059b4838004fd91330",
+        "canonicalSpan": {
+          "offset": 54795,
+          "length": 6272,
+          "line": 1527,
+          "sha256": "7a701fdf230c88bd07ccf80ace523085acd5440bacd3e905084e327deb738477",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/menu-anchor.ts",
+        "module": "@nelyx/material/menu-anchor",
+        "sha256": "411ab6d8288abceea79a18be839b5a3d614e5b6b4e4c8f91d74c46506ca408cd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material panels and actions using the shared menu controller, focus scope, selection, and anchored layout. Intrinsic sizing, shortcuts and native motion await parity.",
+      "acceptance": []
+    },
+    {
+      "id": "016da2b4a177b452f00f",
+      "qualifiedId": "package:flutter/src/widgets/bottom_navigation_bar_item.dart::BottomNavigationBarItem:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/bottom_navigation_bar_item.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c79c118f67ddcbd835461f17add57b0f13ea71ea",
+        "fileSha256": "8b7c179616dce0d7210dd7a3265a32854e9e0c45e5483a6edd5bbe87a941bb31",
+        "canonicalSpan": {
+          "offset": 456,
+          "length": 4055,
+          "line": 18,
+          "sha256": "73871e911cb99b38d9d731d8e1df66b67c11436b08cae0eddfeef56726a24b0f",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/bottom-navigation-bar-item.ts",
+        "module": "@nelyx/core/framework/widgets/bottom-navigation-bar-item",
+        "sha256": "49471df26d4a0e516032e0131f282f5751645a17eed1dbb4f140c29a7cdb7135"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared navigation-bar item and active icon default used by Cupertino.",
+      "acceptance": []
+    },
+    {
+      "id": "b03e0215853383a3e3f9",
+      "qualifiedId": "package:flutter/src/cupertino/bottom_tab_bar.dart::CupertinoTabBar:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/bottom_tab_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "82722f77035b0589b8682ed6b76e3ea5df2091c3",
+        "fileSha256": "036b7c0f1506258cde8de6cdba99d146ac2f53561eca60e5de8bf2b3b6429b2c",
+        "canonicalSpan": {
+          "offset": 722,
+          "length": 10120,
+          "line": 27,
+          "sha256": "c9a6b9ad471a77d095c6adc357e904c4f7c4668328569f3a1dbec2e472081bce",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/bottom-tab-bar.ts",
+        "module": "@nelyx/cupertino/bottom-tab-bar",
+        "sha256": "409f7fb14e9efe385e5e365d0a4943a02bef550242bd9c0e18f65f658e94dadb"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Dynamic theme, localized tabs, safe area and blur over Core input and painting.",
+      "acceptance": []
+    },
+    {
+      "id": "a12385ddcb8416a14b6b",
+      "qualifiedId": "package:flutter/src/cupertino/tab_scaffold.dart::CupertinoTabScaffold:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/tab_scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a5810ab979ac91e7094b4315ffd43c81d7072ec3",
+        "fileSha256": "9ff2d956ee151a21434b38e30ecb0c604c278666739309473b22363b10240592",
+        "canonicalSpan": {
+          "offset": 2414,
+          "length": 7169,
+          "line": 75,
+          "sha256": "4f4d91a48e4496a3df9bb2ff1a1e0dfc86352d960bcb34c4f91cdd3851a9f571",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/tab-scaffold.ts",
+        "module": "@nelyx/cupertino/tab-scaffold",
+        "sha256": "1043aba3cdfd368c275190daa048e70c2cf9a8495d2f8dd4cd5a3dcbf5cf6177"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controller selection, retained lazy tab subtrees, focus, media insets and restoration over shared Core state.",
+      "acceptance": []
+    },
+    {
+      "id": "74baeea0f1e6278bb722",
+      "qualifiedId": "package:flutter/src/cupertino/tab_scaffold.dart::CupertinoTabController:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/tab_scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a5810ab979ac91e7094b4315ffd43c81d7072ec3",
+        "fileSha256": "9ff2d956ee151a21434b38e30ecb0c604c278666739309473b22363b10240592",
+        "canonicalSpan": {
+          "offset": 439,
+          "length": 1973,
+          "line": 18,
+          "sha256": "b3f323dff5ea785c08839b36a8f76ba44c0623074f95db1425c959776e335927",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/tab-scaffold.ts",
+        "module": "@nelyx/cupertino/tab-scaffold",
+        "sha256": "1043aba3cdfd368c275190daa048e70c2cf9a8495d2f8dd4cd5a3dcbf5cf6177"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controller selection, retained lazy tab subtrees, focus, media insets and restoration over shared Core state.",
+      "acceptance": []
+    },
+    {
+      "id": "66ecf0feacf141cf41cc",
+      "qualifiedId": "package:flutter/src/cupertino/tab_scaffold.dart::RestorableCupertinoTabController:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/tab_scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a5810ab979ac91e7094b4315ffd43c81d7072ec3",
+        "fileSha256": "9ff2d956ee151a21434b38e30ecb0c604c278666739309473b22363b10240592",
+        "canonicalSpan": {
+          "offset": 19498,
+          "length": 1243,
+          "line": 510,
+          "sha256": "5257c1da186cba8abf5e4b6e9938d24f2050d2c60787e243f8c608ceaeea9945",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/tab-scaffold.ts",
+        "module": "@nelyx/cupertino/tab-scaffold",
+        "sha256": "1043aba3cdfd368c275190daa048e70c2cf9a8495d2f8dd4cd5a3dcbf5cf6177"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controller selection, retained lazy tab subtrees, focus, media insets and restoration over shared Core state.",
+      "acceptance": []
+    },
+    {
+      "id": "85103b872c712e071c22",
+      "qualifiedId": "package:flutter/src/cupertino/tab_view.dart::CupertinoTabView:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/tab_view.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "56652831bd7f287cdef7e27424b6b2def0257bbe",
+        "fileSha256": "ee3d4a300255dd8f7e1b9c86ea012fd2dcc3d376f3761df86a7b3def2ce9c20b",
+        "canonicalSpan": {
+          "offset": 310,
+          "length": 5242,
+          "line": 13,
+          "sha256": "1d403caebd459245634fccbf92eecc44840423475fa3cab8edd1575af3e79b86",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/tab-view.ts",
+        "module": "@nelyx/cupertino/tab-view",
+        "sha256": "e053ab5381ecdd701be5e20c3fd307d4eb3ed757ed2f6ed03f9abda94f9b322d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Independent named route stacks and active-tab Back behavior on Core Navigator. Observer callbacks use the Core transition event API.",
+      "acceptance": []
+    },
+    {
+      "id": "fbe656f2f09901c45195",
+      "qualifiedId": "package:flutter/src/widgets/routes.dart::LocalHistoryEntry:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/routes.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "ab33a690c41b9844f01d0d4b9741e73eb9ee6fe8",
+        "fileSha256": "510598f5ea4892fc1b3fe96ae2fa8ce3b87f4cbc7f5e4b121dccd097c7adca94",
+        "canonicalSpan": {
+          "offset": 25808,
+          "length": 2017,
+          "line": 681,
+          "sha256": "7b8a016fe2b2a0f7cc1df6a371cc761d1273a6c2c6ea969ebbdc4d011d534d0e",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/navigation.ts",
+        "module": "@nelyx/core/framework/widgets/navigation",
+        "sha256": "9348c5a9118de5bbd81d70707490ef37f1f780ff89e76a0ae70fd897030b245a"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Route-local history entries over the owning NavigatorController and existing Back dispatch.",
+      "acceptance": []
+    },
+    {
+      "id": "de8dc99c68a8fd50faf7",
+      "qualifiedId": "package:flutter/src/material/action_buttons.dart::BackButton:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/action_buttons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "62fbc778960b6bdd6fec3a04a555cca9cf3942a8",
+        "fileSha256": "bd2e4bae93883a174dc9edf40a9267527aba6366ef6206727923b7c3a0804b60",
+        "canonicalSpan": {
+          "offset": 4875,
+          "length": 2255,
+          "line": 156,
+          "sha256": "dfffd68aa61b6ba238c6603c49c11123cc4f659f72c341900b6798fd087c2b6c",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/action-buttons.ts",
+        "module": "@nelyx/material/action-buttons",
+        "sha256": "c20d513f7a9af7bed547060c03fc9bcd6e3e0a6e5b562b6cf113cab29bb55457"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Platform-default artwork and labels, ActionIconTheme overrides and default Navigator or Scaffold actions.",
+      "acceptance": []
+    },
+    {
+      "id": "3d2639263c79c007a415",
+      "qualifiedId": "package:flutter/src/material/action_buttons.dart::BackButtonIcon:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/action_buttons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "62fbc778960b6bdd6fec3a04a555cca9cf3942a8",
+        "fileSha256": "bd2e4bae93883a174dc9edf40a9267527aba6366ef6206727923b7c3a0804b60",
+        "canonicalSpan": {
+          "offset": 3236,
+          "length": 1637,
+          "line": 110,
+          "sha256": "beff92788443d9c60876b1ca7d19f8237e0fef621a536344b6878b247d19d922",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/action-buttons.ts",
+        "module": "@nelyx/material/action-buttons",
+        "sha256": "c20d513f7a9af7bed547060c03fc9bcd6e3e0a6e5b562b6cf113cab29bb55457"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Platform-default artwork and labels, ActionIconTheme overrides and default Navigator or Scaffold actions.",
+      "acceptance": []
+    },
+    {
+      "id": "abdb8aa3d18738733ef7",
+      "qualifiedId": "package:flutter/src/material/action_buttons.dart::CloseButton:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/action_buttons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "62fbc778960b6bdd6fec3a04a555cca9cf3942a8",
+        "fileSha256": "bd2e4bae93883a174dc9edf40a9267527aba6366ef6206727923b7c3a0804b60",
+        "canonicalSpan": {
+          "offset": 8272,
+          "length": 1674,
+          "line": 236,
+          "sha256": "ba34b4fcd14076fa1d01a8b102a29cb490ff3f07d25c404e666e32d3c92303b5",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/action-buttons.ts",
+        "module": "@nelyx/material/action-buttons",
+        "sha256": "c20d513f7a9af7bed547060c03fc9bcd6e3e0a6e5b562b6cf113cab29bb55457"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Platform-default artwork and labels, ActionIconTheme overrides and default Navigator or Scaffold actions.",
+      "acceptance": []
+    },
+    {
+      "id": "4c395f495583485a1fe3",
+      "qualifiedId": "package:flutter/src/material/action_buttons.dart::CloseButtonIcon:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/action_buttons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "62fbc778960b6bdd6fec3a04a555cca9cf3942a8",
+        "fileSha256": "bd2e4bae93883a174dc9edf40a9267527aba6366ef6206727923b7c3a0804b60",
+        "canonicalSpan": {
+          "offset": 7132,
+          "length": 1138,
+          "line": 205,
+          "sha256": "d8edaf4492eb56f045fab720db3fedfe263fcbefe6c59363083b2409195d102b",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/action-buttons.ts",
+        "module": "@nelyx/material/action-buttons",
+        "sha256": "c20d513f7a9af7bed547060c03fc9bcd6e3e0a6e5b562b6cf113cab29bb55457"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Platform-default artwork and labels, ActionIconTheme overrides and default Navigator or Scaffold actions.",
+      "acceptance": []
+    },
+    {
+      "id": "e564ee224b9fdf38332f",
+      "qualifiedId": "package:flutter/src/material/action_buttons.dart::DrawerButton:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/action_buttons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "62fbc778960b6bdd6fec3a04a555cca9cf3942a8",
+        "fileSha256": "bd2e4bae93883a174dc9edf40a9267527aba6366ef6206727923b7c3a0804b60",
+        "canonicalSpan": {
+          "offset": 11253,
+          "length": 1152,
+          "line": 307,
+          "sha256": "be49ea9371eb920743e593d20b580f392bd53a6bb7974aa65153681892730693",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/action-buttons.ts",
+        "module": "@nelyx/material/action-buttons",
+        "sha256": "c20d513f7a9af7bed547060c03fc9bcd6e3e0a6e5b562b6cf113cab29bb55457"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Platform-default artwork and labels, ActionIconTheme overrides and default Navigator or Scaffold actions.",
+      "acceptance": []
+    },
+    {
+      "id": "9da9efae8680f9373ae3",
+      "qualifiedId": "package:flutter/src/material/action_buttons.dart::DrawerButtonIcon:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/action_buttons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "62fbc778960b6bdd6fec3a04a555cca9cf3942a8",
+        "fileSha256": "bd2e4bae93883a174dc9edf40a9267527aba6366ef6206727923b7c3a0804b60",
+        "canonicalSpan": {
+          "offset": 9948,
+          "length": 1303,
+          "line": 274,
+          "sha256": "e052c571a786e8b8dbeb18e1194290b0a5192fa278da28fc7aa576a00bf0faf6",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/action-buttons.ts",
+        "module": "@nelyx/material/action-buttons",
+        "sha256": "c20d513f7a9af7bed547060c03fc9bcd6e3e0a6e5b562b6cf113cab29bb55457"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Platform-default artwork and labels, ActionIconTheme overrides and default Navigator or Scaffold actions.",
+      "acceptance": []
+    },
+    {
+      "id": "144f2fd6d82a9734f786",
+      "qualifiedId": "package:flutter/src/material/action_buttons.dart::EndDrawerButton:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/action_buttons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "62fbc778960b6bdd6fec3a04a555cca9cf3942a8",
+        "fileSha256": "bd2e4bae93883a174dc9edf40a9267527aba6366ef6206727923b7c3a0804b60",
+        "canonicalSpan": {
+          "offset": 13729,
+          "length": 1110,
+          "line": 369,
+          "sha256": "e78bb731a8761aabff49ed3553529d194d7b9ed9312a8214245a6ef3db31e11a",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/action-buttons.ts",
+        "module": "@nelyx/material/action-buttons",
+        "sha256": "c20d513f7a9af7bed547060c03fc9bcd6e3e0a6e5b562b6cf113cab29bb55457"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Platform-default artwork and labels, ActionIconTheme overrides and default Navigator or Scaffold actions.",
+      "acceptance": []
+    },
+    {
+      "id": "42e9c201ddbbfa35907f",
+      "qualifiedId": "package:flutter/src/material/action_buttons.dart::EndDrawerButtonIcon:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/action_buttons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "62fbc778960b6bdd6fec3a04a555cca9cf3942a8",
+        "fileSha256": "bd2e4bae93883a174dc9edf40a9267527aba6366ef6206727923b7c3a0804b60",
+        "canonicalSpan": {
+          "offset": 12407,
+          "length": 1320,
+          "line": 336,
+          "sha256": "c71e38baa9e2a385f9e609aae0115096869a0de27ad20542252e9f8769e52b10",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/action-buttons.ts",
+        "module": "@nelyx/material/action-buttons",
+        "sha256": "c20d513f7a9af7bed547060c03fc9bcd6e3e0a6e5b562b6cf113cab29bb55457"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Platform-default artwork and labels, ActionIconTheme overrides and default Navigator or Scaffold actions.",
+      "acceptance": []
+    },
+    {
+      "id": "4d1ee6c65745d34bfa26",
+      "qualifiedId": "package:flutter/src/material/drawer.dart::Drawer:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/drawer.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "238e47c9640ab5576cd94ce1f5c38a1cd5087125",
+        "fileSha256": "833abd2312b487153bdaa3b8636efa815d07a6cf10f159f747734ea3740b2de9",
+        "canonicalSpan": {
+          "offset": 2082,
+          "length": 9111,
+          "line": 66,
+          "sha256": "091ce12e8b6f3de6256b5711535b4a1b45c1de20757bddc4bceebe5a917d51fd",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/drawer.ts",
+        "module": "@nelyx/material/drawer",
+        "sha256": "56203c7e20221ddbd05d385399b17c5e8f2cf9a1107ce19af52b85bec79919fd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 drawer surface, directional overlay, local history, drag and focus on Core. Pin comparisons for native edge gestures and platform announcement remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "04f87ac4e90f331df65d",
+      "qualifiedId": "package:flutter/src/material/drawer.dart::DrawerAlignment:ENUM",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/drawer.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "238e47c9640ab5576cd94ce1f5c38a1cd5087125",
+        "fileSha256": "833abd2312b487153bdaa3b8636efa815d07a6cf10f159f747734ea3740b2de9",
+        "canonicalSpan": {
+          "offset": 928,
+          "length": 534,
+          "line": 33,
+          "sha256": "d633e696bbd312de2643f7f1b50824df448ce9d944bbec34b07b3449054e4544",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/drawer.ts",
+        "module": "@nelyx/material/drawer",
+        "sha256": "56203c7e20221ddbd05d385399b17c5e8f2cf9a1107ce19af52b85bec79919fd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 drawer surface, directional overlay, local history, drag and focus on Core. Pin comparisons for native edge gestures and platform announcement remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "9630fc71c9ce43098920",
+      "qualifiedId": "package:flutter/src/material/drawer.dart::DrawerCallback:TYPE_ALIAS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/drawer.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "238e47c9640ab5576cd94ce1f5c38a1cd5087125",
+        "fileSha256": "833abd2312b487153bdaa3b8636efa815d07a6cf10f159f747734ea3740b2de9",
+        "canonicalSpan": {
+          "offset": 11195,
+          "length": 150,
+          "line": 294,
+          "sha256": "8dbc0281accaeccdc32229e13d2f033b768f859886e4a58971784ac317ab3db7",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/drawer.ts",
+        "module": "@nelyx/material/drawer",
+        "sha256": "56203c7e20221ddbd05d385399b17c5e8f2cf9a1107ce19af52b85bec79919fd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 drawer surface, directional overlay, local history, drag and focus on Core. Pin comparisons for native edge gestures and platform announcement remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "9a8934affa44839f4ea3",
+      "qualifiedId": "package:flutter/src/material/drawer.dart::DrawerController:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/drawer.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "238e47c9640ab5576cd94ce1f5c38a1cd5087125",
+        "fileSha256": "833abd2312b487153bdaa3b8636efa815d07a6cf10f159f747734ea3740b2de9",
+        "canonicalSpan": {
+          "offset": 11639,
+          "length": 6009,
+          "line": 309,
+          "sha256": "0d8f6076ed6cf3c0feb8043be8dfacd2676dba25cbf28bc64b6d4fa9955a6bf1",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/drawer.ts",
+        "module": "@nelyx/material/drawer",
+        "sha256": "56203c7e20221ddbd05d385399b17c5e8f2cf9a1107ce19af52b85bec79919fd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 drawer surface, directional overlay, local history, drag and focus on Core. Pin comparisons for native edge gestures and platform announcement remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "9dde54657d6ff1e8597a",
+      "qualifiedId": "package:flutter/src/material/drawer.dart::DrawerControllerState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/drawer.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "238e47c9640ab5576cd94ce1f5c38a1cd5087125",
+        "fileSha256": "833abd2312b487153bdaa3b8636efa815d07a6cf10f159f747734ea3740b2de9",
+        "canonicalSpan": {
+          "offset": 17650,
+          "length": 8848,
+          "line": 476,
+          "sha256": "0114f4d58261612e9e6976fbc8877dc99cd05a15cfde886505cfcd9b6010f0dc",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/drawer.ts",
+        "module": "@nelyx/material/drawer",
+        "sha256": "56203c7e20221ddbd05d385399b17c5e8f2cf9a1107ce19af52b85bec79919fd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 drawer surface, directional overlay, local history, drag and focus on Core. Pin comparisons for native edge gestures and platform announcement remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "26d6f88c53488a1ba19f",
+      "qualifiedId": "package:flutter/src/material/navigation_drawer.dart::NavigationDrawer:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/navigation_drawer.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "08c27395c895653054a7ed0f6e0321543987dd2d",
+        "fileSha256": "53f2fab0079fda0b48c72fa0fd2100cf6c8fb6d3ae8943d2eaa04bd843d820f0",
+        "canonicalSpan": {
+          "offset": 552,
+          "length": 7331,
+          "line": 22,
+          "sha256": "8484c0f15a07b31ef207ebf2026b606c6dc2b989e906c743ebc48bff35aab40a",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/navigation-drawer.ts",
+        "module": "@nelyx/material/navigation-drawer",
+        "sha256": "0f4d36268549b7dd64f66da06a007f52876204e9aeab10451c91a2288d2240d7"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Scrollable Material 3 destinations, headers and footers, selected and disabled styles and localized semantics.",
+      "acceptance": []
+    },
+    {
+      "id": "6059f6a8052bc2eb368e",
+      "qualifiedId": "package:flutter/src/material/navigation_drawer.dart::NavigationDrawerDestination:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/navigation_drawer.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "08c27395c895653054a7ed0f6e0321543987dd2d",
+        "fileSha256": "53f2fab0079fda0b48c72fa0fd2100cf6c8fb6d3ae8943d2eaa04bd843d820f0",
+        "canonicalSpan": {
+          "offset": 7885,
+          "length": 4269,
+          "line": 208,
+          "sha256": "382b70d66a7053c3f192a8eb090d1aec455ad04a624e154b4cac38ae541d9b70",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/navigation-drawer.ts",
+        "module": "@nelyx/material/navigation-drawer",
+        "sha256": "0f4d36268549b7dd64f66da06a007f52876204e9aeab10451c91a2288d2240d7"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Scrollable Material 3 destinations, headers and footers, selected and disabled styles and localized semantics.",
+      "acceptance": []
+    },
+    {
+      "id": "e0a81cda4d456f7c604f",
+      "qualifiedId": "package:flutter/src/material/animated_icons.dart::AnimatedIcon:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/animated_icons/animated_icons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "5ebfe61ea1c16ad16562f3b46395631fadab7003",
+        "fileSha256": "0fb9dee169ee89462a03af270f9d120f2a9cddd9d2421e1c38fa776a67df8c2b",
+        "canonicalSpan": {
+          "offset": 627,
+          "length": 3741,
+          "line": 13,
+          "sha256": "fdd8b64ff66cc13af42242dbfc6cfc00208598b61bf4e76bc7e8f38c014c7c01",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/animated-icons.ts",
+        "module": "@nelyx/material/animated-icons",
+        "sha256": "4f666a5eea125039dfc006d2ebab68aceb46a56943e2fb48718625d0365ec593"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Pins the widget, icon theme, animation repaint and frame-by-frame vector rendering over Core CustomPaint.",
+      "acceptance": []
+    },
+    {
+      "id": "6b35cdcf9b7665690dee",
+      "qualifiedId": "package:flutter/src/material/animated_icons.dart::_AnimatedIconPainter:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/animated_icons/animated_icons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "5ebfe61ea1c16ad16562f3b46395631fadab7003",
+        "fileSha256": "0fb9dee169ee89462a03af270f9d120f2a9cddd9d2421e1c38fa776a67df8c2b",
+        "canonicalSpan": {
+          "offset": 4416,
+          "length": 1863,
+          "line": 131,
+          "sha256": "69a22711709d78a643439035d6bdee0118ceed77069f934935f3b4f33e900e40",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/animated-icons.ts",
+        "module": "@nelyx/material/animated-icons",
+        "sha256": "4f666a5eea125039dfc006d2ebab68aceb46a56943e2fb48718625d0365ec593"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Pins the widget, icon theme, animation repaint and frame-by-frame vector rendering over Core CustomPaint.",
+      "acceptance": []
+    },
+    {
+      "id": "ee2b6df51a0211f3cd25",
+      "qualifiedId": "package:flutter/src/material/animated_icons.dart::_PathFrames:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/animated_icons/animated_icons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "5ebfe61ea1c16ad16562f3b46395631fadab7003",
+        "fileSha256": "0fb9dee169ee89462a03af270f9d120f2a9cddd9d2421e1c38fa776a67df8c2b",
+        "canonicalSpan": {
+          "offset": 6281,
+          "length": 642,
+          "line": 190,
+          "sha256": "6bd80a63daea61efc115c6ef041afaecd468e5e703161119e187de7945ce6c65",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/animated-icons.ts",
+        "module": "@nelyx/material/animated-icons",
+        "sha256": "4f666a5eea125039dfc006d2ebab68aceb46a56943e2fb48718625d0365ec593"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Pins the widget, icon theme, animation repaint and frame-by-frame vector rendering over Core CustomPaint.",
+      "acceptance": []
+    },
+    {
+      "id": "953d9b660743e14823e6",
+      "qualifiedId": "package:flutter/src/material/animated_icons.dart::_PathCommand:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/animated_icons/animated_icons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "5ebfe61ea1c16ad16562f3b46395631fadab7003",
+        "fileSha256": "0fb9dee169ee89462a03af270f9d120f2a9cddd9d2421e1c38fa776a67df8c2b",
+        "canonicalSpan": {
+          "offset": 6925,
+          "length": 424,
+          "line": 209,
+          "sha256": "747301c8fdab44f297f5e5816de2cbdff1c8af3cdf587f0ed1b4694902d78d38",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/animated-icons.ts",
+        "module": "@nelyx/material/animated-icons",
+        "sha256": "4f666a5eea125039dfc006d2ebab68aceb46a56943e2fb48718625d0365ec593"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Pins the widget, icon theme, animation repaint and frame-by-frame vector rendering over Core CustomPaint.",
+      "acceptance": []
+    },
+    {
+      "id": "9cec5c151514daf724c1",
+      "qualifiedId": "package:flutter/src/material/animated_icons.dart::_interpolate:FUNCTION",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/animated_icons/animated_icons.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "5ebfe61ea1c16ad16562f3b46395631fadab7003",
+        "fileSha256": "0fb9dee169ee89462a03af270f9d120f2a9cddd9d2421e1c38fa776a67df8c2b",
+        "canonicalSpan": {
+          "offset": 8840,
+          "length": 980,
+          "line": 280,
+          "sha256": "31b06e86481ef2fe67088e74e81f706044fcb434502d2ac4684edaa895e50824",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/animated-icons.ts",
+        "module": "@nelyx/material/animated-icons",
+        "sha256": "4f666a5eea125039dfc006d2ebab68aceb46a56943e2fb48718625d0365ec593"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Pins the widget, icon theme, animation repaint and frame-by-frame vector rendering over Core CustomPaint.",
+      "acceptance": []
+    },
+    {
+      "id": "97ef3c017a5a2def6da7",
+      "qualifiedId": "package:flutter/src/material/animated_icons.dart::AnimatedIcons:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/animated_icons/animated_icons_data.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "538e9f8157f2068d5555e169194ffe1370801bab",
+        "fileSha256": "0039e013e233d269bb8811b4dcadcc9d7d98918f84b4532635dac7c7ba34d5dd",
+        "canonicalSpan": {
+          "offset": 514,
+          "length": 3642,
+          "line": 13,
+          "sha256": "39d938410ea3011f8490a17bc07f833fe0cfae39086b533d3cb462721fcf25b7",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/animated-icons.ts",
+        "module": "@nelyx/material/animated-icons",
+        "sha256": "4f666a5eea125039dfc006d2ebab68aceb46a56943e2fb48718625d0365ec593"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Opaque immutable icon identifiers backed by generated Flutter vector tracks.",
+      "acceptance": []
+    },
+    {
+      "id": "2428fa0a3e829f0ea62c",
+      "qualifiedId": "package:flutter/src/material/animated_icons.dart::AnimatedIconData:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/animated_icons/animated_icons_data.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "538e9f8157f2068d5555e169194ffe1370801bab",
+        "fileSha256": "0039e013e233d269bb8811b4dcadcc9d7d98918f84b4532635dac7c7ba34d5dd",
+        "canonicalSpan": {
+          "offset": 4158,
+          "length": 859,
+          "line": 99,
+          "sha256": "173b188f52a20d05f080e7c4c0494a6f5aec4967ae0ed01d0f5e45c956cfdddf",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/animated-icons.ts",
+        "module": "@nelyx/material/animated-icons",
+        "sha256": "4f666a5eea125039dfc006d2ebab68aceb46a56943e2fb48718625d0365ec593"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Opaque immutable icon identifiers backed by generated Flutter vector tracks.",
+      "acceptance": []
+    },
+    {
+      "id": "ac9d69ec0cbd0df073e4",
+      "qualifiedId": "package:flutter/src/material/animated_icons.dart::_AnimatedIconData:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/animated_icons/animated_icons_data.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "538e9f8157f2068d5555e169194ffe1370801bab",
+        "fileSha256": "0039e013e233d269bb8811b4dcadcc9d7d98918f84b4532635dac7c7ba34d5dd",
+        "canonicalSpan": {
+          "offset": 5019,
+          "length": 236,
+          "line": 123,
+          "sha256": "aceefcd4fd06cce386a49008537d2c0bb3a20e3be6b959d1492a1c6895c13555",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/animated-icons.ts",
+        "module": "@nelyx/material/animated-icons",
+        "sha256": "4f666a5eea125039dfc006d2ebab68aceb46a56943e2fb48718625d0365ec593"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Opaque immutable icon identifiers backed by generated Flutter vector tracks.",
+      "acceptance": []
+    },
+    {
+      "id": "7540754d3b0db4275a60",
+      "qualifiedId": "package:flutter/src/widgets/navigation_toolbar.dart::NavigationToolbar:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/navigation_toolbar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "bba81ec179c524c4c70bcc06b326ae90edb58720",
+        "fileSha256": "9a9ee689585ea8b9ae263b630fe4b16f826ce903de652a3e99fb675fb50b2c6e",
+        "canonicalSpan": {
+          "offset": 369,
+          "length": 2315,
+          "line": 15,
+          "sha256": "229d312a7fbf58b8ba6164abd9c802e1bb63987b7209438def65034a9ad63be2",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/navigation-toolbar.ts",
+        "module": "@nelyx/core/framework/widgets/navigation-toolbar",
+        "sha256": "ac61d50757227cb7101ccedb114808a2fdd48b69aa4cc1d8a77dc24ba3168068"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Directional leading, middle and trailing layout over the Core custom-layout protocol.",
+      "acceptance": []
+    },
+    {
+      "id": "704948a86f530add7290",
+      "qualifiedId": "package:flutter/src/widgets/navigation_toolbar.dart::_ToolbarLayout:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/navigation_toolbar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "bba81ec179c524c4c70bcc06b326ae90edb58720",
+        "fileSha256": "9a9ee689585ea8b9ae263b630fe4b16f826ce903de652a3e99fb675fb50b2c6e",
+        "canonicalSpan": {
+          "offset": 2735,
+          "length": 3331,
+          "line": 81,
+          "sha256": "d6f4f69e4b79e7a24cc97ae3242772f15b33acaa08ad567213b35163bceced35",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/navigation-toolbar.ts",
+        "module": "@nelyx/core/framework/widgets/navigation-toolbar",
+        "sha256": "ac61d50757227cb7101ccedb114808a2fdd48b69aa4cc1d8a77dc24ba3168068"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Directional leading, middle and trailing layout over the Core custom-layout protocol.",
+      "acceptance": []
+    },
+    {
+      "id": "79852895e1d605c84c9f",
+      "qualifiedId": "package:flutter/src/widgets/preferred_size.dart::PreferredSizeWidget:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/preferred_size.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "22185936c0e479534a070035daf3dae1b935fc59",
+        "fileSha256": "61a38501d0681aa4ac7284fc75cdc61dcf997d548c1c87417b61255d610e57ef",
+        "canonicalSpan": {
+          "offset": 312,
+          "length": 1183,
+          "line": 13,
+          "sha256": "1c7cd716b4ba1054aed063fc55470682e8ce5f4ca740d2f9323a0f397304c3b8",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/preferred-size.ts",
+        "module": "@nelyx/core/framework/widgets/preferred-size",
+        "sha256": "f88037f742713aac78f5cf9b24613c852c7420311112a18df7037d6ea379e576"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Preferred size metadata and child pass-through.",
+      "acceptance": []
+    },
+    {
+      "id": "611a7b0e4e7e70515398",
+      "qualifiedId": "package:flutter/src/widgets/preferred_size.dart::PreferredSize:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/preferred_size.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "22185936c0e479534a070035daf3dae1b935fc59",
+        "fileSha256": "61a38501d0681aa4ac7284fc75cdc61dcf997d548c1c87417b61255d610e57ef",
+        "canonicalSpan": {
+          "offset": 1497,
+          "length": 1758,
+          "line": 37,
+          "sha256": "2ef375ad857fc8d68f3e3eead44e76a04832b4e2f6bfde059f8647e6aa8229c1",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/preferred-size.ts",
+        "module": "@nelyx/core/framework/widgets/preferred-size",
+        "sha256": "f88037f742713aac78f5cf9b24613c852c7420311112a18df7037d6ea379e576"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Preferred size metadata and child pass-through.",
+      "acceptance": []
+    },
+    {
+      "id": "7a8f428b462ac30e4873",
+      "qualifiedId": "package:flutter/src/widgets/scroll_notification_observer.dart::ScrollNotificationObserver:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/scroll_notification_observer.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "b430f8cebb31d34ed264851394ae64306a508905",
+        "fileSha256": "5386f35d2b9f4f839181952cf910f9babca778812f9f7a50baf2aafa548affe2",
+        "canonicalSpan": {
+          "offset": 1494,
+          "length": 3937,
+          "line": 47,
+          "sha256": "36f886aa7abf21100e87343f4b7a062b6ec1e3b918612248c97e3318785e2fd4",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/scroll-notification-observer.ts",
+        "module": "@nelyx/core/framework/widgets/scroll-notification-observer",
+        "sha256": "04ae32738ce8546750430befb71447d7d6939a37310ea7003d9d8633a1ba92ff"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Scroll and geometry notifications across sibling subtrees, including listener removal during dispatch.",
+      "acceptance": []
+    },
+    {
+      "id": "8e110a14c7f55c7436d7",
+      "qualifiedId": "package:flutter/src/widgets/scroll_notification_observer.dart::ScrollNotificationObserverState:CLASS",
+      "package": "@nelyx/core",
+      "source": {
+        "file": "packages/flutter/lib/src/widgets/scroll_notification_observer.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "b430f8cebb31d34ed264851394ae64306a508905",
+        "fileSha256": "5386f35d2b9f4f839181952cf910f9babca778812f9f7a50baf2aafa548affe2",
+        "canonicalSpan": {
+          "offset": 5433,
+          "length": 3322,
+          "line": 148,
+          "sha256": "2edd3c2ba27e6aabd6e31acd2120f7b3b2539c1eba961f9ab3ecff0b41b50d80",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "Nelyx/src/framework/widgets/scroll-notification-observer.ts",
+        "module": "@nelyx/core/framework/widgets/scroll-notification-observer",
+        "sha256": "04ae32738ce8546750430befb71447d7d6939a37310ea7003d9d8633a1ba92ff"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Scroll and geometry notifications across sibling subtrees, including listener removal during dispatch.",
+      "acceptance": []
+    },
+    {
       "id": "4156a9dd5b12d4696b97",
       "qualifiedId": "package:flutter/src/widgets/page_view.dart::PageController:CLASS",
       "package": "@nelyx/core",
@@ -1408,6 +2812,1329 @@
       "acceptance": []
     },
     {
+      "id": "ddb87297513e0c7509e3",
+      "qualifiedId": "package:flutter/src/material/navigation_bar.dart::NavigationBar:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/navigation_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "20c66878abd5233a828a6473bfab0f91626e9bce",
+        "fileSha256": "db6d585a76c8bc3844c36ddad0ff4da5c8a7ee56a7478016225e6fb92a797419",
+        "canonicalSpan": {
+          "offset": 979,
+          "length": 12994,
+          "line": 37,
+          "sha256": "d6fe4a00e758953b568b1e9cdb9b91da9c572da02e45e6833b810f9a9ba93ba0",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/navigation-bar.ts",
+        "module": "@nelyx/material/navigation-bar",
+        "sha256": "8607d1c32e22ceca0208b50303e26fac91e80bf1a121a03017f44e6c7818342d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 navigation destinations, theme defaults, controlled selection and semantics. Exact source animation and native parity are pending.",
+      "acceptance": []
+    },
+    {
+      "id": "ba4ebf2f481553ca28f7",
+      "qualifiedId": "package:flutter/src/material/navigation_bar.dart::NavigationDestination:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/navigation_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "20c66878abd5233a828a6473bfab0f91626e9bce",
+        "fileSha256": "db6d585a76c8bc3844c36ddad0ff4da5c8a7ee56a7478016225e6fb92a797419",
+        "canonicalSpan": {
+          "offset": 14775,
+          "length": 6411,
+          "line": 361,
+          "sha256": "155637450cdb4ee46e3cad006e6af903e0d3e9c904328e4e966e65766a7de9e9",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/navigation-bar.ts",
+        "module": "@nelyx/material/navigation-bar",
+        "sha256": "8607d1c32e22ceca0208b50303e26fac91e80bf1a121a03017f44e6c7818342d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 navigation destinations, theme defaults, controlled selection and semantics. Exact source animation and native parity are pending.",
+      "acceptance": []
+    },
+    {
+      "id": "def89e8ceaf708ca82d6",
+      "qualifiedId": "package:flutter/src/material/navigation_bar.dart::NavigationIndicator:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/navigation_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "20c66878abd5233a828a6473bfab0f91626e9bce",
+        "fileSha256": "db6d585a76c8bc3844c36ddad0ff4da5c8a7ee56a7478016225e6fb92a797419",
+        "canonicalSpan": {
+          "offset": 30463,
+          "length": 3622,
+          "line": 780,
+          "sha256": "51f3d62fe680e7261826ee231e587ff10af3bed82367194a428c95af3433f330",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/navigation-bar.ts",
+        "module": "@nelyx/material/navigation-bar",
+        "sha256": "8607d1c32e22ceca0208b50303e26fac91e80bf1a121a03017f44e6c7818342d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 navigation destinations, theme defaults, controlled selection and semantics. Exact source animation and native parity are pending.",
+      "acceptance": []
+    },
+    {
+      "id": "2483166fe589498ef1ec",
+      "qualifiedId": "package:flutter/src/material/navigation_rail.dart::NavigationRail:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/navigation_rail.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "43ed0b2ee1ea709fb07c05fe535c070ed2469295",
+        "fileSha256": "d14bf880a99d70eb1d61e6e856d92d53322f27d937ec5fd5ccb0f92e818a4e2d",
+        "canonicalSpan": {
+          "offset": 700,
+          "length": 15184,
+          "line": 27,
+          "sha256": "925fac7198f98dcd730ce4b0338827f9b723db7dfce78814b4250ee6f4618672",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/navigation-rail.ts",
+        "module": "@nelyx/material/navigation-rail",
+        "sha256": "d80f83234c0acf63088f8c10e67bf47bbcb7a24423bda4f3b6991bfc06eb9c89"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 navigation rail with nullable selection, extension animation, destination roles and themed indicators. Source layout detail and all host interactions remain under review.",
+      "acceptance": []
+    },
+    {
+      "id": "cc1be34a6cef1de93208",
+      "qualifiedId": "package:flutter/src/material/navigation_rail.dart::NavigationRailDestination:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/navigation_rail.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "43ed0b2ee1ea709fb07c05fe535c070ed2469295",
+        "fileSha256": "d14bf880a99d70eb1d61e6e856d92d53322f27d937ec5fd5ccb0f92e818a4e2d",
+        "canonicalSpan": {
+          "offset": 40885,
+          "length": 2436,
+          "line": 1096,
+          "sha256": "f758303a480b82e2f42b6bcfaaac3e3478f4088af786a8c7ffd8398fe41e74c0",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/navigation-rail.ts",
+        "module": "@nelyx/material/navigation-rail",
+        "sha256": "d80f83234c0acf63088f8c10e67bf47bbcb7a24423bda4f3b6991bfc06eb9c89"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 navigation rail with nullable selection, extension animation, destination roles and themed indicators. Source layout detail and all host interactions remain under review.",
+      "acceptance": []
+    },
+    {
+      "id": "a56dda967abb6fca15d0",
+      "qualifiedId": "package:flutter/src/material/navigation_rail.dart::_NavigationRailState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/navigation_rail.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "43ed0b2ee1ea709fb07c05fe535c070ed2469295",
+        "fileSha256": "d14bf880a99d70eb1d61e6e856d92d53322f27d937ec5fd5ccb0f92e818a4e2d",
+        "canonicalSpan": {
+          "offset": 15886,
+          "length": 8306,
+          "line": 398,
+          "sha256": "c9ef34b48af5874875240848aabc420d22e9b02fe29f2213ce190e545a13d1be",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/navigation-rail.ts",
+        "module": "@nelyx/material/navigation-rail",
+        "sha256": "d80f83234c0acf63088f8c10e67bf47bbcb7a24423bda4f3b6991bfc06eb9c89"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 navigation rail with nullable selection, extension animation, destination roles and themed indicators. Source layout detail and all host interactions remain under review.",
+      "acceptance": []
+    },
+    {
+      "id": "3fe707721e73d94d7c7f",
+      "qualifiedId": "package:flutter/src/material/app_bar.dart::AppBar:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/app_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "5c948061c07ac8028f5fdff91269c99605907de0",
+        "fileSha256": "b89dd431bbfde931206bf9203da644f0bb5edbb903be83d9f4ff4226bb632070",
+        "canonicalSpan": {
+          "offset": 2419,
+          "length": 30981,
+          "line": 82,
+          "sha256": "88aa58968e8205219efe6435219deb28f2e98ec8e0c56b7b2b984f3b819c538d",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/app-bar.ts",
+        "module": "@nelyx/material/app-bar",
+        "sha256": "a7d6b035760144950b0acd8136328fb266ef2e856eff3f5f0f4a0fd6aef5317c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 toolbar composition, scroll-under state, preferred sizing and implicit route dismissal. Drawer, sliver and system-bar host effects await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "78a39c223ccc10bfc187",
+      "qualifiedId": "package:flutter/src/material/app_bar.dart::_AppBarState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/app_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "5c948061c07ac8028f5fdff91269c99605907de0",
+        "fileSha256": "b89dd431bbfde931206bf9203da644f0bb5edbb903be83d9f4ff4226bb632070",
+        "canonicalSpan": {
+          "offset": 33402,
+          "length": 16084,
+          "line": 822,
+          "sha256": "d9d3661c62fb782e30a8b5abcd1cd656f81071c2062d67d4ecaa12aad97f653e",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/app-bar.ts",
+        "module": "@nelyx/material/app-bar",
+        "sha256": "a7d6b035760144950b0acd8136328fb266ef2e856eff3f5f0f4a0fd6aef5317c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 toolbar composition, scroll-under state, preferred sizing and implicit route dismissal. Drawer, sliver and system-bar host effects await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "c46e4d6f8bcccb1d29e0",
+      "qualifiedId": "package:flutter/src/material/app_bar.dart::_PreferredAppBarSize:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/app_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "5c948061c07ac8028f5fdff91269c99605907de0",
+        "fileSha256": "b89dd431bbfde931206bf9203da644f0bb5edbb903be83d9f4ff4226bb632070",
+        "canonicalSpan": {
+          "offset": 2169,
+          "length": 248,
+          "line": 74,
+          "sha256": "765435196cd975ba23600d1bbf79874b837bba8e02213d501aafe215420f551b",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/app-bar.ts",
+        "module": "@nelyx/material/app-bar",
+        "sha256": "a7d6b035760144950b0acd8136328fb266ef2e856eff3f5f0f4a0fd6aef5317c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 toolbar composition, scroll-under state, preferred sizing and implicit route dismissal. Drawer, sliver and system-bar host effects await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "d037cad7e3a063a6f198",
+      "qualifiedId": "package:flutter/src/material/app_bar.dart::_ToolbarContainerLayout:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/app_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "5c948061c07ac8028f5fdff91269c99605907de0",
+        "fileSha256": "b89dd431bbfde931206bf9203da644f0bb5edbb903be83d9f4ff4226bb632070",
+        "canonicalSpan": {
+          "offset": 1502,
+          "length": 665,
+          "line": 49,
+          "sha256": "b2d46ea8b81941a2df94db5a265dacd45a751917f117a63d5de96ed54b26bca4",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/app-bar.ts",
+        "module": "@nelyx/material/app-bar",
+        "sha256": "a7d6b035760144950b0acd8136328fb266ef2e856eff3f5f0f4a0fd6aef5317c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 toolbar composition, scroll-under state, preferred sizing and implicit route dismissal. Drawer, sliver and system-bar host effects await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "490bf19e3bfbf7d14a75",
+      "qualifiedId": "package:flutter/src/material/tab_controller.dart::TabController:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tab_controller.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "846704d85c248d903e98a2fc81d8ca304536acba",
+        "fileSha256": "ede79e2b1dac0d8cd23495d4f280234c638a603494c3f96b9b42d6f9b5bda1dc",
+        "canonicalSpan": {
+          "offset": 458,
+          "length": 9490,
+          "line": 20,
+          "sha256": "e8ce7318e27443e3f2bddf44dbc8b4bce8e66a7de6714c169394cbf922eb91ad",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tab-controller.ts",
+        "module": "@nelyx/material/tab-controller",
+        "sha256": "7f7d7ed5574386437d861944ccc87ec05ff24d87aab5f88f632b19c9ab2bac88"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared tab selection, ticker ownership, animation and inherited DefaultTabController replacement.",
+      "acceptance": []
+    },
+    {
+      "id": "ee6be27de1293f0a9a1c",
+      "qualifiedId": "package:flutter/src/material/tab_controller.dart::DefaultTabController:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tab_controller.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "846704d85c248d903e98a2fc81d8ca304536acba",
+        "fileSha256": "ede79e2b1dac0d8cd23495d4f280234c638a603494c3f96b9b42d6f9b5bda1dc",
+        "canonicalSpan": {
+          "offset": 10318,
+          "length": 4922,
+          "line": 308,
+          "sha256": "1e7fe4ef3cdc644a1da8efb4c6c56e6ae5903b04cc0fbffbc1702450a15a8684",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tab-controller.ts",
+        "module": "@nelyx/material/tab-controller",
+        "sha256": "7f7d7ed5574386437d861944ccc87ec05ff24d87aab5f88f632b19c9ab2bac88"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared tab selection, ticker ownership, animation and inherited DefaultTabController replacement.",
+      "acceptance": []
+    },
+    {
+      "id": "8651b782fa6a986a1e28",
+      "qualifiedId": "package:flutter/src/material/tab_controller.dart::_TabControllerScope:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tab_controller.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "846704d85c248d903e98a2fc81d8ca304536acba",
+        "fileSha256": "ede79e2b1dac0d8cd23495d4f280234c638a603494c3f96b9b42d6f9b5bda1dc",
+        "canonicalSpan": {
+          "offset": 9950,
+          "length": 366,
+          "line": 292,
+          "sha256": "4cfb962bae14a88a9246ec3ca3cfa67cbbb7a12260993d0ae6f9ead702b352b9",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tab-controller.ts",
+        "module": "@nelyx/material/tab-controller",
+        "sha256": "7f7d7ed5574386437d861944ccc87ec05ff24d87aab5f88f632b19c9ab2bac88"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared tab selection, ticker ownership, animation and inherited DefaultTabController replacement.",
+      "acceptance": []
+    },
+    {
+      "id": "194c502c4af6f1be5c23",
+      "qualifiedId": "package:flutter/src/material/tab_controller.dart::_DefaultTabControllerState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tab_controller.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "846704d85c248d903e98a2fc81d8ca304536acba",
+        "fileSha256": "ede79e2b1dac0d8cd23495d4f280234c638a603494c3f96b9b42d6f9b5bda1dc",
+        "canonicalSpan": {
+          "offset": 15242,
+          "length": 1723,
+          "line": 458,
+          "sha256": "e0f99d0df375a926aa6697e0641309b857e3eaca38d3b4a03d05433f5c81e0e5",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tab-controller.ts",
+        "module": "@nelyx/material/tab-controller",
+        "sha256": "7f7d7ed5574386437d861944ccc87ec05ff24d87aab5f88f632b19c9ab2bac88"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Shared tab selection, ticker ownership, animation and inherited DefaultTabController replacement.",
+      "acceptance": []
+    },
+    {
+      "id": "c65cf4905fffb658d16f",
+      "qualifiedId": "package:flutter/src/material/constants.dart::kTabScrollDuration:TOP_LEVEL_VARIABLE",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/constants.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "179e1b233a194e31d636b9c19f95947727d0190b",
+        "fileSha256": "3735c9dcd5c942ecdf0df284b6ce92c5ae0b8a398bd92becbe431bd138857d85",
+        "canonicalSpan": {
+          "offset": 1944,
+          "length": 48,
+          "line": 51,
+          "sha256": "25cd7ebf5e595dac8ea9279360ca4c12935dedfc731226636a86ed7d88b6ffd3",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/constants.ts",
+        "module": "@nelyx/material/constants",
+        "sha256": "735054c348ca4b375c22451b6945a4629594745436e6adc027a52c06bd62d252"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Tab spacing and controller duration, using Core EdgeInsets and scheduler milliseconds.",
+      "acceptance": []
+    },
+    {
+      "id": "c2a6296f19be996129c2",
+      "qualifiedId": "package:flutter/src/material/constants.dart::kTabLabelPadding:TOP_LEVEL_VARIABLE",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/constants.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "179e1b233a194e31d636b9c19f95947727d0190b",
+        "fileSha256": "3735c9dcd5c942ecdf0df284b6ce92c5ae0b8a398bd92becbe431bd138857d85",
+        "canonicalSpan": {
+          "offset": 2059,
+          "length": 57,
+          "line": 54,
+          "sha256": "210f8ad5571a1daa4ff7e00510df533eb0e86e58d98f74f29052256ea79d17fc",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/constants.ts",
+        "module": "@nelyx/material/constants",
+        "sha256": "735054c348ca4b375c22451b6945a4629594745436e6adc027a52c06bd62d252"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Tab spacing and controller duration, using Core EdgeInsets and scheduler milliseconds.",
+      "acceptance": []
+    },
+    {
+      "id": "a14d8d435b1842f262f5",
+      "qualifiedId": "package:flutter/src/material/tabs.dart::Tab:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tabs.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a56362b463a0f44a17bfef560c2e1fcf8cdf3a44",
+        "fileSha256": "e18be7eca8375a5cc914cc6aa5e79da44511eb62ffcf8553d378c107854b1fe6",
+        "canonicalSpan": {
+          "offset": 3350,
+          "length": 4410,
+          "line": 104,
+          "sha256": "fece5a18a07b3208d93b4e6a64fd103467bbfc3b3c2d50988fe1712d23664e51",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tabs.ts",
+        "module": "@nelyx/material/tabs",
+        "sha256": "d5728ef87c154db10a739b351ee33618e6b5d0e04cb624f49c8f2055e52e590b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 primary and secondary tabs, indicator painting and selection on the Core PageView owner.",
+      "acceptance": []
+    },
+    {
+      "id": "856d4d7161661c5b52e9",
+      "qualifiedId": "package:flutter/src/material/tabs.dart::TabBar:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tabs.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a56362b463a0f44a17bfef560c2e1fcf8cdf3a44",
+        "fileSha256": "e18be7eca8375a5cc914cc6aa5e79da44511eb62ffcf8553d378c107854b1fe6",
+        "canonicalSpan": {
+          "offset": 32142,
+          "length": 24252,
+          "line": 933,
+          "sha256": "3a721f80a1d266693f4e848f084437a16727c693b71132e137e9630774112fd3",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tabs.ts",
+        "module": "@nelyx/material/tabs",
+        "sha256": "d5728ef87c154db10a739b351ee33618e6b5d0e04cb624f49c8f2055e52e590b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 primary and secondary tabs, indicator painting and selection on the Core PageView owner.",
+      "acceptance": []
+    },
+    {
+      "id": "fa5142032e5fd62257d4",
+      "qualifiedId": "package:flutter/src/material/tabs.dart::TabBarView:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tabs.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a56362b463a0f44a17bfef560c2e1fcf8cdf3a44",
+        "fileSha256": "e18be7eca8375a5cc914cc6aa5e79da44511eb62ffcf8553d378c107854b1fe6",
+        "canonicalSpan": {
+          "offset": 80882,
+          "length": 2139,
+          "line": 2200,
+          "sha256": "8f67e15a3d6a625fb3fb91f6893dffab47e1588f367995b0715010e19d9a7e94",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tabs.ts",
+        "module": "@nelyx/material/tabs",
+        "sha256": "d5728ef87c154db10a739b351ee33618e6b5d0e04cb624f49c8f2055e52e590b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 primary and secondary tabs, indicator painting and selection on the Core PageView owner.",
+      "acceptance": []
+    },
+    {
+      "id": "2c52229568c442027e82",
+      "qualifiedId": "package:flutter/src/material/tabs.dart::TabPageSelector:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tabs.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a56362b463a0f44a17bfef560c2e1fcf8cdf3a44",
+        "fileSha256": "e18be7eca8375a5cc914cc6aa5e79da44511eb62ffcf8553d378c107854b1fe6",
+        "canonicalSpan": {
+          "offset": 92839,
+          "length": 1655,
+          "line": 2581,
+          "sha256": "8a8ede815d04af5a8e1284033f1cc05891d67bdd4573b247e9dc5d62f0a62839",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tabs.ts",
+        "module": "@nelyx/material/tabs",
+        "sha256": "d5728ef87c154db10a739b351ee33618e6b5d0e04cb624f49c8f2055e52e590b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 primary and secondary tabs, indicator painting and selection on the Core PageView owner.",
+      "acceptance": []
+    },
+    {
+      "id": "c3ee3471b86f8499e079",
+      "qualifiedId": "package:flutter/src/material/tabs.dart::TabPageSelectorIndicator:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tabs.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a56362b463a0f44a17bfef560c2e1fcf8cdf3a44",
+        "fileSha256": "e18be7eca8375a5cc914cc6aa5e79da44511eb62ffcf8553d378c107854b1fe6",
+        "canonicalSpan": {
+          "offset": 91666,
+          "length": 1171,
+          "line": 2538,
+          "sha256": "abfa21dd6b56c597fedf2349ea2b2ce6d517f13a0eb85ded953d341ce945f250",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tabs.ts",
+        "module": "@nelyx/material/tabs",
+        "sha256": "d5728ef87c154db10a739b351ee33618e6b5d0e04cb624f49c8f2055e52e590b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 primary and secondary tabs, indicator painting and selection on the Core PageView owner.",
+      "acceptance": []
+    },
+    {
+      "id": "6d49b10ddb5d01baa2a7",
+      "qualifiedId": "package:flutter/src/material/tabs.dart::TabValueChanged:TYPE_ALIAS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tabs.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a56362b463a0f44a17bfef560c2e1fcf8cdf3a44",
+        "fileSha256": "e18be7eca8375a5cc914cc6aa5e79da44511eb62ffcf8553d378c107854b1fe6",
+        "canonicalSpan": {
+          "offset": 31693,
+          "length": 447,
+          "line": 924,
+          "sha256": "4bda037e4dc8108e9c0a605e7ddb6c1b8a2972649ff68edfb5a74d34632a807c",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tabs.ts",
+        "module": "@nelyx/material/tabs",
+        "sha256": "d5728ef87c154db10a739b351ee33618e6b5d0e04cb624f49c8f2055e52e590b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 primary and secondary tabs, indicator painting and selection on the Core PageView owner.",
+      "acceptance": []
+    },
+    {
+      "id": "78e3a24f8047b8fd9b87",
+      "qualifiedId": "package:flutter/src/material/tabs.dart::_TabBarState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tabs.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a56362b463a0f44a17bfef560c2e1fcf8cdf3a44",
+        "fileSha256": "e18be7eca8375a5cc914cc6aa5e79da44511eb62ffcf8553d378c107854b1fe6",
+        "canonicalSpan": {
+          "offset": 56396,
+          "length": 24484,
+          "line": 1544,
+          "sha256": "7dbeac771c4fff752e0798ab84091dd2f403ff50f8f043255b870ced73e09e50",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tabs.ts",
+        "module": "@nelyx/material/tabs",
+        "sha256": "d5728ef87c154db10a739b351ee33618e6b5d0e04cb624f49c8f2055e52e590b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 primary and secondary tabs, indicator painting and selection on the Core PageView owner.",
+      "acceptance": []
+    },
+    {
+      "id": "c0385bbdf9f4f87f7df2",
+      "qualifiedId": "package:flutter/src/material/tabs.dart::_TabBarViewState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tabs.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a56362b463a0f44a17bfef560c2e1fcf8cdf3a44",
+        "fileSha256": "e18be7eca8375a5cc914cc6aa5e79da44511eb62ffcf8553d378c107854b1fe6",
+        "canonicalSpan": {
+          "offset": 83023,
+          "length": 8641,
+          "line": 2266,
+          "sha256": "4c83a1048b64e44d1a4b47eb1eba7527b47fea9e64940f178a24b1913b18af3b",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tabs.ts",
+        "module": "@nelyx/material/tabs",
+        "sha256": "d5728ef87c154db10a739b351ee33618e6b5d0e04cb624f49c8f2055e52e590b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 primary and secondary tabs, indicator painting and selection on the Core PageView owner.",
+      "acceptance": []
+    },
+    {
+      "id": "95e451f21394695e47c0",
+      "qualifiedId": "package:flutter/src/material/tabs.dart::_IndicatorPainter:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tabs.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "a56362b463a0f44a17bfef560c2e1fcf8cdf3a44",
+        "fileSha256": "e18be7eca8375a5cc914cc6aa5e79da44511eb62ffcf8553d378c107854b1fe6",
+        "canonicalSpan": {
+          "offset": 16181,
+          "length": 10997,
+          "line": 484,
+          "sha256": "1ad1a167f208f0e10c1b9a8e79bf2f3091ba286b3d55ab99488ba03f19c9e516",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tabs.ts",
+        "module": "@nelyx/material/tabs",
+        "sha256": "d5728ef87c154db10a739b351ee33618e6b5d0e04cb624f49c8f2055e52e590b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 primary and secondary tabs, indicator painting and selection on the Core PageView owner.",
+      "acceptance": []
+    },
+    {
+      "id": "aa0a1b12ae206c4711c9",
+      "qualifiedId": "package:flutter/src/material/tab_indicator.dart::UnderlineTabIndicator:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tab_indicator.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "4f24fc703f700e59a936603ddf27cb1d7ccd101a",
+        "fileSha256": "19079b4547e83d8ecae7a71d0e7cac7f793a7a3391c576df106d926f5089fbd1",
+        "canonicalSpan": {
+          "offset": 266,
+          "length": 2733,
+          "line": 12,
+          "sha256": "dbdfa392d3c7677bf8a2b9fafa324e71efa50e80495a02cc0b2517859d042928",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tab-indicator.ts",
+        "module": "@nelyx/material/tab-indicator",
+        "sha256": "ceff58aedf3c469110b04ba2974a21327649284ae3824ebb17a90f826f30c1cc"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Tab underline decoration on the Core Canvas and BoxPainter owners.",
+      "acceptance": []
+    },
+    {
+      "id": "4f9b967783224e46999b",
+      "qualifiedId": "package:flutter/src/material/tab_indicator.dart::_UnderlinePainter:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/tab_indicator.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "4f24fc703f700e59a936603ddf27cb1d7ccd101a",
+        "fileSha256": "19079b4547e83d8ecae7a71d0e7cac7f793a7a3391c576df106d926f5089fbd1",
+        "canonicalSpan": {
+          "offset": 3001,
+          "length": 1256,
+          "line": 92,
+          "sha256": "639b844f1a78fcdef88dbd51a7d05c76c8537ca8c14611539c67d17355b87f47",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/tab-indicator.ts",
+        "module": "@nelyx/material/tab-indicator",
+        "sha256": "ceff58aedf3c469110b04ba2974a21327649284ae3824ebb17a90f826f30c1cc"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Tab underline decoration on the Core Canvas and BoxPainter owners.",
+      "acceptance": []
+    },
+    {
+      "id": "e2cf94c2d3f2bca58a40",
+      "qualifiedId": "package:flutter/src/material/time.dart::DayPeriod:ENUM",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/time.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c38d7da3d1066245d67fbca4d9d546bf5c41d5c8",
+        "fileSha256": "414d79158d5ed56ac608f84c4bc5cea3a3fb8fcb6fc384d572cc9a238ce4945c",
+        "canonicalSpan": {
+          "offset": 350,
+          "length": 153,
+          "line": 14,
+          "sha256": "bb4884a9aa89bebf247c69c630ce3331ba03f2262b9d4c6c918c4d280505e3fc",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/time.ts",
+        "module": "@nelyx/material/time",
+        "sha256": "3349335a9dfc73aaf50dbf04092887657eedda56aa4ddc86edf89dde3872168b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Immutable time-of-day model, original restoration wire order, format classification and pinned Material locale data.",
+      "acceptance": []
+    },
+    {
+      "id": "4e0511906da028eba584",
+      "qualifiedId": "package:flutter/src/material/time.dart::TimeOfDay:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/time.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c38d7da3d1066245d67fbca4d9d546bf5c41d5c8",
+        "fileSha256": "414d79158d5ed56ac608f84c4bc5cea3a3fb8fcb6fc384d572cc9a238ce4945c",
+        "canonicalSpan": {
+          "offset": 505,
+          "length": 5545,
+          "line": 23,
+          "sha256": "f5d2e7f5df2ed83480c9698c32eda0dac51b1027e768ed53e4a746a81dd37b8f",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/time.ts",
+        "module": "@nelyx/material/time",
+        "sha256": "3349335a9dfc73aaf50dbf04092887657eedda56aa4ddc86edf89dde3872168b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Immutable time-of-day model, original restoration wire order, format classification and pinned Material locale data.",
+      "acceptance": []
+    },
+    {
+      "id": "7b3f43ca52c2cdbae0de",
+      "qualifiedId": "package:flutter/src/material/time.dart::RestorableTimeOfDay:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/time.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c38d7da3d1066245d67fbca4d9d546bf5c41d5c8",
+        "fileSha256": "414d79158d5ed56ac608f84c4bc5cea3a3fb8fcb6fc384d572cc9a238ce4945c",
+        "canonicalSpan": {
+          "offset": 6052,
+          "length": 924,
+          "line": 172,
+          "sha256": "cb788c649f6fbd9508433c309a6eefddf8f3bc2d01de9dbedaf80bd445ff93b6",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/time.ts",
+        "module": "@nelyx/material/time",
+        "sha256": "3349335a9dfc73aaf50dbf04092887657eedda56aa4ddc86edf89dde3872168b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Immutable time-of-day model, original restoration wire order, format classification and pinned Material locale data.",
+      "acceptance": []
+    },
+    {
+      "id": "ce88c8eed996100315de",
+      "qualifiedId": "package:flutter/src/material/time.dart::TimeOfDayFormat:ENUM",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/time.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c38d7da3d1066245d67fbca4d9d546bf5c41d5c8",
+        "fileSha256": "414d79158d5ed56ac608f84c4bc5cea3a3fb8fcb6fc384d572cc9a238ce4945c",
+        "canonicalSpan": {
+          "offset": 6978,
+          "length": 2049,
+          "line": 203,
+          "sha256": "78ebca93998c29ea6b8d02c57d70c2092000f97f45c29e0edf5b17b2e795d8dd",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/time.ts",
+        "module": "@nelyx/material/time",
+        "sha256": "3349335a9dfc73aaf50dbf04092887657eedda56aa4ddc86edf89dde3872168b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Immutable time-of-day model, original restoration wire order, format classification and pinned Material locale data.",
+      "acceptance": []
+    },
+    {
+      "id": "6f7808deccd3c296c8b4",
+      "qualifiedId": "package:flutter/src/material/time.dart::HourFormat:ENUM",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/time.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c38d7da3d1066245d67fbca4d9d546bf5c41d5c8",
+        "fileSha256": "414d79158d5ed56ac608f84c4bc5cea3a3fb8fcb6fc384d572cc9a238ce4945c",
+        "canonicalSpan": {
+          "offset": 9029,
+          "length": 311,
+          "line": 255,
+          "sha256": "9fd3f2c88a2eba77cae635c90f268a1c394ff8a1d9b97366d1a7e44876dd4048",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/time.ts",
+        "module": "@nelyx/material/time",
+        "sha256": "3349335a9dfc73aaf50dbf04092887657eedda56aa4ddc86edf89dde3872168b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Immutable time-of-day model, original restoration wire order, format classification and pinned Material locale data.",
+      "acceptance": []
+    },
+    {
+      "id": "9efad0bdc896c72cd1ad",
+      "qualifiedId": "package:flutter/src/material/time.dart::hourFormat:FUNCTION",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/time.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c38d7da3d1066245d67fbca4d9d546bf5c41d5c8",
+        "fileSha256": "414d79158d5ed56ac608f84c4bc5cea3a3fb8fcb6fc384d572cc9a238ce4945c",
+        "canonicalSpan": {
+          "offset": 9342,
+          "length": 384,
+          "line": 268,
+          "sha256": "436102ae280d9c10fe144888350c2d824c85809259721d3b3dbcc327825f1003",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/time.ts",
+        "module": "@nelyx/material/time",
+        "sha256": "3349335a9dfc73aaf50dbf04092887657eedda56aa4ddc86edf89dde3872168b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Immutable time-of-day model, original restoration wire order, format classification and pinned Material locale data.",
+      "acceptance": []
+    },
+    {
+      "id": "1a11734af607a3a816c5",
+      "qualifiedId": "package:flutter/src/material/time_picker.dart::TimePickerEntryMode:ENUM",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/time_picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "35c69661905a2b280e315a2cee3e4d7d13fa5e3f",
+        "fileSha256": "bf9998e0b8280e6448774c41a95910c9233b910f396aa010f02928431f65d9d8",
+        "canonicalSpan": {
+          "offset": 1517,
+          "length": 1023,
+          "line": 53,
+          "sha256": "43669d5b5363d06f6cae701108205dcdbacdf736fe398322f22581cd6c2abac5",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/time-picker.ts",
+        "module": "@nelyx/material/time-picker",
+        "sha256": "98458cec40bdfc10fe1d9c3651cc766515d007dcd39de954edccbc0847544673"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Dial and text time selection, validation, entry mode changes and dialog results. Exact rendering, foldable placement and host feedback await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "a5691d3b4eadfede4179",
+      "qualifiedId": "package:flutter/src/material/time_picker.dart::TimePickerDialog:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/time_picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "35c69661905a2b280e315a2cee3e4d7d13fa5e3f",
+        "fileSha256": "bf9998e0b8280e6448774c41a95910c9233b910f396aa010f02928431f65d9d8",
+        "canonicalSpan": {
+          "offset": 80720,
+          "length": 3633,
+          "line": 2289,
+          "sha256": "4bb573e2c7989e4b41550a1083dcf97391f5686f9197c7e092aeb0adaa8fe2f0",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/time-picker.ts",
+        "module": "@nelyx/material/time-picker",
+        "sha256": "98458cec40bdfc10fe1d9c3651cc766515d007dcd39de954edccbc0847544673"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Dial and text time selection, validation, entry mode changes and dialog results. Exact rendering, foldable placement and host feedback await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "bc5cae87a6ebef6e3af4",
+      "qualifiedId": "package:flutter/src/material/time_picker.dart::_TimePickerDialogState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/time_picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "35c69661905a2b280e315a2cee3e4d7d13fa5e3f",
+        "fileSha256": "bf9998e0b8280e6448774c41a95910c9233b910f396aa010f02928431f65d9d8",
+        "canonicalSpan": {
+          "offset": 84355,
+          "length": 15167,
+          "line": 2391,
+          "sha256": "59949a2fe956d5fe46777b378b9c5af34aedebc56697ecc77531e094799a7eb4",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/time-picker.ts",
+        "module": "@nelyx/material/time-picker",
+        "sha256": "98458cec40bdfc10fe1d9c3651cc766515d007dcd39de954edccbc0847544673"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Dial and text time selection, validation, entry mode changes and dialog results. Exact rendering, foldable placement and host feedback await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "ac2d5bab591e876a9129",
+      "qualifiedId": "package:flutter/src/material/time_picker.dart::showTimePicker:FUNCTION",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/time_picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "35c69661905a2b280e315a2cee3e4d7d13fa5e3f",
+        "fileSha256": "bf9998e0b8280e6448774c41a95910c9233b910f396aa010f02928431f65d9d8",
+        "canonicalSpan": {
+          "offset": 113016,
+          "length": 5846,
+          "line": 3138,
+          "sha256": "ddce46eab93c7eaca76a43c4d7cfba89019fb5d8f0329b5b21622c9eddc0f487",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/time-picker.ts",
+        "module": "@nelyx/material/time-picker",
+        "sha256": "98458cec40bdfc10fe1d9c3651cc766515d007dcd39de954edccbc0847544673"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Dial and text time selection, validation, entry mode changes and dialog results. Exact rendering, foldable placement and host feedback await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "416ba08fbe5acedaa6d7",
+      "qualifiedId": "package:flutter/src/material/scaffold.dart::Scaffold:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "77fe00ecebe92550723a74e2aa9fe43710813516",
+        "fileSha256": "c8b4f9850f411dcaa33d0535e39f3fba176e8aa3f215d10c5f4f446ec3b52d0d",
+        "canonicalSpan": {
+          "offset": 60295,
+          "length": 28981,
+          "line": 1546,
+          "sha256": "e8d6312d488cf48c36d868613ecba51c43d6bf64963febfffd30f69ef63110fb",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/scaffold.ts",
+        "module": "@nelyx/material/scaffold",
+        "sha256": "61332804e3ea6d186141427b1d2865fb4ff55c4ae49864ca6168c9ad3a532509"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 page layout for app bar, body, bottom navigation bar, keyboard inset and end-float action. Existing positional construction remains available.",
+      "acceptance": []
+    },
+    {
+      "id": "29352a3ab48091fd9911",
+      "qualifiedId": "package:flutter/src/material/scaffold.dart::ScaffoldState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "77fe00ecebe92550723a74e2aa9fe43710813516",
+        "fileSha256": "c8b4f9850f411dcaa33d0535e39f3fba176e8aa3f215d10c5f4f446ec3b52d0d",
+        "canonicalSpan": {
+          "offset": 89278,
+          "length": 38915,
+          "line": 2188,
+          "sha256": "aecf5dc97b17636497a0e8a9f845f23123210e378590b21f7bd451768aa685f9",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/scaffold.ts",
+        "module": "@nelyx/material/scaffold",
+        "sha256": "61332804e3ea6d186141427b1d2865fb4ff55c4ae49864ca6168c9ad3a532509"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 page layout for app bar, body, bottom navigation bar, keyboard inset and end-float action. Existing positional construction remains available.",
+      "acceptance": []
+    },
+    {
+      "id": "a93f224289182b4559fc",
+      "qualifiedId": "package:flutter/src/material/scaffold.dart::_ScaffoldLayout:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "77fe00ecebe92550723a74e2aa9fe43710813516",
+        "fileSha256": "c8b4f9850f411dcaa33d0535e39f3fba176e8aa3f215d10c5f4f446ec3b52d0d",
+        "canonicalSpan": {
+          "offset": 37744,
+          "length": 13648,
+          "line": 988,
+          "sha256": "91486b407b20799afa2c2d6b456a60ff9ce84e5bac53d2cdfa051dad96242295",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/scaffold.ts",
+        "module": "@nelyx/material/scaffold",
+        "sha256": "61332804e3ea6d186141427b1d2865fb4ff55c4ae49864ca6168c9ad3a532509"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 page layout for app bar, body, bottom navigation bar, keyboard inset and end-float action. Existing positional construction remains available.",
+      "acceptance": []
+    },
+    {
+      "id": "36ea08ad69107fded177",
+      "qualifiedId": "package:flutter/src/material/scaffold.dart::ScaffoldMessenger:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "77fe00ecebe92550723a74e2aa9fe43710813516",
+        "fileSha256": "c8b4f9850f411dcaa33d0535e39f3fba176e8aa3f215d10c5f4f446ec3b52d0d",
+        "canonicalSpan": {
+          "offset": 2260,
+          "length": 4683,
+          "line": 79,
+          "sha256": "1eec3a0cb7ecd3820eb977d062fcbf0fd85353230a059720567d692bd0b6684d",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/scaffold-messenger.ts",
+        "module": "@nelyx/material/scaffold-messenger",
+        "sha256": "9902d6330af6c334d94660d2dd64536e9bde80cc2d35e00936b15712af379ba9"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Scaffold registration and snack bar queue, animation, timeout and closed results on the shared View owner.",
+      "acceptance": []
+    },
+    {
+      "id": "1ca3da1028807e6301b3",
+      "qualifiedId": "package:flutter/src/material/scaffold.dart::ScaffoldMessengerState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "77fe00ecebe92550723a74e2aa9fe43710813516",
+        "fileSha256": "c8b4f9850f411dcaa33d0535e39f3fba176e8aa3f215d10c5f4f446ec3b52d0d",
+        "canonicalSpan": {
+          "offset": 6945,
+          "length": 17875,
+          "line": 184,
+          "sha256": "efca313ec2f95307a266480a4b79805d56db8a44baba19871f6914a8f6a1f216",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/scaffold-messenger.ts",
+        "module": "@nelyx/material/scaffold-messenger",
+        "sha256": "9902d6330af6c334d94660d2dd64536e9bde80cc2d35e00936b15712af379ba9"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Scaffold registration and snack bar queue, animation, timeout and closed results on the shared View owner.",
+      "acceptance": []
+    },
+    {
+      "id": "56ad035d27db65e2357e",
+      "qualifiedId": "package:flutter/src/material/scaffold.dart::ScaffoldFeatureController:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "77fe00ecebe92550723a74e2aa9fe43710813516",
+        "fileSha256": "c8b4f9850f411dcaa33d0535e39f3fba176e8aa3f215d10c5f4f446ec3b52d0d",
+        "canonicalSpan": {
+          "offset": 128754,
+          "length": 736,
+          "line": 3288,
+          "sha256": "fdb537e8775b14baefd7097f61ab62dde04f4949a6b91f973ac7b3527c5e74aa",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/scaffold-messenger.ts",
+        "module": "@nelyx/material/scaffold-messenger",
+        "sha256": "9902d6330af6c334d94660d2dd64536e9bde80cc2d35e00936b15712af379ba9"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Scaffold registration and snack bar queue, animation, timeout and closed results on the shared View owner.",
+      "acceptance": []
+    },
+    {
+      "id": "b68501d430c4283715e8",
+      "qualifiedId": "package:flutter/src/material/scaffold.dart::_ScaffoldMessengerScope:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "77fe00ecebe92550723a74e2aa9fe43710813516",
+        "fileSha256": "c8b4f9850f411dcaa33d0535e39f3fba176e8aa3f215d10c5f4f446ec3b52d0d",
+        "canonicalSpan": {
+          "offset": 24822,
+          "length": 343,
+          "line": 645,
+          "sha256": "62fe661e703c171f4a0a1f251d32d10cef92dd8d85b044219fff8f4bb939fc13",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/scaffold-messenger.ts",
+        "module": "@nelyx/material/scaffold-messenger",
+        "sha256": "9902d6330af6c334d94660d2dd64536e9bde80cc2d35e00936b15712af379ba9"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Scaffold registration and snack bar queue, animation, timeout and closed results on the shared View owner.",
+      "acceptance": []
+    },
+    {
+      "id": "79564c263394d4947421",
+      "qualifiedId": "package:flutter/src/material/snack_bar.dart::SnackBar:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/snack_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "dda6a12b1050e69ca32f3971be459adffbd56eb6",
+        "fileSha256": "2d75a8034c52f61f30da250f78fe9b79452bc29c54c50c2400d5d107cfc2260e",
+        "canonicalSpan": {
+          "offset": 7445,
+          "length": 12594,
+          "line": 217,
+          "sha256": "892c266d44849f4b2a026663735f553cacda6834ff5e6ab0c8ba244b64747fd6",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/snack-bar.ts",
+        "module": "@nelyx/material/snack-bar",
+        "sha256": "b422b6b815a9bfb6d75a8b99e3a52092f785176300651263f287b1199b80556d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 snack bar surface, single-use action, swipe, semantics and fixed and floating layout.",
+      "acceptance": []
+    },
+    {
+      "id": "5bed995f2c24b434cdbc",
+      "qualifiedId": "package:flutter/src/material/snack_bar.dart::SnackBarAction:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/snack_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "dda6a12b1050e69ca32f3971be459adffbd56eb6",
+        "fileSha256": "2d75a8034c52f61f30da250f78fe9b79452bc29c54c50c2400d5d107cfc2260e",
+        "canonicalSpan": {
+          "offset": 2407,
+          "length": 2364,
+          "line": 76,
+          "sha256": "3022fd72b5ed8170779ae77c42214cd5ea0c948e84e91a37012df9d26f429342",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/snack-bar.ts",
+        "module": "@nelyx/material/snack-bar",
+        "sha256": "b422b6b815a9bfb6d75a8b99e3a52092f785176300651263f287b1199b80556d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 snack bar surface, single-use action, swipe, semantics and fixed and floating layout.",
+      "acceptance": []
+    },
+    {
+      "id": "b2edd553e8772ae939a3",
+      "qualifiedId": "package:flutter/src/material/snack_bar.dart::SnackBarClosedReason:ENUM",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/snack_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "dda6a12b1050e69ca32f3971be459adffbd56eb6",
+        "fileSha256": "2d75a8034c52f61f30da250f78fe9b79452bc29c54c50c2400d5d107cfc2260e",
+        "canonicalSpan": {
+          "offset": 1236,
+          "length": 1169,
+          "line": 37,
+          "sha256": "b9643ef2fe4b268f8d51e1afae7fd9753f8c64693421996bf84b238f4901a839",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/snack-bar.ts",
+        "module": "@nelyx/material/snack-bar",
+        "sha256": "b422b6b815a9bfb6d75a8b99e3a52092f785176300651263f287b1199b80556d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 snack bar surface, single-use action, swipe, semantics and fixed and floating layout.",
+      "acceptance": []
+    },
+    {
+      "id": "631005df7924ac012d91",
+      "qualifiedId": "package:flutter/src/material/snack_bar.dart::_SnackBarState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/snack_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "dda6a12b1050e69ca32f3971be459adffbd56eb6",
+        "fileSha256": "2d75a8034c52f61f30da250f78fe9b79452bc29c54c50c2400d5d107cfc2260e",
+        "canonicalSpan": {
+          "offset": 20041,
+          "length": 12649,
+          "line": 545,
+          "sha256": "e85f5a810eaf8a19536349c2dac22a45b0e86f560f2989c381b198b85b6f80bd",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/snack-bar.ts",
+        "module": "@nelyx/material/snack-bar",
+        "sha256": "b422b6b815a9bfb6d75a8b99e3a52092f785176300651263f287b1199b80556d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 snack bar surface, single-use action, swipe, semantics and fixed and floating layout.",
+      "acceptance": []
+    },
+    {
+      "id": "c69dcb5f79722e61f4be",
+      "qualifiedId": "package:flutter/src/material/snack_bar.dart::_SnackBarActionState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/snack_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "dda6a12b1050e69ca32f3971be459adffbd56eb6",
+        "fileSha256": "2d75a8034c52f61f30da250f78fe9b79452bc29c54c50c2400d5d107cfc2260e",
+        "canonicalSpan": {
+          "offset": 4773,
+          "length": 2670,
+          "line": 143,
+          "sha256": "0228b3c2935dbabb48881629257eeec55ace5669c12093d68ef25c401a9f37ec",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/snack-bar.ts",
+        "module": "@nelyx/material/snack-bar",
+        "sha256": "b422b6b815a9bfb6d75a8b99e3a52092f785176300651263f287b1199b80556d"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Material 3 snack bar surface, single-use action, swipe, semantics and fixed and floating layout.",
+      "acceptance": []
+    },
+    {
       "id": "a9c458c9efa90197a517",
       "qualifiedId": "package:flutter/src/material/expansion_panel.dart::ExpansionPanel:CLASS",
       "package": "@nelyx/material",
@@ -1535,7 +4262,7 @@
       "destination": {
         "file": "packages/cupertino/src/timer-picker.ts",
         "module": "@nelyx/cupertino/timer-picker",
-        "sha256": "13399126f54c406ca6ad8b03bc42537fe8c813fe03f9a523cf475bb0dc543fdd"
+        "sha256": "ea4548bea736e1c36c6799ef28ee76bbb9b7530a080264a5053726f05ef4652b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -1562,11 +4289,443 @@
       "destination": {
         "file": "packages/cupertino/src/timer-picker.ts",
         "module": "@nelyx/cupertino/timer-picker",
-        "sha256": "13399126f54c406ca6ad8b03bc42537fe8c813fe03f9a523cf475bb0dc543fdd"
+        "sha256": "ea4548bea736e1c36c6799ef28ee76bbb9b7530a080264a5053726f05ef4652b"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
       "scope": "Timer modes and change notifications on the shared Cupertino wheel. Full Flutter and native parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "cdffd4b60318a9ef0aec",
+      "qualifiedId": "package:flutter/src/cupertino/date_picker.dart::CupertinoDatePicker:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/date_picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c1aeb9c20725bcb4ee823fbb236309e4fe6d021f",
+        "fileSha256": "6b143692dcbece382c161f08630e0774c7d4a8abba3ef71cc4a7fdfe4e17f1eb",
+        "canonicalSpan": {
+          "offset": 7859,
+          "length": 17514,
+          "line": 217,
+          "sha256": "36b6f58378396e06a3b6e753a7264c68f86727c99646655e286ccbda7bccadeb",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/date-picker.ts",
+        "module": "@nelyx/cupertino/date-picker",
+        "sha256": "68cca3861bdd9b290389c1d1cc3ca5af14063733ba818047f6592fa6aaa493dd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Four date and time modes using the shared date value and wheel controllers. Source font measurement and native parity are pending.",
+      "acceptance": []
+    },
+    {
+      "id": "2c8cd23ad752da76bcad",
+      "qualifiedId": "package:flutter/src/cupertino/date_picker.dart::CupertinoDatePickerMode:ENUM",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/date_picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "c1aeb9c20725bcb4ee823fbb236309e4fe6d021f",
+        "fileSha256": "6b143692dcbece382c161f08630e0774c7d4a8abba3ef71cc4a7fdfe4e17f1eb",
+        "canonicalSpan": {
+          "offset": 5989,
+          "length": 1352,
+          "line": 159,
+          "sha256": "265e4fdd906a2f3f7d249133da34965271b36e34e76b951f60f76b3a342cb885",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/date-picker.ts",
+        "module": "@nelyx/cupertino/date-picker",
+        "sha256": "68cca3861bdd9b290389c1d1cc3ca5af14063733ba818047f6592fa6aaa493dd"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Four date and time modes using the shared date value and wheel controllers. Source font measurement and native parity are pending.",
+      "acceptance": []
+    },
+    {
+      "id": "a2d56427d09fe3d6e51a",
+      "qualifiedId": "package:flutter/src/cupertino/localizations.dart::DatePickerDateOrder:ENUM",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/localizations.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "88113a7479069838744e058e9bd54a68558a4251",
+        "fileSha256": "ac91942fe64129541b8b076965c7cd897de546a69fdb1a64ce135ef65f851bc4",
+        "canonicalSpan": {
+          "offset": 1234,
+          "length": 566,
+          "line": 44,
+          "sha256": "35194d669aa031f4cfe23196c2568d6bbbe57b33271b0fe880c645c1f666141e",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/cupertino-localizations.ts",
+        "module": "@nelyx/cupertino/cupertino-localizations",
+        "sha256": "c414a550bb81505a4aaa58d413230527fa3c0d42496bca9d13c3792d55a8897e"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Date column ordering and picker labels from the pinned locale tables.",
+      "acceptance": []
+    },
+    {
+      "id": "5cf6e30fa17023730fd4",
+      "qualifiedId": "package:flutter/src/cupertino/localizations.dart::DatePickerDateTimeOrder:ENUM",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/localizations.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "88113a7479069838744e058e9bd54a68558a4251",
+        "fileSha256": "ac91942fe64129541b8b076965c7cd897de546a69fdb1a64ce135ef65f851bc4",
+        "canonicalSpan": {
+          "offset": 512,
+          "length": 720,
+          "line": 20,
+          "sha256": "c89695a4baa2497e919fefd8ce9bca7325a72a6843b10da3d4f6cee1e7efffeb",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/cupertino-localizations.ts",
+        "module": "@nelyx/cupertino/cupertino-localizations",
+        "sha256": "c414a550bb81505a4aaa58d413230527fa3c0d42496bca9d13c3792d55a8897e"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Date column ordering and picker labels from the pinned locale tables.",
+      "acceptance": []
+    },
+    {
+      "id": "6bfd79b4ed82f16cfb66",
+      "qualifiedId": "package:flutter/src/cupertino/route.dart::CupertinoModalPopupRoute:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/route.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "3f8cfa7496f8ac7c0f420bfa7fdaf1c01a7dbd80",
+        "fileSha256": "1224c2f9aa317c15680019cf3943de14c9c9ec7044da1c8319c009a7802e86e0",
+        "canonicalSpan": {
+          "offset": 39069,
+          "length": 4212,
+          "line": 1117,
+          "sha256": "506685ce918ff125ec5ce555355497640550f3dadbfb067459cfbef59f908acd",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/route.ts",
+        "module": "@nelyx/cupertino/route",
+        "sha256": "73cdc2fa33b363802c37e697ea34e0b7016e4069ea15a045c11d3a8d2eb4ce6b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Bottom-aligned popup on the shared Navigator, with the original spring and optional scrim filtering. Foldable placement and native parity are pending.",
+      "acceptance": []
+    },
+    {
+      "id": "40eefe4ad780d5f65e6a",
+      "qualifiedId": "package:flutter/src/cupertino/route.dart::showCupertinoModalPopup:FUNCTION",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/route.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "3f8cfa7496f8ac7c0f420bfa7fdaf1c01a7dbd80",
+        "fileSha256": "1224c2f9aa317c15680019cf3943de14c9c9ec7044da1c8319c009a7802e86e0",
+        "canonicalSpan": {
+          "offset": 43283,
+          "length": 3959,
+          "line": 1246,
+          "sha256": "74173bd9104f6db12101b5bbb3db8102721895a311c7f5646139f88e2e781e23",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/route.ts",
+        "module": "@nelyx/cupertino/route",
+        "sha256": "73cdc2fa33b363802c37e697ea34e0b7016e4069ea15a045c11d3a8d2eb4ce6b"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Bottom-aligned popup on the shared Navigator, with the original spring and optional scrim filtering. Foldable placement and native parity are pending.",
+      "acceptance": []
+    },
+    {
+      "id": "e37a340927ec77a9daec",
+      "qualifiedId": "package:flutter/src/cupertino/sheet.dart::showCupertinoSheet:FUNCTION",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/sheet.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "8ac38dbff59ac906a7b1ba1426baf51d68019bad",
+        "fileSha256": "c1ae0c03a84783fc96adf3adc04932a35e76bef93be88c2f72d290e806f15915",
+        "canonicalSpan": {
+          "offset": 4941,
+          "length": 6554,
+          "line": 105,
+          "sha256": "488cdae0cb9f2922439bd9e66b0698176724db4b2b33d87136224969a2d510d7",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/sheet.ts",
+        "module": "@nelyx/cupertino/sheet",
+        "sha256": "e4570b57e355c8374584672652afda8b9f1acb181e51ef71353bc20a51489b1f"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Cupertino sheet transitions, provided scroll position, route results and optional nested navigation. Host system-bar effects and exact device presentation await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "4157aae24254f0a4f866",
+      "qualifiedId": "package:flutter/src/cupertino/sheet.dart::CupertinoSheetRoute:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/sheet.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "8ac38dbff59ac906a7b1ba1426baf51d68019bad",
+        "fileSha256": "c1ae0c03a84783fc96adf3adc04932a35e76bef93be88c2f72d290e806f15915",
+        "canonicalSpan": {
+          "offset": 23025,
+          "length": 7149,
+          "line": 586,
+          "sha256": "106ab09eb5de7c1697fb5b5b3ebb5f29196c224c06612429f9d0286d23a17e03",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/sheet.ts",
+        "module": "@nelyx/cupertino/sheet",
+        "sha256": "e4570b57e355c8374584672652afda8b9f1acb181e51ef71353bc20a51489b1f"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Cupertino sheet transitions, provided scroll position, route results and optional nested navigation. Host system-bar effects and exact device presentation await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "4f9ce6b2da787b16af36",
+      "qualifiedId": "package:flutter/src/cupertino/sheet.dart::CupertinoSheetTransition:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/sheet.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "8ac38dbff59ac906a7b1ba1426baf51d68019bad",
+        "fileSha256": "c1ae0c03a84783fc96adf3adc04932a35e76bef93be88c2f72d290e806f15915",
+        "canonicalSpan": {
+          "offset": 11497,
+          "length": 6302,
+          "line": 257,
+          "sha256": "a0204389ce5921a1aabe8aa029edbc1af26ab040cb03f18e01d01be0ff4a7dbd",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/sheet.ts",
+        "module": "@nelyx/cupertino/sheet",
+        "sha256": "e4570b57e355c8374584672652afda8b9f1acb181e51ef71353bc20a51489b1f"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Cupertino sheet transitions, provided scroll position, route results and optional nested navigation. Host system-bar effects and exact device presentation await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "bf443588f2731ab2f60f",
+      "qualifiedId": "package:flutter/src/cupertino/sheet.dart::_CupertinoSheetTransitionState:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/sheet.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "8ac38dbff59ac906a7b1ba1426baf51d68019bad",
+        "fileSha256": "c1ae0c03a84783fc96adf3adc04932a35e76bef93be88c2f72d290e806f15915",
+        "canonicalSpan": {
+          "offset": 17801,
+          "length": 4683,
+          "line": 429,
+          "sha256": "fa3adcd73f6d7582bf9d51c63486230ffff9dd5e376cfafdc07faa5ba954b442",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/sheet.ts",
+        "module": "@nelyx/cupertino/sheet",
+        "sha256": "e4570b57e355c8374584672652afda8b9f1acb181e51ef71353bc20a51489b1f"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Cupertino sheet transitions, provided scroll position, route results and optional nested navigation. Host system-bar effects and exact device presentation await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "908735bc259658625509",
+      "qualifiedId": "package:flutter/src/cupertino/sheet.dart::_CupertinoSheetScrollPosition:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/sheet.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "8ac38dbff59ac906a7b1ba1426baf51d68019bad",
+        "fileSha256": "c1ae0c03a84783fc96adf3adc04932a35e76bef93be88c2f72d290e806f15915",
+        "canonicalSpan": {
+          "offset": 42588,
+          "length": 3307,
+          "line": 1191,
+          "sha256": "9869af42ef5a8bb6ae6990fef853b4ffcbe5fb8c5447c8d3e53c59709856a058",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/sheet.ts",
+        "module": "@nelyx/cupertino/sheet",
+        "sha256": "e4570b57e355c8374584672652afda8b9f1acb181e51ef71353bc20a51489b1f"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Cupertino sheet transitions, provided scroll position, route results and optional nested navigation. Host system-bar effects and exact device presentation await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "8eed1c525a21bc53b7cc",
+      "qualifiedId": "package:flutter/src/cupertino/sheet.dart::_CupertinoSheetScope:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/sheet.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "8ac38dbff59ac906a7b1ba1426baf51d68019bad",
+        "fileSha256": "c1ae0c03a84783fc96adf3adc04932a35e76bef93be88c2f72d290e806f15915",
+        "canonicalSpan": {
+          "offset": 30243,
+          "length": 331,
+          "line": 792,
+          "sha256": "f5c38b60532a7b3b0c1f8a995e6978f7d538a21b8c058969097be76d5efb9c7a",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/sheet.ts",
+        "module": "@nelyx/cupertino/sheet",
+        "sha256": "e4570b57e355c8374584672652afda8b9f1acb181e51ef71353bc20a51489b1f"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Cupertino sheet transitions, provided scroll position, route results and optional nested navigation. Host system-bar effects and exact device presentation await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "06940239bce176c30461",
+      "qualifiedId": "package:flutter/src/cupertino/page_scaffold.dart::CupertinoPageScaffold:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/page_scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "e96233cb64bc4b5f731a2c94f10341c448020f68",
+        "fileSha256": "c9be28b10b5c925727172dcaa15701e0d76feeb348c1823e417438bdcd9b9ea1",
+        "canonicalSpan": {
+          "offset": 426,
+          "length": 3154,
+          "line": 17,
+          "sha256": "fdfddbc51a72c00f0f1d82e6d71a47cfcc01d8cd1a52d17a0045e9af2407db8f",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/page-scaffold.ts",
+        "module": "@nelyx/cupertino/page-scaffold",
+        "sha256": "58f589877746c3c16bba1e20e1cd77536d62904cd8db8485ae3bf89e24d58404"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Opaque and translucent navigation-bar placement, safe padding and keyboard insets with Core MediaQuery. Native status-bar tapping and full host parity remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "9907166c90e800252735",
+      "qualifiedId": "package:flutter/src/cupertino/page_scaffold.dart::CupertinoPageScaffoldBackgroundColor:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/page_scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "e96233cb64bc4b5f731a2c94f10341c448020f68",
+        "fileSha256": "c9be28b10b5c925727172dcaa15701e0d76feeb348c1823e417438bdcd9b9ea1",
+        "canonicalSpan": {
+          "offset": 9101,
+          "length": 1305,
+          "line": 239,
+          "sha256": "0f1bbdf5cd4af59e21bbb0249719e57dbea0fae8f9d446d87716ac3d8ae382d0",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/page-scaffold.ts",
+        "module": "@nelyx/cupertino/page-scaffold",
+        "sha256": "58f589877746c3c16bba1e20e1cd77536d62904cd8db8485ae3bf89e24d58404"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Opaque and translucent navigation-bar placement, safe padding and keyboard insets with Core MediaQuery. Native status-bar tapping and full host parity remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "bdae8cffd0cc7727ea5e",
+      "qualifiedId": "package:flutter/src/cupertino/page_scaffold.dart::ObstructingPreferredSizeWidget:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/page_scaffold.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "e96233cb64bc4b5f731a2c94f10341c448020f68",
+        "fileSha256": "c9be28b10b5c925727172dcaa15701e0d76feeb348c1823e417438bdcd9b9ea1",
+        "canonicalSpan": {
+          "offset": 10408,
+          "length": 524,
+          "line": 273,
+          "sha256": "09fedd06a08baced9d7652bc82db7b5db562166fdbff8546fc9425a73e839b69",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/page-scaffold.ts",
+        "module": "@nelyx/cupertino/page-scaffold",
+        "sha256": "58f589877746c3c16bba1e20e1cd77536d62904cd8db8485ae3bf89e24d58404"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Opaque and translucent navigation-bar placement, safe padding and keyboard insets with Core MediaQuery. Native status-bar tapping and full host parity remain open.",
+      "acceptance": []
+    },
+    {
+      "id": "b4a888f737d70c0ffe91",
+      "qualifiedId": "package:flutter/src/cupertino/nav_bar.dart::CupertinoNavigationBar:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/nav_bar.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "793993d1ac016b8fbe98aa6b6d31f596cd1e86c0",
+        "fileSha256": "ab4f0cc2cb1e1a0288c3f8a9547c2d125300844b3101a6353d61c531ba5a5657",
+        "canonicalSpan": {
+          "offset": 9906,
+          "length": 16206,
+          "line": 280,
+          "sha256": "62902c0c8105c661d92e0c774b8661cae215a32c1401000c728d5660ab34eef5",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/nav-bar.ts",
+        "module": "@nelyx/cupertino/nav-bar",
+        "sha256": "af7fb6d0071612277c06462e472960a01d33208159a2c9351f8ed9573c676b2a"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Fixed-height Cupertino route toolbar with localized implicit navigation controls, bottom slot and translucent backdrop. Expanded and sliver navigation and shared-element route transitions await qualification.",
       "acceptance": []
     },
     {

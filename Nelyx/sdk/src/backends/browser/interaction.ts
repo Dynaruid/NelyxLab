@@ -36,6 +36,14 @@ const sourceDomRoles = new Map<SemanticsRole, string>([
   [SemanticsRole.row, 'row'],
   [SemanticsRole.cell, 'cell'],
   [SemanticsRole.columnHeader, 'columnheader'],
+  [SemanticsRole.tabBar, 'tablist'],
+  [SemanticsRole.tabPanel, 'tabpanel'],
+  [SemanticsRole.tab, 'tab'],
+  [SemanticsRole.menu, 'menu'],
+  [SemanticsRole.menuBar, 'menubar'],
+  [SemanticsRole.menuItem, 'menuitem'],
+  [SemanticsRole.menuItemCheckbox, 'menuitemcheckbox'],
+  [SemanticsRole.menuItemRadio, 'menuitemradio'],
 ]);
 const passiveDomRoles: Partial<Record<SemanticsNode['role'], string>> = {
   text: 'note',
@@ -100,8 +108,12 @@ export function createDomInteraction(
       element.dataset.semanticsIdentifier = node.semanticsIdentifier;
     else delete element.dataset.semanticsIdentifier;
     if (node.role === 'button') {
+      const sourceRole =
+        node.sourceRole === undefined ? undefined : sourceDomRoles.get(node.sourceRole);
       if (node.isLink) element.setAttribute('role', 'link');
+      else if (sourceRole?.startsWith('menuitem')) element.setAttribute('role', sourceRole);
       else if (node.checkable) element.setAttribute('role', node.checkable);
+      else if (sourceRole) element.setAttribute('role', sourceRole);
       else element.removeAttribute('role');
     }
     if (
@@ -677,9 +689,8 @@ export function createDomInteraction(
       nodes = flattenSemantics(roots);
     publishedNodes = new Map(nodes.map((node) => [node.id, node]));
     publishedElements = new Set();
-    const ids = new Set(nodes.map((node) => node.id));
     for (const [id, editor] of fields)
-      if (!ids.has(id)) {
+      if (publishedNodes.get(id)?.role !== 'text-field') {
         cursor?.remove(editor.element);
         editor.element.style.display = 'none';
         editor.element.onkeydown = null;
@@ -689,7 +700,7 @@ export function createDomInteraction(
         }
       }
     for (const [id, element] of buttons)
-      if (!ids.has(id)) {
+      if (publishedNodes.get(id)?.role !== 'button') {
         cursor?.remove(element);
         element.onclick = null;
         element.onkeydown = null;
@@ -770,7 +781,12 @@ export function createDomInteraction(
       else element.removeAttribute('aria-checked');
       if (node.value !== undefined) element.setAttribute('aria-valuetext', node.value);
       else element.removeAttribute('aria-valuetext');
-      if (node.isSlider || node.checkable || element.dataset.nelyxEditContext === 'true')
+      if (
+        node.isSlider ||
+        node.checkable ||
+        node.sourceRole === SemanticsRole.tab ||
+        element.dataset.nelyxEditContext === 'true'
+      )
         element.setAttribute('aria-disabled', String(!node.enabled));
       else element.removeAttribute('aria-disabled');
       const progress = node.sourceRole === SemanticsRole.progressBar,
@@ -889,10 +905,10 @@ export function createDomInteraction(
         anchor = element;
       }
     }
-    // Retire groups after live editors moved out. A deferred composing ancestor
-    // is only a positioning shell and must not expose stale accessible labels.
+    // A stable node id can gain a native control as it enters the viewport.
+    // Retire the previous group after its descendants have been published.
     for (const [id, element] of passive)
-      if (!ids.has(id)) {
+      if (!publishedElements.has(element)) {
         cursor?.remove(element);
         element.onkeydown = null;
         for (const attribute of ['role', 'aria-label', 'aria-description', 'tabindex'])

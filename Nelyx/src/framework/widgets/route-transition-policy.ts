@@ -5,6 +5,8 @@ import type { AnimationController } from '../animation/animation-controller.ts';
 import type { BuildContext, Widget } from './framework.ts';
 import type { TraversalEdgeBehavior } from './focus-traversal-policy.ts';
 import type { Color } from '../../ui/color.ts';
+import type { ImageFilter } from '../../ui/image-filter.ts';
+import type { Simulation } from '../physics/simulation.ts';
 import type { NavigatorController } from './navigation.ts';
 export interface RouteTransitionBinding {
   readonly animation: AnimationController;
@@ -22,12 +24,15 @@ export interface RouteTransitionPolicy {
   readonly barrierColor: Color | null;
   readonly barrierLabel: string | null;
   readonly barrierDismissible: boolean;
+  readonly barrierFilter?: ImageFilter | null;
+  readonly semanticsDismissible?: boolean | null;
   readonly maintainState: boolean;
   readonly requestFocus: boolean | null;
   readonly traversalEdgeBehavior: TraversalEdgeBehavior | null;
   readonly directionalTraversalEdgeBehavior: TraversalEdgeBehavior | null;
   transitionDuration(context: BuildContext): number;
   reverseTransitionDuration(context: BuildContext): number;
+  createSimulation?(forward: boolean): Simulation | null;
   attach(binding: RouteTransitionBinding): void;
   detach(): void;
   canTransitionTo(next: RouteTransitionPolicy): boolean;

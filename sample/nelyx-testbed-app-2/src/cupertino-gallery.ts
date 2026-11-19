@@ -22,7 +22,7 @@ import { OverflowBar, OverflowBarAlignment } from '@nelyx/core/framework/widgets
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
 import { TextFieldTapRegion } from '@nelyx/core/framework/widgets/tap-region';
-import { NavigatorController } from '@nelyx/core/framework/widgets/navigation';
+import { Navigator, NavigatorController } from '@nelyx/core/framework/widgets/navigation';
 import { createDialogRoute } from '@nelyx/core/framework/widgets/dialog';
 import { RadioGroup } from '@nelyx/core/framework/widgets/radio-group';
 import { Icon } from '@nelyx/core/framework/widgets/icon';
@@ -34,6 +34,11 @@ import { CupertinoTheme, CupertinoThemeData } from '@nelyx/cupertino/theme';
 import { CupertinoButton } from '@nelyx/cupertino/button';
 import { CupertinoIcons } from '@nelyx/cupertino/icons';
 import { CupertinoPageScaffold } from '@nelyx/cupertino/page-scaffold';
+import { CupertinoNavigationBar } from '@nelyx/cupertino/nav-bar';
+import { BottomNavigationBarItem, CupertinoTabBar } from '@nelyx/cupertino/bottom-tab-bar';
+import { CupertinoTabScaffold } from '@nelyx/cupertino/tab-scaffold';
+import { CupertinoTabView } from '@nelyx/cupertino/tab-view';
+import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
 import { CupertinoCheckbox } from '@nelyx/cupertino/checkbox';
 import { CupertinoRadio } from '@nelyx/cupertino/radio';
 import { CupertinoSwitch } from '@nelyx/cupertino/switch';
@@ -44,6 +49,7 @@ import {
   FixedExtentScrollController,
 } from '@nelyx/cupertino/picker';
 import { CupertinoTimerPicker } from '@nelyx/cupertino/timer-picker';
+import { CupertinoDatePicker, DateTime } from '@nelyx/cupertino/date-picker';
 import { CupertinoSegmentedControl } from '@nelyx/cupertino/segmented-control';
 import { CupertinoSlidingSegmentedControl } from '@nelyx/cupertino/sliding-segmented-control';
 import { CupertinoActivityIndicator } from '@nelyx/cupertino/activity-indicator';
@@ -61,7 +67,9 @@ import { CupertinoActionSheet, CupertinoActionSheetAction } from '@nelyx/cuperti
 import { categories } from './catalog.ts';
 import type { CategoryId, ComponentDemo } from './catalog.ts';
 import { cupertinoDemos, visibleCupertinoDemos } from './cupertino-catalog.ts';
-import { CupertinoPageRoute } from '@nelyx/cupertino/route';
+import { CupertinoPageRoute, showCupertinoModalPopup } from '@nelyx/cupertino/route';
+import { CupertinoSheetRoute, showCupertinoSheet } from '@nelyx/cupertino/sheet';
+import { RouteSettings } from '@nelyx/core/framework/widgets/pages';
 import { CupertinoRefreshDemo } from './cupertino-refresh-demo.ts';
 
 const groups = categories.filter((group) => group.id !== 'images');
@@ -87,6 +95,7 @@ export class CupertinoGalleryValues {
   radio = 'first';
   slider = 40;
   timerDuration = 3_915_000;
+  dateTime = new DateTime(2024, 2, 29, 9, 30);
   segment = 'Daily';
   borderedSegment = 'Day';
   animating = false;
@@ -152,47 +161,49 @@ class CupertinoRouteDemoState extends State<CupertinoRouteDemo> {
     const back = () => {
       this.widget.navigator.pop(this.count);
     };
-    return new CupertinoPageScaffold(
-      'Details',
-      new Padding(
-        EdgeInsets.all(20),
-        column(
-          new Text('Named route · count: ' + this.count),
-          MediaQuery.withClampedTextScaling({
-            maxScaleFactor: 1.5,
-            child: new OverflowBar({
-              spacing: 12,
-              overflowSpacing: 8,
-              overflowAlignment: OverflowBarAlignment.start,
-              children: [
-                new CupertinoButton({
-                  id: 'cupertino-route-increment',
-                  child: new Text('Increment'),
-                  onPressed: () =>
-                    this.setState(() => {
-                      this.count++;
-                    }),
-                }),
-                new CupertinoButton({
-                  id: 'cupertino-route-reset',
-                  child: new Text('Reset counter'),
-                  onPressed: () =>
-                    this.setState(() => {
-                      this.count = 0;
-                    }),
-                }),
-                new CupertinoButton({
-                  id: 'cupertino-route-return',
-                  child: new Text('Return result'),
-                  onPressed: back,
-                }),
-              ],
+    return new CupertinoPageScaffold({
+      navigationBar: new CupertinoNavigationBar({ middle: new Text('Details') }),
+      child: new SafeArea({
+        bottom: false,
+        child: new Padding(
+          EdgeInsets.all(20),
+          column(
+            new Text('Named route · count: ' + this.count),
+            MediaQuery.withClampedTextScaling({
+              maxScaleFactor: 1.5,
+              child: new OverflowBar({
+                spacing: 12,
+                overflowSpacing: 8,
+                overflowAlignment: OverflowBarAlignment.start,
+                children: [
+                  new CupertinoButton({
+                    id: 'cupertino-route-increment',
+                    child: new Text('Increment'),
+                    onPressed: () =>
+                      this.setState(() => {
+                        this.count++;
+                      }),
+                  }),
+                  new CupertinoButton({
+                    id: 'cupertino-route-reset',
+                    child: new Text('Reset counter'),
+                    onPressed: () =>
+                      this.setState(() => {
+                        this.count = 0;
+                      }),
+                  }),
+                  new CupertinoButton({
+                    id: 'cupertino-route-return',
+                    child: new Text('Return result'),
+                    onPressed: back,
+                  }),
+                ],
+              }),
             }),
-          }),
+          ),
         ),
-      ),
-      back,
-    );
+      }),
+    });
   }
 }
 class CupertinoGalleryPage extends StatefulWidget {
@@ -305,35 +316,31 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
     const close = (result: Result) => () => {
       void this.navigator.pop(result);
     };
-    void this.navigator
-      .push(
-        createDialogRoute<Result>({
-          name: 'cupertino-action-sheet',
-          barrierColor: 0x66000000,
-          barrierLabel: 'Dismiss action sheet',
-          builder: () =>
-            new CupertinoActionSheet({
-              title: new Text('Manage item'),
-              message: new Text('Choose what to do with this item.'),
-              actions: [
-                new CupertinoActionSheetAction({
-                  child: new Text('Save item'),
-                  isDefaultAction: true,
-                  onPressed: close('Saved'),
-                }),
-                new CupertinoActionSheetAction({
-                  child: new Text('Delete item'),
-                  isDestructiveAction: true,
-                  onPressed: close('Deleted'),
-                }),
-              ],
-              cancelButton: new CupertinoActionSheetAction({
-                child: new Text('Cancel'),
-                onPressed: close('Cancelled'),
-              }),
+    void showCupertinoModalPopup<Result>(this.context, {
+      routeSettings: new RouteSettings({ name: 'cupertino-action-sheet' }),
+      barrierLabel: 'Dismiss action sheet',
+      builder: () =>
+        new CupertinoActionSheet({
+          title: new Text('Manage item'),
+          message: new Text('Choose what to do with this item.'),
+          actions: [
+            new CupertinoActionSheetAction({
+              child: new Text('Save item'),
+              isDefaultAction: true,
+              onPressed: close('Saved'),
             }),
+            new CupertinoActionSheetAction({
+              child: new Text('Delete item'),
+              isDestructiveAction: true,
+              onPressed: close('Deleted'),
+            }),
+          ],
+          cancelButton: new CupertinoActionSheetAction({
+            child: new Text('Cancel'),
+            onPressed: close('Cancelled'),
+          }),
         }),
-      )
+    })
       .then((result) => {
         if (this.mounted) this.record('Action sheet: ' + (result ?? 'Dismissed'));
       })
@@ -350,6 +357,124 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
       .catch((error) => {
         if (this.mounted) this.record(String(error));
       });
+  }
+  private openSheet(): void {
+    void showCupertinoSheet<string>({
+      context: this.context,
+      settings: new RouteSettings({ name: 'cupertino-sheet' }),
+      useNestedNavigation: true,
+      showDragHandle: true,
+      scrollableBuilder: (context, controller) =>
+        new CupertinoPageScaffold({
+          navigationBar: new CupertinoNavigationBar({ middle: new Text('Edit collection') }),
+          child: new ListView({
+            controller,
+            children: [
+              new CupertinoButton({
+                child: new Text('Open collection details'),
+                onPressed: () => {
+                  void Navigator.of(context).push(
+                    new CupertinoPageRoute({
+                      builder: (context) =>
+                        new CupertinoPageScaffold({
+                          navigationBar: new CupertinoNavigationBar({
+                            middle: new Text('Collection details'),
+                          }),
+                          child: new SafeArea({
+                            child: new CupertinoButton({
+                              child: new Text('Save and close sheet'),
+                              onPressed: () => {
+                                if (CupertinoSheetRoute.hasParentSheet(context))
+                                  Navigator.of(context, { rootNavigator: true }).pop('Saved');
+                              },
+                            }),
+                          }),
+                        }),
+                    }),
+                  );
+                },
+              }),
+              ...Array.from(
+                { length: 24 },
+                (_, index) =>
+                  new Padding(EdgeInsets.all(18), new Text(`Collection item ${index + 1}`)),
+              ),
+            ],
+          }),
+        }),
+    })
+      .then((result) => {
+        if (this.mounted) this.record('Cupertino sheet: ' + (result ?? 'Dismissed'));
+      })
+      .catch((error) => {
+        if (this.mounted) this.record(String(error));
+      });
+  }
+
+  private openTabs(): void {
+    const close = () => this.navigator.pop();
+    void this.navigator.push(
+      new CupertinoPageRoute<void>({
+        settings: new RouteSettings({ name: 'cupertino-nested-tabs' }),
+        builder: () =>
+          new CupertinoTabScaffold({
+            tabBar: new CupertinoTabBar({
+              items: [
+                new BottomNavigationBarItem({
+                  icon: new Icon(CupertinoIcons.folder),
+                  activeIcon: new Icon(CupertinoIcons.folder_solid),
+                  label: 'Folders',
+                }),
+                new BottomNavigationBarItem({
+                  icon: new Icon(CupertinoIcons.clock),
+                  activeIcon: new Icon(CupertinoIcons.clock_solid),
+                  label: 'History',
+                }),
+              ],
+            }),
+            tabBuilder: (_context, index) => {
+              const folders = index === 0;
+              const title = folders ? 'My folders' : 'Activity history';
+              const details = folders ? 'Folder details' : 'History entry';
+              return new CupertinoTabView({
+                defaultTitle: title,
+                builder: (context) =>
+                  new CupertinoPageScaffold({
+                    navigationBar: new CupertinoNavigationBar({
+                      trailing: new CupertinoButton({
+                        child: new Text('Close tabs'),
+                        onPressed: close,
+                        padding: EdgeInsets.zero,
+                      }),
+                    }),
+                    child: new SafeArea({
+                      child: new CupertinoButton({
+                        child: new Text(folders ? 'Open folder details' : 'Open history entry'),
+                        onPressed: () => {
+                          void Navigator.of(context).pushNamed('/details');
+                        },
+                      }),
+                    }),
+                  }),
+                onGenerateRoute: (settings) =>
+                  settings.name === '/details'
+                    ? new CupertinoPageRoute({
+                        title: details,
+                        settings: new RouteSettings({ name: settings.name }),
+                        builder: () =>
+                          new CupertinoPageScaffold({
+                            navigationBar: new CupertinoNavigationBar(),
+                            child: new SafeArea({
+                              child: new Text(folders ? 'Folder contents' : 'History record'),
+                            }),
+                          }),
+                      })
+                    : null,
+              });
+            },
+          }),
+      }),
+    );
   }
   build(): Widget {
     ++this.pageRevision;
@@ -584,6 +709,17 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
             this.record(`Timer: ${duration / 1000} seconds`);
           },
         });
+      case 'date-picker':
+        return new CupertinoDatePicker({
+          initialDateTime: v.dateTime,
+          minuteInterval: 5,
+          use24hFormat: true,
+          showTimeSeparator: true,
+          onDateTimeChanged: (date) => {
+            v.dateTime = date;
+            this.record(`Date: ${date.toString().slice(0, 16)}`);
+          },
+        });
       case 'picker':
         return new Row(
           [
@@ -721,17 +857,17 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
         return this.button('cupertino-open-action-sheet', 'Open action sheet', () =>
           this.openActionSheet(),
         );
+      case 'sheet':
+        return this.button('cupertino-open-sheet', 'Open Cupertino sheet', () => this.openSheet());
       case 'navigation':
         return column(
           new Text('이 페이지는 실제 CupertinoApp · PageScaffold · NavigationBar를 사용합니다.', {
             fontSize: 14,
           }),
           this.button('cupertino-open-route', 'Open named route', () => this.openRoute()),
-          new Text(
-            '기본 page route · 뒤로가기 · 결과 반환을 확인하세요. large title · tab은 W13 잔여 작업입니다.',
-            { fontSize: 13 },
-          ),
         );
+      case 'tabs':
+        return this.button('cupertino-open-tabs', 'Open Cupertino tabs', () => this.openTabs());
       case 'switches':
         return flow(
           new CupertinoSwitch({

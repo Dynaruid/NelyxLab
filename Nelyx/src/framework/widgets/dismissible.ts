@@ -18,6 +18,7 @@ import { FractionalTranslation } from './fractional-translation.ts';
 import { KeyedSubtree } from './basic.ts';
 import { RenderProxyBox } from '../rendering/boxes.ts';
 import type { BoxConstraints } from '../rendering/constraints.ts';
+import type { HitTestBehavior } from '../rendering/pointer-listener.ts';
 import type { Size } from '../../ui/geometry.ts';
 import { ClipRect } from './clip.ts';
 import { GlobalKey } from './global-key.ts';
@@ -81,6 +82,7 @@ export interface DismissibleOptions {
   readonly minFlingVelocity?: number;
   readonly movementDuration?: number;
   readonly resizeDuration?: number | null;
+  readonly behavior?: HitTestBehavior;
 }
 interface Confirmation {
   readonly revision: number;
@@ -96,6 +98,7 @@ export class Dismissible extends StatefulWidget {
   readonly minFlingVelocity: number;
   readonly movementDuration: number;
   readonly resizeDuration: number | null;
+  readonly behavior: HitTestBehavior | undefined;
   constructor({
     key,
     child,
@@ -106,6 +109,7 @@ export class Dismissible extends StatefulWidget {
     minFlingVelocity = 700,
     movementDuration = 200,
     resizeDuration = 200,
+    behavior,
   }: DismissibleOptions) {
     super(key);
     invariant(
@@ -140,6 +144,7 @@ export class Dismissible extends StatefulWidget {
     this.minFlingVelocity = minFlingVelocity;
     this.movementDuration = movementDuration;
     this.resizeDuration = resizeDuration;
+    this.behavior = behavior;
   }
   createState(): DismissibleState {
     return new DismissibleState();
@@ -415,9 +420,15 @@ export class DismissibleState extends SingleTickerProviderStateMixin<Dismissible
               onHorizontalDragEnd: (details) => this.end(details),
               onHorizontalDragCancel: () => this.cancelGesture(),
             };
-    return new Listener(new GestureDetector(content, gestures), {
-      onPointerCancel: () => this.cancelGesture(),
-    });
+    return new Listener(
+      new GestureDetector(content, {
+        ...gestures,
+        ...(this.widget.behavior ? { behavior: this.widget.behavior } : {}),
+      }),
+      {
+        onPointerCancel: () => this.cancelGesture(),
+      },
+    );
   }
   override dispose(): void {
     this.retired = true;

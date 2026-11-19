@@ -14,7 +14,8 @@ import {
 import { TickerCanceled } from '../animation/ticker-future.ts';
 import type { RouteTransitionPolicy } from './route-transition-policy.ts';
 import { invariant } from '../../foundation/errors.ts';
-import { Builder, ColoredBox, SizedBox, Stack } from './basic.ts';
+import { Builder, ClipRect, ColoredBox, SizedBox, Stack } from './basic.ts';
+import { BackdropFilter } from './backdrop-filter.ts';
 import { AnimatedBuilder } from './transitions.ts';
 import { GestureDetector } from './gesture-detector.ts';
 import { Semantics, BlockSemantics, ExcludeSemantics } from './semantics.ts';
@@ -78,9 +79,7 @@ export class NavigationTransitions {
         if (simplePop && motion) {
           this.exiting.add(old.token);
           entries.at(-1)?.route.didPopNext(old.route);
-          void motion.primary.reverse().orCancel.catch((error) => {
-            if (!(error instanceof TickerCanceled)) this.reportError(error);
-          });
+          this.animate(motion, false);
           if (motion.primary.isDismissed) this.queueRetirement(old.token);
         } else this.release(old.token);
       }
@@ -170,11 +169,26 @@ export class NavigationTransitions {
       if (this.exiting.has(old.token) && !nextTokens.has(old.token))
         rendered.splice(Math.min(oldRendered.indexOf(old), rendered.length), 0, old);
     this.rendered = rendered;
-    for (const motion of fresh)
-      void motion.primary.forward().orCancel.catch((error) => {
+    for (const motion of fresh) this.animate(motion, true);
+    this.coordinate();
+  }
+  private animate(motion: Motion, forward: boolean): void {
+    try {
+      const simulation = motion.policy.createSimulation?.(forward);
+      const future = simulation
+        ? forward
+          ? motion.primary.animateWith(simulation)
+          : motion.primary.animateBackWith(simulation)
+        : forward
+          ? motion.primary.forward()
+          : motion.primary.reverse();
+      void future.orCancel.catch((error) => {
         if (!(error instanceof TickerCanceled)) this.reportError(error);
       });
-    this.coordinate();
+    } catch (error) {
+      this.reportError(error);
+      motion.primary.value = forward ? 1 : 0;
+    }
   }
   private coordinate(): void {
     for (const [i, entry] of this.live.entries()) {
@@ -319,7 +333,8 @@ export class NavigationTransitions {
       dismissible = policy.barrierDismissible && this.live.at(-1)?.token === entry.token,
       semanticsDismissible =
         dismissible &&
-        ['android', 'iOS', 'macOS'].includes(FoundationPlatform.defaultTargetPlatform),
+        (policy.semanticsDismissible ??
+          ['android', 'iOS', 'macOS'].includes(FoundationPlatform.defaultTargetPlatform)),
       action = semanticsDismissible && policy.barrierLabel !== null ? onDismiss : null;
     const semantics = new Semantics({
       transportId: motion.barrierId,
@@ -353,7 +368,10 @@ export class NavigationTransitions {
       builder: (context, child) =>
         motion.policy.buildTransitions(context, motion.primary, motion.secondary, child!),
     });
-    return new Stack([barrier, transitions]);
+    const filteredBarrier = policy.barrierFilter
+      ? new ClipRect(new BackdropFilter({ filter: policy.barrierFilter, child: barrier }))
+      : barrier;
+    return new Stack([filteredBarrier, transitions]);
   }
   private release(token: symbol): void {
     this.exiting.delete(token);

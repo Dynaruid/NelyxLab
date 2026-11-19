@@ -13,6 +13,7 @@ export interface DialogRouteOptions {
   readonly barrierColor?: number;
   readonly barrierLabel?: string | null;
   readonly name?: string;
+  readonly routeSettings?: RouteSettings;
   readonly requestFocus?: boolean;
   readonly transitionDuration?: number;
   readonly reverseTransitionDuration?: number;
@@ -27,12 +28,13 @@ export function createDialogRoute<T = unknown>({
   barrierColor = 0x88000000,
   barrierLabel = null,
   name = 'dialog',
+  routeSettings,
   requestFocus = true,
   transitionDuration = 150,
   reverseTransitionDuration = 150,
 }: DialogRouteOptions): PageRouteBuilder<T> {
   return new PageRouteBuilder<T>({
-    settings: new RouteSettings({ name }),
+    settings: routeSettings ?? new RouteSettings({ name }),
     opaque: false,
     barrierDismissible,
     barrierColor: new Color(barrierColor),

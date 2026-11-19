@@ -21,6 +21,15 @@ import {
   CupertinoTimerPickerMode as Mode,
 } from '@nelyx/cupertino/timer-picker';
 import { CupertinoTimerPicker as AggregatePicker } from '@nelyx/cupertino/widgets';
+import {
+  CupertinoDatePicker,
+  CupertinoDatePickerMode as DateMode,
+  DatePickerDateOrder,
+  DateTime,
+} from '@nelyx/cupertino/date-picker';
+import { CupertinoDatePicker as AggregateDatePicker } from '@nelyx/cupertino/widgets';
+import { DateTime as MaterialDateTime } from '@nelyx/material/date-picker';
+import { CupertinoLocalizations } from '@nelyx/cupertino/localizations';
 
 const timeout = 1_200_000;
 const picker = (options = {}) =>
@@ -296,3 +305,95 @@ test(
     });
   },
 );
+
+test(
+  'date and month wheels keep one DateTime identity and repair a leap-year overflow',
+  { timeout },
+  async () => {
+    assert.equal(AggregateDatePicker, CupertinoDatePicker);
+    assert.equal(DateTime, MaterialDateTime);
+    const values = [];
+    await mount(
+      new CupertinoDatePicker({
+        mode: DateMode.date,
+        dateOrder: DatePickerDateOrder.mdy,
+        initialDateTime: new DateTime(2024, 1, 31),
+        minimumYear: 2023,
+        maximumYear: 2025,
+        onDateTimeChanged: (date) => values.push(date),
+      }),
+      async ({ wheels, flush }) => {
+        const [month, day, year] = wheels().map((wheel) => wheel.scrollController);
+        assert.deepEqual([month.selectedItem, day.selectedItem, year.selectedItem], [0, 30, 2024]);
+        month.jumpToItem(1);
+        assert.deepEqual(values, []);
+        flush(0);
+        flush(100);
+        flush(450);
+        await new Promise((resolve) => setImmediate(resolve));
+        flush(451);
+        assert.equal(day.selectedItem, 28);
+        assert.deepEqual(values, [new DateTime(2024, 2, 29)]);
+      },
+    );
+  },
+);
+
+test(
+  'time selection wraps the hour and respects the interval and lower bound',
+  { timeout },
+  async () => {
+    const values = [];
+    await mount(
+      new CupertinoDatePicker({
+        mode: DateMode.time,
+        initialDateTime: new DateTime(2024, 2, 29, 11, 45),
+        minimumDate: new DateTime(2024, 2, 29, 11, 35),
+        minuteInterval: 15,
+        onDateTimeChanged: (date) => values.push(date),
+      }),
+      ({ wheels }) => {
+        const [hour, minute, meridiem] = wheels().map((wheel) => wheel.scrollController);
+        assert.deepEqual(
+          [hour.selectedItem, minute.selectedItem, meridiem.selectedItem],
+          [11, 3, 0],
+        );
+        minute.jumpToItem(2);
+        assert.deepEqual(values, []);
+        minute.jumpToItem(3);
+        hour.jumpToItem(12);
+        assert.equal(meridiem.selectedItem, 1);
+        assert.deepEqual(values, [new DateTime(2024, 2, 29, 12, 45)]);
+      },
+    );
+  },
+);
+
+test('combined and month-year modes preserve their civil date precision', { timeout }, async () => {
+  const values = [];
+  await mount(
+    new CupertinoDatePicker({
+      initialDateTime: new DateTime(2024, 3, 1, 8, 10),
+      minimumDate: new DateTime(2024, 2, 28),
+      use24hFormat: true,
+      onDateTimeChanged: (date) => values.push(date),
+    }),
+    ({ wheels }) => wheels()[0].scrollController.jumpToItem(-1),
+  );
+  await mount(
+    new CupertinoDatePicker({
+      mode: DateMode.monthYear,
+      initialDateTime: new DateTime(2024, 2, 29, 8, 10),
+      onDateTimeChanged: (date) => values.push(date),
+    }),
+    ({ wheels }) => wheels()[0].scrollController.jumpToItem(2),
+  );
+  assert.deepEqual(values, [new DateTime(2024, 2, 29, 8, 10), new DateTime(2024, 3)]);
+  const korean = new CupertinoLocalizations('ko-KR');
+  assert.equal(korean.datePickerDateOrder, DatePickerDateOrder.ymd);
+  assert.equal(korean.anteMeridiemAbbreviation, '오전');
+  assert.equal(korean.datePickerMonth(2), '2월');
+  assert.equal(korean.datePickerDayOfMonth(29), '29일');
+  assert.equal(korean.datePickerHour(9), '09');
+  assert.equal(korean.datePickerMinuteSemanticsLabel(15), '15분');
+});

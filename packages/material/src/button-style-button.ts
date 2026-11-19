@@ -24,6 +24,7 @@ import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { IconTheme } from '@nelyx/core/framework/widgets/icon-theme';
 import type { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
+import type { SemanticsRole } from '@nelyx/core/ui/semantics';
 import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
 import { ChangeNotifier } from '@nelyx/core/foundation/notifier';
 import { valueEquals } from '@nelyx/core/framework/painting/value-equality';
@@ -161,6 +162,8 @@ export interface MaterialButtonOptions extends Omit<
   readonly tooltip?: string | null;
   readonly clipBehavior?: Clip | null;
   readonly isSemanticButton?: boolean;
+  /** @internal Semantic role and state for Material menu actions. */
+  readonly menuSemantics?: { readonly role: SemanticsRole; readonly checked?: boolean; readonly mixed?: boolean; readonly radio?: boolean };
   /** @internal Source selectable-icon state. */ readonly selected?: boolean | null;
 }
 export abstract class ButtonStyleButton extends StatefulWidget {
@@ -689,6 +692,10 @@ class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
     return new Semantics({
       container: true,
       button: o.isSemanticButton ?? true,
+      role: o.menuSemantics?.role ?? null,
+      checked: o.menuSemantics?.checked ?? null,
+      mixed: o.menuSemantics?.mixed ?? null,
+      inMutuallyExclusiveGroup: o.menuSemantics?.radio ?? null,
       enabled: widget.enabled,
       selected: o.selected ?? null,
       label: o.semanticsLabel ?? null,

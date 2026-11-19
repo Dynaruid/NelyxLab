@@ -181,6 +181,53 @@ export type { ChipAnimationStyleOptions } from './chip-animation-style.ts';
 export { Icon } from '@nelyx/core/framework/widgets/icon';
 export type { IconOptions } from '@nelyx/core/framework/widgets/icon';
 export { Icons, PlatformAdaptiveIcons } from './icons.ts';
+export { AnimatedIcon, AnimatedIconData, AnimatedIcons } from './animated-icons.ts';
+export type { AnimatedIconOptions } from './animated-icons.ts';
+export { SearchAnchor, SearchBar, SearchController } from './search-anchor.ts';
+export type {
+  SearchAnchorBarOptions,
+  SearchAnchorChildBuilder,
+  SearchAnchorOptions,
+  SearchBarOptions,
+  SuggestionsBuilder,
+  ViewBuilder,
+} from './search-anchor.ts';
+export {
+  BackButton,
+  BackButtonIcon,
+  CloseButton,
+  CloseButtonIcon,
+  DrawerButton,
+  DrawerButtonIcon,
+  EndDrawerButton,
+  EndDrawerButtonIcon,
+} from './action-buttons.ts';
+export type { ActionButtonOptions } from './action-buttons.ts';
+export { Drawer, DrawerAlignment, DrawerController, DrawerControllerState } from './drawer.ts';
+export type { DrawerOptions, DrawerCallback, DrawerControllerOptions } from './drawer.ts';
+export { NavigationDrawer, NavigationDrawerDestination } from './navigation-drawer.ts';
+export type {
+  NavigationDrawerOptions,
+  NavigationDrawerDestinationOptions,
+} from './navigation-drawer.ts';
+export {
+  CheckboxMenuButton,
+  MenuAnchor,
+  MenuBar,
+  MenuController,
+  MenuItemButton,
+  RadioMenuButton,
+  SubmenuButton,
+} from './menu-anchor.ts';
+export type {
+  CheckboxMenuButtonOptions,
+  MenuAnchorChildBuilder,
+  MenuAnchorOptions,
+  MenuBarOptions,
+  MenuItemButtonOptions,
+  RadioMenuButtonOptions,
+  SubmenuButtonOptions,
+} from './menu-anchor.ts';
 export { Tooltip, TooltipState, TooltipTriggerMode, TooltipPositionContext } from './tooltip.ts';
 export type {
   TooltipOptions,
@@ -235,7 +282,38 @@ export { Divider, VerticalDivider } from './divider.ts';
 export type { DividerOptions, VerticalDividerOptions } from './divider.ts';
 export { DividerTheme, DividerThemeData } from './divider-theme.ts';
 export type { DividerThemeDataOptions } from './divider-theme.ts';
-export { Scaffold } from './scaffold.ts';
+export {
+  Scaffold,
+  ScaffoldState,
+  ScaffoldMessenger,
+  ScaffoldMessengerState,
+  ScaffoldFeatureController,
+} from './scaffold.ts';
+export type {
+  ScaffoldOptions,
+  ScaffoldMessengerOptions,
+  ShowSnackBarOptions,
+  CloseSnackBarOptions,
+} from './scaffold.ts';
+export { SnackBar, SnackBarAction, SnackBarClosedReason } from './snack-bar.ts';
+export type { SnackBarOptions, SnackBarActionOptions } from './snack-bar.ts';
+export { AppBar, kToolbarHeight } from './app-bar.ts';
+export type { AppBarOptions } from './app-bar.ts';
+export {
+  DayPeriod,
+  TimeOfDay,
+  RestorableTimeOfDay,
+  TimeOfDayFormat,
+  HourFormat,
+  hourFormat,
+} from './time.ts';
+export type { TimeOfDayOptions } from './time.ts';
+export { showTimePicker, TimePickerDialog, TimePickerEntryMode } from './time-picker.ts';
+export type {
+  ShowTimePickerOptions,
+  TimePickerDialogOptions,
+  EntryModeChangeCallback,
+} from './time-picker.ts';
 export { TextField } from './text-field.ts';
 export type { TextFieldOptions } from './text-field.ts';
 export { TextFormField } from './text-form-field.ts';
@@ -295,6 +373,14 @@ export { ExpansionTileThemeData, ExpansionTileTheme } from './expansion-tile-the
 export type { ExpansionTileThemeDataOptions } from './expansion-tile-theme-data.ts';
 export { NavigationBarThemeData, NavigationBarTheme } from './navigation-bar-theme.ts';
 export type { NavigationBarThemeDataOptions } from './navigation-bar-theme-data.ts';
+export { NavigationBar, NavigationDestination, NavigationIndicator } from './navigation-bar.ts';
+export { NavigationRail, NavigationRailDestination } from './navigation-rail.ts';
+export type { NavigationRailOptions, NavigationRailDestinationOptions } from './navigation-rail.ts';
+export type {
+  NavigationBarOptions,
+  NavigationDestinationOptions,
+  NavigationIndicatorOptions,
+} from './navigation-bar.ts';
 export { NavigationDrawerThemeData, NavigationDrawerTheme } from './navigation-drawer-theme.ts';
 export type { NavigationDrawerThemeDataOptions } from './navigation-drawer-theme-data.ts';
 export { SearchBarThemeData, SearchBarTheme } from './search-bar-theme.ts';
@@ -410,6 +496,23 @@ export { BottomNavigationBarType } from './bottom-navigation-bar-type.ts';
 export { BottomNavigationBarLandscapeLayout } from './bottom-navigation-bar-landscape-layout.ts';
 export { TabAlignment } from './tab-alignment.ts';
 export { TabBarIndicatorSize } from './tab-bar-indicator-size.ts';
+export { DefaultTabController, TabController } from './tab-controller.ts';
+export type {
+  DefaultTabControllerOptions,
+  TabControllerOptions,
+  TabAnimateToOptions,
+} from './tab-controller.ts';
+export { Tab, TabBar, TabBarView, TabPageSelector, TabPageSelectorIndicator } from './tabs.ts';
+export type {
+  TabOptions,
+  TabBarOptions,
+  TabBarViewOptions,
+  TabPageSelectorOptions,
+  TabPageSelectorIndicatorOptions,
+  TabValueChanged,
+} from './tabs.ts';
+export { UnderlineTabIndicator } from './tab-indicator.ts';
+export type { UnderlineTabIndicatorOptions } from './tab-indicator.ts';
 export { TabIndicatorAnimation } from './tab-indicator-animation.ts';
 export { FadeForwardsPageTransitionsBuilder } from './page-transitions-theme.ts';
 export type { FadeForwardsPageTransitionsBuilderOptions } from './page-transitions-theme.ts';
@@ -429,7 +532,12 @@ export type { AnimatedThemeOptions, ThemeOptions, ThemeDataRawOptions } from './
 export { MaterialPageRoute, MaterialRouteTransitionMixin } from './page.ts';
 export type { MaterialPageRouteOptions } from './page.ts';
 
-export { kDefaultIconLightColor, kDefaultIconDarkColor } from './constants.ts';
+export {
+  kDefaultIconLightColor,
+  kDefaultIconDarkColor,
+  kTabScrollDuration,
+  kTabLabelPadding,
+} from './constants.ts';
 
 export {
   RefreshIndicator,

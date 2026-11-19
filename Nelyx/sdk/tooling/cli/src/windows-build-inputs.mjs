@@ -17,9 +17,12 @@ export function packageBuildInputs(directory) {
   add('package.json', Buffer.from(JSON.stringify(manifest)));
   const visit = (relative, entry) => {
     if (
-      manifest.name === '@nelyx/cli' &&
-      relative.startsWith('templates/') &&
-      !isTemplateInput(relative)
+      (manifest.name === '@nelyx/cli' &&
+        relative.startsWith('templates/') &&
+        !isTemplateInput(relative)) ||
+      // The candidate folder is excluded by the design packages' npm ignore rules.
+      (relative === 'src/generated/flutter-design' &&
+        (manifest.name === '@nelyx/material' || manifest.name === '@nelyx/cupertino'))
     )
       return;
     if (

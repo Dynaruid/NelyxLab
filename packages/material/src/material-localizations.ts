@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Selection messages from the pinned localization tables; date/time families remain separate.
+// Selection and time messages from the pinned localization tables.
 import { InheritedWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import { Localizations } from '@nelyx/core/framework/widgets/app-data';
@@ -8,7 +8,19 @@ import { selectionMessages } from './generated/localizations/selection-localizat
 import { scriptCategories } from './generated/localizations/script-categories.ts';
 import { ScriptCategory } from './script-category.ts';
 import { refreshIndicatorLabels } from './generated/localizations/refresh-localizations-data.ts';
+import {
+  closeButtonTooltips,
+  drawerLabels,
+  openAppDrawerTooltips,
+  tabLabels,
+} from './generated/localizations/app-bar-localizations-data.generated.ts';
 import { SourceDateLocalizations } from './generated/date/material_localizations.generated.ts';
+import {
+  timeDigits,
+  timeMessages,
+} from './generated/localizations/time-localizations-data.generated.ts';
+import { DayPeriod, HourFormat, TimeOfDayFormat, hourFormat } from './time.ts';
+import type { TimeOfDay } from './time.ts';
 function localeCandidates(locale: string): string[] {
   const parts = locale.replaceAll('-', '_').split('_'),
     language = parts[0]!,
@@ -34,6 +46,9 @@ function categoryFor(candidates: readonly string[]): ScriptCategory {
 export class MaterialLocalizations extends SourceDateLocalizations {
   private readonly messages: Readonly<Record<string, string>>;
   private readonly category: ScriptCategory;
+  private timeData:
+    | { readonly labels: Readonly<Record<string, string>>; readonly digits: string }
+    | undefined;
   constructor(readonly locale = 'en') {
     super();
     const candidates = localeCandidates(locale);
@@ -47,6 +62,16 @@ export class MaterialLocalizations extends SourceDateLocalizations {
             (label, key) => refreshIndicatorLabels[key] ?? label,
             refreshIndicatorLabels.en!,
           ),
+          closeButtonTooltip: candidates.reduce(
+            (label, key) => closeButtonTooltips[key] ?? label,
+            closeButtonTooltips.en!,
+          ),
+          drawerLabel: candidates.reduce((label, key) => drawerLabels[key] ?? label, drawerLabels.en!),
+          openAppDrawerTooltip: candidates.reduce(
+            (label, key) => openAppDrawerTooltips[key] ?? label,
+            openAppDrawerTooltips.en!,
+          ),
+          tabLabel: candidates.reduce((label, key) => tabLabels[key] ?? label, tabLabels.en!),
         },
       ),
     );
@@ -104,6 +129,140 @@ export class MaterialLocalizations extends SourceDateLocalizations {
   }
   get backButtonTooltip(): string {
     return this.message('backButtonTooltip');
+  }
+  get closeButtonTooltip(): string {
+    return this.message('closeButtonTooltip');
+  }
+  get drawerLabel(): string {
+    return this.message('drawerLabel');
+  }
+  get openAppDrawerTooltip(): string {
+    return this.message('openAppDrawerTooltip');
+  }
+  tabLabel({
+    tabIndex,
+    tabCount,
+  }: {
+    readonly tabIndex: number;
+    readonly tabCount: number;
+  }): string {
+    return this.message('tabLabel')
+      .replace('$tabIndex', this.timePickerNumber(tabIndex))
+      .replace('$tabCount', this.timePickerNumber(tabCount));
+  }
+  private timeLocalization() {
+    if (!this.timeData) {
+      const candidates = localeCandidates(this.locale);
+      this.timeData = {
+        labels: Object.freeze(
+          Object.assign({}, timeMessages.en, ...candidates.map((key) => timeMessages[key] ?? {})),
+        ),
+        digits: candidates.reduce((digits, key) => timeDigits[key] ?? digits, timeDigits.en!),
+      };
+    }
+    return this.timeData;
+  }
+  private timeLabel(key: string): string {
+    const value = this.timeLocalization().labels[key];
+    if (value === undefined) throw new Error('Missing Material time localization: ' + key);
+    return value;
+  }
+  /** @internal Localized numerals for the finite time picker input domain. */
+  timePickerNumber(value: number, width = 1): string {
+    const digits = [...this.timeLocalization().digits];
+    return String(value)
+      .padStart(width, '0')
+      .replace(/\d/g, (digit) => digits[Number(digit)]!);
+  }
+  /** @internal Text entered into a picker can use local or ASCII digits. */
+  parseTimePickerNumber(value: string): number | null {
+    const digits = [...this.timeLocalization().digits];
+    const input = [...value.trim()]
+      .map((char) => {
+        const digit = digits.indexOf(char);
+        return digit < 0 ? char : String(digit);
+      })
+      .join('');
+    return /^\d{1,2}$/.test(input) ? Number(input) : null;
+  }
+  timeOfDayFormat({
+    alwaysUse24HourFormat = false,
+  }: { readonly alwaysUse24HourFormat?: boolean } = {}): TimeOfDayFormat {
+    const format = this.timeLabel('timeOfDayFormat') as TimeOfDayFormat;
+    return alwaysUse24HourFormat && hourFormat({ of: format }) === HourFormat.h
+      ? TimeOfDayFormat.HH_colon_mm
+      : format;
+  }
+  formatHour(time: TimeOfDay, options: { readonly alwaysUse24HourFormat?: boolean } = {}): string {
+    const format = hourFormat({ of: this.timeOfDayFormat(options) });
+    if (format === HourFormat.h) return this.timePickerNumber(time.hourOfPeriod);
+    return this.timePickerNumber(time.hour, format === HourFormat.HH ? 2 : 1);
+  }
+  formatMinute(time: TimeOfDay): string {
+    return this.timePickerNumber(time.minute, 2);
+  }
+  formatTimeOfDay(
+    time: TimeOfDay,
+    options: { readonly alwaysUse24HourFormat?: boolean } = {},
+  ): string {
+    const hour = this.formatHour(time, options);
+    const minute = this.formatMinute(time);
+    const period =
+      time.period === DayPeriod.am ? this.anteMeridiemAbbreviation : this.postMeridiemAbbreviation;
+    switch (this.timeOfDayFormat(options)) {
+      case TimeOfDayFormat.HH_dot_mm:
+        return `${hour}.${minute}`;
+      case TimeOfDayFormat.frenchCanadian:
+        return `${hour} h ${minute}`;
+      case TimeOfDayFormat.h_colon_mm_space_a:
+        return `${hour}:${minute} ${period}`;
+      case TimeOfDayFormat.a_space_h_colon_mm:
+        return `${period} ${hour}:${minute}`;
+      default:
+        return `${hour}:${minute}`;
+    }
+  }
+  get anteMeridiemAbbreviation(): string {
+    return this.timeLabel('anteMeridiemAbbreviation');
+  }
+  get postMeridiemAbbreviation(): string {
+    return this.timeLabel('postMeridiemAbbreviation');
+  }
+  get timePickerDialHelpText(): string {
+    return this.timeLabel('timePickerDialHelpText');
+  }
+  get timePickerInputHelpText(): string {
+    return this.timeLabel('timePickerInputHelpText');
+  }
+  get timePickerHourLabel(): string {
+    return this.timeLabel('timePickerHourLabel');
+  }
+  get timePickerMinuteLabel(): string {
+    return this.timeLabel('timePickerMinuteLabel');
+  }
+  get timePickerHourModeAnnouncement(): string {
+    return this.timeLabel('timePickerHourModeAnnouncement');
+  }
+  get timePickerMinuteModeAnnouncement(): string {
+    return this.timeLabel('timePickerMinuteModeAnnouncement');
+  }
+  get invalidTimeLabel(): string {
+    return this.timeLabel('invalidTimeLabel');
+  }
+  get dialModeButtonLabel(): string {
+    return this.timeLabel('dialModeButtonLabel');
+  }
+  get inputTimeModeButtonLabel(): string {
+    return this.timeLabel('inputTimeModeButtonLabel');
+  }
+  get modalBarrierDismissLabel(): string {
+    return this.timeLabel('modalBarrierDismissLabel');
+  }
+  override get cancelButtonLabel(): string {
+    return this.timeLabel('cancelButtonLabel');
+  }
+  override get okButtonLabel(): string {
+    return this.timeLabel('okButtonLabel');
   }
 }
 export class DefaultMaterialLocalizations extends MaterialLocalizations {

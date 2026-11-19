@@ -36,6 +36,8 @@ import { RestorationMixin as CoreRestorationMixin } from '@nelyx/core/framework/
 import type { StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import { ValueKey } from '@nelyx/core/foundation/key';
 import { DartInt, boxSourceDartInt } from '@nelyx/core/internal/foundation/dart-numeric';
+import { constBorderRadiusAll } from '@nelyx/core/internal/framework/painting/border-radius-source-adapter';
+import { constSourceRadiusCircular } from '@nelyx/core/internal/ui/radius-source-adapter';
 import { dartIntType } from '@nelyx/core/internal/foundation/dart-type-witness';
 import { dartValueEquals, dartValueHash } from '@nelyx/core/internal/foundation/dart-value';
 import { FocusNode } from '@nelyx/core/framework/widgets/focus';
@@ -62,7 +64,6 @@ import { AutovalidateMode } from '../../generated/date/form.generated.ts';
 import { Form } from '@nelyx/core/framework/widgets/form';
 import { Shortcuts } from '@nelyx/core/framework/widgets/shortcuts';
 import { ClampingScrollPhysics } from '@nelyx/core/framework/widgets/scroll-physics';
-import { Radius } from '@nelyx/core/ui/radius';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import { RoundedRectangleBorder } from '@nelyx/core/framework/painting/rounded-rectangle-border';
 import { OutlineInputBorder, UnderlineInputBorder } from '../../input-border.ts';
@@ -515,10 +516,8 @@ export function constDateSpacer<T>(
   return canonical(owner, [options.flex ?? 1], () => new owner(options));
 }
 export const constDateSize = constSourceSize;
-export const constDateRadiusCircular = (owner: typeof Radius, value: number) =>
-  canonical(owner, [value, value], () => owner.circular(value));
-export const constDateBorderRadiusAll = (owner: typeof BorderRadius, value: Radius) =>
-  canonical(owner, [value.x, value.y], () => owner.all(value));
+export const constDateRadiusCircular = constSourceRadiusCircular;
+export const constDateBorderRadiusAll = constBorderRadiusAll;
 export const constDateRoundedRectangleBorder = (
   owner: typeof RoundedRectangleBorder,
   options: ConstructorParameters<typeof RoundedRectangleBorder>[0] = {},

@@ -31,6 +31,9 @@ export class FoundationPlatform {
   };
   private static _debugDefaultTargetPlatformOverride: TargetPlatform | null = null;
   private static browserCached: TargetPlatform | undefined;
+  static get isWeb(): boolean {
+    return this.environment.kind === 'web';
+  }
   /** Reconfiguring the host starts a new browser cache; overrides remain explicit. */
   static configure(environment: FoundationPlatformEnvironment): void {
     if (environment !== this.environment) {

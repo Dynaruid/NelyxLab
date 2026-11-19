@@ -72,6 +72,28 @@ export interface RouteDescriptor {
 }
 export type RouteResolver = (settings: RouteDescriptor) => Route | null;
 export type PopGuard = () => boolean | PromiseLike<boolean>;
+const localHistoryOwners = new WeakMap<LocalHistoryEntry, () => void>();
+
+export class LocalHistoryEntry {
+  readonly onRemove: (() => void) | null;
+  readonly impliesAppBarDismissal: boolean;
+
+  constructor({
+    onRemove = null,
+    impliesAppBarDismissal = true,
+  }: {
+    readonly onRemove?: (() => void) | null;
+    readonly impliesAppBarDismissal?: boolean;
+  } = {}) {
+    this.onRemove = onRemove;
+    this.impliesAppBarDismissal = impliesAppBarDismissal;
+  }
+
+  remove(): void {
+    localHistoryOwners.get(this)?.();
+  }
+}
+
 export interface RouteTransition {
   readonly from: symbol;
   readonly to: symbol;
@@ -85,6 +107,7 @@ class RouteVisibility extends InheritedWidget {
     readonly token: symbol,
     readonly opaque: boolean,
     readonly isInteractive = isCurrent,
+    readonly impliesAppBarDismissal = false,
   ) {
     super(child);
   }
@@ -94,7 +117,8 @@ class RouteVisibility extends InheritedWidget {
       this.isInteractive !== old.isInteractive ||
       this.controller !== old.controller ||
       this.token !== old.token ||
-      this.opaque !== old.opaque
+      this.opaque !== old.opaque ||
+      this.impliesAppBarDismissal !== old.impliesAppBarDismissal
     );
   }
 }
@@ -109,6 +133,9 @@ export function routeTokenOf(context: BuildContext): symbol | null {
 export function routeOpacityOf(context: BuildContext): boolean | null {
   return context.maybeDependOn(RouteVisibility)?.opaque ?? null;
 }
+export function routeImpliesAppBarDismissal(context: BuildContext): boolean {
+  return context.maybeDependOn(RouteVisibility)?.impliesAppBarDismissal ?? false;
+}
 export class NavigatorController extends ChangeNotifier {
   private entries: Entry[] = [];
   private disposed = false;
@@ -118,8 +145,12 @@ export class NavigatorController extends ChangeNotifier {
     return !this.disposed && this.consumer !== undefined;
   }
   private readonly guards = new Map<symbol, Map<PopGuard, () => boolean>>();
+  private readonly localHistory = new Map<symbol, LocalHistoryEntry[]>();
   hasBlockingPopGuard(token: symbol): boolean {
-    return [...(this.guards.get(token)?.values() ?? [])].some((blocks) => blocks());
+    return (
+      this.localHistory.has(token) ||
+      [...(this.guards.get(token)?.values() ?? [])].some((blocks) => blocks())
+    );
   }
   private pendingPop: Promise<boolean> | undefined;
   private readonly transitions = new Set<(transition: RouteTransition) => void>();
@@ -170,7 +201,8 @@ export class NavigatorController extends ChangeNotifier {
     if (this.gestureCount === 0) this.notifyListeners();
   }
   get canPop(): boolean {
-    return this.entries.length > 1;
+    const current = this.entries.at(-1);
+    return this.entries.length > 1 || (current !== undefined && this.localHistory.has(current.token));
   }
   get handlesBack(): boolean {
     if (this.canPop) return true;
@@ -335,6 +367,11 @@ export class NavigatorController extends ChangeNotifier {
   pop<T>(result?: T): boolean {
     if (!this.canPop || this.disposed) return false;
     const entry = this.entries.at(-1)!;
+    const local = this.localHistory.get(entry.token)?.at(-1);
+    if (local) {
+      local.remove();
+      return true;
+    }
     if (!entry.route.didPop(result)) return false;
     this.entries.pop();
     this.revision++;
@@ -346,6 +383,50 @@ export class NavigatorController extends ChangeNotifier {
       entry.complete(result);
     }
     return true;
+  }
+  addLocalHistoryEntry(token: symbol, entry: LocalHistoryEntry): void {
+    this.ensureAlive();
+    invariant(
+      this.entries.some((route) => route.token === token) && !localHistoryOwners.has(entry),
+      'invalid-local-history-entry',
+      'Local history requires a live route and an unattached entry',
+    );
+    const history = this.localHistory.get(token) ?? [];
+    history.push(entry);
+    this.localHistory.set(token, history);
+    localHistoryOwners.set(entry, () => {
+      history.splice(history.indexOf(entry), 1);
+      localHistoryOwners.delete(entry);
+      if (!history.length) this.localHistory.delete(token);
+      this.localHistoryChanged();
+      entry.onRemove?.();
+    });
+    this.localHistoryChanged();
+  }
+
+  routeImpliesAppBarDismissal(token: symbol): boolean {
+    return (
+      this.entries.findIndex((entry) => entry.token === token) > 0 ||
+      (this.localHistory.get(token)?.some((entry) => entry.impliesAppBarDismissal) ?? false)
+    );
+  }
+
+  private localHistoryChanged(): void {
+    this.revision++;
+    void Promise.resolve()
+      .then(() => {
+        if (!this.disposed) this.notifyListeners();
+      })
+      .catch((exception) =>
+        FlutterError.reportError(
+          new FlutterErrorDetails({ exception, library: 'widgets navigation' }),
+        ),
+      );
+  }
+
+  private detachLocalHistory(token: symbol): void {
+    for (const entry of this.localHistory.get(token) ?? []) localHistoryOwners.delete(entry);
+    this.localHistory.delete(token);
   }
   /** A stale/denied Back is consumed; it must never pop a replacement route or escape to a parent. */
   maybePop<T>(result?: T): Promise<boolean> {
@@ -443,6 +524,7 @@ export class NavigatorController extends ChangeNotifier {
     for (const e of old)
       if (!this.entries.some((next) => next.token === e.token)) {
         this.guards.delete(e.token);
+        this.detachLocalHistory(e.token);
         e.complete(undefined);
       }
     this.notifyListeners();
@@ -510,7 +592,10 @@ export class NavigatorController extends ChangeNotifier {
     this.entries = [];
     this.guards.clear();
     this.transitions.clear();
-    for (const entry of entries) entry.cancel();
+    for (const entry of entries) {
+      this.detachLocalHistory(entry.token);
+      entry.cancel();
+    }
   }
 }
 /** Browser history and route restoration accept bounded JSON data, not object identities. */
@@ -542,6 +627,7 @@ export class Navigator extends StatefulWidget {
     readonly options: {
       readonly restorationId?: string;
       readonly onGenerateRoute?: RouteResolver;
+      readonly enabled?: boolean;
     } = {},
   ) {
     super(key);
@@ -581,7 +667,25 @@ export class Navigator extends StatefulWidget {
     return new NavigatorState();
   }
 }
-class NavigatorState extends TickerProviderStateMixin<Navigator> {
+export class NavigatorState extends TickerProviderStateMixin<Navigator> {
+  get controller(): NavigatorController {
+    return this.widget.controller;
+  }
+  canPop(): boolean {
+    return this.controller.canPop;
+  }
+  push<T>(route: Route<T>): Promise<T | undefined> {
+    return this.controller.push(route);
+  }
+  pushNamed<T>(name: string, argumentsValue?: unknown): Promise<T | undefined> {
+    return this.controller.pushNamed<T>(name, argumentsValue);
+  }
+  pop<T>(result?: T): boolean {
+    return this.controller.pop(result);
+  }
+  maybePop<T>(result?: T): Promise<boolean> {
+    return this.controller.maybePop(result);
+  }
   private readonly transitionOwner = new NavigationTransitions(
     this,
     () => {
@@ -683,6 +787,7 @@ class NavigatorState extends TickerProviderStateMixin<Navigator> {
   };
   override initState(): void {
     try {
+      this.active = this.widget.options.enabled !== false;
       this.releaseController = this.widget.controller.attach(
         this,
         (settings) => this.widget.options.onGenerateRoute?.(settings) ?? null,
@@ -697,7 +802,7 @@ class NavigatorState extends TickerProviderStateMixin<Navigator> {
       this.systemBack = this.context.services.platformServices?.addObserver({
         didPopRoute: () => (this.active ? this.handleBack() : false),
       });
-      this.updateSystemBack(this.widget.controller.handlesBack);
+      this.updateSystemBack(this.active && this.widget.controller.handlesBack);
     } catch (error) {
       try {
         this.dispose();
@@ -708,8 +813,12 @@ class NavigatorState extends TickerProviderStateMixin<Navigator> {
     }
   }
   override didChangeDependencies(): void {
-    this.active = this.context.maybeDependOn(RouteVisibility)?.isInteractive ?? true;
+    this.updateActivation();
     this.persistence.update(this.context, this.widget.options.restorationId ?? null);
+  }
+  private updateActivation(): void {
+    const parentActive = this.context.maybeDependOn(RouteVisibility)?.isInteractive ?? true;
+    this.active = parentActive && this.widget.options.enabled !== false;
     this.updateSystemBack(this.active && (this.reversing || this.widget.controller.handlesBack));
   }
   override didUpdateWidget(old: Navigator): void {
@@ -718,6 +827,7 @@ class NavigatorState extends TickerProviderStateMixin<Navigator> {
       'navigator-controller-change',
       'Changing NavigatorController requires remount',
     );
+    if (old.options.enabled !== this.widget.options.enabled) this.updateActivation();
     this.transitionOwner.refreshPages();
     this.persistence.update(this.context, this.widget.options.restorationId ?? null);
   }
@@ -829,6 +939,7 @@ class NavigatorState extends TickerProviderStateMixin<Navigator> {
               entry.token,
               entry.opaque,
               interactive,
+              this.widget.controller.routeImpliesAppBarDismissal(entry.token),
             ),
             offstage,
           ),

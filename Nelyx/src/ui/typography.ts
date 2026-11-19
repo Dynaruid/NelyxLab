@@ -4,6 +4,7 @@
 import { invariant } from '../foundation/errors.ts';
 import { protect, hashDoubles, checkedInteger } from './value-math.ts';
 export type TextAlign = 'left' | 'right' | 'center' | 'justify' | 'start' | 'end';
+export type TextDirection = 'ltr' | 'rtl';
 export type FontStyle = 'normal' | 'italic';
 export type TextLeadingDistribution = 'proportional' | 'even';
 export type TextDecorationStyle = 'solid' | 'double' | 'dotted' | 'dashed' | 'wavy';

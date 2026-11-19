@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
+import { AnimationStatus } from '@nelyx/core/framework/animation/animation';
+import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
 import { ValueKey } from '@nelyx/core/foundation/key';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import {
@@ -11,6 +13,7 @@ import {
   SizedBox,
   DecoratedBox,
   Center,
+  Builder,
 } from '@nelyx/core/framework/widgets/basic';
 import { LayoutBuilder } from '@nelyx/core/framework/widgets/layout-builder';
 import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-builder';
@@ -18,11 +21,15 @@ import { Wrap } from '@nelyx/core/framework/widgets/wrap';
 import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
 import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
 import { FocusTraversalGroup } from '@nelyx/core/framework/widgets/focus-traversal-group';
+import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
 import { TextFieldTapRegion } from '@nelyx/core/framework/widgets/tap-region';
 import { Navigator, NavigatorController, Route } from '@nelyx/core/framework/widgets/navigation';
 import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
+import { Semantics } from '@nelyx/core/framework/widgets/semantics';
+import { scrollChromeTimer } from '@nelyx/core/internal/framework/widgets/scroll-chrome-timers';
+import { PreferredSize } from '@nelyx/core/framework/widgets/preferred-size';
 import { RadioGroup } from '@nelyx/core/framework/widgets/radio-group';
 import { Icon } from '@nelyx/core/framework/widgets/icon';
 import type { IconData } from '@nelyx/core/framework/widgets/icon-data';
@@ -38,9 +45,23 @@ import { ElevatedButton } from '@nelyx/material/elevated-button';
 import { OutlinedButton } from '@nelyx/material/outlined-button';
 import { TextButton } from '@nelyx/material/text-button';
 import { FloatingActionButton } from '@nelyx/material/floating-action-button';
+import { NavigationBar, NavigationDestination } from '@nelyx/material/navigation-bar';
+import { NavigationRail, NavigationRailDestination } from '@nelyx/material/navigation-rail';
+import { Drawer } from '@nelyx/material/drawer';
+import { NavigationDrawer, NavigationDrawerDestination } from '@nelyx/material/navigation-drawer';
+import { DefaultTabController } from '@nelyx/material/tab-controller';
+import { Tab, TabBar, TabBarView } from '@nelyx/material/tabs';
+import { AppBar } from '@nelyx/material/app-bar';
+import { Scaffold, ScaffoldMessenger } from '@nelyx/material/scaffold';
+import { SnackBar, SnackBarAction, SnackBarBehavior } from '@nelyx/material/snack-bar';
+import { MenuAnchor, MenuItemButton, SubmenuButton } from '@nelyx/material/menu-anchor';
+import { SearchAnchor } from '@nelyx/material/search-anchor';
+import { MaterialPageRoute } from '@nelyx/material/page';
 import { ButtonSegment, SegmentedButton } from '@nelyx/material/segmented-button';
 import { DateTime, showDatePicker } from '@nelyx/material/date-picker';
+import { TimeOfDay, showTimePicker } from '@nelyx/material/time-picker';
 import { IconButton } from '@nelyx/material/icon-button';
+import { AnimatedIcon, AnimatedIcons } from '@nelyx/material/animated-icons';
 import { Icons } from '@nelyx/material/icons';
 import { Card } from '@nelyx/material/card';
 import { Badge } from '@nelyx/material/badge';
@@ -110,6 +131,9 @@ export class ComponentsGallery extends StatefulWidget {
   }
 }
 class GalleryState extends State<ComponentsGallery> {
+  private destinationIndex = 0;
+  private railIndex = 0;
+  private railExtended = false;
   private readonly expandedPanels = new Set<number>();
   private previousPanelAction: string | null = null;
   private pageRevision = 0;
@@ -150,6 +174,7 @@ class GalleryState extends State<ComponentsGallery> {
   private checked: boolean | null = true;
   private segment = 'List';
   private date = DateTime.now();
+  private time = new TimeOfDay({ hour: 9, minute: 30 });
   private mixed: boolean | null = null;
   private selectedRadio = 'first';
   private switched = false;
@@ -648,6 +673,245 @@ class GalleryState extends State<ComponentsGallery> {
     const update = (change: () => void) => this.updates.change(id, change);
     const colors = Theme.of(context).colorScheme;
     switch (id) {
+      case 'snackbar':
+        return new OutlinedButton({
+          child: new Text('Open snackbar example'),
+          onPressed: () => {
+            void this.navigator.push(
+              new MaterialPageRoute({
+                builder: () =>
+                  new Scaffold({
+                    appBar: new AppBar({ title: new Text('Snackbar example') }),
+                    body: new Builder(
+                      (context) =>
+                        new Center(
+                          new FilledButton({
+                            child: new Text('Archive item'),
+                            onPressed: () => {
+                              const messenger = ScaffoldMessenger.of(context);
+                              const first = messenger.showSnackBar(
+                                new SnackBar({
+                                  content: new Text('Item archived'),
+                                  behavior: SnackBarBehavior.floating,
+                                  action: new SnackBarAction({
+                                    label: 'Undo archive',
+                                    onPressed: () => this.record('Archive undone'),
+                                  }),
+                                }),
+                              );
+                              void first.closed.then((reason) =>
+                                this.record('Archive snackbar: ' + reason.name),
+                              );
+                              const next = messenger.showSnackBar(
+                                new SnackBar({
+                                  content: new Text('Queue complete'),
+                                  showCloseIcon: true,
+                                  persist: true,
+                                }),
+                              );
+                              void next.closed.then((reason) =>
+                                this.record('Queue snackbar: ' + reason.name),
+                              );
+                            },
+                          }),
+                        ),
+                    ),
+                  }),
+              }),
+            );
+          },
+        });
+      case 'navigation-rail':
+        return column(
+          new OutlinedButton({
+            child: new Text(
+              this.railExtended ? 'Collapse navigation rail' : 'Extend navigation rail',
+            ),
+            onPressed: () =>
+              update(() => {
+                this.railExtended = !this.railExtended;
+              }),
+          }),
+          new SizedBox(
+            undefined,
+            250,
+            new Row(
+              [
+                new NavigationRail({
+                  selectedIndex: this.railIndex,
+                  extended: this.railExtended,
+                  destinations: [
+                    new NavigationRailDestination({
+                      icon: new Icon(Icons.history),
+                      label: new Text('Recent'),
+                    }),
+                    new NavigationRailDestination({
+                      icon: new Icon(Icons.favorite_border),
+                      selectedIcon: new Icon(Icons.favorite),
+                      label: new Text('Favorites'),
+                    }),
+                    new NavigationRailDestination({
+                      icon: new Icon(Icons.folder),
+                      label: new Text('Archive unavailable'),
+                      disabled: true,
+                    }),
+                  ],
+                  onDestinationSelected: (index) => {
+                    update(() => {
+                      this.railIndex = index;
+                    });
+                    this.record('Rail destination: ' + index);
+                  },
+                }),
+                new Expanded(
+                  new Center(new Text(this.railIndex === 0 ? 'Recent items' : 'Favorite items')),
+                ),
+              ],
+              { crossAlign: 'stretch', spacing: 10 },
+            ),
+          ),
+        );
+      case 'navigation-drawer':
+        return new OutlinedButton({
+          child: new Text('Open drawer example'),
+          onPressed: () => {
+            void this.navigator.push(
+              new MaterialPageRoute<void>({ builder: () => new DrawerDemo() }),
+            );
+          },
+        });
+      case 'navigation-bar':
+        return new NavigationBar({
+          selectedIndex: this.destinationIndex,
+          destinations: [
+            new NavigationDestination({ label: 'Home', icon: new Icon(Icons.home) }),
+            new NavigationDestination({ label: 'Search', icon: new Icon(Icons.search) }),
+            new NavigationDestination({
+              label: 'Unavailable',
+              icon: new Icon(Icons.settings),
+              enabled: false,
+            }),
+          ],
+          onDestinationSelected: (index) => {
+            update(() => {
+              this.destinationIndex = index;
+            });
+            this.record('Navigation destination: ' + index);
+          },
+        });
+      case 'tabs':
+        return new OutlinedButton({
+          child: new Text('Open tabs example'),
+          onPressed: () => {
+            void this.navigator.push(
+              new MaterialPageRoute<void>({
+                builder: () =>
+                  new DefaultTabController({
+                    length: 3,
+                    child: new Scaffold({
+                      appBar: new AppBar({
+                        title: new Text('Tabs example'),
+                        bottom: new TabBar({
+                          tabs: [
+                            new Tab({ text: 'Overview' }),
+                            new Tab({ text: 'Activity' }),
+                            new Tab({ text: 'Preferences' }),
+                          ],
+                        }),
+                      }),
+                      body: new TabBarView({
+                        children: [
+                          new Center(new Text('Overview panel')),
+                          new Center(new Text('Activity panel')),
+                          new DefaultTabController({
+                            length: 2,
+                            child: new Column(
+                              [
+                                TabBar.secondary({
+                                  isScrollable: true,
+                                  tabs: [
+                                    new Tab({ text: 'General' }),
+                                    new Tab({ text: 'Notifications' }),
+                                  ],
+                                }),
+                                new Expanded(
+                                  new TabBarView({
+                                    children: [
+                                      new Center(new Text('General panel')),
+                                      new Center(new Text('Notifications panel')),
+                                    ],
+                                  }),
+                                ),
+                              ],
+                              { crossAxisAlignment: 'stretch' },
+                            ),
+                          }),
+                        ],
+                      }),
+                    }),
+                  }),
+              }),
+            );
+          },
+        });
+      case 'search':
+        return SearchAnchor.bar({
+          barHintText: 'Search collections',
+          viewHintText: 'Find a collection',
+          suggestionsBuilder: (_context, search) => {
+            const query = search.text.trim().toLowerCase();
+            const values = ['Apple trees', 'Maple trees', 'Orchids'];
+            const results = values
+              .filter((value) => value.toLowerCase().includes(query))
+              .map(
+                (value) =>
+                  new TextButton({
+                    child: new Text(value),
+                    onPressed: () => {
+                      search.closeView(value);
+                      this.record(`Search: ${value}`);
+                    },
+                  }),
+              );
+            return query === 'a'
+              ? new Promise<readonly Widget[]>((resolve) =>
+                  scrollChromeTimer(400, () => resolve(results)),
+                )
+              : results;
+          },
+        });
+      case 'top-app-bars':
+        return new OutlinedButton({
+          child: new Text('Open app bar example'),
+          onPressed: () => {
+            void this.navigator.push(
+              new MaterialPageRoute<void>({
+                builder: () =>
+                  new Scaffold({
+                    appBar: new AppBar({
+                      title: new Text('App bar example'),
+                      actions: [
+                        new TextButton({
+                          child: new Text('Refresh toolbar'),
+                          onPressed: () => this.record('App bar action pressed'),
+                        }),
+                      ],
+                      bottom: new PreferredSize({
+                        preferredSize: { width: 0, height: 36 },
+                        child: new SizedBox(undefined, 36, new Center(new Text('Toolbar details'))),
+                      }),
+                    }),
+                    body: ListView.builder({
+                      itemCount: 20,
+                      itemExtent: 56,
+                      itemBuilder: (_context, index) =>
+                        inset(16, new Text(`App bar row ${index + 1}`)),
+                    }),
+                  }),
+              }),
+            );
+          },
+        });
       case 'fab':
         return flow(
           new FloatingActionButton({
@@ -717,6 +981,23 @@ class GalleryState extends State<ComponentsGallery> {
           },
         });
       }
+      case 'time-picker':
+        return new OutlinedButton({
+          child: new Text('Choose time · ' + this.time.format(context)),
+          onPressed: () => {
+            void showTimePicker({
+              context,
+              initialTime: this.time,
+              errorInvalidText: 'Enter a valid hour and minute',
+            }).then((picked) => {
+              if (!this.mounted || picked === null) return;
+              update(() => {
+                this.time = picked;
+              });
+              this.record('Time: ' + picked.toString().slice(10, -1));
+            });
+          },
+        });
       case 'buttons': {
         const press = (name: string) => () => this.record(name + ' pressed');
         return column(
@@ -754,6 +1035,34 @@ class GalleryState extends State<ComponentsGallery> {
           ),
         );
       }
+      case 'menus':
+        return new MenuAnchor({
+          animated: true,
+          builder: (_context, menu) =>
+            new OutlinedButton({
+              child: new Text('Document actions'),
+              onPressed: () => {
+                if (menu.isOpen) menu.close();
+                else menu.open();
+              },
+            }),
+          menuChildren: [
+            new MenuItemButton({
+              child: new Text('Rename document'),
+              onPressed: () => this.record('Menu: Rename'),
+            }),
+            new SubmenuButton({
+              child: new Text('Export formats'),
+              menuChildren: [
+                new MenuItemButton({
+                  child: new Text('Export PDF'),
+                  onPressed: () => this.record('Menu: PDF'),
+                }),
+              ],
+            }),
+            new MenuItemButton({ child: new Text('Share unavailable') }),
+          ],
+        });
       case 'icon-buttons': {
         const options = {
           icon: icon(Icons.favorite_border),
@@ -773,6 +1082,7 @@ class GalleryState extends State<ComponentsGallery> {
             id: 'favorite-outlined',
             tooltip: 'Outlined favorite',
           }),
+          new AnimatedIconDemo(),
         );
       }
       case 'badges':
@@ -1181,6 +1491,130 @@ class GalleryState extends State<ComponentsGallery> {
       default:
         throw new Error('No implemented demo for ' + id);
     }
+  }
+}
+
+class DrawerDemo extends StatefulWidget {
+  override createState(): State<DrawerDemo> {
+    return new DrawerDemoState();
+  }
+}
+
+class DrawerDemoState extends State<DrawerDemo> {
+  private destination = 0;
+
+  override build(): Widget {
+    return new Scaffold({
+      appBar: new AppBar({ title: new Text('Drawer example') }),
+      drawer: new NavigationDrawer({
+        header: inset(20, new Text('Collections')),
+        footer: new Builder(
+          (context) =>
+            new TextButton({
+              child: new Text('Close navigation drawer'),
+              onPressed: () => Navigator.of(context).pop(),
+            }),
+        ),
+        selectedIndex: this.destination,
+        onDestinationSelected: (index) =>
+          this.setState(() => {
+            this.destination = index;
+          }),
+        children: [
+          new NavigationDrawerDestination({
+            icon: icon(Icons.home),
+            label: new Text('Drawer home'),
+          }),
+          new Divider(),
+          new NavigationDrawerDestination({
+            icon: icon(Icons.history),
+            label: new Text('Recent collections'),
+          }),
+          new NavigationDrawerDestination({
+            icon: icon(Icons.archive),
+            label: new Text('Archived collections'),
+            enabled: false,
+          }),
+        ],
+      }),
+      endDrawer: new Drawer({
+        semanticLabel: 'Collection filters',
+        child: new SafeArea({ child: inset(20, new Text('Filter this collection')) }),
+      }),
+      body: new Builder(
+        (context) =>
+          new Center(
+            new Column(
+              [
+                new Text(
+                  this.destination === 0 ? 'Home collections' : 'Recent collections selected',
+                ),
+                new OutlinedButton({
+                  child: new Text('Back to gallery'),
+                  onPressed: () => Navigator.of(context).pop(),
+                }),
+              ],
+              { mainAxisSize: 'min' },
+            ),
+          ),
+      ),
+    });
+  }
+}
+
+class AnimatedIconDemo extends StatefulWidget {
+  override createState(): State<AnimatedIconDemo> {
+    return new AnimatedIconDemoState();
+  }
+}
+
+class AnimatedIconDemoState extends SingleTickerProviderStateMixin<AnimatedIconDemo> {
+  private progress!: AnimationController;
+  private paused = true;
+  private label = 'Play symbol';
+
+  override initState(): void {
+    super.initState();
+    this.progress = new AnimationController({ vsync: this, duration: 300 });
+    this.progress.addStatusListener((status) => {
+      if (status === AnimationStatus.completed || status === AnimationStatus.dismissed) {
+        this.setState(() => {
+          this.label = status === AnimationStatus.completed ? 'Pause symbol' : 'Play symbol';
+        });
+      }
+    });
+  }
+
+  override build(): Widget {
+    return new Row(
+      [
+        new Semantics({
+          container: true,
+          child: new AnimatedIcon({
+            icon: AnimatedIcons.play_pause,
+            progress: this.progress,
+            size: 32,
+            semanticLabel: this.label,
+          }),
+        }),
+        new TextButton({
+          child: new Text(this.paused ? 'Play animation' : 'Pause animation'),
+          onPressed: () => {
+            this.setState(() => {
+              this.paused = !this.paused;
+            });
+            if (this.paused) this.progress.reverse();
+            else this.progress.forward();
+          },
+        }),
+      ],
+      { mainAxisSize: 'min' },
+    );
+  }
+
+  override dispose(): void {
+    this.progress.dispose();
+    super.dispose();
   }
 }
 

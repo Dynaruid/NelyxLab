@@ -53,19 +53,25 @@ const { values } = parseArgs({
     graph: { type: 'boolean' },
     'with-dependencies': { type: 'boolean' },
     coverage: { type: 'string' },
+    write: { type: 'boolean' },
+    check: { type: 'boolean' },
   },
 });
+const sourceBatch = values.write || values.check;
+const useGraph = values.graph || sourceBatch;
 const validFamily =
   values.family === 'all' ||
-  (values.graph ? /^W11-0[1-7]$/.test(values.family) : families.has(values.family));
+  (useGraph ? /^W11-0[1-7]$/.test(values.family) : families.has(values.family));
 if (
   !values.source ||
   !values.dart ||
   !validFamily ||
-  ((values.coverage || values['with-dependencies']) && !values.graph)
+  ((values.coverage || values['with-dependencies']) && !useGraph) ||
+  (sourceBatch && (values.family !== 'all' || (values.write && values.check)))
 )
   throw Error(
-    'design-body-probe --source <Flutter Git repository> --dart <Dart executable> [--family <W11 family>] [--graph [--coverage <resolved JSON>] [--with-dependencies]] [--emitter] [--summary]',
+    'design-body-probe --source <Flutter Git repository> --dart <Dart executable> [--family <W11 family>] [--graph [--coverage <resolved JSON>] [--with-dependencies]] [--emitter] [--summary]\n' +
+      'For the full source batch, use --write or --check with the pinned Dart SDK.',
   );
 
 const deadline = Date.now() + 1_200_000;
@@ -74,11 +80,17 @@ const installedRevision = fs.readFileSync(path.resolve(dart, '../../revision'), 
 const source = openFlutterSource(values.source);
 const expectedRevision = /^\s*'dart_revision':\s*'([a-f0-9]{40})',/m.exec(source.text('DEPS'))?.[1];
 if (!expectedRevision) throw Error('Pinned Flutter Dart revision is unavailable');
-const graph = values.graph
-  ? designInventory(values.source, { coverageFile: values.coverage })
-  : null;
+if (sourceBatch && installedRevision !== expectedRevision)
+  throw Error(`Design source batch requires Dart ${expectedRevision}; found ${installedRevision}`);
+const graph = useGraph ? designInventory(values.source, { coverageFile: values.coverage }) : null;
 if (graph && !graph.bodyUnits)
   throw Error('Run designs:resolve to classify graph dependencies first');
+if (
+  sourceBatch &&
+  (graph.analysis.dartRevision !== expectedRevision ||
+    graph.analysis.analyzedLockSha256 !== graph.analysis.currentLockSha256)
+)
+  throw Error('Run designs:resolve with the pinned SDK and current analyzer lock');
 const input = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'nelyx-design-probe-'));
 const abort = new AbortController();
 const stop = () => abort.abort();
@@ -196,11 +208,26 @@ try {
           })),
     }),
   );
-  if (values.emitter) {
+  if (values.emitter || sourceBatch) {
     const timeout = deadline - Date.now();
     if (timeout <= 0) throw Error('Design emitter probe exceeded 20 minutes');
     const plan = path.join(input, 'emitter-inputs.json');
-    fs.writeFileSync(plan, JSON.stringify(modules));
+    fs.writeFileSync(
+      plan,
+      JSON.stringify({
+        modules,
+        ...(sourceBatch
+          ? {
+              sourceBatch: {
+                revision: source.revision,
+                mode: values.write ? 'write' : 'check',
+                records: graph.records,
+                external: graph.external,
+              },
+            }
+          : {}),
+      }),
+    );
     await execute(
       'bun',
       [

@@ -2,6 +2,8 @@
 
 2026-11-19 · `PAUSED / PARTIAL`
 
+사용자 요청으로 현재 작업과 검증을 일시 중지했다. [9절](#9-현재-중단-지점)에서 현재 작업트리와 재개 지점을 확인할 수 있다.
+
 고정 Flutter 리비전의 Material 3와 Cupertino 위젯 전체를 한 배치에 넣고, 생성 가능한 TypeScript를 두 패키지 소스에 먼저 이식한다. 첫 배치에서 드러난 오류는 두 패키지에 걸쳐 같은 원인끼리 고치고 영향받은 코드를 재생성한다. 그다음 위젯별 속성·기본값·상태 전이·레이아웃·입력·접근성을 원본과 대조하고, 공개 패키지를 Demo와 Testbed의 정상 경로에서 검증한다.
 
 ## 1. 현재 소스에서 확인한 범위
@@ -81,12 +83,17 @@ Core나 호스트 기능이 필요한 선언은 첫 배치에서 해당 소유�
 - **배포 단위**. 현 체크아웃으로 Core 및 두 패키지 dist를 빌드하고, 공급·설치된 패키지의 export/type/runtime 바이트와 소스 identity를 확인한다. 현지화·Material/Cupertino 아이콘 폰트·필요한 셰이더와 BSD 및 자산별 notice가 독립 소비자 앱에서도 해석돼야 한다. 새로운 API와 기존 호출 방식을 모두 실제 진입점에서 사용한다. [앱 패키지 공급](Nelyx/eng/prepare-app-packages.mjs) · [Material 출처](packages/material/licenses/design-foundation-sources.json) · [Cupertino 출처](packages/cupertino/licenses/design-foundation-sources.json)
 - **실행 예산과 작업물**. 각 검증은 20분 timeout을 적용하고 대부분의 반복은 30회 이내에서 원인 판정에 필요한 만큼 수행한다. 준비·빌드가 오래 걸리면 도구 단계와 기능군을 작게 나눈다. 임시 Flutter 분석·비교·소비자 디렉터리와 브라우저 프로필, 진단 번들은 성공·실패·중단 모두 `finally`에서 정리한다. 유지되는 자료는 현재 소스·recipe·출처·소유권과 현재 dist/공급이다. 새 단계의 결과는 이 문서의 단계 행에 요약한다. [저장소 지침](.github/copilot-instructions.md)
 
-아래는 현재 저장소의 인벤토리 조회와 이식 후 빌드·회귀 검증에 쓰는 진입점이다. W11-01의 전체 소스 쓰기 기능은 구현 대기다. 테스트 호출은 20분 제한을 집행하는 검증 runner로 실행한다.
+아래는 전체 소스 배치와 이식 후 검증에 쓰는 진입점이다. 전체 배치의 `--write`와 `--check`는 Flutter pin이 요구하는 Dart SDK와 현재 Analyzer lock으로 실행한다. 테스트 호출은 20분 제한을 집행하는 검증 runner로 실행한다.
 
 ```powershell
 $flutterRepo = 'C:/Users/parti/flutter'
+$dart = 'C:/path/to/pinned/dart-sdk/bin/dart.exe'
 node Nelyx/eng/framework-inventory.mjs --source $flutterRepo --module '@nelyx/material/widgets'
 node Nelyx/eng/framework-inventory.mjs --source $flutterRepo --module '@nelyx/cupertino/widgets'
+node tools/Nelyx.FrameworkToTypeScript/design-body-probe.mjs --source $flutterRepo --dart $dart --write --summary
+node tools/Nelyx.FrameworkToTypeScript/design-body-probe.mjs --source $flutterRepo --dart $dart --check --summary
+node tools/Nelyx.FrameworkToTypeScript/framework-ports.mjs --source $flutterRepo --dart $dart --write
+node tools/Nelyx.FrameworkToTypeScript/framework-ports.mjs --source $flutterRepo --dart $dart --check
 npm.cmd run build:designs
 node packages/material/eng/check-range-slider-hover.mjs
 npm.cmd run run:windows --workspace @nelyx/demo -- -- 2500
@@ -97,7 +104,7 @@ npm.cmd run run:windows --workspace @nelyx/testbed-2 -- --host native-hermes -- 
 
 ## 6. 실행 결과
 
-아래는 작업 방식 변경 전까지의 실행 기록이다. W11-01의 전체 소스 이식과 W11-02의 후속 수정 결과는 재개 후 기록한다.
+기존 기능군 검증 이력은 아래 표에 있고, 전체 배치 쓰기와 재생성 및 최신 제품 검증 결과는 8절에 있다.
 
 | 단계 | 현재 결과 | 남은 작업 |
 | --- | --- | --- |
@@ -131,11 +138,11 @@ npm.cmd run run:windows --workspace @nelyx/testbed-2 -- --host native-hermes -- 
 
 - **Pagination·Stepper·SliverRefresh 제품 확인.** 최신 Testbed Web Release에서 다음 페이지와 페이지 크기 변경, Stepper의 다음 단계·선택·비활성 헤더, 독립 Cupertino 라우트에서 실제 가상 터치 overscroll로 refresh를 실행하고 새 항목이 목록에 나타나는 것을 확인했다. Core→Web의 `aria-checked="mixed"` 및 체크박스 역할도 패키지의 전체 선택 컨트롤에서 확인했다. 고정 원본 선언 70개와 제품 해시, 엄격 타입 검사 및 mounted 회귀가 통과했다. 최신 네이티브 번들, 픽셀과 실기기 대조는 남아 있다.
 
-## 7. 중간 마무리 · 재개 지점
+## 7. 이전 중간 마무리 이력
 
 사용자 요청으로 전체 이식을 일시 중지했다. 마지막 제품 검증은 Pagination·Stepper·SliverRefresh를 포함한 Testbed Web Release, 엄격 타입 검사, 패키지 동작 검사와 원본 출처 확인이다. 소스와 테스트 변경 사항은 커밋하지 않고 현재 작업트리에 보존했다. Windows direct Hermes와 Android 에뮬레이터의 동작 확인은 앞선 Material modal 빌드까지이며, 그 이후 추가한 기능의 네이티브 검증은 남아 있다.
 
-**재개 첫 작업은 W11-01의 두 패키지 전체 변환·소스 이식이다.** 기존 W11-00 목록과 소유 경로를 읽고, 전체 그래프의 emitter 출력을 두 패키지의 실제 TS 파일로 쓰는 경로를 연결한 뒤 첫 배치를 끝까지 실행한다. 직전 예비 실행의 1,728개 모듈 시도 중 462개는 구문 통과 후보였고 1,266개는 차단됐다(IR 14개, emitter 1,252개). 이 수치는 과거 진단 집계다. 첫 배치에서 실제로 쓴 소스와 기존 구현에 연결한 항목을 확인한 뒤, 양쪽의 공통 차단과 컴파일 오류부터 고친다.
+당시 재개 지점은 W11-01의 두 패키지 전체 변환과 소스 이식이었다. 예비 실행의 1,728개 모듈 중 462개는 구문 통과 후보였고 1,266개는 차단됐다(IR 14개, emitter 1,252개). 첫 전체 배치 결과는 8절에 기록했다.
 
 `CupertinoDatePicker`도 첫 배치 입력에 포함한다. 중단 시점에는 고정 Flutter 원본과 Core wheel API를 조사했다. 해당 위젯에 남은 동작 차이와 Testbed 시연은 이식 후 W11-05에서 보완한다.
 
@@ -144,3 +151,40 @@ W11-05 작업 중 [CupertinoSearchTextField](packages/cupertino/src/search-field
 Testbed 검색 항목은 `basic`이다. [Web Release 검사](sample/nelyx-testbed-app-2/eng/check-w11-design-demos.mjs)에서 한국어 placeholder, 편집·Enter 제출, 지우기 콜백 및 빈 입력에서 suffix 제거를 확인했다. 비활성 검색 필드 검사에서 브라우저 EditContext의 `aria-disabled` 값이 제거되던 문제도 수정했다. 기존 segmented·wheel·날짜 회귀, RangeSlider 회귀와 Testbed 엄격 타입 검사가 통과했다.
 
 검색 필드의 복원 왕복, 외부 controller·FocusNode 전환 및 소유권은 [mounted 검사](packages/cupertino/test/search-field.test.mjs)에서 검증했다. 스크롤 축소 시 fade, cursor radius·점멸, iOS 스마트 문장부호·IME 개인화와 호스트별 동작은 남아 있다. W11 전체는 완료되지 않았다. M2 범위, emitter의 미해결 바인딩, 나머지 공개 API 및 기능군, 최신 Windows·Android·RNW·Apple 및 성능 검증의 상태는 6절을 참조한다.
+
+## 8. 전체 배치 재개 · 2026-11-19
+
+| 단계 | 현재 결과 | 남은 작업 |
+| --- | --- | --- |
+| W11-00 | Flutter pin `71e4717a…`와 Dart pin `e9c89888…`를 사용했다. 요구 SDK는 해당 Flutter Git 트리의 content-aware engine artifact에서 확보했다. 두 임시 원본 경로에서 2,081개 Body IR 응답이 일치했다. M2 전용 기본값 클래스 24개와 그 멤버를 합친 316개 선언을 제외했다. 레일의 M2 기본 폭 참조는 공용 레이아웃 범위에 남겼다. | 나머지 Material 2 분기, `ToggleButtons` 및 공용 선언의 범위 판정. |
+| W11-01 | **첫 전체 쓰기 완료.** 두 패키지 1,683개 실행 단위의 1,728개 모듈을 처리했다. 최초 Material 236개, Cupertino 186개 생성 파일을 두 소스 트리에 썼다. 실행 보고서에서 원본 위치·기존 소유자·생성 결과·차단 사유를 조회할 수 있다. | 기존 계약·공개 멤버·원본 동작 대조와 기능별 승격. |
+| W11-02 | 해석된 Core 타입, 상위 생성자, `late`, 제네릭 제약, 엄격 모드 예약 이름을 연결했다. 검토한 단일 ticker/restoration mixin과 Radius·EdgeInsets 상수 경계를 추가했다. 마지막 전체 쓰기에서 Material 262개와 Cupertino 220개 후보가 엄격 타입 검사를 통과했다. | 마지막 집계의 차단은 emitter 871개와 IR 13개로 총 884개다. 객체 상수, 여러 mixin 적용 순서, 상위 생성자와 Dart 정수 표현을 계속 대조한다. 검색 공개 소유자 연결 이후 전체 재생성이 남아 있다. |
+| W11-03 | Flutter `AnimatedIcon` 14종의 경로·투명도 트랙을 생성하고 Core Animation, IconTheme, CustomPaint에 연결했다. 고정 Git에서 14종 재생성이 통과했다. Web Testbed에서 재생 시 32×32 아이콘 이미지가 바뀌고 역재생 후 시작 이미지로 돌아왔다. | Flutter 원본 프레임과 렌더링 비교, 테마·입력 상태별 대조 및 기능군별 회귀. |
+| W11-04 | Cupertino 팝업·액션 시트, Material `NavigationBar`·`NavigationRail`·`AppBar` 및 옵션 기반 `Scaffold`를 공개했다. Core에 방향성 toolbar, preferred size, 스크롤 알림을 추가했다. Cupertino 고정 내비게이션 바와 page scaffold를 새 객체 옵션 및 기존 생성 경로로 연결했다. Material 탭, Cupertino 시트, Snackbar 큐, 양쪽 Drawer와 NavigationDrawer를 추가했다. Cupertino 탭마다 독립 Navigator를 연결했다. Material 메뉴와 하위 메뉴를 Core `RawMenuAnchor`에 연결했다. | 최신 메뉴·Snackbar 조작, Cupertino 메뉴·컨텍스트 메뉴, Material sliver app bar, Cupertino 확장 내비게이션, 팝업 foldable 영역, 탭 복원과 호스트별 시각·입력 대조. |
+| W11-05 | Cupertino 날짜·시간 피커 4가지 모드와 타이머의 고정 현지화, Core의 공용 `DateTime`을 추가했다. Material `TimeOfDay`와 다이얼·텍스트 시간 대화상자는 Flutter 시간 형식·라벨·숫자, 12/24시간 및 복원을 지원한다. `SearchAnchor`, `SearchBar`, `SearchController`를 공개했다. | Web 검색 뷰 열기와 결과 선택 검증, 원본 폭·픽셀, 화면 분할 anchor, 호스트 진동·IME, UIKit 피드백 및 기타 입력·폼 API. |
+| W11-06 | 현 배치에서도 이전 Web 검증의 데이터 표·페이지 이동·Stepper·refresh 시연을 유지했다. | Carousel·복합 스크롤, 나머지 데이터 표·패널 옵션, 네이티브 접근성 및 원본 레이아웃·애니메이션 대조. |
+| W11-07 | 소스 후보 435개의 첫 바이트 대조를 통과했다. 마지막 출처 대조는 고정 원본 span과 제품 해시 187개다. 설치된 Web 패키지의 공개 경로와 공용 Core 객체를 확인했다. 두 npm 패키지 배포 목록에서 후보 경로 제외와 picker 라이선스 포함을 확인했다. | 최신 검색·메뉴 수정 이후 출처 재생성과 최종 후보 바이트 대조, 전체 M3 범위와 승격, 독립 앱 및 최신 패키지 검증. |
+| W11-08 | Testbed Web Release `b8887870…`에서 기존 컨트롤과 데이터 표 회귀, 내비게이션 바·레일·AppBar·시간 선택, Material 탭, Cupertino 이름 있는 라우트·날짜 휠·액션 시트·refresh·중첩 시트 저장과 드래그 닫기가 통과했다. Web `dc71adeb…`는 양쪽 Drawer 열기, 비활성 목적지, 선택, `Navigator.pop()` 및 Escape 닫기를 통과했다. Web `6c55f8c8…`는 AnimatedIcon 재생·역재생과 Cupertino 탭의 선택 표시·스택 보존·활성 탭의 Back을 통과했다. Android x86_64 Release `f0cbf5e5…`는 격리된 API 33 에뮬레이터에서 날짜 휠·팝업 결과·중첩 시트 저장을 통과했다. Windows direct Hermes `76b59971…` 기동·종료, RNW `56dfa838…` 기동과 UIA Cupertino 전환을 확인했다. Windows Demo `295d86d8…`에서 가상 입력으로 20회 스크롤하며 5개 컨트롤을 통과한 뒤 시작 위치로 돌아왔다. 입력 922건 수락, 거부 0건, 송신 간격 p95 16.02ms였다. | 최신 Web Release가 검색 뷰 열기에서 멈췄다. RNW 날짜·팝업 조작은 전경 창이 바뀌어 완료하지 못했다. 최신 네이티브 기능군의 검증과 Apple, 원본 픽셀·성능·물리 입력 검증이 남아 있다. |
+
+생성 후보는 각 패키지의 `src/generated/flutter-design`에 있다. TypeScript 진단은 배치가 해당 파일을 직접 검사한다. 정식 패키지에서 사용할 선언은 원본 동작과 소비자 진입점 검증을 거쳐 승격한다. 목적지의 이전 생성 해시가 바뀌었으면 로컬 수정을 보존하고 충돌 사유를 출력한다. [배치 진입점](tools/Nelyx.FrameworkToTypeScript/design-body-probe.mjs) · [출력 소유권](tools/Nelyx.FrameworkToTypeScript/src/design-source-batch.ts)
+
+날짜·타이머의 열 순서, 달력 숫자, 날짜 패턴, 복수형과 접근성 라벨은 고정 Flutter ARB 및 Dart intl 0.20.3에서 생성한다. 매체별 JS Intl 구현 차이의 영향을 피하기 위해 같은 테이블을 사용한다. [현지화 생성기](tools/Nelyx.FrameworkToTypeScript/generate-cupertino-picker-localizations.mjs) · [출처 및 라이선스](packages/cupertino/licenses/cupertino-picker-sources.json)
+
+Material 시간 선택기에서 모델의 자정·정오, 복원 순서 `[minute, hour]`, 영어·한국어·캐나다 프랑스어 문자열을 확인했다. Web Testbed의 다이얼로 10시 20분을 반환했고 텍스트 입력 99시의 검증 오류를 확인한 뒤 오후 11시 45분을 반환했다. 동일 한국어 앱에서 날짜 대화상자의 확인·취소 라벨도 ARB를 사용한다. [시간 모델](packages/material/src/time.ts) · [시간 선택기](packages/material/src/time-picker.ts) · [현지화 생성기](tools/Nelyx.FrameworkToTypeScript/generate-material-time-localizations.mjs) · [출처 및 라이선스](packages/material/licenses/time-picker-sources.json)
+
+## 9. 현재 중단 지점
+
+소스, 생성 후보, 시연과 검사 변경을 커밋 없이 작업트리에 보존했다. Core, Material, Cupertino, SDK 빌드와 Testbed 엄격 타입 검사를 통과했다. 현재 Web Release의 `application.js` SHA-256은 `fa6874aa2014e62270561fa30c0712dccccd7549955ecf5302451ffb6cfbe861`이다. 해당 번들에서 Cupertino 탭과 Material Drawer·탭을 지나 `Search collections`를 클릭한 뒤 `Find a collection` 검색 뷰가 열리지 않아 12초 후 검사가 종료됐다. 제안 필터링, 선택 값 반환 및 같은 실행의 후속 메뉴·Snackbar 검증은 대기 중이다. [Web 검사](sample/nelyx-testbed-app-2/eng/check-w11-design-demos.mjs)
+
+재개 시 `SearchAnchor.bar`의 포인터 경로부터 확인한다. Material `TextField`의 바깥 `GestureDetector`에 `onTap`이 있고 안쪽 Core `EditableText`가 텍스트 선택용 탭 recognizer를 소유한다. 안쪽에서 gesture arena를 이길 때 바깥의 검색 열기 콜백이 호출되지 않을 가능성이 있다. 이 경로의 수정과 검증은 남아 있다. 코드에서 입력 계약을 확인한 뒤 실제 클릭, 검색 뷰 입력, 오래된 비동기 제안 무시, 결과 선택과 닫기 순서로 확인한다. 이전 메뉴 검사에서는 비활성 메뉴 항목의 역할 중복과 하위 메뉴를 닫을 때 비활성화된 RenderObject 조회를 발견했다. 두 수정은 작업트리에 있으며 최신 Web에서 재검증해야 한다. [검색 위젯](packages/material/src/search-anchor.ts) · [Material TextField](packages/material/src/text-field.ts) · [Core EditableText](Nelyx/src/framework/widgets/editable-text.ts) · [Core 메뉴 오버레이](Nelyx/src/framework/widgets/raw-menu-anchor.ts)
+
+Web Release와 기존 검사는 저장소 루트에서 실행할 수 있다. Web 검사는 내부에서 20분 제한을 적용한다. 전체 변환과 출처 대조는 5절의 명령을 사용한다. 현재 고정 Dart 실행 파일은 `.tmp/w11-pin-sdk-71e4717a/dart-sdk/bin/dart.exe`에 있다.
+
+```powershell
+npm.cmd run prepare:sample -- web
+npm.cmd --prefix sample/nelyx-testbed-app-2/web/runner install --ignore-scripts --workspaces=false
+npm.cmd run build:web --workspace @nelyx/testbed-2
+node sample/nelyx-testbed-app-2/eng/check-w11-design-demos.mjs
+```
+
+작업에서 띄운 Android 에뮬레이터와 임시 네이티브 조작 스크립트는 정리했다. 기존 `emulator-5554`는 실행 중이다. 고정 Dart SDK와 다운로드 ZIP은 남아 있다. ZIP 삭제는 도구에서 거부됐다.

@@ -18,12 +18,12 @@ import {ColorScheme} from '@nelyx/material/color-scheme';
 | --- | --- |
 | Application and theme | `app`, `theme`, `theme-data`, `color-scheme`, `text-theme` |
 | Buttons | `filled-button`, `text-button`, `outlined-button`, `elevated-button`, `icon-button` |
-| Selection | `checkbox`, `radio`, `switch`, `segmented-button`, `slider`, `range-slider` |
+| Selection | `checkbox`, `radio`, `switch`, `segmented-button`, `slider`, `range-slider`, `date-picker`, `time-picker` |
 | Text and forms | `text-field`, `text-form-field`, `input-decoration` |
-| Surfaces and feedback | `material`, `card`, `bottom-sheet`, `ink-well`, `tooltip`, `progress-indicator` |
-| Navigation and scrolling | `page`, `page-transitions-theme`, `scrollbar`, `scroll-behavior` |
+| Surfaces and feedback | `material`, `card`, `bottom-sheet`, `snack-bar`, `scaffold-messenger`, `ink-well`, `tooltip`, `progress-indicator` |
+| Navigation and scrolling | `scaffold`, `app-bar`, `action-buttons`, `drawer`, `navigation-drawer`, `navigation-bar`, `navigation-rail`, `tabs`, `tab-controller`, `page`, `page-transitions-theme`, `scrollbar`, `scroll-behavior` |
 | Data | `data-table`, `data-table-theme`, `data-table-source`, `paginated-data-table` |
-| Assets | `icons`, `icon-assets` |
+| Assets | `icons`, `icon-assets`, `animated-icons` |
 
 All names are relative to `@nelyx/material/`. See [package.json](package.json) for the full export list.
 
@@ -32,6 +32,12 @@ All names are relative to `@nelyx/material/`. See [package.json](package.json) f
 Wrap the application in MaterialApp and use the package's Theme/ThemeData for Material styling. Core's AppTheme/AppThemeData serves the common Nelyx adapter. Keep one shared Core instance across design packages.
 
 This package targets Material 3. Material 2 configuration and compatibility aliases are unavailable.
+
+`NavigationBar` renders controlled destinations. Update `selectedIndex` from `onDestinationSelected`. `NavigationDestination` supports a selected icon, accessibility label, tooltip, and disabled state. `NavigationBarTheme` controls the destination colors, text and indicator.
+
+`Scaffold({ appBar, body, bottomNavigationBar, floatingActionButton })` supports a Material page with a fixed `AppBar`, including a preferred-size bottom widget and automatically implied back action on a pushed page. `AppBarTheme` supplies the toolbar defaults, and scrolling in the body updates the bar's Material surface.
+
+`showTimePicker({ context, initialTime })` returns an immutable `TimeOfDay` or `null` on dismissal. The dialog supports dial and typed input, including either mode alone, and uses the Material locale for format and labels. `TimePickerDialog` accepts a restoration ID inside a Core restoration scope.
 
 Checkbox, Radio, Switch, Slider, and RangeSlider are controlled components: the application stores their values and applies changes requested through callbacks. Controllers and FocusNodes supplied by the application remain caller-owned.
 
@@ -63,6 +69,16 @@ Run the mounted package regression with `node packages/material/eng/check-floati
 
 Import `BottomSheet` and `showModalBottomSheet<T>` from `@nelyx/material/bottom-sheet`. The inline widget leaves dismissal to its owner. The modal uses Core's nearest navigator by default, resolves with the value passed to `Navigator.pop`, and resolves to `undefined` on dismissal. Set `useRootNavigator` to use the outer navigator. The optional handle closes the sheet on activation; swipe-to-dismiss, draggable scrolling, and custom transition controllers are not available.
 
+## Drawers and tabs
+
+Pass `drawer` or `endDrawer` to `Scaffold`. Its `AppBar` supplies a drawer button when the corresponding leading or actions slot is empty. Use `Scaffold.of(context)` to open and close either side. `Navigator.pop()` closes the most recently opened drawer and preserves its page. `NavigationDrawer` counts only `NavigationDrawerDestination` children when reporting `onDestinationSelected` and resolving `selectedIndex`.
+
+Use a `TabController` from `tab-controller` or a surrounding `DefaultTabController` to connect `TabBar` and `TabBarView` from `tabs`. Declare a matching number of tabs and pages. The same controller receives tab activation, drag progress, and the settled page index. `TabBar.secondary` supplies the secondary style.
+
+## Snackbars
+
+Use `ScaffoldMessenger.of(context).showSnackBar(new SnackBar({ content }))` inside a `MaterialApp`. Calls queue in order and return a controller whose `closed` promise resolves to a `SnackBarClosedReason`. A snackbar with an action stays open by default. Set `persist: false` to start a timeout after it appears.
+
 ## Data tables
 
 Import `DataTable`, `DataColumn`, `DataRow`, and `DataCell` from `@nelyx/material/data-table` or `@nelyx/material/widgets`. Sorting and selection are controlled: reorder `rows` in `DataColumn.onSort`, update `sortColumnIndex` and `sortAscending`, and rebuild with new `DataRow.selected` values in selection callbacks. Use `DataRow.byIndex` with a stable record index when reordering. A cell gesture takes precedence over its row's gestures; an edit icon is visual and does not edit the value on its own.
@@ -92,6 +108,8 @@ Import `ExpansionPanel`, `ExpansionPanelRadio`, and `ExpansionPanelList` from `@
 Import `Stepper`, `Step`, `StepState`, and `StepperType` from `@nelyx/material/stepper`. The caller owns `currentStep`; disabled steps do not accept header activation. Use `controlsBuilder` for application-specific Continue and Cancel controls and provide bounded height for a horizontal stepper. Panel height animates, but Flutter's exact cross-fade and error-icon transitions are not reproduced.
 
 ## Icons and assets
+
+Import `AnimatedIcon` and `AnimatedIcons` from `@nelyx/material/animated-icons`. Provide a Core `Animation<number>` as `progress`. The painter uses the pinned Flutter tracks for all 14 icons and reads size, color, and opacity from `IconTheme` unless the widget overrides them. Generate or check the tracks with the [animated icon generator](../../tools/Nelyx.FrameworkToTypeScript/generate-material-animated-icons.mjs).
 
 Material Icons metadata is exported from `@nelyx/material/icon-assets`. Declare the exported font and license through the application's `nelyx.assets` configuration, keeping `packageSource` and notice metadata together. See the [SDK asset guide](../../Nelyx/sdk/README.md#assets).
 

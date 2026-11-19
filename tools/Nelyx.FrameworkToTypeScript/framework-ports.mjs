@@ -10,6 +10,117 @@ const root = path.resolve(import.meta.dirname, '../..');
 const destination = path.join(import.meta.dirname, 'data/framework-ports.json');
 const definitions = [
   [
+    'material/search_anchor.dart',
+    'search-anchor',
+    ['SearchAnchor', 'SearchAnchorChildBuilder', 'SearchBar', 'SearchController', 'SuggestionsBuilder', 'ViewBuilder'],
+    'Search bar, anchored or full view, route lifecycle and generation-guarded suggestions. Independent editor bindings share the controller value. Source expansion animation and host input flags await parity.',
+    'material',
+  ],
+  [
+    'widgets/raw_menu_anchor.dart',
+    'widgets/raw-menu-anchor',
+    ['RawMenuOverlayInfo', 'RawMenuAnchorOverlayBuilder', 'RawMenuAnchorChildBuilder', 'RawMenuAnchorOpenRequestedCallback', 'RawMenuAnchorCloseRequestedCallback', 'RawMenuAnchor', 'RawMenuAnchorGroup', 'MenuController', 'DismissMenuAction'],
+    'Shared controller, cascade grouping and anchored overlay with Core Overlay, TapRegion and Navigator. The overlay builder receives the transformed anchor bounds.',
+  ],
+  [
+    'material/menu_anchor.dart',
+    'menu-anchor',
+    ['MenuAnchor', 'MenuAnchorChildBuilder', 'MenuBar', 'MenuItemButton', 'SubmenuButton', 'CheckboxMenuButton', 'RadioMenuButton'],
+    'Material panels and actions using the shared menu controller, focus scope, selection, and anchored layout. Intrinsic sizing, shortcuts and native motion await parity.',
+    'material',
+  ],
+  [
+    'widgets/bottom_navigation_bar_item.dart',
+    'widgets/bottom-navigation-bar-item',
+    ['BottomNavigationBarItem'],
+    'Shared navigation-bar item and active icon default used by Cupertino.',
+  ],
+  [
+    'cupertino/bottom_tab_bar.dart',
+    'bottom-tab-bar',
+    ['CupertinoTabBar'],
+    'Dynamic theme, localized tabs, safe area and blur over Core input and painting.',
+    'cupertino',
+  ],
+  [
+    'cupertino/tab_scaffold.dart',
+    'tab-scaffold',
+    ['CupertinoTabScaffold', 'CupertinoTabController', 'RestorableCupertinoTabController'],
+    'Controller selection, retained lazy tab subtrees, focus, media insets and restoration over shared Core state.',
+    'cupertino',
+  ],
+  [
+    'cupertino/tab_view.dart',
+    'tab-view',
+    ['CupertinoTabView'],
+    'Independent named route stacks and active-tab Back behavior on Core Navigator. Observer callbacks use the Core transition event API.',
+    'cupertino',
+  ],
+  [
+    'widgets/routes.dart',
+    'widgets/navigation',
+    ['LocalHistoryEntry'],
+    'Route-local history entries over the owning NavigatorController and existing Back dispatch.',
+  ],
+  [
+    'material/action_buttons.dart',
+    'action-buttons',
+    [
+      'BackButton', 'BackButtonIcon', 'CloseButton', 'CloseButtonIcon',
+      'DrawerButton', 'DrawerButtonIcon', 'EndDrawerButton', 'EndDrawerButtonIcon',
+    ],
+    'Platform-default artwork and labels, ActionIconTheme overrides and default Navigator or Scaffold actions.',
+    'material',
+  ],
+  [
+    'material/drawer.dart',
+    'drawer',
+    ['Drawer', 'DrawerAlignment', 'DrawerCallback', 'DrawerController', 'DrawerControllerState'],
+    'Material 3 drawer surface, directional overlay, local history, drag and focus on Core. Pin comparisons for native edge gestures and platform announcement remain open.',
+    'material',
+  ],
+  [
+    'material/navigation_drawer.dart',
+    'navigation-drawer',
+    ['NavigationDrawer', 'NavigationDrawerDestination'],
+    'Scrollable Material 3 destinations, headers and footers, selected and disabled styles and localized semantics.',
+    'material',
+  ],
+  [
+    'material/animated_icons/animated_icons.dart',
+    'animated-icons',
+    ['AnimatedIcon', '_AnimatedIconPainter', '_PathFrames', '_PathCommand', '_interpolate'],
+    'Pins the widget, icon theme, animation repaint and frame-by-frame vector rendering over Core CustomPaint.',
+    'material',
+    'material/animated_icons.dart',
+  ],
+  [
+    'material/animated_icons/animated_icons_data.dart',
+    'animated-icons',
+    ['AnimatedIcons', 'AnimatedIconData', '_AnimatedIconData'],
+    'Opaque immutable icon identifiers backed by generated Flutter vector tracks.',
+    'material',
+    'material/animated_icons.dart',
+  ],
+  [
+    'widgets/navigation_toolbar.dart',
+    'widgets/navigation-toolbar',
+    ['NavigationToolbar', '_ToolbarLayout'],
+    'Directional leading, middle and trailing layout over the Core custom-layout protocol.',
+  ],
+  [
+    'widgets/preferred_size.dart',
+    'widgets/preferred-size',
+    ['PreferredSizeWidget', 'PreferredSize'],
+    'Preferred size metadata and child pass-through.',
+  ],
+  [
+    'widgets/scroll_notification_observer.dart',
+    'widgets/scroll-notification-observer',
+    ['ScrollNotificationObserver', 'ScrollNotificationObserverState'],
+    'Scroll and geometry notifications across sibling subtrees, including listener removal during dispatch.',
+  ],
+  [
     'widgets/page_view.dart',
     'widgets/page-view',
     [
@@ -153,6 +264,118 @@ const definitions = [
     'material',
   ],
   [
+    'material/navigation_bar.dart',
+    'navigation-bar',
+    ['NavigationBar', 'NavigationDestination', 'NavigationIndicator'],
+    'Material 3 navigation destinations, theme defaults, controlled selection and semantics. Exact source animation and native parity are pending.',
+    'material',
+  ],
+  [
+    'material/navigation_rail.dart',
+    'navigation-rail',
+    ['NavigationRail', 'NavigationRailDestination', '_NavigationRailState'],
+    'Material 3 navigation rail with nullable selection, extension animation, destination roles and themed indicators. Source layout detail and all host interactions remain under review.',
+    'material',
+  ],
+  [
+    'material/app_bar.dart',
+    'app-bar',
+    ['AppBar', '_AppBarState', '_PreferredAppBarSize', '_ToolbarContainerLayout'],
+    'Material 3 toolbar composition, scroll-under state, preferred sizing and implicit route dismissal. Drawer, sliver and system-bar host effects await qualification.',
+    'material',
+  ],
+  [
+    'material/tab_controller.dart',
+    'tab-controller',
+    ['TabController', 'DefaultTabController', '_TabControllerScope', '_DefaultTabControllerState'],
+    'Shared tab selection, ticker ownership, animation and inherited DefaultTabController replacement.',
+    'material',
+  ],
+  [
+    'material/constants.dart',
+    'constants',
+    ['kTabScrollDuration', 'kTabLabelPadding'],
+    'Tab spacing and controller duration, using Core EdgeInsets and scheduler milliseconds.',
+    'material',
+  ],
+  [
+    'material/tabs.dart',
+    'tabs',
+    [
+      'Tab',
+      'TabBar',
+      'TabBarView',
+      'TabPageSelector',
+      'TabPageSelectorIndicator',
+      'TabValueChanged',
+      '_TabBarState',
+      '_TabBarViewState',
+      '_IndicatorPainter',
+    ],
+    'Material 3 primary and secondary tabs, indicator painting and selection on the Core PageView owner.',
+    'material',
+  ],
+  [
+    'material/tab_indicator.dart',
+    'tab-indicator',
+    ['UnderlineTabIndicator', '_UnderlinePainter'],
+    'Tab underline decoration on the Core Canvas and BoxPainter owners.',
+    'material',
+  ],
+  [
+    'material/time.dart',
+    'time',
+    [
+      'DayPeriod',
+      'TimeOfDay',
+      'RestorableTimeOfDay',
+      'TimeOfDayFormat',
+      'HourFormat',
+      'hourFormat',
+    ],
+    'Immutable time-of-day model, original restoration wire order, format classification and pinned Material locale data.',
+    'material',
+  ],
+  [
+    'material/time_picker.dart',
+    'time-picker',
+    ['TimePickerEntryMode', 'TimePickerDialog', '_TimePickerDialogState', 'showTimePicker'],
+    'Dial and text time selection, validation, entry mode changes and dialog results. Exact rendering, foldable placement and host feedback await qualification.',
+    'material',
+  ],
+  [
+    'material/scaffold.dart',
+    'scaffold',
+    ['Scaffold', 'ScaffoldState', '_ScaffoldLayout'],
+    'Material 3 page layout for app bar, body, bottom navigation bar, keyboard inset and end-float action. Existing positional construction remains available.',
+    'material',
+  ],
+  [
+    'material/scaffold.dart',
+    'scaffold-messenger',
+    [
+      'ScaffoldMessenger',
+      'ScaffoldMessengerState',
+      'ScaffoldFeatureController',
+      '_ScaffoldMessengerScope',
+    ],
+    'Scaffold registration and snack bar queue, animation, timeout and closed results on the shared View owner.',
+    'material',
+  ],
+  [
+    'material/snack_bar.dart',
+    'snack-bar',
+    [
+      'SnackBar',
+      'SnackBarAction',
+      'SnackBarClosedReason',
+      '_SnackBarState',
+      '_SnackBarActionState',
+    ],
+    'Material 3 snack bar surface, single-use action, swipe, semantics and fixed and floating layout.',
+    'material',
+  ],
+  [
     'material/expansion_panel.dart',
     'expansion-panel',
     ['ExpansionPanel', 'ExpansionPanelRadio', 'ExpansionPanelList', '_ExpansionPanelListState'],
@@ -164,6 +387,59 @@ const definitions = [
     'timer-picker',
     ['CupertinoTimerPicker', 'CupertinoTimerPickerMode'],
     'Timer modes and change notifications on the shared Cupertino wheel. Full Flutter and native parity await qualification.',
+    'cupertino',
+  ],
+  [
+    'cupertino/date_picker.dart',
+    'date-picker',
+    ['CupertinoDatePicker', 'CupertinoDatePickerMode'],
+    'Four date and time modes using the shared date value and wheel controllers. Source font measurement and native parity are pending.',
+    'cupertino',
+  ],
+  [
+    'cupertino/localizations.dart',
+    'cupertino-localizations',
+    ['DatePickerDateOrder', 'DatePickerDateTimeOrder'],
+    'Date column ordering and picker labels from the pinned locale tables.',
+    'cupertino',
+  ],
+  [
+    'cupertino/route.dart',
+    'route',
+    ['CupertinoModalPopupRoute', 'showCupertinoModalPopup'],
+    'Bottom-aligned popup on the shared Navigator, with the original spring and optional scrim filtering. Foldable placement and native parity are pending.',
+    'cupertino',
+  ],
+  [
+    'cupertino/sheet.dart',
+    'sheet',
+    [
+      'showCupertinoSheet',
+      'CupertinoSheetRoute',
+      'CupertinoSheetTransition',
+      '_CupertinoSheetTransitionState',
+      '_CupertinoSheetScrollPosition',
+      '_CupertinoSheetScope',
+    ],
+    'Cupertino sheet transitions, provided scroll position, route results and optional nested navigation. Host system-bar effects and exact device presentation await qualification.',
+    'cupertino',
+  ],
+  [
+    'cupertino/page_scaffold.dart',
+    'page-scaffold',
+    [
+      'CupertinoPageScaffold',
+      'CupertinoPageScaffoldBackgroundColor',
+      'ObstructingPreferredSizeWidget',
+    ],
+    'Opaque and translucent navigation-bar placement, safe padding and keyboard insets with Core MediaQuery. Native status-bar tapping and full host parity remain open.',
+    'cupertino',
+  ],
+  [
+    'cupertino/nav_bar.dart',
+    'nav-bar',
+    ['CupertinoNavigationBar'],
+    'Fixed-height Cupertino route toolbar with localized implicit navigation controls, bottom slot and translucent backdrop. Expanded and sliver navigation and shared-element route transitions await qualification.',
     'cupertino',
   ],
   [
@@ -254,8 +530,14 @@ try {
   if (parsed.error || parsed.status !== 0)
     throw Error('Pinned source declaration analysis failed: ' + (parsed.error ?? parsed.stderr));
   const units = JSON.parse(parsed.stdout).units;
-  const origins = definitions.flatMap(([file, target, symbols, scope, designPackage]) => {
-    file = 'packages/flutter/lib/src/' + file;
+  const origins = definitions.flatMap(([part, target, symbols, scope, designPackage, library]) => {
+    const file = 'packages/flutter/lib/src/' + part;
+    if (library) {
+      const relative = path.posix.relative(path.posix.dirname(library), part);
+      const owner = source.text('packages/flutter/lib/src/' + library);
+      if (!owner.split('\n').includes(`part '${relative}';`))
+        throw Error('Original library does not own the part: ' + file);
+    }
     const unit = units.find((unit) => unit.source === file),
       text = source.text(file);
     if (!unit || unit.rawSha256 !== hash(text) || unit.parseDiagnostics.length)
@@ -272,11 +554,14 @@ try {
         ClassDeclarationImpl: 'CLASS',
         EnumDeclarationImpl: 'ENUM',
         FunctionDeclarationImpl: 'FUNCTION',
+        GenericTypeAliasImpl: 'TYPE_ALIAS',
+        VariableDeclarationImpl: 'TOP_LEVEL_VARIABLE',
       }[declaration.kind];
       if (!kind) throw Error('Unsupported port declaration kind: ' + declaration.kind);
       const qualifiedId =
         'package:flutter/' +
-        file.slice('packages/flutter/lib/'.length) +
+        'src/' +
+        (library ?? part) +
         '::' +
         symbol +
         ':' +

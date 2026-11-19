@@ -1,0 +1,17 @@
+{
+  "flutter": {
+    "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+    "sources": "packages/flutter_localizations/lib/src/l10n/material_*.arb",
+    "notice": "Flutter-LICENSE.md"
+  },
+  "dartIntl": {
+    "version": "0.20.3",
+    "archiveSha256": "1ca20c894b1717686a2319b8548763d812bc0aabdac580420a44c5178c57a867",
+    "notice": "DartIntl-LICENSE.txt"
+  },
+  "cldr": {
+    "version": "48",
+    "revision": "acd6d88ae493633240e19a87a721076a8a75c310",
+    "notice": "CLDR-48-LICENSE.txt"
+  }
+}

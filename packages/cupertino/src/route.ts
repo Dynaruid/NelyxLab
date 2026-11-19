@@ -6,14 +6,24 @@ import type { Animation } from '@nelyx/core/framework/animation/animation';
 import { CurvedAnimation } from '@nelyx/core/framework/animation/animations';
 import { Curves } from '@nelyx/core/framework/animation/curves';
 import { Tween } from '@nelyx/core/framework/animation/tween';
+import { Alignment } from '@nelyx/core/framework/painting/alignment';
+import {
+  SpringDescription,
+  SpringSimulation,
+} from '@nelyx/core/framework/physics/spring-simulation';
+import { Tolerance } from '@nelyx/core/framework/physics/tolerance';
 import { Offset } from '@nelyx/core/ui/offset';
+import type { ImageFilter } from '@nelyx/core/ui/image-filter';
 import type { Decoration } from '@nelyx/core/framework/painting/decoration';
 import { SlideTransition, DecoratedBoxTransition } from '@nelyx/core/framework/widgets/transitions';
 import { Directionality } from '@nelyx/core/framework/widgets/app-data';
 import { cupertinoEdgeShadowTween } from './internal/route/edge-shadow.ts';
-import { PageRoute } from '@nelyx/core/framework/widgets/pages';
-import type { PageRouteOptions } from '@nelyx/core/framework/widgets/pages';
-import { Route } from '@nelyx/core/framework/widgets/navigation';
+import { PageRoute, PageRouteBuilder } from '@nelyx/core/framework/widgets/pages';
+import type { PageRouteOptions, RouteSettings } from '@nelyx/core/framework/widgets/pages';
+import { Navigator, Route } from '@nelyx/core/framework/widgets/navigation';
+import { Align, Builder } from '@nelyx/core/framework/widgets/basic';
+import { FractionalTranslation } from '@nelyx/core/framework/widgets/fractional-translation';
+import { TraversalEdgeBehavior } from '@nelyx/core/framework/widgets/focus-traversal-policy';
 import { PageTransitionsBuilder } from '@nelyx/core/framework/widgets/page-transitions-builder';
 import type { DelegatedTransitionBuilder } from '@nelyx/core/framework/widgets/transitions';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
@@ -21,6 +31,10 @@ import { ValueNotifier } from '@nelyx/core/foundation/notifier';
 import type { ValueListenable } from '@nelyx/core/foundation/notifier';
 import { Color } from '@nelyx/core/ui/color';
 import { invariant } from '@nelyx/core/foundation/errors';
+import { CupertinoDynamicColor } from './colors.ts';
+import { coreCupertinoColor, resolveCupertinoColor } from './internal/colors/color-values.ts';
+import type { CupertinoColor } from './internal/colors/color-values.ts';
+import { CupertinoUserInterfaceLevel, CupertinoUserInterfaceLevelData } from './interface-level.ts';
 import {
   CupertinoBackGestureDetector,
   startCupertinoBackGesture,
@@ -29,6 +43,109 @@ import {
 const rightMiddleTween = new Tween<Offset>({ begin: new Offset(1, 0), end: Offset.zero });
 const middleLeftTween = new Tween<Offset>({ begin: Offset.zero, end: new Offset(-1 / 3, 0) });
 const bottomUpTween = new Tween<Offset>({ begin: new Offset(0, 1), end: Offset.zero });
+const popupSpring = new SpringDescription({ mass: 1, stiffness: 522.35, damping: 45.7099552 });
+const popupTolerance = new Tolerance({ velocity: 0.03 });
+
+export const kCupertinoModalBarrierColor = CupertinoDynamicColor.withBrightness({
+  color: new Color(0x33000000),
+  darkColor: new Color(0x7a000000),
+});
+
+export interface CupertinoModalPopupRouteOptions {
+  readonly builder: (context: BuildContext) => Widget;
+  readonly barrierLabel?: string;
+  readonly barrierColor?: CupertinoColor | null;
+  readonly barrierDismissible?: boolean;
+  readonly semanticsDismissible?: boolean;
+  readonly filter?: ImageFilter | null;
+  readonly settings?: RouteSettings | null;
+  readonly requestFocus?: boolean | null;
+}
+
+export class CupertinoModalPopupRoute<T = unknown> extends PageRouteBuilder<T> {
+  readonly builder: CupertinoModalPopupRouteOptions['builder'];
+  declare readonly semanticsDismissible: boolean;
+
+  constructor({
+    builder,
+    barrierLabel = 'Dismiss',
+    barrierColor = kCupertinoModalBarrierColor,
+    barrierDismissible = true,
+    semanticsDismissible = false,
+    filter = null,
+    settings = null,
+    requestFocus = null,
+  }: CupertinoModalPopupRouteOptions) {
+    super({
+      settings,
+      requestFocus,
+      barrierLabel,
+      barrierColor: barrierColor === null ? null : coreCupertinoColor(barrierColor),
+      barrierDismissible,
+      semanticsDismissible,
+      barrierFilter: filter,
+      opaque: false,
+      fullscreenDialog: true,
+      traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
+      transitionDuration: 335,
+      reverseTransitionDuration: 335,
+      pageBuilder: () =>
+        new CupertinoUserInterfaceLevel({
+          data: CupertinoUserInterfaceLevelData.elevated,
+          child: new Builder(builder),
+        }),
+      transitionsBuilder: (_context, animation, _secondary, child) =>
+        new Align(
+          new FractionalTranslation(child, {
+            translation: bottomUpTween.transform(animation.value),
+          }),
+          { alignment: Alignment.bottomCenter },
+        ),
+    });
+    this.builder = builder;
+  }
+
+  get filter(): ImageFilter | null {
+    return this.barrierFilter;
+  }
+
+  override createSimulation({ forward }: { readonly forward: boolean }): SpringSimulation {
+    return new SpringSimulation(
+      popupSpring,
+      this.animation?.value ?? (forward ? 0 : 1),
+      forward ? 1 : 0,
+      0,
+      { tolerance: popupTolerance, snapToEnd: true },
+    );
+  }
+}
+
+export interface ShowCupertinoModalPopupOptions extends Omit<
+  CupertinoModalPopupRouteOptions,
+  'settings'
+> {
+  readonly useRootNavigator?: boolean;
+  readonly routeSettings?: RouteSettings | null;
+}
+
+export function showCupertinoModalPopup<T = unknown>(
+  context: BuildContext,
+  {
+    barrierColor = kCupertinoModalBarrierColor,
+    useRootNavigator = true,
+    routeSettings = null,
+    ...options
+  }: ShowCupertinoModalPopupOptions,
+): Promise<T | undefined> {
+  const navigator = Navigator.of(context, { rootNavigator: useRootNavigator });
+  return navigator.push(
+    new CupertinoModalPopupRoute<T>({
+      ...options,
+      barrierColor: barrierColor === null ? null : resolveCupertinoColor(barrierColor, context),
+      settings: routeSettings,
+    }),
+  );
+}
 // These built-in transition widgets already listen to both animations. Keep one
 // per route/child so the outer transition builder does not rebuild their static
 // gesture and semantic descendants on every animation tick.

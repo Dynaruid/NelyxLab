@@ -30,6 +30,10 @@
       "types": "./dist/timer-picker.d.ts",
       "default": "./dist/timer-picker.js"
     },
+    "./date-picker": {
+      "types": "./dist/date-picker.d.ts",
+      "default": "./dist/date-picker.js"
+    },
     "./segmented-control": {
       "types": "./dist/segmented-control.d.ts",
       "default": "./dist/segmented-control.js"
@@ -164,6 +168,18 @@
       "types": "./dist/nav-bar.d.ts",
       "default": "./dist/nav-bar.js"
     },
+    "./bottom-tab-bar": {
+      "types": "./dist/bottom-tab-bar.d.ts",
+      "default": "./dist/bottom-tab-bar.js"
+    },
+    "./tab-scaffold": {
+      "types": "./dist/tab-scaffold.d.ts",
+      "default": "./dist/tab-scaffold.js"
+    },
+    "./tab-view": {
+      "types": "./dist/tab-view.d.ts",
+      "default": "./dist/tab-view.js"
+    },
     "./page-scaffold": {
       "types": "./dist/page-scaffold.d.ts",
       "default": "./dist/page-scaffold.js"
@@ -203,6 +219,10 @@
     "./route": {
       "types": "./dist/route.d.ts",
       "default": "./dist/route.js"
+    },
+    "./sheet": {
+      "types": "./dist/sheet.d.ts",
+      "default": "./dist/sheet.js"
     },
     "./internal/route/edge-shadow": {
       "types": "./dist/internal/route/edge-shadow.d.ts",

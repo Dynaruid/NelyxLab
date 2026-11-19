@@ -254,6 +254,22 @@
       "types": "./dist/framework/widgets/navigation.d.ts",
       "default": "./dist/framework/widgets/navigation.js"
     },
+    "./framework/widgets/bottom-navigation-bar-item": {
+      "types": "./dist/framework/widgets/bottom-navigation-bar-item.d.ts",
+      "default": "./dist/framework/widgets/bottom-navigation-bar-item.js"
+    },
+    "./framework/widgets/raw-menu-anchor": {
+      "types": "./dist/framework/widgets/raw-menu-anchor.d.ts",
+      "default": "./dist/framework/widgets/raw-menu-anchor.js"
+    },
+    "./framework/widgets/navigation-toolbar": {
+      "types": "./dist/framework/widgets/navigation-toolbar.d.ts",
+      "default": "./dist/framework/widgets/navigation-toolbar.js"
+    },
+    "./framework/widgets/preferred-size": {
+      "types": "./dist/framework/widgets/preferred-size.d.ts",
+      "default": "./dist/framework/widgets/preferred-size.js"
+    },
     "./framework/widgets/app-data": {
       "types": "./dist/framework/widgets/app-data.d.ts",
       "default": "./dist/framework/widgets/app-data.js"
@@ -1306,6 +1322,10 @@
       "types": "./dist/framework/widgets/scroll-notification.d.ts",
       "default": "./dist/framework/widgets/scroll-notification.js"
     },
+    "./framework/widgets/scroll-notification-observer": {
+      "types": "./dist/framework/widgets/scroll-notification-observer.d.ts",
+      "default": "./dist/framework/widgets/scroll-notification-observer.js"
+    },
     "./framework/widgets/scroll-position": {
       "types": "./dist/framework/widgets/scroll-position.d.ts",
       "default": "./dist/framework/widgets/scroll-position.js"
@@ -1802,6 +1822,10 @@
       "types": "./dist/foundation/dart-collections.d.ts",
       "default": "./dist/foundation/dart-collections.js"
     },
+    "./internal/foundation/dart-list": {
+      "types": "./dist/foundation/dart-list.d.ts",
+      "default": "./dist/foundation/dart-list.js"
+    },
     "./internal/foundation/dart-late": {
       "types": "./dist/foundation/dart-late.d.ts",
       "default": "./dist/foundation/dart-late.js"
@@ -1853,6 +1877,10 @@
     "./framework/widgets/widget-state": {
       "types": "./dist/framework/widgets/widget-state.d.ts",
       "default": "./dist/framework/widgets/widget-state.js"
+    },
+    "./foundation/date-time": {
+      "types": "./dist/foundation/date-time.d.ts",
+      "default": "./dist/foundation/date-time.js"
     },
     "./foundation/dart-numeric": {
       "types": "./dist/foundation/dart-numeric.d.ts",
@@ -2041,6 +2069,14 @@
     "./internal/framework/painting/source-value-types": {
       "types": "./dist/framework/painting/source-value-types.d.ts",
       "default": "./dist/framework/painting/source-value-types.js"
+    },
+    "./internal/framework/painting/edge-insets-source-adapter": {
+      "types": "./dist/framework/painting/edge-insets-source-adapter.d.ts",
+      "default": "./dist/framework/painting/edge-insets-source-adapter.js"
+    },
+    "./internal/framework/painting/border-radius-source-adapter": {
+      "types": "./dist/framework/painting/border-radius-source-adapter.d.ts",
+      "default": "./dist/framework/painting/border-radius-source-adapter.js"
     },
     "./internal/framework/widgets/switch-painter": {
       "types": "./dist/framework/widgets/switch-painter.d.ts",

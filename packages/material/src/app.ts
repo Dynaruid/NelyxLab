@@ -8,6 +8,7 @@ import {
   Widget,
 } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext } from '@nelyx/core/framework/widgets/framework';
+import type { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import { WidgetsApp, appNavigatorController } from '@nelyx/core/framework/widgets/app';
 import type { WidgetsAppOptions } from '@nelyx/core/framework/widgets/app';
 import { Router } from '@nelyx/core/framework/widgets/router';
@@ -41,6 +42,8 @@ import { ThemeData } from './theme-data.ts';
 import { ColorScheme } from './color-scheme.ts';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { MaterialScrollBehavior } from './scroll-behavior.ts';
+import { ScaffoldMessenger } from './scaffold-messenger.ts';
+import type { ScaffoldMessengerState } from './scaffold-messenger.ts';
 export const ThemeMode = Object.freeze({
   system: 'system',
   light: 'light',
@@ -58,6 +61,7 @@ export interface MaterialAppOptions
   readonly highContrastDarkTheme?: ThemeData | null;
   readonly themeMode?: ThemeMode | null;
   readonly scrollBehavior?: ScrollBehavior | null;
+  readonly scaffoldMessengerKey?: GlobalKey<ScaffoldMessengerState> | null;
   readonly builder?: (context: BuildContext, child: Widget) => Widget;
 }
 type RouterAppOptions<T> = Omit<
@@ -186,6 +190,7 @@ export class MaterialApp extends StatelessWidget {
       themeAnimationCurve,
       themeAnimationStyle,
       scrollBehavior,
+      scaffoldMessengerKey,
       builder,
       shortcuts,
       actions,
@@ -217,9 +222,12 @@ export class MaterialApp extends StatelessWidget {
           child: themed(
             data,
             palette(data),
-            new AppFocus(content, {
-              ...(shortcuts ? { shortcuts } : {}),
-              ...(actions ? { actions } : {}),
+            new ScaffoldMessenger({
+              key: scaffoldMessengerKey ?? null,
+              child: new AppFocus(content, {
+                ...(shortcuts ? { shortcuts } : {}),
+                ...(actions ? { actions } : {}),
+              }),
             }),
             options,
           ),
@@ -254,7 +262,11 @@ export class MaterialApp extends StatelessWidget {
           this.locale,
           this.messages,
           'en',
-          themed(data, colors, new AppFocus(new MaterialAppOverlay(this.child))),
+          themed(
+            data,
+            colors,
+            new ScaffoldMessenger({ child: new AppFocus(new MaterialAppOverlay(this.child)) }),
+          ),
         ),
       ),
     });

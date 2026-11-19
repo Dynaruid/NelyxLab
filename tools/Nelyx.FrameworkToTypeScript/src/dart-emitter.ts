@@ -8562,7 +8562,10 @@ export function emitDart(
                 (adapter.baseType ?? adapter.target) ||
               (adapter.baseType && !importedTypes.has(adapter.baseType))
             )
-              blocked('Superclass requires an exact imported constructor adapter', n);
+              blocked(
+                'Superclass requires an exact imported constructor adapter: ' + base.constructor.id,
+                n,
+              );
             target = adapter!.target;
             const values = base.args ?? [];
             if (adapter!.namedArguments === 'core-widget-key') {
@@ -8595,13 +8598,16 @@ export function emitDart(
               const sourceName = baseType.reference.name;
               const inherited = sourceName === 'InheritedTheme' || sourceName === 'InheritedWidget';
               const optional = sourceName === 'SingleChildRenderObjectWidget';
+              const multiple = sourceName === 'MultiChildRenderObjectWidget';
               const sourceFile = sourceName === 'InheritedTheme' ? 'inherited_theme' : 'framework';
               const sourceLibrary = `package:flutter/src/widgets/${sourceFile}.dart`;
               const hostFile = sourceName === 'InheritedTheme' ? 'inherited-theme' : 'framework';
-              const child = values.find((value) => value.name === 'child');
+              const child = values.find(
+                (value) => value.name === (multiple ? 'children' : 'child'),
+              );
               const key = values.find((value) => value.name === 'key');
               if (
-                !(inherited || optional || sourceName === 'ProxyWidget') ||
+                !(inherited || optional || multiple || sourceName === 'ProxyWidget') ||
                 baseType.reference.id !== `${sourceLibrary}::${sourceName}:CLASS` ||
                 base.constructor.id !==
                   `${sourceLibrary}::${sourceName}.${sourceName}.new:CONSTRUCTOR` ||
@@ -8610,7 +8616,7 @@ export function emitDart(
                 adapter.mixins?.length ||
                 adapter.typeWitnessArguments ||
                 values.length !== Number(child !== undefined) + Number(key !== undefined) ||
-                (!child && !optional)
+                (!child && !optional && !multiple)
               )
                 blocked(
                   'Core widget child forwarding requires an exact child/key base constructor',
@@ -8627,7 +8633,11 @@ export function emitDart(
                 )
               )
                 blocked('Core widget child forwarding cannot reorder effectful super arguments', n);
-              const childValue = child ? argumentValue(child) : f.createVoidZero();
+              const childValue = child
+                ? argumentValue(child)
+                : multiple
+                  ? f.createArrayLiteralExpression()
+                  : f.createVoidZero();
               arguments_ = [
                 child && optional
                   ? f.createBinaryExpression(
@@ -9441,7 +9451,9 @@ export function emitDart(
                     parameter.modifiers,
                     parameter.dotDotDotToken,
                     ts.isIdentifier(parameter.name)
-                      ? parameter.name
+                      ? ['arguments', 'eval'].includes(parameter.name.text)
+                        ? temporary()
+                        : parameter.name
                       : f.createIdentifier(
                           method.parameters.some((item) => item.name === 'options')
                             ? temporary().text
@@ -10864,7 +10876,9 @@ export function emitDart(
             f.createParameterDeclaration(
               undefined,
               undefined,
-              p.name || 'argument' + index,
+              p.name === 'arguments' || p.name === 'eval'
+                ? temporary()
+                : p.name || 'argument' + index,
               p.required ? undefined : f.createToken(ts.SyntaxKind.QuestionToken),
               printed(p.type, [...path, 'parameter', index]),
             ),

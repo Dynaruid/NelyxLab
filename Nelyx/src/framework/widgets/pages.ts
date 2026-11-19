@@ -10,6 +10,8 @@ import {
   kAlwaysDismissedAnimation,
 } from '../animation/animations.ts';
 import type { Color } from '../../ui/color.ts';
+import type { ImageFilter } from '../../ui/image-filter.ts';
+import type { Simulation } from '../physics/simulation.ts';
 import type { TraversalEdgeBehavior } from './focus-traversal-policy.ts';
 import type { RouteTransitionBinding, RouteTransitionPolicy } from './route-transition-policy.ts';
 import { invariant } from '../../foundation/errors.ts';
@@ -60,6 +62,8 @@ export interface PageRouteOptions {
   readonly fullscreenDialog?: boolean;
   readonly allowSnapshotting?: boolean;
   readonly barrierDismissible?: boolean;
+  readonly barrierFilter?: ImageFilter | null;
+  readonly semanticsDismissible?: boolean | null;
 }
 export abstract class PageRoute<T = unknown> extends Route<T> {
   readonly settings: RouteSettings;
@@ -69,6 +73,8 @@ export abstract class PageRoute<T = unknown> extends Route<T> {
   readonly traversalEdgeBehavior: TraversalEdgeBehavior | null;
   readonly directionalTraversalEdgeBehavior: TraversalEdgeBehavior | null;
   private readonly dismissible: boolean;
+  readonly barrierFilter: ImageFilter | null;
+  readonly semanticsDismissible: boolean | null;
   private binding: RouteTransitionBinding | null = null;
   private closed = false;
   private result: T | null = null;
@@ -90,6 +96,8 @@ export abstract class PageRoute<T = unknown> extends Route<T> {
     fullscreenDialog = false,
     allowSnapshotting = true,
     barrierDismissible = false,
+    barrierFilter = null,
+    semanticsDismissible = null,
   }: PageRouteOptions = {}) {
     let route: PageRoute<T>;
     const actualSettings = settings ?? new RouteSettings();
@@ -111,6 +119,8 @@ export abstract class PageRoute<T = unknown> extends Route<T> {
     this.fullscreenDialog = fullscreenDialog;
     this.allowSnapshotting = allowSnapshotting;
     this.dismissible = barrierDismissible;
+    this.barrierFilter = barrierFilter;
+    this.semanticsDismissible = semanticsDismissible;
   }
   override get opaque(): boolean {
     return true;
@@ -124,6 +134,9 @@ export abstract class PageRoute<T = unknown> extends Route<T> {
   abstract get transitionDuration(): number;
   get reverseTransitionDuration(): number {
     return this.transitionDuration;
+  }
+  createSimulation(_options: { readonly forward: boolean }): Simulation | null {
+    return null;
   }
   get currentResult(): T | null {
     return null;
@@ -294,6 +307,15 @@ export abstract class PageRoute<T = unknown> extends Route<T> {
     get barrierDismissible() {
       return owner(this).barrierDismissible;
     },
+    get barrierFilter() {
+      return owner(this).barrierFilter;
+    },
+    get semanticsDismissible() {
+      return owner(this).semanticsDismissible;
+    },
+    createSimulation(forward) {
+      return owner(this).createSimulation({ forward });
+    },
     get maintainState() {
       return owner(this).maintainState;
     },
@@ -368,6 +390,9 @@ type PolicyRoute = Route &
     | 'barrierColor'
     | 'barrierLabel'
     | 'barrierDismissible'
+    | 'barrierFilter'
+    | 'semanticsDismissible'
+    | 'createSimulation'
   >;
 const owners = new WeakMap<RouteTransitionPolicy, PolicyRoute>();
 function owner(policy: RouteTransitionPolicy): PolicyRoute {
