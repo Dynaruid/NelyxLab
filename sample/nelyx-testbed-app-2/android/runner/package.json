@@ -12,19 +12,19 @@
     "run": "node run.mjs"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/android/nelyx-core-0.17.0-20847185ecf19dec40f53bf1fe014a21000044db879779fd5d732a7bfc4c7363.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/android/nelyx-sdk-0.21.0-7a3f05f4b88c21f0d602d8c3dcd5380ee494fe1bcaf3e1545e8c0bd0433a1290.tgz",
-    "@nelyx/skia-rn": "file:../../.nelyx/supply/android/nelyx-skia-rn-0.6.0-10d0340b7b0e48f2cf8a539953a058b502048e759d836bd26d3309306739461b.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/android/nelyx-core-0.17.0-0afb524ea025e14685990d1149fc57ce748b2bee00ead8d9466e310aa8d20e0c.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/android/nelyx-sdk-0.21.0-43bbb9d1af2a882e032d24520980f249c29f87a92857deee7ef1b5fb9a62c92c.tgz",
+    "@nelyx/skia-rn": "file:../../.nelyx/supply/android/nelyx-skia-rn-0.6.0-47d4b52d4a8d2158b319013d8df137f6208e048e3e19a51e455aa72b2c2966e2.tgz",
     "react-native-skia-graphite-android": "154.1.0",
     "react": "19.2.0",
     "react-native": "0.83.10",
-    "@nelyx/material": "file:../../.nelyx/supply/android/nelyx-material-0.2.0-59c76bebd6fd277803a824a8e304bb829ccef40aae7dd15d26c2240dfc5e8494.tgz",
-    "@nelyx/cupertino": "file:../../.nelyx/supply/android/nelyx-cupertino-0.2.0-cf087eebbe3cdfdb05ad2d82e98a5e31ef69f7bf3944f6bc0eeeb23c86ab1210.tgz",
-    "@nelyx/skia-native": "file:../../.nelyx/supply/android/nelyx-skia-native-0.1.0-5f5ae41a756eb3d5cba6cf553a2a87d3e655d799cf1a1f6e59c3324797e98259.tgz"
+    "@nelyx/material": "file:../../.nelyx/supply/android/nelyx-material-0.2.0-986c660b1a709fe96ebc1f02cf5d39cdffa305fb2cb4a0f6dfe8c3744c55a72d.tgz",
+    "@nelyx/cupertino": "file:../../.nelyx/supply/android/nelyx-cupertino-0.2.0-c4b779b9733745477934229b86641204e937cdd7a81111614e6aa1e39eb49018.tgz",
+    "@nelyx/skia-native": "file:../../.nelyx/supply/android/nelyx-skia-native-0.1.0-d20b52979e1aeca34517d44307541dc6db4cd48bdb0dae908182d69c6b68abfe.tgz"
   },
   "devDependencies": {
-    "@nelyx/metro": "file:../../.nelyx/supply/android/nelyx-metro-0.10.0-1ebe325b294e696bc58dfc31a3b2faaec263b45082125d2d936778b5e0430c44.tgz",
-    "@nelyx/cli": "file:../../.nelyx/supply/android/nelyx-cli-0.11.0-8c86a3601f2db2b333eaabb110c770b7d016d56efe6c2b56e8a36575e4733ee9.tgz",
+    "@nelyx/metro": "file:../../.nelyx/supply/android/nelyx-metro-0.10.0-295eeb9cbfc93eaa22562de475dbdf307272758819ec2b8fe0c8f857f93eaf7f.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/android/nelyx-cli-0.11.0-d0c93a599db7696cfd3283c5d8632d78e82bd614c2f33eb750ce505f3c794b8d.tgz",
     "@babel/core": "7.28.5",
     "@react-native/babel-preset": "0.83.10",
     "@react-native/metro-config": "0.83.10",
@@ -33,7 +33,7 @@
     "@types/react": "19.2.2",
     "@types/node": "24.10.1",
     "typescript": "7.0.2",
-    "@nelyx/static-aot": "file:../../.nelyx/supply/android/nelyx-static-aot-0.1.0-1729647bf09b2ec755830b7ae47b448effd137dc9529a2a6f5efb229d636b4c5.tgz",
-    "@nelyx/tooling-contracts": "file:../../.nelyx/supply/android/nelyx-tooling-contracts-0.1.0-772c05ea1814228a9c75ec9e48335d706741ebec5b3f26566bb6da152ad6455d.tgz"
+    "@nelyx/static-aot": "file:../../.nelyx/supply/android/nelyx-static-aot-0.1.0-c78945472160746df569d99759f03b2a3bc3bb9dbc23b953fb6ed0345a8267cc.tgz",
+    "@nelyx/tooling-contracts": "file:../../.nelyx/supply/android/nelyx-tooling-contracts-0.1.0-2c14b679ef5bf60a0e6ac45abf95d77c9d633e094894ecc26c831622357e44a8.tgz"
   }
 }

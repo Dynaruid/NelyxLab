@@ -64,6 +64,31 @@ export function retainedReviewFields(
       .map((field) => [field, previous[field]]),
   );
 }
+export type DependencyPhases = Partial<
+  Record<
+    | 'type'
+    | 'runtimeTypeUse'
+    | 'heritage'
+    | 'constant'
+    | 'lazyInitializer'
+    | 'instanceInitializer'
+    | 'parameterDefault'
+    | 'execution'
+    | 'metadata'
+    | 'documentation',
+    string[]
+  >
+>;
+
+export function mapDependencyPhases(
+  phases: DependencyPhases,
+  identity: (id: string) => string,
+): DependencyPhases {
+  return Object.fromEntries(
+    Object.entries(phases).map(([phase, ids]) => [phase, ids.map(identity)]),
+  );
+}
+
 export interface Declaration {
   id: string;
   library: string;
@@ -75,6 +100,7 @@ export interface Declaration {
   signature: string;
   members: string[];
   dependencies: string[];
+  dependencyPhases?: DependencyPhases;
   deprecated: boolean;
   internal: boolean;
   parameters?: unknown[];
@@ -160,6 +186,11 @@ export function readInventory(value: unknown): { inventory: Inventory; cached: b
       ],
       members: item.members.map((id) => lookup(names, id)),
       dependencies: item.dependencies.map((id) => lookup(names, id)),
+      ...(item.dependencyPhases
+        ? {
+            dependencyPhases: mapDependencyPhases(item.dependencyPhases, (id) => lookup(names, id)),
+          }
+        : {}),
       ...(item.parameters ? { parameters: item.parameters } : {}),
       ...(item.constantFamily ? { constantFamily: item.constantFamily } : {}),
       ...(item.supertypes

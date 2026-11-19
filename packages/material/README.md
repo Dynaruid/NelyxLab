@@ -18,7 +18,7 @@ import {ColorScheme} from '@nelyx/material/color-scheme';
 | --- | --- |
 | Application and theme | `app`, `theme`, `theme-data`, `color-scheme`, `text-theme` |
 | Buttons | `filled-button`, `text-button`, `outlined-button`, `elevated-button`, `icon-button` |
-| Selection | `checkbox`, `radio`, `switch`, `slider`, `range-slider` |
+| Selection | `checkbox`, `radio`, `switch`, `segmented-button`, `slider`, `range-slider` |
 | Text and forms | `text-field`, `text-form-field`, `input-decoration` |
 | Surfaces and feedback | `material`, `card`, `ink-well`, `tooltip`, `progress-indicator` |
 | Navigation and scrolling | `page`, `page-transitions-theme`, `scrollbar`, `scroll-behavior` |

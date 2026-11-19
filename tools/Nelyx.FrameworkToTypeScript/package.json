@@ -5,6 +5,9 @@
   "license": "BSD-3-Clause",
   "type": "module",
   "scripts": {
+    "designs:scan": "node design-inventory.mjs",
+    "designs:resolve": "node design-resolve.mjs",
+    "designs:probe": "node design-body-probe.mjs",
     "generate:date-picker": "bun generate-date-picker.ts --write",
     "port": "bun src/main.ts"
   },

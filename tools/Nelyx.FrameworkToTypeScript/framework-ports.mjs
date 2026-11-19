@@ -70,6 +70,39 @@ const definitions = [
     ['PaintingContext'],
     'Host adaptation of PaintingContext boundary recording and refresh. One cache serves the View root, viewports and custom boundaries; twenty scoped lifetime/scheduling/resource regressions and three original repaint hook observations. Not a second layout or Widget owner.',
   ],
+  [
+    'material/segmented_button.dart',
+    'segmented-button',
+    ['ButtonSegment', 'SegmentedButton', 'SegmentedButtonState', '_RenderSegmentedButton'],
+    'Controlled selection, segment styles and equal sizing on the Core button, focus, render and semantic owners. Source and host parity awaits qualification.',
+    'material',
+  ],
+  [
+    'cupertino/sliding_segmented_control.dart',
+    'sliding-segmented-control',
+    [
+      'CupertinoSlidingSegmentedControl',
+      '_SlidingSegmentButtonState',
+      '_SegmentedControlState',
+      '_RenderSegmentedControl',
+    ],
+    'Controlled selection, dragging, focus and sliding thumb on the Core gesture, ticker, render and semantic owners. Source and host parity awaits qualification.',
+    'cupertino',
+  ],
+  [
+    'cupertino/picker.dart',
+    'picker',
+    [
+      'CupertinoPicker',
+      '_CupertinoPickerState',
+      'CupertinoPickerDefaultSelectionOverlay',
+      '_CupertinoPickerSemantics',
+      '_RenderCupertinoPickerSemantics',
+      '_CupertinoPickerListWheelChildDelegateWrapper',
+    ],
+    'List, builder and looping picker over the generated Core wheel, with adjustable semantics and the Cupertino selection overlay. Flutter and host parity await qualification.',
+    'cupertino',
+  ],
 ];
 const options = {};
 let mode;
@@ -122,7 +155,7 @@ try {
   if (parsed.error || parsed.status !== 0)
     throw Error('Pinned source declaration analysis failed: ' + (parsed.error ?? parsed.stderr));
   const units = JSON.parse(parsed.stdout).units;
-  const origins = definitions.flatMap(([file, target, symbols, scope]) => {
+  const origins = definitions.flatMap(([file, target, symbols, scope, designPackage]) => {
     file = 'packages/flutter/lib/src/' + file;
     const unit = units.find((unit) => unit.source === file),
       text = source.text(file);
@@ -138,11 +171,13 @@ try {
         throw Error('Original declaration span differs: ' + symbol);
       const qualifiedId =
         'package:flutter/' + file.slice('packages/flutter/lib/'.length) + '::' + symbol + ':CLASS';
-      const output = 'Nelyx/src/framework/' + target + '.ts';
+      const output = designPackage
+        ? `packages/${designPackage}/src/${target}.ts`
+        : `Nelyx/src/framework/${target}.ts`;
       return {
         id: hash(qualifiedId + '\0' + output).slice(0, 20),
         qualifiedId,
-        package: '@nelyx/core',
+        package: `@nelyx/${designPackage ?? 'core'}`,
         source: {
           file,
           pin: source.revision,
@@ -158,7 +193,9 @@ try {
         },
         destination: {
           file: output,
-          module: '@nelyx/core/framework/' + target,
+          module: designPackage
+            ? `@nelyx/${designPackage}/${target}`
+            : `@nelyx/core/framework/${target}`,
           sha256: hash(fs.readFileSync(path.join(root, output))),
         },
         mode: 'manual-port',

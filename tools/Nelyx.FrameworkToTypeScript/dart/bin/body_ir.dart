@@ -35,9 +35,21 @@ class SuperDefaultParameters extends RecursiveAstVisitor<void> {
 }
 class InheritedDefaultResolver {
   final AnalysisSession session;
+  final String sourceRoot;
   final libraries=<String,ResolvedLibraryResult>{};
   final defaults=<FormalParameterElement,InheritedDefault>{};
-  InheritedDefaultResolver(this.session);
+  InheritedDefaultResolver(this.session,this.sourceRoot);
+
+  String sourceIdentity(ResolvedUnitResult unit) {
+    if (p.isWithin(sourceRoot, unit.path)) {
+      return p.posix.joinAll(p.split(p.relative(unit.path, from: sourceRoot)));
+    }
+    final uri = session.uriConverter.pathToUri(unit.path);
+    if (uri != null && (uri.scheme == 'package' || uri.scheme == 'dart')) {
+      return uri.toString();
+    }
+    throw UnsupportedError('Inherited default source has no pinned URI');
+  }
   FormalParameterElement? nextDefault(FormalParameterElement current){
     if(current is SuperFormalParameterElement)return current.superConstructorParameter?.baseElement;
     final constructor=current.enclosingElement;if(constructor is! ConstructorElement)return null;
@@ -62,7 +74,7 @@ class InheritedDefaultResolver {
           if(unit.diagnostics.any((value)=>value.diagnosticCode.severity.name=='ERROR'))break;
           final expression=formal.defaultClause!.value,content=unit.content;
           if(File(unit.path).readAsStringSync()!=content)throw StateError('Inherited default source changed: ${unit.path}');
-          defaults[parent]=InheritedDefault(expression,{'library':uri,'source':unit.path,'sourceSha256':digest(content.replaceAll('\r\n','\n')),'offset':expression.offset,'length':expression.length,'spanSha256':digest(content.substring(expression.offset,expression.end))});break;
+          defaults[parent]=InheritedDefault(expression,{'library':uri,'source':sourceIdentity(unit),'sourceSha256':digest(content.replaceAll('\r\n','\n')),'offset':expression.offset,'length':expression.length,'spanSha256':digest(content.substring(expression.offset,expression.end))});break;
         }
         final next=nextDefault(current);if(next==null)break;current=next;
       }
@@ -778,7 +790,7 @@ Future<void> main(List<String> args) async {
     if(digest(content)!=request['sha256'])throw StateError('Source hash mismatch: $file');
     final errors=result.diagnostics.where((d)=>d.diagnosticCode.severity.name=='ERROR').map((d)=>d.toString()).toList();
     final selected=(request['symbols'] as List).cast<String>(),preserveTypeAliases=result.unit.declarations.whereType<TypeAlias>().any((alias)=>selected.contains(alias.name.lexeme));
-    final defaultResolver=InheritedDefaultResolver(result.session);
+    final defaultResolver=InheritedDefaultResolver(result.session,root);
     for(final symbol in (request['symbols'] as List).cast<String>()){
       final candidates=<AstNode>[];
       for(final decl in result.unit.declarations){

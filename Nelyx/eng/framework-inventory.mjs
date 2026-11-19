@@ -19,14 +19,23 @@ function sourceExport(directory, entry) {
     ? file + 'x'
     : file;
 }
-export function frameworkInventory({ module: requestedModule } = {}) {
-  const coverage = read('Nelyx/upstream/flutter-coverage.json');
+export function frameworkInventory({
+  module: requestedModule,
+  coverage = read('Nelyx/upstream/flutter-coverage.json'),
+} = {}) {
   const origins = read('tools/Nelyx.FrameworkToTypeScript/data/work8/manual-origins.json');
   const reviewed = read('tools/Nelyx.FrameworkToTypeScript/data/framework-ports.json');
   if (coverage.source.revision !== origins.pin) throw Error('Active Flutter source pins differ');
   if (reviewed.pin !== origins.pin) throw Error('Framework port source pin differs');
   const sourceFiles = new Map(coverage.source.files.map((file) => [file.id, file]));
   const destinations = new Map();
+  const manualDestinations = new Map();
+  for (const origin of [...origins.origins, ...reviewed.origins]) {
+    const key = `${productModulePath(origin.destination.file)}\0${origin.qualifiedId.split('::').at(-1)?.split(':')[0]}`;
+    const entries = manualDestinations.get(key) ?? [];
+    entries.push(origin);
+    manualDestinations.set(key, entries);
+  }
   for (const item of coverage.items)
     for (const destination of item.destination ?? []) {
       const file = productModulePath(destination.file);
@@ -151,11 +160,7 @@ export function frameworkInventory({ module: requestedModule } = {}) {
           ? path.relative(root, declaration.getSourceFile().fileName).replaceAll('\\', '/')
           : entry.file;
         const mapped = destinations.get(actualFile + '\0' + value.name) ?? [];
-        const manual = [...origins.origins, ...reviewed.origins].filter(
-          (origin) =>
-            productModulePath(origin.destination.file) === actualFile &&
-            origin.qualifiedId.split('::').at(-1)?.split(':')[0] === value.name,
-        );
+        const manual = manualDestinations.get(actualFile + '\0' + value.name) ?? [];
         const sourceOrigins = [...new Map(mapped.map((item) => [item.id, item])).values()];
         declarations++;
         if (!sourceOrigins.length && !manual.length) unmapped++;
@@ -194,8 +199,9 @@ export function frameworkInventory({ module: requestedModule } = {}) {
             .filter((name) => !String(name).startsWith('__') && name !== 'prototype')
             .map((name) => memberDescription(value.members?.get(name) ?? value.exports.get(name))),
           source: sourceOrigins,
-          manual: manual.map(({ id, source, mode, status, scope }) => ({
+          manual: manual.map(({ id, qualifiedId, source, mode, status, scope }) => ({
             id,
+            qualifiedId,
             source,
             mode,
             status,

@@ -23,7 +23,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/page-view.ts",
         "module": "@nelyx/core/framework/widgets/page-view",
-        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+        "sha256": "011ed65adf01bef405a0d56fc76c5fcab97c0d883f1792671dfe56af82c39d42"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -50,7 +50,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/page-view.ts",
         "module": "@nelyx/core/framework/widgets/page-view",
-        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+        "sha256": "011ed65adf01bef405a0d56fc76c5fcab97c0d883f1792671dfe56af82c39d42"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -77,7 +77,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/page-view.ts",
         "module": "@nelyx/core/framework/widgets/page-view",
-        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+        "sha256": "011ed65adf01bef405a0d56fc76c5fcab97c0d883f1792671dfe56af82c39d42"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -104,7 +104,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/page-view.ts",
         "module": "@nelyx/core/framework/widgets/page-view",
-        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+        "sha256": "011ed65adf01bef405a0d56fc76c5fcab97c0d883f1792671dfe56af82c39d42"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -131,7 +131,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/page-view.ts",
         "module": "@nelyx/core/framework/widgets/page-view",
-        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+        "sha256": "011ed65adf01bef405a0d56fc76c5fcab97c0d883f1792671dfe56af82c39d42"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -158,7 +158,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/page-view.ts",
         "module": "@nelyx/core/framework/widgets/page-view",
-        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+        "sha256": "011ed65adf01bef405a0d56fc76c5fcab97c0d883f1792671dfe56af82c39d42"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -185,7 +185,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/page-view.ts",
         "module": "@nelyx/core/framework/widgets/page-view",
-        "sha256": "6d3f5ec5d8e4f9adcfe7fa26165a1b73a675005a9066714e15034376353ba82c"
+        "sha256": "011ed65adf01bef405a0d56fc76c5fcab97c0d883f1792671dfe56af82c39d42"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -212,7 +212,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/sliver-fill.ts",
         "module": "@nelyx/core/framework/widgets/sliver-fill",
-        "sha256": "bfa2774553975970f887fdf1ccaa6c1d56a3694906e8661effaa6945822dbe39"
+        "sha256": "9c89aeaa360aa1af57a7adc89a97a81735e61327b155208a6059bc8a08f2eb56"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -239,7 +239,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/sliver-fill.ts",
         "module": "@nelyx/core/framework/widgets/sliver-fill",
-        "sha256": "bfa2774553975970f887fdf1ccaa6c1d56a3694906e8661effaa6945822dbe39"
+        "sha256": "9c89aeaa360aa1af57a7adc89a97a81735e61327b155208a6059bc8a08f2eb56"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -266,7 +266,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/sliver-fill.ts",
         "module": "@nelyx/core/framework/widgets/sliver-fill",
-        "sha256": "bfa2774553975970f887fdf1ccaa6c1d56a3694906e8661effaa6945822dbe39"
+        "sha256": "9c89aeaa360aa1af57a7adc89a97a81735e61327b155208a6059bc8a08f2eb56"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -293,7 +293,7 @@
       "destination": {
         "file": "Nelyx/src/framework/widgets/sliver-fill.ts",
         "module": "@nelyx/core/framework/widgets/sliver-fill",
-        "sha256": "bfa2774553975970f887fdf1ccaa6c1d56a3694906e8661effaa6945822dbe39"
+        "sha256": "9c89aeaa360aa1af57a7adc89a97a81735e61327b155208a6059bc8a08f2eb56"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -320,7 +320,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/sliver-fill.ts",
         "module": "@nelyx/core/framework/rendering/sliver-fill",
-        "sha256": "7377e7cbe82a039f59e4527a2dd64ae1662120bac11607ddcf3e7f0c2fe4fa08"
+        "sha256": "13b376e16df161e5bfb213adc885a8d93958c5d93afe0378aad8898d79606308"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -347,7 +347,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "2ca7f2cdccb923a3869cab736d2b8106a99dfb45803c1f50df78cae19bec7ca3"
+        "sha256": "6822bbbf8bb96c23079691b4d878252f6cd96e7dd6c590d11cceb0aae3b68837"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -374,7 +374,7 @@
       "destination": {
         "file": "Nelyx/src/framework/rendering/object.ts",
         "module": "@nelyx/core/framework/rendering/object",
-        "sha256": "2ca7f2cdccb923a3869cab736d2b8106a99dfb45803c1f50df78cae19bec7ca3"
+        "sha256": "6822bbbf8bb96c23079691b4d878252f6cd96e7dd6c590d11cceb0aae3b68837"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -401,7 +401,7 @@
       "destination": {
         "file": "Nelyx/src/framework/painting/context.ts",
         "module": "@nelyx/core/framework/painting/context",
-        "sha256": "1bfbb97233cab72d55fe9e85544b39f62918270f557d60081fb9dc41603c32b4"
+        "sha256": "3f567a68df25832dc4e4df3e743c196aa7310f2e59225905f3cb349ef512fa72"
       },
       "mode": "manual-port",
       "status": "PARTIAL",
@@ -541,6 +541,384 @@
       "mode": "manual-port",
       "status": "PARTIAL",
       "scope": "Host adaptation of PaintingContext boundary recording and refresh. One cache serves the View root, viewports and custom boundaries; twenty scoped lifetime/scheduling/resource regressions and three original repaint hook observations. Not a second layout or Widget owner.",
+      "acceptance": []
+    },
+    {
+      "id": "a2e24986284481fb53f8",
+      "qualifiedId": "package:flutter/src/material/segmented_button.dart::ButtonSegment:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/segmented_button.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "83622d0bea5cc79acb38017e52f19c501064839e",
+        "fileSha256": "7d1572bbcaba0f37d7c04825498d0941310eba2b9fdd1411087651574fb21f28",
+        "canonicalSpan": {
+          "offset": 956,
+          "length": 769,
+          "line": 36,
+          "sha256": "f5548bfca8b5c55ce8a4638dc9de4d34bfc91250498c8543287e5370771cd70c",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/segmented-button.ts",
+        "module": "@nelyx/material/segmented-button",
+        "sha256": "3f282d9d10581b5f04273d37d81013c1eb5e2b2f9426708cb8ee01c3bb181555"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled selection, segment styles and equal sizing on the Core button, focus, render and semantic owners. Source and host parity awaits qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "714536c4b50f252cc6af",
+      "qualifiedId": "package:flutter/src/material/segmented_button.dart::SegmentedButton:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/segmented_button.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "83622d0bea5cc79acb38017e52f19c501064839e",
+        "fileSha256": "7d1572bbcaba0f37d7c04825498d0941310eba2b9fdd1411087651574fb21f28",
+        "canonicalSpan": {
+          "offset": 1727,
+          "length": 14572,
+          "line": 67,
+          "sha256": "061cc4cfa01025f50cdc46e26502fa2c83ec5ab28204a1ee3f0b7a91e490734c",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/segmented-button.ts",
+        "module": "@nelyx/material/segmented-button",
+        "sha256": "3f282d9d10581b5f04273d37d81013c1eb5e2b2f9426708cb8ee01c3bb181555"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled selection, segment styles and equal sizing on the Core button, focus, render and semantic owners. Source and host parity awaits qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "829f0969143461ae0ff2",
+      "qualifiedId": "package:flutter/src/material/segmented_button.dart::SegmentedButtonState:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/segmented_button.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "83622d0bea5cc79acb38017e52f19c501064839e",
+        "fileSha256": "7d1572bbcaba0f37d7c04825498d0941310eba2b9fdd1411087651574fb21f28",
+        "canonicalSpan": {
+          "offset": 16301,
+          "length": 10808,
+          "line": 444,
+          "sha256": "c85f000b44bb9da758a95e5180894c89f8d97f229b93a98aee3a26c9df04fa1d",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/segmented-button.ts",
+        "module": "@nelyx/material/segmented-button",
+        "sha256": "3f282d9d10581b5f04273d37d81013c1eb5e2b2f9426708cb8ee01c3bb181555"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled selection, segment styles and equal sizing on the Core button, focus, render and semantic owners. Source and host parity awaits qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "18ed7a5393f345bb70e1",
+      "qualifiedId": "package:flutter/src/material/segmented_button.dart::_RenderSegmentedButton:CLASS",
+      "package": "@nelyx/material",
+      "source": {
+        "file": "packages/flutter/lib/src/material/segmented_button.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "83622d0bea5cc79acb38017e52f19c501064839e",
+        "fileSha256": "7d1572bbcaba0f37d7c04825498d0941310eba2b9fdd1411087651574fb21f28",
+        "canonicalSpan": {
+          "offset": 28636,
+          "length": 14100,
+          "line": 769,
+          "sha256": "899ea3750cb69a4738789f8c85dd975e084d9e68b3515722032fa7b07f23db66",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/material/src/segmented-button.ts",
+        "module": "@nelyx/material/segmented-button",
+        "sha256": "3f282d9d10581b5f04273d37d81013c1eb5e2b2f9426708cb8ee01c3bb181555"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled selection, segment styles and equal sizing on the Core button, focus, render and semantic owners. Source and host parity awaits qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "988cc204a0289875601f",
+      "qualifiedId": "package:flutter/src/cupertino/sliding_segmented_control.dart::CupertinoSlidingSegmentedControl:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/sliding_segmented_control.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "ce75573ffdb5fe7da4bf63aca36fb2e79954430b",
+        "fileSha256": "377ea8fd022755e38e1a9f591f0f21874fdf46875ba08ade103131f853145dc3",
+        "canonicalSpan": {
+          "offset": 10441,
+          "length": 8778,
+          "line": 309,
+          "sha256": "ba9ef93a9ae8a084bebfe92f5fb3d4f8ec9be55d839a635c49f9ca68dc7ada8b",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/sliding-segmented-control.ts",
+        "module": "@nelyx/cupertino/sliding-segmented-control",
+        "sha256": "c3f064777d4650d4912e20f100654c7cfa87503739963d621a26cc8aadbc6d0c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled selection, dragging, focus and sliding thumb on the Core gesture, ticker, render and semantic owners. Source and host parity awaits qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "2efa6097cbe86f74e1f2",
+      "qualifiedId": "package:flutter/src/cupertino/sliding_segmented_control.dart::_SlidingSegmentButtonState:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/sliding_segmented_control.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "ce75573ffdb5fe7da4bf63aca36fb2e79954430b",
+        "fileSha256": "377ea8fd022755e38e1a9f591f0f21874fdf46875ba08ade103131f853145dc3",
+        "canonicalSpan": {
+          "offset": 19672,
+          "length": 1339,
+          "line": 532,
+          "sha256": "e880b5c0543e1969a3f3d1bbd357568736f0af4b63718e8fb6a96dcf107bd7f3",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/sliding-segmented-control.ts",
+        "module": "@nelyx/cupertino/sliding-segmented-control",
+        "sha256": "c3f064777d4650d4912e20f100654c7cfa87503739963d621a26cc8aadbc6d0c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled selection, dragging, focus and sliding thumb on the Core gesture, ticker, render and semantic owners. Source and host parity awaits qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "a90af036d4cfea624838",
+      "qualifiedId": "package:flutter/src/cupertino/sliding_segmented_control.dart::_SegmentedControlState:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/sliding_segmented_control.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "ce75573ffdb5fe7da4bf63aca36fb2e79954430b",
+        "fileSha256": "377ea8fd022755e38e1a9f591f0f21874fdf46875ba08ade103131f853145dc3",
+        "canonicalSpan": {
+          "offset": 21013,
+          "length": 13852,
+          "line": 591,
+          "sha256": "d4068da315f071a3cddbbb4184792595369403ad1e447951ca6b1c949eee8339",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/sliding-segmented-control.ts",
+        "module": "@nelyx/cupertino/sliding-segmented-control",
+        "sha256": "c3f064777d4650d4912e20f100654c7cfa87503739963d621a26cc8aadbc6d0c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled selection, dragging, focus and sliding thumb on the Core gesture, ticker, render and semantic owners. Source and host parity awaits qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "f2d66499f5ccadb98eab",
+      "qualifiedId": "package:flutter/src/cupertino/sliding_segmented_control.dart::_RenderSegmentedControl:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/sliding_segmented_control.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "ce75573ffdb5fe7da4bf63aca36fb2e79954430b",
+        "fileSha256": "377ea8fd022755e38e1a9f591f0f21874fdf46875ba08ade103131f853145dc3",
+        "canonicalSpan": {
+          "offset": 37613,
+          "length": 17447,
+          "line": 1044,
+          "sha256": "3e903d8af26e49acd7fc6d320011efd00b7938e63af7fdf50d1443b978e9e404",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/sliding-segmented-control.ts",
+        "module": "@nelyx/cupertino/sliding-segmented-control",
+        "sha256": "c3f064777d4650d4912e20f100654c7cfa87503739963d621a26cc8aadbc6d0c"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "Controlled selection, dragging, focus and sliding thumb on the Core gesture, ticker, render and semantic owners. Source and host parity awaits qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "cb0b998462be95463f69",
+      "qualifiedId": "package:flutter/src/cupertino/picker.dart::CupertinoPicker:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "399fc01f690e8be87627a471d8ee2bf6c7cf85c1",
+        "fileSha256": "bb0dc0938a5dc5ae2504df61e407c42c47c7b8dd6b0501add04000925704fa10",
+        "canonicalSpan": {
+          "offset": 1159,
+          "length": 7864,
+          "line": 35,
+          "sha256": "3ced443704ff40bdcce500a312ef8e8b3facd10f73f8a91d592bf65821d62697",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/picker.ts",
+        "module": "@nelyx/cupertino/picker",
+        "sha256": "916633c9baf9940acf8588468691e23e72c7358bfc4763092a55ee4f209a8a2a"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "List, builder and looping picker over the generated Core wheel, with adjustable semantics and the Cupertino selection overlay. Flutter and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "9a3e8b70358ca66743a3",
+      "qualifiedId": "package:flutter/src/cupertino/picker.dart::_CupertinoPickerState:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "399fc01f690e8be87627a471d8ee2bf6c7cf85c1",
+        "fileSha256": "bb0dc0938a5dc5ae2504df61e407c42c47c7b8dd6b0501add04000925704fa10",
+        "canonicalSpan": {
+          "offset": 9025,
+          "length": 5655,
+          "line": 225,
+          "sha256": "4c3d158becf519df6a72f7fb66ade57fbacce34da60356934d999d4af2d027e2",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/picker.ts",
+        "module": "@nelyx/cupertino/picker",
+        "sha256": "916633c9baf9940acf8588468691e23e72c7358bfc4763092a55ee4f209a8a2a"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "List, builder and looping picker over the generated Core wheel, with adjustable semantics and the Cupertino selection overlay. Flutter and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "fd17ead072cade712da4",
+      "qualifiedId": "package:flutter/src/cupertino/picker.dart::CupertinoPickerDefaultSelectionOverlay:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "399fc01f690e8be87627a471d8ee2bf6c7cf85c1",
+        "fileSha256": "bb0dc0938a5dc5ae2504df61e407c42c47c7b8dd6b0501add04000925704fa10",
+        "canonicalSpan": {
+          "offset": 14682,
+          "length": 3149,
+          "line": 388,
+          "sha256": "ec9bb77249413d185ea4f63c38145d310f6a7447dc935ab825f568e343c815e9",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/picker.ts",
+        "module": "@nelyx/cupertino/picker",
+        "sha256": "916633c9baf9940acf8588468691e23e72c7358bfc4763092a55ee4f209a8a2a"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "List, builder and looping picker over the generated Core wheel, with adjustable semantics and the Cupertino selection overlay. Flutter and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "2b7f08211e468545193a",
+      "qualifiedId": "package:flutter/src/cupertino/picker.dart::_CupertinoPickerSemantics:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "399fc01f690e8be87627a471d8ee2bf6c7cf85c1",
+        "fileSha256": "bb0dc0938a5dc5ae2504df61e407c42c47c7b8dd6b0501add04000925704fa10",
+        "canonicalSpan": {
+          "offset": 18234,
+          "length": 718,
+          "line": 471,
+          "sha256": "15346bf94ac1bb57d4052ec9f06126f8cdfe68aad38b1a0d218161182552da0a",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/picker.ts",
+        "module": "@nelyx/cupertino/picker",
+        "sha256": "916633c9baf9940acf8588468691e23e72c7358bfc4763092a55ee4f209a8a2a"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "List, builder and looping picker over the generated Core wheel, with adjustable semantics and the Cupertino selection overlay. Flutter and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "595845011200090e586c",
+      "qualifiedId": "package:flutter/src/cupertino/picker.dart::_RenderCupertinoPickerSemantics:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "399fc01f690e8be87627a471d8ee2bf6c7cf85c1",
+        "fileSha256": "bb0dc0938a5dc5ae2504df61e407c42c47c7b8dd6b0501add04000925704fa10",
+        "canonicalSpan": {
+          "offset": 18954,
+          "length": 3716,
+          "line": 494,
+          "sha256": "3dfa51c954ac07cdb0078f41f3eff64d3e46f0f83666d96c8154008aca9ee97c",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/picker.ts",
+        "module": "@nelyx/cupertino/picker",
+        "sha256": "916633c9baf9940acf8588468691e23e72c7358bfc4763092a55ee4f209a8a2a"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "List, builder and looping picker over the generated Core wheel, with adjustable semantics and the Cupertino selection overlay. Flutter and host parity await qualification.",
+      "acceptance": []
+    },
+    {
+      "id": "6dcdb77bf08190ee6786",
+      "qualifiedId": "package:flutter/src/cupertino/picker.dart::_CupertinoPickerListWheelChildDelegateWrapper:CLASS",
+      "package": "@nelyx/cupertino",
+      "source": {
+        "file": "packages/flutter/lib/src/cupertino/picker.dart",
+        "pin": "71e4717a61786faab4c7aa39825989305ed29e8a",
+        "gitBlob": "399fc01f690e8be87627a471d8ee2bf6c7cf85c1",
+        "fileSha256": "bb0dc0938a5dc5ae2504df61e407c42c47c7b8dd6b0501add04000925704fa10",
+        "canonicalSpan": {
+          "offset": 22672,
+          "length": 934,
+          "line": 604,
+          "sha256": "0f9d5f96243bfa86c2f51e2e850fd1413b51de279bc854dbb9417d2f85a37168",
+          "encoding": "UTF-16 indices, LF line endings"
+        }
+      },
+      "destination": {
+        "file": "packages/cupertino/src/picker.ts",
+        "module": "@nelyx/cupertino/picker",
+        "sha256": "916633c9baf9940acf8588468691e23e72c7358bfc4763092a55ee4f209a8a2a"
+      },
+      "mode": "manual-port",
+      "status": "PARTIAL",
+      "scope": "List, builder and looping picker over the generated Core wheel, with adjustable semantics and the Cupertino selection overlay. Flutter and host parity await qualification.",
       "acceptance": []
     }
   ]

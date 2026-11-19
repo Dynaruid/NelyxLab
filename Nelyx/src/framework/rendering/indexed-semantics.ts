@@ -31,9 +31,9 @@ export class RenderIndexedSemantics extends RenderProxyBox {
   }
   private validIndex(value: number): number {
     invariant(
-      Number.isSafeInteger(value) && value >= 0,
+      Number.isSafeInteger(value),
       'invalid-semantic-index',
-      'Semantic index must be a nonnegative safe integer',
+      'Semantic index must be a safe integer',
     );
     return value;
   }
@@ -45,7 +45,7 @@ export class RenderIndexedSemantics extends RenderProxyBox {
     this.validIndex(value);
     if (value === this._index) return;
     this._index = value;
-    this.markNeedsPaint();
+    this.markNeedsSemanticsUpdate();
   }
   override describeSemanticsConfiguration(config: SemanticsConfiguration): void {
     super.describeSemanticsConfiguration(config);

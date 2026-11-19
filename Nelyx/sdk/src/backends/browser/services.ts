@@ -293,6 +293,7 @@ export function createWebServices(
           stopInput = bindCanvasInput(canvas, view, {
             keySurface,
             ownsSemanticsTarget: interaction.ownsSemanticsTarget,
+            ownsSemanticsAdjustmentTarget: interaction.ownsSemanticsAdjustmentTarget,
             ownsEditingTarget: interaction.ownsEditingTarget,
             ownsNativeSelectionTarget: (target) => selectionContextMenu.ownsTarget(target),
           });

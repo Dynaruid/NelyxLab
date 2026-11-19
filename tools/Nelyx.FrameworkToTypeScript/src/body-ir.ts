@@ -13,6 +13,7 @@ interface Span {
   length: number;
   origin?: {
     library: string;
+    /** Flutter repository-relative path or resolved package/SDK URI. */
     source: string;
     sourceSha256: string;
     offset: number;

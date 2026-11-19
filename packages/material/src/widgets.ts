@@ -285,6 +285,12 @@ export { SearchViewThemeData, SearchViewTheme } from './search-view-theme.ts';
 export type { SearchViewThemeDataOptions } from './search-view-theme-data.ts';
 export { SegmentedButtonThemeData, SegmentedButtonTheme } from './segmented-button-theme.ts';
 export type { SegmentedButtonThemeDataOptions } from './segmented-button-theme-data.ts';
+export { ButtonSegment, SegmentedButton, SegmentedButtonState } from './segmented-button.ts';
+export type {
+  ButtonSegmentOptions,
+  SegmentedButtonOptions,
+  SegmentedButtonStyleFromOptions,
+} from './segmented-button.ts';
 export { MenuBarThemeData, MenuBarTheme } from './menu-bar-theme.ts';
 export type { MenuBarThemeDataOptions } from './menu-bar-theme-data.ts';
 export { MenuButtonThemeData, MenuButtonTheme } from './menu-button-theme.ts';

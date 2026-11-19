@@ -17,7 +17,7 @@ import {CupertinoThemeData} from '@nelyx/cupertino/theme';
 | --- | --- |
 | Application and theme | `app`, `theme`, `colors`, `text-theme` |
 | Page structure | `page-scaffold`, `nav-bar`, `list-tile`, `list-section` |
-| Controls | `button`, `checkbox`, `radio`, `switch`, `slider` |
+| Controls | `button`, `checkbox`, `radio`, `switch`, `slider`, `picker`, `sliding-segmented-control` |
 | Text and forms | `text-field`, `text-form-field-row`, `form-row`, `form-section` |
 | Feedback and navigation | `activity-indicator`, `dialog`, `route` |
 | Scrolling and selection | `scrollbar`, `scroll-behavior`, `text-selection` |
@@ -30,6 +30,8 @@ All names are relative to `@nelyx/cupertino/`. See [package.json](package.json) 
 Use CupertinoApp and CupertinoThemeData for Cupertino styling. Core's AppTheme/AppThemeData supplies the common Nelyx adapter. Cupertino and Material applications share one Core instance.
 
 Selection controls use application-owned values and report requested changes through callbacks. CupertinoTextField composes the Core editor, while CupertinoTextFormFieldRow participates in the common Form system. Controllers and FocusNodes supplied by the application remain caller-owned.
+
+Use `CupertinoPicker` with a list of children or `CupertinoPicker.builder` to construct items as the wheel brings them into view. Import `FixedExtentScrollController` from `@nelyx/cupertino/picker` to set an initial item or move to an index. Give the picker bounded width and height, and use `ChangeReportingBehavior.onScrollEnd` when a callback should run after the wheel settles.
 
 Editing supports clear/Undo, line policies, validation, and platform input integration. Advanced editing, restoration, complete Cupertino API coverage, and physical IME/reader behavior require further qualification.
 

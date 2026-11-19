@@ -2,6 +2,9 @@
 import type { ViewRuntime } from '@nelyx/core/hosting/runtime';
 import type { PointerEvent as FrameworkPointerEvent } from '@nelyx/core/ui/input';
 import { RawKeyEventDataWeb } from '@nelyx/core/services/raw-keyboard-web';
+export function isArrowKey(key: string): boolean {
+  return key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight';
+}
 /** Canvas captures its own streams; native overlays own their input. */
 export function bindCanvasInput(
   canvas: HTMLCanvasElement,
@@ -10,6 +13,7 @@ export function bindCanvasInput(
     readonly keySurface?: HTMLElement;
     readonly ownsEditingTarget?: (target: EventTarget | null) => boolean;
     readonly ownsSemanticsTarget?: (target: EventTarget | null) => boolean;
+    readonly ownsSemanticsAdjustmentTarget?: (target: EventTarget | null) => boolean;
     readonly ownsNativeSelectionTarget?: (target: EventTarget | null) => boolean;
   } = {},
 ): () => void {
@@ -114,6 +118,7 @@ export function bindCanvasInput(
           (target instanceof HTMLElement && target.isContentEditable)))
     )
       return;
+    if (isArrowKey(event.key) && options.ownsSemanticsAdjustmentTarget?.(target)) return;
     const capsLock = event.getModifierState('CapsLock'),
       numLock = event.getModifierState('NumLock'),
       scrollLock = event.getModifierState('ScrollLock');

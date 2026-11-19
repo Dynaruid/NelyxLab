@@ -492,6 +492,10 @@
       "types": "./dist/segmented-button-theme.d.ts",
       "default": "./dist/segmented-button-theme.js"
     },
+    "./segmented-button": {
+      "types": "./dist/segmented-button.d.ts",
+      "default": "./dist/segmented-button.js"
+    },
     "./menu-bar-theme-data": {
       "types": "./dist/menu-bar-theme-data.d.ts",
       "default": "./dist/menu-bar-theme-data.js"

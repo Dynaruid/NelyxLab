@@ -3,7 +3,7 @@ import type { CategoryId, ComponentDemo } from './catalog.ts';
 
 export const cupertinoDemos: readonly ComponentDemo[] = [
   { id: 'buttons', category: 'actions', title: 'Cupertino buttons', status: 'ready' },
-  { id: 'segmented', category: 'actions', title: 'Segmented controls', status: 'planned' },
+  { id: 'segmented', category: 'actions', title: 'Sliding segmented control', status: 'basic' },
   { id: 'context-menu', category: 'actions', title: 'Context menu', status: 'planned' },
   { id: 'activity', category: 'communication', title: 'Activity indicators', status: 'ready' },
   { id: 'lists', category: 'containment', title: 'Lists and sections', status: 'ready' },
@@ -22,7 +22,7 @@ export const cupertinoDemos: readonly ComponentDemo[] = [
   { id: 'checkboxes', category: 'selection', title: 'Checkboxes', status: 'ready' },
   { id: 'radios', category: 'selection', title: 'Radio buttons', status: 'ready' },
   { id: 'sliders', category: 'selection', title: 'Sliders', status: 'ready' },
-  { id: 'picker', category: 'selection', title: 'Wheel picker', status: 'planned' },
+  { id: 'picker', category: 'selection', title: 'Wheel picker', status: 'basic' },
   { id: 'date-picker', category: 'selection', title: 'Date and time pickers', status: 'planned' },
   { id: 'text-field', category: 'text', title: 'Text field', status: 'basic' },
   { id: 'search', category: 'text', title: 'Search field', status: 'planned' },

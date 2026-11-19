@@ -18,6 +18,7 @@ import { SemanticsRole } from '@nelyx/core/ui/semantics';
 import type { BrowserMouseCursor } from './mouse-cursor.ts';
 import { createBrowserEditContext, hasBrowserEditContext } from './edit-context.ts';
 import type { BrowserInputViewport } from './edit-context.ts';
+import { isArrowKey } from './input.ts';
 interface Editor {
   element: HTMLElement;
   configuration?: EditingConfiguration;
@@ -145,7 +146,8 @@ export function createDomInteraction(
   };
   const fields = new Map<string, Editor>(),
     buttons = new Map<string, HTMLButtonElement>(),
-    passive = new Map<string, HTMLDivElement>();
+    passive = new Map<string, HTMLDivElement>(),
+    semanticsAdjustmentTargets = new WeakSet<HTMLElement>();
   let inputUsed = false,
     buttonUsed = false;
   const origins = new WeakMap<HTMLElement, { readonly x: number; readonly y: number }>();
@@ -783,22 +785,26 @@ export function createDomInteraction(
       }
       if (loading) element.setAttribute('aria-busy', 'true');
       else element.removeAttribute('aria-busy');
+      // Some adjustable nodes have DOM focus without a corresponding Core focus action.
+      if (node.isSlider && node.enabled && !node.actions?.focus)
+        semanticsAdjustmentTargets.add(element);
+      else semanticsAdjustmentTargets.delete(element);
       element.onkeydown = (event) => {
         if (event.defaultPrevented) return;
         if (
           publishedNodes.get(node.id) === node &&
           node.enabled &&
           node.isSlider &&
-          ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)
+          isArrowKey(event.key)
         ) {
           const increase =
               event.key === 'ArrowUp' ||
               event.key === (node.textDirection === 'rtl' ? 'ArrowLeft' : 'ArrowRight'),
             type = increase ? 'increase' : 'decrease',
             action = node.actions?.[type];
-          if (action) {
+          if (action || semanticsAdjustmentTargets.has(element)) {
             event.preventDefault();
-            performAction(node, type, action);
+            if (action) performAction(node, type, action);
             return;
           }
         }
@@ -926,6 +932,12 @@ export function createDomInteraction(
       [...fields.values()].some((editor) => !!editor.binding && editor.element === target),
     ownsSemanticsTarget: (target: EventTarget | null) =>
       !closed && bound && target instanceof HTMLElement && publishedElements.has(target),
+    ownsSemanticsAdjustmentTarget: (target: EventTarget | null) =>
+      !closed &&
+      bound &&
+      target instanceof HTMLElement &&
+      publishedElements.has(target) &&
+      semanticsAdjustmentTargets.has(target),
     dispose() {
       if (closed) return;
       editing.dispose();

@@ -1263,10 +1263,9 @@ export function freezeSemantics(
         'Semantics tags must use framework tag identities',
       );
     invariant(
-      node.indexInParent === undefined ||
-        (Number.isSafeInteger(node.indexInParent) && node.indexInParent >= 0),
+      node.indexInParent === undefined || Number.isSafeInteger(node.indexInParent),
       'invalid-semantics-index',
-      'Semantics index must be a nonnegative safe integer',
+      'Semantics index must be a safe integer',
     );
     const { x, y, width, height } = node.bounds,
       bounds = Object.freeze({ x, y, width, height });

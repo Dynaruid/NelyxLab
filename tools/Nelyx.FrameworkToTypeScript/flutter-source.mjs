@@ -30,10 +30,11 @@ function relativeFile(file) {
 export function openFlutterSource(repository) {
   repository = fs.realpathSync(repository);
   const deadline = Date.now() + 1_200_000;
-  const git = (args) => {
+  const git = (args, input) => {
     if (Date.now() >= deadline) throw Error('Pinned Flutter source read exceeded 20 minutes');
     const result = spawnSync('git', ['-C', repository, ...args], {
       encoding: null,
+      input,
       windowsHide: true,
       timeout: Math.max(1, deadline - Date.now()),
       maxBuffer: 128 * 1024 * 1024,
@@ -58,19 +59,39 @@ export function openFlutterSource(repository) {
     if (match[2] === 'blob') entries.set(match[4], { mode: match[1], blob: match[3] });
   }
   const cache = new Map();
-  const read = (file) => {
+  const checkedBlob = (file) => {
     relativeFile(file);
     const entry = entries.get(file);
     if (!entry || !['100644', '100755'].includes(entry.mode))
       throw Error(`Missing or linked pinned Flutter source: ${file}`);
-    let bytes = cache.get(file);
-    if (!bytes) {
-      bytes = git(['cat-file', 'blob', entry.blob]);
-      if (gitBlob(bytes) !== entry.blob) throw Error(`Flutter Git blob differs: ${file}`);
-      cache.set(file, bytes);
+    return entry.blob;
+  };
+  const preload = (files) => {
+    const pending = [...new Set([...files].map(checkedBlob))].filter((blob) => !cache.has(blob));
+    for (let i = 0; i < pending.length; i += 64) {
+      const blobs = pending.slice(i, i + 64);
+      const output = git(['cat-file', '--batch'], `${blobs.join('\n')}\n`);
+      let start = 0;
+      for (const blob of blobs) {
+        const end = output.indexOf(10, start);
+        if (end === -1) throw Error(`Missing Git batch header: ${blob}`);
+        const match = /^([a-f0-9]{40}) blob (\d+)$/.exec(output.toString('ascii', start, end));
+        if (match?.[1] !== blob) throw Error(`Unexpected Git batch header: ${blob}`);
+        const limit = end + 1 + Number(match[2]);
+        const bytes = output.subarray(end + 1, limit);
+        if (output[limit] !== 10 || gitBlob(bytes) !== blob)
+          throw Error(`Flutter Git blob differs: ${blob}`);
+        cache.set(blob, bytes);
+        start = limit + 1;
+      }
+      if (start !== output.length) throw Error('Unexpected trailing Git batch bytes');
     }
+  };
+  const read = (file) => {
+    const blob = checkedBlob(file);
+    preload([file]);
     // A caller cannot mutate the bytes cached for another conversion/oracle.
-    return Buffer.from(bytes);
+    return Buffer.from(cache.get(blob));
   };
   return Object.freeze({
     revision: flutterRevision,
@@ -79,6 +100,7 @@ export function openFlutterSource(repository) {
         [...entries.keys()].filter((file) => file.startsWith(relativeFile(prefix) + '/')).sort(),
       ),
     blob: (file) => entries.get(relativeFile(file))?.blob,
+    preload,
     read,
     text: (file) => read(file).toString('utf8'),
     verifyCoverage(coverage, reference = path.join(root, 'reference/flutter-master')) {
@@ -94,6 +116,7 @@ export function openFlutterSource(repository) {
         missing: [],
       };
       const seen = new Set();
+      preload(coverage.source.files.filter((file) => file.gitBlob).map((file) => file.path));
       for (const file of coverage.source.files) {
         if (!file.gitBlob) continue; // Pub packages have a separate source owner.
         relativeFile(file.path);

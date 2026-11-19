@@ -36,6 +36,8 @@ import { FilledButton } from '@nelyx/material/filled-button';
 import { ElevatedButton } from '@nelyx/material/elevated-button';
 import { OutlinedButton } from '@nelyx/material/outlined-button';
 import { TextButton } from '@nelyx/material/text-button';
+import { ButtonSegment, SegmentedButton } from '@nelyx/material/segmented-button';
+import { DateTime, showDatePicker } from '@nelyx/material/date-picker';
 import { IconButton } from '@nelyx/material/icon-button';
 import { Icons } from '@nelyx/material/icons';
 import { Card } from '@nelyx/material/card';
@@ -133,6 +135,8 @@ class GalleryState extends State<ComponentsGallery> {
   private obscureMessage = false;
   private interactiveMessage = true;
   private checked: boolean | null = true;
+  private segment = 'List';
+  private date = DateTime.now();
   private mixed: boolean | null = null;
   private selectedRadio = 'first';
   private switched = false;
@@ -631,6 +635,41 @@ class GalleryState extends State<ComponentsGallery> {
     const update = (change: () => void) => this.updates.change(id, change);
     const colors = Theme.of(context).colorScheme;
     switch (id) {
+      case 'segmented':
+        return new SegmentedButton<string>({
+          segments: [
+            new ButtonSegment({ value: 'List', label: new Text('List') }),
+            new ButtonSegment({ value: 'Grid', label: new Text('Grid') }),
+            new ButtonSegment({ value: 'Map', label: new Text('Map'), enabled: false }),
+          ],
+          selected: new Set([this.segment]),
+          onSelectionChanged: (selection) =>
+            update(() => {
+              this.segment = [...selection][0]!;
+            }),
+        });
+      case 'date-picker': {
+        const date = this.date;
+        const label = `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`;
+        return new OutlinedButton({
+          id: 'testbed-show-date-picker',
+          child: new Text('Choose date · ' + label),
+          onPressed: () => {
+            const year = DateTime.now().year;
+            void showDatePicker({
+              context,
+              initialDate: this.date,
+              firstDate: new DateTime(year - 10, 1, 1),
+              lastDate: new DateTime(year + 10, 12, 31),
+            }).then((picked) => {
+              if (this.mounted && picked !== null)
+                update(() => {
+                  this.date = picked;
+                });
+            });
+          },
+        });
+      }
       case 'buttons': {
         const press = (name: string) => () => this.record(name + ' pressed');
         return column(

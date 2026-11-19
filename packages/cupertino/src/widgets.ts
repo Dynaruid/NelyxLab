@@ -33,6 +33,19 @@ export {
   CupertinoLinearActivityIndicator,
 } from './activity-indicator.ts';
 export { CupertinoSlider } from './slider.ts';
+export {
+  ChangeReportingBehavior,
+  CupertinoPicker,
+  CupertinoPickerDefaultSelectionOverlay,
+  FixedExtentScrollController,
+} from './picker.ts';
+export type {
+  CupertinoPickerBuilderOptions,
+  CupertinoPickerDefaultSelectionOverlayOptions,
+  CupertinoPickerOptions,
+} from './picker.ts';
+export { CupertinoSlidingSegmentedControl } from './sliding-segmented-control.ts';
+export type { CupertinoSlidingSegmentedControlOptions } from './sliding-segmented-control.ts';
 export { CupertinoThumbPainter } from './thumb-painter.ts';
 export { CupertinoIconThemeData } from './icon-theme-data.ts';
 export { Icon } from '@nelyx/core/framework/widgets/icon';

@@ -73,21 +73,129 @@ bool declaration(Element element) =>
     element is! PrefixElement &&
     element is! LibraryElement;
 
+enum ReferencePhase {
+  type,
+  runtimeTypeUse,
+  heritage,
+  constant,
+  lazyInitializer,
+  instanceInitializer,
+  parameterDefault,
+  execution,
+  metadata,
+  documentation,
+}
+
 class References extends RecursiveAstVisitor<void> {
   final elements = <String, Element>{};
-  void add(Element? element) {
+  final uses = <String, Set<ReferencePhase>>{};
+
+  void add(Element? element, ReferencePhase phase) {
     if (element == null || !declaration(element)) return;
     element = canonical(element);
     if (iconConstant(element)) return;
     if (element.library == null &&
         ['DYNAMIC', 'NEVER'].contains(element.kind.name))
       return;
-    elements[identity(element)] = element;
+    final id = identity(element);
+    elements[id] = element;
+    uses.putIfAbsent(id, () => {}).add(phase);
+  }
+
+  void remove(String id) {
+    elements.remove(id);
+    uses.remove(id);
+  }
+
+  void addAlternative(Element alternative, Element original) {
+    for (final phase in uses[identity(original)]!.toList()) {
+      add(alternative, phase);
+    }
+  }
+
+  Map<String, List<String>> get phases {
+    final grouped = <ReferencePhase, List<String>>{};
+    for (final id in uses.keys.toList()..sort()) {
+      for (final phase in uses[id]!) {
+        grouped.putIfAbsent(phase, () => []).add(id);
+      }
+    }
+    return {
+      for (final phase in ReferencePhase.values)
+        if (grouped[phase] case final refs?) phase.name: refs,
+    };
+  }
+
+  // Fields and top-level variables resolve to the variable fragment, whose
+  // shared type annotation and annotations live on its containing declaration.
+  void collect(AstNode? node) {
+    if (node case VariableDeclaration(
+      parent: final VariableDeclarationList list,
+    )) {
+      list.type?.accept(this);
+      final declaration = list.parent;
+      if (declaration is AnnotatedNode) {
+        for (final annotation in declaration.metadata) {
+          annotation.accept(this);
+        }
+      }
+    }
+    node?.accept(this);
+  }
+
+  ReferencePhase valuePhase(AstNode node) {
+    for (AstNode? parent = node; parent != null; parent = parent.parent) {
+      if (parent is Comment) return ReferencePhase.documentation;
+      if (parent is Annotation) return ReferencePhase.metadata;
+      if (parent is FunctionBody) return ReferencePhase.execution;
+      if (parent is FormalParameterDefaultClause) {
+        return ReferencePhase.parameterDefault;
+      }
+      if (parent is ConstructorInitializer) {
+        return ReferencePhase.instanceInitializer;
+      }
+      if (parent is EnumConstantDeclaration) return ReferencePhase.constant;
+      if (parent is VariableDeclaration && parent.initializer != null) {
+        final declaration = parent.parent?.parent;
+        if (declaration is TopLevelVariableDeclaration ||
+            declaration is FieldDeclaration) {
+          if (parent.isConst) return ReferencePhase.constant;
+          if (declaration is TopLevelVariableDeclaration ||
+              declaration is FieldDeclaration && declaration.isStatic) {
+            return ReferencePhase.lazyInitializer;
+          }
+          return ReferencePhase.instanceInitializer;
+        }
+      }
+    }
+    return ReferencePhase.execution;
+  }
+
+  ReferencePhase typePhase(NamedType node) {
+    final parent = node.parent;
+    if (parent is ExtendsClause ||
+        parent is WithClause ||
+        parent is ClassTypeAlias && identical(parent.superclass, node)) {
+      return ReferencePhase.heritage;
+    }
+    if (parent is TypeLiteral ||
+        parent is IsExpression ||
+        parent is AsExpression ||
+        parent is CatchClause ||
+        parent is DartPattern) {
+      return ReferencePhase.runtimeTypeUse;
+    }
+    // Nested type arguments of casts and tests describe a runtime type too.
+    if (parent case TypeArgumentList(parent: final NamedType outer)) {
+      final enclosing = typePhase(outer);
+      if (enclosing == ReferencePhase.runtimeTypeUse) return enclosing;
+    }
+    return ReferencePhase.type;
   }
 
   @override
   void visitSimpleIdentifier(SimpleIdentifier node) {
-    add(node.element);
+    add(node.element, valuePhase(node));
     super.visitSimpleIdentifier(node);
   }
 
@@ -95,50 +203,83 @@ class References extends RecursiveAstVisitor<void> {
   // Their implicit getter/setter and operator calls still belong to closure.
   @override
   void visitAssignmentExpression(AssignmentExpression node) {
-    add(node.readElement);
-    add(node.writeElement);
-    add(node.element);
+    final phase = valuePhase(node);
+    add(node.readElement, phase);
+    add(node.writeElement, phase);
+    add(node.element, phase);
     super.visitAssignmentExpression(node);
   }
 
   @override
   void visitBinaryExpression(BinaryExpression node) {
-    add(node.element);
+    add(node.element, valuePhase(node));
     super.visitBinaryExpression(node);
   }
 
   @override
   void visitPrefixExpression(PrefixExpression node) {
-    add(node.readElement);
-    add(node.writeElement);
-    add(node.element);
+    final phase = valuePhase(node);
+    add(node.readElement, phase);
+    add(node.writeElement, phase);
+    add(node.element, phase);
     super.visitPrefixExpression(node);
   }
 
   @override
   void visitPostfixExpression(PostfixExpression node) {
-    add(node.readElement);
-    add(node.writeElement);
-    add(node.element);
+    final phase = valuePhase(node);
+    add(node.readElement, phase);
+    add(node.writeElement, phase);
+    add(node.element, phase);
     super.visitPostfixExpression(node);
   }
 
   @override
   void visitIndexExpression(IndexExpression node) {
-    add(node.element);
+    add(node.element, valuePhase(node));
     super.visitIndexExpression(node);
   }
 
   @override
   void visitNamedType(NamedType node) {
-    add(node.element);
+    final phase = typePhase(node);
+    add(node.element, phase);
+    if (phase == ReferencePhase.runtimeTypeUse) {
+      add(node.element, valuePhase(node));
+    }
     super.visitNamedType(node);
   }
 
   @override
   void visitConstructorName(ConstructorName node) {
-    add(node.element);
+    add(node.element, valuePhase(node));
     super.visitConstructorName(node);
+  }
+
+  @override
+  void visitSuperConstructorInvocation(SuperConstructorInvocation node) {
+    add(node.element, ReferencePhase.instanceInitializer);
+    super.visitSuperConstructorInvocation(node);
+  }
+
+  @override
+  void visitRedirectingConstructorInvocation(
+    RedirectingConstructorInvocation node,
+  ) {
+    add(node.element, ReferencePhase.instanceInitializer);
+    super.visitRedirectingConstructorInvocation(node);
+  }
+
+  @override
+  void visitEnumConstantDeclaration(EnumConstantDeclaration node) {
+    add(node.constructorElement, ReferencePhase.constant);
+    super.visitEnumConstantDeclaration(node);
+  }
+
+  @override
+  void visitAnnotation(Annotation node) {
+    add(node.element, ReferencePhase.metadata);
+    super.visitAnnotation(node);
   }
 }
 
@@ -193,9 +334,9 @@ Future<void> main(List<String> args) async {
       .toList();
   final sky = p.join(out, 'sky_engine');
   Directory(p.join(sky, 'lib')).createSync(recursive: true);
-  final metadata = jsonDecode(
-    File(p.join(sdk, 'lib', 'libraries.json')).readAsStringSync(),
-  ) as Map<String, dynamic>;
+  final metadata =
+      jsonDecode(File(p.join(sdk, 'lib', 'libraries.json')).readAsStringSync())
+          as Map<String, dynamic>;
   final embedded = <String, String>{};
   for (final platform in metadata.values.whereType<Map<String, dynamic>>()) {
     final libraries = platform['libraries'];
@@ -509,8 +650,7 @@ Future<void> main(List<String> args) async {
         node = null;
       }
       final refs = References();
-      node?.accept(refs);
-      refs.elements.remove(id);
+      refs.collect(node);
       // Resolve only alternate bindings actually referenced by this library.
       // They are implementation dependencies, never extra public exports.
       for (final mapping in await importsFor(library)) {
@@ -529,9 +669,10 @@ Future<void> main(List<String> args) async {
             );
           mapping.ids.add(identity(alternative));
           queue.add(alternative);
-          refs.elements.putIfAbsent(identity(alternative), () => alternative);
+          refs.addAlternative(alternative, reference);
         }
       }
+      refs.remove(id);
       final parent = element.enclosingElement;
       final exposed =
           public.containsKey(id) ||
@@ -595,6 +736,7 @@ Future<void> main(List<String> args) async {
         'internal': element.metadata.hasInternal,
         'members': actualChildren.map(identity).toSet().toList()..sort(),
         'dependencies': refs.elements.keys.toList()..sort(),
+        'dependencyPhases': refs.phases,
       };
       if (element is InterfaceElement)
         record['supertypes'] = element.allSupertypes
@@ -621,7 +763,8 @@ Future<void> main(List<String> args) async {
       if (icons)
         record['constantFamily'] = {
           'count': iconMembers.length,
-          'rule': 'Parse public static const IconData fields from the pinned file; preserve codepoint, fontFamily, fontPackage and matchTextDirection.',
+          'rule':
+              'Parse public static const IconData fields from the pinned file; preserve codepoint, fontFamily, fontPackage and matchTextDirection.',
           'representatives': iconMembers
               .take(3)
               .map(
@@ -656,11 +799,20 @@ Future<void> main(List<String> args) async {
         'toolFrontendSha256': digest(
           File.fromUri(Platform.script).readAsBytesSync(),
         ),
+        'toolDependencyLockSha256': digest(
+          File(
+            p.join(toolConfig.parent.parent.path, 'pubspec.lock'),
+          ).readAsBytesSync(),
+        ),
         'revision': revision,
         'licenseSha256': digest(
           File(p.join(root, 'LICENSE')).readAsBytesSync(),
         ),
         'dartSdk': Platform.version.split(' ').first,
+        if (File(p.join(sdk, 'revision')).existsSync())
+          'dartRevision': File(
+            p.join(sdk, 'revision'),
+          ).readAsStringSync().trim(),
         'analyzer': '14.4.0',
         'externalPackages': packages
             .where(
@@ -693,7 +845,8 @@ Future<void> main(List<String> args) async {
       'files': fileList,
       'declarations': records,
       'diagnostics': diagnostics,
-      'resolution': 'resolved-element-model; conditional alternatives explicitly enumerated; runtime behavior requires separate review',
+      'resolution':
+          'resolved-element-model; conditional alternatives explicitly enumerated; runtime behavior requires separate review',
     };
     File(p.join(out, 'dart-inventory.json')).writeAsStringSync(
       '${const JsonEncoder.withIndent('  ').convert(output)}\n',

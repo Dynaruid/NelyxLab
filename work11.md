@@ -1,6 +1,6 @@
 # W11 · Flutter Material 3와 Cupertino 일괄 이식
 
-2026-11-19 · 계획 `READY` · 구현 미착수
+2026-11-19 · `PAUSED / PARTIAL`
 
 Flutter의 동일 리비전에서 Material 3와 Cupertino의 전체 공개 API를 해석하고, 두 디자인 패키지의 누락 기능을 의존성이 연결된 단위로 일괄 이식한다. 속성·기본값·상태 전이·레이아웃·입력·접근성까지 원본과 대조한다. Dart 변환기의 공통 한계는 먼저 해결하고, 플랫폼과 맞닿는 동작은 Nelyx Core와 호스트에 연결한다. 완성된 패키지는 Demo와 Testbed의 정상 실행 경로에서 사용한다.
 
@@ -94,3 +94,33 @@ npm.cmd run run:windows --workspace @nelyx/testbed-2
 ```
 
 **W11 완료**는 W11-00의 Material 3·Cupertino 공개 범위가 제품에 연결되고, 기능군별 원본/실행 대조 및 현재 패키지 소비 앱 검증이 통과한 상태다. 남은 API와 기능, 호스트 검증 대기는 해당 단계에 기록한다.
+
+## 6. 실행 결과
+
+| 단계 | 현재 결과 | 남은 작업 |
+| --- | --- | --- |
+| W11-00 | **PARTIAL.** 고정 Dart와 Analyzer lock으로 788개 소스, 74,300개 선언을 다시 해석해 소스 오류 0개를 확인했다. 두 umbrella의 의존성 폐쇄는 773개 파일, 선언·멤버 74,006개, 외부 바인딩 821개다. Material 자체 공개 선언·멤버 6,049개와 Cupertino 1,224개에 아이콘 상수 필드 8,825개와 1,324개를 원본 위치와 함께 연결했다. 선언마다 타입·실행·초기화·문서 참조를 구분했다. Windows Demo 왼쪽 열 스크롤과 RangeSlider 회귀도 통과했다. | M2 전용 분기와 API의 전수 판정, 제품 후보의 원본 signature와 동작 검토, 생성된 모듈의 ESM 초기화 순서 검증. |
+| W11-01 | **PARTIAL.** 실행 그래프의 참조를 최상위 선언 단위로 모아 Body IR 입력을 만들었다. 고정 Dart에서 대표 기능군 43개 선언을 36개 변환 단위로 해석했고 반복 결과 바이트가 일치했다. `ButtonSegment<T>`를 포함한 9개 단위에서 결정론적 TS 후보를 얻었다. 대표 컨트롤 두 개와 `CupertinoPicker`는 공개 패키지에 수동 이식했고 원본 span과 제품 해시를 연결했다. 고정 Flutter의 두 segmented control 테스트 중 10개를 실행해 통과했다. | Emitter에서 27개 단위가 차단됐다. Material Map·Core 렌더, Cupertino mixin·타입 바인딩을 해결하고 제품 recipe와 타입·동작 검증을 승격에 연결한다. 동일 입력의 레이아웃·RTL·접근성 대조가 남아 있다. |
+| W11-02 | 기존 생성 아이콘 표와 현재 공개 타입을 스캔에 연결했다. | 테마·텍스트 배율·명암·locale·Core/호스트 의존성 전체 대조. |
+| W11-03 | 대표 segmented control 두 가지를 추가했다. `SegmentedButtonState<T>`를 공개하고 세그먼트 객체별 상태 컨트롤러의 선택·비활성·제거·해제를 연결했다. 현재 Material 빌드에서 기존 RangeSlider 회귀가 통과했다. | FAB, 칩, 토글과 컨트롤 공개 옵션 및 기본값의 전체 대조. |
+| W11-04 | 미착수. | 화면 구조, 내비게이션, 중첩 route, 메뉴·검색, sheet·overlay의 이식과 검증. |
+| W11-05 | **PARTIAL.** 기존 Material 날짜 대화상자를 Testbed `Date picker` 시연에 연결했다. `CupertinoPicker`의 list·looping·builder와 선택 overlay, Core controller, 확대·원통 투영, 조절 가능한 접근성 노드를 연결했다. 원본 picker 테스트 27개와 Testbed Web의 반복 목록 방향키, 유한 목록의 행 클릭·마우스 휠과 선택 콜백을 확인했다. | picker의 RTL·확대 픽셀·컨트롤러 교체·빈 항목·iOS 효과를 원본과 직접 대조하고, 편집·폼·날짜·시간 옵션, Cupertino date·time·timer, 복원과 IME를 검증한다. |
+| W11-06 | 미착수. | 데이터 테이블, Stepper, CarouselView, 복합 스크롤과 Cupertino sliver refresh. |
+| W11-07 | 공개 재공개를 실제 TS 선언 소유자에 매핑하고 `TextAffinity` 두 공개 경로에서 이를 확인했다. 독립 소비자의 세 패키지에서 대표 컨트롤 제네릭과 단일 Core를 검증했다. Web·Windows 번들의 두 아이콘 폰트와 notice가 패키지 바이트와 일치했다. | 스캔에서 Material 2,917개와 Cupertino 686개의 자체 공개 선언·멤버에 제품 후보가 필요하다. Material은 M2 범위를 판정하고 두 패키지의 후보를 전수 대조한다. 독립 소비 앱의 전체 범위와 자산·현지화·셰이더를 검증한다. |
+| W11-08 | **PARTIAL.** Testbed Web Release에서 두 segmented control과 날짜 대화상자 회귀, Cupertino wheel의 포인터·방향키·접근성 값이 통과했다. Windows direct Hermes에서 UIA로 두 segmented control의 비활성과 wheel의 선택 값·콜백을 확인했다. Android x86_64 Release APK를 설치해 wheel의 두 터치 선택과 접근성 값·콜백을 확인했다. | Windows UIA 세그먼트 선택 상태, Android 세그먼트 조작과 시각 대조, Windows RNW·Apple 제품 검증, 원본과 제품의 기능군별 대조, 성능과 전체 재생성. |
+
+- **스캔과 Body IR.** 전체 재분석으로 기존 기준판의 선언 74,297개에 3개를 더했고 공개 이름 수 및 기존 선언의 signature·공개 여부·멤버·상위 타입이 일치했다. 검증한 기준판을 현재 coverage에 반영했다. `CupertinoPicker`의 문서 링크, overlay 인자 기본값, Material 선택 타입 및 런타임 타입 검사, 공개 타입 재공개를 고정 원본에 대조했다. 실행 참조 단위는 선언·멤버 수준에서 15,878개, Body IR 수준에서 1,683개다. 상속·상수 참조 그래프의 순환은 0개였다. 상속된 기본값 출처를 상대 경로와 원본 span으로 기록해 서로 다른 임시 경로에서 분석한 결과 바이트가 일치했다. 고정 Dart `e9c89888…`와 로컬 Dart `fa8c1270…`의 W11-01 Body IR 해시도 `e32c6e1c…`로 일치했다. [재분석](tools/Nelyx.FrameworkToTypeScript/design-resolve.mjs) · [디자인 스캔](tools/Nelyx.FrameworkToTypeScript/design-inventory.mjs) · [Body IR 점검](tools/Nelyx.FrameworkToTypeScript/design-body-probe.mjs)
+- **대표 컨트롤.** 고정 Windows `flutter_tester`에서 세그먼트 삭제 시 컨트롤러 해제, 단일·다중·빈 선택, 포커스 유지와 접근성, Cupertino 방향키·비활성 항목 건너뛰기 등 원본 10개가 통과했다. Nelyx 위젯 트리에서 눌림 상태를 준 세그먼트 삭제, 객체 교체, selection 콜백과 접근성 상태 및 컨트롤러 리스너 해제를 확인했다. Cupertino thumb는 Core의 `easeOutCubic`과 둥근 사각형을 사용하며 Flutter의 스프링·테두리·그림자·누름 애니메이션 차이는 원본 대조가 남아 있다. [Material](packages/material/src/segmented-button.ts) · [Cupertino](packages/cupertino/src/sliding-segmented-control.ts)
+- **Windows Demo 기준판.** direct Hermes 기동과 종료 코드 0을 확인했다. PowerShell에서 16ms 간격의 가상 정밀 트랙패드로 왼쪽 열을 20회 움직여 기존 슬라이더·텍스트 입력 5개를 지나 시작점으로 돌아왔다. 수락 입력 922건, 거부 0건, 송신 간격 p95는 16.03ms였다. 물리 장치와 화면 표시 프레임 배치는 검증 대기다. [기준판 PowerShell 검사](sample/nelyx-demo-app/eng/test-all-components-scroll.ps1) · [RangeSlider 회귀](packages/material/eng/check-range-slider-hover.mjs)
+- **Cupertino wheel 원본.** 고정 커밋의 Dart와 Windows `flutter_tester`에서 원본 `picker_test.dart` 27개가 통과했다. 원본 테마, 빈 라벨의 접근성 동작, 스크롤 완료 콜백, 가상 iOS 햅틱 호출, 방향성 overlay, 컨트롤러 분리 검사가 포함된다. Nelyx 포트는 생성 Core wheel을 사용한다. 반복 목록의 음수 인덱스를 Core 접근성에 전달하고 각 행의 라벨을 조절 가능한 하나의 항목으로 조립한다. [포트](packages/cupertino/src/picker.ts)
+- **Testbed Web.** 현재 Core·Cupertino·SDK와 상태 컨트롤러를 수정한 Material을 공급하고 Release 번들 `a538fd28…`에서 시연을 확인했다. 1,280×900 Playwright Chromium에서 두 segmented control의 선택·비활성, Cupertino 방향키·thumb 드래그, 날짜 대화상자의 열기·취소를 확인했다. wheel에서는 접근성 방향키로 `Apple → Peach → Apple` 순환, 유한 builder의 하한, 투영된 행 클릭으로 `Medium` 선택, 마우스 휠로 `Large` 선택과 콜백을 확인했다. 브라우저 조절 노드에 포커스가 있을 때 공통 방향키 처리가 앞서 소비하던 문제를 수정했다. Testbed TypeScript 엄격 검사가 통과했다. [정상 Web 빌드 검증](sample/nelyx-testbed-app-2/eng/check-w11-design-demos.mjs)
+- **Testbed Windows.** 대표 두 컨트롤 검증용 direct Hermes 번들 `0198e69d…`에서 PowerShell UIA `Invoke`로 `List → Grid`, `Daily → Weekly`를 선택했다. 전후 화면 샘플에서 기존 세그먼트와 새 세그먼트의 색이 모두 바뀌었고 `Map`과 `Yearly`는 UIA에서 비활성 상태였다. UIA의 `SelectionItem.IsSelected` 값은 조회되지 않아 호스트 읽기 상태 검증은 남아 있다. RNW 실행 경로와 화면 프레임 배치도 검증 대기다.
+- **Windows wheel.** 최신 direct Hermes Release 번들 `1ab14232…`에서 PowerShell/Win32 마우스 휠로 유한 picker를 `Small → Medium`으로 바꾸고, 반복 picker의 위쪽 행을 클릭해 `Apple → Peach`로 순환했다. UIA `ValuePattern`과 콜백 메시지의 두 변경을 읽고 테스트 창을 종료했다. 가상 입력을 사용했다.
+- **Testbed Android.** Metro가 참조하던 이전 `engine-v2` 이미지 경로를 공용 `assets` 경로로 수정했다. Temurin JDK 21, NDK `27.1.12297006`에서 최신 x86_64 Release APK `833ae810…`을 만들었다. Pixel 5/API 33의 읽기 전용 Vulkan 에뮬레이터에서 실제 앱의 wheel로 이동한 뒤 ADB 터치로 `Small → Medium`, `Apple → Peach`를 선택했다. `uiautomator`에서 두 접근성 값과 앱 콜백을 읽었고 에뮬레이터를 종료했다. Android 세그먼트 입력, 픽셀 대조, 물리 기기와 프로덕션 서명은 검증 대기다. 실행 정책이 이미 교체된 W11 Android 패키지 디렉터리의 재귀 삭제를 차단해 이전 패키지 한 개가 남아 있다. [Android 엔트리](sample/nelyx-testbed-app-2/android/runner/main.ts)
+- **패키지 일치.** wheel 검증 시점의 Web·Windows·Android 설치 파일 해시가 각각의 검증에 공급한 Core·SDK·Material·Cupertino 패키지와 일치했다. Web 설치본의 `@nelyx/cupertino/widgets`와 `@nelyx/cupertino/picker`가 동일한 picker와 Core controller를 내보내는 것도 확인했다. Material 상태 컨트롤러 변경을 공급한 최신 실행 검증은 Web에서 수행했다.
+
+## 7. 중간 마무리
+
+2026-11-19에 사용자 요청으로 일시정지했다. 변경 파일과 로컬 coverage 기준판을 작업트리에 보존했다. 마지막 작업은 W11-05의 `CupertinoSearchTextField`에서 고정 Flutter의 편집·복원·현지화 동작과 현재 `CupertinoTextField`의 연결 지점을 조사하는 단계였다. 검색 필드 구현과 실행 검증은 시작 전이며 Testbed 검색 항목은 `planned` 상태다.
+
+재개 시 검색 제출과 지우기 콜백, 외부 controller·FocusNode 교체, 내부 controller 복원, placeholder 현지화를 기존 편집 소유자에 연결하고 Testbed에서 검증한다. M2 범위 판정, emitter 차단 27개와 제품 승격, 나머지 공개 API 이식, 최신 Windows·Android 패키지 재검증, RNW·Apple 호스트와 성능 검증도 남아 있다. 단계별 검증 범위는 6절에 기록했다.

@@ -13,6 +13,18 @@ node tools/Nelyx.FrameworkToTypeScript/framework-ports.mjs --source C:/path/to/f
 
 새 이식 범위를 검토한 뒤에만 `framework-ports.mjs --write`로 현재 출처를 갱신합니다.
 
+W11 디자인 스캔은 두 공개 라이브러리에서 도달하는 Analyzer 인벤토리를 읽습니다. 고정 Git blob과 선언 span을 현재 TypeScript exports, 아이콘 소유권, 의존성 단위에 연결합니다. `designs:resolve`는 Flutter `DEPS`가 지정한 Dart SDK와 도구 lock으로 다시 분석하고 기존 기준판과 선언별 차이를 출력합니다. `--write`로 검증한 기준판을 `Nelyx/upstream/flutter-coverage.json`에 반영합니다.
+
+```powershell
+npm.cmd --prefix tools/Nelyx.FrameworkToTypeScript run designs:resolve -- --source C:/path/to/flutter-git --dart C:/path/to/pinned/dart.exe --write
+npm.cmd --prefix tools/Nelyx.FrameworkToTypeScript run designs:scan -- --source C:/path/to/flutter-git --family W11-01
+npm.cmd --prefix tools/Nelyx.FrameworkToTypeScript run designs:probe -- --source C:/path/to/flutter-git --dart C:/path/to/pinned/dart.exe --family W11-01 --graph --emitter
+```
+
+스캔에서 `--output`을 생략하면 집계를 출력합니다. `--family`는 해당 기능군과 선행 참조 단위를 고릅니다. 새 기준판은 타입, 런타임 타입 검사, 상속, 상수, 지연·인스턴스 초기화, 인자 기본값, 실행, 선언 주석, 문서 링크를 구분합니다.
+
+`designs:probe --graph`는 실행 참조를 최상위 선언으로 모아 선택 기능군과 실행 의존성이 순환하는 선언을 Body IR 입력으로 구성합니다. 같은 Git 입력을 서로 다른 임시 경로에서 해석해 결과 바이트를 비교하고 Dart 리비전을 기록합니다. 상속된 기본값의 출처는 Flutter 상대 경로나 고정 패키지 URI와 원본 span으로 기록합니다. `--emitter`는 단위별 TypeScript 후보의 해시와 첫 차단 바인딩을 출력합니다. 제품 승격에는 정적 타입, 원본 동작과 배포 검증이 필요합니다.
+
 ## 개발 환경
 
 저장소 루트에서 실행합니다.

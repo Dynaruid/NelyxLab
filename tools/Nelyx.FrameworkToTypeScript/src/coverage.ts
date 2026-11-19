@@ -7,6 +7,7 @@ import { freshScratch, within } from './paths.ts';
 import { selectionId } from './selection.ts';
 import type { Manifest } from './selection.ts';
 import {
+  mapDependencyPhases,
   readInventory,
   reviewedDestinationsMatch,
   retainedReviewFields,
@@ -31,7 +32,10 @@ if (inventory.source.toolFrontendSha256 !== frontendHash)
 const dependencyLock = createHash('sha256')
   .update(await readFile(path.resolve(import.meta.dir, '../dart/pubspec.lock')))
   .digest('hex');
-if (cached && inventory.source.toolDependencyLockSha256 !== dependencyLock)
+if (
+  (cached || inventory.source.toolDependencyLockSha256 !== undefined) &&
+  inventory.source.toolDependencyLockSha256 !== dependencyLock
+)
   throw new Error('Dart dependencies changed; regenerate the resolved analyzer inventory');
 const packageFile = path.join(root, 'Nelyx/package.json'),
   pkg = JSON.parse(await readFile(packageFile, 'utf8')) as {
@@ -56,6 +60,18 @@ const packages = owners.filter(
 function awaitableConfig(directory: string): boolean {
   return ts.sys.fileExists(path.join(root, directory, 'tsconfig.build.json'));
 }
+function authoringFile(directory: string, entry: { default?: string }): string | null {
+  if (!entry.default?.startsWith('./dist/') || !entry.default.endsWith('.js')) return null;
+  const file = path.resolve(
+    root,
+    directory,
+    entry.default.replace('./dist/', './src/').replace(/\.js$/, '.ts'),
+  );
+  return ts.sys.fileExists(file + 'x') && !ts.sys.fileExists(file) ? file + 'x' : file;
+}
+function packageExport(name: string, subpath: string): string {
+  return name + (subpath === '.' ? '' : subpath.slice(1));
+}
 const configFile = path.join(root, 'Nelyx/tsconfig.build.json'),
   config = ts.readConfigFile(configFile, ts.sys.readFile);
 const parsed = ts.parseJsonConfigFileContent(
@@ -77,11 +93,22 @@ const packageSources = packageConfigs.flatMap((config) => config.fileNames),
   libs = [...new Set(packageConfigs.flatMap((config) => config.options.lib ?? []))];
 const types = [...new Set(packageConfigs.flatMap((config) => config.options.types ?? []))];
 const jsx = packageConfigs.find((config) => config.options.jsx !== undefined)?.options.jsx;
+const workspacePaths = Object.fromEntries(
+  packages.flatMap(({ directory, manifest }) =>
+    Object.entries(manifest.exports!).flatMap(([subpath, entry]) => {
+      const file = authoringFile(directory, entry);
+      return file && (subpath.includes('*') || ts.sys.fileExists(file))
+        ? [[packageExport(manifest.name, subpath), [file]]]
+        : [];
+    }),
+  ),
+);
 const program = ts.createProgram([...new Set([...parsed.fileNames, ...packageSources])], {
     ...parsed.options,
     rootDir: root,
     lib: libs,
     types,
+    paths: { ...parsed.options.paths, ...workspacePaths },
     ...(jsx === undefined ? {} : { jsx }),
   }),
   checker = program.getTypeChecker();
@@ -134,14 +161,9 @@ const inOwnedSource = (file: string) =>
   packages.some((owner) => within(path.join(root, owner.directory, 'src'), file));
 for (const owner of packages)
   for (const [subpath, entry] of Object.entries(owner.manifest.exports!)) {
-    if (!entry.default?.startsWith('./dist/') || !entry.default.endsWith('.js')) continue;
+    const file = authoringFile(owner.directory, entry);
+    if (!file || subpath.includes('*')) continue;
     const ownerSource = path.join(root, owner.directory, 'src');
-    const baseFile = path.resolve(
-      root,
-      owner.directory,
-      entry.default.replace('./dist/', './src/').replace(/\.js$/, '.ts'),
-    );
-    const file = ts.sys.fileExists(baseFile) ? baseFile : baseFile + 'x';
     if (!within(ownerSource, file)) throw new Error('Public export escapes owning package source');
     const source = program.getSourceFile(file);
     if (!source) throw new Error(`Public export has no compiled source: ${subpath}`);
@@ -545,15 +567,17 @@ for (const owner of packages)
           anchorSource: sourceLocation(factory),
         });
       }
-    for (const { symbol, anchor, local, upstream, representation, anchorSource } of symbols) {
-      if (symbol.flags & ts.SymbolFlags.Alias) {
-        // A provider's local `export default Component` is not a Flutter named
-        // declaration or a barrel. Do not turn that alias into a name match.
-        if (symbol.name === 'default' && source.statements.some(ts.isExportAssignment)) continue;
-        throw new Error(`Re-export/barrel is not allowed: ${subpath}/${symbol.name}`);
-      }
+    for (const entry of symbols) {
+      const { anchor, local, upstream, representation } = entry;
+      const exportedSymbol = entry.symbol;
+      const isAlias = Boolean(exportedSymbol.flags & ts.SymbolFlags.Alias);
+      const symbol = isAlias ? checker.getAliasedSymbol(exportedSymbol) : exportedSymbol;
+      if (isAlias && anchor === 'default') continue;
       const declaration = symbol.valueDeclaration ?? symbol.declarations?.[0];
-      if (!declaration) continue;
+      if (!declaration || !inOwnedSource(declaration.getSourceFile().fileName)) continue;
+      const aliasDeclaration = isAlias ? exportedSymbol.declarations?.[0] : undefined;
+      const anchorSource =
+        entry.anchorSource ?? (aliasDeclaration ? sourceLocation(aliasDeclaration) : undefined);
       const type = checker.getDeclaredTypeOfSymbol(symbol),
         value = checker.getTypeOfSymbolAtLocation(symbol, declaration);
       const members: TsSymbol['members'] = [];
@@ -639,7 +663,7 @@ for (const owner of packages)
           ? literalTypes.map((type) => (type as ts.StringLiteralType).value)
           : undefined;
       const record: TsSymbol = {
-        module: `${owner.manifest.name}/${subpath.slice(2)}`,
+        module: packageExport(owner.manifest.name, subpath),
         export: anchor,
         ...(local ? { local } : {}),
         ...(representation ? { representation } : {}),
@@ -649,7 +673,7 @@ for (const owner of packages)
         members,
         ...(stringLiterals ? { stringLiterals } : {}),
       };
-      const key = upstream ?? symbol.name,
+      const key = upstream ?? anchor,
         entries = candidates.get(key) ?? [];
       entries.push(record);
       candidates.set(key, entries);
@@ -1066,9 +1090,10 @@ function stage(item: Declaration): string {
     return 'W6-04';
   return 'W6-15';
 }
-const manifest = JSON.parse(
-  await readFile(path.join(root, 'Nelyx/upstream/framework-imports.json'), 'utf8'),
-) as Manifest;
+const manifest = Bun.file(path.join(root, 'Nelyx/upstream/framework-imports.json'));
+const selections = (await manifest.exists())
+  ? ((await manifest.json()) as Manifest).selections
+  : [];
 const generated = readBatchEvidence(root, String(inventory.source.revision));
 const declarations = new Map(inventory.declarations.map((item) => [item.id, item]));
 const oldFile = path.join(root, 'Nelyx/upstream/flutter-coverage.json');
@@ -1294,7 +1319,7 @@ const items = inventory.declarations.map((item) => {
                   : 'Compiler export/member identity only; behavior and signature compatibility require review',
             };
           });
-  const adoption = manifest.selections
+  const adoption = selections
     .filter(
       (selection) =>
         (selection.symbol === name &&
@@ -1369,9 +1394,10 @@ async function sourceSnapshot(directory: string) {
     entries: files,
   };
 }
-const snapshot = await sourceSnapshot(
-  path.join(root, 'reference/flutter-master/packages/flutter/lib/src'),
-);
+const localReference = path.join(root, 'reference/flutter-master/packages/flutter/lib/src');
+const snapshot = ts.sys.directoryExists(localReference)
+  ? await sourceSnapshot(localReference)
+  : null;
 const pinDirectory = await realpath(flutterSource);
 const revisionProcess = Bun.spawn(['git', '-C', pinDirectory, 'rev-parse', 'HEAD'], {
   stdout: 'pipe',
@@ -1420,10 +1446,11 @@ for (const file of inventory.files) {
     upstreamSha256: createHash('sha256').update(normalized).digest('hex'),
   });
 }
-const localNames = new Set(snapshot.entries.map((file) => file.path)),
+const localEntries = snapshot?.entries ?? [];
+const localNames = new Set(localEntries.map((file) => file.path)),
   pinnedNames = new Set(pinnedSnapshot.entries.map((file) => file.path)),
   changed = [];
-for (const file of snapshot.entries)
+for (const file of localEntries)
   if (pinnedNames.has(file.path)) {
     const a = (
       await readFile(
@@ -1436,8 +1463,8 @@ for (const file of snapshot.entries)
     ).replaceAll('\r\n', '\n');
     if (a !== b) changed.push(file.path);
   }
-const { entries: localEntries, ...localSnapshot } = snapshot,
-  { entries: pinnedEntries, ...pinSnapshot } = pinnedSnapshot;
+const localSnapshot = snapshot && { files: snapshot.files, sha256: snapshot.sha256 };
+const { entries: pinnedEntries, ...pinSnapshot } = pinnedSnapshot;
 const coverage = {
   schemaVersion: 1,
   source: {
@@ -1445,8 +1472,8 @@ const coverage = {
     toolDependencyLockSha256: dependencyLock,
     localComparisonSnapshot: localSnapshot,
     pinnedFrameworkSnapshot: pinSnapshot,
-    localSnapshotMatchesPin: snapshot.sha256 === pinnedSnapshot.sha256,
-    baselineDelta: {
+    localSnapshotMatchesPin: snapshot?.sha256 === pinnedSnapshot.sha256,
+    baselineDelta: snapshot && {
       localOnly: [...localNames].filter((file) => !pinnedNames.has(file)),
       pinnedOnly: [...pinnedNames].filter((file) => !localNames.has(file)),
       changedContent: changed,
@@ -1467,7 +1494,7 @@ const coverage = {
       'Retain until replacement and compatibility policy reviewed; no automatic exclusions.',
     apiPolicy: {
       imports:
-        'Direct implementation modules; explicit .ts source and .js ESM/declarations; no barrels',
+        'Explicit .ts source and .js ESM/declarations; compiler-resolved facade exports retain declaration ownership.',
       constructors: 'Options objects for new APIs; named factories use explicit static names',
       identity: 'Explicit constructor/generic tokens; value objects define equality',
       async: 'Cancellation has an explicit outcome; late events require owner/generation checks',
@@ -1585,8 +1612,18 @@ function ref(id: string): string {
 }
 const fileIds = new Map(inventory.files.map((file) => [file.path, ref(`file:${file.path}`)]));
 const compactItems = items.map((item) => {
-  const { id, library, symbol, members, dependencies, exportedBy, supertypes, source, ...rest } =
-    item;
+  const {
+    id,
+    library,
+    symbol,
+    members,
+    dependencies,
+    dependencyPhases,
+    exportedBy,
+    supertypes,
+    source,
+    ...rest
+  } = item;
   return {
     id: ref(id),
     upstreamId: id,
@@ -1595,6 +1632,7 @@ const compactItems = items.map((item) => {
     exportedBy: exportedBy.filter((uri) => !uri.includes(' [')).map((uri) => ref(uri)),
     members: members.map(ref),
     dependencies: dependencies.map(ref),
+    ...(dependencyPhases ? { dependencyPhases: mapDependencyPhases(dependencyPhases, ref) } : {}),
     ...(supertypes
       ? {
           supertypes: (supertypes as { id: string; type: string }[]).map((type) => ({
@@ -1618,7 +1656,8 @@ const compact = {
   encoding: {
     id: 'First 20 lowercase hex characters of SHA256(canonical upstream declaration identity); collisions rejected',
     file: 'source.file references source.files[].id',
-    edges: 'members/dependencies/supertypes reference items[].id or externalDependencies[].id',
+    edges:
+      'members/dependencies/dependencyPhases/supertypes reference items[].id or externalDependencies[].id',
     entrypoints: 'exportedBy references scope.entrypoints[].id',
     defaults:
       'Absent item differences and verification inherit defaults; all six targets use the verification policy',

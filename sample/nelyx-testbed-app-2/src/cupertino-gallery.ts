@@ -6,6 +6,7 @@ import {
   Row,
   Expanded,
   Padding,
+  SizedBox,
   Text,
   DecoratedBox,
 } from '@nelyx/core/framework/widgets/basic';
@@ -37,6 +38,12 @@ import { CupertinoCheckbox } from '@nelyx/cupertino/checkbox';
 import { CupertinoRadio } from '@nelyx/cupertino/radio';
 import { CupertinoSwitch } from '@nelyx/cupertino/switch';
 import { CupertinoSlider } from '@nelyx/cupertino/slider';
+import {
+  ChangeReportingBehavior,
+  CupertinoPicker,
+  FixedExtentScrollController,
+} from '@nelyx/cupertino/picker';
+import { CupertinoSlidingSegmentedControl } from '@nelyx/cupertino/sliding-segmented-control';
 import { CupertinoActivityIndicator } from '@nelyx/cupertino/activity-indicator';
 import { CupertinoListTile, CupertinoListTileChevron } from '@nelyx/cupertino/list-tile';
 import { CupertinoListSection } from '@nelyx/cupertino/list-section';
@@ -53,6 +60,8 @@ import { cupertinoDemos, visibleCupertinoDemos } from './cupertino-catalog.ts';
 
 const groups = categories.filter((group) => group.id !== 'images');
 const accents = [0xff007aff, 0xff248a3d, 0xffaf52de, 0xffc93400] as const;
+const pickerFruits = ['Apple', 'Pear', 'Plum', 'Peach'];
+const pickerPortions = ['Small', 'Medium', 'Large'];
 const flow = (...children: Widget[]): Widget =>
   new Wrap(children, { spacing: 8, runSpacing: 8, crossAxisAlignment: 'center' });
 const column = (...children: Widget[]): Widget =>
@@ -62,6 +71,7 @@ const column = (...children: Widget[]): Widget =>
 export class CupertinoGalleryValues {
   readonly textScroll = new ScrollController();
   readonly text: TextEditingController;
+  readonly fruitPicker = new FixedExtentScrollController();
   dark = false;
   accent: number = accents[0];
   category: CategoryId | 'all' = 'all';
@@ -70,6 +80,7 @@ export class CupertinoGalleryValues {
   checked: boolean | null = true;
   radio = 'first';
   slider = 40;
+  segment = 'Daily';
   animating = false;
   interactiveSelection = true;
   lastAction = 'Cupertino 컴포넌트를 눌러보세요.';
@@ -79,6 +90,7 @@ export class CupertinoGalleryValues {
   dispose(): void {
     this.text.dispose();
     this.textScroll.dispose();
+    this.fruitPicker.dispose();
   }
 }
 
@@ -493,6 +505,57 @@ class CupertinoGalleryState extends State<CupertinoGalleryPage> {
       this.updates.change(id, change, id === 'sliders' ? ['activity'] : []);
     const v = this.values;
     switch (id) {
+      case 'picker':
+        return new Row(
+          [
+            new Expanded(
+              new SizedBox(
+                undefined,
+                156,
+                new CupertinoPicker({
+                  itemExtent: 36,
+                  children: pickerFruits.map((fruit) => new Text(fruit)),
+                  looping: true,
+                  scrollController: v.fruitPicker,
+                  useMagnifier: true,
+                  magnification: 1.1,
+                  onSelectedItemChanged: (index) => this.record('Fruit: ' + pickerFruits[index]),
+                }),
+              ),
+            ),
+            new Expanded(
+              new SizedBox(
+                undefined,
+                156,
+                CupertinoPicker.builder({
+                  itemExtent: 36,
+                  childCount: pickerPortions.length,
+                  itemBuilder: (_context, index) => new Text(pickerPortions[index]!),
+                  changeReportingBehavior: ChangeReportingBehavior.onScrollEnd,
+                  onSelectedItemChanged: (index) =>
+                    this.record('Portion: ' + pickerPortions[index]),
+                }),
+              ),
+            ),
+          ],
+          { spacing: 12 },
+        );
+      case 'segmented':
+        return new CupertinoSlidingSegmentedControl<string>({
+          children: new Map([
+            ['Daily', new Text('Daily')],
+            ['Weekly', new Text('Weekly')],
+            ['Yearly', new Text('Yearly')],
+          ]),
+          groupValue: v.segment,
+          disabledChildren: new Set(['Yearly']),
+          onValueChanged: (value) => {
+            if (value !== null)
+              update(() => {
+                v.segment = value;
+              });
+          },
+        });
       case 'buttons':
         return flow(
           CupertinoButton.filled({
