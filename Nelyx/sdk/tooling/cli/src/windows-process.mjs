@@ -38,7 +38,7 @@ export function startWindowsProcess(
   { cwd, env, verify = verifyWindowsRuntime, onOutput } = {},
 ) {
   if (process.platform !== 'win32') throw Error('Windows application process requires Windows');
-  verify(cwd);
+  verify?.(cwd);
   const child = spawn(executable, args, {
     cwd,
     env,

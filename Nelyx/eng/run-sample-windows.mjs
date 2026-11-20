@@ -49,6 +49,7 @@ export async function refreshSampleWindowsSdk(
   { root, app },
   { run = execute, report = (message) => process.stderr.write(message + '\n') } = {},
 ) {
+  report('Checking Nelyx Windows SDK inputs');
   const runner = path.join(app, 'windows/runner'),
     workspace = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const packages = new Map(

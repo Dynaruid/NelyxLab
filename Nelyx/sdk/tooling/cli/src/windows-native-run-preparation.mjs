@@ -61,15 +61,16 @@ export async function prepareNativeWindowsRun(
       throw Error('Explicit native package has a different JSC execution mode');
     return verified;
   }
-  let verified = packageFor(app, undefined, runtime.key);
-  if (verified?.manifest.qualification === 'diagnostic-only')
+  let current = packageFor(app, undefined, runtime.key);
+  if (current?.manifest.qualification === 'diagnostic-only')
     throw Error('Default native run requires a product package');
   if (
-    verified?.manifest.sdkInputsSha256 === readInputs(app) &&
-    verified?.manifest.appInputsSha256 === readAppInputs(app) &&
-    matches(verified?.manifest)
+    current &&
+    matches(current.manifest) &&
+    current.manifest.appInputsSha256 === readAppInputs(app) &&
+    current.manifest.sdkInputsSha256 === readInputs(app)
   )
-    return verified;
+    return current;
   onRebuild();
   await build({
     app,
@@ -78,16 +79,12 @@ export async function prepareNativeWindowsRun(
     ...(entry !== undefined ? { entry } : {}),
     ...(runtime.engine === 'jsc' ? { jscMode: runtime.executionMode } : {}),
   });
-  verified = packageFor(app, undefined, runtime.key);
-  if (
-    !verified ||
-    !matches(verified.manifest) ||
-    verified.manifest.qualification !== 'experimental'
-  )
+  current = packageFor(app, undefined, runtime.key);
+  if (!current || !matches(current.manifest) || current.manifest.qualification !== 'experimental')
     throw Error('Native rebuild did not publish the selected product mode');
-  if (verified.manifest.sdkInputsSha256 !== readInputs(app))
+  if (current.manifest.sdkInputsSha256 !== readInputs(app))
     throw Error('Native rebuild did not capture the current installed SDK');
-  if (verified.manifest.appInputsSha256 !== readAppInputs(app))
+  if (current.manifest.appInputsSha256 !== readAppInputs(app))
     throw Error('Native rebuild did not capture the current application inputs');
-  return verified;
+  return current;
 }

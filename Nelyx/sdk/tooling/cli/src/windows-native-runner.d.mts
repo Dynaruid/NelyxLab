@@ -23,6 +23,7 @@ export interface NativePackageManifest {
   readonly engine?: 'hermes' | 'jsc';
   readonly executionMode?: 'jit' | 'interpreter';
   readonly app: string;
+  readonly displayName?: string;
   readonly mode: 'bytecode' | 'static-aot' | 'source';
   readonly bundle: string;
   readonly revision: string;

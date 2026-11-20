@@ -371,6 +371,12 @@ private:
       required.insert(required.end(),contract.extraInventory.begin(),contract.extraInventory.end());
       std::map<std::string,std::string> expected;auto files=package.getPropertyAsObject(*runtime,"files").getArray(*runtime);for(size_t i=0;i<files.size(*runtime);++i){auto file=files.getValueAtIndex(*runtime,i).getObject(*runtime);auto name=file.getProperty(*runtime,"path").getString(*runtime).utf8(*runtime);if(std::find(required.begin(),required.end(),name)!=required.end()&&!expected.emplace(name,file.getProperty(*runtime,"sha256").getString(*runtime).utf8(*runtime)).second)throw std::runtime_error("Duplicate native package image");}
       if(expected.size()!=required.size())throw std::runtime_error("Native package image inventory incomplete");for(auto const& [name,hash]:expected)if(NH::fileHash(parent/utf16(name))!=hash)throw std::runtime_error("Native loaded image hash differs: "+name);
+      if (const auto name = package.getProperty(*runtime, "displayName"); name.isString()) {
+        auto title = utf16(name.getString(*runtime).utf8(*runtime));
+        onUi([this, title = std::move(title)] {
+          winrt::check_bool(SetWindowTextW(window, title.c_str()));
+        });
+      }
       engine->validatePackage(package);
       engine->evaluate(bundle,mode,package);
       std::cout<<"NELYX_NATIVE_IDENTITY {\"hostSha256\":\""<<expected.at(utf8(contract.executable))<<"\",\"vmSha256\":\""<<expected.at(utf8(contract.vm))<<"\",\"bundleSha256\":\""<<expected.at(utf8(bundle.filename().wstring()))<<"\",\"modules\":"<<NH::assertIndependentModules(contract.vm)<<",\"nodeApiJsi\":false,\"rnRuntime\":false}"<<std::endl;

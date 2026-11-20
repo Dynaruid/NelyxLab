@@ -346,6 +346,7 @@ export async function buildNativeApplication({
               }
             : {}),
           app: config.name,
+          ...(config.displayName ? { displayName: config.displayName } : {}),
           mode,
           revision: engine === 'jsc' ? windowsJscPin.revision : checked.manifest.revision,
           toolchainSha256: host.manifest.toolchainSha256,
@@ -471,9 +472,18 @@ function assertReplaceable(directory) {
     }
   }
 }
-export function verifyNativePackage(directory) {
+function readNativePackage(directory) {
   directory = fs.realpathSync(directory);
-  const manifest = JSON.parse(fs.readFileSync(localFile(directory, 'native-package.json'), 'utf8'));
+  return {
+    directory,
+    manifest: JSON.parse(fs.readFileSync(localFile(directory, 'native-package.json'), 'utf8')),
+  };
+}
+
+export function verifyNativePackage(directory) {
+  const selected = readNativePackage(directory),
+    { manifest } = selected;
+  directory = selected.directory;
   const runtime = nativeManifestPolicy(manifest);
   if (
     manifest.appEntry !== undefined &&
@@ -642,16 +652,14 @@ export async function packNativeApplication({
   }
   /* oxlint-enable no-unsafe-finally */
 }
-export async function runNativeApplication({
-  app,
-  directory,
-  engine,
-  hermesMode,
-  jscMode,
-  arguments: args = [],
-} = {}) {
-  const checked = selectedNativePackage({ app, directory, engine, hermesMode, jscMode });
+export async function runNativeApplication(options = {}) {
+  return launchNativePackage(selectedNativePackage(options), options.arguments);
+}
+
+async function launchNativePackage(checked, args = []) {
   const runtime = nativeManifestPolicy(checked.manifest);
+  console.error(`Starting ${checked.manifest.displayName ?? checked.manifest.app}`);
+  // The caller verified the packaged inventory immediately before launch.
   const child = startWindowsProcess(
     localFile(checked.directory, runtime.executable),
     [
@@ -660,7 +668,7 @@ export async function runNativeApplication({
       checked.manifest.mode,
       ...args,
     ],
-    { cwd: checked.directory, verify: verifyNativePackage },
+    { cwd: checked.directory, verify: null },
   );
   const stop = () => {
     void child.stop();
@@ -732,7 +740,9 @@ export async function nativeWindowsOperation(operation, options) {
       nativeManifestPolicy(selected.manifest).engine !== 'hermes'
     )
       throw Error('Use --host native for a direct JSC package');
-    return operation === 'run' ? runNativeApplication(options) : packNativeApplication(options);
+    return operation === 'run'
+      ? launchNativePackage(selected, options.arguments)
+      : packNativeApplication(options);
   }
   const runtime = nativeEnginePolicy(options);
   if (
@@ -744,7 +754,7 @@ export async function nativeWindowsOperation(operation, options) {
   const app = fs.realpathSync(options.app),
     parent = path.join(app, '.nelyx/native-windows');
   const locator = path.join(parent, runtime.engine === 'jsc' ? 'inputs-jsc.json' : 'inputs.json');
-  const readInputs = (refresh = false) => {
+  const readInputs = () => {
     if (!fs.existsSync(locator)) return {};
     const value = JSON.parse(fs.readFileSync(locator, 'utf8'));
     if (
@@ -759,20 +769,26 @@ export async function nativeWindowsOperation(operation, options) {
       (runtime.engine === 'jsc' && (typeof value.jscInputs !== 'string' || !value.jscInputs))
     )
       throw Error('Native host input locator schema/paths differ');
-    if (refresh)
+    if (operation === 'prepare')
       return {
         nativeInputs: value.nativeInputs,
         engineInputs: value.engineInputs,
         ...(runtime.engine === 'jsc' ? { jscInputs: value.jscInputs } : {}),
       };
+    // A reusable package contains its own runtime. Match the prepared supply
+    // manifests here; the builder verifies the full compiler and renderer inputs.
+    const inputHash = (verify, directory, manifest) =>
+      operation === 'run' ? hash(localFile(directory, manifest)) : verify(directory).sha256;
     if (
       hash(value.nativeInputs) !== value.nativeInputsSha256 ||
-      verifyNativeHermes(value.engineInputs).sha256 !== value.engineInputsSha256 ||
+      inputHash(verifyNativeHermes, value.engineInputs, 'native-hermes.json') !==
+        value.engineInputsSha256 ||
       (runtime.engine === 'jsc' &&
-        verifyNativeJsc(value.jscInputs).sha256 !== value.jscInputsSha256)
+        inputHash(verifyNativeJsc, value.jscInputs, 'jsc-engine.json') !== value.jscInputsSha256)
     )
       throw Error('Native host prepared inputs changed; run prepare for the selected engine');
-    verifyNativeSkiaInputs(value.nativeInputs, nativePackageRoots(app)['@nelyx/skia-native']);
+    if (operation !== 'run')
+      verifyNativeSkiaInputs(value.nativeInputs, nativePackageRoots(app)['@nelyx/skia-native']);
     return value;
   };
   let inputs = {};
@@ -793,9 +809,7 @@ export async function nativeWindowsOperation(operation, options) {
       ...(reason ? { reason } : {}),
     };
   }
-  if (operation === 'prepare') inputs = readInputs(true);
-  else if (operation === 'build' || (operation === 'run' && !options.directory))
-    inputs = readInputs();
+  if (['prepare', 'build', 'run'].includes(operation)) inputs = readInputs();
   const selected = {
     ...inputs,
     ...options,
@@ -812,11 +826,12 @@ export async function nativeWindowsOperation(operation, options) {
   if (operation === 'prepare') return prepareNativeApplication(selected);
   if (operation === 'build') return buildNativeApplication({ ...selected, mode: runtime.mode });
   if (operation === 'run') {
+    console.error('Checking Nelyx native Windows package');
     const prepared = await prepareNativeWindowsRun(selected, {
       packageFor: (app, directory, key) => {
         const folder = directory ?? path.join(app, '.nelyx/native-windows', 'current-' + key);
         if (!directory && !fs.existsSync(folder)) return undefined;
-        return verifyNativePackage(folder);
+        return readNativePackage(folder);
       },
       readInputs: (app) =>
         nativeWindowsBuildIdentity(
@@ -833,7 +848,10 @@ export async function nativeWindowsOperation(operation, options) {
           'Nelyx native application or build inputs changed; rebuilding current package',
         ),
     });
-    return runNativeApplication({ ...selected, directory: prepared.directory });
+    const checked = verifyNativePackage(prepared.directory);
+    if (JSON.stringify(checked.manifest) !== JSON.stringify(prepared.manifest))
+      throw Error('Native package changed while selecting it; run the command again');
+    return launchNativePackage(checked, selected.arguments);
   }
   if (operation === 'pack') return packNativeApplication(selected);
   throw Error('Native Windows host supports doctor, prepare, build, run and pack');
