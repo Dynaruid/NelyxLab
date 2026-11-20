@@ -513,8 +513,8 @@ class GalleryState extends State<ComponentsGallery> {
             ),
           ),
     );
-    return new DecoratedBox(
-      new Row(
+    return new Scaffold({
+      body: new Row(
         [
           new SizedBox(
             wide ? 220 : 0,
@@ -529,8 +529,7 @@ class GalleryState extends State<ComponentsGallery> {
         ],
         { crossAlign: 'stretch' },
       ),
-      colors.surface,
-    );
+    });
   }
   private main(
     context: BuildContext,
