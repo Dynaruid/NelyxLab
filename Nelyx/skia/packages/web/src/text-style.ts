@@ -1,6 +1,6 @@
 import { invariant } from '@nelyx/core/foundation/errors';
 import { paragraphApiVersion } from './paragraph-api.ts';
-import { paragraphFontVariations } from '@nelyx/core/ui/text-builder';
+import { mergeTextRunStyle, paragraphFontVariations } from '@nelyx/core/ui/text-builder';
 // SPDX-License-Identifier: BSD-3-Clause
 import type { CanvasKit, TextStyle, StrutStyle, ParagraphStyle, FontWeight } from 'canvaskit-wasm';
 import type { TextRunStyle } from '@nelyx/core/ui/text-styles';
@@ -15,6 +15,39 @@ const names = (
 // CanvasKit's FontStyle binding accepts arbitrary numeric SkFontStyle weights;
 // its declaration models only the named enum constants. Verified against0.41.
 const weight = (n: number): FontWeight => n as unknown as FontWeight;
+export function webFontStyleKeys(
+  input: TextLayoutInput,
+  primary: string,
+  families: readonly string[],
+): Set<string> | undefined {
+  const styles = new Set<string>();
+  const add = (style: TextRunStyle) => {
+    // A shared SkParagraph cache can retain the original native paint and its resources.
+    if (style.foreground || style.background) return false;
+    styles.add(
+      JSON.stringify([
+        names(style.fontFamilies, primary, families),
+        style.fontWeight ?? 400,
+        style.fontStyle === 'italic',
+        paragraphFontVariations(style),
+      ]),
+    );
+    return true;
+  };
+  if (!add(input.style ?? {})) return;
+  for (const run of input.runs ?? []) if (!add(mergeTextRunStyle(input.style, run.style))) return;
+  const strut = input.strutStyle;
+  if (strut)
+    styles.add(
+      JSON.stringify([
+        names(strut.fontFamilies, primary, families),
+        strut.fontWeight ?? 400,
+        strut.fontStyle === 'italic',
+        null,
+      ]),
+    );
+  return styles;
+}
 export function webTextStyle(
   ck: CanvasKit,
   input: TextLayoutInput,

@@ -12,7 +12,7 @@
   "dependencies": {
     "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-150a1863e7c67d2b47bb85b65b01bbb193770b379452c17a3092925d97ad3145.tgz",
     "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-2ae537f6f4ac4c8278cb68b010e239b44e3603d69cd3ecae1183e0632d81b5a6.tgz",
-    "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-2734d2ad92162787bda4178134426b4c73b47c723e57f5ba07ac806a1d7f4ba7.tgz",
+    "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-bb38ca8d4e025bd70c8d1733fc9ba25ebd0762c04346d4bf294665d2c73e2256.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native-web": "0.21.3",

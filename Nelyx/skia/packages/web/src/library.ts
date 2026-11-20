@@ -10,6 +10,7 @@ import type {
   GrDirectContext,
   Surface,
   Image,
+  FontCollection,
   TypefaceFontProvider,
   Paragraph,
   WebGLContextHandle,
@@ -56,7 +57,7 @@ import { TextLayoutBudget } from '@nelyx/core/hosting/text-layout-budget';
 import { TextPaintResources } from '@nelyx/core/hosting/text-paints';
 import type { FontProviderLease } from '@nelyx/core/hosting/text-fonts';
 import { buildStyledText } from '@nelyx/core/ui/text-builder';
-import { webTextStyle, webParagraphStyle } from './text-style.ts';
+import { webFontStyleKeys, webTextStyle, webParagraphStyle } from './text-style.ts';
 
 // Leave headroom for Skia's signed integer clip width and height.
 const framePictureCullExtent = 2 ** 29;
@@ -68,10 +69,58 @@ interface Font {
   bytes: Uint8Array;
   sourceBytes: number;
 }
+/** Share Skia's typeface lookups across paragraphs with the same font catalog. */
+class WebParagraphFonts {
+  private collection: FontCollection | undefined;
+  private readonly styles = new Set<string>();
+  private retirementFailure: { error: unknown } | undefined;
+  constructor(
+    private readonly ck: CanvasKit,
+    readonly fontProvider: TypefaceFontProvider,
+  ) {}
+  collectionFor(input: TextLayoutInput, primary: string, families: readonly string[]) {
+    if (this.retirementFailure) throw this.retirementFailure.error;
+    const styles = webFontStyleKeys(input, primary, families);
+    if (!styles) return;
+    const added = [...styles].filter((key) => !this.styles.has(key));
+    // CanvasKit's collection keeps family and variation lookups for its entire lifetime.
+    if (this.styles.size + added.length > 64) return;
+    if (!this.collection) {
+      const collection = (this.collection = this.ck.FontCollection.Make());
+      try {
+        collection.setDefaultFontManager(this.fontProvider);
+        collection.enableFontFallback();
+      } catch (error) {
+        try {
+          this.retireCollection();
+        } catch (cleanup) {
+          throw new AggregateError(
+            [error, cleanup],
+            'Web font collection setup and retirement failed',
+          );
+        }
+        throw error;
+      }
+    }
+    for (const key of added) this.styles.add(key);
+    return this.collection;
+  }
+  retireCollection(): void {
+    if (this.retirementFailure) throw this.retirementFailure.error;
+    try {
+      this.collection?.delete();
+    } catch (error) {
+      this.retirementFailure = { error };
+      throw error;
+    }
+    this.collection = undefined;
+    this.styles.clear();
+  }
+}
 interface Entry {
   layout: TextLayout;
   paragraph: Paragraph;
-  fonts: FontProviderLease<Font, TypefaceFontProvider>;
+  fonts: FontProviderLease<Font, WebParagraphFonts>;
   paintResources: TextPaintResources;
 }
 interface Pending {
@@ -114,7 +163,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   private textBudget: TextLayoutBudget | undefined;
   private fontCatalog: ParagraphFontCatalog<Font> | undefined;
   private failed = false;
-  private providers: ParagraphFontProviders<Font, TypefaceFontProvider> | undefined;
+  private providers: ParagraphFontProviders<Font, WebParagraphFonts> | undefined;
   private textFailed = false;
   private readonly uncertainText: unknown[] = [];
   private dynamicImageBytes = 0;
@@ -264,15 +313,26 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     this.fontCatalog = new ParagraphFontCatalog(registry);
     this.textBudget = new TextLayoutBudget(registry);
     this.providers = new ParagraphFontProviders(registry, this.fontCatalog, (fonts) => {
-      if (fonts.length === 1) return { provider: fonts[0]!.source.provider, retire() {} };
-      const provider = this.ck.TypefaceFontProvider.Make();
-      try {
-        for (const font of fonts) provider.registerFont(font.source.bytes, font.family);
-        return { provider, retire: () => provider.delete() };
-      } catch (error) {
-        provider.delete();
-        throw error;
+      const ownsProvider = fonts.length > 1;
+      const provider = ownsProvider
+        ? this.ck.TypefaceFontProvider.Make()
+        : fonts[0]!.source.provider;
+      if (ownsProvider) {
+        try {
+          for (const font of fonts) provider.registerFont(font.source.bytes, font.family);
+        } catch (error) {
+          provider.delete();
+          throw error;
+        }
       }
+      const paragraphFonts = new WebParagraphFonts(this.ck, provider);
+      return {
+        provider: paragraphFonts,
+        retire: () => {
+          paragraphFonts.retireCollection();
+          if (ownsProvider) provider.delete();
+        },
+      };
     });
   }
   observe(listener: (event: RendererNotification) => void): Disposable {
@@ -655,10 +715,11 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     let builder: ReturnType<CanvasKit['ParagraphBuilder']['MakeFromFontProvider']> | undefined;
     try {
       paintResources = new TextPaintResources(registry, snapshot);
-      builder = this.ck.ParagraphBuilder.MakeFromFontProvider(
-        webParagraphStyle(this.ck, snapshot, primaryFamily, fonts.families),
-        fonts.provider,
-      );
+      const collection = fonts.provider.collectionFor(snapshot, primaryFamily, fonts.families),
+        style = webParagraphStyle(this.ck, snapshot, primaryFamily, fonts.families);
+      builder = collection
+        ? this.ck.ParagraphBuilder.MakeFromFontCollection(style, collection)
+        : this.ck.ParagraphBuilder.MakeFromFontProvider(style, fonts.provider.fontProvider);
       const push = (style: TextRunStyle) => {
         const native = webTextStyle(this.ck, snapshot, style, primaryFamily, fonts.families);
         if (!style.foreground && !style.background) {
@@ -708,6 +769,9 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       builder = undefined;
       releaseTemporary();
       paragraph.layout(snapshot.width);
+      const unresolvedGlyphs = paragraph.unresolvedCodepoints().length;
+      // This CanvasKit does not restore unresolved codepoints on a shaping cache hit.
+      if (collection && unresolvedGlyphs) fonts.provider.retireCollection();
       const resource = this.allocateResource('paragraph');
       const placeholderBoxes = paragraph.getRectsForPlaceholders();
       const layout = freezeTextLayout(resource, snapshot, {
@@ -719,7 +783,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         maxIntrinsicWidth: paragraph.getMaxIntrinsicWidth(),
         longestLine: paragraph.getLongestLine(),
         overflow: paragraph.didExceedMaxLines(),
-        unresolvedGlyphs: paragraph.unresolvedCodepoints().length,
+        unresolvedGlyphs,
         lines: paragraph.getLineMetrics().map((value) => {
           const line = value as typeof value & { unscaledAscent?: number };
           return {
