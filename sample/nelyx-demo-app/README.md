@@ -76,8 +76,8 @@ and fails before its builder runs. Required coverage completes the same producti
 cursor synchronously and performs layout before CPU publication. Web hosts without
 an observed work deadline do not start optional production.
 
-Use the current-source Windows runner to select the control or candidate; see
-[work5](../../work5.md) for the actual acceptance result and limitations.
+Use the current-source Windows runner to select the control or candidate.
+See the [W5 results and limitations](../../history/26/11/17/work5-summary.md).
 The current candidate produces dates ahead in the native Demo calendar. Full performance acceptance is pending,
 and it remains disabled by default.
 

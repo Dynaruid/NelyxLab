@@ -9,4 +9,4 @@ Metadata for framework conversion and managed product sources. SDK builds and ap
 
 ## Historical ownership
 
-The recipes, fingerprints and [module layout](../product-module-layout.mjs) describe the original conversion. Leave these records frozen. For product changes, edit and test the owning package directly, retaining source attribution, numeric annotations and licenses. Matching historical output hashes is not a release condition. See the [W11 migration plan](../../../work11.md).
+The recipes, fingerprints and [module layout](../product-module-layout.mjs) describe the original conversion. Leave these records frozen. For product changes, edit and test the owning package directly, retaining source attribution, numeric annotations and licenses. Release checks use the current package build, public API and behavior. See the [W11 migration summary](../../../history/26/11/19/work11-summary.md).

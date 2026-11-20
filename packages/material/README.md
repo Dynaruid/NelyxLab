@@ -6,7 +6,7 @@ Start with the [project guide](../../README.md) or explore the [Testbed](../../s
 
 ## Maintaining widgets
 
-Move existing candidates from `src/generated/flutter-design` into the owning feature modules as described in the [W11 migration plan](../../work11.md). Edit and test the package TypeScript directly, preserving upstream notices. Unpromoted candidates are not public imports.
+W11 incorporated the candidates from `src/generated/flutter-design` into the package or adopted equivalent implementations. Edit and test the package TypeScript directly, preserving upstream notices. [W11 migration summary](../../history/26/11/19/work11-summary.md)
 
 ## Imports
 

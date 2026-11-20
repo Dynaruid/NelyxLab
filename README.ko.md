@@ -72,7 +72,7 @@ Windows·Android 준비와 실행은 [Testbed 가이드](sample/nelyx-testbed-ap
 
 ## 소스 관리
 
-루트에서 `npm run format`을 실행하면 [Oxfmt 설정](.oxfmtrc.json)에 따라 JS/TS 소스와 설정 파일을 정렬합니다. [W11 이전 계획](work11.md)에 따라 기존 위젯 후보를 패키지로 옮기고, 변환이 막혔던 단위도 고정 Flutter 원본에서 전부 직접 이식합니다. 이후에는 소유 패키지의 TypeScript를 직접 수정하며 [변환 도구](tools/Nelyx.FrameworkToTypeScript/README.md)는 동결합니다.
+루트에서 `npm run format`을 실행하면 [Oxfmt 설정](.oxfmtrc.json)에 따라 JS/TS 소스와 설정 파일을 정렬합니다. W11에서 기존 위젯 후보를 패키지로 옮기고, 변환이 막혔던 단위를 고정 Flutter 원본에서 이식했습니다. 이후에는 소유 패키지의 TypeScript를 직접 수정하며 변환 도구는 동결합니다. [W11 이식 요약](history/26/11/19/work11-summary.md) · [변환 도구](tools/Nelyx.FrameworkToTypeScript/README.md)
 
 ## 문서
 

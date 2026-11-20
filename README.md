@@ -72,7 +72,7 @@ The shared application exports `main()` from `src/index.ts`. A platform runner r
 
 ## Source maintenance
 
-Run `npm run format` at the repository root to format JS/TS sources and configuration files using the [Oxfmt settings](.oxfmtrc.json). Follow the [W11 migration plan](work11.md) to move existing widget candidates into their packages and port all previously blocked units directly from the pinned Flutter source. Maintain the TypeScript directly in the owning package; the [conversion tool](tools/Nelyx.FrameworkToTypeScript/README.md) is frozen.
+Run `npm run format` at the repository root to format JS/TS sources and configuration files using the [Oxfmt settings](.oxfmtrc.json). W11 moved widget candidates and ported blocked conversion units from the pinned Flutter source. Maintain the TypeScript directly in the owning package. The conversion tool is frozen. [W11 migration summary](history/26/11/19/work11-summary.md) · [Conversion tool](tools/Nelyx.FrameworkToTypeScript/README.md)
 
 ## Documentation
 
