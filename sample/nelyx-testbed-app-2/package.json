@@ -5,6 +5,9 @@
   "scripts": {
     "build:web": "npm --prefix web/runner run build",
     "dev:web": "npm --prefix web/runner run dev",
+    "dev:tauri:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --target windows --host tauri",
+    "build:tauri:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs build --app . --target windows --host tauri",
+    "run:tauri:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --target windows --host tauri",
     "bundle:windows": "npm --prefix windows/runner run bundle",
     "build:windows": "npm --prefix windows/runner run build -- --engine hermes --hermes-profile optimized",
     "run:windows": "node ../../Nelyx/eng/run-sample-windows.mjs",
@@ -29,11 +32,13 @@
   },
   "dependencies": {
     "@nelyx/core": "0.17.0",
-    "@nelyx/sdk": "0.21.0",
+    "@nelyx/cupertino": "0.2.0",
     "@nelyx/material": "0.2.0",
-    "@nelyx/cupertino": "0.2.0"
+    "@nelyx/sdk": "0.21.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.6"
+  },
   "type": "module",
   "nelyx": {
     "schema": "nelyx.app/v2",

@@ -1,13 +1,28 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { spawn, spawnSync } from 'node:child_process';
+import { createInterface } from 'node:readline';
+
+function killWindowsTree(child) {
+  const result = spawnSync('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], {
+    windowsHide: true,
+    stdio: 'ignore',
+    timeout: 10_000,
+  });
+  if (result.status !== 0) child.kill();
+}
+
 /** Own the complete child lifetime. Never settle an observation timeout as completion. */
-export function execute(command, args, { cwd, timeout = 1800000, env, signal: abortSignal } = {}) {
+export function execute(
+  command,
+  args,
+  { cwd, timeout = 1800000, env, signal: abortSignal, isolateWindows = false } = {},
+) {
   abortSignal?.throwIfAborted();
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
       env,
-      detached: process.platform !== 'win32',
+      detached: process.platform !== 'win32' || isolateWindows,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
@@ -31,11 +46,7 @@ export function execute(command, args, { cwd, timeout = 1800000, env, signal: ab
     };
     const kill = () => {
       if (!child.pid) return;
-      if (process.platform === 'win32')
-        spawnSync('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], {
-          windowsHide: true,
-          stdio: 'ignore',
-        });
+      if (process.platform === 'win32') killWindowsTree(child);
       else signal('SIGKILL');
     };
     const stop = () => {
@@ -82,17 +93,24 @@ export function execute(command, args, { cwd, timeout = 1800000, env, signal: ab
     });
   });
 }
-/** Long lived runner process, with an explicit awaited stop and no detached lifetime. */
-export function startOwnedCommand(command, args, { cwd, env } = {}) {
+/** Long lived runner process with an explicit awaited stop. */
+export function startOwnedCommand(
+  command,
+  args,
+  { cwd, env, onStderrLine, signal: abortSignal, isolateWindows = false, windowsHide = true } = {},
+) {
+  abortSignal?.throwIfAborted();
   const child = spawn(command, args, {
     cwd,
     env,
-    detached: process.platform !== 'win32',
+    detached: process.platform !== 'win32' || isolateWindows,
     stdio: ['ignore', 'pipe', 'pipe'],
-    windowsHide: true,
+    windowsHide,
   });
   child.stdout.pipe(process.stderr, { end: false });
   child.stderr.pipe(process.stderr, { end: false });
+  if (onStderrLine)
+    createInterface({ input: child.stderr, crlfDelay: Infinity }).on('line', onStderrLine);
   let ended = false,
     stopping,
     spawnError;
@@ -102,16 +120,13 @@ export function startOwnedCommand(command, args, { cwd, env } = {}) {
     });
     child.once('close', (exitCode, signal) => {
       ended = true;
+      abortSignal?.removeEventListener('abort', abort);
       resolve({ exitCode, signal, error: spawnError ? String(spawnError) : null });
     });
   });
   function kill(signal) {
     if (ended || !child.pid) return;
-    if (process.platform === 'win32')
-      spawnSync('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], {
-        windowsHide: true,
-        stdio: 'ignore',
-      });
+    if (process.platform === 'win32') killWindowsTree(child);
     else
       try {
         process.kill(-child.pid, signal);
@@ -119,21 +134,20 @@ export function startOwnedCommand(command, args, { cwd, env } = {}) {
         if (error.code !== 'ESRCH') throw error;
       }
   }
-  return {
-    pid: child.pid,
-    completed,
-    stop() {
-      return (stopping ??= (async () => {
-        kill('SIGTERM');
-        const timer = setTimeout(() => kill('SIGKILL'), 10000);
-        try {
-          return await completed;
-        } finally {
-          clearTimeout(timer);
-        }
-      })());
-    },
-  };
+  function stop() {
+    return (stopping ??= (async () => {
+      kill('SIGTERM');
+      const timer = setTimeout(() => kill('SIGKILL'), 10000);
+      try {
+        return await completed;
+      } finally {
+        clearTimeout(timer);
+      }
+    })());
+  }
+  const abort = () => void stop();
+  abortSignal?.addEventListener('abort', abort, { once: true });
+  return { pid: child.pid, completed, stop };
 }
 export function capture(command, args, { cwd, timeout = 60000 } = {}) {
   const result = spawnSync(command, args, {

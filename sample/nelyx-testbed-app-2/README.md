@@ -38,6 +38,26 @@ npm run build:web --workspace @nelyx/testbed-2
 
 Output is written under this application's `.nelyx/web/`. The [Web runner guide](web/runner/README.md) also covers serving and exporting a CLI-managed package.
 
+### Windows x64 Tauri
+
+Complete Web preparation above and install the Rust `x86_64-pc-windows-msvc` target,
+Visual Studio C++ x64 tools and the Windows SDK, and WebView2 Evergreen.
+The workspace install supplies the pinned Tauri CLI. Run the SDK's `doctor`
+and `prepare` from the installed Web runner to check prerequisites and host settings.
+[Nelyx CLI Tauri guide](../../Nelyx/sdk/tooling/cli/README.md#windows-x64-tauri)
+
+Run from the repository root.
+
+```powershell
+npm.cmd run build:tauri:windows --workspace @nelyx/testbed-2
+npm.cmd run run:tauri:windows --workspace @nelyx/testbed-2
+npm.cmd run dev:tauri:windows --workspace @nelyx/testbed-2 -- --port 1421
+```
+
+The build publishes `sample/nelyx-testbed-app-2/.nelyx/tauri/windows-x64/nelyx-tauri.exe`.
+It opens the Testbed gallery in WebView2 and displays the app version in the window title.
+The development command above uses port 1421 so the Demo can use 1420 at the same time.
+
 ## Windows
 
 Windows defaults to **Hermes bytecode with the optimized Release profile on the RNW host**. Close the Testbed window before rebuilding its current package.

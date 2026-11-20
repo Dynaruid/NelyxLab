@@ -38,6 +38,25 @@ npm run build:web --workspace @nelyx/testbed-2
 
 출력은 이 앱의 `.nelyx/web/`에 생성됩니다. CLI 패키지 제공·내보내기는 [Web runner 가이드](web/runner/README.md)에 있습니다.
 
+### Windows x64 Tauri
+
+위의 Web 러너 준비를 마치고 Rust `x86_64-pc-windows-msvc` 타깃, Visual Studio C++ x64 도구와
+Windows SDK, WebView2 Evergreen을 설치합니다. workspace 설치에 고정 버전의 Tauri CLI가
+포함됩니다. 설치한 Web 러너에서 SDK의 `doctor`와 `prepare`를 실행해 도구와 호스트 설정을
+확인합니다. [Nelyx CLI Tauri 가이드](../../Nelyx/sdk/tooling/cli/README.ko.md#windows-x64-tauri)
+
+저장소 루트에서 실행합니다.
+
+```powershell
+npm.cmd run build:tauri:windows --workspace @nelyx/testbed-2
+npm.cmd run run:tauri:windows --workspace @nelyx/testbed-2
+npm.cmd run dev:tauri:windows --workspace @nelyx/testbed-2 -- --port 1421
+```
+
+빌드 결과는 `sample/nelyx-testbed-app-2/.nelyx/tauri/windows-x64/nelyx-tauri.exe`입니다.
+WebView2에서 Testbed 갤러리를 열고 창 제목에 앱 버전을 표시합니다.
+위 개발 명령은 1421 포트를 사용하므로 Demo의 1420 포트와 동시에 실행할 수 있습니다.
+
 ## Windows
 
 Windows 기본값은 **RNW 호스트의 Hermes bytecode·optimized Release**입니다. 같은 패키지를 재빌드하기 전에 Testbed 창을 닫으세요.

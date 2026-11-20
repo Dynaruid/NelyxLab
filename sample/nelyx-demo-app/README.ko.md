@@ -45,7 +45,36 @@ npm.cmd run dev:web --workspace @nelyx/demo
 정적 Web 빌드는 `npm.cmd run build:web --workspace @nelyx/demo`이며
 현재 출력은 이 앱의 `.nelyx/web/`에 있습니다.
 
-Windows는 Source 위젯과 direct Hermes host를 사용합니다. Visual Studio C++ 도구·
+### Windows x64 Tauri 호스트
+
+릴리스 EXE는 WebView2 창에서 기존 Web 갤러리를 실행합니다.
+Rust의 `x86_64-pc-windows-msvc` 도구 체인, Visual Studio C++ 빌드 도구와 Windows SDK,
+WebView2 Evergreen Runtime을 설치하고 위의 Web 러너 준비를 마칩니다.
+workspace 설치에 고정 버전의 Tauri CLI가 포함됩니다. SDK의 `doctor`와 `prepare`는
+설치한 Web 러너에서 실행합니다. [Nelyx CLI Tauri 가이드](../../Nelyx/sdk/tooling/cli/README.ko.md#windows-x64-tauri)
+
+저장소 루트에서 실행합니다.
+
+```powershell
+npm.cmd run build:tauri:windows --workspace @nelyx/demo
+npm.cmd run run:tauri:windows --workspace @nelyx/demo
+```
+
+EXE는 `sample/nelyx-demo-app/.nelyx/tauri/windows-x64/nelyx-tauri.exe`에 생성됩니다.
+Web 자산을 EXE에 내장하므로 Metro를 종료하고 EXE만 옮겨 실행할 수 있습니다. Rust 명령이 응답하면
+창 제목이 `Nelyx Demo · Tauri 0.1.0 (windows)`로 바뀝니다. 다시 빌드하기 전에 열린 릴리스 창을 닫으세요.
+
+```powershell
+npm.cmd run dev:tauri:windows --workspace @nelyx/demo
+```
+
+개발 창은 전용 Metro 서버 `http://127.0.0.1:1420/`에서 HMR과 새로고침을 사용합니다.
+창을 닫거나 Ctrl+C를 누르면 해당 서버도 종료됩니다. 기본 Windows 데모로 돌아가려면
+`npm.cmd run run:windows --workspace @nelyx/demo`를 실행합니다.
+
+### Windows direct Hermes 호스트
+
+기본 Windows 데모는 Source 위젯과 direct Hermes 호스트를 사용합니다. Visual Studio C++ 도구·
 Windows SDK·LLVM·CMake·Ninja와 현재 native Skia 공급이 필요합니다.
 
 ```powershell
@@ -95,6 +124,8 @@ State의 책임입니다. View당 미게시 세대 1개, optional 보관분과 �
 동일한 현재 공급에서 비교할 경로를 선택할 수 있습니다.
 판정과 제약은 [W5 요약](../../history/26/11/17/work5-summary.md)을 참고하세요.
 후속 개선에서 실제 날짜 선행 생산을 확인했습니다. 전체 성능 수락은 미완료이며 기본 동기 경로를 유지합니다.
+
+### Android
 
 Android는 OpenJDK 21·SDK 36·NDK와 대상 아키텍처의 렌더러 공급이 필요합니다.
 현재 기본값은 x86_64 에뮬레이터용 `emulator-vulkan`입니다.

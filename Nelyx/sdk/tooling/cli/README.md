@@ -69,6 +69,42 @@ For Windows RNW, `run` compares application source, assets, Windows configuratio
 
 For an existing external app, update `windows/runner/build.mjs` from the current starter template once to enable application/SDK input acknowledgement and native SDK header invalidation. The repository Testbed already includes this update.
 
+## Windows x64 Tauri
+
+Create and supply a Web runner using the steps above. Install Rust with the
+`x86_64-pc-windows-msvc` target, Visual Studio C++ x64 tools and the Windows
+SDK, and WebView2 Evergreen. From the app root, install the pinned Tauri CLI.
+For an npm workspace, run the install from the workspace root with
+`--workspace <app-package>`. [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/#windows)
+
+```powershell
+npm.cmd install --save-dev --save-exact '@tauri-apps/cli@2.12.6'
+```
+
+Run the following from the installed app's `web/runner/`.
+
+```powershell
+npx.cmd --no-install nelyx doctor --app ../.. --target windows --host tauri
+npx.cmd --no-install nelyx prepare --app ../.. --target windows --host tauri
+npx.cmd --no-install nelyx build --app ../.. --target windows --host tauri
+npx.cmd --no-install nelyx run --app ../.. --target windows --host tauri
+npx.cmd --no-install nelyx dev --app ../.. --target windows --host tauri --port 1420
+```
+
+`doctor` reports the runner, host source, CLI versions, and Windows prerequisites.
+`prepare` creates `src-tauri/` on first use and validates it on later runs. Edit that
+directory to set the window title, app identifier, icon, and Rust commands.
+
+`build` embeds the Release Web assets in the app's
+`.nelyx/tauri/windows-x64/nelyx-tauri.exe`. Distribute that EXE to Windows x64 machines
+with WebView2 Evergreen. Run it directly, or use `nelyx run` with optional EXE
+arguments after `--`. Close the running EXE before replacing it.
+
+`dev` uses the loopback HTTP `build.devUrl` in the Tauri configuration, which
+defaults to `http://127.0.0.1:1420/` in the template. Pass `--port` to switch
+ports for one session. Close the window or press Ctrl+C to stop the app and
+Metro. The host supports `doctor`, `prepare`, `build`, `run`, and `dev`.
+
 ## Native prerequisites
 
 | Target | Required setup |

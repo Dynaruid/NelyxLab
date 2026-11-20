@@ -1,6 +1,6 @@
 # Nelyx Web 기반 Windows Tauri 호스트 실험
 
-**2026-11-20 · 설계 검토 완료 / 구현 전**
+**2026-11-20 · 구현 및 검증 완료**
 
 첫 대상은 `@nelyx/demo`, 실행 환경은 Windows x64와 WebView2 Evergreen이다. **첫 이정표는 개발 서버를 끈 상태에서 릴리스 EXE 하나로 기존 갤러리를 조작하고 Rust 명령의 응답을 받는 것**이다. 그다음 같은 앱을 Metro에 연결해 개발 중 새로고침을 확인한다.
 
@@ -34,8 +34,8 @@ Cargo 출력은 저장소 루트의 `.nelyx/tauri/demo/target/`에 둔다. 런�
 
 ### A. 도구와 기존 Web 입력 준비
 
-- [ ] 새 체크아웃에서는 아래 명령으로 Web 러너를 준비한다. 이미 준비된 작업공간에서는 공급이 바뀌었을 때 해당 단계만 다시 실행한다. CanvasKit 공급이 없으면 [런타임 준비 도구](Nelyx/skia/eng/prepare-web-runtime.mjs)의 안내에 따라 현재 소스용 런타임을 준비한다.
-- [ ] 첫 구현에서 사용할 버전은 npm CLI `2.12.6`, Rust `tauri 2.12.7`, `tauri-build 2.7.6`이다. 데모에 `npm.cmd install --save-dev --save-exact @tauri-apps/cli@2.12.6 --workspace @nelyx/demo`로 추가하고, crate 작성 후 `cargo generate-lockfile --manifest-path sample/nelyx-demo-app/src-tauri/Cargo.toml`로 첫 lockfile을 생성한다. 이 PC에서 Node 24.15.0, Rust 1.95.0 및 x64 MSVC 타깃, VS 2026 C++ 도구, WebView2 157.0.4341.60 설치 경로를 확인했다. [Tauri CLI 릴리스](https://github.com/tauri-apps/tauri/releases/tag/tauri-cli-v2.12.6) · [Rust 런타임](https://github.com/tauri-apps/tauri/releases/tag/tauri-v2.12.7) · [빌드 도구](https://github.com/tauri-apps/tauri/releases/tag/tauri-build-v2.7.6) · [Windows 준비 사항](https://v2.tauri.app/start/prerequisites/#windows)
+- [x] 새 체크아웃에서는 아래 명령으로 Web 러너를 준비한다. 이미 준비된 작업공간에서는 공급이 바뀌었을 때 해당 단계만 다시 실행한다. CanvasKit 공급이 없으면 [런타임 준비 도구](Nelyx/skia/eng/prepare-web-runtime.mjs)의 안내에 따라 현재 소스용 런타임을 준비한다.
+- [x] 첫 구현에서 사용할 버전은 npm CLI `2.12.6`, Rust `tauri 2.12.7`, `tauri-build 2.7.6`이다. 데모에 `npm.cmd install --save-dev --save-exact @tauri-apps/cli@2.12.6 --workspace @nelyx/demo`로 추가하고, crate 작성 후 `cargo generate-lockfile --manifest-path sample/nelyx-demo-app/src-tauri/Cargo.toml`로 첫 lockfile을 생성한다. 이 PC에서 Node 24.15.0, Rust 1.95.0 및 x64 MSVC 타깃, VS 2026 C++ 도구, WebView2 157.0.4341.60 설치 경로를 확인했다. [Tauri CLI 릴리스](https://github.com/tauri-apps/tauri/releases/tag/tauri-cli-v2.12.6) · [Rust 런타임](https://github.com/tauri-apps/tauri/releases/tag/tauri-v2.12.7) · [빌드 도구](https://github.com/tauri-apps/tauri/releases/tag/tauri-build-v2.7.6) · [Windows 준비 사항](https://v2.tauri.app/start/prerequisites/#windows)
 
 ```powershell
 # 저장소 루트, 첫 준비
@@ -47,12 +47,12 @@ npm.cmd run prepare:web --workspace @nelyx/demo
 
 ### B. 정적 Web 빌드를 Windows EXE로 패키징
 
-- [ ] `tauri.conf.json`의 출발점은 아래와 같다. 앱 버전은 Cargo 패키지에서 가져온다. `script-src`는 로더가 해시 검사 후 생성하는 Blob과 Wasm 컴파일을 허용한다. 스타일 지시문은 React Native Web이 만드는 스타일시트와 인라인 레이아웃을 허용한다. [Nelyx 로더](Nelyx/sdk/src/backends/browser/canvaskit.ts) · [Tauri CSP](https://v2.tauri.app/security/csp/)
-- [ ] `build`는 현재 데모의 [web/runner/build.mjs](sample/nelyx-demo-app/web/runner/build.mjs)에 **이번 실행의 빈 출력 디렉터리**를 넘긴다. 일반 `build:web`은 기본 출력 `.nelyx/web`을 먼저 지우므로 Tauri 패키징 중 일반 Web을 다시 빌드해도 입력이 바뀌지 않게 한다. 저장소 루트 `.nelyx/tauri/demo/web-<임의값>/`에 직접 출력하면 빌드는 한 번이고 복사 단계도 없다.
-- [ ] `build.json`에서 `nelyx.web-build/v1`, `development: false`, `ganesh-webgl2`를 확인한다. 명세의 파일 경로와 SHA-256, `runtime/native-manifest.json`의 JS·Wasm 두 항목, 러너 `app-config.json`이 가리키는 폰트·이미지·notice 및 `licenses/`를 확인한다. 실패하면 해당 빌드의 오류와 경로를 반환한다.
-- [ ] 런처가 데모 루트를 cwd로 삼아 `tauri build --no-bundle --target x86_64-pc-windows-msvc --config <JSON> -- --locked`를 호출한다. `--config`에는 이번 `build.frontendDist` 절대 경로만 인자 하나로 전달한다. 설정 파일의 기본값은 표준 데모 Web 출력이다. 런처가 Web 빌드를 맡으므로 Tauri 훅으로 다시 빌드할 필요가 없다. [Tauri 빌드 설정](https://v2.tauri.app/reference/config/#buildconfig)
-- [ ] `build.rs`에서 `tauri-build`의 `codegen` 기능과 `Attributes::codegen(CodegenContext::new())`를 사용하고 `main.rs`에서는 `tauri::tauri_build_context!()`를 사용한다. 이 경로는 Cargo가 `frontendDist` 변경을 추적하므로 Rust 소스가 그대로여도 새 Web 자산이 EXE에 들어간다. [해당 버전의 빌드 구현](https://github.com/tauri-apps/tauri/blob/tauri-build-v2.7.6/crates/tauri-build/src/codegen/context.rs)
-- [ ] Cargo 성공 후 `.nelyx/tauri/demo/target/x86_64-pc-windows-msvc/release/nelyx-demo-tauri.exe`의 실제 경로와 크기를 출력한다. `run`은 이 파일을 직접 열고, 없으면 빌드 명령을 안내한다. Web·Cargo 실패 시 이전 EXE를 새 결과로 보고하지 않는다. 성공·실패·취소 모두 자식 종료를 기다린 뒤 이번 임시 Web 출력만 `finally`에서 정리한다.
+- [x] `tauri.conf.json`의 출발점은 아래와 같다. 앱 버전은 Cargo 패키지에서 가져온다. `script-src`는 로더가 해시 검사 후 생성하는 Blob과 Wasm 컴파일을 허용한다. 스타일 지시문은 React Native Web이 만드는 스타일시트와 인라인 레이아웃을 허용한다. [Nelyx 로더](Nelyx/sdk/src/backends/browser/canvaskit.ts) · [Tauri CSP](https://v2.tauri.app/security/csp/)
+- [x] `build`는 현재 데모의 [web/runner/build.mjs](sample/nelyx-demo-app/web/runner/build.mjs)에 **이번 실행의 빈 출력 디렉터리**를 넘긴다. 일반 `build:web`은 기본 출력 `.nelyx/web`을 먼저 지우므로 Tauri 패키징 중 일반 Web을 다시 빌드해도 입력이 바뀌지 않게 한다. 저장소 루트 `.nelyx/tauri/demo/web-<임의값>/`에 직접 출력하면 빌드는 한 번이고 복사 단계도 없다.
+- [x] `build.json`에서 `nelyx.web-build/v1`, `development: false`, `ganesh-webgl2`를 확인한다. 명세의 파일 경로와 SHA-256, `runtime/native-manifest.json`의 JS·Wasm 두 항목, 러너 `app-config.json`이 가리키는 폰트·이미지·notice 및 `licenses/`를 확인한다. 실패하면 해당 빌드의 오류와 경로를 반환한다.
+- [x] 런처가 데모 루트를 cwd로 삼아 `tauri build --no-bundle --target x86_64-pc-windows-msvc --config <JSON> -- --locked`를 호출한다. `--config`에는 이번 `build.frontendDist` 절대 경로만 인자 하나로 전달한다. 설정 파일의 기본값은 표준 데모 Web 출력이다. 런처가 Web 빌드를 맡으므로 Tauri 훅으로 다시 빌드할 필요가 없다. [Tauri 빌드 설정](https://v2.tauri.app/reference/config/#buildconfig)
+- [x] `build.rs`에서 `tauri-build`의 `codegen` 기능과 `Attributes::codegen(CodegenContext::new())`를 사용하고 `main.rs`에서는 `tauri::tauri_build_context!()`를 사용한다. 이 경로는 Cargo가 `frontendDist` 변경을 추적하므로 Rust 소스가 그대로여도 새 Web 자산이 EXE에 들어간다. [해당 버전의 빌드 구현](https://github.com/tauri-apps/tauri/blob/tauri-build-v2.7.6/crates/tauri-build/src/codegen/context.rs)
+- [x] Cargo 성공 후 `.nelyx/tauri/demo/target/x86_64-pc-windows-msvc/release/nelyx-demo-tauri.exe`의 실제 경로와 크기를 출력한다. `run`은 이 파일을 직접 열고, 없으면 빌드 명령을 안내한다. Web·Cargo 실패 시 이전 EXE를 새 결과로 보고하지 않는다. 성공·실패·취소 모두 자식 종료를 기다린 뒤 이번 임시 Web 출력만 `finally`에서 정리한다.
 
 ```json
 {
@@ -85,15 +85,15 @@ npm.cmd run prepare:web --workspace @nelyx/demo
 
 ### C. Rust 백엔드와 화면 사이의 호출 한 번 완성
 
-- [ ] `#[tauri::command] host_info`는 인자 없이 `{ version, os }`를 반환한다. 값은 `AppHandle::package_info().version`과 `std::env::consts::OS`에서 읽는다. `main.rs`에 invoke handler를 등록하고, `build.rs`의 같은 `Attributes`에 `AppManifest::new().commands(&["host_info"])`를 지정한다.
-- [ ] `capabilities/main.json`의 식별자·창 라벨은 `main`, 권한은 `allow-host-info`와 `core:window:allow-set-title`로 한정한다. `on_page_load`에서 `Finished`, 메인 창, 해당 모드의 앱 origin을 확인한 뒤 `include_str!("host-info.js")`로 포함한 코드를 실행한다. JS는 `window.__TAURI__.core.invoke("host_info")`의 응답을 받아 `getCurrentWindow().setTitle(...)`로 **실제 Windows 창 제목**을 `Nelyx Demo · Tauri <version> (windows)`로 갱신한다. 실패한 호출은 콘솔에 원인을 남긴다. [Tauri 앱 명령 권한](https://v2.tauri.app/security/capabilities/) · [창 API](https://v2.tauri.app/reference/javascript/api/namespacewindow/#settitle)
-- [ ] **릴리스 첫 통과 조건**은 Metro가 종료된 상태에서 EXE를 열어 버전이 있는 창 제목과 실제 갤러리 첫 화면을 모두 확인하는 것이다. 제목은 IPC 왕복을, 갤러리는 CanvasKit 초기화와 그리기를 각각 입증한다.
+- [x] `#[tauri::command] host_info`는 인자 없이 `{ version, os }`를 반환한다. 값은 `AppHandle::package_info().version`과 `std::env::consts::OS`에서 읽는다. `main.rs`에 invoke handler를 등록하고, `build.rs`의 같은 `Attributes`에 `AppManifest::new().commands(&["host_info"])`를 지정한다.
+- [x] `capabilities/main.json`의 식별자·창 라벨은 `main`, 권한은 `allow-host-info`와 `core:window:allow-set-title`로 한정한다. `on_page_load`에서 `Finished`, 메인 창, 해당 모드의 앱 origin을 확인한 뒤 `include_str!("host-info.js")`로 포함한 코드를 실행한다. JS는 `window.__TAURI__.core.invoke("host_info")`의 응답을 받아 `getCurrentWindow().setTitle(...)`로 **실제 Windows 창 제목**을 `Nelyx Demo · Tauri <version> (windows)`로 갱신한다. 실패한 호출은 콘솔에 원인을 남긴다. [Tauri 앱 명령 권한](https://v2.tauri.app/security/capabilities/) · [창 API](https://v2.tauri.app/reference/javascript/api/namespacewindow/#settitle)
+- [x] **릴리스 첫 통과 조건**은 Metro가 종료된 상태에서 EXE를 열어 버전이 있는 창 제목과 실제 갤러리 첫 화면을 모두 확인하는 것이다. 제목은 IPC 왕복을, 갤러리는 CanvasKit 초기화와 그리기를 각각 입증한다.
 
 ### D. 같은 앱을 Metro 개발 세션에 연결
 
-- [ ] `dev`는 설정의 `devUrl`에서 호스트·포트를 읽고 데모 cwd에서 `npm.cmd --prefix web/runner run dev -- --host 127.0.0.1 --port 1420`에 해당하는 자식을 실행한다. **자신이 시작한 자식의 stderr에서 `nelyx.dev.ready`를 받은 뒤** URL·runner 경로와 `/__nelyx/status`의 app을 대조하고 `tauri dev --target x86_64-pc-windows-msvc`를 시작한다. Metro는 포트를 먼저 열고 준비 중에 503을 반환하므로 TCP 연결만으로는 창을 열기에 이르다. [개발 준비 이벤트](Nelyx/sdk/tooling/cli/src/web-runner.mjs) · [Metro 서버](Nelyx/sdk/tooling/metro/src/web-development.mjs)
-- [ ] 일반 Web의 HMR WebSocket `/hot`과 새로고침용 SSE `/__nelyx/events`를 그대로 사용한다. 개발 HTML은 Metro가 직접 제공한다. `POST /reload` 후 실제 갤러리와 버전 제목이 다시 뜨는지 확인한다. HMR 갱신 코드를 평가하는 개발 경로는 릴리스 CSP와 독립적으로 점검한다. [Web 새로고침 구현](Nelyx/sdk/tooling/metro/src/web-refresh.cjs)
-- [ ] 포트 점유로 Metro가 실패하면 창을 띄우기 전에 종료한다. 정상 창 닫기, Ctrl+C, Tauri 시작 실패 각각에서 자신이 시작한 자식 트리만 종료하고 포트가 반환됐는지 확인한다. 대화형 `dev`와 `run`은 사용자가 창을 닫을 때까지 유지한다.
+- [x] `dev`는 설정의 `devUrl`에서 호스트·포트를 읽고 데모 cwd에서 `npm.cmd --prefix web/runner run dev -- --host 127.0.0.1 --port 1420`에 해당하는 자식을 실행한다. **자신이 시작한 자식의 stderr에서 `nelyx.dev.ready`를 받은 뒤** URL·runner 경로와 `/__nelyx/status`의 app을 대조하고 `tauri dev --target x86_64-pc-windows-msvc`를 시작한다. Metro는 포트를 먼저 열고 준비 중에 503을 반환하므로 TCP 연결만으로는 창을 열기에 이르다. [개발 준비 이벤트](Nelyx/sdk/tooling/cli/src/web-runner.mjs) · [Metro 서버](Nelyx/sdk/tooling/metro/src/web-development.mjs)
+- [x] 일반 Web의 HMR WebSocket `/hot`과 새로고침용 SSE `/__nelyx/events`를 그대로 사용한다. 개발 HTML은 Metro가 직접 제공한다. `POST /reload` 후 실제 갤러리와 버전 제목이 다시 뜨는지 확인한다. HMR 갱신 코드를 평가하는 개발 경로는 릴리스 CSP와 독립적으로 점검한다. [Web 새로고침 구현](Nelyx/sdk/tooling/metro/src/web-refresh.cjs)
+- [x] 포트 점유로 Metro가 실패하면 창을 띄우기 전에 종료한다. 정상 창 닫기, Ctrl+C, Tauri 시작 실패 각각에서 자신이 시작한 자식 트리만 종료하고 포트가 반환됐는지 확인한다. 대화형 `dev`와 `run`은 사용자가 창을 닫을 때까지 유지한다.
 
 ### E. 검증 및 인계
 
@@ -121,6 +121,25 @@ npm.cmd run dev:tauri:windows --workspace @nelyx/demo
 npm.cmd run run:windows --workspace @nelyx/demo
 ```
 
-- [ ] 자동 검증은 테스트당 20분 제한으로 실행한다. 완료 시 이 문서에 개발 창·독립 EXE·IPC·입력·재빌드 결과, 실제 EXE 경로·크기와 WebView2 버전을 한 번 기록한다. 실패나 미검증 항목은 `PARTIAL`로 남기고 재개할 단계와 파일을 명시한다.
+- [x] 자동 검증은 테스트당 20분 제한으로 실행한다. 완료 시 이 문서에 개발 창·독립 EXE·IPC·입력·재빌드 결과, 실제 EXE 경로·크기와 WebView2 버전을 한 번 기록한다. 실패나 미검증 항목은 `PARTIAL`로 남기고 재개할 단계와 파일을 명시한다.
 
 이 실험의 완료 범위는 Windows x64 데모 EXE다. 두 번째 앱에서도 같은 호스트가 필요해지면 Testbed의 Web 산출물로 재사용성을 확인하고, 그 결과로 SDK CLI의 `--target windows --host tauri` 승격을 검토한다. 설치 프로그램, 서명, 성능 비교는 후속 결정 사항이다.
+
+## 4. 실행 결과
+
+Windows x64에서 WebView2 Evergreen `157.0.4341.60`으로 검증했다. 기존 Web 러너와 `m153-nelyx-paragraph.7` CanvasKit 공급을 확인해 사용했다. 자동 검증에 항목당 20분 제한을 적용했다.
+
+| 항목 | 확인 결과 |
+| --- | --- |
+| 최종 릴리스 EXE | `.nelyx/tauri/demo/target/x86_64-pc-windows-msvc/release/nelyx-demo-tauri.exe` · **29,467,136 bytes (28.1 MiB)** |
+| 독립 실행과 IPC | Metro를 끄고 빈 디렉터리에 EXE만 복사해 실행했다. `https://tauri.localhost/`에서 갤러리가 WebGL2로 표시됐고, 실제 창 제목이 `Nelyx Demo · Tauri 0.1.0 (windows)`로 바뀌었다. `run:tauri:windows`로 다시 열어 화면과 제목을 확인하고 정상 종료했다. |
+| 내장 자산 | Playwright로 WebView2에 연결해 다시 로드했다. 실제 `application.js`, CanvasKit JS·Wasm, 한글·이모지·Material 아이콘 폰트 및 샘플 WebP의 응답 해시가 빌드 또는 러너 명세와 일치했다. 갤러리 자산 요청은 내장 origin으로만 갔다. |
+| 창 입력 | PowerShell 가상 입력으로 스크롤, `Filled favorite` 11회 선택 전환과 후속 클릭, 텍스트 입력, Tab 처리와 입력 포커스 이동, 창 크기 변경 후 재클릭이 통과했다. 한글, Material 아이콘, 로컬 사진의 렌더링을 확인했다. WebGL2 초기화 오류와 CanvasKit abort, 갤러리 오류가 관측되지 않았다. |
+| Web 자산 재빌드 | 첫 패키지의 내장 origin에서 검증용 텍스트를 읽었다. Rust 소스를 그대로 두고 `build:tauri:windows`로 다시 빌드한 뒤 텍스트가 사라지고 정상 자산과 갤러리가 표시되는 것을 확인했다. |
+| 개발 창과 종료 | `127.0.0.1:1420`에서 `/hot`으로 HMR 코드가 반영됐고 `/__nelyx/events`로 `POST /reload`가 전달됐다. 새로고침 뒤 갤러리와 버전 제목이 다시 표시됐다. 창 닫기, Ctrl+C, Tauri 시작 실패에서 포트가 반환됐고, 포트 충돌 때는 먼저 실행한 서버가 계속 응답했다. |
+| 빌드 실패와 정리 | Cargo 시작 실패와 빌드 중 Ctrl+C에서 기존 EXE가 보존되고 이번 Web 작업 디렉터리가 정리됐다. 검증용 앱·프로필·EXE 복사본과 임시 파일을 정리했다. |
+| 기본 실행 경로 | Chrome의 `dev:web`에서 같은 갤러리 및 입력을 확인했다. `run:windows`로 `NelyxHermesHost.exe`의 `Nelyx Demo` 창을 열고 종료 코드 0을 확인했다. |
+
+Tauri가 Windows 드라이브 문자가 들어간 `frontendDist`를 URL로 해석하는 경우를 확인해, 런처는 절대 경로를 Windows 확장 경로 형식으로 전달한다. 개발 실행에는 실패를 런처로 전달하는 `--exit-on-panic`과 Cargo의 `--locked`를 사용한다.
+
+Hermes 검증 과정에서 기본 명령이 Material·Cupertino 공급을 갱신했다. Kotlin 데몬이 기존 공급의 해시 검사 대상 안에 남긴 오류 로그 한 파일은 `.nelyx/windows-hermes/kotlin-errors-1795167066125.log`로 옮겼다. 기존 기록과 Hermes 소스 해시가 일치한 뒤 기본 명령의 재빌드와 창 실행이 통과했다.

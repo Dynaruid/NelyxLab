@@ -99,6 +99,7 @@
   "files": [
     "src",
     "README.md",
+    "README.ko.md",
     "LICENSE.md",
     "templates",
     "upstream"

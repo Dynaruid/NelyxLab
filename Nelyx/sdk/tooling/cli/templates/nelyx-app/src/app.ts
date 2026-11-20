@@ -105,7 +105,9 @@ import {
   Directionality,
   mediaFromView,
 } from '@nelyx/core/framework/widgets/app-data';
-import { AnimationController, easeInOut } from '@nelyx/core/framework/animation/animation';
+import { AnimationController } from '@nelyx/core/framework/animation/animation-controller';
+import { Curves } from '@nelyx/core/framework/animation/curves';
+import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { FocusNode } from '@nelyx/core/framework/widgets/focus';
 import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import type { Disposable } from '@nelyx/core/foundation/disposable';
@@ -136,7 +138,7 @@ class SampleApp extends StatefulWidget {
     return new SampleState();
   }
 }
-class SampleState extends State<SampleApp> {
+class SampleState extends SingleTickerProviderStateMixin<SampleApp> {
   private count = 0;
   private editor!: TextEditingController;
   private second!: TextEditingController;
@@ -154,9 +156,10 @@ class SampleState extends State<SampleApp> {
   private serviceStatus = '';
   private serviceEpoch = 0;
   override initState(): void {
+    super.initState();
     this.editor = new TextEditingController(this.widget.initialText);
     this.second = new TextEditingController('TypeScript UI');
-    this.animation = new AnimationController(this.widget.scheduler, 250);
+    this.animation = new AnimationController({ vsync: this, duration: 250 });
     this.servicesObserver = this.widget.services.platformServices?.addObserver({
       didChangeEnvironment: () => {
         if (this.mounted) this.setState(() => {});
@@ -179,6 +182,7 @@ class SampleState extends State<SampleApp> {
     this.pageScroll.dispose();
     this.navigator.dispose();
     this.animation.dispose();
+    super.dispose();
   }
   private async clipboard(copy: boolean): Promise<void> {
     const epoch = ++this.serviceEpoch;
@@ -473,7 +477,9 @@ class SampleState extends State<SampleApp> {
                   new ClipOval(
                     new FilledButton('increment', `카운터 증가 · ${this.count}`, () => {
                       this.setState(() => this.count++);
-                      void this.animation.animateTo(this.count % 2, 250, easeInOut).catch(() => {});
+                      void this.animation
+                        .animateTo(this.count % 2, { curve: Curves.easeInOut })
+                        .orCancel.catch(() => {});
                     }),
                     { clipper: new CounterOvalClipper(this.animation) },
                   ),

@@ -10,23 +10,23 @@
     "dev": "nelyx dev --app ../.. --target web"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-150a1863e7c67d2b47bb85b65b01bbb193770b379452c17a3092925d97ad3145.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-2ae537f6f4ac4c8278cb68b010e239b44e3603d69cd3ecae1183e0632d81b5a6.tgz",
-    "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-bb38ca8d4e025bd70c8d1733fc9ba25ebd0762c04346d4bf294665d2c73e2256.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-b70ad50528f9626fdbc245941398bcfc505ae8a88badace4175e6e27192cc90b-b70ad50528f9626fdbc245941398bcfc505ae8a88badace4175e6e27192cc90b.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-de7953b008f73ffeac829eed48235ba23846abbec0fb2c31f9b8639f57437915-de7953b008f73ffeac829eed48235ba23846abbec0fb2c31f9b8639f57437915.tgz",
+    "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-bb38ca8d4e025bd70c8d1733fc9ba25ebd0762c04346d4bf294665d2c73e2256-bb38ca8d4e025bd70c8d1733fc9ba25ebd0762c04346d4bf294665d2c73e2256.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native-web": "0.21.3",
-    "@nelyx/material": "file:../../.nelyx/supply/web/nelyx-material-0.2.0-37c47a7d04b95b92357a19be11f8e00e7104c9429af8c3031c0253983bf35def.tgz",
-    "@nelyx/cupertino": "file:../../.nelyx/supply/web/nelyx-cupertino-0.2.0-df623b508dfbc0e541ec90de525ae8046bf477bac8a70410f6e2231e9e7ee3a0.tgz"
+    "@nelyx/material": "file:../../.nelyx/supply/web/nelyx-material-0.2.0-a152d5f2f35e7534269a9341bcc4e36135360a678a838e98d5109343792f8cac-a152d5f2f35e7534269a9341bcc4e36135360a678a838e98d5109343792f8cac.tgz",
+    "@nelyx/cupertino": "file:../../.nelyx/supply/web/nelyx-cupertino-0.2.0-dcb23d6c0aea6a3bfa2f9491c63cb6b0fcbf63cce91f9d9f50219bdd04fbbb3b-dcb23d6c0aea6a3bfa2f9491c63cb6b0fcbf63cce91f9d9f50219bdd04fbbb3b.tgz"
   },
   "devDependencies": {
-    "@nelyx/metro": "file:../../.nelyx/supply/web/nelyx-metro-0.10.0-295eeb9cbfc93eaa22562de475dbdf307272758819ec2b8fe0c8f857f93eaf7f.tgz",
-    "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.11.0-b1e7368a4dfaae679d22e217d1207a6a1bc2386906d5901063acfb5518c93e3d.tgz",
+    "@nelyx/metro": "file:../../.nelyx/supply/web/nelyx-metro-0.10.0-295eeb9cbfc93eaa22562de475dbdf307272758819ec2b8fe0c8f857f93eaf7f-295eeb9cbfc93eaa22562de475dbdf307272758819ec2b8fe0c8f857f93eaf7f.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.11.0-aa742d7ce0edecc52fe4baf56a34280999d0d2c550f212a331c6ab65edbfe6f8-aa742d7ce0edecc52fe4baf56a34280999d0d2c550f212a331c6ab65edbfe6f8.tgz",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "@types/node": "24.10.1",
     "typescript": "7.0.2",
-    "@nelyx/static-aot": "file:../../.nelyx/supply/web/nelyx-static-aot-0.1.0-c78945472160746df569d99759f03b2a3bc3bb9dbc23b953fb6ed0345a8267cc.tgz",
-    "@nelyx/tooling-contracts": "file:../../.nelyx/supply/web/nelyx-tooling-contracts-0.1.0-2c14b679ef5bf60a0e6ac45abf95d77c9d633e094894ecc26c831622357e44a8.tgz"
+    "@nelyx/static-aot": "file:../../.nelyx/supply/web/nelyx-static-aot-0.1.0-c78945472160746df569d99759f03b2a3bc3bb9dbc23b953fb6ed0345a8267cc-c78945472160746df569d99759f03b2a3bc3bb9dbc23b953fb6ed0345a8267cc.tgz",
+    "@nelyx/tooling-contracts": "file:../../.nelyx/supply/web/nelyx-tooling-contracts-0.1.0-2c14b679ef5bf60a0e6ac45abf95d77c9d633e094894ecc26c831622357e44a8-2c14b679ef5bf60a0e6ac45abf95d77c9d633e094894ecc26c831622357e44a8.tgz"
   }
 }

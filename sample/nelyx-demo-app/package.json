@@ -8,6 +8,9 @@
     "prepare:android": "node eng/prepare-runner.mjs android",
     "dev:web": "npm --prefix web/runner run dev",
     "build:web": "npm --prefix web/runner run build",
+    "dev:tauri:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --target windows --host tauri",
+    "build:tauri:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs build --app . --target windows --host tauri",
+    "run:tauri:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --target windows --host tauri",
     "build:windows": "npm --prefix windows/runner run build",
     "run:windows": "node eng/run-windows.mjs",
     "run:windows:prepared": "node eng/run-windows.mjs --preparation split",
@@ -22,7 +25,9 @@
     "@nelyx/material": "0.2.0",
     "@nelyx/cupertino": "0.2.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.6"
+  },
   "type": "module",
   "nelyx": {
     "schema": "nelyx.app/v2",

@@ -29,7 +29,8 @@ import {
   devWeb,
 } from './web-runner.mjs';
 const usage =
-  'Usage: nelyx create|supply|doctor|prepare|build|run|dev|pack --app <app> --target windows|linux|android|ios|macos|web [--package <directory>] [--output <new-path>]';
+  'Usage: nelyx create|supply|doctor|prepare|build|run|dev|pack --app <app> --target windows|linux|android|ios|macos|web [--package <directory>] [--output <new-path>]\n' +
+  'Windows Tauri: nelyx doctor|prepare|build|run|dev --app <app> --target windows --host tauri';
 try {
   const args = process.argv.slice(2),
     operation = args.shift(),
@@ -54,6 +55,11 @@ try {
     if (Object.hasOwn(values, key) || !value || value.startsWith('--')) throw new Error(usage);
     values[key] = value;
   }
+  const tauri = values.host === 'tauri';
+  if (tauri && (values.target ?? 'windows') !== 'windows')
+    throw new Error('--host tauri requires --target windows');
+  if (tauri && !['doctor', 'prepare', 'build', 'run', 'dev'].includes(operation))
+    throw new Error(`Windows Tauri does not support ${operation}`);
   if (operation === 'create') {
     if (!destination)
       throw new Error(
@@ -113,8 +119,10 @@ try {
     run: ['package'],
     pack: ['package', 'output'],
   };
-
-  if (target === 'windows') {
+  if (tauri) {
+    for (const op of ['doctor', 'prepare', 'build', 'run']) allowed[op] = ['host'];
+    allowed.dev = ['host', 'port'];
+  } else if (target === 'windows') {
     for (const op of ['doctor', 'prepare', 'build', 'run', 'pack']) allowed[op].push('host');
     allowed.prepare.push('native-inputs', 'engine', 'engine-inputs', 'hermes-mode', 'jsc-mode');
     allowed.build.push(
@@ -160,7 +168,15 @@ try {
   }
   for (const key of Object.keys(values))
     if (!['app', 'target', ...allowed[operation]].includes(key))
-      throw new Error(`Option --${key} is not supported by ${target} ${operation}`);
+      throw new Error(
+        `Option --${key} is not supported by ${target}${tauri ? ' tauri' : ''} ${operation}`,
+      );
+  if (
+    tauri &&
+    values.port !== undefined &&
+    (!/^\d+$/.test(values.port) || Number(values.port) < 1 || Number(values.port) > 65535)
+  )
+    throw new Error('Windows Tauri dev --port requires a port from 1 to 65535');
   if (
     nativeArguments.length &&
     (operation !== 'run' || !['windows', 'linux', 'ios', 'macos'].includes(target))
@@ -240,13 +256,15 @@ try {
   }[target];
   if (
     target === 'windows' &&
+    !tauri &&
     operation !== 'dev' &&
     values.host !== undefined &&
     !['rnw', 'native', 'native-hermes'].includes(values.host)
   )
-    throw Error('Choose Windows --host rnw, native or native-hermes');
-  const result =
-    target === 'windows' && ['native', 'native-hermes'].includes(values.host)
+    throw Error('Choose Windows --host rnw, native, native-hermes or tauri');
+  const result = tauri
+    ? await (await import('./windows-tauri-runner.mjs')).tauriWindowsOperation(operation, options)
+    : target === 'windows' && ['native', 'native-hermes'].includes(values.host)
       ? await (
           await import('./windows-native-runner.mjs')
         ).nativeWindowsOperation(operation, options)
@@ -254,8 +272,9 @@ try {
           options,
         );
   console.log(JSON.stringify(result, null, 2));
-  if (operation === 'run' || operation === 'dev') process.exitCode = result.exitCode;
+  if (operation === 'run' || operation === 'dev' || (tauri && operation === 'doctor'))
+    process.exitCode = result.exitCode;
 } catch (error) {
   console.error(String(error));
-  process.exitCode = 1;
+  process.exitCode = error?.exitCode ?? 1;
 }

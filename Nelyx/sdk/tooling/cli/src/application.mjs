@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { defineConfig, defineAssetManifest } from '@nelyx/sdk/runtime/config';
 import { createProviderRegistry } from '@nelyx/sdk/runtime/providers';
 /** Read the root package configuration using this target's installed packages. */
-export async function readApplication(app, target = 'windows') {
+export async function readApplication(app, target = 'windows', { prepareAssets = true } = {}) {
   app = fs.realpathSync(app);
   const runner = path.join(app, target, 'runner');
   if (!fs.existsSync(path.join(runner, 'package.json')))
@@ -15,8 +15,14 @@ export async function readApplication(app, target = 'windows') {
     JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).nelyx,
   );
   if (!declared.targets[target]) throw new Error('App does not configure target: ' + target);
-  const prepared = load('@nelyx/metro/assets').prepareAppAssetConfiguration(app, runner);
-  const config = Object.freeze({ ...declared, assets: defineAssetManifest(prepared.assets) });
+  const config = prepareAssets
+    ? Object.freeze({
+        ...declared,
+        assets: defineAssetManifest(
+          load('@nelyx/metro/assets').prepareAppAssetConfiguration(app, runner).assets,
+        ),
+      })
+    : declared;
   const registry = createProviderRegistry(),
     settings = config.targets[target],
     profile = registry.profile(target, settings.profile),

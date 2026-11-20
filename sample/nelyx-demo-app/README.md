@@ -28,7 +28,37 @@ Open `http://127.0.0.1:8081/`; Ctrl+C stops the server. Web requires the prepare
 Nelyx CanvasKit runtime and WebGL2. `npm.cmd run build:web --workspace @nelyx/demo`
 writes the current static build to this app's `.nelyx/web/`.
 
-Windows uses the direct Hermes host with Source widgets. Install Visual Studio C++ tools,
+### Windows x64 Tauri host
+
+Install the Rust `x86_64-pc-windows-msvc` toolchain, Visual Studio C++ build tools
+with the Windows SDK, and the WebView2 Evergreen Runtime. Complete Web runner
+preparation above. The workspace install supplies the pinned Tauri CLI.
+Use the SDK's `doctor` and `prepare` commands from the installed Web runner.
+[Nelyx CLI Tauri guide](../../Nelyx/sdk/tooling/cli/README.md#windows-x64-tauri)
+
+Run from the repository root.
+
+```powershell
+npm.cmd run build:tauri:windows --workspace @nelyx/demo
+npm.cmd run run:tauri:windows --workspace @nelyx/demo
+```
+
+The build writes `sample/nelyx-demo-app/.nelyx/tauri/windows-x64/nelyx-tauri.exe`.
+The EXE embeds the Web gallery and can run by itself
+with Metro stopped. The Rust command updates the native window title to
+`Nelyx Demo · Tauri 0.1.0 (windows)`. Close the release window before rebuilding.
+
+```powershell
+npm.cmd run dev:tauri:windows --workspace @nelyx/demo
+```
+
+The development window uses HMR and reloads from its own Metro server at
+`http://127.0.0.1:1420/`. Close the window or press Ctrl+C to stop the server.
+Use `npm.cmd run run:windows --workspace @nelyx/demo` to return to the default Windows demo.
+
+### Windows direct Hermes host
+
+The default Windows demo uses the direct Hermes host with Source widgets. Install Visual Studio C++ tools,
 Windows SDK, LLVM, CMake and Ninja, and prepare the matching native Skia inputs:
 
 ```powershell
@@ -80,6 +110,8 @@ Use the current-source Windows runner to select the control or candidate.
 See the [W5 results and limitations](../../history/26/11/17/work5-summary.md).
 The current candidate produces dates ahead in the native Demo calendar. Full performance acceptance is pending,
 and it remains disabled by default.
+
+### Android
 
 Android defaults to the x86_64 `emulator-vulkan` profile. Select a standard JDK 21
 (Temurin is available on this Windows machine), then run from the repository root:

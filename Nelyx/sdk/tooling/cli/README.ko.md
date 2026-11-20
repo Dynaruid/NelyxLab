@@ -69,6 +69,41 @@ Windows RNW의 `run`은 앱 소스·에셋·Windows 설정과 설치된 Nelyx SD
 
 기존 외부 앱은 앱·SDK 입력 기록과 네이티브 SDK 헤더 무효화를 위해 `windows/runner/build.mjs`를 현재 starter 템플릿으로 한 번 갱신하세요. 저장소 Testbed에는 이 갱신이 포함되어 있습니다.
 
+## Windows x64 Tauri
+
+위 절차로 Web 러너를 생성하고 패키지를 공급·설치합니다.
+Rust `x86_64-pc-windows-msvc` 타깃, Visual Studio C++ x64 도구와 Windows SDK,
+WebView2 Evergreen을 설치합니다. 앱 루트에서 아래 버전의 Tauri CLI를 설치합니다.
+npm workspace 앱은 workspace 루트에서 `--workspace <앱 패키지>`를 지정합니다.
+[Tauri 준비 사항](https://v2.tauri.app/start/prerequisites/#windows)
+
+```powershell
+npm.cmd install --save-dev --save-exact '@tauri-apps/cli@2.12.6'
+```
+
+설치한 앱의 `web/runner/`에서 실행합니다.
+
+```powershell
+npx.cmd --no-install nelyx doctor --app ../.. --target windows --host tauri
+npx.cmd --no-install nelyx prepare --app ../.. --target windows --host tauri
+npx.cmd --no-install nelyx build --app ../.. --target windows --host tauri
+npx.cmd --no-install nelyx run --app ../.. --target windows --host tauri
+npx.cmd --no-install nelyx dev --app ../.. --target windows --host tauri --port 1420
+```
+
+`doctor`는 러너, 호스트 소스, CLI 버전과 Windows 준비 조건을 보고합니다.
+`prepare`는 첫 실행에서 `src-tauri/`를 만들고 이후에는 그 설정을 검사합니다.
+이 디렉터리에서 창 제목, 앱 식별자, 아이콘과 Rust 명령을 편집합니다.
+
+`build`는 릴리스 Web 자산을 앱의 `.nelyx/tauri/windows-x64/nelyx-tauri.exe`에
+내장합니다. WebView2 Evergreen이 있는 Windows x64에서 이 EXE를 바로 열 수 있습니다.
+`nelyx run`을 쓰면 `--` 뒤의 인자를 EXE에 전달합니다. 다시 게시하기 전에 실행 중인 EXE를 닫으세요.
+
+`dev`는 Tauri 설정의 루프백 HTTP `build.devUrl`을 사용합니다. 템플릿 기본값은
+`http://127.0.0.1:1420/`이며 `--port`로 해당 세션의 포트를 바꿉니다.
+창을 닫거나 Ctrl+C를 누르면 앱과 Metro가 종료됩니다.
+이 호스트는 `doctor`·`prepare`·`build`·`run`·`dev`를 지원합니다.
+
 ## 네이티브 준비 조건
 
 | 대상 | 필요한 준비 |

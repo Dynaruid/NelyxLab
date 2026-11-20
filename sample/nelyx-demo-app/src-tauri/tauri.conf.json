@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Nelyx Demo Tauri",
+  "identifier": "dev.nelyx.demo.tauri",
+  "build": {
+    "devUrl": "http://127.0.0.1:1420/",
+    "frontendDist": "../.nelyx/web"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Nelyx Demo · Tauri",
+        "useHttpsScheme": true,
+        "width": 1200,
+        "height": 800
+      }
+    ],
+    "security": {
+      "capabilities": ["main"],
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self' blob: 'wasm-unsafe-eval'",
+        "connect-src": "'self' ipc: https://ipc.localhost",
+        "style-src-elem": "'self' 'unsafe-inline'",
+        "style-src-attr": "'unsafe-inline'"
+      }
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["../windows/NelyxRNHost/NelyxRNHost.ico"]
+  }
+}
