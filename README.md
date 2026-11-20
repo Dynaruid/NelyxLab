@@ -33,6 +33,16 @@ npm.cmd run pack:windows --workspace @nelyx/testbed-2
 npm.cmd run run:windows --workspace @nelyx/testbed-2
 ```
 
+### Run Demo on Android
+
+Prepare the Demo runner and Android toolchain, then start an emulator or connect a phone. Run these PowerShell commands from the repository root and pass your device's ADB serial to `--device`. For an ARM64 phone such as a Galaxy, change both `--architecture` values to `arm64`. [Demo Android setup](sample/nelyx-demo-app/README.md#run-on-android)
+
+```powershell
+npm.cmd run prepare:android --workspace @nelyx/demo -- --architecture x64
+npm.cmd run build:android --workspace @nelyx/demo -- --architecture x64
+npm.cmd run run:android --workspace @nelyx/demo -- --device emulator-5554
+```
+
 ## Project layout
 
 | Path | Purpose |

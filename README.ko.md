@@ -33,6 +33,16 @@ npm.cmd run pack:windows --workspace @nelyx/testbed-2
 npm.cmd run run:windows --workspace @nelyx/testbed-2
 ```
 
+### Android에서 Demo 실행
+
+Demo 러너와 Android 도구를 준비한 뒤 에뮬레이터를 시작하거나 휴대폰을 연결합니다. 저장소 루트에서 아래 PowerShell 명령을 실행하고 `--device`에 연결한 기기의 ADB 시리얼을 넣습니다. 갤럭시 같은 ARM64 휴대폰에서는 두 `--architecture` 값을 `arm64`로 바꿉니다. [Demo Android 준비 및 연결](sample/nelyx-demo-app/README.ko.md#android에서-실행)
+
+```powershell
+npm.cmd run prepare:android --workspace @nelyx/demo -- --architecture x64
+npm.cmd run build:android --workspace @nelyx/demo -- --architecture x64
+npm.cmd run run:android --workspace @nelyx/demo -- --device emulator-5554
+```
+
 ## 문서
 
 | 경로 | 내용 |
