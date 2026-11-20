@@ -1,7 +1,11 @@
-import { kDefaultIconLightColor, kDefaultIconDarkColor } from './constants.ts';
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Complete M3 IconButton surface, style factory and four source variant policies.
+// Flutter: packages/flutter/lib/src/material/icon_button.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
+import {
+  kDefaultIconLightColor,
+  kDefaultIconDarkColor,
+  kMinInteractiveDimension,
+} from './constants.ts';
 import { StatelessWidget, Widget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext } from '@nelyx/core/framework/widgets/framework';
 import type { Key } from '@nelyx/core/foundation/key';
@@ -13,10 +17,17 @@ import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
 import { Color } from '@nelyx/core/ui/color';
 import { Size } from '@nelyx/core/ui/size';
 import type { MouseCursor } from '@nelyx/core/services/mouse-cursor';
+import { SystemMouseCursors } from '@nelyx/core/services/mouse-cursor';
+import { WidgetStateMouseCursor } from '@nelyx/core/framework/widgets/widget-state-mouse-cursor';
+import { Align, ConstrainedBox, Padding, SizedBox } from '@nelyx/core/framework/widgets/basic';
+import { Directionality } from '@nelyx/core/framework/widgets/app-data';
+import { Semantics } from '@nelyx/core/framework/widgets/semantics';
+import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
 import type { AlignmentGeometry } from '@nelyx/core/framework/painting/alignment';
+import { Alignment } from '@nelyx/core/framework/painting/alignment';
 import type { BorderSide, OutlinedBorder } from '@nelyx/core/framework/painting/borders';
-import type { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { DiagnosticsProperty, StringProperty } from '@nelyx/core/foundation/diagnostics';
 import type { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
@@ -28,6 +39,10 @@ import type { MaterialButtonOptions, MaterialButtonVariant } from './button-styl
 import type { VisualDensity, MaterialTapTargetSize } from './theme-data.ts';
 import type { InteractiveInkFeatureFactory } from './ink-feature.ts';
 import { Theme } from './theme.ts';
+import type { ThemeData } from './theme-data.ts';
+import { InkResponse } from './ink-well.ts';
+import { Material } from './material.ts';
+import { Tooltip } from './tooltip.ts';
 import './colors.ts';
 import { IconButtonTheme } from './icon-button-theme.ts';
 import { iconButtonDefaults } from './internal/button/icon-button-defaults.ts';
@@ -269,7 +284,9 @@ export class IconButton extends StatelessWidget {
       splashFactory: o.splashFactory ?? null,
     });
   }
-  build(): Widget {
+  build(context: BuildContext): Widget {
+    const theme = Theme.of(context);
+    if (!theme.useMaterial3) return this.buildMaterial2(context, theme);
     const o = this.options;
     let adjusted = IconButton.styleFrom({
       visualDensity: this.visualDensity,
@@ -306,6 +323,64 @@ export class IconButton extends StatelessWidget {
       tooltip: this.tooltip,
       ...(o.onHover ? { onHover: o.onHover } : {}),
       ...(o.id ? { id: o.id } : {}),
+    });
+  }
+  private buildMaterial2(context: BuildContext, theme: ThemeData): Widget {
+    const enabled = this.onPressed !== null;
+    const size = this.iconSize ?? IconTheme.of(context).size ?? 24;
+    const padding = this.padding ?? EdgeInsets.all(8);
+    const resolved = padding.resolve(Directionality.maybeOf(context) ?? 'ltr');
+    const density = this.visualDensity ?? theme.visualDensity;
+    const constraints = density.effectiveConstraints(
+      this.constraints ??
+        new BoxConstraints(kMinInteractiveDimension, Infinity, kMinInteractiveDimension),
+    );
+    const glyph = IconTheme.merge({
+      data: new IconThemeData({
+        size,
+        color: enabled ? this.color : (this.disabledColor ?? theme.disabledColor),
+      }),
+      child: this.icon,
+    });
+    const box = new ConstrainedBox(
+      new Padding(
+        padding,
+        new SizedBox(
+          size,
+          size,
+          new Align(glyph, { alignment: this.alignment ?? Alignment.center }),
+        ),
+      ),
+      constraints,
+    );
+    const ink = new InkResponse({
+      ...(this.options.id !== undefined ? { id: this.options.id } : {}),
+      focusNode: this.focusNode,
+      autofocus: this.autofocus,
+      canRequestFocus: enabled,
+      onTap: this.onPressed,
+      onLongPress: enabled ? this.onLongPress : null,
+      onHover: this.onHover,
+      mouseCursor:
+        this.mouseCursor ??
+        (enabled ? WidgetStateMouseCursor.adaptiveClickable : SystemMouseCursors.basic),
+      enableFeedback: this.enableFeedback ?? true,
+      focusColor: this.focusColor ?? theme.focusColor,
+      hoverColor: this.hoverColor ?? theme.hoverColor,
+      highlightColor: this.highlightColor ?? theme.highlightColor,
+      splashColor: this.splashColor ?? theme.splashColor,
+      radius:
+        this.splashRadius ??
+        Math.max(
+          Material.defaultSplashRadius,
+          (size + Math.min(resolved.horizontal, resolved.vertical)) * 0.7,
+        ),
+      child: box,
+    });
+    return new Semantics({
+      button: true,
+      enabled,
+      child: this.tooltip === null ? ink : new Tooltip({ message: this.tooltip, child: ink }),
     });
   }
   override debugFillProperties(properties: DiagnosticPropertiesBuilder): void {

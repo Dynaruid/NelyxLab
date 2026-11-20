@@ -47,7 +47,7 @@ export function connectNativeEditing(
     return { id: String(client), generation: 1 };
   };
   const module: WindowsInputModule = {
-    getInputProtocol: () => 3,
+    getInputProtocol: () => 4,
     async connect(surface, owner) {
       if (
         connected ||
@@ -96,6 +96,14 @@ export function connectNativeEditing(
           revision: args[3],
           request: args[4],
           cancel: name === 'replaceComposing',
+        };
+      } else if (name === 'limitComposition') {
+        packet = {
+          text: args[0],
+          anchor: args[1],
+          focus: args[2],
+          composing: args[3],
+          revision: args[4],
         };
       } else if (name === 'geometry') {
         const value = args[0] as {

@@ -630,6 +630,9 @@ export class Localizations extends InheritedWidget {
   resource<T extends object>(type: LocalizationResource<T>): T | null {
     return (this.resources.get(type) as T | undefined) ?? null;
   }
+  wrap(child: Widget): Localizations {
+    return new Localizations(this.locale, this.messages, this.fallback, child, this.resources);
+  }
   text(key: string): string {
     return (
       this.messages[this.locale]?.[key] ??

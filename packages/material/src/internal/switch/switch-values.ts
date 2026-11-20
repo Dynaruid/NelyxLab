@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
-// Pinned M3 and adaptive switch decisions. M2/deprecated policy is excluded.
+// Flutter: packages/flutter/lib/src/material/switch.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import type {
   SwitchConfig,
   SwitchPaintValues,
@@ -24,12 +24,17 @@ import {
 import type { MouseCursor } from '@nelyx/core/services/mouse-cursor';
 import { HSLColor } from '@nelyx/core/framework/painting/colors';
 import { BoxShadow } from '@nelyx/core/framework/painting/box-shadow';
+import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { Offset } from '@nelyx/core/ui/offset';
 import { Curves } from '@nelyx/core/framework/animation/curves';
 import type { ToggleableMotionProfile } from '@nelyx/core/framework/widgets/toggleable-control';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { CupertinoColors, CupertinoDynamicColor } from '@nelyx/cupertino/colors';
 import { Theme } from '../../theme.ts';
+import type { ThemeData } from '../../theme-data.ts';
+import { Colors } from '../../colors.ts';
+import { kRadialReactionAlpha, kRadialReactionRadius } from '../../constants.ts';
+import { kElevationToShadow } from '../../shadows.ts';
 import { SwitchTheme, SwitchThemeData } from '../../switch-theme.ts';
 import { MaterialTapTargetSize } from '../../theme-data.ts';
 import { switchDefaultsM3 } from '../toggle/toggle-defaults.ts';
@@ -83,6 +88,25 @@ const cupConfig: SwitchConfig = Object.freeze({
   shadows: cupShadows,
   motion: cupMotion,
 });
+const m2Config: SwitchConfig = Object.freeze({
+  isCupertino: false,
+  trackWidth: 33,
+  trackHeight: 14,
+  activeRadius: 10,
+  inactiveRadius: 10,
+  pressedRadius: 10,
+  iconRadius: 10,
+  transitionalWidth: 20,
+  transitionalHeight: 20,
+  contractThumbInMotion: true,
+  shadows: kElevationToShadow.get(1)!,
+  motion: Object.freeze({
+    ...m3Motion,
+    duration: 200,
+    curve: Curves.easeIn,
+    reverseCurve: Curves.easeOut,
+  }),
+});
 const transparent = new Color(0),
   white = new Color(0xffffffff);
 const collapsedSwitchHeight = 40;
@@ -95,6 +119,38 @@ function property(
     assertSourceColorInterface(color);
     // Reviewed source subtypes retain their captured identity and resolved floating channels.
     return Object.getPrototypeOf(color) === Color.prototype ? captureSourceColor(color) : color;
+  });
+}
+function switchDefaultsM2(theme: ThemeData): SwitchThemeData {
+  const dark = theme.brightness === 'dark';
+  const secondary = new Color(theme.colorScheme.secondary);
+  const thumbColor = (states: DartSet<WidgetState>) => {
+    if (states.contains(WidgetState.disabled))
+      return dark ? Colors.grey.shade800 : Colors.grey.shade400;
+    if (states.contains(WidgetState.selected)) return secondary;
+    return dark ? Colors.grey.shade400 : Colors.grey.shade50;
+  };
+  return new SwitchThemeData({
+    thumbColor: property(thumbColor),
+    trackColor: property((states) => {
+      if (states.contains(WidgetState.disabled)) return dark ? Colors.white10 : Colors.black12;
+      if (states.contains(WidgetState.selected)) return secondary.withAlpha(0x80);
+      return dark ? Colors.white30 : new Color(0x52000000);
+    }),
+    trackOutlineColor: property(() => transparent),
+    overlayColor: property((states) => {
+      if (states.contains(WidgetState.pressed))
+        return thumbColor(states).withAlpha(kRadialReactionAlpha);
+      if (states.contains(WidgetState.hovered)) return theme.hoverColor;
+      if (states.contains(WidgetState.focused)) return theme.focusColor;
+      return null;
+    }),
+    mouseCursor: WidgetStateProperty.resolveWith(
+      nullableDartType(sourceMouseCursorType),
+      (states) => WidgetStateMouseCursor.clickable.resolve(states),
+    ),
+    padding: EdgeInsets.zero,
+    splashRadius: kRadialReactionRadius,
   });
 }
 export function switchDefaultsCupertino(context: BuildContext): SwitchThemeData {
@@ -140,13 +196,17 @@ function effectiveSwitchTheme(context: BuildContext, adaptive: boolean): SwitchT
 /** Public Switch size resolution and internal painter resolution are independent source build stages. */
 export function switchSize(w: Switch, context: BuildContext, adaptive: boolean): Size {
   const theme = Theme.of(context),
-    style = effectiveSwitchTheme(context, adaptive),
-    defaults = switchDefaultsM3(context);
-  const padding = w.padding ?? style.padding ?? defaults.padding!;
+    style = effectiveSwitchTheme(context, adaptive);
+  const padding =
+    w.padding ??
+    style.padding ??
+    (theme.useMaterial3 ? switchDefaultsM3(context).padding! : EdgeInsets.zero);
   const target =
     w.materialTapTargetSize ?? style.materialTapTargetSize ?? theme.materialTapTargetSize;
   return new Size(
-    m3Config.trackWidth + padding.horizontal,
+    (theme.useMaterial3
+      ? m3Config.trackWidth
+      : m2Config.trackWidth - m2Config.trackHeight + collapsedSwitchHeight) + padding.horizontal,
     collapsedSwitchHeight + (target === MaterialTapTargetSize.padded ? 8 : 0) + padding.vertical,
   );
 }
@@ -157,10 +217,13 @@ export function switchEnvironment(
 ): SwitchEnvironment {
   const theme = Theme.of(context),
     isCupertino = adaptive && ['iOS', 'macOS'].includes(theme.platform),
-    config = isCupertino ? cupConfig : m3Config;
+    config = isCupertino ? cupConfig : theme.useMaterial3 ? m3Config : m2Config;
   const style = effectiveSwitchTheme(context, adaptive);
-  const materialDefaults = switchDefaultsM3(context),
-    defaults = isCupertino ? switchDefaultsCupertino(context) : materialDefaults;
+  const defaults = isCupertino
+    ? switchDefaultsCupertino(context)
+    : theme.useMaterial3
+      ? switchDefaultsM3(context)
+      : switchDefaultsM2(theme);
   const c = theme.colorScheme;
   return {
     config,
@@ -172,17 +235,19 @@ export function switchEnvironment(
       (w.applyCupertinoTheme ?? theme.cupertinoOverrideTheme?.applyThemeToAll ?? false),
     cupertinoPrimary: new Color(theme.cupertinoOverrideTheme?.primaryColor ?? c.primary),
     iconColor: (states) =>
-      states.contains(WidgetState.disabled)
-        ? new Color(
-            isCupertino || states.contains(WidgetState.selected)
-              ? c.onSurface
-              : c.surfaceContainerHighest,
-          ).withOpacity(0.38)
-        : new Color(
-            isCupertino || states.contains(WidgetState.selected)
-              ? c.onPrimaryContainer
-              : c.surfaceContainerHighest,
-          ),
+      config === m2Config
+        ? transparent
+        : states.contains(WidgetState.disabled)
+          ? new Color(
+              isCupertino || states.contains(WidgetState.selected)
+                ? c.onSurface
+                : c.surfaceContainerHighest,
+            ).withOpacity(0.38)
+          : new Color(
+              isCupertino || states.contains(WidgetState.selected)
+                ? c.onPrimaryContainer
+                : c.surfaceContainerHighest,
+            ),
   };
 }
 function copy(
@@ -296,12 +361,14 @@ export function resolveSwitchPaint(
             .withSaturation(0.835)
             .toColor()
         : null) ??
-      defaults.overlayColor!.resolve(focused)!,
+      defaults.overlayColor!.resolve(focused) ??
+      transparent,
     hoverColor:
       w.overlayColor?.resolve(hovered) ??
       w.hoverColor ??
       style.overlayColor?.resolve(hovered) ??
-      defaults.overlayColor!.resolve(hovered)!,
+      defaults.overlayColor!.resolve(hovered) ??
+      transparent,
     activeReaction:
       w.overlayColor?.resolve(pressedActive) ??
       style.overlayColor?.resolve(pressedActive) ??

@@ -90,6 +90,10 @@ export interface NativeEditorPort {
     revision: number,
     request?: number,
   ): void;
+  applyCompositionLimit?(
+    value: Pick<TextEditingValue, 'text' | 'selection' | 'composing'>,
+    revision: number,
+  ): void;
   updateGeometry?(
     geometry: TextInputGeometry | null,
     text: string,
@@ -106,6 +110,7 @@ export interface NativeEditorPort {
 export interface NativeInteractionPolicy {
   readonly commands: boolean;
   readonly selectionEvents: boolean;
+  readonly selectionDirection?: 'observed' | 'unavailable';
   readonly semantics: 'native-controls' | 'unavailable';
   readonly nativeSnapshots?: boolean;
   readonly compositionReplacement?: boolean;
@@ -225,7 +230,8 @@ export class NativeInteraction {
       capabilities: {
         indexUnit: 'utf16',
         composing: policy.nativeSnapshots ? 'observed' : 'unavailable',
-        selectionDirection: policy.nativeSnapshots ? 'observed' : 'unavailable',
+        selectionDirection:
+          policy.selectionDirection ?? (policy.nativeSnapshots ? 'observed' : 'unavailable'),
         geometry: policy.geometry ?? (policy.nativeSnapshots ? 'observed' : 'unavailable'),
       },
       bind: (owner, initial, changed, options) =>
@@ -910,6 +916,23 @@ export class NativeInteraction {
         }
       },
     };
+    if (editor.kind === 'observed') {
+      binding.applyCompositionLimit = (value, revision) => {
+        const session = current();
+        const port = this.currentPort(id);
+        if (
+          !port?.commands.applyCompositionLimit ||
+          revision !== session.value.revision ||
+          session.value.composing.status !== 'active' ||
+          editor.pendingReplacement ||
+          !this.canAdmitEditorInput(id, editor, port)
+        )
+          return false;
+        validateEditingContent(value);
+        port.commands.applyCompositionLimit(value, editor.nativeRevision);
+        return true;
+      };
+    }
     if (editor.kind === 'observed' && this.policy.compositionReplacement !== false)
       binding.replaceComposing = (value, synchronizationRequest) => {
         if (

@@ -47,6 +47,7 @@ import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-buil
 import { Opacity } from '@nelyx/core/framework/widgets/opacity';
 import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
+import { FadeTransition } from '@nelyx/core/framework/widgets/transitions';
 import type { Clip } from '@nelyx/core/ui/clip';
 import { Color } from '@nelyx/core/ui/color';
 import { IconButton } from './icon-button.ts';
@@ -59,12 +60,15 @@ import { SnackBarTheme } from './snack-bar-theme.ts';
 import { TextButton } from './text-button.ts';
 import { TextButtonTheme, TextButtonThemeData } from './text-button-theme.ts';
 import { Theme } from './theme.ts';
+import { ThemeData } from './theme-data.ts';
 
 export { SnackBarBehavior };
 const transitionDuration = 250;
 const floatingShape = new RoundedRectangleBorder({ borderRadius: BorderRadius.circular(4) });
 const floatingMargin = EdgeInsets.fromLTRB(15, 5, 15, 10);
 const floatingOpacityCurve = new Interval(0.4, 0.6, { curve: Curves.easeInCirc });
+const material2FadeIn = new Interval(0.4, 1);
+const material2ContentFade = new Interval(0.72, 1, { curve: Curves.fastOutSlowIn });
 const fullHeightUntilDismissed = new Threshold(0);
 const reasonToken = Symbol('SnackBarClosedReason');
 
@@ -155,14 +159,21 @@ class SnackBarActionState extends State<SnackBarAction> {
 
   override build(context: BuildContext): Widget {
     const theme = SnackBarTheme.of(context);
-    const defaultColor = new Color(Theme.of(context).colorScheme.inversePrimary);
+    const appTheme = Theme.of(context);
+    const colors = appTheme.colorScheme;
+    const defaultColor = new Color(
+      appTheme.useMaterial3 ? colors.inversePrimary : colors.secondary,
+    );
+    const disabledColor = appTheme.useMaterial3
+      ? defaultColor
+      : new Color(colors.onSurface).withOpacity(appTheme.brightness === 'light' ? 0.38 : 0.3);
     return new TextButton({
       child: new Text(this.widget.label),
       onPressed: this.pressed ? null : this.action,
       style: TextButton.styleFrom({
         foregroundColor: this.widget.textColor ?? theme.actionTextColor ?? defaultColor,
         disabledForegroundColor:
-          this.widget.disabledTextColor ?? theme.disabledActionTextColor ?? defaultColor,
+          this.widget.disabledTextColor ?? theme.disabledActionTextColor ?? disabledColor,
         backgroundColor: this.widget.backgroundColor ?? theme.actionBackgroundColor,
         disabledBackgroundColor:
           this.widget.disabledBackgroundColor ?? theme.disabledActionBackgroundColor,
@@ -267,6 +278,7 @@ export class SnackBar extends StatefulWidget {
 class SnackBarState extends State<SnackBar> {
   private readonly dismissKey = new UniqueKey();
   private floatingHeight: CurvedAnimation | null = null;
+  private material2ContentOpacity: CurvedAnimation | null = null;
   private wasVisible = false;
   private readonly statusChanged = (status: AnimationStatus) => {
     if (status !== AnimationStatus.completed || this.wasVisible) return;
@@ -304,6 +316,7 @@ class SnackBarState extends State<SnackBar> {
     const { options, content, action, animation } = this.widget;
     const theme = Theme.of(context);
     const colors = theme.colorScheme;
+    const isDark = theme.brightness === 'dark';
     const snack = SnackBarTheme.of(context);
     const media = context.maybeDependOn(MediaQuery)?.data;
     const floating = (options.behavior ?? snack.behavior) === SnackBarBehavior.floating;
@@ -324,6 +337,11 @@ class SnackBarState extends State<SnackBar> {
       EdgeInsetsDirectional.fromSTEB(horizontal, 0, action || showClose ? 0 : horizontal, 0);
     const messenger = ScaffoldMessenger.of(context);
     const close = () => messenger.hideCurrentSnackBar({ reason: SnackBarClosedReason.dismiss });
+    const material2Background = !theme.useMaterial3
+      ? isDark
+        ? new Color(colors.onSurface)
+        : Color.alphaBlend(new Color(colors.onSurface).withOpacity(0.8), new Color(colors.surface))
+      : null;
     const closeButton = showClose
       ? new IconButton({
           icon: new Icon(Icons.close),
@@ -331,7 +349,9 @@ class SnackBarState extends State<SnackBar> {
           tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
           onPressed: close,
           color:
-            options.closeIconColor ?? snack.closeIconColor ?? new Color(colors.onInverseSurface),
+            options.closeIconColor ??
+            snack.closeIconColor ??
+            new Color(theme.useMaterial3 ? colors.onInverseSurface : colors.onSurface),
         })
       : null;
     const controls = [
@@ -359,9 +379,14 @@ class SnackBarState extends State<SnackBar> {
     ];
     const label = new DefaultTextStyle(
       snack.contentTextStyle ??
-        (theme.textTheme.bodyMedium ?? new TextStyle()).copyWith({
-          color: colors.onInverseSurface,
-        }),
+        (theme.useMaterial3
+          ? (theme.textTheme.bodyMedium ?? new TextStyle()).copyWith({
+              color: colors.onInverseSurface,
+            })
+          : (new ThemeData({
+              useMaterial3: false,
+              brightness: isDark ? 'light' : 'dark',
+            }).textTheme.titleMedium ?? new TextStyle())),
       content,
     );
     const contents = new Padding(
@@ -415,12 +440,50 @@ class SnackBarState extends State<SnackBar> {
           : inline;
       }),
     );
+    let contentSurface: Widget = floating
+      ? contents
+      : new SafeArea({ top: false, child: contents });
+    const legacyAnimation = !theme.useMaterial3 && !media?.accessibleNavigation ? animation : null;
+    if ((this.material2ContentOpacity?.parent ?? null) !== legacyAnimation) {
+      this.material2ContentOpacity?.dispose();
+      this.material2ContentOpacity = legacyAnimation
+        ? new CurvedAnimation({
+            parent: legacyAnimation,
+            curve: material2ContentFade,
+            reverseCurve: fullHeightUntilDismissed,
+          })
+        : null;
+    }
+    const contentOpacity = this.material2ContentOpacity;
+    if (!theme.useMaterial3) {
+      if (contentOpacity && !media?.accessibleNavigation)
+        contentSurface = new FadeTransition({ opacity: contentOpacity, child: contentSurface });
+      contentSurface = new Theme(
+        theme.copyWith({
+          colorScheme: colors.copyWith({
+            brightness: isDark ? 'light' : 'dark',
+            primary: colors.onPrimary,
+            secondary: isDark ? colors.primary : colors.secondary,
+            surface: colors.onSurface,
+            error: colors.onError,
+            onPrimary: colors.primary,
+            onSurface: colors.surface,
+            onError: colors.error,
+          }),
+        }),
+        contentSurface,
+      );
+    }
     let card: Widget = new Material({
-      color: options.backgroundColor ?? snack.backgroundColor ?? new Color(colors.inverseSurface),
+      color:
+        options.backgroundColor ??
+        snack.backgroundColor ??
+        material2Background ??
+        new Color(colors.inverseSurface),
       elevation: options.elevation ?? snack.elevation ?? 6,
       shape: options.shape ?? snack.shape ?? (floating ? floatingShape : null),
       clipBehavior: options.clipBehavior ?? 'hardEdge',
-      child: floating ? contents : new SafeArea({ top: false, child: contents }),
+      child: contentSurface,
     });
     if (floating) {
       const resolved = margin.resolve(Directionality.of(context));
@@ -457,24 +520,29 @@ class SnackBarState extends State<SnackBar> {
     const floatingHeight = this.floatingHeight;
     const transition =
       animation && !media?.accessibleNavigation
-        ? new ListenableBuilder(
-            animation,
-            () =>
-              new Align(
-                floating
-                  ? new Opacity(surface, {
-                      opacity: floatingOpacityCurve.transform(animation.value),
-                    })
-                  : surface,
-                {
-                  alignment: floating ? Alignment.bottomLeft : AlignmentDirectional.topStart,
-                  heightFactor:
-                    floating && floatingHeight
-                      ? floatingHeight.value
-                      : Curves.fastOutSlowIn.transform(animation.value),
-                },
-              ),
-          )
+        ? floating && !theme.useMaterial3
+          ? new ListenableBuilder(
+              animation,
+              () => new Opacity(surface, { opacity: material2FadeIn.transform(animation.value) }),
+            )
+          : new ListenableBuilder(
+              animation,
+              () =>
+                new Align(
+                  floating
+                    ? new Opacity(surface, {
+                        opacity: floatingOpacityCurve.transform(animation.value),
+                      })
+                    : surface,
+                  {
+                    alignment: floating ? Alignment.bottomLeft : AlignmentDirectional.topStart,
+                    heightFactor:
+                      floating && floatingHeight
+                        ? floatingHeight.value
+                        : Curves.fastOutSlowIn.transform(animation.value),
+                  },
+                ),
+            )
         : surface;
     return new ClipRect(transition, { clipBehavior: options.clipBehavior ?? 'hardEdge' });
   }
@@ -482,6 +550,7 @@ class SnackBarState extends State<SnackBar> {
   override dispose(): void {
     this.widget.animation?.removeStatusListener(this.statusChanged);
     this.floatingHeight?.dispose();
+    this.material2ContentOpacity?.dispose();
     super.dispose();
   }
 }

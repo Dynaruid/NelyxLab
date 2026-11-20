@@ -59,6 +59,9 @@ import { defaultGenerateInitialRoutes } from './app-routes.ts';
 export { defaultGenerateInitialRoutes } from './app-routes.ts';
 import { Router, NavigatorRouterDelegate } from './router.ts';
 import type { RouterOptions } from './router.ts';
+import { AppDiagnostics } from './app-diagnostics.ts';
+import type { InspectorButtonBuilder } from './app-diagnostics.ts';
+export type { InspectorButtonBuilder, InspectorButtonOptions } from './app-diagnostics.ts';
 
 export interface WidgetsAppOptions extends WidgetOptions {
   readonly title?: string;
@@ -75,6 +78,10 @@ export interface WidgetsAppOptions extends WidgetOptions {
   readonly navigatorObservers?: readonly NavigatorObserver[];
   readonly onNavigationNotification?: ((notification: NavigationNotification) => boolean) | null;
   readonly debugShowCheckedModeBanner?: boolean;
+  readonly debugShowWidgetInspector?: boolean;
+  readonly showPerformanceOverlay?: boolean;
+  readonly showSemanticsDebugger?: boolean;
+  readonly inspectorButtonBuilder?: InspectorButtonBuilder;
   readonly initialRoute?: Route | string;
   readonly routes?: Readonly<Record<string, (context: BuildContext) => Widget>>;
   readonly onUnknownRoute?: RouteResolver;
@@ -206,6 +213,7 @@ function checkedModeBanner(direction: 'ltr' | 'rtl'): Widget {
 }
 
 class WidgetsAppState extends State<WidgetsApp> {
+  private readonly contentKey = new GlobalKey();
   // Resizing updates MediaQuery, without publishing a new localization catalog.
   private readonly emptyMessages = Object.freeze({});
   private readonly navigatorKeys = new WeakMap<NavigatorController, GlobalKey>();
@@ -404,7 +412,15 @@ class WidgetsAppState extends State<WidgetsApp> {
     const showBanner =
       o.debugShowCheckedModeBanner !== false && this.context.services.defaultFont !== undefined;
     const child = new Builder((context) => {
-      const content = new ShortcutRegistrar(this.overlay);
+      let content: Widget = new ShortcutRegistrar(this.overlay, this.contentKey);
+      const inspect = FoundationBuildMode.debug && o.debugShowWidgetInspector === true;
+      if (inspect || o.showPerformanceOverlay || o.showSemanticsDebugger)
+        content = new AppDiagnostics(content, {
+          inspect,
+          performance: o.showPerformanceOverlay ?? false,
+          semantics: o.showSemanticsDebugger ?? false,
+          ...(o.inspectorButtonBuilder ? { inspectorButtonBuilder: o.inspectorButtonBuilder } : {}),
+        });
       const titled = new Title({
         title: o.onGenerateTitle?.(context) ?? o.title ?? '',
         child: FoundationBuildMode.debug

@@ -79,7 +79,11 @@ import { DefaultSpellCheckService } from '../../services/spell-check.ts';
 import type { SuggestionSpan } from '../../services/spell-check.ts';
 import { SpellCheckSession } from './spell-check.ts';
 import type { SpellCheckConfiguration } from './spell-check.ts';
-import { snapshotEditingContent, TextEditingDelta } from '../../services/input-formatters.ts';
+import {
+  LengthLimitingTextInputFormatter,
+  snapshotEditingContent,
+  TextEditingDelta,
+} from '../../services/input-formatters.ts';
 import type { EditingContent, TextInputFormatter } from '../../services/input-formatters.ts';
 import { RenderEditable, validateEditableLinePolicy } from '../rendering/editable.ts';
 import type {
@@ -3449,6 +3453,28 @@ export class EditableTextState extends State<EditableText> implements TextSelect
           const compositionBase = this.compositionBase;
           if (composing) this.compositionBase ??= controller.value;
           else this.compositionBase = undefined;
+          if (
+            userEdit &&
+            !this.boundConfiguration.readOnly &&
+            value.composing.status === 'active' &&
+            this.binding?.applyCompositionLimit &&
+            previous !== value.text
+          ) {
+            let limited: EditingContent = value;
+            for (const formatter of this.widget.inputOptions?.inputFormatters ?? []) {
+              if (
+                formatter instanceof LengthLimitingTextInputFormatter &&
+                formatter.effectiveMaxLengthEnforcement === 'enforced'
+              )
+                limited = formatter.formatEditUpdate(controller.value, limited);
+            }
+            if (!current()) return;
+            if (
+              limited.text !== value.text &&
+              this.binding.applyCompositionLimit(limited, value.revision)
+            )
+              return;
+          }
           if (
             !composing &&
             !this.boundConfiguration.readOnly &&

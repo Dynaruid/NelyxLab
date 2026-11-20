@@ -80,6 +80,10 @@ public:
       tick_=timer_.Tick([weak,generation,request](auto const&,auto const&){if(auto current=weak.lock();current&&!current->closing_&&current->active()&&current->generation_==generation&&current->cancellation_==request){try{current->store_->cancellationExpired(request);}catch(std::exception const& error){current->fail(error.what());}catch(...){current->fail("Windows input cancellation deadline failed");}}});timer_.Start();
     }
   }
+  void limitComposition(std::wstring text, Selection selection, Composition composing, uint64_t revision) {
+    auto call = pin();
+    call.store->limitComposition(std::move(text), selection, composing, revision);
+  }
   void close(){ui();if(retired_)return;auto root=root_.lock();if(!root)throw std::logic_error("Text input root retired before its client");close(*root);}
   void close(TextInputRoot& registry){ui();if(&registry!=rootIdentity_)throw std::invalid_argument("Foreign text input retirement owner");retire(registry,{});}
 private:

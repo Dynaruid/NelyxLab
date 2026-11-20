@@ -42,6 +42,7 @@ export interface SwitchConfig {
   readonly iconRadius: number;
   readonly transitionalWidth: number;
   readonly transitionalHeight: number;
+  readonly contractThumbInMotion?: boolean;
   readonly shadows: readonly BoxShadow[];
   readonly motion: ToggleableMotionProfile;
 }
@@ -237,8 +238,13 @@ export class SwitchPainter extends CustomPainter {
     const o = this.options,
       c = o.config,
       colorT = o.colorPosition,
-      thumbSize = this.thumbSize(),
+      baseThumbSize = this.thumbSize(),
       visual = o.rtl ? 1 - o.position : o.position;
+    const inset = c.contractThumbInMotion ? Math.max(0, 1 - Math.abs(o.position - 0.5) * 2) : 0;
+    const thumbSize =
+      inset === 0
+        ? baseThumbSize
+        : new Size(baseThumbSize.width - inset, baseThumbSize.height - inset);
     const trackOffset = new Offset(
         (size.width - c.trackWidth) / 2,
         (size.height - c.trackHeight) / 2,

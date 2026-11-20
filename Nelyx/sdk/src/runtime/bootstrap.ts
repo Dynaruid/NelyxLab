@@ -130,6 +130,7 @@ export class ComposedApplication<
       });
       for (const stop of [
         () => this.stop(),
+        () => this.services.dialogWindows?.stop(),
         () => this.platformViewRegistration?.dispose(),
         () => this.services.nativeSelectionContextMenu?.stop(),
         () => this.session.beginClose(),
@@ -179,6 +180,9 @@ export class ComposedApplication<
       ...[...new Set([this.binding, ...(this.startup ? [this.startup] : [])])].map(
         (value, index) => ({ name: 'binding-' + index, run: bestEffort(value) }),
       ),
+      ...(this.services.dialogWindows
+        ? [{ name: 'dialog-windows', run: bestEffort(this.services.dialogWindows) }]
+        : []),
       {
         name: 'pictures',
         run: checked(
@@ -396,6 +400,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
         clock: { now: () => performance.now() },
         editing: services.editing,
         semantics: services.semantics,
+        ...(services.dialogWindows ? { dialogWindows: services.dialogWindows } : {}),
         ...(services.inputGeometry ? { inputGeometry: services.inputGeometry } : {}),
         ...(services.sceneComposition ? { sceneComposition: services.sceneComposition } : {}),
         ...(services.semanticsGeometry ? { semanticsGeometry: services.semanticsGeometry } : {}),
@@ -450,6 +455,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
     const errors: unknown[] = [error];
     for (const stop of [
       () => platformViewRegistration?.dispose(),
+      () => services.dialogWindows?.stop(),
       () => services.nativeSelectionContextMenu?.stop(),
       () => session.beginClose(),
       () => imageOwner?.stop(),
@@ -466,7 +472,14 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
         errors.push(failure);
       }
     if (application) throw error; // Ownership already transferred, including a failed early close.
-    await disposeAll([...(binding ? [binding] : []), ...(startup ? [startup] : [])], errors);
+    await disposeAll(
+      [
+        ...(binding ? [binding] : []),
+        ...(startup ? [startup] : []),
+        ...(services.dialogWindows ? [services.dialogWindows] : []),
+      ],
+      errors,
+    );
     try {
       pictureOwner?.dispose();
       await rasterOwner?.dispose();

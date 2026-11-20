@@ -42,6 +42,8 @@ export function createWebServices(
     !root.href.endsWith('/')
   )
     throw new Error('Web asset root/count');
+  const document = canvas.ownerDocument,
+    window = document.defaultView!;
   const cursor = new BrowserMouseCursor(canvas),
     interaction = createDomInteraction(
       input,
@@ -117,7 +119,7 @@ export function createWebServices(
     };
     const watchDpi = () => {
       media?.removeEventListener('change', dpi);
-      media = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      media = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
       media.addEventListener('change', dpi);
     };
     const lost = (event: Event) => {
@@ -184,7 +186,7 @@ export function createWebServices(
           let face: FontFace | undefined;
           try {
             if (asset.kind === 'font') {
-              face = await new FontFace(asset.fontFamily!, new Uint8Array(bytes)).load();
+              face = await new window.FontFace(asset.fontFamily!, new Uint8Array(bytes)).load();
               fontSet.add(face);
               cssFonts.add(face);
             }
@@ -212,7 +214,7 @@ export function createWebServices(
       clock: {
         request(callback) {
           if (closed) throw new Error('Web clock closed');
-          const id = requestAnimationFrame(() => {
+          const id = window.requestAnimationFrame(() => {
             if (!frames.delete(id)) return;
             if (!closed)
               try {
@@ -225,7 +227,7 @@ export function createWebServices(
           return {
             dispose() {
               if (frames.delete(id)) {
-                cancelAnimationFrame(id);
+                window.cancelAnimationFrame(id);
               }
             },
           };
@@ -297,7 +299,7 @@ export function createWebServices(
             ownsEditingTarget: interaction.ownsEditingTarget,
             ownsNativeSelectionTarget: (target) => selectionContextMenu.ownsTarget(target),
           });
-          observer = new ResizeObserver(resize);
+          observer = new window.ResizeObserver(resize);
           observer.observe(canvas);
           window.addEventListener('resize', resize);
           window.addEventListener('scroll', resize, true);
@@ -322,7 +324,7 @@ export function createWebServices(
           stop();
           environment.dispose();
           for (const id of frames) {
-            cancelAnimationFrame(id);
+            window.cancelAnimationFrame(id);
           }
           frames.clear();
           interaction.dispose();

@@ -80,7 +80,18 @@ export interface ApplicationDefinition {
   /** One controller per View; no Element/State is shared through AppSession. */
   createView?(context: ViewControllerContext): ViewController;
 }
+export interface DialogWindowOptions<T> {
+  readonly title: string;
+  readonly requestFocus: boolean;
+  readonly createApplication: (dismiss: (result?: T) => void) => ApplicationDefinition;
+}
+/** A host returns null synchronously when a separate window is unavailable. */
+export interface DialogWindowHost extends Disposable {
+  open<T>(options: DialogWindowOptions<T>): Promise<T | undefined> | null;
+  stop(): void;
+}
 export interface ViewServices {
+  readonly dialogWindows?: DialogWindowHost;
   readonly semanticsGeometry?: import('./semantics-geometry.ts').SemanticsGeometryService;
   readonly sceneComposition?: import('./scene-composition.ts').SceneCompositionService;
   readonly inputGeometry?: import('./input-geometry.ts').InputGeometryService;

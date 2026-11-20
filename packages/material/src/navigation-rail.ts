@@ -11,6 +11,7 @@ import type { ShapeBorder } from '@nelyx/core/framework/painting/borders';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
 import { StadiumBorder } from '@nelyx/core/framework/painting/stadium-border';
+import { CircleBorder } from '@nelyx/core/framework/painting/circle-border';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import type { MainAxisAlignment } from '@nelyx/core/framework/rendering/boxes';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
@@ -65,11 +66,14 @@ export { NavigationRailLabelType } from './navigation-rail-label-type.ts';
 
 const duration = 200;
 const indicatorShape = new StadiumBorder();
+const circularIndicatorShape = new CircleBorder();
 const indicatorWidth = 56;
 const indicatorHeight = 32;
 const horizontalPadding = 8;
 const verticalSpacing = 12;
 const iconLabelSpacing = 4;
+const material2PaddingNoLabel = 24;
+const material2PaddingWithLabel = 16;
 const spacer = new SizedBox(undefined, 8);
 const labelFadeIn = new Interval(0.25, 0.75);
 const labelFadeOut = new Interval(0.75, 1);
@@ -251,8 +255,8 @@ class NavigationRailState extends TickerProviderStateMixin<NavigationRail> {
     const direction = Directionality.of(context);
     const localizations = MaterialLocalizations.of(context);
     const rail = NavigationRailTheme.of(context);
-    const { colorScheme } = Theme.of(context);
-    const narrowWidth = options.minWidth ?? rail.minWidth ?? 80;
+    const { colorScheme, useMaterial3 } = Theme.of(context);
+    const narrowWidth = options.minWidth ?? rail.minWidth ?? (useMaterial3 ? 80 : 72);
     const wideWidth = options.minExtendedWidth ?? rail.minExtendedWidth ?? 256;
     const elevation = options.elevation ?? rail.elevation ?? 0;
     invariant(
@@ -355,7 +359,7 @@ class NavigationRailState extends TickerProviderStateMixin<NavigationRail> {
   ): Widget {
     const { options, selectedIndex } = this.widget;
     const selected = index === selectedIndex;
-    const { colorScheme: colors, textTheme } = Theme.of(context);
+    const { colorScheme: colors, textTheme, useMaterial3 } = Theme.of(context);
     const disabledColor = new Color(colors.onSurface).withOpacity(0.38);
     const iconStyle =
       (selected
@@ -363,15 +367,36 @@ class NavigationRailState extends TickerProviderStateMixin<NavigationRail> {
         : (options.unselectedIconTheme ?? theme.unselectedIconTheme)) ??
       new IconThemeData({
         size: 24,
-        color: new Color(selected ? colors.onSecondaryContainer : colors.onSurfaceVariant),
+        color: new Color(
+          useMaterial3
+            ? selected
+              ? colors.onSecondaryContainer
+              : colors.onSurfaceVariant
+            : selected
+              ? colors.primary
+              : colors.onSurface,
+        ),
       });
-    const icons = destination.disabled ? iconStyle.copyWith({ color: disabledColor }) : iconStyle;
+    const effectiveIconStyle =
+      !useMaterial3 && !selected && iconStyle.opacity == null
+        ? iconStyle.copyWith({ opacity: 0.64 })
+        : iconStyle;
+    const icons = destination.disabled
+      ? effectiveIconStyle.copyWith({ color: disabledColor })
+      : effectiveIconStyle;
     const textStyle =
       (selected
         ? (options.selectedLabelTextStyle ?? theme.selectedLabelTextStyle)
         : (options.unselectedLabelTextStyle ?? theme.unselectedLabelTextStyle)) ??
-      (textTheme.labelMedium ?? new TextStyle({ fontSize: 12 })).copyWith({
-        color: colors.onSurface,
+      (
+        (useMaterial3 ? textTheme.labelMedium : textTheme.bodyLarge) ??
+        new TextStyle({ fontSize: 12 })
+      ).copyWith({
+        color: useMaterial3
+          ? colors.onSurface
+          : selected
+            ? colors.primary
+            : new Color(colors.onSurface).withOpacity(0.64).toARGB32(),
       });
     const labelStyle = destination.disabled
       ? textStyle.copyWith({ color: disabledColor.toARGB32() })
@@ -381,17 +406,20 @@ class NavigationRailState extends TickerProviderStateMixin<NavigationRail> {
       overflow: 'ellipsis',
       softWrap: false,
     });
-    const shape =
-      destination.indicatorShape ??
-      options.indicatorShape ??
-      theme.indicatorShape ??
-      indicatorShape;
+    const noLabel = labelType === NavigationRailLabelType.none;
+    const circular = !useMaterial3 && noLabel;
+    const shape = circular
+      ? circularIndicatorShape
+      : (destination.indicatorShape ??
+        options.indicatorShape ??
+        theme.indicatorShape ??
+        indicatorShape);
     const color =
       destination.indicatorColor ??
       options.indicatorColor ??
       theme.indicatorColor ??
-      new Color(colors.secondaryContainer);
-    const showIndicator = options.useIndicator ?? theme.useIndicator ?? true;
+      new Color(useMaterial3 ? colors.secondaryContainer : colors.secondary);
+    const showIndicator = options.useIndicator ?? theme.useIndicator ?? useMaterial3;
     const glyph = new ExcludeSemantics(
       new IconTheme(icons, selected ? destination.selectedIcon : destination.icon),
     );
@@ -400,7 +428,7 @@ class NavigationRailState extends TickerProviderStateMixin<NavigationRail> {
           [
             new NavigationIndicator({
               width: indicatorWidth,
-              height: indicatorHeight,
+              height: circular ? indicatorWidth : indicatorHeight,
               shape,
               color,
               animation,
@@ -418,9 +446,11 @@ class NavigationRailState extends TickerProviderStateMixin<NavigationRail> {
         : EdgeInsets.symmetric({ horizontal: horizontalPadding }))
     ).resolve(direction);
     const iconOffset = Math.max(0, ((icons.size ?? 24) - indicatorHeight) / 2);
-    const noLabel = labelType === NavigationRailLabelType.none;
     const withLabel = labelType === NavigationRailLabelType.all;
     const labelHeight = withLabel ? 1 : Curves.easeInOut.transform(animation.value);
+    const labelPadding =
+      material2PaddingNoLabel + (material2PaddingWithLabel - material2PaddingNoLabel) * labelHeight;
+    const iconSpacing = useMaterial3 ? verticalSpacing / 2 : 0;
     const caption = (opacity: number) =>
       new ExcludeFocus(
         new IgnorePointer(
@@ -435,9 +465,9 @@ class NavigationRailState extends TickerProviderStateMixin<NavigationRail> {
     if (noLabel) {
       const iconPart = new Column(
         [
-          new SizedBox(undefined, verticalSpacing / 2),
-          new SizedBox(narrowWidth, undefined, new Center(icon)),
-          new SizedBox(undefined, verticalSpacing / 2),
+          new SizedBox(undefined, iconSpacing),
+          new SizedBox(narrowWidth, useMaterial3 ? undefined : narrowWidth, new Center(icon)),
+          new SizedBox(undefined, iconSpacing),
         ],
         { mainSize: 'min' },
       );
@@ -467,8 +497,9 @@ class NavigationRailState extends TickerProviderStateMixin<NavigationRail> {
       visual = new ClipRect(
         new Column(
           [
+            ...(useMaterial3 ? [] : [new SizedBox(undefined, labelPadding)]),
             icon,
-            new SizedBox(undefined, labelHeight * iconLabelSpacing),
+            new SizedBox(undefined, useMaterial3 ? labelHeight * iconLabelSpacing : 0),
             ...(labelHeight === 0
               ? []
               : [
@@ -485,7 +516,7 @@ class NavigationRailState extends TickerProviderStateMixin<NavigationRail> {
                     },
                   ),
                 ]),
-            new SizedBox(undefined, verticalSpacing),
+            new SizedBox(undefined, useMaterial3 ? verticalSpacing : labelPadding),
           ],
           { mainSize: 'min' },
         ),
@@ -515,16 +546,19 @@ class NavigationRailState extends TickerProviderStateMixin<NavigationRail> {
                   onTap: activate,
                   canRequestFocus: !destination.disabled,
                   excludeFromSemantics: true,
-                  customBorder: showIndicator ? shape : null,
+                  customBorder: useMaterial3 && showIndicator ? shape : null,
                   splashColor: primary.alpha < 255 ? primary : primary.withOpacity(0.12),
                   hoverColor: primary.alpha < 255 ? primary : primary.withOpacity(0.04),
                   child: noLabel
                     ? padded
-                    : new ConstrainedBox(padded, new BoxConstraints(narrowWidth)),
+                    : new ConstrainedBox(
+                        padded,
+                        new BoxConstraints(narrowWidth, Infinity, useMaterial3 ? 0 : narrowWidth),
+                      ),
                 },
                 direction,
                 inkCenter,
-                pad.top + iconOffset + (noLabel ? verticalSpacing / 2 : 0),
+                pad.top + iconOffset + (noLabel ? iconSpacing : 0),
               ),
             }),
             { excluding: destination.disabled },

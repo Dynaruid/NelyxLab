@@ -13,7 +13,6 @@ import {
   Padding,
   Text,
   SizedBox,
-  DecoratedBox,
   Stack,
   Positioned,
 } from '@nelyx/core/framework/widgets/basic';
@@ -33,8 +32,11 @@ import { Focus } from '@nelyx/core/framework/widgets/focus-scope';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { CustomSemanticsAction, OrdinalSortKey } from '@nelyx/core/framework/semantics/semantics';
 import type { NavigatorController } from '@nelyx/core/framework/widgets/navigation';
+import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
+import { Color } from '@nelyx/core/ui/color';
 import { Theme } from '@nelyx/material/theme';
+import { Material } from '@nelyx/material/material';
 import { FilledButton } from '@nelyx/material/filled-button';
 import { ElevatedButton } from '@nelyx/material/elevated-button';
 import { OutlinedButton } from '@nelyx/material/outlined-button';
@@ -274,8 +276,10 @@ class ComponentsState extends State<ComponentsScreen> {
           return new SizedBox(
             Math.min(440, constraints.maxWidth - 48),
             undefined,
-            new DecoratedBox(
-              inset(
+            new Material({
+              color: new Color(colors.surface),
+              borderRadius: BorderRadius.circular(24),
+              child: inset(
                 24,
                 column(
                   new Text('What is a dialog?', { fontSize: 24, color: colors.onSurface }),
@@ -292,9 +296,7 @@ class ComponentsState extends State<ComponentsScreen> {
                   }),
                 ),
               ),
-              colors.surface,
-              24,
-            ),
+            }),
           );
         }),
     )
@@ -317,8 +319,9 @@ class ComponentsState extends State<ComponentsScreen> {
             new SizedBox(
               width,
               constraints.maxHeight,
-              new DecoratedBox(
-                inset(
+              new Material({
+                color: new Color(colors.surface),
+                child: inset(
                   20,
                   column(
                     new Row([
@@ -351,8 +354,7 @@ class ComponentsState extends State<ComponentsScreen> {
                     ),
                   ),
                 ),
-                colors.surface,
-              ),
+              }),
             ),
             { alignment: { x: 1, y: 0 } },
           );
@@ -400,89 +402,86 @@ class ComponentsState extends State<ComponentsScreen> {
           itemBuilder: (_, index) => this.sectionWidget(entries[index]!),
         });
       };
-      return new DecoratedBox(
-        new Column(
-          [
-            new Padding(
-              EdgeInsets.fromLTRB(compact ? 16 : 28, 12, compact ? 8 : 20, 12),
-              new Row(
-                [
-                  new Expanded(
-                    column(
-                      new Text('Components', {
-                        fontSize: compact ? 24 : 28,
-                        color: colors.onSurface,
-                      }),
-                      new Text('Nelyx Demo · Material 3', {
-                        fontSize: 12,
-                        color: colors.onSurfaceVariant,
-                      }),
-                    ),
-                  ),
-                  new TextFieldTapRegion(
-                    new IconButton({
-                      id: 'toggle-theme',
-                      icon: icon(this.widget.dark ? Icons.light_mode : Icons.dark_mode),
-                      tooltip: this.widget.dark ? 'Switch to light mode' : 'Switch to dark mode',
-                      onPressed: this.widget.toggleBrightness,
+      return new Column(
+        [
+          new Padding(
+            EdgeInsets.fromLTRB(compact ? 16 : 28, 12, compact ? 8 : 20, 12),
+            new Row(
+              [
+                new Expanded(
+                  column(
+                    new Text('Components', {
+                      fontSize: compact ? 24 : 28,
+                      color: colors.onSurface,
+                    }),
+                    new Text('Nelyx Demo · Material 3', {
+                      fontSize: 12,
+                      color: colors.onSurfaceVariant,
                     }),
                   ),
-                  new IconButton({
-                    id: 'open-drawer',
-                    icon: icon(Icons.menu),
-                    tooltip: 'Explore components',
-                    onPressed: () => this.openDrawer(),
-                  }),
-                ],
-                { crossAlign: 'center', spacing: 8 },
-              ),
-            ),
-            new Divider({ height: 1 }),
-            ...(this.group === null
-              ? []
-              : [
-                  new Padding(
-                    EdgeInsets.symmetric({ horizontal: 16, vertical: 8 }),
-                    flow(
-                      new Text(this.group, { color: colors.primary }),
-                      new TextButton({
-                        child: new Text('Show all'),
-                        onPressed: () => this.select(null),
-                      }),
-                    ),
-                  ),
-                ]),
-            new Expanded(
-              new Padding(
-                EdgeInsets.fromLTRB(compact ? 12 : 24, 16, compact ? 12 : 24, 0),
-                new Row(
-                  [
-                    new Expanded(list(twoColumns ? primary : items, this.firstScroll)),
-                    ...(twoColumns
-                      ? [new SizedBox(20), new Expanded(list(secondary, this.secondScroll))]
-                      : []),
-                  ],
-                  { crossAlign: 'stretch' },
                 ),
-              ),
-            ),
-            new Padding(
-              EdgeInsets.fromLTRB(20, 6, 20, 10),
-              new ListenableBuilder(
-                this.updates.status,
-                () =>
-                  new Text(this.lastAction, {
-                    fontSize: 12,
-                    color: colors.onSurfaceVariant,
-                    maxLines: 1,
-                    overflow: 'ellipsis',
+                new TextFieldTapRegion(
+                  new IconButton({
+                    id: 'toggle-theme',
+                    icon: icon(this.widget.dark ? Icons.light_mode : Icons.dark_mode),
+                    tooltip: this.widget.dark ? 'Switch to light mode' : 'Switch to dark mode',
+                    onPressed: this.widget.toggleBrightness,
                   }),
+                ),
+                new IconButton({
+                  id: 'open-drawer',
+                  icon: icon(Icons.menu),
+                  tooltip: 'Explore components',
+                  onPressed: () => this.openDrawer(),
+                }),
+              ],
+              { crossAlign: 'center', spacing: 8 },
+            ),
+          ),
+          new Divider({ height: 1 }),
+          ...(this.group === null
+            ? []
+            : [
+                new Padding(
+                  EdgeInsets.symmetric({ horizontal: 16, vertical: 8 }),
+                  flow(
+                    new Text(this.group, { color: colors.primary }),
+                    new TextButton({
+                      child: new Text('Show all'),
+                      onPressed: () => this.select(null),
+                    }),
+                  ),
+                ),
+              ]),
+          new Expanded(
+            new Padding(
+              EdgeInsets.fromLTRB(compact ? 12 : 24, 16, compact ? 12 : 24, 0),
+              new Row(
+                [
+                  new Expanded(list(twoColumns ? primary : items, this.firstScroll)),
+                  ...(twoColumns
+                    ? [new SizedBox(20), new Expanded(list(secondary, this.secondScroll))]
+                    : []),
+                ],
+                { crossAlign: 'stretch' },
               ),
             ),
-          ],
-          { crossAlign: 'stretch', mainSize: 'max' },
-        ),
-        colors.surface,
+          ),
+          new Padding(
+            EdgeInsets.fromLTRB(20, 6, 20, 10),
+            new ListenableBuilder(
+              this.updates.status,
+              () =>
+                new Text(this.lastAction, {
+                  fontSize: 12,
+                  color: colors.onSurfaceVariant,
+                  maxLines: 1,
+                  overflow: 'ellipsis',
+                }),
+            ),
+          ),
+        ],
+        { crossAlign: 'stretch', mainSize: 'max' },
       );
     });
   }

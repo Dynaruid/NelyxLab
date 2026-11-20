@@ -403,12 +403,18 @@ class TextFieldState extends RestorationMixin<TextField> {
       (decoration.error !== null || decoration.errorText !== null || overLimit);
     if (hasError) states.add(WidgetState.error);
     const given = o.style instanceof WidgetStateTextStyle ? o.style.resolve(states) : o.style;
-    const defaultStyle = theme.textTheme.bodyLarge ?? new TextStyle({ fontSize: 16 });
+    const defaultStyle =
+      (theme.useMaterial3 ? theme.textTheme.bodyLarge : theme.textTheme.titleMedium) ??
+      new TextStyle({ fontSize: 16 });
     const style = (
-      enabled || defaultStyle.color === null
+      enabled
         ? defaultStyle
         : defaultStyle.copyWith({
-            color: new Color(defaultStyle.color).withOpacity(0.38).toARGB32(),
+            color: theme.useMaterial3
+              ? defaultStyle.color == null
+                ? null
+                : new Color(defaultStyle.color).withOpacity(0.38).toARGB32()
+              : theme.disabledColor.toARGB32(),
           })
     ).merge(given);
     if (decoration) {

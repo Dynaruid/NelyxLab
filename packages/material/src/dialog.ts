@@ -16,12 +16,23 @@ import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-ins
 import type { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import type { VerticalDirection } from '@nelyx/core/framework/painting/basic-types';
 import type { MainAxisAlignment } from '@nelyx/core/framework/rendering/boxes';
-import { AppTheme, Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import {
+  AppTheme,
+  Directionality,
+  Localizations,
+  MediaQuery,
+  mediaFromView,
+} from '@nelyx/core/framework/widgets/app-data';
 import { allInsets } from '@nelyx/core/ui/geometry';
 import type { Offset } from '@nelyx/core/ui/offset';
 import { Color } from '@nelyx/core/ui/color';
 import { SemanticsHitTestBehavior, SemanticsRole } from '@nelyx/core/ui/semantics';
-import { Element, StatelessWidget } from '@nelyx/core/framework/widgets/framework';
+import {
+  Element,
+  State,
+  StatefulWidget,
+  StatelessWidget,
+} from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import {
   Column,
@@ -32,7 +43,13 @@ import {
   Builder,
   Flexible,
   IntrinsicWidth,
+  SizedBox,
 } from '@nelyx/core/framework/widgets/basic';
+import { AppFocus } from '@nelyx/core/framework/widgets/app-focus';
+import { Title } from '@nelyx/core/framework/widgets/app';
+import { Focus } from '@nelyx/core/framework/widgets/focus-scope';
+import { ScrollConfiguration } from '@nelyx/core/framework/widgets/scroll-configuration';
+import { TapRegionSurface } from '@nelyx/core/framework/widgets/tap-region';
 import { DefaultTextStyle } from '@nelyx/core/framework/widgets/default-text-style';
 import { createDialogRoute } from '@nelyx/core/framework/widgets/dialog';
 import type { DialogRouteOptions } from '@nelyx/core/framework/widgets/dialog';
@@ -51,6 +68,12 @@ import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
 import { SingleBoxScrollView } from '@nelyx/core/framework/widgets/scroll-view';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { FadeTransition } from '@nelyx/core/framework/widgets/transitions';
+import { widgetApplication } from '@nelyx/core/framework/widgets/root';
+import { KeyDownEvent } from '@nelyx/core/services/hardware-keyboard';
+import { LogicalKeyboardKey } from '@nelyx/core/services/keyboard-key';
+import { Alignment } from '@nelyx/core/framework/painting/alignment';
+import { RoundedRectangleBorder } from '@nelyx/core/framework/painting/rounded-rectangle-border';
+import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { Colors } from './colors.ts';
 import { DialogTheme } from './dialog-theme.ts';
 import { Dialog } from './generated/date/dialog.generated.ts';
@@ -507,6 +530,126 @@ export interface ShowMaterialDialogOptions extends Omit<
   readonly useRootNavigator?: boolean;
 }
 
+class WindowDialog<T> extends StatefulWidget {
+  constructor(
+    readonly options: ShowMaterialDialogOptions,
+    readonly dismiss: (result?: T) => void,
+  ) {
+    super();
+  }
+  override createState(): State<WindowDialog<T>> {
+    return new WindowDialogState<T>();
+  }
+}
+
+class WindowDialogState<T> extends State<WindowDialog<T>> {
+  private readonly navigator = new NavigatorController();
+  private readonly initialRoute = new PageRouteBuilder({
+    pageBuilder: () => new SizedBox(),
+    transitionDuration: 0,
+    reverseTransitionDuration: 0,
+  });
+
+  override initState(): void {
+    const { builder, routeSettings, requestFocus, traversalEdgeBehavior, fullscreenDialog } =
+      this.widget.options;
+    this.navigator.initialize(this.initialRoute);
+    const route = new PageRouteBuilder<T>({
+      ...(traversalEdgeBehavior !== undefined ? { traversalEdgeBehavior } : {}),
+      ...(fullscreenDialog !== undefined ? { fullscreenDialog } : {}),
+      settings: routeSettings ?? null,
+      requestFocus: requestFocus ?? true,
+      pageBuilder: (context) => {
+        const theme = DialogTheme.of(context).copyWith({
+          insetPadding: EdgeInsets.zero,
+          shape: new RoundedRectangleBorder(),
+          alignment: Alignment.topLeft,
+          constraints: BoxConstraints.expand(),
+        });
+        const media = MediaQuery.of(context);
+        return new MediaQuery(
+          {
+            ...media,
+            padding: EdgeInsets.zero,
+            viewPadding: EdgeInsets.zero,
+            viewInsets: EdgeInsets.zero,
+            safeArea: allInsets(0),
+            keyboardInset: 0,
+          },
+          new DialogTheme(theme, new Builder(builder)),
+        );
+      },
+      transitionDuration: 0,
+      reverseTransitionDuration: 0,
+    });
+    void this.navigator.push<T>(route).then((result) => {
+      if (this.mounted) this.widget.dismiss(result);
+    });
+  }
+
+  override build(context: BuildContext): Widget {
+    return new MediaQuery(
+      mediaFromView(context),
+      new AppFocus(
+        new Focus(new TapRegionSurface(new Navigator(this.navigator, this.initialRoute)), {
+          includeSemantics: false,
+          canRequestFocus: false,
+          onKeyEvent: (_node, event) => {
+            if (
+              !(event instanceof KeyDownEvent) ||
+              event.logicalKey !== LogicalKeyboardKey.escape ||
+              this.widget.options.barrierDismissible === false
+            )
+              return 'ignored';
+            void this.navigator.maybePop().catch((error) => context.services.reportError?.(error));
+            return 'handled';
+          },
+        }),
+      ),
+    );
+  }
+
+  override dispose(): void {
+    this.navigator.dispose();
+    super.dispose();
+  }
+}
+
+function openWindowDialog<T>(
+  context: BuildContext,
+  options: ShowMaterialDialogOptions,
+  themes: CapturedThemes,
+): Promise<T | undefined> | null {
+  const host = context.services.dialogWindows;
+  if (!host) return null;
+  const title = Title.maybeOf(context) || options.routeSettings?.name || 'Dialog';
+  const locale = context.maybeDependOn(Localizations);
+  const appTheme = context.maybeDependOn(AppTheme)?.data;
+  const scrollBehavior = ScrollConfiguration.of(context);
+  const direction = Directionality.maybeOf(context) ?? 'ltr';
+  const fontId = context.services.defaultFont?.id;
+  const background = Theme.of(context).colorScheme.surface;
+  const defaultFont = fontId && context.services.assets.has(fontId) ? fontId : undefined;
+  return host.open<T>({
+    title,
+    requestFocus: options.requestFocus ?? true,
+    createApplication: (dismiss) =>
+      widgetApplication({
+        id: 'material-dialog',
+        background,
+        ...(defaultFont ? { defaultFont } : {}),
+        createRoot: () => {
+          let child: Widget = new WindowDialog(options, dismiss);
+          child = new ScrollConfiguration({ behavior: scrollBehavior, child: themes.wrap(child) });
+          child = new Directionality(direction, child);
+          if (appTheme) child = new AppTheme(appTheme, child);
+          if (locale) child = locale.wrap(child);
+          return new Title({ title, child });
+        },
+      }),
+  });
+}
+
 export function showDialog<T = unknown>(
   context: BuildContext,
   options: ShowMaterialDialogOptions,
@@ -538,6 +681,9 @@ export function showDialog<T = unknown>(
       'showDialog requires an active BuildContext',
     );
   const { useRootNavigator = true, routeSettings = null, ...options } = optionsOrBuilder;
+  const themes = InheritedTheme.capture(context);
+  const window = openWindowDialog<T>(context, optionsOrBuilder, themes);
+  if (window) return window;
   const navigator = Navigator.of(context, { rootNavigator: useRootNavigator });
   return navigator.push(
     new DialogRoute<T>({
@@ -545,7 +691,7 @@ export function showDialog<T = unknown>(
       context,
       settings: routeSettings,
       barrierColor: options.barrierColor ?? DialogTheme.of(context).barrierColor ?? Colors.black54,
-      themes: InheritedTheme.capture(context),
+      themes,
     }),
   );
 }

@@ -1,7 +1,7 @@
 import type { FrameClock } from '../foundation/clock.ts';
 import type { Disposable } from '../foundation/disposable.ts';
 import type { AssetRef } from '../foundation/assets.ts';
-import type { Renderer, ViewRuntime, ViewInputObservation } from './runtime.ts';
+import type { DialogWindowHost, Renderer, ViewRuntime, ViewInputObservation } from './runtime.ts';
 import type { ResourceRegistry } from './resources.ts';
 import type { BackendIdentity } from './platform.ts';
 import type { ResourceDescriptor, TextLayoutService, ViewMetrics, ViewOwner } from '../ui/types.ts';
@@ -35,6 +35,7 @@ export interface TextServiceFactory<TText extends TextLayoutService = TextLayout
   create(resources: ResourceRegistry): TText;
 }
 export interface BackendServices<TText extends TextLayoutService = TextLayoutService> {
+  readonly dialogWindows?: DialogWindowHost;
   readonly sceneComposition?: import('./scene-composition.ts').SceneCompositionService;
   readonly semanticsGeometry?: import('./semantics-geometry.ts').SemanticsGeometryService;
   readonly inputGeometry?: import('./input-geometry.ts').InputGeometryService;

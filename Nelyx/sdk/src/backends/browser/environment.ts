@@ -3,6 +3,8 @@ import type { ViewEnvironment } from '@nelyx/core/ui/types';
 import { freezeEnvironment } from '@nelyx/core/ui/frame';
 /** Visual viewport overlap is labelled as occlusion; it is not proof that an IME is open. */
 export function createBrowserEnvironment(canvas: HTMLCanvasElement) {
+  const document = canvas.ownerDocument;
+  const window = document.defaultView!;
   const probe = document.createElement('div');
   probe.setAttribute('aria-hidden', 'true');
   probe.style.cssText =
@@ -12,7 +14,7 @@ export function createBrowserEnvironment(canvas: HTMLCanvasElement) {
   canvas.parentElement!.appendChild(probe);
   return {
     read(): ViewEnvironment {
-      const css = getComputedStyle(probe),
+      const css = window.getComputedStyle(probe),
         rect = canvas.getBoundingClientRect(),
         x = rect.width ? canvas.clientWidth / rect.width : 1,
         y = rect.height ? canvas.clientHeight / rect.height : 1;
@@ -28,7 +30,7 @@ export function createBrowserEnvironment(canvas: HTMLCanvasElement) {
       const viewport = window.visualViewport;
       return freezeEnvironment({
         safeArea,
-        safeAreaSource: CSS.supports('padding-top', 'env(safe-area-inset-top)')
+        safeAreaSource: window.CSS.supports('padding-top', 'env(safe-area-inset-top)')
           ? 'css'
           : 'application',
         keyboardInset: viewport

@@ -27,7 +27,7 @@ class NelyxEditingPackage: BaseReactPackage() {
 
 class NelyxInputConnectionManager: SimpleViewManager<NelyxInputConnectionView>() {
     override fun getName(): String = "NelyxInputConnection"
-    override fun getExportedViewConstants(): Map<String,Any> = mapOf("inputConnectionProtocol" to 4)
+    override fun getExportedViewConstants(): Map<String,Any> = mapOf("inputConnectionProtocol" to 5)
     override fun createViewInstance(context: ThemedReactContext): NelyxInputConnectionView = NelyxInputConnectionView(context)
     override fun getExportedCustomDirectEventTypeConstants(): Map<String,Any> = mapOf("topNelyxEditing" to mapOf("registrationName" to "onNelyxEditing"),"topNelyxInputBounds" to mapOf("registrationName" to "onNelyxInputBounds"))
     private fun integer(args: ReadableArray,index: Int): Long {val value=args.getDouble(index);require(value.isFinite()&&value>=0&&value<=9007199254740991.0&&value==value.toLong().toDouble());return value.toLong()}
@@ -40,6 +40,11 @@ class NelyxInputConnectionManager: SimpleViewManager<NelyxInputConnectionView>()
             "blur"->view.blurInput()
             "geometry"->{requireNotNull(args);require(args.size()==1);view.configureGeometry(requireNotNull(args.getMap(0)))}
             "replace","replaceComposing"->{requireNotNull(args);require(args.size()==5);view.replaceFromCore(requireNotNull(args.getString(0)),args.getInt(1),args.getInt(2),integer(args,3),integer(args,4),commandId=="replaceComposing")}
+            "limitComposition"->{
+                requireNotNull(args);require(args.size()==6)
+                view.limitComposition(requireNotNull(args.getString(0)),args.getInt(1),args.getInt(2),
+                    args.getInt(3),args.getInt(4),integer(args,5))
+            }
             else->throw IllegalArgumentException("Unknown Nelyx input connection command")
         }
     }

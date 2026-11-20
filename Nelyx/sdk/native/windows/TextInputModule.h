@@ -48,7 +48,7 @@ struct NelyxWindowsInput {
   void initialize(RN::ReactContext const& context)noexcept{state=std::make_shared<TextInputModuleState>(context);}
   ~NelyxWindowsInput(){if(state)state->stop();}
   REACT_SYNC_METHOD(getInputProtocol)
-  int32_t getInputProtocol()noexcept{return 3;}
+  int32_t getInputProtocol()noexcept{return 4;}
   REACT_METHOD(insertText)
   void insertText(double service,double client,std::string text,double revision,double focusEpoch,RN::ReactPromise<RN::JSValueObject> promise)noexcept{state->post(promise,[service,client,text=std::move(text),revision,focusEpoch](auto& current){return current.service(inputIdentity(service))->keyboardText(inputIdentity(client),InputWire::text(RN::JSValue(text)),InputWire::counter(RN::JSValue(revision),true),inputIdentity(focusEpoch));});}
   REACT_METHOD(connect)

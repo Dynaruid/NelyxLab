@@ -3,10 +3,14 @@ import { freezeEditingConfiguration } from '@nelyx/core/hosting/interaction';
 import { nativeControlInputProps } from './control-input.ts';
 import { windowsSurfaceEnvelope } from './windows-surface-envelope.ts';
 // SPDX-License-Identifier: BSD-3-Clause
-import type { ReactNode, Ref } from 'react';
-import type { HostComponent, TextInput, ViewProps } from 'react-native';
+import type { ComponentRef, ReactNode, Ref } from 'react';
+import type { HostComponent, NativeSyntheticEvent, TextInput, ViewProps } from 'react-native';
 import type { ReactNativeBackend } from './registration.ts';
-import type { NativeInteraction } from '../../runtime/native-interaction.ts';
+import type {
+  NativeEditingSnapshot,
+  NativeEditorPort,
+  NativeInteraction,
+} from '../../runtime/native-interaction.ts';
 import { createAndroidEditor } from './android-editor.tsx';
 import { editorColor } from '../editor-style.ts';
 export interface NativeStyle {
@@ -41,11 +45,13 @@ export interface NativeButtonProps extends NativeLayerProps {
   readonly controlId?: string;
 }
 interface AppleEditorTraitsProps extends ViewProps {
+  readonly onNelyxEditing?: (event: NativeSyntheticEvent<NativeEditingSnapshot>) => void;
   readonly editorOptions: {
     readonly smartDashesType: 'enabled' | 'disabled';
     readonly smartQuotesType: 'enabled' | 'disabled';
     readonly stylusHandwritingEnabled: boolean;
     readonly multiline: boolean;
+    readonly initialSelection?: { readonly anchor: number; readonly focus: number };
   };
 }
 /** Components are created once per platform composition and resolve initialized modules when rendered. */
@@ -122,13 +128,34 @@ export function createReactNativeControls(
   ) {
     const { react, native: host } = getBackend();
     const native = react.useRef<TextInput>(null);
+    const apple = react.useRef<ComponentRef<HostComponent<AppleEditorTraitsProps>>>(null);
+    const appleRevision = react.useRef(0);
+    const appleCommandSequence = react.useRef(0);
+    const initialSelection = react.useRef(
+      props.interaction?.editorValue(props.controlId ?? 'editor')?.selection,
+    );
     const token = react.useRef({});
-    const commands = react.useMemo(
+    const appleObserved =
+      host.Platform.OS === 'ios' && props.interaction?.policy.nativeSnapshots === true;
+    const sendApple = (command: Record<string, unknown>) =>
+      apple.current?.setNativeProps({
+        editingCommand: { ...command, sequence: ++appleCommandSequence.current },
+      });
+    const commands = react.useMemo<NativeEditorPort>(
       () => ({
-        replace(text: string, selection: { start: number; end: number }) {
+        replace(text, selection, revision, request) {
           if (props.interaction && !props.interaction.policy.commands)
             throw new Error('Native editing replacement unavailable');
-          native.current?.setNativeProps({ text, selection });
+          if (appleObserved)
+            sendApple({
+              kind: 'replace',
+              text,
+              anchor: selection.start,
+              focus: selection.end,
+              revision: revision ?? appleRevision.current,
+              request: request ?? null,
+            });
+          else native.current?.setNativeProps({ text, selection });
         },
         focus() {
           if (props.interaction && !props.interaction.policy.commands)
@@ -140,8 +167,31 @@ export function createReactNativeControls(
             throw new Error('Native editing blur unavailable');
           native.current?.blur();
         },
+        ...(appleObserved
+          ? {
+              replaceComposing: (text, selection, revision, request) =>
+                sendApple({
+                  kind: 'cancel',
+                  text,
+                  anchor: selection.start,
+                  focus: selection.end,
+                  revision,
+                  request: request ?? null,
+                }),
+              applyCompositionLimit: ({ text, selection, composing }, revision) =>
+                sendApple({
+                  kind: 'limit',
+                  text,
+                  anchor: selection.anchor,
+                  focus: selection.focus,
+                  composingStart: composing.status === 'active' ? composing.start : -1,
+                  composingEnd: composing.status === 'active' ? composing.end : -1,
+                  revision,
+                }),
+            }
+          : {}),
       }),
-      [props.interaction],
+      [props.interaction, appleObserved],
     );
     react.useImperativeHandle(props.ref, () => commands, [commands]);
     react.useLayoutEffect(
@@ -197,9 +247,11 @@ export function createReactNativeControls(
       submitBehavior: configuration.multiline && action === 'enter' ? 'newline' : 'submit',
       ...nativeControlInputProps(host.Platform.OS, props.interaction, node),
       onSubmitEditing: () => {
-        props.interaction?.observe(token.current, { kind: 'submit' });
+        if (appleObserved) sendApple({ kind: 'submit', action });
+        else props.interaction?.observe(token.current, { kind: 'submit' });
       },
       onChange: ({ nativeEvent }) => {
+        if (appleObserved) return;
         if (props.interaction)
           props.interaction.observe(token.current, {
             kind: 'text',
@@ -209,16 +261,25 @@ export function createReactNativeControls(
         else props.onText(nativeEvent.text, nativeEvent.eventCount);
       },
       onSelectionChange: ({ nativeEvent }) => {
-        if (props.interaction)
+        if (appleObserved) sendApple({ kind: 'observe' });
+        else if (props.interaction)
           props.interaction.observe(token.current, { kind: 'selection', ...nativeEvent.selection });
         else props.onSelection(nativeEvent.selection.start, nativeEvent.selection.end);
       },
       onFocus: () => {
-        if (!props.interaction || props.interaction.observe(token.current, { kind: 'focus' }))
+        if (
+          appleObserved ||
+          !props.interaction ||
+          props.interaction.observe(token.current, { kind: 'focus' })
+        )
           props.onFocus();
       },
       onBlur: () => {
-        if (!props.interaction || props.interaction.observe(token.current, { kind: 'blur' }))
+        if (
+          appleObserved ||
+          !props.interaction ||
+          props.interaction.observe(token.current, { kind: 'blur' })
+        )
           props.onBlur();
       },
     });
@@ -226,6 +287,17 @@ export function createReactNativeControls(
       ? react.createElement(
           traits,
           {
+            ref: apple,
+            ...(appleObserved
+              ? {
+                  onNelyxEditing: ({
+                    nativeEvent,
+                  }: NativeSyntheticEvent<NativeEditingSnapshot>) => {
+                    appleRevision.current = Math.max(appleRevision.current, nativeEvent.revision);
+                    props.interaction!.observeSnapshot(token.current, nativeEvent);
+                  },
+                }
+              : {}),
             style: { position, left, top, right, bottom, width, height } as ViewProps['style'],
             accessible: false,
             pointerEvents: 'box-none',
@@ -233,6 +305,9 @@ export function createReactNativeControls(
               smartDashesType: configuration.smartDashesType ?? 'enabled',
               smartQuotesType: configuration.smartQuotesType ?? 'enabled',
               multiline: configuration.multiline,
+              ...(appleObserved && initialSelection.current
+                ? { initialSelection: initialSelection.current }
+                : {}),
               stylusHandwritingEnabled:
                 configuration.stylusHandwritingEnabled !== false &&
                 !configuration.readOnly &&

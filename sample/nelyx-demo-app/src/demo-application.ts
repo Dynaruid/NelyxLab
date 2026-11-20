@@ -3,6 +3,7 @@ import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { Widget } from '@nelyx/core/framework/widgets/framework';
 import { NavigatorController } from '@nelyx/core/framework/widgets/navigation';
 import { MaterialApp } from '@nelyx/material/app';
+import { Scaffold } from '@nelyx/material/scaffold';
 import { ThemeData } from '@nelyx/material/theme-data';
 import { ColorScheme } from '@nelyx/material/color-scheme';
 import { ComponentsScreen } from './components.ts';
@@ -45,16 +46,18 @@ class DemoApplicationState extends State<DemoApplication> {
       locale: 'en',
       supportedLocales: ['en', 'ko-KR'],
       navigatorController: this.navigator,
-      home: new ComponentsScreen(
-        this.navigator,
-        this.widget.initialText,
-        this.dark,
-        () =>
-          this.setState(() => {
-            this.dark = !this.dark;
-          }),
-        this.widget.calendarPreparation,
-      ),
+      home: new Scaffold({
+        body: new ComponentsScreen(
+          this.navigator,
+          this.widget.initialText,
+          this.dark,
+          () =>
+            this.setState(() => {
+              this.dark = !this.dark;
+            }),
+          this.widget.calendarPreparation,
+        ),
+      }),
     });
   }
 }

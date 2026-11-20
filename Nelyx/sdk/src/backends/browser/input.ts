@@ -17,6 +17,7 @@ export function bindCanvasInput(
     readonly ownsNativeSelectionTarget?: (target: EventTarget | null) => boolean;
   } = {},
 ): () => void {
+  const { HTMLElement, HTMLInputElement, HTMLTextAreaElement } = canvas.ownerDocument.defaultView!;
   let live = true;
   const pointers = new Set<number>(),
     keySurface = options.keySurface ?? canvas;

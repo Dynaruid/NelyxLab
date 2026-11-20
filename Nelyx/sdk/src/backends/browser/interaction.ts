@@ -77,6 +77,9 @@ export function createDomInteraction(
   readViewport?: () => BrowserInputViewport,
   accessibilityEnabled = true,
 ) {
+  const document = input.ownerDocument;
+  const window = document.defaultView!;
+  const { HTMLElement, HTMLInputElement, HTMLTextAreaElement, HTMLButtonElement } = window;
   let closed = false,
     bound = false,
     moving = false;
@@ -279,13 +282,14 @@ export function createDomInteraction(
       if (editor.binding) throw new Error('DOM editing session already bound');
       if (
         readViewport &&
-        hasBrowserEditContext() &&
+        hasBrowserEditContext(window) &&
         !configuration.obscureText &&
         !configuration.autofillHints?.length
       ) {
         const previous = editor.element;
         cursor?.remove(previous);
         const connection = createBrowserEditContext({
+          document,
           owner,
           initial,
           options: { ...options, id: options?.id ?? 'editor', configuration },

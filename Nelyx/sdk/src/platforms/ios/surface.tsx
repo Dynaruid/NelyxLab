@@ -14,7 +14,14 @@ const Surface = createReactNativeSurface<ApplicationSurfaceProps>({
   retainOwner: retainIOSNativeHostOwner,
   assetServices: { acquire: acquireIOSAssets, service: iosAssetService },
   visibility: () => iosBackend().native.AppState,
-  interaction: (owner) => new IOSInteraction(owner),
+  interaction: (owner) => {
+    const manager = iosBackend().native.UIManager.getViewManagerConfig('NelyxTextInputTraits');
+    const props = manager && 'NativeProps' in manager ? manager.NativeProps : null;
+    return new IOSInteraction(
+      owner,
+      !!props && typeof props === 'object' && 'editingCommand' in props,
+    );
+  },
   requiresNativeBinding: true,
   nativeViewProps: (_props, binding) => createAppleNativeSurfaceProps(binding),
 });

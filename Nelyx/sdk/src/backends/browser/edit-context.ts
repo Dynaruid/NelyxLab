@@ -38,15 +38,16 @@ export interface BrowserEditContext {
   readonly binding: EditingBinding;
   readonly composing: boolean;
 }
-function constructor(): EditContextConstructor | null {
-  return (globalThis as unknown as { EditContext?: EditContextConstructor }).EditContext ?? null;
+function constructor(view: Window): EditContextConstructor | null {
+  return (view as Window & { EditContext?: EditContextConstructor }).EditContext ?? null;
 }
-export function hasBrowserEditContext(): boolean {
-  return constructor() !== null;
+export function hasBrowserEditContext(view: Window): boolean {
+  return constructor(view) !== null;
 }
 
 /** Secure text/autofill use a separate OS carrier; this port admits plain EditContext input. */
 export function createBrowserEditContext({
+  document,
   owner,
   initial,
   options,
@@ -54,6 +55,7 @@ export function createBrowserEditContext({
   changed,
   moving,
 }: {
+  readonly document: Document;
   readonly owner: ViewOwner;
   readonly initial: TextEditingValue;
   readonly options: EditingOptions;
@@ -61,7 +63,9 @@ export function createBrowserEditContext({
   readonly changed: (value: TextEditingValue) => void;
   readonly moving: () => boolean;
 }): BrowserEditContext {
-  const Constructor = constructor();
+  const window = document.defaultView!;
+  const DOMRect = window.DOMRect;
+  const Constructor = constructor(window);
   if (!Constructor) throw new Error('Browser EditContext is unavailable');
   const initialValue = freezeEditing(initial);
   if (!sameOwner(initialValue.session, owner)) throw new Error('Mismatched EditContext owner');

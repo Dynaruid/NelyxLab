@@ -79,6 +79,12 @@ export interface EditingBinding extends Disposable {
   /** Cancel native composition and replace its value atomically. The host must
    * acknowledge the actual value before Core changes its controller. */
   replaceComposing?(value: TextEditingValue, request?: number): void;
+  /** Apply a formatter's correction against this exact observed revision.
+   * The editor publishes its next native value with the resulting composing range. */
+  applyCompositionLimit?(
+    value: Pick<TextEditingValue, 'text' | 'selection' | 'composing'>,
+    revision: number,
+  ): boolean;
   focus(request?: InputFocusRequest): void;
   blur(): void;
   readGeometry?(): EditingGeometry;

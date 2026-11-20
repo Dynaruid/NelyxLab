@@ -5,19 +5,18 @@
 import type { DartMap, DartSet } from '../../foundation/dart-collections.ts';
 import {
   applyDartType,
-  captureDartInterface,
+  captureDartType,
   nullableDartType,
 } from '../../foundation/dart-type-witness.ts';
 import { FlutterError } from '../../foundation/flutter-error.ts';
-import { OutlinedBorder } from '../painting/borders.ts';
+import type { OutlinedBorder } from '../painting/borders.ts';
 import { RoundedRectangleBorder } from '../painting/rounded-rectangle-border.ts';
+import { sourceOutlinedBorderType } from '../painting/source-value-types.ts';
 import { SourceWidgetStateMapper, SourceWidgetStateProperty } from './widget-state.generated.ts';
 import type { SourceWidgetState, SourceWidgetStatesConstraint } from './widget-state.generated.ts';
 
 type BorderResolver = (states: DartSet<SourceWidgetState>) => OutlinedBorder | null;
-const borderType = nullableDartType(
-  applyDartType<OutlinedBorder>(OutlinedBorder, 'OutlinedBorder', [], []),
-);
+const borderType = nullableDartType(sourceOutlinedBorderType);
 const propertyType = applyDartType<SourceWidgetStateProperty<OutlinedBorder | null>>(
   SourceWidgetStateProperty,
   'WidgetStateProperty',
@@ -31,7 +30,7 @@ export abstract class WidgetStateOutlinedBorder
 {
   constructor() {
     super();
-    captureDartInterface(this, propertyType);
+    captureDartType(this, stateBorderType);
   }
 
   abstract resolve(states: DartSet<SourceWidgetState>): OutlinedBorder | null;
@@ -57,10 +56,17 @@ export abstract class WidgetStateOutlinedBorder
         return Reflect.get(target, key, receiver);
       },
     });
-    captureDartInterface(border, propertyType);
+    captureDartType(border, stateBorderType);
     return border;
   }
 }
+
+const stateBorderType = applyDartType<WidgetStateOutlinedBorder>(
+  WidgetStateOutlinedBorder,
+  'WidgetStateOutlinedBorder',
+  [],
+  [sourceOutlinedBorderType, propertyType],
+);
 
 const borderFields = new Set([
   'side',

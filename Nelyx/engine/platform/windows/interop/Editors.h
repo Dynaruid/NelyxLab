@@ -11,18 +11,24 @@ struct EditorCommand{
   bool enabled=true,readOnly=false,multiline=false,cancel=false;std::optional<WI::CoreGeometry> geometry;
   InputScope scope=IS_DEFAULT;
   std::vector<WI::Rect> rects;int start=0,end=0;std::optional<WI::Rect> caret;std::optional<int> hit;
+  WI::Composition composing;
 };
 inline EditorCommand readEditorCommand(std::string kind,Packet const& p){
   EditorCommand c;c.kind=std::move(kind);c.id=p.field("id").string(1024);c.generation=p.field("generation").counter(false);c.operation=p.field("operation").counter(false);
-  if(c.kind=="attach"||c.kind=="replace"||c.kind=="geometry"){c.text=p.field("text").text(65536);c.selection={p.field("anchor").offset(),p.field("focus").offset()};}
+  if(c.kind=="attach"||c.kind=="replace"||c.kind=="limitComposition"||c.kind=="geometry"){c.text=p.field("text").text(65536);c.selection={p.field("anchor").offset(),p.field("focus").offset()};}
   if(c.kind=="attach"){c.maximum=p.field("maximum").counter(false);if(c.maximum>65536)p.fail();}
   if(c.kind=="attach"||c.kind=="configure"){c.enabled=p.field("enabled").boolean();c.readOnly=p.field("readOnly").boolean();c.multiline=p.field("multiline").boolean();const auto raw=p.field("scope").counter();if(raw>INT_MAX)p.fail();c.scope=InputScope(int(raw));switch(c.scope){case IS_DEFAULT:case IS_TEXT:case IS_PRIVATE:case IS_NUMBER:case IS_DIGITS:case IS_PASSWORD:case IS_TELEPHONE_FULLTELEPHONENUMBER:case IS_EMAIL_SMTPEMAILADDRESS:case IS_URL:break;default:p.fail();}if(c.multiline&&c.scope==IS_PASSWORD)p.fail();}
   if(c.kind=="replace"){c.revision=p.field("revision").counter();c.request=p.field("request").counter(false);c.cancel=p.field("cancel").boolean();}
+  if(c.kind=="limitComposition"){
+    c.revision=p.field("revision").counter();
+    const auto range=p.field("composing");
+    if(!range.absent())c.composing={range.field("start").offset(),range.field("end").offset()};
+  }
   if(c.kind=="geometry"){c.revision=p.field("revision").counter();auto g=p.field("geometry");if(!g.absent())c.geometry=readGeometry(g);auto chars=p.field("characters");if(!chars.absent()){c.start=chars.field("rangeStart").offset();for(auto const& rect:chars.field("rects").array(4096))c.rects.push_back(readRect(rect));c.end=c.start+int(c.rects.size());}}
   if(c.kind=="caret"){c.revision=p.field("revision").counter();auto bounds=p.field("bounds");c.start=bounds.field("rangeStart").offset();c.request=bounds.field("layoutEpoch").counter(false);c.caret=readRect(bounds.field("rect"));}
   if(c.kind=="hit"){c.revision=p.field("revision").counter();c.request=p.field("request").counter(false);auto position=p.field("position");if(position.field("status").string()=="hit")c.hit=position.field("position").offset();}
   if(c.kind=="keyboardText"){c.text=p.field("text").text(65536);c.revision=p.field("revision").counter();c.focusEpoch=p.field("focusEpoch").counter(false);}
-  if(c.kind!="attach"&&c.kind!="configure"&&c.kind!="replace"&&c.kind!="detach"&&c.kind!="focus"&&c.kind!="blur"&&c.kind!="geometry"&&c.kind!="caret"&&c.kind!="hit"&&c.kind!="keyboardText")p.fail();
+  if(c.kind!="attach"&&c.kind!="configure"&&c.kind!="replace"&&c.kind!="limitComposition"&&c.kind!="detach"&&c.kind!="focus"&&c.kind!="blur"&&c.kind!="geometry"&&c.kind!="caret"&&c.kind!="hit"&&c.kind!="keyboardText")p.fail();
   return c;
 }
 class Editors final:public std::enable_shared_from_this<Editors>{
@@ -52,6 +58,7 @@ public:
     if(c.kind=="detach"){retire(found);return;}
     if(c.kind=="configure")e->store->configuration(c.enabled,c.readOnly,c.multiline,c.scope);
     else if(c.kind=="replace"){e->store->replace(c.text,c.selection,c.revision,c.request,c.cancel);if(c.cancel&&e->store->cancellationPending(c.request)){if(e->timer)KillTimer(window,e->timer);e->cancellation=c.request;e->timer=SetTimer(window,++nextTimer,1000,nullptr);if(!e->timer)throw std::runtime_error("Native composition timer unavailable");}}
+    else if(c.kind=="limitComposition")e->store->limitComposition(std::move(c.text),c.selection,c.composing,c.revision);
     else if(c.kind=="focus"){if(!focused.empty()&&focused!=c.id){auto old=entries.find(focused);if(old!=entries.end()){old->second->context->withdrawFocus();old->second->store->focus(false);}}focused=c.id;::SetFocus(window);e->context->associateFocus();e->store->focus(e->context->hasFocus());}
     else if(c.kind=="blur"){e->context->withdrawFocus();e->store->focus(false);if(focused==c.id)focused.clear();}
     else if(c.kind=="geometry"){e->store->coreDocument(c.text,c.selection);if(!c.geometry||c.geometry->viewport!=viewport||c.geometry->surface!=surface)e->store->withdrawGeometry();else if(e->store->coreGeometry(*c.geometry,c.text,c.selection,c.revision)&&!c.rects.empty())e->store->characterBounds(c.geometry->viewport,c.geometry->epoch,c.revision,c.start,c.end,std::move(c.rects));}

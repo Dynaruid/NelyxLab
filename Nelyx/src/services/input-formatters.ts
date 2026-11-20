@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-// Nelyx editing policy. Offsets are UTF-16; native composition is never rewritten.
+// Nelyx editing policy. Offsets are UTF-16; the native editor owns composition.
 import { invariant } from '../foundation/errors.ts';
 import { FoundationPlatform } from '../foundation/platform.ts';
 import type { TargetPlatform } from '../foundation/platform.ts';
@@ -50,20 +50,27 @@ export class LengthLimitingTextInputFormatter extends TextInputFormatter {
       ? 'enforced'
       : 'truncateAfterCompositionEnds';
   }
+  get effectiveMaxLengthEnforcement(): MaxLengthEnforcement {
+    return (
+      this.maxLengthEnforcement ?? LengthLimitingTextInputFormatter.getDefaultMaxLengthEnforcement()
+    );
+  }
   formatEditUpdate(oldValue: EditingContent, newValue: EditingContent): EditingContent {
-    if (this.maxLengthEnforcement === 'none' || newValue.composing.status === 'active')
-      return newValue;
+    const enforcement = this.effectiveMaxLengthEnforcement;
+    if (enforcement === 'none') return newValue;
     const end = graphemeBoundaries(newValue.text)[this.maxLength] ?? newValue.text.length;
     const text = newValue.text.slice(0, end);
     if (text === newValue.text) return newValue;
     if (
-      this.maxLengthEnforcement !== null &&
-      (this.maxLengthEnforcement === 'enforced'
+      (enforcement === 'enforced'
         ? oldValue.selection.anchor === oldValue.selection.focus
         : oldValue.composing.status !== 'active') &&
       graphemeBoundaries(oldValue.text).length - 1 === this.maxLength
     )
       return oldValue;
+    const composing = newValue.composing;
+    if (composing.status === 'active' && enforcement === 'truncateAfterCompositionEnds')
+      return newValue;
     return snapshotEditingContent({
       ...newValue,
       text,
@@ -71,6 +78,12 @@ export class LengthLimitingTextInputFormatter extends TextInputFormatter {
         anchor: Math.min(newValue.selection.anchor, text.length),
         focus: Math.min(newValue.selection.focus, text.length),
       },
+      composing:
+        composing.status !== 'active'
+          ? composing
+          : composing.start < composing.end && composing.start < text.length
+            ? { ...composing, end: Math.min(composing.end, text.length) }
+            : { status: 'none' },
     });
   }
 }

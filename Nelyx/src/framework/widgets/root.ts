@@ -605,6 +605,13 @@ export class FrameworkRoot implements ViewController {
     this.pipelineInvalidatedDuringFrame = false;
     let preparedFrame: FrameworkRoot['preparedFrame'];
     const diagnostics = scene.frameDiagnostics;
+    const appDiagnostics = this.buildOwner.appDiagnostics;
+    const measureAppFrame =
+      appDiagnostics && [...appDiagnostics].some((item) => item.measureFrames());
+    let appPhaseStart = 0,
+      appBuild = 0,
+      appLayout = 0,
+      appPaint = 0;
     let diagnosticAt = diagnostics?.now();
     const finishDiagnostic = diagnostics
       ? (
@@ -631,6 +638,8 @@ export class FrameworkRoot implements ViewController {
       finishDiagnostic?.('animation');
       if (!this.isViewOpen() || this.scheduler.disposed) return [];
       this.scheduler.phase = 'build';
+      if (appDiagnostics) for (const observer of appDiagnostics) observer.beginFrame();
+      if (measureAppFrame) appPhaseStart = this.context.clock.now();
       if (!this.root) {
         const root = this.options
           .createRoot(this.buildOwner.services, this.scheduler)
@@ -667,6 +676,11 @@ export class FrameworkRoot implements ViewController {
       this.pipeline.setRoot(render);
       this.buildOwner.maybeViewWorkBudget?.enforcePressure();
       finishDiagnostic?.('build');
+      if (measureAppFrame) {
+        const now = this.context.clock.now();
+        appBuild = now - appPhaseStart;
+        appPhaseStart = now;
+      }
       if (diagnostics)
         diagnostics.record(
           scene.token,
@@ -701,6 +715,7 @@ export class FrameworkRoot implements ViewController {
       }
       const workBudget = this.buildOwner.maybeViewWorkBudget;
       finishDiagnostic?.('layout');
+      if (measureAppFrame) appLayout = this.context.clock.now() - appPhaseStart;
       workBudget?.enforcePressure();
       if (workBudget?.scheduleEvictions()) this.flushLayout();
       workBudget?.runOptional(
@@ -728,6 +743,7 @@ export class FrameworkRoot implements ViewController {
       this.pipeline.flushCompositingBits();
       finishDiagnostic?.('compositing');
       this.scheduler.phase = 'paint';
+      if (measureAppFrame) appPhaseStart = this.context.clock.now();
       const paintCounts = diagnostics
         ? {
             clock: () => diagnostics.now(),
@@ -768,6 +784,7 @@ export class FrameworkRoot implements ViewController {
       );
       painting.commands.unshift({ op: 'clear', color: this.options.background ?? 0xff101827 });
       finishDiagnostic?.('compose', painting.commands.length);
+      if (measureAppFrame) appPaint = this.context.clock.now() - appPhaseStart;
       if (diagnostics && paintCounts) {
         const now = diagnostics.now();
         diagnostics.record(scene.token, 'paint-visits', now, paintCounts.paintChildCalls + 1);
@@ -1216,6 +1233,18 @@ export class FrameworkRoot implements ViewController {
             if (currentScope && this.isCurrentFrame(scene.token))
               this.buildOwner._publishPreparation();
             finishDiagnostic?.('semantics-publish');
+            if (currentScope && appDiagnostics?.size) {
+              const interval = scene.token.timing?.refreshInterval;
+              const sample = measureAppFrame
+                ? {
+                    build: appBuild,
+                    layout: appLayout,
+                    paint: appPaint,
+                    ...(interval === undefined ? {} : { refreshInterval: interval }),
+                  }
+                : undefined;
+              for (const observer of appDiagnostics) observer.endFrame(this.nodes, sample);
+            }
           } catch (error) {
             semanticsFailed = true;
             semanticsError = error;

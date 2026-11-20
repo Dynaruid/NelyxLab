@@ -237,6 +237,7 @@ interface TimePickerValues {
   readonly hourMinuteMode: TimePart;
   readonly entryMode: TimePickerEntryMode;
   readonly use24HourFormat: boolean;
+  readonly hourDialType: HourDialType;
   readonly orientation: Orientation;
   readonly theme: TimePickerThemeData;
   readonly colors: ColorScheme;
@@ -397,7 +398,7 @@ class TimePickerDialogState extends RestorationMixin<TimePickerDialog> {
       new TimeDial({
         time: TimePickerModel.read(context, 'selectedTime'),
         part: TimePickerModel.read(context, 'hourMinuteMode'),
-        use24Hours: TimePickerModel.read(context, 'use24HourFormat'),
+        hourDialType: TimePickerModel.read(context, 'hourDialType'),
         colors: TimePickerModel.read(context, 'colors'),
         theme: TimePickerModel.read(context, 'theme'),
         defaultTextStyle: TimePickerModel.read(context, 'dialStyle'),
@@ -928,7 +929,7 @@ class TimePickerDialogState extends RestorationMixin<TimePickerDialog> {
   override build(context: BuildContext): Widget {
     const options = this.widget.options;
     const theme = TimePickerTheme.of(context);
-    const { colorScheme: colors, textTheme } = Theme.of(context);
+    const { colorScheme: colors, textTheme, useMaterial3 } = Theme.of(context);
     const localization = MaterialLocalizations.of(context);
     const formatOptions = this.formatOptions(context);
     const format = localization.timeOfDayFormat(formatOptions);
@@ -957,6 +958,11 @@ class TimePickerDialogState extends RestorationMixin<TimePickerDialog> {
         hourMinuteMode: this.part.value,
         entryMode: mode,
         use24HourFormat: use24Hours,
+        hourDialType: !use24Hours
+          ? 'twelveHour'
+          : useMaterial3
+            ? 'twentyFourHourDoubleRing'
+            : 'twentyFourHour',
         orientation,
         theme,
         colors,
@@ -1207,10 +1213,12 @@ class TimePickerDialogState extends RestorationMixin<TimePickerDialog> {
   }
 }
 
+type HourDialType = 'twelveHour' | 'twentyFourHour' | 'twentyFourHourDoubleRing';
+
 interface TimeDialOptions {
   readonly time: TimeOfDay;
   readonly part: TimePart;
-  readonly use24Hours: boolean;
+  readonly hourDialType: HourDialType;
   readonly colors: ColorScheme;
   readonly theme: TimePickerThemeData;
   readonly defaultTextStyle: TextStyle;
@@ -1228,9 +1236,13 @@ function pointOnDial(size: number, angle: number, radius: number): Offset {
   return { x: center + radius * Math.sin(angle), y: center - radius * Math.cos(angle) };
 }
 
-function dialPosition({ part, use24Hours }: TimeDialOptions, time: TimeOfDay): DialPosition {
+function dialPosition({ part, hourDialType }: TimeDialOptions, time: TimeOfDay): DialPosition {
+  const hours = hourDialType === 'twentyFourHour' ? 24 : 12;
   return part === 'hour'
-    ? { angle: (twoPi * (time.hour % 12)) / 12, ring: use24Hours && time.hour >= 12 ? 0 : 1 }
+    ? {
+        angle: (twoPi * (time.hour % hours)) / hours,
+        ring: hourDialType === 'twentyFourHourDoubleRing' && time.hour >= 12 ? 0 : 1,
+      }
     : { angle: (twoPi * time.minute) / 60, ring: 1 };
 }
 
@@ -1264,7 +1276,7 @@ class TimeDialState extends SingleTickerProviderStateMixin<TimeDial> {
     super.didUpdateWidget(oldWidget);
     const options = this.widget.options;
     const before = oldWidget.options;
-    if (options.part !== before.part || options.use24Hours !== before.use24Hours) {
+    if (options.part !== before.part || options.hourDialType !== before.hourDialType) {
       this.panValue = null;
     }
     if (this.panValue === null) this.animateTo(dialPosition(options, options.time));
@@ -1300,19 +1312,22 @@ class TimeDialState extends SingleTickerProviderStateMixin<TimeDial> {
     tapped: boolean,
   ): void {
     const options = this.widget.options;
-    const { time, part, use24Hours, onSelected } = options;
+    const { time, part, hourDialType, onSelected } = options;
+    const doubleRing = hourDialType === 'twentyFourHourDoubleRing';
     const dx = position.x - size / 2;
     const dy = size / 2 - position.y;
     const angle = (Math.atan2(dx, dy) + twoPi) % twoPi;
     const fraction = angle / twoPi;
     const ring =
-      part === 'hour' && use24Hours && outer > inner
+      part === 'hour' && doubleRing && outer > inner
         ? Math.max(0, Math.min(1, (Math.hypot(dx, dy) - inner) / (outer - inner)))
         : 1;
     let next: TimeOfDay;
     if (part === 'hour') {
-      const offset = use24Hours ? (ring < 0.5 ? 12 : 0) : time.periodOffset;
-      next = time.replacing({ hour: (Math.round(fraction * 12) % 12) + offset });
+      const count = hourDialType === 'twentyFourHour' ? 24 : 12;
+      const offset =
+        hourDialType === 'twelveHour' ? time.periodOffset : doubleRing && ring < 0.5 ? 12 : 0;
+      next = time.replacing({ hour: (Math.round(fraction * count) % count) + offset });
     } else {
       const minute = Math.round(fraction * 60) % 60;
       next = time.replacing({
@@ -1343,15 +1358,19 @@ class TimeDialState extends SingleTickerProviderStateMixin<TimeDial> {
     return new LayoutBuilder((_context, constraints) => {
       const diameter = Math.min(dialDiameter, constraints.maxWidth, constraints.maxHeight);
       if (diameter <= 0) return new SizedBox();
-      const { time, part, use24Hours, colors, theme, localization, defaultTextStyle } =
+      const { time, part, hourDialType, colors, theme, localization, defaultTextStyle } =
         this.widget.options;
-      const dotRadius = Math.min(selectorRadius, diameter / 4);
+      const { useMaterial3 } = Theme.of(context);
+      const single24HourRing = hourDialType === 'twentyFourHour';
+      const doubleRing = hourDialType === 'twentyFourHourDoubleRing';
+      const use24Hours = single24HourRing || doubleRing;
+      const dotRadius = Math.min(useMaterial3 ? selectorRadius : 22, diameter / 4);
       const minRadius = Math.min(dialMinRadius, diameter / 2 - dotRadius);
       const outer = Math.max(minRadius, diameter / 2 - dialPadding);
       const inner = Math.max(0, outer - dialInnerOffset);
       const hours = part === 'hour';
       const selected = hours ? (use24Hours ? time.hour : time.hour % 12) : time.minute;
-      const labelCount = hours && use24Hours ? 24 : 12;
+      const labelCount = hours && doubleRing ? 24 : 12;
       const primaryLabels: Widget[] = [];
       const selectedLabels: Widget[] = [];
       const normal = pickerStates(false);
@@ -1362,25 +1381,29 @@ class TimeDialState extends SingleTickerProviderStateMixin<TimeDial> {
       ).copyWith({
         color: resolveColor(theme.dialTextColor, normal, new Color(colors.onSurface)).toARGB32(),
       });
-      const highlightColor = resolveColor(theme.dialTextColor, active, new Color(colors.onPrimary));
+      const highlightColor = resolveColor(
+        theme.dialTextColor,
+        active,
+        new Color(useMaterial3 ? colors.onPrimary : colors.surface),
+      );
       const highlightStyle = resolveTextStyle(
         theme.dialTextStyle ?? defaultTextStyle,
         active,
       ).copyWith({ color: highlightColor.toARGB32() });
       const labelBoxSize = Math.min(32, diameter / 4);
       for (let index = 0; index < labelCount; ++index) {
-        const value = hours ? index : index * 5;
+        const value = hours ? (single24HourRing ? index * 2 : index) : index * 5;
         const indexAngle = (twoPi * (index % 12)) / 12;
         const location = pointOnDial(
           diameter,
           indexAngle,
-          hours && use24Hours && value >= 12 ? inner : outer,
+          hours && doubleRing && value >= 12 ? inner : outer,
         );
         const target = hours
           ? time.replacing({ hour: use24Hours ? value : value + time.periodOffset })
           : time.replacing({ minute: value });
         const label = hours
-          ? use24Hours && value !== 0
+          ? doubleRing && value !== 0
             ? localization.timePickerNumber(value, 1)
             : localization.formatHour(target, { alwaysUse24HourFormat: use24Hours })
           : localization.formatMinute(target);
@@ -1419,7 +1442,13 @@ class TimeDialState extends SingleTickerProviderStateMixin<TimeDial> {
       const background = Positioned.fill(
         new DecoratedBox(undefined, {
           decoration: new BoxDecoration({
-            color: theme.dialBackgroundColor?.toARGB32() ?? colors.surfaceContainerHighest,
+            color:
+              theme.dialBackgroundColor?.toARGB32() ??
+              (useMaterial3
+                ? colors.surfaceContainerHighest
+                : new Color(colors.onSurface)
+                    .withOpacity(colors.brightness === 'dark' ? 0.12 : 0.08)
+                    .toARGB32()),
             shape: 'circle',
           }),
         }),
@@ -1436,8 +1465,10 @@ class TimeDialState extends SingleTickerProviderStateMixin<TimeDial> {
               child: highlight,
               builder: (_context, selectedLabels) => {
                 const { angle, ring } = this.position;
-                const onInnerRing = hours && use24Hours && ring < 0.5;
-                const radius = Math.max(minRadius, onInnerRing ? inner : outer);
+                const radius = Math.max(
+                  minRadius,
+                  hours && doubleRing && ring < 0.5 ? inner : outer,
+                );
                 const handle = pointOnDial(diameter, angle, radius);
                 const markerAngle = (((Math.PI / 2 - angle) % twoPi) + twoPi) % twoPi;
                 const remainder = markerAngle % (twoPi / labelCount);

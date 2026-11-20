@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Flutter: packages/flutter/lib/src/material/typography.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
-// M3-only Typography. Doroti typography.cs responsibilities; pinned Flutter values/methods.
 import { Diagnosticable } from '@nelyx/core/foundation/diagnosticable';
 import { DiagnosticsProperty } from '@nelyx/core/foundation/diagnostics';
 import type { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
@@ -13,6 +12,7 @@ import { ColorScheme } from './color-scheme.ts';
 import { ScriptCategory } from './script-category.ts';
 import { material2021, platformTextThemes } from './generated/theme/typography-data.ts';
 import { platformTypographyNames } from './internal/theme/text-theme-defaults.ts';
+import { material2014TextGeometry } from './internal/theme/typography-2014.ts';
 export { ScriptCategory } from './script-category.ts';
 
 const fields = ['black', 'white', 'englishLike', 'dense', 'tall'] as const;
@@ -79,6 +79,22 @@ export class Typography extends Diagnosticable(class {}) {
   static material2021(options: TypographyOptions = {}): Typography {
     return new Typography(options);
   }
+  static material2014(options: Omit<TypographyOptions, 'colorScheme'> = {}): Typography {
+    const { platform = 'android' } = options;
+    invariant(
+      platform !== null || (options.black != null && options.white != null),
+      'invalid-typography-platform',
+      'A null platform requires both black and white text themes',
+    );
+    const names = platform === null ? null : platformTypographyNames(platform);
+    return Typography.fromValues({
+      black: options.black ?? Typography[names![0]],
+      white: options.white ?? Typography[names![1]],
+      englishLike: options.englishLike ?? Typography.englishLike2014,
+      dense: options.dense ?? Typography.dense2014,
+      tall: options.tall ?? Typography.tall2014,
+    });
+  }
   private static fromValues(values: TypographyValues): Typography {
     const options: InternalTypographyOptions = { [rawValues]: values };
     return new Typography(options);
@@ -143,6 +159,9 @@ export class Typography extends Diagnosticable(class {}) {
   static readonly whiteCupertino = new TextTheme(platformTextThemes.whiteCupertino);
   static readonly blackRedwoodCity = new TextTheme(platformTextThemes.blackRedwoodCity);
   static readonly whiteRedwoodCity = new TextTheme(platformTextThemes.whiteRedwoodCity);
+  static readonly englishLike2014 = new TextTheme(material2014TextGeometry.englishLike);
+  static readonly dense2014 = new TextTheme(material2014TextGeometry.dense);
+  static readonly tall2014 = new TextTheme(material2014TextGeometry.tall);
   static readonly englishLike2021 = new TextTheme(material2021.englishLike);
   static readonly dense2021 = new TextTheme(material2021.dense);
   static readonly tall2021 = new TextTheme(material2021.tall);

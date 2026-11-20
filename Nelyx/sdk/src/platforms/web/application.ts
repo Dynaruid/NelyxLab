@@ -11,6 +11,7 @@ import { bootstrapApplication } from '../../runtime/bootstrap.ts';
 import { createWebServices } from '../../backends/browser/services.ts';
 import { loadCanvasKit } from '../../backends/browser/canvaskit.ts';
 import { createBrowserPlatformMessages } from '../../backends/browser/platform-messages.ts';
+import { webDialogWindows } from './dialog-windows.ts';
 interface WebBackend {
   react: typeof import('react');
   native: {
@@ -192,6 +193,8 @@ export function ownWebSurface(element: HTMLElement): {
   };
 }
 export interface WebApplicationOptions {
+  /** Enable separately owned dialog surfaces when the browser admits a popup. */
+  readonly enableDialogWindows?: boolean;
   readonly initializePlatformServices?: boolean;
   readonly useDefaultBinaryMessenger?: boolean;
   readonly platformMessages?: PlatformMessagePort;
@@ -249,7 +252,8 @@ async function openWebApplication(
   options: WebApplicationOptions,
   job: WebOpening,
 ): Promise<WebApplication> {
-  if (runtimeClosing || typeof document === 'undefined' || !options.canvas.isConnected)
+  const view = options.canvas.ownerDocument.defaultView;
+  if (runtimeClosing || !view || view.closed || !options.canvas.isConnected)
     throw new Error('Web requires an open runtime and attached DOM canvas');
   const selected = createProviderRegistry().select('web', options.profile, {
     os: 'browser',
@@ -260,7 +264,7 @@ async function openWebApplication(
     loadCanvasKit(options.canvasKitRoot, options.canvasKitManifest),
     import('@nelyx/skia-web/library'),
   ]);
-  if (runtimeClosing || !options.canvas.isConnected)
+  if (runtimeClosing || view.closed || !options.canvas.isConnected)
     throw new Error('Web surface opening cancelled');
   const owner = Object.freeze({ id: 'web-view-' + crypto.randomUUID(), generation: ++generation }),
     library = new WebSkiaLibrary(ck, options.canvas, owner);
@@ -289,10 +293,13 @@ async function openWebApplication(
   job.retained = { library, binding };
   const application = await bootstrapApplication(binding.definition, {
     ...binding.services,
+    ...(options.enableDialogWindows
+      ? { dialogWindows: webDialogWindows(binding.definition, options, openApplication) }
+      : {}),
     platformMessages:
       options.platformMessages ??
       createBrowserPlatformMessages(
-        window,
+        view,
         binding.cursor,
         binding.selectionContextMenu,
         {

@@ -1,6 +1,7 @@
 import { materialFactoryDefaults } from './internal/theme/factory-defaults.ts';
 import {
   defaultMaterialColorScheme,
+  material2ColorScheme,
   materialSchemeColor,
 } from './internal/theme/default-color-schemes.ts';
 import { kDefaultIconLightColor, kDefaultIconDarkColor } from './constants.ts';
@@ -75,7 +76,7 @@ import { IconThemeData } from '@nelyx/core/framework/widgets/icon-theme-data';
 import { ChipThemeData } from './chip-theme-data.ts';
 import { TooltipThemeData } from './tooltip-theme-data.ts';
 import type { InteractiveInkFeatureFactory } from './ink-feature.ts';
-import { InkRipple } from './ink-effects.ts';
+import { InkRipple, InkSplash } from './ink-effects.ts';
 import { SliderThemeData } from './slider-theme-data.ts';
 import { ProgressIndicatorThemeData } from './progress-indicator-theme-data.ts';
 import { FilledButtonThemeData } from './filled-button-theme-data.ts';
@@ -149,6 +150,7 @@ class AdaptationMap extends Map<object, ThemeAdaptation> {
 }
 export interface ThemeDataOptions {
   readonly pageTransitionsTheme?: PageTransitionsTheme | null;
+  readonly useMaterial3?: boolean | null;
   readonly useSystemColors?: boolean | null;
   readonly appBarTheme?: AppBarThemeData | AppBarTheme | null;
   readonly bannerTheme?: MaterialBannerThemeData | null;
@@ -235,7 +237,7 @@ export interface ThemeDataOptions {
   readonly radioTheme?: RadioThemeData | null;
   readonly switchTheme?: SwitchThemeData | null;
 }
-/** Complete M3 raw snapshot; every source field is required and factory defaults are bypassed. */
+/** Raw snapshot with factory defaults bypassed. */
 export type ThemeDataRawOptions = Pick<
   ThemeData,
   | 'cupertinoOverrideTheme'
@@ -315,7 +317,11 @@ export type ThemeDataRawOptions = Pick<
   | 'timePickerTheme'
   | 'toggleButtonsTheme'
   | 'tooltipTheme'
-> & { readonly buttonTheme?: ButtonThemeData; readonly buttonBarTheme?: ButtonBarThemeData };
+> & {
+  readonly buttonTheme?: ButtonThemeData;
+  readonly buttonBarTheme?: ButtonBarThemeData;
+  readonly useMaterial3?: boolean;
+};
 const themeDataFields = [
   'cupertinoOverrideTheme',
   'extensions',
@@ -327,6 +333,7 @@ const themeDataFields = [
   'scrollbarTheme',
   'splashFactory',
   'visualDensity',
+  'useMaterial3',
   'canvasColor',
   'cardColor',
   'colorScheme',
@@ -405,16 +412,12 @@ function themeMapEquals(a: ReadonlyMap<object, unknown>, b: ReadonlyMap<object, 
   );
 }
 function rejectRemovedThemeOptions(options: object): void {
-  for (const name of [
-    'useMaterial3',
-    'applyElevationOverlayColor',
-    'dialogBackgroundColor',
-    'indicatorColor',
-  ])
+  for (const name of ['applyElevationOverlayColor', 'dialogBackgroundColor', 'indicatorColor'])
     if (Object.hasOwn(options, name))
       throw new TypeError('Removed Material 2 or deprecated theme option: ' + name);
 }
 export class ThemeData extends Diagnosticable(class {}) {
+  readonly useMaterial3: boolean;
   readonly pageTransitionsTheme: PageTransitionsTheme;
   readonly appBarTheme: AppBarThemeData;
   readonly bannerTheme: MaterialBannerThemeData;
@@ -535,11 +538,20 @@ export class ThemeData extends Diagnosticable(class {}) {
       'color-scheme-brightness-mismatch',
       'ThemeData.brightness must match ColorScheme.brightness',
     );
+    this.useMaterial3 = options.useMaterial3 ?? true;
     const brightness = options.brightness ?? options.colorScheme?.brightness ?? 'light';
+    const isDark = brightness === 'dark';
+    const swatch = options.primarySwatch ?? Colors.blue;
+    const schemeDefaults = this.useMaterial3 || options.colorSchemeSeed != null;
+    const legacyCanvas = isDark ? Colors.grey.get(850)! : Colors.grey.shade50;
+    const legacyCard = options.cardColor ?? (isDark ? Colors.grey.shade800 : Colors.white);
     const colorScheme =
-      options.colorSchemeSeed == null
-        ? (options.colorScheme ?? defaultMaterialColorScheme(brightness))
-        : ColorScheme.fromSeed({ seedColor: options.colorSchemeSeed, brightness });
+      options.colorSchemeSeed != null
+        ? ColorScheme.fromSeed({ seedColor: options.colorSchemeSeed, brightness })
+        : (options.colorScheme ??
+          (schemeDefaults
+            ? defaultMaterialColorScheme(brightness)
+            : material2ColorScheme(brightness, swatch, legacyCard)));
     const platform = options.platform ?? FoundationPlatform.defaultTargetPlatform;
     const {
       listTileTheme = null,
@@ -578,7 +590,11 @@ export class ThemeData extends Diagnosticable(class {}) {
     this.listTileTheme = listTileTheme ?? materialFactoryDefaults.listTileTheme;
     this.iconButtonTheme = iconButtonTheme ?? materialFactoryDefaults.iconButtonTheme;
     this.dividerTheme = dividerTheme ?? materialFactoryDefaults.dividerTheme;
-    this.dividerColor = dividerColor ?? materialSchemeColor(colorScheme, 'outline');
+    this.dividerColor =
+      dividerColor ??
+      (schemeDefaults
+        ? materialSchemeColor(colorScheme, 'outline')
+        : constSourceColor(Color, isDark ? 0x1fffffff : 0x1f000000));
     this.tooltipTheme = tooltipTheme ?? materialFactoryDefaults.tooltipTheme;
     this.chipTheme = chipTheme ?? materialFactoryDefaults.chipTheme;
     this.iconTheme =
@@ -643,11 +659,15 @@ export class ThemeData extends Diagnosticable(class {}) {
       constSourceColor(Color, colorScheme.brightness === 'dark' ? 0x40cccccc : 0x66c8c8c8);
     this.splashFactory =
       splashFactory ??
-      (platform === 'android' && FoundationPlatform.hostEnvironment.kind !== 'web'
-        ? InkSparkle.splashFactory
-        : InkRipple.splashFactory);
-    this.canvasColor = canvasColor ?? materialSchemeColor(colorScheme, 'surface');
-    this.cardColor = cardColor ?? materialSchemeColor(colorScheme, 'surface');
+      (this.useMaterial3
+        ? platform === 'android' && FoundationPlatform.hostEnvironment.kind !== 'web'
+          ? InkSparkle.splashFactory
+          : InkRipple.splashFactory
+        : InkSplash.splashFactory);
+    this.canvasColor =
+      canvasColor ?? (schemeDefaults ? materialSchemeColor(colorScheme, 'surface') : legacyCanvas);
+    this.cardColor =
+      cardColor ?? (schemeDefaults ? materialSchemeColor(colorScheme, 'surface') : legacyCard);
     this.shadowColor = shadowColor ?? Colors.black;
     this.platform = platform;
     this.visualDensity = visualDensity ?? VisualDensity.defaultDensityForPlatform(platform);
@@ -660,9 +680,11 @@ export class ThemeData extends Diagnosticable(class {}) {
       disabledColor ?? (colorScheme.brightness === 'dark' ? Colors.white38 : Colors.black38);
     this.primaryColor =
       primaryColor ??
-      materialSchemeColor(colorScheme, colorScheme.brightness === 'dark' ? 'surface' : 'primary');
-    const swatch = options.primarySwatch ?? Colors.blue,
-      isDark = brightness === 'dark';
+      (schemeDefaults
+        ? materialSchemeColor(colorScheme, isDark ? 'surface' : 'primary')
+        : isDark
+          ? Colors.grey.shade900
+          : swatch);
     this.buttonBarTheme = options.buttonBarTheme ?? defaultButtonBarTheme;
     this.buttonTheme =
       options.buttonTheme ??
@@ -680,7 +702,8 @@ export class ThemeData extends Diagnosticable(class {}) {
       options.primaryColorLight ?? (isDark ? Colors.grey.shade500 : swatch.shade100);
     this.primaryColorDark = options.primaryColorDark ?? (isDark ? Colors.black : swatch.shade700);
     this.scaffoldBackgroundColor =
-      options.scaffoldBackgroundColor ?? materialSchemeColor(colorScheme, 'surface');
+      options.scaffoldBackgroundColor ??
+      (schemeDefaults ? materialSchemeColor(colorScheme, 'surface') : this.canvasColor);
     this.secondaryHeaderColor =
       options.secondaryHeaderColor ?? (isDark ? Colors.grey.shade700 : swatch.shade50);
     this.hintColor = options.hintColor ?? (isDark ? Colors.white60 : Colors.black.withOpacity(0.6));
@@ -694,7 +717,11 @@ export class ThemeData extends Diagnosticable(class {}) {
       highlightColor ??
       constSourceColor(Color, colorScheme.brightness === 'dark' ? 0x40cccccc : 0x66bcbcbc);
     const primaryIsDark = ThemeData.estimateBrightnessForColor(this.primaryColor) === 'dark';
-    this.typography = options.typography ?? Typography.material2021({ platform, colorScheme });
+    this.typography =
+      options.typography ??
+      (this.useMaterial3
+        ? Typography.material2021({ platform, colorScheme })
+        : Typography.material2014({ platform }));
     this.primaryIconTheme =
       options.primaryIconTheme ?? (primaryIsDark ? primaryIconWhite : primaryIconBlack);
     let defaultTextTheme =
@@ -746,24 +773,27 @@ export class ThemeData extends Diagnosticable(class {}) {
   static from({
     colorScheme,
     textTheme = null,
+    useMaterial3 = true,
   }: {
     readonly colorScheme: ColorScheme;
     readonly textTheme?: TextTheme | null;
+    readonly useMaterial3?: boolean;
   }): ThemeData {
     return new ThemeData({
       colorScheme,
       textTheme,
+      useMaterial3,
       dividerColor: new Color(colorScheme.onSurface).withOpacity(0.12),
     });
   }
-  static light(): ThemeData {
-    return new ThemeData();
+  static light(options: Pick<ThemeDataOptions, 'useMaterial3'> = {}): ThemeData {
+    return new ThemeData(options);
   }
-  static dark(): ThemeData {
-    return new ThemeData({ brightness: 'dark' });
+  static dark(options: Pick<ThemeDataOptions, 'useMaterial3'> = {}): ThemeData {
+    return new ThemeData({ ...options, brightness: 'dark' });
   }
-  static fallback(): ThemeData {
-    return ThemeData.light();
+  static fallback(options: Pick<ThemeDataOptions, 'useMaterial3'> = {}): ThemeData {
+    return ThemeData.light(options);
   }
   static localize(baseTheme: ThemeData, localTextGeometry: TextTheme): ThemeData {
     const cached = ThemeData.localizedThemes.find(
@@ -790,6 +820,13 @@ export class ThemeData extends Diagnosticable(class {}) {
     rejectRemovedThemeOptions(options);
     const result = Object.create(ThemeData.prototype) as ThemeData;
     for (const field of themeDataFields) {
+      if (field === 'useMaterial3') {
+        Object.defineProperty(result, field, {
+          value: options.useMaterial3 ?? true,
+          enumerable: true,
+        });
+        continue;
+      }
       if (field === 'buttonBarTheme') {
         Object.defineProperty(result, field, {
           value: options.buttonBarTheme ?? defaultButtonBarTheme,
@@ -880,6 +917,7 @@ export class ThemeData extends Diagnosticable(class {}) {
       scrollbarTheme: options.scrollbarTheme ?? this.scrollbarTheme,
       splashFactory: options.splashFactory ?? this.splashFactory,
       visualDensity: options.visualDensity ?? this.visualDensity,
+      useMaterial3: options.useMaterial3 ?? this.useMaterial3,
       canvasColor: options.canvasColor ?? this.canvasColor,
       cardColor: options.cardColor ?? this.cardColor,
       colorScheme: (options.colorScheme ?? this.colorScheme).copyWith({
@@ -982,6 +1020,7 @@ export class ThemeData extends Diagnosticable(class {}) {
       scrollbarTheme: SourceScrollbarThemeData.lerp(a.scrollbarTheme, b.scrollbarTheme, t),
       splashFactory: t < 0.5 ? a.splashFactory : b.splashFactory,
       visualDensity: VisualDensity.lerp(a.visualDensity, b.visualDensity, t),
+      useMaterial3: t < 0.5 ? a.useMaterial3 : b.useMaterial3,
       canvasColor: Color.lerp(a.canvasColor, b.canvasColor, t)!,
       cardColor: Color.lerp(a.cardColor, b.cardColor, t)!,
       colorScheme: ColorScheme.lerp(a.colorScheme, b.colorScheme, t),
@@ -1127,6 +1166,7 @@ export class ThemeData extends Diagnosticable(class {}) {
       this.scrollbarTheme,
       this.splashFactory,
       this.visualDensity,
+      this.useMaterial3,
       this.canvasColor,
       this.cardColor,
       this.colorScheme,
@@ -1200,6 +1240,9 @@ export class ThemeData extends Diagnosticable(class {}) {
   }
   override debugFillProperties(properties: DiagnosticPropertiesBuilder): void {
     super.debugFillProperties(properties);
+    properties.add(
+      new DiagnosticsProperty('useMaterial3', this.useMaterial3, { defaultValue: true }),
+    );
     const defaultData = ThemeData.fallback();
     properties.add(
       new IterableProperty('adaptations', this.adaptationMap.values(), {

@@ -26,6 +26,7 @@ import type { Key } from '../../foundation/key.ts';
 import type { ViewControllerContext } from '../../hosting/runtime.ts';
 import type { ViewMetrics } from '../../ui/types.ts';
 import type { FrameTiming } from '../../foundation/clock.ts';
+import type { AppDiagnosticsObserver } from './app-diagnostics-data.ts';
 import type { PreparationResourceBudget } from '../../hosting/resources.ts';
 import { ViewWorkBudget, viewChildBudgetLimits } from './view-work-budget.ts';
 import { DormantChildCache } from './dormant-child-cache.ts';
@@ -337,6 +338,8 @@ interface PreparationScope {
   failure?: FlutterErrorDetails;
 }
 export class BuildOwner {
+  /** @internal App overlays register only while mounted. */
+  appDiagnostics: Set<AppDiagnosticsObserver> | undefined;
   private preparation: PreparationScope | undefined;
   private preparationWake: Disposable | undefined;
   private publishingPreparation = false;

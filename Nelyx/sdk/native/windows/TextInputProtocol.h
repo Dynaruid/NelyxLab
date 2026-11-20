@@ -60,7 +60,7 @@ public:
   ITfContext* context()const{live();return session_->context();}
   void configuration(bool enabled,bool readOnly,bool multiline,InputScope scope){live();session_->configuration(enabled,readOnly,multiline,scope);}
   bool command(std::wstring_view name,InputWire::RN::JSValueArray const& args){
-    ui();const bool known=name==L"replace"||name==L"replaceComposing"||name==L"geometry"||name==L"caretBounds"||name==L"textPosition"||name==L"focus"||name==L"blur";if(!known)return false;live();auto keep=shared_from_this();
+    ui();const bool known=name==L"replace"||name==L"replaceComposing"||name==L"limitComposition"||name==L"geometry"||name==L"caretBounds"||name==L"textPosition"||name==L"focus"||name==L"blur";if(!known)return false;live();auto keep=shared_from_this();
     try{execute(name,args);}catch(winrt::hresult_error const& error){fail(winrt::to_string(error.message()));}catch(std::exception const& error){fail(error.what());}catch(...){fail("Windows input wire command failed");}return true;
   }
   void close(){ui();stopped_=true;frame_.reset();if(session_){session_->close();session_.reset();}callbacks_={};}
@@ -78,6 +78,15 @@ private:
     using namespace InputWire;
     if(name==L"focus"||name==L"blur"){if(!args.empty())throw std::invalid_argument("Input focus command takes no arguments");if(name==L"focus")session_->focus();else session_->blur();return;}
     if(name==L"replace"||name==L"replaceComposing"){if(args.size()!=5)throw std::invalid_argument("Input replacement requires text, anchor, focus, revision, request");session_->replace(text(args[0]),{offset(args[1]),offset(args[2])},counter(args[3],true),counter(args[4]),name==L"replaceComposing");return;}
+    if (name == L"limitComposition") {
+      if (args.size() != 5) throw std::invalid_argument("Composition limit packet required");
+      const auto& range = args[3];
+      const auto composing = range.IsNull() ? Composition{} :
+        Composition{offset(field(range, "start")), offset(field(range, "end"))};
+      session_->limitComposition(text(args[0]), {offset(args[1]), offset(args[2])}, composing,
+                                 counter(args[4], true));
+      return;
+    }
     if(args.size()!=1)throw std::invalid_argument("Input coordinate command requires one packet");auto const& packet=args[0];const auto revision=counter(field(packet,"nativeRevision"),true);
     if(name==L"geometry"){
       auto const& source=field(packet,"geometry");if(source.IsNull()){if(revision==session_->read().revision){frame_.reset();session_->withdrawGeometry();}return;}

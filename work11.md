@@ -1,6 +1,6 @@
 # W11 · Material 3·Cupertino 생성 후보와 변환 차단분 전체 이식
 
-2026-11-19 시작 · 2026-11-20 **현재 지원 범위 패키지 이전 완료(정적 검증)**
+2026-11-19 시작 · 2026-11-20 **패키지 이전 및 후속 과제 구현 완료(정적 검증)**
 
 기존 TypeScript 후보를 소유 패키지로 일괄 이전하고, 자동 변환에서 막힌 단위도 **전부** 고정 Flutter 원본과 대조한다. 이식 기준은 원본의 공개 API와 핵심 동작이다. 같은 결과를 내는 데 원본의 private 클래스나 helper를 일대일로 옮길 필요는 없다. 이미 동등한 구현이 있으면 복제하지 않고 그 구현과 검증 근거를 연결한다. 이후 버그·누락된 멤버·타입·동작 차이도 패키지에서 직접 고친다. [변환 도구](tools/Nelyx.FrameworkToTypeScript/README.md)는 동결한다. 도구 개발, recipe 수정, Dart SDK 준비, 재생성 및 생성 바이트 일치는 선행 작업도 완료 조건도 아니다.
 
@@ -43,21 +43,21 @@ W11에서는 런타임 테스트, Testbed·브라우저·에뮬레이터·실기
 
 ## 이식 현황
 
-2026-11-20에 현재 지원 범위로 W11을 마감하기로 결정했다. Material 3와 Cupertino의 현행 Core·SDK 경로에서 후보 479개 파일과 차단 단위 868개의 이식 또는 기존 구현 채택을 완료했다. 기존 제품 경로에 병합하거나 이미 같은 구현이 있던 후보는 비공개 후보 트리에서 제거했다.
+초기 이식에서 후보 479개 파일과 차단 단위 868개를 처리했다. 후속 구현에서 남은 후보 3개와 차단 단위 16개를 제품 경로에 이식했다. 제품에 병합했거나 제품 구현을 채택한 후보 TypeScript 파일은 정리했다. 원본 위치와 제품 경로는 이식 목록에 연결했다. [이식 목록](work11-inventory.tsv)
 
-| 고정 입력 | 병합·직접 이식 | 기존 구현 채택 | 후속 과제 중 일부 이식 | 후속 과제 중 미이식 |
-| --- | ---: | ---: | ---: | ---: |
-| 후보 482개 파일 | 222 | 257 | 1 | 2 |
-| 차단 884개 단위 | 528 | 340 | 7 | 9 |
+| 고정 입력 | 병합·직접 이식 | 기존 구현 채택 | 미완료 |
+| --- | ---: | ---: | ---: |
+| 후보 482개 파일 | 225 | 257 | 0 |
+| 차단 884개 단위 | 544 | 340 | 0 |
 
 - SearchAnchor에서 편집기 탭과 입력을 검색 열기에 연결했다. 앵커 크기와 위치를 600ms 동안 보간하며 표면·헤더·구분선·제안을 순서대로 표시한다. 전환 중 편집기와 제안은 화면 크기에서 가로 여백을 뺀 종점 너비를 사용하고 표면 경계에서 잘린다. 화면 유형별 기본 크기, 전체 화면 안전 여백, 목록의 키보드 여백, 제안 순서와 선택 결과 반환을 대조했다. Material 검색 막대와 결과 화면 및 Cupertino 검색 입력은 스마트 따옴표와 대시 옵션을 iOS 편집기에 전달한다. 이전 Web Release의 검색 열기 증상은 실행 미검증으로 유지한다. [SearchAnchor](packages/material/src/search-anchor.ts) · [Cupertino 검색 입력](packages/cupertino/src/search-field.ts)
-- Material TextField는 본문 `bodyLarge`, 비활성 글자 알파 0.38과 길이 한계 초과 시 오류 색을 사용한다. 두 디자인 패키지에서 편집 옵션과 테마를 iOS 키보드 밝기에 연결했다. 날짜 입력은 iOS 숫자·구두점 키보드와 Android 날짜·시간 입력 유형을 사용하고 Windows와 Web에서는 현지화한 날짜를 텍스트로 입력한다. 두 텍스트 필드에 길이 제한 해제와 플랫폼 기본 모드를 연결했다. Core는 관찰 가능한 IME 조합을 커밋할 때 길이를 제한한다. 조합 중 즉시 제한과 iOS의 조합 범위 전달이 남았다. [Material TextField](packages/material/src/text-field.ts) · [CupertinoTextField](packages/cupertino/src/text-field.ts) · [날짜 입력](packages/material/src/internal/date/source-input.ts)
+- M3 TextField는 본문 `bodyLarge`, 비활성 글자 알파 0.38과 길이 한계 초과 시 오류 색을 사용한다. 두 디자인 패키지에서 편집 옵션과 테마를 iOS 키보드 밝기에 연결했다. 날짜 입력은 iOS 숫자·구두점 키보드와 Android 날짜·시간 입력 유형을 사용하고 Windows와 Web에서는 현지화한 날짜를 텍스트로 입력한다. 두 텍스트 필드의 길이 옵션은 Core 편집 포매터에 전달된다. [Material TextField](packages/material/src/text-field.ts) · [CupertinoTextField](packages/cupertino/src/text-field.ts) · [날짜 입력](packages/material/src/internal/date/source-input.ts)
 - 아크 트윈은 축 정렬 경로에서 이전 곡선의 중심과 반지름을 비우고 `endAngle`에 실제 끝 각도를 반환한다. 고정 원본의 속성 접근 결과와 달라지는 부분이며 곡선 보간에는 같은 시작·끝 각도를 사용한다. [Material 아크 트윈](packages/material/src/arc.ts)
 - Material 배너는 Scaffold에 표시하고 큐 순서, 접근성 닫기, 종료 사유를 연결했다. SnackBar와 배너는 라우트 전환 중 위치를 보간하고, 같은 키로 실제 자식을 목적지에 옮겨 상태를 이어받는다. 전환 중에는 스냅샷을 표시하며 캡처가 불가능하면 목적지에서 바로 표시한다. [배너](packages/material/src/banner.ts) · [Scaffold 표시 전환](packages/material/src/internal/scaffold-feature-flight.ts)
 - 입력 테두리의 라벨 간격을 그릴 때 Core Canvas의 차집합 클립을 사용한다. 라벨이 떠 있는 동안 상단 선을 비우며 잘린 부분의 끝점 외형이 원본 경로 연산과 다를 수 있다. [입력 테두리](packages/material/src/input-border.ts)
 - `InputDecorator`가 윤곽선의 위·가운데·아래 베이스라인과 접두·접미 요소 높이를 반영한다. `maintainHintSize: false`면 사라지는 힌트가 페이드하는 동안 공간을 해제한다. 하단 텍스트와 패딩을 포함한 최소 내재 높이를 별도로 계산한다. [입력 장식](packages/material/src/internal/input/input-decorator-layout.ts)
 - Cupertino 버튼은 초점 링, 아이콘 테마와 크기 상수를 적용한다. 포인터가 플랫폼별 조작 경계를 나갔다가 돌아오면 눌림 표시를 갱신하고 해제 위치에서 탭을 판정한다. [Cupertino 버튼](packages/cupertino/src/button.ts)
-- Material·Cupertino 다이얼로그와 Cupertino 모달 팝업은 Core의 화면 분할 배치를 사용한다. `MediaQuery`에서 화면을 가르는 디스플레이 경계를 받은 경우 앵커에서 가장 가까운 영역에 내용을 두고 그 영역의 여백을 적용한다. 호스트의 디스플레이 정보 자동 수집과 Material의 독립 창 다이얼로그는 남아 있다. [화면 분할 배치](Nelyx/src/framework/widgets/display-feature-sub-screen.ts) · [Material 라우트](packages/material/src/dialog.ts) · [Cupertino 라우트](packages/cupertino/src/route.ts)
+- Material·Cupertino 다이얼로그와 Cupertino 모달 팝업은 Overlay 경로에서 Core의 화면 분할 배치를 사용한다. `MediaQuery`에서 화면을 가르는 디스플레이 경계를 받은 경우 앵커에서 가장 가까운 영역에 내용을 두고 그 영역의 여백을 적용한다. 호스트의 디스플레이 정보 자동 수집은 후속 범위로 남겼다. [화면 분할 배치](Nelyx/src/framework/widgets/display-feature-sub-screen.ts) · [Material 라우트](packages/material/src/dialog.ts) · [Cupertino 라우트](packages/cupertino/src/route.ts)
 - Cupertino Picker는 Core 휠의 원근값과 기존 항목 선택, 스크롤, iOS 햅틱 및 접근성 조절 경로를 채택했다. 외부 스크롤 컨트롤러를 교체하면 기존 리스너와 진행 중인 탭 상태를 정리하는 제품 동작을 유지했다. [Cupertino Picker](packages/cupertino/src/picker.ts)
 - Material Card의 세 가지 변형과 Cupertino 활동 표시기, 폼 여백과 목록 헤더·푸터의 기존 제품 구현을 채택했다. 확장 FAB는 아이콘에 테마 크기를 적용하고 줄임 배치에서 최소 내재 폭·높이를 0으로 보고한다. [Material Card](packages/material/src/card.ts) · [FAB](packages/material/src/floating-action-button.ts) · [Cupertino 활동 표시기](packages/cupertino/src/activity-indicator.ts)
 - FAB의 19개 기본 위치와 사용자 위치 조합을 Scaffold에 연결했다. 위치를 연달아 바꾸면 앞선 전환의 현재 위치에서 이어 간다. 이전 버튼이 닫힌 뒤 새 버튼을 표시하고, 이동과 진입이 겹치면 두 회전값이 만나는 지점에서 이동 회전으로 전환한다. 크기와 위치는 BottomAppBar의 노치에 전달하고, 본문 확장에는 실측한 앱 바·고정 푸터·하단 바 높이를 반영한다. [FAB 위치·애니메이터](packages/material/src/floating-action-button-location.ts) · [Scaffold](packages/material/src/scaffold.ts) · [BottomAppBar](packages/material/src/bottom-app-bar.ts)
@@ -67,7 +67,7 @@ W11에서는 런타임 테스트, Testbed·브라우저·에뮬레이터·실기
 - `FlexibleSpaceBar`에 접힘 범위, 배경 확대·블러와 제목 배율을 연결했다. `SliverAppBar`의 소형·중형·대형 변형은 Core 헤더의 고정, 플로팅, 스냅, 오버스크롤 늘어남과 포커스로 열기를 사용한다. 스냅은 마지막 스크롤 레이아웃 뒤에 시작한다. 중형·대형의 확장 제목은 여백을 포함한 최소·최대 내재 크기와 실제·드라이 베이스라인을 계산한다. [FlexibleSpaceBar](packages/material/src/flexible-space-bar.ts) · [SliverAppBar](packages/material/src/sliver-app-bar.ts) · [Core 헤더](Nelyx/src/framework/rendering/sliver-persistent-header.ts)
 - 모바일·데스크톱 텍스트 선택 메뉴에서 디자인 버튼의 포인터·키보드·접근성 동작을 사용한다. 넘친 항목과 다른 페이지의 항목은 탐색 대상에서 제외되며, 화면 폭이 바뀌면 Cupertino 메뉴가 표시할 수 있는 페이지를 사용한다. 기존 `TextSelectionControls.buildToolbar` 경로는 실제 편집기 선택과 클립보드 상태, 데스크톱 보조 클릭에 연결했다. [Material 컨트롤](packages/material/src/text-selection.ts) · [Cupertino 컨트롤](packages/cupertino/src/text-selection.ts) · [Core 편집기](Nelyx/src/framework/widgets/editable-text.ts)
 - Material 고도별 그림자 데이터를 읽기 전용 맵으로 공개하고 Badge의 기존 렌더링을 채택했다. 확장 패널은 `MergeableMaterial`의 간격·그림자, 본문 페이드·크기 전환과 현지화한 조작 힌트를 사용한다. 간격이 진행 중 다시 바뀌면 현재 크기와 모서리부터 200ms 전환을 시작한다. 인접 조각을 같은 목록에 유지해 화면 상태를 보존한다. [그림자](packages/material/src/shadows.ts) · [Badge](packages/material/src/badge.ts) · [확장 패널](packages/material/src/expansion-panel.ts) · [MergeableMaterial](packages/material/src/mergeable-material.ts)
-- 앱 정보는 `Title`과 `WidgetsApp.title`에서 표시 이름을 읽고, 등록한 라이선스와 매니페스트의 `NOTICES.Z` 또는 `NOTICES`를 사용한다. 라이선스 상세는 좁은 화면에서 라우트의 로컬 이력에 연결되고 창 폭이 바뀌어도 선택 항목을 유지한다. 긴 라이선스는 스크롤에 맞춰 문단을 생성한다. 정보 상자는 각 플랫폼의 알림 위젯을 사용하며 Material에서는 폭을 280–560으로 제한한다. 실행 파일 이름의 자동 조회가 남아 있다. 정보 및 라이선스 화면에는 `Powered by Nelyx`를 표시한다. [앱 정보](packages/material/src/about.ts) · [라이선스 레지스트리](Nelyx/src/foundation/licenses.ts)
+- 앱 정보는 `Title`과 `WidgetsApp.title`에서 표시 이름을 읽고, 등록한 라이선스와 매니페스트의 `NOTICES.Z` 또는 `NOTICES`를 사용한다. 라이선스 상세는 좁은 화면에서 라우트의 로컬 이력에 연결되고 창 폭이 바뀌어도 선택 항목을 유지한다. 긴 라이선스는 스크롤에 맞춰 문단을 생성한다. 정보 상자는 각 플랫폼의 알림 위젯을 사용하며 Material에서는 폭을 280–560으로 제한한다. 정보 및 라이선스 화면에는 `Powered by Nelyx`를 표시한다. [앱 정보](packages/material/src/about.ts) · [라이선스 레지스트리](Nelyx/src/foundation/licenses.ts)
 - Chip의 비활성 전환을 아바타·라벨·삭제 아이콘별 합성 레이어에 적용한다. 도중에 조작을 비활성화하면 눌림과 호버를 해제한다. 레이블 스타일을 병합한 뒤 `WidgetStateTextStyle`과 `TextStyle.color`에 직접 지정한 `WidgetStateColor`를 해석한다. 삭제 아이콘 색과 `WidgetStateOutlinedBorder`도 현재 상태를 사용한다. [Chip 상태](packages/material/src/internal/chip/raw-chip-state.ts) · [Core TextStyle](Nelyx/src/framework/painting/text-style.ts)
 - Cupertino 알림과 액션 시트에서 본문과 액션을 각각 스크롤할 수 있다. 알림의 두 버튼은 각각 절반 폭에 들어갈 때 가로로 배치한다. 드래그로 선택한 버튼, 키보드와 접근성 버튼은 현재 콜백을 사용한다. 주 포인터가 액션 선택을 담당하며 보조 포인터와 트랙패드 pan/zoom도 같은 제스처 아레나에서 정리한다. 짧은 탭에서는 안쪽 버튼이 먼저 판정받는다. [Cupertino 알림](packages/cupertino/src/dialog.ts) · [Cupertino 액션 시트](packages/cupertino/src/action-sheet.ts) · [드래그 선택](packages/cupertino/src/internal/sliding-dialog-actions.ts)
 - Material 탐색 바와 레일은 공용 선택 표시를 쓰고 잉크 효과를 표시 영역에 맞춘다. 선택이 바뀌면 레이블의 높이와 투명도가 이어서 전환된다. 레일은 비활성 항목을 초점 탐색에서 제외하고 현지화한 위치를 안내한다. 확장 중 최소 폭을 보간하며, 긴 레이블에 필요한 경우 부모 제약 안에서 폭을 늘린다. 기존 제외 목록 밖에 있던 레일의 M2 전용 기본값과 패딩은 대기 중이다. [NavigationBar](packages/material/src/navigation-bar.ts) · [NavigationRail](packages/material/src/navigation-rail.ts)
@@ -115,20 +115,24 @@ W11에서는 런타임 테스트, Testbed·브라우저·에뮬레이터·실기
 - Material과 Cupertino 입력 폼은 내부 컨트롤러의 텍스트와 검증 오류·사용자 수정 여부를 Core 복원 범위에 저장한다. 외부 컨트롤러는 호출자가 소유한다. Material 폼은 최초 값으로 초기화한 뒤 변경 콜백을 호출하고 별도의 폼 제출 콜백을 받을 수 있다. [Core 입력 폼](Nelyx/src/framework/widgets/text-form-field.ts) · [Material](packages/material/src/text-form-field.ts) · [Cupertino](packages/cupertino/src/text-form-field-row.ts)
 - Cupertino 새로 고침의 오버스크롤·점유 보정과 완료 후 재활성화, 탭 탐색의 라우트 찾기 순서와 활성 탭 뒤로 가기를 고정 원본과 대조했다. Material·Cupertino 스크롤바와 확대 렌즈는 기존 Core 경로를 채택했다. 확대 렌즈의 공개 이름을 각 패키지의 `widgets`에도 연결했다. [새로 고침](packages/cupertino/src/refresh.ts) · [탭 탐색](packages/cupertino/src/tab-view.ts) · [Material 위젯](packages/material/src/widgets.ts) · [Cupertino 위젯](packages/cupertino/src/widgets.ts)
 - Material 체크박스와 툴팁, SkSL 기반 InkSparkle의 기존 동작을 채택했다. InkResponse의 상태별 커서를 실제 눌림·호버·포커스 상태로 해석한다. `RadioListTile`은 라디오 그룹과 예전 `groupValue`·`onChanged` 호출 방식에 연결했다. [InkResponse](packages/material/src/ink-well.ts) · [InkSparkle](packages/material/src/ink-sparkle.ts) · [라디오 목록](packages/material/src/radio-list-tile.ts)
-- Material과 Cupertino 앱은 로캘을 적용한 뒤 `onGenerateTitle`을 호출한다. `navigatorKey`, 라우트 옵저버와 뒤로 가기 가능 여부 알림을 노출하고 콜백은 프레임 종료 시 전달한다. 명시한 키와 외부 컨트롤러를 함께 교체할 때는 새 키와 분리된 컨트롤러를 지정한다. CupertinoTabView에서는 기존 함수형 옵저버도 사용한다. 디버그 모드에서는 기본 글꼴이 제공될 때 DEBUG 배너를 표시하며 Material 앱은 선택적으로 배치 격자를 그린다. 위젯 선택 검사기와 성능·시맨틱 디버그 표시는 남아 있다. [Core 앱](Nelyx/src/framework/widgets/app.ts) · [Core 탐색](Nelyx/src/framework/widgets/navigation.ts) · [Cupertino 탭](packages/cupertino/src/tab-view.ts)
+- Material과 Cupertino 앱은 로캘을 적용한 뒤 `onGenerateTitle`을 호출한다. `navigatorKey`, 라우트 옵저버와 뒤로 가기 가능 여부 알림을 노출하고 콜백은 프레임 종료 시 전달한다. 명시한 키와 외부 컨트롤러를 함께 교체할 때는 새 키와 분리된 컨트롤러를 지정한다. CupertinoTabView에서는 기존 함수형 옵저버도 사용한다. 디버그 모드에서는 기본 글꼴이 제공될 때 DEBUG 배너를 표시하며 Material 앱은 선택적으로 배치 격자를 그린다. [Core 앱](Nelyx/src/framework/widgets/app.ts) · [Core 탐색](Nelyx/src/framework/widgets/navigation.ts) · [Cupertino 탭](packages/cupertino/src/tab-view.ts)
 - MaterialApp은 원본 오류 텍스트 기본값을 사용한다. CupertinoTabScaffold는 방문한 탭의 상태를 보존하고 비활성 탭의 Hero를 전환에서 제외한다. 날짜 범위 그리드는 Tab과 Shift+Tab을 전달하며 비활성 날짜로 이동하면 그리드가 초점을 유지한다. [Cupertino 탭](packages/cupertino/src/tab-scaffold.ts) · [범위 달력](packages/material/src/internal/date/range-calendar.ts)
 - iOS 상태 표시줄 탭을 해당 View에 전달하고, 원점에 있는 가장 앞선 Scaffold의 기본 스크롤을 이동시킨다. Material은 1000ms, Cupertino는 500ms와 각각의 원본 곡선을 적용한다. iOS 경로는 소스와 SDK 빌드로 확인했다. [SDK iOS 입력](Nelyx/sdk/src/backends/react-native/surface.tsx) · [Core 기본 스크롤](Nelyx/src/framework/widgets/primary-scroll-controller.ts)
 - Core는 합성 레이어의 상태 표시줄 위치에서 색상 annotation을 찾는다. 앱 테마의 밝기를 기본값으로 사용하고 해당 위치의 앱 바 annotation을 우선 적용한다. iOS는 `statusBarBrightness`를, Android는 아이콘 밝기와 OS가 지원하는 배경색을 호스트에 적용한다. [Core 합성](Nelyx/src/framework/widgets/root.ts) · [SDK 플랫폼 서비스](Nelyx/sdk/src/backends/react-native/platform-messages.ts)
 - Material 정보 화면은 명시 이름과 상위 Title에 이어 호스트가 제공하는 실행 파일 이름을 사용한다. 이름을 제공하지 않는 호스트에서는 빈 기본값을 사용한다. [Material 정보 화면](packages/material/src/about.ts) · [Core 플랫폼 환경](Nelyx/src/services/binding.ts)
-- 목록의 Flutter 라이브러리 175개와 추가 참조 파일 7개가 고정 Git blob과 일치한다. `npm.cmd run build:core`, `npm.cmd run build:designs`, `npm.cmd run build --workspace @nelyx/sdk`가 통과했다. 엄격 모드 소비자 컴파일과 선언·ESM export를 패키지 경로 193곳에서 확인했다. 네이티브 브리지는 소스의 호출 경로를 대조했다. 개별 네이티브 컴파일과 실행은 미검증이다.
+- 초기 이식에서는 Flutter 라이브러리 175개와 추가 참조 파일 7개를 고정 Git blob과 대조했다. 당시 Core·디자인·SDK 빌드와 패키지 경로 193곳의 엄격 모드 소비자 컴파일 및 선언·ESM export 대조를 통과했다.
 
-## 후속 과제
+## 후속 구현
 
-후보 파일 3개와 차단 단위 16개를 기존 처리 상태와 함께 [이식 목록](work11-inventory.tsv)에 기록했다. 일부 이식한 행은 `partial`, 미이식 행은 `pending`이다. 세 후보 파일은 비공개 후보 경로에서 확인할 수 있다.
-
-| 범위 | 후보 파일 | 차단 단위 | 구현 범위 |
+| 범위 | 후보 파일 | 차단 단위 | 구현 |
 | --- | ---: | ---: | --- |
-| Material 2 | 3 | 6 | ThemeData에 M2 테마 선택을 연결하고 레일·시간 다이얼과 버튼·스위치·입력·SnackBar의 M2 분기를 이식한다. 두 입력에 포함된 항목을 센다. [Material 테마](packages/material/src/theme-data.ts) |
-| 독립 창 다이얼로그 | 0 | 4 | Flutter의 실험적 windowing 분기에 대응하는 SDK 창 수명과 입력·닫기·라우트 결과 전달을 연결한다. 현재 지원 경로는 Overlay 라우트를 사용한다. [Material 다이얼로그](packages/material/src/dialog.ts) · [Core 호스팅](Nelyx/src/hosting/runtime.ts) |
-| 앱 디버거 | 0 | 4 | Core에 위젯 선택·하이라이트 상태와 성능·시맨틱 디버거를 연결하고 Material과 Cupertino 앱에 검사기 버튼을 연결한다. [Core 앱](Nelyx/src/framework/widgets/app.ts) · [Material 앱](packages/material/src/app.ts) · [Cupertino 앱](packages/cupertino/src/app.ts) |
-| IME 조합 중 길이 제한 | 0 | 2 | 호스트가 조합 범위를 보존하며 즉시 길이를 제한하는 경로와 iOS 편집기의 조합 범위 관찰을 연결한다. [Core 편집기](Nelyx/src/framework/widgets/editable-text.ts) · [iOS 편집기](Nelyx/sdk/src/platforms/ios/interaction.ts) |
+| Material 2 | 3 | 6 | `ThemeData({ useMaterial3: false })`에서 M2 팔레트와 Typography를 선택하고 레일, 24시간 단일 링, 아이콘 버튼, 스위치, 입력 및 SnackBar에 연결했다. 기본 테마는 M3다. [Material 테마](packages/material/src/theme-data.ts) |
+| 독립 창 다이얼로그 | 0 | 4 | Web SDK의 `enableDialogWindows`에서 별도 View의 테마·로캘·키보드와 라우트 결과를 연결했다. 창이 열려 있는 동안 부모 View는 입력을 받지 않고, 닫히면 입력을 복구한다. 팝업이 차단되거나 SDK 창 호스트가 없는 플랫폼에서는 Overlay 라우트로 연다. [Material 다이얼로그](packages/material/src/dialog.ts) · [Web 창 호스트](Nelyx/sdk/src/platforms/web/dialog-windows.ts) |
+| 앱 디버거 | 0 | 4 | `debugShowWidgetInspector`로 렌더 트리를 선택하고 실제 위젯 경계를 표시한다. 두 디자인 앱은 해당 패키지의 버튼과 접근성 레이블을 사용한다. `showPerformanceOverlay`는 CPU 단계별 시간을, `showSemanticsDebugger`는 시맨틱 레이블과 경계를 표시한다. [Core 앱 진단](Nelyx/src/framework/widgets/app-diagnostics.ts) |
+| IME 조합 중 길이 제한 | 0 | 2 | Android, Windows, iOS에서 `enforced`가 관찰한 조합의 리비전과 grapheme 경계로 값을 교정한다. iOS는 UIKit의 `markedTextRange`를 읽는다. 브라우저는 조합 중 겹치는 편집에서 IME 조합을 유지할 수 있도록 조합이 끝났을 때 제한한다. [Core 편집기](Nelyx/src/framework/widgets/editable-text.ts) · [iOS 네이티브 편집기](Nelyx/sdk/native/apple/NelyxPlatformServices.m) · [Chromium EditContext](https://raw.githubusercontent.com/chromium/chromium/main/third_party/blink/renderer/core/editing/ime/edit_context.cc) |
+
+## 후속 검증
+
+- 고정 Flutter 파일 15개의 Git blob을 대조했다. 이식 목록에서 후보 파일 482개와 차단 단위 884개를 확인했다. 기존 M2 제외 항목 24개는 당초 집계 기준을 유지했다. [이식 목록](work11-inventory.tsv)
+- `npm.cmd run build:core`, `npm.cmd run build:designs`, `npm.cmd run build --workspace @nelyx/sdk`가 통과했다. 디자인 공개 경로 315개와 관련 Core·SDK 경로 6개를 엄격 모드 소비자에서 컴파일하고, 영향을 받은 진입점 7개의 ESM 값 export를 확인했다.
+- Windows 직접 호스트와 RNW의 입력 C++ 헤더 구문 검사 및 Android SDK 네이티브 Kotlin 컴파일을 통과했다. iOS 네이티브 컴파일과 플랫폼별 실행, 실기기 입력, 화면 일치는 미검증이다.

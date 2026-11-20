@@ -97,6 +97,55 @@ public:
     if(pending_){const auto previous=pending_->request;pending_.reset();emit(true,previous,"stale");if(closed_)return;if(commandSerial_!=serial){emit(true,request,"stale");return;}}
     pending_=Replacement{std::move(text),selection,revision,request,cancel};settle();
   }
+  void limitComposition(std::wstring text, Selection selection, Composition composing,
+                        uint64_t revision) {
+    ComPtr<TextInputStore> keep(this);
+    ui();
+    const auto old = document_.read();
+    if (revision != old.revision || !composition_ || !old.composing.active() ||
+        !old.focused || !enabled_ || readOnly_ || pending_) return;
+    document_.validateReplacement(text, selection);
+    if (composing.active()) TextInputDocument::range(composing.start, composing.end, text);
+    if (lock_ || startingComposition_ || terminating_) {
+      const auto generation = generation_;
+      callbacks_.post([keep, generation, text = std::move(text), selection, composing, revision]() mutable {
+        if (!keep->closed_ && keep->generation_ == generation)
+          keep->limitComposition(std::move(text), selection, composing, revision);
+      });
+      return;
+    }
+    const auto shared = std::min(old.text.size(), text.size());
+    size_t prefix = 0;
+    while (prefix < shared && old.text[prefix] == text[prefix]) ++prefix;
+    if (!TextInputDocument::boundary(text, static_cast<int32_t>(prefix))) --prefix;
+    size_t suffix = 0;
+    while (suffix < shared - prefix &&
+           old.text[old.text.size() - suffix - 1] == text[text.size() - suffix - 1]) ++suffix;
+    if (!TextInputDocument::boundary(text, static_cast<int32_t>(text.size() - suffix))) --suffix;
+    const TS_TEXTCHANGE change{
+      static_cast<LONG>(prefix), static_cast<LONG>(old.text.size() - suffix),
+      static_cast<LONG>(text.size() - suffix)
+    };
+    {
+      auto edit = document_.beginNativeEdit();
+      auto& next = edit.value();
+      next.text = std::move(text);
+      next.selection = selection;
+      // TSF owns the composition object even if the formatter removed every
+      // marked character. An empty extent remains attached to that object.
+      next.composing = composing.active() ? composing : Composition{selection.focus, selection.focus};
+      if (!edit.commit()) return;
+    }
+    const auto accepted = document_.read();
+    interim_ = false;
+    auto sink = sink_;
+    if (sink && (sinkMask_ & TS_AS_TEXT_CHANGE) &&
+        !sinkResult(sink->OnTextChange(0, &change), "TSF length limit notification failed")) return;
+    if (closed_ || document_.read().revision != accepted.revision) return;
+    if (sink && sink_ == sink && (sinkMask_ & TS_AS_SEL_CHANGE) && old.selection != selection &&
+        !sinkResult(sink->OnSelectionChange(), "TSF length limit selection notification failed")) return;
+    if (!closed_ && document_.read().revision == accepted.revision) emitSnapshot({accepted, false, {}, {}});
+  }
   // The UI owner invokes this only for the matching cancellation timer. A
   // successful TerminateComposition call is not itself a composition-end ack.
   void cancellationExpired(uint64_t request){ui();if(!pending_||pending_->request!=request||!pending_->cancel)return;if(!composition_){settle();return;}pending_.reset();emit(false);emit(true,request,"composing");}

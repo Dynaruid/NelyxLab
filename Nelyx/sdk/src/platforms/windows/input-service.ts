@@ -91,8 +91,9 @@ export class WindowsInputService {
     surface: number,
     onError: (error: unknown) => void,
   ): Promise<WindowsInputService> {
-    if (module.getInputProtocol() !== 3 || typeof module.insertText !== 'function')
-      throw new Error('Rebuild Windows nonvisual input protocol 3 bindings');
+    const protocol = module.getInputProtocol();
+    if ((protocol !== 3 && protocol !== 4) || typeof module.insertText !== 'function')
+      throw new Error('Rebuild Windows nonvisual input bindings');
     if (!positive(surface)) throw new Error('Actual Windows surface identity required');
     if (owners.has(interaction)) throw new Error('Windows input interaction already connected');
     const token = {};
@@ -255,6 +256,20 @@ export class WindowsInputService {
       const port: NativeEditorPort = {
         replace: (...args) => replace('replace', ...args),
         replaceComposing: (...args) => replace('replaceComposing', ...args),
+        ...(this.module.getInputProtocol() === 4
+          ? {
+              applyCompositionLimit: ({ text, selection, composing }, revision) =>
+                send('limitComposition', [
+                  text,
+                  selection.anchor,
+                  selection.focus,
+                  composing.status === 'active'
+                    ? { start: composing.start, end: composing.end }
+                    : null,
+                  revision,
+                ]),
+            }
+          : {}),
         focus: () => send('focus', []),
         blur: () => send('blur', []),
         updateGeometry: (geometry, text, characters, nativeRevision, selection) =>
@@ -469,7 +484,7 @@ export class WindowsInputService {
     // Layout/query replies can continue while TSF observes a live caret.
     // They neither acknowledge an edit nor precede the next document value.
     // Waiting for global coordinate traffic to become empty starves keys.
-    if (['replace', 'replaceComposing', 'focus', 'blur'].includes(name))
+    if (['replace', 'replaceComposing', 'limitComposition', 'focus', 'blur'].includes(name))
       this.pending.add(operation);
     const settled = () => {
       this.pending.delete(operation);

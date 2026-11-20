@@ -65,6 +65,7 @@ class NelyxInputConnectionView(private val reactContext: ThemedReactContext): Vi
     private var submitted: String?=null
     private var pendingAction=false
     private var pendingReplacement: InputReplacement?=null
+    private var deferredCompositionLimit: (() -> Unit)? = null
     private var activeConnection: Connection?=null
     private var retiringConnection: Connection?=null
     private var connectionSequence=0L
@@ -87,7 +88,12 @@ class NelyxInputConnectionView(private val reactContext: ThemedReactContext): Vi
     private var coreFocus=0
     private var keyboardHost: WeakReference<NelyxKeyboardHost>?=null
     private val uiHandler=Handler(Looper.getMainLooper())
-    private val publishTask=Runnable {queued=false;publish()}
+    private val publishTask = Runnable {
+        queued = false
+        val limit = deferredCompositionLimit
+        deferredCompositionLimit = null
+        if (limit != null) limit() else publish()
+    }
     private val cancellationTimeout=Runnable {
         val pending=pendingReplacement ?: return@Runnable
         pendingReplacement=null;request=pending.request;rejection=if(pending.request==null)null else "composing";source="native"
@@ -203,10 +209,14 @@ class NelyxInputConnectionView(private val reactContext: ThemedReactContext): Vi
         override fun getEditable(): Editable=if(current)buffer else retiredBuffer
         override fun getHandler(): Handler=this@NelyxInputConnectionView.handler ?: Handler(Looper.getMainLooper())
         override fun beginBatchEdit(): Boolean {ui();if(!current||!acceptsSoftInput)return false;batches++;batchDepth++;return true}
-        override fun endBatchEdit(): Boolean {ui();if(closed||!live)return false;if(batches>0){batches--;batchDepth--};if(batchDepth==0){updateIme();schedule()};return batches>0}
+        override fun endBatchEdit(): Boolean {ui();if(closed||!live)return false;if(batches>0){batches--;batchDepth--};if(batchDepth==0&&mutationDepth==0){updateIme();schedule()};return batches>0}
         override fun commitText(text: CharSequence?,cursor: Int): Boolean=edit(this){super.commitText(text,cursor)}
         override fun setComposingText(text: CharSequence?,cursor: Int): Boolean=edit(this){super.setComposingText(text,cursor)}
         override fun setComposingRegion(start: Int,end: Int): Boolean=edit(this){super.setComposingRegion(start,end)}
+        fun retainComposingRegion(start: Int,end: Int) {
+            if(start < 0) super.finishComposingText()
+            else super.setComposingRegion(start,end)
+        }
         override fun finishComposingText(): Boolean=edit(this,true){super.finishComposingText()}
         override fun setSelection(start: Int,end: Int): Boolean=edit(this){super.setSelection(start,end)}
         override fun deleteSurroundingText(before: Int,after: Int): Boolean=edit(this){super.deleteSurroundingText(before,after)}
@@ -258,6 +268,40 @@ class NelyxInputConnectionView(private val reactContext: ThemedReactContext): Vi
             queueReplacement(InputReplacement(text,anchor,focus,requestId,connection.identity));return
         }
         clearPendingReplacement();applyReplacement(text,anchor,focus,requestId)
+    }
+    fun limitComposition(text: String, anchor: Int, focus: Int, start: Int, end: Int, expected: Long) {
+        ui()
+        if (!acceptsSoftInput || !isFocused || pendingReplacement != null) return
+        valid(text, anchor, focus)
+        require((start == -1 && end == -1) || (start in 0..end && end <= text.length))
+        if (start >= 0) { validOffset(text, start); validOffset(text, end) }
+        if (queued) { removeCallbacks(publishTask); queued = false }
+        publish()
+        if (revision != expected) return
+        val prior = readValue()
+        if (prior.composingStart < 0) return
+        val connection = activeConnection ?: return
+        if (batchDepth > 0 || mutationDepth > 0) {
+            deferredCompositionLimit = { limitComposition(text, anchor, focus, start, end, expected) }
+            return
+        }
+        var prefix = 0
+        while (prefix < text.length && prefix < prior.text.length && text[prefix] == prior.text[prefix]) prefix++
+        // Common prefixes can end between the surrogates of two different characters.
+        if (prefix > 0 && prefix < text.length && Character.isLowSurrogate(text[prefix])) prefix--
+        mutationDepth++
+        try {
+            buffer.replace(prefix, buffer.length, text, prefix, text.length)
+            if (BaseInputConnection.getComposingSpanStart(buffer) != start ||
+                BaseInputConnection.getComposingSpanEnd(buffer) != end)
+                connection.retainComposingRegion(start, end)
+            Selection.setSelection(buffer, anchor, focus)
+            geometry = null
+        } finally {
+            mutationDepth--
+        }
+        updateIme()
+        publish()
     }
     private fun clearPendingReplacement(){pendingReplacement=null;uiHandler.removeCallbacks(cancellationTimeout);uiHandler.removeCallbacks(cancellationCompletion)}
     private fun queueReplacement(value: InputReplacement){clearPendingReplacement();pendingReplacement=value;pendingAction=false;uiHandler.postDelayed(cancellationTimeout,5000);imm.restartInput(this)}
@@ -354,7 +398,7 @@ class NelyxInputConnectionView(private val reactContext: ThemedReactContext): Vi
         requestFocus();if(show&&acceptsSoftInput)imm.showSoftInput(this,0)
     }
     fun blurInput(){if(!live)return;if(isFocused)clearFocus();host()?.releaseEditor()}
-    fun close(){ui();if(!live)return;val release=isFocused||imm.isActive(this);live=false;removeCallbacks(publishTask);uiHandler.removeCallbacks(cancellationTimeout);uiHandler.removeCallbacks(cancellationCompletion);pendingReplacement=null;activeConnection=null;retiringConnection=null;geometry=null;extractedToken=null;buffer.clearSpans();buffer.clear();Selection.setSelection(buffer,0);coreValue="";coreAnchor=0;coreFocus=0;owner=null;signature=null;request=null;rejection=null;submitted=null;pendingAction=false;clearFocus();if(release)host()?.releaseEditor();keyboardHost=null}
+    fun close(){ui();if(!live)return;val release=isFocused||imm.isActive(this);live=false;removeCallbacks(publishTask);uiHandler.removeCallbacks(cancellationTimeout);uiHandler.removeCallbacks(cancellationCompletion);pendingReplacement=null;deferredCompositionLimit=null;activeConnection=null;retiringConnection=null;geometry=null;extractedToken=null;buffer.clearSpans();buffer.clear();Selection.setSelection(buffer,0);coreValue="";coreAnchor=0;coreFocus=0;owner=null;signature=null;request=null;rejection=null;submitted=null;pendingAction=false;clearFocus();if(release)host()?.releaseEditor();keyboardHost=null}
     private fun integer(value: ReadableMap,key: String): Long {val number=value.getDouble(key);require(number.isFinite()&&number>=0&&number<=9007199254740991.0&&number==number.toLong().toDouble());return number.toLong()}
     private fun number(value: ReadableMap,key: String): Float {val number=value.getDouble(key);require(number.isFinite()&&number.toFloat().isFinite());return number.toFloat()}
     private fun rect(value: ReadableMap,key: String): RectF=rect(requireNotNull(value.getMap(key)))

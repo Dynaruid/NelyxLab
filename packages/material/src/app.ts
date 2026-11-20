@@ -12,6 +12,10 @@ import type { BuildContext } from '@nelyx/core/framework/widgets/framework';
 import type { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import { WidgetsApp, appNavigatorController } from '@nelyx/core/framework/widgets/app';
 import type { WidgetsAppOptions } from '@nelyx/core/framework/widgets/app';
+import type { InspectorButtonBuilder } from '@nelyx/core/framework/widgets/app';
+import { Icon } from '@nelyx/core/framework/widgets/icon';
+import { IconButton } from './icon-button.ts';
+import { Icons } from './icons.ts';
 import { Router } from '@nelyx/core/framework/widgets/router';
 import type { RouterOptions } from '@nelyx/core/framework/widgets/router';
 import { AppFocus } from '@nelyx/core/framework/widgets/app-focus';
@@ -82,6 +86,30 @@ export interface MaterialAppOptions
   readonly debugShowMaterialGrid?: boolean;
   readonly builder?: (context: BuildContext, child: Widget) => Widget;
 }
+
+const materialInspectorButton: InspectorButtonBuilder = (_context, button) => {
+  const { action, label, moveRight, selected, onPressed } = button;
+  const icon =
+    action === 'exit'
+      ? Icons.close
+      : action === 'move'
+        ? moveRight
+          ? Icons.arrow_right
+          : Icons.arrow_left
+        : action === 'select'
+          ? Icons.search
+          : Icons.touch_app;
+  const options = {
+    icon: new Icon(icon),
+    iconSize: 20,
+    tooltip: label,
+    onPressed,
+    ...(action === 'tapBehavior' ? { isSelected: selected } : {}),
+  };
+  return action === 'select' || action === 'exit' || selected
+    ? IconButton.filled(options)
+    : new IconButton(options);
+};
 type RouterAppOptions<T> = Omit<
   MaterialAppOptions,
   | 'child'
@@ -235,6 +263,7 @@ export class MaterialApp extends StatelessWidget {
     } = options;
     return new WidgetsApp({
       ...app,
+      inspectorButtonBuilder: app.inspectorButtonBuilder ?? materialInspectorButton,
       supportedLocales: app.supportedLocales ?? ['ko-KR'],
       localizationsDelegates: [
         ...(app.localizationsDelegates ?? []),

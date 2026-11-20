@@ -48,9 +48,10 @@ export function createAndroidEditor(
       !constants ||
       typeof constants !== 'object' ||
       !('inputConnectionProtocol' in constants) ||
-      constants.inputConnectionProtocol !== 4
+      (constants.inputConnectionProtocol !== 4 && constants.inputConnectionProtocol !== 5)
     )
-      throw new Error('Rebuild Android nonvisual InputConnection protocol 4 bindings');
+      throw new Error('Rebuild Android nonvisual InputConnection bindings');
+    const supportsCompositionLimit = constants.inputConnectionProtocol === 5;
     NativeInput ??= native.requireNativeComponent<NativeInputProps>('NelyxInputConnection');
     const ref = react.useRef<ComponentRef<HostComponent<NativeInputProps>>>(null),
       token = react.useRef({}),
@@ -77,6 +78,19 @@ export function createAndroidEditor(
         readNativeTag: () => native.findNodeHandle(ref.current),
         replace: (...args) => replace('replace', ...args),
         replaceComposing: (...args) => replace('replaceComposing', ...args),
+        ...(supportsCompositionLimit
+          ? {
+              applyCompositionLimit: ({ text, selection, composing }, expected) =>
+                dispatch('limitComposition', [
+                  text,
+                  selection.anchor,
+                  selection.focus,
+                  composing.status === 'active' ? composing.start : -1,
+                  composing.status === 'active' ? composing.end : -1,
+                  expected,
+                ]),
+            }
+          : {}),
         updateGeometry: (geometry, text, characters, nativeRevision) =>
           dispatch('geometry', [{ geometry, text, characters, nativeRevision }]),
         focus: (request) => dispatch('focus', [request ?? null]),
@@ -84,7 +98,7 @@ export function createAndroidEditor(
           if (ref.current) dispatch('blur', []);
         },
       };
-    }, [native]);
+    }, [native, supportsCompositionLimit]);
     react.useImperativeHandle(props.ref, () => commands, [commands]);
     react.useLayoutEffect(
       () => interaction.attachEditor(id, token.current, commands),

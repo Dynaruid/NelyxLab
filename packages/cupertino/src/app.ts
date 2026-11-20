@@ -6,6 +6,9 @@ import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext } from '@nelyx/core/framework/widgets/framework';
 import { WidgetsApp, appNavigatorController } from '@nelyx/core/framework/widgets/app';
 import type { WidgetsAppOptions } from '@nelyx/core/framework/widgets/app';
+import type { InspectorButtonBuilder } from '@nelyx/core/framework/widgets/app';
+import { Icon } from '@nelyx/core/framework/widgets/icon';
+import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { AppFocus } from '@nelyx/core/framework/widgets/app-focus';
 import type { AppFocusOptions } from '@nelyx/core/framework/widgets/app-focus';
 import { Builder } from '@nelyx/core/framework/widgets/basic';
@@ -29,6 +32,8 @@ import { cupertinoCatalogDelegate } from './cupertino-localizations.ts';
 import { CupertinoTheme, CupertinoThemeData } from './theme.ts';
 import { CupertinoScrollBehavior } from './scroll-behavior.ts';
 import { CupertinoUserInterfaceLevel, CupertinoUserInterfaceLevelData } from './interface-level.ts';
+import { CupertinoButton } from './button.ts';
+import { CupertinoIcons } from './icons.ts';
 export interface CupertinoAppOptions
   extends Omit<WidgetsAppOptions, 'theme' | 'builder' | 'pageRouteBuilder'>, AppFocusOptions {
   readonly theme?: CupertinoThemeData | null;
@@ -36,6 +41,29 @@ export interface CupertinoAppOptions
   readonly builder?: (context: BuildContext, child: Widget) => Widget;
 }
 const defaultBehavior = Object.freeze(new CupertinoScrollBehavior());
+const cupertinoInspectorButton: InspectorButtonBuilder = (_context, button) => {
+  const { action, label, moveRight, selected, onPressed } = button;
+  const icon =
+    action === 'exit'
+      ? CupertinoIcons.xmark
+      : action === 'move'
+        ? moveRight
+          ? CupertinoIcons.chevron_right
+          : CupertinoIcons.chevron_left
+        : action === 'select'
+          ? CupertinoIcons.scope
+          : CupertinoIcons.hand_point_right;
+  const options = {
+    child: new Icon(icon, { size: 20 }),
+    minimumSize: { width: 44, height: 44 },
+    padding: EdgeInsets.zero,
+    semanticsLabel: selected ? label + ', on' : label,
+    onPressed,
+  };
+  return action === 'select' || action === 'exit' || selected
+    ? CupertinoButton.filled(options)
+    : new CupertinoButton(options);
+};
 /** Route/controller/locale/restoration APIs follow shared WidgetsApp. */
 export class CupertinoApp extends StatelessWidget {
   constructor(readonly options: CupertinoAppOptions) {
@@ -66,6 +94,7 @@ export class CupertinoApp extends StatelessWidget {
     const { key: _key, theme, scrollBehavior, builder, shortcuts, actions, ...app } = this.options;
     return new WidgetsApp({
       ...app,
+      inspectorButtonBuilder: app.inspectorButtonBuilder ?? cupertinoInspectorButton,
       localizationsDelegates: [...(app.localizationsDelegates ?? []), cupertinoCatalogDelegate],
       pageRouteBuilder: (settings, builder) =>
         new CupertinoPageRoute({
