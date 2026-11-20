@@ -58,6 +58,9 @@ import type { FontProviderLease } from '@nelyx/core/hosting/text-fonts';
 import { buildStyledText } from '@nelyx/core/ui/text-builder';
 import { webTextStyle, webParagraphStyle } from './text-style.ts';
 
+// Leave headroom for Skia's signed integer clip width and height.
+const framePictureCullExtent = 2 ** 29;
+
 interface Font {
   resource: ResourceId;
   provider: TypefaceFontProvider;
@@ -275,31 +278,31 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   observe(listener: (event: RendererNotification) => void): Disposable {
     return this.events.subscribe(listener);
   }
-  // Frame bounds are advisory. Compute actual draw bounds so scaling the initial
-  // FLT_MAX cull rect cannot overflow and discard a multi-run paragraph at DPR > 1.
   private compilePicture(
     capture: PictureCapture,
-    unbounded = false,
+    framePicture = false,
   ): import('canvaskit-wasm').SkPicture {
     const recorder = new this.ck.PictureRecorder(),
       errors: unknown[] = [],
       unknownOwners: unknown[] = [];
     let picture: import('canvaskit-wasm').SkPicture | undefined;
     try {
+      // A parent clip can cut across a nested picture that records no clip itself.
+      // Replay in order so the canvas clips each draw without picture-index omissions.
       const canvas = recorder.beginRecording(
-        unbounded
+        framePicture
           ? this.ck.LTRBRect(
-              -3.4028234663852886e38,
-              -3.4028234663852886e38,
-              3.4028234663852886e38,
-              3.4028234663852886e38,
+              -framePictureCullExtent,
+              -framePictureCullExtent,
+              framePictureCullExtent,
+              framePictureCullExtent,
             )
           : this.ck.XYWHRect(0, 0, imageLimits.dimension, imageLimits.dimension),
-        unbounded,
+        false,
       );
       this.replay(canvas, capture.frame);
       picture = recorder.finishRecordingAsPicture();
-      if (unbounded) this.framePictureCompilations++;
+      if (framePicture) this.framePictureCompilations++;
       else this.pictureCompilations++;
     } catch (error) {
       errors.push(error);
