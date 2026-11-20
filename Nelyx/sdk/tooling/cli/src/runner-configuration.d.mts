@@ -1,12 +1,5 @@
-export function configureRunner(options: { app: string; target: 'android' | 'web' }): Promise<{
+import type { WebPreparation } from './web-runner.mjs';
+export function configureRunner(options: {
   app: string;
-  runner: string;
-  config: {
-    name: string;
-    target: 'android' | 'web';
-    assets: readonly import('@nelyx/sdk/runtime/config').ResolvedAppAsset[];
-    profile: string;
-    cohort: import('@nelyx/sdk/runtime/cohorts').ProviderCohort;
-  };
-  qualification: import('@nelyx/sdk/runtime/providers').ProviderQualification;
-}>;
+  target?: 'web' | 'pwa';
+}): Promise<WebPreparation>;

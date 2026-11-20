@@ -1,15 +1,12 @@
-import { prepareEngineHelpers } from './prepare-engine-helpers.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createProviderRegistry, validateProvider } from '@nelyx/sdk/runtime/providers';
 import { sdkVersion } from '@nelyx/sdk/version';
 
-prepareEngineHelpers();
-
 const root = path.resolve(import.meta.dirname, '../..'),
   directory = path.join(root, 'Nelyx/sdk/providers');
 const registry = createProviderRegistry(),
-  targets = ['web', 'ios', 'android', 'windows', 'macos', 'linux'],
+  targets = ['web'],
   operations = ['doctor', 'build', 'run', 'dev', 'pack'],
   systems = ['windows', 'darwin', 'linux', 'android', 'ios', 'browser'],
   buildSystems = ['windows', 'darwin', 'linux'],
@@ -29,31 +26,23 @@ const definitions = {
   cohort: object({
     id: { type: 'string', pattern: '^[a-z0-9][a-z0-9.-]*$' },
     react: { type: 'string', pattern: `^${stable}$` },
-    reactNative: { anyOf: [{ type: 'string', pattern: `^${stable}$` }, { type: 'null' }] },
-    nativeReactNative: { anyOf: [{ type: 'string', pattern: `^${stable}$` }, { type: 'null' }] },
-    framework: {
-      enum: [
-        'react-native',
-        'react-native-windows',
-        'react-native-macos',
-        'react-native-linux',
-        'react-native-web',
-      ],
-    },
+    reactNative: { type: 'null' },
+    nativeReactNative: { type: 'null' },
+    framework: { const: 'react-dom' },
     frameworkVersion: { type: 'string', pattern: `^${stable}$` },
-    frameworkRevision: { anyOf: [{ type: 'string', pattern: '^[a-f0-9]{40}$' }, { type: 'null' }] },
-    engine: { enum: ['hermes', 'v8', 'jsc', 'browser'] },
-    engineVersion: { anyOf: [{ type: 'string', pattern: `^${stable}$` }, { type: 'null' }] },
-    engineRevision: { anyOf: [{ type: 'string', pattern: '^[a-f0-9]{40}$' }, { type: 'null' }] },
-    bytecodeVersion: { anyOf: [{ type: 'integer', minimum: 1 }, { type: 'null' }] },
+    frameworkRevision: { type: 'null' },
+    engine: { const: 'browser' },
+    engineVersion: { type: 'null' },
+    engineRevision: { type: 'null' },
+    bytecodeVersion: { type: 'null' },
   }),
   identity: object({
     target: { enum: targets },
-    runtime: { enum: ['browser', 'hermes', 'v8', 'jsc'] },
-    host: { enum: ['react-dom', 'fabric'] },
-    renderer: { enum: ['skia-graphite', 'skia-ganesh'] },
-    gpuBackend: { enum: ['webgl2', 'vulkan', 'metal'] },
-    gpuImplementation: { enum: ['dawn', 'browser-webgl2', 'native-vulkan'] },
+    runtime: { const: 'browser' },
+    host: { const: 'react-dom' },
+    renderer: { const: 'skia-ganesh' },
+    gpuBackend: { const: 'webgl2' },
+    gpuImplementation: { const: 'browser-webgl2' },
     profile: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]*$' },
   }),
   abi: object({
@@ -63,7 +52,7 @@ const definitions = {
   artifact: object({
     entry: {
       anyOf: [
-        { type: 'string', pattern: '^@nelyx/(sdk|skia-rn|skia-web)/[A-Za-z0-9_./-]+\\.json$' },
+        { type: 'string', pattern: '^@nelyx/(sdk|skia-web)/[A-Za-z0-9_./-]+\\.json$' },
         { type: 'null' },
       ],
     },
@@ -174,7 +163,7 @@ const schema = {
   title: 'Nelyx SDK provider v4',
   ...object({
     schema: { const: 'nelyx.provider/v4' },
-    id: { type: 'string', pattern: '^nelyx\\.(web|ios|android|windows|macos|linux)$' },
+    id: { const: 'nelyx.web' },
     version: { const: sdkVersion },
     coreRange: {
       type: 'string',
@@ -185,10 +174,7 @@ const schema = {
     runtime: definitions.identity.properties.runtime,
     host: definitions.identity.properties.host,
     renderer: definitions.identity.properties.renderer,
-    entry: {
-      type: 'string',
-      pattern: '^@nelyx/sdk/platforms/(web|ios|android|windows|macos|linux)/application$',
-    },
+    entry: { const: '@nelyx/sdk/platforms/web/application' },
     defaultProfile: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]*$' },
     defaultCohort: { type: 'string', minLength: 1 },
     cohorts: list({ $ref: '#/$defs/cohort' }),
@@ -211,20 +197,6 @@ const schema = {
     profiles: { type: 'array', minItems: 1, items: profile },
   }),
   $defs: definitions,
-  /* oxlint-disable unicorn/no-thenable -- The then property is schema/IR data, not a callable Promise hook. */
-  allOf: targets.map((target) => ({
-    if: { properties: { target: { const: target } } },
-    then: {
-      properties: {
-        id: { const: `nelyx.${target}` },
-        entry: { const: `@nelyx/sdk/platforms/${target}/application` },
-        profiles: {
-          items: { properties: { identity: { properties: { target: { const: target } } } } },
-        },
-      },
-    },
-  })),
-  /* oxlint-enable unicorn/no-thenable */
   $comment:
     'The SDK validator additionally checks range compatibility, runtime/host/GPU combinations, duplicate profiles/tools, declared host operations, default profile mirroring, native ABI/manifest identities and qualification consistency. CLI host planning and target execution validation are distinct. Binary bytes remain subject to the target artifact loader.',
 };

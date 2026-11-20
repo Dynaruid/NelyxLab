@@ -1,5 +1,7 @@
 import { OwnedDisposal, finishOwnedDisposal } from '../../runtime/owned-disposal.ts';
+import * as React from 'react';
 import type { ComponentType } from 'react';
+import { createRoot } from 'react-dom/client';
 import type { ApplicationDefinition } from '@nelyx/core/hosting/runtime';
 import type { ViewOwner } from '@nelyx/core/ui/types';
 import type { PlatformMessagePort } from '@nelyx/core/hosting/platform-messages';
@@ -12,19 +14,8 @@ import { createWebServices } from '../../backends/browser/services.ts';
 import { loadCanvasKit } from '../../backends/browser/canvaskit.ts';
 import { createBrowserPlatformMessages } from '../../backends/browser/platform-messages.ts';
 import { webDialogWindows } from './dialog-windows.ts';
-interface WebBackend {
-  react: typeof import('react');
-  native: {
-    View: ComponentType<any>;
-    TextInput: ComponentType<any>;
-    AppRegistry: {
-      registerComponent(name: string, application: () => ComponentType): void;
-      runApplication(name: string, options: { rootTag: HTMLElement }): { unmount(): void };
-    };
-  };
-}
-let backend: WebBackend | undefined,
-  generation = 0;
+const backend = Object.freeze({ react: React });
+let generation = 0;
 interface WebRoot {
   readonly element: HTMLElement;
   readonly surfaces: Set<Promise<void>>;
@@ -79,8 +70,7 @@ export function readWebApplicationDiagnostics(): readonly WebApplicationDiagnost
 }
 let runtimeClosing = false,
   shutdown: Promise<void> | undefined;
-export function webBackend(): WebBackend {
-  if (!backend) throw new Error('Call Web registerApplication before rendering');
+export function webBackend(): typeof backend {
   return backend;
 }
 export function registerApplication(
@@ -92,11 +82,6 @@ export function registerApplication(
     throw new Error('Web runtime/root is closing, mounted or draining');
   if (typeof document === 'undefined' || !/^[A-Z][A-Za-z0-9]*$/.test(name))
     throw new Error('Web application environment/name');
-  if (!backend)
-    backend = {
-      react: require('react') as WebBackend['react'],
-      native: require('react-native-web') as WebBackend['native'],
-    };
   const root: WebRoot = {
     element: rootTag,
     surfaces: new Set(),
@@ -110,10 +95,11 @@ export function registerApplication(
   roots.set(rootTag, root);
   registrations.add(root);
   try {
-    backend.native.AppRegistry.registerComponent(name, () => application);
-    const mounted = backend.native.AppRegistry.runApplication(name, { rootTag });
+    const mounted = createRoot(rootTag);
     root.unmount = () => mounted.unmount();
+    mounted.render(React.createElement(application));
   } catch (error) {
+    root.unmount();
     roots.delete(rootTag);
     registrations.delete(root);
     throw error;
@@ -266,7 +252,10 @@ async function openWebApplication(
   ]);
   if (runtimeClosing || view.closed || !options.canvas.isConnected)
     throw new Error('Web surface opening cancelled');
-  const owner = Object.freeze({ id: 'web-view-' + crypto.randomUUID(), generation: ++generation }),
+  const nonce = Array.from(crypto.getRandomValues(new Uint32Array(4)), (word) =>
+      word.toString(16).padStart(8, '0'),
+    ).join(''),
+    owner = Object.freeze({ id: 'web-view-' + nonce, generation: ++generation }),
     library = new WebSkiaLibrary(ck, options.canvas, owner);
   let binding: ReturnType<typeof createWebServices>;
   job.retained = { library };
@@ -306,7 +295,7 @@ async function openWebApplication(
           hostElement: options.canvas.parentElement!,
           viewId: binding.services.platformViewId ?? 0,
         },
-        { key: binding.definition.id },
+        { key: binding.definition.id, root: options.assetsRoot },
         binding.definition.accessibilityEnabled !== false,
       ),
     initializePlatformServices: options.initializePlatformServices ?? !options.platformMessages,

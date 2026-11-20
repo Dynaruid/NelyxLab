@@ -12,20 +12,20 @@
   "defaultProfile": "ganesh-webgl2",
   "cohorts": [
     {
-      "id": "web-0.21.3",
+      "id": "web-react-dom-19.2.0",
       "react": "19.2.0",
+      "framework": "react-dom",
+      "frameworkVersion": "19.2.0",
+      "engine": "browser",
       "reactNative": null,
       "nativeReactNative": null,
-      "framework": "react-native-web",
-      "frameworkVersion": "0.21.3",
       "frameworkRevision": null,
-      "engine": "browser",
       "engineVersion": null,
       "engineRevision": null,
       "bytecodeVersion": null
     }
   ],
-  "defaultCohort": "web-0.21.3",
+  "defaultCohort": "web-react-dom-19.2.0",
   "hostOperatingSystems": {
     "doctor": [
       "windows",
@@ -141,7 +141,7 @@
     {
       "id": "ganesh-webgl2",
       "cohorts": [
-        "web-0.21.3"
+        "web-react-dom-19.2.0"
       ],
       "identity": {
         "target": "web",
@@ -153,7 +153,7 @@
         "profile": "ganesh-webgl2"
       },
       "status": "implemented",
-      "reason": "Existing implementation retained in its declared cohort; wider qualification pending",
+      "reason": "React DOM and CanvasKit WebGL2 implementation",
       "executionOperatingSystems": [
         "browser"
       ],

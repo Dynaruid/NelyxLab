@@ -10,6 +10,12 @@
     "README.md",
     "LICENSE.md",
     "licenses",
+    "!licenses/inventory.json",
+    "!licenses/react-native*",
+    "!licenses/react-LICENSE",
+    "!licenses/transitive-sources.json",
+    "!licenses/typescript-LICENSE.txt",
+    "!licenses/windows-*",
     "upstream/framework-imports.json",
     "upstream/flutter-coverage.json"
   ],

@@ -149,9 +149,10 @@ export function startOwnedCommand(
   abortSignal?.addEventListener('abort', abort, { once: true });
   return { pid: child.pid, completed, stop };
 }
-export function capture(command, args, { cwd, timeout = 60000 } = {}) {
+export function capture(command, args, { cwd, env, timeout = 60000 } = {}) {
   const result = spawnSync(command, args, {
     cwd,
+    env,
     timeout,
     encoding: 'utf8',
     maxBuffer: 8 * 1024 * 1024,

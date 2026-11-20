@@ -1,56 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { capture } from './commands.mjs';
-
-export const tauriWindowsTarget = 'x86_64-pc-windows-msvc';
-const cliPackage = '@tauri-apps/cli';
-const cliVersion = '2.12.6';
-
-export function inspectTauriCli(app) {
-  const manifestPath = path.join(app, 'package.json');
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  const declared = manifest.devDependencies?.[cliPackage] ?? manifest.dependencies?.[cliPackage];
-  const load = createRequire(manifestPath);
-  try {
-    const installed = JSON.parse(
-      fs.readFileSync(load.resolve(`${cliPackage}/package.json`), 'utf8'),
-    );
-    if (declared !== cliVersion || installed.version !== cliVersion)
-      throw new Error(`declared ${declared ?? 'none'}, installed ${installed.version}`);
-    const entry = load.resolve(`${cliPackage}/tauri.js`);
-    createRequire(entry).resolve('@tauri-apps/cli-win32-x64-msvc');
-    return { declared, version: installed.version, entry };
-  } catch (error) {
-    throw new Error(
-      `Tauri CLI setup in ${app}: ${error.message}. Install ${cliPackage}@${cliVersion} with npm.cmd install --save-dev --save-exact in the app or its npm workspace.`,
-      { cause: error },
-    );
-  }
-}
-
-export function inspectRust(app) {
-  try {
-    const rustc = capture('rustc.exe', ['--version'], { cwd: app }).trim();
-    const cargo = capture('cargo.exe', ['--version'], { cwd: app }).trim();
-    const libraries = capture(
-      'rustc.exe',
-      ['--print', 'target-libdir', '--target', tauriWindowsTarget],
-      {
-        cwd: app,
-      },
-    ).trim();
-    if (!fs.readdirSync(libraries).some((entry) => /^libstd-.*\.rlib$/.test(entry)))
-      throw new Error(`Rust standard library missing in ${libraries}`);
-    return { target: tauriWindowsTarget, rustc, cargo, libraries };
-  } catch (error) {
-    throw new Error(
-      `Rust toolchain for ${tauriWindowsTarget} is required in ${app}. Install Rust and run rustup target add ${tauriWindowsTarget}. ${error.message}`,
-      { cause: error },
-    );
-  }
-}
 
 function registryString(key, name) {
   try {

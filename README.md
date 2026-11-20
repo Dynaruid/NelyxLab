@@ -2,111 +2,48 @@
 
 **English** | [한국어](README.ko.md)
 
-Nelyx is an experimental UI SDK that brings Flutter's widget and rendering model to TypeScript. Build shared interfaces for desktop, mobile, and the web with a Widget tree, constraint-based layout, and Skia rendering.
+Nelyx brings Flutter's widget and rendering model to TypeScript. A shared Widget, Element and RenderObject tree powers Material and Cupertino applications. React DOM owns the browser surface, and CanvasKit/Ganesh renders it with WebGL2. A Vite PWA runs in the browser and can be embedded in a Tauri application.
 
-Nelyx manages widgets, state, layout, painting, and hit testing. Platform runners connect that UI to a window or browser canvas, input, accessibility, and OS services.
+## Run Testbed or Demo
 
-[Get started](#get-started) · [Platforms](#platforms) · [Documentation](#documentation)
+Use Node.js 24.3 or later in the 24.x range and npm 11. Prepare the pinned CanvasKit JS and Wasm on a fresh checkout. [CanvasKit source build](Nelyx/skia/eng/source-build/README.md)
 
-## Features
+From the repository root in PowerShell:
 
-- **Shared TypeScript UI** — compose widgets and keep application logic in one `src/` tree.
-- **Flutter-style framework** — Widget configuration, persistent Element state, and RenderObject layout and painting.
-- **Skia rendering** — Graphite on native targets and CanvasKit/Ganesh with WebGL2 in the browser.
-- **Application services** — text editing, gestures, navigation, assets, and platform messaging.
-- **Design packages** — Material 3 and Cupertino components built on the common framework.
-- **Platform tooling** — a CLI, application templates, and independent runners for each target.
-
-## Get started
-
-Use **Node.js 24.x, version 24.3 or later**, npm, and **Python 3**. The Web sample also needs a WebGL2-capable browser and the matching Nelyx CanvasKit runtime. On a fresh checkout, prepare that runtime using the [source-build guide](Nelyx/skia/eng/source-build/README.md#vendor-build-recipes).
-
-Run from PowerShell:
-
-```powershell
-git clone https://github.com/Dynaruid/NelyxLab.git
-cd NelyxLab
-npm ci
-npm run build:sdk
-node Nelyx/skia/eng/prepare-web-runtime.mjs --check
-npm run prepare:sample -- web
-npm --prefix sample/nelyx-testbed-app-2/web/runner install --ignore-scripts --workspaces=false
-npm run dev:web --workspace @nelyx/testbed-2
+```
+npm.cmd ci
+npm.cmd run build:sdk
+npm.cmd run prepare:sample -- web
+npm.cmd ci --prefix sample/nelyx-testbed-app-2/web/runner --workspaces=false
+npm.cmd run dev --workspace @nelyx/testbed-2
 ```
 
-Open `http://127.0.0.1:8081/`. Stop the server with Ctrl+C. The runtime check verifies the prepared CanvasKit files; if they are absent or differ from the manifest, follow the source-build guide before preparing the sample.
+Open the development URL printed by the command. For a browser installation or distribution, build the PWA and serve its output.
 
-For a static Web build:
-
-```powershell
-npm run build:web --workspace @nelyx/testbed-2
+```
+npm.cmd run build:pwa --workspace @nelyx/testbed-2
+npm.cmd run run:pwa --workspace @nelyx/testbed-2 -- --base /demo/
 ```
 
-See the [Testbed guide](sample/nelyx-testbed-app-2/README.md) for Windows and Android setup, or the [CLI guide](Nelyx/sdk/tooling/cli/README.md) to create a separate application from local package archives.
+Package the existing PWA for Windows from the repository root. Tauri CLI and the OS toolchain are needed for this step.
 
-## Platforms
+```
+npm.cmd run prepare:windows --workspace @nelyx/testbed-2
+npm.cmd run pack:windows --workspace @nelyx/testbed-2
+npm.cmd run run:windows --workspace @nelyx/testbed-2
+```
 
-| Target | Default host | Renderer |
-| --- | --- | --- |
-| Windows | React Native Windows / Hermes | Graphite / Vulkan |
-| Android | React Native / Hermes | Graphite / Dawn / Vulkan |
-| iOS | React Native / UIKit | Graphite / Metal |
-| macOS | React Native macOS / AppKit | Graphite / Metal |
-| Linux | React Native Linux / GTK4 / X11 | Graphite / Vulkan |
-| Web | React DOM / React Native Web | CanvasKit / Ganesh / WebGL2 |
+## Project layout
 
-Native targets require their platform toolchain and matching renderer inputs. Windows also offers explicit V8/JSC engine choices and an experimental direct Hermes host. The [sample](sample/nelyx-testbed-app-2/README.md) and [Skia](Nelyx/skia/README.md) guides describe setup and available modes.
-
-## How it works
-
-| Layer | Responsibility |
+| Path | Purpose |
 | --- | --- |
-| Widget | Describe the interface |
-| Element | Maintain identity, state, dependencies, and tree lifetime |
-| RenderObject | Compute layout, paint, and hit-test geometry |
-| Core | Coordinate the UI tree, frames, and resource contracts |
-| SDK | Connect the application to platform input, assets, services, and host lifetime |
-| Skia | Render frames and manage native or browser graphics resources |
+| [Nelyx](Nelyx/README.md) | Core TypeScript framework |
+| [Nelyx/sdk](Nelyx/sdk/README.md) | React DOM surface, browser services and assets |
+| [Nelyx/skia](Nelyx/skia/README.md) | Pinned CanvasKit supply and rendering |
+| [CLI](Nelyx/sdk/tooling/cli/README.md) | Starter creation, SDK supply, Vite and Tauri commands |
+| [Material](packages/material/README.md) and [Cupertino](packages/cupertino/README.md) | Design packages |
+| [Demo](sample/nelyx-demo-app/README.md) and [Testbed](sample/nelyx-testbed-app-2/README.md) | Sample applications |
+| [Platform qualification](work3.md#7-최종-인수와-현재-상태) | Packaging and test coverage by environment |
+| [Development history](history/README.md) | Previous plans and implementation records |
 
-The shared application exports `main()` from `src/index.ts`. A platform runner registers it and provides the rendering surface. Import APIs through package subpaths such as `@nelyx/core/framework/widgets/basic`, `@nelyx/material/widgets`, and `@nelyx/sdk/platforms/web/surface`. See the [Widget example](Nelyx/README.md#widget-applications).
-
-## Source maintenance
-
-Run `npm run format` at the repository root to format JS/TS sources and configuration files using the [Oxfmt settings](.oxfmtrc.json). W11 moved widget candidates and ported blocked conversion units from the pinned Flutter source. Maintain the TypeScript directly in the owning package. The conversion tool is frozen. [W11 migration summary](history/26/11/19/work11-summary.md) · [Conversion tool](tools/Nelyx.FrameworkToTypeScript/README.md)
-
-## Documentation
-
-| Guide | Contents |
-| --- | --- |
-| [Core](Nelyx/README.md) | Widget applications, module imports, state, and rendering |
-| [SDK](Nelyx/sdk/README.md) | Platform APIs, application configuration, assets, and lifecycle |
-| [Material](packages/material/README.md) / [Cupertino](packages/cupertino/README.md) | Design components, themes, and icon assets |
-| [Testbed](sample/nelyx-testbed-app-2/README.md) | Component galleries and Web, Windows, and Android launch commands |
-| [Demo](sample/nelyx-demo-app/README.md) | Independent Material demo inspired by DorotiDemoApp |
-| [CLI](Nelyx/sdk/tooling/cli/README.md) | Application creation, package supply, builds, and execution |
-| [Metro](Nelyx/sdk/tooling/metro/README.md) | Runner configuration, assets, and bundling |
-| [Skia](Nelyx/skia/README.md) | Renderer packages and native inputs |
-| [Development history](history/) | Archived design decisions and work summaries |
-
-## Project status
-
-Nelyx is under active development. APIs may change, and the framework implements a subset of Flutter's APIs. Material and Cupertino coverage is incomplete; the Testbed marks unavailable demos as planned.
-
-Platform readiness varies. Apple native build, runtime, and signing, and Linux GTK/GPU execution remain unverified. Windows full reload and complete graphics recovery remain unresolved. Physical input, IME, screen readers, performance, and production distribution require further qualification. Available runners do not imply production support for every target.
-
-## Repository layout
-
-| Path | Contents |
-| --- | --- |
-| [`Nelyx/src/`](Nelyx/src/) | Platform-independent Core framework |
-| [`Nelyx/sdk/`](Nelyx/sdk/) | Platform SDK and application hosts |
-| [`Nelyx/skia/`](Nelyx/skia/) | Shared renderer and native/Web adapters |
-| [`packages/`](packages/) | Material and Cupertino design packages |
-| [`Nelyx/sdk/tooling/`](Nelyx/sdk/tooling/) | CLI, Metro, and application templates |
-| [`sample/nelyx-testbed-app-2/`](sample/nelyx-testbed-app-2/) | Shared sample and platform runners |
-| [`sample/nelyx-demo-app/`](sample/nelyx-demo-app/) | Responsive Material components demo and platform runners |
-| [`Nelyx/eng/`](Nelyx/eng/) | Workspace build and maintenance tools |
-
-## License
-
-Nelyx-authored code uses the [BSD 3-Clause License](Nelyx/LICENSE.md). Imported code retains its licenses and notices; see the [license inventory](Nelyx/licenses/) and [Skia notices](Nelyx/skia/THIRD_PARTY_NOTICES.md).
+Nelyx-authored code uses BSD 3-Clause. Imported code retains its notices. [License](Nelyx/LICENSE.md) · [Skia notices](Nelyx/skia/THIRD_PARTY_NOTICES.md)

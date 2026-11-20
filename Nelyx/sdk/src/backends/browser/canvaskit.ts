@@ -1,15 +1,18 @@
 import type { CanvasKit } from 'canvaskit-wasm';
+import { sha256 as portableSha256 } from '@noble/hashes/sha2.js';
 import type { CanvasKitManifest } from './canvaskit-manifest.ts';
+import { isAppUrl } from './local-url.ts';
 export type { CanvasKitManifest } from './canvaskit-manifest.ts';
 const runtimes = new Map<string, Promise<CanvasKit>>();
-export const sha256 = async (bytes: Uint8Array) =>
-  Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(bytes))), (byte) =>
-    byte.toString(16).padStart(2, '0'),
-  ).join('');
+export async function sha256(bytes: Uint8Array): Promise<string> {
+  const hash = crypto.subtle
+    ? new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(bytes)))
+    : portableSha256(bytes);
+  return Array.from(hash, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 export async function loadCanvasKit(root: URL, manifest: CanvasKitManifest): Promise<CanvasKit> {
   if (
-    !['http:', 'https:'].includes(root.protocol) ||
-    !root.href.endsWith('/') ||
+    !isAppUrl(root, root) ||
     manifest.schema !== 'nelyx.canvaskit/v1' ||
     manifest.version !== 'm153-nelyx-paragraph.7' ||
     manifest.adapterAbi !== 1 ||
@@ -40,7 +43,9 @@ export async function loadCanvasKit(root: URL, manifest: CanvasKitManifest): Pro
   const load = (async () => {
     const bytes = await Promise.all(
       manifest.files.map(async (file) => {
-        const response = await fetch(new URL(file.path, root));
+        const url = new URL(file.path, root);
+        if (!isAppUrl(url, root)) throw new Error('CanvasKit asset escaped runtime root');
+        const response = await fetch(url, { redirect: 'error' });
         if (!response.ok) throw new Error('CanvasKit HTTP ' + response.status);
         const data = new Uint8Array(await response.arrayBuffer());
         if (data.byteLength > 32 * 1024 * 1024 || (await sha256(data)) !== file.sha256)

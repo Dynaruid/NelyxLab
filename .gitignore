@@ -195,6 +195,7 @@ $RECYCLE.BIN/
 **/runner/tsconfig.generated.json
 **/android/runner/app-config.json
 **/web/runner/app-config.json
+**/web/runner/tsconfig.nelyx.json
 **/ios/generated-codegen/
 **/macos/generated-codegen/
 

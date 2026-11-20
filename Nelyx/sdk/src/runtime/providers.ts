@@ -4,7 +4,7 @@ const [coreMajor, coreMinor] = coreVersion.split('.').map(Number);
 const compatibleCoreRange = `>=${coreVersion} <${coreMajor}.${coreMinor! + 1}.0`;
 import { sdkVersion } from '../version.ts';
 import { matchesVersion, matchesToolVersion } from './compatibility.ts';
-import { nativeCohort, windowsV8Cohort, windowsJscCohort, validateCohort } from './cohorts.ts';
+import { validateCohort } from './cohorts.ts';
 import type { ProviderCohort, ProviderCohortEnvironment } from './cohorts.ts';
 
 export type ProviderOperation = 'doctor' | 'build' | 'run' | 'dev' | 'pack';
@@ -104,7 +104,7 @@ export interface ProviderCompatibility {
   readonly skiaAbi: number;
   readonly wireAbi: number;
 }
-const targets = ['web', 'ios', 'android', 'windows', 'macos', 'linux'] as const;
+const targets: readonly PlatformId[] = ['web'];
 const operations = ['doctor', 'build', 'run', 'dev', 'pack'] as const;
 const systems = ['windows', 'darwin', 'linux', 'android', 'ios', 'browser'] as const;
 const buildSystems = ['windows', 'darwin', 'linux'] as const;
@@ -186,7 +186,7 @@ function artifact(value: unknown): ProviderArtifactReference {
     !['binary', 'recipe'].includes(input.kind as string) ||
     (input.entry !== null &&
       (typeof input.entry !== 'string' ||
-        !/^@nelyx\/(sdk|skia-rn|skia-web)\/[A-Za-z0-9_./-]+\.json$/.test(input.entry) ||
+        !/^@nelyx\/(sdk|skia-web)\/[A-Za-z0-9_./-]+\.json$/.test(input.entry) ||
         input.entry.includes('..')))
   )
     throw new Error('Invalid artifact manifest entry/kind');
@@ -385,33 +385,16 @@ export function validateProvider(
     ids.add(profile.id);
     if (identity.target !== target || identity.profile !== profile.id)
       throw new Error('Profile target mismatch');
-    const web = target === 'web',
-      desktop = target === 'windows' || target === 'linux';
     if (
-      !(web
-        ? identity.runtime === 'browser'
-        : identity.runtime === 'hermes' ||
-          (target === 'windows' && ['v8', 'jsc'].includes(identity.runtime as string))) ||
-      identity.host !== (web ? 'react-dom' : 'fabric') ||
-      identity.renderer !== (web ? 'skia-ganesh' : 'skia-graphite')
+      identity.runtime !== 'browser' ||
+      identity.host !== 'react-dom' ||
+      identity.renderer !== 'skia-ganesh'
     )
-      throw new Error(
-        'Invalid target runtime/host/renderer; native providers require an admitted VM/Fabric/Graphite',
-      );
-    const gpu = web ? 'webgl2' : target === 'ios' || target === 'macos' ? 'metal' : 'vulkan';
-    const implementation = web ? 'browser-webgl2' : desktop ? 'native-vulkan' : 'dawn';
-    if (identity.gpuBackend !== gpu || identity.gpuImplementation !== implementation)
+      throw new Error('Invalid Web runtime/host/renderer');
+    if (identity.gpuBackend !== 'webgl2' || identity.gpuImplementation !== 'browser-webgl2')
       throw new Error('Invalid target GPU backend/implementation');
-    if (profile.id === 'wgl' || profile.id.startsWith('raw-'))
-      throw new Error('Removed Deno/raw profile; configure an RN runner and explicit RN profile');
     const profileCohorts = strings(profile.cohorts, 'profile cohorts', cohortIds);
-    if (
-      profileCohorts.some(
-        (id) => cohorts.find((cohort) => cohort.id === id)!.engine !== identity.runtime,
-      )
-    )
-      throw new Error('Profile runtime differs from its cohort engine');
-    if (web && profile.id !== 'ganesh-webgl2')
+    if (profile.id !== 'ganesh-webgl2')
       throw new Error('Unsupported Web profile; use ganesh-webgl2');
     if (!['implemented', 'unsupported'].includes(profile.status as string))
       throw new Error('Invalid profile implementation status');
@@ -425,13 +408,7 @@ export function validateProvider(
         'execution OS',
         systems,
       ) as ProviderOperatingSystem[];
-    const expectedOs = target === 'web' ? 'browser' : target === 'macos' ? 'darwin' : target;
-    const targetArchitectures =
-      target === 'web' ? ['wasm32'] : target === 'ios' ? ['arm64'] : ['x86_64', 'arm64'];
-    if (
-      os.some((value) => value !== expectedOs) ||
-      arch.some((value) => !targetArchitectures.includes(value))
-    )
+    if (os.some((value) => value !== 'browser') || arch.some((value) => value !== 'wasm32'))
       throw new Error('Invalid target execution OS/architecture');
     if (arch.some((value) => !declaredArchitectures.includes(value)))
       throw new Error('Undeclared profile architecture');
@@ -582,9 +559,7 @@ export class ProviderRegistry {
     const descriptor = this.descriptor(target),
       profile = descriptor.profiles.find((value) => value.id === (id ?? descriptor.defaultProfile));
     if (!profile)
-      throw new Error(
-        `Unknown profile: ${target}/${id}; Deno/raw profiles were removed; configure an RN runner and explicit RN profile`,
-      );
+      throw new Error(`Unknown profile: ${target}/${id}; use the ganesh-webgl2 PWA profile`);
     return profile;
   }
   cohort(
@@ -607,19 +582,10 @@ export class ProviderRegistry {
         `Incompatible React cohort: ${environment.reactVersion}; requires ${cohort.react}`,
       );
     if (
-      environment.reactNativeVersion !== undefined &&
-      environment.reactNativeVersion !== cohort.reactNative
+      environment.reactDomVersion !== undefined &&
+      (cohort.framework !== 'react-dom' || environment.reactDomVersion !== cohort.frameworkVersion)
     )
-      throw new Error(
-        `Incompatible React Native cohort: ${environment.reactNativeVersion}; requires ${cohort.reactNative}`,
-      );
-    if (
-      environment.nativeReactNativeVersion !== undefined &&
-      environment.nativeReactNativeVersion !== cohort.nativeReactNative
-    )
-      throw new Error(
-        `Incompatible native React Native cohort: ${environment.nativeReactNativeVersion}; requires ${cohort.nativeReactNative ?? 'an observed native version before admission'}`,
-      );
+      throw new Error('Incompatible React DOM cohort; requires ' + cohort.frameworkVersion);
     return cohort;
   }
   select(
@@ -703,228 +669,92 @@ export class ProviderRegistry {
     });
   }
 }
-function caps(_target: PlatformId, implemented: boolean): ProviderCapabilities {
-  return {
-    rendering: {
-      admission: implemented ? 'bounded' : 'unavailable',
-      completion: implemented ? 'gpu-retired' : 'unavailable',
-      present: 'unobserved',
-      notifications: implemented ? 'submitted-and-retired' : 'unavailable',
-      nativeIdentity: implemented,
-      textRanges: implemented,
-    },
-    editing: {
-      indexUnit: 'utf16',
-      composing: 'unavailable',
-      selectionDirection: 'unavailable',
-      nativeRevision: implemented ? 'event-count' : 'unavailable',
-    },
-    semantics: implemented ? 'native-controls' : 'unavailable',
-  };
-}
+
 /** Provider metadata declares capabilities separately from runtime qualification. */
 export function createProviderRegistry(): ProviderRegistry {
-  const hosts: ProviderOperatingSystem[] = ['windows', 'darwin', 'linux'];
-  return new ProviderRegistry(
-    targets.map((target) => {
-      const web = target === 'web',
-        android = target === 'android',
-        linux = target === 'linux',
-        windows = target === 'windows',
-        apple = target === 'ios' || target === 'macos',
-        implemented = web || android || linux || windows || apple;
-      const cohorts: ProviderCohort[] = web
-        ? [
-            validateCohort(
-              {
-                id: 'web-0.21.3',
-                react: '19.2.0',
-                reactNative: null,
-                nativeReactNative: null,
-                framework: 'react-native-web',
-                frameworkVersion: '0.21.3',
-                frameworkRevision: null,
-                engine: 'browser',
-                engineVersion: null,
-                engineRevision: null,
-                bytecodeVersion: null,
-              },
-              target,
-            ),
-          ]
-        : android
-          ? [nativeCohort(target), nativeCohort(target, true)]
-          : windows
-            ? [nativeCohort(target), windowsV8Cohort(), windowsJscCohort()]
-            : [nativeCohort(target)];
-      const defaultCohort = cohorts[0]!.id;
-      const ids = web
-        ? ['ganesh-webgl2']
-        : android
-          ? ['graphite-vulkan', 'emulator-vulkan']
-          : windows
-            ? ['rn-graphite-vulkan', 'rn-v8-graphite-vulkan', 'rn-jsc-graphite-vulkan']
-            : target === 'linux'
-              ? ['rn-graphite-vulkan-x11', 'rn-graphite-vulkan-wayland']
-              : [
-                  target === 'ios'
-                    ? 'graphite-metal'
-                    : target === 'macos'
-                      ? 'rn-graphite-metal'
-                      : 'rn-graphite-vulkan',
-                ];
-      const reason = windows
-        ? 'Owned RNW module/session, per-view backing and SDK owner drain required; runtime/display qualification remains separate'
-        : linux
-          ? 'Owned native Linux hardware host/status and per-view backing gates required; GPU execution qualification notVerified'
-          : apple
-            ? 'Owned Apple host protocol3, exact RN cohort, JS Metal GPU preparation and per-view/runtime drain gates required; code-only scope, native execution notVerified'
-            : implemented
-              ? 'Existing implementation retained in its declared cohort; wider qualification pending'
-              : 'SDK registration and native resource/lifecycle composition unavailable';
-      const profiles: ProviderProfile[] = ids.map((id) => {
-        const emulator = id === 'emulator-vulkan';
-        const arch: ProviderArchitecture[] = web
-          ? ['wasm32']
-          : target === 'ios'
-            ? ['arm64']
-            : emulator || linux || windows
-              ? ['x86_64']
-              : ['x86_64', 'arm64'];
-        const required = web
-          ? ['canvaskit.js', 'canvaskit.wasm']
-          : android
-            ? arch.map((value) => `skia-android-${value}`)
-            : target === 'ios' || target === 'macos'
-              ? [`skia-${target}-framework`]
-              : [`skia-${target}-rn`];
-        const qualification: ProviderQualification = {
-          status: 'notVerified',
-          scope: web
-            ? 'Browser Ganesh/WebGL2 implementation'
-            : android
-              ? 'Android Hermes/Graphite implementation'
-              : windows
-                ? 'Windows RNW/Vulkan implementation'
-                : linux
-                  ? 'Linux RNL/Vulkan source implementation'
-                  : 'Apple RN/Metal source implementation',
-          architectures: [],
-          evidence: [],
-          limitations: windows
-            ? [
-                'Only the pinned x86_64 RNW recipe is admitted',
-                'Stock Core full reload and native loss recovery remain incomplete',
-                'Physical input, accessibility, scanout, signing and clean-machine acceptance are not verified',
-              ]
-            : linux
-              ? [
-                  'Only the pinned x86_64 X11/Wayland recipe is admitted; GPU execution is not verified',
-                  'ARM64, full reload/loss recovery, deployment and physical input/accessibility remain incomplete',
-                  'Hardware preparation and matching native runtime generations are required',
-                ]
-              : apple
-                ? [
-                    'Native build, runtime, Metal and signing are not verified',
-                    'Exact protocol3 patched RN/RNM source and hardware Metal/Dawn preparation are required',
-                    'Forced teardown, native loss recovery and physical acceptance remain incomplete',
-                  ]
-                : android
-                  ? [
-                      'Hardware and ARM64/Release qualification remain incomplete',
-                      'Korean composing, accessibility, native loss recovery and scanout remain unverified',
-                    ]
-                  : [
-                      'Browser context loss, physical input/accessibility and complete memory accounting require further qualification',
-                    ],
-        };
-        const capabilities = caps(target, implemented);
-        return {
-          id,
-          cohorts:
-            id === 'rn-jsc-graphite-vulkan'
-              ? ['rn-0.83.10-jsc']
-              : id === 'rn-v8-graphite-vulkan'
-                ? ['rn-0.83.10-v8']
-                : android
-                  ? cohorts.map((cohort) => cohort.id)
-                  : [defaultCohort],
-          identity: {
-            target,
-            runtime: web
-              ? 'browser'
-              : id === 'rn-jsc-graphite-vulkan'
-                ? 'jsc'
-                : id === 'rn-v8-graphite-vulkan'
-                  ? 'v8'
-                  : 'hermes',
-            host: web ? 'react-dom' : 'fabric',
-            renderer: web ? 'skia-ganesh' : 'skia-graphite',
-            gpuBackend: web
-              ? 'webgl2'
-              : target === 'ios' || target === 'macos'
-                ? 'metal'
-                : 'vulkan',
-            gpuImplementation: web
-              ? 'browser-webgl2'
-              : target === 'windows' || target === 'linux'
-                ? 'native-vulkan'
-                : 'dawn',
-            profile: id,
-          },
-          status: implemented ? 'implemented' : 'unsupported',
-          reason,
-          executionOperatingSystems: [web ? 'browser' : target === 'macos' ? 'darwin' : target],
-          architectures: arch,
-          artifactManifest: {
-            entry: implemented
-              ? web
-                ? '@nelyx/skia-web/native-manifest.json'
-                : '@nelyx/skia-rn/native-manifest.json'
-              : target === 'ios' || target === 'macos'
-                ? '@nelyx/skia-rn/apple/native-supply.json'
-                : null,
-            kind: web ? 'binary' : 'recipe',
-            required,
-          },
-          nativeAbi: { host: null, skia: 1 },
-          wireAbi: 10,
-          capabilities: web
-            ? {
-                ...capabilities,
-                editing: {
-                  ...capabilities.editing,
-                  composing: 'observed',
-                  selectionDirection: 'observed',
-                  nativeRevision: 'observed',
-                },
-                semantics: 'dom',
-              }
-            : capabilities,
-          qualification,
-        };
-      });
-      const first = profiles[0]!;
-      const buildHosts: ProviderOperatingSystem[] =
-        target === 'ios' || target === 'macos'
-          ? ['darwin']
-          : target === 'windows'
-            ? ['windows']
-            : target === 'linux'
-              ? ['linux']
-              : hosts;
-      const hostOperatingSystems = Object.fromEntries(
-        operations.map((operation) => [
-          operation,
-          operation === 'doctor' || operation === 'pack' ? hosts : buildHosts,
-        ]),
-      );
-      const tooling: ProviderTool[] = [
+  const hosts = ['windows', 'darwin', 'linux'];
+  const identity = {
+    target: 'web',
+    runtime: 'browser',
+    host: 'react-dom',
+    renderer: 'skia-ganesh',
+    gpuBackend: 'webgl2',
+    gpuImplementation: 'browser-webgl2',
+    profile: 'ganesh-webgl2',
+  };
+  const cohort = {
+    id: 'web-react-dom-19.2.0',
+    react: '19.2.0',
+    framework: 'react-dom',
+    frameworkVersion: '19.2.0',
+    engine: 'browser',
+    reactNative: null,
+    nativeReactNative: null,
+    frameworkRevision: null,
+    engineVersion: null,
+    engineRevision: null,
+    bytecodeVersion: null,
+  };
+  const qualification = {
+    status: 'notVerified',
+    scope: 'Browser Ganesh/WebGL2 implementation',
+    architectures: [],
+    evidence: [],
+    limitations: [
+      'Browser context loss, physical input/accessibility and complete memory accounting require further qualification',
+    ],
+  };
+  const resources = {
+    architectures: ['wasm32'],
+    artifactManifest: {
+      entry: '@nelyx/skia-web/native-manifest.json',
+      kind: 'binary',
+      required: ['canvaskit.js', 'canvaskit.wasm'],
+    },
+    nativeAbi: { host: null, skia: compatibility.skiaAbi },
+    wireAbi: compatibility.wireAbi,
+    capabilities: {
+      rendering: {
+        admission: 'bounded',
+        completion: 'gpu-retired',
+        present: 'unobserved',
+        notifications: 'submitted-and-retired',
+        nativeIdentity: true,
+        textRanges: true,
+      },
+      editing: {
+        indexUnit: 'utf16',
+        composing: 'observed',
+        selectionDirection: 'observed',
+        nativeRevision: 'observed',
+      },
+      semantics: 'dom',
+    },
+    qualification,
+  };
+  return new ProviderRegistry([
+    {
+      schema: 'nelyx.provider/v4',
+      version: sdkVersion,
+      coreRange: compatibleCoreRange,
+      protocolVersion: compatibility.protocolVersion,
+      id: 'nelyx.web',
+      target: identity.target,
+      runtime: identity.runtime,
+      host: identity.host,
+      renderer: identity.renderer,
+      entry: '@nelyx/sdk/platforms/web/application',
+      defaultProfile: identity.profile,
+      cohorts: [cohort],
+      defaultCohort: cohort.id,
+      hostOperatingSystems: Object.fromEntries(operations.map((operation) => [operation, hosts])),
+      operations: [...operations],
+      tooling: [
         {
           id: 'node',
           kind: 'executable',
           versionRange: '>=24.3.0 <25.0.0',
-          operations: [...operations],
+          operations,
           hostOperatingSystems: hosts,
         },
         {
@@ -934,113 +764,19 @@ export function createProviderRegistry(): ProviderRegistry {
           operations: ['doctor', 'build', 'dev', 'pack'],
           hostOperatingSystems: hosts,
         },
-      ];
-      if (!web)
-        tooling.push({
-          id: 'react-native',
-          kind: 'package',
-          versionRange: cohorts[0]!.reactNative,
-          operations: ['build', 'dev'],
-          hostOperatingSystems: buildHosts,
-        });
-      if (target === 'windows')
-        tooling.push(
-          {
-            id: 'react-native-windows',
-            kind: 'package',
-            versionRange: '0.83.2',
-            operations: ['build', 'dev'],
-            hostOperatingSystems: buildHosts,
-          },
-          {
-            id: 'windows-sdk',
-            kind: 'sdk',
-            versionRange: '10.0.26100.0',
-            operations: ['build'],
-            hostOperatingSystems: buildHosts,
-          },
-        );
-      if (target === 'linux')
-        tooling.push(
-          {
-            id: 'cmake',
-            kind: 'executable',
-            versionRange: '>=3.25.0 <5.0.0',
-            operations: ['build'],
-            hostOperatingSystems: buildHosts,
-          },
-          {
-            id: 'gtk4',
-            kind: 'sdk',
-            versionRange: '>=4.14.0 <5.0.0',
-            operations: ['build'],
-            hostOperatingSystems: buildHosts,
-          },
-        );
-      if (target === 'android')
-        tooling.push(
-          {
-            id: 'jdk',
-            kind: 'executable',
-            versionRange: '>=21.0.0 <22.0.0',
-            operations: ['build', 'dev'],
-            hostOperatingSystems: hosts,
-          },
-          {
-            id: 'android-ndk',
-            kind: 'sdk',
-            versionRange: '27.1.12297006',
-            operations: ['build'],
-            hostOperatingSystems: hosts,
-          },
-          {
-            id: 'android-build-tools',
-            kind: 'sdk',
-            versionRange: '36.0.0',
-            operations: ['build'],
-            hostOperatingSystems: hosts,
-          },
-          {
-            id: 'adb',
-            kind: 'executable',
-            versionRange: '>=1.0.41 <2.0.0',
-            operations: ['run', 'dev'],
-            hostOperatingSystems: hosts,
-          },
-        );
-      if (target === 'ios' || target === 'macos')
-        tooling.push({
-          id: 'xcode',
-          kind: 'component',
-          versionRange: null,
-          operations: ['build', 'run', 'dev'],
-          hostOperatingSystems: ['darwin'],
-        });
-      return {
-        schema: 'nelyx.provider/v4',
-        id: `nelyx.${target}`,
-        version: sdkVersion,
-        coreRange: compatibleCoreRange,
-        protocolVersion: 1,
-        target,
-        runtime: first.identity.runtime,
-        host: first.identity.host,
-        renderer: first.identity.renderer,
-        entry: `@nelyx/sdk/platforms/${target}/application`,
-        defaultProfile: first.id,
-        cohorts,
-        defaultCohort,
-        hostOperatingSystems,
-        operations: [...operations],
-        architectures: [...new Set(profiles.flatMap((profile) => profile.architectures))],
-        tooling,
-        artifactManifest: first.artifactManifest,
-        nativeAbi: first.nativeAbi,
-        wireAbi: first.wireAbi,
-        capabilities: first.capabilities,
-        qualification: first.qualification,
-        profiles,
-      };
-    }),
-  );
+      ],
+      ...resources,
+      profiles: [
+        {
+          id: identity.profile,
+          cohorts: [cohort.id],
+          identity,
+          status: 'implemented',
+          reason: 'React DOM and CanvasKit WebGL2 implementation',
+          executionOperatingSystems: ['browser'],
+          ...resources,
+        },
+      ],
+    },
+  ]);
 }

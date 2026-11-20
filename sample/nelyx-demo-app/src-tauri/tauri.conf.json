@@ -4,7 +4,7 @@
   "identifier": "dev.nelyx.demo.tauri",
   "build": {
     "devUrl": "http://127.0.0.1:1420/",
-    "frontendDist": "../.nelyx/web"
+    "frontendDist": "../.nelyx/pwa"
   },
   "app": {
     "withGlobalTauri": true,
@@ -22,14 +22,27 @@
       "csp": {
         "default-src": "'self'",
         "script-src": "'self' blob: 'wasm-unsafe-eval'",
-        "connect-src": "'self' ipc: https://ipc.localhost",
-        "style-src-elem": "'self' 'unsafe-inline'",
-        "style-src-attr": "'unsafe-inline'"
+        "connect-src": "'self' ipc: http://ipc.localhost https://ipc.localhost",
+        "img-src": "'self' data: blob:",
+        "style-src": "'self' 'unsafe-inline'"
+      },
+      "devCsp": {
+        "default-src": "'self'",
+        "script-src": "'self' blob: 'wasm-unsafe-eval' 'unsafe-inline'",
+        "connect-src": "'self' ipc: http://ipc.localhost https://ipc.localhost",
+        "img-src": "'self' data: blob:",
+        "style-src": "'self' 'unsafe-inline'"
       }
     }
   },
   "bundle": {
-    "active": false,
-    "icon": ["../windows/NelyxRNHost/NelyxRNHost.ico"]
+    "active": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/app.ico"
+    ]
   }
 }

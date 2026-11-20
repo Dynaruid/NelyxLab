@@ -19,7 +19,11 @@
     "./typescript-compiler": {
       "types": "./src/typescript-compiler.d.cts",
       "default": "./src/typescript-compiler.cjs"
-    }
+    },
+    "./app-assets": "./src/app-assets.cjs",
+    "./installed-supply": "./src/installed-supply.cjs",
+    "./web-runtime": "./src/web-runtime.mjs",
+    "./node-files": "./src/node-files.mjs"
   },
   "scripts": {
     "build": "node ../../../eng/build-packages.mjs tooling-contracts"

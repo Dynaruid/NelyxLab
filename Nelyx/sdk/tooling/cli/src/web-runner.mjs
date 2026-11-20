@@ -2,273 +2,267 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
-import { createHash } from 'node:crypto';
-import { serveWebDevelopment } from '@nelyx/metro/web-development';
-import { readApplication } from './application.mjs';
-import { configureRunner } from './runner-configuration.mjs';
-import { execute } from './commands.mjs';
+import { randomUUID } from 'node:crypto';
+import { appFiles, inspectRunner, prepareRunnerFiles, readApp } from '@nelyx/vite/runner';
+import { buildPwa, verifyPwa } from '@nelyx/vite/release';
+import { isAppNavigation, mediaType } from '@nelyx/vite/content';
+import { localFile } from '@nelyx/tooling-contracts/node-files';
 import {
-  inFreshPackageDirectory,
-  publishRunnerPackage,
-  rememberPackage,
-  packageFor,
-  packRunner,
-} from './runner-package.mjs';
-import { localFile } from './files.mjs';
-async function application(app) {
-  const value = await readApplication(app, 'web');
-  value.load('@nelyx/metro/web-config').inspectWebRunnerCohort({ runnerRoot: value.runner });
-  value.load('@nelyx/metro/assets').verifyAppAssets(value.app, value.config.assets);
-  return value;
-}
-export async function doctorWeb({ app }) {
-  const value = await application(app);
-  return {
-    schema: 'nelyx.doctor/v3',
-    target: 'web',
-    runner: value.runner,
-    cohort: value.cohort,
-    profile: value.profile.id,
-    implementation: value.profile.status,
-    qualification: value.profile.qualification,
-    adapters: { prepare: true, build: true, run: true, pack: true, dev: true },
-  };
-}
-export async function devWeb({ app, host = '127.0.0.1', port = 8081 }) {
-  if (
-    !['127.0.0.1', 'localhost'].includes(host) ||
-    !Number.isSafeInteger(port) ||
-    port < 1 ||
-    port > 65535
-  )
-    throw new Error('Web development requires a loopback host and port 1..65535');
-  const controller = new AbortController(),
-    interrupted = new Promise((resolve) =>
-      controller.signal.addEventListener('abort', resolve, { once: true }),
-    ),
-    stop = () => controller.abort();
-  let running;
-  process.on('SIGINT', stop);
-  process.on('SIGTERM', stop);
-  try {
-    const value = await application(app);
-    controller.signal.throwIfAborted();
-    const config = await value.load(path.join(value.runner, 'metro.config.cjs'));
-    controller.signal.throwIfAborted();
-    running = await serveWebDevelopment({
-      config,
-      appRoot: value.app,
-      assets: value.config.assets,
-      readAssets: async () => (await readApplication(value.app, 'web')).config.assets,
-      host,
-      port,
-      runtimeDirectory: process.env.NELYX_WEB_RUNTIME_ROOT,
-    });
-    if (!controller.signal.aborted) {
-      process.stderr.write(
-        JSON.stringify({
-          event: 'nelyx.dev.ready',
-          target: 'web',
-          url: running.url,
-          runner: value.runner,
-        }) + '\n',
+  ensureDirectory,
+  publishDirectory,
+  removeDirectory,
+  withPublicationLock,
+} from './publication.mjs';
+
+const route = { format: 'pwa', provider: 'web', host: 'browser' };
+export const pwaDirectory = (app) => path.join(app, '.nelyx', 'pwa');
+export const hostOs = () =>
+  ({ win32: 'windows', darwin: 'macos', linux: 'linux' })[process.platform] ?? process.platform;
+
+function requireViteRunner(runner) {
+  for (const name of ['index.html', 'vite.config.ts', 'main.ts']) {
+    if (!fs.existsSync(path.join(runner, name)))
+      throw new Error(
+        `Add ${name} from the PWA starter to ${runner}. Review metro.config.cjs and build.mjs for custom settings to move to vite.config.ts.`,
       );
-      await interrupted;
-    }
-    return {
-      schema: 'nelyx.dev/v2',
-      target: 'web',
-      exitCode: 0,
-      url: running.url,
-      runner: value.runner,
-      scope:
-        'Standard Metro HMR/React Refresh and pinned CanvasKit assets; awaited Metro/HTTP/socket close. Browser/root/SDK reload evidence is separate.',
-      qualification: 'notVerified',
-    };
-  } catch (error) {
-    if (!controller.signal.aborted) throw error;
-    return {
-      schema: 'nelyx.dev/v2',
-      target: 'web',
-      exitCode: 0,
-      scope: 'Interrupted startup; any owned listener is awaited in finally',
-      qualification: 'notVerified',
-    };
-  } finally {
-    try {
-      await running?.close();
-    } finally {
-      process.off('SIGINT', stop);
-      process.off('SIGTERM', stop);
-    }
+    localFile(runner, name);
   }
 }
-export async function prepareWeb({ app }) {
+
+export function doctorWeb({ app }) {
+  const result = { schema: 'nelyx.doctor/v3', ...route, os: hostOs() };
+  try {
+    const value = inspectRunner(app);
+    requireViteRunner(value.runner);
+    appFiles(value, false);
+    return {
+      ...result,
+      app: value.app,
+      runner: value.runner,
+      cohort: value.cohort,
+      warnings: value.warnings,
+      ready: true,
+      exitCode: 0,
+    };
+  } catch (error) {
+    return { ...result, app, error: error.message, ready: false, exitCode: 1 };
+  }
+}
+
+export function prepareWeb({ app }) {
+  const value = inspectRunner(app);
+  requireViteRunner(value.runner);
+  prepareRunnerFiles(value);
   return {
     schema: 'nelyx.prepare/v3',
-    target: 'web',
-    ...(await configureRunner({ app, target: 'web' })),
+    ...route,
+    os: hostOs(),
+    app: value.app,
+    runner: value.runner,
+    cohort: value.cohort,
+    warnings: value.warnings,
   };
 }
-/** Run the prepared consumer's static builder with the caller's output directory. */
-export async function buildWebInto(runner, directory, options) {
-  await execute(process.execPath, [path.join(runner, 'build.mjs'), directory], {
-    ...options,
-    cwd: runner,
-  });
-  const build = JSON.parse(fs.readFileSync(localFile(directory, 'build.json'), 'utf8'));
-  if (
-    build.schema !== 'nelyx.web-build/v1' ||
-    build.profile !== 'ganesh-webgl2' ||
-    build.development !== false ||
-    build.gpuBackend !== 'webgl2'
-  )
-    throw new Error(`Web builder acknowledgement mismatch: ${directory}`);
-  return build;
-}
-export async function buildWebApplication({ app, output, configuration = 'Release' }) {
-  if (configuration !== 'Release')
-    throw new Error('Static Web packages require Release; development reload adapter is separate');
-  const value = await application(app);
-  await configureRunner({ app: value.app, target: 'web' });
-  return inFreshPackageDirectory(value.app, 'web', output, async (directory) => {
-    const build = await buildWebInto(value.runner, directory);
-    const verified = publishRunnerPackage({
-      directory,
-      target: 'web',
-      application: value,
-      entry: 'index.html',
-      details: {
-        renderer: build.renderer,
-        gpuBackend: build.gpuBackend,
-        noticeQualification: build.noticeQualification,
-      },
-    });
-    rememberPackage(value.app, 'web', directory);
-    return {
-      schema: 'nelyx.build/v3',
-      target: 'web',
-      directory,
-      files: verified.files,
-      bytes: verified.bytes,
-      qualification: 'notVerified',
-    };
-  });
-}
-/** Serves only recorded static bytes. The caller owns the listener's close acknowledgement. */
-export async function serveWeb({ app, directory, host = '127.0.0.1', port = 8080 }) {
-  if (
-    !['127.0.0.1', '::1', 'localhost'].includes(host) ||
-    !Number.isSafeInteger(port) ||
-    port < 0 ||
-    port > 65535
-  )
-    throw new Error('Web server requires a loopback host and valid port');
-  const verified = packageFor(app, 'web', directory),
-    records = new Map(
-      verified.manifest.files
-        .filter((record) => record.type === 'file')
-        .map((record) => [record.path, record]),
-    ),
-    sockets = new Set();
-  const types = {
-    '.html': 'text/html; charset=utf-8',
-    '.js': 'text/javascript; charset=utf-8',
-    '.json': 'application/json; charset=utf-8',
-    '.map': 'application/json',
-    '.wasm': 'application/wasm',
-    '.png': 'image/png',
-    '.ttf': 'font/ttf',
-    '.md': 'text/plain; charset=utf-8',
-  };
-  const server = http.createServer((request, response) => {
-    if (!['GET', 'HEAD'].includes(request.method)) {
-      response.writeHead(405, { Allow: 'GET, HEAD' });
-      response.end();
-      return;
-    }
+
+export function buildWebApplication({ app }, signal) {
+  app = fs.realpathSync(app);
+  return withPublicationLock(app, async () => {
+    signal.throwIfAborted();
+    const destination = pwaDirectory(app);
+    const parent = ensureDirectory(path.dirname(destination));
+    const stage = fs.mkdtempSync(path.join(parent, '.pwa-'));
     try {
-      const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname),
-        name = pathname === '/' ? 'index.html' : pathname.slice(1),
-        record = records.get(name);
-      if (!record) {
-        response.writeHead(404);
-        response.end();
-        return;
-      }
-      const bytes = fs.readFileSync(localFile(verified.directory, name));
-      if (
-        bytes.length !== record.bytes ||
-        createHash('sha256').update(bytes).digest('hex') !== record.sha256
-      )
-        throw new Error('Served package changed');
-      response.writeHead(200, {
-        'Content-Type': types[path.extname(name)] ?? 'application/octet-stream',
-        'Content-Length': bytes.length,
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-      });
-      response.end(request.method === 'HEAD' ? undefined : bytes);
-    } catch {
-      response.writeHead(409);
-      response.end('Static package unavailable or changed');
+      requireViteRunner(path.join(app, 'web', 'runner'));
+      const release = await buildPwa(app, stage);
+      signal.throwIfAborted();
+      publishDirectory(stage, destination);
+      const { files: _inventory, ...summary } = release;
+      return { ...summary, directory: destination, host: 'browser', os: hostOs() };
+    } finally {
+      removeDirectory(stage, parent);
     }
   });
-  server.on('connection', (socket) => {
-    sockets.add(socket);
-    socket.once('close', () => sockets.delete(socket));
-  });
-  await new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port, host, () => {
-      server.off('error', reject);
-      resolve();
-    });
-  });
-  const address = server.address(),
-    url = `http://${host === '::1' ? '[::1]' : host}:${address.port}/`;
-  let closing;
-  return {
-    url,
-    directory: verified.directory,
-    close() {
-      return (closing ??= new Promise((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve()));
-        for (const socket of sockets) socket.destroy();
-      }));
-    },
+}
+
+export async function openVite(
+  { app, host = '127.0.0.1', port = 8081, advertisedHost, tauri = false, os = hostOs() },
+  signal,
+) {
+  const value = inspectRunner(app);
+  const { runner } = value;
+  requireViteRunner(runner);
+  const { createServer } = await value.vite();
+  const event = {
+    event: 'nelyx.dev.ready',
+    ...route,
+    ...(tauri ? { host: 'tauri' } : {}),
+    os,
+    target: 'web',
+    app: value.app,
+    runner,
+    session: randomUUID(),
   };
+  const server = await createServer({
+    root: runner,
+    configFile: path.join(runner, 'vite.config.ts'),
+    server: {
+      host,
+      port,
+      strictPort: true,
+      ...(advertisedHost ? { allowedHosts: [advertisedHost] } : {}),
+    },
+    plugins: [
+      {
+        name: 'nelyx:dev-session',
+        config(config) {
+          if (!tauri || !['android', 'ios'].includes(os) || config.server?.ws === false) return;
+          // Tauri can serve mobile development modules from the embedded protocol.
+          // The HMR socket connects directly to the Vite endpoint, including via adb reverse.
+          return {
+            server: {
+              ws: {
+                protocol: config.server?.https ? 'wss' : 'ws',
+                host: advertisedHost ?? host,
+                clientPort: port,
+              },
+            },
+          };
+        },
+        configureServer(server) {
+          server.middlewares.use((req, res, next) => {
+            if (req.method !== 'GET' || req.url !== '/__nelyx/status') return next();
+            res
+              .writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+              .end(JSON.stringify(event));
+          });
+        },
+      },
+    ],
+  });
+  try {
+    await server.listen();
+    signal.throwIfAborted();
+    const address = server.httpServer?.address();
+    if (!address || typeof address === 'string') throw new Error('Vite did not bind a TCP port');
+    const protocol = server.config.server.https ? 'https' : 'http';
+    const url = (hostname) =>
+      new URL(
+        `${protocol}://${
+          hostname.includes(':') && !hostname.startsWith('[') ? '[' + hostname + ']' : hostname
+        }:${address.port}/`,
+      ).href;
+    event.url = url(advertisedHost ?? host);
+    process.stderr.write(JSON.stringify(event) + '\n');
+    return { server, event, healthUrl: url(host === '0.0.0.0' ? '127.0.0.1' : host) };
+  } catch (error) {
+    await server.close();
+    throw error;
+  }
 }
-export async function runWeb(options) {
-  const running = await serveWeb({ ...options, port: options.port ?? 8080 });
-  process.stderr.write(
-    JSON.stringify({ event: 'nelyx.web-started', url: running.url, directory: running.directory }) +
-      '\n',
-  );
+
+function waitForServer(server, signal) {
   return new Promise((resolve, reject) => {
-    let closing = false;
-    const close = () => {
-      if (closing) return;
-      closing = true;
-      void running.close().then(
-        () => {
-          cleanup();
-          resolve({ schema: 'nelyx.run/v3', target: 'web', exitCode: 0 });
-        },
-        (error) => {
-          cleanup();
-          reject(error);
-        },
-      );
-    };
-    const cleanup = () => {
-      process.off('SIGINT', close);
-      process.off('SIGTERM', close);
-    };
-    process.on('SIGINT', close);
-    process.on('SIGTERM', close);
+    const close = () => finish();
+    const error = (error) => finish(error);
+    const abort = () => finish(signal.reason);
+    function finish(failure) {
+      signal.removeEventListener('abort', abort);
+      server.off('error', error);
+      server.off('close', close);
+      if (failure) reject(failure);
+      else resolve();
+    }
+    signal.addEventListener('abort', abort, { once: true });
+    server.once('error', error);
+    server.once('close', close);
+    if (signal.aborted) abort();
   });
 }
-export function packWeb(options) {
-  return packRunner({ ...options, target: 'web' });
+
+export async function devWeb(options, signal) {
+  const { server, event } = await openVite(options, signal);
+  try {
+    await waitForServer(server.httpServer, signal);
+    return { ...event, exitCode: 0 };
+  } finally {
+    await server.close();
+  }
+}
+
+export async function runWeb(
+  { app, directory, port = 4173, host = '127.0.0.1', base = '/' },
+  signal,
+) {
+  const value = readApp(app);
+  directory = path.resolve(directory ?? pwaDirectory(value.app));
+  let release = verifyPwa(directory, value);
+  let names = new Set(release.files.map(({ path }) => path));
+  if (!/^\/(?:[\w-]+\/)*$/.test(base))
+    throw new Error('--base requires / or a path such as /demo/');
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    if (!['GET', 'HEAD'].includes(req.method)) return res.writeHead(405).end();
+    if (base !== '/' && url.pathname === base.slice(0, -1))
+      return res.writeHead(308, { Location: base + url.search }).end();
+    if (!url.pathname.startsWith(base)) return res.writeHead(404).end();
+    try {
+      const manifest = JSON.parse(fs.readFileSync(localFile(directory, 'build.json'), 'utf8'));
+      if (manifest.buildId !== release.buildId) {
+        release = verifyPwa(directory, value);
+        names = new Set(release.files.map(({ path }) => path));
+      }
+      const request = decodeURIComponent(url.pathname.slice(base.length));
+      const navigation =
+        req.headers['sec-fetch-mode'] === 'navigate' || req.headers.accept?.includes('text/html');
+      const file =
+        request === ''
+          ? 'index.html'
+          : request === 'build.json' || names.has(request)
+            ? request
+            : navigation && isAppNavigation(request)
+              ? 'index.html'
+              : null;
+      if (!file) return res.writeHead(404).end();
+      let bytes = fs.readFileSync(localFile(directory, file));
+      if (file === 'index.html' && request !== '' && request !== 'index.html')
+        bytes = Buffer.from(bytes.toString().replace('<!--nelyx-base-->', `<base href="${base}">`));
+      res
+        .writeHead(200, {
+          'Content-Type': mediaType(file),
+          'Content-Length': bytes.length,
+          'Cache-Control': file.startsWith('chunks/')
+            ? 'public, max-age=31536000, immutable'
+            : 'no-cache',
+          'X-Content-Type-Options': 'nosniff',
+        })
+        .end(req.method === 'HEAD' ? undefined : bytes);
+    } catch {
+      res.writeHead(404).end();
+    }
+  });
+  try {
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(port, host, resolve);
+    });
+    const address = server.address();
+    const url = `http://${host.includes(':') ? '[' + host + ']' : host}:${address.port}${base}`;
+    const result = {
+      schema: 'nelyx.run/v3',
+      ...route,
+      os: hostOs(),
+      url,
+      directory,
+      buildId: release.buildId,
+    };
+    process.stderr.write(JSON.stringify({ event: 'nelyx.preview.ready', ...result }) + '\n');
+    await waitForServer(server, signal);
+    return { ...result, exitCode: 0 };
+  } finally {
+    if (server.listening)
+      await new Promise((resolve) => {
+        server.close(resolve);
+        server.closeAllConnections();
+      });
+  }
 }

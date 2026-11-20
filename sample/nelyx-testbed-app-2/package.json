@@ -3,32 +3,40 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build:web": "npm --prefix web/runner run build",
-    "dev:web": "npm --prefix web/runner run dev",
-    "dev:tauri:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --target windows --host tauri",
-    "build:tauri:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs build --app . --target windows --host tauri",
-    "run:tauri:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --target windows --host tauri",
-    "bundle:windows": "npm --prefix windows/runner run bundle",
-    "build:windows": "npm --prefix windows/runner run build -- --engine hermes --hermes-profile optimized",
-    "run:windows": "node ../../Nelyx/eng/run-sample-windows.mjs",
-    "start:windows:v8": "npm --prefix windows/runner run build -- --engine v8 && npm run run:windows",
-    "start:windows:hermes": "npm run build:windows:hermes && npm run run:windows",
-    "start:windows:hermes:debug": "npm --prefix windows/runner run build -- --engine hermes --hermes-profile debug && npm run run:windows",
-    "dev:windows": "npm --prefix windows/runner run dev",
-    "bundle:android": "npm --prefix android/runner run bundle",
-    "build:android": "npm --prefix android/runner run build",
-    "run:android": "npm --prefix android/runner run run",
-    "prepare:runner": "node eng/prepare-runner.mjs",
-    "build:android:emulator": "npm --prefix android/runner run build -- --architecture x86_64",
-    "build:windows:hermes": "npm --prefix windows/runner run build -- --engine hermes --hermes-profile optimized",
-    "prepare:windows:static-aot": "npm --prefix windows/runner run prepare:native -- --engine hermes --hermes-mode static-aot",
-    "build:windows:static-aot": "npm --prefix windows/runner run build -- --engine hermes --hermes-mode static-aot --hermes-profile optimized",
-    "start:windows:static-aot": "npm run build:windows:static-aot && npm run run:windows",
-    "prepare:windows:jsc": "npm --prefix windows/runner run prepare:native -- --engine jsc",
-    "build:windows:jsc": "npm --prefix windows/runner run build -- --engine jsc --jsc-mode jit",
-    "build:windows:jsc:interpreter": "npm --prefix windows/runner run build -- --engine jsc --jsc-mode interpreter",
-    "start:windows:jsc": "npm run build:windows:jsc && npm run run:windows",
-    "start:windows:jsc:interpreter": "npm run build:windows:jsc:interpreter && npm run run:windows"
+    "dev": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app .",
+    "build:pwa": "node web/runner/node_modules/@nelyx/cli/src/main.mjs build --app .",
+    "run:pwa": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app .",
+    "dev:web": "npm run dev --",
+    "build:web": "npm run build:pwa --",
+    "prepare:web": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app .",
+    "prepare:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform windows",
+    "dev:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform windows",
+    "pack:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform windows",
+    "run:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform windows",
+    "build:windows": "npm run build:pwa && npm run pack:windows --",
+    "prepare:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform android",
+    "dev:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform android",
+    "pack:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform android",
+    "run:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform android",
+    "build:android": "npm run build:pwa && npm run pack:android --",
+    "prepare:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform linux",
+    "dev:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform linux",
+    "pack:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform linux",
+    "run:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform linux",
+    "build:linux": "npm run build:pwa && npm run pack:linux --",
+    "prepare:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform macos",
+    "dev:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform macos",
+    "pack:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform macos",
+    "run:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform macos",
+    "build:macos": "npm run build:pwa && npm run pack:macos --",
+    "prepare:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform ios",
+    "dev:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform ios",
+    "pack:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform ios",
+    "run:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform ios",
+    "build:ios": "npm run build:pwa && npm run pack:ios --",
+    "dev:tauri:windows": "npm run dev:windows --",
+    "build:tauri:windows": "npm run build:windows --",
+    "run:tauri:windows": "npm run run:windows --"
   },
   "dependencies": {
     "@nelyx/core": "0.17.0",
@@ -41,7 +49,7 @@
   },
   "type": "module",
   "nelyx": {
-    "schema": "nelyx.app/v2",
+    "schema": "nelyx.app/v3",
     "name": "NelyxTestbed2",
     "appEntry": "./src/index.ts",
     "assets": [
@@ -88,22 +96,24 @@
         "path": "./assets/component-image.webp"
       }
     ],
-    "targets": {
-      "web": {
-        "profile": "ganesh-webgl2",
-        "component": "./web/runner/App.tsx"
-      },
-      "windows": {
-        "profile": "rn-graphite-vulkan",
-        "cohort": "rn-0.83.10",
-        "component": "./windows/runner/App.tsx"
-      },
-      "android": {
-        "profile": "emulator-vulkan",
-        "cohort": "rn-0.83.10",
-        "component": "./android/runner/App.tsx"
-      }
-    },
-    "displayName": "Nelyx Testbed 2"
+    "displayName": "Nelyx Testbed 2",
+    "pwa": {
+      "component": "./web/runner/App.tsx",
+      "id": "/apps/nelyx-testbed",
+      "shortName": "Nelyx Testbed",
+      "themeColor": "#101827",
+      "icons": [
+        {
+          "src": "./assets/pwa/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        },
+        {
+          "src": "./assets/pwa/icon-512.png",
+          "sizes": "512x512",
+          "type": "image/png"
+        }
+      ]
+    }
   }
 }

@@ -1,27 +1,7 @@
 # Third-party notices
 
-Nelyx-authored code and contributions use BSD-3-Clause under `LICENSE.md`.
-The license does not replace the copyright or license of imported source.
+Nelyx-authored code and contributions use BSD-3-Clause. Imported code retains its original notices. [Nelyx license](LICENSE.md)
 
-The RN Skia source fork retains its original MIT notice in
-`licenses/react-native-skia-MIT.md`, including the William Candillon and
-Shopify copyrights. Existing source-file notices, including those in
-`cpp/api/third_party`, remain in place. The RN package declares
-`BSD-3-Clause AND MIT` for the Nelyx and RN Skia portions.
+The Web adapter retains the original React Native Skia MIT notice. The CanvasKit source archive preserves Skia's copyright and license files. The fixed runtime includes the supplier's Skia license. [React Native Skia MIT](licenses/react-native-skia-MIT.md) · [Skia BSD 3-Clause](licenses/skia-BSD-3-Clause.txt)
 
-The Windows Skia vendor's original BSD-3-Clause notice is retained in
-`licenses/skia-BSD-3-Clause.txt`. Skia/Dawn/CanvasKit headers, libraries and
-other dependencies retain their own licenses and source notices. The
-upstream source archive preserves the original source and license files.
-
-The explicit m153 RN Vulkan WebP supplement uses libwebp revision
-`845d5476a866141ba35ac133f856fa62f0b7445f`, as specified by the original Skia
-`DEPS`. Its original copyright/conditions, patent grant and author list are
-retained in `licenses/libwebp-COPYING.txt`, `licenses/libwebp-PATENTS.txt` and
-`licenses/libwebp-AUTHORS.txt`. The offline source preparation also retains those
-files beside the original build sources. Archive identity is recorded in
-`eng/source-build/libwebp.lock.json`; this exception does not rebuild Skia core.
-
-This document covers the explicitly retained notices. The full notice
-inventory for prebuilt Skia/Dawn binaries remains a separate qualification;
-retained common notices are in `Nelyx/licenses/` in the repository.
+The pinned source recipe checks the Skia archive, dependency revisions, CanvasKit patches, and emitted JS and Wasm. The PWA publisher includes the CanvasKit license, the bundled packages' notices, and declared font notices. Complete attribution for transitive CanvasKit components remains under review. [Source build](eng/source-build/README.md) · [Common notices](../licenses/)

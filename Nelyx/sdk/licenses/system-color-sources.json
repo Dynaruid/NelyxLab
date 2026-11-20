@@ -13,7 +13,7 @@
     },
     {
       "file": "Nelyx/sdk/src/backends/browser/platform-messages.ts",
-      "sha256": "80702d793ca9d910fb121bdb96e441154a7010f8a61abc760db7af641adb2e30"
+      "sha256": "7473e7dfcaf4d9ec9dbe4ddf7cc70d9fa5fd93c50d5efce80a826773d6d589e3"
     }
   ],
   "scope": "Pinned browser system color names/support/computed-style/cache and RGB parser contact on the actual View DOM. Provider binding belongs to the existing plugin platform-message service disposal sequence. Physical accessibility/OS forced-color changes and native palettes are separate."

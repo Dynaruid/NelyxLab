@@ -13,7 +13,9 @@
     "src",
     "dist",
     "native-manifest.json",
-    "generated/runtime",
+    "generated/runtime/canvaskit.js",
+    "generated/runtime/canvaskit.wasm",
+    "generated/runtime/LICENSE_SKIA",
     "README.md",
     "LICENSE.md",
     "licenses"

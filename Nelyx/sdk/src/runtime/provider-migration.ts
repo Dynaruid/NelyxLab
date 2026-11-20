@@ -3,7 +3,7 @@ import { validateProvider } from './providers.ts';
 import type { ProviderDescriptor } from './providers.ts';
 
 const migration =
-  'Create an independent RN runner with its pinned React/RN/Hermes cohort, registerApplication(component, assets), and an explicit RN profile in nelyx.app/v2. Deno/raw artifacts and qualification cannot be reused.';
+  'Install the Vite web/runner and use nelyx.app/v3 with the React DOM cohort. Supply CanvasKit and build the PWA again.';
 /** Removed recipe contracts are deliberately rejected before any native import or loader. */
 export function migrateNativeProvider(_value: unknown): never {
   throw new Error(`Removed nelyx.native-provider/v1 contract. ${migration}`);

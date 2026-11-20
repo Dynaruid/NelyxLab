@@ -53,18 +53,23 @@ export function encodeImageAssetManifest(manifest: readonly AppAsset[]): Uint8Ar
   const message = new StandardMessageCodec().encodeMessage(catalog)!;
   return new Uint8Array(message.buffer, message.byteOffset, message.byteLength).slice();
 }
-/** Bound Web response storage while reading; RN's fetch polyfill may expose only arrayBuffer. */
+/** Bound browser response storage while reading. */
 export async function readImageUrl(
   url: string,
   headers: Readonly<Record<string, string>>,
   signal: ImageCancellation,
   onProgress?: ImageReadProgressListener,
+  redirect: RequestRedirect = 'follow',
 ): Promise<Uint8Array> {
   signal.throwIfCanceled();
   const controller = new AbortController(),
     binding = signal.addListener(() => controller.abort());
   try {
-    const response = await fetch(url, { headers: { ...headers }, signal: controller.signal });
+    const response = await fetch(url, {
+      headers: { ...headers },
+      signal: controller.signal,
+      redirect,
+    });
     if (!response.ok)
       throw new NetworkImageLoadException({ statusCode: response.status, uri: url });
     const length = response.headers.get('content-length'),

@@ -32,8 +32,11 @@ export function bindCanvasInput(
       const keepInput =
         !options.ownsNativeSelectionTarget?.(event.target) &&
         options.ownsEditingTarget?.(canvas.ownerDocument.activeElement);
-      if (keepInput) event.preventDefault();
-      else canvas.focus({ preventScroll: true });
+      // On touch WebViews the compatibility mouse-down can focus the canvas after pointer-up.
+      // The widget may have focused its native editor during pointer-up.
+      if (keepInput || (event.pointerType === 'touch' && event.target === canvas))
+        event.preventDefault();
+      if (!keepInput) canvas.focus({ preventScroll: true });
       if (!live) return;
       pointers.add(event.pointerId);
       if (!options.ownsNativeSelectionTarget?.(event.target) || event.button === 0)

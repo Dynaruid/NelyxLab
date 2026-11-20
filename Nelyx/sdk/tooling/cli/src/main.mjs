@@ -2,77 +2,97 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import path from 'node:path';
 import { createApp } from './create-app.mjs';
-import { packageReferences, supplyRunner, readRnlSupply } from './supply-runner.mjs';
-import { devNative } from './native-development.mjs';
-import {
-  doctorWindows,
-  prepareWindows,
-  buildWindows,
-  runWindows,
-  packWindows,
-} from './windows-runner.mjs';
-import { doctorLinux, prepareLinux, buildLinux, runLinux, packLinux } from './linux-runner.mjs';
-import {
-  doctorAndroid,
-  prepareAndroid,
-  buildAndroid,
-  runAndroid,
-  packAndroid,
-} from './android-runner.mjs';
-import { doctorApple, prepareApple, buildApple, runApple, packApple } from './apple-runner.mjs';
-import {
-  doctorWeb,
-  prepareWeb,
-  buildWebApplication,
-  runWeb,
-  packWeb,
-  devWeb,
-} from './web-runner.mjs';
-const usage =
-  'Usage: nelyx create|supply|doctor|prepare|build|run|dev|pack --app <app> --target windows|linux|android|ios|macos|web [--package <directory>] [--output <new-path>]\n' +
-  'Windows Tauri: nelyx doctor|prepare|build|run|dev --app <app> --target windows --host tauri';
-try {
-  const args = process.argv.slice(2),
-    operation = args.shift(),
-    values = {},
-    nativeArguments = [];
-  if (!operation || operation === '--help') {
-    console.log(usage);
-    process.exit(0);
-  }
-  const destination = operation === 'create' ? args.shift() : undefined;
-  if (!['create', 'supply', 'doctor', 'prepare', 'build', 'run', 'dev', 'pack'].includes(operation))
-    throw new Error(usage);
+import { supplyRunner } from './supply-runner.mjs';
+import { withPublicationLock, withSignals } from './publication.mjs';
+import { buildWebApplication, devWeb, doctorWeb, prepareWeb, runWeb } from './web-runner.mjs';
+import { platforms } from './tauri-platforms.mjs';
+
+const usage = `Usage: nelyx create <directory> [--name AppName] [--designs none|material|cupertino|material,cupertino] [--packages <directory>]
+       nelyx supply --app <app> --packages <directory>
+       nelyx doctor|prepare|dev|build|run --app <app> [--target pwa]
+       nelyx doctor|prepare|dev|pack|run --app <app> --platform ${platforms.join('|')}
+       nelyx pack --app <app> --platform <os> [--package <pwa-directory>] [--architecture <arch>]
+       nelyx run --app <app> --base /demo/ --port 4173`;
+const browser = {
+  doctor: doctorWeb,
+  prepare: prepareWeb,
+  dev: devWeb,
+  build: buildWebApplication,
+  run: runWeb,
+};
+const nativeFlags = [
+  'engine',
+  'engine-inputs',
+  'native-inputs',
+  'hermes-mode',
+  'hermes-profile',
+  'jsc-mode',
+  'jsc-inputs',
+  'hermes-source',
+  'entry',
+  'rnl-supply',
+];
+
+function parse(args) {
+  const command = args.shift();
+  const destination = command === 'create' ? args.shift() : undefined;
+  const values = Object.create(null);
+  const passthrough = [];
   while (args.length) {
-    const name = args.shift();
-    if (name === '--') {
-      nativeArguments.push(...args);
+    const flag = args.shift();
+    if (flag === '--') {
+      passthrough.push(...args);
       break;
     }
-    if (!/^--[a-z-]+$/.test(name)) throw new Error(usage);
-    const key = name.slice(2),
-      value = args.shift();
-    if (Object.hasOwn(values, key) || !value || value.startsWith('--')) throw new Error(usage);
-    values[key] = value;
+    if (!/^--[a-z-]+$/.test(flag)) throw new Error(usage);
+    const name = flag.slice(2);
+    const value = args.shift();
+    if (Object.hasOwn(values, name) || !value || value.startsWith('--')) throw new Error(usage);
+    values[name] = value;
   }
-  const tauri = values.host === 'tauri';
-  if (tauri && (values.target ?? 'windows') !== 'windows')
-    throw new Error('--host tauri requires --target windows');
-  if (tauri && !['doctor', 'prepare', 'build', 'run', 'dev'].includes(operation))
-    throw new Error(`Windows Tauri does not support ${operation}`);
-  if (operation === 'create') {
-    if (!destination)
-      throw new Error(
-        'Usage: nelyx create <empty-directory> [--name AppName] [--target web|android|windows|linux|ios|macos] [--designs none|material|cupertino|material,cupertino] [--packages <archive-directory>]',
-      );
-    for (const key of Object.keys(values))
-      if (!['name', 'target', 'packages', 'designs'].includes(key))
-        throw new Error('Unknown create option: ' + key);
-    const refs = values.packages ? packageReferences(path.resolve(values.packages)) : {};
+  return { command, destination, values, passthrough };
+}
 
-    const target = values.target;
-    if (target && !['android', 'web', 'windows', 'linux', 'ios', 'macos'].includes(target))
-      throw new Error('Unknown create target');
+function checkFlags(values, allowed) {
+  for (const name of Object.keys(values)) {
+    if (!allowed.includes(name)) throw new Error('Unknown option --' + name);
+  }
+}
+
+function appDirectory(explicit) {
+  if (explicit) return path.resolve(explicit);
+  const cwd = process.cwd();
+  return path.basename(cwd) === 'runner' && path.basename(path.dirname(cwd)) === 'web'
+    ? path.resolve(cwd, '../..')
+    : cwd;
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  if (!args.length || args.includes('--help')) {
+    console.log(usage);
+    return;
+  }
+  const { command, destination, values, passthrough } = parse(args);
+  const platform = values.platform;
+  const formerPlatform = platforms.includes(values.target) ? values.target : undefined;
+  const formerHost = ['tauri', 'rnw', 'native', 'native-hermes', 'raw', 'deno', 'direct'].includes(
+    values.host,
+  );
+  if (formerPlatform || formerHost || nativeFlags.some((name) => Object.hasOwn(values, name))) {
+    const target = formerPlatform ?? platform ?? 'windows';
+    throw new Error(
+      command === 'build'
+        ? `Build once with nelyx build --target pwa, then use nelyx pack --platform ${target}`
+        : `Use nelyx ${['prepare', 'doctor', 'dev', 'run', 'pack'].includes(command) ? command : 'prepare'} --platform ${target}`,
+    );
+  }
+  if (values.target !== undefined && !['web', 'pwa'].includes(values.target))
+    throw new Error('Choose --target pwa or use --platform for Tauri');
+  const app = appDirectory(values.app);
+  if (command === 'create') {
+    checkFlags(values, ['name', 'designs', 'target', 'packages']);
+    if (!destination || destination.startsWith('--') || passthrough.length) throw new Error(usage);
     const designs =
       values.designs === undefined
         ? undefined
@@ -80,201 +100,81 @@ try {
           ? []
           : values.designs.split(',');
     console.log(
-      await createApp(destination, refs.sdk, values.name ?? 'NelyxApp', refs.core, {
-        ...refs,
-        ...(designs ? { designs } : {}),
-        ...(target ? { targets: [target] } : {}),
+      createApp(destination, {
+        name: values.name,
+        designs,
+        packages: values.packages ? path.resolve(values.packages) : undefined,
       }),
     );
-    process.exit(0);
+    return;
   }
-  if (operation === 'supply') {
-    for (const key of Object.keys(values))
-      if (!['app', 'target', 'packages', 'rnl-supply'].includes(key))
-        throw new Error('Unknown supply option: ' + key);
-    if (!values.packages || !values.target)
-      throw new Error(
-        'Usage: nelyx supply --app <app> --target <target> --packages <archive-directory>',
-      );
-    if (values['rnl-supply'] && values.target !== 'linux')
-      throw new Error('--rnl-supply requires Linux');
+  if (command === 'supply') {
+    checkFlags(values, ['app', 'target', 'packages']);
+    if (!values.packages || passthrough.length) throw new Error(usage);
     console.log(
-      supplyRunner({
-        app: path.resolve(values.app ?? process.cwd()),
-        target: values.target,
-        packages: path.resolve(values.packages),
-        extra: values['rnl-supply'] ? readRnlSupply(path.resolve(values['rnl-supply'])) : {},
-      }),
+      await withPublicationLock(app, () =>
+        supplyRunner({ app, packages: path.resolve(values.packages) }),
+      ),
     );
-    process.exit(0);
+    return;
   }
-  const target = values.target ?? 'windows';
-  if (!['windows', 'linux', 'android', 'ios', 'macos', 'web'].includes(target))
-    throw new Error('Unknown CLI target: ' + target);
-  const allowed = {
-    dev: ['host', 'port', 'launch'],
-    doctor: [],
-    prepare: [],
-    build: ['output'],
-    run: ['package'],
-    pack: ['package', 'output'],
-  };
-  if (tauri) {
-    for (const op of ['doctor', 'prepare', 'build', 'run']) allowed[op] = ['host'];
-    allowed.dev = ['host', 'port'];
-  } else if (target === 'windows') {
-    for (const op of ['doctor', 'prepare', 'build', 'run', 'pack']) allowed[op].push('host');
-    allowed.prepare.push('native-inputs', 'engine', 'engine-inputs', 'hermes-mode', 'jsc-mode');
-    allowed.build.push(
-      'native-inputs',
-      'configuration',
-      'engine',
-      'engine-inputs',
-      'hermes-profile',
-      'hermes-mode',
-      'jsc-mode',
-    );
-    allowed.run.push('hermes-mode');
-    allowed.pack.push('hermes-mode');
-    if (['native', 'native-hermes'].includes(values.host)) {
-      for (const op of ['build', 'run']) allowed[op].push('entry');
-      allowed.prepare.push('jsc-inputs');
-      allowed.build.push('jsc-inputs');
-      for (const op of ['run', 'pack', 'doctor']) allowed[op].push('engine', 'jsc-mode');
-    }
-    allowed.dev.push('native-inputs');
-  }
-  if (target === 'linux') {
-    allowed.doctor.push('native-inputs');
-    allowed.prepare.push('native-inputs');
-    allowed.build.push('native-inputs', 'configuration', 'hermes-source', 'build-directory');
-    allowed.dev.push('native-inputs', 'hermes-source', 'build-directory');
-  }
-  if (target === 'android') {
-    allowed.doctor.push('android-sdk');
-    allowed.build.push('android-sdk', 'configuration', 'architecture', 'port');
-    allowed.run.push('android-sdk', 'device');
-    allowed.dev.push('android-sdk', 'device', 'architecture');
-  }
-  if (target === 'ios' || target === 'macos') allowed.build.push('configuration');
-  if (target === 'ios') {
-    allowed.run.push('device');
-    allowed.dev.push('device');
-  }
-  if (target === 'web') {
-    allowed.build.push('configuration');
-    allowed.run.push('host', 'port');
-    allowed.dev = ['host', 'port'];
-  }
-  for (const key of Object.keys(values))
-    if (!['app', 'target', ...allowed[operation]].includes(key))
-      throw new Error(
-        `Option --${key} is not supported by ${target}${tauri ? ' tauri' : ''} ${operation}`,
-      );
+  if (platform && !platforms.includes(platform))
+    throw new Error('Choose a Tauri platform: ' + platforms.join(', '));
+  if (command === 'build' && platform)
+    throw new Error(`Run nelyx build, then nelyx pack --platform ${platform}`);
+  if (command === 'pack' && !platform)
+    throw new Error('Use nelyx pack --platform <os> to package the published PWA');
+  if (!Object.hasOwn(browser, command) && command !== 'pack') throw new Error(usage);
+  const allowed = ['app', 'target', 'platform'];
+  if (platform) allowed.push('architecture');
+  if (command === 'dev' || (command === 'run' && !platform)) allowed.push('port', 'host');
+  if (command === 'pack' || (command === 'run' && !platform)) allowed.push('package');
+  if (command === 'run' && !platform) allowed.push('base');
+  if (['dev', 'run'].includes(command) && ['android', 'ios'].includes(platform))
+    allowed.push('device');
+  if (command === 'pack' && platform === 'ios') allowed.push('export-method');
+  checkFlags(values, allowed);
   if (
-    tauri &&
+    passthrough.length &&
+    (command !== 'run' || !['windows', 'linux', 'macos'].includes(platform))
+  )
+    throw new Error('Executable arguments require a desktop Tauri run command');
+  if (
     values.port !== undefined &&
     (!/^\d+$/.test(values.port) || Number(values.port) < 1 || Number(values.port) > 65535)
   )
-    throw new Error('Windows Tauri dev --port requires a port from 1 to 65535');
+    throw new Error('--port requires an integer from 1 to 65535');
   if (
-    nativeArguments.length &&
-    (operation !== 'run' || !['windows', 'linux', 'ios', 'macos'].includes(target))
+    values['export-method'] &&
+    !['debugging', 'app-store-connect', 'release-testing'].includes(values['export-method'])
   )
-    throw new Error('Executable arguments require Windows/Linux/Apple run');
-  if (operation === 'prepare' && !values['native-inputs'] && target === 'linux')
-    throw new Error('Linux prepare requires explicit --native-inputs');
-  if (values.launch !== undefined && !['true', 'false'].includes(values.launch))
-    throw new Error('--launch requires true or false');
+    throw new Error('Choose an iOS export method: debugging, app-store-connect or release-testing');
   const options = {
-    launch: values.launch !== 'false',
-    app: path.resolve(values.app ?? process.cwd()),
-    target,
-    nativeInputs: values['native-inputs'],
-    output: values.output,
-    entry: values.entry,
-    directory: values.package,
-    arguments: nativeArguments,
-    configuration: values.configuration,
-    engine: values.engine,
-    engineInputs: values['engine-inputs'],
-    jscInputs: values['jsc-inputs'],
-    hermesProfile: values['hermes-profile'],
-    hermesMode: values['hermes-mode'],
-    jscMode: values['jsc-mode'],
-    hermesSource: values['hermes-source'],
-    buildDirectory: values['build-directory'],
-    androidSdk: values['android-sdk'],
+    app,
+    platform,
     architecture: values.architecture,
     device: values.device,
+    base: values.base,
+    port: values.port === undefined ? undefined : Number(values.port),
     host: values.host,
-    ...(values.port !== undefined ? { port: Number(values.port) } : {}),
+    directory: values.package ? path.resolve(values.package) : undefined,
+    arguments: passthrough,
+    exportMethod: values['export-method'],
   };
-  const adapters = {
-    windows: {
-      doctor: doctorWindows,
-      prepare: prepareWindows,
-      build: buildWindows,
-      run: runWindows,
-      pack: packWindows,
-    },
-    linux: {
-      doctor: doctorLinux,
-      prepare: prepareLinux,
-      build: buildLinux,
-      run: runLinux,
-      pack: packLinux,
-    },
-    android: {
-      doctor: doctorAndroid,
-      prepare: prepareAndroid,
-      build: buildAndroid,
-      run: runAndroid,
-      pack: packAndroid,
-    },
-    ios: {
-      doctor: doctorApple,
-      prepare: prepareApple,
-      build: buildApple,
-      run: runApple,
-      pack: packApple,
-    },
-    macos: {
-      doctor: doctorApple,
-      prepare: prepareApple,
-      build: buildApple,
-      run: runApple,
-      pack: packApple,
-    },
-    web: {
-      doctor: doctorWeb,
-      prepare: prepareWeb,
-      build: buildWebApplication,
-      run: runWeb,
-      pack: packWeb,
-    },
-  }[target];
-  if (
-    target === 'windows' &&
-    !tauri &&
-    operation !== 'dev' &&
-    values.host !== undefined &&
-    !['rnw', 'native', 'native-hermes'].includes(values.host)
-  )
-    throw Error('Choose Windows --host rnw, native, native-hermes or tauri');
-  const result = tauri
-    ? await (await import('./windows-tauri-runner.mjs')).tauriWindowsOperation(operation, options)
-    : target === 'windows' && ['native', 'native-hermes'].includes(values.host)
-      ? await (
-          await import('./windows-native-runner.mjs')
-        ).nativeWindowsOperation(operation, options)
-      : await (operation === 'dev' ? (target === 'web' ? devWeb : devNative) : adapters[operation])(
-          options,
-        );
+  const result = await withSignals(async (signal) => {
+    if (platform) {
+      const { tauriOperation } = await import('./tauri-runner.mjs');
+      return tauriOperation(command, options, signal);
+    }
+    return browser[command](options, signal);
+  });
   console.log(JSON.stringify(result, null, 2));
-  if (operation === 'run' || operation === 'dev' || (tauri && operation === 'doctor'))
-    process.exitCode = result.exitCode;
+  process.exitCode = result.exitCode ?? 0;
+}
+
+try {
+  await main();
 } catch (error) {
-  console.error(String(error));
-  process.exitCode = error?.exitCode ?? 1;
+  console.error(error.message);
+  process.exitCode = error.exitCode ?? 1;
 }

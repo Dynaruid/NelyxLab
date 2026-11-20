@@ -768,7 +768,11 @@ class DetailState extends State<Detail> {
                   defaultVerticalAlignment: 'middle',
                 },
               ),
-              new CupertinoTextField('detail-editor', this.editor, 'Detail editor'),
+              new CupertinoTextField({
+                id: 'detail-editor',
+                controller: this.editor,
+                placeholder: 'Detail editor',
+              }),
               new CupertinoButton('open-dialog', 'Open dialog', () => {
                 void showDialog(
                   this.widget.navigator,

@@ -54,3 +54,11 @@ let defaultEnvironment: BrowserPlatformEnvironment | undefined;
 export function getBrowserPlatformEnvironment(): BrowserPlatformEnvironment {
   return (defaultEnvironment ??= new BrowserPlatformEnvironment(navigator));
 }
+export function getWebDeployment(view: Window = window) {
+  return {
+    format: 'pwa',
+    provider: 'web',
+    host: (view as Window & { isTauri?: boolean }).isTauri === true ? 'tauri' : 'browser',
+    os: new BrowserPlatformEnvironment(view.navigator).operatingSystem,
+  } as const;
+}

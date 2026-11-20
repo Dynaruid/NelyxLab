@@ -3,19 +3,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { capture } from './commands.mjs';
-import { localFile, sha256 } from './files.mjs';
+import { sha256 } from '@nelyx/tooling-contracts/node-files';
 
 const names = {
   core: 'nelyx-core-',
   sdk: 'nelyx-sdk-',
-  native: 'nelyx-skia-native-',
-  rn: 'nelyx-skia-rn-',
   web: 'nelyx-skia-web-',
-  metro: 'nelyx-metro-',
+  vite: 'nelyx-vite-',
   cli: 'nelyx-cli-',
-  'static-aot': 'nelyx-static-aot-',
   'tooling-contracts': 'nelyx-tooling-contracts-',
 };
+const retired =
+  /^(?:react-native(?:-|$)|@react-native\/|@lucid-softworks\/react-native|metro(?:-|$)|hermes-compiler$|@nelyx\/(?:metro|static-aot|skia-(?:native|rn))$)/;
 function installationLock(runner) {
   const modules = path.join(runner, 'node_modules'),
     file = path.join(modules, '.package-lock.json');
@@ -55,26 +54,6 @@ function pruneSupplyArchives(supply, runner, manifest) {
     if (!current.has(file)) fs.unlinkSync(file);
   }
 }
-export function readRnlSupply(file) {
-  file = fs.realpathSync(file);
-  const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
-  if (
-    manifest.schema !== 'nelyx.rnl-tarballs/v1' ||
-    manifest.upstreamCommit !== '9412cf605c7cc77f920916401926ff9a9873ecd3'
-  )
-    throw new Error('Pinned RNL supply required');
-  return Object.fromEntries(
-    ['react-native-linux', 'react-native-linux-codegen', 'react-native-linux-cli'].map((name) => {
-      const id = '@lucid-softworks/' + name,
-        record = manifest.packages.find((value) => value.name === id);
-      if (!record || !/^[a-f0-9]{64}$/.test(record.sha256))
-        throw new Error('RNL package identity missing: ' + id);
-      const source = localFile(path.dirname(file), record.filename);
-      if (sha256(source) !== record.sha256) throw new Error('RNL archive changed: ' + id);
-      return [id, 'file:' + source];
-    }),
-  );
-}
 function references(directory, required = Object.keys(names), fallback = {}) {
   directory = fs.realpathSync(directory);
   const references = Object.fromEntries(
@@ -105,10 +84,13 @@ export function packageReferences(directory) {
   return references(directory);
 }
 /** Copy explicitly supplied archives into the consuming app before installation. */
-export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent = false }) {
+export function supplyRunner({ app, target = 'web', packages, reuseCurrent = false }) {
   app = fs.realpathSync(app);
-  if (!['android', 'ios', 'windows', 'macos', 'linux', 'web'].includes(target))
-    throw new Error('Unknown runner target');
+  if (!['web', 'pwa'].includes(target))
+    throw new Error(
+      'Supply the shared PWA runner with nelyx supply --app . --packages <directory>',
+    );
+  target = 'web';
   const runner = path.join(app, target, 'runner'),
     file = path.join(runner, 'package.json');
   if (fs.realpathSync(runner) !== runner) throw new Error('Runner symlink rejected');
@@ -120,8 +102,7 @@ export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent =
   if (reuseCurrent) {
     const supply = path.join(app, '.nelyx/supply', target);
     for (const name of [...Object.keys(names), 'material', 'cupertino', 'localizations']) {
-      const packageName =
-          '@nelyx/' + ({ native: 'skia-native', rn: 'skia-rn', web: 'skia-web' }[name] ?? name),
+      const packageName = '@nelyx/' + (name === 'web' ? 'skia-web' : name),
         reference = manifest.dependencies?.[packageName] ?? manifest.devDependencies?.[packageName];
       if (!reference?.startsWith('file:')) continue;
       const archive = path.resolve(runner, reference.slice(5));
@@ -135,33 +116,17 @@ export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent =
       fallback[name] = 'file:' + archive;
     }
   }
-  const refs = references(
-    packages,
-    [
-      'core',
-      'sdk',
-      ...(target === 'web' ? ['web'] : ['native', 'rn']),
-      'metro',
-      'cli',
-      'static-aot',
-      'tooling-contracts',
-    ],
-    fallback,
-  );
+  const refs = references(packages, Object.keys(names), fallback);
   const lockFile = path.join(runner, 'package-lock.json'),
     originalLock = fs.existsSync(lockFile) ? fs.readFileSync(lockFile) : null;
   const inputs = {
     '@nelyx/core': refs.core,
     '@nelyx/sdk': refs.sdk,
-    [target === 'web' ? '@nelyx/skia-web' : '@nelyx/skia-rn']:
-      target === 'web' ? refs.web : refs.rn,
-    '@nelyx/metro': refs.metro,
+    '@nelyx/skia-web': refs.web,
+    '@nelyx/vite': refs.vite,
     '@nelyx/cli': refs.cli,
     '@nelyx/tooling-contracts': refs['tooling-contracts'],
-    ...extra,
   };
-  if (target !== 'web' && refs.native) inputs['@nelyx/skia-native'] = refs.native;
-  if (refs['static-aot']) inputs['@nelyx/static-aot'] = refs['static-aot'];
   // Optional design packages are supplied only when this app declares them.
   const appManifest = JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8'));
   for (const name of ['material', 'cupertino', 'localizations'])
@@ -172,21 +137,16 @@ export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent =
   const supply = path.join(app, '.nelyx/supply', target);
   fs.mkdirSync(supply, { recursive: true });
   if (fs.realpathSync(supply) !== supply) throw new Error('Supply symlink rejected');
-  const retired = [];
-  if (target === 'web' && !Object.hasOwn(extra, '@nelyx/skia-native'))
-    for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
-      const reference = manifest[section]?.['@nelyx/skia-native'];
-      if (typeof reference === 'string' && reference.startsWith('file:')) {
-        const archive = path.resolve(runner, reference.slice(5));
-        if (
-          path.dirname(archive) === supply &&
-          /^nelyx-skia-native-.*-[a-f0-9]{64}\.tgz$/.test(path.basename(archive))
-        ) {
-          delete manifest[section]['@nelyx/skia-native'];
-          retired.push('@nelyx/skia-native');
-        }
-      }
+  const removed = [];
+  for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    for (const name of Object.keys(manifest[section] ?? {})) {
+      if (!retired.test(name)) continue;
+      delete manifest[section][name];
+      removed.push(name);
     }
+  }
+  manifest.dependencies = { ...manifest.dependencies, react: '19.2.0', 'react-dom': '19.2.0' };
+  manifest.devDependencies = { ...manifest.devDependencies, vite: '8.3.8' };
   let committed = false;
   try {
     for (const [name, reference] of Object.entries(inputs)) {
@@ -209,15 +169,13 @@ export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent =
         throw new Error('Owned supply archive must be a plain file');
       if (createHash('sha256').update(fs.readFileSync(destination)).digest('hex') !== hash)
         throw new Error('Owned supply archive changed');
-      const section = [
-        '@nelyx/cli',
-        '@nelyx/metro',
-        '@nelyx/static-aot',
-        '@nelyx/tooling-contracts',
-      ].includes(name)
+      const section = ['@nelyx/cli', '@nelyx/vite', '@nelyx/tooling-contracts'].includes(name)
         ? 'devDependencies'
         : 'dependencies';
       manifest[section] ??= {};
+      for (const other of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+        if (other !== section && manifest[other]) delete manifest[other][name];
+      }
       manifest[section][name] = 'file:' + path.relative(runner, destination).replaceAll('\\', '/');
     }
     fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + '\n');
@@ -229,8 +187,6 @@ export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent =
           reference = manifest.dependencies?.[name] ?? manifest.devDependencies?.[name];
         // Equal-version replacements need fresh resolution, but reusing an
         // unchanged content-addressed archive must retain its dependency tree.
-        // Deleting every supplied parent makes npm prune unchanged nested
-        // dependencies (including static-aot's older hermes-estree).
         if (
           !entry?.resolved?.startsWith('file:') ||
           !reference?.startsWith('file:') ||
@@ -238,7 +194,7 @@ export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent =
         )
           delete lock.packages[key];
       }
-      for (const name of retired) delete lock.packages['node_modules/' + name];
+      for (const name of removed) delete lock.packages['node_modules/' + name];
       fs.writeFileSync(lockFile, JSON.stringify(lock, null, 2) + '\n');
     }
     const args = [
@@ -252,7 +208,7 @@ export function supplyRunner({ app, target, packages, extra = {}, reuseCurrent =
     capture(
       process.platform === 'win32' ? 'cmd.exe' : 'npm',
       process.platform === 'win32' ? ['/d', '/c', 'npm.cmd', ...args] : args,
-      { cwd: runner, timeout: 180000 },
+      { cwd: runner, timeout: 1_200_000 },
     );
     committed = true;
   } finally {

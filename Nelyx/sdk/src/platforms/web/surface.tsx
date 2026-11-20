@@ -1,7 +1,8 @@
 import { finishOwnedDisposal } from '../../runtime/owned-disposal.ts';
 import type { ApplicationDefinition } from '@nelyx/core/hosting/runtime';
 import type { CSSProperties } from 'react';
-import { webBackend, openApplication, ownWebSurface } from './application.ts';
+import { useEffect, useRef } from 'react';
+import { openApplication, ownWebSurface } from './application.ts';
 import type { WebApplication, WebApplicationOptions } from './application.ts';
 export interface WebSurfaceProps {
   readonly definition: ApplicationDefinition;
@@ -10,16 +11,15 @@ export interface WebSurfaceProps {
   readonly onReady?: (application: WebApplication) => void;
   readonly onError?: (error: unknown) => void;
 }
-/** RN Web owns the DOM root; StrictMode serializes each canvas's start/drain. */
+/** StrictMode serializes each canvas's start and drain. */
 export function ApplicationSurface(properties: WebSurfaceProps) {
-  const { react: React, native } = webBackend(),
-    container = React.useRef<HTMLDivElement>(null),
-    input = React.useRef<HTMLInputElement>(null),
-    button = React.useRef<HTMLButtonElement>(null),
-    drain = React.useRef(Promise.resolve());
-  React.useEffect(() => {
+  const container = useRef<HTMLDivElement>(null),
+    input = useRef<HTMLInputElement>(null),
+    button = useRef<HTMLButtonElement>(null),
+    drain = useRef(Promise.resolve());
+  useEffect(() => {
     const parent = container.current!,
-      target = document.createElement('canvas'),
+      target = parent.ownerDocument.createElement('canvas'),
       lifetime = ownWebSurface(parent);
     let alive = true,
       application: WebApplication | undefined;
@@ -69,17 +69,26 @@ export function ApplicationSurface(properties: WebSurfaceProps) {
       );
     };
   }, [properties.definition, properties.options]);
-  return React.createElement(
-    native.View,
-    { style: [{ position: 'relative', width: 480, height: 640 }, properties.style] },
-    React.createElement('div', { ref: container, style: { width: '100%', height: '100%' } }),
-    React.createElement(native.TextInput, {
-      ref: input,
-      style: { position: 'absolute', display: 'none', fontSize: 22, color: '#e8eef8' },
-    }),
-    React.createElement('button', {
-      ref: button,
-      style: { position: 'absolute', display: 'none', fontSize: 22 },
-    }),
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        position: 'relative',
+        minWidth: 0,
+        minHeight: 0,
+        width: 480,
+        height: 640,
+        ...properties.style,
+      }}
+    >
+      <div ref={container} style={{ width: '100%', height: '100%' }} />
+      <input
+        ref={input}
+        style={{ position: 'absolute', display: 'none', fontSize: 22, color: '#e8eef8' }}
+      />
+      <button ref={button} style={{ position: 'absolute', display: 'none', fontSize: 22 }} />
+    </div>
   );
 }

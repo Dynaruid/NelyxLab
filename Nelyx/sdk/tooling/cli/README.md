@@ -2,150 +2,54 @@
 
 **English** | [한국어](README.ko.md)
 
-`@nelyx/cli` creates Nelyx applications and manages package supply, target preparation, builds, development, execution, and packaging. Use Node.js **>=24.3.0 <25** and npm.
+## Generate and supply
 
-For the repository sample, follow the [Testbed guide](../../../../sample/nelyx-testbed-app-2/README.md).
+Prepare the pinned CanvasKit runtime, then run from the Nelyx checkout.
 
-## Create an application
-
-With the `nelyx` command installed and matching local package archives available:
-
-```text
-nelyx create MyApp --name MyApp --target web --packages <archive-directory>
-npm --prefix MyApp/web/runner install --workspaces=false
-npm --prefix MyApp/web/runner run dev
+```
+npm.cmd ci
+npm.cmd run build:sdk
+npm.cmd run pack:sdk -- C:/dev/nelyx-packages
+node Nelyx/sdk/tooling/cli/src/main.mjs create C:/dev/MyApp --name MyApp --packages C:/dev/nelyx-packages
+Set-Location C:/dev/MyApp/web/runner
+npm.cmd ci --workspaces=false
+npx.cmd --no-install nelyx prepare --app ../..
+npm.cmd run typecheck
+npx.cmd --no-install nelyx dev --app ../..
 ```
 
-Open `http://127.0.0.1:8081/`; Ctrl+C stops the server. The first installation creates the runner lockfile.
+The starter includes both design packages. Use --designs none, --designs material or --designs cupertino to select the starter dependencies. To update an installed runner, run nelyx supply --app ../.. --packages C:/dev/nelyx-packages followed by npm.cmd ci --workspaces=false. On Linux and macOS use npm and npx.
 
-The destination must be empty. Application names start with an uppercase letter and contain letters and digits. Select `web`, `windows`, `android`, `ios`, `macos`, or `linux` with `--target`. Use `--designs none`, `material`, `cupertino`, or `material,cupertino` to choose design packages.
+## Publish the PWA
 
-The [starter template](templates/nelyx-app/README.md) owns the shared app and platform runners. Configure it through root `package.json` → `nelyx`; see the [SDK guide](../../README.md#configuration-and-providers).
-
-## Source runner
-
-New projects and platform runners load the Source main().definition application. The separate v2 project generator and --engine v2 application route have been removed. Select a platform backend with the ordinary target/host options; engine options on Windows select a JavaScript engine for the same Source framework. See the [SDK app entry](../../README.md#source-application-entry).
-
-## Supply and install
-
-The archive directory needs one archive each for Core, SDK, Skia-native, Skia-RN, Skia-Web, Metro, CLI, and Static AOT tooling, plus the selected Material/Cupertino packages. Keep one compatible package set in that directory.
-
-In this repository, build the SDK before packing archives. Web archives also need the [prepared CanvasKit runtime](../../../skia/eng/source-build/README.md#vendor-build-recipes). The source CLI can be invoked with `node Nelyx/sdk/tooling/cli/src/main.mjs` in place of `nelyx`.
-
-```text
-nelyx supply --app MyApp --target web --packages <archive-directory>
-npm --prefix MyApp/web/runner ci --workspaces=false
+```
+npx.cmd --no-install nelyx build --app ../..
+npx.cmd --no-install nelyx run --app ../.. --base /demo/
 ```
 
-Supply copies archives into application-owned `.nelyx/supply/<target>/` and refreshes the runner manifest and lockfile. Install the runner afterward, including when archive contents change at the same version. Shared source and configuration stay at the app root; each runner owns its dependency tree.
+Build writes .nelyx/pwa. Deploy the full directory over HTTPS. Use the installation action in the browser and wait for the service worker to finish caching before testing offline. Root and subdirectory deployments use the same bytes. Path-based navigation needs an HTML fallback for application routes with a base URL matching the deployed directory. Return 404 for missing assets and revalidate sw.js, HTML and files with fixed names.
 
-## Target commands
+## Add a Tauri host
 
-After installation, run from `MyApp/web/runner/`:
+In the app root run npm.cmd install --save-dev --save-exact @tauri-apps/cli@2.12.6. From web/runner:
 
-```powershell
-npx --no-install nelyx doctor --app ../.. --target web
-npx --no-install nelyx prepare --app ../.. --target web
-npx --no-install nelyx build --app ../.. --target web
-npx --no-install nelyx run --app ../.. --target web --port 8080
+```
+npx.cmd --no-install nelyx prepare --app ../.. --platform windows
+npx.cmd --no-install nelyx doctor --app ../.. --platform windows
+npx.cmd --no-install nelyx pack --app ../.. --platform windows --package ../../.nelyx/pwa
+npx.cmd --no-install nelyx run --app ../.. --platform windows
 ```
 
-The final command serves the built package at `http://127.0.0.1:8080/`.
+Use `dev --platform windows` to open the app's Vite session in a WebView. Desktop packaging requires the named OS, and iOS uses Xcode on macOS.
 
-| Operation | Purpose |
-| --- | --- |
-| `doctor` | Inspect target tools and provider information |
-| `prepare` | Generate runner configuration and prepare native inputs |
-| `build` | Build the selected target |
-| `dev` | Start development services and the native app where configured |
-| `run` | Open an existing native package or serve a Web package |
-| `pack` | Export a built package to a new destination |
+Android requires a JDK, SDK, NDK, adb and a Rust Android target. Pack with `--architecture x64` for an x86_64 emulator or `--architecture arm64` for an arm64 device. For `dev` and `run`, `--device` accepts an adb serial and the CLI reads its ABI. Tauri development also uses the AVD or phone name, so the chosen device must have a unique name among connected devices. The APK uses the local debug signing configuration. The AAB uses the app's release signing configuration.
 
-Use `npx --no-install nelyx dev --app ../.. --target web` for development on port 8081. Export with `npx --no-install nelyx pack --app ../.. --target web --output <new-path>`. Stop servers with Ctrl+C.
+Use `--architecture arm64-sim` or `x64-sim` for iOS Simulator. For physical iOS development, pass `--architecture arm64`, the device name in `--device` and a device-reachable `--host` with trusted HTTPS. For `run`, use the device identifier. iOS packaging accepts `--export-method debugging`, `release-testing` or `app-store-connect`.
 
-Options vary by target; [src/main.mjs](src/main.mjs) defines accepted combinations.
+Preparation preserves the existing src-tauri project. App-owned Tauri and platform config files control identifiers, capabilities, icons and signing. The CLI owns the frontend build and dev server, so remove beforeBuildCommand, beforeBundleCommand and beforeDevCommand for these commands. The published directory is .nelyx/tauri/<os>-<architecture>.
 
-For Windows RNW, `run` compares application source, assets, Windows configuration, and installed Nelyx SDK contents with the package's recorded inputs. Changes trigger a rebuild with the same engine, execution mode, compiler profile, and build configuration. Unchanged inputs reuse the package; older packages without recorded inputs rebuild once. A failed build or inputs changing during the build stops launch. Supply and install updated SDK packages first for an external app. The repository Testbed's `run:windows` also refreshes workspace SDK packages automatically. Use `run --package <directory>` to execute a specific package without rebuilding it.
+## Migrate a v2 Web app
 
-For an existing external app, update `windows/runner/build.mjs` from the current starter template once to enable application/SDK input acknowledgement and native SDK header invalidation. The repository Testbed already includes this update.
+Keep app sources and replace the Web runner inputs with the starter index.html, vite.config.ts and Vite entry wiring. Move custom resolver or transformer settings into Vite plugins and use React imports and DOM elements in the runner. Supply the new archives and reinstall the runner. A v2 targets.web component is read in memory, and the old cohort override must be removed. Move native target settings into app-owned Tauri config files. Run doctor for migration guidance.
 
-## Windows x64 Tauri
-
-Create and supply a Web runner using the steps above. Install Rust with the
-`x86_64-pc-windows-msvc` target, Visual Studio C++ x64 tools and the Windows
-SDK, and WebView2 Evergreen. From the app root, install the pinned Tauri CLI.
-For an npm workspace, run the install from the workspace root with
-`--workspace <app-package>`. [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/#windows)
-
-```powershell
-npm.cmd install --save-dev --save-exact '@tauri-apps/cli@2.12.6'
-```
-
-Run the following from the installed app's `web/runner/`.
-
-```powershell
-npx.cmd --no-install nelyx doctor --app ../.. --target windows --host tauri
-npx.cmd --no-install nelyx prepare --app ../.. --target windows --host tauri
-npx.cmd --no-install nelyx build --app ../.. --target windows --host tauri
-npx.cmd --no-install nelyx run --app ../.. --target windows --host tauri
-npx.cmd --no-install nelyx dev --app ../.. --target windows --host tauri --port 1420
-```
-
-`doctor` reports the runner, host source, CLI versions, and Windows prerequisites.
-`prepare` creates `src-tauri/` on first use and validates it on later runs. Edit that
-directory to set the window title, app identifier, icon, and Rust commands.
-
-`build` embeds the Release Web assets in the app's
-`.nelyx/tauri/windows-x64/nelyx-tauri.exe`. Distribute that EXE to Windows x64 machines
-with WebView2 Evergreen. Run it directly, or use `nelyx run` with optional EXE
-arguments after `--`. Close the running EXE before replacing it.
-
-`dev` uses the loopback HTTP `build.devUrl` in the Tauri configuration, which
-defaults to `http://127.0.0.1:1420/` in the template. Pass `--port` to switch
-ports for one session. Close the window or press Ctrl+C to stop the app and
-Metro. The host supports `doctor`, `prepare`, `build`, `run`, and `dev`.
-
-## Native prerequisites
-
-| Target | Required setup |
-| --- | --- |
-| Windows | Visual Studio C++ tools, Windows SDK, and a matching x64 renderer supplier |
-| Android | OpenJDK 21, Android SDK/NDK, and compatible renderer inputs |
-| iOS / macOS | macOS, Xcode, Pods, and matching native packages |
-| Linux | GTK4/X11, pinned RNL/Hermes sources, and an explicit native-input manifest |
-
-See the [Skia guide](../../../skia/README.md) for native supply.
-
-Windows defaults to the RNW host and Hermes bytecode. Select `--engine hermes|v8|jsc` during preparation/build. Hermes supports `--hermes-mode bytecode|static-aot`; Static AOT requires x64 Release and the optimized compiler profile. JSC accepts `--jsc-mode jit|interpreter`. V8/JSC and Static Hermes require their own prepared engine supplier; `--engine-inputs` reuses one.
-
-The experimental direct Hermes host uses `--host native-hermes`. From the installed Windows runner:
-
-```text
-npx --no-install nelyx prepare --app ../.. --target windows --host native-hermes --native-inputs <inputs.json>
-npx --no-install nelyx build --app ../.. --target windows --host native-hermes --hermes-mode bytecode
-npx --no-install nelyx run --app ../.. --target windows --host native-hermes --hermes-mode bytecode
-```
-
-Use `static-aot` instead of `bytecode` to build/run its native AOT mode. Direct-host builds also require LLVM, CMake, and Ninja. Its current packages are `.nelyx/native-windows/current-bytecode/` and `current-static-aot/` inside the app. Default native runs compare the app, installed SDK and prepared suppliers and rebuild when they change; `--package` runs the chosen portable snapshot without rebuilding local sources.
-
-Direct-host `build` and `run` accept `--entry src/variant.ts` to select a different
-application-owned entry exporting `main()`. The path is relative to `--app`.
-Changing the entry rebuilds the current package; omitting it selects the configured
-`nelyx.appEntry`. An explicit `--package` already fixes its entry and cannot be
-combined with `--entry`.
-
-Windows RNW output uses fixed `.nelyx/windows/packages/Release/` and `Debug/` directories. Close the running package before rebuilding. Preparation must be repeated after changing native suppliers.
-
-Android build accepts `--architecture arm64-v8a|x86_64` with a compatible app profile; Release packaging uses `--configuration Release`. Select a device for `run` with `--device <adb-serial>`. Use `dev` for the Debug/Metro path.
-
-## Linux supply
-
-`nelyx supply --app <app> --target linux --packages <archive-directory> --rnl-supply <supply.json>` adds hash-checked RNL archives.
-
-Prepare a clean pinned RNL checkout with `node <cli>/src/prepare-rnl.mjs <checkout> <new-staging>`. Install and build its packages in staging, then run `node <cli>/src/pack-rnl.mjs <staging>`. Here `<cli>` is the installed CLI package directory. Canonical pins and overlays live in [upstream/](../../../upstream/).
-
-## Templates and license
-
-[templates/nelyx-app/](templates/nelyx-app/) contains the app entrypoint and runner guides. The SDK owns application-host lifetime and Skia owns graphics resources.
-
-Nelyx is experimental; platform limits are described in the [project guide](../../../../README.md#project-status). Nelyx-authored code uses [BSD-3-Clause](LICENSE.md), and imported template/runtime notices remain with their sources.
+See the [platform prerequisites](https://v2.tauri.app/start/prerequisites/) and [qualification records](../../../../work3.md#7-최종-인수와-현재-상태).

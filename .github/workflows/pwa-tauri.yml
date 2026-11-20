@@ -1,0 +1,136 @@
+name: Build PWA and Tauri packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DEMO: sample/nelyx-demo-app
+
+jobs:
+  pwa:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Build the pinned CanvasKit runtime from source
+        shell: bash
+        run: |
+          set -euo pipefail
+          skia=$(mktemp -d "${RUNNER_TEMP}/nelyx-skia.XXXXXXXX")
+          trap 'rm -rf -- "$skia"' EXIT
+          revision=$(node -p "require('./Nelyx/skia/eng/source-build/canvaskit.lock.json').skia.revision")
+          curl --fail --location --retry 3 --max-time 300 "https://codeload.github.com/google/skia/tar.gz/$revision" --output "$skia/source.tar.gz"
+          recipe=Nelyx/skia/eng/source-build/build-canvaskit.py
+          timeout --kill-after=10s 1190s python3 "$recipe" prepare --root "$skia/build" --archive "$skia/source.tar.gz"
+          jobs=$(nproc)
+          if (( jobs > 16 )); then jobs=16; fi
+          timeout --kill-after=10s 1190s python3 "$recipe" build --root "$skia/build" --jobs "$jobs"
+          node Nelyx/skia/eng/prepare-web-runtime.mjs "$skia/build/out/nelyx-canvaskit"
+      - name: Build and verify the shared release
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build:sdk
+          npm run pack:sdk -- "$RUNNER_TEMP/nelyx-sdk"
+          node Nelyx/sdk/tooling/cli/src/main.mjs supply --app "$DEMO" --packages "$RUNNER_TEMP/nelyx-sdk"
+          npm ci --prefix "$DEMO/web/runner" --workspaces=false --no-audit --no-fund
+          npm run build:pwa --workspace @nelyx/demo
+          npm --prefix "$DEMO/web/runner" run typecheck
+          node Nelyx/eng/check-pwa-update.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-pwa
+          path: sample/nelyx-demo-app/.nelyx/pwa/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pwa-sdk
+          path: |
+            sample/nelyx-demo-app/.nelyx/supply/web/*.tgz
+            sample/nelyx-demo-app/web/runner/package.json
+            sample/nelyx-demo-app/web/runner/package-lock.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  package:
+    needs: pwa
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-2025, platform: windows, architecture: x64, rust: x86_64-pc-windows-msvc }
+          - { runner: ubuntu-24.04, platform: linux, architecture: x64, rust: x86_64-unknown-linux-gnu }
+          - { runner: ubuntu-24.04, platform: android, architecture: arm64, rust: aarch64-linux-android }
+          - { runner: macos-15, platform: macos, architecture: arm64, rust: aarch64-apple-darwin }
+          - { runner: macos-15, platform: ios, architecture: arm64-sim, rust: aarch64-apple-ios-sim }
+    runs-on: ${{ matrix.runner }}
+    env:
+      NELYX_PLATFORM: ${{ matrix.platform }}
+      NELYX_ARCHITECTURE: ${{ matrix.architecture }}
+      NELYX_RUST_TARGET: ${{ matrix.rust }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+      - if: matrix.platform == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - if: matrix.platform == 'android'
+        shell: bash
+        run: |
+          sdkmanager 'platform-tools' 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;30.0.14904198'
+          echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.14904198" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: demo-pwa
+          path: sample/nelyx-demo-app/.nelyx/pwa
+      - uses: actions/download-artifact@v4
+        with:
+          name: pwa-sdk
+          path: sample/nelyx-demo-app
+      - name: Install SDK tooling and package the shared PWA
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          rustup target add "$NELYX_RUST_TARGET"
+          npm ci --no-audit --no-fund
+          npm ci --prefix "$DEMO/web/runner" --workspaces=false --no-audit --no-fund
+          cli="$DEMO/web/runner/node_modules/@nelyx/cli/src/main.mjs"
+          node "$cli" prepare --app "$DEMO" --platform "$NELYX_PLATFORM" --architecture "$NELYX_ARCHITECTURE"
+          node "$cli" pack --app "$DEMO" --platform "$NELYX_PLATFORM" --architecture "$NELYX_ARCHITECTURE"
+          node --input-type=module -e '
+            import assert from "node:assert/strict";
+            import fs from "node:fs";
+            const { DEMO, NELYX_PLATFORM: os, NELYX_ARCHITECTURE: arch } = process.env;
+            const read = path => JSON.parse(fs.readFileSync(DEMO + "/.nelyx/" + path, "utf8"));
+            assert.equal(read("pwa/build.json").buildId, read("tauri/" + os + "-" + arch + "/package.json").buildId);
+          '
+      - if: matrix.platform == 'windows'
+        name: Compare packaged WebView2 assets with the PWA
+        timeout-minutes: 20
+        run: node Nelyx/eng/check-tauri-windows.mjs $env:DEMO
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: sample/nelyx-demo-app/.nelyx/tauri/${{ matrix.platform }}-${{ matrix.architecture }}/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1

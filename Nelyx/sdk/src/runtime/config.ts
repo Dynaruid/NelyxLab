@@ -1,5 +1,4 @@
 import type { AssetRef } from '@nelyx/core/foundation/assets';
-import type { PlatformId } from '@nelyx/core/hosting/platform';
 
 export interface AppAssetNotice {
   readonly path: string;
@@ -22,18 +21,26 @@ export interface ResolvedAppAsset extends AppAsset {
   readonly sha256: string;
   readonly notice?: AppAssetNotice & { readonly sha256: string };
 }
-export interface AppTarget {
-  readonly profile?: string;
-  readonly cohort?: string;
+export interface PwaIcon {
+  readonly src: string;
+  readonly sizes: '192x192' | '512x512';
+  readonly type: 'image/png';
+  readonly purpose?: 'any' | 'maskable' | 'any maskable';
+}
+export interface PwaConfig {
   readonly component: string;
+  readonly id: string;
+  readonly shortName: string;
+  readonly themeColor: string;
+  readonly icons?: readonly PwaIcon[];
 }
 export interface NelyxConfig {
-  readonly schema: 'nelyx.app/v2';
+  readonly schema: 'nelyx.app/v3';
   readonly name: string;
   readonly displayName?: string;
   readonly appEntry: string;
   readonly assets: readonly AppAsset[];
-  readonly targets: Readonly<Partial<Record<PlatformId, AppTarget>>>;
+  readonly pwa: PwaConfig;
 }
 function localPath(value: string): void {
   if (
@@ -115,10 +122,13 @@ export function defineAssetManifest(value: unknown): readonly ResolvedAppAsset[]
 export function defineConfig(configuration: unknown): NelyxConfig {
   if (!configuration || typeof configuration !== 'object' || Array.isArray(configuration))
     throw new Error('Application package.json requires an nelyx configuration object');
-  const value = configuration as NelyxConfig;
-  if (value.schema !== 'nelyx.app/v2')
+  const value = configuration as Omit<NelyxConfig, 'schema'> & {
+    schema: string;
+    targets?: { web?: { component: string; profile?: string; cohort?: string } };
+  };
+  if (!['nelyx.app/v2', 'nelyx.app/v3'].includes(value.schema))
     throw new Error(
-      'Removed app schema; migrate to nelyx.app/v2 with an RN component, cohort and explicit RN profile. Deno/raw config cannot be aliased.',
+      'Use nelyx.app/v3 with a PWA component and web/runner. Convert Deno/raw platform imports to @nelyx/sdk/platforms/web.',
     );
   if (typeof value.name !== 'string' || !/^[A-Z][A-Za-z0-9]*$/.test(value.name))
     throw new Error('Invalid app schema/name');
@@ -131,55 +141,88 @@ export function defineConfig(configuration: unknown): NelyxConfig {
   )
     throw new Error('Invalid app displayName');
   /* oxlint-enable no-control-regex */
-  if (!value.targets || typeof value.targets !== 'object' || Array.isArray(value.targets))
-    throw new Error('App targets must be an object');
   localPath(value.appEntry);
   const assets = defineAssets(value.assets);
-  const targets: Partial<Record<PlatformId, AppTarget>> = {};
-  for (const [target, settings] of Object.entries(value.targets)) {
+  const pwa = value.schema === 'nelyx.app/v2' ? readLegacyPwa(value) : value.pwa;
+  if (
+    !pwa ||
+    typeof pwa !== 'object' ||
+    Array.isArray(pwa) ||
+    typeof pwa.id !== 'string' ||
+    !/^\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/.test(pwa.id) ||
+    typeof pwa.shortName !== 'string' ||
+    !pwa.shortName.trim() ||
+    typeof pwa.themeColor !== 'string' ||
+    !/^#[0-9a-f]{6}$/i.test(pwa.themeColor)
+  )
+    throw new Error('PWA requires a component, same-origin id, shortName and #RRGGBB themeColor');
+  if (value.schema === 'nelyx.app/v3' && value.targets !== undefined)
+    throw new Error('Select an OS at the CLI with --platform and configure it in src-tauri');
+  localPath(pwa.component);
+  let icons: readonly PwaIcon[] | undefined;
+  if (pwa.icons !== undefined) {
     if (
-      !['web', 'ios', 'android', 'windows', 'macos', 'linux'].includes(target) ||
-      !settings ||
-      typeof settings !== 'object' ||
-      Array.isArray(settings) ||
-      (settings.profile !== undefined &&
-        (typeof settings.profile !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(settings.profile)))
+      !Array.isArray(pwa.icons) ||
+      pwa.icons.length > 16 ||
+      !['192x192', '512x512'].every((size) =>
+        pwa.icons!.some((icon) => icon?.sizes === size && icon.purpose !== 'maskable'),
+      )
     )
-      throw new Error(`Invalid configured target: ${target}`);
-    if (Object.keys(settings).some((key) => !['profile', 'cohort', 'component'].includes(key)))
-      throw new Error(`Unknown target setting: ${target}`);
-    if (settings.profile === 'wgl' || settings.profile?.startsWith('raw-'))
-      throw new Error(
-        'Removed Deno/raw profile; use an independent RN runner and RN component/profile in nelyx.app/v2',
-      );
-    if (
-      settings.cohort !== undefined &&
-      (typeof settings.cohort !== 'string' || !/^[a-z0-9][a-z0-9.-]*$/.test(settings.cohort))
-    )
-      throw new Error('Invalid target cohort');
-    if (target === 'web' && settings.profile !== undefined && settings.profile !== 'ganesh-webgl2')
-      throw new Error('Unsupported Web profile; migrate canvaskit-webgl to ganesh-webgl2');
-    if (settings.component) localPath(settings.component);
-    if (!settings.component) throw new Error(`Missing component for ${target}`);
-    targets[target as PlatformId] = Object.freeze({ ...settings });
+      throw new Error('PWA requires 192x192 and 512x512 PNG icons for regular display');
+    icons = Object.freeze(
+      pwa.icons.map((icon) => {
+        if (
+          !icon ||
+          !['192x192', '512x512'].includes(icon.sizes) ||
+          icon.type !== 'image/png' ||
+          (icon.purpose !== undefined &&
+            !['any', 'maskable', 'any maskable'].includes(icon.purpose))
+        )
+          throw new Error('Invalid PWA icon declaration');
+        localPath(icon.src);
+        return Object.freeze({ ...icon });
+      }),
+    );
   }
-  if (!Object.keys(targets).length) throw new Error('App requires at least one target');
+  const { name, displayName, appEntry } = value;
   return Object.freeze({
-    ...value,
-    assets: Object.freeze(assets),
-    targets: Object.freeze(targets),
+    schema: 'nelyx.app/v3',
+    name,
+    ...(displayName === undefined ? {} : { displayName }),
+    appEntry,
+    assets,
+    pwa: Object.freeze({
+      component: pwa.component,
+      id: pwa.id,
+      shortName: pwa.shortName,
+      themeColor: pwa.themeColor,
+      ...(icons ? { icons } : {}),
+    }),
   });
 }
-/** Migration is explicit: no raw host, profile, artifact or evidence aliases are installed. */
-export function migrateConfig(value: unknown): NelyxConfig {
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    !('schema' in value) ||
-    value.schema !== 'nelyx.app/v2'
-  )
+function readLegacyPwa(value: {
+  name: string;
+  displayName?: string;
+  targets?: { web?: { component: string; profile?: string; cohort?: string } };
+}): PwaConfig {
+  const web = value.targets?.web;
+  if (!web?.component)
     throw new Error(
-      'Removed nelyx.app/v1 config; declare nelyx.app/v2, an RN component and RN profile/cohort. Existing Deno startup and qualification cannot be reused.',
+      'Add web/runner from the PWA starter, declare nelyx.pwa (or targets.web in v2), and replace platform imports with @nelyx/sdk/platforms/web/application and /surface',
     );
-  return defineConfig(value as NelyxConfig);
+  if (web.profile !== undefined && web.profile !== 'ganesh-webgl2')
+    throw new Error('Use the ganesh-webgl2 PWA profile and rebuild the app');
+  if (web.cohort !== undefined && web.cohort !== 'web-react-dom-19.2.0')
+    throw new Error(
+      'The old Web cohort requires upgrading web/runner with nelyx supply, installing it and removing targets.web.cohort before rebuilding',
+    );
+  return {
+    component: web.component,
+    id: '/apps/' + value.name.toLowerCase(),
+    shortName: value.displayName ?? value.name,
+    themeColor: '#101827',
+  };
+}
+export function migrateConfig(value: unknown): NelyxConfig {
+  return defineConfig(value);
 }

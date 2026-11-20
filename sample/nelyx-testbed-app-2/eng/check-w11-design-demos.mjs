@@ -6,22 +6,14 @@ import http from 'node:http';
 import { once } from 'node:events';
 import { chromium } from 'playwright';
 import { execute } from '../../../Nelyx/sdk/tooling/cli/src/commands.mjs';
+import { mediaType } from '@nelyx/vite/content';
 
 if (!process.argv.includes('--child')) {
   await execute(process.execPath, [import.meta.filename, '--child'], { timeout: 1_200_000 });
   process.exit(0);
 }
 
-const build = path.resolve(import.meta.dirname, '../.nelyx/web');
-const types = new Map([
-  ['.html', 'text/html; charset=utf-8'],
-  ['.js', 'text/javascript'],
-  ['.json', 'application/json'],
-  ['.wasm', 'application/wasm'],
-  ['.png', 'image/png'],
-  ['.ttf', 'font/ttf'],
-  ['.otf', 'font/otf'],
-]);
+const build = path.resolve(import.meta.dirname, '../.nelyx/pwa');
 assert(
   fs.existsSync(path.join(build, 'index.html')),
   'Build the Testbed Web Release before running the demo checks',
@@ -37,7 +29,7 @@ const server = http.createServer((request, response) => {
     response.writeHead(404).end();
     return;
   }
-  response.setHeader('Content-Type', types.get(path.extname(file)) ?? 'application/octet-stream');
+  response.setHeader('Content-Type', mediaType(file));
   fs.createReadStream(file)
     .on('error', () => response.destroy())
     .pipe(response);
@@ -50,6 +42,7 @@ try {
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   browser = await chromium.launch({
+    channel: 'chrome',
     args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   });
   page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -206,11 +199,11 @@ try {
   await wheelIntoView(openSheet);
   const showCupertinoSheet = () => openSheet.evaluate((element) => element.click());
   await showCupertinoSheet();
-  const sheet = page.getByRole('dialog', { name: 'Alert', exact: true });
+  const sheet = page.getByRole('dialog', { name: '알림', exact: true });
   const cancel = sheet.getByRole('button', { name: 'Cancel', exact: true });
   const waitForBottomPosition = () =>
     page.waitForFunction(() => {
-      const dialog = document.querySelector('[role=dialog][aria-label="Alert"]');
+      const dialog = document.querySelector('[role=dialog][aria-label="알림"]');
       const save = dialog?.querySelector('button[aria-label="Save item"]')?.getBoundingClientRect();
       const cancel = dialog?.querySelector('button[aria-label="Cancel"]')?.getBoundingClientRect();
       return Boolean(

@@ -12,6 +12,7 @@ import { createDomInteraction } from './interaction.ts';
 import { BrowserMouseCursor } from './mouse-cursor.ts';
 import { BrowserSelectionContextMenu } from './selection-context-menu.ts';
 import { sha256 } from './canvaskit.ts';
+import { isAppUrl } from './local-url.ts';
 import { bindCanvasInput } from './input.ts';
 import { createBrowserEnvironment } from './environment.ts';
 import { getBrowserPlatformEnvironment } from './platform.ts';
@@ -36,12 +37,7 @@ export function createWebServices(
   selectionContextMenu: BrowserSelectionContextMenu;
   definition: ResolvedWebDefinition;
 } {
-  if (
-    manifest.length > 64 ||
-    !['http:', 'https:'].includes(root.protocol) ||
-    !root.href.endsWith('/')
-  )
-    throw new Error('Web asset root/count');
+  if (manifest.length > 64 || !isAppUrl(root, root)) throw new Error('Web asset root/count');
   const document = canvas.ownerDocument,
     window = document.defaultView!;
   const cursor = new BrowserMouseCursor(canvas),
@@ -169,9 +165,8 @@ export function createWebServices(
           const asset = manifest.find((value) => value.id === ref.id);
           if (!asset) throw new Error('Unknown web asset');
           const url = new URL(asset.path, root);
-          if (!url.href.startsWith(root.href) || url.origin !== root.origin)
-            throw new Error('Web asset escaped app root');
-          const response = await fetch(url);
+          if (!isAppUrl(url, root)) throw new Error('Web asset escaped app root');
+          const response = await fetch(url, { redirect: 'error' });
           if (!response.ok) throw new Error('Web asset HTTP ' + response.status);
           const bytes = new Uint8Array(await response.arrayBuffer());
           totalAssetBytes += bytes.byteLength;
@@ -246,9 +241,8 @@ export function createWebServices(
                 if (!asset || asset.kind !== 'image')
                   throw new Error('Unknown image asset: ' + key);
                 const url = new URL(asset.path, root);
-                if (url.origin !== root.origin || !url.href.startsWith(root.href))
-                  throw new Error('Image asset escaped app root');
-                const bytes = await readImageUrl(url.href, {}, signal, progress);
+                if (!isAppUrl(url, root)) throw new Error('Image asset escaped app root');
+                const bytes = await readImageUrl(url.href, {}, signal, progress, 'error');
                 if ((await sha256(bytes)) !== asset.sha256)
                   throw new Error('Image asset content hash mismatch: ' + key);
                 return bytes;

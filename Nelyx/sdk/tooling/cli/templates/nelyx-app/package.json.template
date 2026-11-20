@@ -3,35 +3,38 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "npm --prefix android/runner run start",
-    "build:android": "npm --prefix android/runner run build",
-    "run:android": "npm --prefix android/runner run run",
-    "bundle:android": "npm --prefix android/runner run bundle",
-    "run:windows": "npm --prefix windows/runner run run",
-    "build:windows": "npm --prefix windows/runner run build",
-    "build:android:emulator": "npm --prefix android/runner run build -- --architecture x86_64",
-    "build:web": "node web/runner/build.mjs",
-    "dev:web": "npm --prefix web/runner run dev",
-    "dev:linux": "npm --prefix linux/runner run dev",
-    "dev:windows": "npm --prefix windows/runner run dev",
-    "build:metro": "npm --prefix windows/runner run bundle",
-    "dev:metro": "npm --prefix windows/runner run start",
-    "run:metro": "npm --prefix windows/runner run run",
-    "bundle:ios": "npm --prefix ios/runner run bundle",
-    "build:ios": "npm --prefix ios/runner run build",
-    "run:ios": "npm --prefix ios/runner run run",
-    "bundle:macos": "npm --prefix macos/runner run bundle",
-    "build:macos": "npm --prefix macos/runner run build",
-    "run:macos": "npm --prefix macos/runner run run",
-    "bundle:linux": "npm --prefix linux/runner run bundle",
-    "build:linux": "npm --prefix linux/runner run build",
-    "run:linux": "npm --prefix linux/runner run run"
+    "dev": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app .",
+    "build:pwa": "node web/runner/node_modules/@nelyx/cli/src/main.mjs build --app .",
+    "run:pwa": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app .",
+    "dev:web": "npm run dev --",
+    "build:web": "npm run build:pwa --",
+    "prepare:web": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app .",
+    "prepare:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform windows",
+    "dev:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform windows",
+    "pack:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform windows",
+    "run:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform windows",
+    "prepare:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform android",
+    "dev:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform android",
+    "pack:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform android",
+    "run:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform android",
+    "prepare:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform linux",
+    "dev:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform linux",
+    "pack:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform linux",
+    "run:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform linux",
+    "prepare:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform macos",
+    "dev:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform macos",
+    "pack:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform macos",
+    "run:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform macos",
+    "prepare:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform ios",
+    "dev:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform ios",
+    "pack:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform ios",
+    "run:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform ios"
   },
   "dependencies": {},
   "devDependencies": {},
   "type": "module",
   "nelyx": {
-    "schema": "nelyx.app/v2",
+    "schema": "nelyx.app/v3",
     "name": "NelyxTestbed",
     "appEntry": "./src/index.ts",
     "assets": [
@@ -91,37 +94,24 @@
         "path": "./assets/pulse.gif"
       }
     ],
-    "targets": {
-      "windows": {
-        "profile": "rn-graphite-vulkan",
-        "cohort": "rn-0.83.10",
-        "component": "./windows/runner/App.tsx"
-      },
-      "android": {
-        "profile": "graphite-vulkan",
-        "cohort": "rn-0.83.10",
-        "component": "./android/runner/App.tsx"
-      },
-      "ios": {
-        "profile": "graphite-metal",
-        "cohort": "rn-0.83.10",
-        "component": "./ios/runner/App.tsx"
-      },
-      "macos": {
-        "profile": "rn-graphite-metal",
-        "cohort": "rn-0.83.10",
-        "component": "./macos/runner/App.tsx"
-      },
-      "linux": {
-        "profile": "rn-graphite-vulkan-x11",
-        "cohort": "rn-0.81.6",
-        "component": "./linux/runner/App.tsx"
-      },
-      "web": {
-        "profile": "ganesh-webgl2",
-        "component": "./web/runner/App.tsx"
-      }
-    },
-    "displayName": "Nelyx Testbed"
+    "displayName": "Nelyx Testbed",
+    "pwa": {
+      "component": "./web/runner/App.tsx",
+      "id": "/apps/__app__",
+      "shortName": "Nelyx App",
+      "themeColor": "#101827",
+      "icons": [
+        {
+          "src": "./assets/pwa/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        },
+        {
+          "src": "./assets/pwa/icon-512.png",
+          "sizes": "512x512",
+          "type": "image/png"
+        }
+      ]
+    }
   }
 }

@@ -1,12 +1,12 @@
 # Nelyx의 Vite 기반 PWA 단일 빌드와 Tauri 플랫폼 전환 계획
 
-**2026-11-20 · `tauri-backend` · 기준 커밋 `6ad9540c` · PLANNED**
+**2026-11-20 · `tauri-backend` · 기준 커밋 `6ad9540c` · Vite·Tauri 전환 구현 / 환경별 인수 PARTIAL**
 
 이 분기는 **Vite를 유일한 프런트엔드 빌드 도구와 개발 서버**로 사용한다. 앱 코드를 바꾸면 Vite가 설치·오프라인 실행이 가능한 PWA를 한 번 만든다. 브라우저에는 그 디렉터리를 배포하고, Windows·Android·Linux·macOS·iOS에서는 Tauri가 같은 디렉터리를 내장한다. 창·설치 형식·OS 권한만 바뀌면 해당 Tauri 패키지만 다시 만든다.
 
 첫 이정표는 **Demo의 PWA를 한 번 빌드해 브라우저에 설치하고, 같은 빌드 ID를 가진 Windows 앱을 네트워크 없이 처음 실행하는 것**이다. 그다음 Android 시스템 WebView와 Linux WebKitGTK에서 같은 입력을 사용해 두 엔진 계열을 확인하고 Apple 대상으로 확장한다. 기존 Windows 실험의 실행 결과는 출발점으로 사용한다. [Windows 실험](work.md) · [SDK 통합 결과](work2.md)
 
-## 1. 현재 코드에서 바꿔야 할 지점
+## 1. 전환 전 코드와 변경 범위
 
 | 영역 | 현재 동작 | 개편 작업 |
 | --- | --- | --- |
@@ -131,44 +131,46 @@ CI에서는 PWA 빌드 작업 하나가 검증된 디렉터리를 각 OS 패키�
 
 ## 6. 실행 순서
 
+체크박스는 코드와 명령의 구현 상태를 나타낸다. 실행·설치·서명의 인수 결과는 §7에 기록한다.
+
 ### W3-01 · Vite 도구 패키지와 SDK 공급
 
-- [ ] 루트 workspace와 `build:sdk`·`build:skia`, 샘플 준비 목록을 Web용으로 좁힌다. `build-packages.mjs`·`generate-providers.mjs`의 네이티브 engine helper 준비와 `prepare-cli.mjs`의 RN Linux 복사를 기본 빌드에서 걷어낸다. 고정 Wasm은 기존 소스 레시피로 준비해 `@nelyx/skia-web`에 공급하고, 소비자는 설치한 패키지의 검증된 바이트를 사용한다. [provider 생성기](Nelyx/eng/generate-providers.mjs) · [CLI 준비](Nelyx/eng/prepare-cli.mjs) · [CanvasKit 공급](Nelyx/skia/eng/prepare-web-runtime.mjs)
-- [ ] `@nelyx/vite` workspace·tarball을 추가하고 §2의 공용 자산·설치 검사를 옮긴다. 생성기·공급기에서 `nelyx-metro-*.tgz` 기준을 `@nelyx/vite`로 바꾸고 두 샘플, 스타터, 루트의 패키지 선언과 잠금 파일을 맞춘다. 이전에 공급한 앱을 재설치해도 설치본이 새 tarball을 가리켜야 한다. [앱 생성](Nelyx/sdk/tooling/cli/src/create-app.mjs) · [설치본 교체](Nelyx/sdk/tooling/cli/src/supply-runner.mjs)
-- [ ] §2의 React DOM 등록과 DOM 표면을 먼저 이식한다. 이어서 루트·SDK·스타터·두 샘플에서 `react-native`, `react-native-web`, RN용 Skia·Metro 패키지와 선택적 peer 선언을 제거한다. SDK의 RN 전용 타입, 소스 포함 범위, 조건부 `exports`와 npm `files`도 맞춘다. `create --packages`는 Web용 archive만으로 동작하게 한다. [SDK 빌드 설정](Nelyx/sdk/tsconfig.build.json) · [SDK 패키지](Nelyx/sdk/package.json) · [루트 workspace](package.json)
-- [ ] 현재 Web provider는 호스트를 `react-dom`으로 표시하면서도 설치 조합은 `web-0.21.3`과 `framework: react-native-web`로 검증한다. 새 조합은 러너에 설치된 `react`·`react-dom`의 정확한 버전으로 정의한다. 정의·검증기·생성 JSON/스키마와 Web·Tauri `doctor`를 함께 갱신한다. v2 설정이 이전 조합을 명시하면 새 러너 재공급과 재빌드를 안내하고, 기존 패키지의 검증 결과는 이전 조합에 귀속한다. [현재 provider](Nelyx/sdk/providers/web.json) · [설치 조합 검증기](Nelyx/sdk/src/runtime/cohorts.ts) · [런타임 정의](Nelyx/sdk/src/runtime/providers.ts) · [Tauri 검사](Nelyx/sdk/tooling/cli/src/windows-tauri-runner.mjs)
+- [x] 루트 workspace와 `build:sdk`·`build:skia`, 샘플 준비 목록을 Web용으로 좁힌다. `build-packages.mjs`·`generate-providers.mjs`의 네이티브 engine helper 준비와 `prepare-cli.mjs`의 RN Linux 복사를 기본 빌드에서 걷어낸다. 고정 Wasm은 기존 소스 레시피로 준비해 `@nelyx/skia-web`에 공급하고, 소비자는 설치한 패키지의 검증된 바이트를 사용한다. [provider 생성기](Nelyx/eng/generate-providers.mjs) · [CLI 준비](Nelyx/eng/prepare-cli.mjs) · [CanvasKit 공급](Nelyx/skia/eng/prepare-web-runtime.mjs)
+- [x] `@nelyx/vite` workspace·tarball을 추가하고 §2의 공용 자산·설치 검사를 옮긴다. 생성기·공급기에서 `nelyx-metro-*.tgz` 기준을 `@nelyx/vite`로 바꾸고 두 샘플, 스타터, 루트의 패키지 선언과 잠금 파일을 맞춘다. 이전에 공급한 앱을 재설치해도 설치본이 새 tarball을 가리켜야 한다. [앱 생성](Nelyx/sdk/tooling/cli/src/create-app.mjs) · [설치본 교체](Nelyx/sdk/tooling/cli/src/supply-runner.mjs)
+- [x] §2의 React DOM 등록과 DOM 표면을 먼저 이식한다. 이어서 루트·SDK·스타터·두 샘플에서 `react-native`, `react-native-web`, RN용 Skia·Metro 패키지와 선택적 peer 선언을 제거한다. SDK의 RN 전용 타입, 소스 포함 범위, 조건부 `exports`와 npm `files`도 맞춘다. `create --packages`는 Web용 archive만으로 동작하게 한다. [SDK 빌드 설정](Nelyx/sdk/tsconfig.build.json) · [SDK 패키지](Nelyx/sdk/package.json) · [루트 workspace](package.json)
+- [x] 현재 Web provider는 호스트를 `react-dom`으로 표시하면서도 설치 조합은 `web-0.21.3`과 `framework: react-native-web`로 검증한다. 새 조합은 러너에 설치된 `react`·`react-dom`의 정확한 버전으로 정의한다. 정의·검증기·생성 JSON/스키마와 Web·Tauri `doctor`를 함께 갱신한다. v2 설정이 이전 조합을 명시하면 새 러너 재공급과 재빌드를 안내하고, 기존 패키지의 검증 결과는 이전 조합에 귀속한다. [현재 provider](Nelyx/sdk/providers/web.json) · [설치 조합 검증기](Nelyx/sdk/src/runtime/cohorts.ts) · [런타임 정의](Nelyx/sdk/src/runtime/providers.ts) · [Tauri 검사](Nelyx/sdk/tooling/cli/src/tauri-runner.mjs)
 - **완료 기준** — Core, SDK, Skia Web, Vite 도구, CLI, tooling-contracts와 선택한 디자인 패키지를 깨끗한 checkout에서 공급한다. 저장소 밖 러너에서 타입 검사와 고정 자산 검사를 실행한다. tarball·잠금 파일·설치 트리에서 RN·RN Web·플랫폼별 RN 호스트·Metro·네이티브 Skia·Nelyx Static AOT·직접 요구하던 Hermes 컴파일러가 빠졌는지 확인한다.
 
 ### W3-02 · Vite 개발·빌드와 CLI 전환
 
-- [ ] v3 설정과 v2 읽기, Web provider 등록, §3의 CLI 분기를 적용한다. 생성기·스타터·두 샘플의 개발과 릴리스 명령을 각 러너의 `vite.config.ts`에 연결한다. 앱 루트와 러너에서 실행해도 같은 설정·패키지·진입점을 써야 한다. [Core 플랫폼 식별](Nelyx/src/hosting/platform.ts) · [SDK registry](Nelyx/sdk/src/runtime/providers.ts)
-- [ ] §2의 ESM 앱 등록, 자산 플러그인과 제어된 전체 새로고침을 구현한다. `server.fs.allow`에 앱의 공유 소스·러너·설정 등 실제 입력을 지정해 독립 설치본과 monorepo에서 같은 파일을 읽게 한다. 종료 시 `server.close()`까지 기다려 watcher·소켓과 CLI 자식을 정리한다. `nelyx run`은 게시된 PWA를 검증하는 정적 서버를 사용한다. [Vite 파일 제공 범위](https://vite.dev/config/server-options#server-fs-allow)
+- [x] v3 설정과 v2 읽기, Web provider 등록, §3의 CLI 분기를 적용한다. 생성기·스타터·두 샘플의 개발과 릴리스 명령을 각 러너의 `vite.config.ts`에 연결한다. 앱 루트와 러너에서 실행해도 같은 설정·패키지·진입점을 써야 한다. [Core 플랫폼 식별](Nelyx/src/hosting/platform.ts) · [SDK registry](Nelyx/sdk/src/runtime/providers.ts)
+- [x] §2의 ESM 앱 등록, 자산 플러그인과 제어된 전체 새로고침을 구현한다. `server.fs.allow`에 앱의 공유 소스·러너·설정 등 실제 입력을 지정해 독립 설치본과 monorepo에서 같은 파일을 읽게 한다. 종료 시 `server.close()`까지 기다려 watcher·소켓과 CLI 자식을 정리한다. `nelyx run`은 게시된 PWA를 검증하는 정적 서버를 사용한다. [Vite 파일 제공 범위](https://vite.dev/config/server-options#server-fs-allow)
 - **완료 기준** — RN·RN Web·`@vitejs/plugin-react`가 설치되지 않은 Demo·Testbed·외부 스타터에서 Vite dev와 프로덕션 빌드의 첫 화면이 열린다. React StrictMode 아래 마운트·종료·새로고침에서 캔버스가 중복되지 않는지, 리사이즈 후 클릭·Tab 초점 이동·한글 IME 조합·선택과 여러 줄 입력이 정상인지 확인한다. CSS 수정은 현재 화면에 반영되고 위젯 수정은 이전 root·CanvasKit 해제 후 한 번 반영돼야 한다. 번들 오류 복구, 포트 충돌·Ctrl+C, v2 앱의 이행 결과도 확인한다.
 
 ### W3-03 · 설치 가능한 PWA 릴리스
 
-- [ ] §4의 빌드·서비스 워커·미리보기를 구현하고 Demo·Testbed·외부 스타터에 같은 SDK tarball을 공급한다. 두 샘플에 각자의 설치 이름·아이콘을 지정한다.
+- [x] §4의 빌드·서비스 워커·미리보기를 구현하고 Demo·Testbed·외부 스타터에 같은 SDK tarball을 공급한다. 두 샘플에 각자의 설치 이름·아이콘을 지정한다.
 - **완료 기준** — `/`와 `/demo/`에서 설치한 PWA를 오프라인으로 다시 열고 처음 방문하는 지연 로딩 화면·한글·이모지·로컬 이미지를 확인한다. A 탭이 열린 상태로 정상 B와 필수 청크 또는 Wasm이 손상된 B 업데이트를 각각 검사한다. 같은 origin의 다른 앱 캐시를 보존하고 릴리스에 `/@vite/client`·React Refresh·Metro 런타임이 들어오지 않았는지 확인한다.
 
 ### W3-04 · 같은 PWA로 Windows 패키징
 
-- [ ] 기존 Tauri 러너를 공용 입력 검증과 Windows 도구·게시로 나눈다. `buildWebInto()` 재호출을 없애고 `frontendDist`에 완성된 PWA를 넘긴다. 개발은 CLI가 Vite 세션과 Tauri 자식을 소유하고 `beforeDevCommand`에서 두 번째 서버가 시작되는 구성을 진단한다. Windows 확장 경로 처리와 앱별 Cargo 잠금·캐시를 승계한다. Cargo·스테이징·PWA 출력·`src-tauri`는 Vite 프런트엔드 감시에서 제외한다. Demo의 ICO를 이전하고 샘플 기본 명령을 전환한다. [Tauri와 Vite 설정](https://v2.tauri.app/start/frontend/vite/)
-- [ ] Tauri가 대조하는 준비 이벤트와 상태 응답에는 내부 provider `web`을 일관되게 쓰고 외부 출력 형식은 `pwa`로 기록한다. 개발용 `devCsp`에서 해당 세션의 Vite 모듈과 HMR WebSocket을 실제 창으로 확인한다. 릴리스 CSP는 내장 청크·CanvasKit·IPC에 맞춰 검증한다. [Tauri 개발 CSP](https://v2.tauri.app/reference/config/#devcsp)
+- [x] 기존 Tauri 러너를 공용 입력 검증과 Windows 도구·게시로 나눈다. `buildWebInto()` 재호출을 없애고 `frontendDist`에 완성된 PWA를 넘긴다. 개발은 CLI가 Vite 세션과 Tauri 자식을 소유하고 `beforeDevCommand`에서 두 번째 서버가 시작되는 구성을 진단한다. Windows 확장 경로 처리와 앱별 Cargo 잠금·캐시를 승계한다. Cargo·스테이징·PWA 출력·`src-tauri`는 Vite 프런트엔드 감시에서 제외한다. Demo의 ICO를 이전하고 샘플 기본 명령을 전환한다. [Tauri와 Vite 설정](https://v2.tauri.app/start/frontend/vite/)
+- [x] Tauri가 대조하는 준비 이벤트와 상태 응답에는 내부 provider `web`을 일관되게 쓰고 외부 출력 형식은 `pwa`로 기록한다. 개발용 `devCsp`에서 해당 세션의 Vite 모듈과 HMR WebSocket을 실제 창으로 확인한다. 릴리스 CSP는 내장 청크·CanvasKit·IPC에 맞춰 검증한다. [Tauri 개발 CSP](https://v2.tauri.app/reference/config/#devcsp)
 - **완료 기준** — 기본 의존성으로 Demo·Testbed·외부 앱에서 첫 이정표를 재현한다. Vite 서버를 끄고 빈 프로필로 WebView2 창을 열어 입력·IPC 응답과 PWA `buildId`를 확인한다. `pack` 중 새 Vite 빌드 호출이 0회여야 한다. 개발 창의 CSS 갱신과 위젯 수정 후 새로고침, 공백·한글 경로, 게시 실패·동시 패키징, 기존 `src-tauri` 재준비도 검사한다.
 
 ### W3-05 · Android와 Linux 호스트
 
-- [ ] Android 초기화·기기 선택·APK/AAB와 Linux 번들을 연결한다. 공통 러너에서 `LOCALAPPDATA`·`.exe`·고정 Rust 타깃 사용을 걷어내고 호스트별 도구·캐시·산출물 탐색을 붙인다. Linux에서 WebKit용 로컬 주소 처리를 구현한다.
+- [x] Android 초기화·기기 선택·APK/AAB와 Linux 번들을 연결한다. 공통 러너에서 `LOCALAPPDATA`·`.exe`·고정 Rust 타깃 사용을 걷어내고 호스트별 도구·캐시·산출물 탐색을 붙인다. Linux에서 WebKit용 로컬 주소 처리를 구현한다.
 - **완료 기준** — §5의 Android·Linux 행을 실행한다. Linux에서 앱 등록, 런타임과 폰트 로딩, WebGL2 첫 프레임을 확인한 뒤 같은 주소 처리 코드를 Apple에 사용한다.
 
 ### W3-06 · macOS와 iOS 호스트
 
-- [ ] 공용 crate와 Apple 설정을 연결하고 데스크톱·시뮬레이터·기기 실행 및 패키지 게시를 추가한다. 재준비 시 앱이 관리하는 Xcode 프로젝트 변경을 보존한다.
+- [x] 공용 crate와 Apple 설정을 연결하고 데스크톱·시뮬레이터·기기 실행 및 패키지 게시를 추가한다. 재준비 시 앱이 관리하는 Xcode 프로젝트 변경을 보존한다.
 - **완료 기준** — §5의 Apple 두 행을 해당 호스트에서 검증한다. 자격이나 실기기가 없는 항목에는 `미검증`과 필요한 환경을 적고 검증된 형식만 지원표에 올린다.
 
 ### W3-07 · 이전 호스트 제거와 독립 소비자 인수
 
-- [ ] 두 샘플과 외부 앱이 전환되면 `@nelyx/metro` workspace, Metro 설정·변환기·개발 클라이언트, 루트의 `@react-native/metro-*`와 샘플의 이전 명령을 제거한다. 참조가 끊긴 RNW·Android·Apple·Linux RN 러너, direct Hermes/V8/JSC·Static AOT 경로, Graphite 네이티브 패키지와 템플릿을 정리한다. 루트·SDK·CLI·Skia·두 샘플의 한·영 README, 관련 lockfile과 CI 명령을 맞춘다.
+- [x] 두 샘플과 외부 앱이 전환되면 `@nelyx/metro` workspace, Metro 설정·변환기·개발 클라이언트, 루트의 `@react-native/metro-*`와 샘플의 이전 명령을 제거한다. 참조가 끊긴 RNW·Android·Apple·Linux RN 러너, direct Hermes/V8/JSC·Static AOT 경로, Graphite 네이티브 패키지와 템플릿을 정리한다. 루트·SDK·CLI·Skia·두 샘플의 한·영 README, 관련 lockfile과 CI 명령을 맞춘다.
 - **완료 기준** — 이전 SDK·러너 캐시가 없는 외부 앱에서 README의 생성→Vite 개발→PWA 배포→Tauri 패키징→실행이 끝까지 작동한다. 루트와 독립 러너의 잠금 파일·`npm ls --all`, SDK/CLI tarball의 공개 import, Vite가 실제 번들에 넣은 모듈을 검사한다. `react-native`, `react-native-web`, `@react-native/*`, 플랫폼별 RN 패키지, `@nelyx/skia-rn`과 Metro 런타임·설정이 제품 의존성에서 빠져야 한다. CanvasKit 소스 레시피·패치와 재사용한 Skia 코드의 출처·라이선스는 검증 대상에 포함한다. [Skia 출처 고지](Nelyx/skia/THIRD_PARTY_NOTICES.md)
 
 ### 구현 중 주의할 세 곳
@@ -183,4 +185,22 @@ CI에서는 PWA 빌드 작업 하나가 검증된 디렉터리를 각 OS 패키�
 
 단계마다 코드·의존성·호출 경로를 먼저 검토한 뒤 변경한 경계부터 실행한다. 자동 검증은 항목당 20분 제한, 반복은 일반적으로 30회 이내다. 임시 앱·프로필·스테이징은 `finally`에서 정리하고 현재 결과만 남긴다. 지원표에는 확인한 OS·아키텍처·WebView 버전·패키지 형식, 설치·오프라인 실행·서명의 결과를 기록한다. [저장소 검증 지침](.github/copilot-instructions.md)
 
-**작성 시점** — 코드와 기존 실행 기록을 검토해 세운 계획이다. W2가 확인한 범위는 Metro와 RN Web을 쓰는 기존 Windows x64 EXE·개발 창이다. W3의 React DOM 호스트 전환, Vite PWA 빌드와 새 Tauri 패키징 검증은 착수 전이다. W3-01에서 웹 호스트의 RN Web 사용처를 교체하고 자산·설치 검사를 옮긴 뒤, 새 SDK와 `@nelyx/vite`를 독립 러너에 공급한다.
+### 2026-11-20 실행 결과
+
+SDK와 두 샘플을 React DOM 19.2.0과 Vite 8.3.8로 전환했다. `build:pwa`가 `.nelyx/pwa/`에 검증 가능한 릴리스를 게시하고 `pack:<os>`는 그 디렉터리를 입력으로 사용한다. 두 샘플의 SDK 공급·타입 검사·PWA 빌드와 루트 의존성 검사를 실행했다. Windows에서 저장소 밖 한글·공백 경로의 스타터를 tarball로 생성했다. v2 설정 읽기, CSS HMR, 제어된 새로고침과 문법 오류 복구, Windows Tauri 패키징, `nelyx run`, NSIS 설치·제거를 확인했다.
+
+- Demo PWA의 `95f84db22957741807e38e6286ac262eb58d1ad658a47cc2596db5df4524fbb8`로 Chrome 설치와 Windows x64·Android x86_64·Linux x64 패키징을 검증했다.
+- Testbed PWA와 Windows x64 패키지의 `9747b8909bc1568b070f4d82257b0e05c2a64c684fa0f724f0c452ba4aab2c12`를 대조했다.
+
+| 대상 | 현지 확인 | 남은 인수 |
+| --- | --- | --- |
+| Chrome 157 · Windows x64 | Demo의 `/`와 `/demo/` 설치 후 정적 서버를 종료하고 독립 창에서 실행했다. Demo는 `/demo/`, Testbed는 `/`에서 오프라인 딥 링크를 열었다. 갱신 검사에서 손상된 Wasm으로 기존 A가 유지되고, A 탭 종료 후 B가 활성화됐다. | Android·iOS 홈 화면 설치와 오프라인 재실행 |
+| Windows 11 x64 · WebView2 157.0.4341.60 | Demo·Testbed의 단독 EXE와 NSIS를 생성했다. 별도 프로필에서 네트워크를 차단하고 내장 `buildId`, 진입 JS·CanvasKit JS/Wasm·폰트 해시와 WebGL2를 확인했다. EXE 잠금 시 이전 패키지가 보존됐다. 초기 빌드에서 PowerShell 가상 입력으로 Demo `Filled favorite`를 13회 클릭해 선택 상태 변경을 확인했다. 개발 창에서 CSS HMR, 한 차례의 앱 새로고침, 창 종료 후 Vite 정리를 확인했다. EXE와 NSIS는 미서명이다. | 최신 EXE에서 PowerShell 클릭을 반복한 검사 한 건은 선택 상태 변경을 관측하지 못했다. W2 WebView 데이터 승계와 스크린 리더·실물 입력도 남아 있다. |
+| Android x86_64 · API 33 에뮬레이터 · WebView 109.0.5414.123 | Demo 디버그 APK와 릴리스 AAB를 생성했다. APK의 디버그 서명을 검증했고 AAB는 미서명이다. APK를 설치하고 비행기 모드에서 `https://tauri.localhost/`로 첫 실행했다. JS·Wasm·폰트 해시와 WebGL2, GPU fence API를 확인했다. 터치 선택, 텍스트 포커스, 소프트 키보드, 뒤로 가기로 키보드 닫기, 앱 복귀와 화면 회전을 확인했다. 개발 창은 `adb reverse`로 Vite를 열어 CSS HMR을 적용했다. 개발 종료 후 Vite 포트와 포워딩이 정리됐다. | arm64 실기기, 배포 키로 서명한 AAB |
+| Ubuntu 26.04 WSL2 x64 · WebKitGTK 2.52.6 · GTK 3.24.52 | Demo ELF와 `.deb`를 생성하고 게시 메타데이터의 PWA 빌드 ID를 대조했다. `.deb`에서 추출한 앱을 Xvfb 소프트웨어 GL에서 실행해 `tauri://localhost` 갤러리 렌더링과 IPC 창 제목을 확인했다. | 배포판 패키지 설치·재실행, WebView 내부 자산 해시 계측, 실물 GPU·한글 IME·스크린 리더 |
+| macOS · arm64 | 공용 Tauri 호스트와 `.app`·`.dmg` 패키징 경로를 구현했다. | macOS와 Xcode에서 빌드·설치·WKWebView 실행, 배포 서명·공증 |
+| iOS · Simulator / arm64 기기 | 초기화와 시뮬레이터 `.app`, 기기 `.ipa` 경로를 구현했다. 기존 Xcode 디렉터리를 발견하면 초기화를 건너뛴다. | Xcode 시뮬레이터·실기기 실행, WKWebView 입력·복귀, 배포 서명 |
+
+Chromium의 갤러리 검증에서 Demo의 연속 아이콘 클릭과 텍스트 포커스, 한글 조합과 여러 줄 입력을 확인했다. Testbed의 ListView는 스크롤 후 마지막 행에 접근해 선택하고 갤러리로 돌아왔다. 현재 접근성 확인은 DOM 트리와 자동 입력까지다. 별도의 W11 디자인 검사는 `NavigationRail` 선택자에서 중단됐다. Material BottomSheet의 순수 Node 검사는 두 번째 결과 대기에서, Cupertino 단위 검사 세 건은 refresh 스크롤과 segmented-control 테스트에서 실패했다.
+
+CI는 PWA 한 개를 플랫폼별 패키징 작업에 전달하고 Windows WebView2에서 자산을 대조하는 단계를 포함한다. GitHub Actions의 실제 실행 결과와 나머지 OS의 CI WebView 계측은 미검증이다. [.github/workflows/pwa-tauri.yml](.github/workflows/pwa-tauri.yml) · [Windows WebView2 검사](Nelyx/eng/check-tauri-windows.mjs) · [PWA 갱신 검사](Nelyx/eng/check-pwa-update.mjs)

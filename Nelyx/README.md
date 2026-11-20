@@ -98,7 +98,7 @@ From the repository root, after `npm ci`:
 npm run build:core
 ```
 
-Use `npm run build:sdk` to build the complete package set. When consuming locally packed packages, supply and reinstall the runner after changes; see the [CLI guide](sdk/tooling/cli/README.md#supply-and-install).
+Use `npm run build:sdk` to build the complete package set. When consuming locally packed packages, supply and reinstall the runner after changes; see the [CLI guide](sdk/tooling/cli/README.md#generate-and-supply).
 
 Nelyx implements a subset of Flutter's APIs. Check a module's declarations and the [Testbed](../sample/nelyx-testbed-app-2/README.md) for available functionality. Platform readiness is described in the [project guide](../README.md#project-status).
 

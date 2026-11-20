@@ -12,18 +12,20 @@ import { JSONMethodCodec, StandardMethodCodec } from '@nelyx/core/services/messa
 import { BrowserMouseCursor } from './mouse-cursor.ts';
 import { installBrowserAccessibility } from './accessibility.ts';
 import type { BrowserSelectionContextMenu } from './selection-context-menu.ts';
+import { isAppUrl } from './local-url.ts';
 /** Browser services run on the DOM owner, including secure-context permission errors. */
 export function createBrowserPlatformMessages(
   view: Window = window,
   cursorTarget?: HTMLElement | BrowserMouseCursor,
   selectionContextMenu?: BrowserSelectionContextMenu,
   accessibility?: { readonly hostElement: HTMLElement; readonly viewId: number },
-  restoration?: { readonly key: string },
+  restoration?: { readonly key: string; readonly root?: URL },
   accessibilityEnabled = true,
 ): PluginPlatformMessagePort {
   const port = new PluginPlatformMessagePort(),
     doc = view.document,
-    navigator = view.navigator;
+    navigator = view.navigator,
+    routeRoot = restoration?.root ?? new URL('/', view.location.href);
   installAutofillMessages(port, 'web');
   const dark = view.matchMedia('(prefers-color-scheme: dark)'),
     reducedMotion = accessibilityEnabled
@@ -291,11 +293,12 @@ export function createBrowserPlatformMessages(
           code: 'invalid-arguments',
           message: 'Invalid route information',
         });
-      const uri = new URL(args.get('uri'), view.location.href);
-      if (uri.origin !== view.location.origin)
+      const current = new URL(view.location.href);
+      const uri = new URL(args.get('uri'), isAppUrl(current, routeRoot) ? current : routeRoot);
+      if (!isAppUrl(uri, routeRoot))
         throw new PlatformException({
           code: 'invalid-arguments',
-          message: 'Route URI must keep the application origin',
+          message: 'Route URI must stay within the application root',
         });
       const state = { nelyxOwner: owner, value: args.get('state') ?? null };
       if (singleEntry || args.get('replace')) view.history.replaceState(state, '', uri);
