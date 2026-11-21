@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import type { ApplicationDefinition } from '@nelyx/core/hosting/runtime';
 import type { ViewOwner } from '@nelyx/core/ui/types';
 import type { PlatformMessagePort } from '@nelyx/core/hosting/platform-messages';
+import type { WebSkiaSurfaceOptions } from '@nelyx/skia-web/library';
 import type { ComposedApplication } from '../../runtime/bootstrap.ts';
 import type { ResolvedAppAsset as AppAsset } from '../../runtime/config.ts';
 import type { CanvasKitManifest } from '../../backends/browser/canvaskit-manifest.ts';
@@ -178,7 +179,7 @@ export function ownWebSurface(element: HTMLElement): {
     },
   };
 }
-export interface WebApplicationOptions {
+export interface WebApplicationOptions extends WebSkiaSurfaceOptions {
   /** Enable separately owned dialog surfaces when the browser admits a popup. */
   readonly enableDialogWindows?: boolean;
   readonly initializePlatformServices?: boolean;
@@ -256,7 +257,7 @@ async function openWebApplication(
       word.toString(16).padStart(8, '0'),
     ).join(''),
     owner = Object.freeze({ id: 'web-view-' + nonce, generation: ++generation }),
-    library = new WebSkiaLibrary(ck, options.canvas, owner);
+    library = new WebSkiaLibrary(ck, options.canvas, owner, options);
   let binding: ReturnType<typeof createWebServices>;
   job.retained = { library };
   try {

@@ -217,19 +217,23 @@ export class SectionExtentIndex {
   /** @internal */
   _measure(index: number, extent: number): void {
     this.checkIndex(index);
+    const config = this.current;
     invariant(
-      this.current !== null && Number.isFinite(extent) && extent >= 0,
+      config !== null && Number.isFinite(extent) && extent >= 0,
       'invalid-section-measurement',
       'Section measurement requires a configuration and a finite nonnegative extent',
     );
-    invariant(
-      Number.isFinite(this.totalExtent - this.current.extents[index]! + extent),
-      'invalid-section-total',
-      'Measured section total must remain finite',
-    );
-    this.add(this.current, index, extent - this.current.extents[index]!);
-    this.current.extents[index] = extent;
-    this.current.states[index] = 1;
+    const previous = config.extents[index]!;
+    if (extent !== previous) {
+      invariant(
+        Number.isFinite(this.totalExtent - previous + extent),
+        'invalid-section-total',
+        'Measured section total must remain finite',
+      );
+      this.add(config, index, extent - previous);
+      config.extents[index] = extent;
+    }
+    config.states[index] = 1;
   }
   /** @internal */
   _takeRequest(): SectionAnchor | null {

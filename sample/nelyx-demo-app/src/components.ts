@@ -388,6 +388,8 @@ class ComponentsState extends State<ComponentsScreen> {
         return ListView.builder({
           controller,
           primary: false,
+          // Each GallerySection already supplies its own repaint boundary.
+          addRepaintBoundaries: false,
           extentIndex: (controller === this.firstScroll
             ? this.firstExtents
             : this.secondExtents

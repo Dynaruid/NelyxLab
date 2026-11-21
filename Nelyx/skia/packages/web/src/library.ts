@@ -128,12 +128,19 @@ interface Pending {
   lease: ResourceLease;
   started: number;
 }
+export interface WebSkiaSurfaceOptions {
+  /** Set false for full-frame rendering without drawing-buffer reads after presentation. */
+  readonly preserveDrawingBuffer?: boolean;
+  /** Optional backing scale limit. Layout and input continue to use the View's metrics. */
+  readonly maxRasterScale?: number;
+}
 /** Fork-owned CanvasKit resources and replay; no React, RN or native bootstrap import. */
 export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQueryService {
   private readonly runtimePrograms: ReturnType<typeof createRuntimeShaderCache>;
   get debugRuntimePrograms() {
     return this.runtimePrograms.debugStats;
   }
+  readonly singleSubmissionPerTick = true;
   readonly capabilities: RendererCapabilities = Object.freeze({
     admission: 'bounded',
     completion: 'gpu-retired',
@@ -148,6 +155,9 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   private pending = new Map<number, Pending>();
   private events: RendererEvents;
   private metrics: ViewMetrics | undefined;
+  private readonly preserveDrawingBuffer: boolean;
+  private readonly maxRasterScale: number;
+  private rasterScale = 1;
   private context: GrDirectContext | undefined;
   private surface: Surface | undefined;
   private handle: WebGLContextHandle | undefined;
@@ -281,7 +291,13 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     private ck: CanvasKit,
     private canvas: HTMLCanvasElement,
     private owner: ViewOwner,
+    options: WebSkiaSurfaceOptions = {},
   ) {
+    const { preserveDrawingBuffer = true, maxRasterScale } = options;
+    if (maxRasterScale !== undefined && (!Number.isFinite(maxRasterScale) || maxRasterScale < 1))
+      throw new RangeError('Web raster scale limit must be finite and at least one');
+    this.preserveDrawingBuffer = preserveDrawingBuffer;
+    this.maxRasterScale = maxRasterScale ?? Infinity;
     this.events = new RendererEvents(owner);
     this.runtimePrograms = createRuntimeShaderCache(ck);
   }
@@ -1123,14 +1139,18 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     this.metrics = metrics;
     if (this.lost) return;
     this.dropSurface();
-    this.canvas.width = metrics.physicalWidth;
-    this.canvas.height = metrics.physicalHeight;
-    if (!metrics.physicalWidth || !metrics.physicalHeight) return;
+    this.rasterScale = Math.min(metrics.scale, this.maxRasterScale);
+    const ratio = this.rasterScale / metrics.scale,
+      width = metrics.physicalWidth ? Math.max(1, Math.round(metrics.physicalWidth * ratio)) : 0,
+      height = metrics.physicalHeight ? Math.max(1, Math.round(metrics.physicalHeight * ratio)) : 0;
+    this.canvas.width = width;
+    this.canvas.height = height;
+    if (!width || !height) return;
     this.ensureGpuContext();
     const surface = this.ck.MakeOnScreenGLSurface(
       this.context!,
-      metrics.physicalWidth,
-      metrics.physicalHeight,
+      width,
+      height,
       this.ck.ColorSpace.SRGB,
     );
     if (!surface) throw new Error('CanvasKit GPU surface failed');
@@ -1143,7 +1163,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         alpha: 1,
         antialias: 0,
         stencil: 8,
-        preserveDrawingBuffer: 1,
+        preserveDrawingBuffer: this.preserveDrawingBuffer ? 1 : 0,
       });
       if (!handle) throw new Error('CanvasKit WebGL2 creation failed');
       this.handle = handle;
@@ -1172,6 +1192,9 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       }
     }
   }
+  canBuildFrame(): boolean {
+    return !this.closed && !this.lost && !this.failed && this.visible && this.pending.size < 2;
+  }
   submit(frame: PaintFrame, lease: ResourceLease): SubmitResult {
     if (this.closed) return { status: 'rejected', reason: 'closed' };
     if (!this.metrics || !isCurrent(frame, this.owner, this.metrics))
@@ -1179,19 +1202,13 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     if (!this.metrics.physicalWidth || !this.metrics.physicalHeight)
       return { status: 'rejected', reason: 'zero-size' };
     if (frame.estimatedBytes > 512 * 1024) return { status: 'rejected', reason: 'oversize' };
-    if (
-      this.lost ||
-      this.failed ||
-      !this.visible ||
-      this.pending.size >= 2 ||
-      this.pending.has(frame.token.sequence)
-    ) {
+    if (!this.canBuildFrame() || this.pending.has(frame.token.sequence)) {
       return { status: 'rejected', reason: 'busy' };
     }
     const surface = this.surface,
       gl = this.gl;
     if (!surface || !gl) throw new Error('Web GPU surface unavailable');
-    this.replay(surface.getCanvas(), frame, this.metrics.scale);
+    this.replay(surface.getCanvas(), frame, this.rasterScale);
     surface.flush();
     const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     if (!fence) throw new Error('WebGL fence creation failed');
@@ -1447,11 +1464,12 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     if (this.timer !== undefined || this.closed || !this.pending.size) return;
     this.timer = setTimeout(() => {
       this.timer = undefined;
-      this.poll();
+      this.pollCompletedFrames();
     }, 5);
   }
-  private poll() {
-    if (this.closed || this.lost) return;
+  /** Reclaim signaled slots before a browser frame, even if its timer has not run. */
+  pollCompletedFrames(): void {
+    if (this.closed || this.lost || this.failed || !this.pending.size) return;
     const gl = this.gl!;
     for (const [id, pending] of this.pending) {
       const status = gl.clientWaitSync(pending.fence, 0, 0);
@@ -1473,7 +1491,8 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         );
       }
     }
-    if (!this.failed) this.schedule();
+    if (this.failed || !this.pending.size) this.clearTimer();
+    else this.schedule();
   }
   setVisible(value: boolean) {
     this.visible = value;

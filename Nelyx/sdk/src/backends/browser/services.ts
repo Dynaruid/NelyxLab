@@ -39,7 +39,8 @@ export function createWebServices(
 } {
   if (manifest.length > 64 || !isAppUrl(root, root)) throw new Error('Web asset root/count');
   const document = canvas.ownerDocument,
-    window = document.defaultView!;
+    window = document.defaultView!,
+    frameTimeOffset = window.performance.timeOrigin - performance.timeOrigin;
   const cursor = new BrowserMouseCursor(canvas),
     interaction = createDomInteraction(
       input,
@@ -209,11 +210,21 @@ export function createWebServices(
       clock: {
         request(callback) {
           if (closed) throw new Error('Web clock closed');
-          const id = window.requestAnimationFrame(() => {
+          const id = window.requestAnimationFrame((timestamp) => {
             if (!frames.delete(id)) return;
             if (!closed)
               try {
-                callback();
+                library.pollCompletedFrames();
+                if (closed) return;
+                // A dialog's rAF timestamp uses its own document's time origin.
+                const tick = timestamp + frameTimeOffset,
+                  dispatch = performance.now();
+                callback({
+                  tick,
+                  dispatch,
+                  queueDelay: Math.max(0, dispatch - tick),
+                  clockUncertainty: 0,
+                });
               } finally {
                 selectionContextMenu.refresh();
               }

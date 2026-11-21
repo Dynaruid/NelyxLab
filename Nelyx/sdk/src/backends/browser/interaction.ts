@@ -97,6 +97,7 @@ export function createDomInteraction(
   };
   let publishedNodes = new Map<string, SemanticsNode>(),
     publishedElements = new Set<HTMLElement>(),
+    publishedTree: readonly SemanticsNode[] | undefined,
     inputObserver: SemanticsInputObserver | undefined;
   const ownsSemanticEvent = (element: HTMLElement, event: Event): boolean => {
     let target = event.target instanceof HTMLElement ? event.target : null;
@@ -690,8 +691,12 @@ export function createDomInteraction(
 
   function publish(tree: readonly SemanticsNode[]) {
     if (closed) throw new Error('DOM semantics closed');
-    const roots = freezeSemantics(tree),
-      nodes = flattenSemantics(roots);
+    const roots = freezeSemantics(tree);
+    // Core may reuse an immutable snapshot while only painting. Editors can
+    // replace their DOM element through the independent input service.
+    if (roots === publishedTree && !fields.size) return;
+    publishedTree = undefined;
+    const nodes = flattenSemantics(roots);
     publishedNodes = new Map(nodes.map((node) => [node.id, node]));
     publishedElements = new Set();
     for (const [id, editor] of fields)
@@ -923,10 +928,12 @@ export function createDomInteraction(
           passive.delete(id);
         }
       }
+    if (!fields.size) publishedTree = roots;
   }
   const hide = () => {
     bound = false;
     inputObserver = undefined;
+    publishedTree = undefined;
     publishedNodes.clear();
     for (const element of publishedElements) cursor?.remove(element);
     publishedElements.clear();

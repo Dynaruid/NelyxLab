@@ -36,6 +36,8 @@ export interface Renderer extends Disposable {
   hasUndeliveredInput?(watermark: number): boolean;
   setQueuedInputCount?: ((pending: number) => void) | undefined;
   readonly capabilities: RendererCapabilities;
+  /** The host composites only the latest submission from a frame callback. */
+  readonly singleSubmissionPerTick?: boolean;
   /** Optional backpressure hint. One CPU frame waits while capacity is full;
    * newer state replaces it when credit returns. Submit owns lease transfer. */
   canBuildFrame?(): boolean;
@@ -1000,6 +1002,7 @@ export class ViewRuntime implements Disposable {
           // and unknown/custom scene owners retain replace-before-submit.
           if (
             !this.options.renderer.latestInputAdmission &&
+            !this.options.renderer.singleSubmissionPerTick &&
             !forced &&
             this.pending &&
             (this.dirty || this.pointerMailbox.length > 0 || this.deferredFrames.size > 0) &&
