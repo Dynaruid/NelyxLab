@@ -60,6 +60,7 @@ export type FrameDiagnosticStage =
   | 'semantics-geometry-fallback'
   | 'recording-finish'
   | 'native-submit'
+  | 'gpu-fence-enqueue'
   | 'paint-visits'
   | 'boundary-visits'
   | 'boundary-recordings'

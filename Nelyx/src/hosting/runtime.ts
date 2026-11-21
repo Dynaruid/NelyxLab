@@ -42,7 +42,7 @@ export interface Renderer extends Disposable {
    * newer state replaces it when credit returns. Submit owns lease transfer. */
   canBuildFrame?(): boolean;
   /** accepted transfers lease; rejected leaves it with caller. unknown must retain until drain. */
-  submit(frame: PaintFrame, lease: ResourceLease): SubmitResult;
+  submit(frame: PaintFrame, lease: ResourceLease, diagnostics?: FrameDiagnostics): SubmitResult;
   updateMetrics(metrics: ViewMetrics): void;
   observe?(listener: (event: RendererNotification) => void): Disposable;
 }
@@ -891,7 +891,9 @@ export class ViewRuntime implements Disposable {
         diagnostics.record(item.frame.token, 'pending', item.preparedAt);
       const submitBegan = diagnostics?.now();
       try {
-        result = this.options.renderer.submit(item.frame, item.lease);
+        result = diagnostics
+          ? this.options.renderer.submit(item.frame, item.lease, diagnostics)
+          : this.options.renderer.submit(item.frame, item.lease);
       } catch (error) {
         // An exception cannot prove whether native accepted. Preserve references until owned renderer drain.
         this.uncertain.push(item.lease);
@@ -1016,9 +1018,11 @@ export class ViewRuntime implements Disposable {
           return;
         }
         const forced = this.forcedFrame;
-        // Registrations made by required work or this callback belong to the
-        // next host tick. An optional continuation cannot drain itself inline.
-        const optional = this.optionalFrames.size ? [...this.optionalFrames] : undefined;
+        // Inline work uses the current host tick's original batch. Browser
+        // idle work has a separate deadline and can be offered after submission.
+        const hasIdleBudget = this.session.clock.requestIdle !== undefined;
+        const optional =
+          !hasIdleBudget && this.optionalFrames.size ? [...this.optionalFrames] : undefined;
         this.forcedFrame = false;
         try {
           // A requested future tick need not invalidate the CPU scene already
@@ -1060,7 +1064,10 @@ export class ViewRuntime implements Disposable {
             if (result?.status === 'unknown')
               throw new Error('Renderer submission failed: ' + result.reason);
           }
-          this.flushOptionalWork(optional, forced);
+          this.flushOptionalWork(
+            hasIdleBudget && this.optionalFrames.size ? [...this.optionalFrames] : optional,
+            forced,
+          );
           if (this.deferredFrames.size || this.optionalFrames.size) this.schedulePump();
         } catch (error) {
           this.failFrameCallback(error);

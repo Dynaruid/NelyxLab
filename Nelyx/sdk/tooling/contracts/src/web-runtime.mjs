@@ -18,7 +18,7 @@ export function readWebRuntime(runnerRoot) {
     : null;
   if (
     manifest.schema !== 'nelyx.canvaskit/v1' ||
-    manifest.version !== 'm153-nelyx-paragraph.7' ||
+    manifest.version !== 'm153-nelyx-paragraph.8' ||
     manifest.paragraphApiVersion !== 1 ||
     manifest.pictureApiVersion !== 3 ||
     manifest.fontApiVersion !== 1 ||

@@ -13,18 +13,18 @@
     "typecheck": "tsc -p tsconfig.nelyx.json"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-518393c04351602b88fd89ff47ea7a7ff187e289160f6994f303437bbaa8938f.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-1746fa272a3138672a000955331021fa042b6ae36e4aae1602ea53ab0f528449.tgz",
-    "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-4b583b865e60f65101040098da2a0eb1b152725226ad8883fc5fadc840f14d8c.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-f6d1f703a63212709385c3a646cd0281ce7d6c5ee99edf04403028fe22caaaf8.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-f5c0e68f7c136929e7f070963d72cfd4676d31451ce65c3c1567e25b5c1e8240.tgz",
+    "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-a51dcc63554314becff02c561a8267513a6bf94a1ffa14332c5d345076829b0e.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "@nelyx/material": "file:../../.nelyx/supply/web/nelyx-material-0.2.0-1b90190ee46b75f8c0967976468e0d8ae0dc1ce669fe78b0602d595c7978c2b2.tgz",
     "@nelyx/cupertino": "file:../../.nelyx/supply/web/nelyx-cupertino-0.2.0-dcb23d6c0aea6a3bfa2f9491c63cb6b0fcbf63cce91f9d9f50219bdd04fbbb3b.tgz"
   },
   "devDependencies": {
-    "@nelyx/vite": "file:../../.nelyx/supply/web/nelyx-vite-0.1.0-dbe0c3eac00ca01846dd868325bf07e77efc6676cfa957f65d28d03661fb569e.tgz",
+    "@nelyx/vite": "file:../../.nelyx/supply/web/nelyx-vite-0.1.0-c7d39fdf3e1e3130c651fceb8d0c7c82117a0a9f219db5b7c3010b87fd7e2b07.tgz",
     "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.11.0-d75a4f4d5ff1fc5251f07a071a66a5a833e7724b98cb83c2c5dcb475cf9db370.tgz",
-    "@nelyx/tooling-contracts": "file:../../.nelyx/supply/web/nelyx-tooling-contracts-0.1.0-0b025bdad9d5f604e9ebb8cd66e717e9adb943a87c47fb94f1a9fb7e76609a7c.tgz",
+    "@nelyx/tooling-contracts": "file:../../.nelyx/supply/web/nelyx-tooling-contracts-0.1.0-17583f73fed38d3f335ea8147a6de27877c124fb20c36b636babf9e2a316233e.tgz",
     "vite": "8.3.8",
     "typescript": "7.0.2",
     "@types/node": "24.10.1",

@@ -125,3 +125,57 @@
      "-sSTRICT=1",
 -    "-sEXPORTED_RUNTIME_METHODS=HEAP32,HEAPU8,HEAPU16,HEAPU32,HEAPF32",
 +    "-sEXPORTED_RUNTIME_METHODS=HEAP32,HEAPU8,HEAPU16,HEAPU32,HEAPF32,wasmMemory",
+--- a/src/gpu/ganesh/gl/builders/GrGLShaderStringBuilder.h
++++ b/src/gpu/ganesh/gl/builders/GrGLShaderStringBuilder.h
+@@ -62,7 +62,8 @@
+                                     const SkSL::NativeShader& glsl,
+                                     bool shaderWasCached,
+                                     GrThreadSafePipelineBuilder::Stats*,
+-                                    GrContextOptions::ShaderErrorHandler* errorHandler);
++                                    GrContextOptions::ShaderErrorHandler* errorHandler,
++                                    bool validateAtLink = false);
+ 
+ bool GrGLCheckLinkStatus(const GrGLGpu* gpu,
+                          GrGLuint programID,
+--- a/src/gpu/ganesh/gl/builders/GrGLShaderStringBuilder.cpp
++++ b/src/gpu/ganesh/gl/builders/GrGLShaderStringBuilder.cpp
+@@ -25,7 +25,8 @@
+                                     const SkSL::NativeShader& glsl,
+                                     bool shaderWasCached,
+                                     GrThreadSafePipelineBuilder::Stats* stats,
+-                                    GrContextOptions::ShaderErrorHandler* errorHandler) {
++                                    GrContextOptions::ShaderErrorHandler* errorHandler,
++                                    bool validateAtLink) {
+     TRACE_EVENT0_ALWAYS("skia.shaders", "driver_compile_shader");
+     const GrGLInterface* gli = glCtx.glInterface();
+ 
+@@ -42,7 +43,7 @@
+     stats->incShaderCompilations();
+     GR_GL_CALL(gli, CompileShader(shaderId));
+ 
+-    {
++    if (!validateAtLink) {
+         ATRACE_ANDROID_FRAMEWORK("checkCompiled");
+         GrGLint compiled = GR_GL_INIT_ZERO;
+         GR_GL_CALL(gli, GetShaderiv(shaderId, GR_GL_COMPILE_STATUS, &compiled));
+--- a/src/gpu/ganesh/gl/builders/GrGLProgramBuilder.cpp
++++ b/src/gpu/ganesh/gl/builders/GrGLProgramBuilder.cpp
+@@ -112,13 +112,17 @@
+                                                  bool shaderWasCached,
+                                                  GrContextOptions::ShaderErrorHandler* errHandler) {
+     GrGLGpu* gpu = this->gpu();
++    // WebGL can compile both stages before the first status query. finalize() checks
++    // LINK_STATUS before resolving any uniforms or publishing the program.
++    const bool validateAtLink = gpu->glInterface()->fStandard == kWebGL_GrGLStandard;
+     GrGLuint shaderId = GrGLCompileAndAttachShader(gpu->glContext(),
+                                                    programId,
+                                                    type,
+                                                    glsl,
+                                                    shaderWasCached,
+                                                    gpu->pipelineBuilder()->stats(),
+-                                                   errHandler);
++                                                   errHandler,
++                                                   validateAtLink);
+     if (!shaderId) {
+         return false;
+     }

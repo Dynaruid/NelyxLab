@@ -247,7 +247,7 @@ export function verifyPwa(directory, { config, version }) {
   const runtime = readJson(localFile(directory, 'runtime/native-manifest.json'));
   if (
     runtime.schema !== 'nelyx.canvaskit/v1' ||
-    runtime.version !== 'm153-nelyx-paragraph.7' ||
+    runtime.version !== 'm153-nelyx-paragraph.8' ||
     runtime.files?.length !== 2 ||
     !['canvaskit.js', 'canvaskit.wasm'].every((name) =>
       runtime.files.some(

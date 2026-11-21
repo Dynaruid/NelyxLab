@@ -1691,13 +1691,13 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       this.doingLayout = false;
     }
   }
-  /** A clean, independent child can keep its last layout under equal constraints. */
-  protected canReuseLayout(constraints: BoxConstraints): boolean {
+  /** A clean child can keep its last layout and size dependency under equal constraints. */
+  protected canReuseLayout(constraints: BoxConstraints, parentUsesSize = false): boolean {
     return (
       this.runLayout === RenderObject.prototype.runLayout &&
       !this.needsLayout &&
-      this.boundary === true &&
-      !this.parentUsesSize &&
+      this.boundary !== undefined &&
+      this.parentUsesSize === parentUsesSize &&
       this.lastConstraints !== undefined &&
       (constraints === this.lastConstraints || constraints.equals(this.lastConstraints)) &&
       !this.owner?._hasLayoutCallback(this)
@@ -4233,9 +4233,11 @@ export abstract class RenderBox<
   }
   private static readonly standardLayout = RenderBox.prototype.layout;
   /** @internal Used by a sliver that verified the current slot and placement. */
-  _canReuseSliverLayout(constraints: BoxConstraints): boolean {
+  _canReuseSliverLayout(constraints: BoxConstraints, parentUsesSize = false): boolean {
     return (
-      this.layout === RenderBox.standardLayout && this.hasSize && this.canReuseLayout(constraints)
+      this.layout === RenderBox.standardLayout &&
+      this.hasSize &&
+      this.canReuseLayout(constraints, parentUsesSize)
     );
   }
   protected override performLayoutInScope(constraints: BoxConstraints): void {

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import assert from 'node:assert/strict';
 import { execute } from '../sdk/tooling/cli/src/commands.mjs';
+import { ValueKey } from '../dist/foundation/key.js';
 import { FoundationPlatform } from '../dist/foundation/platform.js';
 import { AppSession } from '../dist/hosting/runtime.js';
 import { SectionExtentIndex } from '../dist/framework/rendering/section-extent-index.js';
-import { Directionality } from '../dist/framework/widgets/app-data.js';
-import { SizedBox } from '../dist/framework/widgets/basic.js';
+import { Directionality, MediaQuery } from '../dist/framework/widgets/app-data.js';
+import { AspectRatio, SizedBox } from '../dist/framework/widgets/basic.js';
 import { State, StatefulWidget } from '../dist/framework/widgets/framework.js';
 import { FrameworkRoot } from '../dist/framework/widgets/root.js';
 import { ScrollController } from '../dist/framework/widgets/scroll-controller.js';
@@ -24,7 +25,9 @@ const register = (queue, callback) => {
   return { dispose: () => queue.delete(callback) };
 };
 const dispatch = (queue, value) => {
-  for (const callback of [...queue]) if (queue.delete(callback)) callback(value);
+  // New requests belong to the next host callback, even if the queue is live.
+  const batch = [...queue];
+  for (const callback of batch) if (queue.delete(callback)) callback(value);
 };
 let now = 0;
 const frame = () => {
@@ -32,14 +35,15 @@ const frame = () => {
   dispatch(frames, { tick: now, dispatch: now, queueDelay: 0, clockUncertainty: 0 });
 };
 const controller = new ScrollController();
-const extentIndex = new SectionExtentIndex(20, { estimatedExtent: 100 });
+let extentIndex = new SectionExtentIndex(20, { estimatedExtent: 100 });
 const builds = new Map();
 const mounts = new Map();
 const retirements = new Map();
+const rows = new Map();
 const count = (counts, index) => counts.set(index, (counts.get(index) ?? 0) + 1);
 class Row extends StatefulWidget {
   constructor(index) {
-    super();
+    super(new ValueKey(index));
     this.index = index;
   }
   createState() {
@@ -47,15 +51,77 @@ class Row extends StatefulWidget {
   }
 }
 class RowState extends State {
+  height;
   initState() {
+    const index = this.widget.index;
+    this.height = index === 2 ? 143 : 100;
+    rows.set(index, this);
     count(mounts, this.widget.index);
   }
-  build() {
-    return new SizedBox(undefined, this.widget.index === 2 ? 143 : 100);
+  build(context) {
+    return this.widget.index === 10
+      ? new AspectRatio(undefined, 300 / 160)
+      : new SizedBox(undefined, MediaQuery.textScalerOf(context).scale(this.height));
+  }
+  resize(height) {
+    this.setState(() => {
+      this.height = height;
+    });
   }
   dispose() {
+    rows.delete(this.widget.index);
     count(retirements, this.widget.index);
     super.dispose();
+  }
+}
+let catalog;
+class Catalog extends StatefulWidget {
+  createState() {
+    return new CatalogState();
+  }
+}
+class CatalogState extends State {
+  ids = Array.from({ length: 20 }, (_, index) => index);
+  textScale = 1;
+  initState() {
+    catalog = this;
+  }
+  build() {
+    const ids = this.ids;
+    return new MediaQuery(
+      {
+        width: 300,
+        height: 150,
+        scale: 1,
+        textScale: this.textScale,
+        safeArea: { left: 0, top: 0, right: 0, bottom: 0 },
+        keyboardInset: 0,
+      },
+      new Directionality(
+        'ltr',
+        ListView.builder({
+          controller,
+          primary: false,
+          cacheExtent: 200,
+          extentIndex,
+          childPolicy: {
+            mode: 'dormant',
+            capacity: 4,
+            prepare: (index) => ids[index] === 2 || ids[index] === 5,
+          },
+          itemCount: ids.length,
+          findChildIndexCallback: (key) => {
+            const index = ids.indexOf(key.value);
+            return index < 0 ? null : index;
+          },
+          itemBuilder: (_, index) => {
+            const id = ids[index];
+            count(builds, id);
+            return new Row(id);
+          },
+        }),
+      ),
+    );
   }
 }
 let root;
@@ -65,26 +131,7 @@ const session = new AppSession(
     createView(context) {
       root = new FrameworkRoot(context, {
         id: 'section-idle',
-        createRoot: () =>
-          new Directionality(
-            'ltr',
-            ListView.builder({
-              controller,
-              primary: false,
-              cacheExtent: 200,
-              extentIndex,
-              childPolicy: {
-                mode: 'dormant',
-                capacity: 4,
-                prepare: (index) => index === 2 || index === 5,
-              },
-              itemCount: extentIndex.count,
-              itemBuilder: (_, index) => {
-                count(builds, index);
-                return new Row(index);
-              },
-            }),
-          ),
+        createRoot: () => new Catalog(),
       });
       return root;
     },
@@ -137,6 +184,7 @@ try {
   });
   view.requestFrame();
   frame();
+  assert.equal(idle.size, 1, 'A fresh offer can use the browser idle period after submission');
   frame();
   assert.equal(builds.has(2), false, 'An animation callback does not consume the idle work');
   assert.equal(idle.size, 1);
@@ -149,6 +197,7 @@ try {
   assert.equal(builds.has(2), false, 'Required work takes precedence over optional preparation');
   frame();
   assert.equal(idle.size, 1);
+
   dispatch(idle, () => 10);
   assert.equal(mounts.get(2), 1);
   assert.equal(extentIndex.measurement(2), 'unmeasured');
@@ -180,6 +229,54 @@ try {
   frame();
   frame();
   assert.equal(idle.size, 1);
+
+  controller.jumpTo(900);
+  frame();
+  extentIndex.requestItem(10);
+  frame();
+  assert.equal(extentIndex.anchor.index, 10);
+  assert.equal(mounts.has(11), false);
+  rows.get(9).resize(40);
+  frame();
+  assert.equal(extentIndex.anchor.index, 10, 'Leading measurement preserves the visible anchor');
+  assert.equal(extentIndex.anchor.offset, 0);
+  assert.equal(
+    mounts.has(11),
+    false,
+    'Measuring a shrunken leading row must avoid creation at the uncorrected viewport end',
+  );
+  const metrics = view.capture().metrics;
+  view.updateMetrics({
+    ...metrics,
+    viewportGeneration: metrics.viewportGeneration + 1,
+    logicalWidth: 150,
+    physicalWidth: 150,
+  });
+  frame();
+  assert.equal(extentIndex.anchor.index, 10);
+  assert.equal(extentIndex.prefix(11) - extentIndex.prefix(10), 80);
+  assert.equal(mounts.get(11), 1, 'Narrower layout must fill the resulting exposed viewport');
+
+  catalog.setState(() => {
+    catalog.textScale = 1.25;
+  });
+  frame();
+  assert.equal(extentIndex.anchor.index, 10);
+  assert.equal(extentIndex.prefix(10) - extentIndex.prefix(9), 50);
+
+  const visible = rows.get(10);
+  catalog.setState(() => {
+    const ids = catalog.ids.filter((id) => id !== 9);
+    const anchor = ids.indexOf(10) - 1;
+    [ids[anchor], ids[anchor + 1]] = [ids[anchor + 1], ids[anchor]];
+    catalog.ids = ids;
+    extentIndex = new SectionExtentIndex(ids.length, { estimatedExtent: 100 });
+    extentIndex.requestItem(anchor);
+  });
+  frame();
+  assert.equal(rows.get(10), visible, 'The moved key preserves its mounted State');
+  assert.equal(extentIndex.anchor.index, catalog.ids.indexOf(10));
+  assert.equal(extentIndex.anchor.offset, 0);
 } finally {
   await session.dispose();
   controller.dispose();

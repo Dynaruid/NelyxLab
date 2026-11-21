@@ -1,7 +1,7 @@
 {
   "schema": "nelyx.canvaskit/v1",
   "adapterAbi": 1,
-  "version": "m153-nelyx-paragraph.7",
+  "version": "m153-nelyx-paragraph.8",
   "paragraphApiVersion": 1,
   "pictureApiVersion": 3,
   "fontApiVersion": 1,
@@ -9,8 +9,8 @@
   "maximumMemoryBytes": 268435456,
   "source": {
     "revision": "61e7ca4e99062cdd0ab69445d5963fb3365778f6",
-    "lockSha256": "24eef7083d60814af002a22f52570746b2ea5de50529a1d1e3969f90ca9d9fdf",
-    "patchSha256": "1b6d7bbe4576f04acf4d1671266e09e33e48cab897d8fa205137d1788491548b"
+    "lockSha256": "d50f4fe156765d4add03451715366609ece2f16013447a502c153bc1fcb8a407",
+    "patchSha256": "7fd7fde1e14db5ddf8e9ac8013eeafc8a0106a501b8d37291130185d58b60ccf"
   },
   "files": [
     {
@@ -21,7 +21,7 @@
     {
       "id": "canvaskit.wasm",
       "path": "canvaskit.wasm",
-      "sha256": "794b1c0452738acec496a0f3c6fc74068f6c60683b02269f4545e6334ed06a6c"
+      "sha256": "394e8db544128795c53f4e7a74d6a0f606d4f09e2b6351ff323e4f429afb834f"
     }
   ],
   "packageRuntime": "generated/runtime",

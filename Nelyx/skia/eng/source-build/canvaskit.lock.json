@@ -82,7 +82,7 @@
   ],
   "patch": {
     "path": "canvaskit-paragraph.patch",
-    "sha256": "1b6d7bbe4576f04acf4d1671266e09e33e48cab897d8fa205137d1788491548b",
+    "sha256": "7fd7fde1e14db5ddf8e9ac8013eeafc8a0106a501b8d37291130185d58b60ccf",
     "files": [
       {
         "path": "modules/canvaskit/paragraph_bindings.cpp",
@@ -113,6 +113,21 @@
         "path": "modules/canvaskit/BUILD.gn",
         "before": "8cb2d97839b0c4b62386706b3c4b52d54e06d0ff610569f162d5682a12f86b6e",
         "after": "afec911e5e75f83db06a606354cf619529f59562ace68a597304edab65b5ca06"
+      },
+      {
+        "path": "src/gpu/ganesh/gl/builders/GrGLShaderStringBuilder.h",
+        "before": "3d1de58c3dbbf78816ff654c85288b9150a441fdcd0847fee0c03d5911220615",
+        "after": "3abaeac75069b4222690c9d42717f64918c090874d2a62ef3279ce0438ddbc52"
+      },
+      {
+        "path": "src/gpu/ganesh/gl/builders/GrGLShaderStringBuilder.cpp",
+        "before": "003210cf50633dcc4bc27ea0198487909a9a07d1922ba012da625604625ec08c",
+        "after": "d497fc35d17be24611f62fc74809b918c409166c9e9324bf039f4ab38da83103"
+      },
+      {
+        "path": "src/gpu/ganesh/gl/builders/GrGLProgramBuilder.cpp",
+        "before": "32bf14f5bba30672494ff8a944a6f6f3e66782abaa124ed8367e87099c945b5d",
+        "after": "c8cf70e412ef0e54512a12b5b9635184192819b88bac8a474eea6008383b39ae"
       }
     ]
   },
@@ -123,7 +138,8 @@
     "Limit Ninja concurrency without removing rendering/font/codec features.",
     "Add CanvasKit to the supplier standalone modules target only for is_canvaskit builds.",
     "Keep the supplier 128 MiB initial linear memory and bound each instance to 256 MiB maximum; App queries have an explicit host-owned reservation separate from Content and Render.",
-    "Export each instance wasmMemory so its owner admits actual linear-memory growth before Memory.grow; failed growth restores the previous account."
+    "Export each instance wasmMemory so its owner admits actual linear-memory growth before Memory.grow; failed growth restores the previous account.",
+    "Validate new Ganesh drawing programs at link time on WebGL, avoiding the two eager shader-status queries."
   ],
   "pictureBinding": {
     "path": "canvaskit-picture.cpp",

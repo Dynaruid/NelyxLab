@@ -35,6 +35,7 @@ import type {
   TextBoxGeometry,
 } from '@nelyx/core/ui/types';
 import { isCurrent, resourceKey } from '@nelyx/core/ui/frame';
+import type { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { RendererEvents } from '@nelyx/core/hosting/renderer-events';
 import { freezeTextInput, freezeTextLayout, freezeTextRect, textRange } from '@nelyx/core/ui/text';
 import type { PaintSnapshot, BlendMode } from '@nelyx/core/ui/paint';
@@ -617,7 +618,9 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
           };
         } finally {
           output?.delete();
-          surface?.delete();
+          // MakeSurface owns a CanvasKit-allocated raster buffer outside the
+          // native Surface. The immutable image snapshot has independent pixels.
+          surface?.dispose();
           if (animated) raw.delete();
         }
       },
@@ -1138,13 +1141,16 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     this.ensureOpen();
     this.metrics = metrics;
     if (this.lost) return;
-    this.dropSurface();
     this.rasterScale = Math.min(metrics.scale, this.maxRasterScale);
     const ratio = this.rasterScale / metrics.scale,
       width = metrics.physicalWidth ? Math.max(1, Math.round(metrics.physicalWidth * ratio)) : 0,
       height = metrics.physicalHeight ? Math.max(1, Math.round(metrics.physicalHeight * ratio)) : 0;
-    this.canvas.width = width;
-    this.canvas.height = height;
+    // Environment-only changes still need a fresh frame. Keep the live GPU
+    // backing and its cached resources when the raster dimensions agree.
+    if (this.surface && this.canvas.width === width && this.canvas.height === height) return;
+    this.dropSurface();
+    if (this.canvas.width !== width) this.canvas.width = width;
+    if (this.canvas.height !== height) this.canvas.height = height;
     if (!width || !height) return;
     this.ensureGpuContext();
     const surface = this.ck.MakeOnScreenGLSurface(
@@ -1195,7 +1201,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   canBuildFrame(): boolean {
     return !this.closed && !this.lost && !this.failed && this.visible && this.pending.size < 2;
   }
-  submit(frame: PaintFrame, lease: ResourceLease): SubmitResult {
+  submit(frame: PaintFrame, lease: ResourceLease, diagnostics?: FrameDiagnostics): SubmitResult {
     if (this.closed) return { status: 'rejected', reason: 'closed' };
     if (!this.metrics || !isCurrent(frame, this.owner, this.metrics))
       return { status: 'rejected', reason: 'stale' };
@@ -1208,11 +1214,15 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     const surface = this.surface,
       gl = this.gl;
     if (!surface || !gl) throw new Error('Web GPU surface unavailable');
+    const replayStarted = diagnostics?.now();
     this.replay(surface.getCanvas(), frame, this.rasterScale);
+    const flushStarted = diagnostics?.record(frame.token, 'native-replay', replayStarted!);
     surface.flush();
+    const fenceStarted = diagnostics?.record(frame.token, 'native-submit', flushStarted!);
     const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     if (!fence) throw new Error('WebGL fence creation failed');
     gl.flush();
+    diagnostics?.record(frame.token, 'gpu-fence-enqueue', fenceStarted!);
     lease.transfer();
     this.pending.set(frame.token.sequence, { fence, lease, started: performance.now() });
     this.events.accepted(frame.token.sequence, frame.token);

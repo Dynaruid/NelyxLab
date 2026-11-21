@@ -17,6 +17,8 @@ The `.7` runtime exports each instance's `wasmMemory`; the v2 owner reserves the
 actual page growth before calling `Memory.grow` and restores credit on native
 growth failure. Paragraph builders share one `FontCollection` per immutable font
 catalog, released on catalog retirement, memory pressure, and provider close.
+The `.8` build queues both shader stages for new WebGL drawing programs and
+checks their link result before resolving uniforms or using the program.
 
 Use a persistent Linux/WSL directory; `/tmp` can disappear when WSL stops. From
 the repository root in Linux/WSL, run each phase with the 20-minute limit:
@@ -32,7 +34,7 @@ new hunks apply only to their verified before contents. Use `--dependency-inputs
 only for matching pinned Git inputs, which remain identity-checked.
 
 The result is `out/nelyx-canvaskit`. Its manifest uses the owned
-`m153-nelyx-paragraph.7` identity, distinct from npm CanvasKit 0.41.0. A successful
+`m153-nelyx-paragraph.8` identity, distinct from npm CanvasKit 0.41.0. A successful
 build is not runtime acceptance. Prepare the package
 with `node Nelyx/skia/eng/prepare-web-runtime.mjs <owned-runtime-directory>` from
 the repository root. `--adopt` explicitly updates the tracked manifest when
@@ -41,3 +43,7 @@ After adoption, the package carries the new bytes under `generated/runtime`.
 If a source update marks the manifest `requires-build`, build and adopt the
 matching runtime before preparing a Web application. The npm dependency supplies
 public type declarations. Full dependency notice qualification remains PARTIAL.
+
+Run `node Nelyx/skia/eng/source-build/check-webgl-shader-validation.mjs` after
+adopting the runtime. Chromium checks both a successful draw and a deliberately
+invalid shader, including the order of compile and link calls.

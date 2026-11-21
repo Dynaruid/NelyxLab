@@ -124,8 +124,8 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
         : c.remainingCacheExtent;
     const prepared = this.childManager.boundedChildren ? this.childManager.preparationIndex : null;
     const deferColdCache = this.childManager.deferColdCache === true;
-    const anchor = index.indexAtOffset(c.scrollOffset),
-      inside = c.scrollOffset - index.prefix(anchor),
+    const anchor = changed ? index.indexAtOffset(c.scrollOffset) : oldAnchor,
+      inside = changed ? c.scrollOffset - index.prefix(anchor) : oldInside,
       cacheStart = index.indexAtOffset(Math.max(0, c.scrollOffset + cacheOrigin)),
       requiredStart = deferColdCache ? this.startFromAttachedCache(anchor, cacheStart) : cacheStart,
       start = prepared == null ? requiredStart : Math.min(requiredStart, prepared),
@@ -157,15 +157,26 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
       last = start;
     const box = c.asBoxConstraints();
     for (let i = start; i < index.count; i++) {
-      if (i === start) child.layout(box, { parentUsesSize: true });
-      else {
+      // Leading sections can change the anchor's absolute position. Correct
+      // it before creating any rows for the viewport at the old offset.
+      if (i === anchor) {
+        const correction = index.prefix(anchor) + inside - c.scrollOffset;
+        if (Math.abs(correction) > 0.001) {
+          this.geometry = new SliverGeometry({ scrollOffsetCorrection: correction });
+          return;
+        }
+      }
+      if (i === start) {
+        if (!child._canReuseSliverLayout(box, true)) child.layout(box, { parentUsesSize: true });
+      } else {
         let next = this.childAfter(child);
         if (next === null || this.indexOf(next) !== i) {
           // The viewport is fully covered. A missing cache-only row belongs
           // to the optional producer; layout still owns every visible row.
           if (deferColdCache && i > anchor && end >= paintTarget) break;
           next = this.insertAndLayoutChild(box, { after: child, parentUsesSize: true });
-        } else next.layout(box, { parentUsesSize: true });
+        } else if (!next._canReuseSliverLayout(box, true))
+          next.layout(box, { parentUsesSize: true });
         if (next === null || this.indexOf(next) !== i)
           invariant(
             false,
@@ -186,11 +197,6 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
         this.collectGarbage(this.childCount - 1, 0);
     }
     this.collectGarbage(0, this.calculateTrailingGarbage({ lastIndex: last }));
-    const correction = index.prefix(anchor) + inside - c.scrollOffset;
-    if (Math.abs(correction) > 0.001) {
-      this.geometry = new SliverGeometry({ scrollOffsetCorrection: correction });
-      return;
-    }
     index._didLayout(anchor, inside);
     const total = index.totalExtent;
     this.geometry = new SliverGeometry({

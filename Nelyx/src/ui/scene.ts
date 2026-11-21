@@ -25,6 +25,7 @@ const affineIdentity = [1, 0, 0, 1, 0, 0],
 const restoreCommands: readonly PaintCommand[] = Object.freeze([
   freezePaintCommand({ op: 'restore' }),
 ]);
+const saveCommand = freezePaintCommand({ op: 'save' });
 function isIdentity(matrix: readonly number[] | Float64Array): boolean {
   const identity = matrix.length === 6 ? affineIdentity : matrix.length === 16 ? identity44 : null;
   return identity !== null && identity.every((value, index) => matrix[index] === value);
@@ -47,6 +48,7 @@ class LayerRecording {
   private references = 1;
   private readonly needsScope: boolean;
   private readonly nativeLeaf: readonly PaintCommand[] | null;
+  private readonly translatedLeaf: readonly PaintCommand[] | null;
   private nativePicture:
     | { readonly owner: PictureResourceProvider; readonly picture: Picture }
     | undefined;
@@ -84,6 +86,19 @@ class LayerRecording {
         : canvas.commands.length === 0 && insertions.length === 1
           ? insertions[0]!.recording.nativeLeaf
           : null;
+    const child = insertions.length === 1 ? insertions[0] : undefined,
+      command = canvas.commands.length === 1 ? canvas.commands[0] : undefined,
+      matrix = command?.op === 'transform' ? command.matrix : undefined;
+    this.translatedLeaf =
+      child?.mark === 1 &&
+      child.recording.nativeLeaf &&
+      matrix?.length === 6 &&
+      matrix[0] === 1 &&
+      matrix[1] === 0 &&
+      matrix[2] === 0 &&
+      matrix[3] === 1
+        ? [saveCommand, command!, ...child.recording.nativeLeaf, ...restoreCommands]
+        : null;
   }
   retain(): LayerRecording {
     if (!(this.references > 0))
@@ -198,6 +213,12 @@ class LayerRecording {
     // recording. Preserve its independent holds without compiling a duplicate.
     if (this.nativeLeaf) {
       canvas.addCommands(this.nativeLeaf);
+      return;
+    }
+    // A placement-only layer can replay the same Picture at the new origin.
+    // Recording another SkPicture here duplicates the first retained draw.
+    if (this.translatedLeaf) {
+      canvas.addCommands(this.translatedLeaf);
       return;
     }
     // A retained recording is immutable. Compile its state and child pictures
