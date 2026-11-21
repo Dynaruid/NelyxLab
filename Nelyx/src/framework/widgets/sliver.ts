@@ -626,12 +626,20 @@ export class SliverMultiBoxAdaptorElement
     }
   }
   private createChildInLayout(index: number): void {
+    const diagnostics =
+      this.renderObject instanceof RenderSliverSectionList
+        ? this.renderObject.owner?._frameDiagnostics
+        : undefined;
     const split = this.splitChild;
     if (split && !split.valid()) {
       this.cancelSplitChild();
     } else if (split?.index === index) {
-      if (!split.preparation.ready)
+      if (!split.preparation.ready) {
+        const started = diagnostics?.recorder.now();
         this.owner._requiredPreparationCompletion(() => split.preparation.complete());
+        diagnostics?.recorder.recordSection(diagnostics.token, 'section-complete', index, started!);
+      }
+      const started = diagnostics?.recorder.now();
       this._currentlyUpdatingChildIndex = index;
       try {
         const child = split.preparation.adopt(index);
@@ -642,8 +650,10 @@ export class SliverMultiBoxAdaptorElement
         this._currentlyUpdatingChildIndex = null;
       }
       this.finishQueuedChildren();
+      diagnostics?.recorder.recordSection(diagnostics.token, 'section-adopt', index, started!);
       return;
     }
+    const started = diagnostics?.recorder.now();
     const old = this._childElements.get(index),
       oldData = this.renderBox(old)?.parentData,
       oldOffset = oldData instanceof SliverMultiBoxAdaptorParentData ? oldData.layoutOffset : null;
@@ -654,6 +664,7 @@ export class SliverMultiBoxAdaptorElement
       );
     });
     this.finishQueuedChildren();
+    diagnostics?.recorder.recordSection(diagnostics.token, 'section-create', index, started!);
     if (!old && this._childElements.has(index) && this.splitProductionEnabled)
       this.owner._didRequireColdChild(false);
     const data = this.renderBox(this._childElements.get(index))?.parentData;

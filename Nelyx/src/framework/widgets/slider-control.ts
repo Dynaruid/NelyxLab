@@ -587,6 +587,7 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
           () => {
             const tap = new TapGestureRecognizer({ binding, debugOwner: this });
             tap.team = this.team;
+            tap.deferTouchTapDownUntilAccepted = true;
             return tap;
           },
           (tap) => {

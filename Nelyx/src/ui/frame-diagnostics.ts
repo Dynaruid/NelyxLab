@@ -6,6 +6,7 @@ export type FrameDiagnosticStage =
   | 'animation'
   | 'build'
   | 'layout'
+  | SectionDiagnosticStage
   | 'optional-work'
   | 'compositing'
   | 'paint'
@@ -82,6 +83,12 @@ export type FrameDiagnosticStage =
   | 'input-queue'
   | 'input-dispatch';
 
+type SectionDiagnosticStage =
+  | 'section-create'
+  | 'section-complete'
+  | 'section-adopt'
+  | 'section-layout';
+
 /** Numeric CPU observations. No scene, commands, resources or frame leases. */
 export interface FrameDiagnosticSample {
   readonly view: string;
@@ -98,6 +105,7 @@ export interface FrameDiagnosticSample {
   readonly duration: number;
   readonly count: number;
   readonly bytes: number;
+  readonly section?: number;
 }
 
 /** Explicitly enabled, bounded RAM sampling. The owner drains between frames;
@@ -134,6 +142,15 @@ export class FrameDiagnostics {
   ): number {
     return this.recordInterval(token, stage, begin, this.now(), count, bytes);
   }
+  /** Required work for one indexed section. These intervals nest inside layout. */
+  recordSection(
+    token: FrameBuildToken,
+    stage: SectionDiagnosticStage,
+    index: number,
+    begin: number,
+  ): number {
+    return this.recordInterval(token, stage, begin, this.now(), 0, 0, index);
+  }
   /** Native monotonic duration; its epoch is not mixed with the JS clock. */
   recordDuration(
     token: FrameBuildToken,
@@ -152,6 +169,7 @@ export class FrameDiagnostics {
     end: number,
     count: number,
     bytes: number,
+    section?: number,
   ): number {
     if (
       ![begin, end, count, bytes].every(Number.isFinite) ||
@@ -178,6 +196,7 @@ export class FrameDiagnostics {
       duration: end - begin,
       count,
       bytes,
+      ...(section === undefined ? {} : { section }),
     };
     this.next = (this.next + 1) % this.capacity;
     if (this.count === this.capacity) this.overwritten++;

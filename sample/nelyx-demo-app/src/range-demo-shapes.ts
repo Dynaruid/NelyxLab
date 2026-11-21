@@ -27,17 +27,13 @@ const blend = (disabled: Color | null, enabled: Color | null, amount: number) =>
 function draw(context: PaintingContext, rect: Rect, color: number, radius = 0): void {
   context.canvas.drawRRect(RRect.fromRectXY(rect, radius, radius), new Paint({ color }));
 }
-const trackInset = (enabled: boolean, discrete: boolean) =>
-  24 + (enabled ? 2 : 0) + (discrete ? 1 : 0);
-
 export class DemoRangeTrack extends RangeSliderTrackShape {
   override getPreferredRect({
     parentBox,
     offset = Offset.zero,
-    isEnabled = false,
-    isDiscrete = false,
   }: Parameters<RangeSliderTrackShape['getPreferredRect']>[0]): Rect {
-    const inset = Math.min(parentBox.size.width / 2, trackInset(isEnabled, isDiscrete));
+    // Paint, thumb layout and drag mapping ask for the track with different flags.
+    const inset = Math.min(parentBox.size.width / 2, 27);
     return Rect.fromLTWH(
       offset.dx + inset,
       offset.dy + parentBox.size.height / 2 - 3,

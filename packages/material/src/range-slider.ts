@@ -742,6 +742,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
         () => {
           const tap = new TapGestureRecognizer({ binding, debugOwner: this });
           tap.team = this.team;
+          tap.deferTouchTapDownUntilAccepted = true;
           return tap;
         },
         (tap) => {

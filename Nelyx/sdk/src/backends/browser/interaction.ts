@@ -393,8 +393,6 @@ export function createDomInteraction(
       else element.removeAttribute('aria-hidden');
       editor.value = freezeEditing(initial);
       editor.changed = changed;
-      element.value = initial.text;
-      setSelection(element, initial);
       if (element instanceof HTMLInputElement)
         element.type = configuration.obscureText ? 'password' : 'text';
       else element.wrap = configuration.multiline ? 'soft' : 'off';
@@ -421,6 +419,9 @@ export function createDomInteraction(
               : '') + configuration.autofillHints[0]!
           : 'off',
       );
+      // Changing the carrier's type can reset selection. Initialize it once
+      // after the input attributes have been applied.
+      element.value = initial.text;
       setSelection(element, initial);
       element.enterKeyHint = options?.action ?? (configuration.multiline ? 'enter' : 'done');
       let alive = true,

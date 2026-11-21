@@ -8,6 +8,10 @@ import java.lang.reflect.Method;
 /** Injects one continuous Android touchscreen gesture along timed waypoints. */
 public final class GalleryTouch {
     public static void main(String[] args) throws Exception {
+        if (args.length == 1 && args[0].equals("--clock")) {
+            System.out.println(System.nanoTime());
+            return;
+        }
         Class<?> managerClass;
         try {
             managerClass = Class.forName("android.hardware.input.InputManagerGlobal");
@@ -16,10 +20,18 @@ public final class GalleryTouch {
         }
         Object manager = managerClass.getMethod("getInstance").invoke(null);
         Method inject = managerClass.getMethod("injectInputEvent", InputEvent.class, int.class);
+        MotionEvent.PointerProperties finger = new MotionEvent.PointerProperties();
+        finger.id = 0;
+        finger.toolType = MotionEvent.TOOL_TYPE_FINGER;
+        MotionEvent.PointerProperties[] properties = {finger};
+        MotionEvent.PointerCoords point = new MotionEvent.PointerCoords();
+        point.pressure = 1f;
+        point.size = 1f;
+        MotionEvent.PointerCoords[] coordinates = {point};
         int step = Integer.parseInt(args[0]);
         float x = Float.parseFloat(args[1]), y = Float.parseFloat(args[2]);
         long started = System.nanoTime(), down = SystemClock.uptimeMillis(), deadline = down;
-        send(inject, manager, down, MotionEvent.ACTION_DOWN, x, y);
+        send(inject, manager, down, MotionEvent.ACTION_DOWN, x, y, properties, coordinates);
         boolean canceled = args[args.length - 1].equals("cancel");
         int end = canceled ? args.length - 1 : args.length;
         for (int i = 3; i < end; i += 3) {
@@ -32,20 +44,24 @@ public final class GalleryTouch {
                 if (remaining > 0) SystemClock.sleep(remaining);
                 float t = (float) j / steps;
                 send(inject, manager, down, MotionEvent.ACTION_MOVE,
-                    x + (nextX - x) * t, y + (nextY - y) * t);
+                    x + (nextX - x) * t, y + (nextY - y) * t, properties, coordinates);
             }
             x = nextX;
             y = nextY;
             deadline += duration;
         }
-        send(inject, manager, down, canceled ? MotionEvent.ACTION_CANCEL : MotionEvent.ACTION_UP, x, y);
+        send(inject, manager, down, canceled ? MotionEvent.ACTION_CANCEL : MotionEvent.ACTION_UP,
+            x, y, properties, coordinates);
         System.out.println(started + "," + System.nanoTime());
     }
 
-    private static void send(Method inject, Object manager, long down, int action, float x, float y)
+    private static void send(Method inject, Object manager, long down, int action, float x, float y,
+            MotionEvent.PointerProperties[] properties, MotionEvent.PointerCoords[] coordinates)
             throws Exception {
-        MotionEvent motion = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, x, y, 0);
-        motion.setSource(InputDevice.SOURCE_TOUCHSCREEN);
+        coordinates[0].x = x;
+        coordinates[0].y = y;
+        MotionEvent motion = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, 1,
+            properties, coordinates, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0);
         try {
             if (!(Boolean) inject.invoke(manager, motion, 0)) {
                 throw new IllegalStateException("Android input injection failed");

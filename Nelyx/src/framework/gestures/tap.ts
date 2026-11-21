@@ -317,8 +317,14 @@ export abstract class BaseTapGestureRecognizer extends PrimaryPointerGestureReco
 export class TapGestureRecognizer extends BaseTapGestureRecognizer {
   /** Keep delivering moves after acceptance so a control can track its own bounds. */
   trackMovementAfterAcceptance = false;
+  /** Wait for the arena before firing tap-down for a touch pointer. */
+  deferTouchTapDownUntilAccepted = false;
   override get postAcceptSlopTolerance(): number | null {
     return this.trackMovementAfterAcceptance ? null : super.postAcceptSlopTolerance;
+  }
+  protected override didExceedDeadlineWithEvent(event: PointerDownEvent): void {
+    if (this.deferTouchTapDownUntilAccepted && event.kind === PointerDeviceKind.touch) return;
+    super.didExceedDeadlineWithEvent(event);
   }
 
   onTapDown: GestureTapDownCallback | null = null;

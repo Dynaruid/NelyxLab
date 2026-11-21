@@ -377,6 +377,14 @@ class _LocalSemanticsHandle extends SemanticsHandle {
   }
 }
 export class PipelineOwner extends DiagnosticableTreeMixin(class {}) {
+  /** @internal Only set while a diagnostic frame is being built. */
+  _frameDiagnostics?:
+    | {
+        readonly recorder: import('../../ui/frame-diagnostics.ts').FrameDiagnostics;
+        readonly token: import('../../ui/types.ts').FrameBuildToken;
+      }
+    | undefined;
+
   /** @internal Only this detached tree is authorized during a required query.
    * Mutations to the live published owner still fail the normal owner guard. */
   _withDetachedPreparation<T>(perform: () => T): T {

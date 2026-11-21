@@ -632,6 +632,9 @@ export class FrameworkRoot implements ViewController {
         | import('../../hosting/scene-composition.ts').SceneCompositionTransaction
         | undefined,
       publishSemantics: (() => void) | undefined;
+    const previousDiagnostics = this.pipeline._frameDiagnostics;
+    if (diagnostics)
+      this.pipeline._frameDiagnostics = { recorder: diagnostics, token: scene.token };
     try {
       if (!this.isViewOpen() || this.scheduler.disposed) return [];
       this.scheduler.runPersistentFrameCallbacks();
@@ -1153,6 +1156,7 @@ export class FrameworkRoot implements ViewController {
       buildError = error;
       throw error;
     } finally {
+      if (diagnostics) this.pipeline._frameDiagnostics = previousDiagnostics;
       const errors: unknown[] = [];
       for (const finish of [() => this.buildOwner.finalizeTree(), () => this.scheduler.endFrame()])
         try {

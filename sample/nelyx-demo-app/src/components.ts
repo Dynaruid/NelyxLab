@@ -22,7 +22,8 @@ import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-buil
 import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
 import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
-import { Directionality } from '@nelyx/core/framework/widgets/app-data';
+import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { DeviceGestureSettings } from '@nelyx/core/framework/gestures/gesture-settings';
 import { Curve, Curves, Interval } from '@nelyx/core/framework/animation/curves';
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
 import { TextFieldTapRegion } from '@nelyx/core/framework/widgets/tap-region';
@@ -83,6 +84,7 @@ class MessageScrollCurve extends Curve {
   }
 }
 const curvedMessageScroll = new MessageScrollCurve();
+const androidGalleryGestures = new DeviceGestureSettings({ touchSlop: 8 });
 
 const groups = [
   'Actions',
@@ -373,7 +375,9 @@ class ComponentsState extends State<ComponentsScreen> {
   }
   build(): Widget {
     return new LayoutBuilder((context, constraints) => {
-      const colors = Theme.of(context).colorScheme;
+      const theme = Theme.of(context);
+      const colors = theme.colorScheme;
+      const media = theme.platform === 'android' ? MediaQuery.of(context) : null;
       const twoColumns = constraints.maxWidth > 1000 && this.group === null;
       const compact = constraints.maxWidth < 600;
       const items = demos.filter((demo) => this.group === null || demo.group === this.group);
@@ -387,7 +391,7 @@ class ComponentsState extends State<ComponentsScreen> {
           if (section.id === 'sliders') return [section, ...sliderParts];
           return [section];
         });
-        return ListView.builder({
+        const viewport = ListView.builder({
           controller,
           primary: false,
           // Each GallerySection already supplies its own repaint boundary.
@@ -406,7 +410,7 @@ class ComponentsState extends State<ComponentsScreen> {
             ? this.firstExtents
             : this.secondExtents
           ).forItems(entries.map((entry) => entry.id)),
-          metricRevision: Theme.of(context),
+          metricRevision: theme,
           padding: EdgeInsets.only({ bottom: 20 }),
           itemCount: entries.length,
           findChildIndexCallback: (key) => {
@@ -415,6 +419,11 @@ class ComponentsState extends State<ComponentsScreen> {
           },
           itemBuilder: (_, index) => this.sectionWidget(entries[index]!),
         });
+        // Let the vertical list and its horizontal controls start at the same
+        // distance. Defer to gesture settings supplied by the host when present.
+        return media && media.gestureSettings?.touchSlop == null
+          ? new MediaQuery({ ...media, gestureSettings: androidGalleryGestures }, viewport)
+          : viewport;
       };
       return new Column(
         [

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdtemp, readdir, rmdir, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -15,8 +15,32 @@ const java = process.env.JAVA_HOME;
 const runs = Number(process.env.NELYX_SCROLL_RUNS ?? 3);
 const cpu = process.argv.includes('--cpu');
 const topOnly = process.argv.includes('--top-only');
-const controls = process.argv.includes('--controls');
+const controlChecks = {
+  slider: checkSlider,
+  range: checkRange,
+  ime: checkIme,
+  image: checkImage,
+};
+const controlFlag = process.argv.find(
+  (arg) => arg === '--controls' || arg.startsWith('--controls='),
+);
+const controls =
+  controlFlag === '--controls'
+    ? Object.keys(controlChecks)
+    : (controlFlag?.slice('--controls='.length).split(',') ?? []);
+assert(
+  controls.every((name) => Object.hasOwn(controlChecks, name)),
+  'Use --controls=slider,range,ime,image',
+);
 const gl = cpu || process.argv.includes('--gl');
+const cssOnly = process.argv.includes('--css-only');
+const traceProcessor = process.argv.includes('--timeline')
+  ? process.env.NELYX_TRACE_PROCESSOR
+  : null;
+assert(
+  traceProcessor === null || (traceProcessor && controls.length === 0),
+  'Set NELYX_TRACE_PROCESSOR to the Perfetto executable and run --timeline with a scroll route',
+);
 assert(sdk && java, 'Set ANDROID_HOME and JAVA_HOME for the Demo Android toolchain');
 assert(Number.isInteger(runs) && runs >= 1 && runs <= 5);
 
@@ -98,11 +122,7 @@ function touch(start, segments, step = 8) {
 }
 
 async function drag(x, y, segments, { step = 8, cancel = false } = {}) {
-  const output = await shell(
-    'CLASSPATH=' + remote,
-    'app_process',
-    '/system/bin',
-    'GalleryTouch',
+  const output = await galleryTouch(
     String(step),
     String(x),
     String(y),
@@ -114,7 +134,25 @@ async function drag(x, y, segments, { step = 8, cancel = false } = {}) {
   return pair;
 }
 
-function installProbe({ gl, cpu }) {
+const galleryTouch = (...args) =>
+  shell('CLASSPATH=' + remote, 'app_process', '/system/bin', 'GalleryTouch', ...args);
+
+function installProbe({ gl, cpu, range }) {
+  if (range) {
+    const samples = [];
+    window.galleryTouches = () => samples.splice(0);
+    window.galleryLastTouch = () => samples.at(-1)?.[0];
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'])
+      document.addEventListener(
+        type,
+        (event) => {
+          if (event.pointerType === 'touch' && samples.length < 256) {
+            samples.push([type, event.clientX, event.clientY, event.timeStamp, performance.now()]);
+          }
+        },
+        true,
+      );
+  }
   if (cpu)
     window.nelyxDemoFrameProbe = (read) => {
       window.galleryFrames = read;
@@ -126,7 +164,11 @@ function installProbe({ gl, cpu }) {
     'getProgramParameter',
     'compileShader',
     'linkProgram',
+    'texImage2D',
     'texSubImage2D',
+    'getUniformLocation',
+    'bufferData',
+    'bufferSubData',
     'fenceSync',
     'clientWaitSync',
   ]) {
@@ -150,7 +192,7 @@ function installProbe({ gl, cpu }) {
 
 const control = (page, id) => page.locator(`[data-semantics-identifier="${id}"]`);
 const filled = (page) => control(page, 'demo-filled');
-async function openDemo() {
+async function openDemo(check) {
   await shell('am', 'force-stop', pkg);
   const launch = await shell('am', 'start', '-n', pkg + '/.MainActivity');
   assert.match(launch, /^Starting: Intent/m);
@@ -182,35 +224,48 @@ async function openDemo() {
     }
   };
   try {
-    for (let attempt = 0; attempt < 12; attempt++) {
+    let ready = false;
+    for (let attempt = 0; attempt < 24; attempt++) {
       try {
-        if (
-          (
-            await fetch(endpoint + '/json/version', {
-              signal: AbortSignal.any([signal, AbortSignal.timeout(1000)]),
-            })
-          ).ok
-        )
+        const targets = await fetch(endpoint + '/json/list', {
+          signal: AbortSignal.any([signal, AbortSignal.timeout(1000)]),
+        });
+        if (targets.ok && (await targets.json()).some((target) => target.type === 'page')) {
+          ready = true;
           break;
+        }
       } catch {
         signal.throwIfAborted();
       }
-      await wait(250);
+      await wait(500);
     }
+    assert(ready, 'WebView DevTools did not become ready for PID ' + pid);
     browser = await chromium.connectOverCDP(endpoint, { timeout: 12_000, noDefaults: true });
     signal.throwIfAborted();
     signal.addEventListener('abort', disconnect, { once: true });
-    const context = browser.contexts()[0],
-      page = context.pages()[0],
-      errors = [];
-    assert(page, 'Tauri WebView was not available');
+    const context = browser.contexts()[0];
+    assert(context, 'Tauri WebView context was not available');
+    const page = context.pages()[0] ?? (await context.waitForEvent('page', { timeout: 12_000 }));
+    const errors = [];
     page.setDefaultTimeout(12_000);
     page.on('pageerror', (error) => errors.push(String(error)));
-    if (gl) {
-      await context.addInitScript(installProbe, { gl, cpu });
+    const probe = { gl, cpu, range: check === 'range' };
+    let probeReloaded = false;
+    const reloadWithProbe = async () => {
+      await context.addInitScript(installProbe, probe);
       await page.reload({ timeout: 25_000 });
-    }
+      probeReloaded = true;
+    };
+    // Prefer the original Android viewport. A reload can change its window insets.
+    if (probe.range) await reloadWithProbe();
+    else if (gl) await page.evaluate(installProbe, probe);
     await filled(page).waitFor({ state: 'attached', timeout: 25_000 });
+    if (cpu && !(await page.evaluate(() => typeof window.galleryFrames === 'function'))) {
+      assert(!probeReloaded, 'CPU probe did not attach after reload');
+      await reloadWithProbe();
+      await filled(page).waitFor({ state: 'attached', timeout: 25_000 });
+      assert(await page.evaluate(() => typeof window.galleryFrames === 'function'));
+    }
     const top = (await filled(page).boundingBox())?.y;
     assert(Number.isFinite(top));
     const current = await page.evaluate(async () => {
@@ -226,7 +281,7 @@ async function openDemo() {
         raster: [canvas.width, canvas.height],
       };
     });
-    return { page, top, current, errors, close };
+    return { page, top, current: { ...current, ...(gl ? { probeReloaded } : {}) }, errors, close };
   } catch (error) {
     await close();
     throw error;
@@ -257,15 +312,223 @@ function displayIntervals(data, start, end, layerLatency) {
       continue;
     }
     let present;
-    if (layerLatency && /^\d+\s+\d+\s+\d+$/.test(line))
+    if (layerLatency && /^\s*\d+\s+\d+\s+\d+\s*$/.test(line))
       present = Number(line.trim().split(/\s+/)[1]);
     else if (!layerLatency && columns && line.startsWith('0,')) {
       present = Number(line.split(',')[columns.indexOf('DisplayPresentTime')]);
     }
     if (present >= start && present <= end) times.add(present);
   }
+  return presentIntervals(times);
+}
+
+function presentIntervals(times) {
   const ordered = [...times].sort((a, b) => a - b);
   return percentiles(ordered.slice(1).map((value, index) => (value - ordered[index]) / 1e6));
+}
+
+async function traceAndroidFrames(layer, run) {
+  const key = `nelyx-gallery-${process.pid}-${run}`;
+  const remoteTrace = `/data/misc/perfetto-traces/${key}.pftrace`;
+  const localTrace = join(temp, key + '.pftrace');
+  const windows = [];
+  const config = `
+    buffers { size_kb: 2048 fill_policy: RING_BUFFER }
+    data_sources { config { name: "android.surfaceflinger.frametimeline" } }
+    data_sources { config {
+      name: "linux.process_stats"
+      process_stats_config { scan_all_processes_on_start: true }
+    } }
+    duration_ms: 240000
+    write_into_file: true
+    file_write_period_ms: 1000
+    flush_period_ms: 1000
+    max_file_size_bytes: 8388608
+  `;
+  const stop = () => cleanupAdb('shell', 'perfetto', '--attach=' + key, '--stop');
+  try {
+    await new Promise((resolve, reject) => {
+      const recorder = spawn(
+        adbPath,
+        [
+          '-s',
+          device,
+          'shell',
+          'perfetto',
+          '--detach=' + key,
+          '--txt',
+          '-c',
+          '-',
+          '-o',
+          remoteTrace,
+        ],
+        { windowsHide: true, signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]) },
+      );
+      let errors = '';
+      recorder.stdout.resume();
+      recorder.stderr.on('data', (chunk) => {
+        errors += chunk;
+      });
+      recorder.stdin.once('error', reject);
+      recorder.once('error', reject);
+      recorder.once('close', (status) => {
+        if (status === 0) resolve();
+        else reject(new Error(`FrameTimeline start failed (${status}) ${errors.trim()}`));
+      });
+      recorder.stdin.end(config);
+    });
+    await shell('perfetto', '--is_detached=' + key);
+  } catch (error) {
+    await stop().catch(() => {});
+    await cleanupAdb('shell', 'rm', '-f', remoteTrace);
+    throw error;
+  }
+
+  return {
+    record(route, start, end) {
+      windows.push({ route, start, end });
+    },
+    async close() {
+      try {
+        await stop();
+        if (!windows.length || signal.aborted) return;
+        await adb('pull', remoteTrace, localTrace);
+        const quote = (value) => "'" + value.replaceAll("'", "''") + "'";
+        // A surface slice ends at app completion. Follow its token to the
+        // display slice and take the SurfaceFlinger presentation time.
+        const query = `
+          WITH app_frames AS (
+            SELECT app.display_frame_token, EXTRACT_ARG(app.arg_set_id, 'Is Buffer?') AS buffer
+            FROM actual_frame_timeline_slice AS app JOIN process USING (upid)
+            WHERE process.name = ${quote(pkg)} AND surface_frame_token > 0
+              AND layer_name IN (${quote(layer)}, ${quote('TX - ' + layer)})
+              AND present_type IN ('Early Present', 'On-time Present', 'Late Present')
+          )
+          SELECT 'clock' AS kind, MIN(ts - clock_value) AS first, MAX(ts - clock_value) AS last
+          FROM clock_snapshot WHERE clock_name = 'MONOTONIC'
+          UNION ALL
+          SELECT 'coverage', COALESCE(
+            MIN(CASE name WHEN 'all_data_source_started_ns' THEN int_value END),
+            MIN(CASE name WHEN 'tracing_started_ns' THEN int_value END)
+          ),
+            MAX(CASE name WHEN 'tracing_disabled_ns' THEN int_value END)
+          FROM metadata
+          UNION ALL
+          SELECT DISTINCT CASE app_frames.buffer WHEN 'Yes' THEN 'buffer' ELSE 'layer' END,
+            display.ts + display.dur, 0
+          FROM app_frames JOIN actual_frame_timeline_slice AS display USING (display_frame_token)
+          JOIN process ON process.upid = display.upid
+          WHERE process.name = '/system/bin/surfaceflinger' AND display.layer_name IS NULL
+            AND display.dur > 0
+            AND display.present_type IN ('Early Present', 'On-time Present', 'Late Present')
+        `;
+        const { stdout } = await execute(
+          traceProcessor,
+          ['query', '--format', 'csv', localTrace, query],
+          { windowsHide: true, timeout: 20_000, maxBuffer: 2_000_000, signal },
+        );
+        const rows = stdout
+          .trim()
+          .split(/\r?\n/)
+          .slice(1)
+          .map((line) => line.split(','));
+        const pair = (key) => {
+          const row = rows.find(([kind]) => kind === JSON.stringify(key));
+          const fields = row?.slice(1);
+          const values = fields?.map(Number);
+          assert(
+            fields?.length === 2 &&
+              fields.every((value) => /^-?\d+$/.test(value)) &&
+              values?.every(Number.isSafeInteger),
+            'Missing FrameTimeline ' + key,
+          );
+          return values;
+        };
+        const [minOffset, maxOffset] = pair('clock');
+        const [traceStart, traceEnd] = pair('coverage');
+        const offset = (minOffset + maxOffset) / 2;
+        const timestamps = rows.filter(([kind]) => kind === '"layer"' || kind === '"buffer"');
+        const stats = (start, end) => {
+          const displayTimes = new Set();
+          const bufferTimes = new Set();
+          for (const [kind, value] of timestamps) {
+            const time = Number(value) - offset;
+            if (time >= start && time <= end) {
+              displayTimes.add(time);
+              if (kind === '"buffer"') bufferTimes.add(time);
+            }
+          }
+          return {
+            display: presentIntervals(displayTimes),
+            bufferDisplay: presentIntervals(bufferTimes),
+            firstBufferPresentDelayMs: bufferTimes.size
+              ? rounded((Math.min(...bufferTimes) - start) / 1e6)
+              : null,
+          };
+        };
+        console.log(
+          JSON.stringify({
+            frameTimeline: windows.map(({ route, start, end }) => {
+              const covered = start + minOffset >= traceStart && end + maxOffset <= traceEnd;
+              return {
+                route,
+                covered,
+                ...(covered
+                  ? stats(start, end)
+                  : { display: null, bufferDisplay: null, firstBufferPresentDelayMs: null }),
+              };
+            }),
+            clockOffsetSpanMs: rounded((maxOffset - minOffset) / 1e6),
+          }),
+        );
+      } finally {
+        await cleanupAdb('shell', 'rm', '-f', remoteTrace);
+      }
+    },
+  };
+}
+
+async function measureCss(page, layer, timeline) {
+  await wait(400);
+  await shell('dumpsys', 'gfxinfo', pkg, 'reset');
+  if (layer) await shell('dumpsys', 'SurfaceFlinger', '--latency-clear', layer);
+  const start = Number(await galleryTouch('--clock'));
+  const raf = await page.evaluate(async () => {
+    const square = document.createElement('div');
+    square.style.cssText =
+      'position:fixed;top:30%;left:10%;width:32px;height:32px;background:red;z-index:2147483647;pointer-events:none';
+    document.body.append(square);
+    try {
+      const animation = square.animate(
+        [{ transform: 'translateY(0)' }, { transform: 'translateY(45vh)' }],
+        { duration: 1500, iterations: 1, fill: 'forwards' },
+      );
+      const times = [];
+      await new Promise((resolve) => {
+        const sample = (t) => {
+          times.push(t);
+          if (t - times[0] >= 1500 || animation.playState === 'finished') resolve();
+          else requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      return times.slice(1).map((t, i) => t - times[i]);
+    } finally {
+      square.remove();
+    }
+  });
+  const end = Number(await galleryTouch('--clock'));
+  timeline?.record('css-control', start, end);
+  const stats = await shell('dumpsys', 'gfxinfo', pkg, 'framestats');
+  const sf = layer ? await shell('dumpsys', 'SurfaceFlinger', '--latency', layer) : '';
+  console.log(
+    JSON.stringify({
+      route: 'css-control',
+      raf: percentiles(raf),
+      hwui: displayIntervals(stats, start, end, false),
+      compositor: displayIntervals(sf, start, end, true),
+    }),
+  );
 }
 async function drain(page) {
   return page.evaluate(() => ({
@@ -274,7 +537,29 @@ async function drain(page) {
   }));
 }
 
-async function measure(page, layer, route, gesture, tail) {
+function longestFlushes(samples, calls) {
+  // App.tsx supplies the same WebView Performance object used by installProbe.
+  return samples
+    .filter((entry) => entry.stage === 'native-submit')
+    .sort((a, b) => b.duration - a.duration)
+    .slice(0, 4)
+    .map(({ frame, begin, end, duration }) => {
+      const spent = {};
+      for (const [name, at, elapsed, selector] of calls) {
+        const overlap = Math.min(end, at + elapsed) - Math.max(begin, at);
+        if (overlap <= 0) continue;
+        const key = selector === 0x8b82 && name === 'getProgramParameter' ? 'LINK_STATUS' : name;
+        spent[key] = (spent[key] ?? 0) + overlap;
+      }
+      return {
+        frame,
+        ms: rounded(duration),
+        calls: Object.fromEntries(Object.entries(spent).map(([name, ms]) => [name, rounded(ms)])),
+      };
+    });
+}
+
+async function measure(page, layer, route, gesture, tail, timeline) {
   const before = gl ? await drain(page) : undefined;
   await shell('dumpsys', 'gfxinfo', pkg, 'reset');
   if (layer) await shell('dumpsys', 'SurfaceFlinger', '--latency-clear', layer);
@@ -283,6 +568,7 @@ async function measure(page, layer, route, gesture, tail) {
   const stats = await shell('dumpsys', 'gfxinfo', pkg, 'framestats');
   const sf = layer ? await shell('dumpsys', 'SurfaceFlinger', '--latency', layer) : '';
   const bounds = end + tail * 1e6;
+  timeline?.record(route, start, bounds);
   const result = {
     route,
     gestureMs: rounded((end - start) / 1e6),
@@ -307,7 +593,9 @@ async function measure(page, layer, route, gesture, tail) {
         read.gl.filter(([name]) => name === 'clientWaitSync').map(([, , duration]) => duration),
       ),
       textureUploads: percentiles(
-        read.gl.filter(([name]) => name === 'texSubImage2D').map(([, , duration]) => duration),
+        read.gl
+          .filter(([name]) => name === 'texSubImage2D' || name === 'texImage2D')
+          .map(([, , duration]) => duration),
       ),
     });
     if (read.trace && before?.trace) {
@@ -317,19 +605,22 @@ async function measure(page, layer, route, gesture, tail) {
         'paint',
         'compose',
         'semantics',
+        'semantics-flush',
+        'semantics-snapshot',
+        'semantics-freeze',
+        'semantics-publish',
         'input-queue',
         'native-replay',
         'native-submit',
         'gpu-fence-enqueue',
       ];
+      const samples = read.trace.frames.samples;
       Object.assign(result, {
         costs: Object.fromEntries(
           stages.map((stage) => [
             stage,
             percentiles(
-              read.trace.frames.samples
-                .filter((entry) => entry.stage === stage)
-                .map((entry) => entry.duration),
+              samples.filter((entry) => entry.stage === stage).map((entry) => entry.duration),
             ),
           ]),
         ),
@@ -337,24 +628,40 @@ async function measure(page, layer, route, gesture, tail) {
         prepared: read.trace.sections.published - before.trace.sections.published,
         reused: (read.trace.dormant?.hits ?? 0) - (before.trace.dormant?.hits ?? 0),
         overwritten: read.trace.frames.overwritten,
+        flushes: longestFlushes(samples, read.gl),
+        sectionWork: sectionWork(samples),
       });
     }
   }
   console.log(JSON.stringify(result));
 }
 
+function sectionWork(samples) {
+  return samples
+    .filter((entry) => entry.section !== undefined)
+    .sort((a, b) => b.duration - a.duration)
+    .slice(0, 20)
+    .map(({ frame, section, stage, duration }) => ({
+      frame,
+      section,
+      stage,
+      ms: rounded(duration),
+    }));
+}
+
 async function resetTop(page, top) {
-  for (let attempt = 0; attempt < 9; attempt++) {
+  for (let attempt = 0; attempt <= 9; attempt++) {
     if ((await filled(page).count()) && Math.abs((await filled(page).boundingBox())?.y - top) <= 2)
       return;
+    if (attempt === 9) break;
     await touch(540, [[205, 1930]]);
     await wait(460);
   }
   assert.fail('Returned to the first gallery card');
 }
-async function advance(count) {
-  for (let i = 0; i < count; i++)
-    await touch(
+async function advance(count, onSwipe) {
+  for (let i = 0; i < count; i++) {
+    const [start, end] = await touch(
       1810,
       [
         [1180, 545],
@@ -362,6 +669,8 @@ async function advance(count) {
       ],
       12,
     );
+    onSwipe?.(i + 1, start, end);
+  }
   await wait(240);
 }
 const lowerFling = () => touch(1570, [[205, 810]]);
@@ -375,10 +684,21 @@ const reverse = () =>
   ]);
 
 async function reveal(locator, height, minHeight = 1) {
+  const visible = (box) =>
+    box && box.height >= minHeight && box.y > 96 && box.y + box.height < height - 30;
   for (let attempt = 0; attempt < 16; attempt++) {
     const box = (await locator.count()) ? await locator.boundingBox() : null;
-    if (box && box.height >= minHeight && box.y > 96 && box.y + box.height < height - 30)
-      return box;
+    if (visible(box)) {
+      await wait(250);
+      const settled = await locator.boundingBox();
+      if (
+        visible(settled) &&
+        Math.abs(settled.y - box.y) <= 0.5 &&
+        Math.abs(settled.height - box.height) <= 0.5
+      )
+        return settled;
+      continue;
+    }
     if (box && box.y < height / 3)
       await touch(
         1100,
@@ -399,51 +719,230 @@ async function reveal(locator, height, minHeight = 1) {
       );
     await wait(430);
   }
-  assert.fail('Could not reveal ' + locator);
+  assert.fail('Could not reveal ' + locator + ' at height ' + minHeight);
 }
 
-async function checkControls(page, top, { height, dpr }) {
+const physicalCenter = ({ x, y, width, height }, dpr) => [
+  (x + width / 2) * dpr,
+  (y + height / 2) * dpr,
+];
+
+async function openCategory(page, category) {
+  // Activate the accessible buttons. The control under test receives Android input.
+  await control(page, 'open-drawer').evaluate((button) => button.click());
+  await page
+    .getByRole('button', { name: category, exact: true })
+    .evaluate((button) => button.click());
+  await page.getByRole('button', { name: 'Show all', exact: true }).waitFor({ state: 'attached' });
+}
+
+async function showAll(page, top) {
+  await page
+    .getByRole('button', { name: 'Show all', exact: true })
+    .evaluate((button) => button.click());
+  await resetTop(page, top);
+}
+
+async function holdThenScroll(x, y, dpr) {
+  await drag(
+    x,
+    y,
+    [
+      [245, x, y],
+      [320, x, y - 100 * dpr],
+      [80, x, y - 100 * dpr],
+    ],
+    { step: 12 },
+  );
+  await wait(430);
+}
+
+async function checkSlider(page, top, { height, dpr }) {
+  await openCategory(page, 'Selection');
+  const slider = control(page, 'slider-value');
+  const value = async () => Number(await slider.getAttribute('aria-valuenow'));
+  const before = await reveal(slider, height);
+  const initial = await value();
+  const [, y] = physicalCenter(before, dpr);
+  await holdThenScroll((before.x + before.width * 0.65) * dpr, y, dpr);
+  const after = await slider.boundingBox();
+  assert(after && before.y - after.y >= 40, 'A held vertical swipe scrolls from the slider track');
+  const afterHeldScroll = await value();
+  assert.equal(afterHeldScroll, initial, 'A held vertical swipe must preserve the slider value');
+  const [, tapY] = physicalCenter(after, dpr);
+  const tapX = Math.round((after.x + after.width * 0.75) * dpr);
+  await shell('input', 'tap', String(tapX), String(Math.round(tapY)));
+  await wait(430);
+  const tapped = await value();
+  assert(tapped > initial, 'A tap after the vertical swipe must still adjust the slider');
+  await showAll(page, top);
+  return { initial, afterHeldScroll, tapped, scrollDelta: rounded(before.y - after.y) };
+}
+
+async function checkRange(page, _top, { height, dpr }) {
+  await openCategory(page, 'Selection');
   const start = control(page, 'range-custom-start'),
-    end = control(page, 'range-custom-end'),
-    field = page.getByRole('textbox', { name: 'Write something', exact: true });
-  const center = ({ x, y, width, height }) => [(x + width / 2) * dpr, (y + height / 2) * dpr];
+    end = control(page, 'range-custom-end');
+  const center = (box) => physicalCenter(box, dpr);
   const values = () =>
     Promise.all(
       [start, end].map(async (thumb) => Number(await thumb.getAttribute('aria-valuenow'))),
     );
-  await reveal(start, height);
-  const [sx, sy] = center(await start.boundingBox()),
-    [ex, ey] = center(await end.boundingBox()),
+  const startBox = await reveal(start, height);
+  const endBox = await end.boundingBox();
+  const [sx, sy] = center(startBox),
+    [ex, ey] = center(endBox),
     unit = (ex - sx) / 50;
   assert(unit > 0, 'Range thumb positions');
   assert.deepEqual(await values(), [25, 75]);
-  await drag(sx, sy, [[610, sx + 7 * unit, sy]], { step: 16 });
-  await wait(475);
-  const [slow, stillEnd] = await values();
-  assert(slow >= 31 && slow <= 33);
+  const gestures = [];
+  const swipe = async (name, thumb, x, y, segments, options) => {
+    const track = { left: (sx - 25 * unit) / dpr, right: (ex + 25 * unit) / dpr };
+    const thumbBounds = await thumb.boundingBox();
+    const from = [x / dpr, y / dpr];
+    const [, tx, ty] = segments.at(-1);
+    const to = [tx / dpr, ty / dpr];
+    await page.evaluate(() => window.galleryTouches());
+    const [begin, end] = await drag(x, y, segments, options);
+    const terminal = options?.cancel ? 'pointercancel' : 'pointerup';
+    try {
+      await page.waitForFunction((type) => window.galleryLastTouch() === type, terminal, {
+        timeout: 5_000,
+      });
+    } catch (error) {
+      if (error.name !== 'TimeoutError') throw error;
+    }
+    await wait(475);
+    const actual = await values();
+    const delivered = await page.evaluate(() => window.galleryTouches());
+    const record = {
+      name,
+      from,
+      to,
+      track,
+      thumbBounds,
+      actual,
+      gestureMs: rounded((end - begin) / 1e6),
+      delivered: [
+        delivered[0],
+        delivered.findLast(([kind]) => kind === 'pointermove'),
+        delivered.at(-1),
+      ],
+    };
+    gestures.push(record);
+    assert.equal(delivered.at(-1)?.[0], terminal, JSON.stringify(record));
+    return actual;
+  };
+  // Hold the last coordinate for one input sample before releasing a slow drag.
+  const slowX = sx + 7 * unit;
+  const [slow, stillEnd] = await swipe(
+    'slow',
+    start,
+    sx,
+    sy,
+    [
+      [610, slowX, sy],
+      [48, slowX, sy],
+    ],
+    { step: 16 },
+  );
+  assert(slow >= 31 && slow <= 33, 'Slow start thumb: ' + JSON.stringify(gestures.at(-1)));
   assert.equal(stillEnd, 75);
-  await drag(ex, ey, [
+  const [stillStart, fast] = await swipe('reversal', end, ex, ey, [
     [94, ex - 6 * unit, ey],
     [84, ex + 4 * unit, ey],
     [100, ex - 9 * unit, ey],
     [100, ex - 6.5 * unit, ey],
   ]);
-  await wait(475);
-  const [stillStart, fast] = await values();
   assert.equal(stillStart, slow);
-  assert(fast >= 67.5 && fast <= 69.5);
+  assert(fast >= 67.5 && fast <= 69.5, 'Fast end thumb: ' + JSON.stringify(gestures.at(-1)));
   const [cx, cy] = center(await start.boundingBox());
-  await drag(cx, cy, [[90, cx + 5 * unit, cy]], { cancel: true });
-  await wait(475);
-  const [afterCancel] = await values(),
+  const cancelX = cx + 10 * unit;
+  const [afterCancel, cancelOtherThumb] = await swipe(
+      'cancel',
+      start,
+      cx,
+      cy,
+      [
+        [210, cancelX, cy],
+        [48, cancelX, cy],
+      ],
+      { cancel: true },
+    ),
     [nx, ny] = center(await start.boundingBox());
-  await drag(nx, ny, [[260, nx - 8 * unit, ny]]);
-  await wait(475);
-  const [newStart, newEnd] = await values();
-  assert(newStart < afterCancel, 'The canceled thumb accepts a new drag');
+  assert(afterCancel > slow, 'The canceled gesture must have moved the thumb');
+  assert.equal(cancelOtherThumb, fast);
+  const redragX = nx - 8 * unit;
+  const [newStart, newEnd] = await swipe('redrag', start, nx, ny, [
+    [260, redragX, ny],
+    [80, redragX, ny],
+  ]);
+  assert(newStart < afterCancel, 'Redrag after cancel: ' + JSON.stringify(gestures.at(-1)));
   assert.equal(newEnd, fast);
+  const beforeScroll = await start.boundingBox();
+  const [vx, vy] = center(beforeScroll);
+  await drag(
+    vx,
+    vy,
+    [
+      [320, vx + 2 * dpr, vy - 100 * dpr],
+      [80, vx + 2 * dpr, vy - 100 * dpr],
+    ],
+    { step: 12 },
+  );
+  await wait(430);
+  const scrolled = await start.boundingBox();
+  assert(
+    scrolled && beforeScroll.y - scrolled.y >= 40,
+    'A vertical swipe on a thumb scrolls the list',
+  );
+  assert.deepEqual(
+    await values(),
+    [newStart, newEnd],
+    'A vertical swipe does not adjust either thumb',
+  );
+  const beforeHold = await reveal(start, height);
+  const [holdX, holdY] = center(beforeHold);
+  await holdThenScroll(holdX + 8 * unit, holdY, dpr);
+  const afterHold = await start.boundingBox();
+  assert(
+    afterHold && beforeHold.y - afterHold.y >= 40,
+    'A held vertical swipe scrolls from the range track',
+  );
+  const afterHeldScroll = await values();
+  assert.deepEqual(
+    afterHeldScroll,
+    [newStart, newEnd],
+    'A held vertical swipe preserves both thumbs',
+  );
+  return {
+    slow,
+    fast,
+    afterCancel,
+    newStart,
+    newEnd,
+    verticalScroll: true,
+    afterHeldScroll,
+    gestures,
+  };
+}
 
-  const [fx, fy] = center(await reveal(field, height)).map(Math.round);
+async function checkIme(page, top, { height, dpr }) {
+  await openCategory(page, 'Text inputs');
+  const field = page.getByRole('textbox', { name: 'Write something', exact: true });
+  let fieldBox;
+  try {
+    fieldBox = await reveal(field, height);
+  } catch (error) {
+    const editors = await page.locator('input, textarea').evaluateAll((elements) =>
+      elements.map((element) => ({
+        label: element.getAttribute('aria-label'),
+        box: element.getBoundingClientRect().toJSON(),
+      })),
+    );
+    throw new Error(`${error.message}. Editors: ${JSON.stringify(editors)}`, { cause: error });
+  }
+  const [fx, fy] = physicalCenter(fieldBox, dpr).map(Math.round);
   await shell('input', 'tap', String(fx), String(fy));
   await page.waitForFunction(
     () => document.activeElement?.getAttribute('aria-label') === 'Write something',
@@ -459,7 +958,12 @@ async function checkControls(page, top, { height, dpr }) {
   await shell('input', 'keyevent', 'KEYCODE_BACK');
   await wait(600);
   assert.doesNotMatch(await shell('dumpsys', 'input_method'), /mInputShown=true/);
+  await showAll(page, top);
+  return { keyboardShown, entered: '804', returnedToTop: true };
+}
 
+async function checkImage(page, top, { height, dpr }) {
+  await openCategory(page, 'Images');
   const image = page.getByLabel('Oranges by Mae Mu, Unsplash', { exact: true });
   const box = await reveal(image, height, 190);
   const clip = Object.fromEntries(
@@ -517,6 +1021,8 @@ async function checkControls(page, top, { height, dpr }) {
     const lost = once('webglcontextlost');
     extension.loseContext();
     await lost;
+    // WebView handles the event's preventDefault after dispatch returns.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     const restored = once('webglcontextrestored');
     extension.restoreContext();
     await restored;
@@ -528,16 +1034,8 @@ async function checkControls(page, top, { height, dpr }) {
     if (Math.abs(after - before) <= before * 0.01) break;
   }
   assert(Math.abs(after - before) <= before * 0.01, 'Local image pixels recovered');
-  await resetTop(page, top);
-  console.log(
-    JSON.stringify({
-      range: { slow, fast, afterCancel, newStart, newEnd },
-      keyboardShown,
-      entered: '804',
-      imagePixels: [before, after],
-      returnedToTop: true,
-    }),
-  );
+  await showAll(page, top);
+  return { imagePixels: [before, after], returnedToTop: true };
 }
 
 try {
@@ -548,40 +1046,98 @@ try {
     'Gesture geometry for Pixel 5 portrait',
   );
   await prepareTouch();
-  for (let run = 1; run <= runs; run++) {
+  if (controls.length) {
+    let failures = 0;
+    for (let run = 1; run <= runs; run++) {
+      for (const check of controls) {
+        signal.throwIfAborted();
+        let demo;
+        try {
+          demo = await openDemo(check);
+          const { page, top, current, errors } = demo;
+          const result = await controlChecks[check](page, top, current);
+          assert.deepEqual(errors, []);
+          console.log(
+            JSON.stringify({ run, check, build: current.build, passed: true, ...result }),
+          );
+        } catch (error) {
+          failures++;
+          console.error(
+            JSON.stringify({
+              run,
+              check,
+              build: demo?.current.build,
+              passed: false,
+              error: String(error),
+            }),
+          );
+        } finally {
+          await demo?.close();
+        }
+      }
+    }
+    assert.equal(failures, 0, 'Failed Android control checks');
+  }
+  for (let run = 1; controls.length === 0 && run <= runs; run++) {
     const { page, top, current, errors, close } = await openDemo();
+    let timeline;
     try {
       const layers = await shell('dumpsys', 'SurfaceFlinger', '--list');
       const layer = layers
         .split(/\r?\n/)
         .find((name) => name.startsWith(pkg + '/' + pkg + '.MainActivity#'));
       console.log(JSON.stringify({ run, ...current, layer }));
-      if (controls) {
-        await checkControls(page, top, current);
-        assert.deepEqual(errors, []);
-        break;
+      if (traceProcessor) {
+        assert(layer, 'FrameTimeline requires the gallery activity layer');
+        timeline = await traceAndroidFrames(layer, run);
       }
-      await measure(page, layer, 'top-cold-fling', () => touch(1940, [[205, 505]]), 620);
+      const measureRoute = (route, gesture, tail) =>
+        measure(page, layer, route, gesture, tail, timeline);
+      if (cssOnly) {
+        await measureCss(page, layer, timeline);
+        assert.deepEqual(errors, []);
+        continue;
+      }
+      await measureRoute('top-cold-fling', () => touch(1940, [[205, 505]]), 620);
       if (topOnly) {
+        if (!gl) await measureCss(page, layer, timeline);
         assert.deepEqual(errors, []);
         continue;
       }
       await resetTop(page, top);
       await advance(4);
-      await measure(page, layer, 'middle-reversal', reverse, 75);
+      await measureRoute('middle-reversal', reverse, 75);
       await resetTop(page, top);
       await advance(6);
-      await measure(page, layer, 'lower-first-fling', lowerFling, 450);
-      await measure(page, layer, 'lower-reversal', reverse, 75);
-      await advance(4);
+      await measureRoute('lower-first-fling', lowerFling, 450);
+      await measureRoute('lower-reversal', reverse, 75);
+      await advance(4, (swipe, start, end) => {
+        timeline?.record(`image-approach-${swipe}`, start, end);
+      });
       await page.getByRole('button', { name: 'Extract colors' }).waitFor({ state: 'attached' });
+      if (cpu) {
+        const { trace } = await drain(page);
+        if (trace)
+          console.log(
+            JSON.stringify({
+              route: 'image-approach-sections',
+              sectionWork: sectionWork(trace.frames.samples),
+              overwritten: trace.frames.overwritten,
+            }),
+          );
+      }
       await resetTop(page, top);
       await advance(6);
-      await measure(page, layer, 'lower-return-fling', lowerFling, 450);
-      await measure(page, layer, 'lower-return-reversal', reverse, 75);
+      await measureRoute('lower-return-fling', lowerFling, 450);
+      await measureRoute('lower-return-reversal', reverse, 75);
+      if (!gl) await measureCss(page, layer, timeline);
       assert.deepEqual(errors, []);
     } finally {
-      await close();
+      try {
+        await timeline?.close();
+      } finally {
+        await close();
+      }
     }
   }
 } finally {

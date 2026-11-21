@@ -11,7 +11,8 @@ import type { SliverConstraints } from './sliver.ts';
 import { SectionExtentIndex } from './section-extent-index.ts';
 import type { SectionExtentEnvironment } from './section-extent-index.ts';
 import { invariant } from '../../foundation/errors.ts';
-import type { PipelineOwner } from './object.ts';
+import type { PipelineOwner, RenderBox } from './object.ts';
+import type { BoxConstraints } from './constraints.ts';
 
 /** Indexed variable-height layout with the canonical lazy child/keep-alive
  * owner. Far seeks materialize the destination cache range, not intervening
@@ -85,6 +86,12 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
       trailing = this.indexOf(last);
     if (trailing < anchor - 1 || this.childCount !== trailing - leading + 1) return anchor;
     return Math.max(cacheStart, Math.min(anchor, leading));
+  }
+  private layoutSection(child: RenderBox, box: BoxConstraints, index: number): void {
+    const diagnostics = this.owner?._frameDiagnostics;
+    const started = diagnostics?.recorder.now();
+    child.layout(box, { parentUsesSize: true });
+    diagnostics?.recorder.recordSection(diagnostics.token, 'section-layout', index, started!);
   }
   protected override performLayout(_constraints: SliverConstraints): void {
     const c = this.constraints;
@@ -167,16 +174,23 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
         }
       }
       if (i === start) {
-        if (!child._canReuseSliverLayout(box, true)) child.layout(box, { parentUsesSize: true });
+        if (!child._canReuseSliverLayout(box, true)) this.layoutSection(child, box, i);
       } else {
         let next = this.childAfter(child);
         if (next === null || this.indexOf(next) !== i) {
           // The viewport is fully covered. A missing cache-only row belongs
           // to the optional producer; layout still owns every visible row.
           if (deferColdCache && i > anchor && end >= paintTarget) break;
-          next = this.insertAndLayoutChild(box, { after: child, parentUsesSize: true });
-        } else if (!next._canReuseSliverLayout(box, true))
-          next.layout(box, { parentUsesSize: true });
+          invariant(
+            this.childManager.debugAssertChildListLocked(),
+            'invalid-following-sliver-child',
+            'Following child requires an unlocked child list',
+          );
+          this._createOrObtainChild(i, { after: child });
+          next = this.childAfter(child);
+          if (next !== null && this.indexOf(next) === i) this.layoutSection(next, box, i);
+          else this.childManager.setDidUnderflow(true);
+        } else if (!next._canReuseSliverLayout(box, true)) this.layoutSection(next, box, i);
         if (next === null || this.indexOf(next) !== i)
           invariant(
             false,

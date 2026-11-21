@@ -4,6 +4,7 @@ import { execute } from '../sdk/tooling/cli/src/commands.mjs';
 import { ValueKey } from '../dist/foundation/key.js';
 import { FoundationPlatform } from '../dist/foundation/platform.js';
 import { AppSession } from '../dist/hosting/runtime.js';
+import { FrameDiagnostics } from '../dist/ui/frame-diagnostics.js';
 import { SectionExtentIndex } from '../dist/framework/rendering/section-extent-index.js';
 import { Directionality, MediaQuery } from '../dist/framework/widgets/app-data.js';
 import { AspectRatio, SizedBox } from '../dist/framework/widgets/basic.js';
@@ -183,7 +184,14 @@ try {
     },
   });
   view.requestFrame();
+  const diagnostics = new FrameDiagnostics({ now: () => now });
+  view.frameDiagnostics = diagnostics;
   frame();
+  const first = diagnostics.drain().samples.filter((sample) => sample.section === 0);
+  assert.deepEqual(
+    first.map((sample) => sample.stage),
+    ['section-create', 'section-layout'],
+  );
   assert.equal(idle.size, 1, 'A fresh offer can use the browser idle period after submission');
   frame();
   assert.equal(builds.has(2), false, 'An animation callback does not consume the idle work');
@@ -204,7 +212,14 @@ try {
   assert.equal(root.buildOwner.preparationStats.published, 0);
 
   controller.jumpTo(200);
+  diagnostics.drain();
   frame();
+  const adopted = diagnostics.drain().samples.filter((sample) => sample.section === 2);
+  assert.deepEqual(
+    adopted.map((sample) => sample.stage),
+    ['section-adopt', 'section-layout'],
+  );
+  assert.equal(adopted[0].frame, adopted[1].frame);
   assert.equal(builds.get(2), 1, 'Adoption uses the original produced widget');
   assert.equal(extentIndex.measurement(2), 'measured');
   assert.equal(root.buildOwner.preparationStats.preparedColdChildren, 1);
