@@ -12,7 +12,7 @@
 | 입력 좌표 | 웹의 기본 입력창은 포커스된 경우에만 IME용 커서·선택 좌표를 계산한다. 스크롤 중에도 브라우저에 역할·값·화면상 위치를 전달하고, 포커스 시 최신 입력 좌표를 전달한다. [프레임 경로](Nelyx/src/framework/widgets/root.ts) · [브라우저 입력과 접근성](Nelyx/sdk/src/backends/browser/interaction.ts) |
 | WebGL 제출 | `WebSkiaLibrary.submit()`은 장면을 재생하고 `surface.flush()`를 호출한 뒤 GPU fence를 등록한다. 따라서 뒤에서 fence를 확인하더라도, 처음 사용하는 셰이더의 컴파일 상태 조회나 텍스처 업로드가 제출 호출을 길게 만들 수 있다. 에뮬레이터의 긴 프레임에서 셰이더 상태 조회와 긴 제출 시간이 함께 관측됐다. [CanvasKit 제출 경로](Nelyx/skia/packages/web/src/library.ts) |
 
-Doroti의 `RenderSectionList`에서 가시 범위와 보존 범위를 구분하는 구조를 가져왔다. 남은 렌더링 작업은 Doroti의 `SkiaSceneRenderer`가 래스터 캐시 준비에 시간·픽셀 예산을 두는 방식을 참고한다. Nelyx에서는 기존 렌더러와 GPU 리소스 소유권을 기준으로 적용 가능 범위를 판단한다.
+Doroti의 `RenderSectionList`에서 가시 범위와 보존 범위를 구분하는 구조를 가져왔다. [§8의 파이프라인 검토](#8-doroti-렌더링-파이프라인-검토)는 이미 적용된 목록 보존과 아직 실험하지 않은 렌더러 변경을 구분한다.
 
 ## 2. 2026-11-21 기준 측정 결과
 
@@ -138,3 +138,21 @@ WebGL·CPU 계측을 끈 실행도 APK별 3회 진행했다. 같은 786×1602 �
 - **최신 APK의 입력 인수는 부분 검증.** 한 실행은 양쪽 범위 손잡이와 취소 후 재드래그, 키보드 표시, `804` 입력과 키보드 닫기 검사를 통과했다. 최종 재실행에서는 시작 손잡이의 느린 드래그 값이 검사 범위 31–33을 벗어났다. 최신 APK에서 추종의 반복 통과는 확인되지 않았다.
 - **최신 APK의 이미지 복구는 미검증.** 처음 캡처한 접근성 영역에는 이미지 높이 중 약 22 CSS px만 들어왔다. 검사에서 넓은 가시 영역을 확보하고 Android 화면을 캡처하도록 수정했으며, 최종 실행은 이미지 단계에 도달하기 전에 범위 슬라이더 확인에서 종료됐다. §5의 이미지 픽셀과 컨텍스트 복구 결과는 이전 APK의 기록이다.
 - **Galaxy 인수는 미검증.** 이번 작업 당시 연결된 Android 대상은 에뮬레이터 한 대였다. Galaxy의 동일 조건 비교와 실제 손가락 조작은 남아 있다.
+
+## 8. Doroti 렌더링 파이프라인 검토
+
+**재개 시 첫 실험은 캐시 추가가 아니라, 중하단 첫 방문에서 어떤 카드가 필수 레이아웃을 길게 만드는지 구분하는 것이다.** §5에서 재방문 레이아웃은 6.4–8.4ms였지만 첫 방문은 최대 65.4ms였다. 반면 상단 첫 플링은 장면 재생 뒤 `flush()`가 길었다. 두 구간을 같은 최적화로 해결할 근거는 없다. 아래는 소스 검토에 따른 제안이며 구현·성능 인수 결과가 아니다.
+
+| Doroti에서 확인한 동작 | Nelyx 적용 판단과 확인 방법 |
+| --- | --- |
+| **섹션 보존** — [RenderSectionList](https://github.com/Dynaruid/DorotiLab/blob/c1ba632733e8ff3bcf293a858e123b688f76c01f/Doroti/src/Doroti.Framework.Rendering/section_list.cs)는 높이 인덱스로 배치 범위를 찾고 활성 범위를 벗어난 자식을 보존할 수 있다. | **기존 경로를 활용한다.** [섹션 레이아웃](Nelyx/src/framework/rendering/sliver-section-list.ts)과 [분할 준비](Nelyx/src/framework/widgets/subtree-preparation.ts)에서 첫 방문 카드별로 일반 생성·진행 중 준비 마무리·준비 완료 인계를 나눠 생성 시간과 실측 시간을 본다. 생성이 길면 해당 후보의 유휴 준비 순서를, 실측이 길면 해당 카드의 레이아웃을 조사한다. 전체 보존 범위를 넓히거나 호스트 연결이 필요한 입력창까지 미리 만들지는 않는다. |
+| **Picture 래스터 승격** — [SkiaSceneRenderer](https://github.com/Dynaruid/DorotiLab/blob/c1ba632733e8ff3bcf293a858e123b688f76c01f/Doroti/src/Doroti.Skia.Rendering/SkiaSceneRenderer.cs)는 변환과 소수 픽셀 위치가 안정적으로 반복될 때만 Picture를 이미지로 만든다. 프레임별 횟수·픽셀·누적 시간 예산이 부족하면 원래 Picture를 재생한다. 시간 예산은 이미 시작한 승격을 중단하지 못한다. | **재방문 재생 비용이 클 때만 실험한다.** [Web Skia](Nelyx/skia/packages/web/src/library.ts)의 기존 `SkPicture` 명령 재사용과 래스터 이미지 재사용은 다르다. 먼저 같은 Picture가 같은 래스터 배율·픽셀 위치로 반복되는 비율과 `native-replay` 시간을 잰다. 후보가 충분하면 정적인 카드 하나부터 비교한다. 내용·배율·픽셀 위상이 바뀌면 원본을 재생하고, 컨텍스트 손실 시 캐시를 폐기한다. 적중률뿐 아니라 승격 프레임의 `flush()` 최장 시간, 보유 픽셀과 글자·클리핑 픽셀도 확인한다. 첫 노출의 셰이더 비용을 줄이는 수단으로 쓰지 않는다. |
+| **프레임 제출과 자원 반환** — [NativeFrameAdmissionPolicy와 NativeFrameLifetime](https://github.com/Dynaruid/DorotiLab/blob/c1ba632733e8ff3bcf293a858e123b688f76c01f/Doroti/src/Doroti.Skia.Rendering/NativeFramePipeline.cs)는 준비 후 장면·대기 수를 다시 확인하고, 제출 확정과 GPU 사용 완료를 구분한다. 두 프레임 허용은 특정 장면과 백엔드에 한정된다. | **판정 시점만 참고하고 슬롯 증가는 보류한다.** [호스트 런타임](Nelyx/src/hosting/runtime.ts)은 이미 준비 프레임 하나를 보관하고, [WebGL 제출](Nelyx/skia/packages/web/src/library.ts)은 재생·flush 뒤 fence와 lease를 등록한다. §5의 긴 동기 `flush()`는 슬롯을 늘려도 짧아지지 않는다. 재방문 방향 전환에서는 같은 프레임의 입력 대기·준비 후 제출 대기·fence 완료를 구분해 오래된 입력을 그리는지부터 확인한다. 제출 수락을 표시 완료나 자원 해제 신호로 쓰지 않는다. |
+
+### 다음 변경을 고르는 순서
+
+1. **기준 APK에서 입력·이미지 검사를 먼저 분리한다.** 현재 [Android 검사](sample/nelyx-demo-app/eng/check-android-scroll.mjs)의 `--controls`는 슬라이더 단언이 실패하면 뒤의 IME와 이미지 복구까지 건너뛴다. 세 시나리오가 각각 알려진 화면 상태에서 시작하고 결과를 따로 보고하도록 하는 것이 첫 도구 변경이다. 슬라이더의 허용 범위 31–33은 넓히지 않는다. 실패 시 실제 터치 시작·끝 좌표, 당시 트랙 영역, 양쪽 최종 값을 대조해 터치가 빗나갔는지 올바른 터치를 잘못 처리했는지 구분한다. 미실행을 통과로 집계하지 않는다.
+2. **중하단 첫 방문: `published`를 준비 성공의 대리 지표로 쓰지 않는다.** [자식 생성 경로](Nelyx/src/framework/widgets/sliver.ts)는 준비가 덜 끝난 카드도 필수 레이아웃에서 `complete()`로 끝낸 뒤 `adopt()`한다. 따라서 게시 수가 늘어도 프레임이 빨라졌다는 뜻은 아니다. 진단을 켠 경우에만 카드 인덱스와 프레임 번호를 붙여 **일반 생성 / 남은 생산 완료 / 인계 / 실제 자식 레이아웃** 시간을 구분한다. `insertAndLayoutChild`의 전체 시간에는 생성이 포함되므로 중첩 시간을 합산하지 않는다. 미완료 생산이 길면 해당 카드의 원자적 빌드 단위를 줄이는 실험을 하고, 인계 뒤 실측이 길면 해당 카드의 자식 레이아웃을 줄인다. 후자의 경우 유휴 예산을 늘리거나 분리된 트리에서 미리 레이아웃하지 않는다. [준비 커서](Nelyx/src/framework/widgets/subtree-preparation.ts)의 `ready`는 생산 완료이지 실측 완료가 아니다.
+3. **상단 첫 플링: `flush()` 안에서 실제로 기다린 호출을 찾는다.** §6에서 컴파일 상태 조회를 없애도 긴 제출은 남았다. 기존 `--top-only --cpu` 경로에서 [프레임 진단](Nelyx/src/ui/frame-diagnostics.ts)의 `native-submit` 구간과 WebGL 프로브의 `performance.now()`가 같은 시간 원점·단위를 쓰는지 먼저 확인한 뒤, 그 구간과 `getProgramParameter(LINK_STATUS)`·`texSubImage2D` 호출 구간을 겹쳐 본다. 링크 대기가 반복해서 큰 경우에만 첫 화면에 필요한 프로그램 종류를 줄이는 실험을, 업로드가 큰 경우에만 해당 리소스의 크기·재업로드 여부를 조사한다. 둘 다 설명하지 못하면 **원인 미분류**로 둔다. `flush()` 경과 시간은 GPU 실행 시간 자체가 아니며, 호출 횟수만으로 셰이더 예열이나 이미지 캐시를 추가하지 않는다.
+
+**비교와 중단 기준.** 한 번에 위 가설 하나만 바꾼다. 같은 기기·WebView·래스터 크기에서 기준과 후보를 번갈아 기본 3회씩 실행한다. 새 프로세스의 첫 방문과 같은 프로세스의 재방문을 분리한다. 원인 확인은 계측 실행에서, 효과 판정은 계측을 끈 실행에서 한다. 표시 p95·최장과 함께 **유효 간격 수 및 33.3ms 이상 횟수**를 남긴다. 표시 표본이 없거나 §7의 CSS 대조도 같은 세션에서 유사하게 흔들리면 승패를 정하지 않는다. 목표 단계가 줄어도 표시 간격이나 입력이 반복해서 악화되면 변경을 되돌린다. Galaxy 동일 조건 비교, §3의 60fps 기준, 슬라이더·IME·이미지 복구를 모두 확인하기 전에는 `PARTIAL`을 유지한다.
