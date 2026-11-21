@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { freezeEditingConfiguration } from '@nelyx/core/hosting/interaction';
+import { finite } from '@nelyx/core/foundation/numbers';
 import type {
   EditingHost,
   EditingBinding,
@@ -8,10 +9,9 @@ import type {
 } from '@nelyx/core/hosting/interaction';
 import type { SemanticsInputObserver } from '@nelyx/core/hosting/interaction';
 import type { SemanticsAction } from '@nelyx/core/ui/types';
-import type { TextEditingValue, SemanticsNode } from '@nelyx/core/ui/types';
+import type { TextEditingValue, SemanticsNode, Rect } from '@nelyx/core/ui/types';
 import { freezeEditing } from '@nelyx/core/ui/editing';
 import { sameOwner } from '@nelyx/core/ui/frame';
-import { freezeTextRect } from '@nelyx/core/ui/text';
 import { freezeSemantics, flattenSemantics } from '@nelyx/core/framework/semantics/semantics';
 import { LocaleStringAttribute, SpellOutStringAttribute } from '@nelyx/core/ui/string-attribute';
 import { SemanticsRole } from '@nelyx/core/ui/semantics';
@@ -50,6 +50,37 @@ const passiveDomRoles: Partial<Record<SemanticsNode['role'], string>> = {
   image: 'img',
   list: 'list',
 };
+/** The DOM properties and attributes written by applyContent. Actions read the live node. */
+function sameContent(previous: SemanticsNode, node: SemanticsNode): boolean {
+  const attributes = node.nameAttributes,
+    oldAttributes = previous.nameAttributes;
+  return (
+    previous === node ||
+    (previous.role === node.role &&
+      previous.name === node.name &&
+      previous.tooltip === node.tooltip &&
+      previous.semanticsIdentifier === node.semanticsIdentifier &&
+      previous.sourceRole === node.sourceRole &&
+      previous.isLink === node.isLink &&
+      previous.checkable === node.checkable &&
+      previous.checked === node.checked &&
+      previous.checkedMixed === node.checkedMixed &&
+      previous.selected === node.selected &&
+      previous.enabled === node.enabled &&
+      previous.focusable === node.focusable &&
+      previous.isSlider === node.isSlider &&
+      previous.value === node.value &&
+      previous.minValue === node.minValue &&
+      previous.maxValue === node.maxValue &&
+      previous.numericRange?.min === node.numericRange?.min &&
+      previous.numericRange?.max === node.numericRange?.max &&
+      previous.numericRange?.value === node.numericRange?.value &&
+      !!previous.actions?.focus === !!node.actions?.focus &&
+      (attributes === oldAttributes ||
+        (attributes?.length === oldAttributes?.length &&
+          attributes?.every((attribute, index) => attribute === oldAttributes?.[index]) === true)))
+  );
+}
 const inputCarrierStyle = {
   pointerEvents: 'none',
   opacity: '0',
@@ -179,10 +210,10 @@ export function createDomInteraction(
     buttons = new Map<string, HTMLButtonElement>(),
     passive = new Map<string, HTMLDivElement>(),
     semanticsAdjustmentTargets = new WeakSet<HTMLElement>();
+  const controlIds = new WeakMap<HTMLElement, string>();
   let inputUsed = false,
     buttonUsed = false;
-  const origins = new WeakMap<HTMLElement, { readonly x: number; readonly y: number }>();
-  origins.set(parent, { x: 0, y: 0 });
+  const localBounds = new WeakMap<HTMLElement, Rect>();
   const originOf = (element: HTMLElement) => {
     let x = 0,
       y = 0;
@@ -191,7 +222,7 @@ export function createDomInteraction(
       current && current !== parent;
       current = current.parentElement
     ) {
-      const local = origins.get(current);
+      const local = localBounds.get(current);
       if (local) {
         x += local.x;
         y += local.y;
@@ -267,6 +298,7 @@ export function createDomInteraction(
     return editor;
   }
   const editing: EditingHost = {
+    focusedGeometryOnly: true,
     capabilities: {
       indexUnit: 'utf16',
       composing: 'unavailable',
@@ -320,6 +352,7 @@ export function createDomInteraction(
             replace: (value) => port.replace(value),
             replaceComposing: (value) => port.replaceComposing!(value),
             updateGeometry: (geometry) => port.updateGeometry!(geometry),
+            updateGeometryFrom: (read) => port.updateGeometryFrom!(read),
             focus: () => port.focus(),
             blur: () => port.blur(),
             dispose() {
@@ -537,6 +570,15 @@ export function createDomInteraction(
         else previous.style.display = 'none';
         element = next;
         editor.element = next;
+        // The textarea inherits the published attributes and event properties
+        // above. Transfer their lookup while the editor keeps its session.
+        if (publishedElements.delete(previous)) {
+          publishedElements.add(next);
+          controlIds.set(next, options?.id ?? 'editor');
+          const bounds = localBounds.get(previous);
+          if (bounds) localBounds.set(next, bounds);
+          cursor?.add(next);
+        }
         for (const [name, listener] of listeners) next.addEventListener(name, listener);
         return focused;
       }
@@ -638,29 +680,31 @@ export function createDomInteraction(
       for (const editor of fields.values()) editor.binding?.dispose();
     },
   };
-  function apply(node: SemanticsNode, element: HTMLElement) {
-    const rect = freezeTextRect(node.bounds);
-    label(node, element);
-    Object.assign(element.style, {
-      position: 'absolute',
-      left: rect.x + 'px',
-      top: rect.y + 'px',
-      width: rect.width + 'px',
-      height: rect.height + 'px',
-      display: 'block',
-    });
-    if (
-      node.editorGeometry &&
-      (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)
-    ) {
+  function applyGeometry(node: SemanticsNode, element: HTMLElement, retained: boolean) {
+    const origin = originOf(element.parentElement!),
+      x = finite(node.bounds.x - origin.x, 'text x'),
+      y = finite(node.bounds.y - origin.y, 'text y'),
+      { width, height } = node.bounds,
+      previous = retained ? localBounds.get(element) : undefined,
+      style = element.style;
+    // The editing service may hide a control when it closes its own session.
+    if (!previous || node.role === 'text-field') {
+      style.position = 'absolute';
+      style.display = 'block';
+    }
+    const nativeEditor =
+      element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
+    if (node.editorGeometry && nativeEditor) {
       const { bounds: full, scaleX, scaleY } = node.editorGeometry;
-      const top = Math.max(0, rect.y - full.y) / scaleY,
-        left = Math.max(0, rect.x - full.x) / scaleX,
-        right = Math.max(0, full.x + full.width - rect.x - rect.width) / scaleX,
-        bottom = Math.max(0, full.y + full.height - rect.y - rect.height) / scaleY;
-      Object.assign(element.style, {
-        left: full.x + 'px',
-        top: full.y + 'px',
+      const fullX = full.x - origin.x,
+        fullY = full.y - origin.y,
+        top = Math.max(0, y - fullY) / scaleY,
+        left = Math.max(0, x - fullX) / scaleX,
+        right = Math.max(0, fullX + full.width - x - width) / scaleX,
+        bottom = Math.max(0, fullY + full.height - y - height) / scaleY;
+      Object.assign(style, {
+        left: fullX + 'px',
+        top: fullY + 'px',
         width: full.width / scaleX + 'px',
         height: full.height / scaleY + 'px',
         transformOrigin: '0 0',
@@ -668,36 +712,171 @@ export function createDomInteraction(
         clipPath: `inset(${top}px ${right}px ${bottom}px ${left}px)`,
       });
     } else {
-      element.style.transform = '';
-      element.style.transformOrigin = '';
-      element.style.clipPath = '';
+      if (nativeEditor || previous?.x !== x) style.left = x + 'px';
+      if (nativeEditor || previous?.y !== y) style.top = y + 'px';
+      if (nativeEditor || previous?.width !== width) style.width = width + 'px';
+      if (nativeEditor || previous?.height !== height) style.height = height + 'px';
+      if (nativeEditor) {
+        style.transform = '';
+        style.transformOrigin = '';
+        style.clipPath = '';
+      }
     }
-    if (element.dataset.nelyxEditContext === 'true') {
-      element.tabIndex = node.focusable === false ? -1 : 0;
-      if (node.focusable === false && document.activeElement === element) element.blur();
-    }
-    cursor?.add(element);
     if (
-      element instanceof HTMLInputElement ||
-      element instanceof HTMLTextAreaElement ||
-      element instanceof HTMLButtonElement
+      previous?.x !== x ||
+      previous?.y !== y ||
+      previous?.width !== width ||
+      previous?.height !== height
     )
-      element.disabled = !node.enabled;
-    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+      localBounds.set(element, { x, y, width, height });
+  }
+
+  function applyContent(node: SemanticsNode, element: HTMLElement) {
+    const editContext = element.dataset.nelyxEditContext === 'true',
+      nativeEditor = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
+    if (node.role !== 'text-field' && node.role !== 'button')
+      element.setAttribute(
+        'role',
+        node.isSlider
+          ? 'slider'
+          : ((node.sourceRole === undefined ? undefined : sourceDomRoles.get(node.sourceRole)) ??
+              node.checkable ??
+              passiveDomRoles[node.role] ??
+              'group'),
+      );
+    label(node, element);
+    if (nativeEditor || element instanceof HTMLButtonElement) element.disabled = !node.enabled;
+    if (editContext || nativeEditor) {
       element.tabIndex = node.focusable === false ? -1 : 0;
       if (node.focusable === false && document.activeElement === element) element.blur();
     }
+    if (node.selected !== undefined) element.setAttribute('aria-selected', String(node.selected));
+    else element.removeAttribute('aria-selected');
+    if (node.checkedMixed === true) element.setAttribute('aria-checked', 'mixed');
+    else if (node.checked !== undefined) element.setAttribute('aria-checked', String(node.checked));
+    else element.removeAttribute('aria-checked');
+    if (node.value !== undefined) element.setAttribute('aria-valuetext', node.value);
+    else element.removeAttribute('aria-valuetext');
+    if (node.isSlider || node.checkable || node.sourceRole === SemanticsRole.tab || editContext)
+      element.setAttribute('aria-disabled', String(!node.enabled));
+    else element.removeAttribute('aria-disabled');
+    const progress = node.sourceRole === SemanticsRole.progressBar,
+      loading = node.sourceRole === SemanticsRole.loadingSpinner;
+    for (const [attribute, value] of [
+      ['aria-valuemin', node.minValue],
+      ['aria-valuemax', node.maxValue],
+      ['aria-valuenow', node.value],
+    ] as const) {
+      if (progress && value !== undefined && value.trim() !== '' && Number.isFinite(Number(value)))
+        element.setAttribute(attribute, value);
+      else element.removeAttribute(attribute);
+    }
+    if (node.isSlider && node.numericRange) {
+      element.setAttribute('aria-valuemin', String(node.numericRange.min));
+      element.setAttribute('aria-valuemax', String(node.numericRange.max));
+      element.setAttribute('aria-valuenow', String(node.numericRange.value));
+    }
+    if (loading) element.setAttribute('aria-busy', 'true');
+    else element.removeAttribute('aria-busy');
+    // Some adjustable nodes have DOM focus without a corresponding Core focus action.
+    if (node.isSlider && node.enabled && !node.actions?.focus)
+      semanticsAdjustmentTargets.add(element);
+    else semanticsAdjustmentTargets.delete(element);
+    if (node.role !== 'text-field' && node.role !== 'button')
+      element.tabIndex = node.focusable === true || node.role === 'list' ? 0 : -1;
   }
+
+  function currentNode(element: HTMLElement): SemanticsNode | undefined {
+    if (closed || !bound || !publishedElements.has(element)) return;
+    const id = controlIds.get(element);
+    return id === undefined ? undefined : publishedNodes.get(id);
+  }
+  const click = (event: MouseEvent) => {
+    const element = event.currentTarget as HTMLElement,
+      node = currentNode(element);
+    if (!node || !ownsSemanticEvent(element, event)) return;
+    event.stopPropagation();
+    performAction(node, 'activate', () => (node.actions?.activate ?? node.activate)?.());
+  };
+  const keydown = (event: KeyboardEvent) => {
+    const element = event.currentTarget as HTMLElement,
+      node = currentNode(element);
+    if (!node?.enabled || event.defaultPrevented) return;
+    if (node.isSlider && isArrowKey(event.key)) {
+      const increase =
+          event.key === 'ArrowUp' ||
+          event.key === (node.textDirection === 'rtl' ? 'ArrowLeft' : 'ArrowRight'),
+        type = increase ? 'increase' : 'decrease',
+        action = node.actions?.[type];
+      if (action || semanticsAdjustmentTargets.has(element)) {
+        event.preventDefault();
+        if (action) performAction(node, type, action);
+        return;
+      }
+    }
+    if (
+      event.key === 'ArrowDown' ||
+      event.key === 'PageDown' ||
+      event.key === 'ArrowUp' ||
+      event.key === 'PageUp'
+    ) {
+      const type =
+          event.key === 'ArrowDown' || event.key === 'PageDown'
+            ? 'scroll-forward'
+            : 'scroll-backward',
+        action = node.actions?.[type];
+      if (action) {
+        event.preventDefault();
+        performAction(node, type, action);
+      }
+    }
+  };
+  const focus = (event: FocusEvent) => {
+    if (moving) return;
+    const node = currentNode(event.currentTarget as HTMLElement);
+    if (node?.actions?.focus) performAction(node, 'focus', node.actions.focus);
+  };
+  const semanticPointer =
+    (kind: 'down' | 'move' | 'up' | 'cancel' | 'leave') => (event: PointerEvent) => {
+      const element = event.currentTarget as HTMLElement;
+      if (
+        event.target !== element ||
+        !currentNode(element)?.enabled ||
+        !inputObserver?.observePointer
+      )
+        return;
+      const rect = parent!.getBoundingClientRect();
+      inputObserver.observePointer({
+        kind: kind === 'move' && event.buttons === 0 ? 'hover' : kind,
+        pointer: event.pointerId,
+        device:
+          event.pointerType === 'mouse' ||
+          event.pointerType === 'touch' ||
+          event.pointerType === 'pen'
+            ? event.pointerType
+            : 'unknown',
+        buttons: event.buttons,
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+        timestamp: event.timeStamp,
+      });
+    };
+  const pointerDown = semanticPointer('down'),
+    pointerMove = semanticPointer('move'),
+    pointerUp = semanticPointer('up'),
+    pointerCancel = semanticPointer('cancel'),
+    pointerLeave = semanticPointer('leave');
 
   function publish(tree: readonly SemanticsNode[]) {
     if (closed) throw new Error('DOM semantics closed');
     const roots = freezeSemantics(tree);
-    // Core may reuse an immutable snapshot while only painting. Editors can
-    // replace their DOM element through the independent input service.
+    // The input service can replace an editor element between publications.
     if (roots === publishedTree && !fields.size) return;
     publishedTree = undefined;
-    const nodes = flattenSemantics(roots);
-    publishedNodes = new Map(nodes.map((node) => [node.id, node]));
+    const previousNodes = publishedNodes,
+      previousElements = publishedElements;
+    publishedNodes = new Map();
+    for (const node of flattenSemantics(roots)) publishedNodes.set(node.id, node);
     publishedElements = new Set();
     for (const [id, editor] of fields)
       if (publishedNodes.get(id)?.role !== 'text-field') {
@@ -730,13 +909,6 @@ export function createDomInteraction(
             'position:absolute;background:transparent;color:transparent;border:0;pointer-events:none';
           buttons.set(node.id, control);
         }
-        control.onclick = (event) => {
-          if (!ownsSemanticEvent(control!, event)) return;
-          event.stopPropagation();
-          performAction(node, 'activate', () => {
-            (node.actions?.activate ?? node.activate)?.();
-          });
-        };
         element = control;
       } else {
         let control = passive.get(node.id);
@@ -745,163 +917,31 @@ export function createDomInteraction(
           control.style.cssText = 'position:absolute;pointer-events:none';
           passive.set(node.id, control);
         }
-        control.setAttribute(
-          'role',
-          node.isSlider
-            ? 'slider'
-            : ((node.sourceRole === undefined ? undefined : sourceDomRoles.get(node.sourceRole)) ??
-                node.checkable ??
-                passiveDomRoles[node.role] ??
-                'group'),
-        );
         element = control;
       }
       if (element.parentElement !== container) place(element, container);
-      const actualParent = element.parentElement!;
-      const origin = originOf(actualParent);
-      apply(
-        {
-          ...node,
-          bounds: { ...node.bounds, x: node.bounds.x - origin.x, y: node.bounds.y - origin.y },
-          ...(node.editorGeometry
-            ? {
-                editorGeometry: {
-                  ...node.editorGeometry,
-                  bounds: {
-                    ...node.editorGeometry.bounds,
-                    x: node.editorGeometry.bounds.x - origin.x,
-                    y: node.editorGeometry.bounds.y - origin.y,
-                  },
-                },
-              }
-            : {}),
-        },
-        element,
-      );
-      origins.set(element, { x: node.bounds.x - origin.x, y: node.bounds.y - origin.y });
+      const retained = previousElements.has(element),
+        previous = retained ? previousNodes.get(node.id) : undefined;
+      applyGeometry(node, element, retained);
+      if (!previous || !sameContent(previous, node)) applyContent(node, element);
+      if (!retained) {
+        controlIds.set(element, node.id);
+        if (node.role === 'button') element.onclick = click;
+        element.onkeydown = keydown;
+        // Native text-field focus remains owned by the editing service.
+        if (node.role !== 'text-field') element.onfocus = focus;
+        element.onpointerdown = pointerDown;
+        element.onpointermove = pointerMove;
+        element.onpointerup = pointerUp;
+        element.onpointercancel = pointerCancel;
+        element.onpointerleave = pointerLeave;
+        cursor?.add(element);
+      }
       publishedElements.add(element);
-      const siblings = order.get(actualParent) ?? [];
-      siblings.push(element);
-      order.set(actualParent, siblings);
-      if (node.selected !== undefined) element.setAttribute('aria-selected', String(node.selected));
-      else element.removeAttribute('aria-selected');
-      if (node.checkedMixed === true) element.setAttribute('aria-checked', 'mixed');
-      else if (node.checked !== undefined)
-        element.setAttribute('aria-checked', String(node.checked));
-      else element.removeAttribute('aria-checked');
-      if (node.value !== undefined) element.setAttribute('aria-valuetext', node.value);
-      else element.removeAttribute('aria-valuetext');
-      if (
-        node.isSlider ||
-        node.checkable ||
-        node.sourceRole === SemanticsRole.tab ||
-        element.dataset.nelyxEditContext === 'true'
-      )
-        element.setAttribute('aria-disabled', String(!node.enabled));
-      else element.removeAttribute('aria-disabled');
-      const progress = node.sourceRole === SemanticsRole.progressBar,
-        loading = node.sourceRole === SemanticsRole.loadingSpinner;
-      for (const [attribute, value] of [
-        ['aria-valuemin', node.minValue],
-        ['aria-valuemax', node.maxValue],
-        ['aria-valuenow', node.value],
-      ] as const) {
-        if (
-          progress &&
-          value !== undefined &&
-          value.trim() !== '' &&
-          Number.isFinite(Number(value))
-        )
-          element.setAttribute(attribute, value);
-        else element.removeAttribute(attribute);
-      }
-      if (node.isSlider && node.numericRange) {
-        element.setAttribute('aria-valuemin', String(node.numericRange.min));
-        element.setAttribute('aria-valuemax', String(node.numericRange.max));
-        element.setAttribute('aria-valuenow', String(node.numericRange.value));
-      }
-      if (loading) element.setAttribute('aria-busy', 'true');
-      else element.removeAttribute('aria-busy');
-      // Some adjustable nodes have DOM focus without a corresponding Core focus action.
-      if (node.isSlider && node.enabled && !node.actions?.focus)
-        semanticsAdjustmentTargets.add(element);
-      else semanticsAdjustmentTargets.delete(element);
-      element.onkeydown = (event) => {
-        if (event.defaultPrevented) return;
-        if (
-          publishedNodes.get(node.id) === node &&
-          node.enabled &&
-          node.isSlider &&
-          isArrowKey(event.key)
-        ) {
-          const increase =
-              event.key === 'ArrowUp' ||
-              event.key === (node.textDirection === 'rtl' ? 'ArrowLeft' : 'ArrowRight'),
-            type = increase ? 'increase' : 'decrease',
-            action = node.actions?.[type];
-          if (action || semanticsAdjustmentTargets.has(element)) {
-            event.preventDefault();
-            if (action) performAction(node, type, action);
-            return;
-          }
-        }
-        if (
-          publishedNodes.get(node.id) === node &&
-          node.enabled &&
-          ['ArrowDown', 'PageDown', 'ArrowUp', 'PageUp'].includes(event.key)
-        ) {
-          const type =
-              event.key === 'ArrowDown' || event.key === 'PageDown'
-                ? 'scroll-forward'
-                : 'scroll-backward',
-            action = node.actions?.[type];
-          if (action) {
-            event.preventDefault();
-            performAction(node, type, action);
-          }
-        }
-      };
-      // Native text-field focus remains the editing channel. Other semantics
-      // controls expose their actual DOM focus action without inventing an IME origin.
-      element.onfocus =
-        node.role !== 'text-field' && node.actions?.focus
-          ? () => {
-              if (!moving) performAction(node, 'focus', node.actions!.focus!);
-            }
-          : null;
-      const pointer =
-        (kind: 'down' | 'move' | 'up' | 'cancel' | 'leave') => (event: PointerEvent) => {
-          if (
-            event.target !== element ||
-            closed ||
-            !bound ||
-            publishedNodes.get(node.id) !== node ||
-            !node.enabled
-          )
-            return;
-          const rect = parent!.getBoundingClientRect();
-          inputObserver?.observePointer?.({
-            kind: kind === 'move' && event.buttons === 0 ? 'hover' : kind,
-            pointer: event.pointerId,
-            device:
-              event.pointerType === 'mouse' ||
-              event.pointerType === 'touch' ||
-              event.pointerType === 'pen'
-                ? event.pointerType
-                : 'unknown',
-            buttons: event.buttons,
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top,
-            timestamp: event.timeStamp,
-          });
-        };
-      element.onpointerdown = pointer('down');
-      element.onpointermove = pointer('move');
-      element.onpointerup = pointer('up');
-      element.onpointercancel = pointer('cancel');
-      element.onpointerleave = pointer('leave');
-      if (node.role !== 'text-field' && node.role !== 'button')
-        element.tabIndex = node.focusable === true || node.role === 'list' ? 0 : -1;
+      const actualParent = element.parentElement!,
+        siblings = order.get(actualParent);
+      if (siblings) siblings.push(element);
+      else order.set(actualParent, [element]);
       node.children?.forEach((child) => publishNode(child, element));
     };
     roots.forEach((node) => publishNode(node, parent!));
@@ -909,7 +949,8 @@ export function createDomInteraction(
     const focused = document.activeElement;
     for (const [container, siblings] of order) {
       let anchor: Node | null = null;
-      for (const element of [...siblings].reverse()) {
+      for (let index = siblings.length - 1; index >= 0; index--) {
+        const element = siblings[index]!;
         if (element !== focused && !element.contains(focused) && element.nextSibling !== anchor)
           place(element, container, anchor);
         anchor = element;
@@ -943,6 +984,7 @@ export function createDomInteraction(
   };
   const semantics: SemanticsHost = {
     capability: accessibilityEnabled ? 'dom' : 'unavailable',
+    captureTextGeometry: false,
     bind(nodes, observer) {
       if (!accessibilityEnabled || closed || bound) throw new Error('DOM semantics already bound');
       publish(nodes);

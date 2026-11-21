@@ -962,6 +962,9 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
   protected override didCommitTextInputGeometry(): void {
     this.onInputGeometryChanged?.();
   }
+  protected override get requestsFocusedInputGeometry(): boolean {
+    return this.constructor !== RenderEditable || this.visual.focused;
+  }
   override get coreEditingGeometry(): EditableGeometry | null {
     return this.layoutValue && this.hasSize && !this.needsLayout && this.attached
       ? this.editingGeometry

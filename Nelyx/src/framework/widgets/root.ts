@@ -836,9 +836,13 @@ export class FrameworkRoot implements ViewController {
           paintCounts.compositionStructureMisses,
         );
       }
+      const captureSemanticsText = this.context.semantics.captureTextGeometry !== false;
       geometryCommit = render.commitTextInputGeometries({
         owner: scene.token.owner,
         metrics: scene.token.metrics,
+        focusedEditorsOnly:
+          this.context.editing?.focusedGeometryOnly === true &&
+          (!this.sourceSemanticsSnapshot || !captureSemanticsText),
         ...(this.context.inputGeometry ? { inputGeometry: this.context.inputGeometry } : {}),
         ...(diagnostics ? { geometryDiagnostics: { diagnostics, token: scene.token } } : {}),
       });
@@ -876,12 +880,16 @@ export class FrameworkRoot implements ViewController {
           (['scale', 'rendererGeneration', 'nativeContextGeneration'] as const).every(
             (key) => cached!.metrics[key] === metrics[key],
           );
+        const semanticsNeedsText =
+          captureSemanticsText &&
+          (geometryCommit.hasInputGeometry ||
+            cached?.nodes.some((node) => node.role === 'text-field'));
         let reuse =
           sameScope &&
           !this.semanticsDeferred &&
           this.pendingSemanticsActions.length === 0 &&
-          !geometryCommit.hasInputGeometry &&
-          !cached!.nodes.some((node) => node.role === 'text-field') &&
+          !semanticsNeedsText &&
+          this.semanticsFocus === this.buildOwner.focus.primaryFocus &&
           !semanticsPipeline?.hasPendingChanges;
         const now = this.scheduler.currentSystemFrameTimeStamp,
           elapsed =
@@ -904,11 +912,7 @@ export class FrameworkRoot implements ViewController {
               !semanticsPipeline?.hasConfigurationChanges &&
               resizeElapsed >= 0 &&
               resizeElapsed < interval)) &&
-          (!(
-            geometryCommit.hasInputGeometry ||
-            cached?.nodes.some((node) => node.role === 'text-field')
-          ) ||
-            semanticsPipeline?.hasPendingChanges === true) &&
+          (!semanticsNeedsText || semanticsPipeline?.hasPendingChanges === true) &&
           this.semanticsFocus === this.buildOwner.focus.primaryFocus &&
           !this.pipeline.semanticsOwner?.hasPendingUpdates;
         if (defer) {
@@ -960,11 +964,13 @@ export class FrameworkRoot implements ViewController {
             nodes = cached!.nodes;
           } else {
             const snapshotBegan = diagnostics?.now();
-            candidate = this.sourceSemanticsSnapshot.capture(render, render.localTransform, {
-              owner: scene.token.owner,
-              metrics,
-              inputGeometryToken: geometryCommit.token,
-            });
+            candidate = this.sourceSemanticsSnapshot.capture(
+              render,
+              render.localTransform,
+              captureSemanticsText
+                ? { owner: scene.token.owner, metrics, inputGeometryToken: geometryCommit.token }
+                : undefined,
+            );
             if (diagnostics) diagnostics.record(scene.token, 'semantics-snapshot', snapshotBegan!);
             const freezeBegan = diagnostics?.now();
             snapshot = freezeSemantics(candidate.nodes);

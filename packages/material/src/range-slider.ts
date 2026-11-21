@@ -300,7 +300,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
   private pendingOverlay = false;
   private overlayWanted = false;
   private nextValues!: RangeValues;
-  private pendingMouseDrag: { thumb: Thumb; values: RangeValues } | null = null;
+  private pendingDrag: { thumb: Thumb; values: RangeValues } | null = null;
   private theme: SliderThemeData | null = null;
   private inputValues!: RangeValues;
   private inputMin = 0;
@@ -410,13 +410,13 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
   }
   private updateValues(): void {
     const raw = this.normalized(),
-      mouseDrag = this.pendingMouseDrag,
+      drag = this.pendingDrag,
       sameScale =
         this.inputMin === this.widget.min &&
         this.inputMax === this.widget.max &&
         this.inputDivisions === this.widget.divisions;
     // The final move and pointer-up can arrive before the same parent rebuild.
-    this.pendingMouseDrag = null;
+    this.pendingDrag = null;
     // Keep controlled off-grid input stable through ambient/layout-only rebuilds.
     // Quantization belongs to a changed parent input or an interaction callback.
     if (raw.equals(this.inputValues) && sameScale) return;
@@ -431,11 +431,11 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
       [Thumb.start, this.startPosition, next.start],
       [Thumb.end, this.endPosition, next.end],
     ] as const) {
-      const followsMouse =
+      const followsDrag =
         sameScale &&
-        mouseDrag?.thumb === thumb &&
-        target === (thumb === Thumb.start ? mouseDrag.values.start : mouseDrag.values.end);
-      if (!this.discrete || followsMouse) controller.value = target;
+        drag?.thumb === thumb &&
+        target === (thumb === Thumb.start ? drag.values.start : drag.values.end);
+      if (!this.discrete || followsDrag) controller.value = target;
       else {
         const distance = Math.abs(target - controller.value);
         controller.duration = distance === 0 ? 0 : Math.round(75000 / distance) / 1000;
@@ -490,13 +490,13 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     );
     return result;
   }
-  private emit(values: RangeValues, mouseThumb: Thumb | null = null): void {
+  private emit(values: RangeValues, dragThumb: Thumb | null = null): void {
     if (!this.live || !this.enabled) return;
     const projected = this.projected(values),
-      pending = mouseThumb === null ? null : this.pendingMouseDrag;
+      pending = dragThumb === null ? null : this.pendingDrag;
     // A reversal can restore the widget's value before the parent has rebuilt.
     if (projected.equals(this.widget.values) && (!pending || values.equals(pending.values))) return;
-    this.pendingMouseDrag = mouseThumb === null ? null : { thumb: mouseThumb, values };
+    this.pendingDrag = dragThumb === null ? null : { thumb: dragThumb, values };
     this.widget.onChanged?.(projected);
   }
   private startCallback(values: RangeValues): void {
@@ -504,7 +504,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
     this.setState(() => {});
     this.widget.onChangeStart?.(this.projected(values));
   }
-  private start(global: Point, fromMouseDrag = false): void {
+  private start(global: Point, fromDrag = false): void {
     if (!this.live || !this.enabled || this.active) return;
     const value = clampDouble(this.fraction(global), 0, 1);
     this.selected = this.select(value, 0);
@@ -521,7 +521,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
         : new RangeValues(current.start, value);
     this.startCallback(current);
     if (!this.live || !this.enabled) return;
-    this.emit(this.quantized(this.nextValues), fromMouseDrag ? this.selected : null);
+    this.emit(this.quantized(this.nextValues), fromDrag ? this.selected : null);
     if (!this.live || !this.enabled) return;
     this.overlay.forward();
     if (this.theme && shouldShowOnDrag(this.theme, this.discrete)) {
@@ -556,10 +556,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
       this.selected === Thumb.start
         ? new RangeValues(Math.min(drag, current.end - separation), current.end)
         : new RangeValues(current.start, Math.max(drag, current.start + separation));
-    this.emit(
-      this.quantized(this.nextValues),
-      details.kind === PointerDeviceKind.mouse ? this.selected : null,
-    );
+    this.emit(this.quantized(this.nextValues), this.selected);
   }
   private end(): void {
     if (!this.live) return;
@@ -581,7 +578,7 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
   private cancel(): void {
     this.active = false;
     this.dragging = false;
-    this.pendingMouseDrag = null;
+    this.pendingDrag = null;
     this.cancelTimer();
     this.overlay.stop();
     this.indicator.stop();
@@ -724,10 +721,12 @@ class MaterialRangeSliderState extends TickerProviderStateMixin<RangeSlider> {
           return drag;
         },
         (drag) => {
+          // A team can win before any horizontal motion when it handles a tap.
           drag.onStart = (details) =>
             this.start(
               details.globalPosition,
-              details.kind === PointerDeviceKind.mouse && details.sourceTimeStamp !== null,
+              details.sourceTimeStamp !== null &&
+                (details.kind === PointerDeviceKind.mouse || drag.globalDistanceMoved !== 0),
             );
           drag.onUpdate = (details) => this.dragUpdate(details);
           drag.onEnd = () => this.end();

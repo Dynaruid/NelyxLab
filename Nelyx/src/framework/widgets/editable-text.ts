@@ -895,15 +895,18 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         })
       : Object.freeze({ ...stamp, status: 'miss' });
   }
+  private readonly readInputGeometry = (): TextInputGeometry | null => this.currentInputGeometry();
   private readonly publishInputGeometry = (): void => {
+    const binding = this.binding;
     if (
-      !this.binding?.updateGeometry ||
+      (!binding?.updateGeometryFrom && !binding?.updateGeometry) ||
       !this.mounted ||
       !(this.context instanceof Element) ||
       !this.context.active
     )
       return;
-    this.binding.updateGeometry(this.currentInputGeometry());
+    if (binding.updateGeometryFrom) binding.updateGeometryFrom(this.readInputGeometry);
+    else binding.updateGeometry?.(this.readInputGeometry());
   };
 
   private metricPainter: TextPainter | undefined;

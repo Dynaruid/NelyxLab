@@ -114,7 +114,11 @@ export interface ViewServices {
   readonly defaultFont?: import('../ui/types.ts').ResourceId;
 }
 export type ViewRuntimeStatus = 'open' | 'closing' | 'closed' | 'failed';
-export type OptionalWorkCallback = (timing: FrameTiming | undefined, canRun: () => boolean) => void;
+export type OptionalWorkCallback = (
+  timing: FrameTiming | undefined,
+  canRun: () => boolean,
+  timeRemaining?: () => number,
+) => void;
 export interface ViewControllerContext extends ViewServices {
   readonly owner: ViewOwner;
   readonly resources: ResourceRegistry;
@@ -123,9 +127,9 @@ export interface ViewControllerContext extends ViewServices {
   /** One cancellable request in this Clock's epoch. Its callback runs on the
    * due owner frame, never inline; ordinary requests can still run earlier. */
   readonly requestFrameAt?: (notBefore: number, callback: () => void) => Disposable;
-  /** One cancellable preparation callback on an actual owner tick, after
-   * required input/frame work. It does not invalidate or capture a CPU frame.
-   * The caller must require an observed deadline and bound its atomic work. */
+  /** One cancellable preparation callback after required input/frame work.
+   * A host may supply an idle budget instead of a compositor deadline.
+   * The callback must check that budget and bound its atomic work. */
   readonly requestOptionalWork?: (callback: OptionalWorkCallback) => Disposable;
   /** Widget builds may observe selected fields; an omitted selection observes all metrics. */
   readonly readMetrics: (...fields: readonly (keyof ViewMetrics)[]) => ViewMetrics;
@@ -192,6 +196,7 @@ export class ViewRuntime implements Disposable {
     callback: (() => void) | undefined;
   }>();
   private readonly optionalFrames = new Set<{ callback: OptionalWorkCallback | undefined }>();
+  private optionalIdle: Disposable | undefined;
   private optionalParked = false;
   private state: ViewRuntimeStatus = 'open';
   private sequence = 0;
@@ -614,6 +619,7 @@ export class ViewRuntime implements Disposable {
     };
   }
   private cancelUnusedPump(): void {
+    if (!this.optionalFrames.size) this.cancelOptionalIdle();
     if (
       !this.dirty &&
       !this.pending &&
@@ -626,10 +632,16 @@ export class ViewRuntime implements Disposable {
       task?.dispose();
     }
   }
+  private cancelOptionalIdle(): void {
+    const idle = this.optionalIdle;
+    this.optionalIdle = undefined;
+    idle?.dispose();
+  }
   private cancelOptionalFrames(): void {
     for (const request of this.optionalFrames) request.callback = undefined;
     this.optionalFrames.clear();
     this.optionalParked = false;
+    this.cancelOptionalIdle();
   }
   private canRunOptionalWork(): boolean {
     return (
@@ -649,6 +661,7 @@ export class ViewRuntime implements Disposable {
   private flushOptionalWork(
     batch: readonly { callback: OptionalWorkCallback | undefined }[] | undefined,
     forced: boolean,
+    timeRemaining?: () => number,
   ): void {
     if (!batch?.length || forced) return;
     const metrics = this.metrics,
@@ -663,6 +676,18 @@ export class ViewRuntime implements Disposable {
       this.cancelUnusedPump();
       return;
     }
+    const clock = this.session.clock;
+    if (!timeRemaining && clock.requestIdle) {
+      this.optionalIdle ??= clock.requestIdle((remaining) => {
+        this.optionalIdle = undefined;
+        try {
+          this.flushOptionalWork([...this.optionalFrames], false, remaining);
+        } catch (error) {
+          this.failFrameCallback(error);
+        }
+      });
+      return;
+    }
     this.optionalParked = false;
     const canRun = () =>
       this.metrics === metrics &&
@@ -674,7 +699,7 @@ export class ViewRuntime implements Disposable {
       if (!this.optionalFrames.delete(request)) continue;
       const callback = request.callback;
       request.callback = undefined;
-      callback?.(this.frameTiming, canRun);
+      callback?.(timeRemaining ? undefined : this.frameTiming, canRun, timeRemaining);
     }
     if (this.optionalFrames.size && !this.canRunOptionalWork()) {
       this.optionalParked = true;
@@ -725,6 +750,7 @@ export class ViewRuntime implements Disposable {
     this.controller?.setVisible?.(visible);
     if (visible || this.forcedFrame) this.schedulePump();
     else {
+      this.cancelOptionalIdle();
       this.task?.dispose();
       this.task = undefined;
     }
@@ -981,7 +1007,7 @@ export class ViewRuntime implements Disposable {
         this.pending ||
         this.pointerMailbox.length ||
         this.deferredFrames.size ||
-        (this.optionalFrames.size && !this.optionalParked))
+        (this.optionalFrames.size && !this.optionalParked && !this.optionalIdle))
     )
       this.task = this.session.clock.request((timing) => {
         this.frameTiming = timing;
@@ -1037,24 +1063,31 @@ export class ViewRuntime implements Disposable {
           this.flushOptionalWork(optional, forced);
           if (this.deferredFrames.size || this.optionalFrames.size) this.schedulePump();
         } catch (error) {
-          const task = this.task;
-          this.task = undefined;
-          this.cancelDeferredFrames();
-          this.cancelOptionalFrames();
-          let failure = error;
-          try {
-            task?.dispose();
-          } catch (cleanup) {
-            failure = new AggregateError(
-              [error, cleanup],
-              'Frame callback and cancellation failed',
-            );
-          }
-          if (this.state === 'open') this.state = 'failed';
-          if (this.options.onError) this.options.onError(failure);
-          else throw failure;
+          this.failFrameCallback(error);
         }
       });
+  }
+  private failFrameCallback(error: unknown): void {
+    const task = this.task;
+    this.task = undefined;
+    const errors = [error];
+    for (const cancel of [
+      () => this.cancelDeferredFrames(),
+      () => this.cancelOptionalFrames(),
+      () => task?.dispose(),
+    ])
+      try {
+        cancel();
+      } catch (cleanup) {
+        errors.push(cleanup);
+      }
+    if (this.state === 'open') this.state = 'failed';
+    const failure =
+      errors.length === 1
+        ? error
+        : new AggregateError(errors, 'Frame callback and cancellation failed');
+    if (this.options.onError) this.options.onError(failure);
+    else throw failure;
   }
   private clearPending(): void {
     const pending = this.pending;
@@ -1093,7 +1126,11 @@ export class ViewRuntime implements Disposable {
     this.task = undefined;
     this.pointerMailbox.length = 0;
     this.cancelDeferredFrames();
-    this.cancelOptionalFrames();
+    try {
+      this.cancelOptionalFrames();
+    } catch (error) {
+      errors.push(error);
+    }
     try {
       this.options.renderer.setQueuedInputCount?.(0);
     } catch (error) {

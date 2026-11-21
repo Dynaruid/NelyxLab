@@ -19,6 +19,8 @@ export interface FrameTiming {
 }
 export interface FrameClock {
   request(callback: (timing?: FrameTiming) => void): Disposable;
+  /** A cancellable host idle callback with its own remaining time budget in milliseconds. */
+  requestIdle?(callback: (timeRemaining: () => number) => void): Disposable;
   /** Admission changed. No animation tick or deadline is implied. */
   observeCredit?(callback: () => void): Disposable;
 }

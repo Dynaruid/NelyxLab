@@ -113,6 +113,7 @@ export function createBrowserEditContext({
     geometrySource: TextInputGeometry | undefined;
   let geometryValue: Pick<TextEditingValue, 'text' | 'selection'> | undefined,
     lastBoundsKey: string | null | undefined;
+  let readCoreGeometry: (() => TextInputGeometry | null) | undefined;
   let pendingReplacement: TextEditingValue | undefined,
     pendingBounds: { start: number; end: number } | undefined,
     restoreAfterCancellation = false;
@@ -121,15 +122,13 @@ export function createBrowserEditContext({
     return value;
   };
   const admitsInput = () => alive && options.readInputState?.().enabled !== false && alive;
-  const inputRect = (rect: Rect): DOMRect => {
-    const view = viewport();
-    return new DOMRect(
+  const inputRect = (view: BrowserInputViewport, rect: Rect): DOMRect =>
+    new DOMRect(
       view.bounds.x + (rect.x * view.bounds.width) / view.width,
       view.bounds.y + (rect.y * view.bounds.height) / view.height,
       (rect.width * view.bounds.width) / view.width,
       (rect.height * view.bounds.height) / view.height,
     );
-  };
   const emit = (source: 'native' | 'programmatic') => {
     if (source === 'native' && !canceling && !admitsInput()) return;
     value = freezeEditing({
@@ -156,14 +155,16 @@ export function createBrowserEditContext({
   };
   const syncBounds = () => {
     if (!alive) return;
-    if (!admitsInput()) {
+    // Keep the last painted snapshot ready, and query native IME bounds when
+    // this editor is focused. Scrolling can move many mounted editors at once.
+    if (!element.matches(':focus') || !admitsInput()) {
       pendingBounds = undefined;
       if (alive) resetBounds();
       return;
     }
     const view = viewport(),
       core = options.readValue?.(),
-      currentBounds = options.readCharacterBounds?.(0, 0);
+      currentBounds = readCoreGeometry ? readCoreGeometry() : options.readCharacterBounds?.(0, 0);
     if (
       !admitsInput() ||
       !geometry ||
@@ -218,12 +219,15 @@ export function createBrowserEditContext({
       view.bounds.height,
     ].join(':');
     if (lastBoundsKey !== key) {
-      context.updateControlBounds(inputRect(geometry.clip));
-      context.updateSelectionBounds(inputRect(geometry.caret));
+      context.updateControlBounds(inputRect(view, geometry.clip));
+      context.updateSelectionBounds(inputRect(view, geometry.caret));
       lastBoundsKey = key;
     }
     if (characters) {
-      context.updateCharacterBounds(characters.rangeStart, characters.rects.map(inputRect));
+      context.updateCharacterBounds(
+        characters.rangeStart,
+        characters.rects.map((rect) => inputRect(view, rect)),
+      );
       pendingBounds = undefined;
     }
   };
@@ -297,9 +301,14 @@ export function createBrowserEditContext({
   };
   const focus = () => {
       if (!canceling && !moving() && admitsInput()) options.focusChanged?.(true);
+      if (alive && readCoreGeometry) binding.updateGeometry!(readCoreGeometry());
+      else syncBounds();
     },
     blur = () => {
-      if (alive && !canceling && !moving()) options.focusChanged?.(false);
+      if (!alive) return;
+      pendingBounds = undefined;
+      resetBounds();
+      if (!canceling && !moving()) options.focusChanged?.(false);
     };
   const key = (event: KeyboardEvent) => {
     if (!admitsInput() || event.defaultPrevented || event.isComposing || composing) return;
@@ -416,6 +425,11 @@ export function createBrowserEditContext({
         : undefined;
       syncBounds();
     },
+    updateGeometryFrom(read) {
+      current();
+      readCoreGeometry = read;
+      if (element.matches(':focus')) binding.updateGeometry!(read());
+    },
     focus() {
       current();
       if (admitsInput()) element.focus({ preventScroll: true });
@@ -435,6 +449,7 @@ export function createBrowserEditContext({
       geometry = undefined;
       geometrySource = undefined;
       geometryValue = undefined;
+      readCoreGeometry = undefined;
       for (const [name, listener] of contextListeners) context.removeEventListener(name, listener);
       element.removeEventListener('focus', focus);
       element.removeEventListener('blur', blur);

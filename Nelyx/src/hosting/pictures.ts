@@ -31,7 +31,7 @@ const limits = Object.freeze({
 });
 /** App-local native picture LRU. Eviction drops a producer, never an admitted GPU lease. */
 export class FramePictureService implements PictureResourceProvider {
-  private readonly cache = new Map<object, Entry>();
+  private readonly cache = new Map<Picture, Entry>();
   private readonly live = new Set<Entry>();
   private readonly failures: Entry[] = [];
   private readonly uncertain: Array<{
@@ -48,6 +48,15 @@ export class FramePictureService implements PictureResourceProvider {
   ) {}
   resource(picture: Picture): ResourceId {
     invariant(!this.closed, 'closed-picture-owner', 'Native frame picture owner is closed');
+    const cached = this.cache.get(picture);
+    if (cached) {
+      // Each Picture owns one immutable recording. Retain a capture only for
+      // a new native entry, not on every translated/recomposed cache hit.
+      invariant(!picture.debugDisposed, 'disposed-picture', 'Picture has been disposed');
+      this.cache.delete(picture);
+      this.cache.set(picture, cached);
+      return cached.resource;
+    }
     const capture = picture._capture();
     let recipe: PictureCapture | undefined,
       input: ResourceLease | undefined,
@@ -56,67 +65,60 @@ export class FramePictureService implements PictureResourceProvider {
       result: ResourceId | undefined;
     const errors: unknown[] = [];
     try {
-      const old = this.cache.get(capture.frame);
-      if (old) {
-        this.cache.delete(capture.frame);
-        this.cache.set(capture.frame, old);
-        result = old.resource;
-      } else {
-        // Nested native pictures are bounded by the same registry and native lookup; no recursion is performed here.
-        input = this.resources.acquire([...capture.frame.resources]);
-        while (this.cache.size >= limits.entries) this.evict();
-        invariant(
-          this.live.size < limits.live,
-          'picture-pending-budget',
-          'Too many native Picture resources for the bounded frame queue',
-        );
-        const resource: ResourceDescriptor = Object.freeze({
-          ...this.resources.allocateId(`${this.owner.id}:${this.owner.generation}:picture`),
-          kind: 'picture',
-        });
-        recipe = capture.retain();
-        native = this.backend.compile(recipe, resource);
-        invariant(
-          !this.closed,
-          'closed-picture-owner',
-          'Native picture owner closed during compilation',
-        );
-        invariant(
-          !picture.debugDisposed,
-          'disposed-picture',
-          'Picture disposed during native compilation',
-        );
-        const bytes = native.bytes + capture.frame.estimatedBytes;
-        invariant(
-          Number.isSafeInteger(native.bytes) && native.bytes >= 0 && bytes <= limits.bytes,
-          'picture-byte-budget',
-          'Native picture and restoration recipe exceed budget',
-        );
-        while (this.bytes + bytes > limits.bytes && this.cache.size) this.evict();
-        invariant(
-          this.bytes + bytes <= limits.bytes,
-          'picture-byte-budget',
-          'GPU-retained pictures occupy the byte budget',
-        );
-        const entry: Entry = { resource, capture: recipe, input, native, bytes, cancel: () => {} };
-        this.resources.register(resource, () => this.retire(entry));
-        admitted = true;
-        this.live.add(entry);
-        this.bytes += bytes;
-        this.cache.set(capture.frame, entry);
-        this.resources.bindResource(resource);
+      // Nested pictures rely on the same bounded registry and native lookup.
+      input = this.resources.acquire([...capture.frame.resources]);
+      while (this.cache.size >= limits.entries) this.evict();
+      invariant(
+        this.live.size < limits.live,
+        'picture-pending-budget',
+        'Too many native Picture resources for the bounded frame queue',
+      );
+      const resource: ResourceDescriptor = Object.freeze({
+        ...this.resources.allocateId(`${this.owner.id}:${this.owner.generation}:picture`),
+        kind: 'picture',
+      });
+      recipe = capture.retain();
+      native = this.backend.compile(recipe, resource);
+      invariant(
+        !this.closed,
+        'closed-picture-owner',
+        'Native picture owner closed during compilation',
+      );
+      invariant(
+        !picture.debugDisposed,
+        'disposed-picture',
+        'Picture disposed during native compilation',
+      );
+      const bytes = native.bytes + capture.frame.estimatedBytes;
+      invariant(
+        Number.isSafeInteger(native.bytes) && native.bytes >= 0 && bytes <= limits.bytes,
+        'picture-byte-budget',
+        'Native picture and restoration recipe exceed budget',
+      );
+      while (this.bytes + bytes > limits.bytes && this.cache.size) this.evict();
+      invariant(
+        this.bytes + bytes <= limits.bytes,
+        'picture-byte-budget',
+        'GPU-retained pictures occupy the byte budget',
+      );
+      const entry: Entry = { resource, capture: recipe, input, native, bytes, cancel: () => {} };
+      this.resources.register(resource, () => this.retire(picture, entry));
+      admitted = true;
+      this.live.add(entry);
+      this.bytes += bytes;
+      this.cache.set(picture, entry);
+      this.resources.bindResource(resource);
+      try {
+        entry.cancel = picture._onDispose(() => this.remove(picture));
+      } catch (error) {
         try {
-          entry.cancel = picture._onDispose(() => this.remove(capture.frame));
-        } catch (error) {
-          try {
-            this.remove(capture.frame);
-          } catch (cleanup) {
-            throw new AggregateError([error, cleanup], 'Picture disposal subscription failed');
-          }
-          throw error;
+          this.remove(picture);
+        } catch (cleanup) {
+          throw new AggregateError([error, cleanup], 'Picture disposal subscription failed');
         }
-        result = resource;
+        throw error;
       }
+      result = resource;
     } catch (error) {
       errors.push(error);
       if (error instanceof RasterizationPendingError && recipe && input && !native) {
@@ -164,7 +166,7 @@ export class FramePictureService implements PictureResourceProvider {
       throw new AggregateError(errors, 'Native frame picture admission cleanup failed');
     return result!;
   }
-  private remove(key: object): void {
+  private remove(key: Picture): void {
     const entry = this.cache.get(key);
     if (!entry) return;
     this.cache.delete(key);
@@ -176,9 +178,9 @@ export class FramePictureService implements PictureResourceProvider {
     invariant(key, 'picture-cache-empty', 'No evictable native picture');
     this.remove(key);
   }
-  private retire(entry: Entry): void {
-    if (this.cache.get(entry.capture.frame) === entry) {
-      this.cache.delete(entry.capture.frame);
+  private retire(picture: Picture, entry: Entry): void {
+    if (this.cache.get(picture) === entry) {
+      this.cache.delete(picture);
       entry.cancel();
     }
     // A failed native deletion cannot release its input recipe or resource lease.

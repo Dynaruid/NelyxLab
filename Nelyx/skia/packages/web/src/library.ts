@@ -1223,52 +1223,57 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     const saveCount = canvas.getSaveCount(),
       errors: unknown[] = [],
       paths: { delete(): void }[] = [];
-    let paint: import('canvaskit-wasm').Paint | undefined;
+    type Command = PaintFrame['commands'][number];
+    let paint: import('canvaskit-wasm').Paint | undefined,
+      imageRefs: Map<Command, Image> | undefined,
+      paragraphRefs: Map<Command, Entry> | undefined,
+      pictureRefs: import('canvaskit-wasm').SkPicture[] | undefined,
+      styles: Map<Command, import('canvaskit-wasm').Paint> | undefined,
+      backdrops: Map<Command, import('canvaskit-wasm').ImageFilter | null> | undefined;
     const own = <T extends { delete(): void }>(value: T): T => {
       paths.push(value);
       return value;
     };
     try {
-      paint = new this.ck.Paint();
-      paint.setAntiAlias(true);
-      const imageRefs = new Map<PaintFrame['commands'][number], Image>(),
-        paragraphRefs = new Map<PaintFrame['commands'][number], Entry>();
-      const styles = new Map<PaintFrame['commands'][number], import('canvaskit-wasm').Paint>(),
-        backdrops = new Map<
-          PaintFrame['commands'][number],
-          import('canvaskit-wasm').ImageFilter | null
-        >();
-      for (const command of frame.commands)
+      // Scrolling usually replays retained pictures and transforms. Only
+      // prepare temporary paints and lookup tables for commands that use them.
+      for (const command of frame.commands) {
+        if (!paint && (command.op === 'rect' || command.op === 'rrect' || command.op === 'image')) {
+          paint = new this.ck.Paint();
+          paint.setAntiAlias(true);
+        }
         if ('paint' in command) {
           const value = own(new this.ck.Paint());
           const filter = this.configurePaint(value, command.paint, own);
           if (command.op === 'saveBackdropFilter') {
-            backdrops.set(command, filter);
+            (backdrops ??= new Map()).set(command, filter);
             value.setImageFilter(null);
           }
-          styles.set(command, value);
+          (styles ??= new Map()).set(command, value);
         }
+      }
       for (const command of frame.commands)
         if ('resource' in command) {
           if (command.op === 'drawPicture') {
-            this.framePicture(resourceKey(command.resource));
+            (pictureRefs ??= []).push(this.framePicture(resourceKey(command.resource)));
           } else if (command.op === 'paragraph') {
             const value = this.paragraphs.get(resourceKey(command.resource));
             if (!value) throw new Error('Web paragraph retired');
-            paragraphRefs.set(command, value);
+            (paragraphRefs ??= new Map()).set(command, value);
           } else {
             const value = this.images.get(resourceKey(command.resource));
             if (!value) throw new Error('Web image retired');
-            imageRefs.set(command, value);
+            (imageRefs ??= new Map()).set(command, value);
           }
         }
       canvas.save();
-      canvas.scale(scale, scale);
+      if (scale !== 1) canvas.scale(scale, scale);
+      let pictureIndex = 0;
       for (const command of frame.commands) {
-        const styled = styles.get(command)!;
+        const styled = ('paint' in command ? styles!.get(command) : undefined)!;
         switch (command.op) {
           case 'drawPicture':
-            canvas.drawPicture(this.framePicture(resourceKey(command.resource)));
+            canvas.drawPicture(pictureRefs![pictureIndex++]!);
             break;
           case 'clear':
             canvas.clear(this.color(command.color));
@@ -1295,7 +1300,8 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
                 number,
                 number,
               ];
-              canvas.concat([a, c, x, b, d, y, 0, 0, 1]);
+              if (a === 1 && b === 0 && c === 0 && d === 1) canvas.translate(x, y);
+              else canvas.concat([a, c, x, b, d, y, 0, 0, 1]);
             }
             break;
           }
@@ -1303,29 +1309,32 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
             canvas.clipRect(this.rect(command.rect), this.ck.ClipOp.Intersect, true);
             break;
           case 'rect':
-          case 'rrect':
-            paint.setColor(this.color(command.color));
-            if (command.op === 'rect') canvas.drawRect(this.rect(command.rect), paint);
+          case 'rrect': {
+            const solid = paint!;
+            solid.setColor(this.color(command.color));
+            if (command.op === 'rect') canvas.drawRect(this.rect(command.rect), solid);
             else
               canvas.drawRRect(
                 this.ck.RRectXY(this.rect(command.rect), command.radius, command.radius),
-                paint,
+                solid,
               );
             break;
+          }
           case 'image': {
-            const image = imageRefs.get(command)!;
-            paint.setColor(this.color(0xff000000));
+            const image = imageRefs!.get(command)!,
+              solid = paint!;
+            solid.setColor(this.color(0xff000000));
             canvas.drawImageRect(
               image,
               this.ck.XYWHRect(0, 0, image.width(), image.height()),
               this.rect(command.rect),
-              paint,
+              solid,
             );
             break;
           }
           case 'drawImageRect':
           case 'drawImageNine': {
-            const image = imageRefs.get(command)!;
+            const image = imageRefs!.get(command)!;
             const quality = command.paint.filterQuality ?? 'none',
               source = this.rect(command.op === 'drawImageRect' ? command.src : command.center),
               dst = this.rect(command.dst);
@@ -1351,7 +1360,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
             break;
           }
           case 'paragraph': {
-            const paragraph = paragraphRefs.get(command)!;
+            const paragraph = paragraphRefs!.get(command)!;
             canvas.drawParagraph(paragraph.paragraph, command.x, command.y);
             break;
           }
@@ -1372,7 +1381,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
             canvas.drawLine(command.from.x, command.from.y, command.to.x, command.to.y, styled);
             break;
           case 'saveBackdropFilter':
-            canvas.saveLayer(styled, null, backdrops.get(command) ?? null);
+            canvas.saveLayer(styled, null, backdrops?.get(command) ?? null);
             break;
           case 'saveLayer':
             canvas.saveLayer(styled, command.bounds ? this.rect(command.bounds) : null);
@@ -1445,16 +1454,22 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     } catch (error) {
       errors.push(error);
     } finally {
-      for (const cleanup of [
-        () => canvas.restoreToCount(saveCount),
-        ...paths.reverse().map((path) => () => path.delete()),
-        () => paint?.delete(),
-      ])
+      try {
+        canvas.restoreToCount(saveCount);
+      } catch (error) {
+        errors.push(error);
+      }
+      for (let index = paths.length - 1; index >= 0; index--)
         try {
-          cleanup();
+          paths[index]!.delete();
         } catch (error) {
           errors.push(error);
         }
+      try {
+        paint?.delete();
+      } catch (error) {
+        errors.push(error);
+      }
     }
     if (errors.length === 1) throw errors[0];
     if (errors.length)

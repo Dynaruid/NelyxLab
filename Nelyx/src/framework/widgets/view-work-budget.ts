@@ -19,7 +19,13 @@ export type SliverChildPolicy =
       readonly preparation?: 'disabled' | 'observed-budget';
       /** Optional live sections per sliver, within the shared View budget. */ readonly capacity?: number;
     }
-  | { readonly mode: 'dormant'; readonly capacity: number };
+  | {
+      readonly mode: 'dormant';
+      readonly capacity: number;
+      /** Opt in cold slots to detached production between frames.
+       * An indexed sliver still retains its attached cache coverage. */
+      readonly prepare?: (index: number) => boolean;
+    };
 export function normalizeSliverChildPolicy(
   value: SliverChildPolicy | undefined,
 ): SliverChildPolicy {
@@ -32,7 +38,16 @@ export function normalizeSliverChildPolicy(
       'invalid-dormant-capacity',
       'Dormant capacity must be in 1..32',
     );
-    return Object.freeze({ mode: 'dormant', capacity: value.capacity });
+    invariant(
+      value.prepare === undefined || typeof value.prepare === 'function',
+      'invalid-dormant-preparation',
+      'Dormant child preparation requires a slot predicate',
+    );
+    return Object.freeze({
+      mode: 'dormant',
+      capacity: value.capacity,
+      ...(value.prepare ? { prepare: value.prepare } : {}),
+    });
   }
   invariant(
     value !== null &&

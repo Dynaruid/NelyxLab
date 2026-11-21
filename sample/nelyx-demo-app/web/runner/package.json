@@ -13,12 +13,12 @@
     "typecheck": "tsc -p tsconfig.nelyx.json"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-d072d23530d82747171e349ea5a2683888bc82202ee1935b70313e6966650d2f.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-5a376399c34911aa066499664396b0f98e3553746833eef035816b0a41f04014.tgz",
-    "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-5d50c3709bf276903140efd31c13c947ab327341c47d482b62e281df7d4886f7.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-518393c04351602b88fd89ff47ea7a7ff187e289160f6994f303437bbaa8938f.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-1746fa272a3138672a000955331021fa042b6ae36e4aae1602ea53ab0f528449.tgz",
+    "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-4b583b865e60f65101040098da2a0eb1b152725226ad8883fc5fadc840f14d8c.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "@nelyx/material": "file:../../.nelyx/supply/web/nelyx-material-0.2.0-a152d5f2f35e7534269a9341bcc4e36135360a678a838e98d5109343792f8cac.tgz",
+    "@nelyx/material": "file:../../.nelyx/supply/web/nelyx-material-0.2.0-1b90190ee46b75f8c0967976468e0d8ae0dc1ce669fe78b0602d595c7978c2b2.tgz",
     "@nelyx/cupertino": "file:../../.nelyx/supply/web/nelyx-cupertino-0.2.0-dcb23d6c0aea6a3bfa2f9491c63cb6b0fcbf63cce91f9d9f50219bdd04fbbb3b.tgz"
   },
   "devDependencies": {

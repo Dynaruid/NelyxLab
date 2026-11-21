@@ -2561,6 +2561,9 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   get coreEditingGeometry(): CoreEditingGeometry | null {
     return null;
   }
+  protected get requestsFocusedInputGeometry(): boolean {
+    return true;
+  }
   get coreTextNavigation(): SemanticsTextNavigation | null {
     return null;
   }
@@ -2571,6 +2574,7 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
   commitTextInputGeometries(
     frame: InputGeometryFrame & {
       readonly inputGeometry?: InputGeometryService;
+      readonly focusedEditorsOnly?: boolean;
     },
   ): {
     readonly token: object;
@@ -2692,7 +2696,9 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
       parentDisplayed = parentDisplayed && render.attached && !render.needsLayout;
       try {
         const visible =
-          parentDisplayed && (!render.inputGeometryProvider || displayedInCommit(render));
+          parentDisplayed &&
+          (!frame.focusedEditorsOnly || render.requestsFocusedInputGeometry) &&
+          (!render.inputGeometryProvider || displayedInCommit(render));
         if (trace && visible && render.inputGeometryProvider) geometryProviders++;
         const core = visible ? render.coreEditingGeometry : null;
         if (core !== null || previous !== undefined) updateGeometry(render, core, previous);

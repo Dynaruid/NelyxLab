@@ -233,11 +233,11 @@ function fixture(
     }
     return commands;
   }
-  function mouse(kind, x, y) {
+  function pointer(device, kind, x, y) {
     view.pointer({
       kind,
       pointer: 1,
-      device: 'mouse',
+      device,
       x,
       y,
       buttons: kind === 'down' || kind === 'move' ? 1 : 0,
@@ -245,6 +245,7 @@ function fixture(
       viewportGeneration: 1,
     });
   }
+  const mouse = (kind, x, y) => pointer('mouse', kind, x, y);
   function pan(position, dx, dy, count, terminal = 'panZoomEnd') {
     const common = {
       pointer: 7,
@@ -308,6 +309,7 @@ function fixture(
     controller,
     tick,
     mouse,
+    pointer,
     hover: (x, y) => mouse('hover', x, y),
     pan,
     measure(run) {
@@ -492,27 +494,29 @@ for (const [custom, stateful] of [
 }
 
 if (!baseline) {
-  for (const [custom, direction, divisions] of [
-    [false, 'ltr', 20],
-    [true, 'rtl', 200],
+  for (const [device, custom, direction, divisions] of [
+    ['mouse', false, 'ltr', 20],
+    ['mouse', true, 'rtl', 200],
+    ['touch', false, 'ltr', 20],
+    ['touch', true, 'rtl', 200],
   ]) {
     const f = fixture(custom, false, {
       divisions,
       tickShape: custom ? new RoundRangeSliderTickMarkShape({ tickMarkRadius: 0.1 }) : null,
     });
-    const { state, render, options, tick, mouse, node } = f;
+    const { state, render, options, tick, pointer, node } = f;
     function input(kind, value) {
       const rect = render.inputTrackRect(),
         visual = direction === 'rtl' ? 1 - value : value,
         point = render.localToGlobal(new Offset(rect.left + visual * rect.width, rect.center.dy));
-      mouse(kind, point.x, point.y);
+      pointer(device, kind, point.x, point.y);
     }
     function assertThumb(thumb, expected) {
       const isStart = thumb === 'start',
         position = isStart ? state.startPosition : state.endPosition,
         center = render.localToGlobal(render.centers()[isStart ? 0 : 1]),
         { bounds, numericRange } = node(thumb);
-      assert.equal(position.value, expected, 'The first frame must paint the accepted mouse value');
+      assert.equal(position.value, expected, 'The first frame must paint the accepted drag value');
       assert(!position.isAnimating, 'The dragged thumb must not ease toward the accepted value');
       assert.equal(numericRange.value, expected);
       assert(Math.abs(bounds.x + bounds.width / 2 - center.x) < 0.001);

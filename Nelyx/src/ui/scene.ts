@@ -43,7 +43,7 @@ class LayerRecording {
   private compositionLeaf:
     | { owner: PictureResourceProvider; value: SceneCompositionSource }
     | undefined;
-  private readonly disposeCallbacks = new Set<() => void>();
+  private disposeCallbacks: Set<() => void> | undefined;
   private references = 1;
   private readonly needsScope: boolean;
   private readonly nativeLeaf: readonly PaintCommand[] | null;
@@ -112,7 +112,7 @@ class LayerRecording {
         ...(!this.nativeLeaf ? { draw: (canvas: Canvas) => this.drawNative(canvas, owner) } : {}),
         scoped: false,
         children: [],
-        onDispose: (callback) => this.disposeCallbacks.add(callback),
+        onDispose: (callback) => (this.disposeCallbacks ??= new Set()).add(callback),
       };
       this.compositionLeaf = { owner, value };
       return value;
@@ -128,7 +128,7 @@ class LayerRecording {
       commands: this.canvas.commands,
       scoped: this.needsScope,
       children,
-      onDispose: (callback) => this.disposeCallbacks.add(callback),
+      onDispose: (callback) => (this.disposeCallbacks ??= new Set()).add(callback),
     };
     this.compositionSource = { owner, value };
     return value;
@@ -259,19 +259,25 @@ class LayerRecording {
       record.nativePicture = undefined;
       record.compositionSource = undefined;
       record.compositionLeaf = undefined;
-      for (const callback of record.disposeCallbacks)
-        try {
-          callback();
-        } catch (error) {
-          errors.push(error);
-        }
-      record.disposeCallbacks.clear();
-      for (const release of [() => picture?.picture.dispose(), () => record.canvas.dispose()])
-        try {
-          release();
-        } catch (error) {
-          errors.push(error);
-        }
+      if (record.disposeCallbacks) {
+        for (const callback of record.disposeCallbacks)
+          try {
+            callback();
+          } catch (error) {
+            errors.push(error);
+          }
+        record.disposeCallbacks = undefined;
+      }
+      try {
+        picture?.picture.dispose();
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        record.canvas.dispose();
+      } catch (error) {
+        errors.push(error);
+      }
       for (const entry of record.insertions) pending.push(entry.recording);
     }
     if (errors.length) throw new AggregateError(errors, 'Engine recording retirement failed');

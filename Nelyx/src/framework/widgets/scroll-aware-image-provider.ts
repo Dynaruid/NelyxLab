@@ -9,10 +9,12 @@ import type {
   ImageErrorListener,
 } from '../painting/image-stream.ts';
 import { DisposableBuildContext } from './disposable-build-context.ts';
+import { Element } from './framework.ts';
 import { SingleChildScrollView, LazyList } from './scroll.ts';
+import { ScrollableState } from './scrollable.ts';
 import { tickerScheduler } from './ticker-scheduler.ts';
 import { valueEquals, hashValues } from '../painting/value-equality.ts';
-/** Uses existing Nelyx viewport ancestors while the full source Scrollable API is ported. */
+/** Defer uncached image loads while the nearest scroll owner recommends it. */
 export class ScrollAwareImageProvider<T = unknown> extends ImageProvider<T> {
   constructor(
     readonly context: DisposableBuildContext,
@@ -39,16 +41,19 @@ export class ScrollAwareImageProvider<T = unknown> extends ImageProvider<T> {
       return;
     }
     const context = this.context.context;
-    if (!context) return;
+    if (!context || (context instanceof Element && !context.active)) return;
     let defer = false;
     context.visitAncestorElements((element) => {
       const widget = element.widget,
+        state = element.stateObject,
         position =
-          widget instanceof SingleChildScrollView
-            ? widget.controller
-            : widget instanceof LazyList
-              ? widget.options.controller
-              : null;
+          state instanceof ScrollableState
+            ? state.position
+            : widget instanceof SingleChildScrollView
+              ? widget.controller
+              : widget instanceof LazyList
+                ? widget.options.controller
+                : null;
       if (!position) return true;
       defer = position.recommendDeferredLoading(context);
       return false;

@@ -230,6 +230,10 @@ export class SliverMultiBoxAdaptorElement
     const policy = this.adaptorWidget.childPolicy;
     return policy !== 'legacy' && policy.mode === 'bounded';
   }
+  get deferColdCache(): boolean {
+    const policy = this.adaptorWidget.childPolicy;
+    return policy !== 'legacy' && policy.mode === 'dormant' && policy.prepare !== undefined;
+  }
   get preparationIndex(): number | null {
     return this.preparationTarget;
   }
@@ -238,6 +242,10 @@ export class SliverMultiBoxAdaptorElement
     return (
       policy !== 'legacy' && policy.mode === 'bounded' && policy.preparation === 'observed-budget'
     );
+  }
+  private get splitProductionEnabled(): boolean {
+    const policy = this.adaptorWidget.childPolicy;
+    return this.deferColdCache || (policy !== 'legacy' && policy.mode === 'split');
   }
   private readonly requestBudgetLayout = () => {
     if (this.active) this.renderObject.markNeedsLayout();
@@ -646,12 +654,7 @@ export class SliverMultiBoxAdaptorElement
       );
     });
     this.finishQueuedChildren();
-    if (
-      !old &&
-      this._childElements.has(index) &&
-      this.adaptorWidget.childPolicy !== 'legacy' &&
-      this.adaptorWidget.childPolicy.mode === 'split'
-    )
+    if (!old && this._childElements.has(index) && this.splitProductionEnabled)
       this.owner._didRequireColdChild(false);
     const data = this.renderBox(this._childElements.get(index))?.parentData;
     if (data instanceof SliverMultiBoxAdaptorParentData && oldOffset !== null)
@@ -877,22 +880,25 @@ export class SliverMultiBoxAdaptorElement
     this.splitChild = undefined;
     previous?.preparation.cancel();
   }
+  private isColdSlot(index: number): boolean {
+    return !this._childElements.has(index) && !this.owner.maybeDormantChildren?.peek(this, index);
+  }
   private offerSplitPreparation(): void {
     const previous = this.splitChild;
     const policy = this.adaptorWidget.childPolicy;
-    if (policy === 'legacy' || policy.mode !== 'split' || this._unpublishedScope) {
+    if (!this.splitProductionEnabled || this._unpublishedScope) {
       if (previous) this.cancelSplitChild();
       return;
     }
     const render = this.renderObject;
     // Extent callbacks and unsupported slivers are rejected before a cold
     // delegate is called. They retain the ordinary required child path.
-    if (
-      !(render instanceof RenderSliverFixedExtentBoxAdaptor) ||
-      render.itemExtentBuilder !== null ||
-      render.itemExtent === null ||
-      render.itemExtent <= 0
-    ) {
+    const fixed =
+      render instanceof RenderSliverFixedExtentBoxAdaptor &&
+      render.itemExtentBuilder === null &&
+      render.itemExtent !== null &&
+      render.itemExtent > 0;
+    if (!fixed && !(render instanceof RenderSliverSectionList)) {
       if (previous) this.cancelSplitChild();
       return;
     }
@@ -906,7 +912,11 @@ export class SliverMultiBoxAdaptorElement
     const count = this.estimatedChildCount;
     const index = edge ? render.indexOf(edge) + direction : -1;
     const eligible =
-      count !== null && index >= 0 && index < count && !this._childElements.has(index);
+      count !== null &&
+      index >= 0 &&
+      index < count &&
+      this.isColdSlot(index) &&
+      (policy === 'legacy' || policy.mode !== 'dormant' || policy.prepare?.(index) === true);
     if (eligible && previous?.index === index && previous.valid()) return;
     if (previous) this.cancelSplitChild();
     if (!eligible) return;
@@ -921,7 +931,7 @@ export class SliverMultiBoxAdaptorElement
       render.constraints.axisDirection === c.axisDirection &&
       render.constraints.crossAxisDirection === c.crossAxisDirection &&
       render.constraints.growthDirection === c.growthDirection &&
-      !this._childElements.has(index);
+      this.isColdSlot(index);
     this.owner._offerPreparation({
       owner: this,
       index,
@@ -940,7 +950,7 @@ export class SliverMultiBoxAdaptorElement
               );
               return child;
             }),
-          render._preparationChildConstraints(index),
+          fixed ? render._preparationChildConstraints(index) : c.asBoxConstraints(),
         );
         const live = () => valid() && this.owner._ownsPreparationScope(preparation.scope);
         this.splitChild = { index, preparation, valid: live };

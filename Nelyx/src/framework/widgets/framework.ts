@@ -415,13 +415,14 @@ export class BuildOwner {
     if (this.preparationWake || this.disposed) return;
     const optional = this.services.requestOptionalWork;
     if (optional) {
-      this.preparationWake = optional((timing, canRun) => {
+      this.preparationWake = optional((timing, canRun, timeRemaining) => {
         this.preparationWake = undefined;
         if (!this.disposed && this.services.readStatus() === 'open')
           this._runOptionalPreparation(
             timing,
             () => !this.hasDirtyInActiveLayout && canRun(),
             true,
+            timeRemaining,
           );
       });
       return;
@@ -474,11 +475,12 @@ export class BuildOwner {
       );
     }
   }
-  /** @internal Called after required layout. No guessed refresh deadline. */
+  /** @internal Advance detached production within the host's observed budget. */
   _runOptionalPreparation(
     timing: FrameTiming | undefined,
     allowed: () => boolean,
     idle = false,
+    timeRemaining?: () => number,
   ): void {
     const candidate = this.preparationWork
       ? this.activePreparationCandidate
@@ -504,28 +506,32 @@ export class BuildOwner {
     if (!candidate || this.preparation?.adopted || this.preparationWork?.ready) return;
     this.preparationCounts.opportunities++;
     const deadline = timing?.observedDeadline;
+    const hasFrameBudget =
+      Number.isFinite(deadline) &&
+      Number.isFinite(timing?.tick) &&
+      Number.isFinite(timing?.queueDelay) &&
+      timing!.queueDelay >= 0 &&
+      Number.isFinite(timing?.clockUncertainty) &&
+      timing!.clockUncertainty >= 0;
     if (
-      !Number.isFinite(deadline) ||
-      !Number.isFinite(timing?.tick) ||
-      !Number.isFinite(timing?.queueDelay) ||
-      timing!.queueDelay < 0 ||
-      !Number.isFinite(timing?.clockUncertainty) ||
-      timing!.clockUncertainty < 0 ||
+      (!timeRemaining && !hasFrameBudget) ||
       !allowed() ||
       this.preparation?.adopted ||
-      this.lastPreparationTick === timing?.tick
+      (!timeRemaining && this.lastPreparationTick === timing?.tick)
     ) {
-      if (!Number.isFinite(deadline)) this.preparationCounts.missingDeadline++;
+      if (!timeRemaining && !hasFrameBudget) this.preparationCounts.missingDeadline++;
       return;
     }
     const now = () => this.services.clock.now();
     const started = now(),
-      end = Math.min(started + 2, deadline! - 4 - timing!.queueDelay - timing!.clockUncertainty);
-    if (started >= end) {
+      end = timeRemaining
+        ? started + Math.min(2, timeRemaining() - 1)
+        : Math.min(started + 2, deadline! - 4 - timing!.queueDelay - timing!.clockUncertainty);
+    if (!Number.isFinite(end) || started >= end) {
       this.retryPreparationBudget(idle);
       return;
     }
-    this.lastPreparationTick = timing!.tick;
+    if (timing) this.lastPreparationTick = timing.tick;
     if (!this.preparationWork) {
       if (!this.preparationCandidate) return;
       this.activePreparationCandidate = this.preparationCandidate;
@@ -543,7 +549,7 @@ export class BuildOwner {
         current - last,
       );
       last = current;
-      return current < end && allowed();
+      return current < end && (!timeRemaining || timeRemaining() > 1) && allowed();
     };
     const status = work.advance(allow),
       elapsed = now() - started;

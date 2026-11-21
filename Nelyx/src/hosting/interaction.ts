@@ -91,9 +91,13 @@ export interface EditingBinding extends Disposable {
   revealCaret?(): void;
   /** Core -> OS; null withdraws unavailable coordinates without acknowledging editing content. */
   updateGeometry?(geometry: TextInputGeometry | null): void;
+  /** The host may read committed Core geometry on demand, including when its editor gains focus. */
+  updateGeometryFrom?(read: () => TextInputGeometry | null): void;
 }
 export interface EditingHost extends Disposable {
   readonly capabilities: EditingCapabilities;
+  /** The host requests caret and selection geometry only for its focused editor. */
+  readonly focusedGeometryOnly?: boolean;
   bind(
     owner: ViewOwner,
     initial: TextEditingValue,
@@ -114,6 +118,8 @@ export interface SemanticsInputObserver {
 }
 export interface SemanticsHost extends Disposable {
   readonly capability: 'native-controls' | 'dom' | 'unavailable';
+  /** Text range and paragraph data is included unless the transport opts out. */
+  readonly captureTextGeometry?: boolean;
   bind(nodes: readonly SemanticsNode[], observer?: SemanticsInputObserver): SemanticsBinding;
 }
 

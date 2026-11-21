@@ -100,17 +100,27 @@ export function paintRenderObject(
   context: PaintingContext,
   root = false,
 ): void {
-  if (root || render.isRepaintBoundary) {
-    let boundary = boundaries.get(render);
-    if (!boundary) boundaries.set(render, (boundary = new RetainedPaint(render)));
-    boundary.refresh(context);
-    context.addLayer(boundary.retained.layer!);
-  } else {
+  if (root || render.isRepaintBoundary) paintRepaintBoundary(render, context, 0, 0);
+  else {
     // A dynamic boundary can become an ordinary render object on this frame.
     disposeRetainedPaint(render);
     render.paint(context);
     render._didPaint();
   }
+}
+/** @internal A Source repaint boundary can move independently of its recording. */
+export function paintRepaintBoundary(
+  render: RenderObject,
+  context: PaintingContext,
+  x: number,
+  y: number,
+): void {
+  let boundary = boundaries.get(render);
+  if (!boundary) boundaries.set(render, (boundary = new RetainedPaint(render)));
+  boundary.refresh(context);
+  const layer = boundary.retained.layer!;
+  if (layer.offset.x !== x || layer.offset.y !== y) layer.offset = { x, y };
+  context.addLayer(layer);
 }
 export function retainedPaintLayer(render: RenderObject): OffsetLayer | null {
   return boundaries.get(render)?.currentLayer ?? null;

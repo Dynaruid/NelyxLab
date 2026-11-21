@@ -42,7 +42,7 @@ import {
   isCapturedPaintCommand,
 } from '../../ui/frame.ts';
 import { resourceOwner } from '../../ui/resource-retention.ts';
-import { paintRenderObject } from '../rendering/retained-paint.ts';
+import { paintRenderObject, paintRepaintBoundary } from '../rendering/retained-paint.ts';
 // Captured commands and their resource bindings are immutable. Weak identity
 // metadata follows the recording's lifetime and never keeps an owner alive on
 // its own; frozen external commands still have to cross Canvas admission.
@@ -236,6 +236,26 @@ export class PaintingContext extends Canvas {
   }
   paintChild(child: RenderObject, transform: TransformMatrix): void {
     if (this.diagnosticCounts) this.diagnosticCounts.paintChildCalls++;
+    if (
+      this.recordsLayers &&
+      this.recordsSynchronously &&
+      this.save === Canvas.prototype.save &&
+      this.restore === Canvas.prototype.restore &&
+      this.transform === Canvas.prototype.transform &&
+      this.addLayer === PaintingContext.prototype.addLayer &&
+      transform.length === 6 &&
+      transform[0] === 1 &&
+      transform[1] === 0 &&
+      transform[2] === 0 &&
+      transform[3] === 1 &&
+      Number.isFinite(transform[4]) &&
+      Number.isFinite(transform[5]) &&
+      child.isRepaintBoundary
+    ) {
+      // Keep the enclosing recording stable as a retained child scrolls.
+      paintRepaintBoundary(child, this, transform[4], transform[5]);
+      return;
+    }
     this.save();
     try {
       // Retain save depth and custom recording/transform protocols.

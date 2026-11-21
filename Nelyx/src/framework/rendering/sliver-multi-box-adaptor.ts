@@ -39,6 +39,8 @@ export abstract class RenderSliverBoxChildManager {
   get boundedChildren(): boolean {
     return false;
   }
+  /** Reuse already attached cache rows and admit new rows from viewport demand. */
+  readonly deferColdCache?: boolean;
   get preparationIndex(): number | null {
     return null;
   }

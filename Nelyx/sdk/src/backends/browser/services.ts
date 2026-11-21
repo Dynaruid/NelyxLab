@@ -71,7 +71,8 @@ export function createWebServices(
   try {
     const selectionContextMenu = new BrowserSelectionContextMenu(canvas, owner, cursor);
     nativeSelectionContextMenu = selectionContextMenu;
-    const frames = new Set<number>();
+    const frames = new Set<number>(),
+      idleWork = new Set<number>();
     function metrics(): ViewMetrics {
       const width = canvas.clientWidth,
         height = canvas.clientHeight,
@@ -208,6 +209,23 @@ export function createWebServices(
       identity,
       foundationPlatform: getBrowserPlatformEnvironment(),
       clock: {
+        ...(typeof window.requestIdleCallback === 'function' &&
+        typeof window.cancelIdleCallback === 'function'
+          ? {
+              requestIdle(callback: (timeRemaining: () => number) => void) {
+                if (closed) throw new Error('Web clock closed');
+                const id = window.requestIdleCallback((deadline) => {
+                  if (idleWork.delete(id) && !closed) callback(() => deadline.timeRemaining());
+                });
+                idleWork.add(id);
+                return {
+                  dispose() {
+                    if (idleWork.delete(id)) window.cancelIdleCallback(id);
+                  },
+                };
+              },
+            }
+          : {}),
         request(callback) {
           if (closed) throw new Error('Web clock closed');
           const id = window.requestAnimationFrame((timestamp) => {
@@ -332,6 +350,8 @@ export function createWebServices(
             window.cancelAnimationFrame(id);
           }
           frames.clear();
+          for (const id of idleWork) window.cancelIdleCallback(id);
+          idleWork.clear();
           interaction.dispose();
           selectionContextMenu.dispose();
           cursor.dispose();

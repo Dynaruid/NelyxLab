@@ -77,6 +77,15 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
       if (this.debugDisposed) this.index._detach(this.changed);
     }
   }
+  private startFromAttachedCache(anchor: number, cacheStart: number): number {
+    const first = this.firstChild,
+      last = this.lastChild;
+    if (first === null || last === null) return anchor;
+    const leading = this.indexOf(first),
+      trailing = this.indexOf(last);
+    if (trailing < anchor - 1 || this.childCount !== trailing - leading + 1) return anchor;
+    return Math.max(cacheStart, Math.min(anchor, leading));
+  }
   protected override performLayout(_constraints: SliverConstraints): void {
     const c = this.constraints;
     this.childManager.didStartLayout();
@@ -114,11 +123,14 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
         ? c.remainingPaintExtent
         : c.remainingCacheExtent;
     const prepared = this.childManager.boundedChildren ? this.childManager.preparationIndex : null;
+    const deferColdCache = this.childManager.deferColdCache === true;
     const anchor = index.indexAtOffset(c.scrollOffset),
       inside = c.scrollOffset - index.prefix(anchor),
-      requiredStart = index.indexAtOffset(Math.max(0, c.scrollOffset + cacheOrigin)),
+      cacheStart = index.indexAtOffset(Math.max(0, c.scrollOffset + cacheOrigin)),
+      requiredStart = deferColdCache ? this.startFromAttachedCache(anchor, cacheStart) : cacheStart,
       start = prepared == null ? requiredStart : Math.min(requiredStart, prepared),
-      target = c.scrollOffset + cacheOrigin + remainingExtent;
+      target = c.scrollOffset + cacheOrigin + remainingExtent,
+      paintTarget = c.scrollOffset + c.remainingPaintExtent;
     invariant(
       Number.isFinite(target) && target >= 0,
       'invalid-section-cache-range',
@@ -148,15 +160,18 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
       if (i === start) child.layout(box, { parentUsesSize: true });
       else {
         let next = this.childAfter(child);
-        if (next === null || this.indexOf(next) !== i)
+        if (next === null || this.indexOf(next) !== i) {
+          // The viewport is fully covered. A missing cache-only row belongs
+          // to the optional producer; layout still owns every visible row.
+          if (deferColdCache && i > anchor && end >= paintTarget) break;
           next = this.insertAndLayoutChild(box, { after: child, parentUsesSize: true });
+        } else next.layout(box, { parentUsesSize: true });
         if (next === null || this.indexOf(next) !== i)
           invariant(
             false,
             'missing-section-child',
             `Section builder must provide indexed section ${i} (received ${next === null ? 'null' : this.indexOf(next)}, start=${start}, count=${index.count}, offset=${c.scrollOffset})`,
           );
-        next.layout(box, { parentUsesSize: true });
         child = next;
       }
       (child.parentData as SliverMultiBoxAdaptorParentData).layoutOffset = end;
