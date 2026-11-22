@@ -792,10 +792,10 @@ export class SelectableRegionState
       });
     }
   }
-  private stopMagnifierDrag(): void {
+  private stopMagnifierDrag(animate = false): void {
     this.magnifierDrag = null;
     this.gripOffset = Offset.zero;
-    this.overlay?.hideMagnifier();
+    this.overlay?.hideMagnifier({ animate });
     this.observeSelectionGeometry();
   }
   private readonly toolbarRemoved = (): void => {
@@ -804,7 +804,7 @@ export class SelectableRegionState
     this.observeSelectionGeometry();
   };
   private finishMagnifierDrag(released: boolean): void {
-    this.stopMagnifierDrag();
+    this.stopMagnifierDrag(released);
     this.finalizeSelection();
     this.updateContent();
     this.finalizeStatus();

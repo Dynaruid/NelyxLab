@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createServer } from 'node:net';
+import { once } from 'node:events';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { promisify } from 'node:util';
@@ -26,6 +29,15 @@ const app = resolve(import.meta.dirname, '..');
 const appId = 'dev.nelyx.demo.tauri';
 const manifest = JSON.parse(await readFile(join(app, '.nelyx', 'pwa', 'build.json'), 'utf8'));
 const android = args.includes('--android');
+const windows = args.includes('--windows');
+const headed = args.includes('--headed');
+const observePhysical = args.includes('--observe-physical');
+assert.ok(!android || !windows, 'Select one packaged host at a time');
+if (observePhysical)
+  assert.ok(
+    android && !device.startsWith('emulator-'),
+    'Select the physical Android device with ANDROID_SERIAL',
+  );
 const button = (page, name) => page.getByRole('button', { name, exact: true });
 const field = (page, label) => page.getByRole('textbox', { name: label, exact: true });
 const menu = (page, name) => button(page, name);
@@ -76,9 +88,9 @@ async function point(locator, dx) {
 
 async function openSelection(page, tap) {
   const drawer = page.locator('[data-semantics-identifier="open-drawer"]');
-  await tap(await point(drawer));
-  await tap(await point(button(page, 'Text selection')));
   try {
+    await tap(await point(drawer));
+    await tap(await point(button(page, 'Text selection')));
     await field(page, 'Material single line').waitFor({ timeout: 6000 });
   } catch (error) {
     console.error(await page.locator('body').ariaSnapshot({ timeout: 4000 }));
@@ -86,9 +98,64 @@ async function openSelection(page, tap) {
   }
 }
 
-async function web(page, url) {
+async function verifyBundle(page) {
+  const served = await page.evaluate(() =>
+    fetch(new URL('build.json', document.baseURI), { cache: 'no-store' }).then((response) =>
+      response.json(),
+    ),
+  );
+  assert.equal(
+    served.buildId,
+    manifest.buildId,
+    'The observed page must run the current product bundle',
+  );
+}
+
+function installSelectionProbes() {
+  window.readOnlySelections = {};
+  window.nelyxDemoSelectionProbe = (id, text) => (window.readOnlySelections[id] = text);
+  window.nelyxDemoEditorGeometryProbe = (read) => (window.readSelectionEditorGeometry = read);
+  const lenses = new Map();
+  window.nelyxDemoMagnifierProbe = (id, read) => {
+    lenses.set(id, { read, requests: (lenses.get(id)?.requests ?? 0) + 1 });
+  };
+  const rect = ({ left, top, right, bottom }) => ({ left, top, right, bottom });
+  window.readSelectionMagnifiers = () =>
+    Object.fromEntries(
+      [...lenses].map(([id, { read, requests }]) => {
+        const { info, exists, shown } = read();
+        const { dx, dy } = info.globalGesturePosition;
+        return [
+          id,
+          {
+            exists,
+            shown,
+            requests,
+            info: {
+              globalGesturePosition: { dx, dy },
+              caretRect: rect(info.caretRect),
+              fieldBounds: rect(info.fieldBounds),
+              currentLineBoundaries: rect(info.currentLineBoundaries),
+            },
+          },
+        ];
+      }),
+    );
+}
+
+async function web(page, url, chromePid) {
+  await page.addInitScript(installSelectionProbes);
   await page.addInitScript(() => {
     window.selectionMenus = [];
+    window.selectionMenuKeys = [];
+    document.addEventListener('keydown', (event) => {
+      if (['F10', 'Escape', 'Tab', 'Enter'].includes(event.key))
+        window.selectionMenuKeys.push([
+          event.key,
+          event.defaultPrevented,
+          event.target.getAttribute('aria-label'),
+        ]);
+    });
     document.addEventListener(
       'contextmenu',
       (event) => {
@@ -99,13 +166,21 @@ async function web(page, url) {
     );
   });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await verifyBundle(page);
   const tap = ({ x, y }) => page.mouse.click(x, y);
   const secondary = ({ x, y }) => page.mouse.click(x, y, { button: 'right' });
+  const nativeMenu = async (expected) => {
+    if (!chromePid) return;
+    const items = await windowsInput(chromePid, 'uia', 'Inspect');
+    assert.equal(items.length > 0, expected, 'Chrome Inspect identifies the native browser menu');
+    if (expected) await windowsInput(chromePid, 'scan', '01');
+  };
   await openSelection(page, tap);
   const first = await point(field(page, 'Material single line'), 44);
   await secondary(first);
   assert.equal(await menu(page, 'Select all').count(), 0);
   assert.equal(await page.evaluate(() => window.selectionMenus.at(-1)?.prevented), false);
+  await nativeMenu(true);
   await tap(await point(button(page, 'Use Nelyx menus')));
   // Capture the final event state after the SDK's enclosing surface listener.
   await page.evaluate(() => {
@@ -116,6 +191,7 @@ async function web(page, url) {
   await secondary(first);
   await menu(page, 'Select all').waitFor();
   assert.equal(await page.evaluate(() => window.selectionMenus.at(-1)?.prevented), true);
+  await nativeMenu(false);
   const firstCaret = await readEditor(page);
   assert.equal(firstCaret.start, firstCaret.end);
 
@@ -138,6 +214,32 @@ async function web(page, url) {
     await menu(page, 'Paste').waitFor();
     await until(() => menu(page, 'Paste').isDisabled(), 'Empty clipboard should disable Paste');
     await page.keyboard.press('Escape');
+    await checkBrowserClipboardPermission(page, tap);
+    const missingCode = (events) =>
+      page.evaluate((keys) => {
+        for (const [type, key, keyCode, shiftKey, location] of keys) {
+          const event = new KeyboardEvent(type, {
+            key,
+            code: '',
+            shiftKey,
+            location,
+            bubbles: true,
+            cancelable: true,
+          });
+          Object.defineProperty(event, 'keyCode', { value: keyCode });
+          document.activeElement.dispatchEvent(event);
+        }
+      }, events);
+    await missingCode([
+      ['keydown', 'Shift', 16, true, 1],
+      ['keydown', 'F10', 121, true, 0],
+      ['keyup', 'F10', 121, true, 0],
+      ['keyup', 'Shift', 16, false, 1],
+    ]);
+    await menu(page, 'Paste').waitFor();
+    assert.equal(await menu(page, 'Paste').count(), 1);
+    await page.keyboard.press('Escape');
+    await menu(page, 'Paste').waitFor({ state: 'hidden' });
     await page.evaluate(() => navigator.clipboard.writeText('한글 👋 붙여넣기'));
     await page.keyboard.press('Shift+F10');
     await menu(page, 'Paste').waitFor();
@@ -147,7 +249,17 @@ async function web(page, url) {
     await until(
       async () => (await readEditor(page))?.text === '한글 👋 붙여넣기',
       'Keyboard paste did not edit the field',
-    );
+    ).catch(async (error) => {
+      console.error({
+        editor: await readEditor(page),
+        pasteVisible: await menu(page, 'Paste').isVisible(),
+        ...(await page.evaluate(async () => ({
+          keys: window.selectionMenuKeys,
+          clipboardMatches: (await navigator.clipboard.readText()) === '한글 👋 붙여넣기',
+        }))),
+      });
+      throw error;
+    });
     await page.keyboard.press('Control+z');
     await until(
       async () => (await readEditor(page))?.text === '',
@@ -170,7 +282,18 @@ async function web(page, url) {
     tag: 'BUTTON',
     prevented: false,
   });
-  await checkPublicWidgets(page, tap, secondary);
+  await nativeMenu(true);
+  await tap(first);
+  await secondary(first);
+  await menu(page, 'Select all').waitFor();
+  await page.locator('#outside-selection-surface').click();
+  await menu(page, 'Select all').waitFor({ state: 'hidden' });
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'outside-selection-surface');
+  try {
+    await checkPublicWidgets(page, tap, secondary);
+  } finally {
+    await page.evaluate((text) => navigator.clipboard.writeText(text), clipboard);
+  }
   console.log(
     JSON.stringify({
       host: 'PWA',
@@ -180,8 +303,225 @@ async function web(page, url) {
       keyboard: 'PASS',
       clipboard: 'PASS',
       undo: 'PASS',
+      ...(chromePid ? { chromeNativeMenu: 'PASS' } : {}),
     }),
   );
+}
+
+async function checkBrowserClipboardPermission(page, tap) {
+  const cdp = await page.context().newCDPSession(page);
+  const { targetInfo } = await cdp.send('Target.getTargetInfo');
+  const origin = new URL(page.url()).origin;
+  const permission = (setting) =>
+    cdp.send('Browser.setPermission', {
+      permission: { name: 'clipboard-read' },
+      setting,
+      origin,
+      browserContextId: targetInfo.browserContextId,
+    });
+  try {
+    await page.evaluate(() => navigator.clipboard.writeText('한글 실제 권한 👋'));
+    await permission('denied');
+    await page.keyboard.press('Shift+F10');
+    await until(
+      () => menu(page, 'Paste').isDisabled(),
+      'Chrome-denied clipboard should disable Paste',
+    );
+    assert.equal(
+      await page.evaluate(() =>
+        navigator.clipboard.readText().then(
+          () => null,
+          ({ name }) => name,
+        ),
+      ),
+      'NotAllowedError',
+    );
+    await page.keyboard.press('Escape');
+    await permission('granted');
+    await page.keyboard.press('Shift+F10');
+    await until(
+      () => menu(page, 'Paste').isEnabled(),
+      'Chrome clipboard permission should enable Paste',
+    );
+    await tap(await point(menu(page, 'Paste')));
+    await until(
+      async () => (await readEditor(page))?.text === '한글 실제 권한 👋',
+      'Chrome clipboard must paste permitted text',
+    );
+    await page.keyboard.press('Control+z');
+    await until(
+      async () => (await readEditor(page))?.text === '',
+      'Undo must restore the test field',
+    );
+  } finally {
+    await cdp.detach();
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+  }
+}
+
+async function windowsInput(pid, action, value) {
+  const params = [
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    join(import.meta.dirname, 'windows-selection-input.ps1'),
+    '-WindowProcessId',
+    String(pid),
+    '-Action',
+    action,
+  ];
+  if (value) params.push('-Value', value);
+  const { stdout } = await promisify(execFile)('powershell.exe', params, {
+    windowsHide: true,
+    timeout: 25_000,
+  });
+  return action === 'uia' ? JSON.parse(stdout) : undefined;
+}
+
+async function windowsSelection(page, pid) {
+  const native = (action, value) => windowsInput(pid, action, value);
+  const scan = (value) => native('scan', value);
+  const tap = ({ x, y }) => page.mouse.click(x, y);
+  await native('focus');
+  await openSelection(page, tap);
+  await page.evaluate(() => {
+    window.selectionKeys = [];
+    for (const type of ['keydown', 'keyup']) {
+      document.addEventListener(type, (event) => {
+        const {
+          key,
+          code,
+          keyCode,
+          location,
+          shiftKey,
+          ctrlKey,
+          altKey,
+          metaKey,
+          defaultPrevented,
+        } = event;
+        if (
+          !['F10', 'ContextMenu', 'Menu', 'Escape', 'Tab', 'ArrowDown', 'Enter'].includes(key) &&
+          !(ctrlKey && ['a', 'c', 'v'].includes(key.toLowerCase()))
+        )
+          return;
+        window.selectionKeys.push({
+          type,
+          key,
+          code,
+          keyCode,
+          location,
+          shiftKey,
+          ctrlKey,
+          altKey,
+          metaKey,
+          defaultPrevented,
+        });
+      });
+    }
+  });
+  const clipboard = (value) =>
+    page.evaluate(async (text) => {
+      const board = window.__TAURI__.clipboardManager;
+      if (text !== undefined) return board.writeText(text);
+      try {
+        return await board.readText();
+      } catch (error) {
+        if (/clipboard contents were not available|clipboard is empty/i.test(String(error)))
+          return '';
+        throw error;
+      }
+    }, value);
+  const saved = await clipboard();
+  try {
+    const main = field(page, 'Material single line');
+    await tap(await point(main, 36));
+    const caret = await readEditor(page);
+    assert.ok(caret?.start === caret?.end && caret.text.includes('안녕하세요'));
+    await scan('2a,44'); // Shift+F10
+    await menu(page, 'Select all').waitFor();
+    assert.equal(await menu(page, 'Select all').count(), 1);
+    await scan('01'); // Escape
+    await menu(page, 'Select all').waitFor({ state: 'hidden' });
+    assert.deepEqual(await readEditor(page), caret);
+    await scan('1d,1e'); // Ctrl+A
+    await until(
+      async () => (await readEditor(page))?.end === caret.text.length,
+      'Ctrl+A must select the field',
+    );
+    await scan('e05d'); // Context Menu
+    await menu(page, 'Copy').waitFor();
+    assert.equal(await menu(page, 'Copy').count(), 1);
+    const copyNodes = await native('uia', 'Copy');
+    assert.ok(copyNodes.some((item) => item.name === 'Copy' && item.enabled));
+    await scan('01');
+    await menu(page, 'Copy').waitFor({ state: 'hidden' });
+    assert.equal((await readEditor(page))?.end, caret.text.length);
+    await clipboard('');
+    await scan('1d,2e'); // Ctrl+C
+    await until(
+      async () => (await clipboard()) === caret.text,
+      'Ctrl+C must write the OS clipboard',
+    );
+    await scan('e05d');
+    await menu(page, 'Copy').waitFor();
+    await clipboard('');
+    await tap(await point(menu(page, 'Copy')));
+    await until(
+      async () => (await clipboard()) === caret.text,
+      'Menu Copy must write the OS clipboard',
+    );
+
+    const empty = field(page, 'Empty field');
+    await tap(await point(empty, 24));
+    await scan('1d,2f'); // Ctrl+V
+    await until(
+      async () => (await readEditor(page))?.text === caret.text,
+      'Ctrl+V must read the OS clipboard',
+    );
+    await scan('1d,1e');
+    await scan('0e'); // Backspace
+    await clipboard('');
+    await scan('2a,44');
+    await menu(page, 'Paste').waitFor();
+    await until(() => menu(page, 'Paste').isDisabled(), 'The empty clipboard must disable Paste');
+    const pasteNodes = await native('uia', 'Paste');
+    assert.ok(pasteNodes.some((item) => item.name === 'Paste' && !item.enabled));
+    await scan('01');
+    await menu(page, 'Paste').waitFor({ state: 'hidden' });
+    const text = '한글 👋 Windows';
+    await clipboard(text);
+    await scan('2a,44');
+    await until(() => menu(page, 'Paste').isEnabled(), 'The OS clipboard must enable menu Paste');
+    await scan('0f'); // Tab
+    await scan('e050'); // Arrow Down
+    await scan('1c'); // Enter
+    await until(
+      async () => (await readEditor(page))?.text === text,
+      'Keyboard menu Paste must read the OS clipboard',
+    );
+    const events = await page.evaluate(() => window.selectionKeys);
+    assert.ok(
+      events.some((event) => event.key === 'F10' && event.shiftKey && event.defaultPrevented),
+    );
+    assert.ok(
+      events.some((event) => ['ContextMenu', 'Menu'].includes(event.key) && event.defaultPrevented),
+    );
+    console.log(
+      JSON.stringify({
+        host: 'Windows Tauri',
+        buildId: manifest.buildId,
+        carrier: caret.carrier,
+        scanCodes: 'PASS',
+        osClipboard: 'PASS',
+        uiAutomation: { copyNodes, pasteNodes },
+        events,
+      }),
+    );
+  } finally {
+    await clipboard(saved ?? '');
+  }
 }
 
 async function revealWithWheel(page, target) {
@@ -190,12 +530,45 @@ async function revealWithWheel(page, target) {
   await until(async () => {
     if (await target.isVisible()) {
       const box = await target.boundingBox();
-      if (box.y >= 85 && box.y + box.height < height - 12) return true;
+      if (box && box.y >= 85 && box.y + box.height < height - 12) return true;
     }
     await page.mouse.wheel(0, 165);
     return false;
   }, 'The target was not reached in the selection demo');
   return point(target, 24);
+}
+
+async function glyphPoint(page, target, dx = 0) {
+  const box = await target.boundingBox();
+  const x = Math.ceil(box.x) + dx,
+    y = Math.ceil(box.y),
+    width = Math.min(80, Math.floor(box.x + box.width) - x),
+    height = Math.floor(box.y + box.height) - y;
+  assert.ok(width > 0 && height > 0, 'Text probe must stay within the rendered control');
+  const png = await page.screenshot({ clip: { x, y, width, height }, scale: 'css' });
+  const ink = await page.evaluate(async (png) => {
+    const bytes = Uint8Array.from(atob(png), (character) => character.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext('2d');
+    context.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    // Choose an interior ink pixel with a similarly dark neighbor so edges and carets are avoided.
+    for (let row = 2; row < canvas.height - 2; row++) {
+      for (let col = 2; col < canvas.width - 2; col++) {
+        const i = (row * canvas.width + col) * 4;
+        if (
+          data[i] + data[i + 1] + data[i + 2] < 330 &&
+          data[i + 4] + data[i + 5] + data[i + 6] < 430
+        )
+          return { x: col, y: row };
+      }
+    }
+    return null;
+  }, png.toString('base64'));
+  assert.ok(ink, `No drawn text found inside ${JSON.stringify({ x, y, width, height })}`);
+  return { x: x + ink.x, y: y + ink.y };
 }
 
 async function checkPublicWidgets(page, tap, secondary) {
@@ -219,20 +592,106 @@ async function checkPublicWidgets(page, tap, secondary) {
   await secondary(await revealWithWheel(page, field(page, 'Selection disabled')));
   await page.keyboard.press('Shift+F10');
   assert.equal(await menu(page, 'Paste').count(), 0);
+  const disabled = field(page, 'Disabled field');
+  await secondary(await revealWithWheel(page, disabled));
+  assert.ok(await disabled.isDisabled());
+  assert.equal(await menu(page, 'Select all').count(), 0);
 
   const surface = (id) => page.locator(`[data-semantics-identifier="w6-${id}"]`);
-  for (const id of ['material-readonly', 'core-readonly', 'paragraph-selection']) {
+  const selected = (id) => page.evaluate((name) => window.readOnlySelections[name], id);
+  const checkCopy = async (text) => {
+    assert.equal(await menu(page, 'Copy').count(), 1);
+    assert.equal(await menu(page, 'Cut').count(), 0);
+    assert.equal(await menu(page, 'Paste').count(), 0);
+    await page.evaluate(() => navigator.clipboard.writeText(''));
+    await tap(await point(menu(page, 'Copy')));
+    let copied = '';
+    await until(
+      async () => {
+        copied = (await page.evaluate(() => navigator.clipboard.readText())).replaceAll(
+          '\r\n',
+          '\n',
+        );
+        return copied.length > 0;
+      },
+      'The menu must copy ' + JSON.stringify(text),
+    );
+    assert.equal(copied, text);
+    await menu(page, 'Copy').waitFor({ state: 'hidden' });
+  };
+  for (const [id, text] of [
+    ['material-readonly', '읽기 전용 Material 👋 · 강조 😊'],
+    ['core-readonly', 'Core selection · 한글 · 강조 😊'],
+    ['paragraph-selection', null],
+  ]) {
     const target = surface(id);
-    const selectable = await revealWithWheel(page, target);
-    await secondary(selectable);
+    await revealWithWheel(page, target);
+    await secondary(await glyphPoint(page, target));
     await menu(page, 'Select all').waitFor();
     await tap(await point(menu(page, 'Select all')));
     await menu(page, 'Select all').waitFor({ state: 'hidden' });
-    await secondary(await point(target, 24));
-    await until(() => menu(page, 'Copy').isVisible(), `${id} lost its selected text`);
-    assert.equal(await menu(page, 'Cut').count(), 0);
-    await page.keyboard.press('Escape');
+    await until(() => selected(id), `${id} did not report a nonempty selection after Select all`);
+    const full = await selected(id);
+    if (text) assert.equal(full, text);
+    else {
+      assert.match(full, /^첫 문단 Select across lines 👋/u);
+      assert.match(full, /Second paragraph — שלום · 강조 😊/u);
+      assert.match(full, /세 번째 문단\nA second line about selection 🚀/u);
+    }
+    const expanded = await glyphPoint(page, target);
+    if (id === 'material-readonly') {
+      const fixed = await point(target, 24);
+      const boxes = await page.evaluate(
+        (value) => window.readSelectionEditorGeometry(value)?.selectionBoxes,
+        text,
+      );
+      const onRange = ({ x, y }) =>
+        boxes.some(([a, b]) => x >= a.x && x <= b.x && y >= a.y && y <= b.y);
+      assert.ok(onRange(expanded), 'The re-click must be on the editable paragraph selection');
+      console.log(
+        JSON.stringify({
+          readOnlyGlyph: { fixed, fixedInsideSelection: onRange(fixed), point: expanded },
+        }),
+      );
+    }
+    await secondary(expanded);
+    await until(
+      () => menu(page, 'Copy').isVisible(),
+      `${id} lost Copy after clicking selected glyph at ${expanded.x},${expanded.y}`,
+    );
+    assert.equal(await selected(id), full, `${id} changed the selection on an inside click`);
+    await checkCopy(full);
   }
+
+  const paragraph = surface('paragraph-selection');
+  const nextParagraph = surface('paragraph-second');
+  const begin = await glyphPoint(page, paragraph, 14);
+  const end = await glyphPoint(page, nextParagraph, 55);
+  await page.mouse.move(begin.x, begin.y);
+  await page.mouse.down();
+  await page.mouse.move(begin.x + 32, begin.y, { steps: 4 });
+  await page.mouse.move(end.x, end.y, { steps: 8 });
+  await page.mouse.up();
+  const partial = await selected('paragraph-selection');
+  assert.match(
+    partial ?? '',
+    /Select across lines 👋Second/u,
+    'Dragging must select content from both paragraphs',
+  );
+  await secondary(await glyphPoint(page, paragraph, 55));
+  await menu(page, 'Copy').waitFor();
+  assert.equal(await selected('paragraph-selection'), partial);
+  await page.keyboard.press('Escape');
+  const outside = await paragraph.boundingBox();
+  await secondary({ x: outside.x + outside.width - 12, y: begin.y });
+  await menu(page, 'Select all').waitFor();
+  assert.equal(
+    await menu(page, 'Copy').count(),
+    0,
+    'Clicking outside the selected text should clear Copy',
+  );
+  await page.keyboard.press('Escape');
+
   await secondary(await revealWithWheel(page, surface('no-region-menu')));
   assert.equal(await menu(page, 'Copy').count(), 0);
   assert.equal(await menu(page, 'Select all').count(), 0);
@@ -260,6 +719,15 @@ async function checkPublicWidgets(page, tap, secondary) {
   await secondary(legacy);
   await menu(page, 'Select all').waitFor();
   await page.keyboard.press('Escape');
+  const spell = field(page, 'Spell check suggestions');
+  await revealWithWheel(page, spell);
+  await tap(await glyphPoint(page, spell, 27));
+  await menu(page, 'the').waitFor();
+  await tap(await point(menu(page, 'the')));
+  await until(
+    async () => (await readEditor(page))?.text === 'Fix the word',
+    'Spell check must replace the marked word',
+  );
   console.log(
     JSON.stringify({
       readOnly: 'PASS',
@@ -269,6 +737,7 @@ async function checkPublicWidgets(page, tap, secondary) {
       formSearch: 'PASS',
       koreanRtlNestedOverlay: 'PASS',
       legacy: 'PASS',
+      spellCheck: 'PASS',
     }),
   );
 }
@@ -366,9 +835,9 @@ async function checkClipboardRaces(page, tap, secondary, first) {
   );
 }
 
-async function raster(page, before, during, at, fieldBox, dpr) {
+async function raster(page, before, during, at, fieldBox, dpr, statusBar) {
   return page.evaluate(
-    async ({ before, during, at, fieldBox, dpr }) => {
+    async ({ before, during, at, fieldBox, dpr, statusBar }) => {
       const decode = async (source) => {
         const bytes = Uint8Array.from(atob(source), (character) => character.charCodeAt(0));
         const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
@@ -392,51 +861,181 @@ async function raster(page, before, during, at, fieldBox, dpr) {
         return image.rgba[offset] + image.rgba[offset + 1] + image.rgba[offset + 2] < 340;
       };
       let best = { score: 0, changes: 0, zoomedInk: 0 };
-      for (let y = Math.round(at.y) - 9; y <= at.y + 9; y++) {
-        if (y < fieldBox.y || y > fieldBox.y + fieldBox.height) continue;
-        for (let shiftX = -2; shiftX <= 2; shiftX++) {
-          for (let shiftY = -5; shiftY <= 5; shiftY++) {
-            const cx = at.x + shiftX,
-              cy = y - 41 + shiftY;
-            let agreement = 0,
-              sourceInk = 0,
-              zoomedInk = 0,
-              changes = 0;
-            for (let dy = -12; dy <= 12; dy++)
-              for (let dx = -30; dx <= 30; dx++) {
-                if ((dx / 31) ** 2 + (dy / 13) ** 2 > 1) continue;
-                const source = dark(b, at.x + dx / 1.25, y + dy / 1.25);
-                const lens = dark(b, cx + dx, cy + dy);
-                sourceInk += Number(source);
-                zoomedInk += Number(lens);
-                changes += Number(lens !== dark(a, cx + dx, cy + dy));
-                agreement += Number(source && lens);
-              }
-            const score = (2 * agreement) / Math.max(1, sourceInk + zoomedInk);
-            if (score > best.score) best = { score, changes, zoomedInk, center: [cx, cy] };
-          }
+      // Android WebView may shift its visual viewport by the status-bar inset as the IME opens.
+      for (const screenTop of new Set([0, statusBar])) {
+        for (let y = Math.round(at.y) - 9; y <= at.y + 9; y++) {
+          if (y + screenTop < fieldBox.y || y + screenTop > fieldBox.y + fieldBox.height) continue;
+          for (let shiftX = -2; shiftX <= 2; shiftX++)
+            for (let shiftY = -5; shiftY <= 5; shiftY++) {
+              const cx = at.x + shiftX,
+                cy = y + screenTop - 41 + shiftY;
+              let agreement = 0,
+                sourceInk = 0,
+                zoomedInk = 0,
+                changes = 0;
+              for (let dy = -12; dy <= 12; dy++)
+                for (let dx = -30; dx <= 30; dx++) {
+                  if ((dx / 31) ** 2 + (dy / 13) ** 2 > 1) continue;
+                  const source = dark(b, at.x + dx / 1.25, y + screenTop + dy / 1.25);
+                  const lens = dark(b, cx + dx, cy + dy);
+                  sourceInk += Number(source);
+                  zoomedInk += Number(lens);
+                  changes += Number(lens !== dark(a, cx + dx, cy + dy));
+                  agreement += Number(source && lens);
+                }
+              const score = (2 * agreement) / Math.max(1, sourceInk + zoomedInk);
+              if (score > best.score)
+                best = { score, changes, zoomedInk, center: [cx, cy], screenTop };
+            }
         }
       }
       return best;
     },
-    { before: before.toString('base64'), during: during.toString('base64'), at, fieldBox, dpr },
+    {
+      before: before.toString('base64'),
+      during: during.toString('base64'),
+      at,
+      fieldBox,
+      dpr,
+      statusBar,
+    },
   );
+}
+
+async function checkInsertionHandle(page, id) {
+  const { endpoints, caret } = await page.evaluate(
+    (name) => window.readSelectionEditorGeometry(name),
+    id,
+  );
+  assert.equal(endpoints.length, 1, 'A collapsed selection must have one endpoint');
+  const [topLeft, bottomRight] = caret;
+  const dx = endpoints[0].x - (topLeft.x + bottomRight.x) / 2;
+  const dy = endpoints[0].y - bottomRight.y;
+  assert.ok(Math.abs(dx) < 1e-5, `${id} insertion handle must center over the caret (dx=${dx})`);
+  assert.ok(Math.abs(dy) < 1e-5, `${id} insertion handle must stay at the caret bottom (dy=${dy})`);
+  return { dx, dy, direction: endpoints[0].direction };
+}
+
+async function checkMaterialRangeHandlePixels(page, dpr) {
+  const grips = await page.evaluate(() => {
+    const { endpoints } = window.readSelectionEditorGeometry('w6-material');
+    const canvas = document.querySelector('canvas').getBoundingClientRect();
+    return endpoints.map(({ x, y, direction }, index) => ({
+      x: canvas.x + x + ((index === 0) === (direction === 'ltr') ? -11 : 11),
+      y: canvas.y + y + 11,
+    }));
+  });
+  assert.equal(grips.length, 2, 'A word selection must have two handle anchors');
+  const frame = (await adb('exec-out', 'screencap', '-p')).toString('base64');
+  const pixels = await page.evaluate(
+    async ({ frame, grips, dpr }) => {
+      const bytes = Uint8Array.from(atob(frame), (character) => character.charCodeAt(0));
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const context = canvas.getContext('2d');
+      context.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      const size = Math.round(8 * dpr);
+      return grips.map(({ x, y }) => {
+        const { data } = context.getImageData(
+          Math.round(x * dpr - size / 2),
+          Math.round(y * dpr - size / 2),
+          size,
+          size,
+        );
+        let ink = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i],
+            g = data[i + 1],
+            b = data[i + 2];
+          // The Demo's Material handles use the saturated purple primary color.
+          if (b > r + 18 && r > g + 8 && r < 170) ink++;
+        }
+        return ink;
+      });
+    },
+    { frame, grips, dpr },
+  );
+  assert.ok(
+    pixels.every((count) => count > 12 * dpr * dpr),
+    `Both Material handles must be painted (${pixels.join(', ')})`,
+  );
+  return pixels;
 }
 
 async function emulator(page) {
   const cdp = await page.context().newCDPSession(page);
-  const dpr = await page.evaluate(() => devicePixelRatio);
-  const tap = ({ x, y }) =>
-    adb('shell', 'input', 'tap', String(Math.round(x * dpr)), String(Math.round(y * dpr)));
   const touch = (type, at) =>
     cdp.send('Input.dispatchTouchEvent', {
       type,
       touchPoints: at ? [{ ...at, id: 1 }] : [],
     });
   try {
+    await page.addInitScript(installSelectionProbes);
+    await page.addInitScript(() => {
+      window.nelyxDemoFrameProbe = (read) => (window.readSelectionFrames = () => read().frames);
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await verifyBundle(page);
+    const tap = async (at) => {
+      await touch('touchStart', at);
+      await touch('touchEnd');
+    };
     await openSelection(page, tap);
-    await wait(350);
+    const dpr = await page.evaluate(() => devicePixelRatio);
+    const display = (await adb('shell', 'dumpsys', 'window', 'displays')).toString();
+    const statusBar = Math.round(
+      Number(/ITYPE_STATUS_BAR frame=\[0,0\]\[\d+,(\d+)\]/u.exec(display)?.[1] ?? 0) / dpr,
+    );
     const editor = field(page, 'Material single line');
+    const firstPoint = await point(editor, 35);
+    const firstPixels = [firstPoint.x, firstPoint.y].map((value) =>
+      String(Math.round(value * dpr)),
+    );
+    const viewport = () =>
+      page.evaluate(() => {
+        const canvas = document.querySelector('canvas').getBoundingClientRect();
+        return { height: innerHeight, canvasTop: canvas.y, canvasHeight: canvas.height };
+      });
+    const viewportBeforeHold = await viewport();
+    const firstHold = adb('shell', 'input', 'swipe', ...firstPixels, ...firstPixels, '1600');
+    try {
+      await until(
+        () => page.evaluate(() => window.readSelectionMagnifiers().material?.shown),
+        'The first hold must show a lens before opening the keyboard',
+      );
+      await wait(250);
+      assert.deepEqual(await viewport(), viewportBeforeHold);
+      assert.equal(await menu(page, 'Copy').count(), 0);
+    } finally {
+      await firstHold;
+    }
+    await menu(page, 'Copy').waitFor();
+    const doubleTapPoint = await point(editor, 48);
+    await tap(doubleTapPoint);
+    await wait(95);
+    await tap(doubleTapPoint);
+    await menu(page, 'Copy').waitFor();
+    const doubleTap = await readEditor(page);
+    assert.ok(doubleTap?.end > doubleTap?.start, 'Two Android taps must select a word');
+    await wait(350);
+    const rangeHandlePixels = await checkMaterialRangeHandlePixels(page, dpr);
+    await tap(await point(editor, 28));
+    await until(
+      async () => (await readEditor(page))?.carrier,
+      'The field must be focused before the pixel sample',
+    );
+    await wait(550);
+    const insertionHandle = await checkInsertionHandle(page, 'w6-material');
+    const grip = await page.evaluate(() => {
+      const point = window.readSelectionEditorGeometry('w6-material').endpoints[0];
+      const rect = document.querySelector('canvas').getBoundingClientRect();
+      return { x: point.x + rect.x, y: point.y + rect.y + 15 };
+    });
+    await tap(grip);
+    await menu(page, 'Select all').waitFor();
+    await tap(grip);
+    await menu(page, 'Select all').waitFor({ state: 'hidden' });
     const at = await point(editor, 28);
     const bounds = await editor.boundingBox();
     const trace = await page.evaluateHandle(() => {
@@ -453,15 +1052,26 @@ async function emulator(page) {
     });
     const before = await adb('exec-out', 'screencap', '-p');
     const pixels = [at.x, at.y].map((value) => String(Math.round(value * dpr)));
-    const hold = adb('shell', 'input', 'swipe', ...pixels, ...pixels, '2100');
+    const hold = adb('shell', 'input', 'swipe', ...pixels, ...pixels, '2600');
     const during = await (async () => {
       await until(async () => {
         const value = await readEditor(page);
         return value?.end > value?.start;
       }, 'Android stationary hold never selected a word');
       assert.equal(await menu(page, 'Copy').count(), 0, 'Toolbar must wait for release');
+      await until(
+        () => page.evaluate(() => window.readSelectionMagnifiers().material?.shown),
+        'Stationary hold must open the lens',
+      );
       await wait(170);
-      return adb('exec-out', 'screencap', '-p');
+      const info = await page.evaluate(() => window.readSelectionMagnifiers().material.info);
+      const canvas = await page.locator('canvas').boundingBox();
+      return {
+        info,
+        canvas,
+        box: await editor.boundingBox(),
+        png: await adb('exec-out', 'screencap', '-p'),
+      };
     })()
       .finally(() => hold)
       .catch(async (error) => {
@@ -470,6 +1080,7 @@ async function emulator(page) {
           dpr,
           active: await readEditor(page),
           bounds,
+          lens: await page.evaluate(() => window.readSelectionMagnifiers().material),
           pointerEvents: await trace.evaluate(({ events }) => events),
         });
         throw error;
@@ -478,8 +1089,12 @@ async function emulator(page) {
         await trace.evaluate(({ abort }) => abort.abort());
         await trace.dispose();
       });
-    const ink = await raster(page, before, during, at, bounds, dpr);
-    console.log(JSON.stringify({ lens: ink, at, bounds }));
+    const lensPoint = {
+      x: during.info.globalGesturePosition.dx + during.canvas.x,
+      y: (during.info.caretRect.top + during.info.caretRect.bottom) / 2 + during.canvas.y,
+    };
+    const ink = await raster(page, before, during.png, lensPoint, during.box, dpr, statusBar);
+    console.log(JSON.stringify({ lens: ink, at, lensPoint, bounds: during.box, dpr, statusBar }));
     assert.ok(
       ink.score >= 0.35 && ink.zoomedInk >= 30 && ink.changes >= 30,
       'Stationary hold must show glyph pixels in the enlarged lens',
@@ -525,22 +1140,28 @@ async function emulator(page) {
     await menu(page, 'Paste').waitFor({ state: 'hidden' });
     await adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
     await wait(300);
-    const cupertino = await point(field(page, 'Cupertino single line'), 20);
-    await touch('touchStart', cupertino);
-    await until(async () => {
-      const value = await readEditor(page);
-      return (
-        value?.end > value?.start &&
-        (await page.evaluate(
-          () => document.activeElement?.getAttribute('aria-label') === 'Cupertino single line',
-        ))
-      );
-    }, 'Cupertino hold must select text');
+    const cupertino = field(page, 'Cupertino single line');
+    await touch('touchStart', await point(cupertino, 20));
+    await until(
+      () =>
+        page.evaluate(
+          () => window.readSelectionEditorGeometry('w6-cupertino')?.endpoints.length === 2,
+        ),
+      'Cupertino hold must select text before the editor receives native focus',
+    );
     assert.equal(await menu(page, 'Copy').count(), 0);
     await touch('touchEnd');
     await menu(page, 'Copy').waitFor();
+    await until(
+      () =>
+        page.evaluate(
+          () => document.activeElement?.getAttribute('aria-label') === 'Cupertino single line',
+        ),
+      'Cupertino release must focus the editor',
+    );
     await recoverRenderer(page);
-    await touch('touchStart', cupertino);
+    await touch('touchStart', await point(cupertino, 20));
+    await wait(650);
     await until(
       () =>
         menu(page, 'Copy')
@@ -557,15 +1178,266 @@ async function emulator(page) {
         buildId: manifest.buildId,
         carrier: selected.carrier,
         stationaryHold: 'PASS',
+        firstHoldMenu: 'PASS',
+        doubleTapMenu: 'PASS',
+        insertionHandleMenu: 'PASS',
+        rangeHandlePixels,
+        insertionHandle,
         cancelRetry: 'PASS',
         cupertinoHold: 'PASS',
         osClipboard: 'PASS',
         gpuRecovery: 'PASS',
       }),
     );
+    await androidSelectionDetails(page, touch, tap, dpr);
   } finally {
+    await touch('touchCancel').catch(() => {});
     await cdp.detach();
   }
+}
+
+async function androidSelectionDetails(page, touch, tap, dpr) {
+  const geometry = (id) =>
+    page.evaluate((name) => {
+      const render = window.readSelectionEditorGeometry(name);
+      if (!render) return null;
+      const { x, y } = document.querySelector('canvas').getBoundingClientRect();
+      const client = (point) => ({ ...point, x: point.x + x, y: point.y + y });
+      return {
+        ...render,
+        corners: render.corners.map(client),
+        endpoints: render.endpoints.map(client),
+      };
+    }, id);
+  const lenses = () => page.evaluate(() => window.readSelectionMagnifiers());
+  const lens = async (id) => (await lenses())[id];
+  const expectLens = async (id) => {
+    await until(async () => (await lens(id))?.shown, id + ' must show a magnifier');
+    const active = Object.values(await lenses()).filter(({ exists }) => exists);
+    assert.equal(active.length, 1, 'The selection gesture must own one lens entry');
+    return (await lens(id)).info;
+  };
+  const expectClosed = () =>
+    until(
+      async () => Object.values(await lenses()).every(({ exists }) => !exists),
+      'The lens entry must be retired',
+    );
+  const selected = (id) => page.evaluate((name) => window.readOnlySelections[name], id);
+  const surface = (id) => page.locator('[data-semantics-identifier="w6-' + id + '"]');
+  const hideKeyboard = async () => {
+    if (/\bmInputShown=true\b/.test((await adb('shell', 'dumpsys', 'input_method')).toString())) {
+      await adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
+      await wait(300);
+    }
+  };
+  const reveal = async (target) => {
+    await hideKeyboard();
+    await until(async () => {
+      const { width, height } = await page.evaluate(() => ({
+        width: innerWidth,
+        height: innerHeight,
+      }));
+      const box = (await target.count()) > 0 ? await target.boundingBox({ timeout: 1_500 }) : null;
+      if (box && box.y >= 66 && box.y + box.height < height - 12) return true;
+      const down = !box || box.y >= 66;
+      const x = Math.round((width - 12) * dpr);
+      const ys = [Math.round(height * 0.72 * dpr), Math.round(height * 0.43 * dpr)];
+      await adb(
+        'shell',
+        'input',
+        'swipe',
+        String(x),
+        String(ys[down ? 0 : 1]),
+        String(x),
+        String(ys[down ? 1 : 0]),
+        '360',
+      );
+      return false;
+    }, 'Android selection target must come into view');
+  };
+  const hold = async (at, id) => {
+    await touch('touchStart', at);
+    return expectLens(id);
+  };
+  const handleGrip = ({ x, y, direction }, start) => ({
+    x: x + ((direction === 'ltr') === start ? -9 : 9),
+    y: y + 10,
+  });
+
+  const multiline = field(page, 'Material multiline');
+  await reveal(multiline);
+  const start = await point(multiline, 47);
+  await hold(start, 'multiline');
+  await touch('touchEnd');
+  await menu(page, 'Copy').waitFor();
+  const firstSelection = await readEditor(page);
+  assert.ok(firstSelection?.end > firstSelection?.start);
+  const initial = await geometry('w6-multiline');
+  assert.equal(initial.endpoints.length, 2);
+  await page.keyboard.press('Escape');
+  await menu(page, 'Copy').waitFor({ state: 'hidden' });
+  for (const [index, reverse] of [
+    [0, 1],
+    [1, -1],
+  ]) {
+    const current = await geometry('w6-multiline');
+    const grip = handleGrip(current.endpoints[index], index === 0);
+    const opposite = current.endpoints[1 - index];
+    await touch('touchStart', grip);
+    await touch('touchMove', { x: grip.x + 25, y: grip.y });
+    await expectLens('multiline');
+    await touch('touchMove', { x: Math.max(8, opposite.x + reverse * 45), y: grip.y });
+    assert.ok((await expectLens('multiline')).caretRect);
+    const retained = await readEditor(page);
+    assert.ok(
+      retained.end > retained.start,
+      'The Android handle must retain an ordered range at the opposite end',
+    );
+    await touch('touchEnd');
+    await expectClosed();
+    await menu(page, 'Copy').waitFor();
+  }
+
+  const beforeScroll = await geometry('w6-multiline');
+  const end = handleGrip(beforeScroll.endpoints[1], false);
+  const edge = {
+    x: Math.min(beforeScroll.corners[1].x - 8, end.x + 50),
+    y: beforeScroll.corners[1].y + 12,
+  };
+  await touch('touchStart', end);
+  await touch('touchMove', { x: end.x + 25, y: end.y });
+  await expectLens('multiline');
+  await touch('touchMove', edge);
+  const beforeLine = await expectLens('multiline');
+  await until(
+    async () => (await geometry('w6-multiline'))?.scroll.y > beforeScroll.scroll.y + 10,
+    'Holding the end handle at the editor edge must scroll its content',
+  ).catch(async (error) => {
+    console.error({
+      beforeScroll,
+      edge,
+      current: await geometry('w6-multiline'),
+      lens: await lens('multiline'),
+    });
+    throw error;
+  });
+  const scrolled = await lens('multiline');
+  assert.ok(scrolled?.exists);
+  assert.equal(scrolled.info.globalGesturePosition.dy, beforeLine.globalGesturePosition.dy);
+  const afterScroll = await readEditor(page);
+  assert.ok(
+    afterScroll.end > firstSelection.end,
+    'The stationary gesture must extend into the scrolled text',
+  );
+  await touch('touchCancel');
+  await expectClosed();
+  assert.equal(await menu(page, 'Copy').count(), 0);
+  const settledOffset = (await geometry('w6-multiline')).scroll.y;
+  await wait(220);
+  assert.equal((await geometry('w6-multiline')).scroll.y, settledOffset);
+
+  const cupertino = field(page, 'Cupertino multiline');
+  await reveal(cupertino);
+  await tap(await point(cupertino, 40));
+  await wait(450);
+  const cupertinoAt = await point(cupertino, 40);
+  const cupertinoLine = await hold(cupertinoAt, 'cupertino-multiline');
+  await touch('touchMove', { x: cupertinoAt.x + 65, y: cupertinoAt.y + 24 });
+  await until(
+    async () =>
+      (await lens('cupertino-multiline')).info.caretRect.top !== cupertinoLine.caretRect.top,
+    'The Cupertino lens must move onto the next line',
+  );
+  await touch('touchEnd');
+  await expectClosed();
+  await menu(page, 'Copy').waitFor();
+
+  const checkNoLens = async (id, label) => {
+    const target = field(page, label);
+    await reveal(target);
+    await touch('touchStart', await point(target, 25));
+    await wait(820);
+    await expectClosed();
+    const probe = await lens(id);
+    if (id === 'null-lens')
+      assert.equal(probe?.requests, 1, 'A null builder runs once per gesture');
+    else assert.equal(probe, undefined, id + ' should bypass the lens builder');
+    await touch('touchCancel');
+  };
+  await checkNoLens('password', 'Password field');
+
+  for (const id of ['material-readonly', 'core-readonly', 'paragraph-selection']) {
+    const target = surface(id);
+    await reveal(target);
+    const at = await point(target, 29);
+    const initialLine = await hold(at, id);
+    await until(() => selected(id), id + ' must select text during the hold');
+    if (id === 'paragraph-selection') {
+      const next = await point(surface('paragraph-second'), 65);
+      await touch('touchMove', next);
+      await until(
+        async () => (await selected(id))?.includes('Second'),
+        'The region must select across paragraphs',
+      );
+      const line = (await expectLens(id)).currentLineBoundaries;
+      assert.ok(
+        line.top > initialLine.currentLineBoundaries.top,
+        'The region lens must follow the active paragraph',
+      );
+    } else {
+      const word = await selected(id);
+      await touch('touchMove', { x: at.x + 85, y: at.y });
+      await until(
+        async () => (await selected(id))?.length > word.length,
+        id + ' must extend the selection',
+      );
+    }
+    await touch('touchEnd');
+    await expectClosed();
+    await menu(page, 'Copy').waitFor();
+  }
+
+  const rtl = field(page, 'Local theme and RTL');
+  await reveal(rtl);
+  const rtlBounds = await rtl.boundingBox();
+  await tap(await point(rtl, rtlBounds.width - 30));
+  await until(
+    () =>
+      page.evaluate(
+        () => document.activeElement?.getAttribute('aria-label') === 'Local theme and RTL',
+      ),
+    'The RTL field must be focused before checking its insertion handle',
+  );
+  const rtlInsertionHandle = await checkInsertionHandle(page, 'w6-rtl');
+  assert.equal(rtlInsertionHandle.direction, 'rtl');
+
+  for (const [id, label] of [
+    ['no-lens', 'Magnifier disabled'],
+    ['null-lens', 'Custom magnifier returns null'],
+  ]) {
+    await checkNoLens(id, label);
+  }
+  await hideKeyboard();
+  await tap(await point(button(page, 'Back')));
+  await field(page, 'Custom magnifier returns null').waitFor({ state: 'hidden' });
+  await expectClosed();
+  await wait(500);
+  await page.evaluate(() => window.readSelectionFrames());
+  await wait(230);
+  const settled = await page.evaluate(() => window.readSelectionFrames().samples.length);
+  assert.equal(settled, 0, 'The selection route must stop requesting frames after teardown');
+  console.log(
+    JSON.stringify({
+      handleDrags: 'PASS',
+      innerScroll: { before: beforeScroll.scroll.y, stopped: settledOffset },
+      materialCupertinoLines: 'PASS',
+      rtlInsertionHandle,
+      readOnlyLenses: 'PASS',
+      regionLine: 'PASS',
+      disabledAndNullLenses: 'PASS',
+      framesAfterRoute: settled,
+    }),
+  );
 }
 
 async function recoverRenderer(page) {
@@ -594,7 +1466,142 @@ async function recoverRenderer(page) {
   await field(page, 'Cupertino single line').waitFor();
 }
 
-let browser, runner, forward;
+async function observeAndroidGestures(page) {
+  const cdp = await page.context().newCDPSession(page);
+  const tap = async (at) => {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ ...at, id: 1 }],
+    });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  };
+  try {
+    await page.addInitScript(installSelectionProbes);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await verifyBundle(page);
+    await openSelection(page, tap);
+    await page.evaluate(() => {
+      const connected = new WeakSet();
+      const abort = new AbortController();
+      const { signal } = abort;
+      window.stopSelectionPhysicalProbe = () => abort.abort();
+      const state = (window.selectionPhysical = {
+        touch: { pointerdown: 0, pointermove: 0, pointerup: 0, pointercancel: 0 },
+        compositionStarted: 0,
+        compositionEnded: 0,
+        menuOpenedDuringComposition: false,
+        carriers: [],
+        active: false,
+        koreanPasteInEmptyField: false,
+      });
+      for (const type of Object.keys(state.touch)) {
+        document.addEventListener(
+          type,
+          (event) => {
+            if (event.isTrusted && event.pointerType === 'touch') state.touch[type]++;
+          },
+          { capture: true, signal },
+        );
+      }
+      const start = () => {
+        state.compositionStarted++;
+        state.active = true;
+      };
+      const end = () => {
+        state.compositionEnded++;
+        state.active = false;
+      };
+      document.addEventListener('compositionstart', start, { capture: true, signal });
+      document.addEventListener('compositionend', end, { capture: true, signal });
+      document.addEventListener(
+        'focusin',
+        (event) => {
+          const input = event.target;
+          if (!input.editContext && !input.dataset.nelyxInputCarrier) return;
+          const carrier = input.editContext ? 'EditContext' : input.tagName;
+          if (!state.carriers.includes(carrier)) state.carriers.push(carrier);
+          const context = input.editContext;
+          if (!context || connected.has(context)) return;
+          connected.add(context);
+          context.addEventListener('compositionstart', start, { signal });
+          context.addEventListener('compositionend', end, { signal });
+        },
+        { signal },
+      );
+    });
+    console.log(
+      JSON.stringify({
+        host: 'Physical Android Tauri',
+        device,
+        buildId: manifest.buildId,
+        readyForPhysicalTouch: true,
+      }),
+    );
+    const lines = new Set();
+    let last,
+      maxScroll = 0;
+    const requests = new Map();
+    // This route ends when the person testing it uses the app's Back button.
+    const deadline = Date.now() + 480_000;
+    while (Date.now() < deadline) {
+      const sample = await page.evaluate(() => {
+        const lenses = window.readSelectionMagnifiers();
+        const editor = window.readSelectionEditorGeometry('w6-multiline');
+        const state = window.selectionPhysical;
+        const toolbar = [...document.querySelectorAll('button[aria-label]')].some(
+          (button) =>
+            ['Copy', 'Cut', 'Paste'].includes(button.getAttribute('aria-label')) &&
+            button.getBoundingClientRect().width > 0,
+        );
+        if (state.active && toolbar) state.menuOpenedDuringComposition = true;
+        const empty = document.querySelector('[aria-label="Empty field"]');
+        if ((empty?.editContext?.text ?? empty?.value ?? '') === '안녕하세요')
+          state.koreanPasteInEmptyField = true;
+        return { state, lenses, scroll: editor?.scroll.y ?? 0 };
+      });
+      last = sample.state;
+      for (const [id, lens] of Object.entries(sample.lenses)) {
+        if (!lens.exists) continue;
+        requests.set(id, lens.requests);
+        if (id === 'multiline') {
+          lines.add(Math.round(lens.info.caretRect.top));
+          maxScroll = Math.max(maxScroll, sample.scroll);
+        }
+      }
+      if (last.touch.pointerdown > 0 && !(await field(page, 'Material multiline').count())) break;
+      await wait(160);
+    }
+    const copiedKorean = await page.evaluate(() =>
+      window.__TAURI__.clipboardManager.readText().then(
+        (text) => text === '안녕하세요',
+        () => false,
+      ),
+    );
+    console.log(
+      JSON.stringify({
+        host: 'Physical Android Tauri',
+        device,
+        buildId: manifest.buildId,
+        touches: last?.touch,
+        carriers: last?.carriers,
+        lensRequests: Object.fromEntries(requests),
+        observedLineYs: [...lines],
+        maxInnerScroll: maxScroll,
+        compositionStarted: last?.compositionStarted,
+        compositionEnded: last?.compositionEnded,
+        menuOpenedDuringComposition: last?.menuOpenedDuringComposition,
+        copiedKorean,
+        koreanPasteInEmptyField: last?.koreanPasteInEmptyField,
+      }),
+    );
+    assert.ok(last?.touch.pointerdown > 0, 'No physical touch reached this installed Galaxy build');
+  } finally {
+    await page.evaluate(() => window.stopSelectionPhysicalProbe?.()).catch(() => {});
+    await cdp.detach();
+  }
+}
+
+let browser, runner, forward, windowsProfile, chromePid;
 try {
   let page;
   if (android) {
@@ -625,6 +1632,44 @@ try {
     browser = await chromium.connectOverCDP(endpoint, { timeout: 20_000, noDefaults: true });
     page = browser.contexts()[0]?.pages()[0];
     assert.ok(page, 'No Demo WebView page');
+  } else if (windows) {
+    assert.equal(process.platform, 'win32');
+    const packaged = join(app, '.nelyx', 'tauri', 'windows-x64');
+    assert.equal(
+      JSON.parse(await readFile(join(packaged, 'package.json'), 'utf8')).buildId,
+      manifest.buildId,
+    );
+    const reservation = createServer().listen(0, '127.0.0.1');
+    await once(reservation, 'listening');
+    const { port } = reservation.address();
+    await new Promise((resolve) => reservation.close(resolve));
+    const endpoint = 'http://127.0.0.1:' + port;
+    windowsProfile = await mkdtemp(join(tmpdir(), 'nelyx-windows-selection-'));
+    runner = startOwnedCommand(join(packaged, 'nelyx-tauri.exe'), [], {
+      cwd: packaged,
+      isolateWindows: true,
+      windowsHide: false,
+      env: {
+        ...process.env,
+        WEBVIEW2_USER_DATA_FOLDER: windowsProfile,
+        WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --force-renderer-accessibility`,
+      },
+    });
+    await until(async () => {
+      const response = await fetch(endpoint + '/json/list', {
+        signal: AbortSignal.timeout(1000),
+      }).catch(() => null);
+      return (
+        response?.ok &&
+        (await response.json()).some(({ url }) => url.startsWith('https://tauri.localhost/'))
+      );
+    }, 'Waiting for the Windows WebView2 endpoint');
+    browser = await chromium.connectOverCDP(endpoint, { timeout: 20_000, noDefaults: true });
+    page = browser
+      .contexts()[0]
+      .pages()
+      .find((target) => target.url().startsWith('https://tauri.localhost/'));
+    assert.ok(page, 'No Demo WebView2 page');
   } else {
     const url = 'http://127.0.0.1:4189/demo/';
     runner = startOwnedCommand(process.execPath, [
@@ -645,8 +1690,20 @@ try {
         ),
       'PWA preview failed to start',
     );
-    browser = await chromium.launch({ channel: 'chrome' });
+    browser = await chromium.launch({
+      channel: 'chrome',
+      headless: !headed,
+      args: headed ? ['--force-renderer-accessibility', '--lang=en-US'] : [],
+    });
     page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+    if (headed && process.platform === 'win32') {
+      const cdp = await browser.newBrowserCDPSession();
+      const { processInfo } = await cdp.send('SystemInfo.getProcessInfo');
+      chromePid = processInfo.find(({ type }) => type === 'browser')?.id;
+      assert.ok(chromePid, 'The headed Chrome process must own a window');
+      await windowsInput(chromePid, 'focus');
+      await cdp.detach();
+    }
     page.selectionTestUrl = url;
   }
   page.setDefaultTimeout(12_000);
@@ -661,19 +1718,20 @@ try {
       console.error(message.text());
     }
   });
-  if (android) await emulator(page);
-  else await web(page, page.selectionTestUrl);
-  const served = await page.evaluate(() =>
-    fetch(new URL('build.json', document.baseURI)).then((response) => response.json()),
-  );
-  assert.equal(
-    served.buildId,
-    manifest.buildId,
-    'The observed page must run the current product bundle',
-  );
+  if (observePhysical) await observeAndroidGestures(page);
+  else if (android) await emulator(page);
+  else if (windows) {
+    await verifyBundle(page);
+    await windowsSelection(page, runner.pid);
+  } else await web(page, page.selectionTestUrl, chromePid);
   assert.deepEqual(errors, []);
 } finally {
-  await browser?.close();
-  if (forward) await adb('forward', '--remove', 'tcp:' + forward);
-  await runner?.stop();
+  try {
+    await browser?.close();
+    if (forward) await adb('forward', '--remove', 'tcp:' + forward);
+  } finally {
+    await runner?.stop();
+    if (windowsProfile)
+      await rm(windowsProfile, { recursive: true, force: true, maxRetries: 10, retryDelay: 350 });
+  }
 }

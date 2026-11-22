@@ -6,6 +6,8 @@ import { TextEditingController } from '@nelyx/core/framework/widgets/editable-te
 import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import type { NavigatorController } from '@nelyx/core/framework/widgets/navigation';
+import { TextMagnifierConfiguration } from '@nelyx/core/framework/widgets/magnifier';
+import type { MagnifierInfo } from '@nelyx/core/framework/widgets/magnifier';
 import { Overlay, OverlayEntry } from '@nelyx/core/framework/widgets/overlay';
 import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
 import { SelectableText as CoreSelectableText } from '@nelyx/core/framework/widgets/selectable-text';
@@ -20,6 +22,7 @@ import { SelectionChangedCause } from '@nelyx/core/services/text-input';
 import { TextRange } from '@nelyx/core/ui/text-range';
 import { CupertinoSearchTextField } from '@nelyx/cupertino/search-field';
 import { CupertinoTextField } from '@nelyx/cupertino/text-field';
+import { CupertinoTextMagnifier } from '@nelyx/cupertino/magnifier';
 import { AdaptiveTextSelectionToolbar } from '@nelyx/material/adaptive-text-selection-toolbar';
 import { AppBar } from '@nelyx/material/app-bar';
 import { InputDecoration } from '@nelyx/material/input-decoration';
@@ -40,12 +43,49 @@ import { getWebDeployment } from '@nelyx/sdk/platforms/web/environment';
 const greeting = '안녕하세요 Nelyx 👋 שלום';
 const selectionSurface = (id: string, child: Widget) =>
   new Semantics({ identifier: 'w6-' + id, container: true, explicitChildNodes: true, child });
-const multiline = `${greeting}\nSecond line 선택 영역 🚀\nمرحبا · Edge scrolling`;
+const multiline = [
+  greeting,
+  'Second line 선택 영역 🚀',
+  'مرحبا · Edge scrolling',
+  'Fourth line · 한글',
+  'Fifth line · Wrap a selection 😊',
+  '마지막 줄 Select to the edge',
+].join('\n');
+const selectionStyle = new TextStyle({
+  fontFamilyFallback: ['NelyxHebrew', 'NelyxArabic', 'NelyxEmoji'],
+});
 const rich = (text: string) =>
   new TextSpan({
     text,
+    style: selectionStyle,
     children: [new TextSpan({ text: ' · 강조 😊', style: new TextStyle({ color: 0xff7260c8 }) })],
   });
+const materialReadOnly = rich('읽기 전용 Material 👋');
+const coreReadOnly = rich('Core selection · 한글');
+
+declare global {
+  interface Window {
+    nelyxDemoSelectionProbe?: (id: string, text: string) => void;
+    nelyxDemoMagnifierProbe?: (
+      id: string,
+      read: () => { info: MagnifierInfo; exists: boolean; shown: boolean },
+    ) => void;
+  }
+}
+
+const nullMagnifier = new TextMagnifierConfiguration({ magnifierBuilder: () => null });
+const cupertinoMagnifier = new TextMagnifierConfiguration({
+  magnifierBuilder: (_context, controller, magnifierInfo) =>
+    new CupertinoTextMagnifier({ controller, magnifierInfo }),
+});
+
+function reportReadOnlySelection(id: string, span: TextSpan, anchor: number, focus: number) {
+  window.nelyxDemoSelectionProbe?.(
+    id,
+    span.toPlainText().slice(Math.min(anchor, focus), Math.max(anchor, focus)),
+  );
+}
+
 const spellCheckConfiguration = new SpellCheckConfiguration({
   spellCheckService: {
     async fetchSpellCheckSuggestions(_locale, text) {
@@ -67,6 +107,30 @@ export class TextSelectionScreen extends StatefulWidget {
 }
 
 class TextSelectionScreenState extends State<TextSelectionScreen> {
+  private readonly observedMagnifiers = new Map<string, TextMagnifierConfiguration>();
+  private observeMagnifier(
+    id: string,
+    configuration: TextMagnifierConfiguration,
+  ): TextMagnifierConfiguration {
+    const probe = window.nelyxDemoMagnifierProbe;
+    if (!probe || configuration === TextMagnifierConfiguration.disabled) return configuration;
+    let observed = this.observedMagnifiers.get(id);
+    if (!observed) {
+      observed = new TextMagnifierConfiguration({
+        shouldDisplayHandlesInMagnifier: configuration.shouldDisplayHandlesInMagnifier,
+        magnifierBuilder: (context, controller, info) => {
+          probe(id, () => ({
+            info: info.value,
+            exists: controller.overlayEntry !== null,
+            shown: controller.shown,
+          }));
+          return configuration.magnifierBuilder(context, controller, info);
+        },
+      });
+      this.observedMagnifiers.set(id, observed);
+    }
+    return observed;
+  }
   private readonly fields = {
     material: new TextEditingController(greeting),
     materialMultiline: new TextEditingController(multiline),
@@ -81,6 +145,8 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
     rtl: new TextEditingController('שלום Nelyx · 한글 😊'),
     legacy: new TextEditingController('Legacy selection controls'),
     spell: new TextEditingController('Fix teh word'),
+    noLens: new TextEditingController(greeting),
+    nullLens: new TextEditingController(greeting),
   };
   override dispose(): void {
     for (const field of Object.values(this.fields)) field.dispose();
@@ -107,7 +173,12 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
         id: 'w6-' + id,
         controller,
         decoration: new InputDecoration({ labelText: label }),
+        style: selectionStyle,
         ...options,
+        magnifierConfiguration: this.observeMagnifier(
+          id,
+          options.magnifierConfiguration ?? TextMagnifier.adaptiveMagnifierConfiguration,
+        ),
       });
     const section = (title: string, child: Widget): Widget[] => [
       new Text(title, { fontSize: 14 }),
@@ -158,6 +229,7 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
               id: 'w6-cupertino',
               placeholder: 'Cupertino single line',
               controller: f.cupertino,
+              style: selectionStyle,
             }),
           ),
           ...section(
@@ -166,8 +238,17 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
               id: 'w6-cupertino-multiline',
               placeholder: 'Cupertino multiline',
               controller: f.cupertinoMultiline,
+              style: selectionStyle,
               minLines: 3,
               maxLines: 3,
+              ...(window.nelyxDemoMagnifierProbe
+                ? {
+                    magnifierConfiguration: this.observeMagnifier(
+                      'cupertino-multiline',
+                      cupertinoMagnifier,
+                    ),
+                  }
+                : {}),
             }),
           ),
           field('empty', 'Empty field', f.empty),
@@ -181,16 +262,33 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
             'Material SelectableText.rich',
             selectionSurface(
               'material-readonly',
-              SelectableText.rich(rich('읽기 전용 Material 👋')),
+              SelectableText.rich(materialReadOnly, {
+                magnifierConfiguration: this.observeMagnifier(
+                  'material-readonly',
+                  TextMagnifier.adaptiveMagnifierConfiguration,
+                ),
+                onSelectionChanged: ({ baseOffset, extentOffset }) =>
+                  reportReadOnlySelection(
+                    'material-readonly',
+                    materialReadOnly,
+                    baseOffset,
+                    extentOffset,
+                  ),
+              }),
             ),
           ),
           ...section(
             'Core SelectableText.rich',
             selectionSurface(
               'core-readonly',
-              CoreSelectableText.rich(rich('Core selection · 한글'), {
+              CoreSelectableText.rich(coreReadOnly, {
+                onSelectionChanged: ({ anchor, focus }) =>
+                  reportReadOnlySelection('core-readonly', coreReadOnly, anchor, focus),
                 selectionControls: materialTextSelectionHandleControls,
-                magnifierConfiguration: TextMagnifier.adaptiveMagnifierConfiguration,
+                magnifierConfiguration: this.observeMagnifier(
+                  'core-readonly',
+                  TextMagnifier.adaptiveMagnifierConfiguration,
+                ),
                 contextMenuBuilder: (_context, state) =>
                   AdaptiveTextSelectionToolbar.buttonItems({
                     anchors: state.contextMenuAnchors,
@@ -205,6 +303,12 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
               undefined,
               130,
               new SelectionArea({
+                magnifierConfiguration: this.observeMagnifier(
+                  'paragraph-selection',
+                  TextMagnifier.adaptiveMagnifierConfiguration,
+                ),
+                onSelectionChanged: (content) =>
+                  window.nelyxDemoSelectionProbe?.('paragraph-selection', content?.plainText ?? ''),
                 child: new ListView({
                   primary: false,
                   children: [
@@ -212,7 +316,10 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
                       'paragraph-selection',
                       new Text('첫 문단 Select across lines 👋'),
                     ),
-                    Text.rich(rich('Second paragraph — שלום')),
+                    selectionSurface(
+                      'paragraph-second',
+                      Text.rich(rich('Second paragraph — שלום')),
+                    ),
                     new Text('세 번째 문단\nA second line about selection 🚀'),
                     new Text('Fourth paragraph\nMove a handle to the edge.'),
                     Text.rich(rich('마지막 문단 — end of the list')),
@@ -288,6 +395,12 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
             selectionControls: materialTextSelectionControls,
           }),
           field('spell', 'Spell check suggestions', f.spell, { spellCheckConfiguration }),
+          field('no-lens', 'Magnifier disabled', f.noLens, {
+            magnifierConfiguration: TextMagnifierConfiguration.disabled,
+          }),
+          field('null-lens', 'Custom magnifier returns null', f.nullLens, {
+            magnifierConfiguration: nullMagnifier,
+          }),
         ].flatMap((child) => [child, new SizedBox(undefined, 12)]),
       }),
     });

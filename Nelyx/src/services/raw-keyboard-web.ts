@@ -50,6 +50,22 @@ export class RawKeyEventDataWeb extends RawKeyEventData {
     return this.key === 'Unidentified' ? '' : this.key.length === 1 ? this.key : '';
   }
   get physicalKey(): PhysicalKeyboardKey {
+    if (this.code === '') {
+      // Some WebViews send a DOM key and location without a scan code.
+      // Keep simultaneous keys distinct, and pair shifted keydowns with their keyups.
+      const location = this.location;
+      if (location === 1 || location === 2) {
+        const modifier = kSidedModifierCodes.get(this.key);
+        if (modifier) return modifier[location - 1]!;
+      }
+      const identity =
+        this.keyCode > 0 && this.keyCode !== 229
+          ? `keyCode:${this.keyCode}`
+          : `key:${this.key.toLowerCase()}`;
+      return new PhysicalKeyboardKey(
+        LogicalKeyboardKey.webPlane + rawStringHash(`${location}:${identity}`),
+      );
+    }
     return (
       maps.kWebToPhysicalKey.get(this.code) ??
       new PhysicalKeyboardKey(LogicalKeyboardKey.webPlane + rawStringHash(this.code))
@@ -68,7 +84,7 @@ export class RawKeyEventDataWeb extends RawKeyEventData {
       logical(
         this.key.length === 1
           ? this.key.toLowerCase().charCodeAt(0)
-          : LogicalKeyboardKey.webPlane + rawStringHash(this.code),
+          : LogicalKeyboardKey.webPlane + rawStringHash(this.code || this.key),
       )
     );
   }
@@ -102,3 +118,11 @@ export class RawKeyEventDataWeb extends RawKeyEventData {
     };
   }
 }
+
+const kSidedModifierCodes = new Map([
+  ['Alt', [PhysicalKeyboardKey.altLeft, PhysicalKeyboardKey.altRight]],
+  ['AltGraph', [PhysicalKeyboardKey.altLeft, PhysicalKeyboardKey.altRight]],
+  ['Control', [PhysicalKeyboardKey.controlLeft, PhysicalKeyboardKey.controlRight]],
+  ['Meta', [PhysicalKeyboardKey.metaLeft, PhysicalKeyboardKey.metaRight]],
+  ['Shift', [PhysicalKeyboardKey.shiftLeft, PhysicalKeyboardKey.shiftRight]],
+]);

@@ -199,9 +199,10 @@ export class SelectionOverlay {
       }),
     );
   }
-  hideMagnifier(): void {
+  hideMagnifier({ animate = false }: { readonly animate?: boolean } = {}): void {
     this.magnifierRequested = false;
-    this.magnifier.removeFromOverlay();
+    if (animate) this.observe(this.magnifier.hide());
+    else this.magnifier.removeFromOverlay();
   }
   updateMagnifier(info: MagnifierInfo): void {
     if (!this.retired && this.magnifier.overlayEntry !== null) this.magnifierInfo.value = info;

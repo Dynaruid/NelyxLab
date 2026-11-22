@@ -90,11 +90,12 @@ export function RenderAnimatedOpacityMixin<TBase extends OpacityBase>(
       previous?.removeListener(this.updateOpacity);
     }
     private readonly updateOpacity = (): void => {
-      const alpha = Color.getAlphaFromOpacity(this.opacity.value);
-      if (alpha !== this.opacityAlpha) {
-        this.opacityAlpha = alpha;
-        this.markNeedsPaint();
-      }
+      const alpha = Color.getAlphaFromOpacity(this.opacity.value),
+        previousAlpha = this.opacityAlpha;
+      if (alpha === previousAlpha) return;
+      this.opacityAlpha = alpha;
+      if (this.child && previousAlpha > 0 !== alpha > 0) this.markNeedsCompositingBitsUpdate();
+      this.markNeedsPaint();
     };
     override attach(owner: PipelineOwner): void {
       super.attach(owner);

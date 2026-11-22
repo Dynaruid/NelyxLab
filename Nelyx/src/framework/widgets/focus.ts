@@ -1041,10 +1041,13 @@ export class FocusManager extends ChangeNotifier {
     request(this, node, false, true);
     return true;
   }
-  blur(node: FocusNode): void {
+  blur(
+    node: FocusNode,
+    { disposition = 'previouslyFocusedChild' }: { readonly disposition?: UnfocusDisposition } = {},
+  ): void {
     if (state(node).manager !== this) return;
     if (this.primaryFocus && inSubtree(this.primaryFocus, node)) {
-      node.unfocus({ disposition: 'previouslyFocusedChild' });
+      node.unfocus({ disposition });
       if (!managerState(this).applying) this.applyFocusChangesIfNeeded();
     }
   }

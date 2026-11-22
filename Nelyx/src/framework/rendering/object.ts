@@ -2277,7 +2277,8 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
           batch = null;
           node.paintVersion++;
           if (contents) node.paintContentsVersion++;
-          if (node.isRepaintBoundary) {
+          // A new boundary must be recorded by its parent before it can repaint independently.
+          if (node.isRepaintBoundary && node.wasRepaintBoundary) {
             if (contents) node.retainedPaintInvalidated();
             contents = false;
           }

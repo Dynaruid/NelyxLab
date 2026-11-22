@@ -13,7 +13,7 @@
     "typecheck": "tsc -p tsconfig.nelyx.json"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-9ed18f47bf4ec8e600800df53130111a418c3301e099ceac7f456c8c5084f320.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-f4afe892d1a7cee72152645edabc178ceabf527b8a85d997c10412c4b35ccba2.tgz",
     "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-5a743e9db77f89275fe7aa99db168417f5b02bb52d8c72349cd0d732a9d6acce.tgz",
     "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-4b3b732b2178bbabf1bfba6bb6d6e646a81b2bb0aabaf4ce1c09636e16c703fb.tgz",
     "react": "19.2.0",

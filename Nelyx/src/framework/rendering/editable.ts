@@ -302,7 +302,10 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
     if (widthChanged && this.layoutValue?.forceLine === false) this.markNeedsLayout();
     this.markNeedsPaint();
   }
-  constructor(height = 48) {
+  constructor(
+    height = 48,
+    private readonly centerInsertionHandle = false,
+  ) {
     super();
     this.checkHeight(height);
     this.preferredHeight = height;
@@ -770,7 +773,8 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
     const painter = this.requireParagraph();
     if (selection.isCollapsed) {
       const caret = this.getLocalRectForCaret(selection.extent);
-      return [new TextSelectionPoint(caret.bottomLeft, this.textDirection)];
+      const point = this.centerInsertionHandle ? caret.bottomCenter : caret.bottomLeft;
+      return [new TextSelectionPoint(point, this.textDirection)];
     }
     const boxes = painter.getBoxesForSelection(selection),
       first = boxes[0],

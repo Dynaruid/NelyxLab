@@ -10,6 +10,7 @@ import { FoundationBuildMode } from '../../foundation/constants.ts';
 import { invariant } from '../../foundation/errors.ts';
 import type { ValueNotifier } from '../../foundation/notifier.ts';
 import type { AnimationController } from '../animation/animation-controller.ts';
+import { TickerCanceled } from '../animation/ticker-future.ts';
 import { Overlay, OverlayEntry } from './overlay.ts';
 import type { BuildContext, Widget, WidgetOptions } from './framework.ts';
 import { InheritedTheme } from './inherited-theme.ts';
@@ -409,7 +410,8 @@ export class MagnifierController {
       }
       throw error;
     }
-    if (this.animationController !== null) await this.animationController.forward();
+    if (this.animationController !== null)
+      await this.animationController.forward().whenCompleteOrCancel(() => {});
   }
   async hide({
     removeFromOverlay = true,
@@ -417,7 +419,13 @@ export class MagnifierController {
     const entry = this.entry;
     if (entry === null) return;
     const operation = this.operation;
-    if (this.animationController !== null) await this.animationController.reverse();
+    if (this.animationController !== null)
+      try {
+        await this.animationController.reverse().orCancel;
+      } catch (error) {
+        if (error instanceof TickerCanceled) return;
+        throw error;
+      }
     if (removeFromOverlay && operation === this.operation && this.entry === entry)
       this.removeFromOverlay();
   }

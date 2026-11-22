@@ -45,9 +45,10 @@ export abstract class MultiSelectableSelectionContainerDelegate extends Selectio
   protected currentSelectionEndIndex = -1;
   protected currentSelectionStartIndex = -1;
   override getSelectionLine(isEnd: boolean): SelectionLineGeometry | null {
-    const start = isEnd ? this.currentSelectionEndIndex : this.currentSelectionStartIndex,
-      end = isEnd ? this.currentSelectionStartIndex : this.currentSelectionEndIndex;
-    if (start === -1 || end === -1) return null;
+    const start = isEnd ? this.currentSelectionEndIndex : this.currentSelectionStartIndex;
+    if (start === -1) return null;
+    const opposite = isEnd ? this.currentSelectionStartIndex : this.currentSelectionEndIndex,
+      end = opposite === -1 ? start : opposite;
     const step = start <= end ? 1 : -1;
     for (let index = start; index !== end + step; index += step) {
       const geometry = this.selectables[index]?.getSelectionLine?.(isEnd);

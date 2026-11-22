@@ -72,6 +72,24 @@
         }
       },
       {
+        "id": "sample-rtl-hebrew",
+        "kind": "font",
+        "path": "./assets/NotoSansHebrew.ttf",
+        "fontFamily": "NelyxHebrew",
+        "notice": {
+          "path": "./assets/NotoSansHebrew-OFL.txt"
+        }
+      },
+      {
+        "id": "sample-rtl-arabic",
+        "kind": "font",
+        "path": "./assets/NotoNaskhArabic-Regular.ttf",
+        "fontFamily": "NelyxArabic",
+        "notice": {
+          "path": "./assets/NotoNaskhArabic-Regular.ttf.LICENSE.txt"
+        }
+      },
+      {
         "id": "nelyx-material-icons",
         "kind": "font",
         "path": "./assets/nelyx/MaterialIcons.otf",

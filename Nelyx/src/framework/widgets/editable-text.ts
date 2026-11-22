@@ -1321,7 +1321,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.selectionScrollTicker = undefined;
     this.selectionScrollElapsed = 0;
   }
-  private stopSelectionDrag(): void {
+  private stopSelectionDrag(animateMagnifier = false): void {
     this.stopSelectionScroll();
     this.selectionDrag = undefined;
     this.dragAnchor = undefined;
@@ -1330,7 +1330,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.handleDragDy = 0;
     this.heldSelection = null;
     this.restoreToolbarAfterDrag = false;
-    this.selectionOverlay?.hideMagnifier();
+    this.selectionOverlay?.hideMagnifier({ animate: animateMagnifier });
     this.updateSelectionFrameObservation();
   }
   private dragPosition(render: RenderEditable, global: SourceOffset, deltaY = 0): Offset | null {
@@ -1522,12 +1522,21 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         if (!at) return;
         this.stopSelectionDrag();
         this.hideToolbar(false);
-        this.selectAt(at);
-        const suggestions =
-          details.consecutiveTapCount === 1 && this.showSpellCheckSuggestionsToolbar();
-        if (!suggestions && details.kind === PointerDeviceKind.touch) {
-          this.overlayRequested = true;
-          this.queueSelectionOverlay();
+        const androidDoubleTap =
+          details.consecutiveTapCount === 2 &&
+          FoundationPlatform.defaultTargetPlatform === 'android' &&
+          (details.kind === PointerDeviceKind.touch || details.kind === PointerDeviceKind.stylus) &&
+          this.selectionMenuAllowed;
+        if (androidDoubleTap) {
+          if (this.selectAt(at, false, true, SelectionChangedCause.doubleTap)) this.showToolbar();
+        } else {
+          this.selectAt(at);
+          const suggestions =
+            details.consecutiveTapCount === 1 && this.showSpellCheckSuggestionsToolbar();
+          if (!suggestions && details.kind === PointerDeviceKind.touch) {
+            this.overlayRequested = true;
+            this.queueSelectionOverlay();
+          }
         }
       }
       if (!this.mounted) return;
@@ -2307,7 +2316,13 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       focusNode: this.focus,
       tapGroupId: this.widget.groupId,
       onSelectionHandleTapped: () => {
-        this.showToolbar();
+        if (
+          FoundationPlatform.defaultTargetPlatform === 'android' &&
+          this.selection().isCollapsed &&
+          this.toolbarRequested
+        )
+          this.hideToolbar(false);
+        else this.showToolbar();
       },
       ...(this.widget.inputOptions?.magnifierConfiguration
         ? { magnifierConfiguration: this.widget.inputOptions.magnifierConfiguration }
@@ -2365,9 +2380,13 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     const render = this.editableRender();
     if (!render?.hasSize || render.needsLayout) return;
     const local = this.dragPosition(render, global);
-    if (!local || !this.selectAt(local, false, true)) return;
-    this.heldSelection = this.selection();
+    if (!local) return;
     this.startSelectionDrag('hold', global);
+    if (!this.selectAt(local, false, true)) {
+      this.stopSelectionDrag();
+      return;
+    }
+    this.heldSelection = this.selection();
     this.overlayRequested = true;
     this.queueSelectionOverlay();
     this.updateSelectionScroll();
@@ -2401,8 +2420,10 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   }
   private finishLongPress(released: boolean): void {
     if (this.selectionDrag?.kind !== 'hold') return;
-    this.stopSelectionDrag();
-    if (released) this.showToolbar();
+    this.stopSelectionDrag(released);
+    if (!released) return;
+    this.showToolbar();
+    if (this.deferKeyboardDuringHold) this.requestKeyboard();
   }
 
   private buildControlsToolbar(context: BuildContext): Widget {
@@ -2516,10 +2537,12 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     )
       return;
     const field = this.editorVisibleBounds(render);
-    if (field.isEmpty) return;
+    if (field.isEmpty) {
+      overlay.hideMagnifier();
+      return;
+    }
     const selection = this.selection(),
-      end = drag.kind === 'end-handle';
-    const movingStart = drag.kind === 'start-handle';
+      movingStart = drag.kind === 'start-handle';
     const apple = FoundationPlatform.defaultTargetPlatform === 'iOS';
     const local = drag.kind === 'hold' ? this.dragPosition(render, drag.global) : null;
     const position = local
@@ -2528,7 +2551,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         ? selection.extent
         : new TextPosition({
             offset: movingStart ? selection.start : selection.end,
-            affinity: end ? 'upstream' : 'downstream',
+            affinity: selection.affinity,
           });
     const caret = render.getLocalRectForCaret(position);
     const line = projectSelectionRect(render, render.getLocalLineRect(position, caret)).intersect(
@@ -2575,8 +2598,10 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.queueSelectionOverlay();
   }
   private endHandleDrag(): void {
-    const restore = this.restoreToolbarAfterDrag;
-    this.stopSelectionDrag();
+    const restore =
+      this.restoreToolbarAfterDrag ||
+      (FoundationPlatform.defaultTargetPlatform === 'android' && !this.selection().isCollapsed);
+    this.stopSelectionDrag(true);
     if (restore) this.showToolbar();
   }
   private releaseKey: (() => void) | undefined;
@@ -3322,7 +3347,12 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       this.showKeyboard(this.context.owner.focus.currentFocusRequest);
     else this.focus?.requestFocus();
   }
+  private get deferKeyboardDuringHold(): boolean {
+    return FoundationPlatform.isWeb && FoundationPlatform.defaultTargetPlatform === 'android';
+  }
   private showKeyboard(request?: InputFocusRequest): void {
+    // Showing the Android IME changes the WebView viewport and cancels active pointers.
+    if (this.selectionDrag?.kind === 'hold' && this.deferKeyboardDuringHold) return;
     this.focusRestorationToken = {};
     this.keyboardRequest = request;
     this.binding?.focus(request);
@@ -3867,7 +3897,16 @@ export class EditableTextState extends State<EditableText> implements TextSelect
                   this.context.owner.focus.focus(this.focus)
                 )
                   this.reveal();
-              } else this.context.owner.focus.blur(this.focus);
+              } else {
+                // A browser blur can be part of moving focus to another DOM control.
+                // Restoring an earlier editor here would steal that control's focus.
+                this.context.owner.focus.blur(this.focus, {
+                  disposition:
+                    FoundationPlatform.hostEnvironment.kind === 'web'
+                      ? 'scope'
+                      : 'previouslyFocusedChild',
+                });
+              }
             }
           },
         },
@@ -4542,7 +4581,7 @@ class EditorBox extends RenderObjectWidget {
     return [];
   }
   createRenderObject(): RenderBox {
-    return new RenderEditable(this.height);
+    return new RenderEditable(this.height, FoundationPlatform.defaultTargetPlatform === 'android');
   }
   updateRenderObject(_context: BuildContext, object: RenderBox): void {
     const render = object as RenderEditable;

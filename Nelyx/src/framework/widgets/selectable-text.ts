@@ -497,7 +497,7 @@ export class SelectableTextState extends State<SelectableText> {
   private endContact(released: boolean): void {
     if (!this.drag) return;
     this.drag = null;
-    this.overlay?.hideMagnifier();
+    this.overlay?.hideMagnifier({ animate: released });
     if (released) this.showToolbar();
     this.trackFrames();
   }
