@@ -28,6 +28,7 @@ import { LogicalKeyboardKey, PhysicalKeyboardKey } from '@nelyx/core/services/ke
 import { MaterialApp } from '@nelyx/material/app';
 import { Material } from '@nelyx/material/material';
 import { RangeSlider } from '@nelyx/material/range-slider';
+import { Slider } from '@nelyx/material/slider';
 import { RangeLabels, RangeValues } from '@nelyx/material/range-slider-values';
 import {
   RoundedRectRangeSliderTrackShape,
@@ -55,6 +56,7 @@ function fixture(
     showValueIndicator = null,
     divisions = null,
     tickShape = null,
+    single = false,
   } = {},
 ) {
   let at = 0,
@@ -76,6 +78,7 @@ function fixture(
   resources.register({ ...font, kind: 'font' }, () => {});
   const controller = new ScrollController();
   const options = new ValueNotifier({
+    singleValue: 0.25,
     values: new RangeValues(0.25, 0.75),
     labels: new RangeLabels('lower', 'upper'),
     direction: 'ltr',
@@ -187,6 +190,23 @@ function fixture(
                         48,
                         new ListenableBuilder(options, () => {
                           const { values, labels, direction } = options.value;
+                          if (single)
+                            return new Directionality(
+                              direction,
+                              new SliderTheme(
+                                theme,
+                                new Slider({
+                                  id: 'single',
+                                  value: options.value.singleValue,
+                                  label: String(options.value.singleValue),
+                                  divisions,
+                                  onChanged: (singleValue) => {
+                                    if (options.value.acceptChanges !== false)
+                                      options.value = { ...options.value, singleValue };
+                                  },
+                                }),
+                              ),
+                            );
                           const slider = new RangeSlider({
                             id: 'range',
                             labels,
@@ -275,7 +295,7 @@ function fixture(
     tick(5);
   }
   function findSlider(element) {
-    if (element.widget instanceof RangeSlider) return element.state;
+    if (element.widget instanceof (single ? Slider : RangeSlider)) return element.state;
     for (const child of element.children) {
       const state = findSlider(child);
       if (state) return state;
@@ -294,8 +314,8 @@ function fixture(
   countMethod(state, 'build', 'sliderBuilds');
   countMethod(render, 'performLayout', 'layout');
   countMethod(render, 'markNeedsSemanticsUpdate', 'semantics');
-  countMethod(render.startLabel, 'layout', 'labelCalls');
-  countMethod(render.endLabel, 'layout', 'labelCalls');
+  for (const painter of single ? [render.painter] : [render.startLabel, render.endLabel])
+    countMethod(painter, 'layout', 'labelCalls');
   if (state.entry) countMethod(state.entry, 'markNeedsBuild', 'indicatorBuilds');
   const rebuild = Element.prototype.rebuild;
   Element.prototype.rebuild = function (...args) {
@@ -317,7 +337,10 @@ function fixture(
       run();
       return Object.fromEntries(Object.keys(counts).map((key) => [key, counts[key] - before[key]]));
     },
-    node: (suffix) => flattenSemantics(semantics).find((node) => node.id === `range-${suffix}`),
+    node: (suffix) =>
+      flattenSemantics(semantics).find(
+        (node) => node.id === (single ? 'single' : `range-${suffix}`),
+      ),
     cursor: () =>
       [...view.mouseTracker.states.get(1).annotations.keys()].find((node) => node.onHover)?.cursor
         .kind,
@@ -494,6 +517,79 @@ for (const [custom, stateful] of [
 }
 
 if (!baseline) {
+  const single = fixture(false, false, {
+    single: true,
+    divisions: 20,
+    showValueIndicator: ShowValueIndicator.alwaysVisible,
+  });
+  try {
+    const { render, options, tick, pointer } = single;
+    const indicators = [];
+    const paintIndicator = render.paintIndicator.bind(render);
+    render.paintIndicator = (context) => {
+      indicators.push({ x: render.center(render.rect()).dx, label: render.painter.plainText });
+      paintIndicator(context);
+    };
+    function input(kind, fraction) {
+      const rect = render.rect();
+      const point = render.localToGlobal(
+        new Offset(rect.left + rect.width * fraction, rect.center.dy),
+      );
+      pointer('touch', kind, point.x, point.y);
+    }
+    function assertPosition(expected) {
+      assert.equal(render.model.visual.position.value, expected);
+      assert(!render.model.visual.position.isAnimating);
+      assert.equal(single.node().numericRange.value, expected);
+    }
+    function assertPaintedPosition(expected) {
+      indicators.length = 0;
+      tick();
+      assertPosition(expected);
+      assert.deepEqual(indicators.at(-1), {
+        x: render.center(render.rect()).dx,
+        label: String(expected),
+      });
+    }
+
+    input('down', 0.25);
+    await Promise.resolve();
+    tick();
+    const dragWork = single.measure(() => {
+      input('move', 0.4);
+      assertPaintedPosition(0.4);
+      input('move', 0.45);
+      input('move', 0.4);
+      tick();
+      assertPosition(0.4);
+      input('move', 0.55);
+      input('up', 0.55);
+      assertPaintedPosition(0.55);
+    });
+    assert.equal(dragWork.layout, 0, 'Changing the drag value preserves the slider layout');
+    assert.equal(dragWork.indicatorBuilds, 0, 'The indicator repaints in its existing overlay');
+
+    options.value = { ...options.value, acceptChanges: false };
+    tick();
+    input('down', 0.55);
+    await Promise.resolve();
+    input('move', 0.7);
+    input('up', 0.7);
+    tick();
+    assertPosition(0.55);
+    options.value = { ...options.value, singleValue: 0.7 };
+    tick();
+    assert(render.model.visual.position.isAnimating, 'An external value still animates');
+    indicators.length = 0;
+    tick();
+    assert.equal(indicators.at(-1)?.x, render.center(render.rect()).dx);
+    tick(6);
+    assertPosition(0.7);
+    console.log(JSON.stringify({ singleSlider: 'passed', dragWork }));
+  } finally {
+    single.close();
+  }
+
   for (const [device, custom, direction, divisions] of [
     ['mouse', false, 'ltr', 20],
     ['mouse', true, 'rtl', 200],

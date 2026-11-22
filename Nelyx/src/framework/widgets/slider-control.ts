@@ -29,7 +29,7 @@ import type {
 import { HorizontalDragGestureRecognizer } from '../gestures/monodrag.ts';
 import { TapGestureRecognizer } from '../gestures/tap.ts';
 import { GestureArenaTeam } from '../gestures/team.ts';
-import type { DragStartDetails, DragUpdateDetails } from '../gestures/drag-details.ts';
+import type { DragUpdateDetails } from '../gestures/drag-details.ts';
 import { HitTestBehavior } from '../rendering/pointer-listener.ts';
 import { RenderProxyBox } from '../rendering/boxes.ts';
 import type { RenderBox, RenderObject, HitTestEntry } from '../rendering/object.ts';
@@ -194,6 +194,7 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
   private active = false;
   private dragValue = 0;
   private changedValue: number | null = null;
+  private pendingChange: { value: number; fromDrag: boolean } | null = null;
   private lastTimestamp: number | null = null;
   private suspended = false;
   private retired = false;
@@ -302,9 +303,9 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
     this.overlay.addListener(this.overlayChanged);
     this.team = new GestureArenaTeam((this.context as Element).owner.gestureBinding.gestureArena);
   }
-  private settle(): void {
+  private settle(followDrag: boolean): void {
     const value = this.target();
-    if (this.divisions === null) this.position.value = value;
+    if (this.divisions === null || followDrag) this.position.value = value;
     else if (this.widget.options.policy === 'cupertino') {
       this.position.duration = 500;
       this.position.animateTo(value, { curve: Curves.fastOutSlowIn });
@@ -330,14 +331,15 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
         (this.widget.options.max ?? 1) <= (this.widget.options.min ?? 0),
     );
     if (!this.interactive || old.options.policy !== this.widget.options.policy) this.cancel();
-    if (
-      old.options.value !== this.widget.options.value ||
-      old.options.min !== this.widget.options.min ||
-      old.options.max !== this.widget.options.max ||
-      old.options.divisions !== this.widget.options.divisions ||
-      old.options.policy !== this.widget.options.policy
-    )
-      this.settle();
+    const options = this.widget.options,
+      sameScale =
+        old.options.min === options.min &&
+        old.options.max === options.max &&
+        old.options.divisions === options.divisions &&
+        old.options.policy === options.policy,
+      change = this.pendingChange;
+    if (old.options.value !== options.value || !sameScale)
+      this.settle(sameScale && change?.fromDrag === true && change.value === options.value);
   }
   private surface(): SliderSurfaceRender | null {
     const render = this.surfaceKey.currentContext?.findRenderObject();
@@ -373,15 +375,18 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
       track ? track.right - track.left : size.width - this.widget.options.geometry.trackInset * 2,
     );
   }
-  private emit(value: number, isFastDrag = false, discretize = true): void {
+  private emit(fraction: number, fromDrag = false, isFastDrag = false): void {
     if (!this.interactive) return;
-    const fraction = discretize ? this.quantize(value) : clampDouble(value, 0, 1),
-      next = this.value(fraction);
+    const next = this.value(fraction),
+      unchanged = next === this.widget.options.value;
     if (this.widget.options.policy === 'material') {
       if (this.changedValue === next) return;
       this.changedValue = next;
-    }
-    if (next !== this.widget.options.value) this.widget.options.onChanged!(next, isFastDrag);
+      // The pointer can return to the committed value before the parent has rebuilt.
+      if (unchanged && this.pendingChange === null) return;
+      this.pendingChange = { value: next, fromDrag };
+    } else if (unchanged) return;
+    this.widget.options.onChanged!(next, isFastDrag);
   }
   private updateOverlay(): void {
     if (this.live && this.widget.options.policy === 'material') {
@@ -396,7 +401,7 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
     this.updateOverlay();
     this.widget.options.onInteractionChange?.(value);
   }
-  private start(globalPosition: Offset, timestamp: number | null): void {
+  private start(globalPosition: Offset, timestamp: number | null, fromDrag = false): void {
     if (!this.interactive || this.active) return;
     const render = this.surface();
     if (!render || this.extent(render.size, render) <= 0) return;
@@ -428,10 +433,7 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
     }
     this.lastTimestamp = timestamp;
     if (options.policy === 'material') this.node.requestFocus();
-    this.emit(this.dragValue);
-  }
-  private dragStart(details: DragStartDetails): void {
-    this.start(details.globalPosition, details.sourceTimeStamp);
+    this.emit(this.quantize(this.dragValue), fromDrag && interaction !== 'tapOnly');
   }
   private dragUpdate(details: DragUpdateDetails): void {
     if (
@@ -453,7 +455,7 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
         this.lastTimestamp !== null &&
         (Math.abs(delta) * 1000) / Math.trunc(timestamp - this.lastTimestamp) > 1;
     this.lastTimestamp = timestamp;
-    this.emit(this.dragValue, isFast);
+    this.emit(this.quantize(this.dragValue), true, isFast);
   }
   private end(): void {
     if (!this.active) return;
@@ -467,6 +469,7 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
   private cancel(): void {
     this.active = false;
     this.changedValue = null;
+    this.pendingChange = null;
     this.dragValue = 0;
     this.lastTimestamp = null;
     this.states.update(WidgetState.dragged, false);
@@ -511,7 +514,7 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
     try {
       if (this.widget.options.policy === 'material')
         this.widget.options.onChangeStart?.(this.value(old));
-      this.emit(next, false, false);
+      this.emit(next);
       if (this.interactive && this.widget.options.policy === 'material')
         this.widget.options.onChangeEnd?.(this.value(next));
     } finally {
@@ -571,7 +574,12 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
           return drag;
         },
         (drag) => {
-          drag.onStart = (details) => this.dragStart(details);
+          drag.onStart = (details) =>
+            this.start(
+              details.globalPosition,
+              details.sourceTimeStamp,
+              drag.globalDistanceMoved !== 0,
+            );
           drag.onUpdate = (details) => this.dragUpdate(details);
           drag.onEnd = () => this.end();
           drag.onCancel = () => this.end();
@@ -600,6 +608,8 @@ class SliderControlState extends TickerProviderStateMixin<SliderControl> {
     return result;
   }
   build(context: BuildContext): Widget {
+    // Retain the last move through pointer-up and consume it on the next build.
+    this.pendingChange = null;
     const options = this.widget.options,
       enabled = this.interactive,
       material = options.policy === 'material',
@@ -777,10 +787,16 @@ class SliderSurface extends SingleChildRenderObjectWidget {
       'invalid-slider-surface',
       'Slider surface requires its owning render box',
     );
+    const previous = render.geometry;
     render.geometry = this.geometry;
     render.accepts = this.accepts;
     render.hitRegion = this.hitRegion;
-    render.markNeedsLayout();
+    if (
+      previous.width !== this.geometry.width ||
+      previous.height !== this.geometry.height ||
+      previous.expand !== this.geometry.expand
+    )
+      render.markNeedsLayout();
   }
 }
 class SliderSurfaceRender extends RenderProxyBox {

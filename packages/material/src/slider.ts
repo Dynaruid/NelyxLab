@@ -277,7 +277,9 @@ class MaterialSliderState extends TickerProviderStateMixin<Slider> {
   private enabledCurve!: CurvedAnimation;
   private indicatorCurve!: CurvedAnimation;
   private entry: OverlayEntry | null = null;
+  private indicatorKey: GlobalKey | null = null;
   private pendingOverlay = false;
+  private overlayWanted = false;
   private suspended = false;
   private retired = false;
   private timer: Disposable | null = null;
@@ -290,12 +292,18 @@ class MaterialSliderState extends TickerProviderStateMixin<Slider> {
   private get enabled(): boolean {
     return this.widget.options.onChanged !== null && this.widget.max > this.widget.min;
   }
-  private readonly animationChanged = () => {
-    if (this.live) {
-      this.setState(() => {});
-      this.entry?.markNeedsBuild();
-    }
+  private readonly enableChanged = () => {
+    this.renderer()?.markSliderPaint();
+    this.markIndicatorPaint();
   };
+  private readonly indicatorChanged = () => this.markIndicatorPaint();
+  markIndicatorPaint(): void {
+    if (!this.live) return;
+    const context = this.indicatorKey?.currentContext;
+    if (!(context instanceof Element) || !context.active) return;
+    const render = context.findRenderObject();
+    if (render instanceof SliderIndicatorRender) render.invalidateIndicator();
+  }
   override initState(): void {
     super.initState();
     this.enable = new AnimationController({
@@ -309,8 +317,8 @@ class MaterialSliderState extends TickerProviderStateMixin<Slider> {
       parent: this.indicator,
       curve: Curves.fastOutSlowIn,
     });
-    this.enable.addListener(this.animationChanged);
-    this.indicator.addListener(this.animationChanged);
+    this.enable.addListener(this.enableChanged);
+    this.indicator.addListener(this.indicatorChanged);
   }
   override didUpdateWidget(old: Slider): void {
     super.didUpdateWidget(old);
@@ -358,41 +366,40 @@ class MaterialSliderState extends TickerProviderStateMixin<Slider> {
   private retireOverlay(): void {
     const entry = this.entry;
     this.entry = null;
+    this.indicatorKey = null;
     if (entry) {
       if (entry.overlay !== null) entry.remove();
       entry.dispose();
     }
   }
-  private ensureOverlay(context: BuildContext, show: boolean): void {
+  private ensureOverlay(context: BuildContext, wanted: boolean): void {
+    this.overlayWanted = wanted;
     if (this.pendingOverlay) return;
+    if (wanted ? this.entry?.overlay === Overlay.maybeOf(context) : this.entry === null) return;
     this.pendingOverlay = true;
     tickerScheduler(context).addPostFrameCallback(
       () => {
         this.pendingOverlay = false;
         if (!this.live) return;
-        if (!show) {
+        if (!this.overlayWanted) {
           this.retireOverlay();
           return;
         }
         const overlay = Overlay.of(context);
-        if (this.entry?.overlay === overlay) {
-          this.entry.markNeedsBuild();
-          return;
-        }
+        if (this.entry?.overlay === overlay) return;
         this.retireOverlay();
+        const key = new GlobalKey('Slider indicator');
         const entry = new OverlayEntry({
           builder: () => {
             if (!this.live || this.entry !== entry) return SizedBox.shrink();
-            return new Directionality(
-              Directionality.of(this.context),
-              new CompositedTransformFollower(new SliderIndicator(this), {
-                link: this.link,
-                showWhenUnlinked: false,
-              }),
-            );
+            return new CompositedTransformFollower(new SliderIndicator(this, key), {
+              link: this.link,
+              showWhenUnlinked: false,
+            });
           },
         });
         this.entry = entry;
+        this.indicatorKey = key;
         overlay.insert(entry);
       },
       { debugLabel: 'Slider.valueIndicator' },
@@ -727,16 +734,16 @@ class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRend
     }
     this.model = model;
     this.hoverOverlayTheme = null;
-    if (model.textContext) {
-      if (old.textContext) this.painter._updateContext(model.textContext);
-      else {
-        this.painter.dispose();
-        this.painter = new TextPainter({}, model.textContext);
-      }
+    if (model.textContext && !old.textContext) {
+      this.painter.dispose();
+      this.painter = new TextPainter({}, model.textContext);
     }
-    this.updateLabel();
-    this.markNeedsLayout();
-    this.markNeedsPaint();
+    this.updateLabel(old.textContext ? model.textContext : null);
+    this.markSliderPaint();
+    model.owner.markIndicatorPaint();
+  }
+  markSliderPaint(): void {
+    this.markNeedsPaintOnly();
   }
   override attach(owner: PipelineOwner): void {
     super.attach(owner);
@@ -749,25 +756,37 @@ class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRend
       if (!this.attached) this.model.hoverPaint?.removeListener(this.hoverChanged);
     }
   }
-  private updateLabel(): void {
-    const m = this.model;
-    this.painter.text =
-      m.label === null
-        ? null
-        : new TextSpan({ style: m.theme.valueIndicatorTextStyle, text: m.label });
+  private updateLabel(textContext: ParagraphContext | null = null): void {
+    const m = this.model,
+      previous = this.painter.text,
+      style = m.theme.valueIndicatorTextStyle,
+      revision = this.painter._inputRevision;
+    if (textContext) this.painter._updateContext(textContext);
+    if (m.label === null) {
+      this.painter.text = null;
+      return;
+    }
+    if (
+      !(previous instanceof TextSpan) ||
+      previous.text !== m.label ||
+      (style !== previous.style && !style?.equals(previous.style))
+    )
+      this.painter.text = new TextSpan({ style, text: m.label });
     this.painter.textDirection = m.visual.direction;
     this.painter.textScaleFactor = m.scale;
-    if (m.label !== null) this.painter.layout();
+    if (this.painter._inputRevision !== revision) this.painter.layout();
   }
   override systemFontsDidChange(): void {
     this.painter.markNeedsLayout();
-    this.updateLabel();
+    if (this.painter.text !== null) this.painter.layout();
+    this.model.owner.markIndicatorPaint();
     super.systemFontsDidChange();
   }
   protected override computeDryLayout(constraints: BoxConstraints): Size {
     return new Size(constraints.smallest.width, constraints.smallest.height);
   }
   protected override performLayout(constraints: BoxConstraints): Size {
+    this.model.owner.markIndicatorPaint();
     return this.computeDryLayout(constraints);
   }
   override dispose(): void {
@@ -923,8 +942,11 @@ class MaterialSliderRender extends RelayoutWhenSystemFontsChangeMixin(SliderRend
   }
 }
 class SliderIndicator extends LeafRenderObjectWidget {
-  constructor(readonly owner: MaterialSliderState) {
-    super();
+  constructor(
+    readonly owner: MaterialSliderState,
+    key: GlobalKey,
+  ) {
+    super(key);
   }
   createRenderObject(): SliderIndicatorRender {
     return new SliderIndicatorRender(this.owner);
@@ -935,12 +957,15 @@ class SliderIndicator extends LeafRenderObjectWidget {
       'invalid-slider-indicator',
       'Indicator requires its owning render box',
     );
-    render.markNeedsPaint();
+    render.invalidateIndicator();
   }
 }
 class SliderIndicatorRender extends RenderBox {
   constructor(readonly slider: MaterialSliderState) {
     super();
+  }
+  invalidateIndicator(): void {
+    this.markNeedsPaintOnly();
   }
   protected override computeDryLayout(constraints: BoxConstraints): Size {
     return new Size(constraints.smallest.width, constraints.smallest.height);
