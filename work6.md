@@ -1,6 +1,8 @@
 # W6 · Nelyx 텍스트 선택 메뉴와 확대경
 
-**2026-11-22 · PAUSED / PARTIAL · Nelyx `tauri-backend` 작업 트리 `37e2b4d8` 기준 · 계획 비교 기준 Nelyx `e0ff7b73` · Doroti `main` `c1ba6327`**
+**2026-11-22 · CLOSED / PARTIAL · Nelyx `tauri-backend` · 반영 커밋 `09ebe7cb` · 계획 비교 기준 Nelyx `e0ff7b73` · Doroti `main` `c1ba6327`**
+
+사용자 결정으로 W6를 종료했다. 당시 구현과 인수 결과는 §4에 기록했다. 미해결 결함과 남은 인수는 [W7 작업계획](work7.md)으로 이관했다.
 
 Material `TextField`와 `CupertinoTextField`에서 선택 위치에 맞는 편집 메뉴를 열고, 터치로 길게 누르거나 선택 손잡이를 움직일 때 확대경이 실제 글줄을 따라가게 한다. 읽기 전용 텍스트는 `SelectableText`와 `SelectionArea` 안의 `Text` / `Text.rich`를 대상으로 한다. `Text`의 선택 참여는 기존 `SelectionArea` 방식으로 지정한다. Windows Tauri의 우클릭과 Android Tauri의 길게 누르기를 첫 인수 동선으로 삼고, 브라우저 PWA에서 메뉴 소유권과 클립보드도 확인한다. [W5의 Demo 입력·스크롤 기준](work5.md#16-중간-마무리)
 
@@ -57,7 +59,7 @@ Material `TextField`와 `CupertinoTextField`에서 선택 위치에 맞는 편�
 
 ## 4. 2026-11-22 중간 마무리
 
-**PAUSED / PARTIAL.** 사용자 요청으로 구현과 실행 검증을 여기서 멈췄다. 코드 변경과 Demo 검증 스크립트를 작업 트리에 보존했다. §2의 체크박스는 구현과 해당 인수 조건이 함께 충족될 때 닫는다. 명시적인 재개 요청이 오면 아래 실패 지점부터 확인한다.
+**중간 마무리 당시 상태는 PAUSED / PARTIAL이었다.** 사용자 요청으로 구현과 실행 검증을 멈췄다. `37e2b4d8` 기준 작업 트리의 코드 변경과 Demo 검증 스크립트는 `09ebe7cb`에 반영됐다. §2의 체크박스는 구현과 인수 조건을 함께 기록한 것이며, 그때 남은 항목은 [W7](work7.md)에서 확인한다.
 
 | 범위 | 작업 트리에 반영한 내용 |
 | --- | --- |
@@ -75,13 +77,13 @@ SDK 통합 빌드, Demo TypeScript 검사, PWA 패키징, Android x64 패키징�
 | Windows Tauri | PowerShell로 실제 패키지 창에서 우클릭, 선택 안 재우클릭, Escape, 메뉴에서 Windows 클립보드로 한글 복사, 빈 클립보드의 붙여넣기 비활성 UI Automation 상태를 확인했다. 우클릭으로 연 메뉴에서 Tab·Enter로 OS 클립보드 붙여넣기도 실행했다. `Shift+F10`·메뉴 키와 Ctrl+A로 선택 범위를 잡는 검사는 미통과다. WebView2 DOM에 키가 도착한 진단 실행에서 `KeyboardEvent.code`가 빈 문자열이었다. 이 결과로 실물 키보드 경로의 성공 여부를 판정할 수 없다. |
 | W5 스크롤 비교 | 같은 Pixel 5에서 `--editor-entry-only`를 W5 `274f63c0108cd5dbd9e996bedc5d845c9ba28e88d6ba4052cdb0e32d4bb27d5a`와 W6에 각각 1회 실행했다. W5의 HWUI p95는 `85.86 ms` (`n=18`, `33 ms` 초과 4건), W6는 `117.27 ms` (`n=15`, 초과 2건)였다. 두 실행 모두 `Sliders → Switches → Text fields`에서 출발했고, 종료 카드와 HWUI 표본 수가 달랐다. 컴포지터 표시 간격은 양쪽 모두 미수집 상태로, 이 값으로 관성 성능이나 60fps를 판정할 수 없다. |
 
-### 재개 지점
+### 중간 마무리 당시 재개 지점
 
 1. `check-text-selection.mjs`의 `checkPublicWidgets`에서 `material-readonly`의 **Select all → 선택 안 우클릭 → Copy**부터 재현한다. 먼저 `EditableText.selectAll` 이후 실제 선택과 셰이핑된 글자 상자의 클릭 판정을 확인한다. 이어서 Core와 여러 문단, 메뉴 null, 단일 끝점, 맞춤법 예제를 검증한다.
 2. Windows Tauri에서 스캔코드가 전달되는 실제 키 입력으로 메뉴 키·`Shift+F10`, 포커스 복귀와 Ctrl+A/C/V를 다시 확인한다. Narrator가 메뉴 레이블과 비활성 상태를 읽는지도 남긴다. PWA의 브라우저 기본 팝업과 실제 권한 UI는 수동 확인이 남아 있다.
 3. Pixel 5에서 양쪽 손잡이 교차, 글줄 전환, 스크롤 가장자리, 읽기 전용 렌즈와 표시 중·해제 후 레이어 및 프레임 수명을 확인한다. W5와 같은 종료 카드에 맞춰 관성·표시 간격을 다시 수집하고 웹 클리핑 검사를 실행한다. Galaxy의 실제 손가락과 Gboard 한글 조합, iOS 실기기, macOS·Linux 제품 인수는 미실행이다.
 
-다시 실행하는 경우 저장소 루트에서 아래 명령을 사용한다. APK 재패키징 전에는 `README.ko.md`의 Android JDK/SDK 설정과 SDK 공급 갱신 순서를 사용한다. [Demo 실행 안내](sample/nelyx-demo-app/README.ko.md)
+당시 재현 명령은 아래와 같다. 최신 실행 순서와 인수 기준은 [W7](work7.md)에 있다. [Demo 실행 안내](sample/nelyx-demo-app/README.ko.md)
 
 ```powershell
 node sample/nelyx-demo-app/eng/check-text-selection.mjs
