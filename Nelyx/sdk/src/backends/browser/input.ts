@@ -15,6 +15,7 @@ export function bindCanvasInput(
     readonly ownsSemanticsTarget?: (target: EventTarget | null) => boolean;
     readonly ownsSemanticsAdjustmentTarget?: (target: EventTarget | null) => boolean;
     readonly ownsNativeSelectionTarget?: (target: EventTarget | null) => boolean;
+    readonly suppressEditingContextMenu?: () => boolean;
   } = {},
 ): () => void {
   const { HTMLElement, HTMLInputElement, HTMLTextAreaElement } = canvas.ownerDocument.defaultView!;
@@ -70,6 +71,10 @@ export function bindCanvasInput(
     leave = pointer('leave');
   const lostCapture = (event: PointerEvent) => {
     if (pointers.has(event.pointerId)) cancel(event);
+  };
+  const editingContextMenu = (event: Event) => {
+    if (options.suppressEditingContextMenu?.() && options.ownsEditingTarget?.(event.target))
+      event.preventDefault();
   };
   const nativePointer = (handler: (event: PointerEvent) => void) => (event: PointerEvent) => {
     if (options.ownsNativeSelectionTarget?.(event.target)) handler(event);
@@ -184,6 +189,7 @@ export function bindCanvasInput(
   canvas.addEventListener('wheel', wheel, { passive: false });
   keySurface.addEventListener('keydown', key, true);
   keySurface.addEventListener('keyup', key, true);
+  keySurface.addEventListener('contextmenu', editingContextMenu, true);
   keySurface.addEventListener('pointerdown', nativeDown, true);
   keySurface.addEventListener('pointermove', nativeMove, true);
   keySurface.addEventListener('pointerup', nativeUp, true);
@@ -223,6 +229,7 @@ export function bindCanvasInput(
     canvas.removeEventListener('wheel', wheel);
     keySurface.removeEventListener('keydown', key, true);
     keySurface.removeEventListener('keyup', key, true);
+    keySurface.removeEventListener('contextmenu', editingContextMenu, true);
     if (errors.length) throw new AggregateError(errors, 'Canvas input cleanup failed');
   };
 }

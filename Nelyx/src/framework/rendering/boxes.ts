@@ -2627,6 +2627,21 @@ export abstract class RenderParagraph extends RenderBox {
       this.getFullHeightForCaret(position),
     );
   }
+  getSelectionLineRects(position: TextPosition): { caret: RectValue; line: RectValue } {
+    const offset = this.getOffsetForCaret(position, { width: 1 });
+    const caret = RectValue.fromLTWH(offset.dx, offset.dy, 1, this.getFullHeightForCaret(position));
+    if (!this.painter.plainText.length) return { caret, line: caret };
+    const { start, end } = this.painter.getLineBoundary(position);
+    let left = caret.left,
+      right = caret.right;
+    for (const box of this.getBoxesForSelection(
+      new TextSelection({ baseOffset: start, extentOffset: end }),
+    )) {
+      left = Math.min(left, box.left);
+      right = Math.max(right, box.right);
+    }
+    return { caret, line: RectValue.fromLTRB(left, caret.top, right, caret.bottom) };
+  }
   private registerSelectionFragments(): void {
     if (this.selectionRegistrar === null) return;
     if (this.fragments === null) {

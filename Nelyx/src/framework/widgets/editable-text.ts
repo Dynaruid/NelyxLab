@@ -85,7 +85,11 @@ import {
   TextEditingDelta,
 } from '../../services/input-formatters.ts';
 import type { EditingContent, TextInputFormatter } from '../../services/input-formatters.ts';
-import { RenderEditable, validateEditableLinePolicy } from '../rendering/editable.ts';
+import {
+  RenderEditable,
+  TextSelectionPoint,
+  validateEditableLinePolicy,
+} from '../rendering/editable.ts';
 import type {
   EditableTextLayout,
   EditableLinePolicy,
@@ -138,12 +142,20 @@ import {
 import type { TextBoundary } from '../../services/text-boundary.ts';
 import { textEditingShortcutMaps } from './text-editing-shortcuts-data.ts';
 import * as editingIntents from './text-editing-intents.ts';
-import { SelectionOverlay } from './selection-overlay.ts';
+import { SelectionOverlay, observeSelectionFrames } from './selection-overlay.ts';
 import { Overlay } from './overlay.ts';
+import { isCurrentRoute } from './navigation.ts';
 import { LayerLink } from '../rendering/layer.ts';
 import { TextSelectionHandleType } from '../rendering/selection.ts';
 import { TextSelection as SourceSelection } from '../../services/text-editing.ts';
-import { TextSelectionToolbarAnchors } from './text-selection-toolbar-anchors.ts';
+import {
+  TextSelectionToolbarAnchors,
+  projectSelectionRect,
+  visibleSelectionBounds,
+} from './text-selection-toolbar-anchors.ts';
+import { isContextMenuKey } from './context-menu-controller.ts';
+import { BrowserContextMenu } from '../../services/browser-context-menu.ts';
+import { PlatformException } from '../../services/message-codec.ts';
 import type { ContextMenuButtonItem } from './context-menu-button-item.ts';
 import { ValueNotifier } from '../../foundation/notifier.ts';
 import { Clipboard, ClipboardData } from '../../services/clipboard.ts';
@@ -1207,16 +1219,23 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   private readonly startHandleVisible = new ValueNotifier(false);
   private readonly endHandleVisible = new ValueNotifier(false);
   private clipboardStatus = ClipboardStatus.unknown;
+  private clipboardRequest = 0;
+  private clipboardEdit = 0;
+  private allowUnknownPaste = false;
   private legacyClipboardStatus: ValueNotifier<ClipboardStatus> | null = null;
-  private secondaryTapDown: SourceOffset | null = null;
   private toolbarLocation: SourceOffset | null = null;
+  private lastToolbarAnchors: TextSelectionToolbarAnchors | null = null;
+  private toolbarContextDirty = false;
+  private selectionFrames: Disposable | null = null;
+  private menuPolicyObservation: Disposable | undefined;
   private handleAnchor: number | undefined;
   private handleCollapsed = false;
   private handleDragDy = 0;
   private restoreToolbarAfterDrag = false;
+  private heldSelection: SourceSelection | null = null;
   private selectionDrag:
     | {
-        kind: 'pointer' | 'start-handle' | 'end-handle';
+        kind: 'pointer' | 'hold' | 'start-handle' | 'end-handle';
         global: SourceOffset;
         text: string;
         focused: boolean;
@@ -1309,7 +1328,10 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.handleAnchor = undefined;
     this.handleCollapsed = false;
     this.handleDragDy = 0;
+    this.heldSelection = null;
+    this.restoreToolbarAfterDrag = false;
     this.selectionOverlay?.hideMagnifier();
+    this.updateSelectionFrameObservation();
   }
   private dragPosition(render: RenderEditable, global: SourceOffset, deltaY = 0): Offset | null {
     const point = tryUnprojectMatrix4Point(fullTransform(render.getTransformTo(null)), global);
@@ -1430,6 +1452,8 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         this.context.owner.focus.runWithFocusRequest(current.focusRequest, () => {
           if (current.kind === 'pointer') {
             if (!this.selectAt(at, true)) this.stopSelectionDrag();
+          } else if (current.kind === 'hold') {
+            this.applyLongPressDrag(current.global);
           } else this.applyHandleDrag(current.kind === 'end-handle', current.global);
         });
         this.queueSelectionOverlay();
@@ -1441,6 +1465,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   private beginTextDrag(global: SourceOffset): void {
     if (!this.selectionEnabled) return;
     this.stopSelectionDrag();
+    this.hideToolbar(false);
     const render = this.editableRender();
     if (!render?.hasSize || render.needsLayout) return;
     const at = this.dragPosition(render, global);
@@ -1496,6 +1521,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         );
         if (!at) return;
         this.stopSelectionDrag();
+        this.hideToolbar(false);
         this.selectAt(at);
         const suggestions =
           details.consecutiveTapCount === 1 && this.showSpellCheckSuggestionsToolbar();
@@ -1571,22 +1597,11 @@ export class EditableTextState extends State<EditableText> implements TextSelect
               ]),
             }),
           (recognizer) => {
-            recognizer.onLongPressStart = (details) => {
-              if (!this.selectionEnabled) return;
-              this.stopSelectionDrag();
-              this.selectAt(details.localPosition, false, true);
-              this.overlayRequested = true;
-              this.showToolbar();
-              this.handleAnchor = this.selection().start;
-              this.handleCollapsed = this.selection().isCollapsed;
-              this.restoreToolbarAfterDrag = this.toolbarRequested;
-              this.queueSelectionOverlay();
-            };
-            recognizer.onLongPressMoveUpdate = (details) => {
-              if (this.selectionEnabled) this.dragHandle(true, details.globalPosition);
-            };
-            recognizer.onLongPressEnd = () => this.endHandleDrag();
-            recognizer.onLongPressCancel = () => this.endHandleDrag();
+            recognizer.onLongPressStart = (details) => this.beginLongPress(details.globalPosition);
+            recognizer.onLongPressMoveUpdate = (details) =>
+              this.moveLongPress(details.globalPosition);
+            recognizer.onLongPressEnd = () => this.finishLongPress(true);
+            recognizer.onLongPressCancel = () => this.finishLongPress(false);
           },
         ),
       ],
@@ -1596,17 +1611,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
           TapGestureRecognizer,
           () => new TapGestureRecognizer(options),
           (recognizer) => {
-            recognizer.onSecondaryTapDown = (details) => {
-              this.secondaryTapDown = details.globalPosition;
-            };
-            recognizer.onSecondaryTapCancel = () => {
-              this.secondaryTapDown = null;
-            };
-            recognizer.onSecondaryTapUp = (details) => {
-              this.focus?.requestFocus();
-              this.showToolbar(this.secondaryTapDown ?? details.globalPosition);
-              this.secondaryTapDown = null;
-            };
+            recognizer.onSecondaryTapUp = (details) => this.secondaryClick(details.globalPosition);
           },
         ),
       ],
@@ -1649,16 +1654,64 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     return render;
   }
   get contextMenuAnchors(): TextSelectionToolbarAnchors {
-    const render = this.renderEditable,
-      selection = this.selection(),
+    if (this.toolbarLocation !== null)
+      return new TextSelectionToolbarAnchors({ primaryAnchor: this.toolbarLocation }).inOverlay(
+        this.context,
+      );
+    const render = this.editableRender();
+    if (!render?.hasSize || render.needsLayout)
+      return (
+        this.lastToolbarAnchors ??
+        new TextSelectionToolbarAnchors({ primaryAnchor: SourceOffset.zero })
+      );
+    const selection = this.selection(),
       start = render.getLocalRectForCaret(selection.base),
       end = render.getLocalRectForCaret(selection.extent);
+    const endpoints = render.getEndpointsForSelection(selection);
     return TextSelectionToolbarAnchors.fromSelection({
       renderBox: render,
       startGlyphHeight: start.height,
       endGlyphHeight: end.height,
-      selectionEndpoints: render.getEndpointsForSelection(selection),
-    });
+      selectionEndpoints: endpoints.length
+        ? endpoints
+        : render.getEndpointsForSelection(
+            SourceSelection.collapsed({
+              offset: selection.extentOffset,
+              affinity: selection.affinity,
+            }),
+          ),
+      visibleBounds: this.editorVisibleBounds(render),
+    }).inOverlay(this.context);
+  }
+  private get usesNativeMenu(): boolean {
+    const { nativeSelectionContextMenu, binaryMessenger } = this.context.services;
+    return BrowserContextMenu.usesNativeMenu(nativeSelectionContextMenu, binaryMessenger);
+  }
+  private get selectionMenuAllowed(): boolean {
+    return (
+      this.mounted &&
+      this.selectionEnabled &&
+      this.widget.inputOptions?.enabled !== false &&
+      !this.widget.controller.isComposing &&
+      !this.cancellationPending &&
+      !this.usesNativeMenu
+    );
+  }
+  private secondaryClick(global: SourceOffset): void {
+    if (!this.selectionMenuAllowed) return;
+    const render = this.editableRender();
+    if (!render?.hasSize || render.needsLayout) return;
+    const local = this.dragPosition(render, global);
+    if (!local) return;
+    this.stopSelectionDrag();
+    const selection = this.selection();
+    const inside =
+      !selection.isCollapsed &&
+      render.getBoxesForSelection(selection).some((box) => box.contains(local));
+    const platform = FoundationPlatform.defaultTargetPlatform;
+    if (!inside && !this.selectAt(local, false, platform === 'macOS' || platform === 'iOS')) return;
+    this.focus?.requestFocus();
+    this.showToolbar(global);
   }
   private get selectionEnabled(): boolean {
     return this.widget.selectionEnabled;
@@ -1728,32 +1781,39 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     return false;
   }
   get contextMenuButtonItems(): readonly ContextMenuButtonItem[] {
-    if (!this.selectionEnabled) return [];
+    if (!this.selectionMenuAllowed) return [];
     const controller = this.widget.controller,
       clipboard = !!this.context.services.binaryMessenger,
-      editable = !controller.isComposing,
+      capabilities = this.context.services.platformServices?.environment?.capabilities,
+      canWrite = clipboard && capabilities?.clipboardWrite !== 'unavailable',
       identity = this.editingIdentity,
       revision = controller.revision;
     const guard = (command: () => void) => () => {
       if (
         this.isCurrentEditingOwner(identity) &&
         this.widget.controller === controller &&
-        controller.revision === revision
+        controller.revision === revision &&
+        this.focus?.hasPrimaryFocus &&
+        this.selectionMenuAllowed
       )
         command();
     };
     return getEditableButtonItems({
       clipboardStatus: this.clipboardStatus,
+      showDisabledPaste: ['macOS', 'linux', 'windows'].includes(
+        FoundationPlatform.defaultTargetPlatform,
+      ),
+      allowUnknownPaste: this.allowUnknownPaste,
       onCopy:
-        this.copyEnabled && clipboard
+        this.copyEnabled && canWrite
           ? guard(() => this.copySelection(SelectionChangedCause.toolbar))
           : null,
       onCut:
-        this.cutEnabled && editable && clipboard
+        this.cutEnabled && canWrite
           ? guard(() => this.cutSelection(SelectionChangedCause.toolbar))
           : null,
       onPaste:
-        !this.boundConfiguration.readOnly && editable && clipboard
+        !this.boundConfiguration.readOnly && clipboard
           ? guard(() => this.observeEditingCommand(this.pasteText(SelectionChangedCause.toolbar)))
           : null,
       onSelectAll: this.selectAllEnabled
@@ -1791,23 +1851,32 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   }
   private refreshClipboardStatus(): void {
     const messenger = this.context.services.binaryMessenger;
-    if (!messenger) return;
-    const identity = this.editingIdentity;
+    const request = ++this.clipboardRequest,
+      identity = this.editingIdentity,
+      capability = this.context.services.platformServices?.environment?.capabilities.clipboardRead;
+    const update = (status: ClipboardStatus, allowUnknown = false) => {
+      if (
+        request !== this.clipboardRequest ||
+        !this.toolbarRequested ||
+        !this.isCurrentEditingOwner(identity)
+      )
+        return;
+      this.clipboardStatus = status;
+      this.allowUnknownPaste = allowUnknown;
+      if (this.legacyClipboardStatus) this.legacyClipboardStatus.value = status;
+      this.selectionOverlay?.markNeedsBuild();
+    };
+    if (!messenger || this.boundConfiguration.readOnly || capability === 'unavailable') {
+      update(ClipboardStatus.notPasteable);
+      return;
+    }
+    update(ClipboardStatus.unknown, capability === 'permission-required');
     void Clipboard.hasStrings(messenger).then(
-      (available) => {
-        if (this.isCurrentEditingOwner(identity)) {
-          this.clipboardStatus = available
-            ? ClipboardStatus.pasteable
-            : ClipboardStatus.notPasteable;
-          if (this.legacyClipboardStatus) this.legacyClipboardStatus.value = this.clipboardStatus;
-          this.selectionOverlay?.markNeedsBuild();
-        }
-      },
+      (available) => update(available ? ClipboardStatus.pasteable : ClipboardStatus.notPasteable),
       (error) => {
-        if (this.isCurrentEditingOwner(identity))
-          this.editingCallback('clipboard availability', () => {
-            throw error;
-          });
+        if (error instanceof PlatformException && error.code === 'permission-required')
+          update(ClipboardStatus.unknown, true);
+        else update(ClipboardStatus.notPasteable);
       },
     );
   }
@@ -1831,7 +1900,6 @@ export class EditableTextState extends State<EditableText> implements TextSelect
           cause,
         );
     }
-    if (this.isCurrentEditingOwner(identity)) this.refreshClipboardStatus();
   }
   private userReplace(text: string, selection: TextSelection): void {
     if (!this.mounted || this.boundConfiguration.readOnly || this.widget.controller.isComposing)
@@ -1854,32 +1922,83 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       controller = this.widget.controller,
       value = this.textEditingValue,
       revision = controller.revision;
-    this.observeEditingCommand(
-      this.clipboard().writeText(value.text.slice(value.selection.start, value.selection.end)),
+    const fromMenu = cause === SelectionChangedCause.toolbar;
+    if (fromMenu && !this.canFinishClipboardEdit(identity, revision)) return;
+    const write = this.clipboard().writeText(
+      value.text.slice(value.selection.start, value.selection.end),
     );
-    if (!this.isCurrentEditingOwner(identity) || controller.revision !== revision) return;
-    this.invokeNestedEditingIntent(
-      new editingIntents.ReplaceTextIntent(value, '', value.selection, cause),
-    );
-    if (!this.isCurrentEditingOwner(identity)) return;
-    if (cause === SelectionChangedCause.toolbar) {
-      this.scheduleCaretReveal();
-      this.hideToolbar();
+    if (fromMenu) {
+      const edit = ++this.clipboardEdit;
+      this.observeEditingCommand(
+        write.then(
+          () => {
+            if (
+              edit !== this.clipboardEdit ||
+              !this.canFinishClipboardEdit(identity, revision) ||
+              !this.cutEnabled
+            )
+              return;
+            this.invokeNestedEditingIntent(
+              new editingIntents.ReplaceTextIntent(value, '', value.selection, cause),
+            );
+            if (this.isCurrentEditingOwner(identity)) {
+              this.scheduleCaretReveal();
+              this.hideToolbar();
+            }
+          },
+          (error) => {
+            if (!this.clipboardUnavailable(error)) throw error;
+          },
+        ),
+      );
+      return;
     }
-    this.refreshClipboardStatus();
+    this.observeEditingCommand(write);
+    if (this.isCurrentEditingOwner(identity) && controller.revision === revision)
+      this.invokeNestedEditingIntent(
+        new editingIntents.ReplaceTextIntent(value, '', value.selection, cause),
+      );
+  }
+  private canFinishClipboardEdit(identity: object, revision: number): boolean {
+    return (
+      this.isCurrentEditingOwner(identity) &&
+      this.widget.controller.revision === revision &&
+      !!this.focus?.hasPrimaryFocus &&
+      this.selectionEnabled &&
+      !this.desiredConfiguration().readOnly &&
+      !this.widget.controller.isComposing &&
+      !this.binding?.isComposing &&
+      !this.cancellationPending
+    );
+  }
+  private clipboardUnavailable(error: unknown): boolean {
+    return (
+      error instanceof PlatformException &&
+      ['permission-denied', 'permission-required', 'unsupported'].includes(error.code)
+    );
   }
   async pasteText(cause: SelectionChangedCause): Promise<void> {
-    if (!this.mounted || this.boundConfiguration.readOnly) return;
+    if (!this.mounted) return;
     const identity = this.editingIdentity,
-      controller = this.widget.controller,
+      revision = this.widget.controller.revision;
+    if (!this.canFinishClipboardEdit(identity, revision)) return;
+    const edit = ++this.clipboardEdit;
+    const current = () =>
+      edit === this.clipboardEdit && this.canFinishClipboardEdit(identity, revision);
+    let text: string | null;
+    try {
       text = await this.clipboard().readText();
-    if (
-      text === null ||
-      !this.isCurrentEditingOwner(identity) ||
-      this.widget.controller !== controller ||
-      this.boundConfiguration.readOnly
-    )
-      return;
+    } catch (error) {
+      if (cause === SelectionChangedCause.toolbar && this.clipboardUnavailable(error)) {
+        if (current() && this.toolbarRequested) {
+          this.clipboardStatus = ClipboardStatus.notPasteable;
+          this.selectionOverlay?.markNeedsBuild();
+        }
+        return;
+      }
+      throw error;
+    }
+    if (!text || !current()) return;
     const value = this.textEditingValue,
       selection = value.selection,
       collapsed = value.copyWith({ selection: SourceSelection.collapsed(selection.end) });
@@ -1906,27 +2025,35 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     if (!['macOS', 'iOS'].includes(platform)) this.bringIntoView(this.selection().extent);
   }
   hideToolbar(hideHandles = true): void {
-    this.toolbarRequested = false;
-    this.clearSpellToolbar();
+    this.toolbarRemoved();
     if (hideHandles) {
       this.overlayRequested = false;
       this.selectionOverlay?.hide();
     } else this.selectionOverlay?.hideToolbar();
   }
+  private readonly toolbarRemoved = (): void => {
+    this.toolbarRequested = false;
+    this.toolbarLocation = null;
+    this.lastToolbarAnchors = null;
+    this.toolbarContextDirty = false;
+    this.clipboardRequest++;
+    this.clipboardEdit++;
+    this.clearSpellToolbar();
+    this.updateSelectionFrameObservation();
+  };
   showToolbar(location: SourceOffset | null = null): boolean {
     const options = this.widget.inputOptions;
     if (
-      !this.mounted ||
-      !this.selectionEnabled ||
-      options?.enabled === false ||
+      !this.selectionMenuAllowed ||
       (!options?.contextMenuBuilder && !options?.selectionControls?.buildToolbar)
     )
       return false;
     if (this.spellToolbar) this.hideToolbar(false);
-    this.toolbarLocation = location;
+    if (location !== null || !this.toolbarRequested) this.toolbarLocation = location;
     this.overlayRequested = true;
     this.toolbarRequested = true;
     this.queueSelectionOverlay();
+    this.updateSelectionFrameObservation();
     this.refreshClipboardStatus();
     return true;
   }
@@ -1987,9 +2114,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
 
   showSpellCheckSuggestionsToolbar(): boolean {
     if (
-      !this.mounted ||
-      !this.selectionEnabled ||
-      this.widget.inputOptions?.enabled === false ||
+      !this.selectionMenuAllowed ||
       !this.widget.inputOptions?.spellCheckConfiguration?.spellCheckSuggestionsToolbarBuilder ||
       !Overlay.maybeOf(this.context)
     )
@@ -2017,6 +2142,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       this.overlayRequested = true;
     });
     this.queueSelectionOverlay();
+    this.updateSelectionFrameObservation();
     return true;
   }
 
@@ -2073,6 +2199,45 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         this.syncSelectionOverlay();
     });
   }
+  private editorVisibleBounds(render: RenderEditable): SourceRect {
+    const { logicalWidth, logicalHeight } = this.context.services.readMetrics();
+    return visibleSelectionBounds(render, SourceRect.fromLTWH(0, 0, logicalWidth, logicalHeight));
+  }
+  private updateSelectionFrameObservation(): void {
+    const drag = this.selectionDrag;
+    const needsObservation =
+      this.toolbarRequested ||
+      this.spellToolbar !== null ||
+      (drag !== undefined && drag.kind !== 'pointer' && !this.boundConfiguration.obscureText);
+    if (!needsObservation) {
+      this.selectionFrames?.dispose();
+      this.selectionFrames = null;
+    } else if (!this.selectionFrames && this.mounted && this.context instanceof Element) {
+      this.selectionFrames = observeSelectionFrames(this.context, () => {
+        const render = this.editableRender(),
+          current = this.selectionDrag;
+        if (
+          !this.selectionMenuAllowed ||
+          !this.focus?.hasPrimaryFocus ||
+          !render ||
+          !isCurrentRoute(this.context) ||
+          this.editorVisibleBounds(render).isEmpty
+        ) {
+          this.stopSelectionDrag();
+          this.hideToolbar();
+          return;
+        }
+        if (this.selectionOverlay?.toolbarIsVisible) {
+          const anchors = this.contextMenuAnchors;
+          if (!this.lastToolbarAnchors?.equals(anchors)) {
+            this.lastToolbarAnchors = anchors;
+            this.selectionOverlay.markNeedsBuild();
+          }
+        }
+        if (current && current.kind !== 'pointer') this.updateSelectionMagnifier(render, current);
+      });
+    }
+  }
   private syncSelectionOverlay(): void {
     if (
       this.spellToolbar &&
@@ -2085,19 +2250,20 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       this.widget.inputOptions?.enabled === false ||
       this.widget.controller.isComposing
     ) {
-      this.overlayRequested = false;
-      this.toolbarRequested = false;
-      this.clearSpellToolbar();
-      this.selectionOverlay?.hide();
+      this.stopSelectionDrag();
+      this.hideToolbar();
       return;
     }
     if (!this.overlayRequested) return;
     const render = this.editableRender();
     if (!render?.hasSize || render.needsLayout) return;
     if (!Overlay.maybeOf(this.context)) return;
-    const selection = this.selection(),
-      endpoints = render.getEndpointsForSelection(selection);
-    if (!endpoints.length) return;
+    const selection = this.selection();
+    let endpoints = render.getEndpointsForSelection(selection);
+    if (!endpoints.length)
+      endpoints = render.getEndpointsForSelection(
+        SourceSelection.collapsed({ offset: selection.extentOffset, affinity: selection.affinity }),
+      );
     const startType = selection.isCollapsed
         ? TextSelectionHandleType.collapsed
         : endpoints[0]!.direction === 'rtl'
@@ -2136,6 +2302,10 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       onEndHandleDragUpdate: (details) => this.dragHandle(true, details.globalPosition),
       onStartHandleDragEnd: () => this.endHandleDrag(),
       onEndHandleDragEnd: () => this.endHandleDrag(),
+      onHandleDragCancel: () => this.stopSelectionDrag(),
+      onToolbarRemoved: this.toolbarRemoved,
+      focusNode: this.focus,
+      tapGroupId: this.widget.groupId,
       onSelectionHandleTapped: () => {
         this.showToolbar();
       },
@@ -2157,7 +2327,11 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       overlay.hideHandles();
     else overlay.showHandles();
     overlay.markNeedsBuild();
-    if (spell && !overlay.toolbarIsVisible) {
+    const drag = this.selectionDrag;
+    if (drag && drag.kind !== 'pointer') this.updateSelectionMagnifier(render, drag);
+    const refreshToolbar = this.toolbarContextDirty || !overlay.toolbarIsVisible;
+    this.toolbarContextDirty = false;
+    if (spell && refreshToolbar) {
       const builder =
         this.widget.inputOptions?.spellCheckConfiguration?.spellCheckSuggestionsToolbarBuilder;
       if (builder)
@@ -2166,8 +2340,9 @@ export class EditableTextState extends State<EditableText> implements TextSelect
           builder: (context) => builder(context, this),
         });
     }
-    if (this.toolbarRequested && !overlay.toolbarIsVisible) {
+    if (this.toolbarRequested && refreshToolbar) {
       const options = this.widget.inputOptions;
+      this.lastToolbarAnchors = this.contextMenuAnchors;
       if (options?.selectionControls?.buildToolbar) {
         overlay.showToolbar({
           context: this.renderKey.currentContext!,
@@ -2183,29 +2358,79 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     }
   }
 
+  private beginLongPress(global: SourceOffset): void {
+    if (!this.selectionMenuAllowed) return;
+    this.stopSelectionDrag();
+    this.hideToolbar(false);
+    const render = this.editableRender();
+    if (!render?.hasSize || render.needsLayout) return;
+    const local = this.dragPosition(render, global);
+    if (!local || !this.selectAt(local, false, true)) return;
+    this.heldSelection = this.selection();
+    this.startSelectionDrag('hold', global);
+    this.overlayRequested = true;
+    this.queueSelectionOverlay();
+    this.updateSelectionScroll();
+  }
+  private moveLongPress(global: SourceOffset): void {
+    if (this.selectionDrag?.kind !== 'hold') return;
+    this.selectionDrag.global = global;
+    this.selectionDrag.focusRequest = this.selectionFocusRequest;
+    this.applyLongPressDrag(global);
+    this.updateSelectionScroll();
+  }
+  private applyLongPressDrag(global: SourceOffset): void {
+    const initial = this.heldSelection,
+      render = this.editableRender();
+    if (!initial || !render?.hasSize || render.needsLayout) return;
+    const local = this.dragPosition(render, global);
+    if (!local) return;
+    const at = render.getPositionForOffset(local);
+    const selection =
+      at.offset >= initial.start && at.offset <= initial.end && !initial.isCollapsed
+        ? initial
+        : new SourceSelection({
+            baseOffset: at.offset < initial.start ? initial.end : initial.start,
+            extentOffset: at.offset,
+            affinity: at.affinity,
+          });
+    const value = this.textEditingValue;
+    if (!selection.equals(value.selection))
+      this.userUpdateTextEditingValue(value.copyWith({ selection }), SelectionChangedCause.drag);
+    this.queueSelectionOverlay();
+  }
+  private finishLongPress(released: boolean): void {
+    if (this.selectionDrag?.kind !== 'hold') return;
+    this.stopSelectionDrag();
+    if (released) this.showToolbar();
+  }
+
   private buildControlsToolbar(context: BuildContext): Widget {
     const controls = this.widget.inputOptions?.selectionControls;
     const render = this.editableRender();
     if (!controls?.buildToolbar || !render?.hasSize || render.needsLayout) return SizedBox.shrink();
     const selection = this.selection();
-    const endpoints = render.getEndpointsForSelection(selection);
-    const first = endpoints[0];
-    const last = endpoints.at(-1);
+    const project = (global: SourceOffset) =>
+      new TextSelectionToolbarAnchors({ primaryAnchor: global }).inOverlay(this.context)
+        .primaryAnchor;
+    const visible = this.editorVisibleBounds(render);
+    if (visible.isEmpty) return SizedBox.shrink();
+    const region = SourceRect.fromPoints(project(visible.topLeft), project(visible.bottomRight));
+    const endpoints = render.getEndpointsForSelection(selection).map(({ point, direction }) => {
+      const global = render.localToGlobal(point);
+      return new TextSelectionPoint(
+        project(new SourceOffset(global.x, global.y)).subtract(region.topLeft),
+        direction,
+      );
+    });
+    const first = endpoints[0],
+      last = endpoints.at(-1);
     if (!first || !last) return SizedBox.shrink();
-    const point = (local: SourceOffset) => {
-      const global = render.localToGlobal(local);
-      return new SourceOffset(global.x, global.y);
-    };
-    const region = SourceRect.fromPoints(
-      point(SourceOffset.zero),
-      point(new SourceOffset(render.size.width, render.size.height)),
-    );
-    const lineHeight = render.getLocalRectForCaret(
-      new TextPosition({ offset: selection.start }),
-    ).height;
-    const endHeight = render.getLocalRectForCaret(
-      new TextPosition({ offset: selection.end }),
-    ).height;
+    const height = (offset: number) =>
+      projectSelectionRect(render, render.getLocalRectForCaret(new TextPosition({ offset })))
+        .height;
+    const lineHeight = height(selection.start),
+      endHeight = height(selection.end);
     const midpoint = new SourceOffset(
       last.point.dy - first.point.dy > endHeight / 2
         ? region.width / 2
@@ -2221,18 +2446,27 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       endpoints,
       this,
       this.legacyClipboardStatus,
-      this.toolbarLocation,
+      this.toolbarLocation && project(this.toolbarLocation),
     );
   }
-  private dragHandle(end: boolean, global: SourceOffset): void {
-    if (!this.selectionEnabled) return;
+  private startSelectionDrag(
+    kind: 'hold' | 'end-handle' | 'start-handle',
+    global: SourceOffset,
+  ): void {
     this.selectionDrag = {
-      kind: end ? 'end-handle' : 'start-handle',
+      kind,
       global,
       text: this.widget.controller.text,
       focused: this.focus?.hasPrimaryFocus ?? false,
       focusRequest: this.selectionFocusRequest,
     };
+    this.updateSelectionFrameObservation();
+  }
+  private dragHandle(end: boolean, global: SourceOffset): void {
+    const drag = this.selectionDrag;
+    if (!drag || drag.kind !== (end ? 'end-handle' : 'start-handle')) return;
+    drag.global = global;
+    drag.focusRequest = this.selectionFocusRequest;
     this.applyHandleDrag(end, global);
     this.updateSelectionScroll();
   }
@@ -2240,7 +2474,6 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     if (!this.mounted || !this.selectionEnabled || this.widget.controller.isComposing) return;
     const render = this.editableRender();
     if (!render?.hasSize || render.needsLayout) return;
-    this.toolbarRequested = false;
     const local = this.dragPosition(render, global, this.handleDragDy);
     if (!local) {
       this.stopSelectionDrag();
@@ -2256,48 +2489,66 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       return;
     const anchor = this.handleCollapsed ? at.offset : end || apple ? opposite : at.offset,
       focus = this.handleCollapsed ? at.offset : end || apple ? at.offset : opposite,
-      identity = this.editingIdentity,
-      text = this.widget.controller.text;
-    this.userUpdateTextEditingValue(
-      this.textEditingValue.copyWith({
-        selection: new SourceSelection({
-          baseOffset: anchor,
-          extentOffset: focus,
-          affinity: at.affinity,
-        }),
-      }),
-      SelectionChangedCause.drag,
-    );
-    if (
-      !this.isCurrentEditingOwner(identity) ||
-      this.widget.controller.text !== text ||
-      this.widget.controller.selection.anchor !== anchor ||
-      this.widget.controller.selection.focus !== focus ||
-      !render.attached ||
-      render.needsLayout
-    )
-      return;
-    const caret = render.getLocalRectForCaret(at),
-      project = (rect: SourceRect) => {
-        const value = bounds(
-          multiply(render.getTransformTo(null), translate(rect.x, rect.y)),
-          rect,
-        );
-        return SourceRect.fromLTWH(value.x, value.y, value.width, value.height);
-      },
-      info = new MagnifierInfo({
-        globalGesturePosition: global,
-        caretRect: project(caret),
-        fieldBounds: project(SourceRect.fromLTWH(0, 0, render.size.width, render.size.height)),
-        currentLineBoundaries: project(
-          SourceRect.fromLTWH(0, caret.top, render.size.width, caret.height),
-        ),
+      next = new SourceSelection({
+        baseOffset: anchor,
+        extentOffset: focus,
+        affinity: at.affinity,
       });
-    this.selectionOverlay?.showMagnifier(info);
-    this.selectionOverlay?.updateMagnifier(info);
+    const value = this.textEditingValue;
+    if (!next.equals(value.selection))
+      this.userUpdateTextEditingValue(
+        value.copyWith({ selection: next }),
+        SelectionChangedCause.drag,
+      );
     this.queueSelectionOverlay();
   }
+  private updateSelectionMagnifier(
+    render: RenderEditable,
+    drag: NonNullable<EditableTextState['selectionDrag']>,
+  ): void {
+    const overlay = this.selectionOverlay;
+    if (
+      !overlay ||
+      this.boundConfiguration.obscureText ||
+      this.widget.controller.isComposing ||
+      (FoundationPlatform.defaultTargetPlatform !== 'android' &&
+        FoundationPlatform.defaultTargetPlatform !== 'iOS')
+    )
+      return;
+    const field = this.editorVisibleBounds(render);
+    if (field.isEmpty) return;
+    const selection = this.selection(),
+      end = drag.kind === 'end-handle';
+    const movingStart = drag.kind === 'start-handle';
+    const apple = FoundationPlatform.defaultTargetPlatform === 'iOS';
+    const local = drag.kind === 'hold' ? this.dragPosition(render, drag.global) : null;
+    const position = local
+      ? render.getPositionForOffset(local)
+      : apple || selection.isCollapsed
+        ? selection.extent
+        : new TextPosition({
+            offset: movingStart ? selection.start : selection.end,
+            affinity: end ? 'upstream' : 'downstream',
+          });
+    const caret = render.getLocalRectForCaret(position);
+    const line = projectSelectionRect(render, render.getLocalLineRect(position, caret)).intersect(
+      field,
+    );
+    if (line.isEmpty) {
+      overlay.hideMagnifier();
+      return;
+    }
+    const info = new MagnifierInfo({
+      globalGesturePosition: drag.global,
+      caretRect: projectSelectionRect(render, caret),
+      fieldBounds: field,
+      currentLineBoundaries: line,
+    });
+    overlay.showMagnifier(info);
+    overlay.updateMagnifier(info);
+  }
   private beginHandleDrag(end: boolean, global: SourceOffset): void {
+    if (!this.selectionMenuAllowed) return;
     this.stopSelectionDrag();
     const selection = this.selection(),
       render = this.editableRender();
@@ -2316,13 +2567,17 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       }),
     );
     this.handleDragDy = caret.top + caret.height / 2 - point.y;
-    this.restoreToolbarAfterDrag = this.toolbarRequested;
-    this.dragHandle(end, global);
+    this.restoreToolbarAfterDrag =
+      this.toolbarRequested || this.selectionOverlay?.toolbarIsVisible === true;
+    this.hideToolbar(false);
+    this.startSelectionDrag(end ? 'end-handle' : 'start-handle', global);
+    this.updateSelectionScroll();
+    this.queueSelectionOverlay();
   }
   private endHandleDrag(): void {
+    const restore = this.restoreToolbarAfterDrag;
     this.stopSelectionDrag();
-    if (this.restoreToolbarAfterDrag) this.showToolbar();
-    this.restoreToolbarAfterDrag = false;
+    if (restore) this.showToolbar();
   }
   private releaseKey: (() => void) | undefined;
   private preferredX: number | undefined;
@@ -2372,6 +2627,11 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.context.owner.focus.isKeyEventTarget(this.focus)
       ? this.handleSelectionKey(event)
       : 'ignored';
+  private readonly selectionMenuKey = (event: KeyEvent): KeyEventResult => {
+    if (!this.focus?.hasPrimaryFocus || !isContextMenuKey(event)) return 'ignored';
+    this.stopSelectionDrag();
+    return this.showToolbar() ? 'handled' : 'ignored';
+  };
   private makeActions(): ReadonlyMap<IntentType, ActionHandle> {
     const actions = new Map<IntentType, ActionHandle>();
     const types: readonly IntentType[] = [
@@ -3160,7 +3420,12 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     if (this.context.services.readStatus() !== 'open') {
       this.stopBlink();
       this.stopSelectionDrag();
+      this.hideToolbar();
       return;
+    }
+    if (!this.focus?.hasPrimaryFocus || this.widget.controller.isComposing) {
+      this.clipboardEdit++;
+      if (this.selectionOverlay?.toolbarIsVisible) this.hideToolbar();
     }
     if (this.selectionDrag) {
       if (
@@ -3612,7 +3877,17 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       this.ownFocus = !this.widget.focusNode;
       const manager = this.context.owner.focus;
       manager.addLateKeyEventHandler(this.defaultEditingKey);
-      this.releaseKey = () => manager.removeLateKeyEventHandler(this.defaultEditingKey);
+      manager.addEarlyKeyEventHandler(this.selectionMenuKey);
+      this.releaseKey = () => {
+        manager.removeEarlyKeyEventHandler(this.selectionMenuKey);
+        manager.removeLateKeyEventHandler(this.defaultEditingKey);
+      };
+      this.menuPolicyObservation = services.nativeSelectionContextMenu?.observeMenuPolicy?.(() => {
+        if (this.usesNativeMenu) {
+          this.stopSelectionDrag();
+          this.hideToolbar();
+        }
+      });
       controller.addListener(this.invalidated);
       this.focus.addListener(this.invalidated);
       this.blinkVisibility = maybeTickerScheduler(this.context)?.observeVisibility((visible) => {
@@ -3620,6 +3895,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         else {
           this.stopBlink();
           this.stopSelectionDrag();
+          this.hideToolbar();
         }
       });
       this.syncBlink();
@@ -3636,6 +3912,9 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.focusRestorationToken = {};
     this.keyboardRequest = undefined;
     this.stopSelectionDrag();
+    this.toolbarRemoved();
+    this.menuPolicyObservation?.dispose();
+    this.menuPolicyObservation = undefined;
     this.selectionOverlay?.dispose();
     this.selectionOverlay = undefined;
     this.overlayRequested = false;
@@ -3691,8 +3970,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   override didChangeDependencies(): void {
     super.didChangeDependencies();
     this.updateSystemFonts();
-    this.selectionOverlay?.dispose();
-    this.selectionOverlay = undefined;
+    if (this.toolbarRequested || this.spellToolbar) this.toolbarContextDirty = true;
     this.queueSelectionOverlay();
     Focus.maybeOf(this.context, { scopeOk: true });
     const next = this.desiredConfiguration(),
@@ -3797,7 +4075,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   }
   override didUpdateWidget(old: EditableText): void {
     if (old.inputOptions?.showCursor !== this.widget.inputOptions?.showCursor) this.syncBlink();
-    if (!this.selectionEnabled) {
+    if (!this.selectionEnabled || this.widget.inputOptions?.enabled === false) {
       this.stopSelectionDrag();
       this.hideToolbar();
     }
@@ -3805,15 +4083,20 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       old.inputOptions?.selectionControls !== this.widget.inputOptions?.selectionControls ||
       old.inputOptions?.magnifierConfiguration !==
         this.widget.inputOptions?.magnifierConfiguration ||
-      old.inputOptions?.contextMenuBuilder !== this.widget.inputOptions?.contextMenuBuilder
+      old.groupId !== this.widget.groupId
     ) {
+      this.stopSelectionDrag();
+      this.hideToolbar();
       this.selectionOverlay?.dispose();
       this.selectionOverlay = undefined;
+    }
+    if (old.inputOptions?.contextMenuBuilder !== this.widget.inputOptions?.contextMenuBuilder) {
       if (
         !this.widget.inputOptions?.contextMenuBuilder &&
         !this.widget.inputOptions?.selectionControls?.buildToolbar
       )
-        this.toolbarRequested = false;
+        this.hideToolbar(false);
+      else this.selectionOverlay?.markNeedsBuild();
     }
     const identityChanged =
         old.id !== this.widget.id ||

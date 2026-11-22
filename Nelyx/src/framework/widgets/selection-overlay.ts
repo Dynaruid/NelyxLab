@@ -12,13 +12,15 @@ import { Offset } from '../../ui/offset.ts';
 import { Rect } from '../../ui/rect.ts';
 import { PointerDeviceKind } from '../../ui/pointer.ts';
 import { LayerLink } from '../rendering/layer.ts';
-import { RenderBox } from '../rendering/object.ts';
 import { TextSelectionHandleType } from '../rendering/selection.ts';
 import type { TextSelectionPoint } from '../rendering/editable.ts';
 import { HitTestBehavior } from '../rendering/pointer-listener.ts';
 import { DragStartBehavior } from '../gestures/recognizer.ts';
-import { DragStartDetails } from '../gestures/drag-details.ts';
-import type { DragUpdateDetails, DragEndDetails } from '../gestures/drag-details.ts';
+import type {
+  DragStartDetails,
+  DragUpdateDetails,
+  DragEndDetails,
+} from '../gestures/drag-details.ts';
 import { PanGestureRecognizer } from '../gestures/monodrag.ts';
 import { DeviceGestureSettings } from '../gestures/gesture-settings.ts';
 import { Alignment } from '../painting/alignment.ts';
@@ -30,11 +32,10 @@ import { InheritedTheme } from './inherited-theme.ts';
 import { TextSelectionControls } from './text-selection.ts';
 import { MagnifierController, MagnifierInfo, TextMagnifierConfiguration } from './magnifier.ts';
 import { ContextMenuController } from './context-menu-controller.ts';
-import { SelectableRegion } from './selectable-region-state.ts';
 import { SizedBox, Padding, Align } from './basic.ts';
 import { TapRegion, TextFieldTapRegion } from './tap-region.ts';
 import { ExcludeSemantics } from './semantics.ts';
-import { Directionality } from './app-data.ts';
+import type { FocusNode } from './focus.ts';
 import { FadeTransition } from './transitions.ts';
 import { CompositedTransformFollower } from './composited-transform.ts';
 import {
@@ -44,6 +45,28 @@ import {
 import { SingleTickerProviderStateMixin } from './ticker-provider.ts';
 import { AnimationController } from '../animation/animation-controller.ts';
 import { maybeTickerScheduler } from './ticker-scheduler.ts';
+import type { Disposable } from '../../foundation/disposable.ts';
+
+/** Observe geometry after frames that were already requested by the view. */
+export function observeSelectionFrames(
+  context: BuildContext,
+  update: () => void,
+): Disposable | null {
+  const scheduler = maybeTickerScheduler(context);
+  if (!scheduler) return null;
+  let active = true;
+  const registration = scheduler.addPersistentFrameCallback(() => {
+    scheduler.addPostFrameCallback(() => {
+      if (active) update();
+    });
+  });
+  return {
+    dispose() {
+      active = false;
+      registration.dispose();
+    },
+  };
+}
 export interface SelectionOverlayOptions {
   readonly context: BuildContext;
   readonly debugRequiredFor?: Widget | null;
@@ -59,6 +82,11 @@ export interface SelectionOverlayOptions {
   readonly onEndHandleDragStart?: ((details: DragStartDetails) => void) | null;
   readonly onEndHandleDragUpdate?: ((details: DragUpdateDetails) => void) | null;
   readonly onEndHandleDragEnd?: ((details: DragEndDetails) => void) | null;
+  readonly onHandleDragCancel?: (() => void) | null;
+  readonly onToolbarRemoved?: (() => void) | null;
+  readonly focusNode?: FocusNode | null;
+  readonly tapGroupId?: unknown;
+  readonly regionTapGroupId?: object;
   readonly toolbarVisible?: ValueListenable<boolean> | null;
   readonly selectionEndpoints: readonly TextSelectionPoint[];
   readonly selectionControls: TextSelectionControls | null;
@@ -101,11 +129,12 @@ export class SelectionOverlay {
   private handles: { start: OverlayEntry; end: OverlayEntry } | null = null;
   private buildScheduled = false;
   private retired = false;
-  private readonly contextMenu = new ContextMenuController();
-  private readonly spellCheckMenu = new ContextMenuController();
+  private readonly contextMenu: ContextMenuController;
+  private readonly spellCheckMenu: ContextMenuController;
+  private magnifierRequested = false;
   private readonly magnifierInfo = new ValueNotifier(MagnifierInfo.empty, (a, b) => a.equals(b));
   private readonly magnifier = new MagnifierController();
-  constructor(options: SelectionOverlayOptions) {
+  constructor(private readonly options: SelectionOverlayOptions) {
     this.context = options.context;
     this.debugRequiredFor = options.debugRequiredFor ?? null;
     this.startType = options.startHandleType;
@@ -130,6 +159,9 @@ export class SelectionOverlay {
     this.onSelectionHandleTapped = options.onSelectionHandleTapped ?? null;
     this.magnifierConfiguration =
       options.magnifierConfiguration ?? TextMagnifierConfiguration.disabled;
+    const onRemove = options.onToolbarRemoved ?? null;
+    this.contextMenu = new ContextMenuController({ onRemove });
+    this.spellCheckMenu = new ContextMenuController({ onRemove });
     if (FoundationBuildMode.debug) Overlay.of(this.context);
   }
   get toolbarIsVisible(): boolean {
@@ -143,7 +175,12 @@ export class SelectionOverlay {
   }
   showMagnifier(initial: MagnifierInfo): void {
     this.ensureAlive();
-    if (this.magnifier.overlayEntry !== null) return;
+    if (
+      this.magnifierRequested ||
+      this.magnifierConfiguration === TextMagnifierConfiguration.disabled
+    )
+      return;
+    this.magnifierRequested = true;
     if (this.toolbarIsVisible) this.hideToolbar();
     this.magnifierInfo.value = initial;
     const built = this.magnifierConfiguration.magnifierBuilder(
@@ -163,7 +200,8 @@ export class SelectionOverlay {
     );
   }
   hideMagnifier(): void {
-    if (this.magnifier.overlayEntry !== null) this.observe(this.magnifier.hide());
+    this.magnifierRequested = false;
+    this.magnifier.removeFromOverlay();
   }
   updateMagnifier(info: MagnifierInfo): void {
     if (!this.retired && this.magnifier.overlayEntry !== null) this.magnifierInfo.value = info;
@@ -226,6 +264,8 @@ export class SelectionOverlay {
     this.handleDragEnd(false, details);
   private readonly endDragEnd = (details: DragEndDetails): void =>
     this.handleDragEnd(true, details);
+  private readonly startDragCancel = (): void => this.handleDragCancel(false);
+  private readonly endDragCancel = (): void => this.handleDragCancel(true);
   private handleDragStart(end: boolean, details: DragStartDetails): void {
     if (FoundationBuildMode.debug)
       invariant(
@@ -238,9 +278,9 @@ export class SelectionOverlay {
       else this.startDrag = false;
       return;
     }
+    if (!this.canDrag(end ? this.startDragInProgress : this.endDragInProgress)) return;
     if (end) this.endDragInProgress = true;
     else this.startDragInProgress = true;
-    if (!this.canDrag(end ? this.startDrag : this.endDrag)) return;
     if (end) this.endDrag = details.kind === PointerDeviceKind.touch;
     else this.startDrag = details.kind === PointerDeviceKind.touch;
     (end ? this.onEndHandleDragStart : this.onStartHandleDragStart)?.(details);
@@ -251,30 +291,23 @@ export class SelectionOverlay {
       else this.startDrag = false;
       return;
     }
-    if (!this.canDrag(end ? this.startDrag : this.endDrag)) return;
-    if (!(end ? this.endDrag : this.startDrag)) {
-      if (end) this.endDrag = details.kind === PointerDeviceKind.touch;
-      else this.startDrag = details.kind === PointerDeviceKind.touch;
-      (end ? this.onEndHandleDragStart : this.onStartHandleDragStart)?.(
-        new DragStartDetails({
-          globalPosition: details.globalPosition,
-          localPosition: details.localPosition,
-          sourceTimeStamp: details.sourceTimeStamp,
-          kind: details.kind,
-        }),
-      );
-    }
-    if (this.retired || this.handles === null) return;
+    if (!(end ? this.endDragInProgress : this.startDragInProgress)) return;
     (end ? this.onEndHandleDragUpdate : this.onStartHandleDragUpdate)?.(details);
   }
   private handleDragEnd(end: boolean, details: DragEndDetails): void {
+    if (!this.clearHandleDrag(end)) return;
+    (end ? this.onEndHandleDragEnd : this.onStartHandleDragEnd)?.(details);
+  }
+  private handleDragCancel(end: boolean): void {
+    if (this.clearHandleDrag(end)) this.options.onHandleDragCancel?.();
+  }
+  private clearHandleDrag(end: boolean): boolean {
+    const wasDragging = end ? this.endDragInProgress : this.startDragInProgress;
     if (end) this.endDrag = false;
     else this.startDrag = false;
-    if (this.handles === null || this.retired) return;
     if (end) this.endDragInProgress = false;
     else this.startDragInProgress = false;
-    if (!this.canDrag(end ? this.startDrag : this.endDrag)) return;
-    (end ? this.onEndHandleDragEnd : this.onStartHandleDragEnd)?.(details);
+    return wasDragging && this.handles !== null && !this.retired;
   }
   get selectionEndpoints(): readonly TextSelectionPoint[] {
     return this.endpoints;
@@ -330,6 +363,8 @@ export class SelectionOverlay {
   hideHandles(): void {
     const handles = this.handles;
     this.handles = null;
+    this.clearHandleDrag(false);
+    this.clearHandleDrag(true);
     if (handles !== null) this.releaseEntries([handles.start, handles.end]);
   }
   showToolbar({
@@ -340,15 +375,13 @@ export class SelectionOverlay {
     readonly contextMenuBuilder: (context: BuildContext) => Widget;
   }): void {
     this.ensureAlive();
-    const box = this.renderBox(context);
     this.contextMenu.show({
       context,
+      focusNode: this.options.focusNode ?? null,
       contextMenuBuilder: (buildContext) =>
         new SelectionToolbarWrapper({
           visibility: this.toolbarVisible,
-          layerLink: this.toolbarLayerLink,
-          offset: new Offset(-box.localToGlobal(Offset.zero).x, -box.localToGlobal(Offset.zero).y),
-          child: contextMenuBuilder(buildContext),
+          child: this.wrapTapRegions(contextMenuBuilder(buildContext)),
         }),
     });
   }
@@ -361,14 +394,12 @@ export class SelectionOverlay {
   }): void {
     this.ensureAlive();
     if (context == null) return;
-    const box = this.renderBox(context);
     this.spellCheckMenu.show({
       context,
+      focusNode: this.options.focusNode ?? null,
       contextMenuBuilder: (buildContext) =>
         new SelectionToolbarWrapper({
-          layerLink: this.toolbarLayerLink,
-          offset: new Offset(-box.localToGlobal(Offset.zero).x, -box.localToGlobal(Offset.zero).y),
-          child: builder(buildContext),
+          child: this.wrapTapRegions(builder(buildContext)),
         }),
     });
   }
@@ -453,23 +484,20 @@ export class SelectionOverlay {
           onSelectionHandleDragStart: end ? this.endDragStart : this.startDragStart,
           onSelectionHandleDragUpdate: end ? this.endDragUpdate : this.startDragUpdate,
           onSelectionHandleDragEnd: end ? this.endDragEnd : this.startDragEnd,
+          onSelectionHandleDragCancel: end ? this.endDragCancel : this.startDragCancel,
           selectionControls: this.selectionControls!,
           visibility: end ? this.endHandlesVisible : this.startHandlesVisible,
           preferredLineHeight: end ? this.endHeight : this.startHeight,
           dragStartBehavior: this.dragStartBehavior,
         });
-    return new TapRegion(new TextFieldTapRegion(new ExcludeSemantics(handle)), {
-      groupId: SelectableRegion,
-    });
+    return this.wrapTapRegions(new ExcludeSemantics(handle));
   }
-  private renderBox(context: BuildContext): RenderBox {
-    const box = context.findRenderObject();
-    invariant(
-      box instanceof RenderBox,
-      'missing-selection-render-box',
-      'Selection overlay requires a mounted RenderBox',
-    );
-    return box;
+  private wrapTapRegions(child: Widget): Widget {
+    const groupId = this.options.tapGroupId;
+    const fieldRegion = new TextFieldTapRegion(child, groupId === undefined ? {} : { groupId });
+    return this.options.regionTapGroupId === undefined
+      ? fieldRegion
+      : new TapRegion(fieldRegion, { groupId: this.options.regionTapGroupId });
   }
   private ensureAlive(): void {
     invariant(!this.retired, 'disposed-selection-overlay', 'Selection overlay has been disposed');
@@ -504,8 +532,6 @@ export class SelectionOverlay {
 }
 interface ToolbarOptions {
   readonly visibility?: ValueListenable<boolean> | null;
-  readonly layerLink: LayerLink;
-  readonly offset: Offset;
   readonly child: Widget;
 }
 class SelectionToolbarWrapper extends StatefulWidget {
@@ -543,24 +569,9 @@ class SelectionToolbarWrapperState extends SingleTickerProviderStateMixin<Select
     this.controller.dispose();
     super.dispose();
   }
-  build(context: BuildContext): Widget {
+  build(): Widget {
     const o = this.widget.options;
-    return new TapRegion(
-      new TextFieldTapRegion(
-        new Directionality(
-          Directionality.of(context),
-          new FadeTransition({
-            opacity: this.controller.view,
-            child: new CompositedTransformFollower(o.child, {
-              link: o.layerLink,
-              showWhenUnlinked: false,
-              offset: o.offset,
-            }),
-          }),
-        ),
-      ),
-      { groupId: SelectableRegion },
-    );
+    return new FadeTransition({ opacity: this.controller.view, child: o.child });
   }
 }
 interface HandleOptions {
@@ -570,6 +581,7 @@ interface HandleOptions {
   readonly onSelectionHandleDragStart: ((details: DragStartDetails) => void) | null;
   readonly onSelectionHandleDragUpdate: ((details: DragUpdateDetails) => void) | null;
   readonly onSelectionHandleDragEnd: ((details: DragEndDetails) => void) | null;
+  readonly onSelectionHandleDragCancel: () => void;
   readonly selectionControls: TextSelectionControls;
   readonly visibility: ValueListenable<boolean> | null;
   readonly preferredLineHeight: number;
@@ -652,6 +664,8 @@ class SelectionHandleOverlayState extends SingleTickerProviderStateMixin<Selecti
           recognizer.onStart = o.onSelectionHandleDragStart;
           recognizer.onUpdate = o.onSelectionHandleDragUpdate;
           recognizer.onEnd = o.onSelectionHandleDragEnd;
+          recognizer.onCancel = o.onSelectionHandleDragCancel;
+          recognizer.cancelOnPointerCancel = true;
         },
       );
     return new CompositedTransformFollower(

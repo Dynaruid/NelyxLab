@@ -8,6 +8,7 @@ import { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import { CustomPainter } from '@nelyx/core/framework/rendering/custom-paint';
 import { Text, SizedBox } from '@nelyx/core/framework/widgets/basic';
 import type { ContextMenuButtonItem } from '@nelyx/core/framework/widgets/context-menu-button-item';
+import { ContextMenuButtonFocus } from '@nelyx/core/framework/widgets/context-menu-controller';
 import { CustomPaint } from '@nelyx/core/framework/widgets/custom-paint';
 import { StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
@@ -144,21 +145,24 @@ class CupertinoToolbarButtonState extends State<CupertinoTextSelectionToolbarBut
             }),
             overflow: 'ellipsis',
           }));
-    return new CupertinoButton({
-      child: content,
+    return new ContextMenuButtonFocus(
+      new CupertinoButton({
+        child: content,
+        onPressed,
+        onHighlightChanged: (pressed) => {
+          if (this.mounted && this.widget.onPressed && this.pressed !== pressed)
+            this.setState(() => {
+              this.pressed = pressed;
+            });
+        },
+        ...(label ? { semanticsLabel: label } : {}),
+        color: this.pressed ? toolbarPressedColor : CupertinoColors.transparent,
+        disabledColor: CupertinoColors.transparent,
+        padding: mobilePadding,
+        pressedOpacity: 1,
+      }),
       onPressed,
-      onHighlightChanged: (pressed) => {
-        if (this.mounted && this.widget.onPressed && this.pressed !== pressed)
-          this.setState(() => {
-            this.pressed = pressed;
-          });
-      },
-      ...(label ? { semanticsLabel: label } : {}),
-      color: this.pressed ? toolbarPressedColor : CupertinoColors.transparent,
-      disabledColor: CupertinoColors.transparent,
-      padding: mobilePadding,
-      pressedOpacity: 1,
-    });
+    );
   }
 }
 class LiveTextIconPainter extends CustomPainter {
@@ -230,9 +234,12 @@ class DesktopButtonState extends State<CupertinoDesktopTextSelectionToolbarButto
     const label =
       text ??
       (buttonItem ? CupertinoTextSelectionToolbarButton.getButtonLabel(context, buttonItem) : '');
-    const foreground = this.hovered
-      ? theme.primaryContrastingColor
-      : toolbarTextColor.resolveFrom(context).toARGB32();
+    const foreground =
+      onPressed === null
+        ? CupertinoColors.inactiveGray.resolveFrom(context).toARGB32()
+        : this.hovered
+          ? theme.primaryContrastingColor
+          : toolbarTextColor.resolveFrom(context).toARGB32();
     const content =
       child ??
       new Text(label, {
@@ -243,17 +250,20 @@ class DesktopButtonState extends State<CupertinoDesktopTextSelectionToolbarButto
       Infinity,
       undefined,
       new MouseRegion(
-        new CupertinoButton({
-          child: content,
+        new ContextMenuButtonFocus(
+          new CupertinoButton({
+            child: content,
+            onPressed,
+            ...(label ? { semanticsLabel: label } : {}),
+            ...(this.hovered ? { color: theme.primaryColor } : {}),
+            alignment: Alignment.centerLeft,
+            borderRadius: 4,
+            minSize: 0,
+            padding: desktopPadding,
+            pressedOpacity: 0.7,
+          }),
           onPressed,
-          ...(label ? { semanticsLabel: label } : {}),
-          ...(this.hovered ? { color: theme.primaryColor } : {}),
-          alignment: Alignment.centerLeft,
-          borderRadius: 4,
-          minSize: 0,
-          padding: desktopPadding,
-          pressedOpacity: 0.7,
-        }),
+        ),
         {
           onEnter: () =>
             this.setState(() => {

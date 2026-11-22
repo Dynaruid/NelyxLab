@@ -2,6 +2,7 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Flutter: packages/flutter/lib/src/material/text_selection_toolbar_text_button.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
 import { StatelessWidget } from '@nelyx/core/framework/widgets/framework';
+import { ContextMenuButtonFocus } from '@nelyx/core/framework/widgets/context-menu-controller';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { EdgeInsetsDirectional } from '@nelyx/core/framework/painting/edge-insets';
 import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
@@ -70,19 +71,22 @@ export class TextSelectionToolbarTextButton extends StatelessWidget {
           ? 0xffffffff
           : 0xff000000
         : onSurface;
-    return new TextButton({
-      onPressed: this.onPressed,
-      child: this.child,
-      ...(this.label ? { semanticsLabel: this.label } : {}),
-      style: TextButton.styleFrom({
-        backgroundColor: new Color(0),
-        foregroundColor: new Color(foreground),
-        shape: new RoundedRectangleBorder(),
-        minimumSize: new Size(kMinInteractiveDimension, kMinInteractiveDimension),
-        padding: this.padding,
-        alignment: this.alignment,
-        textStyle: new TextStyle({ fontWeight: FontWeight.w400 }),
+    return new ContextMenuButtonFocus(
+      new TextButton({
+        onPressed: this.onPressed,
+        child: this.child,
+        ...(this.label ? { semanticsLabel: this.label } : {}),
+        style: TextButton.styleFrom({
+          backgroundColor: new Color(0),
+          foregroundColor: new Color(foreground),
+          shape: new RoundedRectangleBorder(),
+          minimumSize: new Size(kMinInteractiveDimension, kMinInteractiveDimension),
+          padding: this.padding,
+          alignment: this.alignment,
+          textStyle: new TextStyle({ fontWeight: FontWeight.w400 }),
+        }),
       }),
-    });
+      this.onPressed,
+    );
   }
 }

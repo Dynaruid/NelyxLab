@@ -86,6 +86,20 @@
         }
       },
       {
+        "id": "nelyx-cupertino-icons",
+        "kind": "font",
+        "path": "./assets/nelyx/CupertinoIcons.ttf",
+        "fontFamily": "packages/cupertino_icons/CupertinoIcons",
+        "notice": {
+          "path": "./assets/nelyx/CupertinoIcons-LICENSE.txt"
+        },
+        "packageSource": {
+          "package": "@nelyx/cupertino",
+          "path": "./assets/CupertinoIcons.ttf",
+          "noticePath": "./licenses/CupertinoIcons-LICENSE.txt"
+        }
+      },
+      {
         "id": "component-image",
         "kind": "image",
         "path": "./assets/component-image.webp"

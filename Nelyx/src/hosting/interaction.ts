@@ -145,6 +145,9 @@ export interface NativeSelectionContextMenuRegistration {
   readonly selectWord: (localOffset: { readonly x: number; readonly y: number }) => string | null;
 }
 export interface NativeSelectionContextMenuHost extends Disposable {
+  /** The DOM owner shares this decision with framework selection widgets. */
+  readonly nativeMenuEnabled?: boolean;
+  observeMenuPolicy?(listener: () => void): Disposable;
   /** Synchronously reject new bindings and callbacks before asynchronous View drain. */
   stop(): void;
   /** Register once per DOM document/generation, when the widget first builds. */

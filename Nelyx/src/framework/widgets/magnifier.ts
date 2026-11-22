@@ -13,10 +13,9 @@ import type { AnimationController } from '../animation/animation-controller.ts';
 import { Overlay, OverlayEntry } from './overlay.ts';
 import type { BuildContext, Widget, WidgetOptions } from './framework.ts';
 import { InheritedTheme } from './inherited-theme.ts';
-import { Navigator } from './navigation.ts';
 import { StatelessWidget, SingleChildRenderObjectWidget } from './framework.ts';
-import { SizedBox } from './basic.ts';
-import { Directionality } from './app-data.ts';
+import { Builder, SizedBox } from './basic.ts';
+import { Directionality, MediaQuery } from './app-data.ts';
 import { RenderProxyBox } from '../rendering/boxes.ts';
 import type { RenderObject, HitTestEntry } from '../rendering/object.ts';
 import type { PathQueryService } from '../../ui/path.ts';
@@ -326,6 +325,18 @@ export type MagnifierBuilder = (
   controller: MagnifierController,
   magnifierInfo: ValueNotifier<MagnifierInfo>,
 ) => Widget | null;
+/** The view area outside system padding and the current keyboard occlusion. */
+export function magnifierViewportBounds(context: BuildContext): Rect {
+  const media = MediaQuery.of(context),
+    padding = MediaQuery.viewPaddingOf(context),
+    insets = MediaQuery.viewInsetsOf(context);
+  return Rect.fromLTRB(
+    Math.max(padding.left, insets.left),
+    Math.max(padding.top, insets.top),
+    media.width - Math.max(padding.right, insets.right),
+    media.height - Math.max(padding.bottom, insets.bottom),
+  );
+}
 export class TextMagnifierConfiguration {
   private readonly builder: MagnifierBuilder | null;
   readonly shouldDisplayHandlesInMagnifier: boolean;
@@ -381,18 +392,11 @@ export class MagnifierController {
   }): Promise<void> {
     this.removeFromOverlay();
     const overlay = Overlay.of(context, { rootOverlay: true });
-    let navigator: BuildContext | undefined =
-      context.widget instanceof Navigator ? context : undefined;
-    if (navigator === undefined)
-      context.visitAncestorElements((element) => {
-        if (element.widget instanceof Navigator) {
-          navigator = element;
-          return false;
-        }
-        return true;
+    const themes = InheritedTheme.capture(context, overlay.context),
+      direction = Directionality.maybeOf(context) ?? 'ltr',
+      entry = new OverlayEntry({
+        builder: () => themes.wrap(new Directionality(direction, new Builder(builder))),
       });
-    const themes = InheritedTheme.capture(context, navigator),
-      entry = new OverlayEntry({ builder: (buildContext) => themes.wrap(builder(buildContext)) });
     this.entry = entry;
     try {
       overlay.insert(entry, { below });

@@ -48,6 +48,8 @@ export interface EditableContextMenuOptions {
   readonly onSearchWeb: (() => void) | null;
   readonly onShare: (() => void) | null;
   readonly onLiveTextInput: (() => void) | null;
+  readonly showDisabledPaste?: boolean;
+  readonly allowUnknownPaste?: boolean;
 }
 /** Pinned EditableText.getEditableButtonItems, shared by both design packages. */
 export function getEditableButtonItems(
@@ -68,17 +70,23 @@ export function getEditableButtonItems(
   const add = (callback: (() => void) | null, type: ContextMenuButtonType) => {
     if (callback !== null) result.push(new ContextMenuButtonItem({ onPressed: callback, type }));
   };
-  if (onPaste === null || clipboardStatus !== ClipboardStatus.unknown) {
-    const android = FoundationPlatform.defaultTargetPlatform === 'android';
-    add(onCut, ContextMenuButtonType.cut);
-    add(onCopy, ContextMenuButtonType.copy);
+  const android = FoundationPlatform.defaultTargetPlatform === 'android';
+  add(onCut, ContextMenuButtonType.cut);
+  add(onCopy, ContextMenuButtonType.copy);
+  if (
+    clipboardStatus === null ||
+    clipboardStatus === ClipboardStatus.pasteable ||
+    (clipboardStatus === ClipboardStatus.unknown && options.allowUnknownPaste)
+  ) {
     add(onPaste, ContextMenuButtonType.paste);
-    if (android) add(onShare, ContextMenuButtonType.share);
-    add(onSelectAll, ContextMenuButtonType.selectAll);
-    add(onLookUp, ContextMenuButtonType.lookUp);
-    add(onSearchWeb, ContextMenuButtonType.searchWeb);
-    if (!android) add(onShare, ContextMenuButtonType.share);
+  } else if (onPaste !== null && options.showDisabledPaste) {
+    result.push(new ContextMenuButtonItem({ onPressed: null, type: ContextMenuButtonType.paste }));
   }
+  if (android) add(onShare, ContextMenuButtonType.share);
+  add(onSelectAll, ContextMenuButtonType.selectAll);
+  add(onLookUp, ContextMenuButtonType.lookUp);
+  add(onSearchWeb, ContextMenuButtonType.searchWeb);
+  if (!android) add(onShare, ContextMenuButtonType.share);
   add(onLiveTextInput, ContextMenuButtonType.liveTextInput);
   return result;
 }

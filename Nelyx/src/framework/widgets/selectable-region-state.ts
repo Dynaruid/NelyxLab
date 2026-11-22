@@ -7,6 +7,8 @@ import type { Key } from '../../foundation/key.ts';
 import { FoundationBuildMode } from '../../foundation/constants.ts';
 import { FoundationPlatform } from '../../foundation/platform.ts';
 import { invariant } from '../../foundation/errors.ts';
+import type { Disposable } from '../../foundation/disposable.ts';
+import type { KeyEvent } from '../../services/hardware-keyboard.ts';
 import { FlutterError } from '../../foundation/flutter-error.ts';
 import { FlutterErrorDetails } from '../../foundation/assertions.ts';
 import { Offset } from '../../ui/offset.ts';
@@ -37,7 +39,6 @@ import type {
   Selectable,
   SelectionRegistrar,
   SelectionGeometry,
-  SelectionPoint,
   SelectedContent,
 } from '../rendering/selection.ts';
 import {
@@ -52,10 +53,15 @@ import { DefaultProcessTextService } from '../../services/process-text.ts';
 import type { ProcessTextService, ProcessTextAction } from '../../services/process-text.ts';
 import { BrowserContextMenu } from '../../services/browser-context-menu.ts';
 import { TextSelectionControls } from './text-selection.ts';
-import { SelectionOverlay } from './selection-overlay.ts';
+import { SelectionOverlay, observeSelectionFrames } from './selection-overlay.ts';
 import { MagnifierInfo, TextMagnifierConfiguration } from './magnifier.ts';
 import { ContextMenuButtonItem, ContextMenuButtonType } from './context-menu-button-item.ts';
-import { TextSelectionToolbarAnchors } from './text-selection-toolbar-anchors.ts';
+import {
+  TextSelectionToolbarAnchors,
+  projectSelectionRect,
+  visibleSelectionBounds,
+} from './text-selection-toolbar-anchors.ts';
+import { isContextMenuKey } from './context-menu-controller.ts';
 import { SelectionContainer } from './selection-container.ts';
 import type { SelectionContainerDelegate } from './selection-container.ts';
 import { StaticSelectionContainerDelegate } from './selectable-region.ts';
@@ -69,8 +75,9 @@ import { Focus } from './focus-scope.ts';
 import { GlobalKey } from './global-key.ts';
 import { MediaQuery } from './app-data.ts';
 import { Overlay } from './overlay.ts';
+import { isCurrentRoute } from './navigation.ts';
 import { TapRegion } from './tap-region.ts';
-import { CompositedTransformTarget } from './composited-transform.ts';
+import { SizedBox } from './basic.ts';
 import { maybeTickerScheduler } from './ticker-scheduler.ts';
 import { PlatformSelectableRegionContextMenu } from './platform-selectable-region-context-menu.ts';
 import { Action, ContextAction, Actions, CallbackAction, DismissIntent } from './actions.ts';
@@ -98,18 +105,14 @@ import type {
   TapDragEndDetails,
 } from '../gestures/tap-and-drag.ts';
 import { TapGestureRecognizer } from '../gestures/tap.ts';
-import type { TapDownDetails } from '../gestures/tap.ts';
+import type { TapUpDetails } from '../gestures/tap.ts';
 import { LongPressGestureRecognizer } from '../gestures/long-press.ts';
 import type {
   LongPressStartDetails,
   LongPressMoveUpdateDetails,
   LongPressEndDetails,
 } from '../gestures/long-press.ts';
-import type {
-  DragStartDetails,
-  DragUpdateDetails,
-  DragEndDetails,
-} from '../gestures/drag-details.ts';
+import type { DragStartDetails, DragUpdateDetails } from '../gestures/drag-details.ts';
 const debugAssert = (value: boolean, message: string): void => {
   if (FoundationBuildMode.debug) invariant(value, 'invalid-selectable-region', message);
 };
@@ -237,8 +240,14 @@ export class SelectableRegionState
   private endPosition: Offset | null = null;
   private scheduledStart = false;
   private scheduledEnd = false;
-  private startDragPosition: Offset | null = null;
-  private endDragPosition: Offset | null = null;
+  private gripOffset = Offset.zero;
+  private magnifierDrag: { end: boolean; global: Offset; hold: boolean } | null = null;
+  private frameObservation: Disposable | null = null;
+  private visibilityObservation: Disposable | undefined;
+  private menuPolicyObservation: Disposable | undefined;
+  private lastToolbarAnchors: TextSelectionToolbarAnchors | null = null;
+  private releaseKeys: (() => void) | null = null;
+  private edgeRevision = 0;
   private adjustingEnd: boolean | null = null;
   private horizontalBaseline: number | null = null;
   private retired = false;
@@ -260,12 +269,8 @@ export class SelectableRegionState
     );
   }
   private get webContextMenuEnabled(): boolean {
-    return (
-      web() &&
-      BrowserContextMenu.enabledFor(this.context.services.binaryMessenger) &&
-      platform() !== 'android' &&
-      platform() !== 'iOS'
-    );
+    const { nativeSelectionContextMenu, binaryMessenger } = this.context.services;
+    return BrowserContextMenu.usesNativeMenu(nativeSelectionContextMenu, binaryMessenger);
   }
   private readonly defaultBrowserContextMenu: SelectableRegionBrowserContextMenu = {
     wrap: (_context, child) => new PlatformSelectableRegionContextMenu(child),
@@ -279,6 +284,30 @@ export class SelectableRegionState
   override initState(): void {
     super.initState();
     this.focusNode.addListener(this.focusChanged);
+    if (this.context instanceof Element) {
+      const manager = this.context.owner.focus;
+      const handle = (event: KeyEvent) => {
+        if (this.focusNode.hasPrimaryFocus && isContextMenuKey(event) && this.showToolbar())
+          return 'handled';
+        return 'ignored';
+      };
+      manager.addEarlyKeyEventHandler(handle);
+      this.releaseKeys = () => manager.removeEarlyKeyEventHandler(handle);
+    }
+    this.visibilityObservation = maybeTickerScheduler(this.context)?.observeVisibility(
+      (visible) => {
+        if (!visible) this.dismissSelectionUI();
+      },
+    );
+    this.menuPolicyObservation =
+      this.context.services.nativeSelectionContextMenu?.observeMenuPolicy?.(() => {
+        if (this.retired || !(this.context instanceof Element) || !this.context.active) return;
+        this.dismissSelectionUI();
+        if (this.webContextMenuEnabled && this.focusNode.hasFocus)
+          this.effectiveBrowserContextMenu.attach(this.selectionDelegate);
+        else this.effectiveBrowserContextMenu.detach(this.selectionDelegate);
+        this.setState(() => {});
+      });
     this.actions = this.makeActions();
     this.gestures = this.makeGestures();
     this.processService =
@@ -310,6 +339,18 @@ export class SelectableRegionState
   }
   override didUpdateWidget(old: SelectableRegion): void {
     super.didUpdateWidget(old);
+    if (
+      old.selectionControls !== this.widget.selectionControls ||
+      old.magnifierConfiguration !== this.widget.magnifierConfiguration ||
+      old.focusNode !== this.widget.focusNode
+    ) {
+      this.dismissSelectionUI();
+      this.overlay?.dispose();
+      this.overlay = null;
+    }
+    if (this.widget.contextMenuBuilder === null) this.hideToolbar(false);
+    else if (old.contextMenuBuilder !== this.widget.contextMenuBuilder)
+      this.overlay?.markNeedsBuild();
     if (old.focusNode === this.widget.focusNode) return;
     const previous = old.focusNode ?? this.localFocus,
       hadFocus = previous?.hasFocus;
@@ -324,6 +365,7 @@ export class SelectableRegionState
   private readonly focusChanged = (): void => {
     if (this.retired) return;
     if (!this.focusNode.hasFocus) {
+      this.dismissSelectionUI();
       if (web()) this.effectiveBrowserContextMenu.detach(this.selectionDelegate);
       if (this.context.services.platformServices?.lifecycleState === 'resumed') {
         this.clearSelection();
@@ -345,6 +387,7 @@ export class SelectableRegionState
     });
     if (this.overlayGeometry) this.updateOverlay();
     else {
+      this.stopMagnifierDrag();
       this.overlay?.dispose();
       this.overlay = null;
     }
@@ -446,6 +489,9 @@ export class SelectableRegionState
             recognizer.onLongPressStart = this.longPressStart;
             recognizer.onLongPressMoveUpdate = this.longPressMove;
             recognizer.onLongPressEnd = this.longPressEnd;
+            recognizer.onLongPressCancel = () => {
+              if (this.magnifierDrag?.hold) this.finishMagnifierDrag(false);
+            };
           },
         ),
       ],
@@ -455,7 +501,7 @@ export class SelectableRegionState
           TapGestureRecognizer,
           () => new TapGestureRecognizer({ binding, debugOwner: owner }),
           (recognizer) => {
-            recognizer.onSecondaryTapDown = this.rightClick;
+            recognizer.onSecondaryTapUp = this.rightClick;
           },
         ),
       ],
@@ -583,76 +629,51 @@ export class SelectableRegionState
   }
   private readonly longPressStart = (details: LongPressStartDetails): void => {
     if (this.retired) return;
+    this.dismissSelectionUI();
     this.haptic();
     this.focusNode.requestFocus();
     this.selectWordAt(details.globalPosition);
+    if (this.retired || !this.overlayGeometry) return;
     this.status.value = SelectableRegionSelectionStatus.changing;
-    if (platform() !== 'android') this.showHandles();
+    this.showHandles();
+    this.magnifierDrag = { end: true, global: details.globalPosition, hold: true };
+    this.observeSelectionGeometry();
+    this.refreshMagnifier();
     this.updateContent();
   };
   private readonly longPressMove = (details: LongPressMoveUpdateDetails): void => {
-    if (this.retired) return;
-    this.selectEndTo(details.globalPosition, false, TextGranularity.word);
+    if (this.retired || !this.magnifierDrag?.hold) return;
+    this.magnifierDrag.global = details.globalPosition;
+    this.selectEndTo(details.globalPosition, true, TextGranularity.word);
+    this.refreshMagnifier();
     this.status.value = SelectableRegionSelectionStatus.changing;
     this.updateContent();
   };
   private readonly longPressEnd = (_details: LongPressEndDetails): void => {
-    if (this.retired) return;
-    this.finalizeSelection();
-    this.updateContent();
-    this.finalizeStatus();
-    if (platform() === 'android') this.showHandles();
-    this.showToolbar();
+    if (!this.retired && this.magnifierDrag?.hold) this.finishMagnifierDrag(true);
   };
   private positionOnSelection(position: Offset): boolean {
+    if (!this.selectable) return false;
     for (const rect of this.selectionDelegate.value.selectionRects)
-      if (MatrixUtils.transformRect(transformOf(this.selectable!), rect).contains(position))
+      if (MatrixUtils.transformRect(transformOf(this.selectable), rect).contains(position))
         return true;
     return false;
   }
-  private readonly rightClick = (details: TapDownDetails): void => {
-    if (this.retired) return;
-    const previous = this.secondaryPosition,
-      visible = this.overlay?.toolbarIsVisible ?? false;
-    this.secondaryPosition = details.globalPosition;
+  private readonly rightClick = (details: TapUpDetails): void => {
+    if (this.retired || this.webContextMenuEnabled) return;
+    const position = details.globalPosition;
+    this.stopMagnifierDrag();
+    this.finalizeSelection();
     this.focusNode.requestFocus();
-    switch (platform()) {
-      case 'android':
-      case 'fuchsia':
-      case 'windows':
-        if (this.positionOnSelection(details.globalPosition)) {
-          this.secondaryPosition = details.globalPosition;
-          this.showHandles();
-          this.showToolbar();
-          this.updateContent();
-          return;
-        }
-        this.collapseAt(this.secondaryPosition);
-        break;
-      case 'iOS':
-        this.selectWordAt(this.secondaryPosition);
-        break;
-      case 'macOS':
-        if (previous?.equals(this.secondaryPosition) && visible) {
-          this.hideToolbar();
-          return;
-        }
-        this.selectWordAt(this.secondaryPosition);
-        break;
-      case 'linux':
-        if (visible) {
-          this.hideToolbar();
-          return;
-        }
-        if (!this.positionOnSelection(details.globalPosition))
-          this.collapseAt(this.secondaryPosition);
-        break;
+    if (!this.positionOnSelection(position)) {
+      if (platform() === 'macOS' || platform() === 'iOS') this.selectWordAt(position);
+      else this.collapseAt(position);
     }
+    if (this.retired) return;
     this.status.value = SelectableRegionSelectionStatus.changing;
     this.finalizeStatus();
-    this.secondaryPosition = details.globalPosition;
     this.showHandles();
-    this.showToolbar();
+    this.showToolbar(position);
     this.updateContent();
   };
   private triggerEdge(end: boolean, granularity: TextGranularity | null = null): void {
@@ -667,12 +688,12 @@ export class SelectableRegionState
     if (result !== SelectionResult.pending) return;
     if (end) this.scheduledEnd = true;
     else this.scheduledStart = true;
-    const generation = this.generation;
+    const revision = this.edgeRevision;
     maybeTickerScheduler(this.context)?.addPostFrameCallback(
       () => {
         if (
           this.retired ||
-          generation !== this.generation ||
+          revision !== this.edgeRevision ||
           !(end ? this.scheduledEnd : this.scheduledStart)
         )
           return;
@@ -683,81 +704,116 @@ export class SelectableRegionState
       { debugLabel: end ? 'SelectableRegion.endEdgeUpdate' : 'SelectableRegion.startEdgeUpdate' },
     );
   }
-  private readonly anyDragEnd = (_details: DragEndDetails): void => {
-    if (this.retired) return;
-    if (
-      !(
-        this.overlay !== null &&
-        (this.overlay.isDraggingStartHandle || this.overlay.isDraggingEndHandle)
-      )
-    ) {
-      this.overlay!.hideMagnifier();
-      this.showToolbar();
-    }
-    this.finalizeSelection();
-    this.updateContent();
-    this.finalizeStatus();
-  };
-  private stopEnd(): void {
-    this.scheduledEnd = false;
-    this.endPosition = null;
-  }
-  // The pinned source clears the END coordinate here as well. Preserve this asymmetry.
-  private stopStart(): void {
-    this.scheduledStart = false;
-    this.endPosition = null;
-  }
   private handleDragStart(end: boolean, details: DragStartDetails): void {
-    if (this.retired) return;
-    const point = (
-      end
-        ? this.selectionDelegate.value.endSelectionPoint
-        : this.selectionDelegate.value.startSelectionPoint
-    )!;
-    debugAssert(point !== null, 'Dragged handle requires a selection point');
-    const position = MatrixUtils.transformPoint(transformOf(this.selectable!), point.localPosition);
-    if (end) this.endDragPosition = position;
-    else this.startDragPosition = position;
-    this.overlay!.showMagnifier(this.magnifierInfo(details.globalPosition, point));
+    if (this.retired || this.webContextMenuEnabled || !this.selectable) return;
+    const point = end
+      ? this.selectionDelegate.value.endSelectionPoint
+      : this.selectionDelegate.value.startSelectionPoint;
+    if (point === null) return;
+    this.stopMagnifierDrag();
+    this.hideToolbar(false);
+    const position = MatrixUtils.transformPoint(
+      transformOf(this.selectable),
+      point.localPosition.translate(0, -point.lineHeight / 2),
+    );
+    if (!position.isFinite) return;
+    this.gripOffset = position.subtract(details.globalPosition);
+    this.magnifierDrag = { end, global: details.globalPosition, hold: false };
+    this.observeSelectionGeometry();
+    this.refreshMagnifier();
     this.updateContent();
   }
   private handleDragUpdate(end: boolean, details: DragUpdateDetails): void {
-    if (this.retired) return;
-    const point = (
-        end
-          ? this.selectionDelegate.value.endSelectionPoint
-          : this.selectionDelegate.value.startSelectionPoint
-      )!,
-      position = (end ? this.endDragPosition : this.startDragPosition)!.add(details.delta);
-    if (end) {
-      this.endDragPosition = position;
-      this.endPosition = position.translate(0, -point.lineHeight / 2);
-    } else {
-      this.startDragPosition = position;
-      this.startPosition = position.translate(0, -point.lineHeight / 2);
-    }
+    if (this.retired || !this.magnifierDrag || this.magnifierDrag.end !== end) return;
+    this.magnifierDrag.global = details.globalPosition;
+    const position = details.globalPosition.add(this.gripOffset);
+    if (end) this.endPosition = position;
+    else this.startPosition = position;
     this.triggerEdge(end);
-    const updated = (
-      end
-        ? this.selectionDelegate.value.endSelectionPoint
-        : this.selectionDelegate.value.startSelectionPoint
-    )!;
-    this.overlay!.updateMagnifier(this.magnifierInfo(details.globalPosition, updated));
+    this.refreshMagnifier();
     this.updateContent();
     if (!this.retired) this.status.value = SelectableRegionSelectionStatus.changing;
   }
-  private magnifierInfo(gesture: Offset, point: SelectionPoint): MagnifierInfo {
-    const translation = transformOf(this.selectable!).getTranslation(),
-      offset = new Offset(translation.x, translation.y),
-      position = point.localPosition.add(offset),
-      size = this.selectable!.size,
-      bounds = Rect.fromLTWH(offset.dx, offset.dy, size.width, size.height);
-    return new MagnifierInfo({
-      globalGesturePosition: gesture,
-      caretRect: Rect.fromLTWH(position.dx, position.dy - point.lineHeight, 0, point.lineHeight),
-      fieldBounds: bounds,
-      currentLineBoundaries: bounds,
+  private refreshMagnifier(): void {
+    const overlay = this.overlay,
+      drag = this.magnifierDrag;
+    if (!overlay || !drag || (platform() !== 'android' && platform() !== 'iOS')) return;
+    const geometry =
+      this.selectionDelegate.getSelectionLine(drag.end) ??
+      this.selectionDelegate.getSelectionLine(!drag.end);
+    if (!geometry) {
+      overlay.hideMagnifier();
+      return;
+    }
+    const { renderBox, caret, line } = geometry,
+      fieldBounds = this.visibleBounds(renderBox),
+      currentLineBoundaries = projectSelectionRect(renderBox, line).intersect(fieldBounds);
+    if (currentLineBoundaries.isEmpty) {
+      overlay.hideMagnifier();
+      return;
+    }
+    const info = new MagnifierInfo({
+      globalGesturePosition: drag.global,
+      caretRect: projectSelectionRect(renderBox, caret),
+      fieldBounds,
+      currentLineBoundaries,
     });
+    overlay.showMagnifier(info);
+    overlay.updateMagnifier(info);
+  }
+  private visibleBounds(box: RenderBox): Rect {
+    const { logicalWidth, logicalHeight } = this.context.services.readMetrics();
+    return visibleSelectionBounds(box, Rect.fromLTWH(0, 0, logicalWidth, logicalHeight));
+  }
+  private observeSelectionGeometry(): void {
+    if (!this.magnifierDrag && !this.overlay?.toolbarIsVisible) {
+      this.frameObservation?.dispose();
+      this.frameObservation = null;
+    } else if (!this.frameObservation) {
+      this.frameObservation = observeSelectionFrames(this.context, () => {
+        const box = this.context.findRenderObject();
+        if (
+          !(box instanceof RenderBox) ||
+          !this.focusNode.hasPrimaryFocus ||
+          !isCurrentRoute(this.context) ||
+          this.visibleBounds(box).isEmpty
+        ) {
+          this.dismissSelectionUI();
+          return;
+        }
+        if (this.overlay?.toolbarIsVisible) {
+          const anchors = this.contextMenuAnchors;
+          if (!this.lastToolbarAnchors?.equals(anchors)) {
+            this.lastToolbarAnchors = anchors;
+            this.overlay.markNeedsBuild();
+          }
+        }
+        this.refreshMagnifier();
+      });
+    }
+  }
+  private stopMagnifierDrag(): void {
+    this.magnifierDrag = null;
+    this.gripOffset = Offset.zero;
+    this.overlay?.hideMagnifier();
+    this.observeSelectionGeometry();
+  }
+  private readonly toolbarRemoved = (): void => {
+    this.secondaryPosition = null;
+    this.lastToolbarAnchors = null;
+    this.observeSelectionGeometry();
+  };
+  private finishMagnifierDrag(released: boolean): void {
+    this.stopMagnifierDrag();
+    this.finalizeSelection();
+    this.updateContent();
+    this.finalizeStatus();
+    if (released) this.showToolbar();
+  }
+  private dismissSelectionUI(): void {
+    this.stopMagnifierDrag();
+    this.finalizeSelection();
+    this.hideToolbar();
   }
   private createOverlay(): void {
     debugAssert(this.overlayGeometry, 'Overlay requires selection geometry');
@@ -770,12 +826,20 @@ export class SelectableRegionState
       lineHeightAtStart: start?.lineHeight ?? end!.lineHeight,
       onStartHandleDragStart: (details) => this.handleDragStart(false, details),
       onStartHandleDragUpdate: (details) => this.handleDragUpdate(false, details),
-      onStartHandleDragEnd: this.anyDragEnd,
+      onStartHandleDragEnd: () => {
+        if (this.magnifierDrag?.end === false) this.finishMagnifierDrag(true);
+      },
       endHandleType: end?.handleType ?? TextSelectionHandleType.collapsed,
       lineHeightAtEnd: end?.lineHeight ?? start!.lineHeight,
       onEndHandleDragStart: (details) => this.handleDragStart(true, details),
       onEndHandleDragUpdate: (details) => this.handleDragUpdate(true, details),
-      onEndHandleDragEnd: this.anyDragEnd,
+      onEndHandleDragEnd: () => {
+        if (this.magnifierDrag?.end === true) this.finishMagnifierDrag(true);
+      },
+      onHandleDragCancel: () => this.finishMagnifierDrag(false),
+      onToolbarRemoved: this.toolbarRemoved,
+      focusNode: this.focusNode,
+      regionTapGroupId: this,
       selectionEndpoints: this.selectionEndpoints,
       selectionControls: this.widget.selectionControls,
       startHandleLayerLink: this.startLink,
@@ -805,26 +869,24 @@ export class SelectableRegionState
     this.overlay!.showHandles();
     return true;
   }
-  private showToolbar(): boolean {
+  private showToolbar(location?: Offset): boolean {
     if (
       this.retired ||
-      (!this.overlayGeometry && this.overlay === null) ||
+      !this.overlayGeometry ||
+      this.widget.contextMenuBuilder === null ||
       this.webContextMenuEnabled
     )
       return false;
     if (this.overlay === null) this.createOverlay();
-    this.overlay!.hideToolbar();
+    this.secondaryPosition =
+      location ?? (this.overlay?.toolbarIsVisible ? this.secondaryPosition : null);
     this.overlay!.showToolbar({
       context: this.context,
-      contextMenuBuilder: (context) => {
-        invariant(
-          this.widget.contextMenuBuilder !== null,
-          'missing-region-context-menu-builder',
-          'Selection menus require a contextMenuBuilder',
-        );
-        return this.widget.contextMenuBuilder(context, this);
-      },
+      contextMenuBuilder: (context) =>
+        this.widget.contextMenuBuilder?.(context, this) ?? SizedBox.shrink(),
     });
+    this.lastToolbarAnchors = this.contextMenuAnchors;
+    this.observeSelectionGeometry();
     return true;
   }
   private selectEndTo(
@@ -877,8 +939,11 @@ export class SelectableRegionState
     );
   }
   private finalizeSelection(): void {
-    this.stopEnd();
-    this.stopStart();
+    if (this.startPosition !== null || this.endPosition !== null)
+      this.selectable?.finishSelectionDrag?.();
+    this.startPosition = this.endPosition = null;
+    this.scheduledStart = this.scheduledEnd = false;
+    this.edgeRevision++;
   }
   clearSelection(): void {
     if (this.retired) return;
@@ -914,11 +979,10 @@ export class SelectableRegionState
     }
   }
   get contextMenuAnchors(): TextSelectionToolbarAnchors {
-    if (this.secondaryPosition !== null) {
-      const anchors = new TextSelectionToolbarAnchors({ primaryAnchor: this.secondaryPosition });
-      this.secondaryPosition = null;
-      return anchors;
-    }
+    if (this.secondaryPosition !== null)
+      return new TextSelectionToolbarAnchors({ primaryAnchor: this.secondaryPosition }).inOverlay(
+        this.context,
+      );
     const box = this.context.findRenderObject();
     invariant(
       box instanceof RenderBox,
@@ -930,7 +994,8 @@ export class SelectableRegionState
       startGlyphHeight: this.startGlyphHeight,
       endGlyphHeight: this.endGlyphHeight,
       selectionEndpoints: this.selectionEndpoints,
-    });
+      visibleBounds: this.visibleBounds(box),
+    }).inOverlay(this.context);
   }
   private determineAdjustingEnd(forward: boolean): boolean {
     if (this.adjustingEnd !== null) return this.adjustingEnd;
@@ -1033,15 +1098,18 @@ export class SelectableRegionState
     return items;
   }
   get startGlyphHeight(): number {
-    return this.selectionDelegate.value.startSelectionPoint!.lineHeight;
+    const { startSelectionPoint, endSelectionPoint } = this.selectionDelegate.value;
+    return startSelectionPoint?.lineHeight ?? endSelectionPoint?.lineHeight ?? 0;
   }
   get endGlyphHeight(): number {
-    return this.selectionDelegate.value.endSelectionPoint!.lineHeight;
+    const { startSelectionPoint, endSelectionPoint } = this.selectionDelegate.value;
+    return endSelectionPoint?.lineHeight ?? startSelectionPoint?.lineHeight ?? 0;
   }
   get selectionEndpoints(): TextSelectionPoint[] {
     const { startSelectionPoint: start, endSelectionPoint: end } = this.selectionDelegate.value,
-      a = start?.localPosition ?? end!.localPosition,
-      b = end?.localPosition ?? start!.localPosition;
+      a = start?.localPosition ?? end?.localPosition,
+      b = end?.localPosition ?? start?.localPosition;
+    if (!a || !b) return [];
     return (a.dy > b.dy ? [b, a] : [a, b]).map((point) => new TextSelectionPoint(point, 'ltr'));
   }
   override get cutEnabled(): boolean {
@@ -1051,6 +1119,7 @@ export class SelectableRegionState
     return false;
   }
   override hideToolbar(hideHandles = true): void {
+    this.toolbarRemoved();
     this.overlay?.hideToolbar();
     if (hideHandles) this.overlay?.hideHandles();
   }
@@ -1100,6 +1169,10 @@ export class SelectableRegionState
     this.selectable!.pushHandleLayers(null, null);
     this.selectable = null;
   }
+  override deactivate(): void {
+    this.dismissSelectionUI();
+    super.deactivate();
+  }
   override dispose(): void {
     if (this.retired) return;
     this.retired = true;
@@ -1107,6 +1180,10 @@ export class SelectableRegionState
     this.scheduledStart = this.scheduledEnd = false;
     const errors: unknown[] = [];
     for (const close of [
+      () => this.dismissSelectionUI(),
+      () => this.visibilityObservation?.dispose(),
+      () => this.menuPolicyObservation?.dispose(),
+      () => this.releaseKeys?.(),
       () => this.selectable?.removeListener(this.updateSelectionStatus),
       () => this.selectable?.pushHandleLayers(null, null),
       () => {
@@ -1142,27 +1219,26 @@ export class SelectableRegionState
     );
     if (this.webContextMenuEnabled) result = this.effectiveBrowserContextMenu.wrap(context, result);
     return new TapRegion(
-      new CompositedTransformTarget(
-        new RawGestureDetector(
-          new Actions({
-            actions: this.actions,
-            child: Focus.withExternalFocusNode(result, {
-              focusNode: this.focusNode,
-              includeSemantics: false,
-            }),
+      new RawGestureDetector(
+        new Actions({
+          actions: this.actions,
+          child: Focus.withExternalFocusNode(result, {
+            focusNode: this.focusNode,
+            includeSemantics: false,
           }),
-          {
-            gestures: this.gestures,
-            behavior: HitTestBehavior.translucent,
-            excludeFromSemantics: true,
-          },
-        ),
-        { link: this.toolbarLink },
+        }),
+        {
+          gestures: this.gestures,
+          behavior: HitTestBehavior.translucent,
+          excludeFromSemantics: true,
+        },
       ),
       {
-        groupId: SelectableRegion,
+        groupId: this,
         onTapOutside: () => {
-          if (web() && !this.retired) this.focusNode.unfocus();
+          if (this.retired) return;
+          if (this.overlay?.toolbarIsVisible || this.magnifierDrag) this.dismissSelectionUI();
+          if (web()) this.focusNode.unfocus();
         },
       },
     );

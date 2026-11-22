@@ -21,6 +21,7 @@ import { FontWeight } from '@nelyx/core/ui/typography';
 import { kMinInteractiveDimension } from './constants.ts';
 import { Material, MaterialType } from './material.ts';
 import { TextButton } from './text-button.ts';
+import { ContextMenuButtonFocus } from '@nelyx/core/framework/widgets/context-menu-controller';
 import { Theme } from './theme.ts';
 
 const screenPadding = 8;
@@ -108,16 +109,16 @@ export class DesktopTextSelectionToolbarButton extends StatelessWidget {
     readonly onPressed: (() => void) | null;
     readonly text: string;
   } & WidgetOptions): DesktopTextSelectionToolbarButton {
+    const color = (
+      Theme.of(context).colorScheme.brightness === 'dark' ? darkForeground : lightForeground
+    ).toARGB32();
     return new DesktopTextSelectionToolbarButton({
       key,
       onPressed,
       label: text,
       child: new Text(text, {
         style: fontStyle.copyWith({
-          color: (Theme.of(context).colorScheme.brightness === 'dark'
-            ? darkForeground
-            : lightForeground
-          ).toARGB32(),
+          color: onPressed === null ? (color & 0x00ffffff) | 0x61000000 : color,
         }),
         overflow: 'ellipsis',
       }),
@@ -129,20 +130,23 @@ export class DesktopTextSelectionToolbarButton extends StatelessWidget {
     return new SizedBox(
       Infinity,
       undefined,
-      new TextButton({
-        onPressed: this.onPressed,
-        child: this.child,
-        ...(this.label ? { semanticsLabel: this.label } : {}),
-        style: TextButton.styleFrom({
-          alignment: Alignment.centerLeft,
-          enabledMouseCursor: SystemMouseCursors.basic,
-          disabledMouseCursor: SystemMouseCursors.basic,
-          foregroundColor: color,
-          shape: new RoundedRectangleBorder(),
-          minimumSize: new Size(kMinInteractiveDimension, 36),
-          padding: buttonPadding,
+      new ContextMenuButtonFocus(
+        new TextButton({
+          onPressed: this.onPressed,
+          child: this.child,
+          ...(this.label ? { semanticsLabel: this.label } : {}),
+          style: TextButton.styleFrom({
+            alignment: Alignment.centerLeft,
+            enabledMouseCursor: SystemMouseCursors.basic,
+            disabledMouseCursor: SystemMouseCursors.basic,
+            foregroundColor: color,
+            shape: new RoundedRectangleBorder(),
+            minimumSize: new Size(kMinInteractiveDimension, 36),
+            padding: buttonPadding,
+          }),
         }),
-      }),
+        this.onPressed,
+      ),
     );
   }
 }

@@ -6,6 +6,7 @@ import { FoundationPlatform } from '../foundation/platform.ts';
 import { invariant } from '../foundation/errors.ts';
 import { SystemChannels, SystemChannelSet } from './system-channels.ts';
 import type { BinaryMessenger } from './binary-messenger.ts';
+import type { NativeSelectionContextMenuHost } from '../hosting/interaction.ts';
 export class BrowserContextMenu {
   private constructor() {}
   private static defaultEnabled = true;
@@ -18,6 +19,19 @@ export class BrowserContextMenu {
     return messenger
       ? (BrowserContextMenu.applicationEnabled.get(messenger) ?? true)
       : BrowserContextMenu.enabled;
+  }
+  static usesNativeMenu(
+    host?: NativeSelectionContextMenuHost,
+    messenger?: BinaryMessenger,
+  ): boolean {
+    if (host?.nativeMenuEnabled !== undefined) return host.nativeMenuEnabled;
+    const platform = FoundationPlatform.defaultTargetPlatform;
+    return (
+      FoundationPlatform.hostEnvironment.kind === 'web' &&
+      platform !== 'android' &&
+      platform !== 'iOS' &&
+      BrowserContextMenu.enabledFor(messenger)
+    );
   }
   static async disableContextMenu(messenger?: BinaryMessenger): Promise<void> {
     BrowserContextMenu.checkWeb();

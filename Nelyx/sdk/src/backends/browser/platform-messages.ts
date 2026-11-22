@@ -13,6 +13,7 @@ import { BrowserMouseCursor } from './mouse-cursor.ts';
 import { installBrowserAccessibility } from './accessibility.ts';
 import type { BrowserSelectionContextMenu } from './selection-context-menu.ts';
 import { isAppUrl } from './local-url.ts';
+import { getWebDeployment } from '../../platforms/web/environment.ts';
 /** Browser services run on the DOM owner, including secure-context permission errors. */
 export function createBrowserPlatformMessages(
   view: Window = window,
@@ -112,6 +113,20 @@ export function createBrowserPlatformMessages(
     });
   const owner = 'nelyx-history-' + Math.random().toString(36).slice(2);
   let singleEntry = false;
+  const deployment = getWebDeployment(view);
+  const nativeClipboard =
+    deployment.host === 'tauri'
+      ? (
+          view as Window & {
+            __TAURI__?: {
+              clipboardManager?: {
+                readText(): Promise<string>;
+                writeText(text: string): Promise<void>;
+              };
+            };
+          }
+        ).__TAURI__?.clipboardManager
+      : undefined;
   const clipboard = navigator.clipboard;
   const permissionError = (error: unknown): never => {
     throw new PlatformException({
@@ -122,8 +137,22 @@ export function createBrowserPlatformMessages(
       message: String(error),
     });
   };
-  const readText =
-    clipboard && typeof clipboard.readText === 'function'
+  const readText = nativeClipboard
+    ? async () => {
+        try {
+          return await nativeClipboard.readText();
+        } catch (error) {
+          const message = String(error);
+          if (
+            /clipboard is empty|clipboard content reader not implemented|clipboard contents were not available/i.test(
+              message,
+            )
+          )
+            return '';
+          return permissionError(error);
+        }
+      }
+    : clipboard && typeof clipboard.readText === 'function'
       ? async () => {
           try {
             return await clipboard.readText();
@@ -132,8 +161,15 @@ export function createBrowserPlatformMessages(
           }
         }
       : undefined;
-  const writeText =
-    clipboard && typeof clipboard.writeText === 'function'
+  const writeText = nativeClipboard
+    ? async (text: string) => {
+        try {
+          await nativeClipboard.writeText(text);
+        } catch (error) {
+          permissionError(error);
+        }
+      }
+    : clipboard && typeof clipboard.writeText === 'function'
       ? async (text: string) => {
           try {
             await clipboard.writeText(text);
@@ -142,6 +178,23 @@ export function createBrowserPlatformMessages(
           }
         }
       : undefined;
+  const hasStrings =
+    readText &&
+    (async () => {
+      if (nativeClipboard && deployment.os !== 'android' && deployment.os !== 'iOS')
+        return (await readText()).length > 0;
+      // A preflight must not display Chrome's read permission prompt or trigger
+      // the mobile OS clipboard read indicator while the menu is opening.
+      const permission = nativeClipboard
+        ? undefined
+        : await navigator.permissions
+            ?.query({ name: 'clipboard-read' as PermissionName })
+            .catch(() => undefined);
+      if (permission?.state === 'granted') return (await readText()).length > 0;
+      throw new PlatformException({
+        code: permission?.state === 'denied' ? 'permission-denied' : 'permission-required',
+      });
+    });
   const popstate = () => {
     const state = view.history.state;
     void port
@@ -198,8 +251,17 @@ export function createBrowserPlatformMessages(
             }
           : {}),
         capabilities: {
-          clipboardRead: readText ? 'permission-required' : 'unavailable',
-          clipboardWrite: writeText ? 'permission-required' : 'unavailable',
+          clipboardRead:
+            nativeClipboard && deployment.os !== 'android' && deployment.os !== 'iOS'
+              ? 'available'
+              : readText
+                ? 'permission-required'
+                : 'unavailable',
+          clipboardWrite: nativeClipboard
+            ? 'available'
+            : writeText
+              ? 'permission-required'
+              : 'unavailable',
           navigation: 'available',
         },
       };
@@ -262,7 +324,7 @@ export function createBrowserPlatformMessages(
         throw error;
       }
     },
-    ...(readText ? { readText, hasStrings: async () => (await readText()).length > 0 } : {}),
+    ...(readText && hasStrings ? { readText, hasStrings } : {}),
     ...(writeText ? { writeText } : {}),
     pop() {
       view.history.back();

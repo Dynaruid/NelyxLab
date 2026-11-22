@@ -158,6 +158,17 @@ export class SelectableParagraphFragment
       hasContent: true,
     });
   }
+  getSelectionLine(isEnd: boolean) {
+    const position = isEnd ? this.end : this.start;
+    if (
+      !position ||
+      !this.paragraph.attached ||
+      !this.paragraph.hasSize ||
+      this.paragraph.needsLayout
+    )
+      return null;
+    return { renderBox: this.paragraph, ...this.paragraph.getSelectionLineRects(position) };
+  }
   private didChangeSelection(): void {
     this.paragraph.markNeedsPaint();
     const next = this.getGeometry();

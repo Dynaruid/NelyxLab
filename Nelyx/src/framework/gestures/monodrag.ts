@@ -68,6 +68,8 @@ export abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer
   onUpdate: GestureDragUpdateCallback | null = null;
   onEnd: GestureDragEndCallback | null = null;
   onCancel: GestureDragCancelCallback | null = null;
+  /** Selection handles need cancellation without the normal release/fling path. */
+  cancelOnPointerCancel = false;
   minFlingDistance: number | null = null;
   minFlingVelocity: number | null = null;
   maxFlingVelocity: number | null = null;
@@ -401,7 +403,10 @@ export abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer
       if (this.state === 'possible') {
         this.resolve(GestureDisposition.rejected);
         this.checkCancel();
-      } else if (event instanceof PointerCancelEvent && event.kind === PointerDeviceKind.trackpad) {
+      } else if (
+        event instanceof PointerCancelEvent &&
+        (this.cancelOnPointerCancel || event.kind === PointerDeviceKind.trackpad)
+      ) {
         // A cancelled precise pan has no release velocity.
         this.checkCancel();
       } else this.checkEnd(pointer);

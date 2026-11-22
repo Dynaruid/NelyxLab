@@ -156,11 +156,16 @@ export class ScrollableSelectionContainerDelegate extends MultiSelectableSelecti
     super.didChangeSelectables();
   }
   protected override handleClearSelection(event: ClearSelectionEvent): SelectionResult {
+    this.autoScroller.stopAutoScroll();
     this.startRecords.clear();
     this.endRecords.clear();
     this.dragStart = this.dragEnd = null;
     this.selectionStartsInside = false;
     return super.handleClearSelection(event);
+  }
+  override finishSelectionDrag(): void {
+    this.autoScroller.stopAutoScroll();
+    super.finishSelectionDrag();
   }
   protected override handleSelectionEdgeUpdate(event: SelectionEdgeUpdateEvent): SelectionResult {
     if (this.dragStart === null && this.dragEnd === null) {
@@ -225,8 +230,9 @@ export class ScrollableSelectionContainerDelegate extends MultiSelectableSelecti
       const child = this.selectables[index]!,
         geometry = child.value;
       debugAssert(geometry.hasSelection);
-      const point = (isEnd ? geometry.endSelectionPoint : geometry.startSelectionPoint)!,
-        local = MatrixUtils.transformPoint(
+      const point = isEnd ? geometry.endSelectionPoint : geometry.startSelectionPoint;
+      if (!point) continue;
+      const local = MatrixUtils.transformPoint(
           matrix(child.getTransformTo(box)),
           point.localPosition.translate(0, -point.lineHeight / 2),
         ),

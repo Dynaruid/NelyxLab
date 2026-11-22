@@ -4,6 +4,10 @@ import type { RichParagraphConfiguration } from './paragraph.ts';
 import type { ParagraphContext } from '../../ui/paragraph.ts';
 import { TextSpan } from '../painting/text-span.ts';
 import { TextSelection } from '../../services/text-editing.ts';
+import { TextPosition } from '../../ui/text-position.ts';
+import { Offset } from '../../ui/offset.ts';
+import { LeaderLayer, LayerHandle } from './layer.ts';
+import type { LayerLink } from './layer.ts';
 import { Paint } from '../../ui/paint.ts';
 import { invariant } from '../../foundation/errors.ts';
 import type { TextSelectionController } from '../painting/text-selection-controller.ts';
@@ -19,6 +23,7 @@ import { PointerDeviceKind } from '../../ui/pointer.ts';
 import type { KeyEvent } from '../../ui/input.ts';
 import type { BoxConstraints } from './constraints.ts';
 import type { Size } from '../../ui/geometry.ts';
+import type { Offset as Point } from '../../ui/geometry.ts';
 import type { PaintingContext } from '../painting/context.ts';
 import type { GestureArenaManager, GestureArenaMember } from '../gestures/arena.ts';
 interface Drag {
@@ -36,6 +41,8 @@ export class RenderSelectableParagraph extends RenderParagraph implements Gestur
   private textSnapshot: string;
   private preferredX: number | undefined;
   private movingSelection = false;
+  private handleLinks: readonly [LayerLink, LayerLink] | undefined;
+  private readonly handleLayers = [new LayerHandle<LeaderLayer>(), new LayerHandle<LeaderLayer>()];
   requestFocus: () => void = () => {};
   constructor(
     configuration: RichParagraphConfiguration,
@@ -82,6 +89,16 @@ export class RenderSelectableParagraph extends RenderParagraph implements Gestur
   private position(event: PointerEvent): number {
     this.ensureTextLayout();
     return this.painter.getGraphemePositionForOffset(event.localPosition).offset;
+  }
+  selectionPosition(local: Point): TextPosition {
+    this.ensureTextLayout();
+    return this.painter.getGraphemePositionForOffset(local);
+  }
+  setHandleLinks(links?: readonly [LayerLink, LayerLink]): void {
+    if (links === this.handleLinks) return;
+    this.handleLinks = links;
+    if (!links) for (const layer of this.handleLayers) layer.dispose();
+    this.markNeedsPaint();
   }
   /** Arena membership follows a source contact, not a reused native device id. */
   override handleEvent(event: PointerEvent, _entry: HitTestEntry): void {
@@ -193,7 +210,8 @@ export class RenderSelectableParagraph extends RenderParagraph implements Gestur
           resolve: (accepted) => entry.resolve(accepted),
         };
       this.drags.set(event.pointer, drag);
-      if (event.kind !== PointerDeviceKind.touch) entry.resolve(true);
+      if (event.kind === PointerDeviceKind.mouse || event.kind === PointerDeviceKind.unknown)
+        entry.resolve(true);
       return;
     }
     const drag = this.drags.get(event.pointer);
@@ -254,6 +272,23 @@ export class RenderSelectableParagraph extends RenderParagraph implements Gestur
           context.canvas.drawRect(box.toRect(), paint);
       }
       super.paintLocal(context);
+      const range = this.controller.selection;
+      if (this.handleLinks && range.anchor !== range.focus) {
+        const start = Math.min(range.anchor, range.focus),
+          end = Math.max(range.anchor, range.focus);
+        for (const [index, offset] of [start, end].entries()) {
+          const link = this.handleLinks[index]!,
+            handle = this.handleLayers[index]!;
+          const position = new TextPosition({
+            offset,
+            affinity: index === 0 ? 'downstream' : 'upstream',
+          });
+          const layer = handle.layer?.link === link ? handle.layer : new LeaderLayer({ link });
+          handle.layer = layer;
+          layer.offset = this.selectionOffsetForPosition(position);
+          context.pushLayer(layer, () => {});
+        }
+      }
     } finally {
       context.restore();
     }
@@ -267,6 +302,7 @@ export class RenderSelectableParagraph extends RenderParagraph implements Gestur
       errors.push(error);
     } finally {
       if (this.debugDisposed) {
+        for (const layer of this.handleLayers) layer.dispose();
         this.controller.removeListener(this.changed);
         this.cancelDrags();
         this.release();

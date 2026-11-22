@@ -29,7 +29,7 @@ import {
   SelectedContent,
   SelectedContentRange,
 } from '../rendering/selection.ts';
-import type { Selectable, SelectionEvent } from '../rendering/selection.ts';
+import type { Selectable, SelectionEvent, SelectionLineGeometry } from '../rendering/selection.ts';
 
 function transformOf(selectable: Selectable): Matrix4 {
   const matrix = selectable.getTransformTo(null);
@@ -44,6 +44,20 @@ export abstract class MultiSelectableSelectionContainerDelegate extends Selectio
   selectables: Selectable[] = [];
   protected currentSelectionEndIndex = -1;
   protected currentSelectionStartIndex = -1;
+  override getSelectionLine(isEnd: boolean): SelectionLineGeometry | null {
+    const start = isEnd ? this.currentSelectionEndIndex : this.currentSelectionStartIndex,
+      end = isEnd ? this.currentSelectionStartIndex : this.currentSelectionEndIndex;
+    if (start === -1 || end === -1) return null;
+    const step = start <= end ? 1 : -1;
+    for (let index = start; index !== end + step; index += step) {
+      const geometry = this.selectables[index]?.getSelectionLine?.(isEnd);
+      if (geometry) return geometry;
+    }
+    return null;
+  }
+  override finishSelectionDrag(): void {
+    for (const child of this.selectables) child.finishSelectionDrag?.();
+  }
   private readonly notifier = new ChangeNotifier();
   private startHandleLayer: LayerLink | null = null;
   private startHandleLayerOwner: Selectable | null = null;
@@ -293,10 +307,9 @@ export abstract class MultiSelectableSelectionContainerDelegate extends Selectio
       drawableArea = this.hasSize
         ? Rect.fromLTWH(0, 0, this.containerSize.width, this.containerSize.height)
         : null;
-    // The pinned implementation walks start..end, including its reversed-index behavior.
     for (
-      let index = this.currentSelectionStartIndex;
-      index <= this.currentSelectionEndIndex;
+      let index = Math.min(this.currentSelectionStartIndex, this.currentSelectionEndIndex);
+      index <= Math.max(this.currentSelectionStartIndex, this.currentSelectionEndIndex);
       index++
     )
       for (const rect of this.selectables[index]!.value.selectionRects) {

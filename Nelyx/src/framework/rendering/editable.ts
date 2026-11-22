@@ -572,6 +572,21 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
   getLineBoundary(position: TextPosition) {
     return this.requireParagraph().getLineBoundary(position);
   }
+  /** The shaped line in the same scrolled coordinates as the caret. */
+  getLocalLineRect(position: TextPosition, caret: Rect): Rect {
+    if (this.plainText.length === 0) return caret;
+    const { start, end } = this.getLineBoundary(position);
+    const boxes = this.getBoxesForSelection(
+      new Selection({ baseOffset: start, extentOffset: end }),
+    );
+    let left = caret.left,
+      right = caret.right;
+    for (const box of boxes) {
+      left = Math.min(left, box.left);
+      right = Math.max(right, box.right);
+    }
+    return Rect.fromLTRB(left, caret.top, right, caret.bottom);
+  }
   get plainText(): string {
     return this.measurements?.plainText ?? '';
   }

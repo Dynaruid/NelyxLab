@@ -756,7 +756,8 @@ export function createDomInteraction(
     if (node.checkedMixed === true) element.setAttribute('aria-checked', 'mixed');
     else if (node.checked !== undefined) element.setAttribute('aria-checked', String(node.checked));
     else element.removeAttribute('aria-checked');
-    if (node.value !== undefined) element.setAttribute('aria-valuetext', node.value);
+    if (!node.obscured && node.value !== undefined)
+      element.setAttribute('aria-valuetext', node.value);
     else element.removeAttribute('aria-valuetext');
     if (node.isSlider || node.checkable || node.sourceRole === SemanticsRole.tab || editContext)
       element.setAttribute('aria-disabled', String(!node.enabled));

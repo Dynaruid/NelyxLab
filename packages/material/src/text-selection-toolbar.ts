@@ -14,6 +14,7 @@ import { RenderProxyBox } from '@nelyx/core/framework/rendering/boxes';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { Padding } from '@nelyx/core/framework/widgets/basic';
 import { CustomSingleChildLayout } from '@nelyx/core/framework/widgets/custom-layout';
+import { ContextMenuButtonFocus } from '@nelyx/core/framework/widgets/context-menu-controller';
 import { Icon } from '@nelyx/core/framework/widgets/icon';
 import {
   RenderTextSelectionToolbarItem,
@@ -107,7 +108,9 @@ export class TextSelectionToolbar extends StatelessWidget {
         left: screenPadding,
         top,
         right: screenPadding,
-        bottom: screenPadding,
+        bottom:
+          Math.max(MediaQuery.paddingOf(context).bottom, MediaQuery.viewInsetsOf(context).bottom) +
+          screenPadding,
       },
       new CustomSingleChildLayout(
         new ToolbarOverflow({
@@ -156,20 +159,24 @@ class ToolbarOverflowState extends State<ToolbarOverflow> {
     }
   }
   build(context: BuildContext): Widget {
+    const toggle = () =>
+      this.setState(() => {
+        this.open = !this.open;
+      });
     const localizations = MaterialLocalizations.of(context),
       label = this.open ? localizations.backButtonTooltip : localizations.moreButtonTooltip,
       direction = Directionality.of(context),
       nav = new Material({
         type: MaterialType.card,
         color: new Color(0),
-        child: new IconButton({
-          icon: new Icon(this.open ? Icons.arrow_back : Icons.more_vert),
-          onPressed: () =>
-            this.setState(() => {
-              this.open = !this.open;
-            }),
-          tooltip: label,
-        }),
+        child: new ContextMenuButtonFocus(
+          new IconButton({
+            icon: new Icon(this.open ? Icons.arrow_back : Icons.more_vert),
+            onPressed: toggle,
+            tooltip: label,
+          }),
+          toggle,
+        ),
       });
     return new TrailingEdgeAlign(
       new AnimatedSize({

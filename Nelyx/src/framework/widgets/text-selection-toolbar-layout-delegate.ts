@@ -59,12 +59,17 @@ class ToolbarItemFocus extends SingleChildRenderObjectWidget {
 
 /** @internal The toolbar calls this after determining which children it can display. */
 export class RenderTextSelectionToolbarItem extends RenderProxyBox {
+  private visible = false;
   constructor(private readonly focusNode: FocusNode) {
     super();
   }
 
   setVisible(visible: boolean): void {
+    this.visible = visible;
     this.focusNode.descendantsAreFocusable = visible;
+  }
+  override get isDisplayed(): boolean {
+    return this.visible && super.isDisplayed;
   }
 }
 
@@ -99,7 +104,10 @@ export class TextSelectionToolbarLayoutDelegate extends SingleChildLayoutDelegat
       anchor = above ? this.anchorAbove : this.anchorBelow;
     return new Offset(
       TextSelectionToolbarLayoutDelegate.centerOn(anchor.dx, childSize.width, size.width),
-      above ? Math.max(0, anchor.dy - childSize.height) : anchor.dy,
+      Math.min(
+        Math.max(0, size.height - childSize.height),
+        Math.max(0, above ? anchor.dy - childSize.height : anchor.dy),
+      ),
     );
   }
   override shouldRelayout(old: SingleChildLayoutDelegate): boolean {

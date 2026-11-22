@@ -170,16 +170,17 @@ export class AdaptiveTextSelectionToolbar extends StatelessWidget {
         default: {
           const colors = Theme.of(context).colorScheme,
             defaultColor =
-              colors.onSurface === (colors.brightness === 'dark' ? 0xffe6e0e9 : 0xff1d1b20);
+              colors.onSurface === (colors.brightness === 'dark' ? 0xffe6e0e9 : 0xff1d1b20),
+            foreground = defaultColor
+              ? colors.brightness === 'dark'
+                ? 0xffffffff
+                : 0xff000000
+              : colors.onSurface;
           return new TextSelectionToolbarTextButton({
             label: text,
             child: new Text(text, {
               fontSize: 14,
-              color: defaultColor
-                ? colors.brightness === 'dark'
-                  ? 0xffffffff
-                  : 0xff000000
-                : colors.onSurface,
+              color: item.onPressed === null ? (foreground & 0x00ffffff) | 0x61000000 : foreground,
             }),
             padding: TextSelectionToolbarTextButton.getPadding(index, items.length),
             alignment: AlignmentDirectional.centerStart,

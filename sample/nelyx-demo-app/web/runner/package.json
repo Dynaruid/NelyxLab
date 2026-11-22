@@ -13,17 +13,17 @@
     "typecheck": "tsc -p tsconfig.nelyx.json"
   },
   "dependencies": {
-    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-e030a398c0d3d1611d77546585fb7457cdddcfbc4f66d19b5e1589f9dde7f43a.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-a86ee80d73db59d06cea13307d87f5ec6a94ef2d12027da6ddacdc5130f02061.tgz",
+    "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-9ed18f47bf4ec8e600800df53130111a418c3301e099ceac7f456c8c5084f320.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-5a743e9db77f89275fe7aa99db168417f5b02bb52d8c72349cd0d732a9d6acce.tgz",
     "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-4b3b732b2178bbabf1bfba6bb6d6e646a81b2bb0aabaf4ce1c09636e16c703fb.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "@nelyx/material": "file:../../.nelyx/supply/web/nelyx-material-0.2.0-08635868a459da292e2aed311d65fce308d2f18b502007f7f56846f07866792f.tgz",
-    "@nelyx/cupertino": "file:../../.nelyx/supply/web/nelyx-cupertino-0.2.0-dcb23d6c0aea6a3bfa2f9491c63cb6b0fcbf63cce91f9d9f50219bdd04fbbb3b.tgz"
+    "@nelyx/material": "file:../../.nelyx/supply/web/nelyx-material-0.2.0-513826f61005801ce70fafe30941ff37e655ed969a44dd4097e006a84fb76c4b.tgz",
+    "@nelyx/cupertino": "file:../../.nelyx/supply/web/nelyx-cupertino-0.2.0-8a2ee993e386258acb331493f119438b61842cb68acf5e0a6b40468d650ed62f.tgz"
   },
   "devDependencies": {
     "@nelyx/vite": "file:../../.nelyx/supply/web/nelyx-vite-0.1.0-c7d39fdf3e1e3130c651fceb8d0c7c82117a0a9f219db5b7c3010b87fd7e2b07.tgz",
-    "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.11.0-d75a4f4d5ff1fc5251f07a071a66a5a833e7724b98cb83c2c5dcb475cf9db370.tgz",
+    "@nelyx/cli": "file:../../.nelyx/supply/web/nelyx-cli-0.11.0-54853586c20723cc6e5ac923d434bda5d5612fa3a700c03ee0fd5b4f7272f3d1.tgz",
     "@nelyx/tooling-contracts": "file:../../.nelyx/supply/web/nelyx-tooling-contracts-0.1.0-17583f73fed38d3f335ea8147a6de27877c124fb20c36b636babf9e2a316233e.tgz",
     "vite": "8.3.8",
     "typescript": "7.0.2",

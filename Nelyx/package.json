@@ -52,6 +52,10 @@
       "types": "./dist/services/spell-check.d.ts",
       "default": "./dist/services/spell-check.js"
     },
+    "./services/browser-context-menu": {
+      "types": "./dist/services/browser-context-menu.d.ts",
+      "default": "./dist/services/browser-context-menu.js"
+    },
     "./version": {
       "types": "./dist/version.d.ts",
       "default": "./dist/version.js"

@@ -32,6 +32,7 @@ import { FocusNode } from '@nelyx/core/framework/widgets/focus';
 import { Focus } from '@nelyx/core/framework/widgets/focus-scope';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { CustomSemanticsAction, OrdinalSortKey } from '@nelyx/core/framework/semantics/semantics';
+import { Route } from '@nelyx/core/framework/widgets/navigation';
 import type { NavigatorController } from '@nelyx/core/framework/widgets/navigation';
 import { BorderRadius } from '@nelyx/core/framework/painting/border-radius';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
@@ -76,6 +77,7 @@ import {
 import { ImageDemo } from './image-demo.ts';
 import { column, flow, inset, icon } from './layout.ts';
 import { demoRangeTheme } from './range-demo-shapes.ts';
+import { TextSelectionScreen } from './text-selection-screen.ts';
 
 const messageCurve = new Interval(0.1, 0.9, { curve: Curves.easeInOutCubicEmphasized });
 class MessageScrollCurve extends Curve {
@@ -344,12 +346,12 @@ class ComponentsState extends State<ComponentsScreen> {
                     new Divider(),
                     new Expanded(
                       new ListView({
-                        children: ['All components', ...groups].map(
+                        children: ['All components', ...groups, 'Text selection'].map(
                           (label, index) =>
                             new TextButton({
                               child: new Text(label),
                               onPressed: () => {
-                                void navigator.pop(index === 0 ? 'all' : groups[index - 1]!);
+                                void navigator.pop(index === 0 ? 'all' : label);
                               },
                             }),
                         ),
@@ -366,8 +368,12 @@ class ComponentsState extends State<ComponentsScreen> {
       { name: 'component-drawer', barrierLabel: 'Close drawer' },
     )
       .then((selected) => {
-        if (this.mounted && selected !== undefined)
-          this.select(selected === 'all' ? null : (selected as Group));
+        if (!this.mounted || selected === undefined) return;
+        if (selected === 'Text selection')
+          return navigator.push(
+            new Route(() => new TextSelectionScreen(navigator), '/text-selection'),
+          );
+        this.select(selected === 'all' ? null : (selected as Group));
       })
       .catch((error) => {
         if (this.mounted) this.record(String(error));

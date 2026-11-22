@@ -4,13 +4,13 @@
 import { StatelessWidget, StatefulWidget, State } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { AnimatedPositioned } from '@nelyx/core/framework/widgets/implicit-animations';
-import { ColoredBox } from '@nelyx/core/framework/widgets/basic';
-import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { ColoredBox, SizedBox } from '@nelyx/core/framework/widgets/basic';
 import {
   RawMagnifier,
   MagnifierDecoration,
   MagnifierController,
   TextMagnifierConfiguration,
+  magnifierViewportBounds,
 } from '@nelyx/core/framework/widgets/magnifier';
 import type { MagnifierInfo } from '@nelyx/core/framework/widgets/magnifier';
 import type { ValueNotifier } from '@nelyx/core/foundation/notifier';
@@ -149,8 +149,15 @@ class TextMagnifierState extends State<TextMagnifier> {
   private readonly determinePosition = () => {
     if (!this.mounted) return;
     const info = this.widget.magnifierInfo.value,
-      media = MediaQuery.of(this.context),
+      bounds = magnifierViewportBounds(this.context),
       size = Magnifier.kDefaultMagnifierSize;
+    if (bounds.width < size.width || bounds.height < size.height) {
+      if (this.position)
+        this.setState(() => {
+          this.position = null;
+        });
+      return;
+    }
     const x = Math.max(
       info.currentLineBoundaries.left,
       Math.min(info.globalGesturePosition.dx, info.currentLineBoundaries.right),
@@ -161,18 +168,14 @@ class TextMagnifierState extends State<TextMagnifier> {
       size.width,
       size.height,
     );
+    const below = info.caretRect.bottom + Magnifier.kStandardVerticalFocalPointShift;
     const adjusted = MagnifierController.shiftWithinBounds({
-        rect: original,
-        bounds: Rect.fromLTWH(0, 0, media.width, media.height),
-      }),
-      inset = size.width / 2 / 1.25;
-    const focalX =
-      info.fieldBounds.width < inset * 2
-        ? info.fieldBounds.center.dx
-        : Math.max(
-            info.fieldBounds.left + inset,
-            Math.min(adjusted.center.dx, info.fieldBounds.right - inset),
-          );
+      rect:
+        original.top < bounds.top && below + size.height <= bounds.bottom
+          ? original.shift(new Offset(0, below - original.top))
+          : original,
+      bounds,
+    });
     if (this.position !== null && adjusted.top !== this.position.dy) {
       if (this.timer !== null) this.timer.dispose();
       const generation = ++this.generation;
@@ -185,13 +188,14 @@ class TextMagnifierState extends State<TextMagnifier> {
     }
     this.setState(() => {
       this.position = adjusted.topLeft;
-      this.focal = new Offset(focalX - adjusted.center.dx, original.top - adjusted.top);
+      this.focal = new Offset(x - adjusted.center.dx, original.top - adjusted.top);
     });
   };
   build(_context: BuildContext): Widget {
+    if (!this.position) return SizedBox.shrink();
     return new AnimatedPositioned({
-      left: this.position!.dx,
-      top: this.position!.dy,
+      left: this.position.dx,
+      top: this.position.dy,
       duration: this.timer === null ? 0 : TextMagnifier.jumpBetweenLinesAnimationDuration,
       child: new Magnifier({ additionalFocalPointOffset: this.focal }),
     });

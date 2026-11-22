@@ -139,7 +139,9 @@ export class CupertinoTextSelectionToolbar extends StatelessWidget {
         left: padding,
         top,
         right: padding,
-        bottom: padding,
+        bottom:
+          Math.max(MediaQuery.paddingOf(context).bottom, MediaQuery.viewInsetsOf(context).bottom) +
+          padding,
       },
       new CustomSingleChildLayout(
         new ToolbarContent(this.children, above, below, this.toolbarBuilder),

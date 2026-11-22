@@ -138,17 +138,21 @@ export class MaterialTextSelectionControls extends MaterialTextSelectionHandleCo
     endpoints: readonly TextSelectionPoint[],
     delegate: TextSelectionDelegate,
     clipboard: ValueListenable<ClipboardStatus> | null,
-    _lastSecondaryTapDown: Offset | null,
+    lastSecondaryTapDown: Offset | null,
   ): Widget {
     const start = endpoints[0];
     const end = endpoints.at(-1);
     if (!start || !end) return SizedBox.shrink();
     const x = region.left + midpoint.dx;
-    const anchorAbove = new Offset(
-      x,
-      region.top + Math.max(0, start.point.dy - textLineHeight) - toolbarContentDistance,
-    );
-    const anchorBelow = new Offset(x, region.top + end.point.dy + toolbarContentDistanceBelow);
+    const anchorAbove =
+      lastSecondaryTapDown ??
+      new Offset(
+        x,
+        region.top + Math.max(0, start.point.dy - textLineHeight) - toolbarContentDistance,
+      );
+    const anchorBelow =
+      lastSecondaryTapDown ??
+      new Offset(x, region.top + end.point.dy + toolbarContentDistanceBelow);
     return this.buildToolbarItems(context, delegate, clipboard, (context, items) => {
       const labels = selectionLabels(context);
       return new TextSelectionToolbar({

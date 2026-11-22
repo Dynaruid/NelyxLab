@@ -6,6 +6,7 @@ import type {
   NativeSelectionContextMenuGeometry,
   NativeSelectionContextMenuRegistration,
 } from '@nelyx/core/hosting/interaction';
+import { getWebDeployment } from '../../platforms/web/environment.ts';
 import type { ViewOwner } from '@nelyx/core/ui/types';
 import { sameOwner } from '@nelyx/core/ui/frame';
 import type { BrowserMouseCursor } from './mouse-cursor.ts';
@@ -102,6 +103,8 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
   private closed = false;
   private stopped = false;
   private enabled = true;
+  private readonly desktopBrowser: boolean;
+  private readonly policyListeners = new Set<() => void>();
   private root: HTMLDivElement | null = null;
   private releaseStyle: (() => void) | null = null;
   private readonly entries = new Set<Entry>();
@@ -113,6 +116,9 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
     private readonly cursor?: BrowserMouseCursor,
   ) {
     this.doc = canvas.ownerDocument;
+    const deployment = getWebDeployment(this.doc.defaultView!);
+    this.desktopBrowser =
+      deployment.host === 'browser' && deployment.os !== 'android' && deployment.os !== 'iOS';
     const parent = canvas.parentElement;
     if (!parent) throw new Error('Native selection requires an attached canvas');
     this.parent = parent;
@@ -137,14 +143,28 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
   private readonly contextMenu = (event: Event): void => {
     if (
       !this.stopped &&
-      !this.enabled &&
+      !this.nativeMenuEnabled &&
       (event.target === this.canvas || this.ownsTarget(event.target))
     )
       event.preventDefault();
   };
+  get nativeMenuEnabled(): boolean {
+    return this.desktopBrowser && this.enabled;
+  }
+  observeMenuPolicy(listener: () => void) {
+    this.policyListeners.add(listener);
+    return {
+      dispose: () => {
+        this.policyListeners.delete(listener);
+      },
+    };
+  }
   setEnabled(enabled: boolean): void {
     if (this.stopped) throw new Error('Native selection context-menu host is stopped');
+    const previous = this.nativeMenuEnabled;
     this.enabled = enabled;
+    if (previous !== this.nativeMenuEnabled)
+      for (const listener of [...this.policyListeners]) listener();
   }
   ownsTarget(target: EventTarget | null): boolean {
     if (this.stopped || target === null || !('nodeType' in target)) return false;
@@ -223,10 +243,10 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
     const down = (event: MouseEvent) => {
       if (!current()) return;
       event.preventDefault();
-      if (event.button !== 2 || !this.enabled || entry.geometry === null) return;
+      if (event.button !== 2 || !this.nativeMenuEnabled || entry.geometry === null) return;
       const text = callbacks.selectWord({ x: event.offsetX, y: event.offsetY });
       if (!current()) return;
-      if (!this.enabled || text === null) {
+      if (!this.nativeMenuEnabled || text === null) {
         clearRange();
         element.innerText = '';
         return;
@@ -317,6 +337,7 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
   stop(): void {
     if (this.stopped) return;
     this.stopped = true;
+    this.policyListeners.clear();
     // Retain DOM/ranges until drain finishes, but make them inert immediately.
     this.parent.removeEventListener('contextmenu', this.contextMenu, true);
     if (this.root) this.root.style.display = 'none';

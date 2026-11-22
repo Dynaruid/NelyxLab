@@ -5,12 +5,12 @@ import { StatelessWidget, StatefulWidget } from '@nelyx/core/framework/widgets/f
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
 import { SingleTickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import { AnimatedPositioned } from '@nelyx/core/framework/widgets/implicit-animations';
-import { Transform } from '@nelyx/core/framework/widgets/basic';
-import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { SizedBox, Transform } from '@nelyx/core/framework/widgets/basic';
 import {
   RawMagnifier,
   MagnifierDecoration,
   MagnifierController,
+  magnifierViewportBounds,
 } from '@nelyx/core/framework/widgets/magnifier';
 import type { MagnifierInfo } from '@nelyx/core/framework/widgets/magnifier';
 import type { ValueNotifier } from '@nelyx/core/foundation/notifier';
@@ -140,7 +140,8 @@ export class CupertinoTextMagnifier extends StatefulWidget {
   }
 }
 class CupertinoTextMagnifierState extends SingleTickerProviderStateMixin<CupertinoTextMagnifier> {
-  private position = Offset.zero;
+  private position: Offset | null = null;
+  private focalX = 0;
   private focalY = 0;
   private animation!: AnimationController;
   private curved!: CurvedAnimation;
@@ -196,28 +197,43 @@ class CupertinoTextMagnifierState extends SingleTickerProviderStateMixin<Cuperti
       ),
       size = CupertinoMagnifier.kDefaultSize,
       shift = CupertinoMagnifier.kMagnifierAboveFocalPoint,
-      media = MediaQuery.of(this.context),
-      padding = this.widget.horizontalScreenEdgePadding;
+      viewport = magnifierViewportBounds(this.context),
+      padding = this.widget.horizontalScreenEdgePadding,
+      bounds = Rect.fromLTRB(
+        viewport.left + padding,
+        viewport.top,
+        viewport.right - padding,
+        viewport.bottom + shift,
+      );
+    if (bounds.width < size.width || bounds.height < size.height) {
+      if (this.position)
+        this.setState(() => {
+          this.position = null;
+        });
+      return;
+    }
+    const x = Math.max(
+      info.currentLineBoundaries.left,
+      Math.min(info.globalGesturePosition.dx, info.currentLineBoundaries.right),
+    );
+    const original = Rect.fromLTWH(
+      x - size.width / 2,
+      vertical - (size.height - shift),
+      size.width,
+      size.height,
+    );
     const position = MagnifierController.shiftWithinBounds({
-      bounds: Rect.fromLTRB(
-        padding,
-        -(size.height + shift),
-        media.width - padding,
-        media.height + size.height + shift,
-      ),
-      rect: Rect.fromLTWH(
-        info.globalGesturePosition.dx - size.width / 2,
-        vertical - (size.height - shift),
-        size.width,
-        size.height,
-      ),
+      bounds,
+      rect: original,
     }).topLeft;
     this.setState(() => {
       this.position = position;
-      this.focalY = center - vertical;
+      this.focalX = original.left - position.dx;
+      this.focalY = center - vertical + original.top - position.dy;
     });
   };
   build(context: BuildContext): Widget {
+    if (!this.position) return SizedBox.shrink();
     return new AnimatedPositioned({
       duration: 45,
       curve: this.widget.animationCurve,
@@ -225,7 +241,7 @@ class CupertinoTextMagnifierState extends SingleTickerProviderStateMixin<Cuperti
       top: this.position.dy,
       child: new CupertinoMagnifier({
         inOutAnimation: this.curved,
-        additionalFocalPointOffset: new Offset(0, this.focalY),
+        additionalFocalPointOffset: new Offset(this.focalX, this.focalY),
         borderSide: new BorderSide({ color: CupertinoTheme.of(context).primaryColor, width: 2 }),
       }),
     });

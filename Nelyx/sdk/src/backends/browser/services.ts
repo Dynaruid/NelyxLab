@@ -322,6 +322,7 @@ export function createWebServices(
             ownsSemanticsAdjustmentTarget: interaction.ownsSemanticsAdjustmentTarget,
             ownsEditingTarget: interaction.ownsEditingTarget,
             ownsNativeSelectionTarget: (target) => selectionContextMenu.ownsTarget(target),
+            suppressEditingContextMenu: () => !selectionContextMenu.nativeMenuEnabled,
           });
           observer = new window.ResizeObserver(resize);
           observer.observe(canvas);

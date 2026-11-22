@@ -15,6 +15,7 @@ import { invariant } from '../../foundation/errors.ts';
 import { protect } from '../../ui/value-math.ts';
 import { Offset } from '../../ui/offset.ts';
 import type { Size } from '../../ui/geometry.ts';
+import type { RenderBox } from './object.ts';
 import { Rect } from '../../ui/rect.ts';
 import type { Matrix4 } from '../../math/matrix4.ts';
 import type { Matrix4Storage } from '../../ui/matrix4.ts';
@@ -110,7 +111,14 @@ export interface Selectable extends SelectionHandler {
   getTransformTo(ancestor: RenderObject | null): Matrix4 | Matrix4Storage;
   readonly size: Size;
   readonly boundingBoxes: readonly Rect[];
+  getSelectionLine?(isEnd: boolean): SelectionLineGeometry | null;
+  finishSelectionDrag?(): void;
   dispose(): void;
+}
+export interface SelectionLineGeometry {
+  readonly renderBox: RenderBox;
+  readonly caret: Rect;
+  readonly line: Rect;
 }
 export abstract class SelectionRegistrar {
   abstract add(selectable: Selectable): void;

@@ -15,6 +15,7 @@ import type {
   SelectedContentRange,
   SelectionEvent,
   SelectionResult,
+  SelectionLineGeometry,
 } from '../rendering/selection.ts';
 import { RenderBox } from '../rendering/object.ts';
 import type { RenderObject } from '../rendering/object.ts';
@@ -206,6 +207,12 @@ class _SelectionContainerState extends SelectionRegistrant(_SelectableState) {
     const rect = this.renderBox.paintBounds;
     return [Rect.fromLTWH(rect.x, rect.y, rect.width, rect.height)];
   }
+  getSelectionLine(isEnd: boolean): SelectionLineGeometry | null {
+    return this.delegate.getSelectionLine(isEnd);
+  }
+  finishSelectionDrag(): void {
+    this.widget.delegate?.finishSelectionDrag();
+  }
   override dispose(): void {
     const errors: unknown[] = [];
     if (this.widget.delegate !== null) {
@@ -305,6 +312,10 @@ export abstract class SelectionContainerDelegate
     );
     return this.renderBox.size;
   }
+  getSelectionLine(_isEnd: boolean): SelectionLineGeometry | null {
+    return null;
+  }
+  finishSelectionDrag(): void {}
   abstract add(selectable: Selectable): void;
   abstract remove(selectable: Selectable): void;
 }
