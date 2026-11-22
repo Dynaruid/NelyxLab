@@ -12,9 +12,13 @@ import type { CanvasKitManifest } from '../../backends/browser/canvaskit-manifes
 import { createProviderRegistry } from '../../runtime/providers.ts';
 import { bootstrapApplication } from '../../runtime/bootstrap.ts';
 import { createWebServices } from '../../backends/browser/services.ts';
+import type { WebSafeAreaSource } from '../../backends/browser/environment.ts';
 import { loadCanvasKit } from '../../backends/browser/canvaskit.ts';
 import { createBrowserPlatformMessages } from '../../backends/browser/platform-messages.ts';
 import { webDialogWindows } from './dialog-windows.ts';
+
+export type { WebSafeAreaSource } from '../../backends/browser/environment.ts';
+
 const backend = Object.freeze({ react: React });
 let generation = 0;
 interface WebRoot {
@@ -185,6 +189,7 @@ export interface WebApplicationOptions extends WebSkiaSurfaceOptions {
   readonly initializePlatformServices?: boolean;
   readonly useDefaultBinaryMessenger?: boolean;
   readonly platformMessages?: PlatformMessagePort;
+  readonly safeArea?: WebSafeAreaSource;
   readonly canvas: HTMLCanvasElement;
   readonly input: HTMLInputElement;
   readonly button: HTMLButtonElement;
@@ -271,6 +276,7 @@ async function openWebApplication(
       options.manifest,
       options.assetsRoot,
       definition,
+      options.safeArea,
     );
   } catch (error) {
     try {

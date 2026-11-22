@@ -1,6 +1,6 @@
 # W7 · Nelyx 텍스트 선택과 확대경 후속 인수
 
-**2026-11-22 · `PAUSED / PARTIAL` · Nelyx `tauri-backend` `bbb5b8da`와 작업 트리**
+**2026-11-22 · `PARTIAL` · Nelyx `tauri-backend` `0f31962f`와 작업 트리**
 
 W6는 `CLOSED / PARTIAL`로 종료했다. W7은 Chrome PWA의 읽기 전용 선택 메뉴 실패를 해결하고, W6에서 남은 Windows 키보드·접근성, Android 확대경, 실기기·호스트와 스크롤 회귀 인수를 마무리한다. 재현 화면은 Demo의 **Explore components → Text selection**, 스크롤 비교는 **All components**다. [W6 구현과 검증 기록](work6.md#4-2026-11-22-중간-마무리)
 
@@ -21,9 +21,9 @@ W6는 `CLOSED / PARTIAL`로 종료했다. W7은 Chrome PWA의 읽기 전용 선�
 
 W6는 Pixel 5 API 33 / WebView 109에서 정지 상태의 확대 글자 픽셀, 손을 뗀 뒤 메뉴 전환, 취소·재시도, Cupertino 길게 누르기, OS 클립보드와 WebGL 복구 뒤 다음 제스처를 확인했다. 당시 입력 캐리어는 `INPUT`이었다. [W6 Android 기록](work6.md#4-2026-11-22-중간-마무리)
 
-- [ ] 편집기의 양쪽 손잡이를 각각 움직여 서로 교차시키고, 줄을 넘고, 부모 스크롤과 필드 내부 스크롤의 가장자리에서 자동 스크롤을 유도한다. 포인터가 멈춘 상태에서도 스크롤 뒤 렌즈가 같은 선택 끝점의 글줄을 확대하는지, DPR과 좌표 변환을 거친 글자 픽셀과 선택 범위를 확인한다. Material·Cupertino의 한글·이모지·RTL, 키보드가 열린 상태에서 렌즈 위치를 확인한다. [편집기 확대경 갱신](Nelyx/src/framework/widgets/editable-text.ts#L2538) · [확대경 오버레이](Nelyx/src/framework/widgets/selection-overlay.ts#L176)
-- [ ] Material·Core 읽기 전용 텍스트와 다중 문단 `SelectionArea`에서 길게 누르기·손잡이 드래그를 확인한다. 문단이 바뀔 때 현재 끝점의 글줄로 렌즈가 이동하고, 정상 종료는 플랫폼 정책대로 메뉴를 열며, 취소는 렌즈와 드래그를 정리해야 한다. 비밀번호와 확대경 비활성 설정, 렌즈 빌더가 `null`을 반환하는 경로도 확인한다. [Core 확대경](Nelyx/src/framework/widgets/selectable-text.ts#L500) · [문단 선택 확대경](Nelyx/src/framework/widgets/selectable-region-state.ts#L745)
-- [ ] 확대 중 렌즈 엔트리 하나와 손잡이·Backdrop 레이어 순서를 확인한다. 손 떼기·취소·새 제스처·경로 이동 뒤 이전 렌즈, 자동 스크롤 타이머와 프레임 갱신이 해제되고 종료 애니메이션 뒤 추가 프레임이 계속 예약되지 않는지 확인한다. 정지 길게 누르기, 빠른 재시도와 WebGL 복구 검사를 변경 후 다시 실행한다. [확대경 컨트롤러](Nelyx/src/framework/widgets/magnifier.ts) · [Android 제품 검사](sample/nelyx-demo-app/eng/check-text-selection.mjs)
+- [x] 편집기의 양쪽 손잡이를 각각 움직여 교차 방향으로 당기고, 줄을 넘고, 부모 스크롤과 필드 내부 스크롤의 가장자리에서 자동 스크롤을 유도한다. Android가 반대쪽 끝점을 넘는 입력에서 선택 범위를 유지하는지 확인한다. 포인터가 멈춘 상태에서도 스크롤 뒤 렌즈가 현재 선택 끝점의 글줄을 확대하는지, DPR과 좌표 변환을 거친 글자 픽셀과 선택 범위를 확인한다. Material·Cupertino의 한글·이모지·RTL, 키보드가 열린 상태에서 렌즈 위치를 확인한다. [편집기 확대경 갱신](Nelyx/src/framework/widgets/editable-text.ts#L2538) · [확대경 오버레이](Nelyx/src/framework/widgets/selection-overlay.ts#L176)
+- [x] Material·Core 읽기 전용 텍스트와 다중 문단 `SelectionArea`에서 길게 누르기·손잡이 드래그를 확인한다. 문단이 바뀔 때 현재 끝점의 글줄로 렌즈가 이동하고, 정상 종료는 플랫폼 정책대로 메뉴를 열며, 취소는 렌즈와 드래그를 정리해야 한다. 비밀번호와 확대경 비활성 설정, 렌즈 빌더가 `null`을 반환하는 경로도 확인한다. [Core 확대경](Nelyx/src/framework/widgets/selectable-text.ts#L500) · [문단 선택 확대경](Nelyx/src/framework/widgets/selectable-region-state.ts#L745)
+- [x] 확대 중 렌즈 엔트리 하나와 손잡이·Backdrop 레이어 순서를 확인한다. 손 떼기·취소·새 제스처·경로 이동 뒤 이전 렌즈, 자동 스크롤 타이머와 프레임 갱신이 해제되고 종료 애니메이션 뒤 추가 프레임이 계속 예약되지 않는지 확인한다. 정지 길게 누르기, 빠른 재시도와 WebGL 복구 검사를 변경 후 다시 실행한다. [확대경 컨트롤러](Nelyx/src/framework/widgets/magnifier.ts) · [Android 제품 검사](sample/nelyx-demo-app/eng/check-text-selection.mjs)
 
 ## 4. W5 대비 스크롤·웹 클리핑 회귀
 
@@ -103,10 +103,87 @@ node sample/nelyx-demo-app/eng/check-web-scroll-clipping.mjs
 
 ## 8. 중간 마무리와 재개 순서
 
-사용자 요청으로 `PAUSED / PARTIAL`에서 중단했다. 변경은 현재 작업 트리에 있다. 오른쪽 핸들 수정 PWA `ef0787997e5dacb6c090250dbefe05e67d652cb87a2b25dd747d18072d321ff3`의 SDK 빌드, 러너 공급, Demo 타입 검사, 레이어 리더 검사와 `git diff --check`가 통과했다. Core의 캐시된 부모 아래에서 불투명도를 올리고 내리는 검사에서도 표시 레이어 수가 `0 → 1 → 1 → 0 → 1 → 1`로 갱신됐다.
+사용자 요청으로 `PAUSED / PARTIAL`에서 중단한 당시의 기록이다. 오른쪽 핸들 수정 PWA `ef0787997e5dacb6c090250dbefe05e67d652cb87a2b25dd747d18072d321ff3`의 SDK 빌드, 러너 공급, Demo 타입 검사, 레이어 리더 검사와 `git diff --check`가 통과했다. Core의 캐시된 부모 아래에서 불투명도를 올리고 내리는 검사에서도 표시 레이어 수가 `0 → 1 → 1 → 0 → 1 → 1`로 갱신됐다.
 
-ARM64 번들은 Gradle의 APK 조립이 중단 코드 `-1073741510`으로 끝나 새 APK를 게시하거나 설치하기 전에 종료됐다. Galaxy와 Pixel 5의 현재 설치본은 메뉴·캐럿 정렬까지 반영된 `0c88d636`이다. 현재 Windows·Linux 패키지의 PWA도 `0c88d636`이다. 각 SHA-256은 아래 패키지 명세에 있다. [ARM64](sample/nelyx-demo-app/.nelyx/tauri/android-arm64/package.json) · [Pixel 5 x64](sample/nelyx-demo-app/.nelyx/tauri/android-x64/package.json) · [Windows](sample/nelyx-demo-app/.nelyx/tauri/windows-x64/package.json) · [Linux](sample/nelyx-demo-app/.nelyx/tauri/linux-x64/package.json)
+ARM64 번들은 Gradle의 APK 조립이 중단 코드 `-1073741510`으로 끝나 새 APK를 게시하거나 설치하기 전에 종료됐다. 당시 Galaxy·Pixel 5 설치본과 Windows·Linux 패키지의 PWA는 메뉴·캐럿 정렬까지 반영된 `0c88d636`이었다. 재개 이후의 패키지는 §9에 기록한다.
 
 1. 재개 시 `ef078799` PWA를 ARM64로 패키징하고 연결된 Galaxy에 설치한다. **Text selection → Material single line**에서 첫 길게 누르기 종료와 두 번 탭 뒤 양쪽 핸들의 실제 표시 픽셀을 확인한다. 이어서 Pixel 5에 같은 PWA를 x64로 패키징해 `check-text-selection.mjs --android`를 실행한다. 이 검사에는 왼쪽과 오른쪽 핸들의 화면 픽셀 검사가 들어 있다.
 2. 같은 PWA로 Windows·Linux를 갱신한다. Windows 실제 키보드·Narrator, Linux의 선택 범위 Escape·메뉴 키·클립보드, Galaxy 실제 손가락과 Gboard, iOS·macOS 인수를 이어간다. Pixel 5 부모 스크롤 가장자리와 확대경 표시 중의 합성 간격도 남아 있다.
 3. W5 Pixel 기준 APK `af53b3e4b61bf4bdc068ecbbd641606aab9aef29d5c9289dc87167852d375574`는 현 작업 환경에서 확보하지 못했다. W7 후보 단독 Perfetto도 중단 전 미실행이다. W5 원본을 확보하면 §4의 동일 종료 카드에서 교대 비교를 진행한다. Chromium DPR `1`·`2`의 양쪽 경계와 역방향 클립 픽셀 검사는 `0c88d636` 공급 단계에서 통과했다.
+
+## 9. 2026-11-22 재개 결과
+
+- Galaxy에서 키보드가 열린 상태로 목록이 다시 배치될 때 Cupertino 여러 줄 편집기와 이전 비활성 편집기가 같은 `TextEditingController`를 점유했다. 대체 편집기가 마운트될 때 이전 편집기가 비활성 상태라면 컨트롤러와 브라우저 입력 연결을 해제한다. 같은 엘리먼트를 `GlobalKey`로 이동하는 경로는 기존 연결을 사용한다. [편집기 연결](Nelyx/src/framework/widgets/editable-text.ts)
+- Linux WebKitGTK는 수정 키 `keyup`에 놓기 전의 수정 키 비트를 전달한다. 이 입력을 받은 Core가 놓인 키의 `keydown`을 다시 만들어 하드웨어 키 상태와 충돌했다. 입력에서 다른 쪽 수정 키가 이미 눌려 있다면 그 상태를 유지하고, 방금 놓은 키는 해제한다. Raw 키 이벤트 버퍼는 메시지 처리가 끝날 때 성공과 실패 양쪽에서 비운다. [수정 키 처리](Nelyx/src/services/raw-keyboard.ts) · [키 메시지 처리](Nelyx/src/services/key-event-manager.ts)
+- 회귀 검사에 놓기 전 비트가 남은 Shift `keyup`, 첫 길게 누르기와 두 번 탭 뒤 두 핸들의 픽셀, 부모 클립과 정지 포인터 아래 확대경 갱신을 추가했다. [제품 검사](sample/nelyx-demo-app/eng/check-text-selection.mjs)
+
+이 단계의 PWA 빌드 ID는 `d535f946e2eb369ae715cf5c168b04ef9218a60e73ceb4deb4fe4c70bdaf0835`다. SDK 통합 빌드, 러너 공급, Demo 타입 검사와 게시를 통과했다. 변경한 Core 파일의 원본과 러너에 설치한 소스맵의 `sourcesContent`가 일치했다. 같은 PWA로 패키징한 뒤 바이너리와 설치 APK의 SHA-256을 대조했다.
+
+| 패키지 | SHA-256 |
+| --- | --- |
+| Pixel 5 x64 APK | `cce9647672905dd884542556a235ac4426562c25f8ea3bb5c97b62cc26098adf` |
+| Galaxy ARM64 APK | `50360a40410eaa59637c5c098cc568708394e74e44b91fb8ffc32414fddfcdf1` |
+| Windows x64 EXE | `95144723658840c99bdeb7c0414d36c4b222086a83b91a5b75676bf1f8c539e7` |
+| Linux x64 바이너리 | `92ec57e9b33b3362da8d11cd4bdaf572dab887b461c03f04381882eeacc648ed` |
+
+- Windows WebView2 `157.0.4341.60` 창에서 포커스가 바뀌어 중단된 뒤 단독으로 재실행했다. PowerShell 스캔코드로 캐럿의 `Shift+F10`, 선택 범위의 메뉴 키, Escape 뒤 동일 필드, Tab·방향키·Enter, 메뉴와 `Ctrl+A/C/V`의 한글 클립보드 왕복을 확인했다. UI Automation은 `Copy`를 활성 버튼으로, 클립보드가 빈 상태의 `Paste`를 비활성 버튼으로 표시했다. 실제 키보드와 Narrator 낭독은 미실행이다. [Windows 검사](sample/nelyx-demo-app/eng/windows-selection-input.ps1)
+- Linux WSL2/Xvfb, GTK `3.24.52`, WebKitGTK `2.52.6` 패키지에서 X11 입력과 AT-SPI로 선택 안팎 우클릭, 메뉴 키·`Shift+F10`·Escape, 선택과 포커스 유지, 빈 필드 붙여넣기와 한글 OS 클립보드 왕복을 확인했다. 검사에서 X11 클립보드를 읽고 썼다.
+- Chrome 헤드리스 PWA에서 공개 위젯과 키보드 메뉴, 놓기 전 비트가 남은 Shift `keyup`, 클립보드 권한·경합과 실행 취소 검사가 통과했다.
+- Pixel 5 API 33, WebView `109.0.5414.123`, DPR `2.75`의 `INPUT`과 Galaxy `SM-S931N` API 37, WebView `157.0.8103.50`, DPR `3`의 `EditContext`에서 Android 제품 검사가 통과했다. ADB와 CDP로 Material 양쪽 손잡이와 교차 방향 드래그, 내부와 부모 가장자리의 자동 스크롤, Material·Cupertino 글줄 전환, 읽기 전용 선택과 문단 전환, 확대 제외 설정, 클립보드, 취소, WebGL 복구를 확인했다. 두 기기 모두 경로를 닫은 뒤 추가 프레임은 0개였다. Galaxy의 실제 손가락 입력과 Gboard 조합 검사는 남아 있다. 기기에서 확인한 IME는 Samsung Keyboard였다. [Android 제품 검사](sample/nelyx-demo-app/eng/check-text-selection.mjs)
+
+### Pixel 5 표시 간격
+
+Pixel 5 API 33, WebView `109.0.5414.123`, DPR `2.75`, 786×1602 래스터에서 CanvasKit과 Android 합성기가 모두 RTX 4060 호스트 GPU를 사용했다. 접근성 서비스와 앱 프레임 프로브를 끄고 `--timeline --editor-entry-only`를 실행했다. **Sliders → Switches → Text fields**에서 출발해 **Switches → Text fields → Write something**으로 끝났다. [Android 스크롤 검사](sample/nelyx-demo-app/eng/check-android-scroll.mjs) · [Perfetto FrameTimeline](https://perfetto.dev/docs/data-sources/frametimeline)
+
+| SurfaceFlinger 구간 | 첫 버퍼 지연 | 유효 간격 | p95 | p99 | 최장 | 33.3ms 이상 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 편집기 플링 전체 | 90.98ms | 11 | 148.61ms | 148.61ms | 148.61ms | 5 |
+| 손을 뗀 뒤 관성 | 31.19ms | 10 | 148.61ms | 148.61ms | 148.61ms | 5 |
+| CSS 대조 | — | 89 | 18.38ms | 19.17ms | 19.17ms | 0 |
+
+손을 떼기 전에는 간격 표본이 없었다. W5 원본 APK `af53b3e4…`를 확보하지 못해 교대 비교와 활성 이동 p95 인수는 `PARTIAL`이다.
+
+같은 APK의 Text selection에서 확대경을 띄운 뒤 24단계 터치 이동을 한 차례 계측했다. 드래그의 표시 간격 52개는 p95 `50.46ms`, p99·최장 `51.13ms`, 33.3ms 이상 17개였다. 손을 뗀 뒤 간격 7개는 p95·p99·최장 `167.24ms`, 33.3ms 이상 4개였다. 확대경 엔트리가 사라지고 메뉴가 표시된 뒤 정지 구간에 새 버퍼가 0개였다. 구간 경계는 `/proc/uptime`의 10ms 단위 시각을 사용했다.
+
+## 10. Cupertino 선택 핸들 누락
+
+Pixel 5의 `d535f946`에서 **Text selection → Cupertino single line**의 첫 한글 단어를 길게 눌렀을 때 위쪽 핸들의 파란 픽셀이 0개였다. **Cupertino multiline**의 첫 단어와 두 번째 줄까지 확장한 범위에서도 재현됐다. 글자 선택 상자의 시작점 `x=26.795`가 편집기 왼쪽 `x=27`보다 0.205 논리 픽셀 앞에 있어 핸들 표시 조건에서 제외됐다. 같은 필드의 이모지와 RTL 단어에서는 두 핸들이 표시됐다.
+
+Core `RenderEditable`에서 시작·끝 선택 앵커의 가로 좌표를 문단 폭 안으로 보정한 뒤 스크롤 오프셋을 적용한다. Flutter와 Doroti의 방향별 선택 끝점 계산과 같은 순서다. 스크롤로 실제 끝점이 화면 밖에 있으면 기존 표시 판정으로 핸들이 숨겨진다. Android 제품 검사에는 시작 한글 단어의 길게 누르기 중과 종료, WebGL 복구 후, RTL 범위, 여러 줄 선택의 양쪽 픽셀을 추가했다. [선택 끝점](Nelyx/src/framework/rendering/editable.ts#L772) · [핸들 픽셀 검사](sample/nelyx-demo-app/eng/check-text-selection.mjs#L932)
+
+### 수정본 빌드와 제품 검사
+
+PWA `db6e29d0104052fa344187b3b1fd0d72e466d7cafb567382aff9571697b71ac7`로 SDK 통합 빌드, 러너 공급, Demo 타입 검사와 게시를 통과했다. 변경한 네 Core 파일의 소스가 공급한 소스맵에 들어 있는 것도 확인했다. 같은 PWA로 패키징했고 Android는 실제 설치 APK까지 검증했다.
+
+| 패키지 | 검증한 SHA-256 |
+| --- | --- |
+| [Pixel 5 x64 APK](sample/nelyx-demo-app/.nelyx/tauri/android-x64/app-universal-debug.apk) | `8678f7b96620694958964c12f09efdedd62e2539a231eb59ddd9aa3368bc11e2` |
+| [Galaxy ARM64 APK](sample/nelyx-demo-app/.nelyx/tauri/android-arm64/app-universal-debug.apk) | `503630e1031c5a4a9f21f11d0c7274ffb7296aa5b4db852ea29553f72f327117` |
+| [Windows x64 EXE](sample/nelyx-demo-app/.nelyx/tauri/windows-x64/nelyx-tauri.exe) | `f4a667a4c868a776b56eae43894863561a9c41d5aa133cd6049f5c28e3e210ac` |
+| [Linux x64 바이너리](sample/nelyx-demo-app/.nelyx/tauri/linux-x64/nelyx-tauri) | `492980026c090ac6bad81c55bea427b39c47bd0afb660c0c36698c4681295728` |
+
+- Pixel 5와 Galaxy에서 전체 Android 제품 검사가 통과했다. Cupertino의 첫 한글 단어, 손을 뗀 뒤, WebGL 복구 후, RTL 단어, 두 줄에 걸친 범위에서 핸들 두 개를 검사했다. 각 핸들의 중심 8×8 논리 픽셀 영역에서 Pixel 5는 각각 484개, Galaxy는 각각 576개의 파란 픽셀을 확인했다. Material 두 핸들, 확대경, 클립보드, 자동 스크롤, 취소, 경로 종료 후 추가 프레임 0개도 확인했다. 입력은 ADB·CDP였다. [Android 제품 검사](sample/nelyx-demo-app/eng/check-text-selection.mjs)
+- Windows WebView2 패키지를 단독으로 실행해 `Shift+F10`, 메뉴 키, Escape 포커스 복귀, Tab·방향키·Enter, 한글 클립보드 왕복과 UI Automation의 `Copy` 활성·`Paste` 비활성을 재검사했다. 패키징 셸에서 `rustup which cargo`로 확인한 Rust 도구 체인의 폴더를 `PATH` 앞에 추가해 `pack:windows`를 실행했다.
+- Linux 패키지에서 선택 안팎 우클릭, 메뉴 키·`Shift+F10`·Escape, 같은 필드 포커스, 한글 X11 클립보드 왕복과 빈 필드 붙여넣기를 재검사했다. Chrome 헤드리스와 실제 창의 PWA 선택 검사, Chrome 네이티브 메뉴 정책, 개발 러너의 DPR 1·2 스크롤 클립 검사도 통과했다.
+- Pixel 5에서 Material·Core 읽기 전용 예제와 `SelectionArea`의 끝 핸들 픽셀을 찾은 뒤 그 위치에서 드래그해 선택이 늘어나는 것을 확인했다. Material·`SelectionArea`는 손을 뗀 뒤 렌즈가 사라지고 메뉴가 열렸고, Core 읽기 전용은 취소 뒤 렌즈와 메뉴가 닫혔다.
+- Pixel 5의 실제 렌더 트리에서 확대 중 Material은 Backdrop과 두 핸들 순으로, Cupertino는 두 핸들과 Backdrop 순으로 합성됐다. 둘 다 Backdrop은 하나였다. Material 여러 줄의 끝 핸들을 가장자리에 고정해 내부 스크롤을 유도한 뒤, 화면 픽셀에서 확대된 글자의 일치 점수 `0.808`을 확인했다. 부모 목록의 자동 스크롤 뒤 같은 픽셀 검사는 `0.675`였고 취소 렌더링 뒤 사라진 렌즈 영역과 비교했다. [확대경 합성](Nelyx/src/framework/widgets/selection-overlay.ts#L176)
+- Pixel 5의 네이티브 키보드가 열린 상태에서 Material 한 줄과 Cupertino 여러 줄의 `안녕하세요`, `👋`, `שלום`을 각각 길게 눌러 렌즈의 포인터와 글줄 좌표를 확인했다. Material 양쪽 핸들을 교차 방향으로 당겼을 때 Android는 반대쪽 끝을 넘는 입력에서 선택 범위를 유지했다. [핸들 드래그](Nelyx/src/framework/widgets/editable-text.ts#L2495)
+
+### 수정본 Pixel 5 표시 간격
+
+§9와 같은 장치와 GPU에서 편집기 진입 플링과 확대경 드래그를 각각 한 번 측정했다. 플링 시작과 종료 카드가 §9와 일치했다.
+
+| SurfaceFlinger 구간 | 첫 버퍼 지연 | 유효 간격 | p95 | p99 | 최장 | 33.3ms 이상 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 편집기 플링 전체 | 61.42ms | 19 | 100.08ms | 100.08ms | 100.08ms | 3 |
+| 손을 뗀 뒤 관성 | 1.95ms | 18 | 100.08ms | 100.08ms | 100.08ms | 3 |
+| CSS 대조 | — | 89 | 20.30ms | 33.94ms | 33.94ms | 1 |
+| 확대경 드래그 | — | 49 | 52.41ms | 67.36ms | 67.36ms | 10 |
+| 확대경 드래그에서 손을 뗀 뒤 | — | 8 | 151.20ms | 151.20ms | 151.20ms | 5 |
+
+플링에서 손을 떼기 전의 간격 표본은 없었다. 확대경 엔트리가 정리된 뒤 정지 구간에는 새 버퍼가 없었다. W5 원본 APK를 확보해야 §4의 교대 비교와 활성 이동 p95 인수를 진행할 수 있다.
+
+### 남은 인수
+
+- Windows 실제 키보드 입력과 Narrator 낭독, Galaxy 실제 손가락과 Gboard 한글 조합, iOS 실기기와 macOS 창은 해당 입력·호스트 환경이 필요하다.
+- W5 원본 APK를 확보하면 §4의 동일 경로에서 교대로 측정한다.

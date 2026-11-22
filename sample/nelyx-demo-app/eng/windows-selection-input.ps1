@@ -12,13 +12,18 @@ if ($window -eq [IntPtr]::Zero) { throw 'The selected process has no main window
 
 if ($Action -eq 'uia') {
     Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
-    $root = [System.Windows.Automation.AutomationElement]::FromHandle($window)
+    $desktop = [System.Windows.Automation.AutomationElement]::RootElement
+    $owner = [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $WindowProcessId)
+    $windows = $desktop.FindAll([System.Windows.Automation.TreeScope]::Children, $owner)
     $condition = [System.Windows.Automation.PropertyCondition]::new(
         [System.Windows.Automation.AutomationElement]::NameProperty, $Value)
-    $items = @($root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition) |
-        ForEach-Object {
-            @{ name = $_.Current.Name; enabled = $_.Current.IsEnabled; control = $_.Current.ControlType.ProgrammaticName }
-        })
+    $items = @(foreach ($root in $windows) {
+        $root.FindAll([System.Windows.Automation.TreeScope]::Subtree, $condition) |
+            ForEach-Object {
+                @{ name = $_.Current.Name; enabled = $_.Current.IsEnabled; control = $_.Current.ControlType.ProgrammaticName }
+            }
+    })
     ConvertTo-Json -InputObject $items -Compress
     return
 }
@@ -35,6 +40,12 @@ public static class SelectionWindowInput {
     [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr window, int command);
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out Rect rect);
+    [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(Point point);
+    [DllImport("user32.dll")] private static extern bool GetCursorPos(out Point point);
+    [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint count, Input[] input, int size);
 
@@ -59,6 +70,30 @@ public static class SelectionWindowInput {
         public int X, Y;
         public uint MouseData, Flags, Time;
         public UIntPtr ExtraInfo;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Point { public int X, Y; }
+
+    public static void ClickTitleBar(IntPtr window) {
+        const uint noMoveResizeOrActivate = 0x0013;
+        Point previous;
+        if (!GetCursorPos(out previous) ||
+            !SetWindowPos(window, new IntPtr(-1), 0, 0, 0, 0, noMoveResizeOrActivate)) return;
+        try {
+            Rect rect;
+            if (!GetWindowRect(window, out rect)) return;
+            Point point = new Point { X = (rect.Left + rect.Right) / 2, Y = rect.Top + 18 };
+            if (WindowFromPoint(point) != window || !SetCursorPos(point.X, point.Y)) return;
+            var down = new Input { Data = new Data { Mouse = new Mouse { Flags = 2 } } };
+            var up = new Input { Data = new Data { Mouse = new Mouse { Flags = 4 } } };
+            SendInput(2, new[] { down, up }, Marshal.SizeOf(typeof(Input)));
+            Thread.Sleep(150);
+        } finally {
+            SetCursorPos(previous.X, previous.Y);
+            SetWindowPos(window, new IntPtr(-2), 0, 0, 0, 0, noMoveResizeOrActivate);
+        }
     }
     private static void Scan(IntPtr window, ushort scan, bool release) {
         if (!release) {
@@ -102,6 +137,9 @@ if ($Action -eq 'focus') {
         [void](New-Object -ComObject WScript.Shell).AppActivate($WindowProcessId)
     }
     Start-Sleep -Milliseconds 200
+    if ([SelectionWindowInput]::GetForegroundWindow() -ne $window) {
+        [SelectionWindowInput]::ClickTitleBar($window)
+    }
     if ([SelectionWindowInput]::GetForegroundWindow() -ne $window) {
         throw 'The packaged window could not be foregrounded'
     }

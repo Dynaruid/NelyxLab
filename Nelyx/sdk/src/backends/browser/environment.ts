@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { ViewEnvironment } from '@nelyx/core/ui/types';
 import { freezeEnvironment } from '@nelyx/core/ui/frame';
+
+export interface WebSafeAreaSource {
+  /** Insets from the layout viewport edges, in CSS pixels. */
+  read(): ViewEnvironment['safeArea'] | undefined;
+  subscribe(listener: () => void): () => void;
+}
+
 /** Visual viewport overlap is labelled as occlusion; it is not proof that an IME is open. */
-export function createBrowserEnvironment(canvas: HTMLCanvasElement) {
+export function createBrowserEnvironment(canvas: HTMLCanvasElement, source?: WebSafeAreaSource) {
   const document = canvas.ownerDocument;
   const window = document.defaultView!;
   const probe = document.createElement('div');
@@ -14,13 +21,14 @@ export function createBrowserEnvironment(canvas: HTMLCanvasElement) {
   canvas.parentElement!.appendChild(probe);
   return {
     read(): ViewEnvironment {
-      const css = window.getComputedStyle(probe),
+      const native = source?.read(),
+        css = native ? undefined : window.getComputedStyle(probe),
         rect = canvas.getBoundingClientRect(),
         x = rect.width ? canvas.clientWidth / rect.width : 1,
         y = rect.height ? canvas.clientHeight / rect.height : 1;
       const clamp = (value: number, max: number) => Math.max(0, Math.min(max, value));
-      const value = (side: string) =>
-        Number.parseFloat(css.getPropertyValue('padding-' + side)) || 0;
+      const value = (side: keyof ViewEnvironment['safeArea']) =>
+        native?.[side] ?? (Number.parseFloat(css!.getPropertyValue('padding-' + side)) || 0);
       const safeArea = {
         top: clamp(value('top') - rect.top, rect.height) * y,
         right: clamp(rect.right - (window.innerWidth - value('right')), rect.width) * x,
@@ -30,9 +38,11 @@ export function createBrowserEnvironment(canvas: HTMLCanvasElement) {
       const viewport = window.visualViewport;
       return freezeEnvironment({
         safeArea,
-        safeAreaSource: window.CSS.supports('padding-top', 'env(safe-area-inset-top)')
-          ? 'css'
-          : 'application',
+        safeAreaSource: native
+          ? 'native'
+          : window.CSS.supports('padding-top', 'env(safe-area-inset-top)')
+            ? 'css'
+            : 'application',
         keyboardInset: viewport
           ? clamp(rect.bottom - (viewport.offsetTop + viewport.height), rect.height) * y
           : 0,

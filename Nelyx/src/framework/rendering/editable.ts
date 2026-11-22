@@ -780,15 +780,18 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
       first = boxes[0],
       last = boxes.at(-1);
     if (!first || !last) return [];
-    const start = this.localRect(first.toRect()),
-      end = this.localRect(last.toRect());
+    // Glyph bounds can overhang the text layout. Clamp before scrolling so an
+    // endpoint outside the scrolled viewport can still hide its handle.
+    const width = painter.width,
+      scrollX = this.scrollX,
+      dy = this.top - this.scrollY;
     return [
       new TextSelectionPoint(
-        new Offset(first.direction === 'ltr' ? start.left : start.right, start.bottom),
+        new Offset(Math.max(0, Math.min(width, first.start)) - scrollX, first.bottom + dy),
         first.direction,
       ),
       new TextSelectionPoint(
-        new Offset(last.direction === 'ltr' ? end.right : end.left, end.bottom),
+        new Offset(Math.max(0, Math.min(width, last.end)) - scrollX, last.bottom + dy),
         last.direction,
       ),
     ];

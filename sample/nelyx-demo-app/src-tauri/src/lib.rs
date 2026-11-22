@@ -2,6 +2,9 @@
 
 use tauri::{webview::PageLoadEvent, AppHandle, Manager, Url};
 
+#[cfg(target_os = "android")]
+mod safe_area;
+
 #[derive(serde::Serialize)]
 struct HostInfo {
     version: String,
@@ -32,9 +35,16 @@ fn app_page(root: &Url, page: &Url) -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(safe_area::plugin());
+    builder
         .plugin(tauri_plugin_clipboard_manager::init())
-        .invoke_handler(tauri::generate_handler![host_info])
+        .invoke_handler(tauri::generate_handler![
+            host_info,
+            #[cfg(target_os = "android")]
+            safe_area::watch_safe_area,
+        ])
         .on_page_load(|webview, payload| {
             if payload.event() != PageLoadEvent::Finished || webview.label() != "main" {
                 return;

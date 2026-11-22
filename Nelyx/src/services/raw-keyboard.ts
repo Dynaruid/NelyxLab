@@ -154,6 +154,14 @@ export class RawKeyboard {
       if (side === 'any') {
         for (const key of group.physical) anySide.add(key.usbHidUsage);
         if (group.physical.some((key) => after.has(key.usbHidUsage))) continue;
+        // WebKitGTK can report the modifier state from before its keyup.
+        // Keep any other tracked side, but do not press the released key again.
+        if (
+          thisModifier === group.key &&
+          event instanceof RawKeyUpEvent &&
+          event.data instanceof RawKeyEventDataWeb
+        )
+          continue;
       }
       const keys = this.mappedModifierKeys(group.physical, side);
       if (keys === null) continue;

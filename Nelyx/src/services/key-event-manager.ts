@@ -142,6 +142,7 @@ export class KeyEventManager {
       try {
         return this.processRawKeyMessage(message, scope);
       } finally {
+        this.events.length = 0;
         this.transport = previous;
       }
     });
@@ -199,7 +200,6 @@ export class KeyEventManager {
       }
       if (this.live && !hostTransport)
         handled = this.dispatchKeyMessage(this.events, event) || handled;
-      this.events.length = 0;
     }
     return new Map([['handled', handled]]);
   }

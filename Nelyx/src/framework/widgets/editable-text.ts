@@ -290,6 +290,7 @@ export class TextEditingController extends ChangeNotifier {
   }
   attach(consumer: object, replace?: (text: string, selection: TextSelection) => void): () => void {
     this.ensureAlive();
+    if (this.consumer instanceof EditableTextState) this.consumer._releaseInactiveConnection();
     invariant(
       !this.consumer,
       'editor-controller-in-use',
@@ -3680,6 +3681,9 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       this.clipboardStatus = ClipboardStatus.unknown;
       this.legacyClipboardStatus?.dispose();
       this.legacyClipboardStatus = null;
+      this.releaseController = controller.attach(this, (text, selection) =>
+        this.synchronizeCore(text, selection),
+      );
       if (
         this.autofillGroup &&
         this.boundConfiguration.autofillHints &&
@@ -3689,9 +3693,6 @@ export class EditableTextState extends State<EditableText> implements TextSelect
           this.widget.id,
           this.boundConfiguration.autofillHints,
         );
-      this.releaseController = controller.attach(this, (text, selection) =>
-        this.synchronizeCore(text, selection),
-      );
       invariant(
         this.context instanceof Element,
         'invalid-context',
@@ -3912,8 +3913,10 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         },
       );
       this.checkFormatterSupport();
-      this.focus = this.widget.focusNode ?? new FocusNode();
-      this.ownFocus = !this.widget.focusNode;
+      if (!this.focus) {
+        this.focus = this.widget.focusNode ?? new FocusNode();
+        this.ownFocus = !this.widget.focusNode;
+      }
       const manager = this.context.owner.focus;
       manager.addLateKeyEventHandler(this.defaultEditingKey);
       manager.addEarlyKeyEventHandler(this.selectionMenuKey);
@@ -3947,9 +3950,9 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       throw error;
     }
   }
-  private disconnect(): void {
+  private disconnect(preserveFocus = false): void {
     this.focusRestorationToken = {};
-    this.keyboardRequest = undefined;
+    if (!preserveFocus) this.keyboardRequest = undefined;
     this.stopSelectionDrag();
     this.toolbarRemoved();
     this.menuPolicyObservation?.dispose();
@@ -3981,7 +3984,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.autofillGroup = null;
     this.attachedController = undefined;
     this.releaseController = undefined;
-    this.focus = undefined;
+    if (!preserveFocus) this.focus = undefined;
     this.binding = undefined;
     this.compositionBase = undefined;
     this.pendingSynchronization = undefined;
@@ -3994,7 +3997,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       () => focus?.removeListener(this.invalidated),
       () => release?.(),
       () => {
-        if (owned) focus?.dispose();
+        if (owned && !preserveFocus) focus?.dispose();
       },
       () => binding?.dispose(),
       () => autofillClient?.dispose(),
@@ -4031,7 +4034,6 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       this.stopSelectionDrag();
       this.hideToolbar();
       this.stopBlink();
-      this.dragAnchor = undefined;
       super.deactivate();
     } catch (error) {
       try {
@@ -4045,17 +4047,30 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   }
   override activate(): void {
     super.activate();
+    if (!this.attachedController) {
+      const priorFocus = this.focus;
+      this.connect();
+      if (priorFocus?.hasPrimaryFocus) this.restoreKeyboardFocus(priorFocus, this.keyboardRequest);
+    }
     this.updateSystemFonts();
     this.syncBlink();
     if (this.pendingConfiguration && !this.binding?.isComposing) this.queueReconfiguration();
   }
+  /** @internal A scroll layout may mount a replacement before retiring this inactive subtree. */
+  _releaseInactiveConnection(): void {
+    if (this.context instanceof Element && !this.context.active) this.disconnect(true);
+  }
   private reconnect(restoreFocus = true): void {
     const priorFocus = this.focus,
       focused = restoreFocus && priorFocus?.hasFocus,
-      request: InputFocusRequest = { ...this.keyboardRequest, restore: true };
+      request = this.keyboardRequest;
     this.disconnect();
     this.connect();
-    if (!focused || !(this.context instanceof Element)) return;
+    if (focused) this.restoreKeyboardFocus(priorFocus, request);
+  }
+  private restoreKeyboardFocus(priorFocus: FocusNode, previousRequest?: InputFocusRequest): void {
+    if (!(this.context instanceof Element)) return;
+    const request: InputFocusRequest = { ...previousRequest, restore: true };
     const token = {},
       identity = this.editingIdentity,
       connection = this.connection,

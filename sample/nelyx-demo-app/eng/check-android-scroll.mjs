@@ -1481,6 +1481,19 @@ async function checkRange(page, top, { height, dpr }) {
 async function checkIme(page, top, { height, dpr }) {
   await openCategory(page, 'Text inputs');
   const field = page.getByRole('textbox', { name: 'Write something', exact: true });
+  const readFullSurface = async () => {
+    const { viewport, layout, raster } = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      const { x, y, width, height } = canvas.getBoundingClientRect();
+      return {
+        viewport: [0, 0, innerWidth, innerHeight],
+        layout: [x, y, width, height].map(Math.round),
+        raster: [canvas.width, canvas.height],
+      };
+    });
+    assert.deepEqual(layout, viewport, 'Canvas fills the Android layout viewport');
+    return { viewport, raster };
+  };
   await page.evaluate(() => {
     window.galleryEditorState = (element = document.activeElement) => ({
       label: element?.getAttribute('aria-label'),
@@ -1518,6 +1531,7 @@ async function checkIme(page, top, { height, dpr }) {
     throw new Error(`${error.message}. Editors: ${JSON.stringify(editors)}`, { cause: error });
   }
   const [fx, fy] = physicalCenter(fieldBox, dpr).map(Math.round);
+  const beforeIme = await readFullSurface();
   await shell('input', 'tap', String(fx), String(fy));
   await waitForEditor(
     'Android editor focus',
@@ -1529,6 +1543,7 @@ async function checkIme(page, top, { height, dpr }) {
     if (!keyboardShown) await wait(225);
   }
   assert(keyboardShown, 'Android soft keyboard is visible');
+  const withIme = await readFullSurface();
   await shell('input', 'text', '804');
   await waitForEditor('Android keyboard text', () =>
     window.galleryEditorState().value?.includes('804'),
@@ -1537,6 +1552,13 @@ async function checkIme(page, top, { height, dpr }) {
   await shell('input', 'keyevent', 'KEYCODE_BACK');
   await wait(400);
   assert.doesNotMatch(await shell('dumpsys', 'input_method'), /mInputShown=true/);
+  assert.deepEqual(await readFullSurface(), beforeIme, 'Canvas dimensions recover after the IME');
+  if (withIme.viewport.every((value, index) => value === beforeIme.viewport[index]))
+    assert.deepEqual(
+      withIme.raster,
+      beforeIme.raster,
+      'Visual occlusion preserves the raster size',
+    );
   await waitForEditor(
     'Editor focus after hiding Android keyboard',
     () => document.activeElement?.getAttribute('aria-label') === 'Write something',

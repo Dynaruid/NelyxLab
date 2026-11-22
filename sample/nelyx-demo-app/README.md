@@ -2,7 +2,7 @@
 
 **English** | [한국어](README.ko.md)
 
-A Material component gallery with adaptive layouts, form controls, images and navigation.
+Switch between the Material and Cupertino component galleries using the bottom tabs. The Cupertino gallery includes text selection, switches, a slider, segmented controls, an action sheet and a dialog.
 
 ## Prepare and develop
 

@@ -171,9 +171,11 @@ async function web(page, url, chromePid) {
   const secondary = ({ x, y }) => page.mouse.click(x, y, { button: 'right' });
   const nativeMenu = async (expected) => {
     if (!chromePid) return;
-    const items = await windowsInput(chromePid, 'uia', 'Inspect');
-    assert.equal(items.length > 0, expected, 'Chrome Inspect identifies the native browser menu');
-    if (expected) await windowsInput(chromePid, 'scan', '01');
+    const showsInspect = async () => (await windowsInput(chromePid, 'uia', 'Inspect')).length > 0;
+    if (expected) {
+      await until(showsInspect, 'Chrome Inspect identifies the native browser menu');
+      await windowsInput(chromePid, 'scan', '01');
+    } else assert.equal(await showsInspect(), false, 'Chrome must leave the Nelyx menu open');
   };
   await openSelection(page, tap);
   const first = await point(field(page, 'Material single line'), 44);
@@ -234,7 +236,8 @@ async function web(page, url, chromePid) {
       ['keydown', 'Shift', 16, true, 1],
       ['keydown', 'F10', 121, true, 0],
       ['keyup', 'F10', 121, true, 0],
-      ['keyup', 'Shift', 16, false, 1],
+      // WebKitGTK reports the pre-release modifier bit on keyup.
+      ['keyup', 'Shift', 16, true, 1],
     ]);
     await menu(page, 'Paste').waitFor();
     assert.equal(await menu(page, 'Paste').count(), 1);
@@ -402,7 +405,7 @@ async function windowsSelection(page, pid) {
           defaultPrevented,
         } = event;
         if (
-          !['F10', 'ContextMenu', 'Menu', 'Escape', 'Tab', 'ArrowDown', 'Enter'].includes(key) &&
+          !['Shift', 'F10', 'ContextMenu', 'Menu', 'Escape', 'Tab', 'ArrowDown', 'Enter'].includes(key) &&
           !(ctrlKey && ['a', 'c', 'v'].includes(key.toLowerCase()))
         )
           return;
@@ -519,6 +522,16 @@ async function windowsSelection(page, pid) {
         events,
       }),
     );
+  } catch (error) {
+    console.error(
+      await page.evaluate(() => ({
+        activeElement: document.activeElement?.tagName,
+        activeLabel: document.activeElement?.getAttribute('aria-label'),
+        documentFocused: document.hasFocus(),
+        keys: window.selectionKeys,
+      })),
+    );
+    throw error;
   } finally {
     await clipboard(saved ?? '');
   }
@@ -916,19 +929,22 @@ async function checkInsertionHandle(page, id) {
   return { dx, dy, direction: endpoints[0].direction };
 }
 
-async function checkMaterialRangeHandlePixels(page, dpr) {
-  const grips = await page.evaluate(() => {
-    const { endpoints } = window.readSelectionEditorGeometry('w6-material');
+async function checkRangeHandlePixels(page, dpr, id) {
+  const cupertino = id.startsWith('w6-cupertino');
+  const grips = await page.evaluate(({ id, cupertino }) => {
+    const { endpoints } = window.readSelectionEditorGeometry(id);
     const canvas = document.querySelector('canvas').getBoundingClientRect();
-    return endpoints.map(({ x, y, direction }, index) => ({
-      x: canvas.x + x + ((index === 0) === (direction === 'ltr') ? -11 : 11),
-      y: canvas.y + y + 11,
-    }));
-  });
-  assert.equal(grips.length, 2, 'A word selection must have two handle anchors');
+    return endpoints.map(({ x, y, direction, lineHeight }, index) => {
+      const left = (index === 0) === (direction === 'ltr');
+      const point = { x: canvas.x + x, y: canvas.y + y };
+      if (cupertino) return { x: point.x, y: point.y + (left ? -lineHeight - 4.5 : 4.5) };
+      return { x: point.x + (left ? -11 : 11), y: point.y + 11 };
+    });
+  }, { id, cupertino });
+  assert.equal(grips.length, 2, `${id} must have two handle anchors`);
   const frame = (await adb('exec-out', 'screencap', '-p')).toString('base64');
   const pixels = await page.evaluate(
-    async ({ frame, grips, dpr }) => {
+    async ({ frame, grips, dpr, cupertino }) => {
       const bytes = Uint8Array.from(atob(frame), (character) => character.charCodeAt(0));
       const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
       const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
@@ -948,17 +964,21 @@ async function checkMaterialRangeHandlePixels(page, dpr) {
           const r = data[i],
             g = data[i + 1],
             b = data[i + 2];
-          // The Demo's Material handles use the saturated purple primary color.
-          if (b > r + 18 && r > g + 8 && r < 170) ink++;
+          // Cupertino uses system blue and Material uses the Demo's purple primary color.
+          const handle = cupertino
+            ? b > 185 && b > g + 28 && b > r + 70 && r < 180
+            : b > r + 18 && r > g + 8 && r < 170;
+          if (handle) ink++;
         }
         return ink;
       });
     },
-    { frame, grips, dpr },
+    { frame, grips, dpr, cupertino },
   );
+  const minimumInk = (cupertino ? 32 : 12) * dpr * dpr;
   assert.ok(
-    pixels.every((count) => count > 12 * dpr * dpr),
-    `Both Material handles must be painted (${pixels.join(', ')})`,
+    pixels.every((count) => count > minimumInk),
+    `${id} must paint both handles (${pixels.join(', ')})`,
   );
   return pixels;
 }
@@ -1011,6 +1031,8 @@ async function emulator(page) {
       await firstHold;
     }
     await menu(page, 'Copy').waitFor();
+    await wait(350);
+    const firstHoldHandlePixels = await checkRangeHandlePixels(page, dpr, 'w6-material');
     const doubleTapPoint = await point(editor, 48);
     await tap(doubleTapPoint);
     await wait(95);
@@ -1019,7 +1041,7 @@ async function emulator(page) {
     const doubleTap = await readEditor(page);
     assert.ok(doubleTap?.end > doubleTap?.start, 'Two Android taps must select a word');
     await wait(350);
-    const rangeHandlePixels = await checkMaterialRangeHandlePixels(page, dpr);
+    const rangeHandlePixels = await checkRangeHandlePixels(page, dpr, 'w6-material');
     await tap(await point(editor, 28));
     await until(
       async () => (await readEditor(page))?.carrier,
@@ -1150,6 +1172,8 @@ async function emulator(page) {
       'Cupertino hold must select text before the editor receives native focus',
     );
     assert.equal(await menu(page, 'Copy').count(), 0);
+    await wait(220);
+    const cupertinoHoldingPixels = await checkRangeHandlePixels(page, dpr, 'w6-cupertino');
     await touch('touchEnd');
     await menu(page, 'Copy').waitFor();
     await until(
@@ -1159,6 +1183,8 @@ async function emulator(page) {
         ),
       'Cupertino release must focus the editor',
     );
+    await wait(350);
+    const cupertinoReleasedPixels = await checkRangeHandlePixels(page, dpr, 'w6-cupertino');
     await recoverRenderer(page);
     await touch('touchStart', await point(cupertino, 20));
     await wait(650);
@@ -1171,6 +1197,20 @@ async function emulator(page) {
     );
     await touch('touchEnd');
     await menu(page, 'Copy').waitFor();
+    await wait(220);
+    const cupertinoRecoveredPixels = await checkRangeHandlePixels(page, dpr, 'w6-cupertino');
+    await touch('touchStart', await point(cupertino, 170));
+    await until(
+      () => page.evaluate(() => {
+        const endpoints = window.readSelectionEditorGeometry('w6-cupertino')?.endpoints;
+        return endpoints?.length === 2 && endpoints.every(({ direction }) => direction === 'rtl');
+      }),
+      'Cupertino hold must select the RTL word',
+    );
+    await touch('touchEnd');
+    await menu(page, 'Copy').waitFor();
+    await wait(220);
+    const cupertinoRtlPixels = await checkRangeHandlePixels(page, dpr, 'w6-cupertino');
     console.log(
       JSON.stringify({
         host: 'Android Tauri',
@@ -1179,12 +1219,18 @@ async function emulator(page) {
         carrier: selected.carrier,
         stationaryHold: 'PASS',
         firstHoldMenu: 'PASS',
+        firstHoldHandlePixels,
         doubleTapMenu: 'PASS',
         insertionHandleMenu: 'PASS',
         rangeHandlePixels,
         insertionHandle,
         cancelRetry: 'PASS',
-        cupertinoHold: 'PASS',
+        cupertinoHandlePixels: {
+          holding: cupertinoHoldingPixels,
+          released: cupertinoReleasedPixels,
+          recovered: cupertinoRecoveredPixels,
+          rtl: cupertinoRtlPixels,
+        },
         osClipboard: 'PASS',
         gpuRecovery: 'PASS',
       }),
@@ -1207,15 +1253,25 @@ async function androidSelectionDetails(page, touch, tap, dpr) {
         ...render,
         corners: render.corners.map(client),
         endpoints: render.endpoints.map(client),
+        visible: {
+          left: render.visible.left + x,
+          top: render.visible.top + y,
+          right: render.visible.right + x,
+          bottom: render.visible.bottom + y,
+        },
       };
     }, id);
   const lenses = () => page.evaluate(() => window.readSelectionMagnifiers());
   const lens = async (id) => (await lenses())[id];
   const expectLens = async (id) => {
-    await until(async () => (await lens(id))?.shown, id + ' must show a magnifier');
-    const active = Object.values(await lenses()).filter(({ exists }) => exists);
+    let sample;
+    await until(async () => {
+      sample = await lenses();
+      return sample[id]?.shown;
+    }, id + ' must show a magnifier');
+    const active = Object.values(sample).filter(({ exists }) => exists);
     assert.equal(active.length, 1, 'The selection gesture must own one lens entry');
-    return (await lens(id)).info;
+    return sample[id].info;
   };
   const expectClosed = () =>
     until(
@@ -1232,16 +1288,28 @@ async function androidSelectionDetails(page, touch, tap, dpr) {
   };
   const reveal = async (target) => {
     await hideKeyboard();
+    let visibleY;
     await until(async () => {
-      const { width, height } = await page.evaluate(() => ({
-        width: innerWidth,
-        height: innerHeight,
-      }));
+      const { width, top, bottom } = await page.evaluate(() => {
+        const { y, bottom } = document.querySelector('canvas').getBoundingClientRect();
+        const viewportTop = visualViewport?.offsetTop ?? 0;
+        return {
+          width: innerWidth,
+          top: Math.max(y, viewportTop),
+          bottom: Math.min(bottom, viewportTop + (visualViewport?.height ?? innerHeight)),
+        };
+      });
       const box = (await target.count()) > 0 ? await target.boundingBox({ timeout: 1_500 }) : null;
-      if (box && box.y >= 66 && box.y + box.height < height - 12) return true;
-      const down = !box || box.y >= 66;
+      if (box && box.y >= top + 66 && box.y + box.height < bottom - 12) {
+        // The scrollable consumes the first touch while it is still flinging.
+        if (visibleY === box.y) return true;
+        visibleY = box.y;
+        return false;
+      }
+      visibleY = undefined;
+      const down = !box || box.y >= top + 66;
       const x = Math.round((width - 12) * dpr);
-      const ys = [Math.round(height * 0.72 * dpr), Math.round(height * 0.43 * dpr)];
+      const ys = [0.72, 0.43].map((ratio) => Math.round((top + (bottom - top) * ratio) * dpr));
       await adb(
         'shell',
         'input',
@@ -1308,6 +1376,11 @@ async function androidSelectionDetails(page, touch, tap, dpr) {
   await touch('touchMove', { x: end.x + 25, y: end.y });
   await expectLens('multiline');
   await touch('touchMove', edge);
+  const canvasTop = (await page.locator('canvas').boundingBox()).y;
+  await until(async () => {
+    const position = (await lens('multiline'))?.info.globalGesturePosition;
+    return position && Math.abs(position.dy + canvasTop - edge.y) < 1;
+  }, 'The lens must follow the last pointer position before measuring stationary scrolling');
   const beforeLine = await expectLens('multiline');
   await until(
     async () => (await geometry('w6-multiline'))?.scroll.y > beforeScroll.scroll.y + 10,
@@ -1336,11 +1409,66 @@ async function androidSelectionDetails(page, touch, tap, dpr) {
   await wait(220);
   assert.equal((await geometry('w6-multiline')).scroll.y, settledOffset);
 
+  await hideKeyboard();
+  const canvas = await page.locator('canvas').boundingBox();
+  const back = await button(page, 'Back').boundingBox();
+  const viewportTop = 2 * back.y + back.height - canvas.y;
+  const adjustList = (deltaY) =>
+    page.evaluate(
+      ({ x, y, deltaY }) => {
+        document.querySelector('canvas').dispatchEvent(
+          new WheelEvent('wheel', { clientX: x, clientY: y, deltaY, cancelable: true }),
+        );
+      },
+      { x: canvas.x + canvas.width - 12, y: viewportTop + 100, deltaY },
+    );
+  await until(async () => {
+    const current = await geometry('w6-multiline');
+    if (!current) {
+      await adjustList(-32);
+      return false;
+    }
+    const cropped = current.visible.top - current.corners[0].y;
+    if (cropped > 8 && current.visible.bottom - current.visible.top > 20) return true;
+    const delta = cropped > 0 ? 24 - cropped : Math.max(12, current.corners[0].y - viewportTop + 24);
+    await adjustList(Math.max(-40, Math.min(40, delta)));
+    return false;
+  }, 'The gallery viewport must partially clip the multiline field');
+  const clipped = await geometry('w6-multiline');
+  const parentDrag = {
+    x: clipped.visible.left + 42,
+    y: (clipped.visible.top + clipped.visible.bottom) / 2,
+  };
+  await hold(parentDrag, 'multiline').catch(async (error) => {
+    console.error({
+      clipped,
+      parentDrag,
+      current: await geometry('w6-multiline'),
+      active: await readEditor(page),
+    });
+    throw error;
+  });
+  const parentEdge = { x: parentDrag.x, y: clipped.visible.top - 6 };
+  await touch('touchMove', parentEdge);
+  await until(
+    async () => (await geometry('w6-multiline'))?.corners[0].y > clipped.corners[0].y + 8,
+    'The list must scroll while the touch is stationary outside its viewport',
+  );
+  const parentLens = await expectLens('multiline');
+  assert.ok(Math.abs(parentLens.globalGesturePosition.dy + canvas.y - parentEdge.y) < 1);
+  assert.ok(parentLens.currentLineBoundaries.top >= parentLens.fieldBounds.top);
+  await touch('touchCancel');
+  await expectClosed();
+  const parentStopped = (await geometry('w6-multiline')).corners[0].y;
+  await wait(220);
+  assert.equal((await geometry('w6-multiline')).corners[0].y, parentStopped);
+
   const cupertino = field(page, 'Cupertino multiline');
   await reveal(cupertino);
   await tap(await point(cupertino, 40));
   await wait(450);
-  const cupertinoAt = await point(cupertino, 40);
+  const cupertinoStart = (await geometry('w6-cupertino-multiline')).corners[0];
+  const cupertinoAt = { x: cupertinoStart.x + 42, y: cupertinoStart.y + 11 };
   const cupertinoLine = await hold(cupertinoAt, 'cupertino-multiline');
   await touch('touchMove', { x: cupertinoAt.x + 65, y: cupertinoAt.y + 24 });
   await until(
@@ -1351,6 +1479,12 @@ async function androidSelectionDetails(page, touch, tap, dpr) {
   await touch('touchEnd');
   await expectClosed();
   await menu(page, 'Copy').waitFor();
+  const cupertinoMultilinePixels = await checkRangeHandlePixels(page, dpr, 'w6-cupertino-multiline');
+  const cupertinoRange = await geometry('w6-cupertino-multiline');
+  assert.ok(
+    cupertinoRange.endpoints[1].y > cupertinoRange.endpoints[0].y,
+    'The Cupertino range must span two lines',
+  );
 
   const checkNoLens = async (id, label) => {
     const target = field(page, label);
@@ -1430,7 +1564,9 @@ async function androidSelectionDetails(page, touch, tap, dpr) {
     JSON.stringify({
       handleDrags: 'PASS',
       innerScroll: { before: beforeScroll.scroll.y, stopped: settledOffset },
+      parentScroll: { before: clipped.corners[0].y, stopped: parentStopped },
       materialCupertinoLines: 'PASS',
+      cupertinoMultilinePixels,
       rtlInsertionHandle,
       readOnlyLenses: 'PASS',
       regionLine: 'PASS',
@@ -1462,6 +1598,7 @@ async function recoverRenderer(page) {
     const restored = contextEvent('webglcontextrestored');
     extension.restoreContext();
     await restored;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
   await field(page, 'Cupertino single line').waitFor();
 }
@@ -1665,11 +1802,11 @@ try {
       );
     }, 'Waiting for the Windows WebView2 endpoint');
     browser = await chromium.connectOverCDP(endpoint, { timeout: 20_000, noDefaults: true });
-    page = browser
-      .contexts()[0]
-      .pages()
-      .find((target) => target.url().startsWith('https://tauri.localhost/'));
-    assert.ok(page, 'No Demo WebView2 page');
+    await until(() => {
+      page = browser.contexts().flatMap((context) => context.pages())
+        .find((target) => target.url().startsWith('https://tauri.localhost/'));
+      return page;
+    }, 'No Demo WebView2 page');
   } else {
     const url = 'http://127.0.0.1:4189/demo/';
     runner = startOwnedCommand(process.execPath, [

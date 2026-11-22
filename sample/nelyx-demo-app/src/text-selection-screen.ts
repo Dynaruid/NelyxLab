@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-import { Directionality, Localizations } from '@nelyx/core/framework/widgets/app-data';
+import { Directionality, Localizations, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { SizedBox, Text } from '@nelyx/core/framework/widgets/basic';
 import { ContextMenuButtonItem } from '@nelyx/core/framework/widgets/context-menu-button-item';
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
@@ -185,6 +185,7 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
       new SizedBox(undefined, 6),
       child,
     ];
+    const safeArea = MediaQuery.paddingOf(context);
     return new Scaffold({
       appBar: new AppBar({
         title: new Text('Text selection'),
@@ -216,7 +217,12 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
       }),
       body: new ListView({
         primary: false,
-        padding: EdgeInsets.all(20),
+        padding: EdgeInsets.fromLTRB(
+          20 + safeArea.left,
+          20,
+          20 + safeArea.right,
+          20 + safeArea.bottom,
+        ),
         children: [
           field('material', 'Material single line', f.material),
           field('multiline', 'Material multiline', f.materialMultiline, {

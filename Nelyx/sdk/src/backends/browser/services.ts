@@ -15,6 +15,7 @@ import { sha256 } from './canvaskit.ts';
 import { isAppUrl } from './local-url.ts';
 import { bindCanvasInput } from './input.ts';
 import { createBrowserEnvironment } from './environment.ts';
+import type { WebSafeAreaSource } from './environment.ts';
 import { getBrowserPlatformEnvironment } from './platform.ts';
 import { ImageService } from '@nelyx/core/hosting/images';
 import { readImageUrl, encodeImageAssetManifest } from '../../runtime/image-loading.ts';
@@ -31,6 +32,7 @@ export function createWebServices(
   manifest: readonly AppAsset[],
   root: URL,
   definition: ApplicationDefinition,
+  safeArea?: WebSafeAreaSource,
 ): {
   services: BackendServices;
   cursor: BrowserMouseCursor;
@@ -66,7 +68,7 @@ export function createWebServices(
     renderer = 1,
     surface = 1,
     context = 1;
-  const environment = createBrowserEnvironment(canvas);
+  const environment = createBrowserEnvironment(canvas, safeArea);
   let nativeSelectionContextMenu: BrowserSelectionContextMenu | undefined;
   try {
     const selectionContextMenu = new BrowserSelectionContextMenu(canvas, owner, cursor);
@@ -93,7 +95,7 @@ export function createWebServices(
     let current = metrics(),
       observer: ResizeObserver | undefined,
       media: MediaQueryList | undefined;
-    let stopInput: (() => void) | undefined;
+    let stopInput: (() => void) | undefined, stopSafeArea: (() => void) | undefined;
     const resize = () => {
       if (closed || !notify) return;
       const next = metrics(),
@@ -145,6 +147,8 @@ export function createWebServices(
     const stop = () => {
       stopInput?.();
       stopInput = undefined;
+      stopSafeArea?.();
+      stopSafeArea = undefined;
       if (observer) {
         observer.disconnect();
         observer = undefined;
@@ -334,6 +338,8 @@ export function createWebServices(
           canvas.addEventListener('webglcontextlost', lost);
           canvas.addEventListener('webglcontextrestored', restored);
           watchDpi();
+          stopSafeArea = safeArea?.subscribe(resize);
+          if (safeArea) resize();
           let alive = true;
           return {
             dispose() {

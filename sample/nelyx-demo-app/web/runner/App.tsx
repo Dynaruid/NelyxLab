@@ -3,8 +3,11 @@ import { describeError } from '@nelyx/core/foundation/errors';
 import { RenderEditable } from '@nelyx/core/framework/rendering/editable';
 import type { RenderObject } from '@nelyx/core/framework/rendering/object';
 import { FrameworkRoot } from '@nelyx/core/framework/widgets/root';
+import { visibleSelectionBounds } from '@nelyx/core/framework/widgets/text-selection-toolbar-anchors';
 import { TextSelection } from '@nelyx/core/services/text-editing';
 import { FrameDiagnostics } from '@nelyx/core/ui/frame';
+import { Rect } from '@nelyx/core/ui/rect';
+import { TextPosition } from '@nelyx/core/ui/text-position';
 import type { WebSkiaLibrary } from '@nelyx/skia-web/library';
 import { useMemo, useState } from 'react';
 import type { WebApplication } from '@nelyx/sdk/platforms/web/application';
@@ -29,7 +32,7 @@ declare global {
   }
 }
 
-function editorGeometry(root: RenderObject | undefined, id: string) {
+function editorGeometry(root: RenderObject | undefined, id: string, viewport: Rect) {
   let editor: RenderEditable | undefined;
   function visit(render: RenderObject): void {
     if (editor) return;
@@ -50,8 +53,10 @@ function editorGeometry(root: RenderObject | undefined, id: string) {
     extentOffset: selection.focus,
   });
   const { caret } = render.editingGeometry;
+  const { left, top, right, bottom } = visibleSelectionBounds(render, viewport);
   return {
     scroll: render.scrollOffset,
+    visible: { left, top, right, bottom },
     caret: [render.localToGlobal(caret.topLeft), render.localToGlobal(caret.bottomRight)],
     corners: [
       render.localToGlobal({ x: 0, y: 0 }),
@@ -59,7 +64,13 @@ function editorGeometry(root: RenderObject | undefined, id: string) {
     ],
     endpoints: render
       .getEndpointsForSelection(range)
-      .map(({ point, direction }) => ({ ...render.localToGlobal(point), direction })),
+      .map(({ point, direction }, index) => ({
+        ...render.localToGlobal(point),
+        direction,
+        lineHeight: render.getLocalRectForCaret(
+          new TextPosition({ offset: index === 0 ? range.start : range.end }),
+        ).height,
+      })),
     selectionBoxes: render
       .getBoxesForSelection(range)
       .map((box) => [render.localToGlobal(box.topLeft), render.localToGlobal(box.bottomRight)]),
@@ -70,7 +81,14 @@ function attachFrameProbe(application: WebApplication): void {
   const view = application.view;
   const controller = view.controller;
   if (controller instanceof FrameworkRoot)
-    window.nelyxDemoEditorGeometryProbe?.((id) => editorGeometry(controller.pipeline.rootNode, id));
+    window.nelyxDemoEditorGeometryProbe?.((id) => {
+      const { logicalWidth, logicalHeight } = view.currentMetrics;
+      return editorGeometry(
+        controller.pipeline.rootNode,
+        id,
+        Rect.fromLTWH(0, 0, logicalWidth, logicalHeight),
+      );
+    });
   if (!window.nelyxDemoFrameProbe) return;
   const diagnostics = new FrameDiagnostics(performance, 16384),
     text = application.text as WebSkiaLibrary;

@@ -162,7 +162,6 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   private metrics: ViewMetrics | undefined;
   private readonly preserveDrawingBuffer: boolean;
   private readonly maxRasterScale: number;
-  private rasterScale = 1;
   private context: GrDirectContext | undefined;
   private surface: Surface | undefined;
   private handle: WebGLContextHandle | undefined;
@@ -1257,18 +1256,18 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   updateMetrics(metrics: ViewMetrics): void {
     this.ensureOpen();
     this.metrics = metrics;
-    if (this.lost) return;
-    this.rasterScale = Math.min(metrics.scale, this.maxRasterScale);
-    const ratio = this.rasterScale / metrics.scale,
-      width = metrics.physicalWidth ? Math.max(1, Math.round(metrics.physicalWidth * ratio)) : 0,
-      height = metrics.physicalHeight ? Math.max(1, Math.round(metrics.physicalHeight * ratio)) : 0;
-    // Environment-only changes still need a fresh frame. Keep the live GPU
-    // backing and its cached resources when the raster dimensions agree.
-    if (this.surface && this.canvas.width === width && this.canvas.height === height) return;
+  }
+  private surfaceForFrame(metrics: ViewMetrics, rasterScale: number): Surface {
+    const ratio = rasterScale / metrics.scale,
+      width = Math.max(1, Math.round(metrics.physicalWidth * ratio)),
+      height = Math.max(1, Math.round(metrics.physicalHeight * ratio));
+    if (this.surface && this.canvas.width === width && this.canvas.height === height)
+      return this.surface;
+    // Changing canvas dimensions clears the drawing buffer. Wait until a
+    // replacement frame can be drawn and flushed in this same submission.
     this.dropSurface();
     if (this.canvas.width !== width) this.canvas.width = width;
     if (this.canvas.height !== height) this.canvas.height = height;
-    if (!width || !height) return;
     this.ensureGpuContext();
     const surface = this.ck.MakeOnScreenGLSurface(
       this.context!,
@@ -1278,6 +1277,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     );
     if (!surface) throw new Error('CanvasKit GPU surface failed');
     this.surface = surface;
+    return surface;
   }
   private ensureGpuContext(): void {
     if (!this.context) {
@@ -1328,11 +1328,12 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     if (!this.canBuildFrame() || this.pending.has(frame.token.sequence)) {
       return { status: 'rejected', reason: 'busy' };
     }
-    const surface = this.surface,
+    const rasterScale = Math.min(this.metrics.scale, this.maxRasterScale),
+      surface = this.surfaceForFrame(this.metrics, rasterScale),
       gl = this.gl;
-    if (!surface || !gl) throw new Error('Web GPU surface unavailable');
+    if (!gl) throw new Error('Web GPU surface unavailable');
     const replayStarted = diagnostics?.now();
-    this.replay(surface.getCanvas(), frame, this.rasterScale);
+    this.replay(surface.getCanvas(), frame, rasterScale);
     const flushStarted = diagnostics?.record(frame.token, 'native-replay', replayStarted!);
     surface.flush();
     const fenceStarted = diagnostics?.record(frame.token, 'native-submit', flushStarted!);
