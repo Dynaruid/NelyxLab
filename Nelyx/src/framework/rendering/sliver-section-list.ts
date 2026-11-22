@@ -220,6 +220,8 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
       cacheExtent: this.calculateCacheOffset(c, { from: index.prefix(start), to: end }),
       hasVisualOverflow: c.scrollOffset > 0 || end > c.scrollOffset + c.remainingPaintExtent,
     });
+    const diagnostics = this.owner?._frameDiagnostics;
+    diagnostics?.recorder.recordSectionScrollOffset(diagnostics.token, c.scrollOffset);
     this.childManager.setDidUnderflow(last === index.count - 1);
     this.childManager.didFinishLayout();
   }

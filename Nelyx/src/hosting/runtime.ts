@@ -198,6 +198,7 @@ export class ViewRuntime implements Disposable {
   private readonly optionalFrames = new Set<{ callback: OptionalWorkCallback | undefined }>();
   private optionalIdle: Disposable | undefined;
   private optionalParked = false;
+  private lastSubmittedForIdle: FrameBuildToken | undefined;
   private state: ViewRuntimeStatus = 'open';
   private sequence = 0;
   private inputSequence = 0;
@@ -560,6 +561,7 @@ export class ViewRuntime implements Disposable {
   }
   requestFrame(): void {
     if (this.state !== 'open') return;
+    this.lastSubmittedForIdle = undefined;
     this.dirty = true;
     this.schedulePump();
   }
@@ -644,18 +646,24 @@ export class ViewRuntime implements Disposable {
     this.cancelOptionalIdle();
   }
   private canRunOptionalWork(): boolean {
+    const submitted = this.lastSubmittedForIdle;
     return (
       this.state === 'open' &&
       this.visible &&
       !this.forcedFrame &&
-      !this.dirty &&
       !this.pointerMailbox.length &&
       !this.drainingPointers &&
       !this.pending &&
       !this.submitting &&
       this.metrics.physicalWidth > 0 &&
       this.metrics.physicalHeight > 0 &&
-      this.options.renderer.canBuildFrame?.() === true
+      this.options.renderer.canBuildFrame?.() === true &&
+      // A ticker requests another frame as part of the current build. After
+      // admission, idle work can proceed if required layout and paint are current.
+      (!this.dirty ||
+        (submitted !== undefined &&
+          submitted.inputSequence === this.inputSequence &&
+          this.controller?.canSubmitPreparedFrame?.(submitted) === true))
     );
   }
   private flushOptionalWork(
@@ -913,7 +921,10 @@ export class ViewRuntime implements Disposable {
       }
       if (result.status === 'accepted') {
         this.inputAdmissionWatermark = undefined;
-        if (this.state === 'open') this.controller?.frameSubmitted?.(item.frame.token);
+        if (this.state === 'open') {
+          if (this.session.clock.requestIdle) this.lastSubmittedForIdle = item.frame.token;
+          this.controller?.frameSubmitted?.(item.frame.token);
+        }
       } else if (result.status === 'unknown') {
         this.uncertain.push(item.lease);
         if (this.state === 'open') this.state = 'failed';

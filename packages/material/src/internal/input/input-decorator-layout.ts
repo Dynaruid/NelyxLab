@@ -333,23 +333,45 @@ export class RenderInputDecoration extends RenderBox {
       'unbounded-expanded-input',
       'Expanded input requires bounded height',
     );
-    const measure = (slot: DecorationSlot, box: BoxConstraints): Measured => {
+    const diagnostics = this.owner?._frameDiagnostics;
+    const measure = (
+      slot: DecorationSlot,
+      box: BoxConstraints,
+      alignToBaseline = true,
+    ): Measured => {
       const child = this.childFor(slot);
       if (!child) return zero;
+      const began = diagnostics?.recorder.now();
       const size = dry
         ? child.getDryLayout(box)
         : (child.layout(box, { parentUsesSize: true }), child.size);
-      const baseline = baselineFor(child, box) ?? size.height;
+      const baselineBegan = diagnostics?.recorder.recordDecoration(
+        diagnostics.token,
+        'input-decoration-size',
+        slot,
+        dry,
+        began!,
+      );
+      const baseline = alignToBaseline ? (baselineFor(child, box) ?? size.height) : 0;
+      if (alignToBaseline)
+        diagnostics?.recorder.recordDecoration(
+          diagnostics.token,
+          'input-decoration-baseline',
+          slot,
+          dry,
+          baselineBegan!,
+        );
       const value = { size, baseline, constraints: box };
       measured.set(slot, value);
       return value;
     };
     const loose = new BoxConstraints(0, width, 0, constraints.maxHeight),
-      icon = measure('icon', loose),
+      icon = measure('icon', loose, false),
       containerWidth = Math.max(0, width - icon.size.width);
     const prefixIcon = measure(
       'prefixIcon',
       new BoxConstraints(0, containerWidth, 0, constraints.maxHeight),
+      false,
     );
     const suffixIcon = measure(
       'suffixIcon',
@@ -359,6 +381,7 @@ export class RenderInputDecoration extends RenderBox {
         0,
         constraints.maxHeight,
       ),
+      false,
     );
     const start = this.childFor('prefixIcon')
       ? prefixIcon.size.width + inputExtraPadding
@@ -531,6 +554,7 @@ export class RenderInputDecoration extends RenderBox {
       measure(
         'container',
         BoxConstraints.tight({ width: containerWidth, height: containerHeight }),
+        false,
       );
       offsets.set('container', { x: containerX, y: 0 });
     }

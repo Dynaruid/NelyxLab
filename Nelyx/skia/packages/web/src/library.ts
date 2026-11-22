@@ -1,4 +1,6 @@
 import { readWebImageBytes } from './image-bytes.ts';
+import { browserWebPSize, decodeBrowserWebP } from './webp-decode.ts';
+import type { BrowserWebP } from './webp-decode.ts';
 import { paragraphApiVersion } from './paragraph-api.ts';
 import type { OwnedParagraph } from './paragraph-api.ts';
 import { createEnginePath } from './path.ts';
@@ -40,6 +42,7 @@ import { RendererEvents } from '@nelyx/core/hosting/renderer-events';
 import { freezeTextInput, freezeTextLayout, freezeTextRect, textRange } from '@nelyx/core/ui/text';
 import type { PaintSnapshot, BlendMode } from '@nelyx/core/ui/paint';
 import { Paint as UiPaint } from '@nelyx/core/ui/paint';
+import type { ImageByteFormat } from '@nelyx/core/ui/image';
 import type { TextRunStyle } from '@nelyx/core/ui/text-styles';
 import { applyPaintEffects, createRuntimeShaderCache } from './paint-effects.ts';
 import { imageTargetSize } from '@nelyx/core/hosting/images';
@@ -62,6 +65,7 @@ import { webFontStyleKeys, webTextStyle, webParagraphStyle } from './text-style.
 
 // Leave headroom for Skia's signed integer clip width and height.
 const framePictureCullExtent = 2 ** 29;
+const webImageByteBudget = 256 * 1024 * 1024;
 
 interface Font {
   resource: ResourceId;
@@ -449,7 +453,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     const cost = width * height * 4;
     if (
       this.images.size >= 1024 ||
-      this.dynamicImageBytes + this.codecBytes + cost * 3 > 256 * 1024 * 1024
+      this.dynamicImageBytes + this.codecBytes + cost * 3 > webImageByteBudget
     )
       throw new Error('Web rasterization image/temporary byte budget');
     let resource: { id: string; generation: number }, key: string;
@@ -532,6 +536,141 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       },
     };
   }
+  instantiateBrowserImageCodec(
+    bytes: Uint8Array,
+    options: ImageDecodeOptions,
+  ): NativeImageCodec | Promise<NativeImageCodec> {
+    this.ensureOpen();
+    // Keep target-size callbacks and resampling on the established codec path.
+    const size =
+      options.targetWidth == null && options.targetHeight == null && !options.getTargetSize
+        ? browserWebPSize(bytes)
+        : null;
+    if (size) {
+      const cost = size.width * size.height * 4;
+      const reserved = cost * 3 + bytes.byteLength;
+      if (this.codecBytes + this.dynamicImageBytes + reserved <= webImageByteBudget)
+        return this.instantiateWebP(bytes, options, size, cost, reserved);
+    }
+    return this.instantiateImageCodec(bytes, options);
+  }
+  private async instantiateWebP(
+    bytes: Uint8Array,
+    options: ImageDecodeOptions,
+    size: BrowserWebP,
+    cost: number,
+    reserved: number,
+  ): Promise<NativeImageCodec> {
+    const info = {
+      width: size.width,
+      height: size.height,
+      colorType: this.ck.ColorType.RGBA_8888,
+      alphaType: this.ck.AlphaType.Premul,
+      colorSpace: this.ck.ColorSpace.SRGB,
+    };
+    this.codecBytes += reserved;
+    let image: Image | null = null;
+    let retainedPixels: Uint8Array<ArrayBuffer> | null = null;
+    try {
+      const pixels = await decodeBrowserWebP(bytes, size);
+      this.ensureOpen();
+      if (pixels) {
+        // CanvasKit can upload these immutable browser bytes straight into
+        // the drawing context, including a replacement context after loss.
+        image = this.ck.MakeLazyImageFromTextureSource?.(pixels, info, true) ?? null;
+        if (image) retainedPixels = pixels;
+        else image = this.ck.MakeImage(info, pixels, size.width * 4);
+      }
+    } finally {
+      this.codecBytes -= reserved;
+    }
+    if (!image) return this.instantiateImageCodec(bytes, options);
+
+    this.codecBytes += cost;
+    // A codec and each published frame hold independent lifetime references.
+    const source = image;
+    let references = 1;
+    let disposed = false;
+    const release = () => {
+      if (references === 1) {
+        source.delete();
+        retainedPixels = null;
+      }
+      references--;
+    };
+    const read = (format: ImageByteFormat): Uint8Array | null => {
+      const pixels = retainedPixels;
+      if (!pixels) return readWebImageBytes(this.ck, source, format);
+      // This path admits only opaque sRGB images. The stored RGBA bytes are
+      // identical for premultiplied, straight and unmodified readback.
+      if (format === 'rawRgba' || format === 'rawStraightRgba' || format === 'rawUnmodified')
+        return pixels.slice();
+      const raster = this.ck.MakeImage(info, pixels, size.width * 4);
+      if (!raster) return null;
+      try {
+        return readWebImageBytes(this.ck, raster, format);
+      } finally {
+        raster.delete();
+      }
+    };
+    return {
+      frameCount: 1,
+      repetitionCount: 0,
+      getNextFrame: () => {
+        this.ensureOpen();
+        if (disposed) throw new Error('WebP codec disposed');
+        this.checkImageFrameBudget(cost);
+        const frame = this.registerCodecFrame(source, size, 0, release, read);
+        references++;
+        return frame;
+      },
+      dispose: () => {
+        if (disposed) return;
+        release();
+        disposed = true;
+        this.codecBytes -= cost;
+      },
+    };
+  }
+  private checkImageFrameBudget(cost: number): void {
+    if (
+      this.images.size >= 1024 ||
+      this.dynamicImageBytes + this.codecBytes + cost > webImageByteBudget
+    )
+      throw new Error('Web dynamic image resource/byte budget');
+  }
+  private registerCodecFrame(
+    image: Image,
+    { width, height }: { readonly width: number; readonly height: number },
+    duration: number,
+    release: () => void = () => image.delete(),
+    read: (format: ImageByteFormat) => Uint8Array | null = (format) =>
+      readWebImageBytes(this.ck, image, format),
+  ): NativeImageFrame {
+    const cost = width * height * 4;
+    const resource = this.allocateResource('image');
+    const key = resourceKey(resource);
+    this.images.set(key, image);
+    this.dynamicImageBytes += cost;
+    let retired = false;
+    return {
+      descriptor: { ...resource, kind: 'image' },
+      width,
+      height,
+      duration,
+      readBytes: async (format) => {
+        if (retired) throw new Error('Web image retired');
+        return read(format);
+      },
+      retire: () => {
+        if (retired) return;
+        release();
+        retired = true;
+        this.images.delete(key);
+        this.dynamicImageBytes -= cost;
+      },
+    };
+  }
   /** CPU codec/resampling is separate from the GPU-only surface renderer. */
   instantiateImageCodec(bytes: Uint8Array, options: ImageDecodeOptions = {}): NativeImageCodec {
     this.ensureOpen();
@@ -546,7 +685,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     let target: { width: number; height: number };
     try {
       target = imageTargetSize(naturalWidth, naturalHeight, options);
-      if (this.codecBytes + this.dynamicImageBytes + codecCost > 256 * 1024 * 1024)
+      if (this.codecBytes + this.dynamicImageBytes + codecCost > webImageByteBudget)
         throw new Error('Web codec memory budget');
     } catch (error) {
       animated?.delete();
@@ -573,13 +712,8 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         let surface: Surface | null = null,
           output: Image | null = null;
         try {
-          const size = target,
-            cost = size.width * size.height * 4;
-          if (
-            this.images.size >= 1024 ||
-            this.dynamicImageBytes + this.codecBytes + cost > 256 * 1024 * 1024
-          )
-            throw new Error('Web dynamic image resource/byte budget');
+          const size = target;
+          this.checkImageFrameBudget(size.width * size.height * 4);
           surface = this.ck.MakeSurface(size.width, size.height);
           if (!surface) throw new Error('CanvasKit image resize surface creation failed');
           surface
@@ -592,30 +726,13 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
               this.ck.MipmapMode.None,
             );
           output = surface.makeImageSnapshot();
-          const image = output,
-            resource = this.allocateResource('image'),
-            key = resourceKey(resource);
-          this.images.set(key, image);
-          this.dynamicImageBytes += cost;
+          const frame = this.registerCodecFrame(
+            output,
+            size,
+            frameCount === 1 ? 0 : animated!.currentFrameDuration(),
+          );
           output = null;
-          let retired = false;
-          return {
-            descriptor: { ...resource, kind: 'image' },
-            width: size.width,
-            height: size.height,
-            duration: frameCount === 1 ? 0 : animated!.currentFrameDuration(),
-            readBytes: async (format) => {
-              if (retired) throw new Error('Web image retired');
-              return readWebImageBytes(this.ck, image, format);
-            },
-            retire: () => {
-              if (retired) return;
-              retired = true;
-              image.delete();
-              this.images.delete(key);
-              this.dynamicImageBytes -= cost;
-            },
-          };
+          return frame;
         } finally {
           output?.delete();
           // MakeSurface owns a CanvasKit-allocated raster buffer outside the

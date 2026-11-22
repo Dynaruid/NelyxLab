@@ -7,6 +7,9 @@ export type FrameDiagnosticStage =
   | 'build'
   | 'layout'
   | SectionDiagnosticStage
+  | 'section-scroll-offset'
+  | 'input-decoration-size'
+  | 'input-decoration-baseline'
   | 'optional-work'
   | 'compositing'
   | 'paint'
@@ -106,6 +109,9 @@ export interface FrameDiagnosticSample {
   readonly count: number;
   readonly bytes: number;
   readonly section?: number;
+  readonly scrollOffset?: number;
+  readonly decorationSlot?: string;
+  readonly dry?: boolean;
 }
 
 /** Explicitly enabled, bounded RAM sampling. The owner drains between frames;
@@ -149,7 +155,20 @@ export class FrameDiagnostics {
     index: number,
     begin: number,
   ): number {
-    return this.recordInterval(token, stage, begin, this.now(), 0, 0, index);
+    return this.recordInterval(token, stage, begin, this.now(), 0, 0, { section: index });
+  }
+  recordSectionScrollOffset(token: FrameBuildToken, scrollOffset: number): void {
+    const now = this.now();
+    this.recordInterval(token, 'section-scroll-offset', now, now, 0, 0, { scrollOffset });
+  }
+  recordDecoration(
+    token: FrameBuildToken,
+    stage: 'input-decoration-size' | 'input-decoration-baseline',
+    decorationSlot: string,
+    dry: boolean,
+    begin: number,
+  ): number {
+    return this.recordInterval(token, stage, begin, this.now(), 0, 0, { decorationSlot, dry });
   }
   /** Native monotonic duration; its epoch is not mixed with the JS clock. */
   recordDuration(
@@ -169,7 +188,7 @@ export class FrameDiagnostics {
     end: number,
     count: number,
     bytes: number,
-    section?: number,
+    details?: Pick<FrameDiagnosticSample, 'section' | 'scrollOffset' | 'decorationSlot' | 'dry'>,
   ): number {
     if (
       ![begin, end, count, bytes].every(Number.isFinite) ||
@@ -196,7 +215,7 @@ export class FrameDiagnostics {
       duration: end - begin,
       count,
       bytes,
-      ...(section === undefined ? {} : { section }),
+      ...details,
     };
     this.next = (this.next + 1) % this.capacity;
     if (this.count === this.capacity) this.overwritten++;

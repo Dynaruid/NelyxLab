@@ -264,7 +264,8 @@ export function createWebServices(
             resources,
             {
               assetManifestBytes: encodeImageAssetManifest(manifest),
-              instantiateCodec: (bytes, options) => library.instantiateImageCodec(bytes, options),
+              instantiateCodec: (bytes, options) =>
+                library.instantiateBrowserImageCodec(bytes, options),
               async loadAsset(key, signal, progress) {
                 const asset = manifest.find((x) => x.id === key || x.path === key);
                 if (!asset || asset.kind !== 'image')

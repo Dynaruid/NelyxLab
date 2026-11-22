@@ -369,10 +369,6 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
     this.border = new AnimationController({ vsync: this, duration: transitionDuration, value: 1 });
     this.hover = new AnimationController({ vsync: this, duration: 15 });
     this.hint = new AnimationController({ vsync: this, duration: defaultHintFadeDuration });
-    this.floating.addListener(this.floatingChanged);
-    this.border.addListener(this.borderChanged);
-    this.hover.addListener(this.hoverChanged);
-    this.hint.addListener(this.animationChanged);
     this.widget.hoverListenable?.addListener(this.hoverInputChanged);
   }
   private states(): DartSet<WidgetState> {
@@ -591,6 +587,12 @@ class InputDecoratorState extends TickerProviderStateMixin<InputDecorator> {
     if (initial) {
       this.floating.value = floating;
       this.hint.value = hint;
+      // The first build reads these values directly. Listen after initializing
+      // them so the assignments don't schedule a redundant post-frame rebuild.
+      this.floating.addListener(this.floatingChanged);
+      this.border.addListener(this.borderChanged);
+      this.hover.addListener(this.hoverChanged);
+      this.hint.addListener(this.animationChanged);
     } else {
       if (this.floatingTarget !== floating) {
         if (floating) this.floating.forward();

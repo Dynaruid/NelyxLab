@@ -203,8 +203,12 @@ try {
   view.requestFrame();
   dispatch(idle, () => 10);
   assert.equal(builds.has(2), false, 'Required work takes precedence over optional preparation');
+  root.scheduler.scheduleFrameCallback(() => {
+    controller.jumpTo(8);
+    root.scheduler.scheduleFrameCallback(() => {});
+  });
   frame();
-  assert.equal(idle.size, 1);
+  assert.equal(idle.size, 1, 'A queued animation tick leaves the current frame idle budget usable');
 
   dispatch(idle, () => 10);
   assert.equal(mounts.get(2), 1);

@@ -12,6 +12,12 @@ public final class GalleryTouch {
             System.out.println(System.nanoTime());
             return;
         }
+        if (args.length == 1 && args[0].equals("--clocks")) {
+            long before = System.nanoTime();
+            long epoch = System.currentTimeMillis();
+            System.out.println(before + "," + epoch + "," + System.nanoTime());
+            return;
+        }
         Class<?> managerClass;
         try {
             managerClass = Class.forName("android.hardware.input.InputManagerGlobal");
@@ -31,7 +37,8 @@ public final class GalleryTouch {
         int step = Integer.parseInt(args[0]);
         float x = Float.parseFloat(args[1]), y = Float.parseFloat(args[2]);
         long started = System.nanoTime(), down = SystemClock.uptimeMillis(), deadline = down;
-        send(inject, manager, down, MotionEvent.ACTION_DOWN, x, y, properties, coordinates);
+        long lastMovement = started;
+        send(inject, manager, down, down, MotionEvent.ACTION_DOWN, x, y, properties, coordinates);
         boolean canceled = args[args.length - 1].equals("cancel");
         int end = canceled ? args.length - 1 : args.length;
         for (int i = 3; i < end; i += 3) {
@@ -43,24 +50,27 @@ public final class GalleryTouch {
                 long remaining = time - SystemClock.uptimeMillis();
                 if (remaining > 0) SystemClock.sleep(remaining);
                 float t = (float) j / steps;
-                send(inject, manager, down, MotionEvent.ACTION_MOVE,
+                // Keep velocity samples on the scripted path's clock.
+                send(inject, manager, down, time, MotionEvent.ACTION_MOVE,
                     x + (nextX - x) * t, y + (nextY - y) * t, properties, coordinates);
             }
+            if (nextX != x || nextY != y) lastMovement = System.nanoTime();
             x = nextX;
             y = nextY;
             deadline += duration;
         }
-        send(inject, manager, down, canceled ? MotionEvent.ACTION_CANCEL : MotionEvent.ACTION_UP,
+        long released = System.nanoTime();
+        send(inject, manager, down, deadline, canceled ? MotionEvent.ACTION_CANCEL : MotionEvent.ACTION_UP,
             x, y, properties, coordinates);
-        System.out.println(started + "," + System.nanoTime());
+        System.out.println(started + "," + released + "," + lastMovement);
     }
 
-    private static void send(Method inject, Object manager, long down, int action, float x, float y,
+    private static void send(Method inject, Object manager, long down, long eventTime, int action, float x, float y,
             MotionEvent.PointerProperties[] properties, MotionEvent.PointerCoords[] coordinates)
             throws Exception {
         coordinates[0].x = x;
         coordinates[0].y = y;
-        MotionEvent motion = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, 1,
+        MotionEvent motion = MotionEvent.obtain(down, eventTime, action, 1,
             properties, coordinates, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0);
         try {
             if (!(Boolean) inject.invoke(manager, motion, 0)) {

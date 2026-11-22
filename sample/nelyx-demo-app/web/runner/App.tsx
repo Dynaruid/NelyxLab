@@ -51,12 +51,20 @@ export function App() {
     }),
     [],
   );
+  const definition = useMemo(
+    () => ({
+      ...shared.definition,
+      // AssetImage resolves the bundled WebP through ImageService on demand.
+      assets: shared.definition.assets ?? options.manifest.filter(({ kind }) => kind === 'font'),
+    }),
+    [shared.definition, options.manifest],
+  );
   const [error, setError] = useState('');
   return (
     <>
       {error && <p role="alert">{error}</p>}
       <ApplicationSurface
-        definition={shared.definition}
+        definition={definition}
         options={options}
         onReady={attachFrameProbe}
         style={{ flex: 1, width: '100%', height: '100%' }}
