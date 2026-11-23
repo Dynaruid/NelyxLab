@@ -4,7 +4,7 @@
 // Source state/style/layout/material/ink responsibilities on canonical Nelyx owners.
 import { StatefulWidget, Element } from '@nelyx/core/framework/widgets/framework';
 import type { Widget, BuildContext, State } from '@nelyx/core/framework/widgets/framework';
-import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
+import { createFrameworkAnchorKey } from '@nelyx/core/framework/widgets/global-key';
 import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { DiagnosticsProperty } from '@nelyx/core/foundation/diagnostics';
 import type { DiagnosticPropertiesBuilder } from '@nelyx/core/foundation/diagnostics';
@@ -406,7 +406,7 @@ class ButtonElevation extends ChangeNotifier {
 }
 class ButtonStyleState extends TickerProviderStateMixin<ButtonStyleButton> {
   /** Closed adapter to the actual private InkResponseState returned by InkWell. */
-  private readonly inkKey = new GlobalKey<
+  private readonly inkKey = createFrameworkAnchorKey<
     State & {
       simulateTap(): void;
       simulateLongPress(): void;

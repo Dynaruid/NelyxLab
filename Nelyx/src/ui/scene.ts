@@ -544,7 +544,7 @@ export class SceneBuilder {
       (canvas) => {
         const offset = options.offset ?? { x: 0, y: 0 };
         canvas.translate(offset.x, offset.y);
-        canvas.saveLayer(null, new Paint({ color: (alpha * 0x1000000) >>> 0 }));
+        if (alpha < 255) canvas.saveLayer(null, new Paint({ color: (alpha * 0x1000000) >>> 0 }));
       },
       options.oldLayer ?? null,
     );

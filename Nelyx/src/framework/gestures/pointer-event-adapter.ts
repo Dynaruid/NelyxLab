@@ -72,6 +72,7 @@ export function pointerEventFromTransport(
         delta: event.globalDelta
           ? new Offset(event.globalDelta.x, event.globalDelta.y)
           : new Offset(event.deltaX ?? 0, event.deltaY ?? 0),
+        coalescedSamples: event.coalescedSamples,
       });
       break;
     case 'up':
@@ -157,6 +158,9 @@ export function pointerEventToTransport(
     globalPosition: event.position,
     globalDelta: event.delta,
     ...(event.transform ? { localTransform: event.transform } : {}),
+    ...(event instanceof PointerMoveEvent && event.coalescedSamples
+      ? { coalescedSamples: event.coalescedSamples }
+      : {}),
     viewportGeneration,
     ...(event instanceof PointerScrollEvent
       ? { respondToSignal: (allowPlatformDefault) => event.respond({ allowPlatformDefault }) }

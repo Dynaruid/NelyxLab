@@ -5,7 +5,7 @@ import { mkdtemp, readdir, rmdir, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { promisify } from 'node:util';
+import { isDeepStrictEqual, promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { installPictureProbe } from './gallery-picture-probe.mjs';
 
@@ -19,6 +19,7 @@ const cpu = pictures || process.argv.includes('--cpu');
 const topOnly = process.argv.includes('--top-only');
 const imageEntryOnly = process.argv.includes('--image-entry-only');
 const editorEntryOnly = process.argv.includes('--editor-entry-only');
+const pairedMotion = process.argv.includes('--paired-motion');
 const inertia = process.argv.includes('--inertia');
 const controlChecks = {
   slider: checkSlider,
@@ -244,6 +245,9 @@ function installProbe({ gl, cpu, range }) {
             measure(kit, 'MakeLazyImageFromTextureSource', (_result, [, info]) =>
               info ? [info.width, info.height] : [],
             );
+            measure(kit.Surface.prototype, 'makeImageFromTextureSource', (_result, [, info]) =>
+              info ? [info.width, info.height] : [],
+            );
             measure(kit.AnimatedImage.prototype, 'makeImageAtCurrentFrame', (result) =>
               result ? [result.width(), result.height()] : [],
             );
@@ -262,7 +266,9 @@ function installProbe({ gl, cpu, range }) {
   window.galleryFences = [];
   const programs = new WeakMap();
   const fenceStarts = new WeakMap();
+  const uploadSources = new WeakMap();
   let programCount = 0;
+  let uploadSourceCount = 0;
   for (const name of [
     'getShaderParameter',
     'getProgramParameter',
@@ -298,6 +304,11 @@ function installProbe({ gl, cpu, range }) {
           ? args[0]
           : undefined;
         if (program && !programs.has(program)) programs.set(program, ++programCount);
+        const pixels =
+          (name === 'texImage2D' || name === 'texSubImage2D') && ArrayBuffer.isView(args[8])
+            ? args[8]
+            : undefined;
+        if (pixels && !uploadSources.has(pixels)) uploadSources.set(pixels, ++uploadSourceCount);
         window.galleryGl.push([
           name,
           at,
@@ -309,6 +320,7 @@ function installProbe({ gl, cpu, range }) {
             : name === 'texSubImage2D' && args.length >= 9
               ? [args[4], args[5]]
               : null,
+          pixels ? [uploadSources.get(pixels), pixels.byteLength] : null,
         ]);
       }
       return result;
@@ -639,6 +651,7 @@ async function traceAndroidFrames(layers, run) {
           const result = {
             display: presentIntervals(displayTimes),
             bufferDisplay: presentIntervals(bufferTimes),
+            bufferPresents: bufferTimes.size,
             firstBufferPresentDelayMs: bufferTimes.size
               ? rounded((Math.min(...bufferTimes) - start) / 1e6)
               : null,
@@ -679,12 +692,17 @@ async function traceAndroidFrames(layers, run) {
                       beforeRelease: stats(start, released).bufferDisplay,
                       afterRelease: stats(released, end, true),
                       ...(motionPresent
-                        ? { afterReleaseThroughNextPresent: stats(released, motionPresent, true) }
+                        ? {
+                            afterReleaseThroughNextPresent: stats(released, motionPresent, true),
+                            estimatedMotionPresentMs: rounded((motionPresent - released) / 1e6),
+                            settledTail: stats(motionPresent, end, true),
+                          }
                         : {}),
                     }
                   : {}),
               };
             }),
+            traceClockOffsetNs: offset,
             clockOffsetSpanMs: rounded((maxOffset - minOffset) / 1e6),
           }),
         );
@@ -772,9 +790,17 @@ function flushOrder(samples, calls) {
 
 function imageWork({ codecs, gl, trace }) {
   let firstUpload;
-  const event = gl.find(
+  const uploads = gl.filter(
     ([, , , , , dimensions]) => dimensions?.[0] === 960 && dimensions[1] === 1440,
   );
+  const event = uploads[0];
+  const uploadSources = new Map();
+  for (const [, , , , , , source] of uploads) {
+    if (!source) continue;
+    const [id, bytes] = source;
+    const count = uploadSources.get(id)?.count ?? 0;
+    uploadSources.set(id, { id, bytes, count: count + 1 });
+  }
   if (event) {
     const [name, at, elapsed] = event;
     const frame = trace?.frames.samples.find(
@@ -790,6 +816,8 @@ function imageWork({ codecs, gl, trace }) {
       rounded(elapsed),
       ...details,
     ]),
+    matchingUploads: uploads.length,
+    uploadSources: [...uploadSources.values()],
     firstUpload,
     dynamicImageBytes: trace?.pictures?.dynamicImageBytes,
   };
@@ -879,7 +907,9 @@ async function measure(page, layer, route, gesture, tail, timeline, clocks) {
     route,
     from,
     to: await visibleCards(page),
+    gestureUptimeNs: [start, end],
     gestureMs: rounded((end - start) / 1e6),
+    movingGestureMs: rounded((lastMovement - start) / 1e6),
     hwui: displayIntervals(stats, start, bounds, false),
     compositor: displayIntervals(sf, start, bounds, true),
   };
@@ -952,6 +982,13 @@ async function measure(page, layer, route, gesture, tail, timeline, clocks) {
         ),
         cold: read.trace.sections.requiredColdChildren - before.trace.sections.requiredColdChildren,
         prepared: read.trace.sections.published - before.trace.sections.published,
+        preparation: {
+          started: read.trace.sections.started - before.trace.sections.started,
+          idleSlices: read.trace.sections.idleSlices - before.trace.sections.idleSlices,
+          forced: read.trace.sections.forced - before.trace.sections.forced,
+          forcedMs: rounded(read.trace.sections.forcedMs - before.trace.sections.forcedMs),
+          cancelled: read.trace.sections.cancelled - before.trace.sections.cancelled,
+        },
         reused: (read.trace.dormant?.hits ?? 0) - (before.trace.dormant?.hits ?? 0),
         overwritten: read.trace.frames.overwritten,
         clocks: {
@@ -972,7 +1009,7 @@ async function measure(page, layer, route, gesture, tail, timeline, clocks) {
         sectionWork: sectionWork(samples),
         decoration: decorationWork(samples),
         ...(read.pictures ? { replayPictures: read.pictures } : {}),
-        ...(read.codecs.length ? { image: imageWork(read) } : {}),
+        ...(read.codecs.length || route.startsWith('image-') ? { image: imageWork(read) } : {}),
       });
       if (isFling && clocks) {
         const release = end / 1e6 - clocks.monotonicMsAtTimeOrigin;
@@ -992,14 +1029,25 @@ async function measure(page, layer, route, gesture, tail, timeline, clocks) {
           if (sample.scrollOffset !== undefined)
             layoutOffsets.set(sample.frame, sample.scrollOffset);
         }
-        let lastChangingSubmit, previousSubmittedOffset;
+        let firstChangingSubmit, lastChangingSubmit, previousSubmittedOffset;
+        const submittedOffsets = [];
         for (const sample of samples) {
           // An attempted submit can be rejected before it reaches WebGL.
           if (sample.stage !== 'gpu-fence-enqueue') continue;
           const offset = layoutOffsets.get(sample.frame);
           if (offset === undefined || offset === previousSubmittedOffset) continue;
+          const previous = previousSubmittedOffset;
           previousSubmittedOffset = offset;
-          if (sample.end >= release && sample.end <= release + tail) lastChangingSubmit = sample;
+          if (sample.end >= release && sample.end <= release + tail) {
+            firstChangingSubmit ??= sample;
+            lastChangingSubmit = sample;
+            submittedOffsets.push({
+              frame: sample.frame,
+              afterReleaseMs: rounded(sample.end - release),
+              offset: rounded(offset),
+              delta: previous === undefined ? null : rounded(offset - previous),
+            });
+          }
         }
         if (timelineWindow && lastChangingSubmit)
           timelineWindow.lastMotionSubmit =
@@ -1013,11 +1061,17 @@ async function measure(page, layer, route, gesture, tail, timeline, clocks) {
             ? {
                 viewportMotion: {
                   samples: motion.length,
+                  firstLayoutMs: rounded(motion[0].begin - release),
                   lastLayoutMs: rounded(lastChange.begin - release),
+                  // The first fence after UP can belong to the final drag update.
+                  firstSubmitMs: firstChangingSubmit
+                    ? rounded(firstChangingSubmit.end - release)
+                    : null,
                   lastSubmitMs: lastChangingSubmit
                     ? rounded(lastChangingSubmit.end - release)
                     : null,
                   lastOffset: rounded(lastChange.scrollOffset),
+                  submittedOffsets,
                 },
               }
             : {}),
@@ -1204,24 +1258,73 @@ async function alignImageEntry(page, { height, dpr }, readCards) {
 }
 
 async function alignEditorEntry(page, dpr) {
-  const marker = control(page, 'switch-value');
   const list = await page.getByRole('list').first().boundingBox();
   assert(list, 'The gallery list must be visible before aligning the editor entry');
   const listBottom = list.y + list.height;
-  const target = listBottom - 168;
+  const y = await alignSwitch(page, dpr, listBottom - 168, true);
+  return { y, listBottom: rounded(listBottom) };
+}
+
+async function switchY(page) {
+  const marker = control(page, 'switch-value');
+  return (await marker.count()) ? (await marker.boundingBox())?.y : undefined;
+}
+
+async function alignSwitch(page, dpr, target, firstVisit = false) {
   for (let move = 0; move <= 16; move++) {
     const cards = await visibleCards(page);
-    assert(!cards.includes(firstEditorTitle), 'The first editor was exposed before the fling');
-    const box = (await marker.count()) ? await marker.boundingBox() : null;
-    if (box && Math.abs(box.y - target) <= 6)
-      return { y: rounded(box.y), listBottom: rounded(listBottom) };
+    if (firstVisit)
+      assert(!cards.includes(firstEditorTitle), 'The first editor was exposed before the fling');
+    const y = await switchY(page);
+    if (y !== undefined && Math.abs(y - target) <= (firstVisit ? 6 : 3)) return rounded(y);
     if (move === 16) break;
     // Adjust against the scroll clip. Android insets and the gallery footer
     // place it above the WebView window's bottom edge.
-    const correction = box ? box.y - target : cards.includes('Text fields') ? -70 : 100;
+    const correction = y !== undefined ? y - target : cards.includes('Text fields') ? -70 : 100;
     await adjustGalleryOffset(correction, dpr);
   }
   assert.fail('Could not align the switch before the editor fling');
+}
+
+async function measureWarmPair(page, dpr, measureRoute) {
+  // Start after the editor visit. Move back through the already visible cards.
+  const startY = await switchY(page);
+  assert(Number.isFinite(startY), 'Warm pair needs the switch as its position marker');
+  const origin = 1130;
+  const releaseY = Math.round(origin + 38 * dpr);
+  const fling = await measureRoute('warm-motion-fling', () => touch(origin, [[90, releaseY]]), 650);
+  const flingEnd = await switchY(page);
+  const travel = flingEnd - startY;
+  assert(travel > 38 && travel < 160, `Warm fling travel was ${travel} logical px`);
+  const dragStart = await alignSwitch(page, dpr, startY);
+  const lastY = Math.round(releaseY + (flingEnd - dragStart - 30) * dpr);
+  const midpoint = releaseY + Math.round((lastY - releaseY) * 0.65);
+  // The initial stroke matches the fling. Continue with MOVE waypoints, then
+  // hold the last position so the measured drag excludes release and coast.
+  const drag = await measureRoute(
+    'warm-motion-drag',
+    () =>
+      touch(origin, [
+        [90, releaseY],
+        [95, midpoint],
+        [120, lastY],
+        [130, lastY],
+      ]),
+    180,
+  );
+  const dragEnd = await switchY(page);
+  console.log(
+    JSON.stringify({
+      route: 'warm-motion-match',
+      fling: { from: rounded(startY), to: rounded(flingEnd), travel: rounded(travel) },
+      drag: { from: dragStart, to: dragEnd === undefined ? null : rounded(dragEnd) },
+      matched:
+        isDeepStrictEqual(fling.from, drag.from) &&
+        isDeepStrictEqual(fling.to, drag.to) &&
+        Math.abs(startY - dragStart) <= 3 &&
+        Math.abs(flingEnd - dragEnd) <= 12,
+    }),
+  );
 }
 
 const physicalCenter = ({ x, y, width, height }, dpr) => [
@@ -1889,7 +1992,7 @@ try {
       const measureRoute = async (route, gesture, tail) => {
         const result = await measure(page, layer, route, gesture, tail, timeline, clocks);
         sawImageCard ||= result.from.includes(imageCardTitle) || result.to.includes(imageCardTitle);
-        return result.to;
+        return result;
       };
       const measureImageEntry = async (fling) => {
         const y = await alignImageEntry(page, current, readCards);
@@ -1898,7 +2001,7 @@ try {
         const route =
           (revisited ? 'image-reentry' : 'image-entry') + (fling ? '-fling' : '-scroll');
         // Cross the remaining message actions even if the fling settles early.
-        const destination = await measureRoute(
+        const { to: destination } = await measureRoute(
           route,
           fling
             ? () => touch(1730, [[205, 975]])
@@ -1918,6 +2021,20 @@ try {
           destination.includes(imageCardTitle),
           `Image entry did not reach the image card: ${destination.join(', ')}`,
         );
+        const settledY = await page.evaluate((title) => {
+          for (const node of document.querySelectorAll('[aria-label], [role="text"]')) {
+            const label = node.getAttribute('aria-label') || node.textContent;
+            const box = node.getBoundingClientRect();
+            if (label?.split('\n').includes(title) && box.width > 0 && box.height > 0) return box.y;
+          }
+          return null;
+        }, imageCardTitle);
+        console.log(
+          JSON.stringify({
+            route: route + '-settled',
+            y: settledY === null ? null : rounded(settledY),
+          }),
+        );
         return revisited;
       };
       if (cssOnly) {
@@ -1925,18 +2042,50 @@ try {
         assert.deepEqual(errors, []);
         continue;
       }
-      if (editorEntryOnly) {
+      if (editorEntryOnly || (pairedMotion && !imageEntryOnly)) {
         await advance(5);
         const marker = await alignEditorEntry(page, current.dpr);
         console.log(JSON.stringify({ route: 'editor-entry-marker', ...marker }));
         // Use a short drag so the upcoming editor enters during coast.
         const end = Math.round(1570 - 80 * current.dpr);
-        const destination = await measureRoute(
-          'editor-entry-fling',
-          () => touch(1570, [[90, end]]),
-          950,
-        );
-        assert(destination.includes(firstEditorTitle), 'Fling did not reach the first editor');
+        const editorFling = () => touch(1570, [[90, end]]);
+        const cold = await measureRoute('editor-entry-fling', editorFling, 950);
+        const reachedEditor = cold.to.includes(firstEditorTitle);
+        if (!pairedMotion) {
+          assert(reachedEditor, 'Fling did not reach the first editor');
+        } else {
+          assert.equal(
+            await page.getByRole('alert').count(),
+            0,
+            'The gallery became an error page',
+          );
+          if (reachedEditor) {
+            const coldEnd = await switchY(page);
+            const revisitY = await alignSwitch(page, current.dpr, marker.y);
+            console.log(JSON.stringify({ route: 'editor-reentry-marker', y: revisitY }));
+            const revisited = await measureRoute('editor-reentry-fling', editorFling, 950);
+            const revisitEnd = await switchY(page);
+            console.log(
+              JSON.stringify({
+                route: 'editor-entry-match',
+                cold: { from: marker.y, to: coldEnd },
+                revisit: { from: revisitY, to: revisitEnd },
+                matched:
+                  isDeepStrictEqual(cold.from, revisited.from) &&
+                  isDeepStrictEqual(cold.to, revisited.to) &&
+                  Math.abs(coldEnd - revisitEnd) <= 12,
+              }),
+            );
+          } else {
+            console.log(
+              JSON.stringify({ route: 'editor-entry-match', matched: false, firstEntry: false }),
+            );
+          }
+          // A short editor fling can land at a different card. Position the
+          // warm pair independently inside the switch and editor region.
+          await alignSwitch(page, current.dpr, marker.listBottom - 324);
+          await measureWarmPair(page, current.dpr, measureRoute);
+        }
         if (!gl) await measureCss(page, layer, timeline);
         assert.deepEqual(errors, []);
         continue;
@@ -1958,6 +2107,12 @@ try {
           current.height,
           190,
         );
+        if (pairedMotion)
+          assert.equal(
+            await measureImageEntry(inertia),
+            true,
+            'The second image must be a revisit',
+          );
         if (!gl) await measureCss(page, layer, timeline);
         assert.deepEqual(errors, []);
         continue;
@@ -2006,6 +2161,13 @@ try {
       await measureRoute('lower-return-reversal', reverse, 75);
       if (!gl) await measureCss(page, layer, timeline);
       assert.deepEqual(errors, []);
+    } catch (error) {
+      const alerts = await page
+        .getByRole('alert')
+        .allTextContents()
+        .catch(() => []);
+      if (alerts.length) console.error(JSON.stringify({ run, alerts }));
+      throw error;
     } finally {
       try {
         await timeline?.close();

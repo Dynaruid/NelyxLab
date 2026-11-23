@@ -302,13 +302,25 @@ export abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer
           event instanceof PointerPanZoomStartEvent ||
           event instanceof PointerPanZoomUpdateEvent)
       ) {
-        const position =
-          event instanceof PointerPanZoomStartEvent
-            ? Offset.zero
-            : event instanceof PointerPanZoomUpdateEvent
-              ? event.pan
-              : event.localPosition;
-        this.velocityTrackers.get(event.pointer)!.addPosition(event.timeStamp, position);
+        const tracker = this.velocityTrackers.get(event.pointer)!,
+          samples = event instanceof PointerMoveEvent ? event.coalescedSamples : undefined;
+        if (samples?.length) {
+          // The dispatched move still determines the drag update. The original
+          // points keep velocity estimation continuous across a delayed dispatch.
+          for (const { timestamp, x, y } of samples)
+            tracker.addPosition(
+              timestamp,
+              PointerEvent.transformPosition(event.transform, new Offset(x, y)),
+            );
+        } else {
+          const position =
+            event instanceof PointerPanZoomStartEvent
+              ? Offset.zero
+              : event instanceof PointerPanZoomUpdateEvent
+                ? event.pan
+                : event.localPosition;
+          tracker.addPosition(event.timeStamp, position);
+        }
       }
       if (event instanceof PointerMoveEvent && event.buttons !== this.initialButtons) {
         this.giveUpPointer(event.pointer);

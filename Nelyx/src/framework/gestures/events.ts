@@ -11,6 +11,7 @@ import {
 } from '../../foundation/diagnostic-properties.ts';
 import type { DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.ts';
 import { invariant } from '../../foundation/errors.ts';
+import type { PointerMotionSample } from '../../ui/input.ts';
 import { Offset } from '../../ui/offset.ts';
 import { PointerDeviceKind } from '../../ui/pointer.ts';
 import { captureTransform, fullTransform, transform } from '../../ui/geometry.ts';
@@ -111,6 +112,7 @@ export type PointerEventCopyOptions = Omit<
   'down' | 'platformData' | 'transform' | 'original'
 >;
 interface ExtraPointerOptions {
+  readonly coalescedSamples?: readonly PointerMotionSample[] | undefined;
   readonly scrollDelta?: Offset | undefined;
   readonly onRespond?: RespondPointerEventCallback | undefined;
   readonly pan?: Offset | undefined;
@@ -995,7 +997,7 @@ export type PointerMoveEventOptions = Pick<
   | 'platformData'
   | 'synthesized'
   | 'embedderId'
->;
+> & { readonly coalescedSamples?: readonly PointerMotionSample[] | undefined };
 export class PointerMoveEvent extends PointerEvent {
   constructor(options: PointerMoveEventOptions = {}) {
     invariant(
@@ -1029,8 +1031,18 @@ export class PointerMoveEvent extends PointerEvent {
       embedderId: options.embedderId,
       down: true,
       distance: 0.0,
+      ...(options.coalescedSamples?.length
+        ? {
+            coalescedSamples: Object.freeze(
+              options.coalescedSamples.map((sample) => Object.freeze({ ...sample })),
+            ),
+          }
+        : {}),
     });
     if (new.target === PointerMoveEvent) Object.freeze(this);
+  }
+  get coalescedSamples(): readonly PointerMotionSample[] | undefined {
+    return pointerState(this).values.coalescedSamples;
   }
   override transformed(matrix: TransformMatrix | null): PointerMoveEvent {
     return transformedEvent(this, matrix, PointerMoveEvent.prototype);
@@ -1059,6 +1071,10 @@ export class PointerMoveEvent extends PointerEvent {
       tilt: options.tilt ?? this.tilt,
       synthesized: options.synthesized ?? this.synthesized,
       embedderId: options.embedderId ?? this.embedderId,
+      coalescedSamples:
+        options.timeStamp === undefined && options.position === undefined
+          ? this.coalescedSamples
+          : undefined,
     }).transformed(this.transform);
   }
 }

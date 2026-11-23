@@ -355,6 +355,13 @@ export class ViewRuntime implements Disposable {
     }
     const packet = Object.freeze({
       ...event,
+      ...(event.coalescedSamples
+        ? {
+            coalescedSamples: Object.freeze(
+              event.coalescedSamples.map((sample) => Object.freeze({ ...sample })),
+            ),
+          }
+        : {}),
       ...(event.globalPosition
         ? { globalPosition: Object.freeze({ ...event.globalPosition }) }
         : {}),

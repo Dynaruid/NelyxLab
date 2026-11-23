@@ -78,6 +78,31 @@ export class RenderSliverSectionList extends RenderSliverMultiBoxAdaptor {
       if (this.debugDisposed) this.index._detach(this.changed);
     }
   }
+  /** @internal Search beyond opted-out rows without growing the live cache. */
+  _nextPreparationIndex(
+    skipped: number,
+    direction: number,
+    eligible: (index: number) => boolean,
+  ): number {
+    const c = this.constraints;
+    const viewportLimit = this.index.indexAtOffset(
+      direction > 0
+        ? c.scrollOffset + c.remainingPaintExtent + c.viewportMainAxisExtent
+        : Math.max(0, c.scrollOffset - c.viewportMainAxisExtent),
+    );
+    // A dense run of tiny sections must not turn an optional candidate search
+    // into a scan of the whole list during required layout.
+    const limit =
+      direction > 0 ? Math.min(viewportLimit, skipped + 8) : Math.max(viewportLimit, skipped - 8);
+    for (
+      let candidate = skipped + direction;
+      (limit - candidate) * direction >= 0;
+      candidate += direction
+    ) {
+      if (eligible(candidate)) return candidate;
+    }
+    return -1;
+  }
   private startFromAttachedCache(anchor: number, cacheStart: number): number {
     const first = this.firstChild,
       last = this.lastChild;

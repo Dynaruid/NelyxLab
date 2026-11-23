@@ -66,6 +66,8 @@ import { webFontStyleKeys, webTextStyle, webParagraphStyle } from './text-style.
 // Leave headroom for Skia's signed integer clip width and height.
 const framePictureCullExtent = 2 ** 29;
 const webImageByteBudget = 256 * 1024 * 1024;
+// Leave room for frequently used image textures alongside glyph atlases and render targets.
+const webGpuResourceCacheBytes = 48 * 1024 * 1024;
 
 interface Font {
   resource: ResourceId;
@@ -1304,7 +1306,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         throw new Error('CanvasKit GPU context failed');
       }
       try {
-        context.setResourceCacheLimitBytes(32 * 1024 * 1024);
+        context.setResourceCacheLimitBytes(webGpuResourceCacheBytes);
         this.context = context;
       } catch (error) {
         context.delete();

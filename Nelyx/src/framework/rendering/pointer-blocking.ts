@@ -56,7 +56,8 @@ export class RenderIgnorePointer extends RenderProxyBox {
     return this._ignoring;
   }
   set ignoring(value: boolean) {
-    this.assertCanMutateLayoutProperty();
+    // Scrollable can change pointer suppression when its viewport commits new extents.
+    this.assertCanMutateHitTestProperty();
     invariant(typeof value === 'boolean', 'invalid-ignoring', 'ignoring must be boolean');
     if (this._ignoring === value) return;
     this._ignoring = value;

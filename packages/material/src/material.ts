@@ -8,7 +8,7 @@ import {
   SingleChildRenderObjectWidget,
 } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget, WidgetOptions } from '@nelyx/core/framework/widgets/framework';
-import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
+import { createFrameworkAnchorKey } from '@nelyx/core/framework/widgets/global-key';
 import { TickerProviderStateMixin } from '@nelyx/core/framework/widgets/ticker-provider';
 import type { TickerProvider } from '@nelyx/core/framework/animation/ticker';
 import '@nelyx/core/framework/rendering/boxes';
@@ -201,7 +201,7 @@ export class Material extends StatefulWidget {
   }
 }
 class MaterialState extends TickerProviderStateMixin<Material> {
-  private readonly inkKey = new GlobalKey();
+  private readonly inkKey = createFrameworkAnchorKey();
   private renderer: MaterialInkRender | null = null;
 
   build(context: BuildContext): Widget {

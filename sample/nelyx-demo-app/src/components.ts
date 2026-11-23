@@ -3,7 +3,6 @@
 import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import { ValueKey } from '@nelyx/core/foundation/key';
-import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
 import {
   Align,
   Center,
@@ -98,6 +97,9 @@ const groups = [
   'Images',
 ] as const;
 type Group = (typeof groups)[number];
+// Keep the editors in the primary viewport across the wide-layout breakpoint.
+const primaryGroups: readonly Group[] = ['Actions', 'Communication', 'Containment', 'Text inputs'];
+const secondaryGroups = groups.filter((group) => !primaryGroups.includes(group));
 interface Demo {
   readonly id: string;
   readonly title: string;
@@ -188,15 +190,9 @@ class ComponentsState extends State<ComponentsScreen> {
   private readonly secondScroll = new ScrollController({ debugLabel: 'demo-second' });
   private readonly firstExtents = new GallerySectionExtents();
   private readonly secondExtents = new GallerySectionExtents();
-  // These wrappers capture only section identity and this State. Their builder
-  // still reads current theme/dependencies and values whenever it runs.
-  private readonly sectionWidgets = new Map<string, Widget>();
-  private readonly sectionKeys = new Map(
-    [...demos, ...textFieldParts, ...sliderParts].map(
-      (demo) =>
-        [demo.id, isTextFieldsPart(demo) ? new GlobalKey(demo.id) : new ValueKey(demo.id)] as const,
-    ),
-  );
+  // These wrappers capture only group identity and this State. Their builders
+  // still read current theme/dependencies and values whenever they run.
+  private readonly groupWidgets = new Map<Group, Widget>();
   private readonly primaryMessageScroll = new ScrollController();
   private readonly alternateMessageScroll = new ScrollController();
   private messageAlternate = false;
@@ -247,7 +243,7 @@ class ComponentsState extends State<ComponentsScreen> {
   }
   override dispose(): void {
     ++this.messageAnimation;
-    this.sectionWidgets.clear();
+    this.groupWidgets.clear();
     this.updates.dispose();
     this.firstScroll.dispose();
     this.secondScroll.dispose();
@@ -386,44 +382,25 @@ class ComponentsState extends State<ComponentsScreen> {
       const media = theme.platform === 'android' ? MediaQuery.of(context) : null;
       const twoColumns = constraints.maxWidth > 1000 && this.group === null;
       const compact = constraints.maxWidth < 600;
-      const items = demos.filter((demo) => this.group === null || demo.group === this.group);
-      // Editors stay with one scroll owner when the window crosses the breakpoint.
-      const primary = items.filter((demo, index) => demo.id === 'text-fields' || index % 2 === 0);
-      const secondary = items.filter((demo, index) => demo.id !== 'text-fields' && index % 2 !== 0);
-      const list = (sections: readonly Demo[], controller: ScrollController): Widget => {
-        // Keep each card's parts together after assigning the card to a column.
-        const entries = sections.flatMap<GalleryEntry>((section) => {
-          if (section.id === 'text-fields') return [section, ...textFieldParts];
-          if (section.id === 'sliders') return [section, ...sliderParts];
-          return [section];
-        });
+      const visibleGroups = this.group === null ? groups : [this.group];
+      const list = (
+        listGroups: readonly Group[],
+        controller: ScrollController,
+        extents: GallerySectionExtents,
+      ): Widget => {
         const viewport = ListView.builder({
           controller,
           primary: false,
-          // Each GallerySection already supplies its own repaint boundary.
-          addRepaintBoundaries: false,
-          // Keep recently scrolled-out cards available for a direction change.
-          childPolicy: {
-            mode: 'dormant',
-            capacity: 12,
-            // Editors and images can open host connections on first build.
-            prepare: (index) => {
-              const entry = entries[index]!;
-              return entry.id !== 'image' && !isTextFieldsPart(entry);
-            },
-          },
-          extentIndex: (controller === this.firstScroll
-            ? this.firstExtents
-            : this.secondExtents
-          ).forItems(entries.map((entry) => entry.id)),
+          extentIndex: extents.forItems(listGroups),
           metricRevision: theme,
           padding: EdgeInsets.only({ bottom: 20 }),
-          itemCount: entries.length,
+          itemCount: listGroups.length,
           findChildIndexCallback: (key) => {
-            const index = entries.findIndex((entry) => this.sectionKeys.get(entry.id) === key);
+            const index =
+              key instanceof ValueKey ? listGroups.findIndex((group) => group === key.value) : -1;
             return index < 0 ? null : index;
           },
-          itemBuilder: (_, index) => this.sectionWidget(entries[index]!),
+          itemBuilder: (_, index) => this.groupWidget(listGroups[index]!),
         });
         // Let the vertical list and its horizontal controls start at the same
         // distance. Defer to gesture settings supplied by the host when present.
@@ -487,9 +464,18 @@ class ComponentsState extends State<ComponentsScreen> {
               EdgeInsets.fromLTRB(compact ? 12 : 24, 16, compact ? 12 : 24, 0),
               new Row(
                 [
-                  new Expanded(list(twoColumns ? primary : items, this.firstScroll)),
+                  new Expanded(
+                    list(
+                      twoColumns ? primaryGroups : visibleGroups,
+                      this.firstScroll,
+                      this.firstExtents,
+                    ),
+                  ),
                   ...(twoColumns
-                    ? [new SizedBox(20), new Expanded(list(secondary, this.secondScroll))]
+                    ? [
+                        new SizedBox(20),
+                        new Expanded(list(secondaryGroups, this.secondScroll, this.secondExtents)),
+                      ]
                     : []),
                 ],
                 { crossAlign: 'stretch' },
@@ -514,23 +500,30 @@ class ComponentsState extends State<ComponentsScreen> {
       );
     });
   }
-  private sectionWidget(entry: GalleryEntry): Widget {
-    const { id } = entry;
-    let widget = this.sectionWidgets.get(id);
+  private groupWidget(group: Group): Widget {
+    let widget = this.groupWidgets.get(group);
     if (!widget) {
-      const textField = isTextFieldsPart(entry);
-      // Reuse the editors and range previews after scrolling past them.
-      const retainMounted = textField || id === 'range-preview' || id === 'custom-range-preview';
+      const entries = demos
+        .filter((demo) => demo.group === group)
+        .flatMap<GalleryEntry>((demo) => {
+          if (demo.id === 'text-fields') return [demo, ...textFieldParts];
+          if (demo.id === 'sliders') return [demo, ...sliderParts];
+          return [demo];
+        });
+      const cards = entries.map((entry) => {
+        const signal = this.updates.section(isTextFieldsPart(entry) ? 'text-fields' : entry.id);
+        return new RepaintBoundary(
+          new ListenableBuilder(signal, (context) => this.section(context, entry)),
+        );
+      });
+      // The editors and range previews already requested keep-alive as cards.
+      // Preserve their live subtrees now that the sliver owns whole groups.
       widget = new GallerySection(
-        new RepaintBoundary(
-          new ListenableBuilder(this.updates.section(textField ? 'text-fields' : id), (context) =>
-            this.section(context, entry),
-          ),
-        ),
-        retainMounted,
-        this.sectionKeys.get(id)!,
+        new Column(cards, { crossAlign: 'stretch', mainSize: 'min' }),
+        group === 'Text inputs' || group === 'Selection',
+        new ValueKey(group),
       );
-      this.sectionWidgets.set(id, widget);
+      this.groupWidgets.set(group, widget);
     }
     return widget;
   }

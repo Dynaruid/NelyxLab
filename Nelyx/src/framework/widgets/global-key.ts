@@ -49,8 +49,10 @@ export class GlobalKey<S extends State = State> extends Key {
 export class LabeledGlobalKey<S extends State = State> extends GlobalKey<S> {}
 const frameworkAnchors = new WeakSet<GlobalKey>();
 /** @internal Framework-owned geometry/semantics anchors, never app State keys. */
-export function createFrameworkAnchorKey(debugLabel?: string): GlobalKey {
-  const key = new GlobalKey(debugLabel);
+export function createFrameworkAnchorKey<S extends State = State>(
+  debugLabel?: string,
+): GlobalKey<S> {
+  const key = new GlobalKey<S>(debugLabel);
   frameworkAnchors.add(key);
   return key;
 }

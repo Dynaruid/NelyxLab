@@ -44,6 +44,10 @@ export function bindCanvasInput(
         canvas.setPointerCapture(event.pointerId);
       if (!live) return;
     }
+    const samples =
+      kind === 'move' && event.pointerType === 'touch' && pointers.has(event.pointerId)
+        ? event.getCoalescedEvents?.()
+        : undefined;
     view.dispatchPointer({
       kind: kind === 'move' && !pointers.has(event.pointerId) ? 'hover' : kind,
       pointer: event.pointerId,
@@ -57,6 +61,16 @@ export function bindCanvasInput(
       x: ((event.clientX - rect.left) * metrics.logicalWidth) / rect.width,
       y: ((event.clientY - rect.top) * metrics.logicalHeight) / rect.height,
       timestamp: event.timeStamp,
+      ...(samples && samples.length > 1
+        ? {
+            // Match the drag velocity tracker's sample capacity.
+            coalescedSamples: samples.slice(-20).map((sample) => ({
+              x: ((sample.clientX - rect.left) * metrics.logicalWidth) / rect.width,
+              y: ((sample.clientY - rect.top) * metrics.logicalHeight) / rect.height,
+              timestamp: sample.timeStamp,
+            })),
+          }
+        : {}),
       viewportGeneration: metrics.viewportGeneration,
     });
     if (kind === 'up' || kind === 'cancel') {

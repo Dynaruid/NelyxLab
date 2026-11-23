@@ -1602,6 +1602,19 @@ export abstract class RenderObject extends DiagnosticableTreeMixin(class {}) {
         'Cannot update layout properties on a disposed, active or measured render object',
       );
   }
+  protected assertCanMutateHitTestProperty(): void {
+    assertOutsideRenderPaint();
+    invariant(
+      !this.dead &&
+        !this.changingChildren &&
+        !this.changingAttachment &&
+        !this.treeTransition &&
+        !layoutQueries.length &&
+        !this.owner?.debugDoingSemantics,
+      'invalid-hit-test-property-update',
+      'Cannot update hit testing during measurement, a tree transition or semantics collection',
+    );
+  }
   /** Rebuild a dirty subtree only inside this live object's active layout. */
   protected invokeLayoutCallback<T extends Constraints>(callback: (constraints: T) => void): void {
     assertOutsideRenderPaint();

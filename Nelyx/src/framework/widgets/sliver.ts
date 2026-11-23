@@ -47,7 +47,7 @@ import { FlutterError } from '../../foundation/flutter-error.ts';
 import { DiagnosticsProperty } from '../../foundation/diagnostics.ts';
 import type { DiagnosticPropertiesBuilder } from '../../foundation/diagnostics.ts';
 import { protect } from '../../ui/value-math.ts';
-import { normalizeSliverChildPolicy } from './view-work-budget.ts';
+import { normalizeSliverChildPolicy, viewChildBudgetLimits } from './view-work-budget.ts';
 import { SubtreePreparation } from './subtree-preparation.ts';
 import type { SliverChildPolicy } from './view-work-budget.ts';
 export type { SliverChildPolicy } from './view-work-budget.ts';
@@ -261,10 +261,20 @@ export class SliverMultiBoxAdaptorElement
   }
   private get retentionCapacity(): number {
     const policy = this.adaptorWidget.childPolicy;
-    return policy !== 'legacy' && policy.mode === 'bounded' ? (policy.capacity ?? 8) : 0;
+    return policy !== 'legacy' && policy.mode === 'bounded'
+      ? (policy.capacity ?? viewChildBudgetLimits.perSliver)
+      : 0;
+  }
+  private allowsOptionalRetention(child: RenderBox): boolean {
+    const policy = this.adaptorWidget.childPolicy;
+    return (
+      policy !== 'legacy' &&
+      policy.mode === 'bounded' &&
+      (!policy.retain || policy.retain(this.renderObject.indexOf(child)))
+    );
   }
   retainChild(child: RenderBox): boolean {
-    if (!this.boundedChildren) return false;
+    if (!this.allowsOptionalRetention(child)) return false;
     const element = this.childElement(child),
       budget = this.owner.viewWorkBudget;
     budget.withChild(this, element, this.requestBudgetLayout, () => {});
@@ -283,7 +293,8 @@ export class SliverMultiBoxAdaptorElement
   }
   isRetainedChild(child: RenderBox): boolean {
     return (
-      this.boundedChildren && !!this.owner.maybeViewWorkBudget?.retained(this.childElement(child))
+      this.allowsOptionalRetention(child) &&
+      !!this.owner.maybeViewWorkBudget?.retained(this.childElement(child))
     );
   }
   didObtainChild(child: RenderBox, reason: 'active' | 'explicit' = 'active'): void {
@@ -655,6 +666,7 @@ export class SliverMultiBoxAdaptorElement
     }
     const started = diagnostics?.recorder.now();
     const old = this._childElements.get(index),
+      dormant = this.owner.maybeDormantChildren?.peek(this, index),
       oldData = this.renderBox(old)?.parentData,
       oldOffset = oldData instanceof SliverMultiBoxAdaptorParentData ? oldData.layoutOffset : null;
     this.owner.buildScope(this, () => {
@@ -665,9 +677,10 @@ export class SliverMultiBoxAdaptorElement
     });
     this.finishQueuedChildren();
     diagnostics?.recorder.recordSection(diagnostics.token, 'section-create', index, started!);
-    if (!old && this._childElements.has(index) && this.splitProductionEnabled)
+    const child = this._childElements.get(index);
+    if (!old && child && child !== dormant && this.splitProductionEnabled)
       this.owner._didRequireColdChild(false);
-    const data = this.renderBox(this._childElements.get(index))?.parentData;
+    const data = this.renderBox(child)?.parentData;
     if (data instanceof SliverMultiBoxAdaptorParentData && oldOffset !== null)
       data.layoutOffset = oldOffset;
   }
@@ -921,16 +934,22 @@ export class SliverMultiBoxAdaptorElement
     const direction = this.preparationDirection;
     const edge = direction > 0 ? render.lastChild : render.firstChild;
     const count = this.estimatedChildCount;
-    const index = edge ? render.indexOf(edge) + direction : -1;
-    const eligible =
-      count !== null &&
-      index >= 0 &&
-      index < count &&
-      this.isColdSlot(index) &&
-      (policy === 'legacy' || policy.mode !== 'dormant' || policy.prepare?.(index) === true);
-    if (eligible && previous?.index === index && previous.valid()) return;
+    const prepare = policy !== 'legacy' && policy.mode === 'dormant' ? policy.prepare : undefined;
+    let index = edge ? render.indexOf(edge) + direction : -1;
+    if (count === null || index < 0 || index >= count || !this.isColdSlot(index)) index = -1;
+    if (index >= 0 && prepare && !prepare(index)) {
+      index =
+        render instanceof RenderSliverSectionList
+          ? render._nextPreparationIndex(
+              index,
+              direction,
+              (candidate) => this.isColdSlot(candidate) && prepare(candidate),
+            )
+          : -1;
+    }
+    if (index >= 0 && previous?.index === index && previous.valid()) return;
     if (previous) this.cancelSplitChild();
-    if (!eligible) return;
+    if (index < 0) return;
     const widget = this.adaptorWidget;
     const valid = () =>
       this.active &&

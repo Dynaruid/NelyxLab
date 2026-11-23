@@ -33,7 +33,7 @@ import type {
   ImageStreamCompleterHandle,
 } from '../painting/image-stream.ts';
 import type { FrameScheduler } from '../scheduler/scheduler.ts';
-import { StatefulWidget, State, ErrorWidget } from './framework.ts';
+import { StatefulWidget, State, ErrorWidget, Element } from './framework.ts';
 import type { BuildContext, Widget } from './framework.ts';
 import { Directionality, Localizations, MediaQuery } from './app-data.ts';
 import { DefaultAssetBundle } from './default-asset-bundle.ts';
@@ -347,6 +347,7 @@ class _ImageState extends State<Image> {
   private schedulerStopped = false;
   private tickerEnabled = true;
   private disableAnimations = false;
+  private awaitingPublication = false;
   private listener: ImageStreamListener | null = null;
   private generation = 0;
   private scheduler!: FrameScheduler;
@@ -409,8 +410,22 @@ class _ImageState extends State<Image> {
   }
   private resolveImage(): void {
     if (this.closed || this.schedulerStopped) return;
+    const context = this.context;
+    if (context instanceof Element && context._unpublishedScope) {
+      if (!this.awaitingPublication) {
+        this.awaitingPublication = true;
+        // Preparing the widget can be sliced across idle callbacks. The image
+        // stream starts only once its owner is part of a sealed frame.
+        context.owner._whenPreparationPublished(context, () => {
+          this.awaitingPublication = false;
+          this.resolveImage();
+          this.listenToStream();
+        });
+      }
+      return;
+    }
     const provider = new ScrollAwareImageProvider(this.scrollContext, this.widget.image),
-      configuration = createLocalImageConfiguration(this.context, {
+      configuration = createLocalImageConfiguration(context, {
         size:
           this.widget.width !== null && this.widget.height !== null
             ? new Size(this.widget.width, this.widget.height)

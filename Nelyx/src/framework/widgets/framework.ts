@@ -824,7 +824,9 @@ export class BuildOwner {
       for (const element of preparation.elements) element._publishPreparedOwnership();
       this.preparation = undefined;
       this.preparationWork = undefined;
-      this.preparationCandidate = undefined;
+      // The adopting layout may already have offered the next section.
+      if (this.preparationCandidate === this.activePreparationCandidate)
+        this.preparationCandidate = undefined;
       this.activePreparationCandidate = undefined;
       this.recordPreparationResources(preparation);
       this.preparationCounts.published++;
@@ -859,6 +861,7 @@ export class BuildOwner {
       preparation.roots.clear();
       this.publishingPreparation = false;
     }
+    this._schedulePreparationOpportunity();
   }
   /** @internal Drain the actual dirty queues a single atomic rebuild at a time.
    * Layout-owned scopes retain their identity and newly dirtied ancestors keep

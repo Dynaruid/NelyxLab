@@ -7,6 +7,8 @@ import type { FrameTiming } from '../../foundation/clock.ts';
 import { sectionLifetimeProtocol as sectionProtocol } from '../../hosting/section-lifetime.ts';
 import type { SectionLifetimeService } from '../../hosting/section-lifetime.ts';
 
+export const viewChildBudgetLimits = Object.freeze({ perSliver: 8, children: 16, elements: 2048 });
+
 /** Opt-in State retention. Dormant rows deactivate; user timers remain the
  * State's responsibility and framework tickers resume with elapsed wall time. */
 export type SliverChildPolicy =
@@ -18,6 +20,8 @@ export type SliverChildPolicy =
       readonly mode: 'bounded';
       readonly preparation?: 'disabled' | 'observed-budget';
       /** Optional live sections per sliver, within the shared View budget. */ readonly capacity?: number;
+      /** Whether a slot can remain optionally attached outside the active range. */
+      readonly retain?: (index: number) => boolean;
     }
   | {
       readonly mode: 'dormant';
@@ -61,17 +65,24 @@ export function normalizeSliverChildPolicy(
   );
   invariant(
     value.capacity === undefined ||
-      (Number.isSafeInteger(value.capacity) && value.capacity >= 0 && value.capacity <= 8),
+      (Number.isSafeInteger(value.capacity) &&
+        value.capacity >= 0 &&
+        value.capacity <= viewChildBudgetLimits.children),
     'invalid-bounded-capacity',
-    'Bounded capacity must be in 0..8',
+    `Bounded capacity must be in 0..${viewChildBudgetLimits.children}`,
+  );
+  invariant(
+    value.retain === undefined || typeof value.retain === 'function',
+    'invalid-bounded-retention',
+    'Bounded child retention requires a slot predicate',
   );
   return Object.freeze({
     mode: 'bounded',
     preparation: value.preparation ?? 'disabled',
     ...(value.capacity === undefined ? {} : { capacity: value.capacity }),
+    ...(value.retain ? { retain: value.retain } : {}),
   });
 }
-export const viewChildBudgetLimits = Object.freeze({ perSliver: 8, children: 16, elements: 2048 });
 interface ChildRecord {
   id: number;
   section?: { position: number; retire(): void; evictable(): boolean };
@@ -572,7 +583,7 @@ export class ViewWorkBudget {
               candidate.estimatedMs,
               [...this.optional].filter((record) => record.owner === candidate.owner).length +
                 8 -
-                (candidate.capacity ?? 8),
+                (candidate.capacity ?? viewChildBudgetLimits.perSliver),
               0,
               1,
             ],

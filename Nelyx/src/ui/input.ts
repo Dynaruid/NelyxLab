@@ -7,6 +7,9 @@ export interface InputFocusRequest {
   readonly inputTimestamp?: number;
   readonly restore?: boolean;
 }
+export interface PointerMotionSample extends Offset {
+  readonly timestamp: number;
+}
 export interface PointerEvent extends Offset {
   readonly kind:
     | 'down'
@@ -25,6 +28,8 @@ export interface PointerEvent extends Offset {
   readonly buttons: number;
   /** Logical coordinates; monotonic milliseconds in the host clock's timebase. */
   readonly timestamp: number;
+  /** Raw samples grouped into a move. Positions use the global logical space. */
+  readonly coalescedSamples?: readonly PointerMotionSample[];
   readonly deltaX?: number;
   readonly deltaY?: number;
   readonly panX?: number;
