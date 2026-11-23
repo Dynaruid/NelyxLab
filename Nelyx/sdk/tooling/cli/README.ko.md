@@ -52,4 +52,4 @@ prepare는 기존 src-tauri 프로젝트를 보존합니다. 앱의 Tauri 공통
 
 공용 앱 소스는 유지하면서 스타터의 index.html, vite.config.ts와 Vite 진입점 연결을 적용합니다. 편집한 resolver·transformer 설정은 Vite 플러그인으로 옮기고 React import와 DOM 요소를 사용합니다. 새 archive 공급 뒤 러너를 다시 설치합니다. targets.web.component는 메모리에서 읽으며 이전 cohort 선언은 제거합니다. 기존 OS별 설정은 Tauri 설정으로 옮깁니다. doctor에서 해당 경로와 전환 안내를 확인할 수 있습니다.
 
-[Tauri 도구 설치](https://v2.tauri.app/start/prerequisites/) · [환경별 검증](../../../../work3.md#7-최종-인수와-현재-상태)
+[Tauri 도구 설치](https://v2.tauri.app/start/prerequisites/) · [환경별 검증](../../../../history/26/11/20/work3-summary.md)

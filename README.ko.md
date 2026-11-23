@@ -52,7 +52,7 @@ npm.cmd run run:android --workspace @nelyx/demo -- --device emulator-5554
 | [Skia](Nelyx/skia/README.ko.md) | CanvasKit 공급과 렌더링 |
 | [CLI](Nelyx/sdk/tooling/cli/README.ko.md) | 생성·SDK 공급·Vite·Tauri 명령 |
 | [Demo](sample/nelyx-demo-app/README.ko.md)와 [Testbed](sample/nelyx-testbed-app-2/README.ko.md) | 샘플 앱 |
-| [플랫폼 검증](work3.md#7-최종-인수와-현재-상태) | 환경별 빌드와 실행 결과 |
+| [플랫폼 검증](history/26/11/20/work3-summary.md) | 환경별 빌드와 실행 결과 |
 | [작업 이력](history/README.md) | 이전 계획과 구현 기록 |
 
 Nelyx 코드는 BSD 3-Clause를 사용합니다. 이식한 코드에는 각 원본의 라이선스가 적용됩니다. [라이선스](Nelyx/LICENSE.md) · [Skia 고지](Nelyx/skia/THIRD_PARTY_NOTICES.md)

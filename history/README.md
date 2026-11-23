@@ -4,6 +4,21 @@
 
 이력의 PASS·PARTIAL·NO_ADOPTION·notVerified·공급 식별은 **당시 범위**이며 현재 제품의 재검증 결과가 아니다. 같은 `workN.md` 이름을 재사용한 문서도 날짜와 주제로 구분한다.
 
+## 2026-11-23 보관한 Tauri·스크롤·텍스트 선택 작업
+
+| 원문 | 날짜 (KST) | 요약 | 당시 판정 |
+| --- | --- | --- | --- |
+| `work.md` | 11-20 | [Demo Windows Tauri 실험](26/11/20/work-summary.md) | Demo 독립 실행·개발 창 검증 완료 |
+| `work2.md` | 11-20 | [SDK의 Windows Tauri 호스트](26/11/20/work2-summary.md) | 두 샘플·외부 앱 검증 완료 |
+| `work3.md` | 11-20 | [Vite 단일 PWA와 플랫폼별 검증](26/11/20/work3-summary.md) | 전환 구현·환경별 인수 PARTIAL |
+| `work4.md` | 11-21 | [Android 빠른 스크롤과 슬라이더](26/11/21/work4-summary.md) | CLOSED / PARTIAL, W5로 이관 |
+| `work5.md` | 11-22 | [WebView 관성과 이미지 비용](26/11/22/work5-summary.md) | PAUSED / PARTIAL |
+| `work6.md` | 11-22 | [텍스트 선택 메뉴와 확대경](26/11/22/work6-summary.md) | CLOSED / PARTIAL, W7로 이관 |
+| `work7.md` | 11-22 | [텍스트 선택 후속 인수](26/11/22/work7-summary.md) | PARTIAL, 실물 입력·일부 호스트 미검증 |
+| `work8.md` | 11-23 실행 | [관성 표시 공백과 목록 재사용](26/11/23/work8-summary.md) | 재방문 재생성 감소·전체 성능 미수락 |
+
+원문은 Git 리비전 `1c51f17d`에서 조회할 수 있다. 아래의 동명 문서는 이전 작업이다.
+
 ## 2026-11-20 보관한 엔진·디자인 작업
 
 11월 16~19일에 시작한 작업 문서 11개와 성능 원인 분석을 원문 작성일 기준으로 요약했다. W11은 11월 19일에 시작해 20일에 후속 구현과 정적 검증을 마쳤다. W11 상세 TSV는 원문과 함께 루트에서 정리했고 집계와 행별 기록을 조회할 Git 리비전을 요약에 남겼다.

@@ -53,7 +53,7 @@ npm.cmd run run:android --workspace @nelyx/demo -- --device emulator-5554
 | [CLI](Nelyx/sdk/tooling/cli/README.md) | Starter creation, SDK supply, Vite and Tauri commands |
 | [Material](packages/material/README.md) and [Cupertino](packages/cupertino/README.md) | Design packages |
 | [Demo](sample/nelyx-demo-app/README.md) and [Testbed](sample/nelyx-testbed-app-2/README.md) | Sample applications |
-| [Platform qualification](work3.md#7-최종-인수와-현재-상태) | Packaging and test coverage by environment |
+| [Platform qualification](history/26/11/20/work3-summary.md) | Packaging and test coverage by environment |
 | [Development history](history/README.md) | Previous plans and implementation records |
 
 Nelyx-authored code uses BSD 3-Clause. Imported code retains its notices. [License](Nelyx/LICENSE.md) · [Skia notices](Nelyx/skia/THIRD_PARTY_NOTICES.md)

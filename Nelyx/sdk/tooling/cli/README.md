@@ -52,4 +52,4 @@ Preparation preserves the existing src-tauri project. App-owned Tauri and platfo
 
 Keep app sources and replace the Web runner inputs with the starter index.html, vite.config.ts and Vite entry wiring. Move custom resolver or transformer settings into Vite plugins and use React imports and DOM elements in the runner. Supply the new archives and reinstall the runner. A v2 targets.web component is read in memory, and the old cohort override must be removed. Move native target settings into app-owned Tauri config files. Run doctor for migration guidance.
 
-See the [platform prerequisites](https://v2.tauri.app/start/prerequisites/) and [qualification records](../../../../work3.md#7-최종-인수와-현재-상태).
+See the [platform prerequisites](https://v2.tauri.app/start/prerequisites/) and [qualification records](../../../../history/26/11/20/work3-summary.md).
