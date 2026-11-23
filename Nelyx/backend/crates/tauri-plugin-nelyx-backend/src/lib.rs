@@ -79,6 +79,8 @@ fn allowed<R: Runtime>(
     } else {
         "tauri://localhost/"
     };
+    // Android dispatches this query to the UI thread. The command handlers
+    // run asynchronously so that thread can answer it.
     let page = webview.url().map_err(|_| denied())?;
     let embedded = app_page(&Url::parse(root).expect("embedded URL"), &page);
     let development = tauri::is_dev()
@@ -95,7 +97,7 @@ fn allowed<R: Runtime>(
 }
 
 #[tauri::command]
-fn describe<R: Runtime>(
+async fn describe<R: Runtime>(
     webview: Webview<R>,
     backend: State<'_, Backend>,
 ) -> Result<Description, BackendError> {
@@ -116,7 +118,7 @@ fn describe<R: Runtime>(
 }
 
 #[tauri::command]
-fn invoke<R: Runtime>(
+async fn invoke<R: Runtime>(
     webview: Webview<R>,
     backend: State<'_, Backend>,
     command: &str,
@@ -136,7 +138,7 @@ fn invoke<R: Runtime>(
 }
 
 #[tauri::command]
-fn clipboard_policy<R: Runtime>(
+async fn clipboard_policy<R: Runtime>(
     webview: Webview<R>,
     backend: State<'_, Backend>,
     input: ClipboardInput,

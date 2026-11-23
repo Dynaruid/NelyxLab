@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { Directionality, Localizations, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
-import { SizedBox, Text } from '@nelyx/core/framework/widgets/basic';
+import {
+  IndexedSemantics,
+  Padding,
+  SizedBox,
+  SliverToBoxAdapter,
+  Text,
+} from '@nelyx/core/framework/widgets/basic';
 import { ContextMenuButtonItem } from '@nelyx/core/framework/widgets/context-menu-button-item';
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
 import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
@@ -9,7 +15,8 @@ import type { NavigatorController } from '@nelyx/core/framework/widgets/navigati
 import { TextMagnifierConfiguration } from '@nelyx/core/framework/widgets/magnifier';
 import type { MagnifierInfo } from '@nelyx/core/framework/widgets/magnifier';
 import { Overlay, OverlayEntry } from '@nelyx/core/framework/widgets/overlay';
-import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
+import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
+import { CustomScrollView, ListView } from '@nelyx/core/framework/widgets/scroll-view';
 import { SelectableText as CoreSelectableText } from '@nelyx/core/framework/widgets/selectable-text';
 import { Semantics } from '@nelyx/core/framework/widgets/semantics';
 import { SpellCheckConfiguration } from '@nelyx/core/framework/widgets/spell-check';
@@ -62,6 +69,29 @@ const rich = (text: string) =>
   });
 const materialReadOnly = rich('읽기 전용 Material 👋');
 const coreReadOnly = rich('Core selection · 한글');
+
+function selectionExamples(children: readonly Widget[], safeArea: EdgeInsets): Widget {
+  // Mount these finite examples when entering the route so scrolling can reuse
+  // their editors and paint recordings. Each sliver culls its own row.
+  return new CustomScrollView({
+    primary: false,
+    semanticChildCount: children.length,
+    slivers: children.map(
+      (child, index) =>
+        new SliverToBoxAdapter({
+          child: new Padding(
+            EdgeInsets.fromLTRB(
+              20 + safeArea.left,
+              index === 0 ? 20 : 0,
+              20 + safeArea.right,
+              12 + (index === children.length - 1 ? 20 + safeArea.bottom : 0),
+            ),
+            new IndexedSemantics({ index, child: new RepaintBoundary(child) }),
+          ),
+        }),
+    ),
+  });
+}
 
 declare global {
   interface Window {
@@ -215,15 +245,8 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
               ]
             : [],
       }),
-      body: new ListView({
-        primary: false,
-        padding: EdgeInsets.fromLTRB(
-          20 + safeArea.left,
-          20,
-          20 + safeArea.right,
-          20 + safeArea.bottom,
-        ),
-        children: [
+      body: selectionExamples(
+        [
           field('material', 'Material single line', f.material),
           field('multiline', 'Material multiline', f.materialMultiline, {
             minLines: 3,
@@ -407,8 +430,9 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
           field('null-lens', 'Custom magnifier returns null', f.nullLens, {
             magnifierConfiguration: nullMagnifier,
           }),
-        ].flatMap((child) => [child, new SizedBox(undefined, 12)]),
-      }),
+        ],
+        safeArea,
+      ),
     });
   }
 }

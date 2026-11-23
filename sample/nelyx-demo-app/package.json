@@ -26,7 +26,7 @@
     "react-dom": "19.2.0",
     "@nelyx/backend-rust": "file:.nelyx/supply/nelyx-backend-rust-0.1.0-2c93aec01304a81172ce5a78f41f7e713b2df52da06d6225486050a750d03cd2.tgz",
     "@nelyx/backend-wasm": "file:.nelyx/supply/nelyx-backend-wasm-0.1.0-862449beca8c394691a355e35084f1cb149532d67932c903f2618c8d1a3e3c11.tgz",
-    "@nelyx/backend-tauri": "file:.nelyx/supply/nelyx-backend-tauri-0.1.0-2619aee6c10ac2f0eef3d5141f6dc05fd92468e5e9bfd74fedac0ed53beee798.tgz"
+    "@nelyx/backend-tauri": "file:.nelyx/supply/nelyx-backend-tauri-0.1.0-80ab832dc9e8c7c42217b667ccfcc40e9411c6c3287ae3c369ae25c91a22f8c3.tgz"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.6",
