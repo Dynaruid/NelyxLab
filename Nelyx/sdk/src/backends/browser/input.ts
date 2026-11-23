@@ -24,6 +24,9 @@ export function bindCanvasInput(
     keySurface = options.keySurface ?? canvas;
   canvas.tabIndex = 0;
   canvas.style.touchAction = 'none';
+  // The canvas receives keyboard events; widgets draw their own focus indicators.
+  canvas.style.outline = 'none';
+  canvas.style.setProperty('-webkit-tap-highlight-color', 'transparent');
   const pointer = (kind: FrameworkPointerEvent['kind']) => (event: PointerEvent) => {
     if (!live) return;
     const rect = canvas.getBoundingClientRect(),

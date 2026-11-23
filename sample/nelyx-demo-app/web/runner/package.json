@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@nelyx/core": "file:../../.nelyx/supply/web/nelyx-core-0.17.0-00e86d1fe8f81b9d412b1217cfd64197e6fa56589f9336881b530f9184cb5928.tgz",
-    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-fe8bb03b4f64c854b16ca627848b20064cb9f91d98e96da785b2b5055db0fe56.tgz",
+    "@nelyx/sdk": "file:../../.nelyx/supply/web/nelyx-sdk-0.21.0-3a90860e8f9928d5c4b9676206ef309068a0c694a32beb25357be19fc93f499e.tgz",
     "@nelyx/skia-web": "file:../../.nelyx/supply/web/nelyx-skia-web-0.6.0-cb987a9109875d7206d9cdf0195e4ceafe130e9e4c5f74782d8ca8e657d58e55.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
