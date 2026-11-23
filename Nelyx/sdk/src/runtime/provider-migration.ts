@@ -3,7 +3,7 @@ import { validateProvider } from './providers.ts';
 import type { ProviderDescriptor } from './providers.ts';
 
 const migration =
-  'Install the Vite web/runner and use nelyx.app/v3 with the React DOM cohort. Supply CanvasKit and build the PWA again.';
+  'Install the Nelyx Vite frontend and use nelyx.app/v4 with the React DOM cohort. Supply CanvasKit and rebuild.';
 /** Removed recipe contracts are deliberately rejected before any native import or loader. */
 export function migrateNativeProvider(_value: unknown): never {
   throw new Error(`Removed nelyx.native-provider/v1 contract. ${migration}`);

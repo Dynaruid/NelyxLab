@@ -4,6 +4,9 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { capture } from './commands.mjs';
 import { sha256 } from '@nelyx/tooling-contracts/node-files';
+import { defineConfig } from '@nelyx/sdk/runtime/config';
+import { rustPackages, supplyRust } from './rust-supply.mjs';
+import { ensureDirectory } from './publication.mjs';
 
 const names = {
   core: 'nelyx-core-',
@@ -13,6 +16,8 @@ const names = {
   cli: 'nelyx-cli-',
   'tooling-contracts': 'nelyx-tooling-contracts-',
 };
+const rustNames = ['backend-rust', 'backend-wasm', 'backend-tauri'];
+const rustArchives = Object.fromEntries(rustNames.map((name) => [name, 'nelyx-' + name + '-']));
 const retired =
   /^(?:react-native(?:-|$)|@react-native\/|@lucid-softworks\/react-native|metro(?:-|$)|hermes-compiler$|@nelyx\/(?:metro|static-aot|skia-(?:native|rn))$)/;
 function installationLock(runner) {
@@ -57,7 +62,8 @@ function pruneSupplyArchives(supply, runner, manifest) {
 function references(directory, required = Object.keys(names), fallback = {}) {
   directory = fs.realpathSync(directory);
   const references = Object.fromEntries(
-    Object.entries(names).flatMap(([name, prefix]) => {
+    Object.entries({ ...names, ...rustArchives }).flatMap(([name, prefix]) => {
+      if (rustNames.includes(name) && !required.includes(name)) return [];
       const files = fs
         .readdirSync(directory)
         .filter((file) => file.startsWith(prefix) && file.endsWith('.tgz'));
@@ -84,14 +90,9 @@ export function packageReferences(directory) {
   return references(directory);
 }
 /** Copy explicitly supplied archives into the consuming app before installation. */
-export function supplyRunner({ app, target = 'web', packages, reuseCurrent = false }) {
+export function supplyRunner({ app, packages, reuseCurrent = false }) {
   app = fs.realpathSync(app);
-  if (!['web', 'pwa'].includes(target))
-    throw new Error(
-      'Supply the shared PWA runner with nelyx supply --app . --packages <directory>',
-    );
-  target = 'web';
-  const runner = path.join(app, target, 'runner'),
+  const runner = app,
     file = path.join(runner, 'package.json');
   if (fs.realpathSync(runner) !== runner) throw new Error('Runner symlink rejected');
   const hiddenLock = installationLock(runner),
@@ -99,9 +100,17 @@ export function supplyRunner({ app, target = 'web', packages, reuseCurrent = fal
   const originalManifest = fs.readFileSync(file),
     manifest = JSON.parse(originalManifest),
     fallback = {};
+  const config = defineConfig(manifest.nelyx);
+  const selectedRust = rustPackages(config.targets);
+  const supply = ensureDirectory(path.join(app, '.nelyx', 'supply'));
   if (reuseCurrent) {
-    const supply = path.join(app, '.nelyx/supply', target);
-    for (const name of [...Object.keys(names), 'material', 'cupertino', 'localizations']) {
+    for (const name of [
+      ...Object.keys(names),
+      ...selectedRust,
+      'material',
+      'cupertino',
+      'localizations',
+    ]) {
       const packageName = '@nelyx/' + (name === 'web' ? 'skia-web' : name),
         reference = manifest.dependencies?.[packageName] ?? manifest.devDependencies?.[packageName];
       if (!reference?.startsWith('file:')) continue;
@@ -116,7 +125,7 @@ export function supplyRunner({ app, target = 'web', packages, reuseCurrent = fal
       fallback[name] = 'file:' + archive;
     }
   }
-  const refs = references(packages, Object.keys(names), fallback);
+  const refs = references(packages, [...Object.keys(names), ...selectedRust], fallback);
   const lockFile = path.join(runner, 'package-lock.json'),
     originalLock = fs.existsSync(lockFile) ? fs.readFileSync(lockFile) : null;
   const inputs = {
@@ -126,28 +135,32 @@ export function supplyRunner({ app, target = 'web', packages, reuseCurrent = fal
     '@nelyx/vite': refs.vite,
     '@nelyx/cli': refs.cli,
     '@nelyx/tooling-contracts': refs['tooling-contracts'],
+    ...Object.fromEntries(selectedRust.map((name) => ['@nelyx/' + name, refs[name]])),
   };
   // Optional design packages are supplied only when this app declares them.
-  const appManifest = JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8'));
   for (const name of ['material', 'cupertino', 'localizations'])
-    if (appManifest.dependencies?.['@nelyx/' + name] || manifest.dependencies?.['@nelyx/' + name]) {
+    if (manifest.dependencies?.['@nelyx/' + name]) {
       if (!refs[name]) throw new Error('Selected design package requires one archive: ' + name);
       inputs['@nelyx/' + name] = refs[name];
     }
-  const supply = path.join(app, '.nelyx/supply', target);
-  fs.mkdirSync(supply, { recursive: true });
-  if (fs.realpathSync(supply) !== supply) throw new Error('Supply symlink rejected');
   const removed = [];
   for (const section of ['dependencies', 'devDependencies', 'optionalDependencies']) {
     for (const name of Object.keys(manifest[section] ?? {})) {
-      if (!retired.test(name)) continue;
+      if (
+        !retired.test(name) &&
+        !(rustNames.some((rust) => name === '@nelyx/' + rust) && !inputs[name]) &&
+        !(name === '@tauri-apps/cli' && !config.targets.tauri)
+      )
+        continue;
       delete manifest[section][name];
       removed.push(name);
     }
   }
   manifest.dependencies = { ...manifest.dependencies, react: '19.2.0', 'react-dom': '19.2.0' };
   manifest.devDependencies = { ...manifest.devDependencies, vite: '8.3.8' };
+  if (config.targets.tauri) manifest.devDependencies['@tauri-apps/cli'] = '2.12.6';
   let committed = false;
+  const rust = {};
   try {
     for (const [name, reference] of Object.entries(inputs)) {
       if (!reference.startsWith('file:'))
@@ -177,6 +190,8 @@ export function supplyRunner({ app, target = 'web', packages, reuseCurrent = fal
         if (other !== section && manifest[other]) delete manifest[other][name];
       }
       manifest[section][name] = 'file:' + path.relative(runner, destination).replaceAll('\\', '/');
+      if (selectedRust.includes(name.slice('@nelyx/'.length)))
+        rust[name.slice('@nelyx/'.length)] = destination;
     }
     fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + '\n');
     if (fs.existsSync(lockFile)) {
@@ -210,6 +225,7 @@ export function supplyRunner({ app, target = 'web', packages, reuseCurrent = fal
       process.platform === 'win32' ? ['/d', '/c', 'npm.cmd', ...args] : args,
       { cwd: runner, timeout: 1_200_000 },
     );
+    supplyRust(app, selectedRust, rust);
     committed = true;
   } finally {
     try {

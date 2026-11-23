@@ -1,4 +1,4 @@
-name: Build PWA and Tauri packages
+name: Build Web and Tauri packages
 
 on:
   workflow_dispatch:
@@ -7,10 +7,10 @@ permissions:
   contents: read
 
 env:
-  DEMO: sample/nelyx-demo-app
+  RUST_VERSION: '1.95.0'
 
 jobs:
-  pwa:
+  frontend:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -18,6 +18,12 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Install the Wasm toolchain
+        timeout-minutes: 20
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --target wasm32-unknown-unknown
+          rustup default "$RUST_VERSION"
+          cargo install wasm-bindgen-cli --version 0.2.128 --locked
       - name: Build the pinned CanvasKit runtime from source
         shell: bash
         run: |
@@ -32,44 +38,64 @@ jobs:
           if (( jobs > 16 )); then jobs=16; fi
           timeout --kill-after=10s 1190s python3 "$recipe" build --root "$skia/build" --jobs "$jobs"
           node Nelyx/skia/eng/prepare-web-runtime.mjs "$skia/build/out/nelyx-canvaskit"
-      - name: Build and verify the shared release
+      - name: Build both targets and verify the shared renderer
         timeout-minutes: 20
         shell: bash
         run: |
           npm ci --no-audit --no-fund
           npm run build:sdk
-          npm run pack:sdk -- "$RUNNER_TEMP/nelyx-sdk"
-          node Nelyx/sdk/tooling/cli/src/main.mjs supply --app "$DEMO" --packages "$RUNNER_TEMP/nelyx-sdk"
-          npm ci --prefix "$DEMO/web/runner" --workspaces=false --no-audit --no-fund
-          npm run build:pwa --workspace @nelyx/demo
-          npm --prefix "$DEMO/web/runner" run typecheck
+          sdk=$(mktemp -d "${RUNNER_TEMP}/nelyx-sdk.XXXXXXXX")
+          trap 'rm -rf -- "$sdk"' EXIT
+          npm run pack:sdk -- "$sdk"
+          for app in sample/nelyx-demo-app sample/nelyx-testbed-app-2; do
+            node Nelyx/sdk/tooling/cli/src/main.mjs supply --app "$app" --packages "$sdk"
+            npm ci --prefix "$app" --workspaces=false --no-audit --no-fund
+            cli="$app/node_modules/@nelyx/cli/src/main.mjs"
+            node "$cli" build --app "$app" --target web
+            node "$cli" build --app "$app" --target tauri --frontend-only
+            npm --prefix "$app" run typecheck
+            node --input-type=module -e '
+              import assert from "node:assert/strict";
+              import fs from "node:fs";
+              const app = process.argv[1];
+              const read = folder => JSON.parse(fs.readFileSync(app + "/.nelyx/" + folder + "/build.json"));
+              const web = read("web"), tauri = read("tauri/frontend");
+              assert.equal(web.backend.sourceId, tauri.backend.sourceId);
+              assert.deepEqual(web.canvasKit, tauri.canvasKit);
+              const assets = build => build.files.filter(({path}) => path.startsWith("assets/"));
+              assert.deepEqual(assets(web), assets(tauri));
+            ' "$app"
+          done
           node Nelyx/eng/check-pwa-update.mjs
       - uses: actions/upload-artifact@v4
         with:
-          name: demo-pwa
-          path: sample/nelyx-demo-app/.nelyx/pwa/
+          name: web
+          path: sample/*/.nelyx/web/
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: pwa-sdk
+          name: tauri-inputs
           path: |
-            sample/nelyx-demo-app/.nelyx/supply/web/*.tgz
-            sample/nelyx-demo-app/web/runner/package.json
-            sample/nelyx-demo-app/web/runner/package-lock.json
+            sample/*/package.json
+            sample/*/package-lock.json
+            sample/*/.nelyx/supply/*.tgz
+            sample/*/.nelyx/sdk/rust/
+            sample/*/.nelyx/tauri/frontend/
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
 
   package:
-    needs: pwa
+    needs: frontend
     strategy:
       fail-fast: false
       matrix:
         include:
           - { runner: windows-2025, platform: windows, architecture: x64, rust: x86_64-pc-windows-msvc }
           - { runner: ubuntu-24.04, platform: linux, architecture: x64, rust: x86_64-unknown-linux-gnu }
+          - { runner: ubuntu-24.04, platform: android, architecture: x64, rust: x86_64-linux-android }
           - { runner: ubuntu-24.04, platform: android, architecture: arm64, rust: aarch64-linux-android }
           - { runner: macos-15, platform: macos, architecture: arm64, rust: aarch64-apple-darwin }
           - { runner: macos-15, platform: ios, architecture: arm64-sim, rust: aarch64-apple-ios-sim }
@@ -96,41 +122,41 @@ jobs:
       - if: matrix.platform == 'android'
         shell: bash
         run: |
-          sdkmanager 'platform-tools' 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;30.0.14904198'
+          sdkmanager 'platform-tools' 'platforms;android-36' 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;30.0.14904198'
           echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.14904198" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v4
         with:
-          name: demo-pwa
-          path: sample/nelyx-demo-app/.nelyx/pwa
-      - uses: actions/download-artifact@v4
-        with:
-          name: pwa-sdk
-          path: sample/nelyx-demo-app
-      - name: Install SDK tooling and package the shared PWA
+          name: tauri-inputs
+          path: sample
+      - name: Install runner and toolchain
         timeout-minutes: 20
         shell: bash
         run: |
-          rustup target add "$NELYX_RUST_TARGET"
+          rustup toolchain install "$RUST_VERSION" --profile minimal --target "$NELYX_RUST_TARGET"
+          rustup default "$RUST_VERSION"
           npm ci --no-audit --no-fund
-          npm ci --prefix "$DEMO/web/runner" --workspaces=false --no-audit --no-fund
-          cli="$DEMO/web/runner/node_modules/@nelyx/cli/src/main.mjs"
-          node "$cli" prepare --app "$DEMO" --platform "$NELYX_PLATFORM" --architecture "$NELYX_ARCHITECTURE"
-          node "$cli" pack --app "$DEMO" --platform "$NELYX_PLATFORM" --architecture "$NELYX_ARCHITECTURE"
-          node --input-type=module -e '
-            import assert from "node:assert/strict";
-            import fs from "node:fs";
-            const { DEMO, NELYX_PLATFORM: os, NELYX_ARCHITECTURE: arch } = process.env;
-            const read = path => JSON.parse(fs.readFileSync(DEMO + "/.nelyx/" + path, "utf8"));
-            assert.equal(read("pwa/build.json").buildId, read("tauri/" + os + "-" + arch + "/package.json").buildId);
-          '
-      - if: matrix.platform == 'windows'
-        name: Compare packaged WebView2 assets with the PWA
+          for app in sample/nelyx-demo-app sample/nelyx-testbed-app-2; do
+            npm ci --prefix "$app" --workspaces=false --no-audit --no-fund
+          done
+      - name: Generate and package Demo
         timeout-minutes: 20
-        run: node Nelyx/eng/check-tauri-windows.mjs $env:DEMO
+        shell: bash
+        run: npm run pack:tauri --prefix sample/nelyx-demo-app -- --platform "$NELYX_PLATFORM" --architecture "$NELYX_ARCHITECTURE" --frontend .nelyx/tauri/frontend
+      - name: Generate and package Testbed
+        timeout-minutes: 20
+        shell: bash
+        run: npm run pack:tauri --prefix sample/nelyx-testbed-app-2 -- --platform "$NELYX_PLATFORM" --architecture "$NELYX_ARCHITECTURE" --frontend .nelyx/tauri/frontend
+      - if: matrix.platform == 'windows'
+        name: Verify Windows WebView2 assets and Rust IPC
+        timeout-minutes: 20
+        shell: pwsh
+        run: |
+          node Nelyx/eng/check-tauri-windows.mjs sample/nelyx-demo-app
+          node Nelyx/eng/check-tauri-windows.mjs sample/nelyx-testbed-app-2
       - uses: actions/upload-artifact@v4
         with:
-          name: demo-${{ matrix.platform }}-${{ matrix.architecture }}
-          path: sample/nelyx-demo-app/.nelyx/tauri/${{ matrix.platform }}-${{ matrix.architecture }}/
+          name: tauri-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: sample/*/.nelyx/tauri/${{ matrix.platform }}-${{ matrix.architecture }}/
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1

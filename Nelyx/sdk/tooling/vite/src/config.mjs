@@ -2,43 +2,34 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isBuiltin } from 'node:module';
+import { createHash } from 'node:crypto';
 import { mergeConfig } from 'vite';
-import { appFiles, appPath, inspectRunner, prepareRunnerFiles } from './runner.mjs';
+import { appFiles, inspectRunner, prepareRunnerFiles } from './runner.mjs';
 import { mediaType } from './content.mjs';
 
 const retired =
-  /^(?:react-native(?:-web|-windows|-macos|-linux)?|@react-native\/[^/]+|metro(?:-[^/]+)?|@nelyx\/(?:metro|static-aot|skia-(?:rn|native)))(?:\/|$)|^@nelyx\/sdk\/(?:platforms\/(?!web\/)|backends\/(?:react-native|native-hermes)|runtime\/native-)/;
-const inDirectory = (directory, file) => {
-  const rel = path.relative(directory, file);
-  return rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel);
+  /^(?:react-native(?:-web|-windows|-macos|-linux)?|@react-native\/[^/]+|metro(?:-[^/]+)?|@nelyx\/(?:metro|static-aot|skia-(?:rn|native)))(?:\/|$)/;
+const native =
+  /(?:^|\/)@tauri-apps\/|@nelyx\/sdk\/backends\/tauri(?:$|[./?])|\/backends\/tauri\.[jt]s(?:\?|$)/;
+const nativeGlobal = /\b(?:__TAURI__|__TAURI_INTERNALS__)\b|\b(?:window|globalThis)\.isTauri\b/;
+const within = (directory, file) => {
+  const relative = path.relative(directory, file);
+  return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
 };
+const backendId = 'virtual:nelyx-backend';
 const devClient = 'virtual:nelyx-dev-client';
 
-export function definePwaConfig(directory, overrides = {}) {
-  const value = inspectRunner(path.resolve(directory, '../..'));
-  const { app, runner, roots, config } = value;
-  if (fs.realpathSync(directory) !== runner)
-    throw new Error('Vite config must belong to web/runner');
-  const files = prepareRunnerFiles(value);
-  const appEntry = appPath(app, config.appEntry);
-  const component = appPath(app, config.pwa.component);
-  const generated = new Set(
-    ['app-config.json', 'tsconfig.nelyx.json'].map((name) => path.join(runner, name)),
-  );
+export function defineAppConfig(directory, overrides = {}) {
+  const value = inspectRunner(directory);
+  const { app, roots } = value;
   const packages = Object.keys(roots).filter((name) => name !== 'vite');
   return mergeConfig(
     {
-      root: runner,
+      root: app,
       base: './',
       publicDir: false,
       cacheDir: path.join(app, '.nelyx/vite'),
-      resolve: {
-        dedupe: packages,
-        alias: [
-          { find: /^virtual:nelyx-component$/, replacement: component },
-          { find: /^virtual:nelyx-app$/, replacement: appEntry },
-        ],
-      },
+      resolve: { dedupe: packages },
       optimizeDeps: {
         include: [
           'react',
@@ -52,128 +43,157 @@ export function definePwaConfig(directory, overrides = {}) {
       build: { assetsDir: 'chunks', manifest: true, target: 'es2022' },
       server: {
         strictPort: true,
-        fs: {
-          allow: [
-            runner,
-            path.join(app, 'src'),
-            path.join(app, 'package.json'),
-            appEntry,
-            component,
-            ...Object.values(roots),
-          ],
-        },
+        fs: { allow: [app, ...Object.values(roots)] },
         watch: {
-          ignored: (file) => {
-            const absolute = path.resolve(file);
-            return (
-              generated.has(absolute) ||
-              ['.nelyx', 'src-tauri'].some((name) => inDirectory(path.join(app, name), absolute))
-            );
-          },
+          ignored: (file) =>
+            ['.nelyx', 'backend', 'platform'].some((name) =>
+              within(path.join(app, name), path.resolve(file)),
+            ),
         },
       },
-      plugins: [
-        {
-          name: 'nelyx:pwa-modules',
-          enforce: 'pre',
-          async resolveId(specifier, importer, options) {
-            if (specifier.startsWith('node:') || isBuiltin(specifier) || retired.test(specifier))
-              this.error(
-                `Browser build cannot import "${specifier}" from ${importer ?? 'entry'}. Use React DOM and @nelyx/sdk/platforms/web APIs.`,
-              );
-            const name = packages.find(
-              (candidate) => specifier === candidate || specifier.startsWith(candidate + '/'),
-            );
-            if (!name) return;
-            const result = await this.resolve(specifier, importer, { ...options, skipSelf: true });
-            if (
-              result &&
-              !result.external &&
-              path.isAbsolute(result.id) &&
-              ![roots[name], path.join(app, '.nelyx/vite')].some((root) =>
-                inDirectory(root, result.id),
-              )
-            ) {
-              this.error(
-                `"${specifier}" from ${importer} resolved outside the PWA runner: ${result.id}`,
-              );
-            }
-            return result;
-          },
-          generateBundle(_options, bundle) {
-            for (const output of Object.values(bundle)) {
-              if (output.type !== 'chunk') continue;
-              for (const id of Object.keys(output.modules)) {
-                const name = id.replaceAll('\\', '/').split('/node_modules/').at(-1);
-                if (retired.test(name) || id.includes('__vite-browser-external'))
-                  this.error('Unsupported browser graph module: ' + id);
-              }
-            }
-          },
-        },
-        pwaPlugin(value, files),
-      ],
     },
     overrides,
   );
 }
 
-function pwaPlugin(value, initial) {
-  let deployment = initial;
+function verifyModules(value, target) {
+  const { app, roots } = value;
+  const packages = Object.keys(roots).filter((name) => name !== 'vite');
+  return {
+    name: 'nelyx:modules',
+    enforce: 'pre',
+    async resolveId(specifier, importer, options) {
+      if (specifier.startsWith('node:') || isBuiltin(specifier) || retired.test(specifier))
+        this.error('Unsupported DOM import "' + specifier + '" from ' + (importer ?? 'entry'));
+      if (target === 'web' && native.test(specifier))
+        this.error('Web target cannot import "' + specifier + '" from ' + (importer ?? 'entry'));
+      const name = packages.find(
+        (candidate) => specifier === candidate || specifier.startsWith(candidate + '/'),
+      );
+      if (!name) return;
+      const result = await this.resolve(specifier, importer, { ...options, skipSelf: true });
+      if (
+        result &&
+        !result.external &&
+        path.isAbsolute(result.id) &&
+        ![roots[name], path.join(app, '.nelyx/vite')].some((root) => within(root, result.id))
+      )
+        this.error('"' + specifier + '" resolved outside the app installation: ' + result.id);
+      return result;
+    },
+    generateBundle(_options, bundle) {
+      for (const item of Object.values(bundle)) {
+        if (item.type !== 'chunk') continue;
+        for (const id of Object.keys(item.modules)) {
+          const file = id.replaceAll('\\', '/');
+          const name = file.split('/node_modules/').at(-1);
+          if (
+            retired.test(name) ||
+            id.includes('__vite-browser-external') ||
+            (target === 'web' && native.test(file))
+          )
+            this.error('Unsupported ' + target + ' graph module: ' + id);
+        }
+        if (target === 'web' && nativeGlobal.test(item.code))
+          this.error('Web bundle contains a Tauri global');
+      }
+    },
+  };
+}
+
+export function frontendSession(initial, target, backend, { dev = false } = {}) {
+  let value = initial;
+  let deployment = prepareRunnerFiles(value, target);
+  let server;
   let fastRefresh = false;
   let refreshError;
   const sdkWatchers = [];
   const pendingSdkFiles = new Set();
   let sdkReload;
-  const { app, runner, config } = value;
-  const assetInputs = new Set(
-    config.assets.flatMap(({ path: name, notice }) =>
-      [name, notice?.path].filter(Boolean).map((file) => path.resolve(app, file)),
-    ),
-  );
-  for (const icon of config.pwa.icons ?? []) assetInputs.add(path.resolve(app, icon.src));
+  const { app } = value;
   const packageFile = path.join(app, 'package.json');
-  return {
-    name: 'nelyx:pwa',
+  const assetInputs = () =>
+    new Set(
+      [
+        ...value.config.assets.flatMap(({ path: name, notice }) =>
+          [name, notice?.path].filter(Boolean),
+        ),
+        ...(target === 'web' ? (value.config.targets.web?.pwa?.icons ?? []) : []).map(
+          ({ src }) => src,
+        ),
+      ].map((file) => path.resolve(app, file)),
+    );
+  const pwa = () => target === 'web' && !!value.config.targets.web?.pwa;
+  const reload = () => server?.ws.send('nelyx:reload', {});
+  function invalidate() {
+    if (!server) return;
+    const module = server.moduleGraph.getModuleById('\0' + backendId);
+    if (module) server.moduleGraph.invalidateModule(module);
+  }
+  function moduleSource() {
+    const { config, version } = value;
+    const frontend = JSON.stringify({
+      target,
+      name: config.name,
+      displayName: config.displayName ?? config.name,
+      appVersion: version,
+      pwa: pwa(),
+      assets: deployment.metadata.assets,
+    });
+    const expected = JSON.stringify(backend.identity);
+    if (target === 'tauri')
+      return [
+        'import { openTauriBackend } from "@nelyx/sdk/backends/tauri";',
+        'export const frontend = ' + frontend + ';',
+        'export const openBackend = (root, signal) => openTauriBackend(root, ' +
+          expected +
+          ', ' +
+          !dev +
+          ', signal);',
+      ].join('\n');
+    const hash = createHash('sha256')
+      .update(backend.files.get('runtime/backend/backend_bg.wasm'))
+      .digest('hex');
+    return [
+      'import { openWasmBackend } from "@nelyx/sdk/backends/web-wasm";',
+      'export const frontend = ' + frontend + ';',
+      'export const openBackend = (root, signal) => openWasmBackend(root, ' +
+        expected +
+        ', ' +
+        JSON.stringify(hash) +
+        ', signal);',
+    ].join('\n');
+  }
+  const plugin = {
+    name: 'nelyx:frontend',
     resolveId(id) {
-      if (id === devClient) return '\0' + id;
+      if (id === devClient || id === backendId) return '\0' + id;
     },
     load(id) {
       if (id === '\0' + devClient)
         return fs.readFileSync(new URL('./dev-client.mjs', import.meta.url), 'utf8');
+      if (id === '\0' + backendId) return moduleSource();
     },
     configResolved(config) {
       fastRefresh = config.plugins.some(({ name }) => name === 'vite:react-refresh');
     },
     transformIndexHtml: {
-      order: 'post',
-      handler(html, { server }) {
-        const open = /<head(?:\s[^>]*)?>/i;
-        if (!open.test(html)) throw new Error('Nelyx PWA requires an HTML head element');
-        const icon = deployment.icons.find(
-          ({ sizes, purpose }) => sizes === '192x192' && purpose !== 'maskable',
-        );
-        const favicon = '<link rel="icon" type="image/png" href="' + icon.src + '">';
-        return html.replace(
-          open,
-          '$&<!--nelyx-base-->' +
-            favicon +
-            (server
-              ? '<script type="module" src="/@id/' + devClient + '"></script>'
-              : '<link rel="manifest" href="./manifest.webmanifest">'),
-        );
+      order: 'pre',
+      handler(html) {
+        const marker = /<script\b[^>]*\bdata-nelyx-entry\b[^>]*>\s*<\/script>/i;
+        const entry = '/' + value.config.appEntry.slice(2);
+        if (marker.test(html))
+          return html.replace(marker, '<script type="module" src="' + entry + '"></script>');
+        if (!html.includes('src="' + entry + '"') && !html.includes("src='" + entry + "'"))
+          throw new Error('index.html must load the appEntry module: ' + entry);
+        return html;
       },
     },
-    configureServer(server) {
-      const reload = () => server.ws.send('nelyx:reload', {});
-      server.watcher.add([
-        packageFile,
-        path.join(app, 'src'),
-        ...assetInputs,
-        ...Object.values(value.roots).filter((file) => !inDirectory(runner, file)),
-      ]);
+    configureServer(instance) {
+      server = instance;
+      server.watcher.add([packageFile, path.join(app, 'src'), ...assetInputs()]);
       for (const [name, directory] of Object.entries(value.roots)) {
-        if (!name.startsWith('@nelyx/') || !inDirectory(runner, directory)) continue;
+        if (!name.startsWith('@nelyx/')) continue;
         const dist = path.join(directory, 'dist');
         if (!fs.existsSync(dist)) continue;
         const watcher = fs.watch(dist, { recursive: true }, (_event, file) => {
@@ -194,22 +214,18 @@ function pwaPlugin(value, initial) {
         const request = new URL(req.url ?? '/', 'http://localhost');
         if (request.pathname === '/reload' && req.method === 'POST') {
           const origin = req.headers.origin;
-          if (origin && new URL(origin).host !== req.headers.host) {
-            res.writeHead(403).end();
-            return;
-          }
+          if (origin && new URL(origin).host !== req.headers.host) return res.writeHead(403).end();
           reload();
-          res.writeHead(204).end();
-          return;
+          return res.writeHead(204).end();
         }
         const name = request.pathname.slice(1);
-        if (!/^(?:runtime|assets|icons|licenses)\//.test(name)) return next();
-        if (!['GET', 'HEAD'].includes(req.method)) return next();
-        const bytes = deployment.files.get(name);
-        if (refreshError || !bytes) {
-          res.writeHead(refreshError ? 503 : 404).end();
-          return;
-        }
+        if (
+          !/^(?:runtime|assets|icons|licenses)\//.test(name) ||
+          !['GET', 'HEAD'].includes(req.method)
+        )
+          return next();
+        const bytes = deployment.files.get(name) ?? backend.files?.get(name);
+        if (refreshError || !bytes) return res.writeHead(refreshError ? 503 : 404).end();
         res
           .writeHead(200, {
             'Content-Type': mediaType(name),
@@ -227,12 +243,15 @@ function pwaPlugin(value, initial) {
       order: 'post',
       handler({ file, server }) {
         if (this.environment.name !== 'client') return;
-        const absolute = path.resolve(file);
         if (/\.css(?:$|\?)/.test(file)) return;
-        if (assetInputs.has(absolute) || absolute === packageFile) {
+        const absolute = path.resolve(file);
+        if (assetInputs().has(absolute) || absolute === packageFile) {
           try {
-            deployment = appFiles(inspectRunner(app), true);
+            value = inspectRunner(app);
+            deployment = appFiles(value, true, target);
+            server.watcher.add([...assetInputs()]);
             refreshError = undefined;
+            invalidate();
           } catch (error) {
             refreshError = error;
             server.ws.send({ type: 'error', err: { message: error.message, stack: error.stack } });
@@ -242,14 +261,49 @@ function pwaPlugin(value, initial) {
         if (
           fastRefresh &&
           /\.[jt]sx$/.test(file) &&
-          inDirectory(app, absolute) &&
-          !inDirectory(path.join(runner, 'node_modules'), absolute) &&
-          absolute !== path.resolve(app, config.appEntry)
+          within(app, absolute) &&
+          !within(path.join(app, 'node_modules'), absolute) &&
+          absolute !== path.resolve(app, value.config.appEntry)
         )
           return;
-        server.ws.send('nelyx:reload', {});
+        reload();
         return [];
       },
     },
+  };
+  return {
+    get deployment() {
+      return deployment;
+    },
+    updateBackend(next, notify = true) {
+      backend = next;
+      invalidate();
+      if (notify) reload();
+    },
+    plugins: [
+      verifyModules(value, target),
+      plugin,
+      {
+        name: 'nelyx:html',
+        transformIndexHtml: {
+          order: 'post',
+          handler(html, { server }) {
+            const head = /<head(?:\s[^>]*)?>/i;
+            if (!head.test(html)) throw new Error('Nelyx requires an HTML head element');
+            const icon = deployment.icons.find(
+              ({ sizes, purpose }) => sizes === '192x192' && purpose !== 'maskable',
+            );
+            const extra =
+              (icon ? '<link rel="icon" type="image/png" href="' + icon.src + '">' : '') +
+              (server
+                ? '<script type="module" src="/@id/' + devClient + '"></script>'
+                : pwa()
+                  ? '<link rel="manifest" href="./manifest.webmanifest">'
+                  : '');
+            return html.replace(head, '$&<!--nelyx-base-->' + extra);
+          },
+        },
+      },
+    ],
   };
 }

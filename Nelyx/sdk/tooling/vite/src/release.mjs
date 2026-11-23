@@ -3,27 +3,26 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import {
+  backendFiles,
+  backendHash,
+  backendProtocol,
+} from '@nelyx/tooling-contracts/backend-supply';
+import { createProviderRegistry } from '@nelyx/sdk/runtime/providers';
+import {
   fileTree,
   localFile,
   relativeFile,
   sha256,
   verifyInventory,
 } from '@nelyx/tooling-contracts/node-files';
-import {
-  inspectRunner,
-  prepareRunnerFiles,
-  profile,
-  readJson,
-  renderer,
-  writeJson,
-} from './runner.mjs';
+import { inspectRunner, profile, readJson, renderer, writeJson } from './runner.mjs';
 import { serviceWorker } from './service-worker.mjs';
+import { frontendSession } from './config.mjs';
 
-const schema = 'nelyx.pwa-build/v1';
+const schema = 'nelyx.frontend-build/v1';
 const buildFile = 'build.json';
 const profileValues = {
   schema,
-  format: 'pwa',
   provider: 'web',
   renderer,
   profile,
@@ -31,22 +30,51 @@ const profileValues = {
 };
 const required = [
   'index.html',
-  'manifest.webmanifest',
-  'sw.js',
   'runtime/native-manifest.json',
   'runtime/canvaskit.js',
   'runtime/canvaskit.wasm',
   'licenses/canvaskit-BSD-3-Clause.txt',
 ];
 const hash = (text) => createHash('sha256').update(text).digest('hex');
-const identity = ({ appId, name, version, entry, files }) => ({
-  ...profileValues,
-  appId,
-  name,
-  version,
-  entry,
-  files,
-});
+function identity(data) {
+  const {
+    target,
+    format,
+    appId,
+    name,
+    version,
+    appEntry,
+    entry,
+    sdkVersion,
+    canvasKit,
+    backend,
+    toolchain,
+    files,
+  } = data;
+  return {
+    ...profileValues,
+    target,
+    format,
+    appId,
+    name,
+    version,
+    appEntry,
+    entry,
+    sdkVersion,
+    canvasKit,
+    backend,
+    ...(toolchain ? { toolchain } : {}),
+    files,
+  };
+}
+
+function rendererIdentity(runtime) {
+  return {
+    wireAbi: createProviderRegistry().profile('web', profile).wireAbi,
+    version: runtime.version,
+    files: Object.fromEntries(runtime.files.map(({ id, sha256 }) => [id, sha256])),
+  };
+}
 
 function inventory(directory) {
   return fileTree(directory).map((name) => {
@@ -121,10 +149,12 @@ function writeLicenses(directory, value, modules) {
 }
 
 /** Build into a disposable directory. The CLI owns the publication lock and promotion. */
-export async function buildPwa(app, output) {
+export async function buildFrontend(app, output, target, project, backend) {
   const value = inspectRunner(app);
-  const { config, version, runner } = value;
-  const { files, icons, metadata } = prepareRunnerFiles(value);
+  const { config, version, runner, name } = value;
+  const pwa = target === 'web' ? config.targets.web?.pwa : undefined;
+  const session = frontendSession(value, target, project);
+  const { files, icons } = session.deployment;
   const { build } = await value.vite();
   const modules = new Set();
   await build({
@@ -140,6 +170,7 @@ export async function buildPwa(app, output) {
       sourcemap: false,
     },
     plugins: [
+      ...session.plugins,
       {
         name: 'nelyx:release-licenses',
         generateBundle(_options, bundle) {
@@ -150,41 +181,49 @@ export async function buildPwa(app, output) {
       },
     ],
   });
-  if (JSON.stringify(readJson(path.join(runner, 'app-config.json'))) !== JSON.stringify(metadata))
-    throw new Error('App assets changed during the Vite build; retry with stable inputs');
   const viteManifest = path.join(output, '.vite/manifest.json');
   const entry = verifyReleaseEntries(output, readJson(viteManifest));
   fs.unlinkSync(viteManifest);
   fs.rmdirSync(path.dirname(viteManifest));
-  for (const [name, bytes] of files) writeAsset(output, name, bytes);
+  for (const source of [files, project.files ?? []])
+    for (const [name, bytes] of source) writeAsset(output, name, bytes);
   writeLicenses(output, value, modules);
-  writeJson(path.join(output, 'manifest.webmanifest'), {
-    id: config.pwa.id,
-    start_url: './',
-    scope: './',
-    display: 'standalone',
-    name: config.displayName ?? config.name,
-    short_name: config.pwa.shortName,
-    theme_color: config.pwa.themeColor,
-    background_color: config.pwa.themeColor,
-    icons,
-  });
-  writeAsset(output, 'sw.js', serviceWorker(config.pwa.id, inventory(output)));
+  if (pwa) {
+    writeJson(path.join(output, 'manifest.webmanifest'), {
+      id: pwa.id,
+      start_url: './',
+      scope: './',
+      display: 'standalone',
+      name: config.displayName ?? config.name,
+      short_name: pwa.shortName,
+      theme_color: pwa.themeColor,
+      background_color: pwa.themeColor,
+      icons,
+    });
+    writeAsset(output, 'sw.js', serviceWorker(pwa.id, inventory(output)));
+  }
   const data = identity({
-    appId: config.pwa.id,
+    target,
+    format: pwa ? 'pwa' : target,
+    appId: name,
     name: config.name,
     version,
+    appEntry: config.appEntry,
     entry,
+    sdkVersion: readJson(path.join(value.roots['@nelyx/sdk'], 'package.json')).version,
+    canvasKit: rendererIdentity(value.runtime.manifest),
+    backend,
+    toolchain: project.toolchain,
     files: inventory(output),
   });
   writeJson(path.join(output, buildFile), { ...data, buildId: hash(JSON.stringify(data)) });
-  return verifyPwa(output, value);
+  return verifyFrontend(output, value, target, backend);
 }
 
-function checkInstallManifest(directory, data) {
+function checkInstallManifest(directory, data, pwa) {
   const manifest = readJson(localFile(directory, 'manifest.webmanifest'));
   if (
-    manifest.id !== data.appId ||
+    manifest.id !== pwa.id ||
     manifest.display !== 'standalone' ||
     manifest.start_url !== './' ||
     manifest.scope !== './' ||
@@ -207,43 +246,71 @@ function checkInstallManifest(directory, data) {
   }
 }
 
-export function verifyPwa(directory, { config, version }) {
+export function verifyFrontend(
+  directory,
+  { config, name, version, roots, runtime: expectedRuntime },
+  target,
+  backend,
+) {
   directory = path.resolve(directory);
   if (!fs.existsSync(directory))
-    throw new Error('PWA input missing at ' + directory + '. Run nelyx build --target pwa first.');
+    throw new Error(
+      'Frontend input missing at ' + directory + '. Run nelyx build --target ' + target + ' first.',
+    );
   if (
     path.relative(directory, fs.realpathSync(directory)) ||
     !fs.lstatSync(directory).isDirectory()
   )
-    throw new Error('PWA input must be an ordinary directory: ' + directory);
+    throw new Error('Frontend input must be an ordinary directory: ' + directory);
   const data = readJson(localFile(directory, buildFile));
+  const pwa = target === 'web' ? config.targets.web?.pwa : undefined;
+  const sdk = roots && readJson(path.join(roots['@nelyx/sdk'], 'package.json'));
   if (
     Object.entries(profileValues).some(([key, expected]) => data[key] !== expected) ||
-    data.appId !== config.pwa.id ||
+    data.target !== target ||
+    data.format !== (pwa ? 'pwa' : target) ||
+    data.appId !== name ||
     data.name !== config.name ||
-    data.version !== version
+    data.version !== version ||
+    data.appEntry !== config.appEntry ||
+    typeof data.sdkVersion !== 'string' ||
+    (sdk && data.sdkVersion !== sdk.version)
+  )
+    throw new Error('Frontend input belongs to another app, version, target or SDK');
+  if (
+    data.backend?.kind !== (target === 'web' ? 'wasm' : 'native') ||
+    data.backend.protocolVersion !== backendProtocol ||
+    !/^[a-f0-9]{64}$/.test(data.backend.sourceId) ||
+    typeof data.backend.backendVersion !== 'string' ||
+    (backend && backendHash(data.backend) !== backendHash(backend))
   )
     throw new Error(
-      'PWA input belongs to another app/version or cohort. Run nelyx build --target pwa first.',
+      'Frontend backend contract differs from the app source, protocol or Cargo lock',
     );
   const { files, bytes } = verifyInventory(directory, data.files, [buildFile]);
   const names = data.files.map((file) => file.path);
+  const wasmFiles = names.filter((name) => name.startsWith('runtime/backend/'));
+  const pwaFiles = names.includes('sw.js') || names.includes('manifest.webmanifest');
   if (
     !/^(?:chunks\/[\w.-]+\.m?js)$/.test(data.entry) ||
     !names.includes(data.entry) ||
     required.some((name) => !names.includes(name)) ||
+    (pwa ? !['sw.js', 'manifest.webmanifest'].every((name) => names.includes(name)) : pwaFiles) ||
+    (target === 'web'
+      ? !backendFiles.every((name) => wasmFiles.includes('runtime/backend/' + name))
+      : wasmFiles.length !== 0) ||
     names.some((name, index) => index > 0 && name <= names[index - 1]) ||
     data.buildId !== hash(JSON.stringify(identity(data)))
   )
-    throw new Error('Invalid PWA build inventory/identity');
+    throw new Error('Invalid frontend build inventory/identity');
   const html = fs.readFileSync(localFile(directory, 'index.html'), 'utf8');
   if (
     !html.includes('<!--nelyx-base-->') ||
     !html.includes('./' + data.entry) ||
-    !html.includes('./manifest.webmanifest')
+    html.includes('./manifest.webmanifest') !== !!pwa
   )
-    throw new Error('Missing PWA HTML entry');
-  checkInstallManifest(directory, data);
+    throw new Error('Missing or mismatched frontend HTML entry');
+  if (pwa) checkInstallManifest(directory, data, pwa);
   const runtime = readJson(localFile(directory, 'runtime/native-manifest.json'));
   if (
     runtime.schema !== 'nelyx.canvaskit/v1' ||
@@ -258,9 +325,11 @@ export function verifyPwa(directory, { config, version }) {
             (record) => record.path === 'runtime/' + name && record.sha256 === file.sha256,
           ),
       ),
-    )
-  ) {
-    throw new Error('PWA CanvasKit runtime identity mismatch');
-  }
+    ) ||
+    backendHash(data.canvasKit) !== backendHash(rendererIdentity(runtime)) ||
+    (expectedRuntime &&
+      backendHash(data.canvasKit) !== backendHash(rendererIdentity(expectedRuntime.manifest)))
+  )
+    throw new Error('Frontend CanvasKit runtime identity mismatch');
   return { ...data, directory, fileCount: files, bytes };
 }

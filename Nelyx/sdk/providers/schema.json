@@ -61,7 +61,7 @@
       "const": "skia-ganesh"
     },
     "entry": {
-      "const": "@nelyx/sdk/platforms/web/application"
+      "const": "@nelyx/sdk/frontend/dom/application"
     },
     "defaultProfile": {
       "type": "string",

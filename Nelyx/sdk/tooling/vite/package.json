@@ -21,6 +21,7 @@
     },
     "./runner": "./src/runner.mjs",
     "./release": "./src/release.mjs",
+    "./frontend-session": "./src/config.mjs",
     "./content": "./src/content.mjs"
   },
   "dependencies": {

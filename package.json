@@ -6,26 +6,27 @@
   "workspaces": [
     "Nelyx",
     "Nelyx/sdk",
-    "sample/nelyx-testbed-app-2",
-    "sample/nelyx-demo-app",
     "Nelyx/sdk/tooling/vite",
     "Nelyx/sdk/tooling/cli",
     "Nelyx/skia/packages/web",
     "packages/material",
     "packages/cupertino",
-    "Nelyx/sdk/tooling/contracts"
+    "Nelyx/sdk/tooling/contracts",
+    "Nelyx/backend/packages/rust",
+    "Nelyx/backend/packages/wasm",
+    "Nelyx/backend/packages/tauri"
   ],
   "scripts": {
-    "build:sdk": "npm run build:core && npm run build:designs && npm run build:skia && npm run build --workspace @nelyx/sdk && node Nelyx/eng/generate-providers.mjs",
-    "build:android": "npm run build:android --workspace @nelyx/testbed-2",
+    "build:sdk": "npm run build:core && npm run build:designs && npm run build:skia && npm run build --workspace @nelyx/sdk && node Nelyx/eng/generate-providers.mjs && npm run build:backend",
+    "build:backend": "node Nelyx/backend/eng/build-supply.mjs",
     "build:core": "npm run build --workspace @nelyx/core",
     "build:skia": "node Nelyx/skia/eng/prepare-web-runtime.mjs --check && npm run build --workspace @nelyx/skia-web",
-    "build:web": "npm run build:pwa",
+    "build:web": "node Nelyx/eng/build-sample.mjs web",
+    "build:tauri": "node Nelyx/eng/build-sample.mjs tauri",
     "prepare:sample": "node Nelyx/eng/prepare-sample.mjs",
     "pack:sdk": "node Nelyx/eng/prepare-sample.mjs --packages",
     "build:designs": "npm run build --workspace @nelyx/cupertino && npm run build --workspace @nelyx/material && npm run build --workspace @nelyx/tooling-contracts",
-    "format": "oxfmt --write \"**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" .oxlintrc.json .oxfmtrc.json",
-    "build:pwa": "npm run build:pwa --workspace @nelyx/testbed-2"
+    "format": "oxfmt --write \"**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" .oxlintrc.json .oxfmtrc.json"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

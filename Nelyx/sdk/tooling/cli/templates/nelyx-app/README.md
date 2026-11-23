@@ -1,5 +1,5 @@
 # Nelyx application
 
-Install the supplied packages from web/runner with npm ci --workspaces=false. Run npm run prepare:pwa, npm run typecheck and npm run dev there. From the app root, npm run build:pwa publishes .nelyx/pwa and npm run run:pwa serves it.
+Run `npm ci --workspaces=false` in this directory after supplying the SDK. The UI entry is `src/index.ts`. Register shared Rust commands in `backend/src/lib.rs` when the app has a backend directory.
 
-To add a Tauri host, install @tauri-apps/cli@2.12.6 in the app root, then run npm run prepare:windows and npm run pack:windows. Use the corresponding scripts on other platforms. The host consumes the same published PWA.
+For a declared Web target use `npm run prepare:web`, `npm run dev:web`, `npm run build:web` and `npm run run:web`. For a declared Tauri target on Windows use `npm run prepare:tauri -- --platform windows`, `npm run build:tauri -- --platform windows` and `npm run run:tauri -- --platform windows`. Select the platform that matches your toolchain. Commit the generated Cargo locks in `backend/locks/`.

@@ -2,10 +2,8 @@
 
 **English** | [한국어](README.ko.md)
 
-The application exports main() from src/index.ts and provides its widget definition to ApplicationSurface. Register the React component with registerApplication on a DOM container. close() unmounts the React root and waits for the canvas and native graphics resources to drain. The default Vite entry calls closeAllWebApplications before a controlled full reload.
+`src/index.ts` calls `startFrontend` with a React component. The component passes its widget definition and the supplied options to `ApplicationSurface` from `@nelyx/sdk/frontend/dom/surface`. The frontend validates the Rust backend before mounting. The shared DOM implementation handles canvas resources, pointer and keyboard input, IME, selection and accessibility.
 
-The browser and Tauri execute the same SDK and CanvasKit renderer. Nelyx owns the canvas, resource lifetimes, selection and IME input, DOM accessibility and browser services. getWebDeployment reports the PWA format, browser or Tauri host, and the detected OS. For Tauri IPC the app owns its capabilities and the main WebView.
+`getFrontendHost()` reports the target, OS and backend identity. Use `invokeAppBackend('app.example', 10)` from `@nelyx/sdk/frontend/dom/environment` to call a command registered in the app's Rust library. The Web backend uses Wasm and browser Clipboard and Permissions APIs. The Tauri backend uses IPC, the declared clipboard commands and the Android safe-area plugin. CanvasKit rendering and frame scheduling stay in the DOM.
 
-Use nelyx.app/v3 in package.json with appEntry, assets and pwa. The PWA component is a React component. Supply the app ID, short name, installation icons and theme color in pwa. A v2 Web reader maps targets.web and the shared fields in memory. Font and image assets use app-relative paths. The runner verifies their content and copies declared notices with the release.
-
-[CLI and migration](tooling/cli/README.md) · [Core](../README.md) · [Renderer](../skia/README.md)
+Declare `nelyx.app/v4` in the app's package.json with `appEntry`, optional `backend.manifest`, `targets.web` and/or `targets.tauri`. Font and image references are app-relative. The CLI verifies the bytes and includes declared notices. [CLI guide](tooling/cli/README.md) · [Core](../README.md) · [Renderer](../skia/README.md)

@@ -8,7 +8,7 @@
   "runtime": "browser",
   "host": "react-dom",
   "renderer": "skia-ganesh",
-  "entry": "@nelyx/sdk/platforms/web/application",
+  "entry": "@nelyx/sdk/frontend/dom/application",
   "defaultProfile": "ganesh-webgl2",
   "cohorts": [
     {

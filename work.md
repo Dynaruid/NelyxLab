@@ -1,6 +1,6 @@
 # Nelyx Rust 백엔드와 Web·Tauri 빌드 개편 계획
 
-2026-11-23 · 기준 브랜치 `tauri-backend` · 기준 커밋 `ba26ba1a` · **PLANNED — 구현 전**
+2026-11-23 · 기준 브랜치 `tauri-backend` · 기준 커밋 `ba26ba1a` · **구현 완료 · 인수 검증 결과는 8절**
 
 ## 1. 결정
 
@@ -12,15 +12,15 @@ Nelyx CLI가 빌드 시 앱 백엔드를 Cargo 경로 의존성으로 연결한�
 
 현재 사용자가 한 명이므로 **공개 규약은 한 번에 교체한다.** 앱 설정, CLI, 스타터, Demo, Testbed와 CI를 같은 전환에서 갱신하고 이전 설정 판독기와 빌드 별칭을 삭제한다. 두 타깃을 모두 배포할 때에는 Vite 프런트엔드 두 벌을 만든다. Tauri용 한 벌은 모든 네이티브 OS가 재사용한다. 웹 쪽에 추가되는 백엔드 Wasm의 크기와 초기화 시간은 첫 릴리스에서 측정한다.
 
-## 2. 현재 코드에서 확인한 구조
+## 2. 개편 전 코드에서 확인한 구조
 
-| 위치 | 현재 동작 | 개편에 미치는 영향 |
+| 위치 | 기준 리비전의 동작 | 개편에 미치는 영향 |
 | --- | --- | --- |
 | [CLI 진입점](Nelyx/sdk/tooling/cli/src/main.mjs) · [Tauri 빌드](Nelyx/sdk/tooling/cli/src/tauri-runner.mjs) | 현재 웹 빌드는 PWA를 만든다. `pack --platform`은 이 PWA를 검증해 `frontendDist`로 넘긴다. `hostPath(app)`은 `src-tauri`로 고정돼 있지만 호출부는 이미 `TAURI_APP_PATH`와 `TAURI_FRONTEND_PATH`를 따로 지정한다. | 이 호출부를 재사용해 Tauri에는 생성한 호스트 경로와 검증한 WebView 자산을 각각 넘길 수 있다. |
-| [앱 설정](Nelyx/sdk/src/runtime/config.ts) · [Vite 러너](Nelyx/sdk/tooling/vite/src/runner.mjs) · [호스트 판별](Nelyx/sdk/src/platforms/web/environment.ts) | 공통 UI 진입점이 `nelyx.pwa.component`에 속한다. 러너 경로는 `web/runner`로 고정되고, 시작 시 `getWebDeployment()`가 `window.isTauri`를 읽어 호스트를 구분한다. | 공통 UI, 웹 설치 옵션, 빌드 시 선택한 백엔드를 각각 표현해야 한다. |
-| [Demo의 앱 정의](sample/nelyx-demo-app/src/index.ts) · [러너 시작](sample/nelyx-demo-app/web/runner/main.ts) · [Demo 화면 조립](sample/nelyx-demo-app/web/runner/App.tsx) | 현재 HTML은 러너의 `main.ts`를 연다. 러너가 React 컴포넌트를 마운트하면 그 안에서 `virtual:nelyx-app`을 통해 `src/index.ts`의 `main()`을 호출한다. | 앱이 이미 공유하는 상태·위젯 생성 코드를 활용하고, 두 타깃 모두 HTML에서 같은 앱 모듈로 들어가게 한다. |
-| [DOM 앱 조립](Nelyx/sdk/src/platforms/web/application.ts) · [플랫폼 메시지](Nelyx/sdk/src/backends/browser/platform-messages.ts) · [OS 서비스](Nelyx/sdk/src/runtime/os-services.ts) | `openApplication`이 CanvasKit과 플랫폼 서비스를 조립한다. 브라우저 모듈 안에서 `window.__TAURI__?.clipboardManager`와 `navigator.clipboard`를 선택한다. `OsServiceHost`와 `PluginPlatformMessagePort`가 이미 서비스 주입 지점을 제공한다. | 기존 메시지 코덱과 위젯 호출을 활용하고 호스트 접근만 어댑터로 옮길 수 있다. |
-| [스타터의 Rust 호스트](Nelyx/sdk/tooling/cli/templates/tauri/src/lib.rs) · [Demo 호스트](sample/nelyx-demo-app/src-tauri/src/lib.rs) · [Testbed 호스트](sample/nelyx-testbed-app-2/src-tauri/src/lib.rs) | 세 곳에 `host_info`와 페이지 로드 처리가 복제돼 있다. Demo와 스타터는 네이티브 클립보드를 등록하고, Testbed의 설정에는 해당 플러그인과 권한이 없다. Android 여백 처리는 Demo의 Rust·Kotlin·TS에만 있다. | 공통 구현은 SDK로 올리고 각 앱의 권한과 OS별 기능 선택은 앱에 둔다. |
+| [앱 설정](Nelyx/sdk/src/runtime/config.ts) · [Vite 러너](Nelyx/sdk/tooling/vite/src/runner.mjs) · [호스트 판별](Nelyx/sdk/src/frontend/dom/environment.ts) | 공통 UI 진입점이 `nelyx.pwa.component`에 속한다. 러너 경로는 `web/runner`로 고정되고, 시작 시 `getWebDeployment()`가 `window.isTauri`를 읽어 호스트를 구분한다. | 공통 UI, 웹 설치 옵션, 빌드 시 선택한 백엔드를 각각 표현해야 한다. |
+| [Demo의 앱 정의](sample/nelyx-demo-app/src/index.ts) · `web/runner/main.ts` · [Demo 화면 조립](sample/nelyx-demo-app/src/app-surface.tsx) | 현재 HTML은 러너의 `main.ts`를 연다. 러너가 React 컴포넌트를 마운트하면 그 안에서 `virtual:nelyx-app`을 통해 `src/index.ts`의 `main()`을 호출한다. | 앱이 이미 공유하는 상태·위젯 생성 코드를 활용하고, 두 타깃 모두 HTML에서 같은 앱 모듈로 들어가게 한다. |
+| [DOM 앱 조립](Nelyx/sdk/src/frontend/dom/application.ts) · [플랫폼 메시지](Nelyx/sdk/src/backends/browser/platform-messages.ts) · [OS 서비스](Nelyx/sdk/src/runtime/os-services.ts) | `openApplication`이 CanvasKit과 플랫폼 서비스를 조립한다. 브라우저 모듈 안에서 `window.__TAURI__?.clipboardManager`와 `navigator.clipboard`를 선택한다. `OsServiceHost`와 `PluginPlatformMessagePort`가 이미 서비스 주입 지점을 제공한다. | 기존 메시지 코덱과 위젯 호출을 활용하고 호스트 접근만 어댑터로 옮길 수 있다. |
+| 스타터 템플릿과 두 샘플의 기존 Rust 호스트 | 세 곳에 `host_info`와 페이지 로드 처리가 복제돼 있다. Demo와 스타터는 네이티브 클립보드를 등록하고, Testbed의 설정에는 해당 플러그인과 권한이 없다. Android 여백 처리는 Demo의 Rust·Kotlin·TS에만 있다. | 공통 구현은 SDK로 올리고 각 앱의 권한과 OS별 기능 선택은 앱에 둔다. |
 | [릴리스 검증](Nelyx/sdk/tooling/vite/src/release.mjs) · [패키징 CI](.github/workflows/pwa-tauri.yml) · [Windows WebView2 검사](Nelyx/eng/check-tauri-windows.mjs) | 현재 `runtime/canvaskit.wasm`은 렌더러다. CI는 PWA 한 벌을 전달하고 Windows 검사는 PWA 빌드 ID와 WebView2가 실제 읽은 자산 해시를 비교한다. | 새 백엔드 Wasm에 별도 위치와 식별자가 필요하다. 네이티브 패키지 검사의 기준 입력도 Tauri용 프런트엔드로 바뀐다. |
 
 ## 3. 소스 배치와 실행 경계
@@ -67,7 +67,7 @@ sample/<app>/
 
 ### 두 소스 영역의 연결
 
-- **프런트엔드**는 두 타깃 모두 `index.html → src/index.ts`로 들어간다. 기존 `main(state, options)`의 순수 생성 로직은 `src/app.ts`, Demo의 진단 콜백·렌더 옵션과 Testbed의 오류 표시는 `src/app-surface.tsx`로 옮긴다. UI는 SDK를 통해 백엔드를 호출한다. [현재 화면 조립](sample/nelyx-testbed-app-2/web/runner/App.tsx) · [Vite HTML 진입점](https://vite.dev/guide/#index-html-and-project-root)
+- **프런트엔드**는 두 타깃 모두 `index.html → src/index.ts`로 들어간다. 기존 `main(state, options)`의 순수 생성 로직은 `src/app.ts`, Demo의 진단 콜백·렌더 옵션과 Testbed의 오류 표시는 `src/app-surface.tsx`로 옮긴다. UI는 SDK를 통해 백엔드를 호출한다. [Testbed 화면 조립](sample/nelyx-testbed-app-2/src/app-surface.tsx) · [Vite HTML 진입점](https://vite.dev/guide/#index-html-and-project-root)
 - **앱 백엔드**는 일반 Rust 라이브러리다. 제안하는 진입점 `pub fn register(registry: &mut nelyx_backend_core::Registry)`에서 앱의 기능을 등록한다. 입력·결과·오류는 Nelyx 계약으로 선언한다. Tauri 핸들, IPC 명령 매크로와 wasm-bindgen 내보내기는 각 어댑터가 소유한다. 예를 들어 앱이 등록한 계산 함수를 UI에서 호출하면 양쪽 빌드가 같은 Rust 함수에 도달한다.
 - **생성한 호스트**는 양쪽 모두 아래와 같이 앱 크레이트를 참조한다. CLI가 선택한 매니페스트의 실제 패키지 이름과 디렉터리 상대 경로를 넣는다. Cargo가 원래 위치의 소스를 컴파일하므로 앱의 기능 수정은 `backend/src/` 한 곳에서 끝난다. [Cargo 경로 의존성](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#specifying-path-dependencies)
 
@@ -93,11 +93,11 @@ path = "../../../backend"
 
 1. **백엔드 초기화.** Vite가 개발·릴리스 모두에서 `virtual:nelyx-backend`를 선택한 타깃의 진입점 하나에 연결한다. 웹은 Wasm을 로드하고 Tauri는 `plugin:nelyx-backend|describe`를 호출한다. 양쪽 Rust 구현이 반환한 `backendVersion`, `protocolVersion`, 실행 종류와 호스트 기능을 SDK가 확인한 뒤 마운트한다. 앱 버전은 별도 필드다. 필수 모듈 누락이나 프로토콜 불일치는 시작 오류에 기대값·실제값을 표시한다.
 2. **클립보드.** 코어는 호스트 종류, 읽기·쓰기 API의 유무, 권한 상태를 받아 읽기·쓰기 가능 여부와 메뉴를 열 때 내용을 조회해도 되는지 결정한다. 같은 입력에는 Wasm과 네이티브 빌드가 같은 결과를 내야 한다. 웹 어댑터는 사용자 동작 시점에 `navigator.clipboard`를 호출한다. Tauri 어댑터는 앱이 허용한 클립보드 명령을 호출하고, 플러그인을 쓰지 않는 Testbed에서는 WebView의 Clipboard API를 사용 가능한 범위에서 제공한다. 명령 실행 시 권한 거부는 호출자에게 그대로 전달한다. 빈 클립보드, `permission-required`, `permission-denied`, `unsupported`를 구분한다. 모바일 메뉴의 사전 조회는 내용을 읽지 않고 권한 상태를 돌려준다. [기존 클립보드 계약](Nelyx/sdk/src/runtime/clipboard-service.ts)
-3. **Android 화면 여백.** Demo의 `SafeAreaPlugin.kt`와 `watch_safe_area`를 SDK 모바일 플러그인으로 옮기고 Demo 패키지명에 묶인 등록을 제거한다. WebView별 구독으로 최초 값과 변경만 보내며, 어댑터가 물리 px을 CSS px로 한 번 변환한다. 웹과 네이티브 여백을 제공하지 않는 호스트는 CSS 여백을 사용한다. 캔버스 좌표 보정과 키보드의 시각 뷰포트 측정은 DOM에서 수행한다. [Kotlin 구현](sample/nelyx-demo-app/src-tauri/gen/android/app/src/main/java/dev/nelyx/demo/tauri/SafeAreaPlugin.kt) · [현재 단위 변환](sample/nelyx-demo-app/web/runner/android-safe-area.ts) · [SDK 여백 계약](Nelyx/sdk/src/backends/browser/environment.ts)
+3. **Android 화면 여백.** Demo의 `SafeAreaPlugin.kt`와 `watch_safe_area`를 SDK 모바일 플러그인으로 옮기고 Demo 패키지명에 묶인 등록을 제거한다. WebView별 구독으로 최초 값과 변경만 보내며, 어댑터가 물리 px을 CSS px로 한 번 변환한다. 웹과 네이티브 여백을 제공하지 않는 호스트는 CSS 여백을 사용한다. 캔버스 좌표 보정과 키보드의 시각 뷰포트 측정은 DOM에서 수행한다. [SDK Kotlin 구현](Nelyx/backend/crates/tauri-plugin-nelyx-backend/android/src/main/java/dev/nelyx/backend/SafeAreaPlugin.kt) · [CSS px 단위 변환](Nelyx/sdk/src/backends/tauri.ts) · [SDK 여백 계약](Nelyx/sdk/src/backends/browser/environment.ts)
 
-SDK는 선택된 어댑터를 `openApplication`에 주입하고, 동기식 환경 조회에는 마지막 기능 상태를 제공한다. 권한 변경과 여백은 이벤트로 갱신한다. 직접 제공한 `platformMessages`, 다중 뷰, HMR 종료는 기존 소유권·취소 경로에 연결한다. 뷰 종료 시 구독을 해제하고 이전 세대의 응답을 폐기한다. `getWebDeployment()`를 사용하던 선택 메뉴, 서비스 워커와 Demo의 OS별 설정도 새 타깃·호스트 정보를 읽게 한다. [앱 조립](Nelyx/sdk/src/platforms/web/application.ts) · [서비스 종료](Nelyx/sdk/src/runtime/plugin-port.ts) · [선택 메뉴](Nelyx/sdk/src/backends/browser/selection-context-menu.ts)
+SDK는 선택된 어댑터를 `openApplication`에 주입하고, 동기식 환경 조회에는 마지막 기능 상태를 제공한다. 권한 변경과 여백은 이벤트로 갱신한다. 직접 제공한 `platformMessages`, 다중 뷰, HMR 종료는 기존 소유권·취소 경로에 연결한다. 뷰 종료 시 구독을 해제하고 이전 세대의 응답을 폐기한다. `getWebDeployment()`를 사용하던 선택 메뉴, 서비스 워커와 Demo의 OS별 설정도 새 타깃·호스트 정보를 읽게 한다. [앱 조립](Nelyx/sdk/src/frontend/dom/application.ts) · [서비스 종료](Nelyx/sdk/src/runtime/plugin-port.ts) · [선택 메뉴](Nelyx/sdk/src/backends/browser/selection-context-menu.ts)
 
-앱은 사용할 기능과 허용할 창·명령을 선언한다. Nelyx가 이 선언으로 내부 호스트의 플러그인 등록과 capability 파일을 생성한다. 앱 기능 등록 자체가 OS 권한을 부여하지 않도록 클립보드 등 권한이 필요한 호출은 각 Tauri 명령의 권한 검사를 거친다. 메인 WebView와 허용된 앱 페이지 범위, Demo·Testbed의 서로 다른 클립보드 권한, Android 개발 프록시와 데스크톱 창 제목 처리를 이관한다. [Demo 권한](sample/nelyx-demo-app/src-tauri/capabilities/main.json) · [Testbed 권한](sample/nelyx-testbed-app-2/src-tauri/capabilities/main.json) · [Tauri capability](https://v2.tauri.app/security/capabilities/)
+앱은 사용할 기능과 허용할 창·명령을 선언한다. Nelyx가 이 선언으로 내부 호스트의 플러그인 등록과 capability 파일을 생성한다. 앱 기능 등록 자체가 OS 권한을 부여하지 않도록 클립보드 등 권한이 필요한 호출은 각 Tauri 명령의 권한 검사를 거친다. 메인 WebView와 허용된 앱 페이지 범위, Demo·Testbed의 서로 다른 클립보드 권한, Android 개발 프록시와 데스크톱 창 제목 처리를 이관한다. [Demo 창 설정](sample/nelyx-demo-app/package.json) · [Testbed 창 설정](sample/nelyx-testbed-app-2/package.json) · [Tauri capability](https://v2.tauri.app/security/capabilities/)
 
 ## 4. 앱 설정과 빌드 결과
 
@@ -140,10 +140,10 @@ npx.cmd --no-install nelyx run     --app . --target tauri --platform windows
 
 | 대상 | 수정할 동작 |
 | --- | --- |
-| 호스트 생성 | `prepare/dev/build/pack`이 같은 생성기를 사용한다. SDK 템플릿, 앱 백엔드의 Cargo 경로, 타깃 설정과 앱의 플랫폼 파일로 `.nelyx/tauri/host/`를 준비한다. 템플릿·설정이 바뀌면 생성 파일을 갱신하고 앱 Rust 구현만 바뀌면 기존 호스트에서 Cargo를 다시 실행한다. 생성과 패키징은 같은 입력을 잠근 상태로 진행하며, 실패해도 소스와 마지막 정상 배포본을 보존한다. [기존 템플릿](Nelyx/sdk/tooling/cli/templates/tauri/Cargo.toml) · [게시 잠금](Nelyx/sdk/tooling/cli/src/publication.mjs) |
+| 호스트 생성 | `prepare/dev/build/pack`이 같은 생성기를 사용한다. SDK 템플릿, 앱 백엔드의 Cargo 경로, 타깃 설정과 앱의 플랫폼 파일로 `.nelyx/tauri/host/`를 준비한다. 템플릿·설정이 바뀌면 생성 파일을 갱신하고 앱 Rust 구현만 바뀌면 기존 호스트에서 Cargo를 다시 실행한다. 생성과 패키징은 같은 입력을 잠근 상태로 진행하며, 실패해도 소스와 마지막 정상 배포본을 보존한다. [호스트 생성기](Nelyx/sdk/tooling/cli/src/tauri-host.mjs) · [게시 잠금](Nelyx/sdk/tooling/cli/src/publication.mjs) |
 | Tauri 호출 | 앱에 설치한 CLI를 앱 루트에서 실행한다. `TAURI_APP_PATH=<app>/.nelyx/tauri/host`, `TAURI_FRONTEND_PATH=<app>`으로 분리하고, 생성한 설정의 `frontendDist`는 호스트 기준 `../frontend`로 둔다. 외부 `--frontend` 입력은 검증한 경로로 덮어쓴다. Windows에서는 기존 경로 변환을 적용한다. 데스크톱은 `tauri build`, 모바일은 `tauri android build` 또는 `tauri ios build`로 넘긴다. [현재 빌더 호출](Nelyx/sdk/tooling/cli/src/tauri-runner.mjs) · [Tauri CLI 2.12.6 경로 탐색](https://raw.githubusercontent.com/tauri-apps/tauri/tauri-cli-v2.12.6/crates/tauri-cli/src/helpers/app_paths.rs) |
 | 의존성 잠금 | 새 앱을 준비할 때 각 최종 호스트의 의존성 그래프로 `backend/locks/web/Cargo.lock`과 `backend/locks/tauri/Cargo.lock` 중 필요한 파일을 생성해 버전 관리한다. 빌드 시 해당 파일을 생성 호스트의 `Cargo.lock`으로 복원하고 `--locked`를 사용한다. 의존성 변경 시 준비 단계에서 명시적으로 갱신한다. 앱 라이브러리 자체의 잠금만으로는 Tauri·Wasm 어댑터 의존성까지 고정할 수 없다. |
-| 설정과 모바일 | 앱의 타깃 선언·`platform/` 원본에서 식별자, 창, 아이콘, CSP, capability, 서명 설정 참조를 생성한다. Demo의 AndroidManifest·Gradle 사용자 설정과 `MainActivity`는 `platform/android/`에 이관해 내부 `host/gen/android/`에 적용한다. 같은 원칙으로 iOS 입력은 `host/gen/apple/`에 적용한다. Gradle의 `rootDirRel`, Xcode 스크립트와 IDE 재호출이 생성 호스트와 앱에 설치된 CLI를 찾는지 확인한다. [Android 설정](sample/nelyx-demo-app/src-tauri/gen/android/app/build.gradle.kts) · [Gradle 재호출](sample/nelyx-demo-app/src-tauri/gen/android/buildSrc/src/main/java/dev/nelyx/demo/tauri/kotlin/BuildTask.kt) · [Demo 액티비티](sample/nelyx-demo-app/src-tauri/gen/android/app/src/main/java/dev/nelyx/demo/tauri/MainActivity.kt) |
+| 설정과 모바일 | 앱의 타깃 선언·`platform/` 원본에서 식별자, 창, 아이콘, CSP, capability, 서명 설정 참조를 생성한다. Demo의 AndroidManifest·Gradle 사용자 설정과 `MainActivity`는 `platform/android/`에 이관해 내부 `host/gen/android/`에 적용한다. 같은 원칙으로 iOS 입력은 `host/gen/apple/`에 적용한다. Gradle의 `rootDirRel`, Xcode 스크립트와 IDE 재호출이 생성 호스트와 앱에 설치된 CLI를 찾는지 확인한다. [Android 설정](sample/nelyx-demo-app/platform/android/project/app/build.gradle.kts) · [Gradle 재호출](Nelyx/sdk/tooling/cli/templates/tauri/run-tauri.mjs) · [Demo 액티비티](sample/nelyx-demo-app/platform/android/project/app/src/main/java/dev/nelyx/demo/tauri/MainActivity.kt) |
 
 ## 5. SDK 공급
 
@@ -162,12 +162,12 @@ npm.cmd run build:tauri -- --app sample/nelyx-demo-app --platform windows
 
 ## 6. 구현 순서
 
-- [ ] **1. 앱 백엔드 하나를 두 호스트에 연결한다.** SDK 코어·두 어댑터·등록 계약을 만들고 스타터용 `backend/src/lib.rs`에서 기능 하나를 제공한다. 두 호스트 생성기에서 Cargo 경로 의존성과 바인딩을 생성한다. 앱 함수 수정이 브라우저의 Wasm 호출과 WebView의 네이티브 IPC 결과에 모두 반영되는지 확인한다. 이어서 공통 클립보드 판정 입력 표를 실행하고 최종 웹 호스트의 `cargo tree --target wasm32-unknown-unknown`에 Tauri 의존성이 없는지 검사한다.
-- [ ] **2. SDK를 독립적으로 공급한다.** 공통 소스와 타깃별 패키지를 루트 npm workspace, `build:sdk`, `pack:sdk`, `supply`에 등록한다. 저장소 밖에서 tarball만 설치한 앱의 백엔드를 두 타깃으로 빌드한다. 준비 단계의 잠금 파일 생성·복원, `--locked` 재빌드, 소스 변경 후 재공급, 앱 매니페스트 누락과 버전 불일치를 검사한다.
-- [ ] **3. SDK와 호스트를 연결한다.** `startPwa`와 `definePwaConfig`에서 공용 마운트·자산 로딩을 꺼내고 PWA 설치·서비스 워커 처리를 웹 진입점에 둔다. Rust 정보 조회·클립보드 정책·Android 여백을 실제 채널과 연결한다. `@nelyx/sdk`의 exports, 렌더러 레지스트리와 생성기를 함께 고쳐 새 DOM 경로를 패키지에서 열 수 있게 한다. 브라우저 전용 번들에 Tauri 모듈이나 전역 참조가 들어가면 Vite가 실패하도록 검사한다. [현재 시작점](Nelyx/sdk/tooling/vite/src/client.mjs) · [레지스트리](Nelyx/sdk/src/runtime/providers.ts) · [생성기](Nelyx/eng/generate-providers.mjs) · [Vite 모듈 검사](Nelyx/sdk/tooling/vite/src/config.mjs)
-- [ ] **4. CLI와 산출물 계약을 교체한다.** 4절의 내부 호스트 경로·생성·잠금·모바일 처리를 `doctor/prepare/dev/build/pack/run`에 적용한다. Vite는 `src/`와 UI 자산을, Nelyx CLI는 `backend/`와 SDK Rust 입력을 감시한다. Rust 변경은 웹에서 Wasm 재생성·페이지 재로드로, Tauri에서 재빌드·호스트 재시작으로 반영한다. 생성물의 변경은 감시 입력에서 제외한다. 웹의 하위 경로·MIME·PWA 캐시, 네이티브 게시 잠금·staging 정리·실행 중인 Windows 파일 보호를 확인한다. [서비스 워커](Nelyx/sdk/tooling/vite/src/service-worker.mjs)
-- [ ] **5. 모든 소비자를 한 번에 전환한다.** Demo·Testbed·스타터에 UI `src/`와 Rust `backend/src/`를 마련하고 `web/runner`의 앱 코드를 UI 쪽으로 옮긴다. 기존 `src-tauri`에서 공용 명령·모바일 플러그인은 SDK로, 호스트 시작 코드는 생성 템플릿으로, 앱 식별자·서명·창 설정·권한·플랫폼 사용자 파일은 앱 설정과 `platform/`으로 이관한 뒤 예전 폴더를 제거한다. `create`·`supply`, tsconfig·잠금 파일, npm 스크립트와 한·영 README를 갱신한다. `nelyx.app/v2·v3` 판독과 PWA 전용 패키징 별칭을 정리한다. OS별 CI는 같은 리비전의 앱 백엔드와 잠금 파일, Tauri UI 및 SDK 공급본에서 호스트를 다시 생성한다.
-- [ ] **6. 새 진입점으로 인수한다.** 아래 표를 Demo·Testbed와 필요한 외부 소비 앱에 적용한다. 소스와 의존성 검토 → 기능 단위 검사 → 패키지 빌드와 실행 순서로 진행한다. 각 검사는 저장소 규칙에 따라 제한 시간을 20분으로 두고 임시 프로필·소비 앱·staging은 실행 종료 시 정리한다. [저장소 지침](.github/copilot-instructions.md)
+- [x] **1. 앱 백엔드 하나를 두 호스트에 연결한다.** SDK 코어·두 어댑터·등록 계약을 만들고 스타터용 `backend/src/lib.rs`에서 기능 하나를 제공한다. 두 호스트 생성기에서 Cargo 경로 의존성과 바인딩을 생성한다. 앱 함수 수정이 브라우저의 Wasm 호출과 WebView의 네이티브 IPC 결과에 모두 반영되는지 확인한다. 이어서 공통 클립보드 판정 입력 표를 실행하고 최종 웹 호스트의 `cargo tree --target wasm32-unknown-unknown`에 Tauri 의존성이 없는지 검사한다.
+- [x] **2. SDK를 독립적으로 공급한다.** 공통 소스와 타깃별 패키지를 루트 npm workspace, `build:sdk`, `pack:sdk`, `supply`에 등록한다. 저장소 밖에서 tarball만 설치한 앱의 백엔드를 두 타깃으로 빌드한다. 준비 단계의 잠금 파일 생성·복원, `--locked` 재빌드, 소스 변경 후 재공급, 앱 매니페스트 누락과 버전 불일치를 검사한다.
+- [x] **3. SDK와 호스트를 연결한다.** `startPwa`와 `definePwaConfig`에서 공용 마운트·자산 로딩을 꺼내고 PWA 설치·서비스 워커 처리를 웹 진입점에 둔다. Rust 정보 조회·클립보드 정책·Android 여백을 실제 채널과 연결한다. `@nelyx/sdk`의 exports, 렌더러 레지스트리와 생성기를 함께 고쳐 새 DOM 경로를 패키지에서 열 수 있게 한다. 브라우저 전용 번들에 Tauri 모듈이나 전역 참조가 들어가면 Vite가 실패하도록 검사한다. [현재 시작점](Nelyx/sdk/tooling/vite/src/client.mjs) · [레지스트리](Nelyx/sdk/src/runtime/providers.ts) · [생성기](Nelyx/eng/generate-providers.mjs) · [Vite 모듈 검사](Nelyx/sdk/tooling/vite/src/config.mjs)
+- [x] **4. CLI와 산출물 계약을 교체한다.** 4절의 내부 호스트 경로·생성·잠금·모바일 처리를 `doctor/prepare/dev/build/pack/run`에 적용한다. Vite는 `src/`와 UI 자산을, Nelyx CLI는 `backend/`와 SDK Rust 입력을 감시한다. Rust 변경은 웹에서 Wasm 재생성·페이지 재로드로, Tauri에서 재빌드·호스트 재시작으로 반영한다. 생성물의 변경은 감시 입력에서 제외한다. 웹의 하위 경로·MIME·PWA 캐시, 네이티브 게시 잠금·staging 정리·실행 중인 Windows 파일 보호를 확인한다. [서비스 워커](Nelyx/sdk/tooling/vite/src/service-worker.mjs)
+- [x] **5. 모든 소비자를 한 번에 전환한다.** Demo·Testbed·스타터에 UI `src/`와 Rust `backend/src/`를 마련하고 `web/runner`의 앱 코드를 UI 쪽으로 옮긴다. 기존 `src-tauri`에서 공용 명령·모바일 플러그인은 SDK로, 호스트 시작 코드는 생성 템플릿으로, 앱 식별자·서명·창 설정·권한·플랫폼 사용자 파일은 앱 설정과 `platform/`으로 이관한 뒤 예전 폴더를 제거한다. `create`·`supply`, tsconfig·잠금 파일, npm 스크립트와 한·영 README를 갱신한다. `nelyx.app/v2·v3` 판독과 PWA 전용 패키징 별칭을 정리한다. OS별 CI는 같은 리비전의 앱 백엔드와 잠금 파일, Tauri UI 및 SDK 공급본에서 호스트를 다시 생성한다.
+- [x] **6. 새 진입점으로 로컬 인수 검증을 수행한다.** Demo·Testbed와 외부 소비 앱을 소스와 의존성 검토, 기능 단위 검사, 패키지 빌드와 실행 순서로 점검했다. 확인 범위와 미검증 항목은 8절에 기록했다. 각 검사는 저장소 규칙에 따라 제한 시간을 20분으로 두고 임시 프로필·소비 앱·staging은 실행 종료 시 정리했다. [저장소 지침](.github/copilot-instructions.md)
 
 ## 7. 완료 기준
 
@@ -179,3 +179,24 @@ npm.cmd run build:tauri -- --app sample/nelyx-demo-app --platform windows
 | Android Tauri | x64 에뮬레이터와 arm64 기기용 빌드를 구분한다. Demo에서 여백 최초 값·회전·키보드·복귀, 한글 선택·복사·붙여넣기, 개발 HMR 후 구독 수를 확인한다. 새 식별자의 생성 앱에서도 여백 플러그인이 로드돼야 한다. APK/AAB 생성, 기기 실행, 배포 서명은 각각 실제 결과를 기록한다. |
 | Linux·macOS·iOS | 기존 플랫폼·아키텍처 매핑으로 Linux 바이너리/deb, macOS app/dmg, iOS 시뮬레이터 app 또는 기기용 IPA를 해당 환경에서 확인한다. 빌드, 설치·실행, IPC, 서명·공증의 결과를 따로 기록하고 미실행 환경은 미검증으로 남긴다. [현재 매핑](Nelyx/sdk/tooling/cli/src/tauri-platforms.mjs) |
 | 오류·회귀 | 다른 앱·타깃의 프런트엔드, 누락·변조된 자산, 맞지 않는 백엔드 프로토콜로 패키징 또는 부팅이 실패해야 한다. 패키징 실패 뒤 마지막 정상 출력으로 실행할 수 있어야 한다. Material/Cupertino, 한글 IME, 선택 메뉴, 스크롤을 두 타깃에서 확인하고 웹 콜드 스타트와 스크롤 중 IPC 횟수를 기존 빌드와 비교한다. |
+
+## 8. 구현 및 인수 결과
+
+Demo·Testbed·스타터를 `nelyx.app/v4`로 전환했다. 두 타깃은 앱의 `src/index.ts`와 `backend/src/lib.rs`를 사용하고, 공급된 Rust 소스와 타깃별 Cargo 잠금 파일에서 내부 호스트를 생성한다. 웹 배포는 `.nelyx/web`에 있고, 네이티브 패키징은 `.nelyx/tauri/frontend`의 검증된 자산과 생성 호스트를 사용한다.
+
+| 항목 | 로컬 확인 결과 |
+| --- | --- |
+| SDK와 외부 소비 앱 | SDK 빌드, Rust 클립보드 정책 단위 검사와 두 샘플 타입 검사 통과. 저장소 밖에서 tarball만 설치한 앱의 Cargo 그래프가 양쪽 모두 앱 크레이트를 가리켰다. 웹 그래프에 Tauri 의존성이 없었다. 같은 Rust 함수만 수정해 Wasm과 네이티브 IPC가 각각 `21 → 22`로 바뀌었다. 앱 Rust 매니페스트를 누락한 입력은 거절됐다. |
+| 독립 웹 | 두 샘플을 `/`와 `/demo/`에서 실행했다. 브라우저에서 `app.example(10) = 21`, Wasm MIME·해시, PWA 설치와 오프라인 재시작을 확인했다. 손상된 백엔드 Wasm 갱신 시 이전 버전이 유지됐고 이후 정상 갱신이 활성화됐다. 외부 정적 웹 스타터는 PATH에서 Rust 도구를 제외하고 SDK 기본 Wasm으로 빌드·실행했다. |
+| Windows x64 | 두 샘플의 EXE와 NSIS를 생성했다. 오프라인 WebView2에서 각 패키지의 `describe`, Rust 호출, 제목, 앱별 클립보드 권한, 내장 JS·CanvasKit과 `frontendBuildId`를 확인했다. 백엔드 Wasm 요청과 서비스 워커 등록은 0건이었다. Testbed 개발 세션에서 Rust 소스 수정 후 호스트가 재시작해 `21 → 22`가 반영됐다. 두 패키지는 배포 서명 없이 생성했다. |
+| Android | Demo x64·arm64의 디버그 서명 APK와 서명 전 AAB를 생성했다. API 33 x64 에뮬레이터에서 APK 설치, Rust 호출, 한글 클립보드, 초기 여백, 회전, 구독 해제, 새로고침과 홈 화면 복귀를 확인했다. 키보드와 텍스트 선택·복사·붙여넣기 검사도 통과했다. 개발 모드에서 UI 갱신 후 프로세스가 유지됐고 새 여백 구독만 회전 이벤트를 받았다. 저장소 밖에서 생성한 새 식별자의 앱에서도 SDK 여백 플러그인과 Rust 호출이 동작했다. arm64 실기기 실행과 배포 키 서명은 미검증이다. |
+| Linux x64 | WSL Ubuntu에서 Windows·Android와 같은 Demo 프런트엔드로 ELF와 DEB를 생성했다. DEB에서 추출한 앱을 Xvfb에서 실행했고 네이티브 `describe` 검증 뒤 Linux 창 제목이 설정됐다. Linux 서명은 미검증이다. |
+| 오류 처리 | 외부 `--frontend` 패키징에 성공했고, 다른 앱·웹 타깃·프로토콜·변조된 HTML과 오래된 Rust 입력은 거절됐다. 거절 뒤 기존 Windows 패키지는 실행되어 이전 Rust 응답을 반환했다. 실행 중인 Windows EXE가 있는 디렉터리 교체가 거절되고 이전 위치가 복원되는 검사도 통과했다. |
+| 디자인·입력 | 브라우저·Windows WebView2와 Android 에뮬레이터의 Demo 선택 검사 통과. 브라우저와 설치형 Windows Testbed에서 Material과 Cupertino 분할 컨트롤을 확인했다. 브라우저 전체 갤러리 검사에서는 NavigationRail의 `Recent` 탐색과 Cupertino Action Sheet 결과 메시지에서 각각 시간 초과가 발생했다. |
+| CI·Apple | 6개 Tauri 타깃을 포함한 워크플로 YAML을 파싱해 확인했다. GitHub Actions 실행, macOS와 iOS 빌드·실행·서명·공증은 미검증이다. |
+
+두 샘플에서 타깃 간 앱 백엔드 `sourceId`, CanvasKit 및 `assets/` 해시 일치를 확인했다. 최종 웹 백엔드 Wasm은 Demo 76,507바이트, Testbed 76,515바이트였다.
+
+`ba26ba1a` 기준과 같은 CanvasKit을 사용해 각각 세 개의 새 Chrome 컨텍스트에서 첫 캔버스·시맨틱 노드 준비를 측정했다. Demo 웹 콜드 스타트 중앙값은 기준 983ms, 전환 후보 968ms였다. 후보의 백엔드 준비는 23–24ms였다. 이 측정은 마지막 클립보드 수정 전에 수행했다. Testbed Windows 개발판은 명시적 `describe` 1건으로 IPC 요청 검출을 확인했고, 휠 스크롤 구간은 0건이었다. 기준 리비전의 스크롤 경로에서 IPC 호출이 없는 것은 소스로 확인했다.
+
+Windows 도구 실행은 부모 콘솔을 공유하도록 조정했다. 검증 후 남아 있던 빈 터미널 창 105개를 닫았고, 수정 후 Windows 패키지 실행 검사와 Rust 개발 재시작에서 새 터미널 창은 0개였다. Windows에서 중단한 도구의 로그 파이프를 닫아 ADB 로그 프로세스가 파이프를 물고 있어도 CLI가 종료되도록 했다.

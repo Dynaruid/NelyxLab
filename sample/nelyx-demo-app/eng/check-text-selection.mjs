@@ -27,9 +27,10 @@ const adbPath = join(
 const device = process.env.ANDROID_SERIAL ?? 'emulator-5554';
 const app = resolve(import.meta.dirname, '..');
 const appId = 'dev.nelyx.demo.tauri';
-const manifest = JSON.parse(await readFile(join(app, '.nelyx', 'pwa', 'build.json'), 'utf8'));
 const android = args.includes('--android');
 const windows = args.includes('--windows');
+const manifest = JSON.parse(await readFile(join(app, '.nelyx',
+  android || windows ? 'tauri/frontend' : 'web', 'build.json'), 'utf8'));
 const headed = args.includes('--headed');
 const observePhysical = args.includes('--observe-physical');
 assert.ok(!android || !windows, 'Select one packaged host at a time');
@@ -602,7 +603,13 @@ async function checkPublicWidgets(page, tap, secondary) {
   assert.equal(await menu(page, 'Copy').count(), 0);
   assert.equal(await menu(page, 'Cut').count(), 0);
   await page.keyboard.press('Escape');
-  await secondary(await revealWithWheel(page, field(page, 'Selection disabled')));
+  const selectionDisabled = field(page, 'Selection disabled');
+  await tap(await revealWithWheel(page, selectionDisabled));
+  await until(
+    async () => (await readEditor(page))?.text === '안녕하세요 Nelyx 👋 שלום',
+    'The selection-disabled field must receive keyboard focus',
+  );
+  await secondary(await point(selectionDisabled, 24));
   await page.keyboard.press('Shift+F10');
   assert.equal(await menu(page, 'Paste').count(), 0);
   const disabled = field(page, 'Disabled field');
@@ -1773,7 +1780,7 @@ try {
     assert.equal(process.platform, 'win32');
     const packaged = join(app, '.nelyx', 'tauri', 'windows-x64');
     assert.equal(
-      JSON.parse(await readFile(join(packaged, 'package.json'), 'utf8')).buildId,
+      JSON.parse(await readFile(join(packaged, 'package.json'), 'utf8')).frontendBuildId,
       manifest.buildId,
     );
     const reservation = createServer().listen(0, '127.0.0.1');
@@ -1810,8 +1817,10 @@ try {
   } else {
     const url = 'http://127.0.0.1:4189/demo/';
     runner = startOwnedCommand(process.execPath, [
-      join(app, 'web', 'runner', 'node_modules', '@nelyx', 'cli', 'src', 'main.mjs'),
+      join(app, 'node_modules', '@nelyx', 'cli', 'src', 'main.mjs'),
       'run',
+      '--target',
+      'web',
       '--app',
       app,
       '--base',

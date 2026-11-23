@@ -23,7 +23,8 @@
     "./app-assets": "./src/app-assets.cjs",
     "./installed-supply": "./src/installed-supply.cjs",
     "./web-runtime": "./src/web-runtime.mjs",
-    "./node-files": "./src/node-files.mjs"
+    "./node-files": "./src/node-files.mjs",
+    "./backend-supply": "./src/backend-supply.mjs"
   },
   "scripts": {
     "build": "node ../../../eng/build-packages.mjs tooling-contracts"

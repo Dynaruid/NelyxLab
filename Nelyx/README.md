@@ -56,7 +56,7 @@ export function main() {
 }
 ```
 
-Declare `app-font` in the application's `package.json` → `nelyx.assets`. Pass `main().definition` to the platform `ApplicationSurface`; the [Web runner](../sample/nelyx-testbed-app-2/web/runner/App.tsx) shows the complete integration.
+Declare `app-font` in the application's `package.json` under `nelyx.assets`. Pass `main().definition` to the shared DOM `ApplicationSurface`. [Testbed integration](../sample/nelyx-testbed-app-2/src/app-surface.tsx)
 
 Each View owns its BuildOwner, PipelineOwner, scheduler, focus, and mounted State. Use `StatefulWidget` and `State.setState` from `framework/widgets/framework` for local state, and keys to preserve identity when children move. The `createRoot(context, scheduler)` callback receives View services and the host-driven frame scheduler.
 

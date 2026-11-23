@@ -7,31 +7,27 @@ import { withPublicationLock, withSignals } from './publication.mjs';
 import { buildWebApplication, devWeb, doctorWeb, prepareWeb, runWeb } from './web-runner.mjs';
 import { platforms } from './tauri-platforms.mjs';
 
-const usage = `Usage: nelyx create <directory> [--name AppName] [--designs none|material|cupertino|material,cupertino] [--packages <directory>]
-       nelyx supply --app <app> --packages <directory>
-       nelyx doctor|prepare|dev|build|run --app <app> [--target pwa]
-       nelyx doctor|prepare|dev|pack|run --app <app> --platform ${platforms.join('|')}
-       nelyx pack --app <app> --platform <os> [--package <pwa-directory>] [--architecture <arch>]
-       nelyx run --app <app> --base /demo/ --port 4173`;
-const browser = {
+const usage = [
+  'Usage: nelyx create <directory> [--name AppName] [--target web|tauri|both]',
+  '              [--designs none|material|cupertino|material,cupertino] [--packages <directory>]',
+  '              [--static] [--no-backend]',
+  '       nelyx supply --app <app> --packages <directory>',
+  '       nelyx doctor|prepare|dev|build|run --app <app> --target web',
+  '       nelyx doctor|prepare|dev|build|pack|run --app <app> --target tauri --platform ' +
+    platforms.join('|'),
+  '       nelyx build --app <app> --target tauri --frontend-only',
+  '       nelyx pack --app <app> --target tauri --platform <os> --frontend <directory>',
+  '       nelyx prepare --app <app> --target <target> [--platform <os>] [--update-lock]',
+  '       nelyx run --app <app> --target web --base /demo/ --port 4173',
+].join('\n');
+const web = {
   doctor: doctorWeb,
   prepare: prepareWeb,
   dev: devWeb,
   build: buildWebApplication,
   run: runWeb,
 };
-const nativeFlags = [
-  'engine',
-  'engine-inputs',
-  'native-inputs',
-  'hermes-mode',
-  'hermes-profile',
-  'jsc-mode',
-  'jsc-inputs',
-  'hermes-source',
-  'entry',
-  'rnl-supply',
-];
+const switches = new Set(['frontend-only', 'update-lock', 'static', 'no-backend']);
 
 function parse(args) {
   const command = args.shift();
@@ -46,25 +42,21 @@ function parse(args) {
     }
     if (!/^--[a-z-]+$/.test(flag)) throw new Error(usage);
     const name = flag.slice(2);
-    const value = args.shift();
-    if (Object.hasOwn(values, name) || !value || value.startsWith('--')) throw new Error(usage);
+    const value = switches.has(name) ? true : args.shift();
+    if (
+      Object.hasOwn(values, name) ||
+      !value ||
+      (typeof value === 'string' && value.startsWith('--'))
+    )
+      throw new Error(usage);
     values[name] = value;
   }
   return { command, destination, values, passthrough };
 }
 
 function checkFlags(values, allowed) {
-  for (const name of Object.keys(values)) {
+  for (const name of Object.keys(values))
     if (!allowed.includes(name)) throw new Error('Unknown option --' + name);
-  }
-}
-
-function appDirectory(explicit) {
-  if (explicit) return path.resolve(explicit);
-  const cwd = process.cwd();
-  return path.basename(cwd) === 'runner' && path.basename(path.dirname(cwd)) === 'web'
-    ? path.resolve(cwd, '../..')
-    : cwd;
 }
 
 async function main() {
@@ -74,42 +66,26 @@ async function main() {
     return;
   }
   const { command, destination, values, passthrough } = parse(args);
-  const platform = values.platform;
-  const formerPlatform = platforms.includes(values.target) ? values.target : undefined;
-  const formerHost = ['tauri', 'rnw', 'native', 'native-hermes', 'raw', 'deno', 'direct'].includes(
-    values.host,
-  );
-  if (formerPlatform || formerHost || nativeFlags.some((name) => Object.hasOwn(values, name))) {
-    const target = formerPlatform ?? platform ?? 'windows';
-    throw new Error(
-      command === 'build'
-        ? `Build once with nelyx build --target pwa, then use nelyx pack --platform ${target}`
-        : `Use nelyx ${['prepare', 'doctor', 'dev', 'run', 'pack'].includes(command) ? command : 'prepare'} --platform ${target}`,
-    );
-  }
-  if (values.target !== undefined && !['web', 'pwa'].includes(values.target))
-    throw new Error('Choose --target pwa or use --platform for Tauri');
-  const app = appDirectory(values.app);
+  const app = path.resolve(values.app ?? '.');
+  const { target, platform } = values;
   if (command === 'create') {
-    checkFlags(values, ['name', 'designs', 'target', 'packages']);
+    checkFlags(values, ['name', 'designs', 'target', 'packages', 'static', 'no-backend']);
     if (!destination || destination.startsWith('--') || passthrough.length) throw new Error(usage);
-    const designs =
-      values.designs === undefined
-        ? undefined
-        : values.designs === 'none'
-          ? []
-          : values.designs.split(',');
+    const designs = values.designs === 'none' ? [] : values.designs?.split(',');
     console.log(
       createApp(destination, {
         name: values.name,
         designs,
+        target,
+        staticWeb: values.static,
+        noBackend: values['no-backend'],
         packages: values.packages ? path.resolve(values.packages) : undefined,
       }),
     );
     return;
   }
   if (command === 'supply') {
-    checkFlags(values, ['app', 'target', 'packages']);
+    checkFlags(values, ['app', 'packages']);
     if (!values.packages || passthrough.length) throw new Error(usage);
     console.log(
       await withPublicationLock(app, () =>
@@ -118,21 +94,25 @@ async function main() {
     );
     return;
   }
-  if (platform && !platforms.includes(platform))
-    throw new Error('Choose a Tauri platform: ' + platforms.join(', '));
-  if (command === 'build' && platform)
-    throw new Error(`Run nelyx build, then nelyx pack --platform ${platform}`);
-  if (command === 'pack' && !platform)
-    throw new Error('Use nelyx pack --platform <os> to package the published PWA');
-  if (!Object.hasOwn(browser, command) && command !== 'pack') throw new Error(usage);
-  const allowed = ['app', 'target', 'platform'];
-  if (platform) allowed.push('architecture');
-  if (command === 'dev' || (command === 'run' && !platform)) allowed.push('port', 'host');
-  if (command === 'pack' || (command === 'run' && !platform)) allowed.push('package');
-  if (command === 'run' && !platform) allowed.push('base');
+  if (!Object.hasOwn(web, command) && command !== 'pack') throw new Error(usage);
+  if (target !== 'web' && target !== 'tauri')
+    throw new Error('Select --target web or --target tauri');
+  const frontendOnly = values['frontend-only'] === true;
+  if (frontendOnly && (command !== 'build' || target !== 'tauri' || platform))
+    throw new Error('--frontend-only requires build --target tauri without --platform');
+  if (target === 'tauri' && !frontendOnly && !platforms.includes(platform))
+    throw new Error('Select a Tauri --platform: ' + platforms.join(', '));
+  if (command === 'pack' && target !== 'tauri') throw new Error('Pack requires --target tauri');
+  const allowed = ['app', 'target'];
+  if (target === 'tauri' && !frontendOnly) allowed.push('platform', 'architecture');
+  if (command === 'build' && target === 'tauri') allowed.push('frontend-only');
+  if (command === 'prepare') allowed.push('update-lock');
+  if (command === 'dev' || (command === 'run' && target === 'web')) allowed.push('port', 'host');
+  if (command === 'pack' || (command === 'run' && target === 'web')) allowed.push('frontend');
+  if (command === 'run' && target === 'web') allowed.push('base');
   if (['dev', 'run'].includes(command) && ['android', 'ios'].includes(platform))
     allowed.push('device');
-  if (command === 'pack' && platform === 'ios') allowed.push('export-method');
+  if (['build', 'pack'].includes(command) && platform === 'ios') allowed.push('export-method');
   checkFlags(values, allowed);
   if (
     passthrough.length &&
@@ -152,21 +132,23 @@ async function main() {
   const options = {
     app,
     platform,
+    frontendOnly,
+    updateLock: values['update-lock'] === true,
     architecture: values.architecture,
     device: values.device,
     base: values.base,
     port: values.port === undefined ? undefined : Number(values.port),
     host: values.host,
-    directory: values.package ? path.resolve(values.package) : undefined,
+    directory: values.frontend ? path.resolve(values.frontend) : undefined,
     arguments: passthrough,
     exportMethod: values['export-method'],
   };
   const result = await withSignals(async (signal) => {
-    if (platform) {
+    if (target === 'tauri') {
       const { tauriOperation } = await import('./tauri-runner.mjs');
       return tauriOperation(command, options, signal);
     }
-    return browser[command](options, signal);
+    return web[command](options, signal);
   });
   console.log(JSON.stringify(result, null, 2));
   process.exitCode = result.exitCode ?? 0;

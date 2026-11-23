@@ -313,7 +313,7 @@ export function validateProvider(
     input.protocolVersion !== expected.protocolVersion
   )
     throw new Error('Incompatible provider version/coreRange/protocolVersion');
-  if (input.entry !== `@nelyx/sdk/platforms/${target}/application`)
+  if (input.entry !== '@nelyx/sdk/frontend/dom/application')
     throw new Error('Invalid provider implementation entry');
   const declaredAbi = abi(input.nativeAbi);
   if (declaredAbi.skia !== expected.skiaAbi || input.wireAbi !== expected.wireAbi)
@@ -743,7 +743,7 @@ export function createProviderRegistry(): ProviderRegistry {
       runtime: identity.runtime,
       host: identity.host,
       renderer: identity.renderer,
-      entry: '@nelyx/sdk/platforms/web/application',
+      entry: '@nelyx/sdk/frontend/dom/application',
       defaultProfile: identity.profile,
       cohorts: [cohort],
       defaultCohort: cohort.id,

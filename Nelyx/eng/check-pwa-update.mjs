@@ -20,6 +20,7 @@ function fixture(id, revision) {
     ['index.html', Buffer.from(shell)],
     ['chunks/lazy.js', Buffer.from('export default ' + JSON.stringify(revision))],
     ['runtime/canvaskit.wasm', Buffer.from([0, 97, 115, 109, 1, 0, 0, 0])],
+    ['runtime/backend/backend_bg.wasm', Buffer.from([0, 97, 115, 109, 1, 0, 0, 0])],
   ]);
   const inventory = [...files].map(([path, bytes]) => ({
     path,
@@ -40,7 +41,7 @@ const server = http.createServer((req, res) => {
   const file = parts.join('/') || 'index.html';
   const files = scope === 'demo' ? (phase === 'A' ? a : b) : scope === 'other' ? other : new Map();
   const bytes =
-    scope === 'demo' && phase === 'damaged' && file === 'runtime/canvaskit.wasm'
+    scope === 'demo' && phase === 'damaged' && file === 'runtime/backend/backend_bg.wasm'
       ? Buffer.from('damaged')
       : files.get(file);
   res.writeHead(bytes ? 200 : 404, {
@@ -100,6 +101,11 @@ try {
   const second = await context.newPage();
   await second.goto(origin + '/demo/a/deep/route');
   assert.equal(await second.title(), 'A');
+  assert.equal(await second.evaluate(async () => {
+    const response = await fetch(new URL('runtime/backend/backend_bg.wasm', document.baseURI));
+    const wasm = await WebAssembly.compileStreaming(response);
+    return WebAssembly.Module.exports(wasm).length;
+  }), 0);
   assert.equal(
     await second.evaluate(
       async () => (await import(new URL('chunks/lazy.js', document.baseURI))).default,
@@ -126,7 +132,7 @@ try {
   assert.equal(keysB.length, 2);
   assert.equal(keysA.filter((key) => keysB.includes(key)).length, 1);
   console.log(
-    'PWA update preserved A on bad Wasm, waited for A clients, activated B and preserved other-app cache',
+    'PWA update preserved A on corrupted backend Wasm, activated B and preserved the other app cache',
   );
 } finally {
   await browser?.close();

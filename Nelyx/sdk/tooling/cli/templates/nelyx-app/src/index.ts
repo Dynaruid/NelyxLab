@@ -1,13 +1,6 @@
-import type { ApplicationDefinition } from '@nelyx/core/hosting/runtime';
-import { createApplicationState, defineApplication } from './app.ts';
-import type { ApplicationState } from './app.ts';
+// SPDX-License-Identifier: BSD-3-Clause
+import './style.css';
+import { startFrontend } from '@nelyx/vite/client';
+import { App } from './app-surface.tsx';
 
-export const applicationName = 'NelyxTestbed';
-
-/** Common entry: each platform runner starts an independent application. */
-export function main(state: ApplicationState = createApplicationState()): {
-  state: ApplicationState;
-  definition: ApplicationDefinition;
-} {
-  return { state, definition: defineApplication(state) };
-}
+startFrontend(App);

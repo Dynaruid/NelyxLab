@@ -6,7 +6,7 @@ import type {
   NativeSelectionContextMenuGeometry,
   NativeSelectionContextMenuRegistration,
 } from '@nelyx/core/hosting/interaction';
-import { getWebDeployment } from '../../platforms/web/environment.ts';
+import { getFrontendHost } from '../../frontend/dom/environment.ts';
 import type { ViewOwner } from '@nelyx/core/ui/types';
 import { sameOwner } from '@nelyx/core/ui/frame';
 import type { BrowserMouseCursor } from './mouse-cursor.ts';
@@ -116,9 +116,9 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
     private readonly cursor?: BrowserMouseCursor,
   ) {
     this.doc = canvas.ownerDocument;
-    const deployment = getWebDeployment(this.doc.defaultView!);
+    const deployment = getFrontendHost(this.doc.defaultView!);
     this.desktopBrowser =
-      deployment.host === 'browser' && deployment.os !== 'android' && deployment.os !== 'iOS';
+      deployment.target === 'web' && deployment.os !== 'android' && deployment.os !== 'iOS';
     const parent = canvas.parentElement;
     if (!parent) throw new Error('Native selection requires an attached canvas');
     this.parent = parent;

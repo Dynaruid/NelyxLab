@@ -13,7 +13,14 @@ const write = (file, value) => fs.writeFileSync(file, JSON.stringify(value, null
 
 export function createApp(
   destination,
-  { name = 'NelyxApp', designs = ['material', 'cupertino'], packages } = {},
+  {
+    name = 'NelyxApp',
+    designs = ['material', 'cupertino'],
+    packages,
+    target: buildTarget = 'both',
+    staticWeb = false,
+    noBackend = false,
+  } = {},
 ) {
   if (!/^[A-Z][A-Za-z0-9]*$/.test(name))
     throw new Error('App name must start with an uppercase letter and contain letters/digits');
@@ -23,6 +30,14 @@ export function createApp(
     designs.some((name) => !['material', 'cupertino'].includes(name))
   )
     throw new Error('Designs must select material, cupertino, both, or none');
+  if (
+    !['web', 'tauri', 'both'].includes(buildTarget) ||
+    (staticWeb && buildTarget === 'tauri') ||
+    (noBackend && buildTarget !== 'web')
+  )
+    throw new Error(
+      'Select web, tauri or both. --no-backend requires web and --static requires a web target',
+    );
   const target = path.resolve(destination);
   const existing = fs.lstatSync(target, { throwIfNoEntry: false });
   if (existing && (!existing.isDirectory() || fs.readdirSync(target).length))
@@ -30,7 +45,7 @@ export function createApp(
   const parent = ensureDirectory(path.dirname(target));
   const stage = fs.mkdtempSync(path.join(parent, '.nelyx-create-'));
   try {
-    populateApp(stage, name, designs, packages);
+    populateApp(stage, name, designs, packages, { target: buildTarget, staticWeb, noBackend });
     if (existing) fs.rmdirSync(target);
     try {
       fs.renameSync(stage, target);
@@ -44,15 +59,25 @@ export function createApp(
   }
 }
 
-function populateApp(target, name, designs, packages) {
-  fs.cpSync(template, target, {
+function populateApp(destination, name, designs, packages, { target, staticWeb, noBackend }) {
+  fs.cpSync(template, destination, {
     recursive: true,
     filter(source) {
       const relative = path.relative(template, source);
       const top = relative.split(path.sep)[0];
       if (
         top &&
-        !['assets', 'src', 'web', 'README.md', 'README.ko.md', 'tsconfig.json'].includes(top)
+        ![
+          'assets',
+          'src',
+          'backend',
+          'README.md',
+          'README.ko.md',
+          'tsconfig.json',
+          'index.html',
+          'vite.config.ts',
+          'gitignore.template',
+        ].includes(top)
       )
         return false;
       if (
@@ -60,33 +85,64 @@ function populateApp(target, name, designs, packages) {
         ['package.json.template', 'assets/manifest.json'].includes(relative.replaceAll('\\', '/'))
       )
         return false;
+      if (noBackend && top === 'backend') return false;
       if (designs.length < 2 && relative.startsWith('src' + path.sep))
-        return relative === path.join('src', 'index.ts');
+        return ['index.ts', 'app-surface.tsx', 'style.css'].includes(path.basename(relative));
       return true;
     },
   });
   const manifest = read(path.join(template, 'package.json.template'));
-  const { pwa } = manifest.nelyx;
+  const { pwa } = manifest.nelyx.targets.web;
+  const { tauri } = manifest.nelyx.targets;
   manifest.name = name.toLowerCase();
+  const web = target !== 'tauri';
+  const native = target !== 'web';
+  if (noBackend) delete manifest.nelyx.backend;
   manifest.nelyx = defineConfig({
     ...manifest.nelyx,
     name,
     displayName: name,
-    pwa: { ...pwa, id: '/apps/' + name.toLowerCase(), shortName: name },
+    targets: {
+      ...(web
+        ? {
+            web: staticWeb
+              ? {}
+              : { pwa: { ...pwa, id: '/apps/' + manifest.name, shortName: name } },
+          }
+        : {}),
+      ...(native
+        ? { tauri: { ...tauri, identifier: 'dev.nelyx.' + manifest.name + '.tauri' } }
+        : {}),
+    },
   });
-  verifyAppAssets(target, manifest.nelyx.assets);
-  write(path.join(target, 'package.json'), manifest);
-
-  const runnerFile = path.join(target, 'web/runner/package.json');
-  const runner = read(runnerFile);
-  runner.name = manifest.name + '-web-runner';
-  for (const design of ['material', 'cupertino']) {
-    if (!designs.includes(design)) delete runner.dependencies['@nelyx/' + design];
+  if (!web) delete manifest.dependencies['@nelyx/backend-wasm'];
+  if (!native) {
+    delete manifest.dependencies['@nelyx/backend-tauri'];
+    delete manifest.devDependencies['@tauri-apps/cli'];
   }
-  write(runnerFile, runner);
-  const sourceRoot = path.join(target, 'src');
+  for (const script of Object.keys(manifest.scripts)) {
+    if ((!web && script.endsWith(':web')) || (!native && script.endsWith(':tauri')))
+      delete manifest.scripts[script];
+  }
+  for (const design of ['material', 'cupertino']) {
+    if (!designs.includes(design)) delete manifest.dependencies['@nelyx/' + design];
+  }
+  verifyAppAssets(destination, manifest.nelyx.assets);
+  write(path.join(destination, 'package.json'), manifest);
+  fs.renameSync(path.join(destination, 'gitignore.template'), path.join(destination, '.gitignore'));
+  if (!noBackend) {
+    const file = path.join(destination, 'backend/Cargo.toml');
+    fs.writeFileSync(
+      file,
+      fs.readFileSync(file, 'utf8').replace('nelyx-starter-backend', manifest.name + '-backend'),
+    );
+    const locks = path.join(destination, 'backend/locks');
+    // prepare writes each enabled target's final host lock here.
+    fs.mkdirSync(locks);
+  }
+  const sourceRoot = path.join(destination, 'src');
   if (designs.length < 2) {
-    if (path.dirname(sourceRoot) !== target || fs.lstatSync(sourceRoot).isSymbolicLink())
+    if (path.dirname(sourceRoot) !== destination || fs.lstatSync(sourceRoot).isSymbolicLink())
       throw new Error('Generated source owner differs');
     const design = designs[0];
     const importDesign =
@@ -123,14 +179,12 @@ export function defineApplication(state: ApplicationState): ApplicationDefinitio
     createRoot: () => new Directionality('ltr', ${body}),
   });
 }
+
+export function main(state = createApplicationState()) {
+  return { state, definition: defineApplication(state) };
+}
 `,
     );
   }
-  const entry = path.join(sourceRoot, 'index.ts');
-  fs.writeFileSync(
-    entry,
-    fs.readFileSync(entry, 'utf8').replace("'NelyxTestbed'", JSON.stringify(name)),
-  );
-
-  if (packages) supplyRunner({ app: target, packages });
+  if (packages) supplyRunner({ app: destination, packages });
 }

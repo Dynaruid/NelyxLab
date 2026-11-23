@@ -1,4 +1,5 @@
 import type { ProviderCohort } from '@nelyx/sdk/runtime/cohorts';
+import type { BackendIdentity } from '@nelyx/sdk/backends/backend-contract';
 import type { ViteDevServer } from 'vite';
 
 export interface WebRunnerOptions {
@@ -7,46 +8,54 @@ export interface WebRunnerOptions {
   readonly host?: string;
   readonly port?: number;
   readonly base?: string;
+  readonly updateLock?: boolean;
 }
 interface BrowserResult {
-  readonly format: 'pwa';
   readonly provider: 'web';
   readonly host: 'browser';
+  readonly target: 'web';
   readonly os: string;
 }
-export interface WebPreparation extends BrowserResult {
-  readonly schema: 'nelyx.prepare/v3';
+export interface FrontendPreparation {
+  readonly schema: 'nelyx.prepare/v4';
+  readonly target: 'web' | 'tauri';
   readonly app: string;
   readonly runner: string;
   readonly cohort: ProviderCohort;
-  readonly warnings: readonly string[];
 }
+export type WebPreparation = FrontendPreparation &
+  BrowserResult & { readonly backend: BackendIdentity };
 interface WebDevEvent {
   readonly event: 'nelyx.dev.ready';
-  readonly format: 'pwa';
+  readonly format: 'web' | 'pwa' | 'tauri';
   readonly provider: 'web';
   readonly host: 'browser' | 'tauri';
   readonly os: string;
-  readonly target: 'web';
+  readonly target: 'web' | 'tauri';
   readonly app: string;
   readonly runner: string;
   readonly session: string;
   readonly url: string;
 }
 export function doctorWeb(options: Pick<WebRunnerOptions, 'app'>): BrowserResult & {
-  schema: 'nelyx.doctor/v3';
+  schema: 'nelyx.doctor/v4';
   app: string;
 } & (
-    | { ready: true; exitCode: 0; runner: string; cohort: ProviderCohort; warnings: string[] }
+    | { ready: true; exitCode: 0; runner: string; cohort: ProviderCohort; backend: BackendIdentity }
     | { ready: false; exitCode: 1; error: string }
   );
-export function prepareWeb(options: Pick<WebRunnerOptions, 'app'>): WebPreparation;
+export function prepareFrontend(app: string, target: 'web' | 'tauri'): FrontendPreparation;
+export function prepareWeb(
+  options: Pick<WebRunnerOptions, 'app' | 'updateLock'>,
+  signal: AbortSignal,
+): Promise<WebPreparation>;
 export function buildWebApplication(
   options: Pick<WebRunnerOptions, 'app'>,
   signal: AbortSignal,
 ): Promise<
   BrowserResult & {
-    schema: 'nelyx.pwa-build/v1';
+    schema: 'nelyx.frontend-build/v1';
+    format: 'web' | 'pwa';
     directory: string;
     buildId: string;
     entry: string;
@@ -55,12 +64,23 @@ export function buildWebApplication(
   }
 >;
 export function openVite(
-  options: WebRunnerOptions & { advertisedHost?: string; tauri?: boolean; os?: string },
+  options: WebRunnerOptions & {
+    advertisedHost?: string;
+    target?: 'web' | 'tauri';
+    os?: string;
+    backend: { identity: BackendIdentity; files?: ReadonlyMap<string, Uint8Array> };
+  },
   signal: AbortSignal,
 ): Promise<{
   server: ViteDevServer;
   event: WebDevEvent;
   healthUrl: string;
+  frontend: {
+    updateBackend(
+      backend: { identity: BackendIdentity; files?: ReadonlyMap<string, Uint8Array> },
+      notify?: boolean,
+    ): void;
+  };
 }>;
 export function devWeb(
   options: WebRunnerOptions,
@@ -71,12 +91,13 @@ export function runWeb(
   signal: AbortSignal,
 ): Promise<
   BrowserResult & {
-    schema: 'nelyx.run/v3';
+    schema: 'nelyx.run/v4';
+    format: 'web' | 'pwa';
     url: string;
     directory: string;
     buildId: string;
     exitCode: 0;
   }
 >;
-export function pwaDirectory(app: string): string;
+export function webDirectory(app: string): string;
 export function hostOs(): string;

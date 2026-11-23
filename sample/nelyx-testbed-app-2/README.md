@@ -2,34 +2,38 @@
 
 **English** | [한국어](README.ko.md)
 
-A gallery for exercising shared Core, Material and Cupertino widgets, including lists, editors and accessibility.
+A gallery for exercising Core, Material and Cupertino widgets, including lists, editors and accessibility.
 
 ## Prepare and develop
 
-From the Nelyx root, use Node.js 24.x and the pinned CanvasKit runtime. [SDK setup](../../README.md#run-testbed-or-demo)
+Prepare Node.js 24.x and the pinned CanvasKit and Rust Wasm toolchains. Run from the Nelyx root, then change to this app directory. [SDK setup](../../README.md#run-testbed-or-demo)
 
 ```powershell
+npm.cmd ci
 npm.cmd run build:sdk
-npm.cmd run prepare:sample -- web sample/nelyx-testbed-app-2
-npm.cmd ci --prefix sample/nelyx-testbed-app-2/web/runner --workspaces=false
-npm.cmd run dev --workspace @nelyx/testbed-2
+npm.cmd run prepare:sample -- --app sample/nelyx-testbed-app-2
+Set-Location sample/nelyx-testbed-app-2
+npm.cmd ci --workspaces=false
+npm.cmd run prepare:web
+npm.cmd run typecheck
+npm.cmd run dev:web
 ```
 
-## PWA and Tauri
+## Web and Tauri
+
+Run the commands for the delivery target from the app root.
 
 ```powershell
-npm.cmd run build:pwa --workspace @nelyx/testbed-2
-npm.cmd run run:pwa --workspace @nelyx/testbed-2 -- --base /demo/
+npm.cmd run build:web
+npm.cmd run run:web -- --base /demo/
 ```
 
-The browser serves the published .nelyx/pwa directory. The PWA ID stays stable across builds. Each OS package consumes that same directory.
+The browser release is published under `.nelyx/web/` with installation and offline support configured by `targets.web.pwa`.
 
 ```powershell
-npm.cmd run prepare:windows --workspace @nelyx/testbed-2
-npm.cmd run pack:windows --workspace @nelyx/testbed-2
-npm.cmd run run:windows --workspace @nelyx/testbed-2
+npm.cmd run prepare:tauri -- --platform windows
+npm.cmd run build:tauri -- --platform windows
+npm.cmd run run:tauri -- --platform windows
 ```
 
-Run dev:windows to open an app window connected to Vite. Android, Linux, macOS and iOS use the corresponding prepare, pack, run and dev scripts with their platform tools. On Windows, npm.cmd run build:windows runs the PWA build followed by pack:windows. [CLI commands](../../Nelyx/sdk/tooling/cli/README.md#add-a-tauri-host)
-
-The app owns its sources, assets, notices and src-tauri configuration. [Core and package licenses](../../README.md#project-layout)
+`dev:tauri` runs the app in a WebView connected to Vite. `build:tauri` creates its own frontend and generates the native host. Use the corresponding OS and toolchain for other platforms. The app owns `src/`, `backend/`, assets and `platform/`. [CLI commands](../../Nelyx/sdk/tooling/cli/README.md#build-and-run-tauri)

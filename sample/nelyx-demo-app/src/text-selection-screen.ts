@@ -38,7 +38,7 @@ import {
   materialTextSelectionHandleControls,
 } from '@nelyx/material/text-selection';
 import { Theme } from '@nelyx/material/theme';
-import { getWebDeployment } from '@nelyx/sdk/platforms/web/environment';
+import { getFrontendHost } from '@nelyx/sdk/frontend/dom/environment';
 
 const greeting = '안녕하세요 Nelyx 👋 שלום';
 const selectionSurface = (id: string, child: Widget) =>
@@ -154,10 +154,10 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
   }
   build(context: BuildContext): Widget {
     const theme = Theme.of(context),
-      deployment = getWebDeployment();
+      deployment = getFrontendHost();
     const messenger = context.services.binaryMessenger;
     const desktopBrowser =
-      deployment.host === 'browser' && !['android', 'iOS'].includes(deployment.os);
+      deployment.target === 'web' && !['android', 'iOS'].includes(deployment.os);
     const nativeMenu = BrowserContextMenu.usesNativeMenu(
       context.services.nativeSelectionContextMenu,
       messenger,

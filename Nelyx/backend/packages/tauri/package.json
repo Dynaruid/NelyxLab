@@ -1,0 +1,8 @@
+{
+  "name": "@nelyx/backend-tauri",
+  "version": "0.1.0",
+  "private": true,
+  "license": "BSD-3-Clause",
+  "files": ["dist"],
+  "dependencies": { "@nelyx/backend-rust": "0.1.0" }
+}

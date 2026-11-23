@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
-const key = Symbol.for('nelyx.pwa.reload');
+const key = Symbol.for('nelyx.frontend.reload');
 const lifetime = (window[key] ??= {});
 
 if (import.meta.hot) {

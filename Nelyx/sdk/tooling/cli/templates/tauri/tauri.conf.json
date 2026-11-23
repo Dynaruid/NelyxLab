@@ -5,7 +5,7 @@
   "identifier": "dev.nelyx.app.tauri",
   "build": {
     "devUrl": "http://127.0.0.1:1420/",
-    "frontendDist": "../.nelyx/pwa"
+    "frontendDist": "../frontend"
   },
   "app": {
     "withGlobalTauri": true,

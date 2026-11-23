@@ -1,11 +1,11 @@
 # @nelyx/vite
 
-The Nelyx PWA runner uses the Vite JavaScript API from its own installation. The app owns the HTML, TypeScript and Vite configuration in web/runner.
+Configure Vite in the app root.
 
-    import { definePwaConfig } from '@nelyx/vite/config';
+```ts
+import { defineAppConfig } from '@nelyx/vite/config';
 
-    export default definePwaConfig(import.meta.dirname);
+export default defineAppConfig(import.meta.dirname);
+```
 
-The shared configuration resolves React and Nelyx packages from the runner. It serves verified app assets and CanvasKit in development and publishes them in the PWA. CSS uses Vite HMR. The default runner drains the React root and canvas before reloading application code. Apps with their own React UI can pass a Vite React plugin through the second argument to definePwaConfig.
-
-See the [CLI guide](../cli/README.md) for supply, development, installation and Tauri packaging.
+The HTML imports the app's `src/index.ts`. Mark the script with `data-nelyx-entry` to have Nelyx use the configured `appEntry`. The CLI selects the backend module and passes it to Vite. App assets and CanvasKit are verified in both targets. CSS uses Vite HMR and the development client closes owned React and CanvasKit resources before an application reload. Pass Vite options or plugins through the second `defineAppConfig` argument. [CLI guide](../cli/README.md)

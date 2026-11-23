@@ -53,9 +53,9 @@
       "types": "./dist/runtime/config.d.ts",
       "default": "./dist/runtime/config.js"
     },
-    "./platforms/web/application": {
-      "types": "./dist/platforms/web/application.d.ts",
-      "default": "./dist/platforms/web/application.js"
+    "./frontend/dom/application": {
+      "types": "./dist/frontend/dom/application.d.ts",
+      "default": "./dist/frontend/dom/application.js"
     },
     "./providers/web.json": "./providers/web.json",
     "./providers/schema.json": "./providers/schema.json",
@@ -71,9 +71,9 @@
       "types": "./dist/runtime/reload.d.ts",
       "default": "./dist/runtime/reload.js"
     },
-    "./platforms/web/surface": {
-      "types": "./dist/platforms/web/surface.d.ts",
-      "default": "./dist/platforms/web/surface.js"
+    "./frontend/dom/surface": {
+      "types": "./dist/frontend/dom/surface.d.ts",
+      "default": "./dist/frontend/dom/surface.js"
     },
     "./runtime/cohorts": {
       "types": "./dist/runtime/cohorts.d.ts",
@@ -112,9 +112,21 @@
       "types": "./dist/runtime/image-memory.d.ts",
       "default": "./dist/runtime/image-memory.js"
     },
-    "./platforms/web/environment": {
-      "types": "./dist/platforms/web/environment.d.ts",
-      "default": "./dist/platforms/web/environment.js"
+    "./frontend/dom/environment": {
+      "types": "./dist/frontend/dom/environment.d.ts",
+      "default": "./dist/frontend/dom/environment.js"
+    },
+    "./backends/web-wasm": {
+      "types": "./dist/backends/web-wasm.d.ts",
+      "default": "./dist/backends/web-wasm.js"
+    },
+    "./backends/tauri": {
+      "types": "./dist/backends/tauri.d.ts",
+      "default": "./dist/backends/tauri.js"
+    },
+    "./backends/backend-contract": {
+      "types": "./dist/backends/backend-contract.d.ts",
+      "default": "./dist/backends/backend-contract.js"
     }
   },
   "scripts": {

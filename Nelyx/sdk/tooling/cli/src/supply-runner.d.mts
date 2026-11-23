@@ -4,7 +4,6 @@ export function packageReferences(
   Partial<Record<'material' | 'cupertino' | 'localizations', string>>;
 export function supplyRunner(options: {
   readonly app: string;
-  readonly target?: 'web' | 'pwa';
   readonly packages: string;
   readonly reuseCurrent?: boolean;
 }): { runner: string; packages: string[] };

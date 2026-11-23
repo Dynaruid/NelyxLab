@@ -3,6 +3,7 @@ import type { ApplicationDefinition } from '@nelyx/core/hosting/runtime';
 import { defineApp } from '@nelyx/sdk/app';
 import { DemoApplication } from './demo-application.ts';
 export { DemoApplication } from './demo-application.ts';
+export const applicationName = 'NelyxDemoApp';
 
 export interface ApplicationState {
   readonly initialText: string;
@@ -26,4 +27,11 @@ export function defineApplication(
     semanticsUpdateInterval: 300,
     createRoot: () => new DemoApplication(state.initialText, options.calendarPreparation ?? false),
   });
+}
+
+export function main(
+  state: ApplicationState = createApplicationState(),
+  options: ApplicationOptions = {},
+): { state: ApplicationState; definition: ApplicationDefinition } {
+  return { state, definition: defineApplication(state, options) };
 }

@@ -1,0 +1,8 @@
+[package]
+name = "nelyx-testbed-app-2-backend"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+nelyx-backend-core = { path = "../.nelyx/sdk/rust/crates/nelyx-backend-core", version = "=0.1.0" }

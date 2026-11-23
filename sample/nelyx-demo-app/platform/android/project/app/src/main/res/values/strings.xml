@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">"Nelyx Demo Tauri"</string>
+    <string name="main_activity_title">"Nelyx Demo Tauri"</string>
+</resources>

@@ -36,7 +36,9 @@
     "@nelyx/core": "0.17.0",
     "@nelyx/sdk": "0.21.0",
     "@nelyx/tooling-contracts": "0.1.0",
-    "@nelyx/vite": "0.1.0"
+    "@nelyx/vite": "0.1.0",
+    "smol-toml": "1.9.1",
+    "tar": "7.5.23"
   },
   "engines": {
     "node": ">=24.3.0 <25"

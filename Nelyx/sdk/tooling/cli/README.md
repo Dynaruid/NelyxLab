@@ -2,54 +2,46 @@
 
 **English** | [한국어](README.ko.md)
 
-## Generate and supply
+## Create and supply an app
 
-Prepare the pinned CanvasKit runtime, then run from the Nelyx checkout.
+Build the SDK with the pinned CanvasKit and Wasm toolchains, then run these commands from the Nelyx checkout.
 
-```
+```powershell
 npm.cmd ci
 npm.cmd run build:sdk
 npm.cmd run pack:sdk -- C:/dev/nelyx-packages
 node Nelyx/sdk/tooling/cli/src/main.mjs create C:/dev/MyApp --name MyApp --packages C:/dev/nelyx-packages
-Set-Location C:/dev/MyApp/web/runner
+Set-Location C:/dev/MyApp
 npm.cmd ci --workspaces=false
-npx.cmd --no-install nelyx prepare --app ../..
+npx.cmd --no-install nelyx prepare --app . --target web
 npm.cmd run typecheck
-npx.cmd --no-install nelyx dev --app ../..
+npx.cmd --no-install nelyx dev --app . --target web
 ```
 
-The starter includes both design packages. Use --designs none, --designs material or --designs cupertino to select the starter dependencies. To update an installed runner, run nelyx supply --app ../.. --packages C:/dev/nelyx-packages followed by npm.cmd ci --workspaces=false. On Linux and macOS use npm and npx.
+`create` includes both design packages and both targets by default. Set `--designs none`, `--designs material` or `--designs cupertino` to choose a smaller starter. Choose `--target web --static --no-backend` for a regular website that uses the supplied default Wasm. Choose `--target tauri` for an installed app. On Linux and macOS use `npm` and `npx`.
 
-## Publish the PWA
+Use `nelyx supply --app . --packages C:/dev/nelyx-packages` followed by `npm.cmd ci --workspaces=false` to update the SDK. Commit the app's npm lock and the `backend/locks/<target>/Cargo.lock` files produced by `prepare`. When Cargo dependencies change, run `prepare --update-lock` for each affected target. The build restores the selected lock and invokes Cargo with `--locked`.
 
-```
-npx.cmd --no-install nelyx build --app ../..
-npx.cmd --no-install nelyx run --app ../.. --base /demo/
-```
+## Publish Web
 
-Build writes .nelyx/pwa. Deploy the full directory over HTTPS. Use the installation action in the browser and wait for the service worker to finish caching before testing offline. Root and subdirectory deployments use the same bytes. Path-based navigation needs an HTML fallback for application routes with a base URL matching the deployed directory. Return 404 for missing assets and revalidate sw.js, HTML and files with fixed names.
-
-## Add a Tauri host
-
-In the app root run npm.cmd install --save-dev --save-exact @tauri-apps/cli@2.12.6. From web/runner:
-
-```
-npx.cmd --no-install nelyx prepare --app ../.. --platform windows
-npx.cmd --no-install nelyx doctor --app ../.. --platform windows
-npx.cmd --no-install nelyx pack --app ../.. --platform windows --package ../../.nelyx/pwa
-npx.cmd --no-install nelyx run --app ../.. --platform windows
+```powershell
+npx.cmd --no-install nelyx build --app . --target web
+npx.cmd --no-install nelyx run --app . --target web --base /demo/
 ```
 
-Use `dev --platform windows` to open the app's Vite session in a WebView. Desktop packaging requires the named OS, and iOS uses Xcode on macOS.
+Deploy the full `.nelyx/web/` directory. Set the Wasm MIME type to `application/wasm`. For application route fallback use the deployment directory as the HTML base, and return 404 for missing assets. A `targets.web.pwa` declaration adds the manifest and service worker. The worker verifies all cached files, including the app backend Wasm. Refresh fixed-name assets and `sw.js` through cache revalidation.
 
-Android requires a JDK, SDK, NDK, adb and a Rust Android target. Pack with `--architecture x64` for an x86_64 emulator or `--architecture arm64` for an arm64 device. For `dev` and `run`, `--device` accepts an adb serial and the CLI reads its ABI. Tauri development also uses the AVD or phone name, so the chosen device must have a unique name among connected devices. The APK uses the local debug signing configuration. The AAB uses the app's release signing configuration.
+## Build and run Tauri
 
-Use `--architecture arm64-sim` or `x64-sim` for iOS Simulator. For physical iOS development, pass `--architecture arm64`, the device name in `--device` and a device-reachable `--host` with trusted HTTPS. For `run`, use the device identifier. iOS packaging accepts `--export-method debugging`, `release-testing` or `app-store-connect`.
+```powershell
+npx.cmd --no-install nelyx prepare --app . --target tauri --platform windows
+npx.cmd --no-install nelyx doctor --app . --target tauri --platform windows
+npx.cmd --no-install nelyx build --app . --target tauri --platform windows
+npx.cmd --no-install nelyx run --app . --target tauri --platform windows
+```
 
-Preparation preserves the existing src-tauri project. App-owned Tauri and platform config files control identifiers, capabilities, icons and signing. The CLI owns the frontend build and dev server, so remove beforeBuildCommand, beforeBundleCommand and beforeDevCommand for these commands. The published directory is .nelyx/tauri/<os>-<architecture>.
+Use `dev --target tauri --platform windows` for a WebView attached to Vite. For CI, use `build --target tauri --frontend-only` to publish `.nelyx/tauri/frontend/` and `pack --target tauri --platform <os> --frontend <directory>` from the same app source and SDK supply. The CLI generates `.nelyx/tauri/host/`, restores Cargo.lock, invokes the app's installed Tauri CLI and publishes packages under `.nelyx/tauri/<os>-<architecture>/`. The package metadata records the embedded frontend build ID and Rust target.
 
-## Migrate a v2 Web app
+Set the identifier, window sizes and app capabilities in `targets.tauri`. A window can declare `clipboard: { read: true, write: true }`, `safeArea: true` and `windowTitle`. Place custom icons in `platform/icons/`. Place Android and Apple overrides relative to the generated project in `platform/android/project/` and `platform/ios/project/`. Optional `platform/<os>/tauri.conf.json` files accept bundle settings and CSP. Keep signing keys in the platform toolchain or build environment.
 
-Keep app sources and replace the Web runner inputs with the starter index.html, vite.config.ts and Vite entry wiring. Move custom resolver or transformer settings into Vite plugins and use React imports and DOM elements in the runner. Supply the new archives and reinstall the runner. A v2 targets.web component is read in memory, and the old cohort override must be removed. Move native target settings into app-owned Tauri config files. Run doctor for migration guidance.
-
-See the [platform prerequisites](https://v2.tauri.app/start/prerequisites/) and [qualification records](../../../../history/26/11/20/work3-summary.md).
+Use `--architecture x64` for an Android x86_64 emulator and `arm64` for a physical ARM64 device. For `dev` and `run`, pass the ADB serial in `--device`. Android dev also uses the unique AVD or phone name to select a device. For iOS use `arm64-sim` or `x64-sim` on a simulator. Physical iOS dev requires a reachable `--host` over trusted HTTPS and the device name. Physical run takes the device identifier. [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)

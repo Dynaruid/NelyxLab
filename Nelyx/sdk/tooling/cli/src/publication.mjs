@@ -46,7 +46,7 @@ export async function withPublicationLock(app, run) {
     server.listen(handle, resolve);
   }).catch((error) => {
     if (error.code === 'EADDRINUSE')
-      throw new Error('A PWA build or Tauri packaging operation owns ' + app);
+      throw new Error('Another Nelyx build or supply operation owns ' + app);
     throw error;
   });
   try {

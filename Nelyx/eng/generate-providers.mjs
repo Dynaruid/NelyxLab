@@ -174,7 +174,7 @@ const schema = {
     runtime: definitions.identity.properties.runtime,
     host: definitions.identity.properties.host,
     renderer: definitions.identity.properties.renderer,
-    entry: { const: '@nelyx/sdk/platforms/web/application' },
+    entry: { const: '@nelyx/sdk/frontend/dom/application' },
     defaultProfile: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]*$' },
     defaultCohort: { type: 'string', minLength: 1 },
     cohorts: list({ $ref: '#/$defs/cohort' }),

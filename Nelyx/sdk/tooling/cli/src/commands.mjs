@@ -2,6 +2,10 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
+const windows = process.platform === 'win32';
+// Keep an inherited handle so libuv preserves the Windows console for nested build tools.
+const toolStdio = [windows ? 'inherit' : 'ignore', 'pipe', 'pipe'];
+
 function killWindowsTree(child) {
   const result = spawnSync('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], {
     windowsHide: true,
@@ -9,21 +13,24 @@ function killWindowsTree(child) {
     timeout: 10_000,
   });
   if (result.status !== 0) child.kill();
+  // Tauri Android's logcat process can keep inherited pipes open after the CLI exits.
+  child.stdout?.destroy();
+  child.stderr?.destroy();
 }
 
 /** Own the complete child lifetime. Never settle an observation timeout as completion. */
 export function execute(
   command,
   args,
-  { cwd, timeout = 1800000, env, signal: abortSignal, isolateWindows = false } = {},
+  { cwd, timeout = 1_200_000, env, signal: abortSignal } = {},
 ) {
   abortSignal?.throwIfAborted();
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
       env,
-      detached: process.platform !== 'win32' || isolateWindows,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: !windows,
+      stdio: toolStdio,
       windowsHide: true,
     });
     child.stdout.pipe(process.stderr, { end: false });
@@ -103,8 +110,8 @@ export function startOwnedCommand(
   const child = spawn(command, args, {
     cwd,
     env,
-    detached: process.platform !== 'win32' || isolateWindows,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: !windows || isolateWindows,
+    stdio: isolateWindows ? ['ignore', 'pipe', 'pipe'] : toolStdio,
     windowsHide,
   });
   child.stdout.pipe(process.stderr, { end: false });
@@ -154,6 +161,7 @@ export function capture(command, args, { cwd, env, timeout = 60000 } = {}) {
     cwd,
     env,
     timeout,
+    stdio: toolStdio,
     encoding: 'utf8',
     maxBuffer: 8 * 1024 * 1024,
     windowsHide: true,

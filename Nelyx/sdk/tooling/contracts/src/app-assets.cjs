@@ -165,12 +165,9 @@ function verifyAppAssets(projectRoot, assets) {
   );
 }
 /** Derive portable runtime metadata from app-owned input; never write hashes back to package.json. */
-function resolveAppAssetManifest(projectRoot, runnerRoot, assets) {
+function resolveAppAssetManifest(projectRoot, assets) {
   projectRoot = fs.realpathSync(projectRoot);
-  runnerRoot = fs.realpathSync(runnerRoot);
-  if (path.resolve(runnerRoot, '../..') !== projectRoot || path.basename(runnerRoot) !== 'runner')
-    throw new Error('Asset preparation requires an app-owned runner');
-  const load = require('node:module').createRequire(path.join(runnerRoot, 'package.json'));
+  const load = require('node:module').createRequire(path.join(projectRoot, 'package.json'));
   const verified = materializeAppAssets(projectRoot, assets, (specifier) =>
     load.resolve(specifier),
   );

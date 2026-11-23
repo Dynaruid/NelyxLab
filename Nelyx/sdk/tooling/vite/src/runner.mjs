@@ -27,25 +27,20 @@ export const relative = (directory, file) => path.relative(directory, file).repl
 
 export function readApp(app) {
   app = fs.realpathSync(app);
-  const { nelyx, version } = readJson(path.join(app, 'package.json'));
+  const { nelyx, name, version } = readJson(path.join(app, 'package.json'));
   const config = defineConfig(nelyx);
+  if (typeof name !== 'string' || !/^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/.test(name))
+    throw new Error('App package.json requires an npm name');
   if (typeof version !== 'string' || !/^\d+\.\d+\.\d+(?:[-+][\w.+-]+)?$/.test(version))
     throw new Error('App package.json requires a semantic version');
-  const warnings = [];
-  if (nelyx.schema === 'nelyx.app/v2') {
-    const oldTargets = Object.keys(nelyx.targets).filter((target) => target !== 'web');
-    warnings.push('Read nelyx.app/v2 as PWA. Migrate package.json to nelyx.app/v3 when ready.');
-    if (oldTargets.length) warnings.push('Transfer Tauri settings for: ' + oldTargets.join(', '));
-  }
-  return { app, config, version, warnings };
+  return { app, config, name, version };
 }
 
 export function inspectRunner(app) {
   const value = readApp(app);
-  const runner = path.join(value.app, 'web', 'runner');
-  const file = path.join(runner, 'package.json');
-  if (!fs.existsSync(file) || fs.realpathSync(runner) !== runner)
-    throw new Error('Add the PWA starter web/runner at ' + runner);
+  const runner = value.app;
+  const file = localFile(runner, 'package.json');
+  for (const name of ['index.html', 'vite.config.ts']) localFile(runner, name);
   const load = createRequire(file);
   const declarations = readJson(file);
   const packages = { ...declarations.dependencies, ...declarations.devDependencies };
@@ -101,28 +96,10 @@ export function inspectRunner(app) {
   ]) {
     if (fs.existsSync(path.join(nodeModules, forbidden)))
       throw new Error(
-        `Retired package ${forbidden} in ${runner}; resupply and clean-install the PWA runner`,
+        `Retired package ${forbidden} in ${runner}; resupply and clean-install the app`,
       );
   }
   appPath(value.app, value.config.appEntry);
-  appPath(value.app, value.config.pwa.component);
-  const legacy = [
-    'metro.config.cjs',
-    'metro.config.js',
-    'babel.config.js',
-    'babel.config.cjs',
-    'build.mjs',
-  ].filter((name) => fs.existsSync(path.join(runner, name)));
-  const entry = path.join(runner, 'main.ts');
-  if (
-    fs.existsSync(entry) &&
-    /@nelyx\/metro|react-native|webBackend\(\)\.native/.test(fs.readFileSync(entry, 'utf8'))
-  )
-    throw new Error(
-      `Migrate ${entry} to the Vite starter entry and React DOM imports. Review ${legacy.join(', ') || 'the old resolver and transformer'} for custom settings to move into vite.config.ts.`,
-    );
-  if (legacy.length)
-    value.warnings.push('Review legacy runner files for custom settings: ' + legacy.join(', '));
   return {
     ...value,
     runner,
@@ -139,16 +116,16 @@ function deploymentPath(reference) {
   return name.startsWith('assets/') ? name : 'assets/' + name;
 }
 
-export function readIcons({ app, config }) {
+export function readIcons(app, pwa) {
   return (
-    config.pwa.icons ??
+    pwa.icons ??
     [192, 512].map((size) => ({
       src: `./icon-${size}.png`,
       sizes: `${size}x${size}`,
       type: 'image/png',
     }))
   ).map(({ src, sizes, type, purpose }) => {
-    const file = appPath(config.pwa.icons ? app : defaults, src);
+    const file = appPath(pwa.icons ? app : defaults, src);
     const bytes = fs.readFileSync(file);
     const size = Number.parseInt(sizes, 10);
     if (
@@ -171,10 +148,10 @@ export function readIcons({ app, config }) {
   });
 }
 
-export function appFiles(value, prepare) {
-  const { app, runner, config, runtime } = value;
+export function appFiles(value, prepare, target) {
+  const { app, config, runtime } = value;
   const verified = prepare
-    ? resolveAppAssetManifest(app, runner, config.assets).verified
+    ? resolveAppAssetManifest(app, config.assets).verified
     : verifyAppAssets(app, config.assets);
   const assets = [];
   const files = new Map();
@@ -182,7 +159,7 @@ export function appFiles(value, prepare) {
     const key = name.toLowerCase();
     const existing = files.get(key);
     if (existing && (existing.name !== name || !existing.bytes.equals(bytes)))
-      throw new Error('Conflicting PWA file: ' + name);
+      throw new Error('Conflicting frontend file: ' + name);
     files.set(key, { name, bytes });
   }
   const storeAsset = ({ file, bytes, ...metadata }) => {
@@ -199,7 +176,8 @@ export function appFiles(value, prepare) {
   for (const { notice, ...asset } of verified) {
     assets.push({ ...storeAsset(asset), ...(notice ? { notice: storeAsset(notice) } : {}) });
   }
-  const icons = readIcons(value).map(({ bytes, ...icon }) => {
+  const pwa = target === 'web' ? config.targets.web?.pwa : undefined;
+  const icons = (pwa ? readIcons(app, pwa) : []).map(({ bytes, ...icon }) => {
     publish(icon.src, bytes);
     return { ...icon, src: './' + icon.src };
   });
@@ -208,12 +186,11 @@ export function appFiles(value, prepare) {
   publish('licenses/canvaskit-BSD-3-Clause.txt', fs.readFileSync(runtime.license));
   const metadata = {
     name: config.name,
-    target: 'web',
+    target,
     profile,
     cohort: value.cohort,
     assets: defineAssetManifest(assets),
   };
-  if (prepare) writeJson(path.join(runner, 'app-config.json'), metadata);
   return {
     files: new Map([...files.values()].map(({ name, bytes }) => [name, bytes])),
     icons,
@@ -221,30 +198,30 @@ export function appFiles(value, prepare) {
   };
 }
 
-export function prepareRunnerFiles(value) {
-  const { runner, app, roots, config } = value;
-  const paths = {};
-  paths['virtual:nelyx-component'] = ['./' + relative(runner, appPath(app, config.pwa.component))];
-  paths['virtual:nelyx-app'] = ['./' + relative(runner, appPath(app, config.appEntry))];
-  for (const [name, directory] of Object.entries(roots)) {
-    if (!name.startsWith('@nelyx/') || name === '@nelyx/vite') continue;
-    for (const [entry, target] of Object.entries(
-      readJson(path.join(directory, 'package.json')).exports ?? {},
-    )) {
-      if (!target?.types) continue;
-      const file = localFile(directory, target.types.slice(2));
-      paths[name + entry.slice(1)] = ['./' + relative(runner, file)];
-    }
-  }
-  const types = ['react', 'react-dom'].map((name) => {
-    const base = path.join(runner, 'node_modules/@types', name);
-    return [name, base];
-  });
-  for (const [name, base] of types) {
-    paths[name] = ['./' + relative(runner, path.join(base, 'index.d.ts'))];
-    paths[name + '/*'] = ['./' + relative(runner, path.join(base, '*'))];
-  }
-  writeJson(path.join(runner, 'tsconfig.nelyx.json'), {
+export function prepareRunnerFiles(value, target) {
+  const { runner, app, config } = value;
+  const generated = path.join(app, '.nelyx');
+  fs.mkdirSync(generated, { recursive: true });
+  if (path.relative(generated, fs.realpathSync(generated)))
+    throw new Error('Expected an ordinary .nelyx directory');
+  const types = `declare module 'virtual:nelyx-backend' {
+  export const frontend: {
+    name: string;
+    displayName: string;
+    appVersion: string;
+    target: 'web' | 'tauri';
+    pwa: boolean;
+    assets: readonly import('@nelyx/sdk/runtime/config').ResolvedAppAsset[];
+  };
+  export function openBackend(root: URL, signal: AbortSignal):
+    Promise<import('@nelyx/sdk/backends/backend-contract').BackendConnection>;
+}
+`;
+  const file = path.join(generated, 'frontend.d.ts');
+  const previous = fs.lstatSync(file, { throwIfNoEntry: false });
+  if (previous && !previous.isFile()) throw new Error('Expected a regular file: ' + file);
+  if (!previous || fs.readFileSync(file, 'utf8') !== types) fs.writeFileSync(file, types);
+  writeJson(path.join(generated, 'tsconfig.json'), {
     compilerOptions: {
       target: 'ES2022',
       module: 'ESNext',
@@ -257,19 +234,14 @@ export function prepareRunnerFiles(value) {
       resolveJsonModule: true,
       allowImportingTsExtensions: true,
       skipLibCheck: true,
-      paths,
     },
     include: [
-      'main.ts',
-      'vite.config.ts',
-      relative(runner, appPath(app, config.appEntry)),
-      relative(runner, appPath(app, config.pwa.component)),
-      '../../src/**/*.ts',
-      '../../src/**/*.tsx',
+      './frontend.d.ts',
+      '../vite.config.ts',
+      '../' + relative(runner, appPath(app, config.appEntry)),
+      '../src/**/*.ts',
+      '../src/**/*.tsx',
     ],
   });
-  const configFile = path.join(runner, 'tsconfig.json');
-  if (!fs.existsSync(configFile))
-    fs.writeFileSync(configFile, '{"extends":"./tsconfig.nelyx.json"}\n', { flag: 'wx' });
-  return appFiles(value, true);
+  return appFiles(value, true, target);
 }

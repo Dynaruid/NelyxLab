@@ -889,3 +889,10 @@ class PaintMarkPainter extends CustomPainter {
     ];
   }
 }
+
+export function main(state: ApplicationState = createApplicationState()): {
+  state: ApplicationState;
+  definition: ApplicationDefinition;
+} {
+  return { state, definition: defineApplication(state) };
+}

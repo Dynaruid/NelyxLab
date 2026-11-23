@@ -3,53 +3,45 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app .",
-    "build:pwa": "node web/runner/node_modules/@nelyx/cli/src/main.mjs build --app .",
-    "run:pwa": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app .",
-    "dev:web": "npm run dev --",
-    "build:web": "npm run build:pwa --",
-    "prepare:web": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app .",
-    "prepare:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform windows",
-    "dev:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform windows",
-    "pack:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform windows",
-    "run:windows": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform windows",
-    "build:windows": "npm run build:pwa && npm run pack:windows --",
-    "prepare:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform android",
-    "dev:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform android",
-    "pack:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform android",
-    "run:android": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform android",
-    "build:android": "npm run build:pwa && npm run pack:android --",
-    "prepare:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform linux",
-    "dev:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform linux",
-    "pack:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform linux",
-    "run:linux": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform linux",
-    "build:linux": "npm run build:pwa && npm run pack:linux --",
-    "prepare:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform macos",
-    "dev:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform macos",
-    "pack:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform macos",
-    "run:macos": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform macos",
-    "build:macos": "npm run build:pwa && npm run pack:macos --",
-    "prepare:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs prepare --app . --platform ios",
-    "dev:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs dev --app . --platform ios",
-    "pack:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs pack --app . --platform ios",
-    "run:ios": "node web/runner/node_modules/@nelyx/cli/src/main.mjs run --app . --platform ios",
-    "build:ios": "npm run build:pwa && npm run pack:ios --",
-    "dev:tauri:windows": "npm run dev:windows --",
-    "build:tauri:windows": "npm run build:windows --",
-    "run:tauri:windows": "npm run run:windows --"
+    "doctor:web": "nelyx doctor --app . --target web",
+    "prepare:web": "nelyx prepare --app . --target web",
+    "dev:web": "nelyx dev --app . --target web",
+    "build:web": "nelyx build --app . --target web",
+    "run:web": "nelyx run --app . --target web",
+    "doctor:tauri": "nelyx doctor --app . --target tauri",
+    "prepare:tauri": "nelyx prepare --app . --target tauri",
+    "dev:tauri": "nelyx dev --app . --target tauri",
+    "build:tauri": "nelyx build --app . --target tauri",
+    "pack:tauri": "nelyx pack --app . --target tauri",
+    "run:tauri": "nelyx run --app . --target tauri",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@nelyx/core": "0.17.0",
-    "@nelyx/sdk": "0.21.0",
-    "@nelyx/material": "0.2.0",
-    "@nelyx/cupertino": "0.2.0"
+    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-5a8cf7e3e3e799e2462ce206f12e63c07304a5efaed68b036cc07f5809562af9.tgz",
+    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-1516e25c080e4dc691b5897b7d84849ca27b2ddad6e4b9c03aaf3f264d6354b3.tgz",
+    "@nelyx/material": "file:.nelyx/supply/nelyx-material-0.2.0-882f51baa98644a68e60305dd0a1989956816462b7f2bcc12133f8b5d8b7e4d6.tgz",
+    "@nelyx/cupertino": "file:.nelyx/supply/nelyx-cupertino-0.2.0-8a2ee993e386258acb331493f119438b61842cb68acf5e0a6b40468d650ed62f.tgz",
+    "@nelyx/skia-web": "file:.nelyx/supply/nelyx-skia-web-0.6.0-cb987a9109875d7206d9cdf0195e4ceafe130e9e4c5f74782d8ca8e657d58e55.tgz",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "@nelyx/backend-rust": "file:.nelyx/supply/nelyx-backend-rust-0.1.0-2c93aec01304a81172ce5a78f41f7e713b2df52da06d6225486050a750d03cd2.tgz",
+    "@nelyx/backend-wasm": "file:.nelyx/supply/nelyx-backend-wasm-0.1.0-862449beca8c394691a355e35084f1cb149532d67932c903f2618c8d1a3e3c11.tgz",
+    "@nelyx/backend-tauri": "file:.nelyx/supply/nelyx-backend-tauri-0.1.0-2619aee6c10ac2f0eef3d5141f6dc05fd92468e5e9bfd74fedac0ed53beee798.tgz"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "2.12.6"
+    "@tauri-apps/cli": "2.12.6",
+    "@nelyx/vite": "file:.nelyx/supply/nelyx-vite-0.1.0-448b10f3c765e4633108157650f93649ff3cf995809bef3e014ed19fd60b0e38.tgz",
+    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-f9ad1ff7f13f5778782e13006acb6a535fe34ac2415af8d7854b68e44191cd69.tgz",
+    "@nelyx/tooling-contracts": "file:.nelyx/supply/nelyx-tooling-contracts-0.1.0-24eed728784cf69799a50824b41fb6cb06e5233e1690d1f75503352f0f88e012.tgz",
+    "vite": "8.3.8",
+    "typescript": "7.0.2",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2"
   },
   "type": "module",
   "nelyx": {
-    "schema": "nelyx.app/v3",
+    "schema": "nelyx.app/v4",
     "name": "NelyxDemoApp",
     "appEntry": "./src/index.ts",
     "assets": [
@@ -124,23 +116,47 @@
       }
     ],
     "displayName": "Nelyx Demo",
-    "pwa": {
-      "component": "./web/runner/App.tsx",
-      "id": "/apps/nelyx-demo",
-      "shortName": "Nelyx Demo",
-      "themeColor": "#101827",
-      "icons": [
-        {
-          "src": "./assets/pwa/icon-192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        },
-        {
-          "src": "./assets/pwa/icon-512.png",
-          "sizes": "512x512",
-          "type": "image/png"
+    "backend": {
+      "manifest": "./backend/Cargo.toml"
+    },
+    "targets": {
+      "web": {
+        "pwa": {
+          "id": "/apps/nelyx-demo",
+          "shortName": "Nelyx Demo",
+          "themeColor": "#101827",
+          "icons": [
+            {
+              "src": "./assets/pwa/icon-192.png",
+              "sizes": "192x192",
+              "type": "image/png"
+            },
+            {
+              "src": "./assets/pwa/icon-512.png",
+              "sizes": "512x512",
+              "type": "image/png"
+            }
+          ]
         }
-      ]
+      },
+      "tauri": {
+        "identifier": "dev.nelyx.demo.tauri",
+        "productName": "Nelyx Demo Tauri",
+        "windows": [
+          {
+            "label": "main",
+            "title": "Nelyx Demo · Tauri",
+            "useHttpsScheme": true,
+            "width": 1200,
+            "height": 800,
+            "safeArea": true,
+            "clipboard": {
+              "read": true,
+              "write": true
+            }
+          }
+        ]
+      }
     }
   }
 }

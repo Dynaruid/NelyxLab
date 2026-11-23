@@ -1,4 +1,3 @@
 {
-  "extends": "./web/runner/tsconfig.nelyx.json",
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "extends": "./.nelyx/tsconfig.json"
 }

@@ -23,3 +23,10 @@ export function defineApplication(
     createRoot: () => new ComponentsGallery(state.initialText),
   });
 }
+
+export function main(
+  state: ApplicationState = createApplicationState(),
+  options: ApplicationOptions = {},
+): { state: ApplicationState; definition: ApplicationDefinition } {
+  return { state, definition: defineApplication(state, options) };
+}

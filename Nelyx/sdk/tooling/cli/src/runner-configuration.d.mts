@@ -1,5 +1,5 @@
-import type { WebPreparation } from './web-runner.mjs';
+import type { FrontendPreparation } from './web-runner.mjs';
 export function configureRunner(options: {
   app: string;
-  target?: 'web' | 'pwa';
-}): Promise<WebPreparation>;
+  target?: 'web' | 'tauri';
+}): Promise<FrontendPreparation>;

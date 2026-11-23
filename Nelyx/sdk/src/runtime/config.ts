@@ -28,19 +28,38 @@ export interface PwaIcon {
   readonly purpose?: 'any' | 'maskable' | 'any maskable';
 }
 export interface PwaConfig {
-  readonly component: string;
   readonly id: string;
   readonly shortName: string;
   readonly themeColor: string;
   readonly icons?: readonly PwaIcon[];
 }
+export interface TauriWindowConfig {
+  readonly label: string;
+  readonly title?: string;
+  readonly width?: number;
+  readonly height?: number;
+  readonly useHttpsScheme?: boolean;
+  readonly clipboard?: { readonly read: boolean; readonly write: boolean };
+  readonly safeArea?: boolean;
+  readonly windowTitle?: boolean;
+  readonly commands?: readonly string[];
+}
+export interface TauriTargetConfig {
+  readonly identifier: string;
+  readonly productName?: string;
+  readonly windows?: readonly TauriWindowConfig[];
+}
 export interface NelyxConfig {
-  readonly schema: 'nelyx.app/v3';
+  readonly schema: 'nelyx.app/v4';
   readonly name: string;
   readonly displayName?: string;
   readonly appEntry: string;
   readonly assets: readonly AppAsset[];
-  readonly pwa: PwaConfig;
+  readonly backend?: { readonly manifest: string };
+  readonly targets: {
+    readonly web?: { readonly pwa?: PwaConfig };
+    readonly tauri?: TauriTargetConfig;
+  };
 }
 function localPath(value: string): void {
   if (
@@ -122,14 +141,9 @@ export function defineAssetManifest(value: unknown): readonly ResolvedAppAsset[]
 export function defineConfig(configuration: unknown): NelyxConfig {
   if (!configuration || typeof configuration !== 'object' || Array.isArray(configuration))
     throw new Error('Application package.json requires an nelyx configuration object');
-  const value = configuration as Omit<NelyxConfig, 'schema'> & {
-    schema: string;
-    targets?: { web?: { component: string; profile?: string; cohort?: string } };
-  };
-  if (!['nelyx.app/v2', 'nelyx.app/v3'].includes(value.schema))
-    throw new Error(
-      'Use nelyx.app/v3 with a PWA component and web/runner. Convert Deno/raw platform imports to @nelyx/sdk/platforms/web.',
-    );
+  const value = configuration as NelyxConfig;
+  if (value.schema !== 'nelyx.app/v4')
+    throw new Error('Use nelyx.app/v4 with appEntry and targets.web or targets.tauri');
   if (typeof value.name !== 'string' || !/^[A-Z][A-Za-z0-9]*$/.test(value.name))
     throw new Error('Invalid app schema/name');
   /* oxlint-disable no-control-regex -- Control code points are deliberately matched for input validation or normalization. */
@@ -142,8 +156,53 @@ export function defineConfig(configuration: unknown): NelyxConfig {
     throw new Error('Invalid app displayName');
   /* oxlint-enable no-control-regex */
   localPath(value.appEntry);
-  const assets = defineAssets(value.assets);
-  const pwa = value.schema === 'nelyx.app/v2' ? readLegacyPwa(value) : value.pwa;
+  const assets = defineAssets(value.assets === undefined ? [] : value.assets);
+  if (value.backend !== undefined) {
+    if (!value.backend || Object.keys(value.backend).some((key) => key !== 'manifest'))
+      throw new Error('backend requires a manifest path');
+    localPath(value.backend.manifest);
+    if (!value.backend.manifest.endsWith('/Cargo.toml'))
+      throw new Error('backend.manifest must reference Cargo.toml');
+  }
+  const { targets } = value;
+  if (
+    !targets ||
+    typeof targets !== 'object' ||
+    Array.isArray(targets) ||
+    Object.keys(targets).some((key) => key !== 'web' && key !== 'tauri') ||
+    (targets.web === undefined && targets.tauri === undefined)
+  )
+    throw new Error('Declare targets.web or targets.tauri');
+  if (
+    targets.web !== undefined &&
+    (!targets.web ||
+      typeof targets.web !== 'object' ||
+      Array.isArray(targets.web) ||
+      Object.keys(targets.web).some((key) => key !== 'pwa'))
+  )
+    throw new Error('targets.web accepts an optional pwa object');
+  const { name, displayName, appEntry } = value;
+  return Object.freeze({
+    schema: 'nelyx.app/v4',
+    name,
+    ...(displayName === undefined ? {} : { displayName }),
+    appEntry,
+    assets,
+    ...(value.backend ? { backend: Object.freeze({ manifest: value.backend.manifest }) } : {}),
+    targets: Object.freeze({
+      ...(targets.web
+        ? {
+            web: Object.freeze(
+              targets.web.pwa === undefined ? {} : { pwa: definePwa(targets.web.pwa) },
+            ),
+          }
+        : {}),
+      ...(targets.tauri === undefined ? {} : { tauri: defineTauri(targets.tauri) }),
+    }),
+  });
+}
+
+function definePwa(pwa: PwaConfig): PwaConfig {
   if (
     !pwa ||
     typeof pwa !== 'object' ||
@@ -155,10 +214,9 @@ export function defineConfig(configuration: unknown): NelyxConfig {
     typeof pwa.themeColor !== 'string' ||
     !/^#[0-9a-f]{6}$/i.test(pwa.themeColor)
   )
-    throw new Error('PWA requires a component, same-origin id, shortName and #RRGGBB themeColor');
-  if (value.schema === 'nelyx.app/v3' && value.targets !== undefined)
-    throw new Error('Select an OS at the CLI with --platform and configure it in src-tauri');
-  localPath(pwa.component);
+    throw new Error('PWA requires a same-origin id, shortName and #RRGGBB themeColor');
+  if (Object.keys(pwa).some((key) => !['id', 'shortName', 'themeColor', 'icons'].includes(key)))
+    throw new Error('Invalid PWA option');
   let icons: readonly PwaIcon[] | undefined;
   if (pwa.icons !== undefined) {
     if (
@@ -184,45 +242,81 @@ export function defineConfig(configuration: unknown): NelyxConfig {
       }),
     );
   }
-  const { name, displayName, appEntry } = value;
   return Object.freeze({
-    schema: 'nelyx.app/v3',
-    name,
-    ...(displayName === undefined ? {} : { displayName }),
-    appEntry,
-    assets,
-    pwa: Object.freeze({
-      component: pwa.component,
-      id: pwa.id,
-      shortName: pwa.shortName,
-      themeColor: pwa.themeColor,
-      ...(icons ? { icons } : {}),
-    }),
+    id: pwa.id,
+    shortName: pwa.shortName,
+    themeColor: pwa.themeColor,
+    ...(icons ? { icons } : {}),
   });
 }
-function readLegacyPwa(value: {
-  name: string;
-  displayName?: string;
-  targets?: { web?: { component: string; profile?: string; cohort?: string } };
-}): PwaConfig {
-  const web = value.targets?.web;
-  if (!web?.component)
-    throw new Error(
-      'Add web/runner from the PWA starter, declare nelyx.pwa (or targets.web in v2), and replace platform imports with @nelyx/sdk/platforms/web/application and /surface',
-    );
-  if (web.profile !== undefined && web.profile !== 'ganesh-webgl2')
-    throw new Error('Use the ganesh-webgl2 PWA profile and rebuild the app');
-  if (web.cohort !== undefined && web.cohort !== 'web-react-dom-19.2.0')
-    throw new Error(
-      'The old Web cohort requires upgrading web/runner with nelyx supply, installing it and removing targets.web.cohort before rebuilding',
-    );
-  return {
-    component: web.component,
-    id: '/apps/' + value.name.toLowerCase(),
-    shortName: value.displayName ?? value.name,
-    themeColor: '#101827',
-  };
-}
-export function migrateConfig(value: unknown): NelyxConfig {
-  return defineConfig(value);
+
+function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
+  if (
+    !tauri ||
+    typeof tauri !== 'object' ||
+    Array.isArray(tauri) ||
+    Object.keys(tauri).some((key) => !['identifier', 'productName', 'windows'].includes(key)) ||
+    typeof tauri.identifier !== 'string' ||
+    !/^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+$/.test(tauri.identifier)
+  )
+    throw new Error('targets.tauri requires a reverse-DNS identifier');
+  if (
+    tauri.productName !== undefined &&
+    (typeof tauri.productName !== 'string' ||
+      !tauri.productName.trim() ||
+      /[<>:"/\\|?*]/.test(tauri.productName))
+  )
+    throw new Error('Invalid targets.tauri.productName');
+  if (tauri.windows === undefined) return Object.freeze({ ...tauri });
+  if (!Array.isArray(tauri.windows) || !tauri.windows.length)
+    throw new Error('targets.tauri.windows requires at least one window');
+  const labels = new Set<string>();
+  const windows = (tauri.windows as readonly TauriWindowConfig[]).map((window) => {
+    if (
+      !window ||
+      !/^[a-zA-Z0-9_-]+$/.test(window.label) ||
+      labels.has(window.label) ||
+      typeof window.label !== 'string' ||
+      Object.keys(window).some(
+        (key) =>
+          ![
+            'label',
+            'title',
+            'width',
+            'height',
+            'useHttpsScheme',
+            'clipboard',
+            'safeArea',
+            'windowTitle',
+            'commands',
+          ].includes(key),
+      ) ||
+      (window.title !== undefined && (typeof window.title !== 'string' || !window.title.trim())) ||
+      [window.width, window.height].some(
+        (size) => size !== undefined && (!Number.isFinite(size) || size <= 0),
+      ) ||
+      [window.useHttpsScheme, window.safeArea, window.windowTitle].some(
+        (setting) => setting !== undefined && typeof setting !== 'boolean',
+      ) ||
+      (window.clipboard !== undefined &&
+        (!window.clipboard ||
+          typeof window.clipboard.read !== 'boolean' ||
+          typeof window.clipboard.write !== 'boolean' ||
+          Object.keys(window.clipboard).some((key) => key !== 'read' && key !== 'write'))) ||
+      (window.commands !== undefined &&
+        (!Array.isArray(window.commands) ||
+          new Set(window.commands).size !== window.commands.length ||
+          window.commands.some(
+            (name) => typeof name !== 'string' || !/^[a-z][a-zA-Z0-9_.-]*$/.test(name),
+          )))
+    )
+      throw new Error('Invalid or duplicate Tauri window declaration');
+    labels.add(window.label);
+    return Object.freeze({
+      ...window,
+      ...(window.clipboard ? { clipboard: Object.freeze({ ...window.clipboard }) } : {}),
+      ...(window.commands ? { commands: Object.freeze([...window.commands]) } : {}),
+    });
+  });
+  return Object.freeze({ ...tauri, windows: Object.freeze(windows) });
 }

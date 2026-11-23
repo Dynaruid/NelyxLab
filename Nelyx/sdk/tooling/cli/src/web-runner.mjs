@@ -4,7 +4,17 @@ import path from 'node:path';
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { appFiles, inspectRunner, prepareRunnerFiles, readApp } from '@nelyx/vite/runner';
-import { buildPwa, verifyPwa } from '@nelyx/vite/release';
+import { buildFrontend, verifyFrontend } from '@nelyx/vite/release';
+import { frontendSession } from '@nelyx/vite/frontend-session';
+import { backendHash } from '@nelyx/tooling-contracts/backend-supply';
+import {
+  backendContract,
+  compileWasm,
+  inspectBackend,
+  inspectWasmTools,
+  prepareWasm,
+} from './backend-project.mjs';
+import { backendWatcher } from './backend-watch.mjs';
 import { isAppNavigation, mediaType } from '@nelyx/vite/content';
 import { localFile } from '@nelyx/tooling-contracts/node-files';
 import {
@@ -14,33 +24,23 @@ import {
   withPublicationLock,
 } from './publication.mjs';
 
-const route = { format: 'pwa', provider: 'web', host: 'browser' };
-export const pwaDirectory = (app) => path.join(app, '.nelyx', 'pwa');
+const route = { provider: 'web', host: 'browser', target: 'web' };
+export const webDirectory = (app) => path.join(app, '.nelyx', 'web');
 export const hostOs = () =>
   ({ win32: 'windows', darwin: 'macos', linux: 'linux' })[process.platform] ?? process.platform;
 
-function requireViteRunner(runner) {
-  for (const name of ['index.html', 'vite.config.ts', 'main.ts']) {
-    if (!fs.existsSync(path.join(runner, name)))
-      throw new Error(
-        `Add ${name} from the PWA starter to ${runner}. Review metro.config.cjs and build.mjs for custom settings to move to vite.config.ts.`,
-      );
-    localFile(runner, name);
-  }
-}
-
-export function doctorWeb({ app }) {
-  const result = { schema: 'nelyx.doctor/v3', ...route, os: hostOs() };
+export function doctorFrontend(app, target) {
+  const result = { schema: 'nelyx.doctor/v4', target };
   try {
     const value = inspectRunner(app);
-    requireViteRunner(value.runner);
-    appFiles(value, false);
+    if (!value.config.targets[target])
+      throw new Error('Declare targets.' + target + ' in package.json');
+    appFiles(value, false, target);
     return {
       ...result,
       app: value.app,
       runner: value.runner,
       cohort: value.cohort,
-      warnings: value.warnings,
       ready: true,
       exitCode: 0,
     };
@@ -49,55 +49,106 @@ export function doctorWeb({ app }) {
   }
 }
 
-export function prepareWeb({ app }) {
+export function doctorWeb({ app }) {
+  const result = { ...doctorFrontend(app, 'web'), ...route, os: hostOs() };
+  if (!result.ready) return result;
+  try {
+    const backend = inspectBackend(readApp(app), 'web', { requireLock: false });
+    return {
+      ...result,
+      backend: backendContract(backend),
+      ...(backend.appCrate ? { tools: inspectWasmTools(app) } : {}),
+    };
+  } catch (error) {
+    return { ...result, ready: false, error: error.message, exitCode: 1 };
+  }
+}
+
+export function prepareFrontend(app, target) {
   const value = inspectRunner(app);
-  requireViteRunner(value.runner);
-  prepareRunnerFiles(value);
+  if (!value.config.targets[target])
+    throw new Error('Declare targets.' + target + ' in package.json');
+  prepareRunnerFiles(value, target);
   return {
-    schema: 'nelyx.prepare/v3',
-    ...route,
-    os: hostOs(),
+    schema: 'nelyx.prepare/v4',
+    target,
     app: value.app,
     runner: value.runner,
     cohort: value.cohort,
-    warnings: value.warnings,
   };
+}
+
+export function prepareWeb({ app, updateLock }, signal) {
+  app = fs.realpathSync(app);
+  return withPublicationLock(app, async () => {
+    const result = prepareFrontend(app, 'web');
+    const value = readApp(app);
+    const backend = inspectBackend(value, 'web', { requireLock: false });
+    await prepareWasm(value, backend, updateLock, signal);
+    return {
+      ...result,
+      ...route,
+      os: hostOs(),
+      backend: backendContract(inspectBackend(value, 'web')),
+    };
+  });
+}
+
+export async function publishFrontend(value, target, project, destination, verifyInputs, signal) {
+  signal.throwIfAborted();
+  const parent = ensureDirectory(path.dirname(destination));
+  const stage = fs.mkdtempSync(path.join(parent, '.frontend-'));
+  try {
+    const contract = backendContract(project);
+    const release = await buildFrontend(value.app, stage, target, project, contract);
+    signal.throwIfAborted();
+    const current = readApp(value.app);
+    if (
+      backendHash(current) !== backendHash(value) ||
+      backendHash(backendContract(verifyInputs(current))) !== backendHash(contract)
+    )
+      throw new Error('App inputs changed during the frontend build');
+    publishDirectory(stage, destination);
+    const { files: _inventory, ...summary } = release;
+    return { ...summary, directory: destination };
+  } finally {
+    removeDirectory(stage, parent);
+  }
 }
 
 export function buildWebApplication({ app }, signal) {
   app = fs.realpathSync(app);
   return withPublicationLock(app, async () => {
-    signal.throwIfAborted();
-    const destination = pwaDirectory(app);
-    const parent = ensureDirectory(path.dirname(destination));
-    const stage = fs.mkdtempSync(path.join(parent, '.pwa-'));
-    try {
-      requireViteRunner(path.join(app, 'web', 'runner'));
-      const release = await buildPwa(app, stage);
-      signal.throwIfAborted();
-      publishDirectory(stage, destination);
-      const { files: _inventory, ...summary } = release;
-      return { ...summary, directory: destination, host: 'browser', os: hostOs() };
-    } finally {
-      removeDirectory(stage, parent);
-    }
+    const value = readApp(app);
+    const backend = (value) => inspectBackend(value, 'web');
+    const project = await compileWasm(value, backend(value), signal);
+    const summary = await publishFrontend(
+      value,
+      'web',
+      project,
+      webDirectory(app),
+      backend,
+      signal,
+    );
+    return { ...summary, ...route, os: hostOs() };
   });
 }
 
 export async function openVite(
-  { app, host = '127.0.0.1', port = 8081, advertisedHost, tauri = false, os = hostOs() },
+  { app, host = '127.0.0.1', port = 8081, advertisedHost, target = 'web', os = hostOs(), backend },
   signal,
 ) {
   const value = inspectRunner(app);
   const { runner } = value;
-  requireViteRunner(runner);
+  const frontend = frontendSession(value, target, backend, { dev: true });
   const { createServer } = await value.vite();
   const event = {
     event: 'nelyx.dev.ready',
     ...route,
-    ...(tauri ? { host: 'tauri' } : {}),
+    ...(target === 'tauri' ? { host: 'tauri' } : {}),
     os,
-    target: 'web',
+    target,
+    format: target === 'web' && value.config.targets.web.pwa ? 'pwa' : target,
     app: value.app,
     runner,
     session: randomUUID(),
@@ -112,10 +163,12 @@ export async function openVite(
       ...(advertisedHost ? { allowedHosts: [advertisedHost] } : {}),
     },
     plugins: [
+      ...frontend.plugins,
       {
         name: 'nelyx:dev-session',
         config(config) {
-          if (!tauri || !['android', 'ios'].includes(os) || config.server?.ws === false) return;
+          if (target !== 'tauri' || !['android', 'ios'].includes(os) || config.server?.ws === false)
+            return;
           // Tauri can serve mobile development modules from the embedded protocol.
           // The HMR socket connects directly to the Vite endpoint, including via adb reverse.
           return {
@@ -153,7 +206,7 @@ export async function openVite(
       ).href;
     event.url = url(advertisedHost ?? host);
     process.stderr.write(JSON.stringify(event) + '\n');
-    return { server, event, healthUrl: url(host === '0.0.0.0' ? '127.0.0.1' : host) };
+    return { server, event, frontend, healthUrl: url(host === '0.0.0.0' ? '127.0.0.1' : host) };
   } catch (error) {
     await server.close();
     throw error;
@@ -180,11 +233,46 @@ function waitForServer(server, signal) {
 }
 
 export async function devWeb(options, signal) {
-  const { server, event } = await openVite(options, signal);
+  const app = fs.realpathSync(options.app);
+  let project = await withPublicationLock(app, () => {
+    const value = readApp(app);
+    return compileWasm(value, inspectBackend(value, 'web'), signal);
+  });
+  const { server, event, frontend } = await openVite({ ...options, app, backend: project }, signal);
+  const controller = new AbortController();
+  const lifetime = AbortSignal.any([signal, controller.signal]);
+  let pending = Promise.resolve();
+  const report = (error) => {
+    if (lifetime.aborted) return;
+    server.config.logger.error(error.message);
+    server.ws.send({ type: 'error', err: { message: error.message, stack: error.stack } });
+  };
+  const watcher = backendWatcher(() => {
+    pending = pending
+      .then(async () => {
+        lifetime.throwIfAborted();
+        const update = await withPublicationLock(app, async () => {
+          const value = readApp(app);
+          const next = inspectBackend(value, 'web');
+          if (backendHash(backendContract(next)) === backendHash(backendContract(project))) return;
+          return compileWasm(value, next, lifetime);
+        });
+        if (!update) return;
+        lifetime.throwIfAborted();
+        project = update;
+        watcher.update(project.watch);
+        frontend.updateBackend(project);
+      })
+      .catch(report);
+  }, report);
   try {
+    watcher.update(project.watch);
     await waitForServer(server.httpServer, signal);
     return { ...event, exitCode: 0 };
   } finally {
+    watcher.close();
+    controller.abort();
+    await pending;
     await server.close();
   }
 }
@@ -194,8 +282,8 @@ export async function runWeb(
   signal,
 ) {
   const value = readApp(app);
-  directory = path.resolve(directory ?? pwaDirectory(value.app));
-  let release = verifyPwa(directory, value);
+  directory = path.resolve(directory ?? webDirectory(value.app));
+  let release = verifyFrontend(directory, value, 'web');
   let names = new Set(release.files.map(({ path }) => path));
   if (!/^\/(?:[\w-]+\/)*$/.test(base))
     throw new Error('--base requires / or a path such as /demo/');
@@ -208,7 +296,7 @@ export async function runWeb(
     try {
       const manifest = JSON.parse(fs.readFileSync(localFile(directory, 'build.json'), 'utf8'));
       if (manifest.buildId !== release.buildId) {
-        release = verifyPwa(directory, value);
+        release = verifyFrontend(directory, value, 'web');
         names = new Set(release.files.map(({ path }) => path));
       }
       const request = decodeURIComponent(url.pathname.slice(base.length));
@@ -248,8 +336,9 @@ export async function runWeb(
     const address = server.address();
     const url = `http://${host.includes(':') ? '[' + host + ']' : host}:${address.port}${base}`;
     const result = {
-      schema: 'nelyx.run/v3',
+      schema: 'nelyx.run/v4',
       ...route,
+      format: release.format,
       os: hostOs(),
       url,
       directory,

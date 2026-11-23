@@ -56,7 +56,7 @@ export function main() {
 }
 ```
 
-앱의 `package.json` → `nelyx.assets`에 `app-font`를 선언하고 `main().definition`을 플랫폼의 `ApplicationSurface`에 전달합니다. 전체 연결 예는 [Web runner](../sample/nelyx-testbed-app-2/web/runner/App.tsx)에 있습니다.
+앱의 `package.json`에서 `nelyx.assets`에 `app-font`를 선언합니다. `main().definition`은 공용 DOM `ApplicationSurface`에 전달합니다. [Testbed 연결 예시](../sample/nelyx-testbed-app-2/src/app-surface.tsx)
 
 각 View는 BuildOwner, PipelineOwner, scheduler, focus와 마운트된 State를 소유합니다. 지역 상태에는 `framework/widgets/framework`의 `StatefulWidget`·`State.setState`를, 자식 이동 중 식별 유지에는 key를 사용합니다. `createRoot(context, scheduler)`는 View 서비스와 호스트 프레임 스케줄러를 받습니다.
 

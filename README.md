@@ -2,58 +2,47 @@
 
 **English** | [한국어](README.ko.md)
 
-Nelyx brings Flutter's widget and rendering model to TypeScript. A shared Widget, Element and RenderObject tree powers Material and Cupertino applications. React DOM owns the browser surface, and CanvasKit/Ganesh renders it with WebGL2. A Vite PWA runs in the browser and can be embedded in a Tauri application.
+Nelyx brings Flutter's widget and rendering model to TypeScript. React DOM hosts the shared widget tree and CanvasKit/Ganesh renders it. An app uses `src/index.ts` for its UI and `backend/src/lib.rs` for shared Rust commands. The Web target calls Rust through Wasm. The Tauri target links it into the generated native host.
 
 ## Run Testbed or Demo
 
-Use Node.js 24.3 or later in the 24.x range and npm 11. Prepare the pinned CanvasKit JS and Wasm on a fresh checkout. [CanvasKit source build](Nelyx/skia/eng/source-build/README.md)
+Use Node.js 24.3 or later in the 24.x range and npm 11. To build the SDK, prepare the pinned CanvasKit runtime, install the Rust Wasm target and install wasm-bindgen-cli 0.2.128. [CanvasKit source build](Nelyx/skia/eng/source-build/README.md)
 
-From the repository root in PowerShell:
+From the repository root in PowerShell, build and supply either sample. The root build commands run SDK supply and the app's isolated npm install.
 
-```
+```powershell
 npm.cmd ci
-npm.cmd run build:sdk
-npm.cmd run prepare:sample -- web
-npm.cmd ci --prefix sample/nelyx-testbed-app-2/web/runner --workspaces=false
-npm.cmd run dev --workspace @nelyx/testbed-2
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.128 --locked
+npm.cmd run build:web -- --app sample/nelyx-demo-app
+npm.cmd run build:tauri -- --app sample/nelyx-demo-app --platform windows
 ```
 
-Open the development URL printed by the command. For a browser installation or distribution, build the PWA and serve its output.
+The app root owns the development commands. Run the one for the target you want to open.
 
-```
-npm.cmd run build:pwa --workspace @nelyx/testbed-2
-npm.cmd run run:pwa --workspace @nelyx/testbed-2 -- --base /demo/
-```
-
-Package the existing PWA for Windows from the repository root. Tauri CLI and the OS toolchain are needed for this step.
-
-```
-npm.cmd run prepare:windows --workspace @nelyx/testbed-2
-npm.cmd run pack:windows --workspace @nelyx/testbed-2
-npm.cmd run run:windows --workspace @nelyx/testbed-2
+```powershell
+Set-Location sample/nelyx-demo-app
+npm.cmd run dev:web
+npm.cmd run run:web -- --base /demo/
+npm.cmd run run:tauri -- --platform windows
 ```
 
 ### Run Demo on Android
 
-Prepare the Demo runner and Android toolchain, then start an emulator or connect a phone. Run these PowerShell commands from the repository root and pass your device's ADB serial to `--device`. For an ARM64 phone such as a Galaxy, change both `--architecture` values to `arm64`. [Demo Android setup](sample/nelyx-demo-app/README.md#run-on-android)
-
-```powershell
-npm.cmd run prepare:android --workspace @nelyx/demo -- --architecture x64
-npm.cmd run build:android --workspace @nelyx/demo -- --architecture x64
-npm.cmd run run:android --workspace @nelyx/demo -- --device emulator-5554
-```
+Install the Android prerequisites. Use `--architecture x64` for an x86_64 emulator and `arm64` for an ARM64 phone. Pass the ADB serial to `run:tauri`. [Demo Android setup](sample/nelyx-demo-app/README.md#run-on-android)
 
 ## Project layout
 
 | Path | Purpose |
 | --- | --- |
 | [Nelyx](Nelyx/README.md) | Core TypeScript framework |
-| [Nelyx/sdk](Nelyx/sdk/README.md) | React DOM surface, browser services and assets |
+| [Nelyx/sdk](Nelyx/sdk/README.md) | DOM frontend, host services and assets |
+| [Nelyx/backend](Nelyx/backend/) | Common Rust API, Wasm adapter and Tauri plugin |
 | [Nelyx/skia](Nelyx/skia/README.md) | Pinned CanvasKit supply and rendering |
-| [CLI](Nelyx/sdk/tooling/cli/README.md) | Starter creation, SDK supply, Vite and Tauri commands |
+| [CLI](Nelyx/sdk/tooling/cli/README.md) | Starter, supply and platform commands |
 | [Material](packages/material/README.md) and [Cupertino](packages/cupertino/README.md) | Design packages |
 | [Demo](sample/nelyx-demo-app/README.md) and [Testbed](sample/nelyx-testbed-app-2/README.md) | Sample applications |
-| [Platform qualification](history/26/11/20/work3-summary.md) | Packaging and test coverage by environment |
-| [Development history](history/README.md) | Previous plans and implementation records |
+| [Current work and verification](work.md) | Build changes and platform results |
+| [Development history](history/README.md) | Previous changes |
 
-Nelyx-authored code uses BSD 3-Clause. Imported code retains its notices. [License](Nelyx/LICENSE.md) · [Skia notices](Nelyx/skia/THIRD_PARTY_NOTICES.md)
+Nelyx code uses BSD 3-Clause. Imported code retains its notices. [License](Nelyx/LICENSE.md) · [Skia notices](Nelyx/skia/THIRD_PARTY_NOTICES.md)

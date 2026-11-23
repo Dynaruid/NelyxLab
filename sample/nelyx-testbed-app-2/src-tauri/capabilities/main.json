@@ -1,5 +1,0 @@
-{
-  "identifier": "main",
-  "windows": ["main"],
-  "permissions": ["allow-host-info", "core:window:allow-set-title"]
-}

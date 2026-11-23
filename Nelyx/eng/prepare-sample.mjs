@@ -6,6 +6,7 @@ import { supplyRunner } from '../sdk/tooling/cli/src/supply-runner.mjs';
 import { withPublicationLock, removeDirectory } from '../sdk/tooling/cli/src/publication.mjs';
 import { checkWebRuntime } from '../skia/eng/prepare-web-runtime.mjs';
 import { verifyPackageSourceInputs } from './package-source-inputs.mjs';
+import { checkRustPackages } from '../backend/eng/build-supply.mjs';
 
 const root = path.resolve(import.meta.dirname, '../..');
 const workspace = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -25,21 +26,17 @@ const supply = [
   'tooling-contracts',
   'material',
   'cupertino',
+  'backend-rust',
+  'backend-wasm',
+  'backend-tauri',
 ];
-const targets = process.argv.slice(2);
-const exportOnly = targets[0] === '--packages';
-if (
-  targets.length > 2 ||
-  (exportOnly && !targets[1]) ||
-  (!exportOnly && !['web', 'pwa'].includes(targets[0] ?? 'web'))
-)
-  throw new Error(
-    'Use npm run prepare:sample -- web <app> or npm run pack:sdk -- <archive-directory>',
-  );
+const args = process.argv.slice(2);
 
 function pack(directory) {
   checkWebRuntime();
-  for (const name of supply) verifyPackageSourceInputs(packages.get('@nelyx/' + name));
+  checkRustPackages();
+  for (const name of supply.filter((name) => !name.startsWith('backend-')))
+    verifyPackageSourceInputs(packages.get('@nelyx/' + name));
   fs.mkdirSync(directory, { recursive: true });
   const args = [
     'pack',
@@ -62,13 +59,9 @@ function pack(directory) {
     );
 }
 
-if (exportOnly) {
-  const directory = path.resolve(targets[1]);
-  pack(directory);
-  console.log(directory);
-} else {
-  const app = fs.realpathSync(targets[1] ?? path.join(root, 'sample/nelyx-testbed-app-2'));
-  await withPublicationLock(app, () => {
+export function prepareSample(app) {
+  app = fs.realpathSync(app);
+  return withPublicationLock(app, () => {
     const cache = path.join(root, 'Nelyx/.cache');
     fs.mkdirSync(cache, { recursive: true });
     const temporary = fs.realpathSync(fs.mkdtempSync(path.join(cache, 'packages-')));
@@ -79,4 +72,21 @@ if (exportOnly) {
       removeDirectory(temporary, path.dirname(temporary));
     }
   });
+}
+
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === path.join(import.meta.dirname, 'prepare-sample.mjs')
+) {
+  if (args[0] === '--packages' && args.length === 2) {
+    const directory = path.resolve(args[1]);
+    pack(directory);
+    console.log(directory);
+  } else if (!args.length || (args[0] === '--app' && args.length === 2)) {
+    await prepareSample(args[1] ?? path.join(root, 'sample/nelyx-testbed-app-2'));
+  } else {
+    throw new Error(
+      'Use npm run prepare:sample -- --app <app> or npm run pack:sdk -- <archive-directory>',
+    );
+  }
 }

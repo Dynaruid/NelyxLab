@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Windows diagnostic entry. The regular Demo root, input and paint paths stay in use.
-import { main as demo } from '../src/index.ts';
+import { main as demo } from '../src/app.ts';
 import { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { Paragraph } from '@nelyx/core/ui/paragraph';
 import { TextPainter } from '@nelyx/core/framework/painting/text-painter';

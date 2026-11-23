@@ -13,7 +13,7 @@ if (!process.argv.includes('--child')) {
   process.exit(0);
 }
 
-const build = path.resolve(import.meta.dirname, '../.nelyx/pwa');
+const build = path.resolve(import.meta.dirname, '../.nelyx/web');
 assert(
   fs.existsSync(path.join(build, 'index.html')),
   'Build the Testbed Web Release before running the demo checks',

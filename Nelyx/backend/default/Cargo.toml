@@ -1,0 +1,14 @@
+[package]
+name = "nelyx-default-backend"
+version = "0.1.0"
+edition = "2021"
+license = "BSD-3-Clause"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nelyx-backend-core = { path = "../crates/nelyx-backend-core", version = "=0.1.0" }
+nelyx-backend-wasm = { path = "../crates/nelyx-backend-wasm", version = "=0.1.0" }
+wasm-bindgen = "=0.2.128"
