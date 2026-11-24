@@ -26,6 +26,7 @@ import {
   workerResourceBytes,
 } from './render-protocol.ts';
 import type { RenderFailureStage, WebRenderMode, WebRenderPath } from './render-protocol.ts';
+import { sharedArrayBufferConstructor } from './render-shared-memory.ts';
 import { RenderWorkerPort, RenderWorkerError } from './render-worker-port.ts';
 import { RenderWorkerFrames } from './render-worker-frames.ts';
 import { WebRenderTelemetry } from './render-telemetry.ts';
@@ -276,9 +277,10 @@ export class BrowserRenderer implements Renderer {
     }
     try {
       if (!workerIsolated) throw new Error('Render worker did not acquire cross-origin isolation');
-      const probe = new this.window.SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
+      const SharedBuffer = sharedArrayBufferConstructor(this.window);
+      const probe = new SharedBuffer(Int32Array.BYTES_PER_ELEMENT);
       const word = new Int32Array(probe);
-      const buffer = new this.window.SharedArrayBuffer(sharedBufferBytes);
+      const buffer = new SharedBuffer(sharedBufferBytes);
       Atomics.store(word, 0, sharedProbeRequest);
       const checked = await port.request(
         { kind: 'check-shared', probe, buffer },

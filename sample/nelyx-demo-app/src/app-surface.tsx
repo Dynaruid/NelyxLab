@@ -22,10 +22,16 @@ type RenderMode = NonNullable<FrontendProps['options']['renderMode']>;
 
 function initialMode(frontend: FrontendProps['options']): RenderMode {
   if (frontend.renderMode) return frontend.renderMode;
+  const { target, os } = getFrontendHost();
+  const defaultMode =
+    target === 'tauri' && os === 'iOS' && window.isSecureContext && window.crossOriginIsolated
+      ? 'auto'
+      : 'direct';
   try {
-    return localStorage.getItem(modePreference) === 'auto' ? 'auto' : 'direct';
+    const saved = localStorage.getItem(modePreference);
+    return saved === 'auto' || saved === 'direct' ? saved : defaultMode;
   } catch {
-    return 'direct';
+    return defaultMode;
   }
 }
 

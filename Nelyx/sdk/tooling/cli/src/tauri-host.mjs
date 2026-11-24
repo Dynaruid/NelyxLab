@@ -8,6 +8,7 @@ import {
 } from '@nelyx/tooling-contracts/backend-supply';
 import { localFile, relativeFile, sha256 } from '@nelyx/tooling-contracts/node-files';
 import { readJson } from '@nelyx/vite/runner';
+import { crossOriginIsolationHeaders } from '@nelyx/vite/frontend-session';
 import { cargoDependency, cratePath, inspectBackend, sourceFile } from './backend-project.mjs';
 import { ensureDirectory, ownedDirectory } from './publication.mjs';
 import { platforms } from './tauri-platforms.mjs';
@@ -62,6 +63,7 @@ export function inspectTauriBackend(value, options) {
     ...project,
     hostInputs: backendHash({
       tauri: value.config.targets.tauri,
+      crossOriginIsolated: value.config.crossOriginIsolated,
       template: backendInventory(template),
       generator: [
         sha256(import.meta.filename),
@@ -286,7 +288,13 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
     app: {
       ...base.app,
       windows: features.map(({ window }) => window),
-      security: { ...base.app.security, capabilities },
+      security: {
+        ...base.app.security,
+        capabilities,
+        ...(config.crossOriginIsolated
+          ? { headers: { ...base.app.security.headers, ...crossOriginIsolationHeaders } }
+          : {}),
+      },
     },
   };
   writeJson(directory, 'tauri.conf.json', native);

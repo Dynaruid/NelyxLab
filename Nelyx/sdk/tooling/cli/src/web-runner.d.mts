@@ -9,6 +9,7 @@ export interface WebRunnerOptions {
   readonly port?: number;
   readonly base?: string;
   readonly updateLock?: boolean;
+  readonly crossOriginIsolated?: boolean;
 }
 interface BrowserResult {
   readonly provider: 'web';

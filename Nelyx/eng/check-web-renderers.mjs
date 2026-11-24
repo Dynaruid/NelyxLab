@@ -45,6 +45,8 @@ const policyFields = {
 };
 const reports = [];
 const suite = (name) => values.suite === 'all' || values.suite === name;
+const hideSharedConstructor =
+  'Object.defineProperty(globalThis, "SharedArrayBuffer", { configurable: true, value: undefined });\n';
 
 function workerFaults() {
   const receive = globalThis.onmessage;
@@ -126,6 +128,8 @@ async function serve(directory, action, options = {}) {
     if (name === manifest.rendererWorker) {
       if (options.blockBlob)
         headers['Content-Security-Policy'] = "script-src 'self' 'wasm-unsafe-eval'";
+      if (options.hideSharedConstructor)
+        body = Buffer.concat([Buffer.from(hideSharedConstructor), body]);
       if (options.faults)
         body = Buffer.concat([body, Buffer.from('\n(' + workerFaults.toString() + ')();\n')]);
     }
@@ -216,11 +220,15 @@ if (engine === 'chrome') {
 }
 console.log(JSON.stringify({ engine, version: browser.version(), gpu }));
 
-async function tab(action, { serviceWorkers = 'block', fault = '', allowAlert = false } = {}) {
+async function tab(
+  action,
+  { serviceWorkers = 'block', fault = '', allowAlert = false, hideShared = false } = {},
+) {
   const context = await browser.newContext({ viewport: view, deviceScaleFactor, serviceWorkers });
   const page = await context.newPage();
   page.setDefaultTimeout(18000);
   await page.addInitScript(addProbe, fault);
+  if (hideShared) await page.addInitScript({ content: hideSharedConstructor });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   try {
@@ -783,6 +791,27 @@ try {
         );
       }
     }
+
+  if (suite('shared-memory')) {
+    await serve(
+      values.demo,
+      (root) =>
+        tab(
+          async (page) => {
+            await page.goto(modeUrl(root, 'auto'));
+            await firstFrame(page, 'worker-shared');
+            assert.equal(await page.evaluate(() => typeof SharedArrayBuffer), 'undefined');
+            const rendering = await diag(page);
+            assert.equal(rendering.path, 'worker-shared', JSON.stringify(rendering));
+            assert.equal(rendering.workerIsolated, true);
+            assert.ok(rendering.sharedConsumed > 0);
+            reports.push({ case: 'wasm-shared-memory', rendering });
+          },
+          { hideShared: true },
+        ),
+      { policy: 'both', hideSharedConstructor: true },
+    );
+  }
 
   if (engine === 'chrome' && suite('recovery')) {
     for (const [fault, settings, expected, stage] of [

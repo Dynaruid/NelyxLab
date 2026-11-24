@@ -37,9 +37,13 @@ Deploy the full `.nelyx/web/` directory. Set the Wasm MIME type to `application/
 
 Web rendering defaults to `direct`. Add `?renderMode=auto` to the app URL or set `renderMode: 'auto'` in the SDK's `ApplicationSurface` options to probe the dedicated worker and WebGL2 for the view. The SDK uses shared slots when the document and worker are isolated and the shared-memory round trip succeeds. A successful worker WebGL2 probe also supports transfer buffers. The SDK renders on the main thread when the worker path is unavailable. Use `worker-transfer` or `worker-shared` to compare paths with fallback enabled.
 
-Add `--target web --cross-origin-isolated` to `nelyx dev` or `nelyx run` to test isolation on localhost. For an isolated HTTPS deployment, send `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` on documents and a compatible COEP on the worker script. Cross-origin assets need CORS or CORP according to how they are requested. Check embedding documents and iframe permissions. COOP `same-origin` severs the `window.opener` relationship with popups on other origins. [Cross-origin isolation deployment](https://web.dev/articles/coop-coep)
+Set `nelyx.crossOriginIsolated` in the app's `package.json`. The default, `true`, adds `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` to web development and preview responses and to the Tauri app. Set it to `false` and restart the server or rebuild Tauri to disable the policy. With the setting disabled, pass `--cross-origin-isolated` to `nelyx dev` or `nelyx run` for a web session to enable it. The renderer checks shared-memory support separately at runtime.
+
+For static web deployment, serve these headers on documents and worker scripts over HTTPS. Cross-origin assets need CORS or CORP according to how they are requested. Check embedding documents and iframe permissions. COOP `same-origin` severs the `window.opener` relationship with popups on other origins. [Cross-origin isolation deployment](https://web.dev/articles/coop-coep)
 
 If the deployment uses CSP, check that it allows the same-origin render worker and the verified blob script used to initialize CanvasKit. PWAs revalidate the cached release's documents and render worker to pick up policy changes. Read the selected path, isolation, fallback reasons and frame metrics in `readWebApplicationDiagnostics()` or the application's `rendering` property.
+
+In isolated WebViews that hide the global `SharedArrayBuffer` constructor, the SDK obtains it from shared `WebAssembly.Memory` and runs the same round-trip probe. The iOS Tauri Demo requests `auto` by default in an isolated context and honors the rendering preference saved by the app's toggle.
 
 ## Build and run Tauri
 

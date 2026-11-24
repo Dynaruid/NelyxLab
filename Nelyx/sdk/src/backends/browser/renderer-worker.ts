@@ -36,6 +36,7 @@ import type {
   RenderResponse,
   RenderSession,
 } from './render-protocol.ts';
+import { sharedArrayBufferConstructor } from './render-shared-memory.ts';
 import { RenderResourceReceiver } from './render-worker-resources.ts';
 
 const scope = globalThis as unknown as {
@@ -161,9 +162,10 @@ function checkShared(request: Extract<RenderRequest, { kind: 'check-shared' }>):
   let accepted = false;
   if (scope.isSecureContext && scope.crossOriginIsolated) {
     try {
+      const SharedBuffer = sharedArrayBufferConstructor(globalThis);
       if (
-        !(request.probe instanceof SharedArrayBuffer) ||
-        !(request.buffer instanceof SharedArrayBuffer) ||
+        !(request.probe instanceof SharedBuffer) ||
+        !(request.buffer instanceof SharedBuffer) ||
         request.buffer.byteLength !== sharedBufferBytes
       )
         throw new Error('Invalid Web render shared buffer');

@@ -379,6 +379,7 @@ async function checkBrowserClipboardPermission(page, tap) {
 async function checkMobileWebClipboard(page, url) {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'platform', { value: 'Linux aarch64' });
     const clipboard = navigator.clipboard;
     const read = clipboard.readText.bind(clipboard);
     window.mobileClipboardReads = [];
@@ -418,6 +419,94 @@ async function checkMobileWebClipboard(page, url) {
   } finally {
     await page.evaluate((text) => navigator.clipboard.writeText(text), saved);
     await cdp.detach();
+  }
+}
+
+async function checkIOSWebSelection(browser, url) {
+  const page = await browser.newPage({
+    viewport: { width: 393, height: 850 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  try {
+    await page.addInitScript(installSelectionProbes);
+    await page.addInitScript(() => {
+      // Exercise the iOS policy and its DOM input carrier with Chromium touch events.
+      Object.defineProperty(navigator, 'platform', { value: 'iPhone' });
+      Object.defineProperty(window, 'EditContext', { value: undefined });
+      window.iosEditorTouches = [];
+      document.addEventListener('touchstart', (event) => {
+        if (event.target.dataset?.nelyxInputCarrier === 'true')
+          window.iosEditorTouches.push(event.defaultPrevented);
+      });
+    });
+    await page.goto(url);
+    await verifyBundle(page);
+    await page.waitForFunction(() => document.documentElement.dataset.nelyxBackendProtocol === '3');
+    assert.equal(await page.locator('html').getAttribute('data-nelyx-os'), 'iOS');
+    const tap = ({ x, y }) => page.touchscreen.tap(x, y);
+    await openSelection(page, tap);
+    const at = await point(field(page, 'Material single line'), 44);
+    await tap(at);
+    await until(
+      async () => (await readEditor(page))?.carrier === 'INPUT',
+      'iOS editor must be focused',
+    );
+    assert.deepEqual(
+      await page.evaluate(() => {
+        const style = getComputedStyle(document.activeElement);
+        return [style.pointerEvents, style.getPropertyValue('-webkit-tap-highlight-color')];
+      }),
+      ['auto', 'rgba(0, 0, 0, 0)'],
+    );
+
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type, point) => cdp.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: point ? [{ ...point, id: 1 }] : [],
+    });
+    await touch('touchStart', at);
+    await wait(650);
+    await touch('touchEnd');
+    const copy = menu(page, 'Copy');
+    await copy.waitFor();
+    assert.deepEqual(await page.evaluate(() => window.iosEditorTouches), [true]);
+    const held = await readEditor(page);
+    assert.ok(held.end > held.start, 'Long press must select a word');
+
+    await tap(at);
+    await copy.waitFor({ state: 'hidden' });
+    await wait(350);
+    await tap(at);
+    await tap(at);
+    await copy.waitFor();
+    const doubled = await readEditor(page);
+    assert.deepEqual([doubled.start, doubled.end], [held.start, held.end]);
+
+    for (const distance of [45, -30, 45]) {
+      await page.keyboard.press('Escape');
+      await copy.waitFor({ state: 'hidden' });
+      const previous = await readEditor(page);
+      const handle = await page.evaluate(() => {
+        const { x, y } = window.readSelectionEditorGeometry('w6-material').endpoints[1];
+        const canvas = document.querySelector('canvas').getBoundingClientRect();
+        return { x: Math.round(canvas.x + x), y: Math.round(canvas.y + y + 5) };
+      });
+      await touch('touchStart', handle);
+      for (const fraction of [0.5, 0.8, 1]) {
+        await touch('touchMove', { x: handle.x + distance * fraction, y: handle.y });
+        await wait(45);
+      }
+      await touch('touchEnd');
+      await until(async () => {
+        const dragged = await readEditor(page);
+        return dragged?.start === previous.start && dragged.end !== previous.end;
+      }, 'Dragging the iOS selection handle changes the range');
+      await copy.waitFor({ timeout: 4_000 });
+    }
+    await cdp.detach();
+  } finally {
+    await page.close();
   }
 }
 
@@ -2236,8 +2325,10 @@ try {
   else if (windows) {
     await verifyBundle(page);
     await windowsSelection(page, runner.pid);
-  } else if (mobileWeb) await checkMobileWebClipboard(page, page.selectionTestUrl);
-  else await web(page, page.selectionTestUrl, chromePid);
+  } else if (mobileWeb) {
+    await checkMobileWebClipboard(page, page.selectionTestUrl);
+    await checkIOSWebSelection(browser, page.selectionTestUrl);
+  } else await web(page, page.selectionTestUrl, chromePid);
   assert.deepEqual(errors, []);
 } finally {
   try {

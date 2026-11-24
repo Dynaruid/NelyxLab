@@ -17,8 +17,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-cf7378c6b7bade18e859d3a64877b1e087b67e065e98c90f2242591158de7cc7.tgz",
-    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-3f6fa730db87ed3c0c69f7c6dc3c755d009d1f7e8c202517da524158b06f0926.tgz",
+    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-ce09f89547418a904fd6970cd6f76a39f426c3afb6fccfeaa93feab2643bed35.tgz",
+    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-0af3d14ba0548b536d9aacb916ac0deff21817d53943c3a719d46c9f585524a1.tgz",
     "@nelyx/material": "file:.nelyx/supply/nelyx-material-0.2.0-6d799546a6741b6a0d75e2d4709225fe2a7088531fe82a086f9a64f2f5ca4aee.tgz",
     "@nelyx/cupertino": "file:.nelyx/supply/nelyx-cupertino-0.2.0-594e8081988223b52bda7feaf58c6d5511cabe73aecb91ccf402edb34c221563.tgz",
     "@nelyx/skia-web": "file:.nelyx/supply/nelyx-skia-web-0.6.0-7d178604e99447ec44e6be4cee4c945abddbe1cbbdd2db7fc650cbabc8547ff2.tgz",
@@ -32,7 +32,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "2.12.6",
     "@nelyx/vite": "file:.nelyx/supply/nelyx-vite-0.1.0-9cd034525cc2b774db0d7e8982e653435636c2d8b5722bef13d91f523596b10b.tgz",
-    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-f055454be45936df65419640ca48625f5847708e682a401ff4826a2f4d1e8bbe.tgz",
+    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-466b56a847708c0c58fe3bddd32f82f70c58244a6e2d706f9cdf1d83c6afcbe3.tgz",
     "@nelyx/tooling-contracts": "file:.nelyx/supply/nelyx-tooling-contracts-0.1.0-7835531f1ba9ec3f40a312583718cc3fdb7a85cf152d30b8fff179a2c43c6b37.tgz",
     "vite": "8.3.8",
     "typescript": "7.0.2",
@@ -45,6 +45,7 @@
     "schema": "nelyx.app/v4",
     "name": "NelyxDemoApp",
     "appEntry": "./src/index.ts",
+    "crossOriginIsolated": true,
     "assets": [
       {
         "id": "sample-font",

@@ -143,7 +143,7 @@ export async function openVite(
     target = 'web',
     os = hostOs(),
     backend,
-    crossOriginIsolated = false,
+    crossOriginIsolated,
   },
   signal,
 ) {
@@ -169,7 +169,9 @@ export async function openVite(
       host,
       port,
       strictPort: true,
-      ...(crossOriginIsolated ? { headers: crossOriginIsolationHeaders } : {}),
+      ...((crossOriginIsolated ?? value.config.crossOriginIsolated)
+        ? { headers: crossOriginIsolationHeaders }
+        : {}),
       ...(advertisedHost ? { allowedHosts: [advertisedHost] } : {}),
     },
     plugins: [
@@ -288,10 +290,13 @@ export async function devWeb(options, signal) {
 }
 
 export async function runWeb(
-  { app, directory, port = 4173, host = '127.0.0.1', base = '/', crossOriginIsolated = false },
+  { app, directory, port = 4173, host = '127.0.0.1', base = '/', crossOriginIsolated },
   signal,
 ) {
   const value = readApp(app);
+  const headers = (crossOriginIsolated ?? value.config.crossOriginIsolated)
+    ? crossOriginIsolationHeaders
+    : {};
   directory = path.resolve(directory ?? webDirectory(value.app));
   let release = verifyFrontend(directory, value, 'web');
   let names = new Set(release.files.map(({ path }) => path));
@@ -326,7 +331,7 @@ export async function runWeb(
         bytes = Buffer.from(bytes.toString().replace('<!--nelyx-base-->', `<base href="${base}">`));
       res
         .writeHead(200, {
-          ...(crossOriginIsolated ? crossOriginIsolationHeaders : {}),
+          ...headers,
           'Content-Type': mediaType(file),
           'Content-Length': bytes.length,
           'Cache-Control': file.startsWith('chunks/')

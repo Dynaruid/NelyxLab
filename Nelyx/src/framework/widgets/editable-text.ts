@@ -1521,12 +1521,13 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         if (!at) return;
         this.stopSelectionDrag();
         this.hideToolbar(false);
-        const androidDoubleTap =
+        const platform = FoundationPlatform.defaultTargetPlatform;
+        const mobileDoubleTap =
           details.consecutiveTapCount === 2 &&
-          FoundationPlatform.defaultTargetPlatform === 'android' &&
+          (platform === 'android' || platform === 'iOS') &&
           (details.kind === PointerDeviceKind.touch || details.kind === PointerDeviceKind.stylus) &&
           this.selectionMenuAllowed;
-        if (androidDoubleTap) {
+        if (mobileDoubleTap) {
           if (this.selectAt(at, false, true, SelectionChangedCause.doubleTap)) this.showToolbar();
         } else {
           this.selectAt(at);
@@ -2599,9 +2600,12 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.queueSelectionOverlay();
   }
   private endHandleDrag(): void {
+    const drag = this.selectionDrag?.kind;
+    if (drag !== 'start-handle' && drag !== 'end-handle') return;
+    const platform = FoundationPlatform.defaultTargetPlatform;
     const restore =
       this.restoreToolbarAfterDrag ||
-      (FoundationPlatform.defaultTargetPlatform === 'android' && !this.selection().isCollapsed);
+      ((platform === 'android' || platform === 'iOS') && !this.selection().isCollapsed);
     this.stopSelectionDrag(true);
     if (restore) this.showToolbar();
   }

@@ -513,6 +513,8 @@ async function dev(value, target, options, signal) {
       target: 'tauri',
       backend: project,
       os: platform,
+      // The mobile asset protocol already adds these headers when it proxies Vite.
+      crossOriginIsolated: !isMobile && value.config.crossOriginIsolated,
     },
     devSignal,
   );

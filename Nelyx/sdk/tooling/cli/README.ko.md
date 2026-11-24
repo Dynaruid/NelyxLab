@@ -37,9 +37,13 @@ npx.cmd --no-install nelyx run --app . --target web --base /demo/
 
 웹의 기본 렌더링 모드는 `direct`입니다. 검증할 앱에서 URL에 `?renderMode=auto`를 붙이거나 SDK의 `ApplicationSurface` 옵션에 `renderMode: 'auto'`를 지정하면, 해당 화면의 전용 워커와 WebGL2를 먼저 검사합니다. 격리된 문서와 워커에서 공유 메모리 왕복 검사가 통과하면 공유 슬롯을 사용합니다. 그 외에 워커 WebGL2 검사가 통과하면 전송 버퍼를 사용합니다. 워커를 열 수 없으면 메인 스레드에서 렌더링합니다. `worker-transfer`와 `worker-shared`는 경로 비교에 사용할 수 있으며 실패 시 사용 가능한 경로로 복구합니다.
 
-`nelyx dev`와 `nelyx run`에 `--target web --cross-origin-isolated`를 추가하면 localhost에서 격리를 시험할 수 있습니다. 실제 격리 배포는 HTTPS에서 문서 응답에 `Cross-Origin-Opener-Policy: same-origin`과 `Cross-Origin-Embedder-Policy: require-corp`를 설정하고 워커 스크립트에도 호환되는 COEP를 보냅니다. 다른 출처의 자산에는 요청 방식에 맞는 CORS 또는 CORP가 필요합니다. iframe은 상위 문서와 권한 정책도 확인합니다. COOP `same-origin`은 다른 출처 팝업과의 `window.opener` 연결을 끊습니다. [출처 간 격리 배포](https://web.dev/articles/coop-coep)
+앱의 `package.json`에서 `nelyx.crossOriginIsolated`를 설정합니다. 기본값인 `true`는 웹 개발·미리보기 서버와 Tauri 앱에 `Cross-Origin-Opener-Policy: same-origin`과 `Cross-Origin-Embedder-Policy: require-corp` 응답 헤더를 추가합니다. 격리를 끄려면 `false`를 지정한 뒤 서버를 다시 시작하거나 Tauri 앱을 다시 빌드합니다. 웹에서 잠시 켜려면 `nelyx dev` 또는 `nelyx run`에 `--cross-origin-isolated`를 추가합니다. 실행 환경에 따라 격리된 문서에서도 공유 버퍼를 사용할 수 있는지 별도로 검사합니다.
+
+정적 웹 배포는 HTTPS 서버에서 문서와 워커 스크립트에 해당 헤더를 설정합니다. 다른 출처의 자산에는 요청 방식에 맞는 CORS 또는 CORP가 필요합니다. iframe은 상위 문서와 권한 정책도 확인합니다. COOP `same-origin`은 다른 출처 팝업과의 `window.opener` 연결을 끊습니다. [출처 간 격리 배포](https://web.dev/articles/coop-coep)
 
 CSP를 사용한다면 앱과 같은 출처의 렌더 워커와 CanvasKit 초기화에 쓰이는 검증한 blob 스크립트를 허용하는지 확인합니다. PWA는 캐시된 버전의 문서와 렌더 워커를 재검증해 동일한 릴리스의 정책 변경을 반영합니다. SDK의 `readWebApplicationDiagnostics()`와 앱의 `rendering`에서 경로, 격리 상태, 복구 사유와 프레임 지표를 확인할 수 있습니다.
+
+격리된 WebView에서 전역 `SharedArrayBuffer` 생성자가 숨겨진 경우 SDK는 공유 `WebAssembly.Memory`로 생성자를 얻어 같은 왕복 검사를 수행합니다. Demo의 iOS Tauri 앱은 격리된 환경에서 기본 렌더링 요청으로 `auto`를 사용하며, 앱의 렌더링 토글로 저장한 설정을 우선 적용합니다.
 
 ## Tauri 빌드와 실행
 

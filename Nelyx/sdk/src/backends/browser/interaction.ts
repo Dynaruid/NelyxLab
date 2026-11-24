@@ -401,7 +401,10 @@ export function createDomInteraction(
       element.style.setProperty('user-select', 'text');
       element.style.setProperty('-webkit-user-select', 'text');
       element.style.setProperty('-webkit-touch-callout', nativeCaretHitTest ? 'none' : 'default');
-      if (nativeCaretHitTest) element.style.touchAction = 'none';
+      if (nativeCaretHitTest) {
+        element.style.touchAction = 'none';
+        element.style.setProperty('-webkit-tap-highlight-color', 'transparent');
+      }
       if (!accessibilityEnabled) element.setAttribute('aria-hidden', 'true');
       else element.removeAttribute('aria-hidden');
       editor.value = freezeEditing(initial);
@@ -533,7 +536,7 @@ export function createDomInteraction(
           options?.onAction?.(current());
         }
       };
-      const listeners: readonly [string, EventListener][] = [
+      const listeners: [string, EventListener, AddEventListenerOptions?][] = [
         ['input', () => observe()],
         ['select', () => observe()],
         ['keydown', submit],
@@ -557,7 +560,12 @@ export function createDomInteraction(
           },
         ],
       ];
-      for (const [name, listener] of listeners) element.addEventListener(name, listener);
+      // Keep the control available to the keyboard's floating cursor and give
+      // direct touch selection to the canvas gesture recognizers.
+      if (nativeCaretHitTest)
+        listeners.push(['touchstart', (event) => event.preventDefault(), { passive: false }]);
+      for (const [name, listener, options] of listeners)
+        element.addEventListener(name, listener, options);
       // WebKit can report caret-only motion on the control or on its document.
       const observeSelection = () => observe();
       nativeSelectionObservers.set(element, observeSelection);
@@ -601,7 +609,8 @@ export function createDomInteraction(
           if (bounds) localBounds.set(next, bounds);
           cursor?.add(next);
         }
-        for (const [name, listener] of listeners) next.addEventListener(name, listener);
+        for (const [name, listener, options] of listeners)
+          next.addEventListener(name, listener, options);
         nativeSelectionObservers.set(next, observeSelection);
         return focused;
       }

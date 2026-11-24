@@ -65,6 +65,7 @@ export interface NelyxConfig {
   readonly displayName?: string;
   readonly appEntry: string;
   readonly assets: readonly AppAsset[];
+  readonly crossOriginIsolated?: boolean;
   readonly backend?: { readonly manifest: string };
   readonly targets: {
     readonly web?: { readonly pwa?: PwaConfig };
@@ -167,6 +168,8 @@ export function defineConfig(configuration: unknown): NelyxConfig {
   /* oxlint-enable no-control-regex */
   localPath(value.appEntry);
   const assets = defineAssets(value.assets === undefined ? [] : value.assets);
+  if (value.crossOriginIsolated !== undefined && typeof value.crossOriginIsolated !== 'boolean')
+    throw new Error('crossOriginIsolated must be a boolean');
   if (value.backend !== undefined) {
     if (!value.backend || Object.keys(value.backend).some((key) => key !== 'manifest'))
       throw new Error('backend requires a manifest path');
@@ -198,6 +201,7 @@ export function defineConfig(configuration: unknown): NelyxConfig {
     ...(displayName === undefined ? {} : { displayName }),
     appEntry,
     assets,
+    crossOriginIsolated: value.crossOriginIsolated ?? true,
     ...(value.backend ? { backend: Object.freeze({ manifest: value.backend.manifest }) } : {}),
     targets: Object.freeze({
       ...(targets.web

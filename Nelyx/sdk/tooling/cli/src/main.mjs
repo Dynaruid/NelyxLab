@@ -151,7 +151,7 @@ async function main() {
     device: values.device,
     noLaunch: values['no-launch'] === true,
     base: values.base,
-    crossOriginIsolated: values['cross-origin-isolated'] === true,
+    crossOriginIsolated: values['cross-origin-isolated'],
     port: values.port === undefined ? undefined : Number(values.port),
     host: values.host,
     directory: values.frontend ? path.resolve(values.frontend) : undefined,

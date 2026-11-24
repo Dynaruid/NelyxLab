@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
 import { Padding, Text } from '@nelyx/core/framework/widgets/basic';
 import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
@@ -78,10 +79,11 @@ class DeviceServicesScreenState extends State<DeviceServicesScreen> {
       child: new Text('Stop device updates'),
       onPressed: () => { void this.stop().then(() => this.result('Device updates stopped'), (error) => this.result(String(error))); },
     });
+    const { left, right, bottom } = MediaQuery.paddingOf(context);
     return new Scaffold({
       appBar: new AppBar({ title: new Text('Device services') }),
       body: new ListView({
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16 + left, 16, 16 + right, 16 + bottom),
         children: [
           new Semantics({ identifier: 'device-result', liveRegion: true, child: new Text(this.status) }),
           stop,

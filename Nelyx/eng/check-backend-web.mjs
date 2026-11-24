@@ -16,6 +16,8 @@ if (!child) {
   process.exit(0);
 }
 const app = path.resolve(args[0] ?? 'sample/nelyx-demo-app');
+const config = JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8')).nelyx;
+const isolated = config.crossOriginIsolated ?? true;
 const release = JSON.parse(fs.readFileSync(path.join(app, '.nelyx/web/build.json'), 'utf8'));
 const wasm = release.files.find(({ path }) => path === 'runtime/backend/backend_bg.wasm');
 assert(wasm);
@@ -227,6 +229,15 @@ try {
     try {
       const page = await context.newPage();
       await page.goto(server.url);
+      assert.equal(await page.evaluate(() => crossOriginIsolated), isolated);
+      if (release.rendererWorker) {
+        const worker = await context.request.head(new URL(release.rendererWorker, server.url).href);
+        assert.ok(worker.ok());
+        assert.equal(
+          worker.headers()['cross-origin-embedder-policy'],
+          isolated ? 'require-corp' : undefined,
+        );
+      }
       const open = async () => {
         await page.waitForFunction(
           () =>
