@@ -1224,6 +1224,38 @@ async function emulator(page) {
     await menu(page, 'Copy').waitFor();
     await wait(220);
     const cupertinoRtlPixels = await checkRangeHandlePixels(page, dpr, 'w6-cupertino');
+    const rtlWord = await readEditor(page);
+    assert.equal(rtlWord?.text.slice(rtlWord.start, rtlWord.end), 'שלום');
+    const rtlBounds = await page.evaluate(() => {
+      const { selectionBoxes } = window.readSelectionEditorGeometry('w6-cupertino');
+      const [topLeft, bottomRight] = selectionBoxes.at(-1);
+      const canvas = document.querySelector('canvas').getBoundingClientRect();
+      return {
+        left: canvas.x + topLeft.x,
+        width: bottomRight.x - topLeft.x,
+        y: canvas.y + (topLeft.y + bottomRight.y) / 2,
+      };
+    });
+    await touch('touchStart', await point(cupertino, 20));
+    await until(async () => {
+      const editor = await readEditor(page);
+      return editor?.start === 0 && editor.end > 0 && editor.end < rtlWord.start;
+    }, 'Cupertino hold must first select an LTR word');
+    for (const fraction of [0.25, 0.75]) {
+      await touch('touchMove', { x: rtlBounds.left + rtlBounds.width * fraction, y: rtlBounds.y });
+      await page.evaluate(
+        () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
+      );
+      const editor = await readEditor(page);
+      assert.deepEqual(
+        [editor?.start, editor?.end],
+        [0, rtlWord.end],
+        'Hold drag must include the entire RTL word',
+      );
+    }
+    await touch('touchEnd');
+    await menu(page, 'Copy').waitFor();
+    assert.equal((await readEditor(page))?.end, rtlWord.end);
     console.log(
       JSON.stringify({
         host: 'Android Tauri',
@@ -1244,6 +1276,7 @@ async function emulator(page) {
           recovered: cupertinoRecoveredPixels,
           rtl: cupertinoRtlPixels,
         },
+        cupertinoBidirectionalHold: 'PASS',
         osClipboard: 'PASS',
         gpuRecovery: 'PASS',
       }),

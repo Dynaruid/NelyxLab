@@ -182,7 +182,7 @@ class CupertinoTextMagnifierState extends SingleTickerProviderStateMixin<Cuperti
     super.didUpdateWidget(old);
   }
   private readonly determinePosition = () => {
-    if (!this.mounted) return;
+    if (!this.mounted || this.widget.controller.isClosing) return;
     const info = this.widget.magnifierInfo.value,
       center = info.caretRect.center.dy;
     if (center - info.globalGesturePosition.dy < -this.widget.hideBelowThreshold) {

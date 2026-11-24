@@ -23,6 +23,7 @@
     "build:skia": "node Nelyx/skia/eng/prepare-web-runtime.mjs --check && npm run build --workspace @nelyx/skia-web",
     "build:web": "node Nelyx/eng/build-sample.mjs web",
     "build:tauri": "node Nelyx/eng/build-sample.mjs tauri",
+    "deploy": "node helpers/deploy-helper/deploy.mjs",
     "prepare:sample": "node Nelyx/eng/prepare-sample.mjs",
     "pack:sdk": "node Nelyx/eng/prepare-sample.mjs --packages",
     "build:designs": "npm run build --workspace @nelyx/cupertino && npm run build --workspace @nelyx/material && npm run build --workspace @nelyx/tooling-contracts",

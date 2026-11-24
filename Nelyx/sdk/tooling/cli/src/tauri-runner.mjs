@@ -34,6 +34,7 @@ import {
 } from './publication.mjs';
 import {
   androidDevDevice,
+  androidDeviceArchitecture,
   androidTools,
   inspectPlatform,
   inspectRust,
@@ -433,19 +434,21 @@ async function run(value, target, options, signal) {
     if (!packageName) throw new Error('APK application identifier is missing');
     const adb = (args) => execute(tools.adb, ['-s', device, ...args], { signal, timeout });
     await adb(['install', '-r', apk]);
-    await adb([
-      'shell',
-      'monkey',
-      '-p',
-      packageName,
-      '-c',
-      'android.intent.category.LAUNCHER',
-      '1',
-    ]);
+    if (!options.noLaunch)
+      await adb([
+        'shell',
+        'monkey',
+        '-p',
+        packageName,
+        '-c',
+        'android.intent.category.LAUNCHER',
+        '1',
+      ]);
   } else if (architecture.endsWith('-sim')) {
     device ??= 'booted';
     await execute('xcrun', ['simctl', 'install', device, artifact('app')], { signal, timeout });
-    await execute('xcrun', ['simctl', 'launch', device, result.identifier], { signal, timeout });
+    if (!options.noLaunch)
+      await execute('xcrun', ['simctl', 'launch', device, result.identifier], { signal, timeout });
   } else {
     if (!device) throw new Error('Choose an iOS device with --device <identifier>');
     const parent = ensureDirectory(path.join(app, '.nelyx'));
@@ -455,11 +458,12 @@ async function run(value, target, options, signal) {
         ['devicectl', 'device', 'install', 'app', '--device', device, bundle],
         { signal, timeout },
       );
-      await execute(
-        'xcrun',
-        ['devicectl', 'device', 'process', 'launch', '--device', device, result.identifier],
-        { signal, timeout },
-      );
+      if (!options.noLaunch)
+        await execute(
+          'xcrun',
+          ['devicectl', 'device', 'process', 'launch', '--device', device, result.identifier],
+          { signal, timeout },
+        );
     });
   }
   return {
@@ -656,13 +660,7 @@ export async function tauriOperation(operation, options, signal) {
   if (platform === 'android' && ['dev', 'run'].includes(operation)) {
     const { adb } = androidTools();
     const device = selectAndroidDevice(adb, options.device);
-    const abi = capture(adb, ['-s', device, 'shell', 'getprop', 'ro.product.cpu.abi']).trim();
-    const deviceArch = { x86_64: 'x64', 'arm64-v8a': 'arm64' }[abi];
-    if (!deviceArch || (architecture && architecture !== deviceArch))
-      throw new Error(
-        'Device ' + device + ' reports ' + abi + '; choose ' + (deviceArch ?? 'a 64-bit device'),
-      );
-    architecture = deviceArch;
+    architecture = androidDeviceArchitecture(adb, device, architecture);
     options = { ...options, device };
   }
   const target = platformTarget(platform, architecture);

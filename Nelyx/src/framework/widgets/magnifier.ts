@@ -367,7 +367,7 @@ export class TextMagnifierConfiguration {
 export class MagnifierController {
   animationController: AnimationController | null;
   private entry: OverlayEntry | null = null;
-  private operation = 0;
+  private pendingRemoval: object | null = null;
   constructor({
     animationController = null,
   }: { readonly animationController?: AnimationController | null } = {}) {
@@ -379,6 +379,10 @@ export class MagnifierController {
   }
   get shown(): boolean {
     return this.entry !== null && (this.animationController?.isForwardOrCompleted ?? true);
+  }
+  /** Whether the overlay will be removed after its exit animation. */
+  get isClosing(): boolean {
+    return this.pendingRemoval !== null;
   }
   async show({
     context,
@@ -416,21 +420,21 @@ export class MagnifierController {
   async hide({
     removeFromOverlay = true,
   }: { readonly removeFromOverlay?: boolean } = {}): Promise<void> {
-    const entry = this.entry;
-    if (entry === null) return;
-    const operation = this.operation;
-    if (this.animationController !== null)
-      try {
-        await this.animationController.reverse().orCancel;
-      } catch (error) {
-        if (error instanceof TickerCanceled) return;
+    if (this.entry === null || (!removeFromOverlay && this.isClosing)) return;
+    const removal = removeFromOverlay ? {} : null;
+    this.pendingRemoval = removal;
+    try {
+      if (this.animationController !== null) await this.animationController.reverse().orCancel;
+    } catch (error) {
+      if (!(error instanceof TickerCanceled)) {
+        if (this.pendingRemoval === removal) this.pendingRemoval = null;
         throw error;
       }
-    if (removeFromOverlay && operation === this.operation && this.entry === entry)
-      this.removeFromOverlay();
+    }
+    if (removal !== null && this.pendingRemoval === removal) this.removeFromOverlay();
   }
   removeFromOverlay(): void {
-    this.operation++;
+    this.pendingRemoval = null;
     const entry = this.entry;
     this.entry = null;
     if (entry !== null) this.releaseEntry(entry);

@@ -81,6 +81,12 @@ export function inspectRust(app, target) {
   return { rustc, cargo, target };
 }
 
+export function androidAdb() {
+  const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT;
+  const exe = process.platform === 'win32' ? '.exe' : '';
+  return sdk ? path.join(sdk, 'platform-tools', 'adb' + exe) : 'adb';
+}
+
 export function androidTools() {
   const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT;
   const ndk = process.env.NDK_HOME ?? process.env.ANDROID_NDK_HOME;
@@ -89,7 +95,7 @@ export function androidTools() {
   const java = process.env.JAVA_HOME;
   if (!java) throw new Error('Set JAVA_HOME to a JDK supported by the generated project');
   const exe = process.platform === 'win32' ? '.exe' : '';
-  const adb = path.join(sdk, 'platform-tools', 'adb' + exe);
+  const adb = androidAdb();
   const javaVersion = capture(path.join(java, 'bin', 'java' + exe), ['--version'], {
     timeout: 5000,
   });
@@ -108,11 +114,22 @@ export function inspectPlatform(target) {
   return { xcode: capture('xcodebuild', ['-version']).trim() };
 }
 
-function androidDevices(adb) {
+export function listAndroidDevices(adb) {
   return capture(adb, ['devices', '-l'])
     .split(/\r?\n/)
-    .map((line) => /^(\S+)\s+device(?:\s|$)/.exec(line)?.[1])
-    .filter(Boolean);
+    .flatMap((line) => {
+      const match = /^(\S+)\s+(device|offline|unauthorized|no permissions)(?:\s|$)/.exec(line);
+      if (!match) return [];
+      const [, serial, state] = match;
+      const name = /\bmodel:(\S+)/.exec(line)?.[1].replaceAll('_', ' ') ?? serial;
+      return [{ serial, name, state }];
+    });
+}
+
+function androidDevices(adb) {
+  return listAndroidDevices(adb)
+    .filter(({ state }) => state === 'device')
+    .map(({ serial }) => serial);
 }
 
 export function selectAndroidDevice(adb, requested) {
@@ -122,6 +139,14 @@ export function selectAndroidDevice(adb, requested) {
   throw new Error(
     `Choose an online adb device with --device <serial>. Found: ${devices.join(', ') || 'none'}`,
   );
+}
+
+export function androidDeviceArchitecture(adb, device, requested) {
+  const abi = capture(adb, ['-s', device, 'shell', 'getprop', 'ro.product.cpu.abi']).trim();
+  const architecture = { x86_64: 'x64', 'arm64-v8a': 'arm64' }[abi];
+  if (!architecture || (requested && requested !== architecture))
+    throw new Error(`Device ${device} reports ${abi}; choose ${architecture ?? 'a 64-bit device'}`);
+  return architecture;
 }
 
 export function androidDevDevice(adb, serial) {

@@ -2397,12 +2397,21 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     const local = this.dragPosition(render, global);
     if (!local) return;
     const at = render.getPositionForOffset(local);
+    let extentOffset = at.offset;
+    if (
+      FoundationPlatform.defaultTargetPlatform === 'android' &&
+      !this.boundConfiguration.obscureText &&
+      at.offset < render.plainText.length
+    ) {
+      const word = render.getWordBoundary(at);
+      extentOffset = word.end <= initial.start ? word.start : word.end;
+    }
     const selection =
-      at.offset >= initial.start && at.offset <= initial.end && !initial.isCollapsed
+      extentOffset >= initial.start && extentOffset <= initial.end && !initial.isCollapsed
         ? initial
         : new SourceSelection({
-            baseOffset: at.offset < initial.start ? initial.end : initial.start,
-            extentOffset: at.offset,
+            baseOffset: extentOffset < initial.start ? initial.end : initial.start,
+            extentOffset,
             affinity: at.affinity,
           });
     const value = this.textEditingValue;

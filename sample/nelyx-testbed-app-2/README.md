@@ -21,6 +21,8 @@ npm.cmd run dev:web
 
 ## Web and Tauri
 
+From the repository root, use `npm run deploy -- --app Testbed` to build and run this sample. [Deployment helper](../../helpers/deploy-helper/README.md)
+
 Run the commands for the delivery target from the app root.
 
 ```powershell

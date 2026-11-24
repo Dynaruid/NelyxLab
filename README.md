@@ -27,6 +27,10 @@ npm.cmd run run:web -- --base /demo/
 npm.cmd run run:tauri -- --platform windows
 ```
 
+### Sample deployment helper
+
+Run `npm.cmd run deploy` to choose Demo or Testbed and deploy to Web, Windows, Android, or iOS. Use `npm run deploy` on macOS and Linux. [Deployment options and prerequisites](helpers/deploy-helper/README.md)
+
 ### Run Demo on Android
 
 Install the Android prerequisites. Use `--architecture x64` for an x86_64 emulator and `arm64` for an ARM64 phone. Pass the ADB serial to `run:tauri`. [Demo Android setup](sample/nelyx-demo-app/README.md#run-on-android)

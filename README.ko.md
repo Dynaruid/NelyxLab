@@ -27,6 +27,10 @@ npm.cmd run run:web -- --base /demo/
 npm.cmd run run:tauri -- --platform windows
 ```
 
+### 샘플 배포 헬퍼
+
+`npm.cmd run deploy`에서 Demo 또는 Testbed를 골라 Web, Windows, Android, iOS에 배포할 수 있습니다. macOS와 Linux에서는 `npm run deploy`를 사용합니다. [배포 옵션과 준비 절차](helpers/deploy-helper/README.ko.md)
+
 ### Android에서 Demo 실행
 
 Android 도구를 준비한 뒤 x86_64 에뮬레이터에는 `--architecture x64`, ARM64 휴대폰에는 `arm64`를 사용합니다. `run:tauri`에 ADB 시리얼을 전달합니다. [Demo Android 준비 및 연결](sample/nelyx-demo-app/README.ko.md#android에서-실행)

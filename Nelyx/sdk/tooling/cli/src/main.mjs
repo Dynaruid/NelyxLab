@@ -18,7 +18,8 @@ const usage = [
   '       nelyx build --app <app> --target tauri --frontend-only',
   '       nelyx pack --app <app> --target tauri --platform <os> --frontend <directory>',
   '       nelyx prepare --app <app> --target <target> [--platform <os>] [--update-lock]',
-  '       nelyx run --app <app> --target web --base /demo/ --port 4173',
+  '       nelyx run --app <app> --target web --base /demo/ --port 0',
+  '       nelyx run --app <app> --target tauri --platform android|ios [--no-launch]',
 ].join('\n');
 const web = {
   doctor: doctorWeb,
@@ -27,7 +28,7 @@ const web = {
   build: buildWebApplication,
   run: runWeb,
 };
-const switches = new Set(['frontend-only', 'update-lock', 'static', 'no-backend']);
+const switches = new Set(['frontend-only', 'update-lock', 'static', 'no-backend', 'no-launch']);
 
 function parse(args) {
   const command = args.shift();
@@ -112,6 +113,7 @@ async function main() {
   if (command === 'run' && target === 'web') allowed.push('base');
   if (['dev', 'run'].includes(command) && ['android', 'ios'].includes(platform))
     allowed.push('device');
+  if (command === 'run' && ['android', 'ios'].includes(platform)) allowed.push('no-launch');
   if (['build', 'pack'].includes(command) && platform === 'ios') allowed.push('export-method');
   checkFlags(values, allowed);
   if (
@@ -119,11 +121,13 @@ async function main() {
     (command !== 'run' || !['windows', 'linux', 'macos'].includes(platform))
   )
     throw new Error('Executable arguments require a desktop Tauri run command');
+  const minimumPort = command === 'run' && target === 'web' ? 0 : 1;
   if (
     values.port !== undefined &&
-    (!/^\d+$/.test(values.port) || Number(values.port) < 1 || Number(values.port) > 65535)
-  )
-    throw new Error('--port requires an integer from 1 to 65535');
+    (!/^\d+$/.test(values.port) || Number(values.port) < minimumPort || Number(values.port) > 65535)
+  ) {
+    throw new Error(`--port requires an integer from ${minimumPort} to 65535`);
+  }
   if (
     values['export-method'] &&
     !['debugging', 'app-store-connect', 'release-testing'].includes(values['export-method'])
@@ -136,6 +140,7 @@ async function main() {
     updateLock: values['update-lock'] === true,
     architecture: values.architecture,
     device: values.device,
+    noLaunch: values['no-launch'] === true,
     base: values.base,
     port: values.port === undefined ? undefined : Number(values.port),
     host: values.host,

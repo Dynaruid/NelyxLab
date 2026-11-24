@@ -21,6 +21,8 @@ npm.cmd run dev:web
 
 ## 웹과 Tauri
 
+저장소 루트에서는 `npm.cmd run deploy -- --app Testbed`로 이 샘플을 빌드하고 실행합니다. [배포 헬퍼](../../helpers/deploy-helper/README.ko.md)
+
 앱 루트에서 배포할 타깃의 명령을 실행합니다.
 
 ```powershell

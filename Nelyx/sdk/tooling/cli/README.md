@@ -29,6 +29,8 @@ npx.cmd --no-install nelyx build --app . --target web
 npx.cmd --no-install nelyx run --app . --target web --base /demo/
 ```
 
+Pass `--port 0` to `run` to have the preview server bind a free port.
+
 Deploy the full `.nelyx/web/` directory. Set the Wasm MIME type to `application/wasm`. For application route fallback use the deployment directory as the HTML base, and return 404 for missing assets. A `targets.web.pwa` declaration adds the manifest and service worker. The worker verifies all cached files, including the app backend Wasm. Refresh fixed-name assets and `sw.js` through cache revalidation.
 
 ## Build and run Tauri
@@ -43,5 +45,7 @@ npx.cmd --no-install nelyx run --app . --target tauri --platform windows
 Use `dev --target tauri --platform windows` for a WebView attached to Vite. For CI, use `build --target tauri --frontend-only` to publish `.nelyx/tauri/frontend/` and `pack --target tauri --platform <os> --frontend <directory>` from the same app source and SDK supply. The CLI generates `.nelyx/tauri/host/`, restores Cargo.lock, invokes the app's installed Tauri CLI and publishes packages under `.nelyx/tauri/<os>-<architecture>/`. The package metadata records the embedded frontend build ID and Rust target.
 
 Set the identifier, window sizes and app capabilities in `targets.tauri`. A window can declare `clipboard: { read: true, write: true }`, `safeArea: true` and `windowTitle`. Place custom icons in `platform/icons/`. Place Android and Apple overrides relative to the generated project in `platform/android/project/` and `platform/ios/project/`. Optional `platform/<os>/tauri.conf.json` files accept bundle settings and CSP. Keep signing keys in the platform toolchain or build environment.
+
+For Android and iOS, `run --no-launch` installs the published app and exits.
 
 Use `--architecture x64` for an Android x86_64 emulator and `arm64` for a physical ARM64 device. For `dev` and `run`, pass the ADB serial in `--device`. Android dev also uses the unique AVD or phone name to select a device. For iOS use `arm64-sim` or `x64-sim` on a simulator. Physical iOS dev requires a reachable `--host` over trusted HTTPS and the device name. Physical run takes the device identifier. [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
