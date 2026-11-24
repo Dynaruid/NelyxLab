@@ -2,6 +2,15 @@
 use nelyx_backend_core::{clipboard_policy, Identity, Registry};
 pub use wasm_bindgen;
 
+#[cfg(target_arch = "wasm32")]
+mod devices;
+#[cfg(target_arch = "wasm32")]
+#[doc(hidden)]
+pub use devices::{geolocation, vibrate, BrowserDevices, ClipboardPermissionObserver};
+#[cfg(target_arch = "wasm32")]
+#[doc(hidden)]
+pub use {js_sys, web_sys};
+
 pub fn describe(identity: Identity) -> String {
     serde_json::to_string(&identity.describe("browser")).expect("serializable backend identity")
 }
@@ -50,6 +59,82 @@ macro_rules! export_backend {
         #[wasm_bindgen]
         pub fn clipboard_policy(input: &str) -> Result<String, $crate::wasm_bindgen::JsValue> {
             $crate::policy(input)
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        #[wasm_bindgen]
+        pub fn bind_browser_devices(view: $crate::web_sys::Window) -> $crate::BrowserDevices {
+            $crate::BrowserDevices::new(view)
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        #[wasm_bindgen]
+        pub fn clipboard_permission_state(status: &$crate::web_sys::PermissionStatus) -> String {
+            $crate::BrowserDevices::permission_state(status).into()
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        #[wasm_bindgen]
+        pub fn observe_clipboard_permission(
+            status: $crate::web_sys::PermissionStatus,
+            changed: $crate::js_sys::Function,
+        ) -> Result<$crate::ClipboardPermissionObserver, $crate::wasm_bindgen::JsValue> {
+            $crate::ClipboardPermissionObserver::new(status, changed)
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        #[wasm_bindgen]
+        pub fn vibrate_browser(
+            view: &$crate::web_sys::Window,
+            duration: u32,
+        ) -> Result<bool, $crate::wasm_bindgen::JsValue> {
+            $crate::vibrate(view, duration)
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        #[wasm_bindgen]
+        pub fn browser_geolocation_available(view: &$crate::web_sys::Window) -> bool {
+            $crate::geolocation(view).is_ok()
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        #[wasm_bindgen]
+        pub fn browser_geolocation_current(
+            view: &$crate::web_sys::Window,
+            success: &$crate::js_sys::Function,
+            failure: &$crate::js_sys::Function,
+            options: &$crate::web_sys::PositionOptions,
+        ) -> Result<(), $crate::wasm_bindgen::JsValue> {
+            $crate::geolocation(view)?.get_current_position_with_error_callback_and_options(
+                success,
+                Some(failure),
+                options,
+            )
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        #[wasm_bindgen]
+        pub fn browser_geolocation_watch(
+            view: &$crate::web_sys::Window,
+            success: &$crate::js_sys::Function,
+            failure: &$crate::js_sys::Function,
+            options: &$crate::web_sys::PositionOptions,
+        ) -> Result<i32, $crate::wasm_bindgen::JsValue> {
+            $crate::geolocation(view)?.watch_position_with_error_callback_and_options(
+                success,
+                Some(failure),
+                options,
+            )
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        #[wasm_bindgen]
+        pub fn browser_geolocation_clear(
+            view: &$crate::web_sys::Window,
+            id: i32,
+        ) -> Result<(), $crate::wasm_bindgen::JsValue> {
+            $crate::geolocation(view)?.clear_watch(id);
+            Ok(())
         }
     };
 }

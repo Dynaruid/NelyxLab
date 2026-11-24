@@ -1,4 +1,6 @@
 import type { AssetRef } from '@nelyx/core/foundation/assets';
+import { deviceFeatures } from '../devices.ts';
+import type { DeviceFeature } from '../devices.ts';
 
 export interface AppAssetNotice {
   readonly path: string;
@@ -40,6 +42,9 @@ export interface TauriWindowConfig {
   readonly height?: number;
   readonly useHttpsScheme?: boolean;
   readonly clipboard?: { readonly read: boolean; readonly write: boolean };
+  readonly haptics?: boolean;
+  readonly androidBack?: boolean;
+  readonly deviceServices?: readonly DeviceFeature[];
   readonly safeArea?: boolean;
   readonly windowTitle?: boolean;
   readonly commands?: readonly string[];
@@ -48,6 +53,11 @@ export interface TauriTargetConfig {
   readonly identifier: string;
   readonly productName?: string;
   readonly windows?: readonly TauriWindowConfig[];
+  readonly deviceUsage?: Readonly<Partial<Record<'location' | 'camera' | 'nfc' | 'biometrics', string>>>;
+  readonly deepLinks?: {
+    readonly schemes: readonly string[];
+    readonly domains?: readonly { readonly host: string; readonly pathPrefix?: string }[];
+  };
 }
 export interface NelyxConfig {
   readonly schema: 'nelyx.app/v4';
@@ -250,12 +260,44 @@ function definePwa(pwa: PwaConfig): PwaConfig {
   });
 }
 
+export function validDeviceFeatures(value: unknown): value is readonly DeviceFeature[] {
+  return Array.isArray(value) && new Set(value).size === value.length &&
+    value.every((name: unknown) => deviceFeatures.includes(name as DeviceFeature));
+}
+
+function defineDeepLinks(value: NonNullable<TauriTargetConfig['deepLinks']>) {
+  if (
+    !value ||
+    Object.keys(value).some((key) => !['schemes', 'domains'].includes(key)) ||
+    !Array.isArray(value.schemes) ||
+    !value.schemes.length ||
+    new Set(value.schemes).size !== value.schemes.length ||
+    value.schemes.some((scheme) =>
+      typeof scheme !== 'string' || !/^[a-z][a-z0-9+.-]{1,63}$/.test(scheme) ||
+      ['http', 'https', 'file', 'javascript', 'data', 'about', 'tauri', 'asset', 'ipc'].includes(scheme),
+    ) ||
+    (value.domains !== undefined &&
+      (!Array.isArray(value.domains) || value.domains.some((entry) =>
+        !entry || typeof entry.host !== 'string' ||
+        !/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(entry.host) ||
+        Object.keys(entry).some((key) => !['host', 'pathPrefix'].includes(key)) ||
+        (entry.pathPrefix !== undefined &&
+          (typeof entry.pathPrefix !== 'string' || !/^\/[^?#\s"<>&]*$/.test(entry.pathPrefix))),
+      )))
+  )
+    throw new Error('Invalid targets.tauri.deepLinks schemes or domains');
+  return Object.freeze({
+    schemes: Object.freeze([...value.schemes]),
+    ...(value.domains ? { domains: Object.freeze(value.domains.map((domain) => Object.freeze({ ...domain }))) } : {}),
+  });
+}
+
 function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
   if (
     !tauri ||
     typeof tauri !== 'object' ||
     Array.isArray(tauri) ||
-    Object.keys(tauri).some((key) => !['identifier', 'productName', 'windows'].includes(key)) ||
+    Object.keys(tauri).some((key) => !['identifier', 'productName', 'windows', 'deviceUsage', 'deepLinks'].includes(key)) ||
     typeof tauri.identifier !== 'string' ||
     !/^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+$/.test(tauri.identifier)
   )
@@ -267,7 +309,20 @@ function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
       /[<>:"/\\|?*]/.test(tauri.productName))
   )
     throw new Error('Invalid targets.tauri.productName');
-  if (tauri.windows === undefined) return Object.freeze({ ...tauri });
+  const usage = tauri.deviceUsage;
+  if (usage !== undefined && (!usage || typeof usage !== 'object' || Array.isArray(usage) ||
+      Object.entries(usage).some(([key, text]) =>
+        !['location', 'camera', 'nfc', 'biometrics'].includes(key) ||
+        typeof text !== 'string' || !text.trim() || /[\0\u0001-\u0008\u000B\u000C\u000E-\u001F]/.test(text),
+      )))
+    throw new Error('Invalid targets.tauri.deviceUsage purpose text');
+  const links = tauri.deepLinks === undefined ? undefined : defineDeepLinks(tauri.deepLinks);
+  const base = {
+    ...tauri,
+    ...(usage ? { deviceUsage: Object.freeze({ ...usage }) } : {}),
+    ...(links ? { deepLinks: links } : {}),
+  };
+  if (tauri.windows === undefined) return Object.freeze(base);
   if (!Array.isArray(tauri.windows) || !tauri.windows.length)
     throw new Error('targets.tauri.windows requires at least one window');
   const labels = new Set<string>();
@@ -286,6 +341,9 @@ function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
             'height',
             'useHttpsScheme',
             'clipboard',
+            'haptics',
+            'androidBack',
+            'deviceServices',
             'safeArea',
             'windowTitle',
             'commands',
@@ -295,9 +353,16 @@ function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
       [window.width, window.height].some(
         (size) => size !== undefined && (!Number.isFinite(size) || size <= 0),
       ) ||
-      [window.useHttpsScheme, window.safeArea, window.windowTitle].some(
-        (setting) => setting !== undefined && typeof setting !== 'boolean',
-      ) ||
+      [
+        window.useHttpsScheme,
+        window.safeArea,
+        window.windowTitle,
+        window.haptics,
+        window.androidBack,
+      ].some((setting) => setting !== undefined && typeof setting !== 'boolean') ||
+      (window.deviceServices !== undefined &&
+        (!validDeviceFeatures(window.deviceServices) ||
+          (window.deviceServices.includes('deepLinks') && !links))) ||
       (window.clipboard !== undefined &&
         (!window.clipboard ||
           typeof window.clipboard.read !== 'boolean' ||
@@ -316,7 +381,8 @@ function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
       ...window,
       ...(window.clipboard ? { clipboard: Object.freeze({ ...window.clipboard }) } : {}),
       ...(window.commands ? { commands: Object.freeze([...window.commands]) } : {}),
+      ...(window.deviceServices ? { deviceServices: Object.freeze([...window.deviceServices]) } : {}),
     });
   });
-  return Object.freeze({ ...tauri, windows: Object.freeze(windows) });
+  return Object.freeze({ ...base, windows: Object.freeze(windows) });
 }

@@ -44,7 +44,23 @@ npx.cmd --no-install nelyx run --app . --target tauri --platform windows
 
 `dev --target tauri --platform windows`는 Vite에 연결한 WebView를 엽니다. CI에서는 `build --target tauri --frontend-only`로 `.nelyx/tauri/frontend/`를 게시한 뒤, 같은 앱 소스와 SDK 공급본으로 `pack --target tauri --platform <os> --frontend <directory>`를 실행합니다. CLI가 `.nelyx/tauri/host/`를 생성하고 Cargo.lock을 복원해 앱에 설치한 Tauri CLI를 실행합니다. 패키지는 `.nelyx/tauri/<os>-<architecture>/`에 게시하며 내장한 프런트엔드 빌드 ID와 Rust 타깃을 기록합니다.
 
-앱 식별자, 창 크기와 권한은 `targets.tauri`에 선언합니다. 창 별로 `clipboard: { read: true, write: true }`, `safeArea: true`와 `windowTitle`을 설정할 수 있습니다. 앱 아이콘은 `platform/icons/`에 둡니다. Android와 Apple의 사용자 파일은 생성 프로젝트 기준 상대 경로로 각각 `platform/android/project/`와 `platform/ios/project/`에 둡니다. 선택적인 `platform/<os>/tauri.conf.json`은 번들 설정과 CSP를 받습니다. 서명 키는 플랫폼 도구나 빌드 환경에서 제공합니다.
+앱 식별자, 창 크기와 권한은 `targets.tauri`에 선언합니다. 아래 항목을 `targets.tauri.windows`에 추가하면 `main` WebView에서 텍스트 클립보드, Android 화면 여백, 모바일 햅틱, Android 시스템 뒤로 가기를 사용할 수 있습니다.
+
+```json
+{
+  "label": "main",
+  "clipboard": { "read": true, "write": true },
+  "safeArea": true,
+  "haptics": true,
+  "androidBack": true
+}
+```
+
+`clipboard`를 생략하면 WebView 클립보드를 사용합니다. 읽기·쓰기에 명시한 `false`는 해당 작업을 끕니다. `haptics`를 생략하면 WebView 진동을 사용하고 `false`는 햅틱을 끕니다. `haptics: true`이면 Android·iOS에서 네이티브 플러그인을 사용하고 데스크톱 호출은 조용히 완료됩니다. Android는 뒤로 가기를 요청한 프레임워크 소유자가 있는 동안 시스템 리스너를 등록합니다. 생성한 권한은 지정된 WebView 라벨에만 적용됩니다. 플러그인을 도입할 때 `prepare --target tauri --platform <os> --update-lock`을 실행합니다.
+
+`targets.tauri.windows[]`의 `deviceServices`에 `["location", "files", "store"]`처럼 기능을 지정합니다. CLI가 해당 WebView에 필요한 플러그인과 권한을 생성합니다. iOS용 `location`, `camera`·`barcode`, `nfc`, `biometrics`를 사용하면 `targets.tauri.deviceUsage`에 앱의 사용 목적을 작성합니다. 바코드는 `camera` 문구를 사용합니다. 링크를 수신하려면 창의 `deviceServices`에 `deepLinks`를 넣고 `targets.tauri.deepLinks.schemes`를 설정합니다. 선택적 `domains`는 `host`와 `pathPrefix`를 받습니다. HTTPS 연결에는 플랫폼 연결 파일과 서명 설정도 필요합니다. [Tauri 딥링크](https://v2.tauri.app/plugin/deep-linking/)
+
+앱 아이콘은 `platform/icons/`에 둡니다. Android와 Apple의 사용자 파일은 생성 프로젝트 기준 상대 경로로 각각 `platform/android/project/`와 `platform/ios/project/`에 둡니다. 선택적인 `platform/<os>/tauri.conf.json`은 번들 설정과 CSP를 받습니다. 서명 키는 플랫폼 도구나 빌드 환경에서 제공합니다.
 
 Android와 iOS에서 `run --no-launch`는 게시한 앱을 설치한 뒤 종료합니다.
 

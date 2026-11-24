@@ -31,6 +31,7 @@ function report(exception: unknown): void {
 }
 /** One plugin registry per application. Close waits admitted OS operations and replies. */
 export class PluginPlatformMessagePort implements PlatformMessagePort {
+  readonly androidBack: boolean;
   private readonly plugins = new Map<string, PlatformPluginHandler>();
   private readonly pending = new Set<Promise<void>>();
   private readonly listening = new Set<string>();
@@ -44,6 +45,9 @@ export class PluginPlatformMessagePort implements PlatformMessagePort {
   private attached = false;
   private gated = false;
   private closing: Promise<void> | undefined;
+  constructor(options: { readonly androidBack?: boolean } = {}) {
+    this.androidBack = options.androidBack ?? false;
+  }
   register(channel: string, handler: PlatformPluginHandler): this {
     if (
       this.attached ||

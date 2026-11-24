@@ -17,22 +17,23 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-17d12013e5f7a684211c17914251467eb795f591dc3a8b121a3a745e5b59f05f.tgz",
-    "@nelyx/cupertino": "file:.nelyx/supply/nelyx-cupertino-0.2.0-8a2ee993e386258acb331493f119438b61842cb68acf5e0a6b40468d650ed62f.tgz",
-    "@nelyx/material": "file:.nelyx/supply/nelyx-material-0.2.0-882f51baa98644a68e60305dd0a1989956816462b7f2bcc12133f8b5d8b7e4d6.tgz",
-    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-1516e25c080e4dc691b5897b7d84849ca27b2ddad6e4b9c03aaf3f264d6354b3.tgz",
+    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-a7ad670ff6ac686f7cd5faaf18c8cf7583cc2ac1bb27fcaa9733457afc20cce1.tgz",
+    "@nelyx/cupertino": "file:.nelyx/supply/nelyx-cupertino-0.2.0-eb19c480da6f885ab5bbfadfc7612c4289f0732448aa2f37432c2c885e9857d9.tgz",
+    "@nelyx/material": "file:.nelyx/supply/nelyx-material-0.2.0-2764c4ecb6445d6e4cd36f783682e94fb60a036704911a4b64509cdbd72c38a7.tgz",
+    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-2d76b00fe1fb63d3b7ad345194c3be33aac5252397d8d3c62d0d30a5798764a8.tgz",
     "@nelyx/skia-web": "file:.nelyx/supply/nelyx-skia-web-0.6.0-cb987a9109875d7206d9cdf0195e4ceafe130e9e4c5f74782d8ca8e657d58e55.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "@nelyx/backend-rust": "file:.nelyx/supply/nelyx-backend-rust-0.1.0-2c93aec01304a81172ce5a78f41f7e713b2df52da06d6225486050a750d03cd2.tgz",
-    "@nelyx/backend-wasm": "file:.nelyx/supply/nelyx-backend-wasm-0.1.0-862449beca8c394691a355e35084f1cb149532d67932c903f2618c8d1a3e3c11.tgz",
-    "@nelyx/backend-tauri": "file:.nelyx/supply/nelyx-backend-tauri-0.1.0-80ab832dc9e8c7c42217b667ccfcc40e9411c6c3287ae3c369ae25c91a22f8c3.tgz"
+    "@nelyx/backend-rust": "file:.nelyx/supply/nelyx-backend-rust-0.1.0-179e6ed2b2596ca32be70a163b356c20e518299cec01fe5112e48b1cd6193695.tgz",
+    "@nelyx/backend-wasm": "file:.nelyx/supply/nelyx-backend-wasm-0.1.0-9ac49342a9b79726fc0d67ff6b368d9c0f0d276a07ceea605ab36c386e7e5c18.tgz",
+    "@nelyx/backend-tauri": "file:.nelyx/supply/nelyx-backend-tauri-0.1.0-7c14334e926158cc84146f6250fd6eb9752c58ceaf7bd33e403ecfb44b9e8107.tgz",
+    "@tauri-apps/api": "2.12.5"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.6",
-    "@nelyx/vite": "file:.nelyx/supply/nelyx-vite-0.1.0-448b10f3c765e4633108157650f93649ff3cf995809bef3e014ed19fd60b0e38.tgz",
-    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-1b9db3b373a5d4e7a0dacf51bbc64589935092c0d4448084aaf67af3ee50eff3.tgz",
-    "@nelyx/tooling-contracts": "file:.nelyx/supply/nelyx-tooling-contracts-0.1.0-24eed728784cf69799a50824b41fb6cb06e5233e1690d1f75503352f0f88e012.tgz",
+    "@nelyx/vite": "file:.nelyx/supply/nelyx-vite-0.1.0-ffaf669cc8851b850ff3e043d7e73d01fced6d10966d45f3f8fc3dc58877d68f.tgz",
+    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-6bce0dee9915d9a6d6fed75d7873a80e2c7a886b879e68063e2dbcf8651416bd.tgz",
+    "@nelyx/tooling-contracts": "file:.nelyx/supply/nelyx-tooling-contracts-0.1.0-7835531f1ba9ec3f40a312583718cc3fdb7a85cf152d30b8fff179a2c43c6b37.tgz",
     "vite": "8.3.8",
     "typescript": "7.0.2",
     "@types/node": "24.10.1",

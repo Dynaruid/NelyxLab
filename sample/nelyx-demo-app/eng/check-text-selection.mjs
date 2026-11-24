@@ -28,6 +28,9 @@ const device = process.env.ANDROID_SERIAL ?? 'emulator-5554';
 const app = resolve(import.meta.dirname, '..');
 const appId = 'dev.nelyx.demo.tauri';
 const android = args.includes('--android');
+const androidDevices = args.includes('--android-devices');
+const androidStartupLink = 'nelyx-demo://startup-check';
+const mobileWeb = args.includes('--mobile-web');
 const windows = args.includes('--windows');
 const multilineHandlesOnly = args.includes('--multiline-handles');
 const manifest = JSON.parse(await readFile(join(app, '.nelyx',
@@ -35,6 +38,8 @@ const manifest = JSON.parse(await readFile(join(app, '.nelyx',
 const headed = args.includes('--headed');
 const observePhysical = args.includes('--observe-physical');
 assert.ok(!android || !windows, 'Select one packaged host at a time');
+assert.ok(!androidDevices || android, '--android-devices requires --android');
+assert.ok(!mobileWeb || (!android && !windows), '--mobile-web requires the Web release');
 if (observePhysical)
   assert.ok(
     android && !device.startsWith('emulator-'),
@@ -69,6 +74,13 @@ const adb = (...params) =>
     maxBuffer: 10 * 1024 * 1024,
     encoding: 'buffer',
   }).then(({ stdout }) => stdout);
+
+async function androidClipboardReads() {
+  const pid = (await adb('shell', 'pidof', appId)).toString().trim();
+  assert.match(pid, /^\d+$/);
+  const entries = (await adb('logcat', '-d', '--pid', pid, '-s', 'Tauri/Plugin:V')).toString();
+  return [...entries.matchAll(/pluginId: clipboard-manager, command: readText\b/g)].length;
+}
 
 async function until(check, message) {
   for (let i = 0; i < 24; i++) {
@@ -364,6 +376,51 @@ async function checkBrowserClipboardPermission(page, tap) {
   }
 }
 
+async function checkMobileWebClipboard(page, url) {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.addInitScript(() => {
+    const clipboard = navigator.clipboard;
+    const read = clipboard.readText.bind(clipboard);
+    window.mobileClipboardReads = [];
+    clipboard.readText = () => {
+      window.mobileClipboardReads.push(navigator.userActivation.isActive);
+      return read();
+    };
+  });
+  await page.goto(url);
+  await verifyBundle(page);
+  await page.waitForFunction(() => document.documentElement.dataset.nelyxBackendProtocol === '3');
+  assert.equal(await page.locator('html').getAttribute('data-nelyx-os'), 'android');
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, at) => cdp.send('Input.dispatchTouchEvent', {
+    type, touchPoints: at ? [{ ...at, id: 1 }] : [],
+  });
+  const tap = (at) => page.touchscreen.tap(at.x, at.y);
+  const saved = await page.evaluate(() => navigator.clipboard.readText());
+  try {
+    const text = '웹 모바일 붙여넣기';
+    await page.evaluate(async (value) => {
+      await navigator.clipboard.writeText(value);
+      window.mobileClipboardReads.length = 0;
+    }, text);
+    await openSelection(page, tap);
+    await touch('touchStart', await point(field(page, 'Material single line'), 35));
+    await wait(650);
+    await touch('touchEnd');
+    const paste = menu(page, 'Paste');
+    await paste.waitFor();
+    await until(() => paste.isEnabled(), 'Mobile browser menu must offer explicit Paste');
+    assert.deepEqual(await page.evaluate(() => window.mobileClipboardReads), []);
+    await tap(await point(paste));
+    await until(async () => (await readEditor(page))?.text.includes(text), 'Mobile Web Paste must edit the field');
+    assert.deepEqual(await page.evaluate(() => window.mobileClipboardReads), [true]);
+    console.log(JSON.stringify({ host: 'PWA Android viewport', mobileMenuReads: 0, pasteReads: 1 }));
+  } finally {
+    await page.evaluate((text) => navigator.clipboard.writeText(text), saved);
+    await cdp.detach();
+  }
+}
+
 async function windowsInput(pid, action, value) {
   const params = [
     '-NoProfile',
@@ -428,10 +485,10 @@ async function windowsSelection(page, pid) {
   });
   const clipboard = (value) =>
     page.evaluate(async (text) => {
-      const board = window.__TAURI__.clipboardManager;
-      if (text !== undefined) return board.writeText(text);
+      const { invoke } = window.__TAURI__.core;
+      if (text !== undefined) return invoke('plugin:clipboard-manager|write_text', { text });
       try {
-        return await board.readText();
+        return await invoke('plugin:clipboard-manager|read_text');
       } catch (error) {
         if (/clipboard contents were not available|clipboard is empty/i.test(String(error)))
           return '';
@@ -1071,8 +1128,9 @@ async function emulator(page) {
     await menu(page, 'Select all').waitFor();
     await tap(grip);
     await menu(page, 'Select all').waitFor({ state: 'hidden' });
-    const at = await point(editor, 28);
     const bounds = await editor.boundingBox();
+    // Hold the text beyond the insertion handle's 48 px touch area.
+    const at = await point(editor, grip.x - bounds.x + 36);
     const trace = await page.evaluateHandle(() => {
       const events = [];
       const abort = new AbortController();
@@ -1141,7 +1199,7 @@ async function emulator(page) {
     await menu(page, 'Copy').waitFor({ state: 'hidden' });
     await until(
       async () =>
-        (await page.evaluate(() => window.__TAURI__?.clipboardManager?.readText())) ===
+        (await page.evaluate(() => window.__TAURI__.core.invoke('plugin:clipboard-manager|read_text'))) ===
         selected.text.slice(selected.start, selected.end),
       'Copy must write the Android OS clipboard',
     );
@@ -1156,12 +1214,14 @@ async function emulator(page) {
     await touch('touchCancel');
     await wait(300);
     assert.equal(await menu(page, 'Copy').count(), 0);
+    const readsBeforeMenu = await androidClipboardReads();
     await touch('touchStart', at);
     await wait(650);
     await touch('touchEnd');
     await menu(page, 'Copy').waitFor();
+    assert.equal(await androidClipboardReads(), readsBeforeMenu, 'Mobile menu must not pre-read the clipboard');
     const beforePaste = await readEditor(page);
-    await page.evaluate(() => window.__TAURI__.clipboardManager.writeText('한글 👋'));
+    await page.evaluate(() => window.__TAURI__.core.invoke('plugin:clipboard-manager|write_text', { text: '한글 👋' }));
     const expected =
       beforePaste.text.slice(0, beforePaste.start) +
       '한글 👋' +
@@ -1172,6 +1232,7 @@ async function emulator(page) {
       async () => (await readEditor(page))?.text === expected,
       'Android menu paste must read the OS clipboard',
     );
+    assert.equal(await androidClipboardReads(), readsBeforeMenu + 1, 'Explicit Paste reads once');
     await menu(page, 'Paste').waitFor({ state: 'hidden' });
     await adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
     await wait(300);
@@ -1286,6 +1347,172 @@ async function emulator(page) {
     await touch('touchCancel').catch(() => {});
     await cdp.detach();
   }
+}
+
+async function checkAndroidDevices(page) {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await verifyBundle(page);
+    const permissions = (await adb('shell', 'dumpsys', 'package', appId)).toString();
+    assert.match(permissions, /android\.permission\.VIBRATE: granted=true/);
+    const features = await page.evaluate(() =>
+      window.__TAURI__.core.invoke('plugin:nelyx-backend|describe'),
+    );
+    assert.deepEqual(
+      [features.os, features.frontendBuildId, features.haptics, features.androidBack, features.safeArea],
+      ['android', manifest.buildId, true, true, true],
+    );
+    const expanded = await androidDevicePlugins(page, permissions, features);
+    const tap = async (at) => {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [at] });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    };
+    const root = page.locator('[data-semantics-identifier="open-drawer"]');
+    const route = field(page, 'Material single line');
+    const drawer = button(page, 'Text selection');
+    await root.waitFor({ timeout: 45_000 });
+    const display = (await adb('shell', 'wm', 'size')).toString();
+    const [, width, height] = [...display.matchAll(/size: (\d+)x(\d+)/g)].at(-1) ?? [];
+    assert(width && height, 'Android display size is required for a system gesture');
+    assert.equal((await adb('shell', 'settings', 'get', 'secure', 'navigation_mode')).toString().trim(), '2');
+    const y = String(Math.round(Number(height) * 0.5));
+    const foreground = async () => {
+      const state = (await adb('shell', 'dumpsys', 'activity', 'activities')).toString();
+      return /(?:topResumedActivity|mResumedActivity)[^\n]*dev\.nelyx\.demo\.tauri/.test(state);
+    };
+    const backInputs = [
+      () => adb('shell', 'input', 'keyevent', 'KEYCODE_BACK'),
+      () => adb('shell', 'input', 'swipe', '1', y, String(Math.round(Number(width) * 0.26)), y, '260'),
+    ];
+    for (const back of backInputs) {
+      await tap(await point(root));
+      await drawer.waitFor();
+      await back();
+      await drawer.waitFor({ state: 'hidden' });
+      await root.waitFor();
+      assert.equal(await foreground(), true);
+
+      await openSelection(page, tap);
+      await back();
+      await route.waitFor({ state: 'hidden' });
+      await root.waitFor();
+      assert.equal(await foreground(), true);
+
+      await page.evaluate(() => history.pushState(null, '', '#device-back-check'));
+      await back();
+      await page.waitForFunction(() => location.hash === '');
+      assert.equal(await foreground(), true);
+
+      await back();
+      await until(async () => !(await foreground()), 'Root Back must return control to Android');
+      await adb('shell', 'am', 'start', '-n', appId + '/.MainActivity');
+      await root.waitFor();
+      await until(foreground, 'Demo must resume after Android Back');
+    }
+    await page.evaluate(async () => {
+      const { invoke } = window.__TAURI__.core;
+      await invoke('plugin:haptics|vibrate', { duration: 50 });
+      for (const style of ['light', 'medium', 'heavy'])
+        await invoke('plugin:haptics|impact_feedback', { style });
+      await invoke('plugin:haptics|selection_feedback');
+      for (const type of ['success', 'warning', 'error'])
+        await invoke('plugin:haptics|notification_feedback', { type });
+    });
+    await page.evaluate(() => window.__TAURI__.core.invoke('plugin:nelyx-backend|dispatch_default_back'));
+    await until(async () => !(await foreground()), 'Native dispatch must perform Android Back');
+    await adb('shell', 'am', 'start', '-n', appId + '/.MainActivity');
+    await until(foreground, 'Demo must resume after native dispatch');
+    const insets = await page.evaluate(async () => {
+      const { invoke, Channel } = window.__TAURI__.core;
+      const channel = new Channel();
+      const subscription = 'device-check-' + crypto.randomUUID();
+      let timer;
+      const first = new Promise((resolve, reject) => {
+        channel.onmessage = resolve;
+        timer = setTimeout(() => reject(new Error('No native safe area snapshot')), 5_000);
+      });
+      try {
+        const [, value] = await Promise.all([
+          invoke('plugin:nelyx-backend|watch_safe_area', { subscription, onChange: channel }),
+          first,
+        ]);
+        return value;
+      } finally {
+        clearTimeout(timer);
+        await invoke('plugin:nelyx-backend|unwatch_safe_area', { subscription });
+        window.__TAURI_INTERNALS__.unregisterCallback(channel.id);
+      }
+    });
+    for (const edge of ['top', 'right', 'bottom', 'left'])
+      assert.ok(Number.isInteger(insets[edge]) && insets[edge] >= 0);
+    assert.ok(insets.top > 0, 'The Android status bar must contribute an inset');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await root.waitFor({ timeout: 45_000 });
+    console.log(JSON.stringify({
+      buildId: manifest.buildId,
+      androidBack: ['button', 'edge-gesture'],
+      routes: ['drawer', 'text-selection', 'history', 'activity-root', 'native-dispatch'],
+      nativeSafeArea: insets,
+      hapticIpc: 8,
+      expanded,
+    }));
+  } finally {
+    await cdp.detach();
+  }
+}
+
+async function androidDevicePlugins(page, permissions, features) {
+  const settings = JSON.parse(await readFile(join(app, 'package.json'), 'utf8'));
+  const { deviceServices, label } = settings.nelyx.targets.tauri.windows[0];
+  assert.equal(label, 'main');
+  assert.deepEqual(features.deviceServices, deviceServices);
+  const startupLinks = await page.evaluate(() => window.__TAURI__.core.invoke('plugin:deep-link|get_current'));
+  assert.ok(startupLinks.some((link) => new URL(link).hostname === new URL(androidStartupLink).hostname));
+  for (const name of ['CAMERA', 'NFC', 'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'POST_NOTIFICATIONS'])
+    assert.match(permissions, new RegExp('android\\.permission\\.' + name + '\\b'));
+  const checks = await page.evaluate(async () => {
+    const { invoke } = window.__TAURI__.core;
+    const state = await invoke('plugin:notification|is_permission_granted');
+    const location = await invoke('plugin:geolocation|check_permissions')
+      .catch((error) => ({ error: String(error) }));
+    const { camera } = await invoke('plugin:barcode-scanner|check_permissions');
+    const { available: nfc } = await invoke('plugin:nfc|is_available');
+    const { isAvailable: biometrics } = await invoke('plugin:biometric|status');
+    const key = 'nelyx-check-' + crypto.randomUUID();
+    const store = (operation, value) => invoke('plugin:nelyx-backend|device_store', {
+      input: { operation, key, ...(operation === 'set' ? { value } : {}) },
+    });
+    let record;
+    try {
+      await store('set', { device: 'android' });
+      record = await store('get');
+    } finally {
+      await store('remove');
+    }
+    window.nelyxDeviceLinks = [];
+    window.stopNelyxDeviceLinks = await window.__TAURI__.event.listen('deep-link://new-url', (event) => {
+      window.nelyxDeviceLinks.push(...event.payload);
+    });
+    return { state, location, camera, nfc, biometrics, record };
+  });
+  try {
+    const url = 'nelyx-demo://device-check';
+    const launch = await adb('shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW', '-d', url, '-p', appId);
+    assert.doesNotMatch(launch.toString(), /Error:/);
+    await page.waitForFunction((url) => window.nelyxDeviceLinks.some((value) => value.replace(/\/$/, '') === url), url);
+    const current = await page.evaluate(() => window.__TAURI__.core.invoke('plugin:deep-link|get_current'));
+    assert.ok(current.some((value) => value.replace(/\/$/, '') === url));
+  } finally {
+    await page.evaluate(() => window.stopNelyxDeviceLinks()).catch(() => {});
+  }
+  assert.ok(checks.state === null || typeof checks.state === 'boolean');
+  assert.ok(checks.location.location || /location.*(?:disabled|unavailable)/i.test(checks.location.error));
+  assert.match(checks.camera, /^(?:prompt(?:-with-rationale)?|granted|denied)$/);
+  assert.equal(typeof checks.nfc, 'boolean');
+  assert.equal(typeof checks.biometrics, 'boolean');
+  assert.deepEqual(checks.record, { found: true, value: { device: 'android' } });
+  return { notificationPermission: checks.state, cameraPermission: checks.camera, nfc: checks.nfc,
+    biometrics: checks.biometrics, store: 'PASS', deepLink: 'PASS' };
 }
 
 async function androidSelectionDetails(page, touch, tap, dpr) {
@@ -1845,7 +2072,7 @@ async function observeAndroidGestures(page) {
       await wait(160);
     }
     const copiedKorean = await page.evaluate(() =>
-      window.__TAURI__.clipboardManager.readText().then(
+      window.__TAURI__.core.invoke('plugin:clipboard-manager|read_text').then(
         (text) => text === '안녕하세요',
         () => false,
       ),
@@ -1880,7 +2107,12 @@ try {
   if (android) {
     assert.ok(process.env.ANDROID_HOME, 'Set ANDROID_HOME and install the verified Demo APK first');
     await adb('shell', 'am', 'force-stop', appId);
-    await adb('shell', 'am', 'start', '-n', appId + '/.MainActivity');
+    if (androidDevices) {
+      const launch = await adb('shell', 'am', 'start', '-W', '-a', 'android.intent.action.VIEW', '-d', androidStartupLink, '-p', appId);
+      assert.doesNotMatch(launch.toString(), /Error:/);
+    } else {
+      await adb('shell', 'am', 'start', '-n', appId + '/.MainActivity');
+    }
     let pid;
     await until(async () => {
       pid = (await adb('shell', 'pidof', appId).catch(() => Buffer.alloc(0))).toString().trim();
@@ -1970,7 +2202,12 @@ try {
       headless: !headed,
       args: headed ? ['--force-renderer-accessibility', '--lang=en-US'] : [],
     });
-    page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+    page = await browser.newPage(mobileWeb ? {
+      viewport: { width: 393, height: 850 },
+      isMobile: true,
+      hasTouch: true,
+      userAgent: 'Mozilla/5.0 (Linux; Android 13; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36',
+    } : { viewport: { width: 1100, height: 900 } });
     if (headed && process.platform === 'win32') {
       const cdp = await browser.newBrowserCDPSession();
       const { processInfo } = await cdp.send('SystemInfo.getProcessInfo');
@@ -1994,11 +2231,13 @@ try {
     }
   });
   if (observePhysical) await observeAndroidGestures(page);
+  else if (androidDevices) await checkAndroidDevices(page);
   else if (android) await emulator(page);
   else if (windows) {
     await verifyBundle(page);
     await windowsSelection(page, runner.pid);
-  } else await web(page, page.selectionTestUrl, chromePid);
+  } else if (mobileWeb) await checkMobileWebClipboard(page, page.selectionTestUrl);
+  else await web(page, page.selectionTestUrl, chromePid);
   assert.deepEqual(errors, []);
 } finally {
   try {

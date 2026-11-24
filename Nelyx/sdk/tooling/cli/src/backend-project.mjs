@@ -10,6 +10,7 @@ import {
   backendHash,
   backendPackages,
   backendProtocol,
+  publicWasmDeclaration,
   bindgenVersion,
   rustInputFiles,
   wasmTarget,
@@ -39,10 +40,11 @@ export function cratePath(app, name) {
   return path.join(rustSupplyPath(app), 'crates', backendCrates[name]);
 }
 
-export function cargoDependency(host, directory, packageName) {
+export function cargoDependency(host, directory, packageName, features) {
   const relative = path.relative(host, directory);
   const pkg = packageName ? 'package = ' + JSON.stringify(packageName) + ', ' : '';
-  return '{ ' + pkg + 'path = ' + JSON.stringify(unix(relative || '.')) + ' }';
+  const options = features?.length ? ', features = ' + JSON.stringify(features) : '';
+  return '{ ' + pkg + 'path = ' + JSON.stringify(unix(relative || '.')) + options + ' }';
 }
 
 function readAppCrate(value) {
@@ -329,6 +331,13 @@ export async function compileWasm(value, project, signal) {
         { cwd: app, signal, timeout },
       );
       files = read(out);
+      const declaration = files.get('runtime/backend/backend.d.ts').toString('utf8');
+      const expected = fs.readFileSync(
+        localFile(adapter.directory, 'default/backend.d.ts'),
+        'utf8',
+      );
+      if (publicWasmDeclaration(declaration) !== publicWasmDeclaration(expected))
+        throw new Error('App backend Wasm does not match the SDK bindings');
       const current = inspectBackend(value, 'web');
       if (backendHash(backendContract(current)) !== backendHash(backendContract(project)))
         throw new Error('App backend inputs changed during Wasm compilation');

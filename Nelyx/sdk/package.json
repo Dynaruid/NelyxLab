@@ -12,7 +12,14 @@
   "peerDependencies": {
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "@nelyx/skia-web": "0.6.0"
+    "@nelyx/skia-web": "0.6.0",
+    "@tauri-apps/api": "2.12.5"
+  },
+  "peerDependenciesMeta": {
+    "@tauri-apps/api": { "optional": true }
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "2.12.5"
   },
   "files": [
     "dist",
@@ -28,6 +35,10 @@
     "./app": {
       "types": "./dist/app.d.ts",
       "default": "./dist/app.js"
+    },
+    "./devices": {
+      "types": "./dist/devices.d.ts",
+      "default": "./dist/devices.js"
     },
     "./version": {
       "types": "./dist/version.d.ts",

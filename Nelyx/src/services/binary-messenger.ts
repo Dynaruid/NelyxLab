@@ -11,15 +11,18 @@ export type MessageHandler = (
   message: DataView | null,
 ) => PromiseLike<DataView | null> | DataView | null;
 export abstract class BinaryMessenger {
+  declare readonly androidBack?: boolean | undefined;
   /** Optional embedding lifetime capability; global source messengers may omit it. */
   declare readonly onClosing?: ((callback: () => void) => () => void) | undefined;
   declare readonly onRetired?: ((callback: () => void) => () => void) | undefined;
   constructor(
     onClosing?: ((callback: () => void) => () => void) | undefined,
     onRetired?: ((callback: () => void) => () => void) | undefined,
+    androidBack?: boolean,
   ) {
     if (onClosing) this.onClosing = onClosing;
     if (onRetired) this.onRetired = onRetired;
+    if (androidBack) this.androidBack = true;
   }
   abstract handlePlatformMessage(
     channel: string,
@@ -30,6 +33,7 @@ export abstract class BinaryMessenger {
   abstract setMessageHandler(channel: string, handler: MessageHandler | null): void;
 }
 export interface BinaryMessageTransport {
+  readonly androidBack?: boolean | undefined;
   send(channel: string, message: DataView | null, callback: PlatformMessageResponseCallback): void;
   checkActive?(operation: 'send' | 'receive' | 'listen' | 'unlisten'): void;
   onClosing?: (callback: () => void) => () => void;
@@ -53,6 +57,7 @@ export class DefaultBinaryMessenger extends BinaryMessenger {
     super(
       transport.onClosing ? (callback) => transport.onClosing!(callback) : undefined,
       transport.onRetired ? (callback) => transport.onRetired!(callback) : undefined,
+      transport.androidBack,
     );
   }
   override async handlePlatformMessage(

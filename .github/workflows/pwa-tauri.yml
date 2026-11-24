@@ -44,6 +44,8 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm run build:sdk
+          node Nelyx/eng/check-device-services.mjs
+          node Nelyx/eng/check-expanded-device-services.mjs
           sdk=$(mktemp -d "${RUNNER_TEMP}/nelyx-sdk.XXXXXXXX")
           trap 'rm -rf -- "$sdk"' EXIT
           npm run pack:sdk -- "$sdk"
@@ -142,6 +144,10 @@ jobs:
         timeout-minutes: 20
         shell: bash
         run: npm run pack:tauri --prefix sample/nelyx-demo-app -- --platform "$NELYX_PLATFORM" --architecture "$NELYX_ARCHITECTURE" --frontend .nelyx/tauri/frontend
+      - if: matrix.platform == 'windows'
+        name: Regenerate and compare Tauri IPC bindings
+        timeout-minutes: 20
+        run: npm run check:backend-bindings
       - name: Generate and package Testbed
         timeout-minutes: 20
         shell: bash

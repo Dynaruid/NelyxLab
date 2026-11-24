@@ -17,6 +17,8 @@ import type { WebSafeAreaSource } from '../../backends/browser/environment.ts';
 import { loadCanvasKit } from '../../backends/browser/canvaskit.ts';
 import { createBrowserPlatformMessages } from '../../backends/browser/platform-messages.ts';
 import { webDialogWindows } from './dialog-windows.ts';
+import { browserDeviceServices } from '../../backends/browser/devices.ts';
+import { DeviceScope } from '../../runtime/device-scope.ts';
 
 export type { WebSafeAreaSource } from '../../backends/browser/environment.ts';
 
@@ -191,6 +193,7 @@ export interface WebApplicationOptions extends WebSkiaSurfaceOptions {
   readonly useDefaultBinaryMessenger?: boolean;
   readonly platformMessages?: PlatformMessagePort;
   readonly backend?: BackendConnection;
+  readonly deviceNamespace?: string;
   readonly safeArea?: WebSafeAreaSource;
   readonly canvas: HTMLCanvasElement;
   readonly input: HTMLInputElement;
@@ -289,12 +292,19 @@ async function openWebApplication(
     throw error;
   }
   job.retained = { library, binding };
-  const application = await bootstrapApplication(binding.definition, {
-    ...binding.services,
-    ...(options.enableDialogWindows
-      ? { dialogWindows: webDialogWindows(binding.definition, options, openApplication) }
-      : {}),
-    platformMessages:
+  let platformMessages: PlatformMessagePort;
+  let clipboard: ReturnType<BackendConnection['clipboard']> | undefined;
+  const deviceScope = new DeviceScope();
+  let deviceServices;
+  try {
+    const deviceOptions = {
+      scope: deviceScope,
+      root: options.assetsRoot,
+      namespace: options.deviceNamespace ?? definition.id,
+    };
+    deviceServices = options.backend?.devices?.(view, deviceOptions) ??
+      (options.backend?.host.target === 'tauri' ? {} : browserDeviceServices(view, deviceOptions));
+    platformMessages =
       options.platformMessages ??
       createBrowserPlatformMessages(
         view,
@@ -306,8 +316,35 @@ async function openWebApplication(
         },
         { key: binding.definition.id, root: options.assetsRoot },
         binding.definition.accessibilityEnabled !== false,
-        options.backend?.clipboard(view),
-      ),
+        (clipboard = options.backend?.clipboard(view)),
+        {
+          haptics: options.backend?.haptics?.(view),
+          androidBack: options.backend?.androidBack?.(view),
+        },
+      );
+  } catch (error) {
+    const cleanup = await Promise.allSettled([
+      deviceScope.dispose(),
+      Promise.resolve().then(() => clipboard?.dispose()),
+      Promise.resolve().then(() => binding.services.surface.dispose()),
+    ]);
+    const failures = cleanup.flatMap((result) =>
+      result.status === 'rejected' ? [result.reason] : [],
+    );
+    if (failures.length)
+      throw new AggregateError(
+        [error, ...failures],
+        'Web platform service initialization cleanup failed',
+      );
+    throw error;
+  }
+  const application = await bootstrapApplication(binding.definition, {
+    ...binding.services,
+    ...(options.enableDialogWindows
+      ? { dialogWindows: webDialogWindows(binding.definition, options, openApplication) }
+      : {}),
+    platformMessages,
+    devices: { scope: deviceScope, services: deviceServices },
     initializePlatformServices: options.initializePlatformServices ?? !options.platformMessages,
     ...(options.useDefaultBinaryMessenger ? { useDefaultBinaryMessenger: true } : {}),
     ...(options.onError ? { reportError: options.onError } : {}),

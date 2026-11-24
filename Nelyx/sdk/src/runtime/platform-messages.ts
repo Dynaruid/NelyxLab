@@ -95,6 +95,7 @@ export class PlatformMessageConnection implements Disposable {
       captureContext: () => ({ invoke: guarded }),
     });
     this.binaryMessenger = new DefaultBinaryMessenger(this.channelBuffers, {
+      androidBack: this.port.androidBack,
       send: (name, data, reply) => this.send(name, data, reply),
       checkActive: (operation) => {
         if (

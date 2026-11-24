@@ -44,7 +44,23 @@ npx.cmd --no-install nelyx run --app . --target tauri --platform windows
 
 Use `dev --target tauri --platform windows` for a WebView attached to Vite. For CI, use `build --target tauri --frontend-only` to publish `.nelyx/tauri/frontend/` and `pack --target tauri --platform <os> --frontend <directory>` from the same app source and SDK supply. The CLI generates `.nelyx/tauri/host/`, restores Cargo.lock, invokes the app's installed Tauri CLI and publishes packages under `.nelyx/tauri/<os>-<architecture>/`. The package metadata records the embedded frontend build ID and Rust target.
 
-Set the identifier, window sizes and app capabilities in `targets.tauri`. A window can declare `clipboard: { read: true, write: true }`, `safeArea: true` and `windowTitle`. Place custom icons in `platform/icons/`. Place Android and Apple overrides relative to the generated project in `platform/android/project/` and `platform/ios/project/`. Optional `platform/<os>/tauri.conf.json` files accept bundle settings and CSP. Keep signing keys in the platform toolchain or build environment.
+Set the identifier, window sizes and app capabilities in `targets.tauri`. This entry in `targets.tauri.windows` enables text clipboard, Android safe area, mobile haptics and Android system Back for the `main` WebView.
+
+```json
+{
+  "label": "main",
+  "clipboard": { "read": true, "write": true },
+  "safeArea": true,
+  "haptics": true,
+  "androidBack": true
+}
+```
+
+Omit `clipboard` to use the WebView clipboard. Each explicit `false` disables that action. Omit `haptics` to use WebView vibration, or set it to `false` to disable feedback. With `haptics: true`, Android and iOS use the native plugin and desktop calls complete quietly. Android registers a system Back listener while a framework owner requests it. The generated ACL is scoped to the declared WebView labels. Re-run `prepare --target tauri --platform <os> --update-lock` when adopting the plugin.
+
+Use `deviceServices` on each `targets.tauri.windows[]` entry to enable services, for example `["location", "files", "store"]`. The host adds the required plugins and permissions for those WebViews. For iOS add app-authored `targets.tauri.deviceUsage` descriptions for the selected `location`, `camera` or `barcode`, `nfc` and `biometrics` services. Use the `camera` description for barcode. For incoming links, enable `deepLinks` on the window and set `targets.tauri.deepLinks.schemes`. Optional `domains` entries have `host` and `pathPrefix` fields. Associated HTTPS domains need the platform association files and signing configuration. [Tauri Deep Linking](https://v2.tauri.app/plugin/deep-linking/)
+
+Place custom icons in `platform/icons/`. Place Android and Apple overrides relative to the generated project in `platform/android/project/` and `platform/ios/project/`. Optional `platform/<os>/tauri.conf.json` files accept bundle settings and CSP. Keep signing keys in the platform toolchain or build environment.
 
 For Android and iOS, `run --no-launch` installs the published app and exits.
 

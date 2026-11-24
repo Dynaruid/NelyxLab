@@ -18,6 +18,7 @@ import {
 } from './publication.mjs';
 
 const sdkVersion = '0.1.0';
+const projectionVersion = 2;
 export const rustPackages = (targets) => [
   'backend-rust',
   ...Object.entries(backendPackages)
@@ -62,6 +63,7 @@ function matchesProjection(directory, packages) {
   ownedDirectory(directory);
   try {
     const receipt = JSON.parse(fs.readFileSync(localFile(directory, 'supply.json'), 'utf8'));
+    if (receipt.projectionVersion !== projectionVersion) return false;
     for (const [name, { id, data }] of Object.entries(packages)) {
       if (receipt[name] !== id) return false;
       for (const entry of data.files) {
@@ -122,7 +124,8 @@ export function supplyRust(app, names, archives) {
       )
     )
       return;
-    const receipt = {};
+    const receipt = { projectionVersion };
+    const publishedAt = new Date();
     for (const [name, { directory: source, data, id }] of Object.entries(packages)) {
       receipt[name] = id;
       for (const entry of data.files) {
@@ -130,6 +133,8 @@ export function supplyRust(app, names, archives) {
         const file = path.join(stage, entry.path);
         ensureDirectory(path.dirname(file));
         fs.copyFileSync(localFile(source, entry.path), file, fs.constants.COPYFILE_EXCL);
+        // npm archives use a fixed timestamp. Cargo must notice revised source at the same path.
+        fs.utimesSync(file, publishedAt, publishedAt);
       }
     }
     fs.writeFileSync(path.join(stage, 'supply.json'), JSON.stringify(receipt, null, 2) + '\n');

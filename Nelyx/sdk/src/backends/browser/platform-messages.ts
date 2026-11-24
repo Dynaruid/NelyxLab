@@ -15,6 +15,10 @@ import type { BrowserSelectionContextMenu } from './selection-context-menu.ts';
 import { isAppUrl } from './local-url.ts';
 import { createClipboard } from './clipboard.ts';
 import type { ClipboardBinding } from './clipboard.ts';
+import { hapticRequest } from './haptics.ts';
+import type { HapticRequest } from './haptics.ts';
+import type { AndroidBackSource } from '../backend-contract.ts';
+import { deviceFailure } from '../backend-contract.ts';
 /** Browser services run on the DOM owner, including secure-context permission errors. */
 export function createBrowserPlatformMessages(
   view: Window = window,
@@ -24,8 +28,13 @@ export function createBrowserPlatformMessages(
   restoration?: { readonly key: string; readonly root?: URL },
   accessibilityEnabled = true,
   clipboard: ClipboardBinding = createClipboard(view),
+  devices?: {
+    haptics?: ((request: HapticRequest) => Promise<void> | void) | undefined;
+    androidBack?: AndroidBackSource | undefined;
+  },
 ): PluginPlatformMessagePort {
-  const port = new PluginPlatformMessagePort(),
+  const androidBack = devices?.androidBack;
+  const port = new PluginPlatformMessagePort({ androidBack: androidBack !== undefined }),
     doc = view.document,
     navigator = view.navigator,
     routeRoot = restoration?.root ?? new URL('/', view.location.href);
@@ -117,6 +126,21 @@ export function createBrowserPlatformMessages(
   let singleEntry = false;
   port.own(clipboard);
   port.onStop(() => clipboard.dispose());
+  const requestBack = async () => {
+    const response = await port.emit(
+      'flutter/navigation',
+      codec.encodeMethodCall(new MethodCall('popRoute', null)),
+    );
+    return response !== null && codec.decodeEnvelope(response) === true;
+  };
+  if (androidBack) {
+    let closing: Promise<void> | undefined;
+    const stop = () => (closing ??= androidBack.setHandler(requestBack, false));
+    port.onStop(() => {
+      void stop().catch(() => {});
+    });
+    port.own({ dispose: stop });
+  }
   const popstate = () => {
     const state = view.history.state;
     void port
@@ -139,18 +163,13 @@ export function createBrowserPlatformMessages(
       /* The pinned Web engine has no default system sounds. */
     },
     vibrateHapticFeedback(type) {
-      const duration =
-        type === 'HapticFeedbackType.lightImpact' || type === 'HapticFeedbackType.selectionClick'
-          ? 10
-          : type === 'HapticFeedbackType.mediumImpact' ||
-              type === 'HapticFeedbackType.successNotification' ||
-              type === 'HapticFeedbackType.warningNotification'
-            ? 20
-            : type === 'HapticFeedbackType.heavyImpact' ||
-                type === 'HapticFeedbackType.errorNotification'
-              ? 30
-              : 50;
-      navigator.vibrate?.(duration);
+      const request = hapticRequest(type);
+      if (devices?.haptics) return devices.haptics(request);
+      try {
+        navigator.vibrate?.(request.duration);
+      } catch (error) {
+        throw deviceFailure(error);
+      }
     },
     readEnvironment() {
       const locales = [...navigator.languages];
@@ -244,6 +263,12 @@ export function createBrowserPlatformMessages(
     pop() {
       view.history.back();
     },
+    ...(androidBack
+      ? {
+          setFrameworkHandlesBack: (enabled: boolean) =>
+            androidBack.setHandler(requestBack, enabled),
+        }
+      : {}),
     navigation(method, args) {
       if (method === 'getRouteInformation') {
         const state = view.history.state;

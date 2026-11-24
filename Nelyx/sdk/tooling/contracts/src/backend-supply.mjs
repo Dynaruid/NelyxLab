@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileTree, localFile, sha256, verifyInventory } from './node-files.mjs';
 
-export const backendProtocol = 1;
+export const backendProtocol = 3;
 export const bindgenVersion = '0.2.128';
 export const wasmTarget = 'wasm32-unknown-unknown';
 export const backendHash = (value) =>
@@ -22,6 +22,18 @@ export const backendCrates = {
   'backend-wasm': 'nelyx-backend-wasm',
   'backend-tauri': 'tauri-plugin-nelyx-backend',
 };
+
+/** wasm-bindgen's low-level export table depends on each app's linked Wasm. */
+export function publicWasmDeclaration(source) {
+  const declaration = source.replaceAll('\r\n', '\n');
+  const table =
+    /^export interface InitOutput \{\n    readonly memory: WebAssembly\.Memory;\n[\s\S]*?^\}/m;
+  if (!table.test(declaration)) throw new Error('Invalid wasm-bindgen InitOutput declaration');
+  return declaration.replace(
+    table,
+    'export interface InitOutput {\n    readonly memory: WebAssembly.Memory;\n}',
+  );
+}
 
 const generated = new Set([
   'target',

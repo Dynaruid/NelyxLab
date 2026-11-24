@@ -149,7 +149,7 @@ export function supplyRunner({ app, packages, reuseCurrent = false }) {
       if (
         !retired.test(name) &&
         !(rustNames.some((rust) => name === '@nelyx/' + rust) && !inputs[name]) &&
-        !(name === '@tauri-apps/cli' && !config.targets.tauri)
+        !((name === '@tauri-apps/cli' || name === '@tauri-apps/api') && !config.targets.tauri)
       )
         continue;
       delete manifest[section][name];
@@ -158,7 +158,10 @@ export function supplyRunner({ app, packages, reuseCurrent = false }) {
   }
   manifest.dependencies = { ...manifest.dependencies, react: '19.2.0', 'react-dom': '19.2.0' };
   manifest.devDependencies = { ...manifest.devDependencies, vite: '8.3.8' };
-  if (config.targets.tauri) manifest.devDependencies['@tauri-apps/cli'] = '2.12.6';
+  if (config.targets.tauri) {
+    manifest.dependencies['@tauri-apps/api'] = '2.12.5';
+    manifest.devDependencies['@tauri-apps/cli'] = '2.12.6';
+  }
   let committed = false;
   const rust = {};
   try {

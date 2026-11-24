@@ -4,9 +4,10 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 pub use serde_json::{json, Value};
 
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 3;
 
 #[derive(Clone, Copy, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "lowercase")]
 pub enum BackendKind {
     Wasm,
@@ -14,6 +15,7 @@ pub enum BackendKind {
 }
 
 #[derive(Clone, Copy, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct Identity {
     pub backend_version: &'static str,
@@ -22,12 +24,14 @@ pub struct Identity {
 }
 
 #[derive(Clone, Copy, Default, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ClipboardGrants {
     pub read: bool,
     pub write: bool,
 }
 
 #[derive(Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct Description {
     #[serde(flatten)]
@@ -35,6 +39,9 @@ pub struct Description {
     pub protocol_version: u32,
     pub os: &'static str,
     pub clipboard: Option<ClipboardGrants>,
+    pub haptics: Option<bool>,
+    pub android_back: Option<bool>,
+    pub device_services: &'static [&'static str],
     pub safe_area: bool,
     pub window_title: bool,
     pub title: Option<String>,
@@ -48,6 +55,9 @@ impl Identity {
             protocol_version: PROTOCOL_VERSION,
             os,
             clipboard: None,
+            haptics: None,
+            android_back: None,
+            device_services: &[],
             safe_area: false,
             window_title: false,
             title: None,
@@ -57,6 +67,7 @@ impl Identity {
 }
 
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct BackendError {
     pub code: &'static str,
     pub message: String,
@@ -102,6 +113,7 @@ impl Registry {
 }
 
 #[derive(Clone, Copy, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "kebab-case")]
 pub enum ClipboardHost {
     Browser,
@@ -111,6 +123,7 @@ pub enum ClipboardHost {
 }
 
 #[derive(Clone, Copy, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "kebab-case")]
 pub enum Permission {
     Granted,
@@ -120,6 +133,7 @@ pub enum Permission {
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct ClipboardInput {
     pub host: ClipboardHost,
@@ -130,6 +144,7 @@ pub struct ClipboardInput {
 }
 
 #[derive(Debug, PartialEq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "kebab-case")]
 pub enum Preflight {
     Read,
@@ -139,6 +154,7 @@ pub enum Preflight {
 }
 
 #[derive(Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ClipboardPolicy {
     pub read: bool,
     pub write: bool,

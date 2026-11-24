@@ -1,26 +1,27 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { ViewEnvironment } from '@nelyx/core/ui/types';
+import { Channel, invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { BrowserPlatformEnvironment } from '../frontend/dom/environment.ts';
-import { backendFailure, validateBackend } from './backend-contract.ts';
-import type { BackendConnection, BackendDescription, BackendIdentity } from './backend-contract.ts';
+import { backendFailure, deviceFailure, validateBackend } from './backend-contract.ts';
+import type { BackendConnection, BackendIdentity } from './backend-contract.ts';
 import { createClipboard } from './browser/clipboard.ts';
-import type { ClipboardPolicy, NativeClipboard } from './browser/clipboard.ts';
+import type { ClipboardIO } from './browser/clipboard.ts';
+import type { HapticRequest } from './browser/haptics.ts';
 import type { WebSafeAreaSource } from './browser/environment.ts';
+import { createAndroidBack } from './tauri-android-back.ts';
+import { tauriDeviceServices } from './tauri-devices.ts';
+import { commands } from './generated/tauri.ts';
 
 type Insets = ViewEnvironment['safeArea'];
-interface Channel {
-  onmessage: (value: Insets) => void;
-  readonly id: number;
-}
-interface TauriWindow extends Window {
-  __TAURI__?: {
-    core: {
-      invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
-      Channel: new () => Channel;
-    };
-    window: { getCurrentWindow(): { setTitle(title: string): Promise<void> } };
-  };
-  __TAURI_INTERNALS__?: { unregisterCallback(id: number): void };
+type TauriWindow = Window & {
+  __TAURI_INTERNALS__?: { invoke: typeof invoke; unregisterCallback(id: number): void };
+};
+
+function textOrEmpty(error: unknown): string {
+  const message = backendFailure(error).message ?? '';
+  if (/clipboard is empty|clipboard contents were not available/i.test(message)) return '';
+  throw error;
 }
 
 export async function openTauriBackend(
@@ -30,20 +31,21 @@ export async function openTauriBackend(
   signal: AbortSignal,
 ): Promise<BackendConnection> {
   const view = window as TauriWindow;
-  const api = view.__TAURI__;
-  if (!api?.core) throw new Error('Nelyx expected the Tauri backend, received no IPC bridge');
-  const { core } = api;
-  async function request<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  if (typeof view.__TAURI_INTERNALS__?.invoke !== 'function')
+    throw new Error('Nelyx expected the Tauri backend, received no IPC bridge');
+  const releaseCallback = (id: number) => view.__TAURI_INTERNALS__?.unregisterCallback(id);
+  async function request<T>(call: () => Promise<T>, fail = backendFailure): Promise<T> {
     signal.throwIfAborted();
     try {
-      const result = await core.invoke<T>(command, args);
+      const result = await call();
       signal.throwIfAborted();
       return result;
     } catch (error) {
-      throw backendFailure(error);
+      signal.throwIfAborted();
+      throw fail(error);
     }
   }
-  const backend = await request<BackendDescription>('plugin:nelyx-backend|describe');
+  const backend = await request(commands.describe);
   validateBackend(expected, backend);
   if (release) {
     const response = await fetch(new URL('build.json', root), { signal, redirect: 'error' });
@@ -61,49 +63,91 @@ export async function openTauriBackend(
         ? 'macOS'
         : backend.os === 'windows' || backend.os === 'linux' || backend.os === 'android'
           ? backend.os
-          : new BrowserPlatformEnvironment(navigator).operatingSystem;
-  const native: NativeClipboard | undefined = backend.clipboard
+          : new BrowserPlatformEnvironment(view.navigator).operatingSystem;
+  const mobile = os === 'android' || os === 'iOS';
+  const clipboard: ClipboardIO | undefined = backend.clipboard
     ? {
-        mobile: os === 'android' || os === 'iOS',
         ...(backend.clipboard.read
           ? {
-              readText: () => request<string>('plugin:clipboard-manager|read_text'),
+              readText: () =>
+                request(
+                  () => invoke<string>('plugin:clipboard-manager|read_text').catch(textOrEmpty),
+                  deviceFailure,
+                ),
             }
           : {}),
         ...(backend.clipboard.write
           ? {
               writeText: (text: string) =>
-                request<void>('plugin:clipboard-manager|write_text', { text }),
+                request(
+                  () => invoke<void>('plugin:clipboard-manager|write_text', { text }),
+                  deviceFailure,
+                ),
             }
           : {}),
       }
     : undefined;
-  const safeArea = backend.safeArea ? createSafeArea(view, core, signal) : undefined;
+  const nativeHaptics = (feedback: HapticRequest) =>
+    request(() => invokeHaptics(feedback), deviceFailure);
+  const safeArea = backend.safeArea ? createSafeArea(view, releaseCallback, signal) : undefined;
+  const back = backend.androidBack
+    ? createAndroidBack(
+        view,
+        () => request(() => invoke<void>('plugin:nelyx-backend|dispatch_default_back')),
+        releaseCallback,
+        signal,
+      )
+    : undefined;
   return {
     host: { target: 'tauri', os, backend },
-    invoke: (command, input = null) => request('plugin:nelyx-backend|invoke', { command, input }),
+    invoke: (command, input = null) =>
+      request(() => invoke('plugin:nelyx-backend|invoke', { command, input })),
     clipboard: (owner) =>
-      createClipboard(
-        owner,
-        (input) => request<ClipboardPolicy>('plugin:nelyx-backend|clipboard_policy', { input }),
-        native,
-        signal,
-      ),
-    ...(safeArea ? { safeArea: () => safeArea } : {}),
+      owner === view
+        ? createClipboard(
+            owner,
+            (input) => request(() => commands.clipboardPolicy(input)),
+            clipboard
+              ? { host: mobile ? 'native-mobile' : 'native-desktop', io: clipboard }
+              : { host: mobile ? 'browser-mobile' : 'browser' },
+            signal,
+          )
+        : createClipboard(owner),
+    haptics(owner) {
+      if (owner !== view || backend.haptics === null) return;
+      return backend.haptics ? nativeHaptics : () => {};
+    },
+    ...(back ? { androidBack: (owner) => (owner === view ? back : undefined) } : {}),
+    devices: (owner, options) =>
+      owner === view ? tauriDeviceServices(owner, options, backend.os, backend.deviceServices, releaseCallback) : {},
+    ...(safeArea ? { safeArea: (owner) => (owner === view ? safeArea : undefined) } : {}),
     async setTitle(title) {
       if (backend.windowTitle && (os === 'windows' || os === 'linux' || os === 'macOS'))
-        await api.window.getCurrentWindow().setTitle(title);
+        await request(() => getCurrentWindow().setTitle(title));
     },
   };
 }
 
+function invokeHaptics(feedback: HapticRequest): Promise<void> {
+  switch (feedback.kind) {
+    case 'vibrate':
+      return invoke('plugin:haptics|vibrate', { duration: feedback.duration });
+    case 'impact':
+      return invoke('plugin:haptics|impact_feedback', { style: feedback.style });
+    case 'selection':
+      return invoke('plugin:haptics|selection_feedback');
+    case 'notification':
+      return invoke('plugin:haptics|notification_feedback', { type: feedback.type });
+  }
+}
+
 function createSafeArea(
-  view: TauriWindow,
-  core: NonNullable<TauriWindow['__TAURI__']>['core'],
+  view: Window,
+  releaseCallback: (id: number) => void,
   signal: AbortSignal,
 ): WebSafeAreaSource {
   const listeners = new Set<() => void>();
-  let active: { id: string; channel: Channel; ready: Promise<void> } | undefined;
+  let active: { id: string; channel: Channel<Insets>; ready: Promise<void> } | undefined;
   let physical: Insets | undefined;
   function stop() {
     const previous = active;
@@ -112,14 +156,14 @@ function createSafeArea(
     if (!previous) return;
     previous.channel.onmessage = () => {};
     void previous.ready
-      .catch(() => {})
-      .then(() =>
-        core.invoke('plugin:nelyx-backend|unwatch_safe_area', { subscription: previous.id }),
+      .then(
+        () => invoke('plugin:nelyx-backend|unwatch_safe_area', { subscription: previous.id }),
+        () => {},
       )
       .catch((error) => {
         if (!signal.aborted) console.error('Nelyx safe area unsubscribe', error);
       })
-      .finally(() => view.__TAURI_INTERNALS__?.unregisterCallback(previous.channel.id));
+      .finally(() => releaseCallback(previous.channel.id));
   }
   signal.addEventListener('abort', stop, { once: true });
   return {
@@ -138,7 +182,7 @@ function createSafeArea(
       listeners.add(listener);
       if (!active) {
         const id = crypto.randomUUID();
-        const channel = new core.Channel();
+        const channel = new Channel<Insets>();
         channel.onmessage = (value) => {
           if (active?.id !== id || signal.aborted) return;
           if (
@@ -151,7 +195,7 @@ function createSafeArea(
           physical = value;
           for (const update of listeners) update();
         };
-        const ready = core.invoke<void>('plugin:nelyx-backend|watch_safe_area', {
+        const ready = invoke<void>('plugin:nelyx-backend|watch_safe_area', {
           subscription: id,
           onChange: channel,
         });
@@ -159,7 +203,7 @@ function createSafeArea(
         void ready.catch((error) => {
           if (active?.id === id) {
             active = undefined;
-            view.__TAURI_INTERNALS__?.unregisterCallback(channel.id);
+            releaseCallback(channel.id);
             if (!signal.aborted) console.error('Nelyx safe area subscribe', error);
           }
         });

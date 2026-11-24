@@ -13,6 +13,8 @@ export type PlatformMessageReceiver = (
  * requests whose plugins never replied. A failed drain must retain native owners.
  */
 export interface PlatformMessagePort extends Disposable {
+  /** The host can route a completed Android back input to this port. */
+  readonly androidBack?: boolean;
   /** Optional synchronous gate for host callbacks/timers before async drain. */
   stop?(): void;
   attach(receiver: PlatformMessageReceiver): Disposable;

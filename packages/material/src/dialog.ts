@@ -582,9 +582,14 @@ class WindowDialogState<T> extends State<WindowDialog<T>> {
       transitionDuration: 0,
       reverseTransitionDuration: 0,
     });
-    void this.navigator.push<T>(route).then((result) => {
-      if (this.mounted) this.widget.dismiss(result);
-    });
+    void this.navigator.push<T>(route).then(
+      (result) => {
+        if (this.mounted) this.widget.dismiss(result);
+      },
+      (error) => {
+        if (this.mounted) this.context.services.reportError?.(error);
+      },
+    );
   }
 
   override build(context: BuildContext): Widget {

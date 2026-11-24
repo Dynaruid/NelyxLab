@@ -8,6 +8,7 @@ import {
   backendInventory,
   backendProtocol,
   bindgenVersion,
+  publicWasmDeclaration,
   rustInputFiles,
   rustSupplySchema,
   wasmTarget,
@@ -26,6 +27,7 @@ const packages = path.join(root, 'packages');
 const manifest = path.join(root, 'Cargo.toml');
 const lock = path.join(root, 'Cargo.lock');
 const options = ['build', '--locked', '--release', '--lib', '--target', wasmTarget];
+const wasmDeclaration = path.resolve(root, '../sdk/src/backends/generated/wasm/backend.d.ts');
 
 function version(command) {
   return capture(command, ['--version'], { cwd: root }).trim();
@@ -65,7 +67,7 @@ export function checkRustPackages() {
   }
 }
 
-async function build(signal) {
+async function build(signal, writeBindings) {
   const tool = version('wasm-bindgen');
   if (tool !== 'wasm-bindgen ' + bindgenVersion)
     throw new Error('build:sdk requires wasm-bindgen-cli ' + bindgenVersion + ', found ' + tool);
@@ -128,6 +130,15 @@ async function build(signal) {
           { cwd: root, timeout: 1_200_000, signal },
         );
         for (const file of backendFiles) fs.statSync(path.join(output, file));
+        const current = publicWasmDeclaration(
+          fs.readFileSync(path.join(output, 'backend.d.ts'), 'utf8'),
+        );
+        if (writeBindings) {
+          ensureDirectory(path.dirname(wasmDeclaration));
+          fs.writeFileSync(wasmDeclaration, current);
+        } else if (fs.readFileSync(wasmDeclaration, 'utf8').replaceAll('\r\n', '\n') !== current) {
+          throw new Error('SDK Wasm bindings are stale. Run npm run generate:backend-bindings.');
+        }
         Object.assign(supply, {
           bindgenVersion,
           defaultBuild: { ...defaultBuild, binding },
@@ -167,4 +178,4 @@ if (
   process.argv[1] &&
   path.resolve(process.argv[1]) === path.join(import.meta.dirname, 'build-supply.mjs')
 )
-  await withSignals(build);
+  await withSignals((signal) => build(signal, process.argv.includes('--write-wasm-bindings')));

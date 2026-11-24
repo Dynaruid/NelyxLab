@@ -13,6 +13,9 @@ use tauri::{
 pub struct WindowFeatures {
     pub label: &'static str,
     pub clipboard: Option<ClipboardGrants>,
+    pub haptics: Option<bool>,
+    pub android_back: Option<bool>,
+    pub device_services: &'static [&'static str],
     pub safe_area: bool,
     pub window_title: bool,
     pub commands: Option<&'static [&'static str]>,
@@ -97,6 +100,7 @@ fn allowed<R: Runtime>(
 }
 
 #[tauri::command]
+#[cfg_attr(feature = "generate-bindings", specta::specta)]
 async fn describe<R: Runtime>(
     webview: Webview<R>,
     backend: State<'_, Backend>,
@@ -104,6 +108,13 @@ async fn describe<R: Runtime>(
     let features = allowed(&backend, &webview)?;
     let mut description = backend.identity.describe(std::env::consts::OS);
     description.clipboard = features.clipboard;
+    description.haptics = features
+        .haptics
+        .map(|enabled| enabled && cfg!(any(target_os = "android", target_os = "ios")));
+    description.android_back = features
+        .android_back
+        .map(|enabled| enabled && cfg!(target_os = "android"));
+    description.device_services = features.device_services;
     description.safe_area = cfg!(target_os = "android") && features.safe_area;
     description.window_title = features.window_title;
     description.title = webview
@@ -138,6 +149,7 @@ async fn invoke<R: Runtime>(
 }
 
 #[tauri::command]
+#[cfg_attr(feature = "generate-bindings", specta::specta)]
 async fn clipboard_policy<R: Runtime>(
     webview: Webview<R>,
     backend: State<'_, Backend>,
@@ -147,12 +159,88 @@ async fn clipboard_policy<R: Runtime>(
     Ok(nelyx_backend_core::clipboard_policy(input))
 }
 
+#[derive(serde::Deserialize)]
+#[serde(tag = "operation", rename_all = "lowercase")]
+enum StoreInput {
+    Get { key: String },
+    Set { key: String, value: Value },
+    Remove { key: String },
+}
+
+#[tauri::command]
+async fn device_store<R: Runtime>(
+    webview: Webview<R>,
+    backend: State<'_, Backend>,
+    input: StoreInput,
+) -> BackendResult {
+    if !allowed(&backend, &webview)?
+        .device_services
+        .contains(&"store")
+    {
+        return Err(BackendError::new(
+            "permission-denied",
+            "Device store is disabled for this WebView",
+        ));
+    }
+    let key = match &input {
+        StoreInput::Get { key } | StoreInput::Set { key, .. } | StoreInput::Remove { key } => key,
+    };
+    if key.trim().is_empty() || key.contains('\0') || key.encode_utf16().count() > 200 {
+        return Err(BackendError::new(
+            "invalid-arguments",
+            "Invalid device store key",
+        ));
+    }
+    #[cfg(feature = "device-store")]
+    {
+        use tauri_plugin_store::StoreExt;
+        let map_error = |error: tauri_plugin_store::Error| {
+            BackendError::new("storage-error", error.to_string())
+        };
+        let store = webview
+            .store_builder("nelyx-device-store.json")
+            .disable_auto_save()
+            .build()
+            .map_err(map_error)?;
+        match input {
+            StoreInput::Get { key } => {
+                let value = store.get(&key);
+                return Ok(nelyx_backend_core::json!({ "found": value.is_some(), "value": value }));
+            }
+            StoreInput::Set { key, value } => store.set(key, value),
+            StoreInput::Remove { key } => {
+                store.delete(key);
+            }
+        }
+        store.save().map_err(map_error)?;
+        Ok(Value::Null)
+    }
+    #[cfg(not(feature = "device-store"))]
+    {
+        if let StoreInput::Set { value, .. } = input {
+            drop(value);
+        }
+        Err(BackendError::new(
+            "unsupported",
+            "Device store plugin is unavailable",
+        ))
+    }
+}
+
+#[derive(serde::Serialize)]
+struct SafeAreaInsets {
+    top: u32,
+    right: u32,
+    bottom: u32,
+    left: u32,
+}
+
 #[tauri::command]
 async fn watch_safe_area<R: Runtime>(
     webview: Webview<R>,
     backend: State<'_, Backend>,
     subscription: String,
-    on_change: Channel,
+    on_change: Channel<SafeAreaInsets>,
 ) -> Result<(), BackendError> {
     if !allowed(&backend, &webview)?.safe_area || !cfg!(target_os = "android") {
         return Err(BackendError::new(
@@ -161,7 +249,7 @@ async fn watch_safe_area<R: Runtime>(
         ));
     }
     #[cfg(target_os = "android")]
-    return safe_area(
+    return android_call(
         &webview,
         "watchSafeArea",
         serde_json::json!({
@@ -184,7 +272,7 @@ async fn unwatch_safe_area<R: Runtime>(
 ) -> Result<(), BackendError> {
     allowed(&backend, &webview)?;
     #[cfg(target_os = "android")]
-    return safe_area(
+    return android_call(
         &webview,
         "unwatchSafeArea",
         serde_json::json!({
@@ -199,12 +287,71 @@ async fn unwatch_safe_area<R: Runtime>(
     }
 }
 
+#[tauri::command]
+async fn dispatch_default_back<R: Runtime>(
+    webview: Webview<R>,
+    backend: State<'_, Backend>,
+) -> Result<(), BackendError> {
+    if allowed(&backend, &webview)?.android_back != Some(true) || !cfg!(target_os = "android") {
+        return Err(BackendError::new(
+            "unsupported",
+            "Android back is unavailable",
+        ));
+    }
+    #[cfg(target_os = "android")]
+    return android_call(&webview, "dispatchDefaultBack", Value::Null).await;
+    #[cfg(not(target_os = "android"))]
+    Ok(())
+}
+
+#[tauri::command]
+async fn device_file_name<R: Runtime>(
+    webview: Webview<R>,
+    backend: State<'_, Backend>,
+    uri: String,
+) -> Result<Option<String>, BackendError> {
+    if !allowed(&backend, &webview)?
+        .device_services
+        .contains(&"files")
+    {
+        return Err(BackendError::new(
+            "permission-denied",
+            "File metadata is disabled for this WebView",
+        ));
+    }
+    if !Url::parse(&uri).is_ok_and(|url| url.scheme() == "content") {
+        return Err(BackendError::new(
+            "invalid-arguments",
+            "Expected an Android content URI",
+        ));
+    }
+    #[cfg(target_os = "android")]
+    {
+        #[derive(serde::Deserialize)]
+        struct Name {
+            name: Option<String>,
+        }
+        let selected: Name = android_call(
+            &webview,
+            "deviceFileName",
+            nelyx_backend_core::json!({ "uri": uri }),
+        )
+        .await?;
+        Ok(selected.name)
+    }
+    #[cfg(not(target_os = "android"))]
+    Err(BackendError::new(
+        "unsupported",
+        "Android file metadata is unavailable",
+    ))
+}
+
 #[cfg(target_os = "android")]
-async fn safe_area<R: Runtime>(
+async fn android_call<R: Runtime, T: serde::de::DeserializeOwned>(
     webview: &Webview<R>,
     command: &str,
     input: Value,
-) -> Result<(), BackendError> {
+) -> Result<T, BackendError> {
     webview
         .state::<tauri::plugin::PluginHandle<R>>()
         .run_mobile_plugin_async(command, input)
@@ -237,7 +384,28 @@ pub fn init<R: Runtime>(
             invoke,
             clipboard_policy,
             watch_safe_area,
-            unwatch_safe_area
+            unwatch_safe_area,
+            dispatch_default_back,
+            device_store,
+            device_file_name
         ])
         .build()
+}
+
+#[cfg(feature = "generate-bindings")]
+pub fn export_bindings(
+    path: impl AsRef<std::path::Path>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri::test::MockRuntime;
+    use tauri_specta::{collect_commands, Builder, ErrorHandlingMode};
+
+    Builder::<MockRuntime>::new()
+        .plugin_name("nelyx-backend")
+        .commands(collect_commands![
+            describe::<MockRuntime>,
+            clipboard_policy::<MockRuntime>
+        ])
+        .error_handling(ErrorHandlingMode::Throw)
+        .export(specta_typescript::Typescript::default(), path)?;
+    Ok(())
 }

@@ -20,6 +20,13 @@ import { PlatformDispatcher } from '@nelyx/core/ui/platform-dispatcher';
 import type { PlatformViewRegistration } from '@nelyx/core/ui/platform-dispatcher';
 import { PlatformMessageWorkerOwner } from './worker-messages.ts';
 import type { ImageService } from '@nelyx/core/hosting/images';
+import { bindDeviceServices } from '../devices.ts';
+import type { DeviceServices } from '../devices.ts';
+import type { DeviceScope } from './device-scope.ts';
+
+type SdkBackendServices<TText extends TextLayoutService> = BackendServices<TText> & {
+  readonly devices?: { readonly scope: DeviceScope; readonly services: DeviceServices };
+};
 
 // A failed native drain still owns resources, callbacks and host dependencies.
 const failedOwners = new Set<unknown>();
@@ -107,7 +114,7 @@ export class ComposedApplication<
     view: ViewRuntime,
     text: TText,
     renderer: Renderer,
-    readonly services: BackendServices<TText>,
+    readonly services: SdkBackendServices<TText>,
     readonly assets: ReadonlyMap<string, ResourceId>,
     private readonly stop: () => void,
     private readonly binding: Disposable,
@@ -130,6 +137,7 @@ export class ComposedApplication<
       });
       for (const stop of [
         () => this.stop(),
+        () => this.services.devices?.scope.stop(),
         () => this.services.dialogWindows?.stop(),
         () => this.platformViewRegistration?.dispose(),
         () => this.services.nativeSelectionContextMenu?.stop(),
@@ -177,6 +185,9 @@ export class ComposedApplication<
       }
     };
     const steps: DisposalStep[] = [
+      ...(this.services.devices
+        ? [{ name: 'device-services', run: bestEffort(this.services.devices.scope) }]
+        : []),
       ...[...new Set([this.binding, ...(this.startup ? [this.startup] : [])])].map(
         (value, index) => ({ name: 'binding-' + index, run: bestEffort(value) }),
       ),
@@ -257,7 +268,7 @@ export class ComposedApplication<
 /** SDK composition: resolve -> startup -> attach; close stops callbacks before drain. */
 export async function bootstrapApplication<TText extends TextLayoutService>(
   definition: ApplicationDefinition,
-  services: BackendServices<TText>,
+  services: SdkBackendServices<TText>,
   initialize?: (context: PlatformContext<TText>) => void,
 ): Promise<ComposedApplication<TText>> {
   ErrorToConsoleDumper.useWebConsole = services.identity.target === 'web';
@@ -291,6 +302,8 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
         useAsDefault: services.useDefaultBinaryMessenger ?? false,
       });
       messages.attach();
+      if (services.devices)
+        services.devices.scope.own(bindDeviceServices(messages.binaryMessenger, services.devices.services));
     }
     if (messages)
       platformViewRegistration = PlatformDispatcher.forMessenger(
@@ -455,6 +468,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
     const errors: unknown[] = [error];
     for (const stop of [
       () => platformViewRegistration?.dispose(),
+      () => services.devices?.scope.stop(),
       () => services.dialogWindows?.stop(),
       () => services.nativeSelectionContextMenu?.stop(),
       () => session.beginClose(),
@@ -474,6 +488,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
     if (application) throw error; // Ownership already transferred, including a failed early close.
     await disposeAll(
       [
+        ...(services.devices ? [services.devices.scope] : []),
         ...(binding ? [binding] : []),
         ...(startup ? [startup] : []),
         ...(services.dialogWindows ? [services.dialogWindows] : []),

@@ -5,10 +5,29 @@ edition = "2021"
 license = "BSD-3-Clause"
 links = "tauri-plugin-nelyx-backend"
 
+[features]
+device-store = ["dep:tauri-plugin-store"]
+generate-bindings = [
+  "nelyx-backend-core/specta",
+  "dep:specta",
+  "dep:specta-typescript",
+  "dep:tauri-specta",
+  "tauri/test",
+]
+
+[[example]]
+name = "export-bindings"
+required-features = ["generate-bindings"]
+
 [build-dependencies]
 tauri-plugin = { version = "=2.7.4", features = ["build"] }
 
 [dependencies]
 nelyx-backend-core = { path = "../nelyx-backend-core", version = "=0.1.0" }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+specta = { version = "=2.0.0-rc.28", features = ["function"], optional = true }
+specta-typescript = { version = "=0.0.15", optional = true }
 tauri = { version = "=2.12.7", default-features = false }
+tauri-specta = { version = "=2.0.0-rc.29", features = ["typescript"], optional = true }
+tauri-plugin-store = { version = "=2.5.1", optional = true }

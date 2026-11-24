@@ -2,6 +2,7 @@
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Adapted from the pinned Flutter services/system_navigator.dart.
 import type { BinaryMessenger } from './binary-messenger.ts';
+import { PlatformChannelBinding } from './channel-binding.ts';
 import { SystemChannels, SystemChannelSet } from './system-channels.ts';
 import { FoundationPlatform } from '../foundation/platform.ts';
 export class SystemNavigator {
@@ -12,12 +13,16 @@ export class SystemNavigator {
     frameworkHandlesBack: boolean,
     messenger?: BinaryMessenger,
   ): Promise<void> {
+    const target =
+      messenger ??
+      (PlatformChannelBinding.initialized ? PlatformChannelBinding.binaryMessenger : undefined);
     if (
-      FoundationPlatform.hostEnvironment.kind === 'web' ||
-      FoundationPlatform.defaultTargetPlatform !== 'android'
+      !target?.androidBack &&
+      (FoundationPlatform.hostEnvironment.kind === 'web' ||
+        FoundationPlatform.defaultTargetPlatform !== 'android')
     )
       return;
-    await this.channels(messenger).platform.invokeMethod(
+    await this.channels(target).platform.invokeMethod(
       'SystemNavigator.setFrameworkHandlesBack',
       frameworkHandlesBack,
     );

@@ -19,6 +19,8 @@
   "scripts": {
     "build:sdk": "npm run build:core && npm run build:designs && npm run build:skia && npm run build --workspace @nelyx/sdk && node Nelyx/eng/generate-providers.mjs && npm run build:backend",
     "build:backend": "node Nelyx/backend/eng/build-supply.mjs",
+    "generate:backend-bindings": "npm run build --workspace @nelyx/tooling-contracts && node Nelyx/backend/eng/specta-bindings.mjs --write && node Nelyx/backend/eng/build-supply.mjs --write-wasm-bindings",
+    "check:backend-bindings": "node Nelyx/backend/eng/specta-bindings.mjs",
     "build:core": "npm run build --workspace @nelyx/core",
     "build:skia": "node Nelyx/skia/eng/prepare-web-runtime.mjs --check && npm run build --workspace @nelyx/skia-web",
     "build:web": "node Nelyx/eng/build-sample.mjs web",

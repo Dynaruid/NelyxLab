@@ -118,6 +118,7 @@ function populateApp(destination, name, designs, packages, { target, staticWeb, 
   if (!web) delete manifest.dependencies['@nelyx/backend-wasm'];
   if (!native) {
     delete manifest.dependencies['@nelyx/backend-tauri'];
+    delete manifest.dependencies['@tauri-apps/api'];
     delete manifest.devDependencies['@tauri-apps/cli'];
   }
   for (const script of Object.keys(manifest.scripts)) {

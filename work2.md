@@ -1,6 +1,6 @@
 # Nelyx 디바이스 API의 Tauri 플러그인·web-sys 바인딩 계획
 
-2026-11-24 · 기준 브랜치 `tauri-backend` · 기준 커밋 `7cb6ab32` · **설계 검토 완료, 구현 예정**
+2026-11-24 · 기준 브랜치 `tauri-backend` · 기준 커밋 `7cb6ab32` · **추가 디바이스 API 구현 완료 · 실기기 인수 대기**
 
 ## 1. 적용 결정
 
@@ -65,28 +65,38 @@
 - `SystemNavigator.setFrameworkHandlesBack`의 웹 조기 반환은 해당 메신저의 호스트 기능을 보도록 좁힌다. 입력 한 건에 `popRoute`를 한 번 보내고, 처리되면 종료한다. 미처리이고 WebView 기록이 있으면 history를 한 번 되돌린다. 루트에서 미처리면 현재 입력을 Android 기본 동작으로 한 번 위임한다. 리스너 해제는 현재 입력을 재생하지 않으므로, 필요하면 SDK Android 어댑터에서 재진입을 막고 기본 back을 전달한다. [현재 조기 반환](Nelyx/src/services/system-navigator.ts) · [프레임워크의 플랫폼 판정](Nelyx/src/foundation/platform.ts)
 - 일반 웹의 단일·다중 history, `popstate`, 앱 루트 URL 검사를 보존한다. Tauri의 이 이벤트로 확인할 수 있는 범위는 back 입력 완료 시점이다. 예측형 back의 시작·진행·취소를 제공하려면 해당 OS 이벤트와 `flutter/backgesture`를 별도로 연결해야 한다. [기존 history 처리](Nelyx/sdk/src/backends/browser/platform-messages.ts) · [예측형 back 이벤트](Nelyx/src/services/predictive-back-event.ts)
 
-## 5. 추가 디바이스 API 후보
+## 5. 추가 디바이스 API 구현 계획
 
-다음 기능은 현재 Nelyx 공개 디바이스 계약에 새로 추가할 후보들이다. 첫 확장 후보는 **전경 위치**다. 한 번 읽기와 관찰·해제를 양쪽 타깃에서 대응시킬 수 있어, 권한 및 구독 계약을 실제 앱 기능으로 검증할 수 있다.
+앱과 위젯은 해당 뷰의 `@nelyx/sdk/devices` 서비스로 기능을 조회한다. 브라우저 기능은 보안 컨텍스트와 API 노출 여부를 확인한다. Tauri는 각 창에서 선택한 기능의 플러그인과 WebView 권한을 생성한다. 서비스는 요청한 뷰에서 선택기와 권한 프롬프트를 열며, 뷰 종료 시 관찰·카메라·근거리 연결을 닫는다. 권한과 하드웨어 가용성은 각 호출에서 확인한다.
 
-| 기능 | Tauri 설치 앱 | 웹·PWA와 채택 조건 |
+| 기능 | 공개 계약 | 타깃별 경로 |
 | --- | --- | --- |
-| 전경 위치 | 공식 Geolocation은 Android·iOS용이다. `getCurrentPosition`, `watchPosition`과 `clearWatch`를 묶고 Android 위치 권한과 iOS 사용 목적 문구를 준비한다. | `web_sys::Geolocation`을 사용한다. 한 번 조회·구독·취소, 거부·시간 초과·위치 획득 불가, 정확도와 타임스탬프 단위를 계약에 넣는다. 데스크톱 Tauri는 WebView 위치 제공과 권한 처리를 기종별로 확인한 경우에만 제공한다. [Tauri Geolocation](https://v2.tauri.app/plugin/geolocation/) · [web-sys Geolocation](https://docs.rs/web-sys/0.3.105/web_sys/struct.Geolocation.html) |
-| 로컬 알림 | Notification의 권한 확인·요청과 즉시 표시를 후보로 둔다. Windows 인수는 설치 패키지로 수행한다. | `Notification`과 모바일의 서비스 워커 `show_notification`을 검토한다. 권한을 요청하는 동작, 로컬 표시, 원격 push 수신은 각각 별도 기능이다. [Tauri Notifications](https://v2.tauri.app/plugin/notification/) · [웹 알림 표준](https://notifications.spec.whatwg.org/) · [web-sys 서비스 워커](https://docs.rs/web-sys/0.3.105/web_sys/struct.ServiceWorkerRegistration.html) |
-| 파일 선택·읽기 | Dialog로 사용자가 선택하고 File System으로 허용된 파일을 읽는다. 데스크톱 경로, Android `content://`, iOS 파일 URI를 처리한다. 모바일 폴더 선택에는 제한이 있다. | `HtmlInputElement`의 `FileList`와 `File`로 이름·크기·내용을 제공한다. 공통 결과는 선택 파일에 대한 핸들과 취소 상태로 정의한다. 파일 선택 UI와 앱의 Material·Cupertino 대화상자는 독립적이다. [Tauri Dialog](https://v2.tauri.app/plugin/dialog/) · [File System](https://v2.tauri.app/plugin/file-system/) · [Web File API](https://www.w3.org/TR/FileAPI/) |
-| 외부 URL·딥링크·저장 | Opener는 외부 앱 열기, Deep Linking은 설치 앱으로 들어오는 URL, Store는 영구 키·값 저장에 대응한다. | 웹은 사용자 동작에 따른 링크 열기, 앱 시작 URL·History, 용도에 맞는 브라우저 저장소를 사용한다. 외부 URL의 허용 스킴, 내부 라우트, 탭별 복원과 영구 설정의 수명을 계약별로 정한다. [Opener](https://v2.tauri.app/plugin/opener/) · [Deep Linking](https://v2.tauri.app/plugin/deep-linking/) · [Store](https://v2.tauri.app/plugin/store/) |
-| 카메라·바코드·NFC·생체 인증 | Barcode Scanner, NFC, Biometric은 각각 모바일 전용 작업을 제공한다. 범용 카메라·마이크 스트림은 별도의 기능이다. | 카메라 입력은 `MediaDevices`로 얻을 수 있지만 디코딩도 필요하다. 고정한 `web-sys` 타입 목록에는 `BarcodeDetector`·`NDEFReader`가 없다. WebAuthn의 자격증명 서명은 네이티브 로컬 생체 확인과 결과가 다르다. 개별 기능에 웹 구현과 지원 기종이 확인될 때 확장한다. [모바일 스캐너](https://v2.tauri.app/plugin/barcode-scanner/) · [NFC](https://v2.tauri.app/plugin/nfc/) · [Biometric](https://v2.tauri.app/plugin/biometric/) · [web-sys 타입 목록](https://docs.rs/web-sys/0.3.105/web_sys/) · [WebAuthn](https://www.w3.org/TR/webauthn-3/) |
+| 전경 위치 | 좌표·정확도·타임스탬프 조회, 구독·해제, 거부·시간 초과·획득 불가 | 웹의 `web_sys::Geolocation`, Android·iOS의 Geolocation 플러그인, 지원하는 데스크톱 WebView. [웹 위치 표준](https://www.w3.org/TR/geolocation/) · [Tauri Geolocation](https://v2.tauri.app/plugin/geolocation/) |
+| 로컬 알림 | 권한 조회·명시적 요청, 제목·내용 즉시 표시 | 웹의 `Notification` 또는 활성 서비스 워커, 설치 앱의 Notification 플러그인. [웹 알림 표준](https://notifications.spec.whatwg.org/) · [Tauri Notifications](https://v2.tauri.app/plugin/notification/) |
+| 파일 선택·읽기 | 필터·복수 선택·취소, 선택 파일 핸들의 이름과 바이트 읽기 | 웹의 파일 입력과 `File`, 설치 앱의 Dialog와 File System. IPC는 파일 선택으로 추가된 범위에서 읽는다. [Web File API](https://www.w3.org/TR/FileAPI/) · [Tauri Dialog](https://v2.tauri.app/plugin/dialog/) · [File System](https://v2.tauri.app/plugin/file-system/) |
+| 외부 URL·딥링크·영구 저장 | HTTP(S) 열기, 시작 링크와 수신 구독, 앱 전용 JSON 키·값 조회·저장·삭제 | 웹의 브라우저 링크·History·Storage, 설치 앱의 Opener·Deep Linking·Store. 앱 등록용 스킴·도메인은 설정에 명시한다. [Tauri Opener](https://v2.tauri.app/plugin/opener/) · [Deep Linking](https://v2.tauri.app/plugin/deep-linking/) · [Store](https://v2.tauri.app/plugin/store/) |
+| 카메라·바코드 | 영상 스트림의 열기·닫기, 취소할 수 있는 바코드 스캔 | 브라우저·WebView의 `MediaDevices`, 지원 브라우저의 `BarcodeDetector`, 모바일 설치 앱의 Barcode Scanner. [Media Capture and Streams](https://w3c.github.io/mediacapture-main/) · [Tauri Barcode Scanner](https://v2.tauri.app/plugin/barcode-scanner/) |
+| NFC·생체 인증 | NDEF 텍스트 태그 읽기·쓰기, OS 생체 인증 가능 여부·명시적 인증, 앱 서버가 검증할 수 있는 WebAuthn 서명 | 모바일의 NFC, Android·iOS·macOS의 Biometric, 지원 브라우저의 Web NFC·WebAuthn. WebAuthn 결과는 자격증명 서명으로 제공한다. [Tauri NFC](https://v2.tauri.app/plugin/nfc/) · [Tauri Biometric](https://v2.tauri.app/plugin/biometric/) · [Web NFC](https://w3c.github.io/web-nfc/) · [WebAuthn](https://www.w3.org/TR/webauthn-3/) |
+| 배터리·센서 | 배터리 스냅숏·변경, 사용자 허용 후 기기 방향·가속도 구독 | 지원 브라우저와 WebView의 Battery Status 및 Device Orientation/Motion. [Battery Status](https://w3c.github.io/battery/) · [Device Orientation](https://www.w3.org/TR/orientation-event/) |
+| Bluetooth·공유 | BLE 사용자 선택, 서비스 범위 GATT 특성 읽기·쓰기, 연결 해제, 텍스트·URL 공유 | 지원 브라우저와 WebView의 Web Bluetooth·Web Share. [Web Bluetooth](https://webbluetoothcg.github.io/web-bluetooth/) · [Web Share](https://www.w3.org/TR/web-share/) |
 
-배터리·센서·Bluetooth·공유는 웹 API 노출 여부와 Tauri 측 공급자·실기기 지원을 기능별로 조사한다. 공식 목록이 별도 커뮤니티 항목으로 안내하는 플러그인은 의존성 후보로 따로 평가한다. HTTP·WebSocket·SQL·Shell·Updater·전역 단축키 등도 해당 기능을 요청하는 앱에서 선택하며 기본 디바이스 번들에 자동으로 포함하지 않는다. [Tauri 공식 기능·커뮤니티 목록](https://v2.tauri.app/plugin/) · [web-sys Navigator](https://docs.rs/web-sys/0.3.105/web_sys/struct.Navigator.html)
+HTTP·WebSocket·SQL·Shell·Updater·전역 단축키는 해당 기능을 사용하는 앱에서 개별 플러그인으로 선택한다. [Tauri 플러그인 목록](https://v2.tauri.app/plugin/)
+
+- [x] **5.1. 공통 계약.** 뷰 서비스 수명, 기능 설정, 플랫폼별 IPC 권한·플러그인 버전, 사용자 목적 문구와 딥링크 등록을 연결한다. 프로토콜과 생성 선언을 함께 갱신한다.
+- [x] **5.2. 위치·알림·파일.** 조회와 정리, 사용자 거절과 선택기 취소, 바이너리 파일의 바이트 읽기를 검증한다.
+- [x] **5.3. 링크·저장.** 외부 URL 스킴 검사, 최초·실행 중 딥링크, 재시작 뒤 키·값 복원을 검증한다.
+- [ ] **5.4. 카메라·바코드·NFC·인증.** 응답·취소·권한 거절·미지원 기기를 확인한다. 웹과 설치 앱에서 각 경로의 하드웨어 결과를 기록한다.
+- [x] **5.5. 배터리·센서·Bluetooth·공유.** API 노출에 따른 지원 판정, 구독·연결 해제, 사용자 선택과 취소를 확인한다.
+- [ ] **5.6. 공급과 인수.** Demo에서 명시적 사용자 동작으로 서비스에 접근하고 Testbed로 설정 생략을 검증한다. SDK와 두 앱의 잠금 및 공급을 갱신한다. 브라우저·설치 패키지의 검증과 실기기 인수 결과를 기록한다.
 
 ## 6. 구현 순서와 완료 기준
 
-- [ ] **1. 계약과 호환성.** `BackendConnection`에 선택적 뷰별 서비스 주입 지점을 추가한다. 제안하는 앱 설정은 `targets.tauri.windows[]`의 `haptics?: boolean`과 `androidBack?: boolean`이다. Rust `WindowFeatures`, `describe`와 TS 판독기는 생략·허용·명시적 끔과 OS 지원 여부를 일관되게 처리한다. 새 Wasm 내보내기와 호스트 설명을 요구하는 SDK는 Rust `PROTOCOL_VERSION`과 tooling의 `backendProtocol`을 함께 올린다. 기존 `nelyx.app/v4` 설정을 읽고 구버전 프런트엔드·호스트 혼합은 시작 단계에서 식별한다. [설정 검사](Nelyx/sdk/src/runtime/config.ts) · [공급 계약](Nelyx/sdk/tooling/contracts/src/backend-supply.mjs) · [호스트 응답 검사](Nelyx/sdk/src/backends/backend-contract.ts)
-- [ ] **2. 웹 바인딩.** 2.1절의 생성 선언을 SDK 로더에 연결한 뒤 클립보드 I/O·권한 관찰·진동을 Wasm에 연결한다. 기존 Rust 정책을 초기화 후에도 사용하고 독립 DOM 임베딩에는 기존 기본값을 둔다. 뷰마다 종료할 때 `PermissionStatus` 리스너를 제거한 뒤 Rust 콜백을 해제한다. 기본 Wasm과 앱별 Wasm 양쪽에서 공개 API를 통해 같은 결과가 나와야 한다. [웹 어댑터](Nelyx/sdk/src/backends/web-wasm.ts) · [앱 Wasm 생성기](Nelyx/sdk/tooling/cli/src/backend-project.mjs) · [기본 공급본 생성](Nelyx/backend/eng/build-supply.mjs)
-- [ ] **3. Tauri 플러그인과 권한 생성.** 설정을 읽어 모바일 전용 Cargo 의존성, 조건부 `.plugin(...)` 등록, 창별 capability, `describe`의 기능 정보를 함께 생성한다. 햅틱은 `haptics:` 아래 `allow-vibrate`, `allow-impact-feedback`, `allow-selection-feedback`, `allow-notification-feedback`를 부여한다. Android는 플러그인 매니페스트의 `VIBRATE` 병합도 확인한다. 클립보드는 읽기·쓰기를 각각 부여한다. 직접 플러그인 IPC에는 Tauri ACL이 적용되고 Nelyx 자체 명령에는 기존 창·앱 페이지 검사도 적용된다. 다중 WebView 창은 승인한 WebView 라벨만 대상으로 한다. 앱의 IPC 허용과 OS·브라우저의 실행 권한을 각각 확인하고, Android에서 `Webview::url()`을 조회하는 자체 명령은 비동기로 유지한다. [호스트 생성기](Nelyx/sdk/tooling/cli/src/tauri-host.mjs) · [자체 플러그인](Nelyx/backend/crates/tauri-plugin-nelyx-backend/src/lib.rs) · [Tauri capability](https://v2.tauri.app/reference/acl/capability/#webviews) · [햅틱 플러그인 매니페스트](https://raw.githubusercontent.com/tauri-apps/plugins-workspace/haptics-v2.4.2/plugins/haptics/android/src/main/AndroidManifest.xml)
-  - [ ] `describe`·`clipboard_policy`의 Specta 호출 함수를 공급하고 2.1절의 타입·권한·번들 검사를 통과한다.
-- [ ] **4. Android back 연결.** 4절의 소유자 등록·해제, 라우트 응답, 기본 동작 위임을 적용한다. 내부 라우트·모달·루트에서 버튼과 시스템 back 제스처를 각각 사용해 한 번의 입력으로 한 번만 이동하는지 확인한다. 일반 브라우저의 앞·뒤로 가기도 함께 확인한다.
-- [ ] **5. 공급·샘플·문서.** SDK Cargo 잠금을 갱신하고 공급본을 다시 만든 뒤 Demo·Testbed의 영향받는 `backend/locks/<target>/Cargo.lock`을 갱신한다. Demo만 새 모바일 기능을 켜서 기존 위젯에서 확인하고, Testbed는 설정 생략 호환성을 확인한다. 스타터와 한·영 SDK/CLI 문서에 사용 예를 반영한다. 생성한 `.nelyx/` 디렉터리의 원본은 SDK 생성기와 앱 설정이다. [SDK 공급 절차](Nelyx/sdk/tooling/cli/README.ko.md) · [스타터](Nelyx/sdk/tooling/cli/templates/nelyx-app/package.json.template)
+- [x] **1. 계약과 호환성.** `BackendConnection`에 선택적 뷰별 서비스 주입 지점을 추가한다. 제안하는 앱 설정은 `targets.tauri.windows[]`의 `haptics?: boolean`과 `androidBack?: boolean`이다. Rust `WindowFeatures`, `describe`와 TS 판독기는 생략·허용·명시적 끔과 OS 지원 여부를 일관되게 처리한다. 새 Wasm 내보내기와 호스트 설명을 요구하는 SDK는 Rust `PROTOCOL_VERSION`과 tooling의 `backendProtocol`을 함께 올린다. 기존 `nelyx.app/v4` 설정을 읽고 구버전 프런트엔드·호스트 혼합은 시작 단계에서 식별한다. [설정 검사](Nelyx/sdk/src/runtime/config.ts) · [공급 계약](Nelyx/sdk/tooling/contracts/src/backend-supply.mjs) · [호스트 응답 검사](Nelyx/sdk/src/backends/backend-contract.ts)
+- [x] **2. 웹 바인딩.** 2.1절의 생성 선언을 SDK 로더에 연결한 뒤 클립보드 I/O·권한 관찰·진동을 Wasm에 연결한다. 기존 Rust 정책을 초기화 후에도 사용하고 독립 DOM 임베딩에는 기존 기본값을 둔다. 뷰마다 종료할 때 `PermissionStatus` 리스너를 제거한 뒤 Rust 콜백을 해제한다. 기본 Wasm과 앱별 Wasm 양쪽에서 공개 API를 통해 같은 결과가 나와야 한다. [웹 어댑터](Nelyx/sdk/src/backends/web-wasm.ts) · [앱 Wasm 생성기](Nelyx/sdk/tooling/cli/src/backend-project.mjs) · [기본 공급본 생성](Nelyx/backend/eng/build-supply.mjs)
+- [x] **3. Tauri 플러그인과 권한 생성.** 설정을 읽어 모바일 전용 Cargo 의존성, 조건부 `.plugin(...)` 등록, 창별 capability, `describe`의 기능 정보를 함께 생성한다. 햅틱은 `haptics:` 아래 `allow-vibrate`, `allow-impact-feedback`, `allow-selection-feedback`, `allow-notification-feedback`를 부여한다. Android는 플러그인 매니페스트의 `VIBRATE` 병합도 확인한다. 클립보드는 읽기·쓰기를 각각 부여한다. 직접 플러그인 IPC에는 Tauri ACL이 적용되고 Nelyx 자체 명령에는 기존 창·앱 페이지 검사도 적용된다. 다중 WebView 창은 승인한 WebView 라벨만 대상으로 한다. 앱의 IPC 허용과 OS·브라우저의 실행 권한을 각각 확인하고, Android에서 `Webview::url()`을 조회하는 자체 명령은 비동기로 유지한다. [호스트 생성기](Nelyx/sdk/tooling/cli/src/tauri-host.mjs) · [자체 플러그인](Nelyx/backend/crates/tauri-plugin-nelyx-backend/src/lib.rs) · [Tauri capability](https://v2.tauri.app/reference/acl/capability/#webviews) · [햅틱 플러그인 매니페스트](https://raw.githubusercontent.com/tauri-apps/plugins-workspace/haptics-v2.4.2/plugins/haptics/android/src/main/AndroidManifest.xml)
+  - [x] `describe`·`clipboard_policy`의 Specta 호출 함수를 공급하고 2.1절의 타입·권한·번들 검사를 통과한다.
+- [x] **4. Android back 연결.** 4절의 소유자 등록·해제, 라우트 응답, 기본 동작 위임을 적용한다. Android 에뮬레이터의 내부 라우트·모달·루트에서 버튼과 시스템 back 제스처를 각각 사용해 한 번의 입력으로 한 번만 이동하는지 확인한다. 일반 브라우저의 앞·뒤로 가기도 함께 확인한다.
+- [x] **5. 공급·샘플·문서.** SDK Cargo 잠금을 갱신하고 공급본을 다시 만든 뒤 Demo·Testbed의 영향받는 `backend/locks/<target>/Cargo.lock`을 갱신한다. Demo만 새 모바일 기능을 켜서 기존 위젯에서 확인하고, Testbed는 설정 생략 호환성을 확인한다. 스타터와 한·영 SDK/CLI 문서에 사용 예를 반영한다. 생성한 `.nelyx/` 디렉터리의 원본은 SDK 생성기와 앱 설정이다. [SDK 공급 절차](Nelyx/sdk/tooling/cli/README.ko.md) · [스타터](Nelyx/sdk/tooling/cli/templates/nelyx-app/package.json.template)
 
 | 인수 환경 | 구현 후 확인할 결과 |
 | --- | --- |
@@ -109,3 +119,42 @@ node Nelyx/eng/check-backend-web.mjs sample/nelyx-demo-app
 npm.cmd --prefix sample/nelyx-demo-app run build:tauri -- --platform windows
 node Nelyx/eng/check-tauri-windows.mjs sample/nelyx-demo-app
 ```
+
+## 7. 구현 및 인수 결과
+
+2026-11-24에 SDK 공급본, Demo, Testbed를 백엔드 프로토콜 `2`로 갱신했다. 고정 버전의 Specta 바인딩 재생성 검사, SDK·샘플 타입 검사, Rust 정책 테스트, 클립보드 오류·햅틱 명령 8종·Android back 소유권 검사를 통과했다. 검증 중 발견한 선택 핸들 비활성화 시 페이드 콜백과 팝업 종료 시 라우트 Promise 처리도 수정했다. [Specta 재생성](Nelyx/backend/eng/specta-bindings.mjs) · [디바이스 검사](Nelyx/eng/check-device-services.mjs) · [선택 오버레이](Nelyx/src/framework/widgets/selection-overlay.ts) · [팝업 라우트](packages/material/src/dialog.ts)
+
+| 환경 | 확인 결과 |
+| --- | --- |
+| 웹·PWA | Demo `9b905b393b37`, Testbed `cc4121fdc8e8`의 릴리스 ID·Wasm 해시를 확인했다. 두 PWA는 `/`와 `/demo/`에서 오프라인 재시작을 통과했다. 기본 Wasm을 쓰는 `--static --no-backend` 스타터도 양 경로에서 실행했다. 실제 편집 메뉴에서 복사·붙여넣기, 빈 텍스트, 권한 거부·변경·미지원과 사용자 활성화를 확인했다. 모바일 크롬 에뮬레이션에서 메뉴 사전 읽기 0회와 명시적 붙여넣기 1회를 확인했다. 브라우저 앞·뒤로 가기, 팝업 닫기, Vite 재로드에서 정상 응답과 권한 관찰 해제를 확인했다. 웹 모듈 그래프와 Wasm Cargo 의존성 검사에서 Tauri 런타임 의존성은 0건이었다. [웹 검사](Nelyx/eng/check-backend-web.mjs) · [위젯 검사](sample/nelyx-demo-app/eng/check-text-selection.mjs) |
+| Windows Tauri x64 | Demo `09190df3b108`의 네이티브 클립보드와 Testbed `bc2bf903b3a1`의 WebView 클립보드를 위젯과 OS 입력으로 확인했다. 두 앱 모두 오프라인 WebView에서 읽은 빌드 ID를 EXE 패키지와 대조했다. 실제 다중 WebView 테스트 호스트에서 양방향 허용, 읽기 전용, 쓰기 전용, 모두 끔, 설정 생략 창의 권한을 검증했다. 실패한 네이티브 요청의 재호출 방지도 디바이스 검사로 확인했다. [Windows 검사](Nelyx/eng/check-tauri-windows.mjs) · [디바이스 검사](Nelyx/eng/check-device-services.mjs) |
+| Android Tauri x64 에뮬레이터 | Demo `09190df3b108`의 설치 APK 해시를 패키지와 대조했다. Android API 33 및 WebView `109.0.5414.123`에서 OS 클립보드 텍스트 왕복, 메뉴 사전 읽기 0회, 명시적 붙여넣기 1회를 확인했다. 제스처 탐색 모드에서 `KEYCODE_BACK`과 시스템 가장자리 스와이프로 모달·내부 라우트·WebView history·Activity 루트의 단일 이동을 확인했다. `VIBRATE` 권한, 햅틱 IPC 8종 성공, 네이티브 기본 back, 화면 여백 채널 구독·해제를 확인했다. [Android 위젯·디바이스 검사](sample/nelyx-demo-app/eng/check-text-selection.mjs) |
+| Android Tauri ARM64 | Demo `09190df3b108`의 APK와 AAB 빌드가 성공했다. Galaxy가 ADB 목록에서 사라져 이 빌드의 설치와 실행을 기다리고 있다. [ARM64 패키지](sample/nelyx-demo-app/.nelyx/tauri/android-arm64/package.json) |
+| iOS Tauri | 잠긴 Cargo 그래프에서 Demo의 `aarch64-apple-ios`와 `aarch64-apple-ios-sim` 대상에 클립보드 `2.5.0`과 햅틱 `2.4.2`가 해석됐다. 생성된 `main` WebView의 햅틱 권한은 Android와 iOS, back 권한은 Android를 대상으로 했다. Testbed의 iOS 대상은 두 플러그인 설정의 생략을 반영했다. macOS/Xcode 빌드와 실기기 실행이 남아 있다. [플랫폼별 빌드 절차](Nelyx/sdk/tooling/cli/README.ko.md) |
+
+동일한 Demo PWA의 Chrome 측정에서 Wasm은 76,507바이트에서 85,504바이트로 8,997바이트 증가했다. 백엔드 시작은 `/`에서 25 ms에서 26 ms로, `/demo/`에서 27 ms에서 23 ms로 측정됐다. 각 값은 해당 경로의 한 번의 실행 결과다. [측정 도구](Nelyx/eng/check-backend-web.mjs)
+
+Testbed PWA `cc4121fdc8e8`의 Material 시간 선택기에서 분 선택으로 전환할 때 Wasm을 거쳐 브라우저 진동 API에 50 ms 요청을 한 번 보냈다. Chrome에서 진동 호출을 계측했다. [위젯 호출부](packages/material/src/time-picker.ts) · [Wasm 진동 바인딩](Nelyx/backend/crates/nelyx-backend-wasm/src/devices.rs)
+
+- [ ] Android ARM64 실기기에 패키지를 설치하고 설치본 해시·실행 빌드, 클립보드 왕복·사전 읽기, 햅틱 유형별 촉감을 확인한다.
+- [ ] macOS/Xcode에서 iOS를 빌드하고 iOS 실기기에서 실행 빌드, 클립보드 왕복·사전 읽기, 햅틱 유형별 촉감을 확인한다.
+
+## 8. 추가 API 구현 및 인수
+
+백엔드 프로토콜 `3`에 `deviceServices`와 Wasm 위치 바인딩을 추가했다. 위젯은 `deviceServicesFor(context.services)`를 호출하고 앱 시작 콜백은 전달받은 컨텍스트를 넘긴다. SDK는 뷰를 닫을 때 구독과 연결을 해제한다. 태그 쓰기가 제출된 뒤에는 OS가 쓰기 세션을 제어한다. Demo는 컴포넌트 메뉴의 **Device services**에서 실제 선택기와 API를 호출한다. [공개 계약](Nelyx/sdk/src/devices.ts) · [Demo](sample/nelyx-demo-app/src/device-services-screen.ts)
+
+Tauri는 창의 `deviceServices` 선택에 맞춰 플러그인과 권한을 생성한다. 저장소 IPC는 앱 전용 파일의 키와 값만 받는다. Android 생성기는 앱 매니페스트에서 딥링크 선언을 매번 재생성한다. Rust SDK의 공급 파일에는 복사 시각을 반영해 Cargo가 변경된 코어를 다시 컴파일하게 했다. [호스트 생성기](Nelyx/sdk/tooling/cli/src/tauri-device-host.mjs) · [Rust 공급](Nelyx/sdk/tooling/cli/src/rust-supply.mjs)
+
+| 환경 | 확인 결과 |
+| --- | --- |
+| SDK와 브라우저 객체 검사 | 위치 오류·구독 종료, 알림, 파일 선택·취소, 안전한 URL, 앱별 저장, 카메라 스트림 해제, 바코드, NFC, 인증 매핑, 배터리, 센서, BLE GATT, 공유를 확인했다. 하드웨어 데이터를 사용하는 경로에는 테스트 입력을 공급했다. [확장 서비스 검사](Nelyx/eng/check-expanded-device-services.mjs) |
+| 웹·PWA | Demo `22e493545e19`에서 Wasm 위치 조회, 서비스 워커 알림, 선택한 바이너리 파일 읽기, 새로고침 뒤 설정 복원을 확인했다. Demo와 Testbed `c17737c54e59`는 `/`와 `/demo/`에서 오프라인 재시작을 통과했다. 기본 Wasm 정적 스타터도 두 경로에서 실행했다. 각 경로에서 프로토콜과 릴리스 해시를 대조했고 Demo의 모바일 브라우저 편집 메뉴는 사전 읽기 0회, 명시적 붙여넣기 1회였다. [웹 검사](Nelyx/eng/check-backend-web.mjs) · [위젯 검사](sample/nelyx-demo-app/eng/check-text-selection.mjs) |
+| Windows Tauri x64 | Demo `9a0c14cef868` 실행에서 창 설정, 앱 저장소 IPC, 네이티브 선택기로 선택한 바이너리 파일의 바이트 읽기, 미선택 경로 읽기 및 허용되지 않은 URL 스킴 차단, 최초·실행 중 딥링크를 확인했다. Testbed `9406fbb5c14a`의 디바이스 설정 생략과 WebView 클립보드도 확인했다. [Windows 검사](Nelyx/eng/check-tauri-windows.mjs) |
+| Android Tauri x64 에뮬레이터 | Demo `9a0c14cef868` APK의 설치본 SHA-256과 실행 빌드 ID를 대조했다. Android API 33에서 OS 딥링크 등록과 최초·실행 중 수신, 저장소 왕복, 위치·카메라·알림 권한과 NFC·생체 인증 가용성 응답을 확인했다. 시스템 뒤로 가기, 햅틱 IPC 8종, 화면 여백 채널, 길게 눌러 선택하기와 OS 클립보드를 재검증했다. 길게 누르기 테스트는 삽입 핸들 터치 영역 바깥의 텍스트를 눌렀다. [Android 검사](sample/nelyx-demo-app/eng/check-text-selection.mjs) |
+| Android Tauri ARM64 | Demo `9a0c14cef868`의 디버그 서명 APK와 미서명 릴리스 AAB를 만들고, 각각 SHA-256과 `arm64-v8a` 네이티브 라이브러리를 확인했다. Galaxy ADB 연결과 실기기 인수가 남아 있다. [ARM64 패키지](sample/nelyx-demo-app/.nelyx/tauri/android-arm64/package.json) |
+| iOS | 실기기와 시뮬레이터의 잠긴 Cargo 그래프, 목적 문구 4개와 NFC entitlement 생성, 딥링크 설정을 확인했다. Xcode 빌드와 실기기 인수가 남아 있다. [iOS 생성 코드](Nelyx/sdk/tooling/cli/src/tauri-device-host.mjs) |
+
+추가 위치 바인딩 이후 Demo Wasm은 85,504바이트에서 87,091바이트로 1,587바이트 증가했다. 같은 Chrome 검사에서 백엔드 시작은 `/`에서 26 ms, `/demo/`에서 24 ms였다. 각 값은 해당 경로의 한 번의 실행 결과다. [측정 도구](Nelyx/eng/check-backend-web.mjs)
+
+- [ ] Galaxy에 ARM64 빌드를 설치해 위치·카메라·바코드·NFC·생체 인증과 실제로 노출되는 브라우저 디바이스 기능을 확인한다.
+- [ ] macOS/Xcode에서 iOS를 빌드한 뒤 링크 등록과 모바일 디바이스 권한·하드웨어 호출을 확인한다.

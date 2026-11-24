@@ -11,6 +11,17 @@ import { readJson } from '@nelyx/vite/runner';
 import { cargoDependency, cratePath, inspectBackend, sourceFile } from './backend-project.mjs';
 import { ensureDirectory, ownedDirectory } from './publication.mjs';
 import { platforms } from './tauri-platforms.mjs';
+import {
+  androidManifest,
+  cargoPlugins,
+  configuredDevicePlugins,
+  deepLinkPluginConfig,
+  deviceCapabilities,
+  registerDevicePlugins,
+  writeDeviceAndroidLinks,
+  writeDeviceIosInfo,
+  writeDeviceIosEntitlements,
+} from './tauri-device-host.mjs';
 
 const template = path.resolve(import.meta.dirname, '../templates/tauri');
 export const hostPath = (app) => path.join(app, '.nelyx', 'tauri', 'host');
@@ -19,7 +30,23 @@ export const mobileDirectory = (host, platform) =>
   path.join(host.directory, 'gen', platform === 'ios' ? 'apple' : platform);
 const plugin = 'nelyx-backend:allow-';
 const basePermissions = [plugin + 'describe', plugin + 'clipboard-policy'];
-const tauriDependencies = { build: '2.7.6', runtime: '2.12.7', clipboard: '2.5.0' };
+const tauriDependencies = {
+  build: '2.7.6',
+  runtime: '2.12.7',
+  clipboard: '2.5.0',
+  haptics: '2.4.2',
+};
+const hapticsPermissions = [
+  'haptics:allow-vibrate',
+  'haptics:allow-impact-feedback',
+  'haptics:allow-selection-feedback',
+  'haptics:allow-notification-feedback',
+];
+const backPermissions = [
+  'core:app:allow-register-listener',
+  'core:app:allow-remove-listener',
+  plugin + 'dispatch-default-back',
+];
 const allowedPlatformKeys = new Set(['bundle', 'app']);
 
 export function inspectTauriBackend(value, options) {
@@ -36,7 +63,10 @@ export function inspectTauriBackend(value, options) {
     hostInputs: backendHash({
       tauri: value.config.targets.tauri,
       template: backendInventory(template),
-      generator: sha256(import.meta.filename),
+      generator: [
+        sha256(import.meta.filename),
+        sha256(path.join(import.meta.dirname, 'tauri-device-host.mjs')),
+      ],
       inputs,
       dependencies: tauriDependencies,
     }),
@@ -47,9 +77,21 @@ export function inspectTauriBackend(value, options) {
 function windowFeatures(value, base) {
   const title = value.config.displayName ?? value.config.name;
   return (value.config.targets.tauri.windows ?? [{ label: 'main', safeArea: true }]).map(
-    ({ clipboard, safeArea = false, windowTitle = true, commands, ...window }) => ({
+    ({
+      clipboard,
+      haptics,
+      androidBack,
+      deviceServices = [],
+      safeArea = false,
+      windowTitle = true,
+      commands,
+      ...window
+    }) => ({
       window: { ...base.app.windows[0], title: title + ' · Tauri', ...window },
       clipboard,
+      haptics,
+      androidBack,
+      deviceServices,
       safeArea,
       windowTitle,
       commands,
@@ -57,9 +99,11 @@ function windowFeatures(value, base) {
   );
 }
 
-function cargoManifest({ app, version, name }, directory, project, features) {
+function cargoManifest({ app, version, name }, directory, project, features, plugins) {
   const appCrate = project.appCrate;
   const clipboard = features.some(({ clipboard }) => clipboard?.read || clipboard?.write);
+  const storeEnabled = plugins.some(({ name }) => name === 'store');
+  const scopedJson = plugins.some(({ name }) => name === 'opener' || name === 'deep-link');
   const packageName = 'nelyx-' + name.replace(/^@/, '').replace(/[^a-zA-Z0-9_-]+/g, '-') + '-host';
   return `[package]
 name = ${JSON.stringify(packageName)}
@@ -78,23 +122,27 @@ tauri-build = { version = "=${tauriDependencies.build}", features = ["codegen"] 
 
 [dependencies]
 tauri = "=${tauriDependencies.runtime}"
-nelyx-backend-core = ${cargoDependency(directory, cratePath(app, 'backend-rust'))}
-tauri-plugin-nelyx-backend = ${cargoDependency(directory, cratePath(app, 'backend-tauri'))}
-${appCrate ? 'app_backend = ' + cargoDependency(directory, appCrate.directory, appCrate.name) + '\n' : ''}${clipboard ? 'tauri-plugin-clipboard-manager = "=' + tauriDependencies.clipboard + '"\n' : ''}
+${scopedJson ? 'serde_json = "1"\n' : ''}nelyx-backend-core = ${cargoDependency(directory, cratePath(app, 'backend-rust'))}
+tauri-plugin-nelyx-backend = ${cargoDependency(directory, cratePath(app, 'backend-tauri'), undefined, storeEnabled ? ['device-store'] : [])}
+${appCrate ? 'app_backend = ' + cargoDependency(directory, appCrate.directory, appCrate.name) + '\n' : ''}${clipboard ? 'tauri-plugin-clipboard-manager = "=' + tauriDependencies.clipboard + '"\n' : ''}${cargoPlugins(plugins)}
 [features]
 custom-protocol = ["tauri/custom-protocol"]
 `;
 }
 
-function nativeSource(project, features, frontendBuildId) {
+function nativeSource(project, features, frontendBuildId, plugins) {
   const { identity, appCrate } = project;
   const clipboard = features.some(({ clipboard }) => clipboard?.read || clipboard?.write);
+  const optional = (value) => (value === undefined ? 'None' : 'Some(' + value + ')');
   const windows = features
     .map(
-      ({ window, clipboard, safeArea, windowTitle, commands }) => `
+      ({ window, clipboard, haptics, androidBack, deviceServices, safeArea, windowTitle, commands }) => `
     WindowFeatures {
         label: ${JSON.stringify(window.label)},
         clipboard: ${clipboard ? `Some(nelyx_backend_core::ClipboardGrants { read: ${clipboard.read}, write: ${clipboard.write} })` : 'None'},
+        haptics: ${optional(haptics)},
+        android_back: ${optional(androidBack)},
+        device_services: &${JSON.stringify(deviceServices)},
         safe_area: ${safeArea},
         window_title: ${windowTitle},
         commands: ${commands ? 'Some(&' + JSON.stringify(commands) + ')' : 'None'},
@@ -110,8 +158,8 @@ const WINDOWS: &[WindowFeatures] = &[${windows}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_nelyx_backend::init(
+    let builder = tauri::Builder::default();
+${registerDevicePlugins(plugins, true)}    let builder = builder.plugin(tauri_plugin_nelyx_backend::init(
             Identity {
                 backend_version: ${JSON.stringify(identity.backendVersion)},
                 source_id: ${JSON.stringify(identity.sourceId)},
@@ -121,7 +169,8 @@ pub fn run() {
             WINDOWS,
             ${frontendBuildId ? 'Some(' + JSON.stringify(frontendBuildId) + ')' : 'None'},
         ))
-${clipboard ? '        .plugin(tauri_plugin_clipboard_manager::init())\n' : ''}        .run(tauri::tauri_build_context!())
+${clipboard ? '        .plugin(tauri_plugin_clipboard_manager::init())' : ''};
+${registerDevicePlugins(plugins, false)}    builder.run(tauri::tauri_build_context!())
         .expect("could not run Nelyx Tauri");
 }
 `;
@@ -169,41 +218,63 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
   const tauri = config.targets.tauri;
   const display = config.displayName ?? config.name;
   const features = windowFeatures(value, base);
-  const capabilities = features
-    .map(({ window, clipboard, safeArea, windowTitle, commands }) => {
-      const identifier = 'nelyx-window-' + window.label;
-      const insetId = 'nelyx-safe-area-' + window.label;
-      const permissions = [
-        ...basePermissions,
-        ...(commands?.length === 0 ? [] : [plugin + 'invoke']),
-        ...(windowTitle ? ['core:window:allow-set-title'] : []),
-        ...(clipboard?.read ? ['clipboard-manager:allow-read-text'] : []),
-        ...(clipboard?.write ? ['clipboard-manager:allow-write-text'] : []),
-      ];
+  const plugins = configuredDevicePlugins(features, tauriDependencies.haptics);
+  const deviceServices = new Set(features.flatMap((window) => window.deviceServices));
+  const capabilities = [];
+  for (const {
+    window,
+    clipboard,
+    haptics,
+    androidBack,
+    deviceServices: windowDevices,
+    safeArea,
+    windowTitle,
+    commands,
+  } of features) {
+    function capability(feature, permissions, platforms) {
+      const identifier = 'nelyx-' + feature + '-' + window.label;
       writeJson(directory, 'capabilities/' + identifier + '.json', {
         identifier,
-        windows: [window.label],
+        webviews: [window.label],
+        ...(platforms ? { platforms } : {}),
         permissions,
       });
-      if (safeArea)
-        writeJson(directory, 'capabilities/' + insetId + '.json', {
-          identifier: insetId,
-          windows: [window.label],
-          platforms: ['android'],
-          permissions: [plugin + 'watch-safe-area', plugin + 'unwatch-safe-area'],
-        });
-      return safeArea ? [identifier, insetId] : [identifier];
-    })
-    .flat();
+      capabilities.push(identifier);
+    }
+    capability('window', [
+      ...basePermissions,
+      ...(commands?.length === 0 ? [] : [plugin + 'invoke']),
+      ...(windowTitle ? ['core:window:allow-set-title'] : []),
+      ...(clipboard?.read ? ['clipboard-manager:allow-read-text'] : []),
+      ...(clipboard?.write ? ['clipboard-manager:allow-write-text'] : []),
+    ]);
+    if (safeArea)
+      capability(
+        'safe-area',
+        [plugin + 'watch-safe-area', plugin + 'unwatch-safe-area'],
+        ['android'],
+      );
+    if (haptics) capability('haptics', hapticsPermissions, ['android', 'iOS']);
+    if (androidBack) capability('android-back', backPermissions, ['android']);
+    for (const device of windowDevices) {
+      const label = device.replace(/[A-Z]/g, (character) => '-' + character.toLowerCase());
+      for (const { suffix = '', permissions, platforms } of deviceCapabilities[device] ?? [])
+        capability('device-' + label + suffix, permissions, platforms);
+    }
+  }
   for (const entry of fs.readdirSync(path.join(directory, 'capabilities'))) {
     if (!capabilities.includes(entry.replace(/\.json$/, '')))
       fs.unlinkSync(localFile(directory, 'capabilities/' + entry));
   }
+  const deviceLinks = deviceServices.has('deepLinks') ? deepLinkPluginConfig(tauri.deepLinks) : undefined;
   const native = {
     ...base,
     productName: tauri.productName ?? (display.replace(/[<>:"/\\|?*]/g, ' ').trim() || config.name),
     identifier: tauri.identifier,
     version,
+    ...(deviceLinks
+      ? { plugins: { ...base.plugins, 'deep-link': deviceLinks } }
+      : {}),
     app: {
       ...base.app,
       windows: features.map(({ window }) => window),
@@ -219,10 +290,13 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
   iconFiles(app, directory, native);
   for (const file of ['build.rs', 'src/main.rs', 'run-tauri.mjs'])
     sourceFile(directory, file, fs.readFileSync(localFile(template, file)));
-  sourceFile(directory, 'Cargo.toml', cargoManifest(value, directory, project, features));
-  sourceFile(directory, 'src/lib.rs', nativeSource(project, features, frontendBuildId));
+  sourceFile(directory, 'Cargo.toml', cargoManifest(value, directory, project, features, plugins));
+  sourceFile(directory, 'src/lib.rs', nativeSource(project, features, frontendBuildId, plugins));
+  writeDeviceIosInfo(directory, deviceServices, tauri.deviceUsage, platform);
   return {
     directory,
+    deviceServices,
+    androidLinks: deviceLinks?.mobile,
     identifier: native.identifier,
     build: native.build,
     security: { ...native.app.security, ...custom?.app?.security },
@@ -233,12 +307,17 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
 export function applyMobileInputs(app, host, platform) {
   const project = mobileDirectory(host, platform);
   const source = path.join(app, 'platform', platform, 'project');
-  if (!fs.existsSync(source)) return;
-  ownedDirectory(source);
-  for (const file of rustInputFiles(source)) {
-    const name = relativeFile(path.relative(source, file).replaceAll('\\', '/'));
-    sourceFile(project, name, fs.readFileSync(file));
+  let androidOverlay;
+  if (fs.existsSync(source)) {
+    ownedDirectory(source);
+    for (const file of rustInputFiles(source)) {
+      const name = relativeFile(path.relative(source, file).replaceAll('\\', '/'));
+      if (platform === 'android' && name === androidManifest) androidOverlay = fs.readFileSync(file, 'utf8');
+      else sourceFile(project, name, fs.readFileSync(file));
+    }
   }
+  if (platform === 'android') writeDeviceAndroidLinks(project, host.androidLinks, androidOverlay);
+  if (platform === 'ios') writeDeviceIosEntitlements(project, host.deviceServices.has('nfc'));
 }
 
 export function mobileInputsId(app, platform) {

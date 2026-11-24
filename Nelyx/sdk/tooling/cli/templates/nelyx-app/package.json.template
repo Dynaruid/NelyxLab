@@ -26,7 +26,8 @@
     "@nelyx/cupertino": "0.2.0",
     "@nelyx/backend-rust": "0.1.0",
     "@nelyx/backend-wasm": "0.1.0",
-    "@nelyx/backend-tauri": "0.1.0"
+    "@nelyx/backend-tauri": "0.1.0",
+    "@tauri-apps/api": "2.12.5"
   },
   "devDependencies": {
     "@nelyx/vite": "0.1.0",

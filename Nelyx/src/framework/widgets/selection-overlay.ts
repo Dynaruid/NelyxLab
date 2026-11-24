@@ -545,7 +545,10 @@ class SelectionToolbarWrapper extends StatefulWidget {
 }
 class SelectionToolbarWrapperState extends SingleTickerProviderStateMixin<SelectionToolbarWrapper> {
   private controller!: AnimationController;
+  private visibilityPending = false;
   private readonly visibilityChanged = () => {
+    this.visibilityPending = this.context instanceof Element && !this.context.active;
+    if (this.visibilityPending) return;
     if (this.widget.options.visibility?.value ?? true) this.controller.forward();
     else this.controller.reverse();
   };
@@ -564,6 +567,10 @@ class SelectionToolbarWrapperState extends SingleTickerProviderStateMixin<Select
     old.options.visibility?.removeListener(this.visibilityChanged);
     this.visibilityChanged();
     this.widget.options.visibility?.addListener(this.visibilityChanged);
+  }
+  override activate(): void {
+    super.activate();
+    if (this.visibilityPending) this.visibilityChanged();
   }
   override dispose(): void {
     this.widget.options.visibility?.removeListener(this.visibilityChanged);
@@ -598,7 +605,10 @@ class SelectionHandleOverlay extends StatefulWidget {
 }
 class SelectionHandleOverlayState extends SingleTickerProviderStateMixin<SelectionHandleOverlay> {
   private controller!: AnimationController;
+  private visibilityPending = false;
   private readonly visibilityChanged = () => {
+    this.visibilityPending = this.context instanceof Element && !this.context.active;
+    if (this.visibilityPending) return;
     if (this.widget.options.visibility?.value ?? true) this.controller.forward();
     else this.controller.reverse();
   };
@@ -616,6 +626,10 @@ class SelectionHandleOverlayState extends SingleTickerProviderStateMixin<Selecti
     old.options.visibility?.removeListener(this.visibilityChanged);
     this.visibilityChanged();
     this.widget.options.visibility?.addListener(this.visibilityChanged);
+  }
+  override activate(): void {
+    super.activate();
+    if (this.visibilityPending) this.visibilityChanged();
   }
   override dispose(): void {
     this.widget.options.visibility?.removeListener(this.visibilityChanged);

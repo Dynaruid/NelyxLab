@@ -3,6 +3,7 @@
 import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import { ValueKey } from '@nelyx/core/foundation/key';
+import { DeviceServicesScreen } from './device-services-screen.ts';
 import {
   Align,
   Center,
@@ -342,7 +343,7 @@ class ComponentsState extends State<ComponentsScreen> {
                     new Divider(),
                     new Expanded(
                       new ListView({
-                        children: ['All components', ...groups, 'Text selection'].map(
+                        children: ['All components', ...groups, 'Text selection', 'Device services'].map(
                           (label, index) =>
                             new TextButton({
                               child: new Text(label),
@@ -369,6 +370,8 @@ class ComponentsState extends State<ComponentsScreen> {
           return navigator.push(
             new Route(() => new TextSelectionScreen(navigator), '/text-selection'),
           );
+        if (selected === 'Device services')
+          return navigator.push(new Route(() => new DeviceServicesScreen(), '/devices'));
         this.select(selected === 'all' ? null : (selected as Group));
       })
       .catch((error) => {

@@ -1,16 +1,47 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { BrowserPlatformEnvironment } from '../frontend/dom/environment.ts';
-import { backendFailure, validateBackend } from './backend-contract.ts';
+import { backendFailure, deviceFailure, validateBackend } from './backend-contract.ts';
 import type { BackendConnection, BackendDescription, BackendIdentity } from './backend-contract.ts';
 import { createClipboard } from './browser/clipboard.ts';
-import type { ClipboardPolicy } from './browser/clipboard.ts';
+import { browserDeviceServices } from './browser/devices.ts';
+import type { BrowserGeolocation } from './browser/devices.ts';
+import type { ClipboardIO, ClipboardPermission, ClipboardPolicy } from './browser/clipboard.ts';
 import { sha256 } from './sha256.ts';
 
-interface WasmModule {
-  default(input: { module_or_path: ArrayBuffer }): Promise<unknown>;
-  describe(): string;
-  invoke(command: string, input: string): string;
-  clipboard_policy(input: string): string;
+type WasmModule = typeof import('./generated/wasm/backend.js');
+
+function wasmGeolocation(module: WasmModule, view: Window): BrowserGeolocation {
+  return {
+    current: (success, failure, options = {}) =>
+      module.browser_geolocation_current(view, success, failure, options),
+    watch: (success, failure, options = {}) =>
+      module.browser_geolocation_watch(view, success, failure, options),
+    clear: (id) => module.browser_geolocation_clear(view, id),
+  };
+}
+
+function bindClipboard(module: WasmModule, view: Window): ClipboardIO {
+  const devices = module.bind_browser_devices(view);
+  return {
+    ...(devices.can_read_clipboard() ? { readText: () => devices.read_clipboard_text() } : {}),
+    ...(devices.can_write_clipboard()
+      ? { writeText: (text: string) => devices.write_clipboard_text(text) }
+      : {}),
+    async queryPermission(name) {
+      const status = await devices.clipboard_permission(name === 'clipboard-read');
+      if (!status) return;
+      return {
+        get state() {
+          return module.clipboard_permission_state(status) as ClipboardPermission['state'];
+        },
+        subscribe(listener) {
+          const observer = module.observe_clipboard_permission(status, listener);
+          return () => observer.free();
+        },
+      };
+    },
+    dispose: () => devices.free(),
+  };
 }
 
 export async function openWasmBackend(
@@ -37,6 +68,21 @@ export async function openWasmBackend(
   signal.throwIfAborted();
   const backend = JSON.parse(module.describe()) as BackendDescription;
   validateBackend(expected, backend);
+  for (const name of [
+    'bind_browser_devices',
+    'clipboard_permission_state',
+    'observe_clipboard_permission',
+    'vibrate_browser',
+    'browser_geolocation_available',
+    'browser_geolocation_current',
+    'browser_geolocation_watch',
+    'browser_geolocation_clear',
+    'clipboard_policy',
+    'invoke',
+  ] as const) {
+    if (typeof module[name] !== 'function')
+      throw new Error('Nelyx backend Wasm is missing export ' + name);
+  }
   return {
     host: { target: 'web', os: new BrowserPlatformEnvironment(navigator).operatingSystem, backend },
     async invoke(command, input = null) {
@@ -52,8 +98,20 @@ export async function openWasmBackend(
           signal.throwIfAborted();
           return JSON.parse(module.clipboard_policy(JSON.stringify(input))) as ClipboardPolicy;
         },
-        undefined,
+        { io: bindClipboard(module, view) },
         signal,
       ),
+    haptics: (view) => (request) => {
+      signal.throwIfAborted();
+      try {
+        module.vibrate_browser(view, request.duration);
+      } catch (error) {
+        throw deviceFailure(error);
+      }
+    },
+    devices: (view, options) => browserDeviceServices(view, {
+      ...options,
+      location: module.browser_geolocation_available(view) ? wasmGeolocation(module, view) : false,
+    }),
   };
 }

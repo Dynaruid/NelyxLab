@@ -113,6 +113,8 @@ export function webDialogWindows(
             canvasKitRoot: options.canvasKitRoot,
             canvasKitManifest: options.canvasKitManifest,
             enableDialogWindows: true,
+            deviceNamespace: options.deviceNamespace ?? definition.id,
+            ...(options.backend ? { backend: options.backend } : {}),
             ...(options.profile ? { profile: options.profile } : {}),
             onError: (error) => {
               void finish(undefined, { error }).catch(() => {});

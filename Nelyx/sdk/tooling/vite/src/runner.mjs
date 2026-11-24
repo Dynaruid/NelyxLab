@@ -55,6 +55,7 @@ export function inspectRunner(app) {
     '@nelyx/sdk',
     '@nelyx/skia-web',
     '@nelyx/tooling-contracts',
+    ...(value.config.targets.tauri ? ['@tauri-apps/api'] : []),
     ...['@nelyx/material', '@nelyx/cupertino', '@nelyx/localizations'].filter(
       (name) => packages[name],
     ),

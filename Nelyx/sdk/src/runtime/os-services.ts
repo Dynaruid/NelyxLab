@@ -99,7 +99,7 @@ export function installOsServices(port: PluginPlatformMessagePort, host: OsServi
     if (call.method !== 'snapshot') throw new MissingPluginException();
     return snapshot();
   });
-  port.registerMethod('flutter/platform', codec, async (call) => {
+  port.registerMethod('flutter/platform', codec, async (call, { signal }) => {
     switch (call.method) {
       case 'SystemSound.play': {
         if (typeof call.arguments !== 'string')
@@ -120,6 +120,7 @@ export function installOsServices(port: PluginPlatformMessagePort, host: OsServi
         if (!host.vibrateHapticFeedback)
           throw new MissingPluginException('No haptic feedback host');
         await host.vibrateHapticFeedback(call.arguments);
+        if (signal.aborted) throw new PlatformException({ code: 'disposed' });
         return null;
       }
       case 'Clipboard.getData':
