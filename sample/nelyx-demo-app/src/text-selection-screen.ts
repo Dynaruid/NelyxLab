@@ -11,6 +11,7 @@ import { ContextMenuButtonItem } from '@nelyx/core/framework/widgets/context-men
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
 import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
+import { Icon } from '@nelyx/core/framework/widgets/icon';
 import type { NavigatorController } from '@nelyx/core/framework/widgets/navigation';
 import { TextMagnifierConfiguration } from '@nelyx/core/framework/widgets/magnifier';
 import type { MagnifierInfo } from '@nelyx/core/framework/widgets/magnifier';
@@ -32,6 +33,8 @@ import { CupertinoTextField } from '@nelyx/cupertino/text-field';
 import { CupertinoTextMagnifier } from '@nelyx/cupertino/magnifier';
 import { AdaptiveTextSelectionToolbar } from '@nelyx/material/adaptive-text-selection-toolbar';
 import { AppBar } from '@nelyx/material/app-bar';
+import { IconButton } from '@nelyx/material/icon-button';
+import { Icons } from '@nelyx/material/icons';
 import { InputDecoration } from '@nelyx/material/input-decoration';
 import { TextMagnifier } from '@nelyx/material/magnifier';
 import { Scaffold } from '@nelyx/material/scaffold';
@@ -219,8 +222,9 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
     return new Scaffold({
       appBar: new AppBar({
         title: new Text('Text selection'),
-        leading: new TextButton({
-          child: new Text('Back'),
+        leading: new IconButton({
+          icon: new Icon(Icons.arrow_back, { semanticLabel: 'Back' }),
+          tooltip: 'Back',
           onPressed: () => {
             void this.widget.navigator.pop();
           },
