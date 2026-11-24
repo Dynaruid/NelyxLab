@@ -13,6 +13,7 @@ import type {
   Surface,
   Image,
   FontCollection,
+  Typeface,
   TypefaceFontProvider,
   Paragraph,
   WebGLContextHandle,
@@ -71,10 +72,16 @@ const webGpuResourceCacheBytes = 48 * 1024 * 1024;
 
 interface Font {
   resource: ResourceId;
-  provider: TypefaceFontProvider;
+  typeface: Typeface;
   family: string;
   bytes: Uint8Array;
   sourceBytes: number;
+}
+interface OwnedFontRuntime extends CanvasKit {
+  nelyxMakeFontProvider?(
+    faces: readonly Typeface[],
+    families: readonly string[],
+  ): TypefaceFontProvider | null;
 }
 /** Share Skia's typeface lookups across paragraphs with the same font catalog. */
 class WebParagraphFonts {
@@ -335,11 +342,14 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     this.fontCatalog = new ParagraphFontCatalog(registry);
     this.textBudget = new TextLayoutBudget(registry);
     this.providers = new ParagraphFontProviders(registry, this.fontCatalog, (fonts) => {
-      const ownsProvider = fonts.length > 1;
-      const provider = ownsProvider
-        ? this.ck.TypefaceFontProvider.Make()
-        : fonts[0]!.source.provider;
-      if (ownsProvider) {
+      // The pinned runtime shares the faces with every catalog that uses them.
+      let provider = (this.ck as OwnedFontRuntime).nelyxMakeFontProvider?.(
+        fonts.map((font) => font.source.typeface),
+        fonts.map((font) => font.family),
+      );
+      if (!provider) {
+        // Preserve aliases outside the owned binding's name limits.
+        provider = this.ck.TypefaceFontProvider.Make();
         try {
           for (const font of fonts) provider.registerFont(font.source.bytes, font.family);
         } catch (error) {
@@ -352,7 +362,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         provider: paragraphFonts,
         retire: () => {
           paragraphFonts.retireCollection();
-          if (ownsProvider) provider.delete();
+          provider.delete();
         },
       };
     });
@@ -757,7 +767,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       key = resourceKey(resource);
     if (this.images.has(key) || this.fonts.has(key)) throw new Error('Duplicate web resource');
     if (this.images.size + this.fonts.size >= 64) throw new Error('Web asset count budget');
-    let native: Image | TypefaceFontProvider;
+    let native: Image | Typeface;
     if (asset.kind === 'image') {
       const image = this.ck.MakeImageFromEncoded(bytes);
       if (!image) throw new Error('CanvasKit image decode failed');
@@ -765,21 +775,13 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       this.images.set(key, image);
     } else {
       if (!asset.fontFamily) throw new Error('Bundled font family required');
-      const typeface = this.ck.Typeface.MakeTypefaceFromData(new Uint8Array(bytes).buffer);
+      const source = new Uint8Array(bytes);
+      const typeface = this.ck.Typeface.MakeTypefaceFromData(source.buffer);
       if (!typeface) throw new Error('CanvasKit font decode failed');
-      typeface.delete();
-      const provider = this.ck.TypefaceFontProvider.Make(),
-        source = new Uint8Array(bytes);
-      try {
-        provider.registerFont(source, asset.fontFamily);
-      } catch (error) {
-        provider.delete();
-        throw error;
-      }
-      native = provider;
+      native = typeface;
       this.fonts.set(key, {
         resource,
-        provider,
+        typeface,
         family: asset.fontFamily,
         bytes: source,
         sourceBytes: source.length,
