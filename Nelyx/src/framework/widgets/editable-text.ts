@@ -1217,8 +1217,6 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   private overlayRequested = false;
   private overlayScheduled = false;
   private toolbarRequested = false;
-  private readonly startHandleVisible = new ValueNotifier(false);
-  private readonly endHandleVisible = new ValueNotifier(false);
   private clipboardStatus = ClipboardStatus.unknown;
   private clipboardRequest = 0;
   private clipboardEdit = 0;
@@ -2286,13 +2284,6 @@ export class EditableTextState extends State<EditableText> implements TextSelect
           : TextSelectionHandleType.right,
       start = render.getLocalRectForCaret(new TextPosition({ offset: selection.start })),
       end = render.getLocalRectForCaret(new TextPosition({ offset: selection.end }));
-    const visible = (point: SourceOffset) =>
-      point.dx >= 0 &&
-      point.dx <= render.size.width &&
-      point.dy >= 0 &&
-      point.dy <= render.size.height;
-    this.startHandleVisible.value = visible(endpoints[0]!.point);
-    this.endHandleVisible.value = visible(endpoints.at(-1)!.point);
     this.selectionOverlay ??= new SelectionOverlay({
       context: this.renderKey.currentContext!,
       startHandleType: startType,
@@ -2304,8 +2295,8 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       startHandleLayerLink: this.selectionLinks.start,
       endHandleLayerLink: this.selectionLinks.end,
       toolbarLayerLink: this.selectionLinks.toolbar,
-      startHandlesVisible: this.startHandleVisible,
-      endHandlesVisible: this.endHandleVisible,
+      startHandlesVisible: render.selectionStartInViewport,
+      endHandlesVisible: render.selectionEndInViewport,
       onStartHandleDragStart: (details) => this.beginHandleDrag(false, details.globalPosition),
       onStartHandleDragUpdate: (details) => this.dragHandle(false, details.globalPosition),
       onEndHandleDragStart: (details) => this.beginHandleDrag(true, details.globalPosition),
@@ -4207,8 +4198,6 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     this.hadFocusOnTapDown = false;
     release(() => this.disconnect());
     release(() => painter?.dispose());
-    release(() => this.startHandleVisible.dispose());
-    release(() => this.endHandleVisible.dispose());
     release(() => this.legacyClipboardStatus?.dispose());
     if (errors.length === 1) throw errors[0];
     if (errors.length) throw new AggregateError(errors, 'Editable state retirement failed');

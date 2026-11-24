@@ -29,6 +29,7 @@ const app = resolve(import.meta.dirname, '..');
 const appId = 'dev.nelyx.demo.tauri';
 const android = args.includes('--android');
 const windows = args.includes('--windows');
+const multilineHandlesOnly = args.includes('--multiline-handles');
 const manifest = JSON.parse(await readFile(join(app, '.nelyx',
   android || windows ? 'tauri/frontend' : 'web', 'build.json'), 'utf8'));
 const headed = args.includes('--headed');
@@ -936,7 +937,7 @@ async function checkInsertionHandle(page, id) {
   return { dx, dy, direction: endpoints[0].direction };
 }
 
-async function checkRangeHandlePixels(page, dpr, id) {
+async function checkRangeHandlePixels(page, dpr, id, visible = [true, true]) {
   const cupertino = id.startsWith('w6-cupertino');
   const grips = await page.evaluate(({ id, cupertino }) => {
     const { endpoints } = window.readSelectionEditorGeometry(id);
@@ -983,9 +984,10 @@ async function checkRangeHandlePixels(page, dpr, id) {
     { frame, grips, dpr, cupertino },
   );
   const minimumInk = (cupertino ? 32 : 12) * dpr * dpr;
-  assert.ok(
-    pixels.every((count) => count > minimumInk),
-    `${id} must paint both handles (${pixels.join(', ')})`,
+  assert.deepEqual(
+    pixels.map((count) => count > minimumInk),
+    visible,
+    `${id} handle pixels (${pixels.join(', ')}) must match viewport visibility`,
   );
   return pixels;
 }
@@ -1010,6 +1012,10 @@ async function emulator(page) {
     };
     await openSelection(page, tap);
     const dpr = await page.evaluate(() => devicePixelRatio);
+    if (multilineHandlesOnly) {
+      await androidSelectionDetails(page, touch, tap, dpr);
+      return;
+    }
     const display = (await adb('shell', 'dumpsys', 'window', 'displays')).toString();
     const statusBar = Math.round(
       Number(/ITYPE_STATUS_BAR frame=\[0,0\]\[\d+,(\d+)\]/u.exec(display)?.[1] ?? 0) / dpr,
@@ -1334,6 +1340,96 @@ async function androidSelectionDetails(page, touch, tap, dpr) {
     await touch('touchStart', at);
     return expectLens(id);
   };
+  if (multilineHandlesOnly) {
+    const fadeWait = 250;
+    const results = {};
+    for (const [id, label] of [
+      ['multiline', 'Material multiline'],
+      ['cupertino-multiline', 'Cupertino multiline'],
+    ]) {
+      const name = 'w6-' + id;
+      const target = field(page, label);
+      await reveal(target);
+      await tap(await point(target, 42));
+      await wait(400);
+      const scroll = async (amount) => {
+        const { corners: [top, bottom] } = await geometry(name);
+        const x = bottom.x - 24;
+        const y = amount > 0 ? bottom.y - 8 : top.y + 8;
+        const dragStart = y - Math.sign(amount) * 26;
+        await touch('touchStart', { x, y });
+        await touch('touchMove', { x, y: dragStart });
+        await wait(45);
+        await touch('touchMove', { x, y: dragStart - amount });
+        await wait(180);
+        await touch('touchEnd');
+      };
+      const viewportVisibility = ({ corners: [top, bottom], endpoints }) =>
+        endpoints.map(({ y }) => y >= top.y && y <= bottom.y);
+      results[id] = {};
+      for (const edge of ['start', 'end']) {
+        const clipStart = edge === 'start';
+        if (!clipStart) {
+          const { corners: [top, bottom] } = await geometry(name);
+          await scroll((bottom.y - top.y) * 0.46);
+        }
+        const { corners: [top, bottom] } = await geometry(name);
+        const start = { x: top.x + 42, y: top.y + 12 };
+        await hold(start, id);
+        await touch('touchMove', {
+          x: start.x + 66,
+          y: clipStart ? start.y + 24 : bottom.y - 12,
+        });
+        await touch('touchEnd');
+        await expectClosed();
+        await menu(page, 'Copy').waitFor();
+        await page.keyboard.press('Escape');
+        await menu(page, 'Copy').waitFor({ state: 'hidden' });
+        let initial = await geometry(name);
+        if (!clipStart && initial.endpoints[1].y > initial.corners[1].y) {
+          await scroll(initial.endpoints[1].y - initial.corners[1].y + 8);
+          initial = await geometry(name);
+        }
+        const [first, last] = initial.endpoints;
+        assert.ok(last.y > first.y + 8, `${label} must select across two lines`);
+        assert.deepEqual(viewportVisibility(initial), [true, true], `${label} before clipping ${edge}`);
+        const selection = await readEditor(page);
+        assert.ok(selection?.end > selection?.start, `${label} must retain a text selection`);
+        await wait(fadeWait);
+        const before = await checkRangeHandlePixels(page, dpr, name);
+
+        await scroll(
+          clipStart ? first.y - initial.corners[0].y + 8 : last.y - initial.corners[1].y - 8,
+        );
+        const clipped = await geometry(name);
+        const visible = [!clipStart, clipStart];
+        assert.notEqual(clipped.scroll.y, initial.scroll.y, `${label} must scroll internally`);
+        assert.deepEqual(
+          viewportVisibility(clipped),
+          visible,
+          `${label} must clip the ${edge} handle`,
+        );
+        await wait(fadeWait);
+        const hidden = await checkRangeHandlePixels(page, dpr, name, visible);
+
+        await scroll(initial.scroll.y - clipped.scroll.y + (clipStart ? -5 : 5));
+        const restored = await geometry(name);
+        assert.deepEqual(
+          viewportVisibility(restored),
+          [true, true],
+          `${label} must restore the ${edge} handle (offsets ${initial.scroll.y}, ${clipped.scroll.y}, ${restored.scroll.y})`,
+        );
+        await wait(fadeWait);
+        const after = await checkRangeHandlePixels(page, dpr, name);
+        assert.deepEqual(await readEditor(page), selection);
+        results[id][edge] = { before, hidden, after };
+      }
+    }
+    console.log(
+      JSON.stringify({ device, buildId: manifest.buildId, multilineHandlePixels: results }),
+    );
+    return;
+  }
   const handleGrip = ({ x, y, direction }, start) => ({
     x: x + ((direction === 'ltr') === start ? -9 : 9),
     y: y + 10,

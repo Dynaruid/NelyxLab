@@ -17,7 +17,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-5a8cf7e3e3e799e2462ce206f12e63c07304a5efaed68b036cc07f5809562af9.tgz",
+    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-17d12013e5f7a684211c17914251467eb795f591dc3a8b121a3a745e5b59f05f.tgz",
     "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-1516e25c080e4dc691b5897b7d84849ca27b2ddad6e4b9c03aaf3f264d6354b3.tgz",
     "@nelyx/material": "file:.nelyx/supply/nelyx-material-0.2.0-882f51baa98644a68e60305dd0a1989956816462b7f2bcc12133f8b5d8b7e4d6.tgz",
     "@nelyx/cupertino": "file:.nelyx/supply/nelyx-cupertino-0.2.0-8a2ee993e386258acb331493f119438b61842cb68acf5e0a6b40468d650ed62f.tgz",

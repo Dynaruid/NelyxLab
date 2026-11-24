@@ -10,6 +10,8 @@ import type { PipelineOwner } from './object.ts';
 import { ViewportOffset } from './viewport-offset.ts';
 import { BoxConstraints } from './constraints.ts';
 import { invariant } from '../../foundation/errors.ts';
+import { ValueNotifier } from '../../foundation/notifier.ts';
+import type { ValueListenable } from '../../foundation/notifier.ts';
 import type { Size, Offset as Point } from '../../ui/geometry.ts';
 import type { TextBaseline } from './object.ts';
 import type { TextLayoutGeometry, TextInputHitOptions } from '../../ui/types.ts';
@@ -198,6 +200,8 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
     selectionColor: 0x6633b5e5,
   };
   private links: EditableSelectionLinks | undefined;
+  private readonly startInViewport = new ValueNotifier(false);
+  private readonly endInViewport = new ValueNotifier(false);
   private readonly leaders = [
     new LayerHandle<LeaderLayer>(),
     new LayerHandle<LeaderLayer>(),
@@ -207,6 +211,12 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
     if (this.links === value) return;
     this.links = value;
     this.markNeedsPaint();
+  }
+  get selectionStartInViewport(): ValueListenable<boolean> {
+    return this.startInViewport;
+  }
+  get selectionEndInViewport(): ValueListenable<boolean> {
+    return this.endInViewport;
   }
   get textPainter(): TextPainter | undefined {
     return this.measurements;
@@ -798,20 +808,21 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
   }
   private paintSelectionLeaders(context: PaintingContext): void {
     if (!this.links) return;
-    const selection = this.visual.selection,
+    const { anchor, focus } = this.visual.selection;
+    const selection = new Selection({
+      baseOffset: anchor,
+      extentOffset: focus,
+      affinity: this.visual.affinity ?? 'downstream',
+    });
+    let endpoints = this.getEndpointsForSelection(selection);
+    if (!endpoints.length)
       endpoints = this.getEndpointsForSelection(
-        new Selection({
-          baseOffset: selection.anchor,
-          extentOffset: selection.focus,
-          affinity: this.visual.affinity ?? 'downstream',
-        }),
+        Selection.collapsed({ offset: selection.extentOffset, affinity: selection.affinity }),
       );
+    const start = endpoints[0]!.point;
+    const end = endpoints.at(-1)!.point;
     const links = [this.links.start, this.links.end, this.links.toolbar],
-      positions = [
-        endpoints[0]?.point ?? Offset.zero,
-        endpoints.at(-1)?.point ?? Offset.zero,
-        Offset.zero,
-      ];
+      positions = [start, end, Offset.zero];
     for (let index = 0; index < 3; index++) {
       const retained = this.leaders[index]!,
         layer = retained.layer ?? new LeaderLayer({ link: links[index]! }),
@@ -825,6 +836,12 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
         hold.dispose();
       }
     }
+    // Scrolling repaints the leaders without rebuilding EditableText.
+    const { width, height } = this.size;
+    const inViewport = ({ dx, dy }: Offset) =>
+      dx >= 0 && dx <= width && dy >= 0 && dy <= height;
+    this.startInViewport.value = inViewport(start);
+    this.endInViewport.value = inViewport(end);
   }
   /** Recomputes after a Core edit, resize, font or scale change. */
   revealCaret(): void {
@@ -1241,6 +1258,8 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
       super.dispose();
     } finally {
       if (this.debugDisposed) {
+        this.startInViewport.dispose();
+        this.endInViewport.dispose();
         this.localEditingGeometry = undefined;
         this.visualNavigation = undefined;
         this.textNavigationCache = undefined;
