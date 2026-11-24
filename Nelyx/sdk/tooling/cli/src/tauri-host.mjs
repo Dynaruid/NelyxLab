@@ -99,12 +99,17 @@ function windowFeatures(value, base) {
   );
 }
 
-function cargoManifest({ app, version, name }, directory, project, features, plugins) {
+function cargoManifest({ app, version, name }, directory, project, features, plugins, platform) {
   const appCrate = project.appCrate;
   const clipboard = features.some(({ clipboard }) => clipboard?.read || clipboard?.write);
   const storeEnabled = plugins.some(({ name }) => name === 'store');
   const scopedJson = plugins.some(({ name }) => name === 'opener' || name === 'deep-link');
   const packageName = 'nelyx-' + name.replace(/^@/, '').replace(/[^a-zA-Z0-9_-]+/g, '-') + '-host';
+  // IPA distribution compresses the bundle. Serve its installed assets directly to WKWebView.
+  const runtimeVersion = JSON.stringify('=' + tauriDependencies.runtime);
+  const runtime = platform === 'ios'
+    ? `{ version = ${runtimeVersion}, default-features = false, features = ["wry", "dynamic-acl"] }`
+    : runtimeVersion;
   return `[package]
 name = ${JSON.stringify(packageName)}
 version = ${JSON.stringify(version)}
@@ -121,11 +126,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "=${tauriDependencies.build}", features = ["codegen"] }
 
 [dependencies]
-tauri = "=${tauriDependencies.runtime}"
+tauri = ${runtime}
 ${scopedJson ? 'serde_json = "1"\n' : ''}nelyx-backend-core = ${cargoDependency(directory, cratePath(app, 'backend-rust'))}
 tauri-plugin-nelyx-backend = ${cargoDependency(directory, cratePath(app, 'backend-tauri'), undefined, storeEnabled ? ['device-store'] : [])}
 ${appCrate ? 'app_backend = ' + cargoDependency(directory, appCrate.directory, appCrate.name) + '\n' : ''}${clipboard ? 'tauri-plugin-clipboard-manager = "=' + tauriDependencies.clipboard + '"\n' : ''}${cargoPlugins(plugins)}
-[features]
+${platform === 'ios' ? `[target.'cfg(not(target_os = "ios"))'.dependencies]
+tauri = ${runtimeVersion}
+
+` : ''}[features]
 custom-protocol = ["tauri/custom-protocol"]
 `;
 }
@@ -290,7 +298,7 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
   iconFiles(app, directory, native);
   for (const file of ['build.rs', 'src/main.rs', 'run-tauri.mjs'])
     sourceFile(directory, file, fs.readFileSync(localFile(template, file)));
-  sourceFile(directory, 'Cargo.toml', cargoManifest(value, directory, project, features, plugins));
+  sourceFile(directory, 'Cargo.toml', cargoManifest(value, directory, project, features, plugins, platform));
   sourceFile(directory, 'src/lib.rs', nativeSource(project, features, frontendBuildId, plugins));
   writeDeviceIosInfo(directory, deviceServices, tauri.deviceUsage, platform);
   return {

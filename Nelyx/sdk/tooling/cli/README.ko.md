@@ -33,6 +33,14 @@ npx.cmd --no-install nelyx run --app . --target web --base /demo/
 
 `.nelyx/web/` 전체를 배포합니다. 서버의 Wasm MIME은 `application/wasm`을 사용합니다. 앱 경로의 HTML fallback에는 배포 디렉터리를 base로 지정하고, 빠진 자산은 404로 응답합니다. `targets.web.pwa`가 있으면 설치 manifest와 서비스 워커가 포함됩니다. 서비스 워커는 앱 백엔드 Wasm까지 검증한 뒤 캐시에 저장합니다. `sw.js`와 이름이 고정된 자산은 캐시 재검증을 사용합니다.
 
+### 웹 렌더링과 출처 간 격리
+
+웹의 기본 렌더링 모드는 `direct`입니다. 검증할 앱에서 URL에 `?renderMode=auto`를 붙이거나 SDK의 `ApplicationSurface` 옵션에 `renderMode: 'auto'`를 지정하면, 해당 화면의 전용 워커와 WebGL2를 먼저 검사합니다. 격리된 문서와 워커에서 공유 메모리 왕복 검사가 통과하면 공유 슬롯을 사용합니다. 그 외에 워커 WebGL2 검사가 통과하면 전송 버퍼를 사용합니다. 워커를 열 수 없으면 메인 스레드에서 렌더링합니다. `worker-transfer`와 `worker-shared`는 경로 비교에 사용할 수 있으며 실패 시 사용 가능한 경로로 복구합니다.
+
+`nelyx dev`와 `nelyx run`에 `--target web --cross-origin-isolated`를 추가하면 localhost에서 격리를 시험할 수 있습니다. 실제 격리 배포는 HTTPS에서 문서 응답에 `Cross-Origin-Opener-Policy: same-origin`과 `Cross-Origin-Embedder-Policy: require-corp`를 설정하고 워커 스크립트에도 호환되는 COEP를 보냅니다. 다른 출처의 자산에는 요청 방식에 맞는 CORS 또는 CORP가 필요합니다. iframe은 상위 문서와 권한 정책도 확인합니다. COOP `same-origin`은 다른 출처 팝업과의 `window.opener` 연결을 끊습니다. [출처 간 격리 배포](https://web.dev/articles/coop-coep)
+
+CSP를 사용한다면 앱과 같은 출처의 렌더 워커와 CanvasKit 초기화에 쓰이는 검증한 blob 스크립트를 허용하는지 확인합니다. PWA는 캐시된 버전의 문서와 렌더 워커를 재검증해 동일한 릴리스의 정책 변경을 반영합니다. SDK의 `readWebApplicationDiagnostics()`와 앱의 `rendering`에서 경로, 격리 상태, 복구 사유와 프레임 지표를 확인할 수 있습니다.
+
 ## Tauri 빌드와 실행
 
 ```powershell

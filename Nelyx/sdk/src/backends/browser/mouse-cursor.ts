@@ -48,7 +48,17 @@ export class BrowserMouseCursor {
   private readonly targets = new Map<HTMLElement, Target>();
   private live = true;
   private active: string | undefined;
-  constructor(readonly canvas: HTMLElement) {
+  constructor(private surface: HTMLElement) {
+    this.add(surface);
+  }
+  get canvas(): HTMLElement {
+    return this.surface;
+  }
+  replaceCanvas(canvas: HTMLElement): void {
+    if (canvas.ownerDocument !== this.canvas.ownerDocument)
+      throw new Error('Replacement cursor canvas belongs to a different View document');
+    this.remove(this.canvas);
+    this.surface = canvas;
     this.add(canvas);
   }
   add(element: HTMLElement): void {

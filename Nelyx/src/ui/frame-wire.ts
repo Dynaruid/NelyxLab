@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { invariant } from '../foundation/errors.ts';
 import { WriteBuffer } from '../foundation/serialization.ts';
-import { freezeFrame, resourceKey, disposeFrame } from './frame.ts';
+import {
+  captureBorrowedFrame,
+  freezeFrame,
+  isCapturedFrame,
+  resourceKey,
+  disposeFrame,
+} from './frame.ts';
 import { blendModes } from './paint.ts';
 import type { PaintSnapshot } from './paint.ts';
 import { pathOperationNames } from './path.ts';
@@ -9,12 +15,22 @@ import type { PathSnapshot } from './path.ts';
 import type { PaintFrame, ResourceId, Rect } from './types.ts';
 import { encodePaintEffects } from './paint-effects-wire.ts';
 import { filterQualities } from './paint-effects-data.ts';
+import {
+  webFrameHeaderBytes,
+  webFrameRecordBytes,
+  webFrameMagic,
+  webFrameWireVersion,
+} from './web-frame-wire-format.ts';
 export const frameWireVersion = 11;
 export interface NativeFrameResource {
   readonly id: number;
   readonly generation: number;
 }
 export type NativeFrameResourceResolver = (resource: ResourceId) => NativeFrameResource;
+interface WebFrameEncoding {
+  readonly format: 'web';
+  readonly allocate?: (byteLength: number) => Uint8Array;
+}
 const uint32 = (value: number, label: string) => {
   invariant(
     Number.isInteger(value) && value >= 0 && value <= 0xffffffff,
@@ -24,8 +40,16 @@ const uint32 = (value: number, label: string) => {
   return value;
 };
 /** Wire 11 adds bounded runtime shaders; native replay retains wires1..10. */
-export function encodeFrame(frame: PaintFrame, resolve?: NativeFrameResourceResolver): Uint8Array {
-  const frozen = freezeFrame(frame.token, frame.commands),
+export function encodeFrame(
+  frame: PaintFrame,
+  resolve?: NativeFrameResourceResolver,
+  web?: WebFrameEncoding,
+): Uint8Array {
+  const frozen = web
+      ? isCapturedFrame(frame)
+        ? frame
+        : captureBorrowedFrame(frame.token, frame.commands)
+      : freezeFrame(frame.token, frame.commands),
     records: number[][] = [],
     bindings = new Map<string, NativeFrameResource>(),
     ids = new Map<number, string>();
@@ -37,7 +61,7 @@ export function encodeFrame(frame: PaintFrame, resolve?: NativeFrameResourceReso
       invariant(resolve, 'invalid-frame-resource', 'Native resource mapping is required');
       const entry = resolve(resource),
         id = uint32(entry.id, 'resource id'),
-        generation = uint32(entry.generation, 'resource generation');
+        generation = web ? entry.generation : uint32(entry.generation, 'resource generation');
       invariant(
         id > 0 && generation === resource.generation && !ids.has(id),
         'invalid-frame-resource',
@@ -73,7 +97,7 @@ export function encodeFrame(frame: PaintFrame, resolve?: NativeFrameResourceReso
         (p.isAntiAlias ? 32 : 0) |
         (blendModes.indexOf(p.blendMode) << 6);
       record(10, p.color, [p.strokeWidth, p.strokeMiterLimit], flags);
-      for (const row of encodePaintEffects(p, native))
+      for (const row of encodePaintEffects(p, native, web !== undefined))
         record(row.op, row.color, row.values, row.flags, row.aux1, row.aux2);
     }
     function pathOperations(p: PathSnapshot): void {
@@ -211,6 +235,48 @@ export function encodeFrame(frame: PaintFrame, resolve?: NativeFrameResourceReso
           throw new Error('Unhandled paint command: ' + String((unhandled as { op: string }).op));
         }
       }
+    if (web) {
+      const byteLength = webFrameHeaderBytes + records.length * webFrameRecordBytes,
+        bytes = web.allocate?.(byteLength) ?? new Uint8Array(byteLength);
+      invariant(
+        bytes.byteLength === byteLength,
+        'invalid-frame-wire',
+        'Web packet allocation length',
+      );
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      [webFrameMagic, webFrameWireVersion, byteLength, records.length].forEach((value, index) =>
+        view.setUint32(index * 4, value, true),
+      );
+      const token = frozen.token,
+        metrics = token.metrics;
+      [
+        token.owner.generation,
+        token.sequence,
+        metrics.viewportGeneration,
+        metrics.rendererGeneration,
+        metrics.nativeContextGeneration ?? 0,
+        metrics.nativeSurfaceGeneration ?? 0,
+        metrics.physicalWidth,
+        metrics.physicalHeight,
+        metrics.logicalWidth,
+        metrics.logicalHeight,
+        metrics.scale,
+      ].forEach((value, index) => view.setFloat64(16 + index * 8, value, true));
+      for (
+        let i = 0, at = webFrameHeaderBytes;
+        i < records.length;
+        i++, at += webFrameRecordBytes
+      ) {
+        const row = records[i]!;
+        view.setUint32(at, row[0]!, true);
+        view.setUint32(at + 4, row[1]!, true);
+        view.setUint32(at + 8, row[8]!, true);
+        view.setUint32(at + 12, row[9]!, true);
+        view.setFloat64(at + 16, row[10]!, true);
+        for (let n = 0; n < 6; n++) view.setFloat64(at + 24 + n * 8, row[2 + n]!, true);
+      }
+      return bytes;
+    }
     const byteLength = 64 + records.length * 48,
       buffer = new WriteBuffer({ startCapacity: byteLength }),
       put = (value: number) =>
@@ -260,6 +326,6 @@ export function encodeFrame(frame: PaintFrame, resolve?: NativeFrameResourceReso
     const result = buffer.done();
     return new Uint8Array(result.buffer, result.byteOffset, result.byteLength);
   } finally {
-    disposeFrame(frozen);
+    if (frozen !== frame) disposeFrame(frozen);
   }
 }

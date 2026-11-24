@@ -275,7 +275,7 @@ class CupertinoComponentsState extends State<CupertinoComponentsScreen> {
                 middle: new Text('Cupertino'),
                 automaticallyImplyLeading: false,
                 backgroundColor: CupertinoColors.systemBackground,
-                trailing: new CupertinoButton({
+                leading: new CupertinoButton({
                   padding: EdgeInsets.zero,
                   minimumSize: { width: 44, height: 44 },
                   semanticsLabel: this.widget.dark ? 'Switch to light mode' : 'Switch to dark mode',

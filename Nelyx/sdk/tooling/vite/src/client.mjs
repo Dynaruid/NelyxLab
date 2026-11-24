@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { createElement, StrictMode } from 'react';
-import { closeAllWebApplications, registerApplication } from '@nelyx/sdk/frontend/dom/application';
+import {
+  closeAllWebApplications,
+  prepareWebGraphics,
+  registerApplication,
+} from '@nelyx/sdk/frontend/dom/application';
 import { bindFrontendBackend } from '@nelyx/sdk/frontend/dom/environment';
 import { defineAssetManifest } from '@nelyx/sdk/runtime/config';
 import { frontend, openBackend } from 'virtual:nelyx-backend';
@@ -19,6 +23,14 @@ function showError(error) {
 }
 
 export function startFrontend(component) {
+  start(() => component, false);
+}
+
+export function startLazyFrontend(loadComponent) {
+  start(loadComponent, true);
+}
+
+function start(loadComponent, prepareGraphics) {
   const root = new URL('./', document.baseURI);
   const runtime = new URL('runtime/', root);
   const key = Symbol.for('nelyx.frontend.reload');
@@ -49,9 +61,13 @@ export function startFrontend(component) {
       if (!response.ok) throw new Error('CanvasKit manifest HTTP ' + response.status);
       return response.json();
     });
-    const [{ backend, elapsed }, canvasKitManifest] = await Promise.all([
+    const [{ backend, elapsed }, canvasKitManifest, component] = await Promise.all([
       backendReady,
       manifestReady,
+      loadComponent(),
+      prepareGraphics
+        ? manifestReady.then((manifest) => prepareWebGraphics(runtime, manifest))
+        : undefined,
     ]);
     signal.throwIfAborted();
     if (window[key]?.reloading) return;
@@ -85,7 +101,11 @@ export function startFrontend(component) {
         : {}),
     });
     unbind = bindFrontendBackend(window, backend);
-    const profile = new URL(location.href).searchParams.get('profile');
+    const query = new URL(location.href).searchParams;
+    const profile = query.get('profile');
+    const renderMode = query.get('renderMode');
+    if (renderMode && !['direct', 'auto', 'worker-transfer', 'worker-shared'].includes(renderMode))
+      throw new Error('Unknown Web render mode');
     const options = {
       backend,
       manifest: defineAssetManifest(frontend.assets),
@@ -93,6 +113,7 @@ export function startFrontend(component) {
       canvasKitRoot: runtime,
       canvasKitManifest,
       ...(profile ? { profile } : {}),
+      ...(renderMode ? { renderMode } : {}),
     };
     registerApplication(
       frontend.name,

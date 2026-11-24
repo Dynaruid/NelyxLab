@@ -5,7 +5,7 @@ import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { appFiles, inspectRunner, prepareRunnerFiles, readApp } from '@nelyx/vite/runner';
 import { buildFrontend, verifyFrontend } from '@nelyx/vite/release';
-import { frontendSession } from '@nelyx/vite/frontend-session';
+import { crossOriginIsolationHeaders, frontendSession } from '@nelyx/vite/frontend-session';
 import { backendHash } from '@nelyx/tooling-contracts/backend-supply';
 import {
   backendContract,
@@ -135,7 +135,16 @@ export function buildWebApplication({ app }, signal) {
 }
 
 export async function openVite(
-  { app, host = '127.0.0.1', port = 8081, advertisedHost, target = 'web', os = hostOs(), backend },
+  {
+    app,
+    host = '127.0.0.1',
+    port = 8081,
+    advertisedHost,
+    target = 'web',
+    os = hostOs(),
+    backend,
+    crossOriginIsolated = false,
+  },
   signal,
 ) {
   const value = inspectRunner(app);
@@ -160,6 +169,7 @@ export async function openVite(
       host,
       port,
       strictPort: true,
+      ...(crossOriginIsolated ? { headers: crossOriginIsolationHeaders } : {}),
       ...(advertisedHost ? { allowedHosts: [advertisedHost] } : {}),
     },
     plugins: [
@@ -278,7 +288,7 @@ export async function devWeb(options, signal) {
 }
 
 export async function runWeb(
-  { app, directory, port = 4173, host = '127.0.0.1', base = '/' },
+  { app, directory, port = 4173, host = '127.0.0.1', base = '/', crossOriginIsolated = false },
   signal,
 ) {
   const value = readApp(app);
@@ -316,6 +326,7 @@ export async function runWeb(
         bytes = Buffer.from(bytes.toString().replace('<!--nelyx-base-->', `<base href="${base}">`));
       res
         .writeHead(200, {
+          ...(crossOriginIsolated ? crossOriginIsolationHeaders : {}),
           'Content-Type': mediaType(file),
           'Content-Length': bytes.length,
           'Cache-Control': file.startsWith('chunks/')

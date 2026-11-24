@@ -1,0 +1,818 @@
+// SPDX-License-Identifier: BSD-3-Clause
+import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
+import { Column, Row, Expanded, Padding, SizedBox, Text, DecoratedBox, } from '@nelyx/core/framework/widgets/basic';
+import { LayoutBuilder } from '@nelyx/core/framework/widgets/layout-builder';
+import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-builder';
+import { Wrap } from '@nelyx/core/framework/widgets/wrap';
+import { ListView } from '@nelyx/core/framework/widgets/scroll-view';
+import { ValueKey } from '@nelyx/core/foundation/key';
+import { GallerySection, GallerySectionExtents, GalleryUpdates } from './gallery-section.ts';
+import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
+import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
+import { OverflowBar, OverflowBarAlignment } from '@nelyx/core/framework/widgets/overflow-bar';
+import { MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
+import { TextFieldTapRegion } from '@nelyx/core/framework/widgets/tap-region';
+import { Navigator, NavigatorController } from '@nelyx/core/framework/widgets/navigation';
+import { createDialogRoute } from '@nelyx/core/framework/widgets/dialog';
+import { RadioGroup } from '@nelyx/core/framework/widgets/radio-group';
+import { Icon } from '@nelyx/core/framework/widgets/icon';
+import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
+import { Color } from '@nelyx/core/ui/color';
+import { CupertinoApp } from '@nelyx/cupertino/app';
+import { CupertinoTheme, CupertinoThemeData } from '@nelyx/cupertino/theme';
+import { CupertinoButton } from '@nelyx/cupertino/button';
+import { CupertinoIcons } from '@nelyx/cupertino/icons';
+import { CupertinoPageScaffold } from '@nelyx/cupertino/page-scaffold';
+import { CupertinoNavigationBar } from '@nelyx/cupertino/nav-bar';
+import { BottomNavigationBarItem, CupertinoTabBar } from '@nelyx/cupertino/bottom-tab-bar';
+import { CupertinoTabScaffold } from '@nelyx/cupertino/tab-scaffold';
+import { CupertinoTabView } from '@nelyx/cupertino/tab-view';
+import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
+import { CupertinoCheckbox } from '@nelyx/cupertino/checkbox';
+import { CupertinoRadio } from '@nelyx/cupertino/radio';
+import { CupertinoSwitch } from '@nelyx/cupertino/switch';
+import { CupertinoSlider } from '@nelyx/cupertino/slider';
+import { ChangeReportingBehavior, CupertinoPicker, FixedExtentScrollController, } from '@nelyx/cupertino/picker';
+import { CupertinoTimerPicker } from '@nelyx/cupertino/timer-picker';
+import { CupertinoDatePicker, DateTime } from '@nelyx/cupertino/date-picker';
+import { CupertinoSegmentedControl } from '@nelyx/cupertino/segmented-control';
+import { CupertinoSlidingSegmentedControl } from '@nelyx/cupertino/sliding-segmented-control';
+import { CupertinoActivityIndicator } from '@nelyx/cupertino/activity-indicator';
+import { CupertinoListTile, CupertinoListTileChevron } from '@nelyx/cupertino/list-tile';
+import { CupertinoListSection } from '@nelyx/cupertino/list-section';
+import { CupertinoTextField, OverlayVisibilityMode } from '@nelyx/cupertino/text-field';
+import { CupertinoSearchTextField } from '@nelyx/cupertino/search-field';
+import { CupertinoTextFormFieldRow } from '@nelyx/cupertino/text-form-field-row';
+import { Form } from '@nelyx/core/framework/widgets/form';
+import { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
+import { CupertinoFormSection } from '@nelyx/cupertino/form-section';
+import { CupertinoAlertDialog } from '@nelyx/cupertino/dialog';
+import { CupertinoActionSheet, CupertinoActionSheetAction } from '@nelyx/cupertino/action-sheet';
+import { categories } from './catalog.ts';
+import { cupertinoDemos, visibleCupertinoDemos } from './cupertino-catalog.ts';
+import { CupertinoPageRoute, showCupertinoModalPopup } from '@nelyx/cupertino/route';
+import { CupertinoSheetRoute, showCupertinoSheet } from '@nelyx/cupertino/sheet';
+import { RouteSettings } from '@nelyx/core/framework/widgets/pages';
+import { CupertinoRefreshDemo } from './cupertino-refresh-demo.ts';
+const groups = categories.filter((group) => group.id !== 'images');
+const accents = [0xff007aff, 0xff248a3d, 0xffaf52de, 0xffc93400];
+const pickerFruits = ['Apple', 'Pear', 'Plum', 'Peach'];
+const pickerPortions = ['Small', 'Medium', 'Large'];
+const flow = (...children) => new Wrap(children, { spacing: 8, runSpacing: 8, crossAxisAlignment: 'center' });
+const column = (...children) => new Column(children, { mainSize: 'min', crossAlign: 'stretch', spacing: 12 });
+/** The application owns these values across Material/Cupertino page replacement. */
+export class CupertinoGalleryValues {
+    textScroll = new ScrollController();
+    text;
+    fruitPicker = new FixedExtentScrollController();
+    dark = false;
+    accent = accents[0];
+    category = 'all';
+    includePlanned = false;
+    switched = false;
+    checked = true;
+    radio = 'first';
+    slider = 40;
+    timerDuration = 3915000;
+    dateTime = new DateTime(2024, 2, 29, 9, 30);
+    segment = 'Daily';
+    borderedSegment = 'Day';
+    animating = false;
+    interactiveSelection = true;
+    lastAction = 'Cupertino 컴포넌트를 눌러보세요.';
+    constructor(initialText) {
+        this.text = new TextEditingController(initialText);
+    }
+    dispose() {
+        this.text.dispose();
+        this.textScroll.dispose();
+        this.fruitPicker.dispose();
+    }
+}
+export class CupertinoGallery extends StatefulWidget {
+    values;
+    onMaterial;
+    constructor(values, onMaterial) {
+        super();
+        this.values = values;
+        this.onMaterial = onMaterial;
+    }
+    createState() {
+        return new CupertinoAppState();
+    }
+}
+class CupertinoAppState extends State {
+    navigator = new NavigatorController();
+    dispose() {
+        this.navigator.dispose();
+        super.dispose();
+    }
+    build() {
+        const v = this.widget.values;
+        return new RepaintBoundary(new CupertinoApp({
+            theme: new CupertinoThemeData({
+                brightness: v.dark ? 'dark' : 'light',
+                primaryColor: v.accent,
+            }),
+            locale: 'ko-KR',
+            supportedLocales: ['ko-KR', 'en'],
+            navigatorController: this.navigator,
+            routes: { '/details': () => new CupertinoRouteDemo(this.navigator) },
+            home: new CupertinoGalleryPage(v, this.widget.onMaterial, this.navigator, () => this.setState(() => { })),
+        }));
+    }
+}
+class CupertinoRouteDemo extends StatefulWidget {
+    navigator;
+    constructor(navigator) {
+        super();
+        this.navigator = navigator;
+    }
+    createState() {
+        return new CupertinoRouteDemoState();
+    }
+}
+class CupertinoRouteDemoState extends State {
+    count = 0;
+    build() {
+        const back = () => {
+            this.widget.navigator.pop(this.count);
+        };
+        return new CupertinoPageScaffold({
+            navigationBar: new CupertinoNavigationBar({ middle: new Text('Details') }),
+            child: new SafeArea({
+                bottom: false,
+                child: new Padding(EdgeInsets.all(20), column(new Text('Named route · count: ' + this.count), MediaQuery.withClampedTextScaling({
+                    maxScaleFactor: 1.5,
+                    child: new OverflowBar({
+                        spacing: 12,
+                        overflowSpacing: 8,
+                        overflowAlignment: OverflowBarAlignment.start,
+                        children: [
+                            new CupertinoButton({
+                                id: 'cupertino-route-increment',
+                                child: new Text('Increment'),
+                                onPressed: () => this.setState(() => {
+                                    this.count++;
+                                }),
+                            }),
+                            new CupertinoButton({
+                                id: 'cupertino-route-reset',
+                                child: new Text('Reset counter'),
+                                onPressed: () => this.setState(() => {
+                                    this.count = 0;
+                                }),
+                            }),
+                            new CupertinoButton({
+                                id: 'cupertino-route-return',
+                                child: new Text('Return result'),
+                                onPressed: back,
+                            }),
+                        ],
+                    }),
+                }))),
+            }),
+        });
+    }
+}
+class CupertinoGalleryPage extends StatefulWidget {
+    values;
+    onMaterial;
+    navigator;
+    onThemeChanged;
+    constructor(values, onMaterial, navigator, onThemeChanged) {
+        super();
+        this.values = values;
+        this.onMaterial = onMaterial;
+        this.navigator = navigator;
+        this.onThemeChanged = onThemeChanged;
+    }
+    createState() {
+        return new CupertinoGalleryState();
+    }
+}
+class CupertinoGalleryState extends State {
+    pageRevision = 0;
+    updates = new GalleryUpdates();
+    scroll = new ScrollController({ debugLabel: 'cupertino-gallery' });
+    extents = new GallerySectionExtents();
+    sectionKeys = new Map(cupertinoDemos.map((demo) => [demo.id, new ValueKey(demo.id)]));
+    get navigator() {
+        return this.widget.navigator;
+    }
+    radioToken = {};
+    get values() {
+        return this.widget.values;
+    }
+    dispose() {
+        this.updates.dispose();
+        this.scroll.dispose();
+        super.dispose();
+    }
+    change(change) {
+        this.setState(change);
+        this.updates.page.notifyListeners();
+    }
+    changeTheme(change) {
+        this.change(change);
+        this.widget.onThemeChanged();
+    }
+    browse(change) {
+        this.extents.reset();
+        this.change(change);
+        if (this.scroll.hasClients)
+            this.scroll.jumpTo(0);
+    }
+    select(category) {
+        this.browse(() => {
+            this.values.category = category;
+        });
+    }
+    button(id, label, onPressed, selected = false) {
+        const options = { id, child: new Text(label), sizeStyle: 'small', onPressed };
+        return selected ? CupertinoButton.tinted(options) : new CupertinoButton(options);
+    }
+    iconButton(id, label, data, onPressed, color) {
+        return new CupertinoButton({
+            id,
+            semanticsLabel: label,
+            child: new Icon(data, {
+                size: 22,
+                ...(color === undefined ? {} : { color: new Color(color) }),
+            }),
+            sizeStyle: 'small',
+            onPressed,
+        });
+    }
+    record(message) {
+        this.values.lastAction = message;
+        this.updates.status.notifyListeners();
+    }
+    openDialog() {
+        // The fixed content/action API remains basic; presentation uses Core's
+        // shared modal barrier, result, focus and reverse-retirement policy.
+        void this.navigator
+            .push(createDialogRoute({
+            builder: () => new CupertinoAlertDialog('Cupertino dialog', new Text('현재 공개된 기본 AlertDialog API 데모입니다.'), () => {
+                void this.navigator.pop();
+            }),
+        }))
+            .then(() => {
+            if (this.mounted)
+                this.record('Cupertino dialog closed');
+        })
+            .catch((error) => {
+            if (this.mounted)
+                this.record(String(error));
+        });
+    }
+    openActionSheet() {
+        const close = (result) => () => {
+            void this.navigator.pop(result);
+        };
+        void showCupertinoModalPopup(this.context, {
+            routeSettings: new RouteSettings({ name: 'cupertino-action-sheet' }),
+            barrierLabel: 'Dismiss action sheet',
+            builder: () => new CupertinoActionSheet({
+                title: new Text('Manage item'),
+                message: new Text('Choose what to do with this item.'),
+                actions: [
+                    new CupertinoActionSheetAction({
+                        child: new Text('Save item'),
+                        isDefaultAction: true,
+                        onPressed: close('Saved'),
+                    }),
+                    new CupertinoActionSheetAction({
+                        child: new Text('Delete item'),
+                        isDestructiveAction: true,
+                        onPressed: close('Deleted'),
+                    }),
+                ],
+                cancelButton: new CupertinoActionSheetAction({
+                    child: new Text('Cancel'),
+                    onPressed: close('Cancelled'),
+                }),
+            }),
+        })
+            .then((result) => {
+            if (this.mounted)
+                this.record('Action sheet: ' + (result ?? 'Dismissed'));
+        })
+            .catch((error) => {
+            if (this.mounted)
+                this.record(String(error));
+        });
+    }
+    openRoute() {
+        void this.navigator
+            .pushNamed('/details')
+            .then((result) => {
+            if (this.mounted)
+                this.record('Cupertino route result: ' + (result ?? 'cancelled'));
+        })
+            .catch((error) => {
+            if (this.mounted)
+                this.record(String(error));
+        });
+    }
+    openSheet() {
+        void showCupertinoSheet({
+            context: this.context,
+            settings: new RouteSettings({ name: 'cupertino-sheet' }),
+            useNestedNavigation: true,
+            showDragHandle: true,
+            scrollableBuilder: (context, controller) => new CupertinoPageScaffold({
+                navigationBar: new CupertinoNavigationBar({ middle: new Text('Edit collection') }),
+                child: new ListView({
+                    controller,
+                    children: [
+                        new CupertinoButton({
+                            child: new Text('Open collection details'),
+                            onPressed: () => {
+                                void Navigator.of(context).push(new CupertinoPageRoute({
+                                    builder: (context) => new CupertinoPageScaffold({
+                                        navigationBar: new CupertinoNavigationBar({
+                                            middle: new Text('Collection details'),
+                                        }),
+                                        child: new SafeArea({
+                                            child: new CupertinoButton({
+                                                child: new Text('Save and close sheet'),
+                                                onPressed: () => {
+                                                    if (CupertinoSheetRoute.hasParentSheet(context))
+                                                        Navigator.of(context, { rootNavigator: true }).pop('Saved');
+                                                },
+                                            }),
+                                        }),
+                                    }),
+                                }));
+                            },
+                        }),
+                        ...Array.from({ length: 24 }, (_, index) => new Padding(EdgeInsets.all(18), new Text(`Collection item ${index + 1}`))),
+                    ],
+                }),
+            }),
+        })
+            .then((result) => {
+            if (this.mounted)
+                this.record('Cupertino sheet: ' + (result ?? 'Dismissed'));
+        })
+            .catch((error) => {
+            if (this.mounted)
+                this.record(String(error));
+        });
+    }
+    openTabs() {
+        const close = () => this.navigator.pop();
+        void this.navigator.push(new CupertinoPageRoute({
+            settings: new RouteSettings({ name: 'cupertino-nested-tabs' }),
+            builder: () => new CupertinoTabScaffold({
+                tabBar: new CupertinoTabBar({
+                    items: [
+                        new BottomNavigationBarItem({
+                            icon: new Icon(CupertinoIcons.folder),
+                            activeIcon: new Icon(CupertinoIcons.folder_solid),
+                            label: 'Folders',
+                        }),
+                        new BottomNavigationBarItem({
+                            icon: new Icon(CupertinoIcons.clock),
+                            activeIcon: new Icon(CupertinoIcons.clock_solid),
+                            label: 'History',
+                        }),
+                    ],
+                }),
+                tabBuilder: (_context, index) => {
+                    const folders = index === 0;
+                    const title = folders ? 'My folders' : 'Activity history';
+                    const details = folders ? 'Folder details' : 'History entry';
+                    return new CupertinoTabView({
+                        defaultTitle: title,
+                        builder: (context) => new CupertinoPageScaffold({
+                            navigationBar: new CupertinoNavigationBar({
+                                trailing: new CupertinoButton({
+                                    child: new Text('Close tabs'),
+                                    onPressed: close,
+                                    padding: EdgeInsets.zero,
+                                }),
+                            }),
+                            child: new SafeArea({
+                                child: new CupertinoButton({
+                                    child: new Text(folders ? 'Open folder details' : 'Open history entry'),
+                                    onPressed: () => {
+                                        void Navigator.of(context).pushNamed('/details');
+                                    },
+                                }),
+                            }),
+                        }),
+                        onGenerateRoute: (settings) => settings.name === '/details'
+                            ? new CupertinoPageRoute({
+                                title: details,
+                                settings: new RouteSettings({ name: settings.name }),
+                                builder: () => new CupertinoPageScaffold({
+                                    navigationBar: new CupertinoNavigationBar(),
+                                    child: new SafeArea({
+                                        child: new Text(folders ? 'Folder contents' : 'History record'),
+                                    }),
+                                }),
+                            })
+                            : null,
+                    });
+                },
+            }),
+        }));
+    }
+    build() {
+        ++this.pageRevision;
+        let page;
+        return new RepaintBoundary(new ListenableBuilder(this.updates.page, () => new LayoutBuilder((context, constraints) => {
+            const compact = constraints.maxWidth < 600, short = constraints.maxHeight < 600, mode = Number(short) | (Number(compact) << 1), theme = CupertinoTheme.of(context);
+            if (!page ||
+                page.mode !== mode ||
+                page.revision !== this.pageRevision ||
+                !page.theme.equals(theme))
+                page = {
+                    mode,
+                    revision: this.pageRevision,
+                    theme,
+                    child: new CupertinoPageScaffold('Cupertino', this.page(context, compact, short)),
+                };
+            return page.child;
+        })));
+    }
+    page(context, compact, short) {
+        const v = this.values, theme = CupertinoTheme.of(context);
+        const catalog = visibleCupertinoDemos(v.category, v.includePlanned);
+        const available = cupertinoDemos.filter((demo) => demo.status !== 'planned').length;
+        return new Column([
+            new RepaintBoundary(new Padding(EdgeInsets.fromLTRB(16, short ? 4 : 12, 16, 8), short
+                ? flow(this.button('show-material', 'Material 3', this.widget.onMaterial), new TextFieldTapRegion(this.iconButton('cupertino-toggle-theme', v.dark ? 'Light mode' : 'Dark mode', v.dark ? CupertinoIcons.sun_max : CupertinoIcons.moon, () => this.changeTheme(() => {
+                    v.dark = !v.dark;
+                }))), new Text(v.category === 'all'
+                    ? 'Cupertino'
+                    : groups.find((group) => group.id === v.category).title, { fontSize: 16 }))
+                : column(flow(this.button('show-material', 'Material 3', this.widget.onMaterial), new TextFieldTapRegion(this.iconButton('cupertino-toggle-theme', v.dark ? 'Light mode' : 'Dark mode', v.dark ? CupertinoIcons.sun_max : CupertinoIcons.moon, () => this.changeTheme(() => {
+                    v.dark = !v.dark;
+                }))), new Text(available + '개 데모 · ' + (cupertinoDemos.length - available) + '개 준비 중', { fontSize: 12 })), flow(...accents.map((accent, index) => this.iconButton('cupertino-accent-' + index, ['Blue', 'Green', 'Purple', 'Orange'][index], v.accent === accent
+                    ? CupertinoIcons.check_mark_circled_solid
+                    : CupertinoIcons.circle_fill, () => this.changeTheme(() => {
+                    v.accent = accent;
+                }), accent))), flow(this.button('cupertino-category-all', 'All', () => this.select('all'), v.category === 'all'), ...groups.map((group) => this.button('cupertino-category-' + group.id, group.title, () => this.select(group.id), v.category === group.id))), flow(this.button('cupertino-toggle-planned', v.includePlanned ? '데모만 보기' : '준비 중 포함', () => this.browse(() => {
+                    v.includePlanned = !v.includePlanned;
+                })), new Text(catalog.length + '개 섹션 · 스크롤하여 탐색', { fontSize: 12 }))))),
+            // The same lazy list/editor owner survives width changes and scrolling.
+            new Expanded(ListView.builder({
+                extentIndex: this.extents.forItems(catalog.map((demo) => demo.id)),
+                metricRevision: theme,
+                childPolicy: { mode: 'bounded', capacity: 2, preparation: 'disabled' },
+                controller: this.scroll,
+                primary: false,
+                findChildIndexCallback: (key) => {
+                    const index = catalog.findIndex((demo) => this.sectionKeys.get(demo.id) === key);
+                    return index < 0 ? null : index;
+                },
+                padding: EdgeInsets.all(compact ? 16 : 28),
+                itemCount: catalog.length,
+                itemBuilder: (_itemContext, index) => {
+                    const demo = catalog[index];
+                    return new GallerySection(new ListenableBuilder(this.updates.section(demo.id), (context) => this.section(context, demo)), demo.id === 'text-field', this.sectionKeys.get(demo.id));
+                },
+            })),
+            new RepaintBoundary(new Padding(EdgeInsets.symmetric({ horizontal: 16, vertical: 12 }), new ListenableBuilder(this.updates.status, (context) => new Text(v.lastAction, {
+                fontSize: 12,
+                maxLines: 2,
+                color: CupertinoTheme.of(context).textTheme.textStyle.color ?? undefined,
+            })))),
+        ], { crossAlign: 'stretch' });
+    }
+    section(context, demo) {
+        const theme = CupertinoTheme.of(context);
+        return new Padding(EdgeInsets.only({ bottom: 16 }), new DecoratedBox(new Padding(EdgeInsets.all(20), column(new Row([
+            new Expanded(new Text(demo.title, { fontSize: 20 })),
+            ...(demo.status === 'ready'
+                ? []
+                : [new Text(demo.status === 'basic' ? '기본 API' : '준비 중', { fontSize: 11 })]),
+        ], { spacing: 12, crossAlign: 'center' }), demo.status === 'planned'
+            ? new Text('제품 구현 후 실제 사용 흐름을 연결할 예정입니다.', { fontSize: 13 })
+            : this.demo(demo.id))), theme.barBackgroundColor, 14));
+    }
+    demo(id) {
+        const update = (change) => this.updates.change(id, change, id === 'sliders' ? ['activity'] : []);
+        const v = this.values;
+        switch (id) {
+            case 'refresh':
+                return this.button('open-refresh-list', 'Open refresh list', () => {
+                    void this.navigator
+                        .push(new CupertinoPageRoute({
+                        builder: () => new CupertinoPageScaffold('Refresh list', new CupertinoRefreshDemo((message) => this.record(message)), () => {
+                            void this.navigator.pop();
+                        }),
+                    }))
+                        .catch((error) => {
+                        if (this.mounted)
+                            this.record(String(error));
+                    });
+                });
+            case 'timer-picker':
+                return new CupertinoTimerPicker({
+                    initialTimerDuration: v.timerDuration,
+                    minuteInterval: 5,
+                    secondInterval: 15,
+                    changeReportingBehavior: ChangeReportingBehavior.onScrollEnd,
+                    onTimerDurationChanged: (duration) => {
+                        v.timerDuration = duration;
+                        this.record(`Timer: ${duration / 1000} seconds`);
+                    },
+                });
+            case 'date-picker':
+                return new CupertinoDatePicker({
+                    initialDateTime: v.dateTime,
+                    minuteInterval: 5,
+                    use24hFormat: true,
+                    showTimeSeparator: true,
+                    onDateTimeChanged: (date) => {
+                        v.dateTime = date;
+                        this.record(`Date: ${date.toString().slice(0, 16)}`);
+                    },
+                });
+            case 'picker':
+                return new Row([
+                    new Expanded(new SizedBox(undefined, 156, new CupertinoPicker({
+                        itemExtent: 36,
+                        children: pickerFruits.map((fruit) => new Text(fruit)),
+                        looping: true,
+                        scrollController: v.fruitPicker,
+                        useMagnifier: true,
+                        magnification: 1.1,
+                        onSelectedItemChanged: (index) => this.record('Fruit: ' + pickerFruits[index]),
+                    }))),
+                    new Expanded(new SizedBox(undefined, 156, CupertinoPicker.builder({
+                        itemExtent: 36,
+                        childCount: pickerPortions.length,
+                        itemBuilder: (_context, index) => new Text(pickerPortions[index]),
+                        changeReportingBehavior: ChangeReportingBehavior.onScrollEnd,
+                        onSelectedItemChanged: (index) => this.record('Portion: ' + pickerPortions[index]),
+                    }))),
+                ], { spacing: 12 });
+            case 'segmented-control':
+                return new CupertinoSegmentedControl({
+                    children: new Map([
+                        ['Day', new Text('Day')],
+                        ['Week', new Text('Week')],
+                        ['Month', new Text('Month')],
+                    ]),
+                    groupValue: v.borderedSegment,
+                    disabledChildren: new Set(['Month']),
+                    onValueChanged: (value) => {
+                        update(() => {
+                            v.borderedSegment = value;
+                            v.lastAction = 'Bordered segment: ' + value;
+                        });
+                    },
+                });
+            case 'segmented':
+                return new CupertinoSlidingSegmentedControl({
+                    children: new Map([
+                        ['Daily', new Text('Daily')],
+                        ['Weekly', new Text('Weekly')],
+                        ['Yearly', new Text('Yearly')],
+                    ]),
+                    groupValue: v.segment,
+                    disabledChildren: new Set(['Yearly']),
+                    onValueChanged: (value) => {
+                        if (value !== null)
+                            update(() => {
+                                v.segment = value;
+                            });
+                    },
+                });
+            case 'buttons':
+                return flow(CupertinoButton.filled({
+                    id: 'cupertino-filled',
+                    child: new Text('Filled'),
+                    onPressed: () => this.record('Cupertino filled pressed'),
+                }), CupertinoButton.tinted({
+                    id: 'cupertino-tinted',
+                    child: new Text('Tinted'),
+                    onPressed: () => this.record('Cupertino tinted pressed'),
+                }), this.button('cupertino-plain', 'Plain', () => this.record('Cupertino plain pressed')), new CupertinoButton({
+                    id: 'cupertino-heart',
+                    child: new Icon(CupertinoIcons.heart, { size: 24 }),
+                    semanticsLabel: 'Favorite',
+                    onPressed: () => this.record('Cupertino favorite pressed'),
+                }), this.button('cupertino-disabled', 'Disabled', null));
+            case 'activity':
+                return column(flow(new RepaintBoundary(new CupertinoActivityIndicator({ animating: v.animating, radius: 14 })), CupertinoActivityIndicator.partiallyRevealed({ progress: v.slider / 100, radius: 14 }), this.button('cupertino-toggle-activity', v.animating ? 'Stop animation' : 'Start animation', () => update(() => {
+                    v.animating = !v.animating;
+                }))), new Text('Partial reveal: ' + Math.round(v.slider) + '%', { fontSize: 13 }));
+            case 'lists':
+                return CupertinoListSection.insetGrouped({
+                    header: new Text('설정'),
+                    hasLeading: false,
+                    children: [
+                        new CupertinoListTile({
+                            id: 'cupertino-list-notifications',
+                            title: new Text('알림'),
+                            trailing: new CupertinoListTileChevron(),
+                            onTap: () => this.record('Notifications selected'),
+                        }),
+                        new CupertinoListTile({
+                            id: 'cupertino-list-appearance',
+                            title: new Text('화면 모드'),
+                            additionalInfo: new Text(v.dark ? 'Dark' : 'Light'),
+                            onTap: () => this.changeTheme(() => {
+                                v.dark = !v.dark;
+                            }),
+                        }),
+                    ],
+                });
+            case 'dialog':
+                return column(new Text('고정 Close action을 제공하는 기본 API입니다.', { fontSize: 13 }), this.button('cupertino-open-dialog', 'Open dialog', () => this.openDialog()));
+            case 'action-sheet':
+                return this.button('cupertino-open-action-sheet', 'Open action sheet', () => this.openActionSheet());
+            case 'sheet':
+                return this.button('cupertino-open-sheet', 'Open Cupertino sheet', () => this.openSheet());
+            case 'navigation':
+                return column(new Text('이 페이지는 실제 CupertinoApp · PageScaffold · NavigationBar를 사용합니다.', {
+                    fontSize: 14,
+                }), this.button('cupertino-open-route', 'Open named route', () => this.openRoute()));
+            case 'tabs':
+                return this.button('cupertino-open-tabs', 'Open Cupertino tabs', () => this.openTabs());
+            case 'switches':
+                return flow(new CupertinoSwitch({
+                    id: 'cupertino-switch',
+                    value: v.switched,
+                    semanticLabel: 'Cupertino switch',
+                    onChanged: (value) => update(() => {
+                        v.switched = value;
+                    }),
+                }), new Text(v.switched ? 'On' : 'Off'), new CupertinoSwitch({ id: 'cupertino-switch-disabled', value: true, onChanged: null }));
+            case 'checkboxes':
+                return flow(new CupertinoCheckbox({
+                    id: 'cupertino-checkbox',
+                    value: v.checked,
+                    tristate: true,
+                    semanticLabel: 'Cupertino checkbox',
+                    onChanged: (value) => update(() => {
+                        v.checked = value;
+                    }),
+                }), new Text(v.checked === null ? 'Mixed' : v.checked ? 'Checked' : 'Unchecked'), new CupertinoCheckbox({
+                    id: 'cupertino-checkbox-disabled',
+                    value: false,
+                    onChanged: null,
+                }));
+            case 'radios':
+                return new RadioGroup({
+                    typeToken: this.radioToken,
+                    groupValue: v.radio,
+                    onChanged: (value) => update(() => {
+                        if (value !== null)
+                            v.radio = value;
+                    }),
+                    child: column(flow(...['first', 'second'].map((value) => new Row([
+                        new CupertinoRadio({
+                            id: 'cupertino-radio-' + value,
+                            value,
+                            groupToken: this.radioToken,
+                            semanticLabel: value,
+                        }),
+                        new Text(value),
+                    ], { mainSize: 'min', crossAlign: 'center', spacing: 8 }))), new Text('Selected: ' + v.radio)),
+                });
+            case 'sliders':
+                return column(new CupertinoSlider({
+                    id: 'cupertino-slider',
+                    value: v.slider,
+                    min: 0,
+                    max: 100,
+                    divisions: 10,
+                    onChanged: (value) => update(() => {
+                        v.slider = value;
+                    }),
+                }), new Text('Value: ' + Math.round(v.slider)), new CupertinoSlider({
+                    id: 'cupertino-slider-disabled',
+                    value: 50,
+                    min: 0,
+                    max: 100,
+                    onChanged: null,
+                }));
+            case 'search':
+                return column(new CupertinoSearchTextField({
+                    id: 'cupertino-search',
+                    restorationId: 'cupertino-search',
+                    onChanged: (text) => this.record('Search changed: ' + (text || '(empty)')),
+                    onSubmitted: (text) => this.record('Search submitted: ' + text),
+                }), new CupertinoSearchTextField({
+                    id: 'cupertino-search-disabled',
+                    placeholder: 'Disabled search',
+                    enabled: false,
+                }));
+            case 'text-field':
+                return column(new CupertinoTextField({
+                    id: 'cupertino-field',
+                    controller: v.text,
+                    scrollController: v.textScroll,
+                    enableInteractiveSelection: v.interactiveSelection,
+                    placeholder: '메시지를 입력하세요',
+                    minLines: 1,
+                    maxLines: 3,
+                    maxLength: 20,
+                    clearButtonMode: OverlayVisibilityMode.editing,
+                    clearButtonSemanticLabel: 'Clear Cupertino message',
+                    prefix: new Padding(EdgeInsets.only({ left: 7 }), new Text('Note')),
+                    onSubmitted: () => this.record('Cupertino message submitted'),
+                }), new Text('20 grapheme · Enter로 줄바꿈 · Ctrl/Meta+Enter로 제출', { fontSize: 12 }), new TextFieldTapRegion(flow(this.button('cupertino-undo-message', 'Undo Cupertino message', () => {
+                    v.text.undo();
+                }), this.button('cupertino-toggle-selection', v.interactiveSelection ? 'Disable selection' : 'Enable selection', () => {
+                    update(() => {
+                        v.interactiveSelection = !v.interactiveSelection;
+                    });
+                }))), new TextFieldTapRegion(flow(...[false, true].map((end) => new CupertinoButton({
+                    id: end ? 'cupertino-scroll-end' : 'cupertino-scroll-top',
+                    child: new Text(end ? 'Scroll to end' : 'Scroll to top'),
+                    sizeStyle: 'small',
+                    requestFocusOnPointer: false,
+                    onPressed: () => {
+                        if (v.textScroll.hasClients && v.textScroll.position.hasContentDimensions) {
+                            v.textScroll.jumpTo(end ? v.textScroll.position.maxScrollExtent : 0);
+                            this.record(end ? 'Cupertino scroll end' : 'Cupertino scroll top');
+                        }
+                    },
+                })))), new CupertinoFormDemo());
+            default:
+                throw new Error('No Cupertino demo for ' + id);
+        }
+    }
+}
+class CupertinoFormDemo extends StatefulWidget {
+    createState() {
+        return new CupertinoFormDemoState();
+    }
+}
+class CupertinoFormDemoState extends State {
+    formKey = new GlobalKey('Cupertino input form');
+    savedName = '';
+    savedEmail = '';
+    status = '이름과 이메일을 입력한 뒤 저장하세요.';
+    save = () => {
+        const form = this.formKey.currentState;
+        if (!form)
+            return;
+        const valid = form.validate();
+        if (valid)
+            form.save();
+        this.setState(() => {
+            this.status = valid
+                ? `Cupertino saved: ${this.savedName} · ${this.savedEmail}`
+                : '필수 항목과 이메일 형식을 확인하세요.';
+        });
+    };
+    build() {
+        return new Form({
+            key: this.formKey,
+            autovalidateMode: 'onUserInteraction',
+            child: column(CupertinoFormSection.insetGrouped({
+                header: new Text('연락처'),
+                footer: new Text('위쪽 메시지는 화면을 이동해도 유지됩니다. 연락처는 이 페이지에서 저장하세요.'),
+                children: [
+                    new CupertinoTextFormFieldRow({
+                        id: 'cupertino-form-name',
+                        prefix: new Text('Name'),
+                        placeholder: 'Cupertino name',
+                        textInputAction: 'next',
+                        autofillHints: ['name'],
+                        validator: (value) => (value.trim() ? null : '이름을 입력하세요.'),
+                        onSaved: (value) => {
+                            this.savedName = value;
+                        },
+                    }),
+                    new CupertinoTextFormFieldRow({
+                        id: 'cupertino-form-email',
+                        prefix: new Text('Email'),
+                        placeholder: 'Cupertino email',
+                        keyboardType: 'email',
+                        textInputAction: 'done',
+                        autofillHints: ['email'],
+                        validator: (value) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value) ? null : '이메일 형식을 확인하세요.',
+                        onSaved: (value) => {
+                            this.savedEmail = value;
+                        },
+                        onFieldSubmitted: this.save,
+                    }),
+                ],
+            }), flow(new CupertinoButton({
+                id: 'cupertino-form-save',
+                child: new Text('Save Cupertino form'),
+                onPressed: this.save,
+            }), new CupertinoButton({
+                id: 'cupertino-form-reset',
+                child: new Text('Reset Cupertino form'),
+                onPressed: () => {
+                    this.formKey.currentState?.reset();
+                    this.setState(() => {
+                        this.status = 'Cupertino form reset';
+                    });
+                },
+            })), new Text(this.status, { fontSize: 12 })),
+        });
+    }
+}

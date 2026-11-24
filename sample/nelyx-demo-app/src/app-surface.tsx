@@ -9,12 +9,25 @@ import { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { Rect } from '@nelyx/core/ui/rect';
 import { TextPosition } from '@nelyx/core/ui/text-position';
 import type { WebSkiaLibrary } from '@nelyx/skia-web/library';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { WebApplication } from '@nelyx/sdk/frontend/dom/application';
 import { getFrontendHost } from '@nelyx/sdk/frontend/dom/environment';
 import { ApplicationSurface } from '@nelyx/sdk/frontend/dom/surface';
 import type { FrontendProps } from '@nelyx/vite/client';
 import { main } from './app.ts';
+import { renderToggleGutter } from './layout.ts';
+
+const modePreference = 'nelyx.demo.renderMode';
+type RenderMode = NonNullable<FrontendProps['options']['renderMode']>;
+
+function initialMode(frontend: FrontendProps['options']): RenderMode {
+  if (frontend.renderMode) return frontend.renderMode;
+  try {
+    return localStorage.getItem(modePreference) === 'auto' ? 'auto' : 'direct';
+  } catch {
+    return 'direct';
+  }
+}
 
 declare global {
   interface Window {
@@ -24,7 +37,9 @@ declare global {
         sections?: FrameworkRoot['buildOwner']['preparationStats'];
         dormant?: NonNullable<FrameworkRoot['buildOwner']['maybeDormantChildren']>['debugStats'];
         pictures?: WebSkiaLibrary['debugRasterizationStats'];
+        rendering: WebApplication['rendering'];
       },
+      dispose: () => Promise<void>,
     ) => void;
     nelyxDemoEditorGeometryProbe?: (
       read: (id: string) => ReturnType<typeof editorGeometry>,
@@ -91,15 +106,20 @@ function attachFrameProbe(application: WebApplication): void {
   const diagnostics = new FrameDiagnostics(performance, 16384),
     text = application.text as WebSkiaLibrary;
   view.frameDiagnostics = diagnostics;
-  window.nelyxDemoFrameProbe(() => {
-    const owner = view.controller instanceof FrameworkRoot ? view.controller.buildOwner : undefined;
-    return {
-      frames: diagnostics.drain(),
-      ...(owner ? { sections: owner.preparationStats } : {}),
-      ...(owner?.maybeDormantChildren ? { dormant: owner.maybeDormantChildren.debugStats } : {}),
-      pictures: text.debugRasterizationStats,
-    };
-  });
+  window.nelyxDemoFrameProbe(
+    () => {
+      const owner =
+        view.controller instanceof FrameworkRoot ? view.controller.buildOwner : undefined;
+      return {
+        frames: diagnostics.drain(),
+        ...(owner ? { sections: owner.preparationStats } : {}),
+        ...(owner?.maybeDormantChildren ? { dormant: owner.maybeDormantChildren.debugStats } : {}),
+        pictures: text.debugRasterizationStats,
+        rendering: application.rendering,
+      };
+    },
+    () => application.dispose(),
+  );
 }
 
 export function App({
@@ -107,14 +127,20 @@ export function App({
   create = main,
 }: FrontendProps & { create?: typeof main }) {
   const shared = useMemo(() => create(), [create]);
+  const [request, setRequest] = useState(() => ({ mode: initialMode(frontend) }));
+  const [path, setPath] = useState<WebApplication['rendering']['path']>();
+  const [error, setError] = useState('');
+  const toggle = useRef<HTMLButtonElement>(null);
+  const observer = useRef<MutationObserver | undefined>(undefined);
   const options = useMemo(
     () => ({
       ...frontend,
+      renderMode: request.mode,
       // The gallery clears and redraws the whole canvas on every submitted frame.
       preserveDrawingBuffer: false,
       ...(getFrontendHost().os === 'android' ? { maxRasterScale: 2 } : {}),
     }),
-    [frontend],
+    [frontend, request],
   );
   const definition = useMemo(
     () => ({
@@ -124,14 +150,44 @@ export function App({
     }),
     [shared.definition, options.manifest],
   );
-  const [error, setError] = useState('');
+  useEffect(() => () => observer.current?.disconnect(), [options]);
+  function ready(application: WebApplication) {
+    attachFrameProbe(application);
+    setPath(application.rendering.path);
+    // A worker can recover on a new canvas or fall back to direct after startup.
+    const parent = toggle.current?.parentElement?.querySelector('canvas')?.parentElement;
+    if (parent && application.rendering.path !== 'direct') {
+      observer.current = new MutationObserver((records) => {
+        if (records.some(({ target }) => target === parent || target instanceof HTMLCanvasElement))
+          setPath(application.rendering.path);
+      });
+      observer.current.observe(parent, {
+        subtree: true,
+        childList: true,
+        attributeFilter: ['data-nelyx-render-path'],
+      });
+    }
+  }
+  const worker = path === 'worker-transfer' || path === 'worker-shared';
+  const pending = !path && !error;
+  function switchMode() {
+    const mode = (path ? worker : request.mode !== 'direct') ? 'direct' : 'auto';
+    try {
+      localStorage.setItem(modePreference, mode);
+    } catch {
+      // The current session can still switch if storage is unavailable.
+    }
+    setError('');
+    setPath(undefined);
+    setRequest({ mode });
+  }
   return (
     <>
       {error && <p role="alert">{error}</p>}
       <ApplicationSurface
         definition={definition}
         options={options}
-        onReady={attachFrameProbe}
+        onReady={ready}
         style={{ flex: 1, width: '100%', height: '100%' }}
         onError={(error) => {
           const message = describeError(error);
@@ -139,6 +195,23 @@ export function App({
           setError(message);
         }}
       />
+      <button
+        className="render-mode-toggle"
+        type="button"
+        ref={toggle}
+        style={{ width: renderToggleGutter - 12 }}
+        aria-label="워커 렌더링"
+        aria-pressed={worker}
+        disabled={pending}
+        title={worker ? '직접 렌더링으로 전환' : '워커 렌더링으로 전환'}
+        onClick={switchMode}
+      >
+        <span aria-hidden="true">⇄</span>{' '}
+        {pending ? '준비' : path ? (worker ? '워커' : '직접') : '재시도'}
+      </button>
+      {path === 'direct' && request.mode !== 'direct' && (
+        <output className="render-mode-notice">워커를 사용할 수 없어 직접 렌더링 중입니다.</output>
+      )}
     </>
   );
 }

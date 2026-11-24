@@ -5,6 +5,24 @@ import type { ResolvedAppAsset as AppAsset } from './config.ts';
 export interface AssetDecoder {
   decode(asset: AppAsset, bytes: Uint8Array): Promise<ResolvedAsset>;
 }
+export function selectManifestAssets(
+  manifest: readonly AppAsset[],
+  declarations: readonly AssetRef[],
+): readonly AppAsset[] {
+  const ids = new Set<string>();
+  return declarations.map((ref) => {
+    const match = manifest.filter((asset) => asset.id === ref.id);
+    if (
+      ids.has(ref.id) ||
+      match.length !== 1 ||
+      match[0]!.kind !== ref.kind ||
+      match[0]!.sha256 !== ref.sha256
+    )
+      throw new Error(`Invalid asset declaration: ${ref.id}`);
+    ids.add(ref.id);
+    return match[0]!;
+  });
+}
 /** Paths/URI/native decoded handles stay in the injected target loader and decoder. */
 export class ManifestAssetService implements AssetService {
   private used = false;
@@ -19,19 +37,7 @@ export class ManifestAssetService implements AssetService {
     if (this.closed || this.used)
       throw new Error('Asset service is closed or already bound to a session');
     this.used = true;
-    const ids = new Set<string>();
-    const selected = declarations.map((ref) => {
-      const match = this.manifest.filter((asset) => asset.id === ref.id);
-      if (
-        ids.has(ref.id) ||
-        match.length !== 1 ||
-        match[0]!.kind !== ref.kind ||
-        match[0]!.sha256 !== ref.sha256
-      )
-        throw new Error(`Invalid asset declaration: ${ref.id}`);
-      ids.add(ref.id);
-      return match[0]!;
-    });
+    const selected = selectManifestAssets(this.manifest, declarations);
     const results = await Promise.allSettled(
       selected.map(async (asset) => {
         const bytes = await this.loader.load(asset);

@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Section order follows DorotiTestbedApp's Flutter-derived Components gallery.
+export const categories = [
+    { id: 'actions', title: 'Actions', description: '누르고, 선택하고, 실행하기' },
+    { id: 'communication', title: 'Communication', description: '상태와 진행 상황 전달하기' },
+    { id: 'containment', title: 'Containment', description: '콘텐츠를 묶고 구분하기' },
+    { id: 'navigation', title: 'Navigation', description: '화면과 목적지 이동하기' },
+    { id: 'selection', title: 'Selection', description: '값과 옵션 선택하기' },
+    { id: 'text', title: 'Text inputs', description: '텍스트 입력하고 편집하기' },
+    { id: 'images', title: 'Image demo', description: '앱에 포함된 이미지 표시하기' },
+];
+export const demos = [
+    { id: 'buttons', category: 'actions', title: 'Common buttons', status: 'ready' },
+    { id: 'fab', category: 'actions', title: 'Floating action buttons', status: 'basic' },
+    { id: 'icon-buttons', category: 'actions', title: 'Icon buttons', status: 'ready' },
+    { id: 'segmented', category: 'actions', title: 'Segmented buttons', status: 'basic' },
+    { id: 'badges', category: 'communication', title: 'Badges', status: 'ready' },
+    { id: 'progress', category: 'communication', title: 'Progress indicators', status: 'ready' },
+    { id: 'snackbar', category: 'communication', title: 'Snackbar', status: 'basic' },
+    { id: 'bottom-sheet', category: 'containment', title: 'Bottom sheet', status: 'basic' },
+    { id: 'expansion-panel', category: 'containment', title: 'Expansion panels', status: 'basic' },
+    { id: 'cards', category: 'containment', title: 'Cards', status: 'ready' },
+    { id: 'carousel', category: 'containment', title: 'Carousel', status: 'planned' },
+    { id: 'dialog', category: 'containment', title: 'Dialog', status: 'basic' },
+    { id: 'data-table', category: 'containment', title: 'Data table', status: 'basic' },
+    {
+        id: 'paginated-data-table',
+        category: 'containment',
+        title: 'Paginated data table',
+        status: 'basic',
+    },
+    { id: 'stepper', category: 'containment', title: 'Stepper', status: 'basic' },
+    { id: 'dividers', category: 'containment', title: 'Dividers', status: 'ready' },
+    { id: 'bottom-app-bar', category: 'navigation', title: 'Bottom app bar', status: 'planned' },
+    { id: 'navigation-bar', category: 'navigation', title: 'Navigation bar', status: 'basic' },
+    {
+        id: 'navigation-drawer',
+        category: 'navigation',
+        title: 'Navigation drawer',
+        status: 'basic',
+    },
+    { id: 'navigation-rail', category: 'navigation', title: 'Navigation rail', status: 'basic' },
+    { id: 'tabs', category: 'navigation', title: 'Tabs', status: 'basic' },
+    { id: 'search', category: 'navigation', title: 'Search', status: 'basic' },
+    { id: 'top-app-bars', category: 'navigation', title: 'Top app bars', status: 'basic' },
+    { id: 'checkboxes', category: 'selection', title: 'Checkboxes', status: 'ready' },
+    { id: 'chips', category: 'selection', title: 'Chips', status: 'ready' },
+    { id: 'date-picker', category: 'selection', title: 'Date picker', status: 'basic' },
+    { id: 'time-picker', category: 'selection', title: 'Time picker', status: 'basic' },
+    { id: 'menus', category: 'selection', title: 'Menus', status: 'basic' },
+    { id: 'radios', category: 'selection', title: 'Radio buttons', status: 'ready' },
+    { id: 'sliders', category: 'selection', title: 'Sliders', status: 'ready' },
+    { id: 'switches', category: 'selection', title: 'Switches', status: 'ready' },
+    { id: 'text-fields', category: 'text', title: 'Text fields', status: 'basic' },
+    { id: 'image', category: 'images', title: 'Image demo', status: 'ready' },
+];
+export function visibleDemos(category, includePlanned) {
+    return demos.filter((demo) => (category === 'all' || demo.category === category) &&
+        (includePlanned || demo.status !== 'planned'));
+}

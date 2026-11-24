@@ -4,9 +4,13 @@ import type { CSSProperties } from 'react';
 import { useEffect, useRef } from 'react';
 import { openApplication, ownWebSurface } from './application.ts';
 import type { WebApplication, WebApplicationOptions } from './application.ts';
+import { replaceOwnedCanvas } from './owned-canvas.ts';
 export interface WebSurfaceProps {
   readonly definition: ApplicationDefinition;
-  readonly options: Omit<WebApplicationOptions, 'canvas' | 'input' | 'button'>;
+  readonly options: Omit<
+    WebApplicationOptions,
+    'canvas' | 'input' | 'button' | 'replaceCanvas' | 'signal'
+  >;
   readonly style?: CSSProperties;
   readonly onReady?: (application: WebApplication) => void;
   readonly onError?: (error: unknown) => void;
@@ -19,9 +23,10 @@ export function ApplicationSurface(properties: WebSurfaceProps) {
     drain = useRef(Promise.resolve());
   useEffect(() => {
     const parent = container.current!,
-      target = parent.ownerDocument.createElement('canvas'),
-      lifetime = ownWebSurface(parent);
-    let alive = true,
+      lifetime = ownWebSurface(parent),
+      controller = new AbortController();
+    let target = parent.ownerDocument.createElement('canvas'),
+      alive = true,
       application: WebApplication | undefined;
     target.style.cssText = 'width:100%;height:100%;display:block';
     target.setAttribute('aria-hidden', 'true');
@@ -34,6 +39,11 @@ export function ApplicationSurface(properties: WebSurfaceProps) {
       application = await openApplication(properties.definition, {
         ...properties.options,
         canvas: target,
+        signal: controller.signal,
+        replaceCanvas(previous) {
+          if (!alive || previous !== target) throw new Error('Web surface is closing');
+          return (target = replaceOwnedCanvas(previous));
+        },
         input: input.current!,
         button: button.current!,
         ...(properties.onError ? { onError: properties.onError } : {}),
@@ -50,6 +60,7 @@ export function ApplicationSurface(properties: WebSurfaceProps) {
     });
     return () => {
       alive = false;
+      controller.abort();
       const closed = previous.then(async () => {
         try {
           await opened;

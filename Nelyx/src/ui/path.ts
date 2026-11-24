@@ -57,7 +57,7 @@ export interface PathQueryService {
   contains(path: PathSnapshot, point: Offset): boolean;
 }
 export const pathOperationLimit = 4096;
-const arities: Readonly<Record<PathVerbName, number>> = Object.freeze({
+export const pathOperationArities: Readonly<Record<PathVerbName, number>> = Object.freeze({
   moveTo: 2,
   relativeMoveTo: 2,
   lineTo: 2,
@@ -79,7 +79,9 @@ function fillType(value: PathFillType): PathFillType {
 }
 function operation(verb: PathVerbName, values: readonly number[]): PathVerbRecord {
   invariant(
-    pathOperationNames.includes(verb) && Array.isArray(values) && values.length === arities[verb],
+    pathOperationNames.includes(verb) &&
+      Array.isArray(values) &&
+      values.length === pathOperationArities[verb],
     'invalid-path',
     'Unknown path operation or wrong coordinate count',
   );

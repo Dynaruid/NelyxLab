@@ -40,7 +40,9 @@ export function sameOwner(a: ViewOwner, b: ViewOwner): boolean {
 export function sameResource(a: ResourceId, b: ResourceId): boolean {
   return a.id === b.id && a.generation === b.generation;
 }
+const capturedEnvironments = new WeakSet<ViewEnvironment>();
 export function freezeEnvironment(environment: ViewEnvironment): ViewEnvironment {
+  if (capturedEnvironments.has(environment)) return environment;
   for (const key of ['top', 'right', 'bottom', 'left'] as const) {
     if (!(finite(environment.safeArea[key], 'safe area') >= 0))
       invariant(false, 'invalid-metrics', 'Negative safe area');
@@ -91,13 +93,15 @@ export function freezeEnvironment(environment: ViewEnvironment): ViewEnvironment
       'invalid-metrics',
       'Unavailable gesture settings cannot carry observed values',
     );
-  return Object.freeze({
+  const captured = Object.freeze({
     ...environment,
     textScaleSource: environment.textScaleSource ?? 'application',
     safeArea: Object.freeze({ ...environment.safeArea }),
     gestureSettings: settings,
     gestureSettingsSource: source,
   });
+  capturedEnvironments.add(captured);
+  return captured;
 }
 export function captureMetrics(metrics: ViewMetrics): ViewMetrics {
   for (const key of [
@@ -548,6 +552,11 @@ export function releaseSceneFrameSource(source: SceneFrameSource): void {
   if (source instanceof FrameRecording) source.dispose();
   else releaseCommandResources(source);
 }
+const capturedFrames = new WeakSet<PaintFrame>();
+/** @internal Encoders can reuse immutable frames captured by the engine. */
+export function isCapturedFrame(frame: PaintFrame): boolean {
+  return capturedFrames.has(frame);
+}
 function captureFrame(
   token: FrameBuildToken,
   source: readonly PaintCommand[],
@@ -645,6 +654,7 @@ function captureFrame(
     if (errors.length === 1) throw errors[0];
     throw new AggregateError(errors, 'Frame capture and rollback failed');
   }
+  capturedFrames.add(result!);
   return result!;
 }
 export function isCurrent(frame: PaintFrame, owner: ViewOwner, metrics: ViewMetrics): boolean {

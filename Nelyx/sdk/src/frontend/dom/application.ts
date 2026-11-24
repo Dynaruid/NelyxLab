@@ -11,7 +11,7 @@ import type { ResolvedAppAsset as AppAsset } from '../../runtime/config.ts';
 import type { CanvasKitManifest } from '../../backends/browser/canvaskit-manifest.ts';
 import { createProviderRegistry } from '../../runtime/providers.ts';
 import { bootstrapApplication } from '../../runtime/bootstrap.ts';
-import { createWebServices } from '../../backends/browser/services.ts';
+import { createWebServices, readBrowserAssets } from '../../backends/browser/services.ts';
 import type { BackendConnection } from '../../backends/backend-contract.ts';
 import type { WebSafeAreaSource } from '../../backends/browser/environment.ts';
 import { loadCanvasKit } from '../../backends/browser/canvaskit.ts';
@@ -19,6 +19,12 @@ import { createBrowserPlatformMessages } from '../../backends/browser/platform-m
 import { webDialogWindows } from './dialog-windows.ts';
 import { browserDeviceServices } from '../../backends/browser/devices.ts';
 import { DeviceScope } from '../../runtime/device-scope.ts';
+import { BrowserRenderer } from '../../backends/browser/renderer.ts';
+import type { WebRenderMode } from '../../backends/browser/render-protocol.ts';
+import type { WebRenderDiagnostics } from '../../backends/browser/render-telemetry.ts';
+
+export type { WebRenderMode, WebRenderPath } from '../../backends/browser/render-protocol.ts';
+export type { WebRenderDiagnostics } from '../../backends/browser/render-telemetry.ts';
 
 export type { WebSafeAreaSource } from '../../backends/browser/environment.ts';
 
@@ -42,6 +48,7 @@ interface WebOpening {
 const applications = new Set<WebOpening>();
 export interface WebApplicationDiagnostics {
   readonly owner: ViewOwner;
+  readonly rendering: WebRenderDiagnostics;
   readonly text: {
     readonly paragraphs: number;
     readonly producers: number;
@@ -55,23 +62,28 @@ export interface WebApplicationDiagnostics {
 export function readWebApplicationDiagnostics(): readonly WebApplicationDiagnostics[] {
   const snapshots: WebApplicationDiagnostics[] = [];
   for (const job of applications) {
-    const library = (
-      job.retained as
-        | {
-            library?: {
-              readonly debugOwner: ViewOwner;
-              readonly debugTextStats: WebApplicationDiagnostics['text'];
-            };
-          }
-        | undefined
-    )?.library;
-    if (!library) continue;
+    const retained = job.retained as
+      | {
+          readonly library?: {
+            readonly debugOwner: ViewOwner;
+            readonly debugTextStats: WebApplicationDiagnostics['text'];
+          };
+          readonly renderer?: BrowserRenderer;
+        }
+      | undefined;
+    const library = retained?.library,
+      rendering = retained?.renderer?.diagnostics;
+    if (!library || !rendering) continue;
     const text = library.debugTextStats,
       owner = library.debugOwner;
     if (!owner || !Number.isInteger(text.producers) || !Number.isInteger(text.retainedOnly))
       throw new Error('Matching Web text diagnostics cohort is required');
     snapshots.push(
-      Object.freeze({ owner: Object.freeze({ ...owner }), text: Object.freeze({ ...text }) }),
+      Object.freeze({
+        owner: Object.freeze({ ...owner }),
+        rendering,
+        text: Object.freeze({ ...text }),
+      }),
     );
   }
   return Object.freeze(snapshots);
@@ -203,9 +215,20 @@ export interface WebApplicationOptions extends WebSkiaSurfaceOptions {
   readonly canvasKitRoot: URL;
   readonly canvasKitManifest: CanvasKitManifest;
   readonly profile?: string;
+  /** Opt into capability-based worker selection or select a route for comparison. */
+  readonly renderMode?: WebRenderMode;
+  /** Grants replacement of a transferred canvas while keeping its view and app data. */
+  readonly replaceCanvas?: (previous: HTMLCanvasElement) => HTMLCanvasElement;
+  readonly signal?: AbortSignal;
   readonly onError?: (error: unknown) => void;
 }
-export interface WebApplication extends ComposedApplication {}
+export interface WebApplication extends ComposedApplication {
+  readonly rendering: WebRenderDiagnostics;
+}
+/** Start the shared verified runtime while the application module is loading. */
+export async function prepareWebGraphics(root: URL, manifest: CanvasKitManifest): Promise<void> {
+  await loadCanvasKit(root, manifest);
+}
 export function openApplication(
   definition: ApplicationDefinition,
   options: WebApplicationOptions,
@@ -250,6 +273,7 @@ async function openWebApplication(
   job: WebOpening,
 ): Promise<WebApplication> {
   const view = options.canvas.ownerDocument.defaultView;
+  options.signal?.throwIfAborted();
   if (runtimeClosing || !view || view.closed || !options.canvas.isConnected)
     throw new Error('Web requires an open runtime and attached DOM canvas');
   const selected = createProviderRegistry().select('web', options.profile, {
@@ -257,23 +281,47 @@ async function openWebApplication(
     architecture: 'wasm32',
     artifacts: ['canvaskit.js', 'canvaskit.wasm'],
   });
-  const [ck, { WebSkiaLibrary }] = await Promise.all([
+  const reads = new AbortController();
+  const cancelReads = () => reads.abort(options.signal?.reason);
+  options.signal?.addEventListener('abort', cancelReads, { once: true });
+  const [ck, { WebSkiaLibrary }, files] = await Promise.all([
     loadCanvasKit(options.canvasKitRoot, options.canvasKitManifest),
     import('@nelyx/skia-web/library'),
-  ]);
+    readBrowserAssets(
+      options.manifest,
+      options.assetsRoot,
+      definition.assets ?? options.manifest,
+      reads.signal,
+    ),
+  ]).finally(() => {
+    options.signal?.removeEventListener('abort', cancelReads);
+    reads.abort();
+  });
+  options.signal?.throwIfAborted();
   if (runtimeClosing || view.closed || !options.canvas.isConnected)
     throw new Error('Web surface opening cancelled');
   const nonce = Array.from(crypto.getRandomValues(new Uint32Array(4)), (word) =>
       word.toString(16).padStart(8, '0'),
     ).join(''),
     owner = Object.freeze({ id: 'web-view-' + nonce, generation: ++generation }),
-    library = new WebSkiaLibrary(ck, options.canvas, owner, options);
+    library = new WebSkiaLibrary(
+      ck,
+      () => options.canvas.ownerDocument.createElement('canvas'),
+      owner,
+      options,
+    );
+  let renderer: BrowserRenderer | undefined;
+  let canvas: HTMLCanvasElement;
   let binding: ReturnType<typeof createWebServices>;
   job.retained = { library };
   try {
+    renderer = new BrowserRenderer(library, options.canvas, owner, options, () => !runtimeClosing);
+    job.retained = { library, renderer };
+    canvas = await renderer.open();
     binding = createWebServices(
       library,
-      options.canvas,
+      renderer,
+      canvas,
       options.input,
       options.button,
       selected.identity,
@@ -281,17 +329,18 @@ async function openWebApplication(
       options.manifest,
       options.assetsRoot,
       definition,
+      files,
       options.safeArea ?? options.backend?.safeArea?.(view),
     );
   } catch (error) {
     try {
-      await library.dispose();
+      await (renderer?.dispose() ?? library.dispose());
     } catch (failure) {
       throw new AggregateError([error, failure], 'Web initialization native cleanup failed');
     }
     throw error;
   }
-  job.retained = { library, binding };
+  job.retained = { library, renderer, binding };
   let platformMessages: PlatformMessagePort;
   let clipboard: ReturnType<BackendConnection['clipboard']> | undefined;
   const deviceScope = new DeviceScope();
@@ -302,7 +351,8 @@ async function openWebApplication(
       root: options.assetsRoot,
       namespace: options.deviceNamespace ?? definition.id,
     };
-    deviceServices = options.backend?.devices?.(view, deviceOptions) ??
+    deviceServices =
+      options.backend?.devices?.(view, deviceOptions) ??
       (options.backend?.host.target === 'tauri' ? {} : browserDeviceServices(view, deviceOptions));
     platformMessages =
       options.platformMessages ??
@@ -311,7 +361,7 @@ async function openWebApplication(
         binding.cursor,
         binding.selectionContextMenu,
         {
-          hostElement: options.canvas.parentElement!,
+          hostElement: canvas.parentElement!,
           viewId: binding.services.platformViewId ?? 0,
         },
         { key: binding.definition.id, root: options.assetsRoot },
@@ -341,7 +391,13 @@ async function openWebApplication(
   const application = await bootstrapApplication(binding.definition, {
     ...binding.services,
     ...(options.enableDialogWindows
-      ? { dialogWindows: webDialogWindows(binding.definition, options, openApplication) }
+      ? {
+          dialogWindows: webDialogWindows(
+            binding.definition,
+            { ...options, canvas },
+            openApplication,
+          ),
+        }
       : {}),
     platformMessages,
     devices: { scope: deviceScope, services: deviceServices },
@@ -349,5 +405,7 @@ async function openWebApplication(
     ...(options.useDefaultBinaryMessenger ? { useDefaultBinaryMessenger: true } : {}),
     ...(options.onError ? { reportError: options.onError } : {}),
   });
-  return application;
+  return Object.defineProperty(application, 'rendering', {
+    get: () => renderer.diagnostics,
+  }) as WebApplication;
 }

@@ -33,6 +33,14 @@ Pass `--port 0` to `run` to have the preview server bind a free port.
 
 Deploy the full `.nelyx/web/` directory. Set the Wasm MIME type to `application/wasm`. For application route fallback use the deployment directory as the HTML base, and return 404 for missing assets. A `targets.web.pwa` declaration adds the manifest and service worker. The worker verifies all cached files, including the app backend Wasm. Refresh fixed-name assets and `sw.js` through cache revalidation.
 
+### Web rendering and cross-origin isolation
+
+Web rendering defaults to `direct`. Add `?renderMode=auto` to the app URL or set `renderMode: 'auto'` in the SDK's `ApplicationSurface` options to probe the dedicated worker and WebGL2 for the view. The SDK uses shared slots when the document and worker are isolated and the shared-memory round trip succeeds. A successful worker WebGL2 probe also supports transfer buffers. The SDK renders on the main thread when the worker path is unavailable. Use `worker-transfer` or `worker-shared` to compare paths with fallback enabled.
+
+Add `--target web --cross-origin-isolated` to `nelyx dev` or `nelyx run` to test isolation on localhost. For an isolated HTTPS deployment, send `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` on documents and a compatible COEP on the worker script. Cross-origin assets need CORS or CORP according to how they are requested. Check embedding documents and iframe permissions. COOP `same-origin` severs the `window.opener` relationship with popups on other origins. [Cross-origin isolation deployment](https://web.dev/articles/coop-coep)
+
+If the deployment uses CSP, check that it allows the same-origin render worker and the verified blob script used to initialize CanvasKit. PWAs revalidate the cached release's documents and render worker to pick up policy changes. Read the selected path, isolation, fallback reasons and frame metrics in `readWebApplicationDiagnostics()` or the application's `rendering` property.
+
 ## Build and run Tauri
 
 ```powershell

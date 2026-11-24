@@ -19,6 +19,7 @@ const usage = [
   '       nelyx pack --app <app> --target tauri --platform <os> --frontend <directory>',
   '       nelyx prepare --app <app> --target <target> [--platform <os>] [--update-lock]',
   '       nelyx run --app <app> --target web --base /demo/ --port 0',
+  '       nelyx dev|run --app <app> --target web [--cross-origin-isolated]',
   '       nelyx run --app <app> --target tauri --platform android|ios [--no-launch]',
 ].join('\n');
 const web = {
@@ -28,7 +29,14 @@ const web = {
   build: buildWebApplication,
   run: runWeb,
 };
-const switches = new Set(['frontend-only', 'update-lock', 'static', 'no-backend', 'no-launch']);
+const switches = new Set([
+  'frontend-only',
+  'update-lock',
+  'static',
+  'no-backend',
+  'no-launch',
+  'cross-origin-isolated',
+]);
 
 function parse(args) {
   const command = args.shift();
@@ -111,6 +119,7 @@ async function main() {
   if (command === 'dev' || (command === 'run' && target === 'web')) allowed.push('port', 'host');
   if (command === 'pack' || (command === 'run' && target === 'web')) allowed.push('frontend');
   if (command === 'run' && target === 'web') allowed.push('base');
+  if (target === 'web' && ['dev', 'run'].includes(command)) allowed.push('cross-origin-isolated');
   if (['dev', 'run'].includes(command) && ['android', 'ios'].includes(platform))
     allowed.push('device');
   if (command === 'run' && ['android', 'ios'].includes(platform)) allowed.push('no-launch');
@@ -142,6 +151,7 @@ async function main() {
     device: values.device,
     noLaunch: values['no-launch'] === true,
     base: values.base,
+    crossOriginIsolated: values['cross-origin-isolated'] === true,
     port: values.port === undefined ? undefined : Number(values.port),
     host: values.host,
     directory: values.frontend ? path.resolve(values.frontend) : undefined,

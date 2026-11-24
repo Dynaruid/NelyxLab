@@ -9,6 +9,48 @@ function installWorker({ appId, revision, files }) {
   const cacheName = prefix + revision;
   const assets = new Map(files.map((file) => [new URL(file.path, scope).pathname, file]));
   const urlOf = (file) => new URL(file, scope).href;
+  const policyHeaders = [
+    'Cross-Origin-Opener-Policy',
+    'Cross-Origin-Embedder-Policy',
+    'Permissions-Policy',
+    'Content-Security-Policy',
+  ];
+  async function verify(file, response) {
+    const bytes = await response.clone().arrayBuffer();
+    const actual = Array.from(
+      new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
+      (value) => value.toString(16).padStart(2, '0'),
+    ).join('');
+    if (bytes.byteLength !== file.bytes || actual !== file.sha256)
+      throw new Error('PWA precache integrity mismatch: ' + file.path);
+  }
+  // Revalidate policy-bearing responses even when a deploy keeps the same
+  // release bytes and the same service worker revision.
+  async function readPolicyResponse(cache, url) {
+    const saved = await cache.match(url);
+    try {
+      const fresh = await fetch(url, {
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(2000),
+      });
+      if (!fresh.ok) return saved;
+      await verify(assets.get(new URL(url).pathname), fresh);
+      if (
+        !saved ||
+        policyHeaders.some((name) => saved.headers.get(name) !== fresh.headers.get(name))
+      ) {
+        try {
+          await cache.put(url, fresh.clone());
+        } catch {
+          // Storage limits still allow the verified online response.
+        }
+      }
+      return fresh;
+    } catch {
+      return saved;
+    }
+  }
   self.addEventListener('install', (event) => {
     event.waitUntil(
       (async () => {
@@ -21,13 +63,7 @@ function installWorker({ appId, revision, files }) {
                 const url = urlOf(file.path);
                 const response = await fetch(url, { cache: 'reload', redirect: 'error' });
                 if (!response.ok) throw new Error('Cannot precache ' + file.path);
-                const bytes = await response.clone().arrayBuffer();
-                const actual = Array.from(
-                  new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
-                  (value) => value.toString(16).padStart(2, '0'),
-                ).join('');
-                if (bytes.byteLength !== file.bytes || actual !== file.sha256)
-                  throw new Error('PWA precache integrity mismatch: ' + file.path);
+                await verify(file, response);
                 await cache.put(url, response);
               }),
             );
@@ -65,7 +101,7 @@ function installWorker({ appId, revision, files }) {
       event.respondWith(
         (async () => {
           const cache = await caches.open(cacheName);
-          const page = await cache.match(urlOf('index.html'));
+          const page = await readPolicyResponse(cache, urlOf('index.html'));
           if (!page) return fetch(request);
           if (relative === '' || relative === 'index.html') return page;
           const base = scope.pathname
@@ -77,7 +113,23 @@ function installWorker({ appId, revision, files }) {
             '<!--nelyx-base-->',
             '<base href="' + base + '">',
           );
-          return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+          const headers = new Headers(page.headers);
+          for (const name of [
+            'Content-Length',
+            'Content-Encoding',
+            'Content-Range',
+            'Accept-Ranges',
+            'Transfer-Encoding',
+            'ETag',
+            'Last-Modified',
+            'Content-MD5',
+            'Digest',
+            'Content-Digest',
+            'Repr-Digest',
+          ])
+            headers.delete(name);
+          headers.set('Content-Type', 'text/html; charset=utf-8');
+          return new Response(html, { headers, status: page.status, statusText: page.statusText });
         })(),
       );
       return;
@@ -86,7 +138,11 @@ function installWorker({ appId, revision, files }) {
     event.respondWith(
       (async () => {
         const cache = await caches.open(cacheName);
-        return (await cache.match(url.href)) ?? Response.error();
+        const response =
+          request.destination === 'worker'
+            ? await readPolicyResponse(cache, url.href)
+            : await cache.match(url.href);
+        return response ?? Response.error();
       })(),
     );
   });

@@ -65,6 +65,7 @@ export function paintEffectRecordCount(value: PaintSnapshot): number {
 export function encodePaintEffects(
   value: PaintSnapshot,
   resolve: (resource: ResourceId) => { id: number; generation: number },
+  preserveImplicitStops = false,
 ): readonly EffectWireRecord[] {
   if (!paintHasEffects(value)) return [];
   const rows: EffectWireRecord[] = [],
@@ -173,7 +174,9 @@ export function encodePaintEffects(
         28,
         shader.kind === 'linear' ? 1 : shader.kind === 'radial' ? 2 : 3,
         shader.points,
-        tileModes.indexOf(shader.tileMode) | (shader.matrix ? 4 : 0),
+        tileModes.indexOf(shader.tileMode) |
+          (shader.matrix ? 4 : 0) |
+          (preserveImplicitStops && shader.stops === null ? 8 : 0),
         shader.colors.length,
       );
       for (let n = 0; n < shader.colors.length; n++)

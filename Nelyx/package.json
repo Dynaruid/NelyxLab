@@ -372,6 +372,10 @@
       "types": "./dist/ui/frame-wire.d.ts",
       "default": "./dist/ui/frame-wire.js"
     },
+    "./ui/web-frame-wire": {
+      "types": "./dist/ui/web-frame-wire.d.ts",
+      "default": "./dist/ui/web-frame-wire.js"
+    },
     "./framework/rendering/opacity": {
       "types": "./dist/framework/rendering/opacity.d.ts",
       "default": "./dist/framework/rendering/opacity.js"

@@ -9,14 +9,12 @@ import type { PathSnapshot, PathQueryService } from '@nelyx/core/ui/path';
 import type { Offset } from '@nelyx/core/ui/geometry';
 import type {
   CanvasKit,
-  GrDirectContext,
   Surface,
   Image,
   FontCollection,
   Typeface,
   TypefaceFontProvider,
   Paragraph,
-  WebGLContextHandle,
 } from 'canvaskit-wasm';
 import type { Renderer } from '@nelyx/core/hosting/runtime';
 import type { ResourceLease, ResourceRegistry } from '@nelyx/core/hosting/resources';
@@ -41,11 +39,15 @@ import { isCurrent, resourceKey } from '@nelyx/core/ui/frame';
 import type { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { RendererEvents } from '@nelyx/core/hosting/renderer-events';
 import { freezeTextInput, freezeTextLayout, freezeTextRect, textRange } from '@nelyx/core/ui/text';
-import type { PaintSnapshot, BlendMode } from '@nelyx/core/ui/paint';
 import { Paint as UiPaint } from '@nelyx/core/ui/paint';
 import type { ImageByteFormat } from '@nelyx/core/ui/image';
 import type { TextRunStyle } from '@nelyx/core/ui/text-styles';
-import { applyPaintEffects, createRuntimeShaderCache } from './paint-effects.ts';
+import { createRuntimeShaderCache } from './paint-effects.ts';
+import { WebSkiaReplay } from './replay.ts';
+import { WebSkiaSurface } from './surface.ts';
+import type { WebSkiaCanvas, WebSkiaSurfaceOptions } from './surface.ts';
+export { webBackingSize, webGpuResourceCacheBytes } from './surface.ts';
+export type { WebSkiaSurfaceOptions } from './surface.ts';
 import { imageTargetSize } from '@nelyx/core/hosting/images';
 import type {
   ImageDecodeOptions,
@@ -67,8 +69,6 @@ import { webFontStyleKeys, webTextStyle, webParagraphStyle } from './text-style.
 // Leave headroom for Skia's signed integer clip width and height.
 const framePictureCullExtent = 2 ** 29;
 const webImageByteBudget = 256 * 1024 * 1024;
-// Leave room for frequently used image textures alongside glyph atlases and render targets.
-const webGpuResourceCacheBytes = 48 * 1024 * 1024;
 
 interface Font {
   resource: ResourceId;
@@ -142,14 +142,26 @@ interface Pending {
   lease: ResourceLease;
   started: number;
 }
-export interface WebSkiaSurfaceOptions {
-  /** Set false for full-frame rendering without drawing-buffer reads after presentation. */
-  readonly preserveDrawingBuffer?: boolean;
-  /** Optional backing scale limit. Layout and input continue to use the View's metrics. */
-  readonly maxRasterScale?: number;
-}
+type ImageSource = {
+  readonly kind: 'image';
+  readonly width: number;
+  readonly height: number;
+  readonly encoding: 'encoded' | 'rgba8888-premul-srgb';
+  readonly byteLength: number;
+  read(): Uint8Array<ArrayBuffer>;
+};
+export type WebSkiaResourceSource =
+  | ImageSource
+  | { readonly kind: 'font'; readonly family: string; readonly bytes: Uint8Array }
+  | {
+      readonly kind: 'paragraph';
+      readonly input: TextLayoutInput;
+      readonly fonts: readonly ResourceId[];
+    }
+  | { readonly kind: 'picture'; readonly frame: PaintFrame; readonly nativeBytes: number };
 /** Fork-owned CanvasKit resources and replay; no React, RN or native bootstrap import. */
 export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQueryService {
+  private readonly replay: WebSkiaReplay;
   private readonly runtimePrograms: ReturnType<typeof createRuntimeShaderCache>;
   get debugRuntimePrograms() {
     return this.runtimePrograms.debugStats;
@@ -164,17 +176,71 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     notifications: 'submitted-and-retired',
   });
   private images = new Map<string, Image>();
+  private imageSources = new Map<string, ImageSource>();
+  private resourceRetired: ((key: string) => void) | undefined;
+  setResourceRetirementListener(listener: ((key: string) => void) | undefined): void {
+    this.resourceRetired = listener;
+    if (!listener) this.imageSources.clear();
+  }
+  resourceSource(resource: ResourceId): WebSkiaResourceSource {
+    const key = resourceKey(resource),
+      font = this.fonts.get(key),
+      paragraph = this.paragraphs.get(key),
+      picture = this.framePictures.get(key);
+    if (font) return { kind: 'font', family: font.family, bytes: font.bytes };
+    if (paragraph)
+      return {
+        kind: 'paragraph',
+        input: paragraph.layout.input,
+        fonts: paragraph.fonts.fonts.map((font) => font.resource),
+      };
+    if (picture)
+      return { kind: 'picture', frame: picture.capture.frame, nativeBytes: picture.bytes };
+    const image = this.imageSources.get(key);
+    if (image) return image;
+    throw new Error('Web render resource retired or missing a restoration source');
+  }
+  private captureImageSource(
+    key: string,
+    image: Image,
+    byteLength: number,
+    encoding: ImageSource['encoding'],
+    read: () => Uint8Array | null,
+  ): void {
+    if (!this.resourceRetired) return;
+    this.imageSources.set(key, {
+      kind: 'image',
+      width: image.width(),
+      height: image.height(),
+      byteLength,
+      encoding,
+      read: () => {
+        const bytes = read();
+        if (!bytes || bytes.byteLength !== byteLength)
+          throw new Error('Web render image restoration readback failed');
+        if (
+          encoding === 'rgba8888-premul-srgb' &&
+          bytes.buffer instanceof ArrayBuffer &&
+          bytes.byteOffset === 0 &&
+          bytes.byteLength === bytes.buffer.byteLength
+        )
+          return new Uint8Array(bytes.buffer);
+        return new Uint8Array(bytes);
+      },
+    });
+  }
+  private forgetImage(key: string): void {
+    this.images.delete(key);
+    this.imageSources.delete(key);
+    this.resourceRetired?.(key);
+  }
   private fonts = new Map<string, Font>();
   private paragraphs = new Map<string, Entry>();
   private pending = new Map<number, Pending>();
   private events: RendererEvents;
   private metrics: ViewMetrics | undefined;
-  private readonly preserveDrawingBuffer: boolean;
-  private readonly maxRasterScale: number;
-  private context: GrDirectContext | undefined;
-  private surface: Surface | undefined;
-  private handle: WebGLContextHandle | undefined;
-  private gl: WebGL2RenderingContext | undefined;
+  private display: WebSkiaSurface | undefined;
+  private auxiliary: { readonly surface: WebSkiaSurface; stop(): void; lost: boolean } | undefined;
   private registry: ResourceRegistry | undefined;
   private sequence = 0;
   private closed = false;
@@ -249,6 +315,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
           if (retired) return;
           this.retireFrameEntry(entry);
           this.framePictures.delete(key);
+          this.resourceRetired?.(key);
           retired = true;
         },
       };
@@ -302,17 +369,25 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   }
   constructor(
     private ck: CanvasKit,
-    private canvas: HTMLCanvasElement,
+    private readonly canvas: WebSkiaCanvas | (() => HTMLCanvasElement),
     private owner: ViewOwner,
-    options: WebSkiaSurfaceOptions = {},
+    private readonly options: WebSkiaSurfaceOptions = {},
   ) {
-    const { preserveDrawingBuffer = true, maxRasterScale } = options;
+    const { maxRasterScale } = options;
     if (maxRasterScale !== undefined && (!Number.isFinite(maxRasterScale) || maxRasterScale < 1))
       throw new RangeError('Web raster scale limit must be finite and at least one');
-    this.preserveDrawingBuffer = preserveDrawingBuffer;
-    this.maxRasterScale = maxRasterScale ?? Infinity;
+    if (typeof canvas !== 'function') this.display = new WebSkiaSurface(ck, canvas, options);
     this.events = new RendererEvents(owner);
     this.runtimePrograms = createRuntimeShaderCache(ck);
+    this.replay = new WebSkiaReplay(
+      ck,
+      {
+        image: (key) => this.images.get(key),
+        paragraph: (key) => this.paragraphs.get(key)?.paragraph,
+        picture: (key) => this.framePicture(key),
+      },
+      this.runtimePrograms,
+    );
   }
   contains(path: PathSnapshot, point: Offset): boolean {
     this.ensureOpen();
@@ -392,7 +467,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
           : this.ck.XYWHRect(0, 0, imageLimits.dimension, imageLimits.dimension),
         false,
       );
-      this.replay(canvas, capture.frame);
+      this.replay.draw(canvas, capture.frame);
       picture = recorder.finishRecordingAsPicture();
       if (framePicture) this.framePictureCompilations++;
       else this.pictureCompilations++;
@@ -459,7 +534,6 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   rasterize(capture: PictureCapture, width: number, height: number): NativeImageFrame {
     this.ensureOpen();
     if (this.lost || this.failed) throw new Error('Web rasterization GPU context unavailable');
-    this.ensureGpuContext();
     imageTargetSize(width, height);
     const cost = width * height * 4;
     if (
@@ -467,6 +541,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       this.dynamicImageBytes + this.codecBytes + cost * 3 > webImageByteBudget
     )
       throw new Error('Web rasterization image/temporary byte budget');
+    const context = this.rasterContext();
     let resource: { id: string; generation: number }, key: string;
     do {
       resource = this.allocateResource('raster');
@@ -495,7 +570,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       texture: Image | null = null,
       output: Image | null = null;
     try {
-      surface = this.ck.MakeRenderTarget(this.context!, info);
+      surface = this.ck.MakeRenderTarget(context, info);
       if (!surface) throw new Error('Web rasterization GPU surface unavailable');
       surface.getCanvas().clear(this.ck.Color(0, 0, 0, 0));
       surface.getCanvas().drawPicture(picture);
@@ -527,6 +602,9 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     }
     const image = output!;
     this.images.set(key, image);
+    this.captureImageSource(key, image, cost, 'rgba8888-premul-srgb', () =>
+      readWebImageBytes(this.ck, image, 'rawRgba'),
+    );
     this.dynamicImageBytes += cost;
     let retired = false;
     return {
@@ -542,8 +620,8 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         if (retired) return;
         image.delete();
         retired = true;
-        this.images.delete(key);
         this.dynamicImageBytes -= cost;
+        this.forgetImage(key);
       },
     };
   }
@@ -662,6 +740,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     const resource = this.allocateResource('image');
     const key = resourceKey(resource);
     this.images.set(key, image);
+    this.captureImageSource(key, image, cost, 'rgba8888-premul-srgb', () => read('rawRgba'));
     this.dynamicImageBytes += cost;
     let retired = false;
     return {
@@ -677,8 +756,8 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         if (retired) return;
         release();
         retired = true;
-        this.images.delete(key);
         this.dynamicImageBytes -= cost;
+        this.forgetImage(key);
       },
     };
   }
@@ -762,48 +841,77 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     };
   }
   decode(asset: AssetRef & { fontFamily?: string }, bytes: Uint8Array) {
-    this.ensureOpen();
-    const resource = { id: asset.id, generation: 1 },
-      key = resourceKey(resource);
-    if (this.images.has(key) || this.fonts.has(key)) throw new Error('Duplicate web resource');
+    const resource = { id: asset.id, generation: 1 };
     if (this.images.size + this.fonts.size >= 64) throw new Error('Web asset count budget');
-    let native: Image | Typeface;
-    if (asset.kind === 'image') {
-      const image = this.ck.MakeImageFromEncoded(bytes);
-      if (!image) throw new Error('CanvasKit image decode failed');
-      native = image;
-      this.images.set(key, image);
-    } else {
-      if (!asset.fontFamily) throw new Error('Bundled font family required');
-      const source = new Uint8Array(bytes);
-      const typeface = this.ck.Typeface.MakeTypefaceFromData(source.buffer);
-      if (!typeface) throw new Error('CanvasKit font decode failed');
-      native = typeface;
-      this.fonts.set(key, {
-        resource,
-        typeface,
-        family: asset.fontFamily,
-        bytes: source,
-        sourceBytes: source.length,
-      });
-    }
-    let retired = false;
+    const retire =
+      asset.kind === 'image'
+        ? this.restoreImage(resource, { encoding: 'encoded', bytes })
+        : this.restoreFont(resource, asset.fontFamily!, bytes);
     return {
       descriptor: {
         ...resource,
         kind: asset.kind,
         asset: Object.freeze({ id: asset.id, kind: asset.kind, sha256: asset.sha256 }),
       },
-      retire: () => {
-        if (retired) return;
-        retired = true;
-        native.delete();
-        if (asset.kind === 'image') {
-          this.images.delete(key);
-        } else {
-          this.fonts.delete(key);
-        }
-      },
+      retire,
+    };
+  }
+  restoreFont(resource: ResourceId, family: string, bytes: Uint8Array): () => void {
+    this.ensureOpen();
+    const key = resourceKey(resource);
+    if (this.images.has(key) || this.fonts.has(key)) throw new Error('Duplicate web resource');
+    if (!family) throw new Error('Bundled font family required');
+    const source = new Uint8Array(bytes),
+      typeface = this.ck.Typeface.MakeTypefaceFromData(source.buffer);
+    if (!typeface) throw new Error('CanvasKit font decode failed');
+    this.fonts.set(key, { resource, typeface, family, bytes: source, sourceBytes: source.length });
+    return () => {
+      if (!this.fonts.has(key)) return;
+      typeface.delete();
+      this.fonts.delete(key);
+      this.resourceRetired?.(key);
+    };
+  }
+  restoreImage(
+    resource: ResourceId,
+    data:
+      | { readonly encoding: 'encoded'; readonly bytes: Uint8Array }
+      | {
+          readonly encoding: 'rgba8888-premul-srgb';
+          readonly bytes: Uint8Array;
+          readonly width: number;
+          readonly height: number;
+        },
+  ): () => void {
+    this.ensureOpen();
+    const key = resourceKey(resource);
+    if (this.images.has(key) || this.fonts.has(key)) throw new Error('Duplicate web resource');
+    let image: Image | null;
+    if (data.encoding === 'encoded') {
+      image = this.ck.MakeImageFromEncoded(data.bytes);
+    } else {
+      const { width, height } = data;
+      imageTargetSize(width, height);
+      if (data.bytes.byteLength !== width * height * 4) throw new Error('Invalid Web image pixels');
+      image = this.ck.MakeImage(
+        {
+          width,
+          height,
+          colorType: this.ck.ColorType.RGBA_8888,
+          alphaType: this.ck.AlphaType.Premul,
+          colorSpace: this.ck.ColorSpace.SRGB,
+        },
+        data.bytes,
+        width * 4,
+      );
+    }
+    if (!image) throw new Error('CanvasKit image decode failed');
+    this.images.set(key, image);
+    this.captureImageSource(key, image, data.bytes.byteLength, data.encoding, () => data.bytes);
+    return () => {
+      if (!this.images.has(key)) return;
+      image.delete();
+      this.forgetImage(key);
     };
   }
   fontFamily(resource: ResourceId): string {
@@ -812,14 +920,25 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     if (!font || !this.registry?.has(resource)) throw new Error('Stale font resource');
     return font.family;
   }
-  layout(input: TextLayoutInput, request?: TextLayoutRequest): TextLayout {
+  layout(
+    input: TextLayoutInput,
+    request?: TextLayoutRequest,
+    fontResources?: readonly ResourceId[],
+  ): TextLayout {
     this.ensureOpen();
     if (this.textFailed) throw Error('Web paragraph native retirement failed');
     const snapshot = freezeTextInput(input),
       font = this.fonts.get(resourceKey(snapshot.font)),
       registry = this.registry;
     if (!font || !registry?.has(snapshot.font)) throw new Error('Stale font resource');
-    const catalog = this.fontCatalog!.capture(this.fonts.values()),
+    const sources = fontResources
+      ? fontResources.map((resource) => {
+          const source = this.fonts.get(resourceKey(resource));
+          if (!source || !registry.has(resource)) throw new Error('Stale paragraph catalog font');
+          return source;
+        })
+      : this.fonts.values();
+    const catalog = this.fontCatalog!.capture(sources),
       cache = (this.layoutCache ??= new TextLayoutCache(registry, this.fontCatalog!)),
       cacheKey = cache.key(snapshot, catalog),
       cached = cache.reuse(cacheKey, (retained) =>
@@ -867,13 +986,13 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         }
         const foreground = own(new this.ck.Paint()),
           background = own(new this.ck.Paint());
-        this.configurePaint(
+        this.replay.configurePaint(
           foreground,
           style.foreground ??
             new UiPaint({ color: style.color ?? snapshot.color ?? 0xffeef5ff }).snapshot(),
           own,
         );
-        this.configurePaint(
+        this.replay.configurePaint(
           background,
           style.background ?? new UiPaint({ color: style.backgroundColor ?? 0 }).snapshot(),
           own,
@@ -980,6 +1099,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
           }
           cache.forget(cacheKey, layout);
           this.paragraphs.delete(key);
+          this.resourceRetired?.(key);
           const errors: unknown[] = [];
           for (const cleanup of [() => entry.paintResources.dispose(), () => entry.fonts.release()])
             try {
@@ -1210,117 +1330,71 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     textRange(layout, range.start, range.end);
     return Object.freeze({ start: range.start, end: range.end });
   }
-  private color(value: number) {
-    return this.ck.Color(
-      (value >>> 16) & 255,
-      (value >>> 8) & 255,
-      value & 255,
-      (value >>> 24) / 255,
-    );
-  }
-  private rect(value: { x: number; y: number; width: number; height: number }) {
-    return this.ck.XYWHRect(value.x, value.y, value.width, value.height);
-  }
-  private configurePaint(
-    paint: import('canvaskit-wasm').Paint,
-    value: PaintSnapshot,
-    own: <T extends { delete(): void }>(value: T) => T,
-  ) {
-    const mode = (value.blendMode[0]!.toUpperCase() +
-      value.blendMode.slice(1)) as Capitalize<BlendMode>;
-    paint.setColor(this.color(value.color));
-    paint.setAntiAlias(value.isAntiAlias);
-    paint.setStyle(value.style === 'stroke' ? this.ck.PaintStyle.Stroke : this.ck.PaintStyle.Fill);
-    paint.setStrokeWidth(value.strokeWidth);
-    paint.setStrokeMiter(value.strokeMiterLimit);
-    paint.setStrokeCap(
-      this.ck.StrokeCap[
-        value.strokeCap === 'butt' ? 'Butt' : value.strokeCap === 'round' ? 'Round' : 'Square'
-      ],
-    );
-    paint.setStrokeJoin(
-      this.ck.StrokeJoin[
-        value.strokeJoin === 'miter' ? 'Miter' : value.strokeJoin === 'round' ? 'Round' : 'Bevel'
-      ],
-    );
-    paint.setBlendMode(this.ck.BlendMode[mode]);
-    return applyPaintEffects(
-      this.ck,
-      paint,
-      value,
-      own,
-      (key) => {
-        const image = this.images.get(key);
-        if (!image) throw new Error('Web shader image retired');
-        return image;
-      },
-      this.runtimePrograms,
-    );
-  }
   updateMetrics(metrics: ViewMetrics): void {
     this.ensureOpen();
     this.metrics = metrics;
   }
-  private surfaceForFrame(metrics: ViewMetrics, rasterScale: number): Surface {
-    const ratio = rasterScale / metrics.scale,
-      width = Math.max(1, Math.round(metrics.physicalWidth * ratio)),
-      height = Math.max(1, Math.round(metrics.physicalHeight * ratio));
-    if (this.surface && this.canvas.width === width && this.canvas.height === height)
-      return this.surface;
-    // Changing canvas dimensions clears the drawing buffer. Wait until a
-    // replacement frame can be drawn and flushed in this same submission.
-    this.dropSurface();
-    if (this.canvas.width !== width) this.canvas.width = width;
-    if (this.canvas.height !== height) this.canvas.height = height;
-    this.ensureGpuContext();
-    const surface = this.ck.MakeOnScreenGLSurface(
-      this.context!,
-      width,
-      height,
-      this.ck.ColorSpace.SRGB,
-    );
-    if (!surface) throw new Error('CanvasKit GPU surface failed');
-    this.surface = surface;
-    return surface;
+  /** Install the display context after worker selection or fallback. */
+  useDisplayCanvas(canvas: WebSkiaCanvas): void {
+    this.ensureOpen();
+    if (this.display) throw new Error('Web Skia display already installed');
+    this.closeAuxiliary();
+    const display = new WebSkiaSurface(this.ck, canvas, this.options);
+    display.prepare();
+    this.display = display;
   }
-  private ensureGpuContext(): void {
-    if (!this.context) {
-      const handle = this.ck.GetWebGLContext(this.canvas, {
-        majorVersion: 2,
-        alpha: 1,
-        antialias: 0,
-        stencil: 8,
-        preserveDrawingBuffer: this.preserveDrawingBuffer ? 1 : 0,
-      });
-      if (!handle) throw new Error('CanvasKit WebGL2 creation failed');
-      this.handle = handle;
-      const gl = this.canvas.getContext('webgl2');
-      if (!gl) {
-        this.ck.deleteContext(handle);
-        this.handle = undefined;
-        throw new Error('WebGL2 fence API unavailable');
-      }
-      this.gl = gl;
-      const context = this.ck.MakeWebGLContext(handle);
-      if (!context) {
-        this.ck.deleteContext(handle);
-        this.handle = undefined;
-        throw new Error('CanvasKit GPU context failed');
-      }
-      try {
-        context.setResourceCacheLimitBytes(webGpuResourceCacheBytes);
-        this.context = context;
-      } catch (error) {
-        context.delete();
-        this.ck.deleteContext(handle);
-        this.handle = undefined;
-        this.gl = undefined;
-        throw error;
-      }
+  prepareDisplay(): void {
+    this.ensureOpen();
+    if (!this.display) throw new Error('Web Skia display is absent');
+    this.display.prepare();
+  }
+  private rasterContext() {
+    if (this.display) return this.display.prepare();
+    if (!this.auxiliary) {
+      if (typeof this.canvas !== 'function') throw new Error('Missing Web rasterization canvas');
+      const canvas = this.canvas(),
+        surface = new WebSkiaSurface(this.ck, canvas, { preserveDrawingBuffer: false }),
+        auxiliary = {
+          surface,
+          lost: false,
+          stop() {
+            canvas.removeEventListener('webglcontextlost', lost);
+            canvas.removeEventListener('webglcontextrestored', restored);
+          },
+        };
+      const lost = (event: Event) => {
+        event.preventDefault();
+        auxiliary.lost = true;
+        this.retirePictures();
+        surface.reset(true);
+      };
+      const restored = () => {
+        auxiliary.lost = false;
+      };
+      canvas.addEventListener('webglcontextlost', lost);
+      canvas.addEventListener('webglcontextrestored', restored);
+      this.auxiliary = auxiliary;
     }
+    if (this.auxiliary.lost) throw new Error('Web rasterization auxiliary context lost');
+    return this.auxiliary.surface.prepare();
+  }
+  private closeAuxiliary(): void {
+    const auxiliary = this.auxiliary;
+    if (!auxiliary) return;
+    this.retirePictures();
+    auxiliary.stop();
+    auxiliary.surface.reset(auxiliary.lost, true);
+    this.auxiliary = undefined;
   }
   canBuildFrame(): boolean {
-    return !this.closed && !this.lost && !this.failed && this.visible && this.pending.size < 2;
+    return (
+      !!this.display &&
+      !this.closed &&
+      !this.lost &&
+      !this.failed &&
+      this.visible &&
+      this.pending.size < 2
+    );
   }
   submit(frame: PaintFrame, lease: ResourceLease, diagnostics?: FrameDiagnostics): SubmitResult {
     if (this.closed) return { status: 'rejected', reason: 'closed' };
@@ -1332,280 +1406,16 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     if (!this.canBuildFrame() || this.pending.has(frame.token.sequence)) {
       return { status: 'rejected', reason: 'busy' };
     }
-    const rasterScale = Math.min(this.metrics.scale, this.maxRasterScale),
-      surface = this.surfaceForFrame(this.metrics, rasterScale),
-      gl = this.gl;
-    if (!gl) throw new Error('Web GPU surface unavailable');
-    const replayStarted = diagnostics?.now();
-    this.replay(surface.getCanvas(), frame, rasterScale);
-    const flushStarted = diagnostics?.record(frame.token, 'native-replay', replayStarted!);
-    surface.flush();
-    const fenceStarted = diagnostics?.record(frame.token, 'native-submit', flushStarted!);
-    const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-    if (!fence) throw new Error('WebGL fence creation failed');
-    gl.flush();
-    diagnostics?.record(frame.token, 'gpu-fence-enqueue', fenceStarted!);
+    const fence = this.display!.submit(
+      frame,
+      (canvas, scale) => this.replay.draw(canvas, frame, scale),
+      diagnostics,
+    );
     lease.transfer();
     this.pending.set(frame.token.sequence, { fence, lease, started: performance.now() });
     this.events.accepted(frame.token.sequence, frame.token);
     this.schedule();
     return { status: 'accepted', submission: frame.token.sequence };
-  }
-  private replay(canvas: import('canvaskit-wasm').Canvas, frame: PaintFrame, scale = 1): void {
-    const saveCount = canvas.getSaveCount(),
-      errors: unknown[] = [],
-      paths: { delete(): void }[] = [];
-    type Command = PaintFrame['commands'][number];
-    let paint: import('canvaskit-wasm').Paint | undefined,
-      imageRefs: Map<Command, Image> | undefined,
-      paragraphRefs: Map<Command, Entry> | undefined,
-      pictureRefs: import('canvaskit-wasm').SkPicture[] | undefined,
-      styles: Map<Command, import('canvaskit-wasm').Paint> | undefined,
-      backdrops: Map<Command, import('canvaskit-wasm').ImageFilter | null> | undefined;
-    const own = <T extends { delete(): void }>(value: T): T => {
-      paths.push(value);
-      return value;
-    };
-    try {
-      // Scrolling usually replays retained pictures and transforms. Only
-      // prepare temporary paints and lookup tables for commands that use them.
-      for (const command of frame.commands) {
-        if (!paint && (command.op === 'rect' || command.op === 'rrect' || command.op === 'image')) {
-          paint = new this.ck.Paint();
-          paint.setAntiAlias(true);
-        }
-        if ('paint' in command) {
-          const value = own(new this.ck.Paint());
-          const filter = this.configurePaint(value, command.paint, own);
-          if (command.op === 'saveBackdropFilter') {
-            (backdrops ??= new Map()).set(command, filter);
-            value.setImageFilter(null);
-          }
-          (styles ??= new Map()).set(command, value);
-        }
-      }
-      for (const command of frame.commands)
-        if ('resource' in command) {
-          if (command.op === 'drawPicture') {
-            (pictureRefs ??= []).push(this.framePicture(resourceKey(command.resource)));
-          } else if (command.op === 'paragraph') {
-            const value = this.paragraphs.get(resourceKey(command.resource));
-            if (!value) throw new Error('Web paragraph retired');
-            (paragraphRefs ??= new Map()).set(command, value);
-          } else {
-            const value = this.images.get(resourceKey(command.resource));
-            if (!value) throw new Error('Web image retired');
-            (imageRefs ??= new Map()).set(command, value);
-          }
-        }
-      canvas.save();
-      if (scale !== 1) canvas.scale(scale, scale);
-      let pictureIndex = 0;
-      for (const command of frame.commands) {
-        const styled = ('paint' in command ? styles!.get(command) : undefined)!;
-        switch (command.op) {
-          case 'drawPicture':
-            canvas.drawPicture(pictureRefs![pictureIndex++]!);
-            break;
-          case 'clear':
-            canvas.clear(this.color(command.color));
-            break;
-          case 'save':
-            canvas.save();
-            break;
-          case 'restore':
-            canvas.restore();
-            break;
-          case 'transform': {
-            if (command.matrix.length === 16)
-              canvas.concat(
-                command.matrix.map(
-                  (_, index) => command.matrix[(index % 4) * 4 + Math.floor(index / 4)]!,
-                ),
-              );
-            else {
-              const [a, b, c, d, x, y] = command.matrix as readonly [
-                number,
-                number,
-                number,
-                number,
-                number,
-                number,
-              ];
-              if (a === 1 && b === 0 && c === 0 && d === 1) canvas.translate(x, y);
-              else canvas.concat([a, c, x, b, d, y, 0, 0, 1]);
-            }
-            break;
-          }
-          case 'clip':
-            canvas.clipRect(this.rect(command.rect), this.ck.ClipOp.Intersect, true);
-            break;
-          case 'rect':
-          case 'rrect': {
-            const solid = paint!;
-            solid.setColor(this.color(command.color));
-            if (command.op === 'rect') canvas.drawRect(this.rect(command.rect), solid);
-            else
-              canvas.drawRRect(
-                this.ck.RRectXY(this.rect(command.rect), command.radius, command.radius),
-                solid,
-              );
-            break;
-          }
-          case 'image': {
-            const image = imageRefs!.get(command)!,
-              solid = paint!;
-            solid.setColor(this.color(0xff000000));
-            canvas.drawImageRect(
-              image,
-              this.ck.XYWHRect(0, 0, image.width(), image.height()),
-              this.rect(command.rect),
-              solid,
-            );
-            break;
-          }
-          case 'drawImageRect':
-          case 'drawImageNine': {
-            const image = imageRefs!.get(command)!;
-            const quality = command.paint.filterQuality ?? 'none',
-              source = this.rect(command.op === 'drawImageRect' ? command.src : command.center),
-              dst = this.rect(command.dst);
-            if (command.op === 'drawImageNine')
-              canvas.drawImageNine(
-                image,
-                Int32Array.from(source),
-                dst,
-                quality === 'none' ? this.ck.FilterMode.Nearest : this.ck.FilterMode.Linear,
-                styled,
-              );
-            else if (quality === 'high')
-              canvas.drawImageRectCubic(image, source, dst, 1 / 3, 1 / 3, styled);
-            else
-              canvas.drawImageRectOptions(
-                image,
-                source,
-                dst,
-                quality === 'none' ? this.ck.FilterMode.Nearest : this.ck.FilterMode.Linear,
-                quality === 'medium' ? this.ck.MipmapMode.Linear : this.ck.MipmapMode.None,
-                styled,
-              );
-            break;
-          }
-          case 'paragraph': {
-            const paragraph = paragraphRefs!.get(command)!;
-            canvas.drawParagraph(paragraph.paragraph, command.x, command.y);
-            break;
-          }
-          case 'drawRect':
-          case 'drawOval':
-            if (command.op === 'drawRect') canvas.drawRect(this.rect(command.rect), styled);
-            else canvas.drawOval(this.rect(command.rect), styled);
-            break;
-          case 'drawRRect':
-            canvas.drawRRect(
-              'rrect' in command
-                ? Float32Array.from(command.rrect.values)
-                : this.ck.RRectXY(this.rect(command.rect), command.radius, command.radius),
-              styled,
-            );
-            break;
-          case 'drawLine':
-            canvas.drawLine(command.from.x, command.from.y, command.to.x, command.to.y, styled);
-            break;
-          case 'saveBackdropFilter':
-            canvas.saveLayer(styled, null, backdrops?.get(command) ?? null);
-            break;
-          case 'saveLayer':
-            canvas.saveLayer(styled, command.bounds ? this.rect(command.bounds) : null);
-            break;
-          case 'clipRect':
-          case 'clipRRect': {
-            const op =
-              command.clipOp === 'intersect' ? this.ck.ClipOp.Intersect : this.ck.ClipOp.Difference;
-            if (command.op === 'clipRect')
-              canvas.clipRect(this.rect(command.rect), op, command.doAntiAlias);
-            else
-              canvas.clipRRect(
-                'rrect' in command
-                  ? Float32Array.from(command.rrect.values)
-                  : this.ck.RRectXY(this.rect(command.rect), command.radius, command.radius),
-                op,
-                command.doAntiAlias,
-              );
-            break;
-          }
-          case 'drawShadow': {
-            // Flutter DlSkCanvasDispatcher::DrawShadow at the pinned engine revision.
-            const path = own(createEnginePath(this.ck, command.path)),
-              color = command.color,
-              alpha = color >>> 24;
-            const rgb = [(color >>> 16) & 255, (color >>> 8) & 255, color & 255] as const;
-            const tonal = this.ck.computeTonalColors({
-              ambient: this.ck.Color(...rgb, Math.trunc(Math.fround(0.039) * alpha) / 255),
-              spot: this.ck.Color(...rgb, Math.trunc(0.25 * alpha) / 255),
-            });
-            canvas.drawShadow(
-              path,
-              [
-                0,
-                0,
-                Math.fround(Math.fround(command.devicePixelRatio) * Math.fround(command.elevation)),
-              ],
-              [0, -1, 1],
-              Math.fround(800 / 600),
-              tonal.ambient,
-              tonal.spot,
-              4 | (command.transparentOccluder ? 1 : 0),
-            );
-            break;
-          }
-          case 'drawPaint':
-            canvas.drawPaint(styled);
-            break;
-          case 'drawPath':
-          case 'clipPath': {
-            const path = own(createEnginePath(this.ck, command.path));
-            if (command.op === 'drawPath') {
-              canvas.drawPath(path, styled);
-            } else
-              canvas.clipPath(
-                path,
-                command.clipOp === 'intersect'
-                  ? this.ck.ClipOp.Intersect
-                  : this.ck.ClipOp.Difference,
-                command.doAntiAlias,
-              );
-            break;
-          }
-          default:
-            throw new Error(
-              'Unsupported Web paint command: ' + String((command as { op: string }).op),
-            );
-        }
-      }
-    } catch (error) {
-      errors.push(error);
-    } finally {
-      try {
-        canvas.restoreToCount(saveCount);
-      } catch (error) {
-        errors.push(error);
-      }
-      for (let index = paths.length - 1; index >= 0; index--)
-        try {
-          paths[index]!.delete();
-        } catch (error) {
-          errors.push(error);
-        }
-      try {
-        paint?.delete();
-      } catch (error) {
-        errors.push(error);
-      }
-    }
-    if (errors.length === 1) throw errors[0];
-    if (errors.length)
-      throw new AggregateError(errors, 'Web paint replay/temporary disposal failed');
   }
   private schedule() {
     if (this.timer !== undefined || this.closed || !this.pending.size) return;
@@ -1617,22 +1427,21 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   /** Reclaim signaled slots before a browser frame, even if its timer has not run. */
   pollCompletedFrames(): void {
     if (this.closed || this.lost || this.failed || !this.pending.size) return;
-    const gl = this.gl!;
     for (const [id, pending] of this.pending) {
-      const status = gl.clientWaitSync(pending.fence, 0, 0);
-      if (status === gl.ALREADY_SIGNALED || status === gl.CONDITION_SATISFIED) {
+      const status = this.display!.poll(pending.fence, pending.started);
+      if (status === 'signaled') {
         this.pending.delete(id);
-        gl.deleteSync(pending.fence);
+        this.display!.release(pending.fence);
         try {
           pending.lease.returnBy('renderer');
         } finally {
           this.events.retired(id, 'gpu-retired');
         }
-      } else if (status === gl.WAIT_FAILED || performance.now() - pending.started > 5000) {
+      } else if (status === 'failed' || status === 'timeout') {
         this.failed = true;
         this.events.failed(
           id,
-          status === gl.WAIT_FAILED
+          status === 'failed'
             ? 'WebGL fence failed; lease retained until owned drain'
             : 'WebGL fence timeout; lease retained until owned drain',
         );
@@ -1651,7 +1460,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     this.retirePictures();
     this.retireFrameNative();
     this.runtimePrograms.clear();
-    this.dropContext(true);
+    this.display?.reset(true);
     this.releasePending('discarded');
   }
   restore() {
@@ -1668,30 +1477,12 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   private releasePending(result: 'discarded' | 'drained') {
     for (const [id, pending] of this.pending) {
       this.pending.delete(id);
-      if (!this.lost) this.gl?.deleteSync(pending.fence);
+      if (!this.lost) this.display?.release(pending.fence);
       try {
         pending.lease.returnBy('renderer');
       } finally {
         this.events.retired(id, result);
       }
-    }
-  }
-  private dropSurface() {
-    if (this.surface) {
-      this.surface.delete();
-      this.surface = undefined;
-    }
-  }
-  private dropContext(abandon = false) {
-    this.dropSurface();
-    if (this.context) {
-      if (abandon) this.context.releaseResourcesAndAbandonContext();
-      this.context.delete();
-      this.context = undefined;
-    }
-    if (this.handle !== undefined) {
-      this.ck.deleteContext(this.handle);
-      this.handle = undefined;
     }
   }
   private ensureOpen() {
@@ -1714,14 +1505,12 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       if (this.runtimePrograms.retirementError) throw this.runtimePrograms.retirementError;
       if (this.unconfirmedPicture) throw this.unconfirmedPicture;
       this.retirePictures();
-      if (!this.lost) this.gl?.finish();
+      if (!this.lost) this.display?.finish();
       this.releasePending('drained');
       this.retireFrameNative();
       this.runtimePrograms.dispose();
-      this.dropContext(this.lost);
-      if (this.gl && !this.gl.isContextLost())
-        this.gl.getExtension('WEBGL_lose_context')?.loseContext();
-      this.gl = undefined;
+      this.display?.reset(this.lost, true);
+      this.closeAuxiliary();
       this.events.drain();
       resolve();
     } catch (error) {

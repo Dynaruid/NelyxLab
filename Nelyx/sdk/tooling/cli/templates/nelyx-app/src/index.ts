@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import './style.css';
-import { startFrontend } from '@nelyx/vite/client';
-import { App } from './app-surface.tsx';
+import { startLazyFrontend } from '@nelyx/vite/client';
 
-startFrontend(App);
+startLazyFrontend(() => import('./app-surface.tsx').then(({ App }) => App));

@@ -6,9 +6,11 @@ import type { BackendServices, SurfaceEvent } from '@nelyx/core/hosting/services
 import type { BackendIdentity } from '@nelyx/core/hosting/platform';
 import type { ViewMetrics, ViewOwner } from '@nelyx/core/ui/types';
 import type { WebSkiaLibrary } from '@nelyx/skia-web/library';
-import { ManifestAssetService } from '../../runtime/assets.ts';
+import type { BrowserRenderer } from './renderer.ts';
+import { ManifestAssetService, selectManifestAssets } from '../../runtime/assets.ts';
 import type { ResolvedAppAsset as AppAsset } from '../../runtime/config.ts';
 import { createDomInteraction } from './interaction.ts';
+import { BrowserFrameClock } from './frame-clock.ts';
 import { BrowserMouseCursor } from './mouse-cursor.ts';
 import { BrowserSelectionContextMenu } from './selection-context-menu.ts';
 import { sha256 } from './canvaskit.ts';
@@ -22,8 +24,34 @@ import { readImageUrl, encodeImageAssetManifest } from '../../runtime/image-load
 type ResolvedWebDefinition = {
   -readonly [Key in keyof ApplicationDefinition]: ApplicationDefinition[Key];
 } & { assets: readonly AssetRef[] };
+/** Read only declared resources while CanvasKit starts. Integrity is checked at decode. */
+export async function readBrowserAssets(
+  manifest: readonly AppAsset[],
+  root: URL,
+  declarations: readonly AssetRef[],
+  signal: AbortSignal,
+): Promise<Map<string, Uint8Array<ArrayBuffer>>> {
+  if (manifest.length > 64 || !isAppUrl(root, root)) throw new Error('Web asset root/count');
+  let total = 0;
+  const files = new Map<string, Uint8Array<ArrayBuffer>>();
+  await Promise.all(
+    selectManifestAssets(manifest, declarations).map(async (asset) => {
+      const url = new URL(asset.path, root);
+      if (!isAppUrl(url, root)) throw new Error('Web asset escaped app root');
+      const response = await fetch(url, { redirect: 'error', signal });
+      if (!response.ok) throw new Error('Web asset HTTP ' + response.status);
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      total += bytes.byteLength;
+      if (bytes.byteLength > 16 * 1024 * 1024 || total > 64 * 1024 * 1024)
+        throw new Error('Web asset byte budget');
+      files.set(asset.id, bytes);
+    }),
+  );
+  return files;
+}
 export function createWebServices(
   library: WebSkiaLibrary,
+  display: BrowserRenderer,
   canvas: HTMLCanvasElement,
   input: HTMLInputElement,
   button: HTMLButtonElement,
@@ -32,6 +60,7 @@ export function createWebServices(
   manifest: readonly AppAsset[],
   root: URL,
   definition: ApplicationDefinition,
+  files: Map<string, Uint8Array<ArrayBuffer>>,
   safeArea?: WebSafeAreaSource,
 ): {
   services: BackendServices;
@@ -61,19 +90,30 @@ export function createWebServices(
       add(face: FontFace): void;
       delete(face: FontFace): boolean;
     };
-  let totalAssetBytes = 0;
   let closed = false,
     notify: ((event: SurfaceEvent) => void) | undefined,
     viewport = 1,
     renderer = 1,
     surface = 1,
     context = 1;
-  const environment = createBrowserEnvironment(canvas, safeArea);
+  const environment = createBrowserEnvironment(() => canvas, safeArea);
   let nativeSelectionContextMenu: BrowserSelectionContextMenu | undefined;
   try {
     const selectionContextMenu = new BrowserSelectionContextMenu(canvas, owner, cursor);
     nativeSelectionContextMenu = selectionContextMenu;
-    const frames = new Set<number>(),
+    const frames = new BrowserFrameClock(
+        window,
+        (callback) => {
+          if (closed) return;
+          try {
+            display.pollCompletedFrames();
+            if (!closed) callback();
+          } finally {
+            selectionContextMenu.refresh();
+          }
+        },
+        frameTimeOffset,
+      ),
       idleWork = new Set<number>();
     function metrics(): ViewMetrics {
       const width = canvas.clientWidth,
@@ -95,7 +135,9 @@ export function createWebServices(
     let current = metrics(),
       observer: ResizeObserver | undefined,
       media: MediaQueryList | undefined;
-    let stopInput: (() => void) | undefined, stopSafeArea: (() => void) | undefined;
+    let attachedView: ViewRuntime | undefined;
+    let stopInput: ReturnType<typeof bindCanvasInput> | undefined,
+      stopSafeArea: (() => void) | undefined;
     const resize = () => {
       if (closed || !notify) return;
       const next = metrics(),
@@ -125,34 +167,61 @@ export function createWebServices(
     const lost = (event: Event) => {
       event.preventDefault();
       if (closed) return;
-      library.lose();
-      library.setVisible(false);
+      display.lose();
+      display.setVisible(false);
     };
     const restored = () => {
-      if (closed || !notify) return;
-      library.restore();
+      if (closed) return;
+      display.restore();
+      display.setVisible(!document.hidden);
+      publishGeneration();
+      notify?.({ kind: 'visibility', visible: !document.hidden });
+    };
+    function publishGeneration(): void {
+      if (closed) return;
       renderer++;
       context++;
       surface++;
       viewport++;
       current = metrics();
-      library.setVisible(!document.hidden);
-      notify({ kind: 'metrics', metrics: current });
-      notify({ kind: 'visibility', visible: !document.hidden });
-    };
+      notify?.({ kind: 'metrics', metrics: current });
+    }
     const visibility = () => {
-      library.setVisible(!document.hidden);
+      display.setVisible(!document.hidden);
       notify?.({ kind: 'visibility', visible: !document.hidden });
     };
-    const stop = () => {
-      stopInput?.();
+    function attachCanvas(view: ViewRuntime): void {
+      let keySurface: HTMLElement | null = canvas.parentElement;
+      while (keySurface && !keySurface.contains(input)) keySurface = keySurface.parentElement;
+      if (!keySurface) throw new Error('Web controls require an attached common input surface');
+      stopInput = bindCanvasInput(canvas, view, {
+        keySurface,
+        ownsSemanticsTarget: interaction.ownsSemanticsTarget,
+        ownsSemanticsAdjustmentTarget: interaction.ownsSemanticsAdjustmentTarget,
+        ownsEditingTarget: interaction.ownsEditingTarget,
+        ownsNativeSelectionTarget: (target) => selectionContextMenu.ownsTarget(target),
+        suppressEditingContextMenu: () => !selectionContextMenu.nativeMenuEnabled,
+      });
+      observer?.observe(canvas);
+    }
+    function listenForContext(): void {
+      canvas.addEventListener('webglcontextlost', lost);
+      canvas.addEventListener('webglcontextrestored', restored);
+    }
+    function detachCanvas(replacing = false): void {
+      stopInput?.(replacing);
       stopInput = undefined;
+      observer?.unobserve(canvas);
+      canvas.removeEventListener('webglcontextlost', lost);
+      canvas.removeEventListener('webglcontextrestored', restored);
+    }
+    const stop = () => {
+      detachCanvas();
+      attachedView = undefined;
       stopSafeArea?.();
       stopSafeArea = undefined;
-      if (observer) {
-        observer.disconnect();
-        observer = undefined;
-      }
+      observer?.disconnect();
+      observer = undefined;
       media?.removeEventListener('change', dpi);
       media = undefined;
       window.removeEventListener('resize', resize);
@@ -160,24 +229,42 @@ export function createWebServices(
       window.visualViewport?.removeEventListener('resize', resize);
       window.visualViewport?.removeEventListener('scroll', resize);
       document.removeEventListener('visibilitychange', visibility);
-      canvas.removeEventListener('webglcontextlost', lost);
-      canvas.removeEventListener('webglcontextrestored', restored);
       notify = undefined;
     };
+    display.bindSurface({
+      submitPrepared: () => attachedView?.submitPreparedFrame(),
+      replace(create) {
+        const previous = canvas,
+          previousParent = previous.parentElement,
+          focus = document.activeElement === previous;
+        detachCanvas(true);
+        cursor.remove(previous);
+        const replacement = create(previous);
+        if (
+          replacement === previous ||
+          replacement.parentElement !== previousParent ||
+          replacement.ownerDocument !== document ||
+          !replacement.isConnected
+        )
+          throw new Error('Invalid Web display canvas replacement');
+        canvas = replacement;
+        cursor.replaceCanvas(canvas);
+        selectionContextMenu.replaceCanvas(canvas);
+        listenForContext();
+        if (attachedView) attachCanvas(attachedView);
+        if (focus) canvas.focus({ preventScroll: true });
+        return canvas;
+      },
+      publishGeneration,
+      closeFailedView: () => notify?.({ kind: 'context-lost' }),
+    });
     const assets = new ManifestAssetService(
       manifest,
       {
         async load(ref) {
-          const asset = manifest.find((value) => value.id === ref.id);
-          if (!asset) throw new Error('Unknown web asset');
-          const url = new URL(asset.path, root);
-          if (!isAppUrl(url, root)) throw new Error('Web asset escaped app root');
-          const response = await fetch(url, { redirect: 'error' });
-          if (!response.ok) throw new Error('Web asset HTTP ' + response.status);
-          const bytes = new Uint8Array(await response.arrayBuffer());
-          totalAssetBytes += bytes.byteLength;
-          if (bytes.byteLength > 16 * 1024 * 1024 || totalAssetBytes > 64 * 1024 * 1024)
-            throw new Error('Web asset byte budget');
+          const bytes = files.get(ref.id);
+          if (!bytes) throw new Error('Missing prepared Web asset');
+          files.delete(ref.id);
           return bytes;
         },
       },
@@ -188,7 +275,12 @@ export function createWebServices(
           try {
             if (asset.kind === 'font') {
               try {
-                face = await new window.FontFace(asset.fontFamily!, new Uint8Array(bytes)).load();
+                face = await new window.FontFace(
+                  asset.fontFamily!,
+                  bytes.buffer instanceof ArrayBuffer
+                    ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+                    : new Uint8Array(bytes),
+                ).load();
               } catch (error) {
                 // CanvasKit can read font formats that the browser rejects, such as bitmap emoji.
                 if (!(error instanceof window.DOMException) || error.name !== 'SyntaxError')
@@ -238,35 +330,8 @@ export function createWebServices(
               },
             }
           : {}),
-        request(callback) {
-          if (closed) throw new Error('Web clock closed');
-          const id = window.requestAnimationFrame((timestamp) => {
-            if (!frames.delete(id)) return;
-            if (!closed)
-              try {
-                library.pollCompletedFrames();
-                if (closed) return;
-                // A dialog's rAF timestamp uses its own document's time origin.
-                const tick = timestamp + frameTimeOffset,
-                  dispatch = performance.now();
-                callback({
-                  tick,
-                  dispatch,
-                  queueDelay: Math.max(0, dispatch - tick),
-                  clockUncertainty: 0,
-                });
-              } finally {
-                selectionContextMenu.refresh();
-              }
-          });
-          frames.add(id);
-          return {
-            dispose() {
-              if (frames.delete(id)) {
-                window.cancelAnimationFrame(id);
-              }
-            },
-          };
+        request(callback, inputDriven) {
+          return frames.request(callback, inputDriven);
         },
       },
       assets,
@@ -311,7 +376,7 @@ export function createWebServices(
       renderer: {
         create(_surface, resources) {
           library.bind(resources);
-          return library;
+          return display;
         },
       },
       paths: library,
@@ -325,26 +390,14 @@ export function createWebServices(
         attach(view: ViewRuntime, callback) {
           if (closed || notify) throw new Error('Web surface closed/already attached');
           notify = callback;
-          let keySurface: HTMLElement | null = canvas.parentElement;
-          while (keySurface && !keySurface.contains(input)) keySurface = keySurface.parentElement;
-          if (!keySurface) throw new Error('Web controls require an attached common input surface');
-          stopInput = bindCanvasInput(canvas, view, {
-            keySurface,
-            ownsSemanticsTarget: interaction.ownsSemanticsTarget,
-            ownsSemanticsAdjustmentTarget: interaction.ownsSemanticsAdjustmentTarget,
-            ownsEditingTarget: interaction.ownsEditingTarget,
-            ownsNativeSelectionTarget: (target) => selectionContextMenu.ownsTarget(target),
-            suppressEditingContextMenu: () => !selectionContextMenu.nativeMenuEnabled,
-          });
+          attachedView = view;
           observer = new window.ResizeObserver(resize);
-          observer.observe(canvas);
+          attachCanvas(view);
           window.addEventListener('resize', resize);
           window.addEventListener('scroll', resize, true);
           window.visualViewport?.addEventListener('resize', resize);
           window.visualViewport?.addEventListener('scroll', resize);
           document.addEventListener('visibilitychange', visibility);
-          canvas.addEventListener('webglcontextlost', lost);
-          canvas.addEventListener('webglcontextrestored', restored);
           watchDpi();
           stopSafeArea = safeArea?.subscribe(resize);
           if (safeArea) resize();
@@ -362,10 +415,7 @@ export function createWebServices(
           closed = true;
           stop();
           environment.dispose();
-          for (const id of frames) {
-            window.cancelAnimationFrame(id);
-          }
-          frames.clear();
+          frames.dispose();
           for (const id of idleWork) window.cancelIdleCallback(id);
           idleWork.clear();
           interaction.dispose();
@@ -374,10 +424,12 @@ export function createWebServices(
           assets.dispose();
           for (const face of cssFonts) fontSet.delete(face);
           cssFonts.clear();
-          await library.dispose();
+          await display.dispose();
         },
       },
     };
+    display.setVisible(!document.hidden);
+    listenForContext();
     return {
       services,
       cursor,

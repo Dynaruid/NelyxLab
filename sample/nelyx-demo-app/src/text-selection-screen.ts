@@ -49,6 +49,7 @@ import {
 } from '@nelyx/material/text-selection';
 import { Theme } from '@nelyx/material/theme';
 import { getFrontendHost } from '@nelyx/sdk/frontend/dom/environment';
+import { renderToggleGutter } from './layout.ts';
 
 const greeting = '안녕하세요 Nelyx 👋 שלום';
 const selectionSurface = (id: string, child: Widget) =>
@@ -246,6 +247,7 @@ class TextSelectionScreenState extends State<TextSelectionScreen> {
                       .catch((error) => context.services.reportError?.(error));
                   },
                 }),
+                new SizedBox(renderToggleGutter),
               ]
             : [],
       }),

@@ -7,6 +7,9 @@ import { Icon } from '@nelyx/core/framework/widgets/icon';
 import type { IconData } from '@nelyx/core/framework/widgets/icon-data';
 import { Color } from '@nelyx/core/ui/color';
 
+// Space at the trailing edge of the header for the floating renderer switch.
+export const renderToggleGutter = 76;
+
 export const column = (...children: Widget[]): Widget =>
   new Column(children, { mainSize: 'min', crossAlign: 'stretch', spacing: 12 });
 export const flow = (...children: Widget[]): Widget =>

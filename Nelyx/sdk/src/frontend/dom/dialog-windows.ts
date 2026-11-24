@@ -6,6 +6,7 @@ import type {
 } from '@nelyx/core/hosting/runtime';
 import { finishOwnedDisposal } from '../../runtime/owned-disposal.ts';
 import type { WebApplication, WebApplicationOptions } from './application.ts';
+import { replaceOwnedCanvas } from './owned-canvas.ts';
 
 export function webDialogWindows(
   definition: ApplicationDefinition,
@@ -41,7 +42,8 @@ export function webDialogWindows(
       child.body.style.cssText = 'margin:0;overflow:hidden';
       const container = child.createElement('div');
       container.style.cssText = 'position:relative;width:100vw;height:100dvh;overflow:hidden';
-      const canvas = child.createElement('canvas');
+      let canvas = child.createElement('canvas');
+      const controller = new AbortController();
       canvas.style.cssText = 'display:block;width:100%;height:100%';
       canvas.setAttribute('aria-hidden', 'true');
       const input = child.createElement('input');
@@ -63,9 +65,13 @@ export function webDialogWindows(
       let closing: Promise<void> | undefined;
       const finish = (value?: T, failure?: { readonly error: unknown }): Promise<void> =>
         (closing ??= Promise.resolve().then(async () => {
+          controller.abort();
           popup.removeEventListener('pagehide', closeFromHost);
           try {
-            const application = await opening;
+            const application = await opening.catch((error) => {
+              if (controller.signal.aborted && error === controller.signal.reason) return undefined;
+              throw error;
+            });
             if (application) await finishOwnedDisposal(() => application.dispose());
             if (failure) throw failure.error;
             resolve(value);
@@ -106,6 +112,12 @@ export function webDialogWindows(
           },
           {
             canvas,
+            signal: controller.signal,
+            replaceCanvas(previous) {
+              if (closing || popup.closed || previous !== canvas)
+                throw new Error('Web dialog is closing');
+              return (canvas = replaceOwnedCanvas(previous));
+            },
             input,
             button,
             manifest: options.manifest,
@@ -116,6 +128,13 @@ export function webDialogWindows(
             deviceNamespace: options.deviceNamespace ?? definition.id,
             ...(options.backend ? { backend: options.backend } : {}),
             ...(options.profile ? { profile: options.profile } : {}),
+            ...(options.renderMode ? { renderMode: options.renderMode } : {}),
+            ...(options.preserveDrawingBuffer === undefined
+              ? {}
+              : { preserveDrawingBuffer: options.preserveDrawingBuffer }),
+            ...(options.maxRasterScale === undefined
+              ? {}
+              : { maxRasterScale: options.maxRasterScale }),
             onError: (error) => {
               void finish(undefined, { error }).catch(() => {});
             },

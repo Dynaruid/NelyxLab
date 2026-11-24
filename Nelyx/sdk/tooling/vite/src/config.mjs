@@ -19,6 +19,11 @@ const within = (directory, file) => {
 const backendId = 'virtual:nelyx-backend';
 const devClient = 'virtual:nelyx-dev-client';
 
+export const crossOriginIsolationHeaders = Object.freeze({
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'require-corp',
+});
+
 export function defineAppConfig(directory, overrides = {}) {
   const value = inspectRunner(directory);
   const { app, roots } = value;
@@ -41,6 +46,7 @@ export function defineAppConfig(directory, overrides = {}) {
         exclude: packages.filter((name) => name.startsWith('@nelyx/')),
       },
       build: { assetsDir: 'chunks', manifest: true, target: 'es2022' },
+      worker: { format: 'es' },
       server: {
         strictPort: true,
         fs: { allow: [app, ...Object.values(roots)] },
@@ -280,6 +286,7 @@ export function frontendSession(initial, target, backend, { dev = false } = {}) 
       invalidate();
       if (notify) reload();
     },
+    workerPlugins: () => [verifyModules(value, target)],
     plugins: [
       verifyModules(value, target),
       plugin,

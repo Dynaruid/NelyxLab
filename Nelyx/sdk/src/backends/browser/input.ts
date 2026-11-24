@@ -17,7 +17,7 @@ export function bindCanvasInput(
     readonly ownsNativeSelectionTarget?: (target: EventTarget | null) => boolean;
     readonly suppressEditingContextMenu?: () => boolean;
   } = {},
-): () => void {
+): (replacing?: boolean) => void {
   const { HTMLElement, HTMLInputElement, HTMLTextAreaElement } = canvas.ownerDocument.defaultView!;
   let live = true;
   const pointers = new Set<number>(),
@@ -245,17 +245,28 @@ export function bindCanvasInput(
   keySurface.addEventListener('pointercancel', nativeCancel, true);
   keySurface.addEventListener('pointerleave', nativeLeave, true);
   keySurface.addEventListener('wheel', nativeWheel, { capture: true, passive: false });
-  return () => {
+  return (replacing = false) => {
     if (!live) return;
     live = false;
     const errors: unknown[] = [];
     try {
-      view.dispatchKeyboardFocusLost();
+      if (!replacing) view.dispatchKeyboardFocusLost();
     } catch (error) {
       errors.push(error);
     }
     for (const pointer of pointers)
       try {
+        if (replacing)
+          view.dispatchPointer({
+            kind: 'cancel',
+            pointer,
+            device: 'unknown',
+            buttons: 0,
+            x: 0,
+            y: 0,
+            timestamp: canvas.ownerDocument.defaultView!.performance.now(),
+            viewportGeneration: view.currentMetrics.viewportGeneration,
+          });
         if (canvas.hasPointerCapture(pointer)) canvas.releasePointerCapture(pointer);
       } catch (error) {
         errors.push(error);

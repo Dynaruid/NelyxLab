@@ -30,7 +30,15 @@ if (!process.argv.includes('--child')) {
   });
   process.exit(0);
 }
-const [appDirectory, backendExample = '21'] = args.filter((argument) => argument !== '--native-picker');
+const modeOption = args.find((argument) => argument.startsWith('--render-mode='));
+const renderMode = modeOption?.slice('--render-mode='.length);
+assert.ok(
+  renderMode === undefined ||
+    ['auto', 'direct', 'worker-transfer', 'worker-shared'].includes(renderMode),
+);
+const [appDirectory, backendExample = '21'] = args.filter(
+  (argument) => argument !== '--native-picker' && argument !== modeOption,
+);
 assert(appDirectory, 'Pass the app directory');
 const app = path.resolve(appDirectory);
 const release = JSON.parse(
@@ -48,6 +56,7 @@ const representative = release.files.find(
 )?.path;
 const files = [release.entry, 'runtime/canvaskit.js', 'runtime/canvaskit.wasm'];
 if (representative) files.push(representative);
+if (release.rendererWorker) files.push(release.rendererWorker);
 const expected = files.map((file) => release.files.find(({ path }) => path === file)?.sha256);
 assert(expected.every(Boolean), 'Missing expected Tauri frontend file');
 
@@ -110,15 +119,55 @@ try {
   }
   const page = pages.get(windows[0].label);
   assert(page, 'The built-in protocol page is missing');
+  if (renderMode) {
+    assert.ok(release.rendererWorker, 'Build the app with the render worker supply');
+    await page.addInitScript(() => {
+      window.nelyxDemoFrameProbe = (read) => {
+        window.readNelyxRendering = () => read().rendering;
+      };
+    });
+    const url = new URL(page.url());
+    url.searchParams.set('renderMode', renderMode);
+    await page.goto(url.href);
+  }
   await page.waitForFunction(
-    () =>
+    (hasRenderWorker) =>
       document.body.dataset.error ||
       (document.documentElement.dataset.tauriOs === 'windows' &&
-        Boolean(document.querySelector('canvas')?.getContext('webgl2'))),
-    undefined,
+        (hasRenderWorker
+          ? document.querySelector('canvas')?.dataset.nelyxFrameReady === 'true'
+          : Boolean(document.querySelector('canvas')?.getContext('webgl2')))),
+    !!release.rendererWorker,
     { timeout: 45_000 },
   );
   assert.equal(await page.locator('body').getAttribute('data-error'), null);
+  if (renderMode) {
+    const canvas = page.locator('canvas').first();
+    const png = await canvas.screenshot({ scale: 'css' });
+    const rendered = await page.evaluate(async (base64) => {
+      const image = new Image();
+      image.src = 'data:image/png;base64,' + base64;
+      await image.decode();
+      const target = document.createElement('canvas');
+      target.width = 64;
+      target.height = 64;
+      const context = target.getContext('2d');
+      context.drawImage(image, 0, 0, 64, 64);
+      const { data } = context.getImageData(0, 0, 64, 64);
+      const colors = new Set();
+      for (let i = 0; i < data.length; i += 4)
+        colors.add((data[i] << 16) | (data[i + 1] << 8) | data[i + 2]);
+      return {
+        path: document.querySelector('canvas').dataset.nelyxRenderPath,
+        isolated: crossOriginIsolated,
+        colors: colors.size,
+        diagnostics: window.readNelyxRendering?.(),
+      };
+    }, png.toString('base64'));
+    assert.ok(['direct', 'worker-transfer', 'worker-shared'].includes(rendered.path));
+    assert.ok(rendered.colors > 1, 'WebView2 canvas did not produce distinct pixels');
+    console.log(JSON.stringify({ requested: renderMode, ...rendered }));
+  }
   await verifyDevicePermissions(page, windows[0].deviceServices ?? [], stage, initialLink);
   if (activeLink) await verifyRunningLink(page, file, activeLink, { cwd: stage, env: environment, signal });
   if (args.includes('--native-picker')) {

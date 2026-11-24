@@ -74,3 +74,94 @@ wire의 숫자 범위와 부동소수점 정밀도는 현재 JS 재생 경로와
 | 5 | Demo와 Testbed의 배포 및 성능을 검증한 환경부터 워커 자동 선택을 활성화한다. | 격리·비격리 각각 루트, 하위 경로 직접 진입, SW 제어 후 오프라인 재시작에서 기대 경로와 실제 픽셀을 확인한다. 브라우저 엔진별 결과와 Tauri WebView2·WKWebView·Android WebView 결과를 구분해 기록한다. |
 
 성능 판단에는 같은 기기·해상도·장면에서 갤러리 스크롤과 텍스트 선택을 반복한다. 세 경로의 첫 프레임 시간, 메인 스레드 프레임 작업 p95, 입력에서 제출까지의 p95, 워커의 명령 재생 시간, fence 지연, 인코딩·복사 바이트와 최대 메모리를 함께 비교한다. 격리된 페이지에서 전송 경로도 강제로 실행하면 워커 이동 효과와 공유 버퍼 자체의 효과를 구분할 수 있다. 메인 스레드 시간 개선이 반복 측정 편차보다 크고, 첫 화면·입력 지연·메모리가 기준선으로 정한 예산에 드는 환경부터 기본값을 바꾼다. [스크롤 픽셀 검사](sample/nelyx-demo-app/eng/check-web-scroll-clipping.mjs) · [텍스트 선택 검사](sample/nelyx-demo-app/eng/check-text-selection.mjs) · [프레임 진단](Nelyx/src/ui/frame-diagnostics.ts)
+
+## 6. 구현 및 인수 기록
+
+2026-11-24 · macOS 27.2.1 · Apple M1 · 8 GiB
+
+- Web과 Tauri가 같은 SDK에서 `direct`, `worker-transfer`, `worker-shared`를 실행한다. `auto`는 캔버스의 문서와 워커가 보고한 격리 상태를 읽고, 실제 WebGL2 픽셀·fence 검사와 공유 메모리 왕복 검사 결과로 경로를 선택한다.
+- 메인 스레드는 동기 텍스트·경로 질의와 Picture readback을 담당한다. 화면용 워커는 동일한 CanvasKit으로 등록한 폰트·문단·이미지·Picture를 재생한다. 명령 패킷은 Web용 정밀도를 기록하고, 공유 슬롯보다 크면 전송 버퍼를 사용한다.
+- 프레임 두 개까지 GPU 완료를 추적한다. 리소스 등록이 끝난 프레임을 다음 화면 갱신에서 먼저 제출한다. 워커를 다시 시작할 때 리소스를 재등록하며, 직접 경로로 복구할 때도 새 캔버스에 기존 뷰와 입력을 연결한다.
+- 릴리스 인벤토리와 PWA 캐시에는 렌더 워커가 포함된다. 탐색 문서와 워커 스크립트는 같은 릴리스의 정책을 재검증한다. CLI의 `--cross-origin-isolated`는 Web 개발·미리보기 서버에서 쓸 수 있다. [CLI 웹 배포](Nelyx/sdk/tooling/cli/README.ko.md#웹-렌더링과-출처-간-격리)
+
+### 렌더링과 배포 확인
+
+| 실행 환경 | 확인 결과 |
+| --- | --- |
+| Chrome 158.0.8127.88 · Apple Metal | 작업 시작 커밋 `25cc4f5`의 Demo를 COOP·COEP 각각 단독, 둘 다, 둘 다 생략한 네 조건에서 실행했다. 첫 버튼 픽셀, 스크롤 클립 픽셀과 텍스트 선택 범위·좌표가 일치했다. 첫 버튼 영역의 주 색상은 `#65558f`였다. 새 Demo의 직접·전송·공유 경로도 같은 픽셀과 선택을 보였다. |
+| Chrome 158 · 재생 검증 장면 | 가변 폰트와 폰트 대체, 경로 클립, 번들 이미지, 중첩 Picture, 동기 GPU readback 및 SkSL을 검증했다. 세 경로의 화면 픽셀이 일치했고 readback은 `[212, 24, 36, 255]`였다. 공유 경로에서도 대형 프레임을 전송 버퍼로 보냈다. |
+| Chrome 158 · 복구와 PWA | 공유 검사 실패, 워커 차단, 워커의 CanvasKit blob 차단, 캔버스 이전 후 실패, 공통 Wasm 해시 불일치, 메인과 워커 WebGL2 경로가 모두 막힌 초기화 오류, 두 프레임이 대기 중일 때의 크기·DPR 변경과 숨김·context loss·워커 종료·뷰 닫기를 검사했다. iframe 권한 정책에 따른 전송 선택과 팝업의 직접 경로를 확인했다. Demo와 Testbed에서 격리·비격리 배포의 루트, 하위 경로, 서비스 워커 제어, 오프라인 재시작 및 헤더만 바꾼 재배포를 확인했다. |
+| Chrome 158 · 외부 팝업과 StrictMode | 비격리 문서에서 외부 팝업의 `window.opener.postMessage` 콜백을 받았고, COOP `same-origin`이 적용된 문서에서는 opener 연결이 끊겼다. React 개발 모드에서 화면을 제거하자 워커가 종료됐고, 재마운트에서 효과를 다시 실행한 뒤 새 워커가 같은 픽셀을 그렸다. |
+| WebKit 27.2 · Playwright | Demo의 직접·전송·공유 경로에서 첫 버튼과 스크롤 클립 픽셀, 텍스트 선택이 일치했다. |
+| Firefox 157.0 · Playwright | Demo의 직접·전송·공유 경로에서 첫 버튼과 스크롤 클립 픽셀, 텍스트 선택이 일치했다. |
+| macOS Tauri · WKWebView | Testbed ARM64 앱의 `tauri:` URL에서 `auto`가 비격리 워커 전송을 골랐다. 프레임 두 개가 fence 완료됐고 캔버스에서 서로 다른 RGB 값 329개를 읽었다. |
+| iOS Tauri · WKWebView 실기기 | iPhone 12의 iOS 27.0.1에서 진단 출력을 추가한 개발 서명 Testbed IPA를 설치해 `direct`와 `auto`로 각각 실행했다. `tauri:` URL에서 `auto`가 비격리 `worker-transfer`를 골랐고 버퍼를 3회 반환했다. 직접 프레임 2개와 워커 프레임 3개가 fence 완료됐다. DPR 3의 1170×2289 캔버스를 128×96으로 샘플링한 RGBA 해시가 일치했고 두 경로에서 서로 다른 RGB 값 292개를 읽었다. |
+| Windows Tauri · WebView2 | 사용자 요청에 따라 추가 기기 검증은 iOS 실기기에서 진행했다. Windows에서 `--render-mode=auto`를 지정해 Demo 패키지의 경로·픽셀·릴리스 자산을 확인할 수 있다. [WebView2 로컬 검사](Nelyx/eng/check-tauri-windows.mjs) |
+| Android Tauri · Android WebView | 사용자 요청에 따라 이번 인수 범위에서 제외했다. |
+
+macOS에서 실행 가능한 `.app`으로 WKWebView를 확인했다. CLI의 DMG 생성은 Finder AppleEvent 시간 초과로 종료됐다.
+
+프레임 wire의 길이·opcode·세대·숫자 범위 검사와 기존 wire 11 인코딩을 별도로 확인했다. PWA 업데이트 검사에서는 손상된 백엔드 Wasm이 배포됐을 때 기존 릴리스가 살아 있고, 정상 릴리스 도착 후 다른 앱의 캐시를 보존하면서 전환되는 것도 확인했다. [wire 검사](Nelyx/eng/check-web-frame-wire.mjs) · [브라우저 인수 검사](Nelyx/eng/check-web-renderers.mjs) · [PWA 업데이트 검사](Nelyx/eng/check-pwa-update.mjs)
+
+### 기본 경로 결정
+
+Chrome에서 같은 Demo와 1280 × 760 화면, DPR 1로 경로별 세 번 반복했다. 표는 반복별 측정값의 중앙값이다. 메인 작업은 진단에 기록된 주요 프레임 단계의 합이며, RSS는 Chrome 렌더러와 GPU 프로세스의 세 시점 표본 중 최댓값이다.
+
+| 화면 경로 | 첫 GPU 프레임까지 (ms) | 메인 프레임 작업 p95 (ms) | 메인 제출 p95 (ms) | 입력 → 실제 제출 p95 (ms) | 워커 재생 p95 (ms) | fence p95 (ms) | 표본 RSS (MiB) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 직접, 격리 | 676 | 16.76 | 3.79 | 69.60 | — | 16.27 | 761 |
+| 전송, 비격리 | 788 | 26.90 | 0.50 | 88.90 | 2.20 | 8.30 | 824 |
+| 전송, 격리 | 794 | 27.52 | 0.50 | 87.45 | 2.50 | 8.36 | 835 |
+| 공유, 격리 | 794 | 27.59 | 0.53 | 87.61 | 2.51 | 8.35 | 837 |
+
+워커 경로 한 회에서 인코딩한 프레임은 약 183 KiB였고 리소스 등록 전송은 약 17 MiB였다. 공유 슬롯은 메인에서 직접 채우므로 중간 프레임 버퍼의 복사가 없다. 전송 경로에서는 전송 직후 버퍼 분리와 워커 소비 후 반환·재사용을 관측했다. 메모리 예약은 SDK 실행 영역에 추가 워커 하나를 허용하고, 두 Wasm 인스턴스의 상한, 화면·보조 GPU 캐시와 복제 리소스 예산을 반영한다.
+
+워커 제출 자체는 짧아졌고 메인 전체 프레임 작업·첫 화면·입력 지연은 늘었다. 반복 측정 기준에 따라 기본값을 `direct`로 설정했다. `?renderMode=auto` 또는 SDK의 `renderMode: 'auto'`로 기능 검사를 거치는 자동 선택을 사용할 수 있다.
+
+### iPhone 실기기 스크롤 측정
+
+iPhone 12의 iOS 27.0.1에서 Testbed 갤러리의 같은 터치 스크롤 입력을 경로마다 세 번 재생했다. 한 회에 스와이프 6개를 사용했다. DPR 3, 1170×2157 캔버스에서 각 회의 스크롤 범위는 약 1620 논리 픽셀이었다. 표는 각 회의 측정값을 모은 중앙값이다.
+
+| 경로 | 렌더러 시작 → 첫 GPU 완료 (ms) | 메인 프레임 작업 p95 (ms) | 입력 → GPU 제출 p95 (ms) | JS 프레임 콜백 간격 p95 (ms) | GPU 완료 프레임 수 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `direct` | 332 | 5 | 23.3 | 20 | 240 |
+| `worker-transfer` | 598 | 2 | 31.0 | 17 | 217 |
+
+워커에서 메인 프레임 작업과 JS 콜백 간격이 줄었다. 직접 경로의 GPU 제출과 첫 GPU 완료가 빨랐고 GPU 완료 프레임 수도 많았다. 이 갤러리 부하에서도 성능 기준에 따라 기본값은 `direct`다.
+
+실기기에 설치한 비교용 Testbed에서 상단의 `직접`과 `워커` 버튼을 눌러 `direct → worker-transfer → direct`로 전환했다. 전환마다 새 캔버스의 GPU 완료를 확인했다.
+
+### 브라우저 검사 재현
+
+재현할 때는 빌드한 릴리스 디렉터리를 인수 검사에 넘긴다. `--baseline`에는 기존 직접 렌더링 Demo 릴리스를, `--fixture`에는 검증 장면을 엔트리로 사용해 빌드한 Demo 복사본의 릴리스를 넘길 수 있다. `--report`를 지정하면 픽셀 해시, 선택 좌표와 프레임 지표를 JSON으로 저장한다. [검증 장면](Nelyx/eng/fixtures/web-renderer-scene.mjs)
+
+StrictMode 재마운트 검사는 검증 장면을 쓰는 개발 서버에 격리를 켜고 `--suite strict --dev <URL>`을 넘겨 실행한다. 외부 팝업만 검사할 때는 `--suite popup`을 지정한다.
+
+```sh
+node Nelyx/eng/check-web-frame-wire.mjs
+node Nelyx/eng/check-pwa-update.mjs
+node Nelyx/eng/check-web-renderers.mjs \
+  --demo sample/nelyx-demo-app/.nelyx/web \
+  --testbed sample/nelyx-testbed-app-2/.nelyx/web \
+  --trials 3
+```
+
+## 7. iPhone 기동 및 터치 프레임 개편
+
+터치가 화면을 변경하면 뷰가 입력 처리를 마치는 시점에 예약된 프레임을 앞당긴다. 브라우저 프레임 시계는 같은 갱신 구간의 연속 입력을 합치고, 일반 애니메이션과 이미지 콜백에는 디스플레이 갱신 시각을 전달한다. 닫힌 뷰의 예약은 취소한다. 워커가 리소스 등록을 확인하면 메인이 보관 중인 프레임의 세대와 lease를 검사해 바로 제출한다. [뷰 런타임](Nelyx/src/hosting/runtime.ts) · [브라우저 프레임 시계](Nelyx/sdk/src/backends/browser/frame-clock.ts)
+
+Demo·Testbed와 새 앱 템플릿은 앱 화면 모듈을 별도 청크로 읽으면서 네이티브 백엔드와 CanvasKit을 준비한다. 뷰를 열 때는 선언된 자산을 미리 읽고 해시를 검증한 뒤 디코딩한다. iOS용 Tauri 호스트는 설치된 앱에서 프런트엔드 자산의 Brotli 해제를 생략한다. [Vite 진입점](Nelyx/sdk/tooling/vite/src/client.mjs) · [Tauri 호스트 생성](Nelyx/sdk/tooling/cli/src/tauri-host.mjs)
+
+같은 iPhone 12와 iOS 27.0.1에서 개편 전후 빌드를 각각 측정했다. Testbed 갤러리 화면은 DPR 3, 1170×2157이었다. 한 회에 같은 터치 스와이프 6개를 뷰 입력 경계에 재생했고, 아래 값은 경로별 3회 중앙값이다. 첫 프레임 시간은 페이지 탐색 시작부터 첫 GPU 완료 표시까지 측정했다.
+
+| 측정값 | 직접 경로 개편 전 → 후 | 워커 전송 개편 전 → 후 |
+| --- | ---: | ---: |
+| 첫 GPU 프레임 (ms) | 709 → 627 | 946 → 811 |
+| 입력 → GPU 제출 p95 (ms) | 23.0 → 17.7 | 32.0 → 22.3 |
+| 메인 프레임 작업 p95 (ms) | 4 → 5 | 2 → 2 |
+| JS 프레임 콜백 간격 p95 (ms) | 20 → 19 | 18 → 20 |
+| GPU 완료 프레임 수 | 238 → 254 | 211 → 246 |
+
+직접 경로가 첫 프레임과 입력 제출에서 가장 빨라 기본값을 `direct`로 유지했다. 개발 서명 IPA는 11.38 → 12.83 MiB, IPA 안의 압축 해제된 앱 파일 합계는 14.25 → 32.58 MiB였다. iPhone에서 직접 → 워커 → 직접으로 전환해 확인한 128×96 캔버스 샘플은 세 번 모두 동일한 RGBA 해시와 RGB 값 283개를 보였다. [프레임 시계 검사](Nelyx/eng/check-browser-frame-clock.mjs) · [브라우저 터치·복구·배포 검사](Nelyx/eng/check-web-renderers.mjs)
+
+Chrome에서 브라우저가 전달한 터치로 두 경로의 스크롤을 확인했다. iPhone에서 별도로 시도한 XCTest 드래그 검사는 기기의 UI 자동화 모드 활성화 단계에서 두 차례 시간 초과됐다.

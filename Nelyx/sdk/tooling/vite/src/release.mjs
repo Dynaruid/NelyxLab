@@ -21,6 +21,7 @@ import { frontendSession } from './config.mjs';
 
 const schema = 'nelyx.frontend-build/v1';
 const buildFile = 'build.json';
+const rendererWorkerPath = /^chunks\/nelyx-render-worker-[\w-]+\.js$/;
 const profileValues = {
   schema,
   provider: 'web',
@@ -46,6 +47,7 @@ function identity(data) {
     appEntry,
     entry,
     sdkVersion,
+    rendererWorker,
     canvasKit,
     backend,
     toolchain,
@@ -61,6 +63,7 @@ function identity(data) {
     appEntry,
     entry,
     sdkVersion,
+    ...(rendererWorker ? { rendererWorker } : {}),
     canvasKit,
     backend,
     ...(toolchain ? { toolchain } : {}),
@@ -157,6 +160,19 @@ export async function buildFrontend(app, output, target, project, backend) {
   const { files, icons } = session.deployment;
   const { build } = await value.vite();
   const modules = new Set();
+  const sdkBrowser = path
+    .join(value.roots['@nelyx/sdk'], 'dist', 'backends', 'browser')
+    .replaceAll('\\', '/');
+  const sdkModule = (id, name) =>
+    id?.split('?')[0].replaceAll('\\', '/') === sdkBrowser + '/' + name;
+  const collectLicenses = () => ({
+    name: 'nelyx:release-licenses',
+    generateBundle(_options, bundle) {
+      for (const item of Object.values(bundle)) {
+        if (item.type === 'chunk') for (const id of Object.keys(item.modules)) modules.add(id);
+      }
+    },
+  });
   await build({
     root: runner,
     configFile: path.join(runner, 'vite.config.ts'),
@@ -169,22 +185,31 @@ export async function buildFrontend(app, output, target, project, backend) {
       manifest: true,
       sourcemap: false,
     },
-    plugins: [
-      ...session.plugins,
-      {
-        name: 'nelyx:release-licenses',
-        generateBundle(_options, bundle) {
-          for (const item of Object.values(bundle)) {
-            if (item.type === 'chunk') for (const id of Object.keys(item.modules)) modules.add(id);
-          }
+    plugins: [...session.plugins, collectLicenses()],
+    worker: {
+      format: 'es',
+      plugins: () => [...session.workerPlugins(), collectLicenses()],
+      rolldownOptions: {
+        output: {
+          entryFileNames({ facadeModuleId }) {
+            return sdkModule(facadeModuleId, 'renderer-worker.js')
+              ? 'chunks/nelyx-render-worker-[hash].js'
+              : 'chunks/[name]-[hash].js';
+          },
         },
       },
-    ],
+    },
   });
   const viteManifest = path.join(output, '.vite/manifest.json');
   const entry = verifyReleaseEntries(output, readJson(viteManifest));
   fs.unlinkSync(viteManifest);
   fs.rmdirSync(path.dirname(viteManifest));
+  const workers = fileTree(output).filter((name) => rendererWorkerPath.test(name));
+  const usesWebRenderer = [...modules].some(
+    (id) => sdkModule(id, 'render-worker-port.js'),
+  );
+  if (workers.length !== (usesWebRenderer ? 1 : 0))
+    throw new Error('Nelyx render worker does not match the application module graph');
   for (const source of [files, project.files ?? []])
     for (const [name, bytes] of source) writeAsset(output, name, bytes);
   writeLicenses(output, value, modules);
@@ -211,6 +236,7 @@ export async function buildFrontend(app, output, target, project, backend) {
     appEntry: config.appEntry,
     entry,
     sdkVersion: readJson(path.join(value.roots['@nelyx/sdk'], 'package.json')).version,
+    rendererWorker: workers[0],
     canvasKit: rendererIdentity(value.runtime.manifest),
     backend,
     toolchain: project.toolchain,
@@ -295,6 +321,9 @@ export function verifyFrontend(
     !/^(?:chunks\/[\w.-]+\.m?js)$/.test(data.entry) ||
     !names.includes(data.entry) ||
     required.some((name) => !names.includes(name)) ||
+    (data.rendererWorker !== undefined &&
+      (!rendererWorkerPath.test(data.rendererWorker) || !names.includes(data.rendererWorker))) ||
+    names.some((name) => rendererWorkerPath.test(name) && name !== data.rendererWorker) ||
     (pwa ? !['sw.js', 'manifest.webmanifest'].every((name) => names.includes(name)) : pwaFiles) ||
     (target === 'web'
       ? !backendFiles.every((name) => wasmFiles.includes('runtime/backend/' + name))

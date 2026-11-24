@@ -9,8 +9,12 @@ export interface WebSafeAreaSource {
 }
 
 /** Visual viewport overlap is labelled as occlusion; it is not proof that an IME is open. */
-export function createBrowserEnvironment(canvas: HTMLCanvasElement, source?: WebSafeAreaSource) {
-  const document = canvas.ownerDocument;
+export function createBrowserEnvironment(
+  readCanvas: () => HTMLCanvasElement,
+  source?: WebSafeAreaSource,
+) {
+  const canvas = readCanvas(),
+    document = canvas.ownerDocument;
   const window = document.defaultView!;
   const probe = document.createElement('div');
   probe.setAttribute('aria-hidden', 'true');
@@ -21,7 +25,8 @@ export function createBrowserEnvironment(canvas: HTMLCanvasElement, source?: Web
   canvas.parentElement!.appendChild(probe);
   return {
     read(): ViewEnvironment {
-      const native = source?.read(),
+      const canvas = readCanvas(),
+        native = source?.read(),
         css = native ? undefined : window.getComputedStyle(probe),
         rect = canvas.getBoundingClientRect(),
         x = rect.width ? canvas.clientWidth / rect.width : 1,

@@ -1,6 +1,6 @@
 import { generation } from '../foundation/numbers.ts';
 import { invariant } from '../foundation/errors.ts';
-import type { Clock, FrameClock, FrameTiming } from '../foundation/clock.ts';
+import type { Clock, FrameClock, FrameRequest, FrameTiming } from '../foundation/clock.ts';
 import type { Disposable } from '../foundation/disposable.ts';
 import type { AssetRef } from '../foundation/assets.ts';
 import type { PointerEvent, KeyEvent } from '../ui/input.ts';
@@ -41,6 +41,8 @@ export interface Renderer extends Disposable {
   /** Optional backpressure hint. One CPU frame waits while capacity is full;
    * newer state replaces it when credit returns. Submit owns lease transfer. */
   canBuildFrame?(): boolean;
+  /** Retry a frame whose asynchronous renderer preparation has just finished. */
+  keepPendingFrame?(frame: PaintFrame): boolean;
   /** accepted transfers lease; rejected leaves it with caller. unknown must retain until drain. */
   submit(frame: PaintFrame, lease: ResourceLease, diagnostics?: FrameDiagnostics): SubmitResult;
   updateMetrics(metrics: ViewMetrics): void;
@@ -190,7 +192,7 @@ export class ViewRuntime implements Disposable {
   private pending: { frame: PaintFrame; lease: ResourceLease; preparedAt?: number } | undefined;
   private submitting: { frame: PaintFrame; lease: ResourceLease } | undefined;
   private submissionFinished: (() => void) | undefined;
-  private task: Disposable | undefined;
+  private task: FrameRequest | undefined;
   private readonly deferredFrames = new Set<{
     readonly notBefore: number;
     callback: (() => void) | undefined;
@@ -466,6 +468,20 @@ export class ViewRuntime implements Disposable {
         if (diagnostics) diagnostics.record(diagnosticToken!, 'input-dispatch', dispatchBegan!);
         this.observeInput('dispatch-end', event, completed ? 0 : 4);
       }
+      if (
+        event.device === 'touch' &&
+        (event.kind === 'move' ||
+          event.kind === 'down' ||
+          event.kind === 'up' ||
+          event.kind === 'cancel') &&
+        this.dirty &&
+        this.task?.afterInput &&
+        this.visible &&
+        !this.forcedFrame &&
+        !this.submitting &&
+        this.options.renderer.canBuildFrame?.()
+      )
+        this.task.afterInput();
     } else this.observeInput('drop', event, this.state !== 'open' ? 1 : !this.visible ? 2 : 3);
   }
   dispatchKey(event: KeyEvent): boolean {
@@ -782,6 +798,12 @@ export class ViewRuntime implements Disposable {
     // Forced frames also serve synchronous input geometry, even when no GPU
     // submission can be admitted yet. They must observe the latest state.
     if (!forced && this.pending && this.options.renderer.canBuildFrame) {
+      // Continuous invalidation must still let a prepared frame make progress.
+      // The pump rechecks its owner, viewport and retained resources.
+      if (this.options.renderer.keepPendingFrame?.(this.pending.frame)) {
+        this.schedulePump();
+        return;
+      }
       if (!this.options.renderer.canBuildFrame()) {
         this.schedulePump();
         return false;
@@ -969,6 +991,25 @@ export class ViewRuntime implements Disposable {
     }
     /* oxlint-enable no-unsafe-finally */
   }
+  /** Reuse the already captured frame when its worker resources finish registering. */
+  submitPreparedFrame(): void {
+    if (
+      this.state !== 'open' ||
+      !this.visible ||
+      this.submitting ||
+      this.forcedFrame ||
+      !this.pending ||
+      !this.options.renderer.keepPendingFrame?.(this.pending.frame)
+    )
+      return;
+    try {
+      const result = this.pump();
+      if (result?.status === 'unknown')
+        throw new Error('Renderer submission failed: ' + result.reason);
+    } catch (error) {
+      this.failFrameCallback(error);
+    }
+  }
   private waitingForNativeInput(): boolean {
     const renderer = this.options.renderer;
     const watermark = this.inputAdmissionWatermark ?? renderer.captureInputWatermark!();
@@ -1090,7 +1131,7 @@ export class ViewRuntime implements Disposable {
         } catch (error) {
           this.failFrameCallback(error);
         }
-      });
+      }, true);
   }
   private failFrameCallback(error: unknown): void {
     const task = this.task;

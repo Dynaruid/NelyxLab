@@ -111,7 +111,7 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
   private readonly doc: Document;
   private readonly parent: HTMLElement;
   constructor(
-    readonly canvas: HTMLCanvasElement,
+    private canvas: HTMLCanvasElement,
     readonly owner: ViewOwner,
     private readonly cursor?: BrowserMouseCursor,
   ) {
@@ -123,6 +123,12 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
     if (!parent) throw new Error('Native selection requires an attached canvas');
     this.parent = parent;
     parent.addEventListener('contextmenu', this.contextMenu, true);
+  }
+  replaceCanvas(canvas: HTMLCanvasElement): void {
+    if (canvas.parentElement !== this.parent)
+      throw new Error('Replacement selection canvas belongs to a different View surface');
+    this.canvas = canvas;
+    this.refresh();
   }
   registerViewFactory(registration: NativeSelectionContextMenuRegistration): void {
     if (this.stopped) throw new Error('Native selection context-menu host is stopped');

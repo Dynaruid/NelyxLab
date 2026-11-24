@@ -1,0 +1,38 @@
+export const cupertinoDemos = [
+    { id: 'buttons', category: 'actions', title: 'Cupertino buttons', status: 'ready' },
+    { id: 'segmented', category: 'actions', title: 'Sliding segmented control', status: 'basic' },
+    {
+        id: 'segmented-control',
+        category: 'actions',
+        title: 'Bordered segmented control',
+        status: 'basic',
+    },
+    { id: 'context-menu', category: 'actions', title: 'Context menu', status: 'planned' },
+    { id: 'activity', category: 'communication', title: 'Activity indicators', status: 'ready' },
+    { id: 'lists', category: 'containment', title: 'Lists and sections', status: 'ready' },
+    { id: 'dialog', category: 'containment', title: 'Alert dialog', status: 'basic' },
+    { id: 'action-sheet', category: 'containment', title: 'Action sheet', status: 'basic' },
+    { id: 'sheet', category: 'containment', title: 'Sheet', status: 'basic' },
+    { id: 'refresh', category: 'containment', title: 'Sliver refresh', status: 'basic' },
+    {
+        id: 'navigation',
+        category: 'navigation',
+        title: 'Page scaffold and navigation bar',
+        status: 'basic',
+    },
+    { id: 'tabs', category: 'navigation', title: 'Tabs and nested navigation', status: 'basic' },
+    { id: 'switches', category: 'selection', title: 'Switches', status: 'ready' },
+    { id: 'checkboxes', category: 'selection', title: 'Checkboxes', status: 'ready' },
+    { id: 'radios', category: 'selection', title: 'Radio buttons', status: 'ready' },
+    { id: 'sliders', category: 'selection', title: 'Sliders', status: 'ready' },
+    { id: 'picker', category: 'selection', title: 'Wheel picker', status: 'basic' },
+    { id: 'timer-picker', category: 'selection', title: 'Countdown timer picker', status: 'basic' },
+    { id: 'date-picker', category: 'selection', title: 'Date and time picker', status: 'basic' },
+    { id: 'text-field', category: 'text', title: 'Text field', status: 'basic' },
+    { id: 'search', category: 'text', title: 'Search field', status: 'basic' },
+    { id: 'form', category: 'text', title: 'Form rows and sections', status: 'planned' },
+];
+export function visibleCupertinoDemos(category, includePlanned) {
+    return cupertinoDemos.filter((demo) => (category === 'all' || demo.category === category) &&
+        (includePlanned || demo.status !== 'planned'));
+}
