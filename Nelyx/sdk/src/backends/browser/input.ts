@@ -22,6 +22,13 @@ export function bindCanvasInput(
   let live = true;
   const pointers = new Set<number>(),
     keySurface = options.keySurface ?? canvas;
+  const selectionStyles = ['user-select', '-webkit-user-select', '-webkit-touch-callout'];
+  const previousSelectionStyles = selectionStyles.map((property) => ({
+    property,
+    value: keySurface.style.getPropertyValue(property),
+    priority: keySurface.style.getPropertyPriority(property),
+  }));
+  for (const property of selectionStyles) keySurface.style.setProperty(property, 'none');
   canvas.tabIndex = 0;
   canvas.style.touchAction = 'none';
   // The canvas receives keyboard events; widgets draw their own focus indicators.
@@ -89,12 +96,31 @@ export function bindCanvasInput(
   const lostCapture = (event: PointerEvent) => {
     if (pointers.has(event.pointerId)) cancel(event);
   };
+  const mouseDown = (event: MouseEvent) => {
+    // iOS WebKit can still run mouse focus handling after a canceled touch pointer-down.
+    if (
+      options.ownsEditingTarget?.(event.target) ||
+      (event.target === canvas && options.ownsEditingTarget?.(canvas.ownerDocument.activeElement))
+    )
+      event.preventDefault();
+  };
+  const selectStart = (event: Event) => {
+    if (
+      !options.ownsEditingTarget?.(event.target) &&
+      !options.ownsNativeSelectionTarget?.(event.target)
+    )
+      event.preventDefault();
+  };
   const editingContextMenu = (event: Event) => {
     if (options.suppressEditingContextMenu?.() && options.ownsEditingTarget?.(event.target))
       event.preventDefault();
   };
   const nativePointer = (handler: (event: PointerEvent) => void) => (event: PointerEvent) => {
-    if (options.ownsNativeSelectionTarget?.(event.target)) handler(event);
+    if (
+      options.ownsEditingTarget?.(event.target) ||
+      options.ownsNativeSelectionTarget?.(event.target)
+    )
+      handler(event);
   };
   const nativeDown = nativePointer(down),
     nativeMove = nativePointer(move),
@@ -123,7 +149,11 @@ export function bindCanvasInput(
     });
   };
   const nativeWheel = (event: WheelEvent) => {
-    if (options.ownsNativeSelectionTarget?.(event.target)) wheel(event);
+    if (
+      options.ownsEditingTarget?.(event.target) ||
+      options.ownsNativeSelectionTarget?.(event.target)
+    )
+      wheel(event);
   };
   const key = (event: KeyboardEvent) => {
     const target = event.target,
@@ -204,8 +234,10 @@ export function bindCanvasInput(
   canvas.addEventListener('pointerleave', leave);
   canvas.addEventListener('lostpointercapture', lostCapture);
   canvas.addEventListener('wheel', wheel, { passive: false });
+  keySurface.addEventListener('mousedown', mouseDown, true);
   keySurface.addEventListener('keydown', key, true);
   keySurface.addEventListener('keyup', key, true);
+  keySurface.addEventListener('selectstart', selectStart, true);
   keySurface.addEventListener('contextmenu', editingContextMenu, true);
   keySurface.addEventListener('pointerdown', nativeDown, true);
   keySurface.addEventListener('pointermove', nativeMove, true);
@@ -244,9 +276,13 @@ export function bindCanvasInput(
     canvas.removeEventListener('pointerleave', leave);
     canvas.removeEventListener('lostpointercapture', lostCapture);
     canvas.removeEventListener('wheel', wheel);
+    keySurface.removeEventListener('mousedown', mouseDown, true);
     keySurface.removeEventListener('keydown', key, true);
     keySurface.removeEventListener('keyup', key, true);
+    keySurface.removeEventListener('selectstart', selectStart, true);
     keySurface.removeEventListener('contextmenu', editingContextMenu, true);
+    for (const { property, value, priority } of previousSelectionStyles)
+      keySurface.style.setProperty(property, value, priority);
     if (errors.length) throw new AggregateError(errors, 'Canvas input cleanup failed');
   };
 }

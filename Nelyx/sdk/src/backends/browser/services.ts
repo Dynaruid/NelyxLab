@@ -187,7 +187,15 @@ export function createWebServices(
           let face: FontFace | undefined;
           try {
             if (asset.kind === 'font') {
-              face = await new window.FontFace(asset.fontFamily!, new Uint8Array(bytes)).load();
+              try {
+                face = await new window.FontFace(asset.fontFamily!, new Uint8Array(bytes)).load();
+              } catch (error) {
+                // CanvasKit can read font formats that the browser rejects, such as bitmap emoji.
+                if (!(error instanceof window.DOMException) || error.name !== 'SyntaxError')
+                  throw error;
+              }
+            }
+            if (face) {
               fontSet.add(face);
               cssFonts.add(face);
             }

@@ -19,6 +19,7 @@ import type { BrowserMouseCursor } from './mouse-cursor.ts';
 import { createBrowserEditContext, hasBrowserEditContext } from './edit-context.ts';
 import type { BrowserInputViewport } from './edit-context.ts';
 import { isArrowKey } from './input.ts';
+import { getFrontendHost } from './platform.ts';
 interface Editor {
   element: HTMLElement;
   configuration?: EditingConfiguration;
@@ -111,6 +112,7 @@ export function createDomInteraction(
   const document = input.ownerDocument;
   const window = document.defaultView!;
   const { HTMLElement, HTMLInputElement, HTMLTextAreaElement, HTMLButtonElement } = window;
+  const isIOS = getFrontendHost(window).os === 'iOS';
   let closed = false,
     bound = false,
     moving = false;
@@ -211,6 +213,12 @@ export function createDomInteraction(
     passive = new Map<string, HTMLDivElement>(),
     semanticsAdjustmentTargets = new WeakSet<HTMLElement>();
   const controlIds = new WeakMap<HTMLElement, string>();
+  const nativeSelectionObservers = new WeakMap<Element, () => void>();
+  const selectionChanged = (event: Event) => {
+    const active = document.activeElement;
+    if (active && (event.target === active || event.target === document))
+      nativeSelectionObservers.get(active)?.();
+  };
   let inputUsed = false,
     buttonUsed = false;
   const localBounds = new WeakMap<HTMLElement, Rect>();
@@ -389,6 +397,11 @@ export function createDomInteraction(
         throw new Error('Native input carrier is unavailable');
       let element: HTMLInputElement | HTMLTextAreaElement = control;
       Object.assign(element.style, inputCarrierStyle);
+      const nativeCaretHitTest = isIOS && !configuration.readOnly;
+      element.style.setProperty('user-select', 'text');
+      element.style.setProperty('-webkit-user-select', 'text');
+      element.style.setProperty('-webkit-touch-callout', nativeCaretHitTest ? 'none' : 'default');
+      if (nativeCaretHitTest) element.style.touchAction = 'none';
       if (!accessibilityEnabled) element.setAttribute('aria-hidden', 'true');
       else element.removeAttribute('aria-hidden');
       editor.value = freezeEditing(initial);
@@ -531,17 +544,23 @@ export function createDomInteraction(
         [
           'focus',
           () => {
+            // WebKit locates the floating cursor by hit-testing the focused control.
+            if (nativeCaretHitTest) element.style.pointerEvents = 'auto';
             if (!moving && !canceling && admitsInput()) options?.focusChanged?.(true);
           },
         ],
         [
           'blur',
           () => {
+            if (nativeCaretHitTest) element.style.pointerEvents = 'none';
             if (!moving && !canceling) options?.focusChanged?.(false);
           },
         ],
       ];
       for (const [name, listener] of listeners) element.addEventListener(name, listener);
+      // WebKit can report caret-only motion on the control or on its document.
+      const observeSelection = () => observe();
+      nativeSelectionObservers.set(element, observeSelection);
       function admitText(text: string): boolean {
         if (!hasLineBreak(text)) return false;
         if (configuration.obscureText) {
@@ -556,6 +575,7 @@ export function createDomInteraction(
         for (const attribute of Array.from(previous.attributes))
           if (attribute.name !== 'type') next.setAttribute(attribute.name, attribute.value);
         next.wrap = 'off';
+        next.style.pointerEvents = 'none';
         Object.assign(next, {
           onkeydown: previous.onkeydown,
           onpointerdown: previous.onpointerdown,
@@ -565,6 +585,7 @@ export function createDomInteraction(
           onpointerleave: previous.onpointerleave,
         });
         for (const [name, listener] of listeners) previous.removeEventListener(name, listener);
+        nativeSelectionObservers.delete(previous);
         cursor?.remove(previous);
         previous.parentElement!.insertBefore(next, previous);
         if (previous !== input) previous.remove();
@@ -581,6 +602,7 @@ export function createDomInteraction(
           cursor?.add(next);
         }
         for (const [name, listener] of listeners) next.addEventListener(name, listener);
+        nativeSelectionObservers.set(next, observeSelection);
         return focused;
       }
       function replace(next: TextEditingValue): void {
@@ -665,11 +687,13 @@ export function createDomInteraction(
           pendingReplacement = undefined;
           restoreAfterCancellation = false;
           for (const [name, listener] of listeners) element.removeEventListener(name, listener);
+          nativeSelectionObservers.delete(element);
           delete editor.binding;
           delete editor.value;
           delete editor.changed;
           editor.composing = false;
           delete element.dataset.nelyxComposing;
+          element.style.pointerEvents = 'none';
           element.value = '';
           element.style.display = 'none';
         },
@@ -843,6 +867,7 @@ export function createDomInteraction(
       const element = event.currentTarget as HTMLElement;
       if (
         event.target !== element ||
+        nativeSelectionObservers.has(element) ||
         !currentNode(element)?.enabled ||
         !inputObserver?.observePointer
       )
@@ -1007,6 +1032,7 @@ export function createDomInteraction(
     },
     dispose: hide,
   };
+  document.addEventListener('selectionchange', selectionChanged);
   return {
     editing,
     semantics,
@@ -1023,6 +1049,7 @@ export function createDomInteraction(
       semanticsAdjustmentTargets.has(target),
     dispose() {
       if (closed) return;
+      document.removeEventListener('selectionchange', selectionChanged);
       editing.dispose();
       semantics.dispose();
       closed = true;
