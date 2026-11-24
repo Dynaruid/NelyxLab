@@ -10,6 +10,18 @@ import { MissingPluginException, PlatformException } from '@nelyx/core/services/
 import type { PluginPlatformMessagePort } from './plugin-port.ts';
 import { invokeClipboardService } from './clipboard-service.ts';
 export type OsEnvironment = Omit<PlatformEnvironment, 'revision'>;
+export type SystemChromeMethod =
+  | 'SystemChrome.setPreferredOrientations'
+  | 'SystemChrome.setEnabledSystemUIMode'
+  | 'SystemChrome.setEnabledSystemUIOverlays'
+  | 'SystemChrome.restoreSystemUIOverlays'
+  | 'SystemChrome.setSystemUIOverlayStyle';
+
+export type SystemChromeHost = (
+  method: SystemChromeMethod,
+  args: unknown,
+) => PromiseLike<void> | void;
+
 export interface OsServiceHost {
   readEnvironment(): OsEnvironment;
   observe(
@@ -25,7 +37,7 @@ export interface OsServiceHost {
   vibrateHapticFeedback?(type: string | null): PromiseLike<void> | void;
   pop?(animated: boolean | null): PromiseLike<void> | void;
   setFrameworkHandlesBack?(enabled: boolean): PromiseLike<void> | void;
-  setSystemUiOverlayStyle?(style: ReadonlyMap<string, unknown>): PromiseLike<void> | void;
+  systemChrome?: SystemChromeHost;
   navigation?(method: string, args: unknown): Promise<unknown> | unknown;
 }
 export function unsupported(method: string): never {
@@ -147,14 +159,21 @@ export function installOsServices(port: PluginPlatformMessagePort, host: OsServi
         await host.setFrameworkHandlesBack(call.arguments);
         return null;
       }
+      case 'SystemChrome.setPreferredOrientations':
+      case 'SystemChrome.setEnabledSystemUIMode':
+      case 'SystemChrome.setEnabledSystemUIOverlays':
+      case 'SystemChrome.restoreSystemUIOverlays':
       case 'SystemChrome.setSystemUIOverlayStyle': {
-        if (!host.setSystemUiOverlayStyle) throw new MissingPluginException();
-        if (!(call.arguments instanceof Map))
+        if (!host.systemChrome) throw new MissingPluginException();
+        const style = call.method === 'SystemChrome.setSystemUIOverlayStyle';
+        if (style && !(call.arguments instanceof Map))
           throw new PlatformException({
             code: 'invalid-arguments',
             message: 'Expected a system UI overlay style map',
           });
-        await host.setSystemUiOverlayStyle(call.arguments);
+        const args =
+          call.arguments instanceof Map ? Object.fromEntries(call.arguments) : call.arguments;
+        await host.systemChrome(call.method, args);
         return null;
       }
       default:

@@ -3,6 +3,7 @@ import { installAutofillMessages } from '../../runtime/autofill.ts';
 // SPDX-License-Identifier: BSD-3-Clause
 import { PluginPlatformMessagePort } from '../../runtime/plugin-port.ts';
 import { installOsServices } from '../../runtime/os-services.ts';
+import type { SystemChromeHost } from '../../runtime/os-services.ts';
 import {
   MethodCall,
   PlatformException,
@@ -31,6 +32,7 @@ export function createBrowserPlatformMessages(
   devices?: {
     haptics?: ((request: HapticRequest) => Promise<void> | void) | undefined;
     androidBack?: AndroidBackSource | undefined;
+    systemChrome?: SystemChromeHost | undefined;
   },
 ): PluginPlatformMessagePort {
   const androidBack = devices?.androidBack;
@@ -194,6 +196,7 @@ export function createBrowserPlatformMessages(
         capabilities: {
           ...clipboard.readCapabilities(),
           navigation: 'available',
+          systemChrome: devices?.systemChrome ? 'available' : 'unavailable',
         },
       };
     },
@@ -260,6 +263,7 @@ export function createBrowserPlatformMessages(
     ...(clipboard.readText ? { readText: clipboard.readText } : {}),
     ...(clipboard.hasStrings ? { hasStrings: clipboard.hasStrings } : {}),
     ...(clipboard.writeText ? { writeText: clipboard.writeText } : {}),
+    ...(devices?.systemChrome ? { systemChrome: devices.systemChrome } : {}),
     pop() {
       view.history.back();
     },

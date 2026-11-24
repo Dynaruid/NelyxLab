@@ -4,7 +4,9 @@ package dev.nelyx.backend
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ActivityInfo
 import android.net.Uri
+import android.os.Build
 import android.os.Process
 import android.provider.OpenableColumns
 import android.view.View
@@ -12,7 +14,9 @@ import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
@@ -20,6 +24,7 @@ import app.tauri.plugin.Channel
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import com.fasterxml.jackson.databind.JsonNode
 import java.util.concurrent.Executors
 
 @InvokeArg
@@ -40,12 +45,24 @@ class DeviceFileNameArgs {
     lateinit var uri: String
 }
 
+@InvokeArg
+class SystemChromeArgs {
+    lateinit var method: String
+    var arguments: JsonNode? = null
+}
+
 @TauriPlugin
 class SafeAreaPlugin(private val activity: Activity) : Plugin(activity) {
     private data class Subscription(val id: String, val channel: Channel, var last: Insets? = null)
+    private data class SystemOverlays(
+        val top: Boolean,
+        val bottom: Boolean,
+        val behavior: Int = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT,
+    )
     private val subscriptions = mutableMapOf<String, Subscription>()
     private var content: View? = null
     private var dispatchingBack = false
+    private var systemOverlays = SystemOverlays(top = true, bottom = true)
     private val documentQueries = Executors.newSingleThreadExecutor()
 
     override fun load(webView: WebView) {
@@ -103,6 +120,125 @@ class SafeAreaPlugin(private val activity: Activity) : Plugin(activity) {
             } finally {
                 dispatchingBack = false
             }
+        }
+    }
+
+    @Command
+    fun systemChrome(invoke: Invoke) {
+        val request = invoke.parseArgs(SystemChromeArgs::class.java)
+        activity.runOnUiThread {
+            try {
+                val args = request.arguments
+                when (request.method) {
+                    "SystemChrome.setPreferredOrientations" ->
+                        activity.requestedOrientation = requestedOrientation(requireNotNull(args))
+                    "SystemChrome.setEnabledSystemUIMode" -> {
+                        systemOverlays = when (args?.asText()) {
+                            "SystemUiMode.edgeToEdge" -> SystemOverlays(top = true, bottom = true)
+                            "SystemUiMode.immersiveSticky" -> SystemOverlays(
+                                top = false,
+                                bottom = false,
+                                behavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE,
+                            )
+                            "SystemUiMode.leanBack", "SystemUiMode.immersive" ->
+                                SystemOverlays(top = false, bottom = false)
+                            else -> error("Unknown system UI mode")
+                        }
+                        applySystemOverlays()
+                    }
+                    "SystemChrome.setEnabledSystemUIOverlays" -> {
+                        val overlays = requireNotNull(args).map { it.asText() }
+                        systemOverlays = SystemOverlays(
+                            top = "SystemUiOverlay.top" in overlays,
+                            bottom = "SystemUiOverlay.bottom" in overlays,
+                        )
+                        applySystemOverlays()
+                    }
+                    "SystemChrome.restoreSystemUIOverlays" -> applySystemOverlays()
+                    "SystemChrome.setSystemUIOverlayStyle" -> applySystemOverlayStyle(requireNotNull(args))
+                    else -> error("Unknown SystemChrome method")
+                }
+                invoke.resolve()
+            } catch (error: Exception) {
+                invoke.reject(error.message ?: "Android SystemChrome failed")
+            }
+        }
+    }
+
+    private fun applySystemOverlays() {
+        val window = activity.window
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior = systemOverlays.behavior
+        val status = WindowInsetsCompat.Type.statusBars()
+        val navigation = WindowInsetsCompat.Type.navigationBars()
+        val visible = (if (systemOverlays.top) status else 0) or
+            (if (systemOverlays.bottom) navigation else 0)
+        val hidden = (status or navigation) and visible.inv()
+        if (visible != 0) controller.show(visible)
+        if (hidden != 0) controller.hide(hidden)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun applySystemOverlayStyle(style: JsonNode) {
+        val window = activity.window
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        val dark = "Brightness.dark"
+        style.get("statusBarIconBrightness")?.takeUnless { it.isNull }?.let {
+            controller.isAppearanceLightStatusBars = it.asText() == dark
+        }
+        if (Build.VERSION.SDK_INT >= 26) {
+            style.get("systemNavigationBarIconBrightness")?.takeUnless { it.isNull }?.let {
+                controller.isAppearanceLightNavigationBars = it.asText() == dark
+            }
+        }
+        if (Build.VERSION.SDK_INT < 35) {
+            style.get("statusBarColor")?.takeUnless { it.isNull }?.let {
+                window.statusBarColor = it.asLong().toInt()
+            }
+            if (Build.VERSION.SDK_INT >= 26) {
+                style.get("systemNavigationBarColor")?.takeUnless { it.isNull }?.let {
+                    window.navigationBarColor = it.asLong().toInt()
+                }
+            }
+            if (Build.VERSION.SDK_INT >= 28) {
+                style.get("systemNavigationBarDividerColor")?.takeUnless { it.isNull }?.let {
+                    window.navigationBarDividerColor = it.asLong().toInt()
+                }
+            }
+        }
+        if (Build.VERSION.SDK_INT >= 29) {
+            style.get("systemStatusBarContrastEnforced")?.takeUnless { it.isNull }?.let {
+                window.isStatusBarContrastEnforced = it.asBoolean()
+            }
+            style.get("systemNavigationBarContrastEnforced")?.takeUnless { it.isNull }?.let {
+                window.isNavigationBarContrastEnforced = it.asBoolean()
+            }
+        }
+    }
+
+    private fun requestedOrientation(orientations: JsonNode): Int {
+        val requested = orientations.map {
+            when (it.asText()) {
+                "DeviceOrientation.portraitUp" -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                "DeviceOrientation.portraitDown" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
+                "DeviceOrientation.landscapeLeft" -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                "DeviceOrientation.landscapeRight" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                else -> error("Unknown device orientation")
+            }
+        }
+        val portrait = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        val landscape = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        val reverseLandscape = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+        return when (requested.toSet()) {
+            emptySet<Int>() -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            setOf(portrait, ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT) ->
+                ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+            setOf(landscape, reverseLandscape) -> ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
+            setOf(portrait, landscape, reverseLandscape) -> ActivityInfo.SCREEN_ORIENTATION_USER
+            setOf(portrait, ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT, landscape, reverseLandscape) ->
+                ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+            // Android uses the first orientation when there is no equivalent combination.
+            else -> requested.first()
         }
     }
 

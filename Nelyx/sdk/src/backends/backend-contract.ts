@@ -6,7 +6,9 @@ import type { ClipboardBinding } from './browser/clipboard.ts';
 import type { HapticRequest } from './browser/haptics.ts';
 import type { DeviceServices } from '../devices.ts';
 import { validDeviceFeatures } from '../runtime/config.ts';
+import type { TauriScrollEdgeEffects } from '../runtime/config.ts';
 import type { BrowserDeviceOptions } from './browser/devices.ts';
+import type { SystemChromeHost } from '../runtime/os-services.ts';
 
 const backendProtocol = 3;
 
@@ -22,6 +24,7 @@ export interface BackendDescription extends BackendIdentity {
   readonly clipboard: { readonly read: boolean; readonly write: boolean } | null;
   readonly haptics: boolean | null;
   readonly androidBack: boolean | null;
+  readonly systemChrome?: boolean;
   readonly deviceServices: readonly string[];
   readonly safeArea: boolean;
   readonly windowTitle: boolean;
@@ -41,9 +44,17 @@ export interface BackendConnection {
   clipboard(view: Window): ClipboardBinding;
   haptics?(view: Window): ((request: HapticRequest) => Promise<void> | void) | undefined;
   androidBack?(view: Window): AndroidBackSource | undefined;
+  systemChrome?(view: Window): SystemChromeHost | undefined;
+  readonly scrollEdgeEffects?: WebViewScrollEdgeEffects;
   devices?(view: Window, options: BrowserDeviceOptions): DeviceServices;
   safeArea?(view: Window): WebSafeAreaSource | undefined;
   setTitle?(title: string): Promise<void>;
+}
+
+export interface WebViewScrollEdgeEffects {
+  get(): Promise<Required<TauriScrollEdgeEffects>>;
+  /** Apply settings to the current WebView. Each omitted edge is hidden. */
+  set(effects: TauriScrollEdgeEffects): Promise<Required<TauriScrollEdgeEffects>>;
 }
 
 export interface AndroidBackSource {
@@ -65,9 +76,11 @@ export function validateBackend(expected: BackendIdentity, actual: BackendDescri
     typeof actual.windowTitle !== 'boolean' ||
     (actual.haptics !== null && typeof actual.haptics !== 'boolean') ||
     (actual.androidBack !== null && typeof actual.androidBack !== 'boolean') ||
+    (actual.systemChrome !== undefined && typeof actual.systemChrome !== 'boolean') ||
     !validDeviceFeatures(actual.deviceServices) ||
     (actual.haptics === true && actual.os !== 'android' && actual.os !== 'ios') ||
     (actual.androidBack === true && actual.os !== 'android') ||
+    (actual.systemChrome === true && actual.os !== 'android' && actual.os !== 'ios') ||
     (actual.clipboard !== null &&
       (typeof actual.clipboard?.read !== 'boolean' ||
         typeof actual.clipboard?.write !== 'boolean')) ||

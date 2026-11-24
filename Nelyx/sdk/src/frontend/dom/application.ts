@@ -370,6 +370,7 @@ async function openWebApplication(
         {
           haptics: options.backend?.haptics?.(view),
           androidBack: options.backend?.androidBack?.(view),
+          systemChrome: options.backend?.systemChrome?.(view),
         },
       );
   } catch (error) {

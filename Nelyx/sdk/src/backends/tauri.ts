@@ -12,6 +12,8 @@ import type { WebSafeAreaSource } from './browser/environment.ts';
 import { createAndroidBack } from './tauri-android-back.ts';
 import { tauriDeviceServices } from './tauri-devices.ts';
 import { commands } from './generated/tauri.ts';
+import type { SystemChromeHost } from '../runtime/os-services.ts';
+import type { TauriScrollEdgeEffects } from '../runtime/config.ts';
 
 type Insets = ViewEnvironment['safeArea'];
 type TauriWindow = Window & {
@@ -90,6 +92,34 @@ export async function openTauriBackend(
   const nativeHaptics = (feedback: HapticRequest) =>
     request(() => invokeHaptics(feedback), deviceFailure);
   const safeArea = backend.safeArea ? createSafeArea(view, releaseCallback, signal) : undefined;
+  let chromeUpdates = Promise.resolve();
+  const systemChrome: SystemChromeHost = (method, args) => {
+    const update = chromeUpdates.then(() =>
+      request(() =>
+        invoke<void>('plugin:nelyx-backend|system_chrome', {
+          request: { method, arguments: args },
+        }),
+      ),
+    );
+    chromeUpdates = update.catch(() => {});
+    return update;
+  };
+  let edgeUpdates = Promise.resolve();
+  function scrollEdgeEffects(effects: TauriScrollEdgeEffects | null) {
+    const settings = effects && { ...effects };
+    const update = edgeUpdates.then(() =>
+      request(() =>
+        invoke<Required<TauriScrollEdgeEffects>>('plugin:nelyx-backend|scroll_edge_effects', {
+          effects: settings,
+        }),
+      ),
+    );
+    edgeUpdates = update.then(
+      () => {},
+      () => {},
+    );
+    return update;
+  }
   const back = backend.androidBack
     ? createAndroidBack(
         view,
@@ -118,8 +148,21 @@ export async function openTauriBackend(
       return backend.haptics ? nativeHaptics : () => {};
     },
     ...(back ? { androidBack: (owner) => (owner === view ? back : undefined) } : {}),
+    ...(backend.systemChrome
+      ? { systemChrome: (owner) => (owner === view ? systemChrome : undefined) }
+      : {}),
+    ...(os === 'iOS'
+      ? {
+          scrollEdgeEffects: {
+            get: () => scrollEdgeEffects(null),
+            set: scrollEdgeEffects,
+          },
+        }
+      : {}),
     devices: (owner, options) =>
-      owner === view ? tauriDeviceServices(owner, options, backend.os, backend.deviceServices, releaseCallback) : {},
+      owner === view
+        ? tauriDeviceServices(owner, options, backend.os, backend.deviceServices, releaseCallback)
+        : {},
     ...(safeArea ? { safeArea: (owner) => (owner === view ? safeArea : undefined) } : {}),
     async setTitle(title) {
       if (backend.windowTitle && (os === 'windows' || os === 'linux' || os === 'macOS'))

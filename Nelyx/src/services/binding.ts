@@ -74,6 +74,7 @@ export interface PlatformEnvironment {
     clipboardRead: ServiceCapability;
     clipboardWrite: ServiceCapability;
     navigation: ServiceCapability;
+    systemChrome?: ServiceCapability;
   }>;
 }
 export interface ServicesObserver {
@@ -196,6 +197,7 @@ function environment(value: unknown): PlatformEnvironment {
       clipboardRead: capability('clipboardRead'),
       clipboardWrite: capability('clipboardWrite'),
       navigation: capability('navigation'),
+      ...(capabilities.has('systemChrome') ? { systemChrome: capability('systemChrome') } : {}),
     }),
   });
 }

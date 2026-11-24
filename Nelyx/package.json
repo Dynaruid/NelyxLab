@@ -2136,6 +2136,10 @@
       "types": "./dist/services/text-capitalization.d.ts",
       "default": "./dist/services/text-capitalization.js"
     },
+    "./services/system-chrome": {
+      "types": "./dist/services/system-chrome.d.ts",
+      "default": "./dist/services/system-chrome.js"
+    },
     "./services/system-ui-overlay-style": {
       "types": "./dist/services/system-ui-overlay-style.d.ts",
       "default": "./dist/services/system-ui-overlay-style.js"

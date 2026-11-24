@@ -7,6 +7,8 @@ fn main() {
         "watch_safe_area",
         "unwatch_safe_area",
         "dispatch_default_back",
+        "system_chrome",
+        "scroll_edge_effects",
         "device_store",
         "device_file_name",
     ])

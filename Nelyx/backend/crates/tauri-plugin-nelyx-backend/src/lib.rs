@@ -8,6 +8,13 @@ use tauri::{
     plugin::{Builder, TauriPlugin},
     Manager, Runtime, State, Url, Webview,
 };
+mod scroll_edge_effects;
+mod system_chrome;
+#[cfg(target_os = "ios")]
+mod system_chrome_ios;
+
+use system_chrome::SystemChromeRequest;
+pub use scroll_edge_effects::{ScrollEdgeEffect, ScrollEdgeEffects};
 
 #[derive(Clone, Copy)]
 pub struct WindowFeatures {
@@ -15,6 +22,8 @@ pub struct WindowFeatures {
     pub clipboard: Option<ClipboardGrants>,
     pub haptics: Option<bool>,
     pub android_back: Option<bool>,
+    pub system_chrome: bool,
+    pub scroll_edge_effects: ScrollEdgeEffects,
     pub device_services: &'static [&'static str],
     pub safe_area: bool,
     pub window_title: bool,
@@ -114,6 +123,8 @@ async fn describe<R: Runtime>(
     description.android_back = features
         .android_back
         .map(|enabled| enabled && cfg!(target_os = "android"));
+    description.system_chrome =
+        features.system_chrome && cfg!(any(target_os = "android", target_os = "ios"));
     description.device_services = features.device_services;
     description.safe_area = cfg!(target_os = "android") && features.safe_area;
     description.window_title = features.window_title;
@@ -305,6 +316,47 @@ async fn dispatch_default_back<R: Runtime>(
 }
 
 #[tauri::command]
+async fn system_chrome<R: Runtime>(
+    webview: Webview<R>,
+    backend: State<'_, Backend>,
+    request: SystemChromeRequest,
+) -> Result<(), BackendError> {
+    if !allowed(&backend, &webview)?.system_chrome || !cfg!(any(target_os = "android", target_os = "ios")) {
+        return Err(BackendError::new("unsupported", "SystemChrome is unavailable"));
+    }
+    #[cfg(target_os = "ios")]
+    return system_chrome_ios::apply(&webview, request).await;
+    #[cfg(target_os = "android")]
+    return android_call(
+        &webview,
+        "systemChrome",
+        serde_json::to_value(request).map_err(|error| BackendError::new("invalid-arguments", error.to_string()))?,
+    )
+    .await;
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        let _ = request;
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn scroll_edge_effects<R: Runtime>(
+    webview: Webview<R>,
+    backend: State<'_, Backend>,
+    effects: Option<ScrollEdgeEffects>,
+) -> Result<ScrollEdgeEffects, BackendError> {
+    allowed(&backend, &webview)?;
+    #[cfg(target_os = "ios")]
+    return scroll_edge_effects::ios::configure(&webview, effects).await;
+    #[cfg(not(target_os = "ios"))]
+    {
+        let _ = effects;
+        Err(BackendError::new("unsupported", "Scroll edge effects require iOS 26"))
+    }
+}
+
+#[tauri::command]
 async fn device_file_name<R: Runtime>(
     webview: Webview<R>,
     backend: State<'_, Backend>,
@@ -365,7 +417,14 @@ pub fn init<R: Runtime>(
     windows: &'static [WindowFeatures],
     frontend_build_id: Option<&'static str>,
 ) -> TauriPlugin<R> {
-    Builder::new("nelyx-backend")
+    let builder = Builder::new("nelyx-backend");
+    #[cfg(target_os = "ios")]
+    let builder = builder.on_webview_ready(move |webview| {
+        if let Some(window) = windows.iter().find(|window| window.label == webview.label()) {
+            scroll_edge_effects::ios::initialize(&webview, window.scroll_edge_effects);
+        }
+    });
+    builder
         .setup(move |app, _api| {
             let mut registry = Registry::default();
             register(&mut registry);
@@ -386,6 +445,8 @@ pub fn init<R: Runtime>(
             watch_safe_area,
             unwatch_safe_area,
             dispatch_default_back,
+            system_chrome,
+            scroll_edge_effects,
             device_store,
             device_file_name
         ])

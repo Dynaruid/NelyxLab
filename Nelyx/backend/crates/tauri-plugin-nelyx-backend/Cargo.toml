@@ -31,3 +31,7 @@ specta-typescript = { version = "=0.0.15", optional = true }
 tauri = { version = "=2.12.7", default-features = false }
 tauri-specta = { version = "=2.0.0-rc.29", features = ["typescript"], optional = true }
 tauri-plugin-store = { version = "=2.5.1", optional = true }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "=0.6.5"
+tauri = { version = "=2.12.7", default-features = false, features = ["wry"] }

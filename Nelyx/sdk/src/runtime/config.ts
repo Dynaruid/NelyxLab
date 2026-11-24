@@ -35,6 +35,13 @@ export interface PwaConfig {
   readonly themeColor: string;
   readonly icons?: readonly PwaIcon[];
 }
+export type TauriScrollEdgeEffect = 'hidden' | 'automatic' | 'soft' | 'hard';
+export interface TauriScrollEdgeEffects {
+  readonly top?: TauriScrollEdgeEffect;
+  readonly right?: TauriScrollEdgeEffect;
+  readonly bottom?: TauriScrollEdgeEffect;
+  readonly left?: TauriScrollEdgeEffect;
+}
 export interface TauriWindowConfig {
   readonly label: string;
   readonly title?: string;
@@ -44,6 +51,9 @@ export interface TauriWindowConfig {
   readonly clipboard?: { readonly read: boolean; readonly write: boolean };
   readonly haptics?: boolean;
   readonly androidBack?: boolean;
+  readonly systemChrome?: boolean;
+  /** Native iOS 26+ WebView effects. Each omitted edge defaults to hidden. */
+  readonly scrollEdgeEffects?: TauriScrollEdgeEffects;
   readonly deviceServices?: readonly DeviceFeature[];
   readonly safeArea?: boolean;
   readonly windowTitle?: boolean;
@@ -347,6 +357,8 @@ function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
             'clipboard',
             'haptics',
             'androidBack',
+            'systemChrome',
+            'scrollEdgeEffects',
             'deviceServices',
             'safeArea',
             'windowTitle',
@@ -363,7 +375,17 @@ function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
         window.windowTitle,
         window.haptics,
         window.androidBack,
+        window.systemChrome,
       ].some((setting) => setting !== undefined && typeof setting !== 'boolean') ||
+      (window.scrollEdgeEffects !== undefined &&
+        (window.scrollEdgeEffects === null ||
+          typeof window.scrollEdgeEffects !== 'object' ||
+          Array.isArray(window.scrollEdgeEffects) ||
+          Object.entries(window.scrollEdgeEffects).some(
+            ([edge, style]) =>
+              !['top', 'right', 'bottom', 'left'].includes(edge) ||
+              !['hidden', 'automatic', 'soft', 'hard'].includes(style),
+          ))) ||
       (window.deviceServices !== undefined &&
         (!validDeviceFeatures(window.deviceServices) ||
           (window.deviceServices.includes('deepLinks') && !links))) ||
@@ -384,6 +406,9 @@ function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
     return Object.freeze({
       ...window,
       ...(window.clipboard ? { clipboard: Object.freeze({ ...window.clipboard }) } : {}),
+      ...(window.scrollEdgeEffects
+        ? { scrollEdgeEffects: Object.freeze({ ...window.scrollEdgeEffects }) }
+        : {}),
       ...(window.commands ? { commands: Object.freeze([...window.commands]) } : {}),
       ...(window.deviceServices ? { deviceServices: Object.freeze([...window.deviceServices]) } : {}),
     });

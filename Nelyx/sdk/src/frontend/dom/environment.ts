@@ -5,7 +5,13 @@ import type {
   BrowserOperatingSystem,
   WebPlatformEnvironment,
 } from '@nelyx/core/foundation/platform';
-import type { BackendConnection, FrontendHost } from '../../backends/backend-contract.ts';
+import type {
+  BackendConnection,
+  FrontendHost,
+  WebViewScrollEdgeEffects,
+} from '../../backends/backend-contract.ts';
+
+export type { WebViewScrollEdgeEffects } from '../../backends/backend-contract.ts';
 
 export interface BrowserPlatformNavigator {
   readonly platform: string;
@@ -74,6 +80,13 @@ export function getFrontendHost(view: Window = window): FrontendHost {
       os: new BrowserPlatformEnvironment(view.navigator).operatingSystem,
     }
   );
+}
+
+/** The native iOS WebView associated with this frontend window. */
+export function webViewScrollEdgeEffectsFor(
+  view: Window = window,
+): WebViewScrollEdgeEffects | undefined {
+  return backends.get(view)?.scrollEdgeEffects;
 }
 
 export async function invokeAppBackend(command: string, input?: unknown, view: Window = window) {

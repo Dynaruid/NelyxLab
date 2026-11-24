@@ -83,7 +83,7 @@ import type { RawKeyboard } from '../../services/raw-keyboard.ts';
 import { KeyEventManager } from '../../services/key-event-manager.ts';
 import { SystemChannelSet } from '../../services/system-channels.ts';
 import { MissingPluginException } from '../../services/message-codec.ts';
-import { systemUiOverlayStyleToPlatformMap } from '../../services/system-ui-overlay-style-source.ts';
+import { SystemChrome } from '../../services/system-chrome.ts';
 import type { SystemUiOverlayStyle } from '../../services/system-ui-overlay-style.ts';
 import type { RawKeyMessage } from '../../services/raw-key-event.ts';
 import type { KeyEventResult } from './focus.ts';
@@ -1752,13 +1752,13 @@ export class FrameworkRoot implements ViewController {
   }
 
   private applyStatusBarStyle(token: FrameBuildToken): void {
-    const channel = this.context.platformServices?.channels.platform;
+    const services = this.context.platformServices;
     const platform = FoundationPlatform.hostEnvironment.operatingSystem;
+    const nativeMobile = !FoundationPlatform.isWeb && (platform === 'ios' || platform === 'android');
     if (
-      !channel ||
+      !services ||
       !this.isInputLive() ||
-      FoundationPlatform.isWeb ||
-      (platform !== 'ios' && platform !== 'android')
+      (!nativeMobile && services.environment?.capabilities.systemChrome !== 'available')
     )
       return;
     const { logicalWidth, environment } = token.metrics;
@@ -1768,12 +1768,9 @@ export class FrameworkRoot implements ViewController {
     });
     if (!style || style.equals(this.lastStatusBarStyle)) return;
     this.lastStatusBarStyle = style;
-    void channel
-      .invokeMethod(
-        'SystemChrome.setSystemUIOverlayStyle',
-        new Map(Object.entries(systemUiOverlayStyleToPlatformMap(style))),
-      )
+    void SystemChrome.setSystemUIOverlayStyle(style, services.defaultBinaryMessenger)
       .catch((error: unknown) => {
+        if (this.lastStatusBarStyle === style) this.lastStatusBarStyle = null;
         if (!(error instanceof MissingPluginException) && this.isViewOpen()) {
           this.context.reportError?.(error);
         }

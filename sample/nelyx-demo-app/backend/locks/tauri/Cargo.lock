@@ -4248,6 +4248,7 @@ name = "tauri-plugin-nelyx-backend"
 version = "0.1.0"
 dependencies = [
  "nelyx-backend-core",
+ "objc2",
  "serde",
  "serde_json",
  "tauri",
