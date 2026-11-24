@@ -29,6 +29,7 @@
     "prepare:sample": "node Nelyx/eng/prepare-sample.mjs",
     "pack:sdk": "node Nelyx/eng/prepare-sample.mjs --packages",
     "build:designs": "npm run build --workspace @nelyx/cupertino && npm run build --workspace @nelyx/material && npm run build --workspace @nelyx/tooling-contracts",
+    "cleanup": "node cleanup-plan-all.mjs",
     "format": "oxfmt --write \"**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" .oxlintrc.json .oxfmtrc.json"
   },
   "devDependencies": {
