@@ -23,9 +23,12 @@ npm.cmd run build:tauri -- --app sample/nelyx-demo-app --platform windows
 ```powershell
 Set-Location sample/nelyx-demo-app
 npm.cmd run dev:web
+npm.cmd run dev:tauri -- --platform windows
 npm.cmd run run:web -- --base /demo/
 npm.cmd run run:tauri -- --platform windows
 ```
+
+앱 TypeScript 위젯의 호환되는 `build()` 수정은 웹과 Tauri에서 현재 화면에 적용됩니다. CLI에서 문서나 호스트의 재시작 사유와 빌드 단계별 산출물 재사용 여부를 확인할 수 있습니다. [Nelyx CLI 개발 안내](Nelyx/sdk/tooling/cli/README.ko.md#앱-개발)
 
 ### 샘플 배포 헬퍼
 

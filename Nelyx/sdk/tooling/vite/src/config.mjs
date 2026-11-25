@@ -4,8 +4,9 @@ import path from 'node:path';
 import { isBuiltin } from 'node:module';
 import { createHash } from 'node:crypto';
 import { mergeConfig } from 'vite';
-import { appFiles, inspectRunner, prepareRunnerFiles } from './runner.mjs';
+import { appFiles, inspectRunner, prepareRunnerFiles, readApp } from './runner.mjs';
 import { mediaType } from './content.mjs';
+import { createDevUpdates } from './dev-updates.mjs';
 
 const retired =
   /^(?:react-native(?:-web|-windows|-macos|-linux)?|@react-native\/[^/]+|metro(?:-[^/]+)?|@nelyx\/(?:metro|static-aot|skia-(?:rn|native)))(?:\/|$)/;
@@ -17,7 +18,6 @@ const within = (directory, file) => {
   return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
 };
 const backendId = 'virtual:nelyx-backend';
-const devClient = 'virtual:nelyx-dev-client';
 
 export const crossOriginIsolationHeaders = Object.freeze({
   'Cross-Origin-Opener-Policy': 'same-origin',
@@ -45,7 +45,12 @@ export function defineAppConfig(directory, overrides = {}) {
         ],
         exclude: packages.filter((name) => name.startsWith('@nelyx/')),
       },
-      build: { assetsDir: 'chunks', manifest: true, target: 'es2022' },
+      build: {
+        assetsDir: 'chunks',
+        manifest: true,
+        target: 'es2022',
+        reportCompressedSize: false,
+      },
       worker: { format: 'es' },
       server: {
         strictPort: true,
@@ -107,35 +112,73 @@ function verifyModules(value, target) {
   };
 }
 
-export function frontendSession(initial, target, backend, { dev = false } = {}) {
+export function frontendSession(initial, target, backend, { dev = false, onClosed } = {}) {
   let value = initial;
   let deployment = prepareRunnerFiles(value, target);
   let server;
   let fastRefresh = false;
-  let refreshError;
-  const sdkWatchers = [];
-  const pendingSdkFiles = new Set();
-  let sdkReload;
   const { app } = value;
   const packageFile = path.join(app, 'package.json');
-  const assetInputs = () =>
+  const assetInputs = (config) =>
     new Set(
       [
-        ...value.config.assets.flatMap(({ path: name, notice }) =>
-          [name, notice?.path].filter(Boolean),
-        ),
-        ...(target === 'web' ? (value.config.targets.web?.pwa?.icons ?? []) : []).map(
-          ({ src }) => src,
-        ),
+        ...config.assets.flatMap(({ path: name, notice }) => [name, notice?.path].filter(Boolean)),
+        ...(target === 'web' ? (config.targets.web?.pwa?.icons ?? []) : []).map(({ src }) => src),
       ].map((file) => path.resolve(app, file)),
     );
   const pwa = () => target === 'web' && !!value.config.targets.web?.pwa;
-  const reload = () => server?.ws.send('nelyx:reload', {});
-  function invalidate() {
-    if (!server) return;
-    const module = server.moduleGraph.getModuleById('\0' + backendId);
-    if (module) server.moduleGraph.invalidateModule(module);
+  let assets = assetInputs(value.config);
+  let pendingAssets = assets;
+  function invalidate(file, instance = server) {
+    if (!instance) return;
+    const graph = instance.environments.client.moduleGraph;
+    if (file) graph.onFileChange(file.replaceAll('\\', '/'));
+    else {
+      const module = graph.getModuleById('\0' + backendId);
+      if (module) graph.invalidateModule(module);
+    }
   }
+  const updates = dev
+    ? createDevUpdates(app, value.roots.vite, {
+        onClosed,
+        invalidate,
+        classify(file) {
+          if (file === packageFile || assets.has(file) || pendingAssets.has(file)) return 'assets';
+          if (file.endsWith('.css')) return 'vite';
+          const name = path.relative(app, file).split(path.sep)[0];
+          if (
+            !within(app, file) ||
+            ['node_modules', 'backend', 'platform', 'dist'].includes(name) ||
+            name.startsWith('.') ||
+            file === path.join(app, 'package-lock.json')
+          )
+            return 'ignore';
+          if (file === path.resolve(app, value.config.appEntry)) return 'entry';
+          if (fastRefresh && /\.[jt]sx$/.test(file)) return 'vite';
+          return 'widget';
+        },
+        refresh() {
+          pendingAssets = assetInputs(readApp(app).config);
+          server.watcher.add([...pendingAssets]);
+          const next = inspectRunner(app);
+          if (!next.config.targets[target])
+            throw Error('Declare targets.' + target + ' in package.json');
+          const files = appFiles(next, true, target);
+          return () => {
+            value = next;
+            deployment = files;
+            assets = pendingAssets;
+            invalidate();
+          };
+        },
+      })
+    : undefined;
+  if (dev && target === 'tauri')
+    updates.backend({
+      state: 'pending',
+      sourceId: backend.identity.sourceId,
+      buildId: backend.developmentBuildId,
+    });
   function moduleSource() {
     const { config, version } = value;
     const frontend = JSON.stringify({
@@ -155,7 +198,9 @@ export function frontendSession(initial, target, backend, { dev = false } = {}) 
           expected +
           ', ' +
           !dev +
-          ', signal);',
+          ', signal, ' +
+          (JSON.stringify(backend.developmentBuildId) ?? 'undefined') +
+          ');',
       ].join('\n');
     const hash = createHash('sha256')
       .update(backend.files.get('runtime/backend/backend_bg.wasm'))
@@ -173,11 +218,9 @@ export function frontendSession(initial, target, backend, { dev = false } = {}) 
   const plugin = {
     name: 'nelyx:frontend',
     resolveId(id) {
-      if (id === devClient || id === backendId) return '\0' + id;
+      if (id === backendId) return '\0' + id;
     },
     load(id) {
-      if (id === '\0' + devClient)
-        return fs.readFileSync(new URL('./dev-client.mjs', import.meta.url), 'utf8');
       if (id === '\0' + backendId) return moduleSource();
     },
     configResolved(config) {
@@ -197,7 +240,10 @@ export function frontendSession(initial, target, backend, { dev = false } = {}) 
     },
     configureServer(instance) {
       server = instance;
-      server.watcher.add([packageFile, path.join(app, 'src'), ...assetInputs()]);
+      instance.watcher.add([packageFile, path.join(app, 'src'), ...assets, ...pendingAssets]);
+      const sdkWatchers = [];
+      const pendingSdkFiles = new Set();
+      let sdkReload;
       for (const [name, directory] of Object.entries(value.roots)) {
         if (!name.startsWith('@nelyx/')) continue;
         const dist = path.join(directory, 'dist');
@@ -207,21 +253,24 @@ export function frontendSession(initial, target, backend, { dev = false } = {}) 
           pendingSdkFiles.add(path.join(dist, file));
           clearTimeout(sdkReload);
           sdkReload = setTimeout(() => {
-            for (const changed of pendingSdkFiles)
-              server.moduleGraph.onFileChange(changed.replaceAll('\\', '/'));
+            for (const changed of pendingSdkFiles) invalidate(changed, instance);
             pendingSdkFiles.clear();
-            reload();
+            updates.reload('Installed Nelyx SDK changed');
           }, 80);
         });
-        watcher.on('error', (error) => server.config.logger.error(String(error)));
+        watcher.on('error', (error) => instance.config.logger.error(String(error)));
         sdkWatchers.push(watcher);
       }
-      server.middlewares.use((req, res, next) => {
+      instance.httpServer?.once('close', () => {
+        clearTimeout(sdkReload);
+        for (const watcher of sdkWatchers) watcher.close();
+      });
+      instance.middlewares.use((req, res, next) => {
         const request = new URL(req.url ?? '/', 'http://localhost');
         if (request.pathname === '/reload' && req.method === 'POST') {
           const origin = req.headers.origin;
           if (origin && new URL(origin).host !== req.headers.host) return res.writeHead(403).end();
-          reload();
+          updates.reload('Manual reload requested');
           return res.writeHead(204).end();
         }
         const name = request.pathname.slice(1);
@@ -231,7 +280,7 @@ export function frontendSession(initial, target, backend, { dev = false } = {}) 
         )
           return next();
         const bytes = deployment.files.get(name) ?? backend.files?.get(name);
-        if (refreshError || !bytes) return res.writeHead(refreshError ? 503 : 404).end();
+        if (!bytes) return res.writeHead(404).end();
         res
           .writeHead(200, {
             'Content-Type': mediaType(name),
@@ -241,41 +290,6 @@ export function frontendSession(initial, target, backend, { dev = false } = {}) 
           .end(req.method === 'HEAD' ? undefined : bytes);
       });
     },
-    closeBundle() {
-      clearTimeout(sdkReload);
-      for (const watcher of sdkWatchers) watcher.close();
-    },
-    hotUpdate: {
-      order: 'post',
-      handler({ file, server }) {
-        if (this.environment.name !== 'client') return;
-        if (/\.css(?:$|\?)/.test(file)) return;
-        const absolute = path.resolve(file);
-        if (assetInputs().has(absolute) || absolute === packageFile) {
-          try {
-            value = inspectRunner(app);
-            deployment = appFiles(value, true, target);
-            server.watcher.add([...assetInputs()]);
-            refreshError = undefined;
-            invalidate();
-          } catch (error) {
-            refreshError = error;
-            server.ws.send({ type: 'error', err: { message: error.message, stack: error.stack } });
-            return [];
-          }
-        }
-        if (
-          fastRefresh &&
-          /\.[jt]sx$/.test(file) &&
-          within(app, absolute) &&
-          !within(path.join(app, 'node_modules'), absolute) &&
-          absolute !== path.resolve(app, value.config.appEntry)
-        )
-          return;
-        reload();
-        return [];
-      },
-    },
   };
   return {
     get deployment() {
@@ -284,11 +298,23 @@ export function frontendSession(initial, target, backend, { dev = false } = {}) 
     updateBackend(next, notify = true) {
       backend = next;
       invalidate();
-      if (notify) reload();
+      if (target === 'tauri')
+        updates?.backend({
+          state: 'pending',
+          sourceId: next.identity.sourceId,
+          buildId: next.developmentBuildId,
+        });
+      if (notify) updates?.reload('Web Wasm backend updated');
     },
+    drain: updates?.drain,
+    report: updates?.report,
+    clearError: updates?.clearError,
+    developmentStatus: updates?.status,
+    backendStatus: updates?.backend,
     workerPlugins: () => [verifyModules(value, target)],
     plugins: [
       verifyModules(value, target),
+      ...(updates ? [updates.plugin] : []),
       plugin,
       {
         name: 'nelyx:html',
@@ -303,7 +329,7 @@ export function frontendSession(initial, target, backend, { dev = false } = {}) 
             const extra =
               (icon ? '<link rel="icon" type="image/png" href="' + icon.src + '">' : '') +
               (server
-                ? '<script type="module" src="/@id/' + devClient + '"></script>'
+                ? (updates?.html() ?? '')
                 : pwa()
                   ? '<link rel="manifest" href="./manifest.webmanifest">'
                   : '');

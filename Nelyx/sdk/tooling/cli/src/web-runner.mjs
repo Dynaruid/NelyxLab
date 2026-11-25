@@ -3,18 +3,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
 import { appFiles, inspectRunner, prepareRunnerFiles, readApp } from '@nelyx/vite/runner';
 import { buildFrontend, verifyFrontend } from '@nelyx/vite/release';
 import { crossOriginIsolationHeaders, frontendSession } from '@nelyx/vite/frontend-session';
 import { backendHash } from '@nelyx/tooling-contracts/backend-supply';
 import {
   backendContract,
+  backendBuildMessage,
   compileWasm,
   inspectBackend,
   inspectWasmTools,
   prepareWasm,
 } from './backend-project.mjs';
 import { backendWatcher } from './backend-watch.mjs';
+import { frontendInputs } from './frontend-inputs.mjs';
+import { buildStage, readBuildState, writeBuildState } from './build-cache.mjs';
 import { isAppNavigation, mediaType } from '@nelyx/vite/content';
 import { localFile } from '@nelyx/tooling-contracts/node-files';
 import {
@@ -96,11 +100,35 @@ export function prepareWeb({ app, updateLock }, signal) {
 
 export async function publishFrontend(value, target, project, destination, verifyInputs, signal) {
   signal.throwIfAborted();
+  const started = performance.now();
+  const contract = backendContract(project);
+  const stateFile = path.join(value.app, '.nelyx', 'frontend-' + target + '-inputs.json');
+  const previous = readBuildState(stateFile);
+  const inputs = frontendInputs(value, target, project, contract);
+  const summary = ({ files: _inventory, ...rest }) => ({ ...rest, directory: destination });
+  let reason = inputs ? 'frontend inputs changed' : 'Vite inputs cannot be tracked';
+  if (previous?.key && inputs?.key(previous.dependencies) === previous.key) {
+    try {
+      const release = verifyFrontend(destination, inspectRunner(value.app), target, contract);
+      if (release.buildId !== previous.buildId) throw Error('Unexpected release build ID');
+      buildStage('vite', started, {
+        target,
+        calls: 0,
+        buildId: release.buildId,
+        reason: 'verified release reused',
+      });
+      return summary(release);
+    } catch {
+      reason = 'frontend output is missing or changed';
+    }
+  }
   const parent = ensureDirectory(path.dirname(destination));
   const stage = fs.mkdtempSync(path.join(parent, '.frontend-'));
   try {
-    const contract = backendContract(project);
-    const release = await buildFrontend(value.app, stage, target, project, contract);
+    let dependencies;
+    const release = await buildFrontend(value.app, stage, target, project, contract, (entries) => {
+      dependencies = inputs?.ownedDependencies(entries);
+    });
     signal.throwIfAborted();
     const current = readApp(value.app);
     if (
@@ -108,9 +136,24 @@ export async function publishFrontend(value, target, project, destination, verif
       backendHash(backendContract(verifyInputs(current))) !== backendHash(contract)
     )
       throw new Error('App inputs changed during the frontend build');
+    if (
+      inputs &&
+      frontendInputs(current, target, project, contract, inputs.environment)?.primary !==
+        inputs.primary
+    )
+      throw new Error('Vite input files or environment changed during the frontend build');
     publishDirectory(stage, destination);
-    const { files: _inventory, ...summary } = release;
-    return { ...summary, directory: destination };
+    const key = inputs?.key(dependencies);
+    if (key) writeBuildState(stateFile, { key, dependencies, buildId: release.buildId });
+    else if (fs.existsSync(stateFile)) fs.unlinkSync(stateFile);
+    buildStage('vite', started, {
+      target,
+      calls: 1,
+      buildId: release.buildId,
+      previousBuildId: previous?.buildId,
+      reason: inputs && !dependencies ? 'Vite used inputs outside the app' : reason,
+    });
+    return summary(release);
   } finally {
     removeDirectory(stage, parent);
   }
@@ -149,7 +192,11 @@ export async function openVite(
 ) {
   const value = inspectRunner(app);
   const { runner } = value;
-  const frontend = frontendSession(value, target, backend, { dev: true });
+  const serverClosed = new AbortController();
+  const frontend = frontendSession(value, target, backend, {
+    dev: true,
+    onClosed: () => serverClosed.abort(),
+  });
   const { createServer } = await value.vite();
   const event = {
     event: 'nelyx.dev.ready',
@@ -194,11 +241,12 @@ export async function openVite(
           };
         },
         configureServer(server) {
+          server.httpServer?.once('error', (error) => serverClosed.abort(error));
           server.middlewares.use((req, res, next) => {
             if (req.method !== 'GET' || req.url !== '/__nelyx/status') return next();
             res
               .writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-              .end(JSON.stringify(event));
+              .end(JSON.stringify({ ...event, hmr: frontend.developmentStatus() }));
           });
         },
       },
@@ -218,30 +266,17 @@ export async function openVite(
       ).href;
     event.url = url(advertisedHost ?? host);
     process.stderr.write(JSON.stringify(event) + '\n');
-    return { server, event, frontend, healthUrl: url(host === '0.0.0.0' ? '127.0.0.1' : host) };
+    return {
+      server,
+      event,
+      frontend,
+      closed: serverClosed.signal,
+      healthUrl: url(host === '0.0.0.0' ? '127.0.0.1' : host),
+    };
   } catch (error) {
     await server.close();
     throw error;
   }
-}
-
-function waitForServer(server, signal) {
-  return new Promise((resolve, reject) => {
-    const close = () => finish();
-    const error = (error) => finish(error);
-    const abort = () => finish(signal.reason);
-    function finish(failure) {
-      signal.removeEventListener('abort', abort);
-      server.off('error', error);
-      server.off('close', close);
-      if (failure) reject(failure);
-      else resolve();
-    }
-    signal.addEventListener('abort', abort, { once: true });
-    server.once('error', error);
-    server.once('close', close);
-    if (signal.aborted) abort();
-  });
 }
 
 export async function devWeb(options, signal) {
@@ -250,36 +285,54 @@ export async function devWeb(options, signal) {
     const value = readApp(app);
     return compileWasm(value, inspectBackend(value, 'web'), signal);
   });
-  const { server, event, frontend } = await openVite({ ...options, app, backend: project }, signal);
+  const { server, event, frontend, closed } = await openVite(
+    { ...options, app, backend: project },
+    signal,
+  );
   const controller = new AbortController();
-  const lifetime = AbortSignal.any([signal, controller.signal]);
-  let pending = Promise.resolve();
+  const lifetime = AbortSignal.any([signal, closed, controller.signal]);
+  let pending;
+  let requested = 0;
   const report = (error) => {
     if (lifetime.aborted) return;
-    server.config.logger.error(error.message);
-    server.ws.send({ type: 'error', err: { message: error.message, stack: error.stack } });
+    frontend.report(new Error(backendBuildMessage(error, 'web')));
   };
-  const watcher = backendWatcher(() => {
-    pending = pending
-      .then(async () => {
+  async function rebuild() {
+    let revision;
+    do {
+      revision = requested;
+      try {
         lifetime.throwIfAborted();
         const update = await withPublicationLock(app, async () => {
           const value = readApp(app);
           const next = inspectBackend(value, 'web');
+          watcher.update(next.watch);
           if (backendHash(backendContract(next)) === backendHash(backendContract(project))) return;
           return compileWasm(value, next, lifetime);
         });
-        if (!update) return;
         lifetime.throwIfAborted();
-        project = update;
-        watcher.update(project.watch);
-        frontend.updateBackend(project);
-      })
-      .catch(report);
+        if (revision !== requested) continue;
+        if (update) {
+          project = update;
+          frontend.updateBackend(project);
+        } else frontend.clearError();
+      } catch (error) {
+        if (revision === requested) report(error);
+      }
+    } while (!lifetime.aborted && revision !== requested);
+  }
+  const watcher = backendWatcher(() => {
+    requested++;
+    pending ??= rebuild().finally(() => {
+      pending = undefined;
+    });
   }, report);
   try {
     watcher.update(project.watch);
-    await waitForServer(server.httpServer, signal);
+    if (!lifetime.aborted) await once(lifetime, 'abort');
+    signal.throwIfAborted();
+    if (closed.reason instanceof Error && closed.reason.name !== 'AbortError')
+      closed.throwIfAborted();
     return { ...event, exitCode: 0 };
   } finally {
     watcher.close();
@@ -294,9 +347,8 @@ export async function runWeb(
   signal,
 ) {
   const value = readApp(app);
-  const headers = (crossOriginIsolated ?? value.config.crossOriginIsolated)
-    ? crossOriginIsolationHeaders
-    : {};
+  const headers =
+    (crossOriginIsolated ?? value.config.crossOriginIsolated) ? crossOriginIsolationHeaders : {};
   directory = path.resolve(directory ?? webDirectory(value.app));
   let release = verifyFrontend(directory, value, 'web');
   let names = new Set(release.files.map(({ path }) => path));

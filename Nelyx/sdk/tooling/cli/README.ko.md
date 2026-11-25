@@ -22,6 +22,14 @@ npx.cmd --no-install nelyx dev --app . --target web
 
 SDK를 갱신할 때는 앱 루트에서 `nelyx supply --app . --packages C:/dev/nelyx-packages`와 `npm.cmd install --workspaces=false`를 순서대로 실행합니다. 앱의 npm 잠금 파일과 `prepare`가 만드는 `backend/locks/<target>/Cargo.lock`을 버전 관리합니다. Cargo 의존성을 변경하면 영향을 받는 타깃마다 `prepare --update-lock`을 실행합니다. 빌드는 타깃의 잠금 파일을 복원해 Cargo에 `--locked`를 전달합니다.
 
+## 앱 개발
+
+웹과 Tauri 개발 모드에서 지원되는 TypeScript 위젯의 `build()` 본문을 바꾸면 열린 화면이 기존 `State`와 컨트롤러를 사용해 다시 빌드됩니다. CSS는 Vite HMR로 갱신합니다. 엔트리, 필드, 생성자, 앱 자산 또는 지원 범위를 벗어난 메서드 문법이 바뀌면 앱의 리소스를 정리한 뒤 문서를 재시작합니다. 문법이나 자산 검증에 실패하면 오류 오버레이를 표시하고 마지막 정상 화면을 유지합니다.
+
+Rust 변경은 웹에서 검증된 Wasm을 게시하고, Tauri에서 호스트를 다시 빌드해 WebView의 백엔드 응답을 확인합니다. 빌드 오류가 발생하면 같은 개발 세션에서 코드를 고쳐 다시 저장합니다. `nelyx.dev.connected`는 실제 HMR 소켓을 기록합니다. `/__nelyx/status`에서 소켓 연결과 백엔드 준비 상태를 확인할 수 있습니다.
+
+`[nelyx:build]` 출력에서 단계별 시간과 재사용 사유를 확인할 수 있습니다. 기본 Vite 설정은 입력이 같으면 검증한 릴리스를 재사용합니다. 사용자 플러그인이 있는 설정은 Vite를 실행합니다.
+
 ## 웹 배포
 
 ```powershell
@@ -75,5 +83,7 @@ npx.cmd --no-install nelyx run --app . --target tauri --platform windows
 앱 아이콘은 `platform/icons/`에 둡니다. Android와 Apple의 사용자 파일은 생성 프로젝트 기준 상대 경로로 각각 `platform/android/project/`와 `platform/ios/project/`에 둡니다. 선택적인 `platform/<os>/tauri.conf.json`은 번들 설정과 CSP를 받습니다. 서명 키는 플랫폼 도구나 빌드 환경에서 제공합니다.
 
 Android와 iOS에서 `run --no-launch`는 게시한 앱을 설치한 뒤 종료합니다.
+
+Android 기기에서 반복 테스트할 때는 빌드와 실행에 모두 `--apk-only`를 붙입니다. CLI가 `.nelyx/tauri/android-<아키텍처>-debug/`에 Debug APK를 게시하고 파일과 서명을 확인해 설치합니다. 일반 Android 빌드와 `pack`은 APK와 AAB를 함께 게시합니다.
 
 Android x86_64 에뮬레이터는 `--architecture x64`, ARM64 기기는 `arm64`를 사용합니다. `dev`와 `run`의 `--device`에는 ADB 시리얼을 입력합니다. Android dev의 기기 이름은 연결 목록에서 고유해야 합니다. iOS 시뮬레이터는 `arm64-sim` 또는 `x64-sim`을 사용합니다. iOS 실기기 dev는 기기 이름과 신뢰된 HTTPS로 접근할 수 있는 `--host`가 필요합니다. 실기기 run은 기기 식별자를 받습니다. [Tauri 플랫폼 준비](https://v2.tauri.app/start/prerequisites/)

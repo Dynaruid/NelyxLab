@@ -3,6 +3,7 @@ import { createElement, StrictMode } from 'react';
 import {
   closeAllWebApplications,
   prepareWebGraphics,
+  queueWebWidgetRebuild,
   registerApplication,
 } from '@nelyx/sdk/frontend/dom/application';
 import { bindFrontendBackend } from '@nelyx/sdk/frontend/dom/environment';
@@ -44,7 +45,11 @@ function start(loadComponent, prepareGraphics) {
       unbind?.();
     }
   };
-  if (import.meta.hot) (window[key] ??= {}).close = close;
+  if (import.meta.hot) {
+    const development = (window[key] ??= {});
+    development.close = close;
+    development.rebuild = queueWebWidgetRebuild;
+  }
   async function mount() {
     const container = document.getElementById('app');
     if (!container) throw new Error('Nelyx requires an #app element');
@@ -70,8 +75,16 @@ function start(loadComponent, prepareGraphics) {
         : undefined,
     ]);
     signal.throwIfAborted();
-    if (window[key]?.reloading) return;
+    if (import.meta.hot && window[key]?.reloading) return;
     const { target, os, backend: description } = backend.host;
+    if (import.meta.hot && target === 'tauri') {
+      const development = window[key];
+      development.description = {
+        sourceId: description.sourceId,
+        buildId: description.frontendBuildId,
+      };
+      development.backendReady?.(development.description);
+    }
     document.title = frontend.displayName;
     await backend.setTitle?.(
       (description?.title ?? frontend.displayName) +

@@ -22,7 +22,7 @@ function killWindowsTree(child) {
 export function execute(
   command,
   args,
-  { cwd, timeout = 1_200_000, env, signal: abortSignal } = {},
+  { cwd, timeout = 1_200_000, env, signal: abortSignal, onStdoutLine } = {},
 ) {
   abortSignal?.throwIfAborted();
   return new Promise((resolve, reject) => {
@@ -33,7 +33,9 @@ export function execute(
       stdio: toolStdio,
       windowsHide: true,
     });
-    child.stdout.pipe(process.stderr, { end: false });
+    if (onStdoutLine)
+      createInterface({ input: child.stdout, crlfDelay: Infinity }).on('line', onStdoutLine);
+    else child.stdout.pipe(process.stderr, { end: false });
     child.stderr.pipe(process.stderr, { end: false });
     let expired = false,
       interrupted = false,
@@ -104,7 +106,15 @@ export function execute(
 export function startOwnedCommand(
   command,
   args,
-  { cwd, env, onStderrLine, signal: abortSignal, isolateWindows = false, windowsHide = true } = {},
+  {
+    cwd,
+    env,
+    onStderrLine,
+    onStdoutLine,
+    signal: abortSignal,
+    isolateWindows = false,
+    windowsHide = true,
+  } = {},
 ) {
   abortSignal?.throwIfAborted();
   const child = spawn(command, args, {
@@ -118,6 +128,8 @@ export function startOwnedCommand(
   child.stderr.pipe(process.stderr, { end: false });
   if (onStderrLine)
     createInterface({ input: child.stderr, crlfDelay: Infinity }).on('line', onStderrLine);
+  if (onStdoutLine)
+    createInterface({ input: child.stdout, crlfDelay: Infinity }).on('line', onStdoutLine);
   let ended = false,
     stopping,
     spawnError;

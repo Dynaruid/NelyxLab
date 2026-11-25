@@ -23,9 +23,12 @@ The app root owns the development commands. Run the one for the target you want 
 ```powershell
 Set-Location sample/nelyx-demo-app
 npm.cmd run dev:web
+npm.cmd run dev:tauri -- --platform windows
 npm.cmd run run:web -- --base /demo/
 npm.cmd run run:tauri -- --platform windows
 ```
+
+Compatible `build()` edits in app-owned TypeScript widgets reload in the current Web or Tauri view. The CLI reports the reason for a document or host restart and records which build stages ran or reused verified output. [Nelyx CLI development guide](Nelyx/sdk/tooling/cli/README.md#develop-the-app)
 
 ### Sample deployment helper
 

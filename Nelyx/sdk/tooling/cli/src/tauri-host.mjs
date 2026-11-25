@@ -11,6 +11,7 @@ import { readJson } from '@nelyx/vite/runner';
 import { crossOriginIsolationHeaders } from '@nelyx/vite/frontend-session';
 import { cargoDependency, cratePath, inspectBackend, sourceFile } from './backend-project.mjs';
 import { ensureDirectory, ownedDirectory } from './publication.mjs';
+import { writeBuildState } from './build-cache.mjs';
 import { platforms } from './tauri-platforms.mjs';
 import {
   androidManifest,
@@ -113,9 +114,10 @@ function cargoManifest({ app, version, name }, directory, project, features, plu
   const packageName = 'nelyx-' + name.replace(/^@/, '').replace(/[^a-zA-Z0-9_-]+/g, '-') + '-host';
   // IPA distribution compresses the bundle. Serve its installed assets directly to WKWebView.
   const runtimeVersion = JSON.stringify('=' + tauriDependencies.runtime);
-  const runtime = platform === 'ios'
-    ? `{ version = ${runtimeVersion}, default-features = false, features = ["wry", "dynamic-acl"] }`
-    : runtimeVersion;
+  const runtime =
+    platform === 'ios'
+      ? `{ version = ${runtimeVersion}, default-features = false, features = ["wry", "dynamic-acl"] }`
+      : runtimeVersion;
   return `[package]
 name = ${JSON.stringify(packageName)}
 version = ${JSON.stringify(version)}
@@ -136,10 +138,14 @@ tauri = ${runtime}
 ${scopedJson ? 'serde_json = "1"\n' : ''}nelyx-backend-core = ${cargoDependency(directory, cratePath(app, 'backend-rust'))}
 tauri-plugin-nelyx-backend = ${cargoDependency(directory, cratePath(app, 'backend-tauri'), undefined, storeEnabled ? ['device-store'] : [])}
 ${appCrate ? 'app_backend = ' + cargoDependency(directory, appCrate.directory, appCrate.name) + '\n' : ''}${clipboard ? 'tauri-plugin-clipboard-manager = "=' + tauriDependencies.clipboard + '"\n' : ''}${cargoPlugins(plugins)}
-${platform === 'ios' ? `[target.'cfg(not(target_os = "ios"))'.dependencies]
+${
+  platform === 'ios'
+    ? `[target.'cfg(not(target_os = "ios"))'.dependencies]
 tauri = ${runtimeVersion}
 
-` : ''}[features]
+`
+    : ''
+}[features]
 custom-protocol = ["tauri/custom-protocol"]
 `;
 }
@@ -157,8 +163,16 @@ function nativeSource(project, features, frontendBuildId, plugins) {
   const windows = features
     .map(
       ({
-        window, clipboard, haptics, androidBack, systemChrome, scrollEdgeEffects,
-        deviceServices, safeArea, windowTitle, commands,
+        window,
+        clipboard,
+        haptics,
+        androidBack,
+        systemChrome,
+        scrollEdgeEffects,
+        deviceServices,
+        safeArea,
+        windowTitle,
+        commands,
       }) => `
     WindowFeatures {
         label: ${JSON.stringify(window.label)},
@@ -167,9 +181,12 @@ function nativeSource(project, features, frontendBuildId, plugins) {
         android_back: ${optional(androidBack)},
         system_chrome: ${systemChrome},
         scroll_edge_effects: ScrollEdgeEffects {
-            ${['top', 'right', 'bottom', 'left'].map((edge) =>
-              edge + ': ScrollEdgeEffect::' + edgeEffect[scrollEdgeEffects[edge] ?? 'hidden'],
-            ).join(',\n            ')},
+            ${['top', 'right', 'bottom', 'left']
+              .map(
+                (edge) =>
+                  edge + ': ScrollEdgeEffect::' + edgeEffect[scrollEdgeEffects[edge] ?? 'hidden'],
+              )
+              .join(',\n            ')},
         },
         device_services: &${JSON.stringify(deviceServices)},
         safe_area: ${safeArea},
@@ -298,15 +315,15 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
     if (!capabilities.includes(entry.replace(/\.json$/, '')))
       fs.unlinkSync(localFile(directory, 'capabilities/' + entry));
   }
-  const deviceLinks = deviceServices.has('deepLinks') ? deepLinkPluginConfig(tauri.deepLinks) : undefined;
+  const deviceLinks = deviceServices.has('deepLinks')
+    ? deepLinkPluginConfig(tauri.deepLinks)
+    : undefined;
   const native = {
     ...base,
     productName: tauri.productName ?? (display.replace(/[<>:"/\\|?*]/g, ' ').trim() || config.name),
     identifier: tauri.identifier,
     version,
-    ...(deviceLinks
-      ? { plugins: { ...base.plugins, 'deep-link': deviceLinks } }
-      : {}),
+    ...(deviceLinks ? { plugins: { ...base.plugins, 'deep-link': deviceLinks } } : {}),
     app: {
       ...base.app,
       windows: features.map(({ window }) => window),
@@ -328,7 +345,11 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
   iconFiles(app, directory, native);
   for (const file of ['build.rs', 'src/main.rs', 'run-tauri.mjs'])
     sourceFile(directory, file, fs.readFileSync(localFile(template, file)));
-  sourceFile(directory, 'Cargo.toml', cargoManifest(value, directory, project, features, plugins, platform));
+  sourceFile(
+    directory,
+    'Cargo.toml',
+    cargoManifest(value, directory, project, features, plugins, platform),
+  );
   sourceFile(directory, 'src/lib.rs', nativeSource(project, features, frontendBuildId, plugins));
   writeDeviceIosInfo(directory, deviceServices, tauri.deviceUsage, platform);
   return {
@@ -336,26 +357,52 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
     deviceServices,
     androidLinks: deviceLinks?.mobile,
     identifier: native.identifier,
+    productName: native.productName,
     build: native.build,
     security: { ...native.app.security, ...custom?.app?.security },
   };
 }
 
 /** Apply app-owned inputs after Tauri initializes the project. */
-export function applyMobileInputs(app, host, platform) {
+export function applyMobileInputs(app, host, platform, marker, desired, previous = {}) {
   const project = mobileDirectory(host, platform);
   const source = path.join(app, 'platform', platform, 'project');
+  const overlays = new Map();
   let androidOverlay;
   if (fs.existsSync(source)) {
     ownedDirectory(source);
     for (const file of rustInputFiles(source)) {
       const name = relativeFile(path.relative(source, file).replaceAll('\\', '/'));
-      if (platform === 'android' && name === androidManifest) androidOverlay = fs.readFileSync(file, 'utf8');
-      else sourceFile(project, name, fs.readFileSync(file));
+      overlays.set(name, fs.readFileSync(file));
     }
+  }
+  const originals = new Map(Object.entries(previous.originals ?? {}));
+  for (const name of overlays.keys()) {
+    if (originals.has(name)) continue;
+    const generated = path.join(project, name);
+    originals.set(
+      name,
+      fs.existsSync(generated)
+        ? fs.readFileSync(localFile(project, name)).toString('base64')
+        : null,
+    );
+  }
+  // Record the original contents before touching the generated files. A later
+  // invocation can finish any application or deletion that was interrupted.
+  writeBuildState(marker, { ...desired, originals: Object.fromEntries(originals) });
+  for (const [name, original] of originals) {
+    relativeFile(name);
+    const bytes = overlays.get(name);
+    if (platform === 'android' && name === androidManifest && bytes)
+      androidOverlay = bytes.toString('utf8');
+    else if (bytes) sourceFile(project, name, bytes);
+    else if (original !== null) sourceFile(project, name, Buffer.from(original, 'base64'));
+    else if (fs.existsSync(path.join(project, name))) fs.unlinkSync(localFile(project, name));
+    if (!bytes) originals.delete(name);
   }
   if (platform === 'android') writeDeviceAndroidLinks(project, host.androidLinks, androidOverlay);
   if (platform === 'ios') writeDeviceIosEntitlements(project, host.deviceServices.has('nfc'));
+  writeBuildState(marker, { ...desired, originals: Object.fromEntries(originals) });
 }
 
 export function mobileInputsId(app, platform) {

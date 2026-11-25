@@ -141,6 +141,8 @@ export interface ViewControllerContext extends ViewServices {
 }
 export interface ViewController {
   build(context: SceneContext): SceneFrameSource;
+  /** Request a rebuild after development code changes without replacing the controller. */
+  queueWidgetRebuild?(revision: number): void;
   setVisible?(visible: boolean): void;
   handleStatusBarTap?(): void;
   /** Owner gate, for example first-frame deferral. Native admission alone
@@ -1268,6 +1270,7 @@ export class ViewRuntime implements Disposable {
 export class AppSession implements Disposable {
   readonly resources = new ResourceRegistry();
   private views = new Set<ViewRuntime>();
+  private widgetRevision = 0;
   private state: 'open' | 'closing' | 'closed' = 'open';
   private closePromise: Promise<void> | undefined;
   constructor(
@@ -1287,7 +1290,15 @@ export class AppSession implements Disposable {
     );
     const view = new ViewRuntime(this, options);
     this.views.add(view);
+    if (this.widgetRevision) view.controller?.queueWidgetRebuild?.(this.widgetRevision);
     return view;
+  }
+  /** Internal entry for the DOM development session. */
+  queueWidgetRebuild(revision: number): void {
+    if (this.state !== 'open' || revision <= this.widgetRevision) return;
+    this.widgetRevision = revision;
+    for (const view of this.views)
+      if (view.status === 'open') view.controller?.queueWidgetRebuild?.(revision);
   }
   detach(view: ViewRuntime): void {
     this.views.delete(view);

@@ -22,6 +22,14 @@ npx.cmd --no-install nelyx dev --app . --target web
 
 Use `nelyx supply --app . --packages C:/dev/nelyx-packages` followed by `npm.cmd install --workspaces=false` to update the SDK. Commit the app's npm lock and the `backend/locks/<target>/Cargo.lock` files produced by `prepare`. When Cargo dependencies change, run `prepare --update-lock` for each affected target. The build restores the selected lock and invokes Cargo with `--locked`.
 
+## Develop the app
+
+In Web and Tauri development, changes inside a supported TypeScript widget's `build()` method reuse the mounted `State`, controllers and view. CSS uses Vite HMR. Changes to an entry, class fields, constructors, app assets or unsupported method syntax trigger a document restart after the app releases its resources. The error overlay shows failed changes and the last working screen remains available for syntax or asset errors.
+
+Rust changes publish verified Wasm in Web development. Tauri rebuilds the host and verifies its backend description in the WebView. After a Rust build error, edit and save again in the same development session. `nelyx.dev.connected` reports the actual HMR socket, and `/__nelyx/status` reports its connection and backend readiness.
+
+Build output lines prefixed with `[nelyx:build]` report timings and reuse decisions. The standard Vite configuration can reuse a verified release for the same inputs. Configurations with custom plugins run Vite.
+
 ## Publish Web
 
 ```powershell
@@ -75,5 +83,7 @@ Use `deviceServices` on each `targets.tauri.windows[]` entry to enable services,
 Place custom icons in `platform/icons/`. Place Android and Apple overrides relative to the generated project in `platform/android/project/` and `platform/ios/project/`. Optional `platform/<os>/tauri.conf.json` files accept bundle settings and CSP. Keep signing keys in the platform toolchain or build environment.
 
 For Android and iOS, `run --no-launch` installs the published app and exits.
+
+For Android device iteration, add `--apk-only` to both the build and run commands. The CLI publishes and verifies the Debug APK under `.nelyx/tauri/android-<architecture>-debug/`. The regular Android build and pack commands publish the APK and AAB together.
 
 Use `--architecture x64` for an Android x86_64 emulator and `arm64` for a physical ARM64 device. For `dev` and `run`, pass the ADB serial in `--device`. Android dev also uses the unique AVD or phone name to select a device. For iOS use `arm64-sim` or `x64-sim` on a simulator. Physical iOS dev requires a reachable `--host` over trusted HTTPS and the device name. Physical run takes the device identifier. [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)

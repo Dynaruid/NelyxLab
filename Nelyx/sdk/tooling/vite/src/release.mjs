@@ -118,6 +118,7 @@ function writeLicenses(directory, value, modules) {
     value.roots['@nelyx/sdk'],
     value.roots['@nelyx/skia-web'],
   ]);
+  const inputs = [];
   for (const id of modules) {
     const file = id.split('?')[0].replaceAll('\\', '/');
     const split = file.lastIndexOf('/node_modules/');
@@ -128,7 +129,9 @@ function writeLicenses(directory, value, modules) {
     if (fs.existsSync(path.join(root, 'package.json'))) roots.add(root);
   }
   for (const root of roots) {
-    const { name, version } = readJson(path.join(root, 'package.json'));
+    const manifest = path.join(root, 'package.json');
+    inputs.push(manifest);
+    const { name, version } = readJson(manifest);
     const prefix = 'licenses/' + name.replace(/^@/, '').replace('/', '-') + '-' + version + '/';
     const top = fs
       .readdirSync(root, { withFileTypes: true })
@@ -137,6 +140,7 @@ function writeLicenses(directory, value, modules) {
       );
     if (!top.length) throw new Error('Missing license for bundled package ' + name);
     for (const { name: file } of top) {
+      inputs.push(path.join(root, file));
       const destination = prefix + file;
       if (fs.existsSync(path.join(directory, destination))) continue;
       writeAsset(directory, destination, fs.readFileSync(localFile(root, file)));
@@ -144,16 +148,18 @@ function writeLicenses(directory, value, modules) {
     const notices = path.join(root, 'licenses');
     if (fs.existsSync(notices)) {
       for (const file of fileTree(notices)) {
+        inputs.push(path.join(notices, file));
         const destination = prefix + file;
         if (fs.existsSync(path.join(directory, destination))) continue;
         writeAsset(directory, destination, fs.readFileSync(localFile(notices, file)));
       }
     }
   }
+  return inputs;
 }
 
 /** Build into a disposable directory. The CLI owns the publication lock and promotion. */
-export async function buildFrontend(app, output, target, project, backend) {
+export async function buildFrontend(app, output, target, project, backend, observeInputs) {
   const value = inspectRunner(app);
   const { config, version, runner, name } = value;
   const pwa = target === 'web' ? config.targets.web?.pwa : undefined;
@@ -161,6 +167,7 @@ export async function buildFrontend(app, output, target, project, backend) {
   const { files, icons } = session.deployment;
   const { build } = await value.vite();
   const modules = new Set();
+  const inputs = new Set();
   const sdkBrowser = path
     .join(value.roots['@nelyx/sdk'], 'dist', 'backends', 'browser')
     .replaceAll('\\', '/');
@@ -168,10 +175,14 @@ export async function buildFrontend(app, output, target, project, backend) {
     id?.split('?')[0].replaceAll('\\', '/') === sdkBrowser + '/' + name;
   const collectLicenses = () => ({
     name: 'nelyx:release-licenses',
+    moduleParsed({ id }) {
+      inputs.add(id);
+    },
     generateBundle(_options, bundle) {
-      for (const item of Object.values(bundle)) {
+      for (const item of Object.values(bundle))
         if (item.type === 'chunk') for (const id of Object.keys(item.modules)) modules.add(id);
-      }
+        else
+          for (const file of item.originalFileNames ?? []) inputs.add(path.resolve(runner, file));
     },
   });
   await build({
@@ -211,7 +222,8 @@ export async function buildFrontend(app, output, target, project, backend) {
     throw new Error('Nelyx render worker does not match the application module graph');
   for (const source of [files, project.files ?? []])
     for (const [name, bytes] of source) writeAsset(output, name, bytes);
-  writeLicenses(output, value, modules);
+  const licenses = writeLicenses(output, value, modules);
+  observeInputs?.([...inputs, ...modules, ...licenses]);
   if (pwa) {
     writeJson(path.join(output, 'manifest.webmanifest'), {
       id: pwa.id,

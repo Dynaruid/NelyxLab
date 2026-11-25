@@ -31,6 +31,7 @@ export async function openTauriBackend(
   expected: BackendIdentity,
   release: boolean,
   signal: AbortSignal,
+  developmentBuildId?: string,
 ): Promise<BackendConnection> {
   const view = window as TauriWindow;
   if (typeof view.__TAURI_INTERNALS__?.invoke !== 'function')
@@ -49,6 +50,8 @@ export async function openTauriBackend(
   }
   const backend = await request(commands.describe);
   validateBackend(expected, backend);
+  if (developmentBuildId && backend.frontendBuildId !== developmentBuildId)
+    throw new Error('Waiting for the Tauri development host ' + developmentBuildId);
   if (release) {
     const response = await fetch(new URL('build.json', root), { signal, redirect: 'error' });
     if (!response.ok) throw new Error('Tauri frontend build.json HTTP ' + response.status);

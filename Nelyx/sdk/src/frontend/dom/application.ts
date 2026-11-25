@@ -43,9 +43,17 @@ const roots = new WeakMap<HTMLElement, WebRoot>(),
   registrations = new Set<WebRoot>();
 interface WebOpening {
   readonly opening: Promise<WebApplication>;
+  application?: WebApplication;
   retained?: unknown;
 }
 const applications = new Set<WebOpening>();
+let widgetRevision = 0;
+/** Request a normal framework frame on every live or opening DOM surface. */
+export function queueWebWidgetRebuild(revision: number): void {
+  if (runtimeClosing || revision <= widgetRevision) return;
+  widgetRevision = revision;
+  for (const { application } of applications) application?.session.queueWidgetRebuild(revision);
+}
 export interface WebApplicationDiagnostics {
   readonly owner: ViewOwner;
   readonly rendering: WebRenderDiagnostics;
@@ -258,6 +266,8 @@ export function openApplication(
         dispose: () => lifetime.dispose(),
         retryDispose: () => lifetime.retryDispose(),
       });
+      job.application = application;
+      if (widgetRevision && !runtimeClosing) application.session.queueWidgetRebuild(widgetRevision);
       resolve(application);
     },
     (error) => {

@@ -17,7 +17,7 @@
     "Nelyx/backend/packages/tauri"
   ],
   "scripts": {
-    "build:sdk": "npm run build:core && npm run build:designs && npm run build:skia && npm run build --workspace @nelyx/sdk && node Nelyx/eng/generate-providers.mjs && npm run build:backend",
+    "build:sdk": "node Nelyx/eng/build-sdk.mjs",
     "build:backend": "node Nelyx/backend/eng/build-supply.mjs",
     "generate:backend-bindings": "npm run build --workspace @nelyx/tooling-contracts && node Nelyx/backend/eng/specta-bindings.mjs --write && node Nelyx/backend/eng/build-supply.mjs --write-wasm-bindings",
     "check:backend-bindings": "node Nelyx/backend/eng/specta-bindings.mjs",

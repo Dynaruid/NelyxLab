@@ -14,45 +14,96 @@ const generated = new Set([
 
 export function backendWatcher(change, failed) {
   const watchers = new Map();
+  let inputs = [];
   let timer;
   let closed = false;
-  function onChange(event, name) {
-    if (closed || (name && name.split(/[\\/]/).some((part) => generated.has(part)))) return;
+  function onChange() {
+    if (closed) return;
     clearTimeout(timer);
-    timer = setTimeout(change, 120);
+    timer = setTimeout(() => {
+      try {
+        update(inputs);
+        change();
+      } catch (error) {
+        failed(error);
+      }
+    }, 120);
+  }
+  const stat = (file) => fs.statSync(file, { throwIfNoEntry: false, bigint: true });
+  function update(next) {
+    if (closed) return;
+    inputs = next;
+    const wanted = new Map();
+    function add(file, directory, recursive, child) {
+      const key = file + (recursive ? '/**' : '');
+      const plan = wanted.get(key) ?? {
+        file,
+        recursive,
+        identity: directory.dev + ':' + directory.ino,
+        names: new Set(),
+      };
+      if (child) plan.names.add(child);
+      wanted.set(key, plan);
+    }
+    for (const input of inputs) {
+      const file = path.resolve(input);
+      const directory = stat(file);
+      if (directory?.isDirectory()) add(file, directory, true);
+      // Keep a parent subscription as well: a file or directory watcher can
+      // stay attached to the old inode after an editor's atomic replacement.
+      let anchor = file;
+      while (path.dirname(anchor) !== anchor) {
+        const parent = path.dirname(anchor);
+        const info = stat(parent);
+        if (info?.isDirectory()) {
+          add(parent, info, false, path.basename(anchor));
+          break;
+        }
+        anchor = parent;
+      }
+    }
+    for (const [key, record] of watchers) {
+      const plan = wanted.get(key);
+      if (plan?.identity === record.plan.identity) {
+        record.plan = plan;
+        wanted.delete(key);
+      } else {
+        record.watcher.close();
+        watchers.delete(key);
+      }
+    }
+    for (const [key, plan] of wanted) {
+      const record = { plan };
+      try {
+        record.watcher = fs.watch(plan.file, { recursive: plan.recursive }, (_event, name) => {
+          if (
+            !name ||
+            (plan.recursive
+              ? !name.split(/[\\/]/).some((part) => generated.has(part))
+              : record.plan.names.has(name))
+          )
+            onChange();
+        });
+        record.watcher.on('error', (error) => {
+          if (!closed && !['ENOENT', 'EPERM'].includes(error.code)) failed(error);
+          onChange();
+        });
+        record.watcher.on('close', () => {
+          if (watchers.get(key) === record) watchers.delete(key);
+        });
+        watchers.set(key, record);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        onChange();
+      }
+    }
   }
   return {
-    update(inputs) {
-      if (closed) return;
-      const wanted = new Set(inputs.filter((file) => fs.existsSync(file)));
-      for (const [file, watcher] of watchers) {
-        if (!wanted.has(file)) {
-          watcher.close();
-          watchers.delete(file);
-        }
-      }
-      for (const file of wanted) {
-        if (watchers.has(file)) continue;
-        try {
-          const watcher = fs.watch(
-            file,
-            { recursive: fs.statSync(file).isDirectory() },
-            (event, name) => onChange(event, name && path.normalize(name)),
-          );
-          watcher.on('error', failed);
-          watcher.on('close', () => {
-            if (watchers.get(file) === watcher) watchers.delete(file);
-          });
-          watchers.set(file, watcher);
-        } catch (error) {
-          if (error.code !== 'ENOENT') throw error;
-        }
-      }
-    },
+    update,
     close() {
       closed = true;
       clearTimeout(timer);
-      for (const watcher of watchers.values()) watcher.close();
+      for (const { watcher } of watchers.values()) watcher.close();
       watchers.clear();
     },
   };

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { EventEmitter, once } from 'node:events';
 import { stripVTControlCharacters } from 'node:util';
 import { localFile, sha256 } from '@nelyx/tooling-contracts/node-files';
 import { inspectRunner, readApp, readJson, writeJson } from '@nelyx/vite/runner';
@@ -8,6 +10,7 @@ import { verifyFrontend } from '@nelyx/vite/release';
 import { backendHash } from '@nelyx/tooling-contracts/backend-supply';
 import { doctorFrontend, openVite, prepareFrontend, publishFrontend } from './web-runner.mjs';
 import {
+  backendBuildMessage,
   backendContract,
   cargoBuildEnvironment,
   cargoCache,
@@ -20,7 +23,6 @@ import {
   hostPath,
   inspectTauriBackend,
   mobileDirectory,
-  mobileInputsId,
   tauriFrontend,
 } from './tauri-host.mjs';
 import { backendWatcher } from './backend-watch.mjs';
@@ -46,17 +48,23 @@ import {
   selectAndroidDevice,
 } from './tauri-platforms.mjs';
 import {
-  androidBuildTool,
   appleSignature,
+  inspectApk,
   reportedArtifacts,
   stageArtifact,
   validateExecutable,
 } from './tauri-artifacts.mjs';
+import { buildStage, readBuildState } from './build-cache.mjs';
+import {
+  debugPackageKey,
+  verifyNativePackage,
+  windowsPackageKey,
+} from './native-package-cache.mjs';
 
 const route = { provider: 'web', format: 'tauri', target: 'tauri', host: 'tauri' };
 const timeout = 1_200_000;
-const outputPath = (app, { platform, architecture }) =>
-  path.join(app, '.nelyx', 'tauri', `${platform}-${architecture}`);
+const outputPath = (app, { platform, architecture }, apkOnly) =>
+  path.join(app, '.nelyx', 'tauri', `${platform}-${architecture}${apkOnly ? '-debug' : ''}`);
 
 function requireMobileProject(host, platform) {
   localFile(host.directory, 'src/lib.rs');
@@ -84,6 +92,11 @@ async function tauriCommand(
   { observe, vars, limit = true } = {},
 ) {
   const bounded = limit ? AbortSignal.any([signal, AbortSignal.timeout(timeout)]) : signal;
+  let output = '';
+  function lineOutput(line) {
+    output = (output + line + '\n').slice(-8192);
+    observe?.(line);
+  }
   const child = startOwnedCommand(process.execPath, [cli.entry, ...args], {
     cwd: app,
     signal: bounded,
@@ -94,12 +107,16 @@ async function tauriCommand(
       TAURI_FRONTEND_PATH: app,
       ...vars,
     },
-    onStderrLine: observe,
+    onStderrLine: lineOutput,
+    onStdoutLine: lineOutput,
   });
   const result = await child.completed;
   bounded.throwIfAborted();
   if (result.error || result.exitCode !== 0)
-    throw new Error(`Tauri ${args[0]} failed: ${result.error ?? result.exitCode ?? result.signal}`);
+    throw Object.assign(
+      new Error(`Tauri ${args[0]} failed: ${result.error ?? result.exitCode ?? result.signal}`),
+      { output },
+    );
 }
 
 async function doctor(options) {
@@ -148,16 +165,32 @@ async function nativeHost(value, target, project, cli, signal, options = {}) {
   await useCargoLock(project, host.directory, app, signal, options);
   let initialized = false;
   if (mobile(platform)) {
+    const start = performance.now();
     const directory = mobileDirectory(host, platform);
-    const marker = path.join(host.directory, 'gen', '.nelyx-' + platform + '.json');
-    const current = fs.existsSync(marker) ? readJson(marker) : null;
+    const parent = ensureDirectory(path.join(host.directory, 'gen'));
+    const marker = path.join(parent, '.nelyx-' + platform + '.json');
+    const current = readBuildState(marker);
     const desired = {
+      schema: 2,
       identifier: host.identifier,
+      productName: host.productName,
       cli: cli.version,
-      inputs: mobileInputsId(app, platform),
     };
-    if (!fs.existsSync(directory) || backendHash(current) !== backendHash(desired)) {
-      if (fs.existsSync(directory)) removeDirectory(directory, path.join(host.directory, 'gen'));
+    const canMigrate =
+      current?.schema === undefined &&
+      current?.inputs === backendHash([]) &&
+      current.identifier === desired.identifier &&
+      current.cli === desired.cli;
+    if (
+      !fs.existsSync(directory) ||
+      (!canMigrate && Object.keys(desired).some((key) => current?.[key] !== desired[key]))
+    ) {
+      let backup;
+      if (fs.existsSync(directory)) {
+        ownedDirectory(directory);
+        backup = path.join(parent, '.mobile-' + randomUUID());
+        fs.renameSync(directory, backup);
+      }
       try {
         await tauriCommand(
           app,
@@ -175,19 +208,29 @@ async function nativeHost(value, target, project, cli, signal, options = {}) {
           },
         );
         requireMobileProject(host, platform);
-        applyMobileInputs(app, host, platform);
+        applyMobileInputs(app, host, platform, marker, desired);
         configureMobileCallback(host, platform);
-        writeJson(marker, desired);
         initialized = true;
       } catch (error) {
-        removeDirectory(directory, path.join(host.directory, 'gen'));
+        removeDirectory(directory, parent);
+        if (backup) fs.renameSync(backup, directory);
+        if (current) writeJson(marker, current);
+        else if (fs.existsSync(marker)) fs.unlinkSync(marker);
         throw error;
       }
+      if (backup) removeDirectory(backup, parent);
     } else {
       requireMobileProject(host, platform);
-      applyMobileInputs(app, host, platform);
+      applyMobileInputs(app, host, platform, marker, desired, current);
       configureMobileCallback(host, platform);
     }
+    buildStage('mobile-project', start, {
+      platform,
+      initialized,
+      reason: initialized
+        ? 'missing project or template identity changed'
+        : 'generated project and overlays reused',
+    });
   }
   return { ...host, created, initialized };
 }
@@ -231,8 +274,10 @@ async function withIpaApplication(file, parent, signal, use) {
 }
 
 async function pack(value, target, options, signal) {
+  const started = performance.now();
   const { app, name, version } = value;
   const { platform, architecture, cli: cliTarget, rust } = target;
+  const { apkOnly } = options;
   const frontend = path.resolve(options.directory ?? tauriFrontend(app));
   const project = inspectTauriBackend(value);
   const contract = backendContract(project);
@@ -244,15 +289,64 @@ async function pack(value, target, options, signal) {
     frontendBuildId: release.buildId,
   });
   const cache = cargoCache(app, 'tauri');
-  const destination = outputPath(app, target);
-  const parent = ensureDirectory(path.dirname(destination));
-  const stage = fs.mkdtempSync(path.join(parent, '.pack-'));
+  const destination = outputPath(app, target, apkOnly);
   const configOverride = {
     version,
+    ...(!mobile(platform) ? { bundle: { active: true } } : {}),
     ...(path.relative(tauriFrontend(app), frontend)
       ? { build: { frontendDist: path.toNamespacedPath(frontend) } }
       : {}),
   };
+  const cacheKey = () => {
+    if (project.appCrate?.customBuild) return;
+    if (platform === 'windows')
+      return windowsPackageKey(
+        app,
+        tools,
+        target,
+        release,
+        contract,
+        cli,
+        compiler,
+        configOverride,
+      );
+    if (apkOnly)
+      return debugPackageKey(
+        app,
+        mobileDirectory(host, platform),
+        tools,
+        target,
+        release,
+        contract,
+        cli,
+        compiler,
+        configOverride,
+      );
+  };
+  const before = cacheKey();
+  const cached = verifyNativePackage(destination, before, release, target, host.identifier, tools);
+  const summary = (metadata) => ({
+    ...metadata,
+    directory: destination,
+    artifacts: metadata.artifacts.map((item) => ({
+      ...item,
+      file: path.join(destination, item.file),
+    })),
+  });
+  if (cached) {
+    buildStage('tauri-package', started, {
+      platform,
+      architecture,
+      frontendBuildId: release.buildId,
+      calls: 0,
+      releaseAabCalls: 0,
+      artifacts: cached.artifacts.map(({ format, sha256 }) => ({ format, sha256 })),
+      reason: apkOnly ? 'verified Debug APK reused' : 'verified Windows packages reused',
+    });
+    return summary(cached);
+  }
+  const parent = ensureDirectory(path.dirname(destination));
+  const stage = fs.mkdtempSync(path.join(parent, '.pack-'));
   const buildArgs = [
     '--target',
     cliTarget,
@@ -264,14 +358,29 @@ async function pack(value, target, options, signal) {
     cache,
   ];
   const artifacts = [];
-  async function command(args) {
+  async function command(args, format = platform) {
+    const start = performance.now();
     const lines = [];
+    let upToDate = 0,
+      fromCache = 0,
+      configurationCache = false;
     await tauriCommand(app, host, cli, cache, args, signal, {
       observe(line) {
         const text = stripVTControlCharacters(line).trim();
+        if (text.endsWith(' UP-TO-DATE')) upToDate++;
+        if (text.endsWith(' FROM-CACHE')) fromCache++;
+        if (/Reusing configuration cache|Configuration cache entry reused/i.test(text))
+          configurationCache = true;
         if (path.isAbsolute(text) || /Built application at:|Bundling .* \(/.test(text))
           lines.push(text);
       },
+    });
+    buildStage(platform === 'android' ? 'gradle' : 'os-bundle', start, {
+      platform,
+      architecture,
+      format,
+      calls: 1,
+      ...(platform === 'android' ? { upToDate, fromCache, configurationCache } : {}),
     });
     return lines;
   }
@@ -279,10 +388,20 @@ async function pack(value, target, options, signal) {
   try {
     if (platform === 'android') {
       const project = requireMobileProject(host, platform);
-      const apk = await command(['android', 'build', '--ci', '--debug', '--apk', ...buildArgs]);
-      add(reportedArtifacts(apk, project, '.apk'), 'apk');
-      const aab = await command(['android', 'build', '--ci', '--aab', ...buildArgs]);
-      add(reportedArtifacts(aab, project, '.aab'), 'aab');
+      const apkLog = await command(
+        ['android', 'build', '--ci', '--debug', '--apk', ...buildArgs],
+        'debug-apk',
+      );
+      const apk = reportedArtifacts(apkLog, project, '.apk');
+      add(apk, 'apk');
+      Object.assign(artifacts[0], inspectApk(apk, tools, architecture, host.identifier));
+      if (!apkOnly) {
+        const aab = await command(
+          ['android', 'build', '--ci', '--aab', ...buildArgs],
+          'release-aab',
+        );
+        add(reportedArtifacts(aab, project, '.aab'), 'aab');
+      }
     } else if (platform === 'ios') {
       const project = requireMobileProject(host, platform);
       const sim = architecture.endsWith('-sim');
@@ -304,8 +423,6 @@ async function pack(value, target, options, signal) {
         );
       }
     } else {
-      configOverride.bundle = { active: true };
-      buildArgs[3] = JSON.stringify(configOverride);
       const bundles = { windows: 'nsis', linux: 'deb', macos: 'app,dmg' }[platform];
       const results = await command(['build', '--ci', '--bundles', bundles, ...buildArgs]);
       const output = path.join(cache, rust, 'release');
@@ -338,6 +455,8 @@ async function pack(value, target, options, signal) {
       verifyFrontend(frontend, current, 'tauri', fresh).buildId !== release.buildId
     )
       throw new Error('Frontend or backend changed during Tauri packaging');
+    const after = cacheKey();
+    const reuseKey = after && (before === undefined || before === after) ? after : undefined;
     const metadata = {
       schema: 'nelyx.tauri-package/v2',
       ...route,
@@ -354,18 +473,32 @@ async function pack(value, target, options, signal) {
         target: cliTarget,
         cargo: ['--locked', '--target-dir'],
         environment: cargoBuildEnvironment(),
-        profiles: platform === 'android' ? ['debug-apk', 'release-aab'] : ['release'],
+        profiles:
+          platform === 'android'
+            ? apkOnly
+              ? ['debug-apk']
+              : ['debug-apk', 'release-aab']
+            : ['release'],
+        ...(reuseKey ? { reuseKey } : {}),
         ...(platform === 'ios' ? { exportMethod: options.exportMethod ?? 'debugging' } : {}),
       },
       artifacts,
     };
     writeJson(path.join(stage, 'package.json'), metadata);
     publishDirectory(stage, destination);
-    return {
-      ...metadata,
-      directory: destination,
-      artifacts: artifacts.map((item) => ({ ...item, file: path.join(destination, item.file) })),
-    };
+    buildStage('tauri-package', started, {
+      platform,
+      architecture,
+      frontendBuildId: release.buildId,
+      calls: 1,
+      artifacts: artifacts.map(({ format, sha256 }) => ({ format, sha256 })),
+      releaseAabCalls: platform === 'android' && !apkOnly ? 1 : 0,
+      reason:
+        apkOnly && !after
+          ? 'Debug packaging inputs are not fully tracked'
+          : 'package inputs or output changed',
+    });
+    return summary(metadata);
   } finally {
     removeDirectory(stage, parent);
   }
@@ -374,10 +507,10 @@ async function pack(value, target, options, signal) {
 async function run(value, target, options, signal) {
   const { app, config, name } = value;
   const { platform, architecture } = target;
-  const directory = outputPath(app, target);
+  const directory = outputPath(app, target, options.apkOnly);
   if (!fs.existsSync(directory))
     throw new Error(
-      `Run nelyx build --target tauri --platform ${platform} --architecture ${architecture} first`,
+      `Run nelyx build --target tauri --platform ${platform} --architecture ${architecture}${options.apkOnly ? ' --apk-only' : ''} first`,
     );
   ownedDirectory(directory);
   const result = readJson(localFile(directory, 'package.json'));
@@ -424,16 +557,30 @@ async function run(value, target, options, signal) {
     };
   }
   let device = options.device;
+  let installedSha256;
   if (platform === 'android') {
     const tools = androidTools();
     const apk = artifact('apk');
-    const [tool, ...parameters] = androidBuildTool(tools, 'aapt');
-    const packageName = /^package: name='([\w.]+)'/m.exec(
-      capture(tool, [...parameters, 'dump', 'badging', apk]),
-    )?.[1];
-    if (!packageName) throw new Error('APK application identifier is missing');
+    const { packageName } = inspectApk(apk, tools, architecture, result.identifier);
     const adb = (args) => execute(tools.adb, ['-s', device, ...args], { signal, timeout });
     await adb(['install', '-r', apk]);
+    if (options.apkOnly) {
+      const installed = capture(tools.adb, ['-s', device, 'shell', 'pm', 'path', packageName])
+        .split(/\r?\n/)
+        .find((line) => /^package:\/[^\s]+\/base\.apk$/.test(line));
+      if (!installed) throw Error('Installed Android base APK is missing for ' + packageName);
+      installedSha256 = capture(tools.adb, [
+        '-s',
+        device,
+        'shell',
+        'sha256sum',
+        installed.slice('package:'.length),
+      ])
+        .trim()
+        .split(/\s+/)[0];
+      if (installedSha256 !== sha256(apk))
+        throw Error('Installed Android APK does not match the build');
+    }
     if (!options.noLaunch)
       await adb([
         'shell',
@@ -470,6 +617,7 @@ async function run(value, target, options, signal) {
     ...route,
     os: platform,
     architecture,
+    ...(installedSha256 ? { installedSha256 } : {}),
     device,
     frontendBuildId: result.frontendBuildId,
     exitCode: 0,
@@ -482,8 +630,14 @@ async function dev(value, target, options, signal) {
   const cli = inspectTauriCli(app);
   inspectRust(app, rust);
   const tools = inspectPlatform(target);
-  let project = inspectTauriBackend(value);
-  let host = await nativeHost(value, target, project, cli, signal);
+  function developmentProject(input) {
+    const project = inspectTauriBackend(input);
+    return { ...project, developmentBuildId: backendHash(backendContract(project)) };
+  }
+  const project = developmentProject(value);
+  const host = await nativeHost(value, target, project, cli, signal, {
+    frontendBuildId: project.developmentBuildId,
+  });
   const isMobile = mobile(platform);
   const android = platform === 'android';
   const device = options.device;
@@ -502,8 +656,6 @@ async function dev(value, target, options, signal) {
   const configured = new URL(host.build.devUrl ?? 'http://127.0.0.1:1420/');
   const port =
     options.port ?? Number(configured.port || (configured.protocol === 'https:' ? '443' : '80'));
-  const serverLifetime = new AbortController();
-  const devSignal = AbortSignal.any([signal, serverLifetime.signal]);
   const session = await openVite(
     {
       app,
@@ -516,14 +668,9 @@ async function dev(value, target, options, signal) {
       // The mobile asset protocol already adds these headers when it proxies Vite.
       crossOriginIsolated: !isMobile && value.config.crossOriginIsolated,
     },
-    devSignal,
+    signal,
   );
-  function abortDev(reason) {
-    serverLifetime.abort(reason);
-  }
-  const onClose = () => abortDev(new Error('Vite stopped'));
-  session.server.httpServer.once('close', onClose);
-  session.server.httpServer.once('error', abortDev);
+  const devSignal = AbortSignal.any([signal, session.closed]);
   let unmap;
   try {
     const url = new URL(session.event.url);
@@ -541,53 +688,94 @@ async function dev(value, target, options, signal) {
       )
     )
       throw new Error('Vite readiness mismatch at ' + url.href);
-    if (android) unmap = await reversePort(tools.adb, device, port, devSignal);
+    if (android) {
+      unmap = await reversePort(tools.adb, device, port, devSignal);
+      process.stderr.write(
+        JSON.stringify({
+          event: 'nelyx.dev.android.transport',
+          session: session.event.session,
+          device,
+          architecture,
+          reverse: `tcp:${port}`,
+        }) + '\n',
+      );
+    }
     const ws = (url.protocol === 'https:' ? 'wss://' : 'ws://') + url.host;
-    const current = host.security.devCsp ?? host.security.csp ?? {};
-    const devCsp =
-      typeof current === 'string'
-        ? /(?:^|;)\s*connect-src\b/.test(current)
-          ? current.replace(/((?:^|;)\s*connect-src\b[^;]*)/, '$1 ' + ws)
-          : current + "; connect-src 'self' " + ws
-        : {
-            ...current,
-            'connect-src': (current['connect-src'] ?? "'self' ipc:") + ' ' + ws,
-          };
-    const override = JSON.stringify({ build: { devUrl: url.href }, app: { security: { devCsp } } });
+    function configOverride(host) {
+      const current = host.security.devCsp ?? host.security.csp ?? {};
+      const devCsp =
+        typeof current === 'string'
+          ? /(?:^|;)\s*connect-src\b/.test(current)
+            ? current.replace(/((?:^|;)\s*connect-src\b[^;]*)/, '$1 ' + ws)
+            : current + "; connect-src 'self' " + ws
+          : { ...current, 'connect-src': (current['connect-src'] ?? "'self' ipc:") + ' ' + ws };
+      return JSON.stringify({ build: { devUrl: url.href }, app: { security: { devCsp } } });
+    }
     const args = isMobile
       ? [platform, 'dev', '--no-dev-server', ...(android ? ['--host', '127.0.0.1'] : [])]
       : ['dev', '--target', rust];
     const cache = cargoCache(app, 'tauri');
-    let restart;
-    let changed;
-    const watch = backendWatcher(
-      () => {
-        try {
-          const value = readApp(app);
-          const next = inspectTauriBackend(value);
-          if (backendHash(backendContract(next)) === backendHash(backendContract(project))) return;
-          changed = { value, next };
-          restart?.abort(new Error('Rust backend inputs changed'));
-        } catch (error) {
-          process.stderr.write(error.message + '\n');
+    const changes = new EventEmitter();
+    let latest = project.developmentBuildId;
+    let queued = { value, project, host };
+    let running;
+    let draining;
+    let failed = false;
+    function report(error) {
+      session.frontend.report(new Error(backendBuildMessage(error, platform)));
+    }
+    const watch = backendWatcher(() => {
+      try {
+        const value = readApp(app);
+        const project = developmentProject(value);
+        watch.update(project.watch);
+        if (project.developmentBuildId === latest) {
+          if (!failed) session.frontend.clearError();
+          return;
         }
-      },
-      (error) => process.stderr.write(error.message + '\n'),
-    );
+        latest = project.developmentBuildId;
+        queued = { value, project };
+        changes.emit('change');
+        session.frontend.backendStatus({
+          state: 'pending',
+          sourceId: project.identity.sourceId,
+          buildId: latest,
+        });
+        const current = running;
+        if (current && !draining) {
+          draining = Promise.resolve(session.frontend.drain('Tauri host inputs changed')).finally(
+            () => {
+              current.abort(new Error('Tauri host inputs changed'));
+              draining = undefined;
+            },
+          );
+        }
+      } catch (error) {
+        report(error);
+      }
+    }, report);
     try {
+      watch.update(project.watch);
       for (;;) {
         devSignal.throwIfAborted();
-        if (changed) {
-          const update = changed;
-          changed = undefined;
-          project = update.next;
-          host = await nativeHost(update.value, target, project, cli, devSignal);
-          session.frontend.updateBackend(project, false);
+        if (!queued) {
+          await once(changes, 'change', { signal: devSignal });
+          continue;
         }
-        watch.update(project.watch);
-        restart = new AbortController();
-        const current = restart;
+        const attempt = queued;
+        queued = undefined;
+        const current = new AbortController();
+        failed = false;
+        session.frontend.clearError();
         try {
+          const host =
+            attempt.host ??
+            (await nativeHost(attempt.value, target, attempt.project, cli, devSignal, {
+              frontendBuildId: attempt.project.developmentBuildId,
+            }));
+          if (queued) continue;
+          session.frontend.updateBackend(attempt.project, false);
+          running = current;
           await tauriCommand(
             app,
             host,
@@ -599,7 +787,7 @@ async function dev(value, target, options, signal) {
               '--exit-on-panic',
               '--no-dev-server-wait',
               '--config',
-              override,
+              configOverride(host),
               ...(devDevice ? [devDevice] : []),
               '--',
               '--locked',
@@ -615,9 +803,16 @@ async function dev(value, target, options, signal) {
               },
             },
           );
-          break;
+          if (!queued) break;
         } catch (error) {
-          if (devSignal.aborted || !current.signal.aborted) throw error;
+          devSignal.throwIfAborted();
+          if (!queued && !current.signal.aborted) {
+            failed = true;
+            report(error);
+          }
+        } finally {
+          await draining;
+          running = undefined;
         }
       }
     } finally {
@@ -632,8 +827,6 @@ async function dev(value, target, options, signal) {
       exitCode: 0,
     };
   } finally {
-    session.server.httpServer.off('close', onClose);
-    session.server.httpServer.off('error', abortDev);
     try {
       unmap?.();
     } finally {

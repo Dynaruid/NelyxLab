@@ -2,11 +2,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { capture } from './commands.mjs';
 import { sha256 } from '@nelyx/tooling-contracts/node-files';
 import { defineConfig } from '@nelyx/sdk/runtime/config';
 import { rustPackages, supplyRust } from './rust-supply.mjs';
 import { ensureDirectory } from './publication.mjs';
+import { buildStage } from './build-cache.mjs';
 
 const names = {
   core: 'nelyx-core-',
@@ -91,6 +93,7 @@ export function packageReferences(directory) {
 }
 /** Copy explicitly supplied archives into the consuming app before installation. */
 export function supplyRunner({ app, packages, reuseCurrent = false }) {
+  const start = performance.now();
   app = fs.realpathSync(app);
   const runner = app,
     file = path.join(runner, 'package.json');
@@ -116,13 +119,12 @@ export function supplyRunner({ app, packages, reuseCurrent = false }) {
       if (!reference?.startsWith('file:')) continue;
       const archive = path.resolve(runner, reference.slice(5));
       if (
-        path.dirname(archive) !== supply ||
-        fs.realpathSync(archive) !== archive ||
-        fs.lstatSync(archive).isSymbolicLink() ||
-        !path.basename(archive).endsWith('-' + sha256(archive) + '.tgz')
+        path.dirname(archive) === supply &&
+        fs.lstatSync(archive, { throwIfNoEntry: false })?.isFile() &&
+        fs.realpathSync(archive) === archive &&
+        path.basename(archive).endsWith('-' + sha256(archive) + '.tgz')
       )
-        throw Error('Only the current owned supply archive may be reused: ' + packageName);
-      fallback[name] = 'file:' + archive;
+        fallback[name] = 'file:' + archive;
     }
   }
   const refs = references(packages, [...Object.keys(names), ...selectedRust], fallback);
@@ -163,6 +165,8 @@ export function supplyRunner({ app, packages, reuseCurrent = false }) {
     manifest.devDependencies['@tauri-apps/cli'] = '2.12.6';
   }
   let committed = false;
+  let lockUpdated = false;
+  let extracts = 0;
   const rust = {};
   try {
     for (const [name, reference] of Object.entries(inputs)) {
@@ -196,9 +200,27 @@ export function supplyRunner({ app, packages, reuseCurrent = false }) {
       if (selectedRust.includes(name.slice('@nelyx/'.length)))
         rust[name.slice('@nelyx/'.length)] = destination;
     }
-    fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + '\n');
-    if (fs.existsSync(lockFile)) {
-      const lock = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
+    const updatedManifest = Buffer.from(JSON.stringify(manifest, null, 2) + '\n');
+    if (!updatedManifest.equals(originalManifest)) fs.writeFileSync(file, updatedManifest);
+    const lock = originalLock ? JSON.parse(originalLock) : undefined;
+    const declared = lock?.packages?.[''];
+    const needsResolution =
+      !declared ||
+      declared.name !== manifest.name ||
+      declared.version !== manifest.version ||
+      ['dependencies', 'devDependencies', 'optionalDependencies'].some(
+        (section) => !isDeepStrictEqual(declared[section] ?? {}, manifest[section] ?? {}),
+      ) ||
+      Object.keys(inputs).some((name) => {
+        const entry = lock.packages['node_modules/' + name];
+        const reference = manifest.dependencies?.[name] ?? manifest.devDependencies?.[name];
+        if (entry?.resolved !== reference || !entry.integrity) return true;
+        const archive = fs.readFileSync(path.resolve(app, reference.slice(5)));
+        return !entry.integrity
+          .split(/\s+/)
+          .includes('sha512-' + createHash('sha512').update(archive).digest('base64'));
+      });
+    if (needsResolution && lock?.packages) {
       for (const name of Object.keys(inputs)) {
         const key = 'node_modules/' + name,
           entry = lock.packages[key],
@@ -208,27 +230,37 @@ export function supplyRunner({ app, packages, reuseCurrent = false }) {
         if (
           !entry?.resolved?.startsWith('file:') ||
           !reference?.startsWith('file:') ||
-          path.resolve(runner, entry.resolved.slice(5)) !== path.resolve(runner, reference.slice(5))
+          path.resolve(runner, entry.resolved.slice(5)) !==
+            path.resolve(runner, reference.slice(5)) ||
+          !entry.integrity?.split(/\s+/).includes(
+            'sha512-' +
+              createHash('sha512')
+                .update(fs.readFileSync(path.resolve(app, reference.slice(5))))
+                .digest('base64'),
+          )
         )
           delete lock.packages[key];
       }
       for (const name of removed) delete lock.packages['node_modules/' + name];
       fs.writeFileSync(lockFile, JSON.stringify(lock, null, 2) + '\n');
     }
-    const args = [
-      'install',
-      '--package-lock-only',
-      '--workspaces=false',
-      '--ignore-scripts',
-      '--no-audit',
-      '--no-fund',
-    ];
-    capture(
-      process.platform === 'win32' ? 'cmd.exe' : 'npm',
-      process.platform === 'win32' ? ['/d', '/c', 'npm.cmd', ...args] : args,
-      { cwd: runner, timeout: 1_200_000 },
-    );
-    supplyRust(app, selectedRust, rust);
+    if (needsResolution) {
+      lockUpdated = true;
+      const args = [
+        'install',
+        '--package-lock-only',
+        '--workspaces=false',
+        '--ignore-scripts',
+        '--no-audit',
+        '--no-fund',
+      ];
+      capture(
+        process.platform === 'win32' ? 'cmd.exe' : 'npm',
+        process.platform === 'win32' ? ['/d', '/c', 'npm.cmd', ...args] : args,
+        { cwd: runner, timeout: 1_200_000 },
+      );
+    }
+    ({ extracts } = supplyRust(app, selectedRust, rust));
     committed = true;
   } finally {
     try {
@@ -240,12 +272,19 @@ export function supplyRunner({ app, packages, reuseCurrent = false }) {
       // npm can rewrite its hidden installation lock during a lock-only update,
       // even though the installed package bytes still belong to the old archives.
       // Preserve installed identities for equal-version replacements.
-      installationLock(runner);
-      if (installedLock !== null) fs.writeFileSync(hiddenLock, installedLock);
-      else if (fs.existsSync(hiddenLock)) fs.unlinkSync(hiddenLock);
+      if (lockUpdated) {
+        installationLock(runner);
+        if (installedLock !== null) fs.writeFileSync(hiddenLock, installedLock);
+        else if (fs.existsSync(hiddenLock)) fs.unlinkSync(hiddenLock);
+      }
     } finally {
       pruneSupplyArchives(supply, runner, committed ? manifest : JSON.parse(originalManifest));
     }
   }
+  buildStage('sdk-supply', start, {
+    npmLockUpdates: lockUpdated ? 1 : 0,
+    rustExtractions: extracts,
+    reason: lockUpdated ? 'new supply or npm lock inputs' : 'current npm lock verified',
+  });
   return { runner, packages: Object.keys(inputs) };
 }

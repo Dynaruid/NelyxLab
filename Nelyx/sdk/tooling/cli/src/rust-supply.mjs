@@ -81,10 +81,41 @@ function matchesProjection(directory, packages) {
   }
 }
 
+function projectionHash(directory, names) {
+  const crates = localFile(directory, 'crates');
+  const expected = names.map((name) => backendCrates[name]).sort();
+  if (JSON.stringify(fs.readdirSync(crates).sort()) !== JSON.stringify(expected)) return;
+  const contents = expected.flatMap((crate) =>
+    rustInputFiles(localFile(crates, crate)).map((file) => ({
+      path: path.relative(directory, file).replaceAll('\\', '/'),
+      bytes: fs.statSync(file).size,
+      sha256: sha256(file),
+    })),
+  );
+  contents.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return backendHash(contents);
+}
+
 /** Project only verified SDK source files. Compilation never edits npm packages. */
 export function supplyRust(app, names, archives) {
   const directory = rustSupplyPath(app);
   const parent = ensureDirectory(path.dirname(directory));
+  const archiveHashes = Object.fromEntries(names.map((name) => [name, sha256(archives[name])]));
+  if (fs.existsSync(directory)) {
+    ownedDirectory(directory);
+    try {
+      const receipt = JSON.parse(fs.readFileSync(localFile(directory, 'supply.json'), 'utf8'));
+      if (
+        receipt.projectionVersion === projectionVersion &&
+        backendHash(receipt.archives) === backendHash(archiveHashes) &&
+        typeof receipt.files === 'string' &&
+        projectionHash(directory, names) === receipt.files
+      )
+        return { extracts: 0 };
+    } catch {
+      // Recreate the projection from verified archives when it cannot be reused.
+    }
+  }
   const unpack = fs.mkdtempSync(path.join(parent, '.rust-unpack-'));
   const stage = fs.mkdtempSync(path.join(parent, '.rust-'));
   try {
@@ -115,16 +146,7 @@ export function supplyRust(app, names, archives) {
       });
       return output;
     });
-    if (
-      matchesProjection(directory, packages) &&
-      Object.values(backendCrates).every(
-        (crate) =>
-          names.some((name) => backendCrates[name] === crate) ||
-          !fs.existsSync(path.join(directory, 'crates', crate)),
-      )
-    )
-      return;
-    const receipt = { projectionVersion };
+    const receipt = { projectionVersion, archives: archiveHashes };
     const publishedAt = new Date();
     for (const [name, { directory: source, data, id }] of Object.entries(packages)) {
       receipt[name] = id;
@@ -137,8 +159,20 @@ export function supplyRust(app, names, archives) {
         fs.utimesSync(file, publishedAt, publishedAt);
       }
     }
-    fs.writeFileSync(path.join(stage, 'supply.json'), JSON.stringify(receipt, null, 2) + '\n');
-    publishDirectory(stage, directory);
+    receipt.files = projectionHash(stage, names);
+    if (
+      matchesProjection(directory, packages) &&
+      projectionHash(directory, names) === receipt.files
+    )
+      fs.writeFileSync(
+        localFile(directory, 'supply.json'),
+        JSON.stringify(receipt, null, 2) + '\n',
+      );
+    else {
+      fs.writeFileSync(path.join(stage, 'supply.json'), JSON.stringify(receipt, null, 2) + '\n');
+      publishDirectory(stage, directory);
+    }
+    return { extracts: names.length };
   } finally {
     removeDirectory(stage, parent);
     removeDirectory(unpack, parent);

@@ -134,12 +134,18 @@ async function deploy(platform, app, device, options, signal) {
   const nativeTarget = web ? undefined : platformTarget(platform, architecture);
   const target = web ? 'web' : 'tauri';
   const nativeArgs = nativeTarget
-    ? ['--platform', platform, '--architecture', nativeTarget.architecture]
+    ? [
+        '--platform',
+        platform,
+        '--architecture',
+        nativeTarget.architecture,
+        ...(platform === 'android' ? ['--apk-only'] : []),
+      ]
     : [];
   const buildArgs = ['Nelyx/eng/build-sample.mjs', target, '--app', app, ...nativeArgs];
   const output = web
     ? `${app}/.nelyx/web`
-    : `${app}/.nelyx/tauri/${platform}-${nativeTarget.architecture}`;
+    : `${app}/.nelyx/tauri/${platform}-${nativeTarget.architecture}${platform === 'android' ? '-debug' : ''}`;
   const noLaunch = options['no-launch'];
   const runArgs = [
     `${app}/node_modules/@nelyx/cli/src/main.mjs`,

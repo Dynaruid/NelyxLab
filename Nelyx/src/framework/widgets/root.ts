@@ -237,6 +237,8 @@ export class FrameworkRoot implements ViewController {
   private readonly layerRoot = new LayerHandle(new OffsetLayer());
   private lastStatusBarStyle: SystemUiOverlayStyle | null = null;
   private root: Element | undefined;
+  private widgetRevision = 0;
+  private builtWidgetRevision = 0;
   private pipelineInvalidatedDuringFrame = false;
   private closed = false;
   private visible = true;
@@ -649,6 +651,15 @@ export class FrameworkRoot implements ViewController {
           .createElement();
         this.root = root;
         root.mount(undefined, this.buildOwner);
+      }
+      if (this.builtWidgetRevision !== this.widgetRevision) {
+        this.builtWidgetRevision = this.widgetRevision;
+        const visit = (element: Element) => {
+          if (!element.mounted) return;
+          element.markNeedsBuild();
+          element.visitChildren(visit);
+        };
+        visit(this.root);
       }
       const metricsChanged =
         this.metrics?.viewportGeneration !== scene.token.metrics.viewportGeneration ||
@@ -1723,6 +1734,13 @@ export class FrameworkRoot implements ViewController {
   shouldSubmitFrame(): boolean {
     return this.scheduler.sendFramesToEngine;
   }
+  queueWidgetRebuild(revision: number): void {
+    if (!this.isViewOpen() || revision <= this.widgetRevision) return;
+    this.widgetRevision = revision;
+    this.preparedFrame = undefined;
+    this.buildOwner._cancelPreparation();
+    this.scheduler.requestFrame();
+  }
   canSubmitPreparedFrame(token: FrameBuildToken): boolean {
     const prepared = this.preparedFrame;
     if (
@@ -1754,7 +1772,8 @@ export class FrameworkRoot implements ViewController {
   private applyStatusBarStyle(token: FrameBuildToken): void {
     const services = this.context.platformServices;
     const platform = FoundationPlatform.hostEnvironment.operatingSystem;
-    const nativeMobile = !FoundationPlatform.isWeb && (platform === 'ios' || platform === 'android');
+    const nativeMobile =
+      !FoundationPlatform.isWeb && (platform === 'ios' || platform === 'android');
     if (
       !services ||
       !this.isInputLive() ||
@@ -1768,13 +1787,14 @@ export class FrameworkRoot implements ViewController {
     });
     if (!style || style.equals(this.lastStatusBarStyle)) return;
     this.lastStatusBarStyle = style;
-    void SystemChrome.setSystemUIOverlayStyle(style, services.defaultBinaryMessenger)
-      .catch((error: unknown) => {
+    void SystemChrome.setSystemUIOverlayStyle(style, services.defaultBinaryMessenger).catch(
+      (error: unknown) => {
         if (this.lastStatusBarStyle === style) this.lastStatusBarStyle = null;
         if (!(error instanceof MissingPluginException) && this.isViewOpen()) {
           this.context.reportError?.(error);
         }
-      });
+      },
+    );
   }
   dispose(): void {
     this.preparedFrame = undefined;

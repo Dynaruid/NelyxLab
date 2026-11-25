@@ -1,12 +1,12 @@
 # Nelyx 웹·Tauri 핫 리로드와 빌드 속도 개선 계획
 
-2026-11-25 · 핫 리로드 조사 `a30b5771` · 빌드 캐시 조사 `daba4751` · Vite `8.3.8` · **구현 계획**
+2026-11-25 · 핫 리로드 조사 `a30b5771` · 빌드 캐시 조사 `daba4751` · Vite `8.3.8` · **구현 및 검증 결과 §8**
 
 웹의 `dev:web`과 네이티브 설치 앱의 `dev:tauri`는 같은 Vite 프런트엔드를 사용한다. 기본 샘플에서 CSS는 문서를 유지한 채 갱신되지만, 실제 화면을 그리는 `.ts` 위젯은 저장하면 문서 전체를 다시 연다. 따라서 화면이 자동으로 바뀌어도 현재 라우트, 텍스트 편집 상태, 스크롤 위치 같은 메모리 상태는 초기화된다. Rust 변경은 웹에서 Wasm 다시 빌드 후 문서 재시작, Tauri에서 네이티브 호스트 다시 빌드 후 프로세스 재기동으로 처리된다. [Vite 변경 분기](Nelyx/sdk/tooling/vite/src/config.mjs#L248) · [웹 Wasm 감시](Nelyx/sdk/tooling/cli/src/web-runner.mjs#L247) · [Tauri 개발 실행](Nelyx/sdk/tooling/cli/src/tauri-runner.mjs#L479)
 
 핫 리로드의 인수 기준은 저장 전의 `State` 인스턴스로 수정된 `build()`가 실행되고, 같은 화면에 변경 결과가 나타나는 것이다. 이를 두 개발 명령의 기본 위젯 작업에 제공한다. 적용 범위를 벗어난 변경은 사유와 함께 문서 또는 호스트를 재시작한다. Flutter도 기존 상태를 보존하는 위젯 재빌드와 초기화를 다시 거치는 재시작을 구분한다. [Flutter 핫 리로드](https://docs.flutter.dev/tools/hot-reload)
 
-## 1. 현재 동작과 근거
+## 1. 변경 전 동작과 근거
 
 | 변경 또는 실행 경로 | 브라우저 | Tauri WebView |
 | --- | --- | --- |
@@ -20,7 +20,7 @@
 
 코드 분석 뒤 Testbed의 `dev` 경로를 Chrome 158.0.8127.37과 Windows WebView2에서 실행했다. 두 환경에서 앱 경로에 임시 CSS·TypeScript 모듈을 두고 각각 한 번 저장했다. CSS 값이 바뀌면서 문서 `performance.timeOrigin`과 캔버스가 유지됐다. TypeScript는 새 문서·캔버스와 새 모듈 값을 확인했고 이전 문서의 메모리 표식이 사라졌다. Windows의 Tauri PID와 Vite 세션은 유지됐다. Chrome의 기본 설정 첫 시도는 12초 대기 한도에 걸렸고 SwiftShader 재시도에서 완료했다. 이 검사는 현재 변경 경로를 확인한 범위이며, 실제 위젯의 상태 보존과 오류 복구는 §5의 구현 인수 항목이다.
 
-Android 개발 모드는 이전 x64 에뮬레이터에서 HMR 및 문서 재시작 뒤 구독 교체 기록이 있다. 이번에는 Android·Linux·macOS·iOS 실행 미검증이다. [이전 플랫폼 검증](history/26/11/20/work3-summary.md) · [Android 구독 검증](work.md#L192)
+Android 개발 모드는 이전 x64 에뮬레이터에서 HMR 및 문서 재시작 뒤 구독 교체 기록이 있다. 계획 작성 시점의 비교 실행은 Chrome과 Windows WebView2에서 수행했다. 이번 구현의 추가 플랫폼 검증은 §8에 기록한다. [이전 플랫폼 검증](history/26/11/20/work3-summary.md) · [Android 구독 검증](work.md#L192)
 
 ## 2. 위젯 상태가 초기화되는 원인
 
@@ -57,9 +57,9 @@ Android 개발 모드는 이전 x64 에뮬레이터에서 HMR 및 문서 재시�
 
 ## 5. 구현 순서와 완료 기준
 
-- [ ] W5-01과 W5-04로 공통 재시작 및 백엔드 실패 복구를 정리한다. 현행 CSS, JS 문서 재시작, Rust 저장 시점의 이벤트와 종료 흐름을 먼저 소스에 대조한 뒤 같은 입력으로 확인한다.
-- [ ] W5-02와 W5-03으로 Demo의 텍스트 선택 화면 및 Testbed의 갤러리부터 `build()`의 상태 보존 갱신을 연결한다. 기본 설정의 새 생성 앱에서도 같은 경로를 확인한다. [Demo 화면](sample/nelyx-demo-app/src/text-selection-screen.ts#L188) · [Testbed 화면](sample/nelyx-testbed-app-2/src/gallery.ts#L292) · [앱 생성](Nelyx/sdk/tooling/cli/README.ko.md#앱-생성과-공급)
-- [ ] 아래 검사표를 실제 브라우저와 WebView에서 수행하고, 기존 렌더러·PWA·Tauri 릴리스 검사로 배포 경로를 확인한다. 환경이나 기기가 없는 항목은 해당 플랫폼의 실행 미검증으로 기록한다. [웹 렌더러 검사](Nelyx/eng/check-web-renderers.mjs) · [PWA 업데이트 검사](Nelyx/eng/check-pwa-update.mjs) · [Windows 설치본 검사](Nelyx/eng/check-tauri-windows.mjs)
+- [x] W5-01과 W5-04로 공통 재시작 및 백엔드 실패 복구를 정리한다. 현행 CSS, JS 문서 재시작, Rust 저장 시점의 이벤트와 종료 흐름을 먼저 소스에 대조한 뒤 같은 입력으로 확인한다.
+- [x] W5-02와 W5-03으로 Demo의 텍스트 선택 화면 및 Testbed의 갤러리부터 `build()`의 상태 보존 갱신을 연결한다. 기본 설정의 새 생성 앱에서도 같은 경로를 확인한다. [Demo 화면](sample/nelyx-demo-app/src/text-selection-screen.ts#L188) · [Testbed 화면](sample/nelyx-testbed-app-2/src/gallery.ts#L292) · [앱 생성](Nelyx/sdk/tooling/cli/README.ko.md#앱-생성과-공급)
+- [x] 아래 검사표를 실제 브라우저와 WebView에서 수행하고, 기존 렌더러·PWA·Tauri 릴리스 검사로 배포 경로를 확인한다. 환경이나 기기가 없는 항목은 해당 플랫폼의 실행 미검증으로 기록한다. [웹 렌더러 검사](Nelyx/eng/check-web-renderers.mjs) · [PWA 업데이트 검사](Nelyx/eng/check-pwa-update.mjs) · [Windows 설치본 검사](Nelyx/eng/check-tauri-windows.mjs)
 
 | 저장 및 실행 시나리오 | 관찰할 결과 |
 | --- | --- |
@@ -79,7 +79,7 @@ npm.cmd run dev:tauri -- --platform windows
 npm.cmd run dev:tauri -- --platform android --architecture x64 --device emulator-5554
 ```
 
-## 6. 현재 빌드 캐시와 반복 작업
+## 6. 변경 전 빌드 캐시와 반복 작업
 
 Cargo는 앱별 고정 경로에 빌드 결과를 남긴다. CLI는 내용이 같은 생성 파일의 쓰기를 건너뛴다. 저장소 루트의 `build:web`, `build:tauri`와 `deploy`에서 기존 npm 설치를 재사용하도록 바꿨다. 앱 화면만 바꿔도 SDK 전체 빌드, 패키지 압축과 잠금 파일 갱신은 실행되므로 이 중복 작업을 다음 단계에서 줄인다. [루트 빌드 실행기](Nelyx/eng/build-sample.mjs) · [배포 헬퍼](helpers/deploy-helper/deploy.mjs#L123) · [Cargo 캐시 경로](Nelyx/sdk/tooling/cli/src/backend-project.mjs#L191)
 
@@ -132,3 +132,45 @@ Windows의 npm 12.2.3에서 임시 로컬 패키지를 사용해 같은 버전�
 | Android x64·arm64에서 Debug APK 빌드와 일반 패키징 | 기기용은 Release AAB 태스크가 0회이며 지정한 ABI의 새 APK를 설치한다. 일반 패키징은 APK와 AAB를 발행한다. 각 경우 실제 자산, 설정, 서명 상태와 딥링크를 검증한다. 다른 Tauri OS는 해당 도구에서 팩 및 실행 여부를 기록한다. |
 
 SDK 설치가 이미 현재 소스와 일치할 때는 샘플 디렉터리의 기존 `npm.cmd run build:web`을 사용해 앱 빌드를 바로 실행할 수 있다. Tauri는 같은 위치에서 `npm.cmd run build:tauri -- --frontend-only`로 프런트엔드를 만든 뒤 `npm.cmd run pack:tauri -- --platform windows --frontend .nelyx/tauri/frontend`로 재사용한다. 위의 자동 건너뛰기와 APK 전용 옵션은 이 작업계획의 구현 항목이다. [샘플 스크립트](sample/nelyx-demo-app/package.json#L7) · [CLI 프런트엔드·팩 안내](Nelyx/sdk/tooling/cli/README.ko.md#tauri-빌드와-실행)
+
+## 8. 구현 및 검증 결과
+
+### 개발 모드
+
+- **W5-01~03** 기본 `dev:web`과 `dev:tauri`는 호환되는 앱 TypeScript `build()` 변경을 기존 `State`로 실행한다. 최초 로드에서 클래스와 모듈 바인딩을 유지하고 최신 정상 구현만 프레임 사이에 교체한다. 문법 오류 중에는 마지막 정상 화면과 입력을 유지한다. HTML·엔트리·클래스 구조 등 재시작이 필요한 입력은 원인을 표시하고 기존 뷰를 정리한 뒤 문서를 한 번 연다. [개발 갱신](Nelyx/sdk/tooling/vite/src/dev-updates.mjs) · [위젯 변환](Nelyx/sdk/tooling/vite/src/widget-reload.mjs) · [프레임 재빌드](Nelyx/src/framework/widgets/root.ts)
+- **W5-04** 웹 Wasm은 검증이 끝난 세대 단위로 교체한다. Tauri는 Rust나 플랫폼 입력을 다시 빌드하는 동안 Vite와 워처를 유지하며, 새 WebView가 접속해 `describe`에서 일치하는 백엔드 ID를 응답하면 준비 상태를 갱신한다. [웹 개발 실행](Nelyx/sdk/tooling/cli/src/web-runner.mjs) · [Tauri 개발 실행](Nelyx/sdk/tooling/cli/src/tauri-runner.mjs)
+
+| 실행 환경 | 확인 결과 |
+| --- | --- |
+| Chrome 158, Demo와 Testbed | Demo의 `direct`·`worker-transfer`·`worker-shared`에서 실제 렌더링 경로를 확인했다. 수정된 문구·레이아웃·콜백이 반영됐고 라우트, `State`, 캔버스, 한글 입력과 선택 범위가 이어졌다. Testbed에서는 갤러리 스크롤 360px이 유지됐다. |
+| Chrome, 변경 복구 | CSS 갱신, 문법 오류 후 정상 코드 복구, 연속 저장 한 번 적용, 소켓 재연결, HTML 한 번 재시작, 종료 오류 시 탐색 보류 및 수동 재시작을 확인했다. 잘못된 자산 설정은 기존 URL과 응답을 유지했다. 웹 Rust 컴파일 오류 중 예제 IPC 응답 21을 유지했고, 정상 저장 후 새 `sourceId`와 응답 22를 확인했다. |
+| 새로 생성한 Web 앱 | 공개 잠금과 공급 아카이브로 초기 설치했다. `dev:web`에서 같은 `State`와 문서로 `build()`를 바꿨다. 패키지에 선언한 새 자산이 아직 없을 때 기존 자산을 제공했고, 파일 생성만으로 복구했다. |
+| Windows WebView2 | Testbed의 문구·스크롤과 `State` 유지, HTML 재시작, Vite 설정 변경, 종료 오류 복구를 확인했다. Rust 컴파일 오류 뒤 같은 Vite 세션의 새 프로세스에서 `describe`의 `sourceId`와 예제 IPC 응답 21→22를 확인했다. |
+| Android x64 에뮬레이터 | CLI가 소유한 `adb reverse`를 통해 WebView HMR 소켓이 연결됐다. 한글이 입력된 편집 포커스, `State`, 문서 및 앱 PID가 저장 뒤 이어졌다. `State` 초기화 1회, 텍스트 리스너 2개, 네이티브 여백 채널 1개가 유지됐다. 회전 후 같은 채널에서 새 여백 메시지를 받았고 종료 시 이 실행의 매핑을 회수했다. |
+| Linux WebKitGTK 2.52.6 | WSL2/Xvfb에서 네이티브 백엔드 접속과 실제 Testbed `build()`를 확인했다. 소프트웨어 렌더러로 실행했으며 본문이 바뀐 뒤 동일 `State`와 문서 시각을 보고했다. 릴리스 실행 파일과 `.deb` 해시를 검증했고, `.deb`에서 추출한 실행 파일이 Xvfb에서 픽셀을 렌더링했다. |
+| 게시본 | Web 렌더러/PWA 검사와 PWA 업데이트 검사를 통과했다. Windows WebView2 오프라인 실행에서 내장 파일 SHA-256, 렌더링 및 IPC를 검증했다. Android Debug APK는 x64와 arm64 모두 해당 ABI와 서명을 검증해 설치했다. 실제 `base.apk` 해시, 내장 프런트엔드 ID·글꼴 SHA-256과 예제 IPC 응답을 확인했고 개발 클라이언트 스크립트 수는 0개였다. Galaxy의 Demo `MainActivity`는 잠금 해제 후 전면에 표시됐다. |
+
+### 빌드와 배포
+
+- **W5-05~07** CLI는 `[nelyx:build]`로 단계별 시간, 적중 사유, 실제 호출 수와 출력 ID를 출력한다. SDK 컴파일·압축, npm 설치, Rust 공급, Wasm 바인딩, 기본 Vite 릴리스는 입력과 현재 산출물 해시를 확인한다. 새 생성 앱에서 `@nelyx/vite` 설치 파일을 지운 뒤 해당 패키지만 복구했고, 손상된 Web 출력은 같은 `buildId`와 파일 목록으로 다시 생성했다. 사용자 Vite 설정은 빌드할 때 다시 실행한다. [SDK 빌드](Nelyx/eng/build-sdk.mjs) · [설치 복구](Nelyx/eng/install-sample.mjs) · [릴리스 입력](Nelyx/sdk/tooling/cli/src/frontend-inputs.mjs)
+- **W5-08** Android 기기용 `deploy`는 `--apk-only`로 해당 ABI의 서명된 Debug APK를 만든다. Demo의 두 ABI에서 Release AAB 호출 0회와 기존 AAB 보존을 확인했다. 기본 Android 프로젝트의 Debug APK와 기본 Windows NSIS는 도구·입력 및 산출물 해시 검증을 통과한 경우 재사용한다. Android 오버레이를 제거하는 검증에서는 생성 기본값 복원, 추가 파일 삭제, 딥링크 필터 한 개 유지와 관련 없는 파일의 수정 시각 유지가 확인됐다. 실제 Demo APK의 `nelyx-demo://` 딥링크는 두 Android 환경에서 MainActivity로 해석됐다. [배포 헬퍼](helpers/deploy-helper/README.ko.md) · [네이티브 재사용](Nelyx/sdk/tooling/cli/src/native-package-cache.mjs)
+
+| Testbed 명령과 환경 | 캐시를 채운 실행 | 동일 입력 반복 3회 | 확인 결과 |
+| --- | ---: | --- | --- |
+| Windows 루트 `npm.cmd run build:web` | 156.98초 | 5.58 / 4.33 / 4.26초, 중앙값 **4.33초** | SDK 검사·emit·압축, npm 설치, Rust 공급 압축 해제, bindgen, Vite 0회. Cargo 산출물 41개 모두 fresh. 같은 Web `buildId`와 파일 해시. |
+| Windows 루트 `npm.cmd run build:tauri -- --platform windows` | 61.32초 | 6.39 / 4.42 / 4.37초, 중앙값 **4.42초** | SDK와 npm 단계, Vite와 패키징 0회. 같은 Tauri `buildId`, EXE·NSIS SHA-256. |
+| 기본 Testbed Android x64, CLI `build --apk-only` | 패키징 68.45초 | 7.58 / 1.90 / 1.84초 | 첫 반복에서 패키지 재사용 정보를 기록했다. 이후 Gradle과 AAB 호출 0회, 동일 APK SHA-256. |
+
+위 수치는 로컬 도구 캐시가 있던 환경에서 얻었다. 빈 npm·Cargo·Gradle 캐시의 다운로드 시간은 별도로 측정하지 않았다. 새 앱 설치와 손상 복구는 npm 오프라인 모드에서도 통과했다. Testbed의 Vite gzip 크기 보고를 끈 반복 측정에서 중앙값은 1.80초에서 1.76초였고 143개 파일 해시와 `buildId`가 같았다. 기본 Vite 설정에 `reportCompressedSize: false`를 적용했다.
+
+Android의 Java·Kotlin·리소스 태스크는 첫 오프라인 실행 6.00초, Gradle 출력 캐시를 켠 반복에서 2.12초와 1.53초였다. 반복 실행에는 `UP-TO-DATE` 116개와 설정 캐시 적중이 있었고 `FROM-CACHE`는 0개였다. 설정 캐시를 유지하고 출력 캐시는 기본 설정에서 추가로 켜지 않았다.
+
+임시 패키지에서 TypeScript 소스·모듈 추가, 의존하는 Core 선언·`exports`, SkSL을 따로 바꿔 각 입력이 SDK 지문을 바꾸는 것을 확인했다. 루트 Web 빌드 두 건을 동시에 요청하니 한 건이 게시 잠금 충돌을 표시하고 종료됐고 기존 릴리스의 바이트는 유지됐다. 실행 전에 중단된 요청에서도 게시 결과가 유지됐으며 다음 빌드는 설치를 검증해 재사용했다.
+
+Testbed의 갤러리 문구만 바꿔 루트 Web과 Windows 빌드를 다시 실행했다. SDK 검사·압축·공급·설치를 건너뛰었고 두 타깃에서 새 문구를 포함한 프런트엔드 `buildId`를 얻었다. 새 Windows EXE를 실행해 WebView2에서 수정된 제목과 일치하는 `buildId`를 확인했다.
+
+일반 `build:tauri`로 Testbed x64와 Demo arm64에서 각각 Debug APK와 Release AAB를 함께 생성했다. 두 AAB는 각 ABI의 네이티브 라이브러리와 매니페스트를 포함했고 게시 메타데이터의 해시와 일치했다. APK는 서명됐으며 테스트에서 생성한 AAB는 미서명이다.
+
+### 실행 미검증 범위
+
+macOS와 iOS용 빌드 호스트 및 기기가 없어 패키징과 실행은 미검증이다. iOS 시뮬레이터의 로컬 소켓과 실기기의 신뢰된 HTTPS/WSS 연결도 이 범위에 포함된다.

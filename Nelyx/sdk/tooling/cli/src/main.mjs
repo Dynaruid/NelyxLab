@@ -21,6 +21,7 @@ const usage = [
   '       nelyx run --app <app> --target web --base /demo/ --port 0',
   '       nelyx dev|run --app <app> --target web [--cross-origin-isolated]',
   '       nelyx run --app <app> --target tauri --platform android|ios [--no-launch]',
+  '       nelyx build|run --app <app> --target tauri --platform android [--apk-only]',
 ].join('\n');
 const web = {
   doctor: doctorWeb,
@@ -36,6 +37,7 @@ const switches = new Set([
   'no-backend',
   'no-launch',
   'cross-origin-isolated',
+  'apk-only',
 ]);
 
 function parse(args) {
@@ -123,6 +125,8 @@ async function main() {
   if (['dev', 'run'].includes(command) && ['android', 'ios'].includes(platform))
     allowed.push('device');
   if (command === 'run' && ['android', 'ios'].includes(platform)) allowed.push('no-launch');
+  if (target === 'tauri' && platform === 'android' && ['build', 'run'].includes(command))
+    allowed.push('apk-only');
   if (['build', 'pack'].includes(command) && platform === 'ios') allowed.push('export-method');
   checkFlags(values, allowed);
   if (
@@ -146,6 +150,7 @@ async function main() {
     app,
     platform,
     frontendOnly,
+    apkOnly: values['apk-only'] === true,
     updateLock: values['update-lock'] === true,
     architecture: values.architecture,
     device: values.device,

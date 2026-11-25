@@ -43,6 +43,21 @@ export function androidBuildTool(tools, name) {
   throw new Error('Android SDK build-tools is missing ' + name);
 }
 
+export function inspectApk(file, tools, architecture, identifier) {
+  const [tool, ...parameters] = androidBuildTool(tools, 'aapt');
+  const badging = capture(tool, [...parameters, 'dump', 'badging', file]);
+  const packageName = /^package: name='([\w.]+)'/m.exec(badging)?.[1];
+  const native = /^native-code:\s*(.*)$/m.exec(badging)?.[1];
+  const abi = architecture === 'x64' ? 'x86_64' : 'arm64-v8a';
+  if (packageName !== identifier || native?.trim() !== "'" + abi + "'")
+    throw Error(
+      `APK identity mismatch. Expected ${identifier} and ${abi}, received ${packageName} and ${native}`,
+    );
+  if (signing('apk', file, tools) !== 'signed')
+    throw Error('Debug APK signature verification failed');
+  return { packageName, abi };
+}
+
 function signing(kind, file, tools) {
   try {
     if (kind === 'exe' || kind === 'nsis') return windowsSignature(file);

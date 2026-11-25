@@ -2,8 +2,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import { createHash } from 'node:crypto';
 import { parse } from 'smol-toml';
+import { readApp } from '@nelyx/vite/runner';
 import {
   backendCrates,
   backendFiles,
@@ -17,7 +19,8 @@ import {
 } from '@nelyx/tooling-contracts/backend-supply';
 import { localFile, sha256 } from '@nelyx/tooling-contracts/node-files';
 import { capture, execute } from './commands.mjs';
-import { ensureDirectory, removeDirectory } from './publication.mjs';
+import { ensureDirectory, publishDirectory, removeDirectory } from './publication.mjs';
+import { buildStage, hashTree, readBuildState, writeBuildState } from './build-cache.mjs';
 import { inspectRustSupply, rustSupplyPath } from './rust-supply.mjs';
 import { inspectRust } from './tauri-platforms.mjs';
 
@@ -50,7 +53,7 @@ export function cargoDependency(host, directory, packageName, features) {
 function readAppCrate(value) {
   const { app, config } = value;
   const manifest = config.backend?.manifest ?? './backend/Cargo.toml';
-  if (!config.backend && !fs.existsSync(path.join(app, 'backend'))) return;
+  if (!config.backend && !fs.existsSync(path.join(app, manifest))) return;
   const file = localFile(app, manifest.slice(2));
   const content = declaration(file);
   const pkg = content.package;
@@ -63,12 +66,15 @@ function readAppCrate(value) {
   const directory = path.dirname(file);
   const folders = new Set();
   const files = new Set();
+  let customBuild = false;
   function visit(folder) {
     if (folders.has(folder) || !path.relative(rustSupplyPath(app), folder).startsWith('..')) return;
     folders.add(folder);
     for (const file of rustInputFiles(folder)) files.add(file);
     const cargo = path.join(folder, 'Cargo.toml');
     const current = folder === directory ? content : declaration(cargo);
+    customBuild ||=
+      typeof current.package?.build === 'string' || fs.existsSync(path.join(folder, 'build.rs'));
     function dependencies(workspace, table) {
       for (const kind of ['dependencies', 'build-dependencies', 'dev-dependencies']) {
         for (const [name, dependency] of Object.entries(table[kind] ?? {})) {
@@ -118,6 +124,7 @@ function readAppCrate(value) {
     version: pkg.version,
     manifest: unix(path.relative(app, file)),
     inputs,
+    customBuild,
     watch: [
       ...folders,
       ...[...files].filter(
@@ -140,13 +147,20 @@ export function inspectBackend(value, target, { requireLock = true } = {}) {
   const appCrate = readAppCrate(value);
   const kind = target === 'web' ? 'wasm' : 'native';
   const packages = { core: core.id, adapter: adapter.id };
+  const watch = [
+    ...(appCrate?.watch ?? []),
+    path.join(value.app, 'backend'),
+    path.resolve(value.app, value.config.backend?.manifest ?? './backend/Cargo.toml'),
+    path.join(value.app, 'package.json'),
+    rustSupplyPath(value.app),
+  ];
   if (target === 'web' && !appCrate) {
     return {
       supply,
       packages,
       identity: adapter.data.defaultBackend,
       toolchain: adapter.data.defaultBuild,
-      watch: [],
+      watch,
     };
   }
   const lock = path.join(value.app, 'backend', 'locks', target, 'Cargo.lock');
@@ -171,7 +185,7 @@ export function inspectBackend(value, target, { requireLock = true } = {}) {
       backendVersion: appCrate?.version ?? core.data.version,
       sourceId: backendHash([appCrate?.manifest, appCrate?.inputs, core.id, backendProtocol]),
     },
-    watch: [...(appCrate?.watch ?? []), path.join(value.app, 'backend'), rustSupplyPath(value.app)],
+    watch,
   };
 }
 
@@ -296,6 +310,38 @@ export async function prepareWasm(value, project, update, signal) {
   });
 }
 
+export async function runCargoBuild(args, options, stage = 'cargo') {
+  const start = performance.now();
+  let artifacts = 0,
+    fresh = 0;
+  let diagnostics = '';
+  try {
+    await execute('cargo', [...args, '--message-format=json-render-diagnostics'], {
+      ...options,
+      onStdoutLine(line) {
+        let message;
+        try {
+          message = JSON.parse(line);
+        } catch {
+          process.stderr.write(line + '\n');
+          return;
+        }
+        if (message.reason === 'compiler-artifact') {
+          artifacts++;
+          if (message.fresh) fresh++;
+        } else if (message.reason === 'compiler-message' && message.message.rendered) {
+          process.stderr.write(message.message.rendered);
+          diagnostics = (diagnostics + message.message.rendered).slice(-8192);
+        }
+      },
+    });
+  } catch (error) {
+    if (diagnostics) error.output = diagnostics;
+    throw error;
+  }
+  buildStage(stage, start, { artifacts, fresh, compiled: artifacts - fresh });
+}
+
 export async function compileWasm(value, project, signal) {
   const { app } = value;
   const adapter = project.supply['backend-wasm'];
@@ -312,35 +358,71 @@ export async function compileWasm(value, project, signal) {
     const host = wasmHost(value, project);
     const tools = inspectWasmTools(app);
     const parent = path.dirname(host);
-    const out = fs.mkdtempSync(path.join(parent, '.bindgen-'));
+    const bindings = path.join(parent, 'bindings');
     const cache = cargoCache(app, 'wasm');
     const options = ['build', '--locked', '--release', '--lib', '--target', wasmTarget];
     const binding = ['--target', 'web', '--out-name', 'backend'];
     const env = { ...process.env, CARGO_TARGET_DIR: cache };
-    try {
-      const cargoLock = await useCargoLock(project, host, app, signal);
-      await execute('cargo', [...options, '--manifest-path', path.join(host, 'Cargo.toml')], {
+    const cargoLock = await useCargoLock(project, host, app, signal);
+    await runCargoBuild(
+      [...options, '--manifest-path', path.join(host, 'Cargo.toml')],
+      {
         cwd: app,
         env,
         signal,
         timeout,
-      });
-      await execute(
-        'wasm-bindgen',
-        [...binding, '--out-dir', out, path.join(cache, wasmTarget, 'release/nelyx_app_wasm.wasm')],
-        { cwd: app, signal, timeout },
-      );
-      files = read(out);
-      const declaration = files.get('runtime/backend/backend.d.ts').toString('utf8');
-      const expected = fs.readFileSync(
-        localFile(adapter.directory, 'default/backend.d.ts'),
-        'utf8',
-      );
+      },
+      'app-wasm-cargo',
+    );
+    const start = performance.now();
+    const wasm = path.join(cache, wasmTarget, 'release/nelyx_app_wasm.wasm');
+    const expected = fs.readFileSync(localFile(adapter.directory, 'default/backend.d.ts'), 'utf8');
+    const key = backendHash([
+      sha256(wasm),
+      tools.bindgen,
+      binding,
+      publicWasmDeclaration(expected),
+    ]);
+    const state = readBuildState(path.join(bindings, 'build-state.json'));
+    const inventory = (directory) => hashTree(directory, (name) => name !== 'build-state.json');
+    const verify = (directory) => {
+      const result = read(directory);
+      const declaration = result.get('runtime/backend/backend.d.ts').toString('utf8');
       if (publicWasmDeclaration(declaration) !== publicWasmDeclaration(expected))
         throw new Error('App backend Wasm does not match the SDK bindings');
-      const current = inspectBackend(value, 'web');
+      return result;
+    };
+    if (state?.key === key && JSON.stringify(inventory(bindings)) === JSON.stringify(state.files))
+      files = verify(bindings);
+    let out;
+    try {
+      if (!files) {
+        out = fs.mkdtempSync(path.join(parent, '.bindgen-'));
+        await execute('wasm-bindgen', [...binding, '--out-dir', out, wasm], {
+          cwd: app,
+          signal,
+          timeout,
+        });
+        files = verify(out);
+      }
+      const current = inspectBackend(readApp(app), 'web');
       if (backendHash(backendContract(current)) !== backendHash(backendContract(project)))
         throw new Error('App backend inputs changed during Wasm compilation');
+      if (out) {
+        signal.throwIfAborted();
+        if (
+          backendHash([sha256(wasm), tools.bindgen, binding, publicWasmDeclaration(expected)]) !==
+          key
+        )
+          throw Error('The Cargo Wasm artifact changed while creating bindings');
+        writeBuildState(path.join(out, 'build-state.json'), { key, files: inventory(out) });
+        publishDirectory(out, bindings);
+      }
+      buildStage('app-wasm-bindgen', start, {
+        calls: out ? 1 : 0,
+        key,
+        reason: out ? 'new or incomplete bindings' : 'Wasm artifact and bindings verified',
+      });
       toolchain = {
         ...tools,
         cargoLock,
@@ -349,7 +431,7 @@ export async function compileWasm(value, project, signal) {
         environment: cargoBuildEnvironment(env),
       };
     } finally {
-      removeDirectory(out, parent);
+      if (out) removeDirectory(out, parent);
     }
   } else {
     files = read(localFile(adapter.directory, 'default'));
@@ -369,4 +451,19 @@ export function backendContract(project) {
     appManifest: project.appCrate?.manifest ?? null,
     ...(project.hostInputs ? { hostInputs: project.hostInputs } : {}),
   };
+}
+
+export function backendBuildMessage(error, target) {
+  const output = stripVTControlCharacters(error.output ?? '');
+  const detail = output
+    .split(/\r?\n|\r/)
+    .filter((line) => line.trim() && !/^\s*Building\s+\[/.test(line))
+    .slice(-14)
+    .join('\n');
+  const help = /lock(?:file| file|\.lock)/i.test(error.message + '\n' + output)
+    ? '. Refresh the Cargo.lock with nelyx prepare --app . --target ' +
+      (target === 'web' ? 'web' : 'tauri --platform ' + target) +
+      ' --update-lock.'
+    : '';
+  return error.message + help + (detail ? '\n' + detail : '');
 }

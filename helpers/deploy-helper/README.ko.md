@@ -22,7 +22,7 @@ npm run deploy -- --platform ios --app Demo --target simulator
 | --- | --- | --- |
 | Web | `.nelyx/web/`에 게시한 뒤 `127.0.0.1`에서 제공하고 기본 브라우저를 엽니다. | 서버를 시작하고 직접 열 수 있는 URL을 출력합니다. |
 | Windows | `.nelyx/tauri/windows-x64/`에 Tauri x64 EXE와 NSIS 설치 파일을 생성하고, 실행한 앱 창을 닫을 때까지 기다립니다. | 패키지 생성 후 종료합니다. |
-| Android | `.nelyx/tauri/android-<아키텍처>/`에 디버그 APK와 릴리스 AAB를 생성하고, 선택한 기기에 APK를 설치해 실행합니다. | 패키지를 생성하고 APK를 설치합니다. |
+| Android | `.nelyx/tauri/android-<아키텍처>-debug/`에 Debug APK를 게시합니다. ABI와 서명을 확인한 APK를 선택한 기기에 설치해 실행합니다. | APK를 빌드해 설치합니다. |
 | iOS | macOS에서 `.nelyx/tauri/ios-<아키텍처>/`에 시뮬레이터 앱 또는 기기용 서명 IPA를 생성합니다. 선택한 시뮬레이터를 필요한 경우 부팅한 뒤 앱을 설치하고 실행합니다. | 앱을 빌드하고 설치합니다. |
 
 - **Web.** 기본으로 빈 포트를 배정합니다. `--port 4173`으로 포트를 고정하고 `--base /demo/`로 하위 경로에서 열 수 있습니다. Ctrl+C로 서버를 종료합니다.
