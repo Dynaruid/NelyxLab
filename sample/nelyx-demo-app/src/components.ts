@@ -76,7 +76,7 @@ import {
   galleryCardPart,
 } from './gallery-section.ts';
 import { ImageDemo } from './image-demo.ts';
-import { column, flow, inset, icon, renderToggleGutter } from './layout.ts';
+import { column, flow, inset, icon } from './layout.ts';
 import { demoRangeTheme } from './range-demo-shapes.ts';
 import { TextSelectionScreen } from './text-selection-screen.ts';
 
@@ -417,7 +417,7 @@ class ComponentsState extends State<ComponentsScreen> {
       return new Column(
         [
           new Padding(
-            EdgeInsets.fromLTRB(compact ? 16 : 28, 12, renderToggleGutter + (compact ? 8 : 20), 12),
+            EdgeInsets.fromLTRB(compact ? 16 : 28, 12, compact ? 8 : 20, 12),
             new Row(
               [
                 new Expanded(

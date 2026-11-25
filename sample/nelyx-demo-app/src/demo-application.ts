@@ -15,6 +15,8 @@ import { ThemeData } from '@nelyx/material/theme-data';
 import { ColorScheme } from '@nelyx/material/color-scheme';
 import { ComponentsScreen } from './components.ts';
 import { CupertinoComponentsScreen } from './cupertino-components.ts';
+import { settingsScreen } from './settings-screen.ts';
+import type { DemoRenderSettings } from './settings-screen.ts';
 
 const destinations = [
   new BottomNavigationBarItem({
@@ -28,11 +30,21 @@ const destinations = [
     label: 'Cupertino',
   }),
 ];
+const settingsIndex = destinations.length;
+const destinationsWithSettings = [
+  ...destinations,
+  new BottomNavigationBarItem({
+    icon: new Icon(Icons.settings_outlined),
+    activeIcon: new Icon(Icons.settings),
+    label: 'Settings',
+  }),
+];
 
 export class DemoApplication extends StatefulWidget {
   constructor(
     readonly initialText: string,
     readonly calendarPreparation = false,
+    readonly renderSettings?: DemoRenderSettings,
   ) {
     super();
   }
@@ -85,6 +97,7 @@ class DemoApplicationState extends State<DemoApplication> {
       this.toggleBrightness,
     );
     const colors = theme.colorScheme;
+    const settings = this.widget.renderSettings;
     return new MaterialApp({
       theme,
       locale: 'en',
@@ -93,13 +106,17 @@ class DemoApplicationState extends State<DemoApplication> {
       home: new CupertinoTabScaffold({
         backgroundColor: new Color(colors.surface),
         tabBar: new CupertinoTabBar({
-          items: destinations,
+          items: settings ? destinationsWithSettings : destinations,
+          currentIndex: settings?.showOnStartup ? settingsIndex : 0,
           backgroundColor: new Color(colors.surfaceContainer),
           activeColor: new Color(colors.primary),
           inactiveColor: new Color(colors.onSurfaceVariant),
           iconSize: 24,
         }),
-        tabBuilder: (_, index) => (index === 0 ? material : cupertino),
+        tabBuilder: (_, index) => {
+          if (index === settingsIndex && settings) return settingsScreen(settings);
+          return index === 0 ? material : cupertino;
+        },
       }),
     });
   }

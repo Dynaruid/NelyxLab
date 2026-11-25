@@ -4,6 +4,8 @@
 
 아래 탭을 이용해 Material과 Cupertino 갤러리를 전환합니다. 선택과 편집, 슬라이더, 메뉴, 액션 시트와 다이얼로그를 확인할 수 있습니다.
 
+**Settings → Render path**에서 **Direct** 또는 **Worker (automatic)**를 선택할 수 있습니다. 전환 후 설정 탭으로 돌아와 실제로 사용 중인 렌더 경로를 표시합니다. 선택은 다음 실행에도 유지됩니다.
+
 ## 준비와 개발
 
 Node.js 24.x와 고정된 CanvasKit·Rust Wasm 도구를 준비합니다. 저장소 루트에서 SDK를 공급한 뒤 앱 디렉터리로 이동합니다. [SDK 준비](../../README.ko.md#testbed와-demo-실행)

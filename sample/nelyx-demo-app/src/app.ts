@@ -2,6 +2,7 @@
 import type { ApplicationDefinition } from '@nelyx/core/hosting/runtime';
 import { defineApp } from '@nelyx/sdk/app';
 import { DemoApplication } from './demo-application.ts';
+import type { DemoRenderSettings } from './settings-screen.ts';
 export { DemoApplication } from './demo-application.ts';
 export const applicationName = 'NelyxDemoApp';
 
@@ -12,6 +13,7 @@ export interface ApplicationOptions {
   readonly accessibilityEnabled?: boolean;
   /** Experimental cold PageView production inside the date picker only. */
   readonly calendarPreparation?: boolean;
+  readonly renderSettings?: DemoRenderSettings;
 }
 export function createApplicationState(): ApplicationState {
   return { initialText: '안녕하세요, Nelyx!' };
@@ -25,7 +27,8 @@ export function defineApplication(
     defaultFont: 'sample-font',
     accessibilityEnabled: options.accessibilityEnabled ?? true,
     semanticsUpdateInterval: 300,
-    createRoot: () => new DemoApplication(state.initialText, options.calendarPreparation ?? false),
+    createRoot: () =>
+      new DemoApplication(state.initialText, options.calendarPreparation, options.renderSettings),
   });
 }
 

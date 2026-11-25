@@ -8,8 +8,7 @@ import { main as createDemo } from './app.ts';
 export { applicationName } from './app.ts';
 
 /** Interactive candidate entry; the ordinary Demo keeps its legacy default. */
-export function main(): ReturnType<typeof createDemo> {
-  return createDemo(undefined, { calendarPreparation: true });
-}
+export const main: typeof createDemo = (state, options) =>
+  createDemo(state, { ...options, calendarPreparation: true });
 
 startFrontend((props) => createElement(App, { ...props, create: main }));

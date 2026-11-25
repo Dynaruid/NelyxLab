@@ -4,6 +4,8 @@
 
 Switch between the Material and Cupertino galleries using the bottom tabs. The galleries include selection and editors, sliders, menus, an action sheet and dialogs.
 
+Use **Settings → Render path** to switch between **Direct** and **Worker (automatic)**. The demo reopens Settings after a switch and shows the render path in use. The selection is saved for the next launch.
+
 ## Prepare and develop
 
 Prepare Node.js 24.x and the pinned CanvasKit and Rust Wasm toolchains. Run from the Nelyx root, then change to this app directory. [SDK setup](../../README.md#run-testbed-or-demo)

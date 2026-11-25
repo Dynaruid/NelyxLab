@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { describeError } from '@nelyx/core/foundation/errors';
+import { ValueNotifier } from '@nelyx/core/foundation/notifier';
 import { RenderEditable } from '@nelyx/core/framework/rendering/editable';
 import type { RenderObject } from '@nelyx/core/framework/rendering/object';
 import { FrameworkRoot } from '@nelyx/core/framework/widgets/root';
@@ -9,18 +10,16 @@ import { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { Rect } from '@nelyx/core/ui/rect';
 import { TextPosition } from '@nelyx/core/ui/text-position';
 import type { WebSkiaLibrary } from '@nelyx/skia-web/library';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { WebApplication } from '@nelyx/sdk/frontend/dom/application';
+import { useMemo, useState } from 'react';
+import type { WebApplication, WebRenderMode } from '@nelyx/sdk/frontend/dom/application';
 import { getFrontendHost } from '@nelyx/sdk/frontend/dom/environment';
 import { ApplicationSurface } from '@nelyx/sdk/frontend/dom/surface';
 import type { FrontendProps } from '@nelyx/vite/client';
 import { main } from './app.ts';
-import { renderToggleGutter } from './layout.ts';
 
 const modePreference = 'nelyx.demo.renderMode';
-type RenderMode = NonNullable<FrontendProps['options']['renderMode']>;
 
-function initialMode(frontend: FrontendProps['options']): RenderMode {
+function initialMode(frontend: FrontendProps['options']): WebRenderMode {
   if (frontend.renderMode) return frontend.renderMode;
   const { target, os } = getFrontendHost();
   const defaultMode =
@@ -132,12 +131,11 @@ export function App({
   options: frontend,
   create = main,
 }: FrontendProps & { create?: typeof main }) {
-  const shared = useMemo(() => create(), [create]);
-  const [request, setRequest] = useState(() => ({ mode: initialMode(frontend) }));
-  const [path, setPath] = useState<WebApplication['rendering']['path']>();
+  const [request, setRequest] = useState(() => ({
+    mode: initialMode(frontend),
+    showSettings: false,
+  }));
   const [error, setError] = useState('');
-  const toggle = useRef<HTMLButtonElement>(null);
-  const observer = useRef<MutationObserver | undefined>(undefined);
   const options = useMemo(
     () => ({
       ...frontend,
@@ -148,44 +146,44 @@ export function App({
     }),
     [frontend, request],
   );
-  const definition = useMemo(
-    () => ({
-      ...shared.definition,
-      // AssetImage resolves the bundled WebP through ImageService on demand.
-      assets: shared.definition.assets ?? options.manifest.filter(({ kind }) => kind === 'font'),
-    }),
-    [shared.definition, options.manifest],
+  const activeApplication = useMemo(
+    () => new ValueNotifier<WebApplication | undefined>(undefined),
+    [options, create],
   );
-  useEffect(() => () => observer.current?.disconnect(), [options]);
+  const definition = useMemo(() => {
+    const { definition } = create(undefined, {
+      renderSettings: {
+        mode: request.mode,
+        application: activeApplication,
+        showOnStartup: request.showSettings,
+        selectMode(mode) {
+          // Reselecting automatic mode can retry a worker that fell back to direct.
+          if (
+            mode === request.mode &&
+            (mode === 'direct' || activeApplication.value?.rendering.path !== 'direct')
+          )
+            return;
+          setError('');
+          setRequest({ mode, showSettings: true });
+        },
+      },
+    });
+    return {
+      ...definition,
+      // AssetImage resolves the bundled WebP through ImageService on demand.
+      assets: definition.assets ?? options.manifest.filter(({ kind }) => kind === 'font'),
+    };
+  }, [activeApplication, create, options.manifest, request]);
   function ready(application: WebApplication) {
     attachFrameProbe(application);
-    setPath(application.rendering.path);
-    // A worker can recover on a new canvas or fall back to direct after startup.
-    const parent = toggle.current?.parentElement?.querySelector('canvas')?.parentElement;
-    if (parent && application.rendering.path !== 'direct') {
-      observer.current = new MutationObserver((records) => {
-        if (records.some(({ target }) => target === parent || target instanceof HTMLCanvasElement))
-          setPath(application.rendering.path);
-      });
-      observer.current.observe(parent, {
-        subtree: true,
-        childList: true,
-        attributeFilter: ['data-nelyx-render-path'],
-      });
+    activeApplication.value = application;
+    if (request.showSettings) {
+      try {
+        localStorage.setItem(modePreference, request.mode);
+      } catch {
+        // The current session can still switch if storage is unavailable.
+      }
     }
-  }
-  const worker = path === 'worker-transfer' || path === 'worker-shared';
-  const pending = !path && !error;
-  function switchMode() {
-    const mode = (path ? worker : request.mode !== 'direct') ? 'direct' : 'auto';
-    try {
-      localStorage.setItem(modePreference, mode);
-    } catch {
-      // The current session can still switch if storage is unavailable.
-    }
-    setError('');
-    setPath(undefined);
-    setRequest({ mode });
   }
   return (
     <>
@@ -201,23 +199,6 @@ export function App({
           setError(message);
         }}
       />
-      <button
-        className="render-mode-toggle"
-        type="button"
-        ref={toggle}
-        style={{ width: renderToggleGutter - 12 }}
-        aria-label="워커 렌더링"
-        aria-pressed={worker}
-        disabled={pending}
-        title={worker ? '직접 렌더링으로 전환' : '워커 렌더링으로 전환'}
-        onClick={switchMode}
-      >
-        <span aria-hidden="true">⇄</span>{' '}
-        {pending ? '준비' : path ? (worker ? '워커' : '직접') : '재시도'}
-      </button>
-      {path === 'direct' && request.mode !== 'direct' && (
-        <output className="render-mode-notice">워커를 사용할 수 없어 직접 렌더링 중입니다.</output>
-      )}
     </>
   );
 }
