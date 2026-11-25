@@ -3408,8 +3408,13 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       controller = this.widget.controller,
       revision = controller.revision,
       text = controller.text;
-    const at = render.getPositionForOffset(position),
-      range = word && !this.boundConfiguration.obscureText ? render.getWordBoundary(at) : undefined;
+    const at = render.getPositionForOffset(position);
+    let range: TextRange | undefined;
+    if (word) {
+      if (!this.boundConfiguration.obscureText) range = render.getWordBoundary(at);
+      else if (cause === SelectionChangedCause.doubleTap && !this.boundConfiguration.readOnly)
+        range = new TextRange({ start: 0, end: text.length });
+    }
     const anchor = range?.start ?? (extend ? (this.dragAnchor ?? at.offset) : at.offset),
       focus = range?.end ?? at.offset;
     if (!this.isCurrentEditingOwner(identity) || controller.revision !== revision) return false;

@@ -1030,7 +1030,7 @@ export class RenderEditable extends RelayoutWhenSystemFontsChangeMixin(
     context.save();
     try {
       context.clip({ x: 0, y: 0, ...this.size });
-      if (this.visual.focused && !this.visual.obscureText && selection.anchor !== selection.focus)
+      if (this.visual.focused && selection.anchor !== selection.focus)
         for (const box of this.getBoxesForSelection(
           new Selection({ baseOffset: selection.anchor, extentOffset: selection.focus }),
           {

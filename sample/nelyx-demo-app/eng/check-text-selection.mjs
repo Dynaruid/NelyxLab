@@ -199,6 +199,8 @@ async function web(page, url, chromePid) {
   const first = await point(field(page, 'Material single line'), 44);
   const nativePaste = 'Paste Ctrl+V';
   const checkWordSelection = async ({ x, y }, word) => {
+    // Start a new series even when the preceding click was on the same field.
+    await wait(350);
     await page.mouse.dblclick(x, y);
     await until(async () => {
       const editor = await readEditor(page);
@@ -807,7 +809,63 @@ async function checkPublicWidgets(page, tap, secondary, nativeMenu) {
 
   const password = await revealWithWheel(page, field(page, 'Password field'));
   await tap(password);
+  const initialPassword = await readEditor(page);
+  assert.ok(initialPassword?.text.length, 'The password field must be focused and populated');
+  assert.equal(initialPassword.start, initialPassword.end);
+  assert.equal(await page.evaluate(() => document.activeElement.type), 'password');
+  const assertPasswordSelected = async () => {
+    await until(async () => {
+      const editor = await readEditor(page);
+      return (
+        editor?.text === initialPassword.text &&
+        editor.start === 0 &&
+        editor.end === initialPassword.text.length
+      );
+    }, 'The full password range must be selected');
+  };
+  const clip = { x: password.x - 12, y: password.y - 8, width: 56, height: 16 };
+  const passwordPixels = async () => {
+    const png = await page.screenshot({ clip, scale: 'css' });
+    return page.evaluate(async (source) => {
+      const bytes = Uint8Array.from(atob(source), (character) => character.charCodeAt(0));
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const context = canvas.getContext('2d');
+      context.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      return Array.from(context.getImageData(0, 0, canvas.width, canvas.height).data);
+    }, png.toString('base64'));
+  };
+  // Let the caret placement finish its own tap sequence before the double-click.
+  await wait(350);
+  const unselected = await passwordPixels();
+  await page.mouse.dblclick(password.x, password.y);
+  await assertPasswordSelected();
+  await until(async () => {
+    const selected = await passwordPixels();
+    let changed = 0;
+    for (let i = 0; i < selected.length; i += 4)
+      if (
+        selected[i] !== unselected[i] ||
+        selected[i + 1] !== unselected[i + 1] ||
+        selected[i + 2] !== unselected[i + 2]
+      )
+        changed++;
+    // A blinking caret alone cannot change this many pixels inside the masked text.
+    return changed > 100;
+  }, 'The selected mask needs a visible highlight');
+
+  await page.mouse.move(password.x, password.y);
+  await page.mouse.down();
+  await page.mouse.move(password.x + 42, password.y, { steps: 6 });
+  await page.mouse.up();
+  await until(async () => {
+    const editor = await readEditor(page);
+    const length = editor.end - editor.start;
+    return length > 0 && length < initialPassword.text.length;
+  }, 'Mouse drag must select part of the password');
   await page.keyboard.press('Control+a');
+  await assertPasswordSelected();
   await page.keyboard.press('Shift+F10');
   await menu(page, 'Paste').waitFor();
   assert.equal(await menu(page, 'Copy').count(), 0);
