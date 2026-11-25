@@ -711,6 +711,7 @@ class CupertinoMenuItemState extends State<CupertinoMenuItem> implements MenuSwi
         autofocus: options.autofocus ?? false,
         hitTestBehavior: behavior,
         onPressed: enabled ? () => this.activate() : null,
+        requestFocusOnPointer: false,
         ...(options.onFocusChange ? { onFocusChange: options.onFocusChange } : {}),
         onHover: (hover) => {
           if (hover && enabled && options.requestFocusOnHover !== false) this.focus.requestFocus();

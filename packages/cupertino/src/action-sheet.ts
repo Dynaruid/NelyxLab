@@ -366,11 +366,7 @@ class ActionSheetActionState
   }
   didLeave(): void {}
   didConfirm(): void {
-    const control = this.control.currentState;
-    if (control?.canActivate) {
-      control.focusNode.requestFocus();
-      control.activateControl();
-    }
+    this.control.currentState?.activateControl();
   }
 
   override build(context: BuildContext): Widget {
@@ -434,6 +430,7 @@ class ActionSheetActionState
           key: this.control,
           onPressed,
           pointerGesturesEnabled: !scope,
+          requestFocusOnPointer: false,
           focusNode: focusNode ?? null,
           mouseCursor:
             mouseCursor ??

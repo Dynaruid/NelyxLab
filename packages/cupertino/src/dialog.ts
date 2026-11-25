@@ -217,11 +217,7 @@ class DialogActionState extends State<CupertinoDialogAction> implements DialogSl
   didLeave(): void {}
 
   didConfirm(): void {
-    const control = this.control.currentState;
-    if (control?.canActivate) {
-      control.focusNode.requestFocus();
-      control.activateControl();
-    }
+    this.control.currentState?.activateControl();
   }
 
   override build(context: BuildContext): Widget {
@@ -282,6 +278,7 @@ class DialogActionState extends State<CupertinoDialogAction> implements DialogSl
           onPressed,
           enabled: onPressed !== null,
           pointerGesturesEnabled: !scope,
+          requestFocusOnPointer: false,
           semantics: { button: true, identifier: id ?? null, transportId: id ?? null },
           mouseCursor:
             mouseCursor ??
