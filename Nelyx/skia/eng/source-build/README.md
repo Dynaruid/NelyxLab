@@ -1,4 +1,8 @@
-# CanvasKit source build
+# Historical CanvasKit source build
+
+This recipe describes the former `m153-nelyx-paragraph.8` runtime. For current
+Web and Tauri builds, install the pinned npm package with `npm ci`. To reproduce
+the source build, use a revision that shipped `m153-nelyx-paragraph.8`. [Current runtime](../../README.md)
 
 Build the Nelyx paragraph binding with inputs matching the current source lock
 and patch. Keep a single owned source/build directory for the selected runtime.

@@ -1,29 +1,20 @@
 {
-  "schema": "nelyx.canvaskit/v1",
+  "schema": "nelyx.canvaskit/v2",
   "adapterAbi": 1,
-  "version": "m153-nelyx-paragraph.8",
-  "paragraphApiVersion": 1,
-  "pictureApiVersion": 3,
-  "fontApiVersion": 1,
+  "version": "0.42.0",
+  "source": "npm",
   "initialMemoryBytes": 134217728,
-  "maximumMemoryBytes": 268435456,
-  "source": {
-    "revision": "61e7ca4e99062cdd0ab69445d5963fb3365778f6",
-    "lockSha256": "d50f4fe156765d4add03451715366609ece2f16013447a502c153bc1fcb8a407",
-    "patchSha256": "7fd7fde1e14db5ddf8e9ac8013eeafc8a0106a501b8d37291130185d58b60ccf"
-  },
+  "maximumMemoryBytes": 2147483648,
   "files": [
     {
       "id": "canvaskit.js",
       "path": "canvaskit.js",
-      "sha256": "3c5a96be5254064cb686f4e77531fec9e0fa878a501cf2368352cf26e28df8a6"
+      "sha256": "443777592179808354031cf411d8d43cac9f6b98d1227123c5c22d401b0fbf7f"
     },
     {
       "id": "canvaskit.wasm",
       "path": "canvaskit.wasm",
-      "sha256": "394e8db544128795c53f4e7a74d6a0f606d4f09e2b6351ff323e4f429afb834f"
+      "sha256": "25ebed8e60158c5854f8dc807b936daca21354f8bfb6a2231266b0a93812f301"
     }
-  ],
-  "packageRuntime": "generated/runtime",
-  "noticeQualification": "PARTIAL"
+  ]
 }

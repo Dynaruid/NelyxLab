@@ -7,9 +7,14 @@ import { applyPaintEffects } from './paint-effects.ts';
 import type { createRuntimeShaderCache } from './paint-effects.ts';
 import { createEnginePath } from './path.ts';
 
+export interface WebParagraphDrawing {
+  readonly paragraph: Paragraph;
+  readonly hyphens: readonly { paragraph: Paragraph; x: number; y: number }[] | undefined;
+}
+
 interface ReplayResources {
   image(key: string): Image | undefined;
-  paragraph(key: string): Paragraph | undefined;
+  paragraph(key: string): WebParagraphDrawing | undefined;
   picture(key: string): SkPicture;
 }
 
@@ -73,7 +78,7 @@ export class WebSkiaReplay {
     type Command = PaintFrame['commands'][number];
     let paint: import('canvaskit-wasm').Paint | undefined,
       imageRefs: Map<Command, Image> | undefined,
-      paragraphRefs: Map<Command, Paragraph> | undefined,
+      paragraphRefs: Map<Command, WebParagraphDrawing> | undefined,
       pictureRefs: import('canvaskit-wasm').SkPicture[] | undefined,
       styles: Map<Command, import('canvaskit-wasm').Paint> | undefined,
       backdrops: Map<Command, import('canvaskit-wasm').ImageFilter | null> | undefined;
@@ -207,8 +212,11 @@ export class WebSkiaReplay {
             break;
           }
           case 'paragraph': {
-            const paragraph = paragraphRefs!.get(command)!;
-            canvas.drawParagraph(paragraph, command.x, command.y);
+            const drawing = paragraphRefs!.get(command)!;
+            canvas.drawParagraph(drawing.paragraph, command.x, command.y);
+            if (drawing.hyphens)
+              for (const hyphen of drawing.hyphens)
+                canvas.drawParagraph(hyphen.paragraph, command.x + hyphen.x, command.y + hyphen.y);
             break;
           }
           case 'drawRect':

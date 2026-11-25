@@ -168,7 +168,7 @@ export class BrowserRenderer implements Renderer {
     }
     workerReserved = this.workerReserved = true;
     this.telemetry.reservedBytes =
-      this.options.canvasKitManifest.maximumMemoryBytes * 2 +
+      this.options.canvasKitManifest.initialMemoryBytes * 2 +
       webGpuResourceCacheBytes * 2 +
       workerBackingBytes +
       workerResourceBytes * 2 +

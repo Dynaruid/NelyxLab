@@ -6,7 +6,7 @@ Nelyx brings Flutter's widget and rendering model to TypeScript. React DOM hosts
 
 ## Run Testbed or Demo
 
-Use Node.js 24.3 or later in the 24.x range and npm 11. To build the SDK, prepare the pinned CanvasKit runtime, install the Rust Wasm target and install wasm-bindgen-cli 0.2.128. [CanvasKit source build](Nelyx/skia/eng/source-build/README.md)
+Use Node.js 24.3 or later in the 24.x range and npm 11. `npm ci` installs the pinned CanvasKit runtime. To build the SDK, install the Rust Wasm target and wasm-bindgen-cli 0.2.128. [CanvasKit runtime](Nelyx/skia/README.md)
 
 From the repository root in PowerShell, build and supply either sample. The root build commands run SDK supply and the app's isolated npm install.
 

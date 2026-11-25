@@ -1,8 +1,6 @@
 import { readWebImageBytes } from './image-bytes.ts';
 import { browserWebPSize, decodeBrowserWebP } from './webp-decode.ts';
 import type { BrowserWebP } from './webp-decode.ts';
-import { paragraphApiVersion } from './paragraph-api.ts';
-import type { OwnedParagraph } from './paragraph-api.ts';
 import { createEnginePath } from './path.ts';
 import { invariant } from '@nelyx/core/foundation/errors';
 import type { PathSnapshot, PathQueryService } from '@nelyx/core/ui/path';
@@ -12,7 +10,6 @@ import type {
   Surface,
   Image,
   FontCollection,
-  Typeface,
   TypefaceFontProvider,
   Paragraph,
 } from 'canvaskit-wasm';
@@ -44,6 +41,7 @@ import type { ImageByteFormat } from '@nelyx/core/ui/image';
 import type { TextRunStyle } from '@nelyx/core/ui/text-styles';
 import { createRuntimeShaderCache } from './paint-effects.ts';
 import { WebSkiaReplay } from './replay.ts';
+import type { WebParagraphDrawing } from './replay.ts';
 import { WebSkiaSurface } from './surface.ts';
 import type { WebSkiaCanvas, WebSkiaSurfaceOptions } from './surface.ts';
 export { webBackingSize, webGpuResourceCacheBytes } from './surface.ts';
@@ -63,7 +61,7 @@ import { TextLayoutCache } from '@nelyx/core/hosting/text-layout-cache';
 import { TextLayoutBudget } from '@nelyx/core/hosting/text-layout-budget';
 import { TextPaintResources } from '@nelyx/core/hosting/text-paints';
 import type { FontProviderLease } from '@nelyx/core/hosting/text-fonts';
-import { buildStyledText } from '@nelyx/core/ui/text-builder';
+import { buildStyledText, mergeTextRunStyle } from '@nelyx/core/ui/text-builder';
 import { webFontStyleKeys, webTextStyle, webParagraphStyle } from './text-style.ts';
 
 // Leave headroom for Skia's signed integer clip width and height.
@@ -72,16 +70,9 @@ const webImageByteBudget = 256 * 1024 * 1024;
 
 interface Font {
   resource: ResourceId;
-  typeface: Typeface;
   family: string;
   bytes: Uint8Array;
   sourceBytes: number;
-}
-interface OwnedFontRuntime extends CanvasKit {
-  nelyxMakeFontProvider?(
-    faces: readonly Typeface[],
-    families: readonly string[],
-  ): TypefaceFontProvider | null;
 }
 /** Share Skia's typeface lookups across paragraphs with the same font catalog. */
 class WebParagraphFonts {
@@ -131,9 +122,8 @@ class WebParagraphFonts {
     this.styles.clear();
   }
 }
-interface Entry {
+interface Entry extends WebParagraphDrawing {
   layout: TextLayout;
-  paragraph: Paragraph;
   fonts: FontProviderLease<Font, WebParagraphFonts>;
   paintResources: TextPaintResources;
 }
@@ -383,7 +373,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       ck,
       {
         image: (key) => this.images.get(key),
-        paragraph: (key) => this.paragraphs.get(key)?.paragraph,
+        paragraph: (key) => this.paragraphs.get(key),
         picture: (key) => this.framePicture(key),
       },
       this.runtimePrograms,
@@ -417,20 +407,12 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     this.fontCatalog = new ParagraphFontCatalog(registry);
     this.textBudget = new TextLayoutBudget(registry);
     this.providers = new ParagraphFontProviders(registry, this.fontCatalog, (fonts) => {
-      // The pinned runtime shares the faces with every catalog that uses them.
-      let provider = (this.ck as OwnedFontRuntime).nelyxMakeFontProvider?.(
-        fonts.map((font) => font.source.typeface),
-        fonts.map((font) => font.family),
-      );
-      if (!provider) {
-        // Preserve aliases outside the owned binding's name limits.
-        provider = this.ck.TypefaceFontProvider.Make();
-        try {
-          for (const font of fonts) provider.registerFont(font.source.bytes, font.family);
-        } catch (error) {
-          provider.delete();
-          throw error;
-        }
+      const provider = this.ck.TypefaceFontProvider.Make();
+      try {
+        for (const font of fonts) provider.registerFont(font.source.bytes, font.family);
+      } catch (error) {
+        provider.delete();
+        throw error;
       }
       const paragraphFonts = new WebParagraphFonts(this.ck, provider);
       return {
@@ -864,11 +846,11 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     const source = new Uint8Array(bytes),
       typeface = this.ck.Typeface.MakeTypefaceFromData(source.buffer);
     if (!typeface) throw new Error('CanvasKit font decode failed');
-    this.fonts.set(key, { resource, typeface, family, bytes: source, sourceBytes: source.length });
+    // registerFont decodes its own face and silently skips invalid font data.
+    typeface.delete();
+    this.fonts.set(key, { resource, family, bytes: source, sourceBytes: source.length });
     return () => {
-      if (!this.fonts.has(key)) return;
-      typeface.delete();
-      this.fonts.delete(key);
+      if (!this.fonts.delete(key)) return;
       this.resourceRetired?.(key);
     };
   }
@@ -952,6 +934,11 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     let paragraph: Paragraph | undefined,
       admitted = false,
       paintResources: TextPaintResources | undefined;
+    let hyphenGlyphs: Map<TextRunStyle | undefined, Paragraph> | undefined;
+    const retireParagraphs = () => {
+      paragraph?.delete();
+      if (hyphenGlyphs) for (const glyph of hyphenGlyphs.values()) glyph.delete();
+    };
     const temporary: { delete(): void }[] = [],
       uncertainTemporary: { delete(): void }[] = [];
     const own = <T extends { delete(): void }>(value: T): T => {
@@ -973,11 +960,14 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     let builder: ReturnType<CanvasKit['ParagraphBuilder']['MakeFromFontProvider']> | undefined;
     try {
       paintResources = new TextPaintResources(registry, snapshot);
-      const collection = fonts.provider.collectionFor(snapshot, primaryFamily, fonts.families),
-        style = webParagraphStyle(this.ck, snapshot, primaryFamily, fonts.families);
-      builder = collection
-        ? this.ck.ParagraphBuilder.MakeFromFontCollection(style, collection)
-        : this.ck.ParagraphBuilder.MakeFromFontProvider(style, fonts.provider.fontProvider);
+      const collection = fonts.provider.collectionFor(snapshot, primaryFamily, fonts.families);
+      const makeBuilder = (input: TextLayoutInput) => {
+        const style = webParagraphStyle(this.ck, input, primaryFamily, fonts.families);
+        return collection
+          ? this.ck.ParagraphBuilder.MakeFromFontCollection(style, collection)
+          : this.ck.ParagraphBuilder.MakeFromFontProvider(style, fonts.provider.fontProvider);
+      };
+      builder = makeBuilder(snapshot);
       const push = (style: TextRunStyle) => {
         const native = webTextStyle(this.ck, snapshot, style, primaryFamily, fonts.families);
         if (!style.foreground && !style.background) {
@@ -1029,6 +1019,55 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       paragraph.layout(snapshot.width);
       const unresolvedGlyphs = paragraph.unresolvedCodepoints().length;
       // This CanvasKit does not restore unresolved codepoints on a shaping cache hit.
+      const lines = paragraph.getLineMetrics();
+      let longestLine = paragraph.getLongestLine();
+      let hyphens: { paragraph: Paragraph; x: number; y: number }[] | undefined;
+      if (snapshot.hyphens !== 'hidden' && snapshot.text.includes('\u00ad')) {
+        // Keep SkParagraph's source text and UTF-16 geometry. CanvasKit 0.42
+        // exposes the break positions, so paint the hyphen at the end of that line.
+        const runs = snapshot.runs ?? [];
+        const ellipsized = !!snapshot.ellipsis && paragraph.didExceedMaxLines();
+        const { strutStyle: _strutStyle, ...inputWithoutStrut } = snapshot;
+        const hyphenInput: TextLayoutInput = {
+          ...inputWithoutStrut,
+          text: '-',
+          textAlign: 'left',
+        };
+        let runIndex = 0;
+        for (const line of lines) {
+          const offset = line.endExcludingWhitespaces - 1;
+          if (
+            snapshot.text[offset] !== '\u00ad' ||
+            line.endIndex === snapshot.text.length ||
+            (ellipsized && line === lines.at(-1))
+          )
+            continue;
+          while (runs[runIndex] && runs[runIndex]!.end <= offset) runIndex++;
+          const run = runs[runIndex];
+          const style = run && run.start <= offset ? run.style : undefined;
+          hyphenGlyphs ??= new Map();
+          let glyph = hyphenGlyphs.get(style);
+          if (!glyph) {
+            builder = makeBuilder(hyphenInput);
+            push(mergeTextRunStyle(snapshot.style, style));
+            builder.addText('-');
+            builder.pop();
+            glyph = builder.build();
+            hyphenGlyphs.set(style, glyph);
+            builder.delete();
+            builder = undefined;
+            releaseTemporary();
+            glyph.layout(Infinity);
+          }
+          const width = glyph.getLongestLine();
+          longestLine = Math.max(longestLine, line.width + width);
+          (hyphens ??= []).push({
+            paragraph: glyph,
+            x: snapshot.direction === 'rtl' ? line.left - width : line.left + line.width,
+            y: line.baseline - glyph.getAlphabeticBaseline(),
+          });
+        }
+      }
       if (collection && unresolvedGlyphs) fonts.provider.retireCollection();
       const resource = this.allocateResource('paragraph');
       const placeholderBoxes = paragraph.getRectsForPlaceholders();
@@ -1039,39 +1078,33 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         ideographicBaseline: paragraph.getIdeographicBaseline(),
         minIntrinsicWidth: paragraph.getMinIntrinsicWidth(),
         maxIntrinsicWidth: paragraph.getMaxIntrinsicWidth(),
-        longestLine: paragraph.getLongestLine(),
+        longestLine,
         overflow: paragraph.didExceedMaxLines(),
         unresolvedGlyphs,
-        lines: paragraph.getLineMetrics().map((value) => {
-          const line = value as typeof value & { unscaledAscent?: number };
-          return {
-            start: line.startIndex,
-            end: line.endIndex,
-            baseline: line.baseline,
+        lines: lines.map((line) => ({
+          start: line.startIndex,
+          end: line.endIndex,
+          baseline: line.baseline,
+          height: line.height,
+          bounds: {
+            x: line.left,
+            y: line.baseline - line.ascent,
+            width: line.width,
+            height: line.ascent + line.descent,
+          },
+          metrics: {
+            hardBreak: line.isHardBreak,
+            ascent: line.ascent,
+            descent: line.descent,
+            // Skia's TextLine::getMetrics uses the same run metric for both fields.
+            unscaledAscent: line.ascent,
             height: line.height,
-            bounds: {
-              x: line.left,
-              y: line.baseline - line.ascent,
-              width: line.width,
-              height: line.ascent + line.descent,
-            },
-            ...(line.unscaledAscent !== undefined
-              ? {
-                  metrics: {
-                    hardBreak: line.isHardBreak,
-                    ascent: line.ascent,
-                    descent: line.descent,
-                    unscaledAscent: line.unscaledAscent,
-                    height: line.height,
-                    width: line.width,
-                    left: line.left,
-                    baseline: line.baseline,
-                    lineNumber: line.lineNumber,
-                  },
-                }
-              : {}),
-          };
-        }),
+            width: line.width,
+            left: line.left,
+            baseline: line.baseline,
+            lineNumber: line.lineNumber,
+          },
+        })),
         placeholderBoxes: placeholderBoxes.map((box) =>
           freezeTextRect({
             x: box.rect[0]!,
@@ -1085,13 +1118,13 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         ),
       });
       const key = resourceKey(resource),
-        entry = { layout, paragraph, fonts, paintResources };
+        entry = { layout, paragraph, fonts, paintResources, hyphens };
       const registration = this.textBudget!.registration(layout, snapshot);
       registry.register(
         { ...resource, kind: 'paragraph' },
         () => {
           try {
-            entry.paragraph.delete();
+            retireParagraphs();
           } catch (error) {
             this.textFailed = true;
             this.uncertainText.push(entry);
@@ -1127,7 +1160,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       if (admitted) throw error;
       const errors = [error];
       let retired = uncertainTemporary.length === 0;
-      for (const cleanup of [() => paragraph?.delete(), () => builder?.delete(), releaseTemporary])
+      for (const cleanup of [retireParagraphs, () => builder?.delete(), releaseTemporary])
         try {
           cleanup();
         } catch (failure) {
@@ -1144,7 +1177,14 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
           }
       } else {
         this.textFailed = true;
-        this.uncertainText.push({ paragraph, builder, fonts, paintResources, uncertainTemporary });
+        this.uncertainText.push({
+          paragraph,
+          hyphenGlyphs,
+          builder,
+          fonts,
+          paintResources,
+          uncertainTemporary,
+        });
       }
       if (errors.length === 1) throw error;
       throw new AggregateError(errors, 'Web paragraph construction/retirement failed');
@@ -1298,6 +1338,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       'Line offset outside Uint32 ABI',
     );
     if (offset >= text.length) return null;
+    // CanvasKit 0.42 binds the UTF-8 SkParagraph lookup.
     let bytes = 0;
     for (let unit = 0; unit < offset;) {
       const scalar = text.codePointAt(unit)!;
@@ -1305,16 +1346,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       bytes += scalar <= 0x7f ? 1 : scalar <= 0x7ff ? 2 : scalar <= 0xffff ? 3 : 4;
       unit += scalar > 0xffff ? 2 : 1;
     }
-    const native = paragraph as OwnedParagraph;
-    invariant(
-      paragraphApiVersion(this.ck) !== 1 || typeof native.nelyxLineNumberAtUTF16 === 'function',
-      'paragraph-api-mismatch',
-      'Owned runtime is missing UTF16 line lookup',
-    );
-    const result =
-      paragraphApiVersion(this.ck) === 1
-        ? native.nelyxLineNumberAtUTF16!(offset)
-        : paragraph.getLineNumberAt(bytes);
+    const result = paragraph.getLineNumberAt(bytes);
     invariant(
       Number.isInteger(result) && result >= -1 && result < layout.lines.length,
       'invalid-line-number',

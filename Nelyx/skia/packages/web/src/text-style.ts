@@ -1,5 +1,3 @@
-import { invariant } from '@nelyx/core/foundation/errors';
-import { paragraphApiVersion } from './paragraph-api.ts';
 import { mergeTextRunStyle, paragraphFontVariations } from '@nelyx/core/ui/text-builder';
 // SPDX-License-Identifier: BSD-3-Clause
 import type { CanvasKit, TextStyle, StrutStyle, ParagraphStyle, FontWeight } from 'canvaskit-wasm';
@@ -117,11 +115,6 @@ export function webParagraphStyle(
   primary: string,
   families: readonly string[],
 ): ParagraphStyle {
-  invariant(
-    input.hyphens === undefined || paragraphApiVersion(ck) === 1,
-    'web-paragraph-hyphens-unavailable',
-    'The requested soft-hyphen switch requires the owned paragraph runtime',
-  );
   const strut = input.strutStyle,
     behavior = input.textHeightBehavior,
     mask =
@@ -152,7 +145,6 @@ export function webParagraphStyle(
     disableHinting: true,
     replaceTabCharacters: true,
     applyRoundingHack: false,
-    ...(input.hyphens ? { renderSoftHyphens: input.hyphens === 'manual' } : {}),
     textAlign:
       ck.TextAlign[
         ((input.textAlign ?? 'start')[0]!.toUpperCase() + (input.textAlign ?? 'start').slice(1)) as

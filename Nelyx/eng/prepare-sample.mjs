@@ -4,7 +4,7 @@ import path from 'node:path';
 import { capture } from '../sdk/tooling/cli/src/commands.mjs';
 import { supplyRunner } from '../sdk/tooling/cli/src/supply-runner.mjs';
 import { withPublicationLock, removeDirectory } from '../sdk/tooling/cli/src/publication.mjs';
-import { checkWebRuntime } from '../skia/eng/prepare-web-runtime.mjs';
+import { readWebRuntime } from '../sdk/tooling/contracts/src/web-runtime.mjs';
 import { verifyPackageSourceInputs } from './package-source-inputs.mjs';
 import { checkRustPackages } from '../backend/eng/build-supply.mjs';
 
@@ -33,7 +33,7 @@ const supply = [
 const args = process.argv.slice(2);
 
 function pack(directory) {
-  checkWebRuntime();
+  readWebRuntime(root);
   checkRustPackages();
   for (const name of supply.filter((name) => !name.startsWith('backend-')))
     verifyPackageSourceInputs(packages.get('@nelyx/' + name));

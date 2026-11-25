@@ -20,25 +20,23 @@ export async function sha256(bytes: Uint8Array): Promise<string> {
 export function checkCanvasKitManifest(root: URL, manifest: CanvasKitManifest): string {
   if (
     !isAppUrl(root, root) ||
-    manifest.schema !== 'nelyx.canvaskit/v1' ||
-    manifest.version !== 'm153-nelyx-paragraph.8' ||
+    manifest?.schema !== 'nelyx.canvaskit/v2' ||
+    manifest.version !== '0.42.0' ||
+    manifest.source !== 'npm' ||
     manifest.adapterAbi !== 1 ||
     manifest.initialMemoryBytes !== 128 * 1024 * 1024 ||
-    manifest.maximumMemoryBytes !== 256 * 1024 * 1024 ||
-    manifest.files.length !== 2 ||
-    manifest.paragraphApiVersion !== 1 ||
-    manifest.pictureApiVersion !== 3 ||
-    manifest.fontApiVersion !== 1
+    manifest.maximumMemoryBytes !== 2 * 1024 * 1024 * 1024 ||
+    !Array.isArray(manifest.files) ||
+    manifest.files.length !== 2
   )
     throw new CanvasKitIntegrityError('Invalid CanvasKit runtime manifest');
   const ids = new Set<string>();
   for (const file of manifest.files) {
     if (
+      !file ||
       ids.has(file.id) ||
       !['canvaskit.js', 'canvaskit.wasm'].includes(file.id) ||
-      !/^[-a-zA-Z0-9_.]+$/.test(file.path) ||
-      file.path === '.' ||
-      file.path === '..' ||
+      file.path !== file.id ||
       !/^[a-f0-9]{64}$/.test(file.sha256)
     )
       throw new CanvasKitIntegrityError('CanvasKit artifact identity/path/hash');
@@ -69,23 +67,17 @@ export async function instantiateCanvasKit(
   );
   const factory = await load(bytes.get('canvaskit.js')!);
   if (!factory) throw new CanvasKitIntegrityError('CanvasKit initialization export missing');
-  const runtime = (await factory({
+  const runtime = await factory({
     wasmBinary: bytes.get('canvaskit.wasm')!,
     locateFile: (name) => new URL(name, root).href,
-  })) as CanvasKit & {
-    nelyxParagraphApiVersion?: () => number;
-    nelyxPictureApiVersion?: () => number;
-    nelyxFontApiVersion?: () => number;
-    nelyxMakeFontProvider?: unknown;
-  };
+  });
   if (
-    runtime.nelyxParagraphApiVersion?.() !== manifest.paragraphApiVersion ||
-    runtime.nelyxPictureApiVersion?.() !== manifest.pictureApiVersion ||
-    runtime.nelyxFontApiVersion?.() !== manifest.fontApiVersion ||
-    typeof runtime.nelyxMakeFontProvider !== 'function'
+    typeof runtime?.ParagraphBuilder?.MakeFromFontCollection !== 'function' ||
+    typeof runtime.TypefaceFontProvider?.Make !== 'function' ||
+    typeof runtime.PictureRecorder !== 'function'
   )
     throw new CanvasKitIntegrityError(
-      'CanvasKit Paragraph API1, Picture API3 or Font API1 binding mismatch',
+      'CanvasKit is missing the required paragraph or picture APIs',
     );
   return runtime;
 }

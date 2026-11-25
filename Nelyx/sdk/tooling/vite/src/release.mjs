@@ -8,6 +8,7 @@ import {
   backendProtocol,
 } from '@nelyx/tooling-contracts/backend-supply';
 import { createProviderRegistry } from '@nelyx/sdk/runtime/providers';
+import { checkWebRuntimeManifest } from '@nelyx/tooling-contracts/web-runtime';
 import {
   fileTree,
   localFile,
@@ -205,9 +206,7 @@ export async function buildFrontend(app, output, target, project, backend) {
   fs.unlinkSync(viteManifest);
   fs.rmdirSync(path.dirname(viteManifest));
   const workers = fileTree(output).filter((name) => rendererWorkerPath.test(name));
-  const usesWebRenderer = [...modules].some(
-    (id) => sdkModule(id, 'render-worker-port.js'),
-  );
+  const usesWebRenderer = [...modules].some((id) => sdkModule(id, 'render-worker-port.js'));
   if (workers.length !== (usesWebRenderer ? 1 : 0))
     throw new Error('Nelyx render worker does not match the application module graph');
   for (const source of [files, project.files ?? []])
@@ -341,19 +340,13 @@ export function verifyFrontend(
     throw new Error('Missing or mismatched frontend HTML entry');
   if (pwa) checkInstallManifest(directory, data, pwa);
   const runtime = readJson(localFile(directory, 'runtime/native-manifest.json'));
+  checkWebRuntimeManifest(runtime);
   if (
-    runtime.schema !== 'nelyx.canvaskit/v1' ||
-    runtime.version !== 'm153-nelyx-paragraph.8' ||
-    runtime.files?.length !== 2 ||
-    !['canvaskit.js', 'canvaskit.wasm'].every((name) =>
-      runtime.files.some(
-        (file) =>
-          file.id === name &&
-          file.path === name &&
-          data.files.some(
-            (record) => record.path === 'runtime/' + name && record.sha256 === file.sha256,
-          ),
-      ),
+    runtime.files.some(
+      (file) =>
+        !data.files.some(
+          (record) => record.path === 'runtime/' + file.path && record.sha256 === file.sha256,
+        ),
     ) ||
     backendHash(data.canvasKit) !== backendHash(rendererIdentity(runtime)) ||
     (expectedRuntime &&

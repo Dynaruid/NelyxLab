@@ -22,7 +22,7 @@
     "generate:backend-bindings": "npm run build --workspace @nelyx/tooling-contracts && node Nelyx/backend/eng/specta-bindings.mjs --write && node Nelyx/backend/eng/build-supply.mjs --write-wasm-bindings",
     "check:backend-bindings": "node Nelyx/backend/eng/specta-bindings.mjs",
     "build:core": "npm run build --workspace @nelyx/core",
-    "build:skia": "node Nelyx/skia/eng/prepare-web-runtime.mjs --check && npm run build --workspace @nelyx/skia-web",
+    "build:skia": "npm run build --workspace @nelyx/skia-web",
     "build:web": "node Nelyx/eng/build-sample.mjs web",
     "build:tauri": "node Nelyx/eng/build-sample.mjs tauri",
     "deploy": "node helpers/deploy-helper/deploy.mjs",

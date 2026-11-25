@@ -24,26 +24,13 @@ jobs:
           rustup toolchain install "$RUST_VERSION" --profile minimal --target wasm32-unknown-unknown
           rustup default "$RUST_VERSION"
           cargo install wasm-bindgen-cli --version 0.2.128 --locked
-      - name: Build the pinned CanvasKit runtime from source
-        shell: bash
-        run: |
-          set -euo pipefail
-          skia=$(mktemp -d "${RUNNER_TEMP}/nelyx-skia.XXXXXXXX")
-          trap 'rm -rf -- "$skia"' EXIT
-          revision=$(node -p "require('./Nelyx/skia/eng/source-build/canvaskit.lock.json').skia.revision")
-          curl --fail --location --retry 3 --max-time 300 "https://codeload.github.com/google/skia/tar.gz/$revision" --output "$skia/source.tar.gz"
-          recipe=Nelyx/skia/eng/source-build/build-canvaskit.py
-          timeout --kill-after=10s 1190s python3 "$recipe" prepare --root "$skia/build" --archive "$skia/source.tar.gz"
-          jobs=$(nproc)
-          if (( jobs > 16 )); then jobs=16; fi
-          timeout --kill-after=10s 1190s python3 "$recipe" build --root "$skia/build" --jobs "$jobs"
-          node Nelyx/skia/eng/prepare-web-runtime.mjs "$skia/build/out/nelyx-canvaskit"
       - name: Build both targets and verify the shared renderer
         timeout-minutes: 20
         shell: bash
         run: |
           npm ci --no-audit --no-fund
           npm run build:sdk
+          node Nelyx/eng/check-web-canvaskit.mjs
           node Nelyx/eng/check-device-services.mjs
           node Nelyx/eng/check-expanded-device-services.mjs
           sdk=$(mktemp -d "${RUNNER_TEMP}/nelyx-sdk.XXXXXXXX")
