@@ -52,7 +52,7 @@ export function inspectRustSupply(app, target) {
   );
   if (!matchesProjection(rustSupplyPath(app), packages))
     throw new Error(
-      'Rust SDK projection differs from installed packages. Run nelyx supply and npm ci --workspaces=false in ' +
+      'Rust SDK projection differs from installed packages. Run nelyx supply and npm install --workspaces=false in ' +
         app,
     );
   return packages;

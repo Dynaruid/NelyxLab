@@ -1,6 +1,6 @@
-# Nelyx 웹·Tauri 상태 보존 핫 리로드 작업계획
+# Nelyx 웹·Tauri 핫 리로드와 빌드 속도 개선 계획
 
-2026-11-25 · 기준 커밋 `a30b5771` · Vite `8.3.8` · **코드 조사와 웹·Windows 기준선 확인, 구현 계획**
+2026-11-25 · 핫 리로드 조사 `a30b5771` · 빌드 캐시 조사 `daba4751` · Vite `8.3.8` · **구현 계획**
 
 웹의 `dev:web`과 네이티브 설치 앱의 `dev:tauri`는 같은 Vite 프런트엔드를 사용한다. 기본 샘플에서 CSS는 문서를 유지한 채 갱신되지만, 실제 화면을 그리는 `.ts` 위젯은 저장하면 문서 전체를 다시 연다. 따라서 화면이 자동으로 바뀌어도 현재 라우트, 텍스트 편집 상태, 스크롤 위치 같은 메모리 상태는 초기화된다. Rust 변경은 웹에서 Wasm 다시 빌드 후 문서 재시작, Tauri에서 네이티브 호스트 다시 빌드 후 프로세스 재기동으로 처리된다. [Vite 변경 분기](Nelyx/sdk/tooling/vite/src/config.mjs#L248) · [웹 Wasm 감시](Nelyx/sdk/tooling/cli/src/web-runner.mjs#L247) · [Tauri 개발 실행](Nelyx/sdk/tooling/cli/src/tauri-runner.mjs#L479)
 
@@ -78,3 +78,57 @@ npm.cmd run dev:web
 npm.cmd run dev:tauri -- --platform windows
 npm.cmd run dev:tauri -- --platform android --architecture x64 --device emulator-5554
 ```
+
+## 6. 현재 빌드 캐시와 반복 작업
+
+Cargo는 앱별 고정 경로에 빌드 결과를 남긴다. CLI는 내용이 같은 생성 파일의 쓰기를 건너뛴다. 저장소 루트의 `build:web`, `build:tauri`와 `deploy`에서 기존 npm 설치를 재사용하도록 바꿨다. 앱 화면만 바꿔도 SDK 전체 빌드, 패키지 압축과 잠금 파일 갱신은 실행되므로 이 중복 작업을 다음 단계에서 줄인다. [루트 빌드 실행기](Nelyx/eng/build-sample.mjs) · [배포 헬퍼](helpers/deploy-helper/deploy.mjs#L123) · [Cargo 캐시 경로](Nelyx/sdk/tooling/cli/src/backend-project.mjs#L191)
+
+| 단계 | 현재 재사용 범위와 반복 비용 |
+| --- | --- |
+| TypeScript SDK | `build:sdk`가 Core·Cupertino·Material·Tooling Contracts·Skia Web·SDK를 순서대로 빌드한다. 각 패키지는 빈 staging에서 TS 7 타입 검사와 TS 6 `createProgram` 검사·emit을 거친다. 빌드 상태 파일과 패키지 단위 변경 판정이 없어 입력이 같아도 검사와 emit을 반복한다. [빌드 명령](package.json#L20) · [패키지 컴파일러](Nelyx/eng/build-packages.mjs#L129) |
+| SDK 압축과 설치 | 앱 공급 아카이브는 내용 해시 이름을 쓰고, Rust 투영본이 현재 공급과 일치하면 교체를 생략한다. `prepareSample()`은 매번 SDK 패키지 전체를 임시 압축하고, 공급 시 `npm install --package-lock-only` 및 Rust 아카이브 풀기를 실행한다. 이어서 공개 잠금과 설치 기록, 설치된 패키지 버전 및 공급 해시를 대조한다. 유효하면 앱 설치를 건너뛰고, 갱신이 필요하면 `npm install --workspaces=false`를 실행한다. [SDK 압축](Nelyx/eng/prepare-sample.mjs#L35) · [공급과 npm 잠금 갱신](Nelyx/sdk/tooling/cli/src/supply-runner.mjs#L165) · [앱 설치 확인](Nelyx/eng/build-sample.mjs) · [Rust 투영](Nelyx/sdk/tooling/cli/src/rust-supply.mjs#L84) |
+| Rust 및 Wasm | SDK는 `Nelyx/backend/.cache/cargo`를, 앱은 앱 경로별 Cargo `target`을 사용한다. 앱 Wasm 호스트와 Cargo.lock은 바이트가 같으면 유지한다. Cargo가 기존 컴파일 산출물을 사용해도 SDK 기본 Wasm과 앱 Wasm 모두 `wasm-bindgen`을 다시 실행한다. Rust SDK는 세 패키지의 `dist`도 다시 게시한다. 자체 백엔드가 없는 웹 앱은 SDK에 포함한 Wasm을 읽는다. [SDK Wasm 공급](Nelyx/backend/eng/build-supply.mjs#L70) · [생성 파일 쓰기](Nelyx/sdk/tooling/cli/src/backend-project.mjs#L28) · [앱 Wasm](Nelyx/sdk/tooling/cli/src/backend-project.mjs#L299) |
+| Vite와 Tauri | `.nelyx/vite`는 개발 의존성 사전 번들 등을 재사용한다. 릴리스 빌드는 웹·Tauri 모두 새 staging에서 Vite 패키징과 파일 해시를 다시 계산한다. 이미 만든 Tauri 프런트엔드는 `pack:tauri -- --frontend <경로>`에서 검증한 뒤 여러 OS에 재사용할 수 있다. UI 변경으로 `buildId`가 바뀌면 새 ID와 자산을 포함하는 호스트 및 번들을 갱신해야 하며 Cargo는 앞단 의존성 산출물을 재사용할 수 있다. [Vite 설정](Nelyx/sdk/tooling/vite/src/config.mjs#L27) · [릴리스 빌드](Nelyx/sdk/tooling/vite/src/release.mjs#L156) · [Tauri 호스트 생성](Nelyx/sdk/tooling/cli/src/tauri-host.mjs#L189) · [Vite 사전 번들 캐시](https://vite.dev/guide/dep-pre-bundling.html#caching) |
+| Android Gradle | 생성된 Demo·Testbed의 `gradle.properties`는 `org.gradle.configuration-cache=true`를 설정한다. 프로젝트 설정에는 `org.gradle.caching`이 없고 생성된 `BuildTask.kt`에는 산출물 선언이 없어, 일반 태스크의 출력 재사용과 Rust 콜백의 실행 여부는 따로 확인해야 한다. Android 패키징은 Debug APK와 Release AAB를 각각 빌드하며 기기 설치에는 APK를 사용한다. `platform/android/` 입력 해시가 바뀌면 생성 프로젝트 전체를 다시 초기화한다. [생성 프로젝트 재사용 조건](Nelyx/sdk/tooling/cli/src/tauri-runner.mjs#L143) · [Android 산출물 빌드](Nelyx/sdk/tooling/cli/src/tauri-runner.mjs#L280) · [Gradle 설정 캐시](https://docs.gradle.org/current/userguide/configuration_cache.html) · [Gradle 빌드 캐시](https://docs.gradle.org/current/userguide/build_cache.html) |
+
+코드 분석 뒤 Windows의 설치된 Testbed에서 앱 Wasm과 Web 릴리스 생성 단계만 같은 Node 프로세스로 두 번 실행했다. Cargo의 반복 실행에서 `compiler-artifact` 41개가 모두 `fresh`였다. 앱 Wasm 단계는 0.36초와 0.29초였고 바인딩을 매번 실행했다. 프런트엔드 생성과 검증은 2.66초와 1.70초였으며, Vite는 두 번 모두 1,099개 모듈을 변환했고 결과 `buildId`는 같았다. 루트 SDK·npm과 실제 네이티브 패키징 이득은 아래 기준선으로 측정한다. [Cargo 산출물 메시지](https://doc.rust-lang.org/cargo/reference/external-tools.html#artifact-messages)
+
+## 7. 빌드 개선 순서와 완료 기준
+
+W5-06의 앱 설치 경로와 설치 안내를 먼저 갱신했다. W5-05로 기준선을 잡은 뒤 W5-06에 남은 SDK 공급 재사용을 적용한다. W5-07의 Wasm 결과 재사용은 W5-01의 개발 갱신에, W5-08의 네이티브 생성 입력 판정은 W5-04의 재기동에 연결한다.
+
+### W5-05. 단계별 시간과 재사용 여부 측정
+
+- 현재 루트 `build:web`·`build:tauri`, 샘플 내부의 빌드 명령과 Android `deploy`에서 SDK 검사·emit, `npm pack`, 공급·의존성 설치, Cargo, `wasm-bindgen`, Vite, Gradle·OS 번들을 따로 잰다. 실행 시간과 함께 실제 실행한 검사·패키지 수, Cargo `compiler-artifact.fresh`, Gradle `UP-TO-DATE`·`FROM-CACHE`·설정 캐시 적중, 이전·현재 출력의 ID와 해시를 기록한다. 각 실행의 적중·재빌드 사유는 CLI에서 볼 수 있게 한다. [명령 실행기](Nelyx/sdk/tooling/cli/src/commands.mjs) · [현재 패키지 식별 자료](Nelyx/sdk/tooling/cli/src/tauri-runner.mjs#L341)
+- 콜드 1회와 같은 입력의 반복 3회를 동일한 앱·플랫폼·ABI·프로필·툴체인에서 비교한다. npm·Cargo·Gradle 다운로드 시간과 로컬 작업 시간을 따로 잰다. 사용자 작업 캐시는 보존하고 필요하면 단일 임시 검증 범위를 사용한다. 20분 검증 제한과 임시 출력 정리 규칙을 적용한다. 단계별 시간 절감과 전체 반복 빌드의 중앙값이 함께 개선됐을 때 속도 개선으로 기록한다. [저장소 검증 규칙](.github/copilot-instructions.md)
+
+### W5-06. SDK 설치 재사용과 증분 공급
+
+1. SDK 패키지의 TypeScript 프로젝트 입력과 실제 빌드 의존성으로 지문을 만든다. 소스 추가·삭제, 해석에 쓰는 의존 패키지의 선언·exports, TS 설정과 컴파일러 버전, 셰이더 입력, provider 정의 생성기를 포함한다. `dist`의 필수 파일과 목록·해시를 확인한 뒤 같은 패키지를 재사용한다. 바뀐 패키지와 그 변경으로 다시 검사가 필요한 소비 패키지만 기존 순서로 빌드한다. 셰이더와 provider 결과는 실제 출력 검증에 포함한다. 변경 패키지 안의 컴파일 비용이 여전히 크면 안정된 `tsBuildInfoFile`과 증분 컴파일러 API를 별도로 측정한다. 빈 staging에 전체 산출물이 필요한 현재 구조에서는 `.tsbuildinfo`만 설정하면 빠진 JS·선언이 생길 수 있으므로 출력 목록 검증과 함께 적용한다. [소스 맵 검사](Nelyx/eng/package-source-inputs.mjs#L15) · [셰이더 변환](Nelyx/eng/shader-assets.mjs#L32) · [provider 생성](Nelyx/eng/generate-providers.mjs#L203) · [TypeScript 증분 옵션](https://www.typescriptlang.org/tsconfig/incremental.html)
+2. 압축 입력에는 실제 배포 파일, 패키지 메타데이터와 라이선스를 포함한다. 바뀐 패키지만 압축하고 `supplyRunner({ reuseCurrent: true })`로 현재 앱의 검증된 아카이브를 재사용한다. JS 패키지만 바뀌면 Rust 아카이브와 투영본을 대조해 반복 압축 해제도 줄인다. 공급이 바뀔 때만 앱 파일을 갱신해 Vite 사전 번들의 재실행을 줄인다. [아카이브 재사용 옵션](Nelyx/sdk/tooling/cli/src/supply-runner.mjs#L92) · [Rust 투영 확인](Nelyx/sdk/tooling/cli/src/rust-supply.mjs#L61)
+3. 루트 빌드와 `deploy`는 SDK를 공급하는 앱 잠금 아래에서 설치를 확인한다. 공개·설치 잠금과 설치된 패키지가 일치하고 `assertInstalledSupply()`를 통과하면 재사용한다. 최초 설치나 서로 다른 공급본·설치 패키지 누락에는 `npm install`을 사용하며, `package-lock.json`으로 의존성 버전을 관리한다. CLI 복구 문구와 현재 설치 안내에도 같은 명령을 적용했다. 설치 기록에 드러나지 않는 개별 패키지 파일 손상의 검사와 해당 패키지만 복구하는 경로를 이어서 구현한다. [루트 설치 호출](Nelyx/eng/build-sample.mjs) · [설치 공급 검증](Nelyx/sdk/tooling/contracts/src/installed-supply.cjs#L8) · [스타터 안내](Nelyx/sdk/tooling/cli/templates/nelyx-app/README.ko.md) · [npm install의 잠금 처리](https://docs.npmjs.com/cli/v12/commands/npm-install/#how-npm-install-uses-package-lockjson)
+4. 앱과 SDK의 빌드·공급 소유권 잠금을 사용하고 성공한 출력과 일치할 때만 최신 지문을 기록한다. 이미 게시한 정상 릴리스는 새 빌드가 검증을 통과한 뒤 교체한다. 상태는 현재 `dist`·공급·설치에 필요한 정보만 유지하고, 교체에 쓴 staging·백업은 작업이 끝나면 정리한다. [게시 잠금과 교체](Nelyx/sdk/tooling/cli/src/publication.mjs#L31) · [검증 출력 관리](.github/copilot-instructions.md)
+
+Windows의 npm 12.2.3에서 임시 로컬 패키지를 사용해 같은 버전의 새 아카이브 설치와 변경 없는 패키지 재사용을 확인했다. 설치된 JS 파일 하나가 누락된 경우에는 해당 패키지를 다시 설치해 복구했다. 구현 후에는 임시 Testbed에서 루트 `build:web`이 최초 설치와 웹 릴리스를 완료했고, 이어서 루트 `build:tauri --frontend-only`가 기존 설치를 재사용해 프런트엔드를 만들었다. 두 번째 빌드 뒤 설치 잠금과 변경 없는 패키지의 표식이 그대로였으며 임시 앱과 빌드 캐시를 정리했다. [루트 빌드 실행기](Nelyx/eng/build-sample.mjs) · [저장소 설치 안내](README.ko.md)
+
+### W5-07. Wasm 바인딩과 릴리스 프런트엔드 재사용
+
+1. 앱 Wasm은 Cargo에 freshness 판단을 맡긴다. 결과 Wasm의 SHA-256, `wasm-bindgen` 버전·인자와 SDK 선언 계약이 같으면 검증된 바인딩과 런타임 파일을 재사용한다. 누락·손상됐거나 출력 Wasm이 바뀌면 바인딩과 선언을 다시 확인하고 한 묶음으로 게시한다. 앱별 최신 결과를 웹 개발 시작·재시작과 릴리스 빌드에서 함께 쓴다. SDK 기본 Wasm도 현재 Rust 입력·lock·도구·옵션과 공급 파일 검증이 일치하면 재사용하고, Rust 공급의 각 `dist`는 내용이 바뀐 경우에만 게시한다. [앱 Wasm 바인딩과 사후 검사](Nelyx/sdk/tooling/cli/src/backend-project.mjs#L299) · [기본 Wasm과 공급 검증](Nelyx/backend/eng/build-supply.mjs#L52) · [Cargo 프로필](https://doc.rust-lang.org/cargo/reference/profiles.html#incremental)
+2. Tauri는 기존 `--frontend-only`와 `pack --frontend` 경로를 활용해 검증한 한 프런트엔드를 여러 OS에서 패키징한다. 자동으로 Vite 호출을 생략하는 것은 입력을 추적할 수 있는 기본 설정부터 적용한다. 앱 모듈·HTML·CSS·자산과 라이선스, Vite 설정·빌드 환경, 설치 공급본, CanvasKit·백엔드 계약을 포함한 입력 지문이 현재 출력에 대응해야 한다. 사용자 플러그인의 외부 입력을 파악할 수 없는 빌드는 Vite를 실행한다. 출력은 기존 `verifyFrontend()`의 파일 해시·`buildId`·타깃 검증을 통과해야 하며, Wasm·서비스 워커를 포함하는 Web과 Tauri의 프런트엔드 지문은 각 타깃에 둔다. [Tauri 프런트엔드와 팩 분리](Nelyx/sdk/tooling/cli/README.ko.md#tauri-빌드와-실행) · [릴리스 검증](Nelyx/sdk/tooling/vite/src/release.mjs#L274)
+3. Vite가 실제로 실행되는 빌드에서는 로그용 gzip 크기 계산의 비용도 측정한다. `build.reportCompressedSize: false`에서 산출물 해시가 같고 시간이 줄면 기본 옵션에 반영한다. [Vite 압축 크기 보고 옵션](https://vite.dev/config/build-options.html#build-reportcompressedsize)
+
+### W5-08. Android 설치 반복 비용과 네이티브 패키징 확인
+
+- Android 기기 설치용 Debug APK만 빌드하는 옵션을 추가하고 `deploy`의 기기 설치 경로에 연결한다. 해당 ABI의 APK·서명 상태·빌드 식별자를 확인하고 정확히 그 APK를 설치한다. Debug APK 산출물은 배포 패키지와 별도 경로에 게시해 기존 Release AAB를 보존한다. 정식 `build:tauri`·`pack:tauri`는 현재의 APK·AAB 계약을 따른다. [빌드와 설치 호출](helpers/deploy-helper/deploy.mjs#L123) · [Tauri 패키지 메타데이터](Nelyx/sdk/tooling/cli/src/tauri-runner.mjs#L341)
+- Kotlin·Java·Android 리소스 태스크의 로컬 Gradle 출력 캐시 효과를 측정하고, `org.gradle.caching=true` 사용 여부를 결정한다. Rust 빌드의 판정은 Cargo에 맡긴다. CLI·앱 식별자·프로젝트 구조 변경으로 재생성이 필요한 경우와 앱 소유 오버레이만 바뀐 경우를 판별해, 후자는 바뀐 파일만 적용할 수 있는지 검증한다. 파일 삭제 시 생성 기본값을 복원하고, 캐시 적중 때도 딥링크 필터·권한·자산이 최종 APK에 들어있는지 확인한다. [오버레이와 Gradle 콜백](Nelyx/sdk/tooling/cli/src/tauri-host.mjs#L344) · [딥링크 필터 갱신](Nelyx/sdk/tooling/cli/src/tauri-device-host.mjs#L119) · [Gradle 출력 캐시](https://docs.gradle.org/current/userguide/build_cache.html#sec:task_output_caching)
+- 같은 입력의 네이티브 패키징이 반복 비용으로 확인되면 현재 검증된 개발 패키지 재사용도 적용한다. `frontendBuildId`, 호스트·백엔드 입력, OS·ABI·프로필, 패키징 도구와 형식, 산출물 해시가 모두 맞는 경우로 제한한다. 새 서명이 필요한 빌드와 도구나 입력을 추적하기 어려운 빌드는 패키저를 실행한다. [Tauri 패키지 확인](Nelyx/sdk/tooling/cli/src/tauri-runner.mjs#L374)
+
+| 재검증 입력 | 완료 조건 |
+| --- | --- |
+| 설치가 없는 앱, 같은 버전의 새 SDK와 설치 복구 | `npm install`로 최초 설치와 복구가 완료되고, 같은 버전의 새 SDK 코드가 실제로 실행된다. 영향받지 않은 설치 패키지는 재사용하고 복구에서 잠긴 의존성 해석을 확인한다. 루트 빌드·배포·복구와 활성 설치 안내가 모두 같은 명령을 사용한다. |
+| 같은 입력으로 루트 Web·Windows 빌드를 재실행 | 검증된 SDK의 컴파일·압축·의존성 설치 호출은 0회다. 앱 Wasm 입력에서 Cargo 산출물은 fresh이며 bindgen은 0회다. Vite·패키징 재사용 여부와 걸린 시간은 실제 실행 수로 확인하고 같은 출력의 `buildId`·파일 해시를 대조한다. |
+| 앱 UI만 편집한 뒤 Web과 Windows 빌드 | SDK 공급과 설치가 적중한다. 최신 화면을 포함한 프런트엔드 `buildId`를 얻는다. Windows 실행본은 그 ID를 보고하고 최신 자산을 렌더링한다. |
+| 앱 Rust, Core 및 셰이더, 공급 잠금, 빌드 도구 또는 ABI를 변경 | 값이 달라진 단계와 의존 단계만 갱신한다. 같은 버전의 다른 SDK 아카이브도 교체된다. 삭제·손상된 산출물은 정상 재빌드로 복구된다. 동시 실행 또는 중단 뒤에도 게시된 정상 출력이 유지되고, 다음 빌드는 설치를 검증한 뒤 진행한다. |
+| Android x64·arm64에서 Debug APK 빌드와 일반 패키징 | 기기용은 Release AAB 태스크가 0회이며 지정한 ABI의 새 APK를 설치한다. 일반 패키징은 APK와 AAB를 발행한다. 각 경우 실제 자산, 설정, 서명 상태와 딥링크를 검증한다. 다른 Tauri OS는 해당 도구에서 팩 및 실행 여부를 기록한다. |
+
+SDK 설치가 이미 현재 소스와 일치할 때는 샘플 디렉터리의 기존 `npm.cmd run build:web`을 사용해 앱 빌드를 바로 실행할 수 있다. Tauri는 같은 위치에서 `npm.cmd run build:tauri -- --frontend-only`로 프런트엔드를 만든 뒤 `npm.cmd run pack:tauri -- --platform windows --frontend .nelyx/tauri/frontend`로 재사용한다. 위의 자동 건너뛰기와 APK 전용 옵션은 이 작업계획의 구현 항목이다. [샘플 스크립트](sample/nelyx-demo-app/package.json#L7) · [CLI 프런트엔드·팩 안내](Nelyx/sdk/tooling/cli/README.ko.md#tauri-빌드와-실행)

@@ -7,12 +7,12 @@
 Build the SDK with the pinned CanvasKit and Wasm toolchains, then run these commands from the Nelyx checkout.
 
 ```powershell
-npm.cmd ci
+npm.cmd install
 npm.cmd run build:sdk
 npm.cmd run pack:sdk -- C:/dev/nelyx-packages
 node Nelyx/sdk/tooling/cli/src/main.mjs create C:/dev/MyApp --name MyApp --packages C:/dev/nelyx-packages
 Set-Location C:/dev/MyApp
-npm.cmd ci --workspaces=false
+npm.cmd install --workspaces=false
 npx.cmd --no-install nelyx prepare --app . --target web
 npm.cmd run typecheck
 npx.cmd --no-install nelyx dev --app . --target web
@@ -20,7 +20,7 @@ npx.cmd --no-install nelyx dev --app . --target web
 
 `create` includes both design packages and both targets by default. Set `--designs none`, `--designs material` or `--designs cupertino` to choose a smaller starter. Choose `--target web --static --no-backend` for a regular website that uses the supplied default Wasm. Choose `--target tauri` for an installed app. On Linux and macOS use `npm` and `npx`.
 
-Use `nelyx supply --app . --packages C:/dev/nelyx-packages` followed by `npm.cmd ci --workspaces=false` to update the SDK. Commit the app's npm lock and the `backend/locks/<target>/Cargo.lock` files produced by `prepare`. When Cargo dependencies change, run `prepare --update-lock` for each affected target. The build restores the selected lock and invokes Cargo with `--locked`.
+Use `nelyx supply --app . --packages C:/dev/nelyx-packages` followed by `npm.cmd install --workspaces=false` to update the SDK. Commit the app's npm lock and the `backend/locks/<target>/Cargo.lock` files produced by `prepare`. When Cargo dependencies change, run `prepare --update-lock` for each affected target. The build restores the selected lock and invokes Cargo with `--locked`.
 
 ## Publish Web
 

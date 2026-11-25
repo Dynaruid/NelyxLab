@@ -9,11 +9,11 @@ Core, Material, Cupertino의 목록·편집·접근성 동작을 확인하는 �
 Node.js 24.x와 고정된 CanvasKit·Rust Wasm 도구를 준비합니다. 저장소 루트에서 SDK를 공급한 뒤 앱 디렉터리로 이동합니다. [SDK 준비](../../README.ko.md#testbed와-demo-실행)
 
 ```powershell
-npm.cmd ci
+npm.cmd install
 npm.cmd run build:sdk
 npm.cmd run prepare:sample -- --app sample/nelyx-testbed-app-2
 Set-Location sample/nelyx-testbed-app-2
-npm.cmd ci --workspaces=false
+npm.cmd install --workspaces=false
 npm.cmd run prepare:web
 npm.cmd run typecheck
 npm.cmd run dev:web

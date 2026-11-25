@@ -16,7 +16,7 @@ The text adapter converts UTF-16 offsets for CanvasKit's line lookup, registers 
 
 ## Build and use
 
-From the repository root, after `npm ci`:
+From the repository root, after `npm install`:
 
 ```powershell
 npm run build:skia

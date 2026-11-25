@@ -121,7 +121,7 @@ The package includes [MaterialIcons.otf](assets/MaterialIcons.otf) and [its lice
 
 ## Build and use
 
-From the repository root, after `npm ci`:
+From the repository root, after `npm install`:
 
 ```powershell
 npm run build:designs

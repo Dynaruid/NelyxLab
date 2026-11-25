@@ -2,7 +2,7 @@
 
 [English](README.md) | **한국어**
 
-저장소 루트에서 `npm run deploy`를 실행해 플랫폼과 Demo 또는 Testbed를 고릅니다. 헬퍼는 기존 SDK 공급, 앱별 npm 설치와 빌드 경로를 사용합니다. Windows PowerShell에서는 `npm.cmd`를 사용합니다. [저장소 준비 절차](../../README.ko.md#testbed와-demo-실행)
+저장소 루트에서 `npm run deploy`를 실행해 플랫폼과 Demo 또는 Testbed를 고릅니다. 헬퍼는 SDK를 공급한 뒤 유효한 앱 의존성을 재사용하고, 설치나 갱신이 필요하면 `npm install`을 실행합니다. Windows PowerShell에서는 `npm.cmd`를 사용합니다. [저장소 준비 절차](../../README.ko.md#testbed와-demo-실행)
 
 ```powershell
 npm.cmd run deploy

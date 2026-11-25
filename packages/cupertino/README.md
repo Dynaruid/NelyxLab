@@ -77,7 +77,7 @@ The package includes [CupertinoIcons.ttf](assets/CupertinoIcons.ttf) and [its li
 
 ## Build and use
 
-From the repository root, after `npm ci`:
+From the repository root, after `npm install`:
 
 ```powershell
 npm run build:designs

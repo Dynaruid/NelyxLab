@@ -92,7 +92,7 @@ For low-level scene consumers, `FrameworkRoot.build(scene)` returns a `FrameReco
 
 ## Build
 
-From the repository root, after `npm ci`:
+From the repository root, after `npm install`:
 
 ```powershell
 npm run build:core

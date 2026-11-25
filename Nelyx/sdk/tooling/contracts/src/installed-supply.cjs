@@ -20,10 +20,9 @@ function assertInstalledSupply(runnerRoot) {
   );
   if (!selected.length) return;
   const lockFile = path.join(runnerRoot, 'node_modules/.package-lock.json'),
-    install = fs.existsSync(path.join(runnerRoot, 'package-lock.json')) ? 'npm ci' : 'npm install',
     fail = (name, reason) => {
       throw new Error(
-        `Installed runner supply differs for ${name}: ${reason}. Run ${install} --workspaces=false in ${runnerRoot} after supplying archives.`,
+        `Installed runner supply differs for ${name}: ${reason}. Run npm install --workspaces=false in ${runnerRoot} after supplying archives.`,
       );
     };
   if (!fs.existsSync(lockFile)) fail(selected[0][0], 'npm installation receipt is missing');

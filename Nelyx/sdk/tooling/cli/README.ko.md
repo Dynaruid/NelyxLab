@@ -7,12 +7,12 @@
 고정된 CanvasKit과 Rust Wasm 도구를 준비한 뒤 Nelyx 저장소에서 실행합니다.
 
 ```powershell
-npm.cmd ci
+npm.cmd install
 npm.cmd run build:sdk
 npm.cmd run pack:sdk -- C:/dev/nelyx-packages
 node Nelyx/sdk/tooling/cli/src/main.mjs create C:/dev/MyApp --name MyApp --packages C:/dev/nelyx-packages
 Set-Location C:/dev/MyApp
-npm.cmd ci --workspaces=false
+npm.cmd install --workspaces=false
 npx.cmd --no-install nelyx prepare --app . --target web
 npm.cmd run typecheck
 npx.cmd --no-install nelyx dev --app . --target web
@@ -20,7 +20,7 @@ npx.cmd --no-install nelyx dev --app . --target web
 
 `create`는 기본적으로 두 디자인 패키지와 두 타깃을 설정합니다. `--designs none`, `--designs material`, `--designs cupertino`로 필요한 디자인을 고릅니다. `--target web --static --no-backend`는 SDK 기본 Wasm을 쓰는 일반 정적 웹을 구성합니다. `--target tauri`는 설치 앱을 구성합니다. Linux와 macOS에서는 `npm`과 `npx`를 사용합니다.
 
-SDK를 갱신할 때는 앱 루트에서 `nelyx supply --app . --packages C:/dev/nelyx-packages`와 `npm.cmd ci --workspaces=false`를 순서대로 실행합니다. 앱의 npm 잠금 파일과 `prepare`가 만드는 `backend/locks/<target>/Cargo.lock`을 버전 관리합니다. Cargo 의존성을 변경하면 영향을 받는 타깃마다 `prepare --update-lock`을 실행합니다. 빌드는 타깃의 잠금 파일을 복원해 Cargo에 `--locked`를 전달합니다.
+SDK를 갱신할 때는 앱 루트에서 `nelyx supply --app . --packages C:/dev/nelyx-packages`와 `npm.cmd install --workspaces=false`를 순서대로 실행합니다. 앱의 npm 잠금 파일과 `prepare`가 만드는 `backend/locks/<target>/Cargo.lock`을 버전 관리합니다. Cargo 의존성을 변경하면 영향을 받는 타깃마다 `prepare --update-lock`을 실행합니다. 빌드는 타깃의 잠금 파일을 복원해 Cargo에 `--locked`를 전달합니다.
 
 ## 웹 배포
 

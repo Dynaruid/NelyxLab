@@ -92,7 +92,7 @@ export function main() {
 
 ## 빌드
 
-저장소 루트에서 `npm ci` 후 실행합니다.
+저장소 루트에서 `npm install` 후 실행합니다.
 
 ```powershell
 npm run build:core

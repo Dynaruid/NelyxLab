@@ -6,12 +6,12 @@ Nelyx는 Flutter의 위젯과 렌더링 모델을 TypeScript로 구현한 SDK입
 
 ## Testbed와 Demo 실행
 
-Node.js 24.3 이상 24.x와 npm 11을 사용합니다. `npm ci`가 고정된 CanvasKit 런타임을 설치합니다. SDK를 빌드하려면 Rust Wasm 타깃과 wasm-bindgen-cli 0.2.128을 설치합니다. [CanvasKit 런타임](Nelyx/skia/README.ko.md)
+Node.js 24.3 이상 24.x와 npm 11을 사용합니다. `npm install`가 고정된 CanvasKit 런타임을 설치합니다. SDK를 빌드하려면 Rust Wasm 타깃과 wasm-bindgen-cli 0.2.128을 설치합니다. [CanvasKit 런타임](Nelyx/skia/README.ko.md)
 
-저장소 루트에서 PowerShell로 실행합니다. 루트 빌드 명령은 SDK 공급과 앱 루트의 npm 설치를 함께 수행합니다. 경로를 바꿔 Testbed에도 적용할 수 있습니다.
+저장소 루트에서 PowerShell로 실행합니다. 루트 빌드 명령은 SDK를 공급한 뒤 현재 공급과 일치하는 앱 의존성을 재사용합니다. 설치나 갱신이 필요하면 앱 디렉터리에서 `npm install`을 실행합니다. 경로를 바꿔 Testbed에도 적용할 수 있습니다.
 
 ```powershell
-npm.cmd ci
+npm.cmd install
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.128 --locked
 npm.cmd run build:web -- --app sample/nelyx-demo-app

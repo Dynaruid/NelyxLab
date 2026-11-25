@@ -63,7 +63,9 @@ export function inspectRunner(app) {
     const own = path.join(nodeModules, name);
     const manifest = path.join(own, 'package.json');
     if (!fs.existsSync(manifest) || readJson(manifest).name !== name)
-      throw new Error(`Install ${name} in ${runner} with npm ci --workspaces=false after supply`);
+      throw new Error(
+        `Install ${name} in ${runner} with npm install --workspaces=false after supply`,
+      );
     roots[name] = fs.realpathSync(own);
   }
   assertInstalledSupply(runner);
@@ -97,7 +99,7 @@ export function inspectRunner(app) {
   ]) {
     if (fs.existsSync(path.join(nodeModules, forbidden)))
       throw new Error(
-        `Retired package ${forbidden} in ${runner}; resupply and clean-install the app`,
+        `Retired package ${forbidden} in ${runner}. Resupply and run npm install --workspaces=false.`,
       );
   }
   appPath(value.app, value.config.appEntry);

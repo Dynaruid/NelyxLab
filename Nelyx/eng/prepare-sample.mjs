@@ -59,9 +59,9 @@ function pack(directory) {
     );
 }
 
-export function prepareSample(app) {
+export function prepareSample(app, install) {
   app = fs.realpathSync(app);
-  return withPublicationLock(app, () => {
+  return withPublicationLock(app, async () => {
     const cache = path.join(root, 'Nelyx/.cache');
     fs.mkdirSync(cache, { recursive: true });
     const temporary = fs.realpathSync(fs.mkdtempSync(path.join(cache, 'packages-')));
@@ -71,6 +71,7 @@ export function prepareSample(app) {
     } finally {
       removeDirectory(temporary, path.dirname(temporary));
     }
+    await install?.();
   });
 }
 

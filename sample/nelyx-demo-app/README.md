@@ -11,11 +11,11 @@ Use **Settings → Render path** to switch between **Direct** and **Worker (auto
 Prepare Node.js 24.x and the pinned CanvasKit and Rust Wasm toolchains. Run from the Nelyx root, then change to this app directory. [SDK setup](../../README.md#run-testbed-or-demo)
 
 ```powershell
-npm.cmd ci
+npm.cmd install
 npm.cmd run build:sdk
 npm.cmd run prepare:sample -- --app sample/nelyx-demo-app
 Set-Location sample/nelyx-demo-app
-npm.cmd ci --workspaces=false
+npm.cmd install --workspaces=false
 npm.cmd run prepare:web
 npm.cmd run typecheck
 npm.cmd run dev:web
