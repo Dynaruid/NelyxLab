@@ -36,6 +36,19 @@ interface LayerInsertion {
   readonly recording: LayerRecording;
   readonly retained?: boolean;
 }
+type BackdropCommand = Extract<PaintCommand, { op: 'saveBackdropFilter' }>;
+
+function passesBackdropOpacity(command: PaintCommand): boolean {
+  return (
+    command.op === 'save' ||
+    command.op === 'transform' ||
+    command.op === 'clip' ||
+    command.op === 'clipRect' ||
+    command.op === 'clipRRect' ||
+    command.op === 'clipPath'
+  );
+}
+
 /** Retain child snapshots without copying their display lists into every ancestor. */
 class LayerRecording {
   private compositionSource:
@@ -47,6 +60,10 @@ class LayerRecording {
   private disposeCallbacks: Set<() => void> | undefined;
   private references = 1;
   private readonly needsScope: boolean;
+  private readonly commands: readonly PaintCommand[];
+  private readonly backdrop: BackdropCommand | undefined;
+  private readonly allowsBackdropOpacity: boolean;
+  private readonly opacityForChild: number;
   private readonly nativeLeaf: readonly PaintCommand[] | null;
   private readonly translatedLeaf: readonly PaintCommand[] | null;
   private nativePicture:
@@ -55,6 +72,8 @@ class LayerRecording {
   constructor(
     private readonly canvas: Canvas,
     private readonly insertions: readonly LayerInsertion[],
+    layer: EngineLayer | null = null,
+    opacitySave?: number,
   ) {
     canvas.restoreToCount(1);
     let depth = 0,
@@ -89,6 +108,32 @@ class LayerRecording {
     const child = insertions.length === 1 ? insertions[0] : undefined,
       command = canvas.commands.length === 1 ? canvas.commands[0] : undefined,
       matrix = command?.op === 'transform' ? command.matrix : undefined;
+    const backdrop = layer instanceof BackdropFilterEngineLayer ? canvas.commands[0] : undefined;
+    this.backdrop =
+      backdrop?.op === 'saveBackdropFilter' && backdrop.paint.blendMode === 'srcOver'
+        ? backdrop
+        : undefined;
+    // Only a single backdrop reached through non-isolating scopes can blend
+    // its completed surface with the original scene at the group's opacity.
+    this.allowsBackdropOpacity =
+      child !== undefined &&
+      (child.recording.backdrop !== undefined || child.recording.allowsBackdropOpacity) &&
+      canvas.commands.every((value, index) =>
+        index >= child.mark
+          ? value.op === 'restore'
+          : index === opacitySave || passesBackdropOpacity(value),
+      );
+    this.commands = canvas.commands;
+    this.opacityForChild = 1;
+    if (this.allowsBackdropOpacity && opacitySave !== undefined) {
+      const opacity = canvas.commands[opacitySave];
+      if (opacity?.op === 'saveLayer') {
+        const commands = canvas.commands.slice();
+        commands[opacitySave] = saveCommand;
+        this.commands = commands;
+        this.opacityForChild = (opacity.paint.color >>> 24) / 255;
+      }
+    }
     this.translatedLeaf =
       child?.mark === 1 &&
       child.recording.nativeLeaf &&
@@ -99,6 +144,17 @@ class LayerRecording {
       matrix[3] === 1
         ? [saveCommand, command!, ...child.recording.nativeLeaf, ...restoreCommands]
         : null;
+  }
+  private commandsWithOpacity(opacity: number): readonly PaintCommand[] {
+    if (opacity === 1 || !this.backdrop) return this.commands;
+    const paint = this.backdrop.paint;
+    const alpha = Math.round((paint.color >>> 24) * opacity);
+    const commands = this.commands.slice();
+    commands[0] = freezePaintCommand({
+      op: 'saveBackdropFilter',
+      paint: { ...paint, color: (paint.color & 0xffffff) + alpha * 0x1000000 },
+    });
+    return commands;
   }
   retain(): LayerRecording {
     if (!(this.references > 0))
@@ -134,14 +190,20 @@ class LayerRecording {
     }
     if (this.compositionSource?.owner === owner) return this.compositionSource.value;
     const children: { mark: number; source: SceneCompositionSource }[] = [];
-    for (const entry of this.insertions) {
-      const source = entry.recording.source(owner, entry.retained ?? false, depth + 1);
-      if (!source) return undefined;
-      children.push({ mark: entry.mark, source });
-    }
+    // Replay the fade as one subtree so the planner keeps its alpha with the backdrop.
+    const inheritsBackdropOpacity = this.opacityForChild !== 1;
+    if (!inheritsBackdropOpacity)
+      for (const entry of this.insertions) {
+        const source = entry.recording.source(owner, entry.retained ?? false, depth + 1);
+        if (!source) return undefined;
+        children.push({ mark: entry.mark, source });
+      }
     const value: SceneCompositionSource = {
-      commands: this.canvas.commands,
-      scoped: this.needsScope,
+      commands: inheritsBackdropOpacity ? [] : this.commands,
+      ...(inheritsBackdropOpacity
+        ? { draw: (canvas: Canvas) => this.draw(canvas, true, owner) }
+        : {}),
+      scoped: !inheritsBackdropOpacity && this.needsScope,
       children,
       onDispose: (callback) => (this.disposeCallbacks ??= new Set()).add(callback),
     };
@@ -155,6 +217,8 @@ class LayerRecording {
     const stack = [
       {
         recording: this as LayerRecording,
+        commands: this.commands,
+        childOpacity: this.opacityForChild,
         start: 0,
         next: 0,
         scoped: scoped && this.needsScope,
@@ -174,24 +238,27 @@ class LayerRecording {
         const entry = record.insertions[frame.next++];
         if (entry) {
           if (frame.start < entry.mark)
-            canvas._addCommandRange(record.canvas.commands, frame.start, entry.mark);
+            canvas._addCommandRange(frame.commands, frame.start, entry.mark);
           frame.start = entry.mark;
-          if (entry.retained && pictures) entry.recording.drawNative(canvas, pictures);
+          const child = entry.recording;
+          // Replay retained commands inline while passing this frame's opacity.
+          if (entry.retained && pictures && frame.childOpacity === 1)
+            child.drawNative(canvas, pictures);
           else
             stack.push({
-              recording: entry.recording,
+              recording: child,
+              commands: child.commandsWithOpacity(frame.childOpacity),
+              childOpacity: child.allowsBackdropOpacity
+                ? frame.childOpacity * child.opacityForChild
+                : 1,
               start: 0,
               next: 0,
-              scoped: entry.recording.needsScope,
+              scoped: child.needsScope,
               entered: false,
             });
         } else {
-          if (frame.start < record.canvas.commands.length)
-            canvas._addCommandRange(
-              record.canvas.commands,
-              frame.start,
-              record.canvas.commands.length,
-            );
+          if (frame.start < frame.commands.length)
+            canvas._addCommandRange(frame.commands, frame.start, frame.commands.length);
           if (frame.scoped) canvas.addCommands(restoreCommands);
           stack.pop();
         }
@@ -422,6 +489,7 @@ interface Recording {
   readonly layer: EngineLayer | null;
   readonly children: EngineLayer[];
   readonly insertions: LayerInsertion[];
+  opacitySave?: number;
 }
 function recording(layer: EngineLayer | null, pictures: PictureResourceProvider | null): Recording {
   return { canvas: new Canvas(null, null, pictures), layer, children: [], insertions: [] };
@@ -539,7 +607,7 @@ export class SceneBuilder {
   ): OpacityEngineLayer {
     if (!(Number.isInteger(alpha) && alpha >= 0 && alpha <= 255))
       invariant(false, 'invalid-opacity', 'Layer alpha must be uint8');
-    return this.push(
+    const layer = this.push(
       new OpacityEngineLayer(),
       (canvas) => {
         const offset = options.offset ?? { x: 0, y: 0 };
@@ -548,6 +616,11 @@ export class SceneBuilder {
       },
       options.oldLayer ?? null,
     );
+    if (alpha < 255) {
+      const current = this.current();
+      current.opacitySave = current.canvas.commands.length - 1;
+    }
+    return layer;
   }
   private clip<T extends EngineLayer>(
     layer: T,
@@ -705,7 +778,7 @@ export class SceneBuilder {
     let snapshot: LayerRecording | undefined,
       adopted = false;
     try {
-      snapshot = new LayerRecording(next.canvas, next.insertions);
+      snapshot = new LayerRecording(next.canvas, next.insertions, next.layer, next.opacitySave);
       next.layer!._complete(snapshot, next.children, this.pictures);
       snapshot = undefined;
       adopted = true;

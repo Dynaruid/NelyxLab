@@ -6,7 +6,12 @@ import { test } from 'node:test';
 import { createServer } from 'node:http';
 import CanvasKitInit from 'canvaskit-wasm';
 import { ResourceRegistry } from '@nelyx/core/hosting/resources';
+import { Canvas } from '@nelyx/core/ui/canvas';
+import { ImageFilter } from '@nelyx/core/ui/image-filter';
+import { Path } from '@nelyx/core/ui/path';
+import { SceneBuilder } from '@nelyx/core/ui/scene';
 import { WebSkiaLibrary } from '@nelyx/skia-web/library';
+import { WebSkiaReplay } from '../skia/packages/web/dist/replay.js';
 import { readWebRuntime } from '../sdk/tooling/contracts/src/web-runtime.mjs';
 import { prepareCanvasKit } from '../sdk/dist/backends/browser/canvaskit.js';
 
@@ -49,6 +54,111 @@ test(
     } finally {
       server.closeAllConnections();
       await new Promise((resolve) => server.close(resolve));
+    }
+  },
+);
+
+test(
+  'CanvasKit fades a clipped, retained backdrop and its foreground together',
+  { timeout: 1_200_000 },
+  async () => {
+    const { runtime } = readWebRuntime(fileURLToPath(new URL('../../', import.meta.url)));
+    const ck = await CanvasKitInit({
+      wasmBinary: runtime.find(({ file }) => file.id === 'canvaskit.wasm').bytes,
+    });
+    const width = 96,
+      height = 72;
+    const rect = (x, y, width, height, color) => ({
+      op: 'rect',
+      rect: { x, y, width, height },
+      color,
+    });
+    const stripes = Array.from({ length: 16 }, (_, i) =>
+      rect(i * 6, 0, 6, height, i % 2 ? 0xff1840e8 : 0xfff02030),
+    );
+    const surface = ck.MakeSurface(width, height);
+    assert.ok(surface);
+    const replay = new WebSkiaReplay(ck, {});
+    const body = new SceneBuilder();
+    const clip = new Path();
+    clip.addRect({ x: 8, y: 8, width: 72, height: 54 });
+    try {
+      const retained = body.pushClipPath(clip);
+      body.pushBackdropFilter(ImageFilter.blur({ sigmaX: 9, sigmaY: 9 }));
+      body._appendCanvasCommands([rect(20, 20, 40, 22, 0x90ffffff)]);
+      body.pop();
+      body.pop();
+
+      const render = (alpha, inner = 255, withSibling = false, composition) => {
+        const builder = new SceneBuilder(null, composition);
+        const canvas = new Canvas();
+        const layers = [];
+        try {
+          builder._appendCanvasCommands(stripes);
+          if (alpha !== null) {
+            layers.push(builder.pushOpacity(alpha, { offset: { x: 4, y: 2 } }));
+            layers.push(builder.pushTransform([1, 0, 0, 1, 3, 2]));
+            layers.push(builder.pushOpacity(inner));
+            builder.addRetained(retained);
+            if (withSibling) builder._appendCanvasCommands([rect(73, 53, 11, 11, 0xff00ff00)]);
+          }
+          builder._buildInto(canvas);
+          const draw = surface.getCanvas();
+          replay.draw(draw, { commands: canvas.commands });
+          const pixels = draw.readPixels(0, 0, {
+            width,
+            height,
+            colorType: ck.ColorType.RGBA_8888,
+            alphaType: ck.AlphaType.Unpremul,
+            colorSpace: ck.ColorSpace.SRGB,
+          });
+          assert.ok(pixels instanceof Uint8Array);
+          return {
+            pixels,
+            layers: canvas.commands.filter(({ op }) => op === 'saveLayer').length,
+            opacity:
+              canvas.commands.find(({ op }) => op === 'saveBackdropFilter')?.paint.color >>> 24,
+          };
+        } finally {
+          canvas.dispose();
+          builder.dispose();
+          for (const layer of layers.reverse()) layer.dispose();
+        }
+      };
+
+      const background = render(null).pixels;
+      const full = render(255).pixels;
+      assert.notDeepEqual(full, background);
+      for (const inner of [255, 153])
+        for (const alpha of [32, 128, 220, 255, 0]) {
+          const actual = render(alpha, inner);
+          const expectedAlpha = Math.round((alpha * inner) / 255);
+          let error = 0;
+          for (let i = 0; i < full.length; i++) {
+            const expected = background[i] + ((full[i] - background[i]) * expectedAlpha) / 255;
+            error = Math.max(error, Math.abs(actual.pixels[i] - expected));
+          }
+          assert.ok(error <= 2, `Wrong backdrop fade at ${alpha} × ${inner}, error ${error}`);
+          assert.equal(actual.opacity, expectedAlpha);
+        }
+      const grouped = render(128, 255, true);
+      assert.equal(grouped.layers, 1);
+      assert.equal(grouped.opacity, 255);
+      const planned = render(128, 153, false, {
+        compose(root) {
+          const [child] = root.children;
+          assert.ok(child.source.draw);
+          return [
+            { source: root, begin: 0, end: child.mark },
+            { source: child.source, begin: 0, end: 1 },
+          ];
+        },
+      });
+      assert.deepEqual(planned.pixels, render(128, 153).pixels);
+      assert.deepEqual(render(255).pixels, full);
+    } finally {
+      body.dispose();
+      surface.dispose();
     }
   },
 );
