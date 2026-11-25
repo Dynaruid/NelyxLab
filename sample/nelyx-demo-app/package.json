@@ -17,11 +17,11 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-0f6afc485840b4483f378dc5d059c20ae0b1c27b3bc587c2426ac7b09d645953.tgz",
-    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-50e30247a66a5897fc9ae605165e506ca35c8f752ed2ca35876d3f19776064eb.tgz",
+    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-2b24f5e082d6b2a02837e945078aa80462879da63b8d5e30e0e02ed52c155c1f.tgz",
+    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-6550e4f1be884883449b7dd0add63361800e6fce3f4f89fea929bb61456d02c8.tgz",
     "@nelyx/material": "file:.nelyx/supply/nelyx-material-0.2.0-2764c4ecb6445d6e4cd36f783682e94fb60a036704911a4b64509cdbd72c38a7.tgz",
     "@nelyx/cupertino": "file:.nelyx/supply/nelyx-cupertino-0.2.0-eb19c480da6f885ab5bbfadfc7612c4289f0732448aa2f37432c2c885e9857d9.tgz",
-    "@nelyx/skia-web": "file:.nelyx/supply/nelyx-skia-web-0.6.0-35c10d4f6e21f59f08b8aae2305ef5c69487063c76e68218621a08ddfb787ebf.tgz",
+    "@nelyx/skia-web": "file:.nelyx/supply/nelyx-skia-web-0.6.0-056075a5fafaa94536a723540b22d8de33d81055321aedac26eb94158232316a.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "@nelyx/backend-rust": "file:.nelyx/supply/nelyx-backend-rust-0.1.0-dd3499caece36ed1de76b5cd56b3c07f0e5ee97682c396118bfe21ea3164b8ad.tgz",

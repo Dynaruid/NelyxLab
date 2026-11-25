@@ -9,6 +9,7 @@ import type { WebSkiaLibrary } from '@nelyx/skia-web/library';
 import { renderCapacity, sharedHeaderWords, sharedSlotBytes } from './render-protocol.ts';
 import type { RenderPacket, RenderReply } from './render-protocol.ts';
 import { RenderResourceSender } from './render-resources.ts';
+import type { RenderRegistration } from './render-resources.ts';
 import { RenderWorkerError } from './render-worker-port.ts';
 import type { RenderWorkerPort } from './render-worker-port.ts';
 import type { WebRenderTelemetry } from './render-telemetry.ts';
@@ -48,23 +49,9 @@ export class RenderWorkerFrames {
     private readonly submitPrepared: () => void,
   ) {
     this.header = shared ? new Int32Array(shared, 0, sharedHeaderWords) : undefined;
-    this.resources = new RenderResourceSender(library, (command, transfer) => {
-      const uploadBytes =
-        command.kind === 'register'
-          ? command.resources.reduce(
-              (total, data) => total + ('bytes' in data ? data.bytes.byteLength : 0),
-              0,
-            )
-          : 0;
-      port.post(command, transfer);
-      if (command.kind === 'register') {
-        this.registrationStarted = performance.now();
-        telemetry.registrationBatches++;
-        telemetry.resourceUploadBytes += uploadBytes;
-        this.noteResourceBytes(this.resources.resourceBytes);
-        this.watch();
-      }
-    });
+    this.resources = new RenderResourceSender(library, (resource) =>
+      port.post({ kind: 'release', resource }),
+    );
     port.watch(
       (message) => {
         try {
@@ -87,6 +74,14 @@ export class RenderWorkerFrames {
   private noteResourceBytes(bytes: number): void {
     this.telemetry.resourceBytes = bytes;
     this.telemetry.peakResourceBytes = Math.max(bytes, this.telemetry.peakResourceBytes);
+  }
+
+  private beginRegistration(batch: RenderRegistration, sequence?: number): void {
+    this.resources.commit(batch, sequence);
+    this.registrationStarted = performance.now();
+    this.telemetry.registrationBatches++;
+    this.telemetry.resourceUploadBytes += batch.uploadBytes;
+    this.noteResourceBytes(this.resources.resourceBytes);
   }
 
   private watch(): void {
@@ -153,9 +148,15 @@ export class RenderWorkerFrames {
       sequence = token.sequence;
     if (!this.canBuildFrame() || this.pending.has(sequence))
       return { status: 'rejected', reason: 'busy' };
+    let batch: RenderRegistration | undefined;
     try {
-      if (!this.resources.ready(frame.resources)) {
+      batch = this.resources.prepare(frame.resources);
+      if (batch && !this.shared) {
+        this.beginRegistration(batch);
+        this.port.post({ kind: 'register', resources: batch.resources }, [...batch.transfer]);
+        this.telemetry.registrationWaits++;
         this.preparingSequence = sequence;
+        this.watch();
         return { status: 'rejected', reason: 'busy' };
       }
       this.preparingSequence = undefined;
@@ -169,7 +170,7 @@ export class RenderWorkerFrames {
     let transfer: ArrayBuffer[] = [];
     let length: number;
     try {
-      const bytes = encodeFrame(frame, this.resources.resolve, {
+      const bytes = encodeFrame(frame, batch?.resolve ?? this.resources.resolve, {
         format: 'web',
         allocate: (size) => {
           if (size > maxWebFrameBytes)
@@ -198,6 +199,7 @@ export class RenderWorkerFrames {
       });
       if (!packet) throw new Error('Web frame packet allocator did not run');
       length = bytes.byteLength;
+      if (batch) transfer.push(...batch.transfer);
     } catch (error) {
       this.fail(new RenderWorkerError('worker-frame', String(error)));
       return { status: 'rejected', reason: 'busy' };
@@ -218,6 +220,7 @@ export class RenderWorkerFrames {
     });
     this.telemetry.maxPending = Math.max(this.telemetry.maxPending, this.pending.size);
     try {
+      if (batch) this.beginRegistration(batch, sequence);
       if (packet.transport === 'shared') {
         this.slots[packet.slot] = true;
         Atomics.store(this.header!, packet.slot * 2 + 1, length);
@@ -231,9 +234,11 @@ export class RenderWorkerFrames {
           sequence,
           viewport: token.metrics.viewportGeneration,
           context: token.metrics.nativeContextGeneration,
+          ...(batch ? { resources: batch.resources } : {}),
         },
         transfer,
       );
+      if (batch) this.telemetry.framesWithRegistration++;
       if (packet.transport === 'transfer' && packet.buffer.byteLength === 0)
         this.telemetry.buffersDetached++;
     } catch (error) {
@@ -249,15 +254,29 @@ export class RenderWorkerFrames {
   private message(message: RenderReply): void {
     if (this.failed || this.closing) return;
     switch (message.kind) {
-      case 'registered':
-        this.resources.registered(message.ids);
-        if (!this.resources.hasPendingRegistration) {
-          this.registrationStarted = undefined;
-          this.submitPrepared();
-        }
+      case 'registered': {
+        const frame =
+          message.sequence === undefined ? undefined : this.pending.get(message.sequence);
+        if (
+          (message.sequence !== undefined && !frame) ||
+          this.registrationStarted === undefined ||
+          !Number.isFinite(message.durationMs) ||
+          message.durationMs < 0
+        )
+          throw new Error('Invalid Web render registration timing or frame');
+        this.resources.registered(message);
+        this.telemetry.sample('registrationAck', performance.now() - this.registrationStarted);
+        this.telemetry.sample('workerRegistration', message.durationMs);
+        for (const resource of message.resources)
+          if (resource.nativeBytes !== undefined) this.telemetry.workerPictureCompilations++;
+        frame?.diagnostics?.recordDuration(frame.token, 'web-worker-register', message.durationMs);
+        this.registrationStarted = undefined;
+        this.noteResourceBytes(this.resources.resourceBytes);
+        if (message.sequence === undefined) this.submitPrepared();
         break;
+      }
       case 'released':
-        this.resources.released(message.id);
+        this.resources.released(message);
         this.noteResourceBytes(this.resources.resourceBytes);
         break;
       case 'consumed':
@@ -344,6 +363,7 @@ export class RenderWorkerFrames {
           errors.push(error);
         }
       this.buffers.length = 0;
+      this.resources.clear();
       this.noteResourceBytes(0);
       if (errors.length)
         throw new AggregateError(errors, 'Web render worker frame retirement failed');

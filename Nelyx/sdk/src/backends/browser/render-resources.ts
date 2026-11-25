@@ -6,57 +6,83 @@ import type { ResourceId } from '@nelyx/core/ui/types';
 import type { WebSkiaLibrary } from '@nelyx/skia-web/library';
 import {
   mapParagraphResources,
-  renderResourceCost,
+  renderResourceReservation,
   wireResourceId,
   workerResourceBytes,
   workerResourceCount,
 } from './render-protocol.ts';
-import type { RenderCommand, RenderResource } from './render-protocol.ts';
+import type { RenderReply, RenderResource } from './render-protocol.ts';
 
 interface ResourceEntry extends NativeFrameResource {
-  readonly cost: number;
-  ready: boolean;
+  readonly kind: RenderResource['kind'];
+  cost: number;
+  retiring: boolean;
 }
 
-/** Mirrors resources on demand, in dependency order. IDs are never reused in an epoch. */
+export interface RenderRegistration {
+  readonly resources: readonly RenderResource[];
+  readonly transfer: readonly ArrayBuffer[];
+  readonly entries: ReadonlyMap<string, ResourceEntry>;
+  readonly bytes: number;
+  readonly uploadBytes: number;
+  readonly resolve: (resource: ResourceId) => NativeFrameResource;
+}
+
+/** Mirrors resources in dependency order. Only a posted batch consumes IDs in an epoch. */
 export class RenderResourceSender {
   private readonly entries = new Map<string, ResourceEntry>();
   private readonly byId = new Map<number, ResourceEntry>();
   private sequence = 0;
   private bytes = 0;
-  private waiting = 0;
+  private pending:
+    | {
+        readonly sequence: number | undefined;
+        readonly entries: readonly ResourceEntry[];
+        readonly bytes: number;
+      }
+    | undefined;
 
   constructor(
     private readonly library: WebSkiaLibrary,
-    private readonly post: (command: RenderCommand, transfer?: Transferable[]) => void,
+    private readonly release: (resource: NativeFrameResource) => void,
   ) {}
   get resourceBytes(): number {
     return this.bytes;
   }
   get hasPendingRegistration(): boolean {
-    return this.waiting > 0;
+    return !!this.pending;
   }
 
-  ready(resources: readonly ResourceId[]): boolean {
+  prepare(resources: readonly ResourceId[]): RenderRegistration | undefined {
+    if (resources.every((resource) => this.entries.has(resourceKey(resource)))) return;
     const batch: RenderResource[] = [],
-      transfer: Transferable[] = [],
+      transfer: ArrayBuffer[] = [],
+      entries = new Map<string, ResourceEntry>(),
       visiting = new Set<string>();
+    let bytes = 0,
+      uploadBytes = 0;
+    const checkBudget = (cost: number) => this.checkBudget(this.bytes + bytes + cost);
+    const resolve = (resource: ResourceId) =>
+      entries.get(resourceKey(resource)) ?? this.resolve(resource);
     const stage = (resource: ResourceId): ResourceEntry => {
       const key = resourceKey(resource),
-        previous = this.entries.get(key);
+        previous = entries.get(key) ?? this.entries.get(key);
       if (previous) return previous;
       if (visiting.has(key) || visiting.size >= 64)
         throw new Error('Web rendering resource dependency cycle or depth budget');
-      if (this.byId.size >= workerResourceCount)
-        throw new Error('Web rendering resource count budget');
       visiting.add(key);
       const source = this.library.resourceSource(resource);
       // Assign the ID after dependencies, so reception can validate monotonic IDs.
-      const identity = () => ({ id: ++this.sequence, generation: resource.generation });
+      const identity = () => {
+        const id = this.sequence + entries.size + 1;
+        if (this.byId.size + entries.size >= workerResourceCount || id > 0xffffffff)
+          throw new Error('Web rendering resource count or identity budget');
+        return { id, generation: resource.generation };
+      };
       let data: RenderResource;
       switch (source.kind) {
         case 'image':
-          this.checkBudget(source.byteLength + source.width * source.height * 4);
+          checkBudget(source.byteLength + source.width * source.height * 4);
           data = {
             ...identity(),
             kind: 'image',
@@ -67,7 +93,7 @@ export class RenderResourceSender {
           };
           break;
         case 'font':
-          this.checkBudget(source.bytes.byteLength * 2);
+          checkBudget(source.bytes.byteLength * 2);
           data = {
             ...identity(),
             kind: 'font',
@@ -88,57 +114,122 @@ export class RenderResourceSender {
         }
         case 'picture': {
           source.frame.resources.forEach(stage);
-          const bytes = encodeFrame(source.frame, this.resolve, {
+          const bytes = encodeFrame(source.frame, resolve, {
             format: 'web',
+            allocate: (size) => {
+              checkBudget(size * 2 + source.frame.estimatedBytes);
+              return new Uint8Array(size);
+            },
           }) as Uint8Array<ArrayBuffer>;
-          data = { ...identity(), kind: 'picture', nativeBytes: source.nativeBytes, bytes };
+          data = {
+            ...identity(),
+            kind: 'picture',
+            captureBytes: source.frame.estimatedBytes,
+            bytes,
+          };
           break;
         }
       }
       visiting.delete(key);
-      const cost = renderResourceCost(data);
-      this.checkBudget(cost);
-      const entry = { id: data.id, generation: data.generation, ready: false, cost };
-      this.entries.set(key, entry);
-      this.byId.set(data.id, entry);
-      this.waiting++;
-      this.bytes += cost;
+      const cost = renderResourceReservation(data);
+      checkBudget(cost);
+      const entry = {
+        id: data.id,
+        generation: data.generation,
+        kind: data.kind,
+        retiring: false,
+        cost,
+      };
+      entries.set(key, entry);
+      bytes += cost;
       batch.push(data);
-      if ('bytes' in data) transfer.push(data.bytes.buffer);
+      if ('bytes' in data) {
+        transfer.push(data.bytes.buffer);
+        uploadBytes += data.bytes.byteLength;
+      }
       return entry;
     };
-    let allReady = true;
-    for (const resource of resources) if (!stage(resource).ready) allReady = false;
-    if (batch.length) this.post({ kind: 'register', resources: batch }, transfer);
-    return allReady;
+    resources.forEach(stage);
+    return { resources: batch, transfer, entries, bytes, uploadBytes, resolve };
+  }
+  commit(batch: RenderRegistration, sequence?: number): void {
+    const entries = [];
+    for (const [key, entry] of batch.entries) {
+      this.entries.set(key, entry);
+      this.byId.set(entry.id, entry);
+      entries.push(entry);
+    }
+    this.sequence += entries.length;
+    this.bytes += batch.bytes;
+    this.pending = { sequence, entries, bytes: batch.bytes };
   }
   readonly resolve = (resource: ResourceId): ResourceEntry => {
     const entry = this.entries.get(resourceKey(resource));
     if (!entry) throw new Error('Web rendering resource has not been registered');
     return entry;
   };
-  registered(ids: readonly number[]): void {
-    for (const id of ids) {
-      const entry = this.byId.get(id);
-      if (!entry || entry.ready) throw new Error('Unexpected Web render resource acknowledgement');
-      entry.ready = true;
-      this.waiting--;
+  registered(message: Extract<RenderReply, { kind: 'registered' }>): void {
+    const batch = this.pending;
+    if (
+      !batch ||
+      message.sequence !== batch.sequence ||
+      message.resources.length !== batch.entries.length
+    )
+      throw new Error('Unexpected Web render registration acknowledgement');
+    let bytes = this.bytes - batch.bytes;
+    for (const [index, receipt] of message.resources.entries()) {
+      const entry = batch.entries[index]!;
+      if (
+        receipt.id !== entry.id ||
+        receipt.generation !== entry.generation ||
+        !Number.isSafeInteger(receipt.cost) ||
+        receipt.cost < 0 ||
+        (entry.kind === 'picture'
+          ? !Number.isSafeInteger(receipt.nativeBytes) ||
+            receipt.nativeBytes! < 0 ||
+            receipt.nativeBytes! > receipt.cost
+          : receipt.nativeBytes !== undefined || receipt.cost !== entry.cost)
+      )
+        throw new Error('Invalid Web render resource cost acknowledgement');
+      bytes += receipt.cost;
     }
+    this.checkBudget(bytes);
+    if (bytes !== message.bytes) throw new Error('Web render resource budget is out of sync');
+    batch.entries.forEach((entry, index) => {
+      entry.cost = message.resources[index]!.cost;
+    });
+    this.bytes = bytes;
+    this.pending = undefined;
   }
   retire(key: string): void {
     const entry = this.entries.get(key);
     if (!entry) return;
     this.entries.delete(key);
-    this.post({ kind: 'release', resource: { id: entry.id, generation: entry.generation } });
+    entry.retiring = true;
+    this.release({ id: entry.id, generation: entry.generation });
   }
-  released(id: number): void {
+  released({
+    resource: { id, generation },
+    bytes,
+  }: Extract<RenderReply, { kind: 'released' }>): void {
     const entry = this.byId.get(id);
-    if (!entry || !entry.ready) throw new Error('Unexpected Web render resource retirement');
+    if (
+      !entry?.retiring ||
+      entry.generation !== generation ||
+      bytes !== this.bytes - entry.cost - (this.pending?.bytes ?? 0)
+    )
+      throw new Error('Unexpected Web render resource retirement');
     this.byId.delete(id);
     this.bytes -= entry.cost;
   }
-  private checkBudget(cost: number): void {
-    if (!Number.isSafeInteger(cost) || cost < 0 || this.bytes + cost > workerResourceBytes)
+  clear(): void {
+    this.entries.clear();
+    this.byId.clear();
+    this.pending = undefined;
+    this.bytes = 0;
+  }
+  private checkBudget(bytes: number): void {
+    if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > workerResourceBytes)
       throw new Error('Web rendering resource byte budget');
   }
 }

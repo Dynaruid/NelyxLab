@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import assert from 'node:assert/strict';
-import { freezeFrame, disposeFrame } from '@nelyx/core/ui/frame';
+import { FramePictureService } from '@nelyx/core/hosting/pictures';
+import { ResourceRegistry } from '@nelyx/core/hosting/resources';
+import { freezeFrame, disposeFrame, resourceKey } from '@nelyx/core/ui/frame';
 import { encodeFrame, frameWireVersion } from '@nelyx/core/ui/frame-wire';
 import { decodeWebFrame, maxWebFrameBytes } from '@nelyx/core/ui/web-frame-wire';
 import { Paint } from '@nelyx/core/ui/paint';
+import { Picture } from '@nelyx/core/ui/picture';
+import { workerResourceBytes } from '../sdk/dist/backends/browser/render-protocol.js';
+import { RenderResourceSender } from '../sdk/dist/backends/browser/render-resources.js';
+import { RenderResourceReceiver } from '../sdk/dist/backends/browser/render-worker-resources.js';
 
 const wide = 0x100000005;
 const owner = { id: 'wire-check', generation: wide };
@@ -207,4 +213,132 @@ assert.equal(
 for (const frame of [captured, restored, large, decodedLarge, native]) disposeFrame(frame);
 console.log(
   'PASS Web frame wire round trip, wide scalars, resources, packet bounds and native wire 11',
+);
+
+{
+  const recording = Picture._fromRecording([commands[0]]);
+  const capture = recording._capture();
+  const registry = new ResourceRegistry();
+  let nativeCost = 1024,
+    live = 0,
+    release;
+  const receiver = new RenderResourceReceiver(
+    {
+      framePictureBackend: {
+        compile() {
+          live++;
+          return { bytes: nativeCost, retire: () => live-- };
+        },
+      },
+    },
+    registry,
+  );
+  const sender = new RenderResourceSender(
+    {
+      resourceSource(resource) {
+        assert.equal(resource.id, picture.id, 'Missing restoration source');
+        return { kind: 'picture', frame: capture.frame };
+      },
+    },
+    (resource) => {
+      release = resource;
+    },
+  );
+  try {
+    assert.throws(() => sender.prepare([picture, text]), /Missing restoration source/);
+    assert.equal(sender.resourceBytes, 0);
+    assert.equal(sender.hasPendingRegistration, false);
+    const prepared = sender.prepare([picture]);
+    assert.equal(prepared.resolve(picture).id, 1);
+    const {
+      resources: [source],
+    } = prepared;
+    // The next frame may be discarded before post; staging the same inputs reuses the first ID.
+    assert.equal(sender.prepare([picture]).resolve(picture).id, 1);
+    sender.commit(prepared, 42);
+    assert.equal(sender.resourceBytes, source.bytes.byteLength * 2 + source.captureBytes);
+    const receipts = receiver.registerBatch([source]);
+    assert.equal(receipts[0].nativeBytes, nativeCost);
+    assert.equal(live, 1);
+    const response = {
+      kind: 'registered',
+      owner,
+      generation: 1,
+      sequence: 42,
+      resources: receipts,
+      bytes: receiver.resourceBytes,
+      durationMs: 0,
+    };
+    assert.throws(() => sender.registered({ ...response, sequence: 41 }), /acknowledgement/);
+    sender.registered(response);
+    assert.equal(sender.resourceBytes, source.captureBytes + nativeCost);
+    assert.equal(sender.prepare([picture]), undefined);
+    sender.retire(resourceKey(picture));
+    assert.ok(release);
+    receiver.release(release);
+    sender.released({ resource: release, bytes: receiver.resourceBytes });
+    assert.equal(live, 0);
+    assert.equal(sender.resourceBytes, 0);
+    nativeCost = workerResourceBytes;
+    assert.throws(() => receiver.registerBatch([{ ...source, id: 2 }]), /resource byte budget/);
+    assert.equal(live, 0, 'A Picture above the worker budget is deleted');
+    assert.equal(receiver.resourceBytes, 0);
+  } finally {
+    registry.dispose();
+    capture.dispose();
+    recording.dispose();
+  }
+}
+
+{
+  const registry = new ResourceRegistry();
+  const resizes = new Map();
+  const service = new FramePictureService(
+    registry,
+    {
+      compile(_capture, resource, updateBytes) {
+        resizes.set(resource, updateBytes);
+        return { bytes: 0, retire: () => resizes.delete(resource) };
+      },
+    },
+    owner,
+  );
+  let imageRetired = 0;
+  const dependency = { ...image, kind: 'image' };
+  registry.register(dependency, () => imageRetired++);
+  registry.bindResource(dependency);
+  const first = Picture._fromRecording([{ op: 'image', resource: dependency, rect: area }]);
+  const second = Picture._fromRecording([commands[0]]);
+  const firstResource = service.resource(first);
+  const gpu = registry.acquire([firstResource]);
+  gpu.transfer();
+  registry.releaseProducer(dependency);
+  try {
+    const nativeCost = 20 * 1024 * 1024;
+    const firstCaptureBytes = service.debugStats.bytes;
+    resizes.get(firstResource)(nativeCost);
+    assert.equal(service.debugStats.bytes, firstCaptureBytes + nativeCost);
+    const secondResource = service.resource(second);
+    const bytesBeforeFailure = service.debugStats.bytes;
+    assert.throws(() => resizes.get(secondResource)(nativeCost), /GPU-retained pictures/);
+    assert.equal(service.debugStats.cached, 1);
+    assert.equal(service.debugStats.live, 2);
+    assert.equal(service.debugStats.bytes, bytesBeforeFailure);
+    first.dispose();
+    assert.equal(imageRetired, 0);
+    gpu.returnBy('renderer');
+    assert.equal(imageRetired, 1);
+    resizes.get(secondResource)(nativeCost);
+    assert.equal(service.debugStats.bytes, bytesBeforeFailure - firstCaptureBytes);
+  } finally {
+    if (!first.debugDisposed) first.dispose();
+    if (!gpu.released) gpu.returnBy('renderer');
+    second.dispose();
+    service.dispose();
+    assert.equal(service.debugStats.bytes, 0);
+    registry.dispose();
+  }
+}
+console.log(
+  'PASS Picture reservations, worker receipts and native bytes retained through eviction',
 );

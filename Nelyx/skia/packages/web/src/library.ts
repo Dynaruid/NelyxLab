@@ -148,7 +148,15 @@ export type WebSkiaResourceSource =
       readonly input: TextLayoutInput;
       readonly fonts: readonly ResourceId[];
     }
-  | { readonly kind: 'picture'; readonly frame: PaintFrame; readonly nativeBytes: number };
+  | { readonly kind: 'picture'; readonly frame: PaintFrame };
+type SkPicture = import('canvaskit-wasm').SkPicture;
+interface FramePictureEntry {
+  readonly capture: PictureCapture;
+  native: SkPicture | null;
+  bytes: number;
+  updateBytes?: (bytes: number) => void;
+  failure?: NativeRetirementError;
+}
 /** Fork-owned CanvasKit resources and replay; no React, RN or native bootstrap import. */
 export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQueryService {
   private readonly replay: WebSkiaReplay;
@@ -184,8 +192,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
         input: paragraph.layout.input,
         fonts: paragraph.fonts.fonts.map((font) => font.resource),
       };
-    if (picture)
-      return { kind: 'picture', frame: picture.capture.frame, nativeBytes: picture.bytes };
+    if (picture) return { kind: 'picture', frame: picture.capture.frame };
     const image = this.imageSources.get(key);
     if (image) return image;
     throw new Error('Web render resource retired or missing a restoration source');
@@ -254,10 +261,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     this.unconfirmedPicture = new NativeRetirementError(errors, owners);
     throw this.unconfirmedPicture;
   }
-  private retireFrameEntry(entry: {
-    native: import('canvaskit-wasm').SkPicture | null;
-    failure?: NativeRetirementError;
-  }): void {
+  private retireFrameEntry(entry: FramePictureEntry): void {
     if (entry.failure) throw entry.failure;
     try {
       entry.native?.delete();
@@ -268,39 +272,27 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       throw entry.failure;
     }
   }
-  private readonly framePictures = new Map<
-    string,
-    {
-      capture: PictureCapture;
-      native: import('canvaskit-wasm').SkPicture | null;
-      bytes: number;
-      failure?: NativeRetirementError;
-    }
-  >();
+  private readonly framePictures = new Map<string, FramePictureEntry>();
+  private deferredFramePictures = false;
   private framePictureCompilations = 0;
+  setDeferredFramePictures(deferred: boolean): void {
+    this.deferredFramePictures = deferred;
+  }
   readonly framePictureBackend: FramePictureBackend = {
-    compile: (capture, descriptor) => {
+    compile: (capture, descriptor, updateBytes) => {
       this.ensureOpen();
       if (this.lost) throw new Error('Web picture context lost');
       const key = resourceKey(descriptor);
       if (this.framePictures.has(key)) throw new Error('Duplicate Web frame picture');
-      const native = this.compilePicture(capture, true);
-      let bytes: number;
-      try {
-        bytes = native.approximateBytesUsed();
-      } catch (error) {
-        try {
-          native.delete();
-        } catch (cleanup) {
-          this.failPicture([error, cleanup], [native]);
-        }
-        throw error;
-      }
-      const entry = { capture, native: native as import('canvaskit-wasm').SkPicture | null, bytes };
+      const entry: FramePictureEntry = { capture, native: null, bytes: 0 };
+      if (!this.deferredFramePictures) this.materializeFramePicture(entry);
+      if (updateBytes) entry.updateBytes = updateBytes;
       this.framePictures.set(key, entry);
       let retired = false;
       return {
-        bytes,
+        get bytes() {
+          return entry.bytes;
+        },
         retire: () => {
           if (retired) return;
           this.retireFrameEntry(entry);
@@ -326,31 +318,39 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     );
     return resource;
   }
-  private framePicture(key: string): import('canvaskit-wasm').SkPicture {
+  private framePicture(key: string): SkPicture {
     const entry = this.framePictures.get(key);
     if (!entry) throw new Error('Web frame picture retired');
-    if (!entry.native) {
-      const native = this.compilePicture(entry.capture, true);
-      try {
-        if (native.approximateBytesUsed() > entry.bytes)
-          throw new Error('Restored Web picture exceeded admitted memory budget');
-      } catch (error) {
-        try {
-          native.delete();
-        } catch (cleanup) {
-          this.failPicture([error, cleanup], [native]);
-        }
-        throw error;
-      }
+    return entry.native ?? this.materializeFramePicture(entry);
+  }
+  private materializeFramePicture(entry: FramePictureEntry): SkPicture {
+    const native = this.compilePicture(entry.capture, true);
+    try {
+      const bytes = native.approximateBytesUsed();
+      if (!Number.isSafeInteger(bytes) || bytes < 0)
+        throw new Error('Invalid Web native picture size');
+      entry.updateBytes?.(bytes);
+      entry.bytes = bytes;
       entry.native = native;
+      return native;
+    } catch (error) {
+      try {
+        native.delete();
+      } catch (cleanup) {
+        this.failPicture([error, cleanup], [native]);
+      }
+      throw error;
     }
-    return entry.native;
   }
   private retireFrameNative(): void {
     const errors: unknown[] = [];
     for (const entry of this.framePictures.values())
       try {
         this.retireFrameEntry(entry);
+        if (entry.bytes > 0) {
+          entry.updateBytes?.(0);
+          entry.bytes = 0;
+        }
       } catch (error) {
         errors.push(error);
       }

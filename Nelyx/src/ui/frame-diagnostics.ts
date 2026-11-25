@@ -66,6 +66,7 @@ export type FrameDiagnosticStage =
   | 'native-submit'
   | 'web-frame-encode'
   | 'web-worker-decode'
+  | 'web-worker-register'
   | 'web-worker-replay'
   | 'web-worker-submit'
   | 'web-worker-fence'

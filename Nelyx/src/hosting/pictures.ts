@@ -12,14 +12,18 @@ export interface NativeFramePicture {
 }
 /** The backend retains a CPU restoration recipe; native lookup recompiles after context loss. */
 export interface FramePictureBackend {
-  compile(capture: PictureCapture, descriptor: ResourceDescriptor): NativeFramePicture;
+  compile(
+    capture: PictureCapture,
+    descriptor: ResourceDescriptor,
+    updateNativeBytes?: (bytes: number) => void,
+  ): NativeFramePicture;
 }
 interface Entry {
   readonly resource: ResourceDescriptor;
   readonly capture: PictureCapture;
   readonly input: ResourceLease;
   readonly native: NativeFramePicture;
-  readonly bytes: number;
+  bytes: number;
   cancel: () => void;
 }
 // A composition snapshot owns its leaves even before GPU admission. Allow one
@@ -61,6 +65,7 @@ export class FramePictureService implements PictureResourceProvider {
     let recipe: PictureCapture | undefined,
       input: ResourceLease | undefined,
       native: NativeFramePicture | undefined,
+      entry: Entry | undefined,
       admitted = false,
       result: ResourceId | undefined;
     const errors: unknown[] = [];
@@ -78,7 +83,15 @@ export class FramePictureService implements PictureResourceProvider {
         kind: 'picture',
       });
       recipe = capture.retain();
-      native = this.backend.compile(recipe, resource);
+      const captureBytes = capture.frame.estimatedBytes;
+      native = this.backend.compile(recipe, resource, (nativeBytes) => {
+        invariant(entry && this.live.has(entry), 'picture-byte-budget', 'Picture is not admitted');
+        const bytes = this.pictureBytes(captureBytes, nativeBytes);
+        const delta = bytes - entry.bytes;
+        if (delta > 0) this.makeRoom(delta, picture);
+        this.bytes += delta;
+        entry.bytes = bytes;
+      });
       invariant(
         !this.closed,
         'closed-picture-owner',
@@ -89,20 +102,11 @@ export class FramePictureService implements PictureResourceProvider {
         'disposed-picture',
         'Picture disposed during native compilation',
       );
-      const bytes = native.bytes + capture.frame.estimatedBytes;
-      invariant(
-        Number.isSafeInteger(native.bytes) && native.bytes >= 0 && bytes <= limits.bytes,
-        'picture-byte-budget',
-        'Native picture and restoration recipe exceed budget',
-      );
-      while (this.bytes + bytes > limits.bytes && this.cache.size) this.evict();
-      invariant(
-        this.bytes + bytes <= limits.bytes,
-        'picture-byte-budget',
-        'GPU-retained pictures occupy the byte budget',
-      );
-      const entry: Entry = { resource, capture: recipe, input, native, bytes, cancel: () => {} };
-      this.resources.register(resource, () => this.retire(picture, entry));
+      const bytes = this.pictureBytes(captureBytes, native.bytes);
+      this.makeRoom(bytes);
+      const next: Entry = { resource, capture: recipe, input, native, bytes, cancel: () => {} };
+      this.resources.register(resource, () => this.retire(picture, next));
+      entry = next;
       admitted = true;
       this.live.add(entry);
       this.bytes += bytes;
@@ -165,6 +169,26 @@ export class FramePictureService implements PictureResourceProvider {
     if (errors.length)
       throw new AggregateError(errors, 'Native frame picture admission cleanup failed');
     return result!;
+  }
+  private pictureBytes(captureBytes: number, nativeBytes: number): number {
+    const bytes = captureBytes + nativeBytes;
+    invariant(
+      Number.isSafeInteger(nativeBytes) && nativeBytes >= 0 && bytes <= limits.bytes,
+      'picture-byte-budget',
+      'Native picture and restoration recipe exceed budget',
+    );
+    return bytes;
+  }
+  private makeRoom(bytes: number, keep?: Picture): void {
+    for (const key of this.cache.keys()) {
+      if (this.bytes + bytes <= limits.bytes) break;
+      if (key !== keep) this.remove(key);
+    }
+    invariant(
+      this.bytes + bytes <= limits.bytes,
+      'picture-byte-budget',
+      'GPU-retained pictures occupy the byte budget',
+    );
   }
   private remove(key: Picture): void {
     const entry = this.cache.get(key);

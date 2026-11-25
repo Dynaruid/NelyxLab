@@ -17,6 +17,7 @@ import { webBackingSize, webGpuResourceCacheBytes } from '@nelyx/skia-web/librar
 import type { WebSkiaLibrary, WebSkiaSurfaceOptions } from '@nelyx/skia-web/library';
 import type { CanvasKitManifest } from './canvaskit-manifest.ts';
 import { CanvasKitIntegrityError } from './canvaskit-loader.ts';
+import { prepareCanvasKit } from './canvaskit.ts';
 import {
   renderProtocolVersion,
   sharedBufferBytes,
@@ -194,11 +195,13 @@ export class BrowserRenderer implements Renderer {
     const signal = this.lifetime.signal;
     try {
       this.checkOpening();
+      const { assetsRoot, canvasKitRoot, canvasKitManifest } = this.options;
       if (typeof this.canvas.transferControlToOffscreen !== 'function')
         throw new RenderWorkerError('canvas-transfer', 'Offscreen canvas transfer unavailable');
+      const assets = await prepareCanvasKit(canvasKitRoot, canvasKitManifest);
       port = await RenderWorkerPort.open(
         this.canvas,
-        this.options.assetsRoot,
+        assetsRoot,
         {
           owner: this.owner,
           generation: ++this.epoch,
@@ -211,8 +214,9 @@ export class BrowserRenderer implements Renderer {
           protocol: renderProtocolVersion,
           frameWire: frameWireVersion,
           webFrameWire: webFrameWireVersion,
-          root: this.options.canvasKitRoot.href,
-          manifest: this.options.canvasKitManifest,
+          root: canvasKitRoot.href,
+          manifest: canvasKitManifest,
+          assets,
           options: this.surfaceOptions,
         },
         'ready',
@@ -257,6 +261,7 @@ export class BrowserRenderer implements Renderer {
       this.telemetry.failure(error instanceof RenderWorkerError ? error.stage : stage, error);
       if (error instanceof RenderWorkerError && error.integrity)
         throw new CanvasKitIntegrityError(error.message);
+      if (error instanceof CanvasKitIntegrityError) throw error;
       return false;
     }
   }
@@ -300,6 +305,7 @@ export class BrowserRenderer implements Renderer {
   }
 
   private select(path: WebRenderPath): void {
+    this.library.setDeferredFramePictures(path === 'worker-shared');
     this.telemetry.path = path;
     this.canvas.dataset.nelyxRenderPath = path;
   }
@@ -464,9 +470,11 @@ export class BrowserRenderer implements Renderer {
     this.options.signal?.removeEventListener('abort', this.abort);
     this.events.stop();
     this.directObservation.dispose();
+    const worker = this.worker;
+    this.worker = undefined;
     return (this.closing = (async () => {
       try {
-        await this.worker?.close(true);
+        await worker?.close(true);
         await this.recovery;
       } finally {
         this.library.setResourceRetirementListener(undefined);

@@ -5,6 +5,7 @@ import type { PaintSnapshot } from '@nelyx/core/ui/paint';
 import type { TextRunStyle } from '@nelyx/core/ui/text-styles';
 import type { WebSkiaSurfaceOptions } from '@nelyx/skia-web/library';
 import type { CanvasKitManifest } from './canvaskit-manifest.ts';
+import type { PreparedCanvasKit } from './canvaskit-loader.ts';
 
 export type WebRenderMode = 'auto' | 'direct' | 'worker-transfer' | 'worker-shared';
 export type WebRenderPath = Exclude<WebRenderMode, 'auto'>;
@@ -23,7 +24,7 @@ export type RenderFailureStage =
   | 'worker-context-loss'
   | 'main-webgl2';
 
-export const renderProtocolVersion = 1;
+export const renderProtocolVersion = 2;
 export const renderCapacity = 2;
 export const sharedSlotBytes = 128 * 1024;
 export const sharedHeaderWords = renderCapacity * 2;
@@ -58,11 +59,11 @@ export type RenderResource = NativeFrameResource &
     | {
         readonly kind: 'picture';
         readonly bytes: Uint8Array<ArrayBuffer>;
-        readonly nativeBytes: number;
+        readonly captureBytes: number;
       }
   );
 
-export function renderResourceCost(resource: RenderResource): number {
+export function renderResourceReservation(resource: RenderResource): number {
   switch (resource.kind) {
     case 'font':
       return resource.bytes.byteLength * 2;
@@ -71,8 +72,13 @@ export function renderResourceCost(resource: RenderResource): number {
     case 'paragraph':
       return 1024 + JSON.stringify(resource.input).length * 4 + resource.fonts.length * 48;
     case 'picture':
-      return resource.bytes.byteLength * 2 + resource.nativeBytes;
+      return resource.bytes.byteLength * 2 + resource.captureBytes;
   }
+}
+
+export interface RegisteredRenderResource extends NativeFrameResource {
+  readonly cost: number;
+  readonly nativeBytes?: number;
 }
 
 export function wireResourceId(resource: NativeFrameResource): ResourceId {
@@ -117,6 +123,7 @@ export type RenderRequest = RenderSession &
         readonly webFrameWire: number;
         readonly root: string;
         readonly manifest: CanvasKitManifest;
+        readonly assets: PreparedCanvasKit;
         readonly options: WebSkiaSurfaceOptions;
       }
     | {
@@ -134,6 +141,7 @@ export type RenderRequest = RenderSession &
         readonly sequence: number;
         readonly viewport: number;
         readonly context: number | null;
+        readonly resources?: readonly RenderResource[];
       })
     | { readonly kind: 'close' }
   );
@@ -144,8 +152,14 @@ export type RenderReply = RenderSession &
     | { readonly kind: 'ready'; readonly isolated: boolean }
     | { readonly kind: 'checked-shared'; readonly shared: boolean }
     | { readonly kind: 'attached' | 'closed' }
-    | { readonly kind: 'registered'; readonly ids: readonly number[]; readonly bytes: number }
-    | { readonly kind: 'released'; readonly id: number; readonly bytes: number }
+    | {
+        readonly kind: 'registered';
+        readonly resources: readonly RegisteredRenderResource[];
+        readonly bytes: number;
+        readonly sequence?: number;
+        readonly durationMs: number;
+      }
+    | { readonly kind: 'released'; readonly resource: NativeFrameResource; readonly bytes: number }
     | {
         readonly kind: 'consumed';
         readonly sequence: number;

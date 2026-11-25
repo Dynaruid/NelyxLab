@@ -136,6 +136,12 @@ async function probe(request: Extract<RenderRequest, { kind: 'probe' }>): Promis
   session = { owner: request.owner, generation: request.generation };
   options = request.options;
   if (
+    typeof request.owner?.id !== 'string' ||
+    !request.owner.id ||
+    !Number.isSafeInteger(request.owner.generation) ||
+    request.owner.generation < 1 ||
+    !Number.isSafeInteger(request.generation) ||
+    request.generation < 1 ||
     request.protocol !== renderProtocolVersion ||
     request.frameWire !== frameWireVersion ||
     request.webFrameWire !== webFrameWireVersion
@@ -146,7 +152,7 @@ async function probe(request: Extract<RenderRequest, { kind: 'probe' }>): Promis
   let stage: RenderFailureStage = 'worker-runtime';
   try {
     reply({ kind: 'stage', stage });
-    ck = await loadWorkerCanvasKit(new URL(request.root), request.manifest);
+    ck = await loadWorkerCanvasKit(new URL(request.root), request.manifest, request.assets);
     stage = 'worker-webgl2';
     reply({ kind: 'stage', stage });
     await probeGpu(ck, request.owner);
@@ -338,13 +344,29 @@ function draw(request: Extract<RenderRequest, { kind: 'frame' }>): void {
     disposeFrame(frame);
   }
 }
-function enqueue(request: Extract<RenderRequest, { kind: 'frame' }>): void {
+function checkFrame(sequence: number): void {
   if (
-    !Number.isSafeInteger(request.sequence) ||
-    request.sequence <= lastSequence ||
+    !Number.isSafeInteger(sequence) ||
+    sequence <= lastSequence ||
     queue.length + submitted.size >= renderCapacity
   )
     throw new Error('Invalid Web render frame sequence or capacity');
+}
+function register(
+  batch: Parameters<RenderResourceReceiver['registerBatch']>[0],
+  sequence?: number,
+): void {
+  const started = performance.now();
+  const registered = resources!.registerBatch(batch);
+  reply({
+    kind: 'registered',
+    resources: registered,
+    bytes: resources!.resourceBytes,
+    durationMs: performance.now() - started,
+    ...(sequence === undefined ? {} : { sequence }),
+  });
+}
+function enqueue(request: Extract<RenderRequest, { kind: 'frame' }>): void {
   lastSequence = request.sequence;
   queue.push(request);
   queueTimer ??= setTimeout(() => {
@@ -412,21 +434,28 @@ scope.onmessage = ({ data }) => {
         break;
       case 'register':
         stage = 'worker-resources';
-        for (const resource of data.resources) resources.register(resource);
-        reply({
-          kind: 'registered',
-          ids: data.resources.map((r) => r.id),
-          bytes: resources.resourceBytes,
-        });
+        if (shared) throw new Error('Shared renderer registrations require a frame');
+        register(data.resources);
         break;
       case 'release':
         stage = 'worker-resources';
         resources.release(data.resource);
-        reply({ kind: 'released', id: data.resource.id, bytes: resources.resourceBytes });
+        reply({ kind: 'released', resource: data.resource, bytes: resources.resourceBytes });
         break;
-      case 'frame':
-        enqueue(data);
+      case 'frame': {
+        checkFrame(data.sequence);
+        if (data.resources === undefined) {
+          enqueue(data);
+          break;
+        }
+        stage = 'worker-resources';
+        if (!shared) throw new Error('Transfer renderer frames require prior registration');
+        const { resources: batch, ...frame } = data;
+        register(batch, frame.sequence);
+        stage = 'worker-frame';
+        enqueue(frame);
         break;
+      }
     }
   } catch (error) {
     fault(stage, error);

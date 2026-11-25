@@ -50,9 +50,10 @@ const hideSharedConstructor =
 
 function workerFaults() {
   const receive = globalThis.onmessage;
+  const schedule = globalThis.setTimeout;
   let canvas,
-    hold = false;
-  const backlog = [];
+    hold = false,
+    resumeDraw;
   globalThis.onmessage = (event) => {
     const data = event.data;
     if (data.kind === 'attach') canvas = data.canvas;
@@ -62,7 +63,8 @@ function workerFaults() {
     }
     if (data.kind === 'test-resume') {
       hold = false;
-      for (const previous of backlog.splice(0)) receive(previous);
+      resumeDraw?.();
+      resumeDraw = undefined;
       return;
     }
     if (data.kind === 'test-context-loss') {
@@ -72,7 +74,21 @@ function workerFaults() {
       return;
     }
     if (data.kind === 'frame' && hold) {
-      backlog.push(event);
+      // Hold the draw queue while acknowledgements for combined registrations continue.
+      globalThis.setTimeout = (callback, delay, ...args) => {
+        if (delay !== 0) return schedule(callback, delay, ...args);
+        const timer = schedule(callback, 60_000, ...args);
+        resumeDraw = () => {
+          clearTimeout(timer);
+          schedule(callback, 0, ...args);
+        };
+        return timer;
+      };
+      try {
+        receive(event);
+      } finally {
+        globalThis.setTimeout = schedule;
+      }
       return;
     }
     receive(event);
@@ -83,6 +99,7 @@ async function serve(directory, action, options = {}) {
   const root = resolve(directory),
     base = options.base ?? '/demo/';
   let policy = options.policy ?? 'none';
+  const runtimeRequests = { 'canvaskit.js': 0, 'canvaskit.wasm': 0 };
   const manifest = JSON.parse(readFileSync(join(root, 'build.json'), 'utf8'));
   const names = new Set(manifest.files.map(({ path }) => path));
   const server = http.createServer((request, response) => {
@@ -115,9 +132,15 @@ async function serve(directory, action, options = {}) {
       'Content-Type': mediaType(name),
       'Cache-Control': 'no-cache',
     };
+    const runtimeFile = name.startsWith('runtime/') && name.slice('runtime/'.length);
+    if (Object.hasOwn(runtimeRequests, runtimeFile)) {
+      runtimeRequests[runtimeFile]++;
+      if (options.coldRuntime) headers['Cache-Control'] = 'no-store';
+    }
     if (name === 'index.html') {
       Object.assign(headers, policyFields);
       if (options.blockWorker) headers['Content-Security-Policy'] += "; worker-src 'none'";
+      if (options.blockWasmBlob) headers['Content-Security-Policy'] += "; connect-src 'self'";
       if (relative && relative !== name)
         body = Buffer.from(
           body.toString().replace('<!--nelyx-base-->', '<base href="' + base + '">'),
@@ -128,6 +151,9 @@ async function serve(directory, action, options = {}) {
     if (name === manifest.rendererWorker) {
       if (options.blockBlob)
         headers['Content-Security-Policy'] = "script-src 'self' 'wasm-unsafe-eval'";
+      if (options.blockWorkerWasmBlob)
+        headers['Content-Security-Policy'] =
+          "script-src 'self' blob: 'wasm-unsafe-eval'; connect-src 'self'";
       if (options.hideSharedConstructor)
         body = Buffer.concat([Buffer.from(hideSharedConstructor), body]);
       if (options.faults)
@@ -150,6 +176,7 @@ async function serve(directory, action, options = {}) {
         policy = next;
       },
       manifest,
+      runtimeRequests,
     );
   } finally {
     server.closeAllConnections();
@@ -180,14 +207,36 @@ function addProbe(fault = '') {
     };
   }
   const WorkerConstructor = window.Worker;
+  const trace = fault === 'trace-registration' || fault === 'fail-registration';
   window.renderWorkers = [];
   window.workerFrames = 0;
+  if (trace) window.workerResourceEvents = [];
   window.Worker = class extends WorkerConstructor {
     constructor(url, options) {
       super(url, options);
       if (options?.name === 'nelyx-renderer') window.renderWorkers.push(this);
+      if (trace && options?.name === 'nelyx-renderer') {
+        this.addEventListener('message', ({ data }) => {
+          if (['registered', 'released', 'submitted', 'retired', 'fault'].includes(data.kind)) {
+            const { kind, sequence, generation, resources, resource, bytes, result } = data;
+            window.workerResourceEvents.push({
+              kind,
+              sequence,
+              generation,
+              resources,
+              resource,
+              bytes,
+              result,
+            });
+          }
+        });
+      }
     }
     postMessage(message, transfer) {
+      if (message.kind === 'probe' && fault === 'hold-startup' && !window.delayedRenderProbe) {
+        window.delayedRenderProbe = true;
+        return;
+      }
       if (message.kind === 'check-shared' && fault === 'shared')
         Atomics.store(new Int32Array(message.probe), 0, 0);
       if (message.kind === 'attach' && fault === 'attachment') {
@@ -195,6 +244,24 @@ function addProbe(fault = '') {
         throw new Error('Injected display canvas transfer failure');
       }
       if (message.kind === 'frame') window.workerFrames++;
+      if (trace && (message.kind === 'frame' || message.kind === 'register')) {
+        const { kind, sequence, generation, transport, resources } = message;
+        window.workerResourceEvents.push({
+          kind,
+          sequence,
+          generation,
+          transport,
+          ids: resources?.map((resource) => resource.id),
+        });
+        if (fault === 'fail-registration' && resources?.length > 1 && !window.failedRegistration) {
+          window.failedRegistration = sequence;
+          // The first valid entry is admitted before the deliberately invalid second entry.
+          message = {
+            ...message,
+            resources: [resources[0], { ...resources[1], generation: 0 }, ...resources.slice(2)],
+          };
+        }
+      }
       return super.postMessage(message, transfer);
     }
     terminate() {
@@ -205,6 +272,19 @@ function addProbe(fault = '') {
   };
 }
 
+function observeFirstGpuFrame() {
+  const observer = new MutationObserver(() => {
+    if (!document.querySelector('#app canvas[data-nelyx-frame-ready=true]')) return;
+    window.firstGpuFromNavigationMs = performance.now();
+    observer.disconnect();
+  });
+  observer.observe(document, {
+    subtree: true,
+    childList: true,
+    attributeFilter: ['data-nelyx-frame-ready'],
+  });
+}
+
 const engine = values.engine;
 assert.ok(['chrome', 'webkit', 'firefox'].includes(engine), 'Select chrome, webkit or firefox');
 const browser = await (engine === 'chrome'
@@ -213,12 +293,14 @@ const browser = await (engine === 'chrome'
       args: values.swiftshader ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : [],
     })
   : { webkit, firefox }[engine].launch());
-let gpu, cdp;
+let gpu, glRenderer, cdp;
 if (engine === 'chrome') {
   cdp = await browser.newBrowserCDPSession();
-  gpu = (await cdp.send('SystemInfo.getInfo')).gpu.devices;
+  const info = (await cdp.send('SystemInfo.getInfo')).gpu;
+  gpu = info.devices;
+  glRenderer = info.auxAttributes?.glRenderer;
 }
-console.log(JSON.stringify({ engine, version: browser.version(), gpu }));
+console.log(JSON.stringify({ engine, version: browser.version(), gpu, glRenderer }));
 
 async function tab(
   action,
@@ -347,7 +429,10 @@ function mainFrameP95(samples) {
   for (const { frame, stage, duration: elapsed } of samples)
     if (frame > 0 && measuredStages.has(stage))
       duration.set(frame, (duration.get(frame) ?? 0) + elapsed);
-  const sorted = [...duration.values()].sort((a, b) => a - b);
+  return p95([...duration.values()]);
+}
+function p95(samples) {
+  const sorted = samples.sort((a, b) => a - b);
   return sorted[Math.ceil(sorted.length * 0.95) - 1];
 }
 async function rendererMemoryMiB() {
@@ -441,6 +526,79 @@ async function sample(page, url, expected, { baseline = false, benchmark = false
   };
 }
 
+async function scrollPerformance(trial, requested, expected) {
+  const report = await serve(
+    values.demo,
+    (root, _updatePolicy, manifest, runtimeRequests) =>
+      tab(async (page) => {
+        await page.addInitScript(observeFirstGpuFrame);
+        await page.goto(modeUrl(root, requested), { waitUntil: 'domcontentloaded' });
+        await firstFrame(page, expected);
+        const firstGpuFromNavigationMs = await page.evaluate(() => window.firstGpuFromNavigationMs);
+        assert.ok(firstGpuFromNavigationMs > 0);
+        const firstRuntimeRequests = { ...runtimeRequests };
+        const list = await page
+          .getByRole('button', { name: 'Filled', exact: true })
+          .evaluate((node) => node.closest('[role=list]').getBoundingClientRect().toJSON());
+        await nextFrames(page, 8);
+        const before = await page.evaluate(() => window.readNelyx());
+        for (let index = 0; index < 16; index++) {
+          await wheel(page, list.x + 12, list.y + 80, index < 8 ? 15 : -15);
+          await nextFrames(page);
+        }
+        await nextFrames(page, 8);
+        const after = await page.evaluate(() => window.readNelyx());
+        const { samples, overwritten, invalid } = after.frames;
+        assert.equal(overwritten + invalid, 0);
+        const offsets = samples
+          .filter(({ stage }) => stage === 'section-scroll-offset')
+          .map(({ scrollOffset }) => scrollOffset);
+        assert.ok(Math.max(...offsets) > Math.min(...offsets), 'The wheel must move the list');
+        const packets = samples.filter(({ stage }) => stage === 'web-frame-encode');
+        assert.equal(after.rendering.crossOriginIsolated, true);
+        if (expected !== 'direct') assert.equal(after.rendering.workerIsolated, true);
+        if (expected === 'worker-shared') assert.ok(after.rendering.sharedConsumed > 0);
+        const delta = (key) =>
+          after.rendering[key] === undefined
+            ? undefined
+            : after.rendering[key] - before.rendering[key];
+        return {
+          case: 'performance',
+          trial,
+          release: manifest.buildId,
+          path: after.rendering.path,
+          firstGpuFromNavigationMs,
+          firstRuntimeRequests,
+          mainFrameP95Ms: mainFrameP95(samples),
+          inputToSubmitP95Ms: after.rendering.p95Ms.inputToSubmit,
+          scroll: {
+            min: Math.min(...offsets),
+            max: Math.max(...offsets),
+            end: offsets.at(-1),
+          },
+          accepted: after.rendering.accepted - before.rendering.accepted,
+          gpuRetired: after.rendering.gpuRetired - before.rendering.gpuRetired,
+          discarded: after.rendering.discarded - before.rendering.discarded,
+          peakResourceBytes: after.rendering.peakResourceBytes,
+          maxPacketBytes: Math.max(0, ...packets.map(({ bytes }) => bytes)),
+          mainPictureCompilations:
+            after.pictures.framePictureCompilations - before.pictures.framePictureCompilations,
+          workerPictureCompilations: delta('workerPictureCompilations'),
+          registrationWaits: delta('registrationWaits'),
+          framesWithRegistration: delta('framesWithRegistration'),
+          workerRegistrationP95Ms: p95(
+            samples
+              .filter(({ stage }) => stage === 'web-worker-register')
+              .map(({ duration }) => duration),
+          ),
+        };
+      }),
+    { policy: 'both', base: '/', coldRuntime: true },
+  );
+  reports.push(report);
+  console.log(JSON.stringify(report));
+}
+
 async function pwa(directory, name, policy, expected) {
   await serve(
     directory,
@@ -499,7 +657,7 @@ async function pwa(directory, name, policy, expected) {
 async function recovery() {
   await serve(
     values.demo,
-    (root) =>
+    (root, _update, _manifest, runtimeRequests) =>
       tab(async (page) => {
         await page.goto(modeUrl(root, 'auto'));
         await firstFrame(page, 'worker-shared');
@@ -564,16 +722,18 @@ async function recovery() {
         assert.equal(await canvas.evaluate((element) => document.activeElement === element), true);
         assert.equal(await page.evaluate(() => window.renderWorkers.length), 1);
         assert.ok((await diag(page)).failures.some(({ stage }) => stage === 'worker-context-loss'));
+        assert.deepEqual(runtimeRequests, { 'canvaskit.js': 1, 'canvaskit.wasm': 1 });
         await holdTwo();
         await page.evaluate(() => window.renderWorkers[0].terminate());
         await onPath(page, 'direct');
         await screenshotPixels(page, canvas);
         const after = await diag(page);
         assert.ok(after.discarded >= before.discarded + 6);
+        assert.equal(after.resourceBytes, 0);
         assert.equal(await page.evaluate(() => window.renderWorkers.length), 0);
         reports.push({ case: 'recovery', rendering: after });
       }),
-    { policy: 'both', faults: true },
+    { policy: 'both', faults: true, coldRuntime: true },
   );
 
   await serve(
@@ -599,6 +759,176 @@ async function recovery() {
       }),
     { faults: true },
   );
+}
+
+async function canvasKitCompatibility() {
+  await serve(
+    values.demo,
+    (root, _update, _manifest, runtimeRequests) =>
+      tab(async (page) => {
+        await page.addInitScript(() => {
+          document.addEventListener('securitypolicyviolation', (event) => {
+            if (event.effectiveDirective === 'connect-src' && event.blockedURI.startsWith('blob'))
+              window.wasmBlobBlocked = true;
+          });
+        });
+        await page.goto(modeUrl(root, 'direct'));
+        await firstFrame(page, 'direct');
+        await page.waitForFunction(() => window.wasmBlobBlocked);
+        await screenshotPixels(page, page.getByRole('button', { name: 'Filled', exact: true }));
+        assert.deepEqual(runtimeRequests, { 'canvaskit.js': 1, 'canvaskit.wasm': 1 });
+      }),
+    { policy: 'both', blockWasmBlob: true, coldRuntime: true },
+  );
+}
+
+async function partialRegistration() {
+  await serve(
+    values.demo,
+    (root) =>
+      tab(
+        async (page) => {
+          await page.goto(modeUrl(root, 'auto'));
+          await onPath(page, 'direct');
+          const rendering = await diag(page);
+          assert.ok(rendering.failures.some(({ stage }) => stage === 'worker-resources'));
+          assert.equal(rendering.resourceBytes, 0);
+          assert.equal(rendering.framesWithRegistration, 1);
+          assert.equal(rendering.discarded, 1);
+          const { sequence, events } = await page.evaluate(() => ({
+            sequence: window.failedRegistration,
+            events: window.workerResourceEvents,
+          }));
+          assert.ok(sequence > 0);
+          assert.equal(
+            events.filter((event) => event.kind === 'frame' && event.sequence === sequence).length,
+            1,
+          );
+          assert.equal(events.filter((event) => event.kind === 'fault').length, 1);
+          assert.ok(!events.some(({ kind }) => kind === 'registered' || kind === 'submitted'));
+          assert.equal(await page.evaluate(() => window.renderWorkers.length), 0);
+          await screenshotPixels(page, page.getByRole('button', { name: 'Filled', exact: true }));
+        },
+        { fault: 'fail-registration' },
+      ),
+    { policy: 'both' },
+  );
+}
+
+async function closeDuringStartup() {
+  await serve(
+    values.fixture,
+    (root, _update, _manifest, runtimeRequests) =>
+      tab(
+        async (page) => {
+          await page.goto(modeUrl(root, 'auto'));
+          await page.waitForFunction(() => window.delayedRenderProbe);
+          await page.getByRole('button', { name: 'Unmount renderer scene' }).click();
+          await page.waitForFunction(() => window.renderWorkers.length === 0);
+          assert.equal(await appCanvas(page).count(), 0);
+          await page.getByRole('button', { name: 'Mount renderer scene' }).click();
+          await onPath(page, 'worker-shared');
+          assert.deepEqual(runtimeRequests, { 'canvaskit.js': 1, 'canvaskit.wasm': 1 });
+        },
+        { fault: 'hold-startup' },
+      ),
+    { policy: 'both', coldRuntime: true },
+  );
+}
+
+async function checkCombinedRegistrations(page) {
+  const events = await page.evaluate(() => window.workerResourceEvents);
+  assert.ok(events.every(({ kind }) => kind !== 'register'));
+  const uploads = events.filter(({ kind, ids }) => kind === 'frame' && ids?.length);
+  assert.deepEqual(
+    uploads.map(({ transport }) => transport),
+    ['shared', 'transfer'],
+  );
+  const seen = new Set();
+  for (const frame of uploads) {
+    const matches = events.filter(
+      ({ generation, sequence }) => generation === frame.generation && sequence === frame.sequence,
+    );
+    assert.deepEqual(
+      matches.map(({ kind }) => kind),
+      ['frame', 'registered', 'submitted', 'retired'],
+    );
+    const registered = matches[1];
+    assert.deepEqual(
+      registered.resources.map(({ id }) => id),
+      frame.ids,
+    );
+    for (const resource of registered.resources) {
+      assert.ok(resource.generation > 0);
+      assert.ok(!seen.has(resource.id), 'A resource ID is compiled once in the worker generation');
+      seen.add(resource.id);
+      if (resource.nativeBytes !== undefined) assert.ok(resource.cost > resource.nativeBytes);
+    }
+  }
+  const lastRegistration = events.filter(({ kind }) => kind === 'registered').at(-1);
+  const largePicture = lastRegistration.resources.find(
+    ({ nativeBytes }) => nativeBytes !== undefined,
+  );
+  await page.evaluate(() => window.dropLargeRendererPicture());
+  await page.waitForFunction(
+    (id) =>
+      window.workerResourceEvents.some(
+        (event) => event.kind === 'released' && event.resource.id === id,
+      ),
+    largePicture.id,
+  );
+  const released = await page.evaluate(
+    (id) =>
+      window.workerResourceEvents.find(
+        (event) => event.kind === 'released' && event.resource.id === id,
+      ),
+    largePicture.id,
+  );
+  assert.equal(released.resource.generation, largePicture.generation);
+  assert.equal(released.bytes, lastRegistration.bytes - largePicture.cost);
+  assert.equal(
+    (await page.evaluate(() => window.readRendererScene())).rendering.resourceBytes,
+    released.bytes,
+  );
+}
+
+async function checkSceneRecovery(page, reference) {
+  await page.evaluate(() => window.drawLargeRendererScene());
+  const before = await page.evaluate(() => window.readRendererScene());
+  for (const expected of ['worker-shared', 'direct']) {
+    const frames = await page.evaluate(() => {
+      window.recoveryCanvas = document.querySelector('#app canvas');
+      window.renderWorkers[0].postMessage({ kind: 'test-context-loss' });
+      return window.readRendererScene().rendering.gpuRetired;
+    });
+    await page.waitForFunction(
+      ({ expected, frames }) => {
+        const canvas = document.querySelector('#app canvas');
+        return (
+          canvas !== window.recoveryCanvas &&
+          canvas?.dataset.nelyxRenderPath === expected &&
+          canvas.dataset.nelyxFrameReady === 'true' &&
+          window.readRendererScene().rendering.gpuRetired > frames
+        );
+      },
+      { expected, frames },
+    );
+    assert.deepEqual(await screenshotPixels(page, appCanvas(page)), reference);
+  }
+  const recovered = await page.evaluate(() => window.readRendererScene());
+  assert.equal(
+    recovered.rendering.failures.filter(({ stage }) => stage === 'worker-context-loss').length,
+    2,
+  );
+  assert.equal(recovered.rendering.resourceBytes, 0);
+  assert.ok(
+    recovered.rendering.workerPictureCompilations >= before.rendering.workerPictureCompilations + 3,
+  );
+  assert.equal(
+    recovered.rasterization.framePictureCompilations,
+    before.rasterization.framePictureCompilations + 1,
+  );
+  assert.equal(await page.evaluate(() => window.renderWorkers.length), 0);
 }
 
 async function touchScroll() {
@@ -736,6 +1066,17 @@ async function strictModeRemount() {
 }
 
 try {
+  if (values.suite === 'performance') {
+    const modes = [
+      ['direct', 'direct'],
+      ['worker-transfer', 'worker-transfer'],
+      ['auto', 'worker-shared'],
+    ];
+    for (let trial = 0; trial < trialCount; trial++)
+      for (let offset = 0; offset < modes.length; offset++)
+        await scrollPerformance(trial + 1, ...modes[(trial + offset) % modes.length]);
+  }
+
   if (values.baseline && suite('demo')) {
     let reference;
     for (const policy of Object.keys(policies)) {
@@ -819,6 +1160,7 @@ try {
       ['attachment', {}, 'direct', 'worker-attach'],
       ['', { blockWorker: true }, 'direct', 'worker-script'],
       ['', { blockBlob: true }, 'direct', 'worker-runtime'],
+      ['', { blockWorkerWasmBlob: true }, 'direct', 'worker-runtime'],
     ]) {
       await serve(
         values.demo,
@@ -869,6 +1211,8 @@ try {
         { ...settings },
       );
     }
+    await canvasKitCompatibility();
+    await partialRegistration();
     await recovery();
     await serve(
       values.demo,
@@ -911,49 +1255,66 @@ try {
       await serve(
         values.fixture,
         (root) =>
-          tab(async (page) => {
-            await page.goto(modeUrl(root, mode));
-            await page.waitForFunction(() => {
-              const scene = window.readRendererScene?.();
-              return scene?.rendering.gpuRetired > 0 && scene?.readback;
-            });
-            const frames = await page.evaluate(() => {
-              window.drawLargeRendererScene();
-              return window.readRendererScene().rendering.gpuRetired;
-            });
-            await page.waitForFunction(
-              (frames) => window.readRendererScene().rendering.gpuRetired > frames,
-              frames,
-            );
-            const result = await page.evaluate(() => window.readRendererScene());
-            if (engine === 'chrome') assert.equal(result.rendering.path, expected);
-            assert.deepEqual(result.readback, [212, 24, 36, 255]);
-            assert.equal(result.contains, true);
-            if (result.rendering.path === 'worker-shared') {
-              assert.ok(result.rendering.sharedConsumed > 0);
-              assert.ok(
-                result.rendering.buffersDetached > 0,
-                'Large frame should spill to a transfer buffer',
+          tab(
+            async (page) => {
+              await page.goto(modeUrl(root, mode));
+              await page.waitForFunction(() => {
+                const scene = window.readRendererScene?.();
+                return scene?.rendering.gpuRetired > 0 && scene?.readback;
+              });
+              const initial = await page.evaluate(() => window.readRendererScene());
+              const frames = await page.evaluate(() => {
+                window.drawLargeRendererScene();
+                return window.readRendererScene().rendering.gpuRetired;
+              });
+              await page.waitForFunction(
+                (frames) => window.readRendererScene().rendering.gpuRetired > frames,
+                frames,
               );
-            }
-            const pixels = await screenshotPixels(page, appCanvas(page));
-            reference ??= { pixels, geometry: result.geometry };
-            assert.deepEqual({ pixels, geometry: result.geometry }, reference);
-            if (mode === 'auto' && result.rendering.path === 'worker-shared') {
-              const opened = page.waitForEvent('popup');
-              await page.getByRole('button', { name: 'Open renderer dialog' }).click();
-              const dialog = await opened;
-              await onPath(dialog, 'direct');
-              await screenshotPixels(dialog, dialog.locator('canvas'));
-              await dialog.close();
-              await page.waitForFunction(() => window.rendererDialogClosed);
-              assert.equal(await page.evaluate(() => window.renderWorkers.length), 1);
-            }
-            reports.push({ case: 'scene', mode, pixels, ...result });
-          }),
-        { policy: 'both' },
+              const result = await page.evaluate(() => window.readRendererScene());
+              if (engine === 'chrome') assert.equal(result.rendering.path, expected);
+              assert.deepEqual(result.readback, [212, 24, 36, 255]);
+              assert.equal(result.contains, true);
+              if (result.rendering.path === 'worker-shared') {
+                assert.ok(result.rendering.sharedConsumed > 0);
+                assert.ok(
+                  result.rendering.buffersDetached > 0,
+                  'Large frame should spill to a transfer buffer',
+                );
+                assert.equal(initial.rasterization.framePictureCompilations, 0);
+                assert.equal(result.rasterization.framePictureCompilations, 0);
+                assert.equal(initial.rendering.workerPictureCompilations, 2);
+                assert.equal(result.rendering.workerPictureCompilations, 3);
+                assert.equal(result.rendering.registrationWaits, 0);
+              }
+              const pixels = await screenshotPixels(page, appCanvas(page));
+              const nestedPixels = await page.evaluate(() => window.readNestedRendererPixels());
+              const scene = { pixels, geometry: result.geometry, nestedPixels };
+              reference ??= scene;
+              assert.deepEqual(scene, reference);
+              if (mode === 'auto' && result.rendering.path === 'worker-shared') {
+                const afterReadback = await page.evaluate(() => window.readRendererScene());
+                assert.equal(afterReadback.rasterization.framePictureCompilations, 2);
+                assert.ok(afterReadback.pictures.bytes > result.pictures.bytes);
+                await checkCombinedRegistrations(page);
+                const opened = page.waitForEvent('popup');
+                await page.getByRole('button', { name: 'Open renderer dialog' }).click();
+                const dialog = await opened;
+                await onPath(dialog, 'direct');
+                await screenshotPixels(dialog, dialog.locator('canvas'));
+                await dialog.close();
+                await page.waitForFunction(() => window.rendererDialogClosed);
+                assert.equal(await page.evaluate(() => window.renderWorkers.length), 1);
+                await checkSceneRecovery(page, pixels);
+              }
+              reports.push({ case: 'scene', mode, ...scene, ...result });
+            },
+            { fault: expected === 'worker-shared' ? 'trace-registration' : '' },
+          ),
+        { policy: 'both', faults: expected === 'worker-shared' },
       );
     }
+    if (engine === 'chrome') await closeDuringStartup();
   }
   console.log('PASS Web renderer browser checks');
 } finally {

@@ -6,9 +6,11 @@ type Timing =
   | 'mainSubmit'
   | 'encode'
   | 'workerDecode'
+  | 'workerRegistration'
   | 'workerReplay'
   | 'workerSubmit'
   | 'fence'
+  | 'registrationAck'
   | 'inputToSubmit';
 export class WebRenderTelemetry {
   readonly started = performance.now();
@@ -28,6 +30,9 @@ export class WebRenderTelemetry {
   buffersReused = 0;
   encodedBytes = 0;
   registrationBatches = 0;
+  registrationWaits = 0;
+  framesWithRegistration = 0;
+  workerPictureCompilations = 0;
   resourceUploadBytes = 0;
   private lastInputSequence = 0;
   maxPending = 0;
@@ -102,6 +107,9 @@ export class WebRenderTelemetry {
       buffersReused: this.buffersReused,
       encodedBytes: this.encodedBytes,
       registrationBatches: this.registrationBatches,
+      registrationWaits: this.registrationWaits,
+      framesWithRegistration: this.framesWithRegistration,
+      workerPictureCompilations: this.workerPictureCompilations,
       resourceUploadBytes: this.resourceUploadBytes,
       maxPending: this.maxPending,
       reservedBytes: this.reservedBytes,

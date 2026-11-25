@@ -142,10 +142,34 @@ function RendererScene({ options, revision }) {
           window.rendererDialogClosed = true;
         });
       };
-      let large = false;
+      let large;
       window.drawLargeRendererScene = () => {
-        large = true;
+        large ??= Picture._fromRecording([
+          { op: 'rect', rect: area(-16, -16, 4, 4), color: 0xff000000 },
+        ]);
         requestFrame();
+      };
+      window.dropLargeRendererPicture = () => {
+        large?.dispose();
+        large = undefined;
+        requestFrame();
+      };
+      window.readNestedRendererPixels = async () => {
+        const recording = Picture._fromRecording([
+          { op: 'clear', color: 0xff293849 },
+          { op: 'drawPicture', resource: pictures.resource(nested) },
+        ]);
+        try {
+          const raster = recording.toImageSync(256, 144, rasterizer);
+          try {
+            const hash = await crypto.subtle.digest('SHA-256', await raster.toByteData());
+            return new Uint8Array(hash).toHex();
+          } finally {
+            raster.dispose();
+          }
+        } finally {
+          recording.dispose();
+        }
       };
       window.rendererGeometry = {
         lines: layout.lines,
@@ -154,6 +178,7 @@ function RendererScene({ options, revision }) {
         unresolved: layout.unresolvedGlyphs,
       };
       window.rendererContains = paths.contains(clip, { x: 13, y: 18 });
+      window.rendererPictureStats = () => pictures.debugStats;
       void image.toByteData().then((data) => {
         window.rendererReadback = [...data.subarray(0, 4)];
       });
@@ -162,6 +187,7 @@ function RendererScene({ options, revision }) {
           return large
             ? [
                 ...commands,
+                { op: 'drawPicture', resource: pictures.resource(large) },
                 ...Array.from({ length: 2000 }, () => ({
                   op: 'rect',
                   rect: area(-16, -16, 4, 4),
@@ -171,6 +197,7 @@ function RendererScene({ options, revision }) {
             : commands;
         },
         dispose() {
+          large?.dispose();
           nested.dispose();
           child.dispose();
           image.dispose();
@@ -198,6 +225,8 @@ function RendererScene({ options, revision }) {
           geometry: window.rendererGeometry,
           readback: window.rendererReadback,
           contains: window.rendererContains,
+          rasterization: application.text.debugRasterizationStats,
+          pictures: window.rendererPictureStats(),
         });
       },
     }),

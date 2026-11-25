@@ -3,18 +3,19 @@ import { disposeFrame } from '@nelyx/core/ui/frame';
 import type { NativeFrameResource } from '@nelyx/core/ui/frame-wire';
 import { decodeWebFrame } from '@nelyx/core/ui/web-frame-wire';
 import type { ResourceRegistry } from '@nelyx/core/hosting/resources';
+import { RasterizationPendingError } from '@nelyx/core/hosting/rasterization';
 import { imageLimits } from '@nelyx/core/hosting/images';
 import { Picture } from '@nelyx/core/ui/picture';
 import type { ResourceDescriptor, ResourceId } from '@nelyx/core/ui/types';
 import type { WebSkiaLibrary } from '@nelyx/skia-web/library';
 import {
   mapParagraphResources,
-  renderResourceCost,
+  renderResourceReservation,
   wireResourceId,
   workerResourceBytes,
   workerResourceCount,
 } from './render-protocol.ts';
-import type { RenderResource } from './render-protocol.ts';
+import type { RegisteredRenderResource, RenderResource } from './render-protocol.ts';
 
 interface Entry {
   readonly generation: number;
@@ -45,7 +46,38 @@ export class RenderResourceReceiver {
       throw new Error('Unregistered, stale or mismatched Web render resource');
     return entry.resource;
   };
-  register(data: RenderResource): void {
+  registerBatch(batch: readonly RenderResource[]): RegisteredRenderResource[] {
+    if (
+      !Array.isArray(batch) ||
+      !batch.length ||
+      this.entries.size + batch.length > workerResourceCount
+    )
+      throw new Error('Invalid Web render resource batch size');
+    const reservations = batch.map((data: RenderResource) => {
+      const cost = renderResourceReservation(data);
+      this.checkBudget(cost);
+      return cost;
+    });
+    let pending = reservations.reduce((total, cost) => total + cost, 0);
+    this.checkBudget(pending);
+    let pictureWireBytes = 0;
+    return batch.map((data, index) => {
+      const reservation = reservations[index]!;
+      pending -= reservation;
+      // The received message still owns these buffers while the batch is processed.
+      if (data.kind === 'picture') pictureWireBytes += data.bytes.byteLength;
+      return this.register(data, reservation, pending + pictureWireBytes);
+    });
+  }
+  private checkBudget(cost: number): void {
+    if (!Number.isSafeInteger(cost) || cost < 0 || this.bytes + cost > workerResourceBytes)
+      throw new Error('Web renderer resource byte budget');
+  }
+  private register(
+    data: RenderResource,
+    reservation: number,
+    pendingBytes: number,
+  ): RegisteredRenderResource {
     if (
       !Number.isSafeInteger(data.id) ||
       data.id !== this.sequence + 1 ||
@@ -55,9 +87,8 @@ export class RenderResourceReceiver {
       this.entries.size >= workerResourceCount
     )
       throw new Error('Invalid Web render resource identity or count');
-    const cost = renderResourceCost(data);
-    if (!Number.isSafeInteger(cost) || cost < 0 || this.bytes + cost > workerResourceBytes)
-      throw new Error('Web renderer resource byte budget');
+    let cost = reservation;
+    let nativeBytes: number | undefined;
     const descriptor = { ...wireResourceId(data), kind: data.kind };
     let resource: ResourceId = descriptor;
     if (data.kind === 'paragraph') {
@@ -95,9 +126,11 @@ export class RenderResourceReceiver {
             throw new Error('Invalid Web render image source');
           retire = this.library.restoreImage(resource, data);
           break;
-        case 'picture':
-          retire = this.picture(descriptor, data);
+        case 'picture': {
+          const picture = this.picture(descriptor, data, pendingBytes);
+          ({ retire, nativeBytes, cost } = picture);
           break;
+        }
       }
       try {
         this.registry.register(descriptor, retire);
@@ -110,6 +143,12 @@ export class RenderResourceReceiver {
     this.sequence = data.id;
     this.entries.set(data.id, { resource, kind: data.kind, generation: data.generation, cost });
     this.bytes += cost;
+    return {
+      id: data.id,
+      generation: data.generation,
+      cost,
+      ...(nativeBytes === undefined ? {} : { nativeBytes }),
+    };
   }
   release({ id, generation }: NativeFrameResource): void {
     const entry = this.entries.get(id);
@@ -122,11 +161,12 @@ export class RenderResourceReceiver {
   private picture(
     descriptor: ResourceDescriptor,
     data: Extract<RenderResource, { kind: 'picture' }>,
-  ): () => void {
+    pendingBytes: number,
+  ): { retire(): void; cost: number; nativeBytes: number } {
     if (
       !(data.bytes instanceof Uint8Array) ||
-      !Number.isSafeInteger(data.nativeBytes) ||
-      data.nativeBytes < 0
+      !Number.isSafeInteger(data.captureBytes) ||
+      data.captureBytes < 0
     )
       throw new Error('Invalid Web render Picture source');
     const frame = decodeWebFrame(
@@ -143,21 +183,33 @@ export class RenderResourceReceiver {
     const capture = picture._capture();
     picture.dispose();
     let lease: ReturnType<ResourceRegistry['acquire']> | undefined;
+    let retire: (() => void) | undefined;
     try {
+      const captureBytes = capture.frame.estimatedBytes;
+      this.checkBudget(captureBytes + pendingBytes);
       lease = this.registry.acquire(capture.frame.resources);
       const native = this.library.framePictureBackend.compile(capture, descriptor);
-      const retire = () => {
+      retire = () => {
         native.retire();
-        lease!.returnBy('caller');
-        capture.dispose();
+        try {
+          lease!.returnBy('caller');
+        } finally {
+          capture.dispose();
+        }
       };
-      if (native.bytes <= data.nativeBytes) return retire;
-      // Allocation differs across renderers even with identical commands.
-      native.retire();
-      throw new Error('Web render Picture exceeds its source memory budget');
+      const cost = captureBytes + native.bytes;
+      this.checkBudget(cost + pendingBytes);
+      return { retire, nativeBytes: native.bytes, cost };
     } catch (error) {
-      lease?.returnBy('caller');
-      capture.dispose();
+      if (retire) {
+        retire();
+      } else if (!(error instanceof RasterizationPendingError)) {
+        try {
+          lease?.returnBy('caller');
+        } finally {
+          capture.dispose();
+        }
+      }
       throw error;
     }
   }

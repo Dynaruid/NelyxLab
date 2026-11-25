@@ -3,10 +3,55 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { createServer } from 'node:http';
 import CanvasKitInit from 'canvaskit-wasm';
 import { ResourceRegistry } from '@nelyx/core/hosting/resources';
 import { WebSkiaLibrary } from '@nelyx/skia-web/library';
 import { readWebRuntime } from '../sdk/tooling/contracts/src/web-runtime.mjs';
+import { prepareCanvasKit } from '../sdk/dist/backends/browser/canvaskit.js';
+
+test(
+  'CanvasKit prepares one verified copy and retries a failed preparation',
+  { timeout: 1_200_000 },
+  async () => {
+    const { runtime, manifest } = readWebRuntime(fileURLToPath(new URL('../../', import.meta.url)));
+    let corrupt = true;
+    const requests = new Map();
+    const server = createServer((request, response) => {
+      const id = request.url.slice(1);
+      requests.set(id, (requests.get(id) ?? 0) + 1);
+      const artifact = runtime.find(({ file }) => file.id === id);
+      if (!artifact) return response.writeHead(404).end();
+      response.end(corrupt && id === 'canvaskit.wasm' ? 'corrupted' : artifact.bytes);
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const root = new URL(`http://127.0.0.1:${server.address().port}/`);
+      await assert.rejects(
+        prepareCanvasKit(root, manifest),
+        /CanvasKit artifact size\/hash mismatch/,
+      );
+      assert.deepEqual([...requests.values()], [1, 1]);
+      corrupt = false;
+      const [main, worker] = await Promise.all([
+        prepareCanvasKit(root, manifest),
+        prepareCanvasKit(root, { ...manifest, files: [...manifest.files].reverse() }),
+      ]);
+      assert.equal(main, worker);
+      assert.equal(main.script.type, 'text/javascript');
+      assert.equal(main.wasm.type, 'application/wasm');
+      const nextRelease = {
+        ...manifest,
+        files: manifest.files.map((file) => ({ ...file, sha256: '0'.repeat(64) })),
+      };
+      await assert.rejects(prepareCanvasKit(root, nextRelease), /require page reload/);
+      assert.deepEqual([...requests.values()], [2, 2]);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  },
+);
 
 test(
   'npm CanvasKit preserves line indices and the soft-hyphen policy',
