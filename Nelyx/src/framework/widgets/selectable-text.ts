@@ -25,7 +25,6 @@ import { FoundationPlatform } from '../../foundation/platform.ts';
 import type { Disposable } from '../../foundation/disposable.ts';
 import { resolveTextConfiguration } from './text-input.ts';
 import { TextSpan } from '../painting/text-span.ts';
-import { BrowserContextMenu } from '../../services/browser-context-menu.ts';
 import { Offset } from '../../ui/offset.ts';
 import type { Offset as Point } from '../../ui/geometry.ts';
 import { Rect } from '../../ui/rect.ts';
@@ -120,7 +119,6 @@ export class SelectableTextState extends State<SelectableText> {
   private overlay: SelectionOverlay | null = null;
   private frames: Disposable | null = null;
   private visibility: Disposable | undefined;
-  private menuPolicy: Disposable | undefined;
   private anchor: Offset | null = null;
   private lastAnchors: TextSelectionToolbarAnchors | null = null;
   private drag: {
@@ -136,9 +134,6 @@ export class SelectableTextState extends State<SelectableText> {
     this.connect();
     this.visibility = maybeTickerScheduler(this.context)?.observeVisibility((visible) => {
       if (!visible) this.closeSelectionUI();
-    });
-    this.menuPolicy = this.context.services.nativeSelectionContextMenu?.observeMenuPolicy?.(() => {
-      if (this.usesNativeMenu) this.closeSelectionUI();
     });
   }
   private connect(): void {
@@ -216,7 +211,6 @@ export class SelectableTextState extends State<SelectableText> {
   override dispose(): void {
     this.closeSelectionUI();
     this.visibility?.dispose();
-    this.menuPolicy?.dispose();
     this.disconnect();
   }
   override deactivate(): void {
@@ -247,10 +241,6 @@ export class SelectableTextState extends State<SelectableText> {
       !render.needsLayout
       ? render
       : null;
-  }
-  private get usesNativeMenu(): boolean {
-    const { nativeSelectionContextMenu, binaryMessenger } = this.context.services;
-    return BrowserContextMenu.usesNativeMenu(nativeSelectionContextMenu, binaryMessenger);
   }
   private visibleBounds(render: RenderSelectableParagraph): Rect {
     const { logicalWidth, logicalHeight } = this.context.services.readMetrics();
@@ -388,8 +378,7 @@ export class SelectableTextState extends State<SelectableText> {
   private showToolbar(anchor: Offset | null = null): boolean {
     const render = this.render,
       builder = this.widget.options.contextMenuBuilder;
-    if (!render || builder === null || this.usesNativeMenu || this.visibleBounds(render).isEmpty)
-      return false;
+    if (!render || builder === null || this.visibleBounds(render).isEmpty) return false;
     const overlay = this.ensureOverlay(render);
     if (!overlay) return false;
     if (anchor || !overlay.toolbarIsVisible) this.anchor = anchor;
@@ -450,7 +439,7 @@ export class SelectableTextState extends State<SelectableText> {
   }
   private beginHold(global: Offset): void {
     const render = this.render;
-    if (!render || this.usesNativeMenu) return;
+    if (!render) return;
     this.closeSelectionUI();
     this.focus.requestFocus();
     this.selectWord(render, render.globalToLocal(global));
@@ -531,7 +520,7 @@ export class SelectableTextState extends State<SelectableText> {
   }
   private secondaryClick(global: Offset): void {
     const render = this.render;
-    if (!render || this.usesNativeMenu) return;
+    if (!render) return;
     this.focus.requestFocus();
     const local = render.globalToLocal(global);
     const { anchor, focus } = this.controller.selection;

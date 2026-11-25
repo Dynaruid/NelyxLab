@@ -18,7 +18,7 @@ import { SemanticsRole } from '@nelyx/core/ui/semantics';
 import type { BrowserMouseCursor } from './mouse-cursor.ts';
 import { createBrowserEditContext, hasBrowserEditContext } from './edit-context.ts';
 import type { BrowserInputViewport } from './edit-context.ts';
-import { isArrowKey } from './input.ts';
+import { isArrowKey, isContextMenuClick } from './input.ts';
 import { getFrontendHost } from './platform.ts';
 interface Editor {
   element: HTMLElement;
@@ -108,11 +108,14 @@ export function createDomInteraction(
   cursor?: BrowserMouseCursor,
   readViewport?: () => BrowserInputViewport,
   accessibilityEnabled = true,
+  nativeContextMenuEnabled?: () => boolean,
 ) {
   const document = input.ownerDocument;
   const window = document.defaultView!;
-  const { HTMLElement, HTMLInputElement, HTMLTextAreaElement, HTMLButtonElement } = window;
-  const isIOS = getFrontendHost(window).os === 'iOS';
+  const { HTMLElement, HTMLInputElement, HTMLTextAreaElement, HTMLButtonElement, MouseEvent } =
+    window;
+  const { os } = getFrontendHost(window);
+  const isIOS = os === 'iOS';
   let closed = false,
     bound = false,
     moving = false;
@@ -214,6 +217,7 @@ export function createDomInteraction(
     semanticsAdjustmentTargets = new WeakSet<HTMLElement>();
   const controlIds = new WeakMap<HTMLElement, string>();
   const nativeSelectionObservers = new WeakMap<Element, () => void>();
+  const nativeContextMenuTargets = new WeakSet<HTMLElement>();
   const selectionChanged = (event: Event) => {
     const active = document.activeElement;
     if (active && (event.target === active || event.target === document))
@@ -317,11 +321,19 @@ export function createDomInteraction(
       if (closed || !sameOwner(owner, initial.session))
         throw new Error('DOM editing owner/session mismatch');
       const configuration = freezeEditingConfiguration(options?.configuration);
+      const prepareContextMenu = options?.prepareContextMenu;
+      const nativeTextMenu = !!(
+        accessibilityEnabled &&
+        nativeContextMenuEnabled &&
+        readViewport &&
+        prepareContextMenu
+      );
       if (configuration.obscureText && /[\r\n]/.test(initial.text))
         throw new Error('Browser password editors cannot represent CR/LF');
       const editor = field(options?.id ?? 'editor');
       if (editor.binding) throw new Error('DOM editing session already bound');
       if (
+        !nativeTextMenu &&
         readViewport &&
         hasBrowserEditContext(window) &&
         !configuration.obscureText &&
@@ -397,11 +409,12 @@ export function createDomInteraction(
         throw new Error('Native input carrier is unavailable');
       let element: HTMLInputElement | HTMLTextAreaElement = control;
       Object.assign(element.style, inputCarrierStyle);
+      if (nativeTextMenu) element.style.pointerEvents = 'auto';
       const nativeCaretHitTest = isIOS && !configuration.readOnly;
       element.style.setProperty('user-select', 'text');
       element.style.setProperty('-webkit-user-select', 'text');
       element.style.setProperty('-webkit-touch-callout', nativeCaretHitTest ? 'none' : 'default');
-      if (nativeCaretHitTest) {
+      if (nativeCaretHitTest || nativeTextMenu) {
         element.style.touchAction = 'none';
         element.style.setProperty('-webkit-tap-highlight-color', 'transparent');
       }
@@ -536,6 +549,35 @@ export function createDomInteraction(
           options?.onAction?.(current());
         }
       };
+      const contextMenu: EventListener = (event) => {
+        if (event.defaultPrevented) return;
+        if (
+          !nativeContextMenuEnabled?.() ||
+          !admitsInput() ||
+          editor.composing ||
+          !(event instanceof MouseEvent)
+        ) {
+          event.preventDefault();
+          return;
+        }
+        let position: { x: number; y: number } | null = null;
+        if (isContextMenuClick(event, os === 'macOS')) {
+          const { bounds, width, height } = readViewport!();
+          if (!bounds.width || !bounds.height) {
+            event.preventDefault();
+            return;
+          }
+          position = {
+            x: ((event.clientX - bounds.x) * width) / bounds.width,
+            y: ((event.clientY - bounds.y) * height) / bounds.height,
+          };
+        }
+        if (!prepareContextMenu!(position) || !admitsInput()) {
+          event.preventDefault();
+          return;
+        }
+        element.focus({ preventScroll: true });
+      };
       const listeners: [string, EventListener, AddEventListenerOptions?][] = [
         ['input', () => observe()],
         ['select', () => observe()],
@@ -562,8 +604,12 @@ export function createDomInteraction(
       ];
       // Keep the control available to the keyboard's floating cursor and give
       // direct touch selection to the canvas gesture recognizers.
-      if (nativeCaretHitTest)
+      if (nativeCaretHitTest || nativeTextMenu)
         listeners.push(['touchstart', (event) => event.preventDefault(), { passive: false }]);
+      if (nativeTextMenu) {
+        listeners.push(['contextmenu', contextMenu]);
+        nativeContextMenuTargets.add(element);
+      }
       for (const [name, listener, options] of listeners)
         element.addEventListener(name, listener, options);
       // WebKit can report caret-only motion on the control or on its document.
@@ -583,7 +629,7 @@ export function createDomInteraction(
         for (const attribute of Array.from(previous.attributes))
           if (attribute.name !== 'type') next.setAttribute(attribute.name, attribute.value);
         next.wrap = 'off';
-        next.style.pointerEvents = 'none';
+        next.style.pointerEvents = nativeTextMenu ? 'auto' : 'none';
         Object.assign(next, {
           onkeydown: previous.onkeydown,
           onpointerdown: previous.onpointerdown,
@@ -594,6 +640,7 @@ export function createDomInteraction(
         });
         for (const [name, listener] of listeners) previous.removeEventListener(name, listener);
         nativeSelectionObservers.delete(previous);
+        if (nativeContextMenuTargets.delete(previous)) nativeContextMenuTargets.add(next);
         cursor?.remove(previous);
         previous.parentElement!.insertBefore(next, previous);
         if (previous !== input) previous.remove();
@@ -657,6 +704,9 @@ export function createDomInteraction(
         get isComposing() {
           return editor.composing;
         },
+        get nativeContextMenuEnabled() {
+          return nativeTextMenu && nativeContextMenuEnabled?.() === true;
+        },
         read: current,
         replace,
         replaceComposing(next) {
@@ -697,6 +747,7 @@ export function createDomInteraction(
           restoreAfterCancellation = false;
           for (const [name, listener] of listeners) element.removeEventListener(name, listener);
           nativeSelectionObservers.delete(element);
+          nativeContextMenuTargets.delete(element);
           delete editor.binding;
           delete editor.value;
           delete editor.changed;
@@ -1045,6 +1096,10 @@ export function createDomInteraction(
   return {
     editing,
     semantics,
+    usesNativeEditingMenu: (target: EventTarget | null) =>
+      target instanceof HTMLElement &&
+      nativeContextMenuTargets.has(target) &&
+      nativeContextMenuEnabled?.() === true,
     ownsEditingTarget: (target: EventTarget | null) =>
       !closed &&
       [...fields.values()].some((editor) => !!editor.binding && editor.element === target),

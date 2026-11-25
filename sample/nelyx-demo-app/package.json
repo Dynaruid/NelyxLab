@@ -17,8 +17,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-a458999b7f89ba39536e6568abdf23dd2b4fa3eb65a580a855e5901155f825fa.tgz",
-    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-4581127d8e6ce831d41d6c67aceb5d75e05c776eeb153890bb2b22ba6de38ba8.tgz",
+    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-b61b9e887e23d47c5045c9dfaea221b996c49cc2079469981167ffbd9b43ea1f.tgz",
+    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-237bdad3f24df5d5d4f60d6f5172448fc5937db2658473a378982ecfdc087882.tgz",
     "@nelyx/material": "file:.nelyx/supply/nelyx-material-0.2.0-83367d7370b176f350f3fd0b0a152ed04a85fafd1641eb7dac168800be3d7e94.tgz",
     "@nelyx/cupertino": "file:.nelyx/supply/nelyx-cupertino-0.2.0-0fc986613d1b8d6452348df44d259be062b11f4f214e9802d882f4bc86e4590f.tgz",
     "@nelyx/skia-web": "file:.nelyx/supply/nelyx-skia-web-0.6.0-49ec3100e055ad742fdc8417fb3a55f5eae6059be172b157bfbd44c8dffaeb63.tgz",
@@ -32,7 +32,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "2.12.6",
     "@nelyx/vite": "file:.nelyx/supply/nelyx-vite-0.1.0-1ae7bca22dab69faa193cc00acd1cc4db04d313516a928763884d9e27fc676f6.tgz",
-    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-81c5de0d8439011432bdec53f2eb4681472da5bd6770947caf24694f033c2351.tgz",
+    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-57c2492393928ae601a87e88a8ec239036a6535d325cb8ffff435b6a7a05e7f9.tgz",
     "@nelyx/tooling-contracts": "file:.nelyx/supply/nelyx-tooling-contracts-0.1.0-1f3694744b75fb5587bb9d8e59ddff46c6f4a3603d28aec84c26c7b2d5b4da67.tgz",
     "vite": "8.3.8",
     "typescript": "7.0.2",

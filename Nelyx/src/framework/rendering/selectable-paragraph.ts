@@ -16,7 +16,10 @@ import {
   PointerMoveEvent,
   PointerUpEvent,
   PointerCancelEvent,
+  computeHitSlop,
+  kPrimaryButton,
 } from '../gestures/events.ts';
+import { kDoubleTapSlop, kDoubleTapTimeout } from '../gestures/constants.ts';
 import type { PointerEvent } from '../gestures/events.ts';
 import type { HitTestEntry } from '../gestures/hit-test.ts';
 import { PointerDeviceKind } from '../../ui/pointer.ts';
@@ -31,13 +34,15 @@ interface Drag {
   readonly anchor: number;
   focus: number;
   won: boolean;
-  up: boolean;
+  mouseTap: boolean;
+  up: PointerUpEvent | null;
   resolve(accepted: boolean): void;
 }
 /** Mouse/pen selection and horizontal touch drag, sharing the scroll arena. */
 export class RenderSelectableParagraph extends RenderParagraph implements GestureArenaMember {
   private readonly release: () => void;
   private readonly drags = new Map<number, Drag>();
+  private lastMouseTap: { readonly position: Offset; readonly timeStamp: number } | null = null;
   private textSnapshot: string;
   private preferredX: number | undefined;
   private movingSelection = false;
@@ -192,6 +197,25 @@ export class RenderSelectableParagraph extends RenderParagraph implements Gestur
     return true;
   }
   private update(drag: Drag): void {
+    if (drag.up) {
+      const previous = this.lastMouseTap;
+      this.lastMouseTap = null;
+      if (drag.mouseTap) {
+        const { position, timeStamp } = drag.start;
+        const elapsed = previous ? timeStamp - previous.timeStamp : Infinity;
+        if (
+          previous &&
+          elapsed >= 0 &&
+          elapsed <= kDoubleTapTimeout &&
+          position.subtract(previous.position).distance <= kDoubleTapSlop
+        ) {
+          const word = this.getWordBoundary(this.selectionPosition(drag.up.localPosition));
+          this.controller.selection = { anchor: word.start, focus: word.end };
+          return;
+        }
+        this.lastMouseTap = { position, timeStamp: drag.up.timeStamp };
+      }
+    }
     this.controller.selection = { anchor: drag.anchor, focus: drag.focus };
   }
   private pointer(event: PointerEvent): void {
@@ -206,7 +230,8 @@ export class RenderSelectableParagraph extends RenderParagraph implements Gestur
           anchor: position,
           focus: position,
           won: false,
-          up: false,
+          mouseTap: event.kind === PointerDeviceKind.mouse && event.buttons === kPrimaryButton,
+          up: null,
           resolve: (accepted) => entry.resolve(accepted),
         };
       this.drags.set(event.pointer, drag);
@@ -217,11 +242,17 @@ export class RenderSelectableParagraph extends RenderParagraph implements Gestur
     const drag = this.drags.get(event.pointer);
     if (!drag) return;
     if (event instanceof PointerCancelEvent) {
+      this.lastMouseTap = null;
       drag.resolve(false);
       this.drags.delete(event.pointer);
       return;
     }
     if (!(event instanceof PointerMoveEvent) && !(event instanceof PointerUpEvent)) return;
+    if (
+      drag.mouseTap &&
+      event.position.subtract(drag.start.position).distance > computeHitSlop(event.kind)
+    )
+      drag.mouseTap = false;
     drag.focus = this.position(event);
     if (event instanceof PointerMoveEvent && !drag.won) {
       const dx = Math.abs(event.localPosition.dx - drag.start.localPosition.dx),
@@ -229,8 +260,11 @@ export class RenderSelectableParagraph extends RenderParagraph implements Gestur
       if (Math.hypot(dx, dy) > 12) drag.resolve(dx > dy);
     }
     if (event instanceof PointerUpEvent) {
-      drag.up = true;
-      if (!drag.won) drag.resolve(true);
+      drag.up = event;
+      if (!drag.won) {
+        drag.resolve(true);
+        return;
+      }
     }
     if (drag.won) {
       this.update(drag);
@@ -246,9 +280,10 @@ export class RenderSelectableParagraph extends RenderParagraph implements Gestur
     if (drag.up) this.drags.delete(pointer);
   }
   rejectGesture(pointer: number): void {
-    this.drags.delete(pointer);
+    if (this.drags.delete(pointer)) this.lastMouseTap = null;
   }
   private cancelDrags(): void {
+    this.lastMouseTap = null;
     const snapshot = [...this.drags.values()];
     for (const drag of snapshot) drag.resolve(false);
     this.drags.clear();

@@ -170,46 +170,99 @@ async function web(page, url, chromePid) {
           event.target.getAttribute('aria-label'),
         ]);
     });
-    document.addEventListener(
-      'contextmenu',
-      (event) => {
-        const { target } = event;
-        window.selectionMenus.push({ tag: target.tagName, prevented: event.defaultPrevented });
-      },
-      true,
-    );
+    document.addEventListener('contextmenu', (event) => {
+      const { target } = event;
+      window.selectionMenus.push({
+        tag: target.tagName,
+        prevented: event.defaultPrevented,
+        nativeSelection: !!target.closest('[data-nelyx-native-selection]'),
+      });
+    });
   });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await verifyBundle(page);
   const tap = ({ x, y }) => page.mouse.click(x, y);
   const secondary = ({ x, y }) => page.mouse.click(x, y, { button: 'right' });
-  const nativeMenu = async (expected) => {
+  const nativeMenu = async (expected, name = 'Inspect', invoke = false) => {
     if (!chromePid) return;
-    const showsInspect = async () => (await windowsInput(chromePid, 'uia', 'Inspect')).length > 0;
+    const showsItem = async () =>
+      (await windowsInput(chromePid, 'uia', name)).some(
+        (item) => item.control === 'ControlType.MenuItem' && (!invoke || item.enabled),
+      );
     if (expected) {
-      await until(showsInspect, 'Chrome Inspect identifies the native browser menu');
-      await windowsInput(chromePid, 'scan', '01');
-    } else assert.equal(await showsInspect(), false, 'Chrome must leave the Nelyx menu open');
+      await until(showsItem, 'Chrome must show the native menu item ' + name);
+      if (invoke) await windowsInput(chromePid, 'invoke-menu', name);
+      else await windowsInput(chromePid, 'scan', '01');
+    } else assert.equal(await showsItem(), false, 'Chrome must leave the Nelyx menu open');
   };
   await openSelection(page, tap);
   const first = await point(field(page, 'Material single line'), 44);
-  await secondary(first);
-  assert.equal(await menu(page, 'Select all').count(), 0);
-  assert.equal(await page.evaluate(() => window.selectionMenus.at(-1)?.prevented), false);
-  await nativeMenu(true);
-  await tap(await point(button(page, 'Use Nelyx menus')));
-  // Capture the final event state after the SDK's enclosing surface listener.
-  await page.evaluate(() => {
-    document.addEventListener('contextmenu', (event) => {
-      window.selectionMenus.push({ tag: event.target.tagName, prevented: event.defaultPrevented });
+  const nativePaste = 'Paste Ctrl+V';
+  const checkWordSelection = async ({ x, y }, word) => {
+    await page.mouse.dblclick(x, y);
+    await until(async () => {
+      const editor = await readEditor(page);
+      return editor?.text.slice(editor.start, editor.end) === word;
+    }, 'Double-click must select the word ' + word);
+    assert.equal(await menu(page, 'Copy').count(), 0);
+  };
+  const checkNativeField = async (at, tag) => {
+    await secondary(at);
+    assert.deepEqual(await page.evaluate(() => window.selectionMenus.at(-1)), {
+      tag,
+      prevented: false,
+      nativeSelection: false,
     });
-  });
-  await secondary(first);
-  await menu(page, 'Select all').waitFor();
-  assert.equal(await page.evaluate(() => window.selectionMenus.at(-1)?.prevented), true);
-  await nativeMenu(false);
+    assert.equal(await menu(page, 'Paste').count(), 0);
+    await nativeMenu(true, nativePaste);
+  };
+  await checkNativeField(first, 'INPUT');
   const firstCaret = await readEditor(page);
   assert.equal(firstCaret.start, firstCaret.end);
+  await page.keyboard.press('Shift+F10');
+  await nativeMenu(true, nativePaste);
+  await tap(await point(field(page, 'Material single line')));
+  const afterSingleClick = await readEditor(page);
+  assert.equal(afterSingleClick.start, afterSingleClick.end, 'A single click places the caret');
+  await checkWordSelection(first, '안녕하세요');
+  if (chromePid) {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    const saved = await page.evaluate(() => navigator.clipboard.readText());
+    try {
+      await secondary(first);
+      await nativeMenu(true, 'Copy Ctrl+C', true);
+      assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '안녕하세요');
+      const pasted = '한글 Native paste 👋';
+      await page.evaluate((text) => navigator.clipboard.writeText(text), pasted);
+      await page.keyboard.press('Control+a');
+      await secondary(first);
+      await nativeMenu(true, nativePaste, true);
+      await until(
+        async () => (await readEditor(page))?.text === pasted,
+        'Chrome Paste must update the field',
+      );
+      await page.keyboard.press('Control+z');
+      await until(
+        async () => (await readEditor(page))?.text === firstCaret.text,
+        'Core Undo must restore the value before native Paste',
+      );
+    } finally {
+      await page.evaluate((text) => navigator.clipboard.writeText(text), saved);
+    }
+  }
+  await checkNativeField(await point(field(page, 'Material multiline'), 44), 'TEXTAREA');
+  const cupertino = await point(field(page, 'Cupertino single line'), 44);
+  await checkWordSelection(cupertino, '안녕하세요');
+  await checkNativeField(cupertino, 'INPUT');
+  await tap(await point(button(page, 'Use Nelyx menus')));
+  await button(page, 'Use browser menus').waitFor();
+  await checkWordSelection(first, '안녕하세요');
+  await secondary(first);
+  await menu(page, 'Paste').waitFor();
+  assert.equal(await page.evaluate(() => window.selectionMenus.at(-1)?.prevented), true);
+  await nativeMenu(false, nativePaste);
+  await page.keyboard.press('Escape');
+  await menu(page, 'Paste').waitFor({ state: 'hidden' });
 
   await page.keyboard.press('Control+a');
   await secondary(first);
@@ -294,10 +347,12 @@ async function web(page, url, chromePid) {
     outside.style.cssText = 'position:fixed;z-index:9999;top:0;left:0';
     document.body.append(outside);
   });
+  if (chromePid) await windowsInput(chromePid, 'focus');
   await page.locator('#outside-selection-surface').click({ button: 'right' });
   assert.deepEqual(await page.evaluate(() => window.selectionMenus.at(-1)), {
     tag: 'BUTTON',
     prevented: false,
+    nativeSelection: false,
   });
   await nativeMenu(true);
   await tap(first);
@@ -306,8 +361,15 @@ async function web(page, url, chromePid) {
   await page.locator('#outside-selection-surface').click();
   await menu(page, 'Select all').waitFor({ state: 'hidden' });
   assert.equal(await page.evaluate(() => document.activeElement.id), 'outside-selection-surface');
+  await secondary(await revealWithWheel(page, field(page, 'Cupertino single line')));
+  const cupertinoSelectAll = page.getByRole('button', { name: /^Select all$/i });
+  await cupertinoSelectAll.waitFor();
+  assert.equal(await page.evaluate(() => window.selectionMenus.at(-1)?.prevented), true);
+  await nativeMenu(false);
+  await page.keyboard.press('Escape');
+  await cupertinoSelectAll.waitFor({ state: 'hidden' });
   try {
-    await checkPublicWidgets(page, tap, secondary);
+    await checkPublicWidgets(page, tap, secondary, nativeMenu);
   } finally {
     await page.evaluate((text) => navigator.clipboard.writeText(text), clipboard);
   }
@@ -317,6 +379,7 @@ async function web(page, url, chromePid) {
       buildId: manifest.buildId,
       carrier: firstCaret.carrier,
       policy: 'PASS',
+      wordDoubleClick: 'PASS',
       keyboard: 'PASS',
       clipboard: 'PASS',
       undo: 'PASS',
@@ -732,7 +795,7 @@ async function glyphPoint(page, target, dx = 0) {
   return { x: x + ink.x, y: y + ink.y };
 }
 
-async function checkPublicWidgets(page, tap, secondary) {
+async function checkPublicWidgets(page, tap, secondary, nativeMenu) {
   const readonly = await revealWithWheel(page, field(page, 'Read-only field'));
   await tap(readonly);
   await page.keyboard.press('Control+a');
@@ -786,14 +849,34 @@ async function checkPublicWidgets(page, tap, secondary) {
     assert.equal(copied, text);
     await menu(page, 'Copy').waitFor({ state: 'hidden' });
   };
-  for (const [id, text] of [
-    ['material-readonly', '읽기 전용 Material 👋 · 강조 😊'],
-    ['core-readonly', 'Core selection · 한글 · 강조 😊'],
-    ['paragraph-selection', null],
+  for (const [id, text, word, wordOffset] of [
+    ['material-readonly', '읽기 전용 Material 👋 · 강조 😊', '읽기', 12],
+    ['core-readonly', 'Core selection · 한글 · 강조 😊', 'Core', 14],
+    ['paragraph-selection', null, '첫', 8],
   ]) {
     const target = surface(id);
     await revealWithWheel(page, target);
-    await secondary(await glyphPoint(page, target));
+    const onText = await glyphPoint(page, target);
+    if (id === 'paragraph-selection') {
+      await tap(await point(button(page, 'Use browser menus')));
+      await button(page, 'Use Nelyx menus').waitFor();
+    }
+    const { x, y } = await point(target, wordOffset);
+    await page.mouse.dblclick(x, y);
+    await until(() => selected(id).then((current) => current === word), `${id} must select ${word}`);
+    if (id === 'paragraph-selection') {
+      await secondary(onText);
+      assert.deepEqual(await page.evaluate(() => window.selectionMenus.at(-1)), {
+        tag: 'DIV',
+        prevented: false,
+        nativeSelection: true,
+      });
+      assert.ok(await page.evaluate(() => document.getSelection()?.toString().trim()));
+      await nativeMenu(true);
+      await tap(await point(button(page, 'Use Nelyx menus')));
+      await button(page, 'Use browser menus').waitFor();
+    }
+    await secondary(onText);
     await menu(page, 'Select all').waitFor();
     await tap(await point(menu(page, 'Select all')));
     await menu(page, 'Select all').waitFor({ state: 'hidden' });

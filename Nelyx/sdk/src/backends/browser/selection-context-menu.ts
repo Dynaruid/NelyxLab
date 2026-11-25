@@ -98,6 +98,10 @@ interface Entry {
   readonly dispose: () => void;
   geometry: NativeSelectionContextMenuGeometry | null;
 }
+export function supportsNativeBrowserContextMenu(view: Window): boolean {
+  const { target, os } = getFrontendHost(view);
+  return target === 'web' && os !== 'android' && os !== 'iOS';
+}
 /** One synchronous UI/DOM realm and one View. No async worker approximation. */
 export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHost {
   private closed = false;
@@ -116,9 +120,7 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
     private readonly cursor?: BrowserMouseCursor,
   ) {
     this.doc = canvas.ownerDocument;
-    const deployment = getFrontendHost(this.doc.defaultView!);
-    this.desktopBrowser =
-      deployment.target === 'web' && deployment.os !== 'android' && deployment.os !== 'iOS';
+    this.desktopBrowser = supportsNativeBrowserContextMenu(this.doc.defaultView!);
     const parent = canvas.parentElement;
     if (!parent) throw new Error('Native selection requires an attached canvas');
     this.parent = parent;
@@ -147,15 +149,15 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
     }
   }
   private readonly contextMenu = (event: Event): void => {
+    // Canvas widgets own their menus. The DOM overlay can expose browser text selection.
     if (
       !this.stopped &&
-      !this.nativeMenuEnabled &&
-      (event.target === this.canvas || this.ownsTarget(event.target))
+      (event.target === this.canvas || (!this.nativeMenuEnabled && this.ownsTarget(event.target)))
     )
       event.preventDefault();
   };
   get nativeMenuEnabled(): boolean {
-    return this.desktopBrowser && this.enabled;
+    return !this.stopped && this.desktopBrowser && this.enabled;
   }
   observeMenuPolicy(listener: () => void) {
     this.policyListeners.add(listener);

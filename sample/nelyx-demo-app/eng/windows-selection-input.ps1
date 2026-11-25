@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 param(
     [Parameter(Mandatory)][int] $WindowProcessId,
-    [Parameter(Mandatory)][ValidateSet('focus', 'scan', 'uia')][string] $Action,
+    [Parameter(Mandatory)][ValidateSet('focus', 'scan', 'uia', 'invoke-menu')][string] $Action,
     [string] $Value
 )
 
@@ -10,7 +10,7 @@ $process = Get-Process -Id $WindowProcessId
 $window = $process.MainWindowHandle
 if ($window -eq [IntPtr]::Zero) { throw 'The selected process has no main window' }
 
-if ($Action -eq 'uia') {
+if ($Action -in 'uia', 'invoke-menu') {
     Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
     $desktop = [System.Windows.Automation.AutomationElement]::RootElement
     $owner = [System.Windows.Automation.PropertyCondition]::new(
@@ -18,11 +18,20 @@ if ($Action -eq 'uia') {
     $windows = $desktop.FindAll([System.Windows.Automation.TreeScope]::Children, $owner)
     $condition = [System.Windows.Automation.PropertyCondition]::new(
         [System.Windows.Automation.AutomationElement]::NameProperty, $Value)
-    $items = @(foreach ($root in $windows) {
-        $root.FindAll([System.Windows.Automation.TreeScope]::Subtree, $condition) |
-            ForEach-Object {
-                @{ name = $_.Current.Name; enabled = $_.Current.IsEnabled; control = $_.Current.ControlType.ProgrammaticName }
-            }
+    $selectionMatches = @(foreach ($root in $windows) {
+        $root.FindAll([System.Windows.Automation.TreeScope]::Subtree, $condition)
+    })
+    if ($Action -eq 'invoke-menu') {
+        $item = $selectionMatches | Where-Object {
+            $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::MenuItem -and
+                $_.Current.IsEnabled
+        } | Select-Object -First 1
+        if (!$item) { throw "Enabled menu item not found: $Value" }
+        $item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+        return
+    }
+    $items = @($selectionMatches | ForEach-Object {
+        @{ name = $_.Current.Name; enabled = $_.Current.IsEnabled; control = $_.Current.ControlType.ProgrammaticName }
     })
     ConvertTo-Json -InputObject $items -Compress
     return

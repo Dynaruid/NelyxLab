@@ -401,6 +401,7 @@ export async function runWeb(
       server.once('error', reject);
       server.listen(port, host, resolve);
     });
+    signal.throwIfAborted();
     const address = server.address();
     const url = `http://${host.includes(':') ? '[' + host + ']' : host}:${address.port}${base}`;
     const result = {
@@ -413,8 +414,11 @@ export async function runWeb(
       buildId: release.buildId,
     };
     process.stderr.write(JSON.stringify({ event: 'nelyx.preview.ready', ...result }) + '\n');
-    await waitForServer(server, signal);
+    await once(server, 'close', { signal });
     return { ...result, exitCode: 0 };
+  } catch (error) {
+    signal.throwIfAborted();
+    throw error;
   } finally {
     if (server.listening)
       await new Promise((resolve) => {

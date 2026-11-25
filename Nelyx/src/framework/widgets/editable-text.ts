@@ -46,6 +46,7 @@ import type { Key } from '../../foundation/key.ts';
 import { StatefulWidget, State, Element, RenderObjectWidget } from './framework.ts';
 import type { Widget, BuildContext, BuildOwner } from './framework.ts';
 import { RenderBox } from '../rendering/object.ts';
+import type { HitTestEntry, RenderObject } from '../rendering/object.ts';
 import { Scrollable } from './scrollable.ts';
 import { RestorableProperty } from './restoration.ts';
 import type { ScrollableState } from './scrollable.ts';
@@ -154,7 +155,6 @@ import {
   visibleSelectionBounds,
 } from './text-selection-toolbar-anchors.ts';
 import { isContextMenuKey } from './context-menu-controller.ts';
-import { BrowserContextMenu } from '../../services/browser-context-menu.ts';
 import { PlatformException } from '../../services/message-codec.ts';
 import type { ContextMenuButtonItem } from './context-menu-button-item.ts';
 import { ValueNotifier } from '../../foundation/notifier.ts';
@@ -1226,7 +1226,6 @@ export class EditableTextState extends State<EditableText> implements TextSelect
   private lastToolbarAnchors: TextSelectionToolbarAnchors | null = null;
   private toolbarContextDirty = false;
   private selectionFrames: Disposable | null = null;
-  private menuPolicyObservation: Disposable | undefined;
   private handleAnchor: number | undefined;
   private handleCollapsed = false;
   private handleDragDy = 0;
@@ -1522,13 +1521,16 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         this.stopSelectionDrag();
         this.hideToolbar(false);
         const platform = FoundationPlatform.defaultTargetPlatform;
-        const mobileDoubleTap =
-          details.consecutiveTapCount === 2 &&
+        const showTouchToolbar =
           (platform === 'android' || platform === 'iOS') &&
-          (details.kind === PointerDeviceKind.touch || details.kind === PointerDeviceKind.stylus) &&
-          this.selectionMenuAllowed;
-        if (mobileDoubleTap) {
-          if (this.selectAt(at, false, true, SelectionChangedCause.doubleTap)) this.showToolbar();
+          (details.kind === PointerDeviceKind.touch || details.kind === PointerDeviceKind.stylus);
+        if (
+          details.consecutiveTapCount === 2 &&
+          (details.kind === PointerDeviceKind.mouse || showTouchToolbar) &&
+          this.selectionMenuAllowed
+        ) {
+          if (this.selectAt(at, false, true, SelectionChangedCause.doubleTap) && showTouchToolbar)
+            this.showToolbar();
         } else {
           this.selectAt(at);
           const suggestions =
@@ -1692,35 +1694,50 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       visibleBounds: this.editorVisibleBounds(render),
     }).inOverlay(this.context);
   }
-  private get usesNativeMenu(): boolean {
-    const { nativeSelectionContextMenu, binaryMessenger } = this.context.services;
-    return BrowserContextMenu.usesNativeMenu(nativeSelectionContextMenu, binaryMessenger);
-  }
   private get selectionMenuAllowed(): boolean {
     return (
       this.mounted &&
       this.selectionEnabled &&
       this.widget.inputOptions?.enabled !== false &&
       !this.widget.controller.isComposing &&
-      !this.cancellationPending &&
-      !this.usesNativeMenu
+      !this.cancellationPending
     );
   }
-  private secondaryClick(global: SourceOffset): void {
-    if (!this.selectionMenuAllowed) return;
+  private prepareSecondarySelection(global: SourceOffset): boolean {
+    if (!this.selectionMenuAllowed) return false;
     const render = this.editableRender();
-    if (!render?.hasSize || render.needsLayout) return;
+    if (!render?.hasSize || render.needsLayout) return false;
     const local = this.dragPosition(render, global);
-    if (!local) return;
+    if (!local) return false;
     this.stopSelectionDrag();
     const selection = this.selection();
     const inside =
       !selection.isCollapsed &&
       render.getBoxesForSelection(selection).some((box) => box.contains(local));
     const platform = FoundationPlatform.defaultTargetPlatform;
-    if (!inside && !this.selectAt(local, false, platform === 'macOS' || platform === 'iOS')) return;
+    if (!inside && !this.selectAt(local, false, platform === 'macOS' || platform === 'iOS'))
+      return false;
     this.focus?.requestFocus();
-    this.showToolbar(global);
+    return true;
+  }
+  private secondaryClick(global: SourceOffset): void {
+    if (this.prepareSecondarySelection(global)) this.showToolbar(global);
+  }
+  private prepareNativeContextMenu(position: Offset | null): boolean {
+    if (!this.selectionMenuAllowed || !isCurrentRoute(this.context)) return false;
+    if (this.widget.inputOptions?.contextMenuBuilder === null) return false;
+    if (position === null) return this.focus?.hasPrimaryFocus === true;
+    const render = this.editableRender();
+    if (!render?.attached || !render.hasSize || render.needsLayout) return false;
+    const global = new SourceOffset(position.x, position.y);
+    if (!this.editorVisibleBounds(render).contains(global)) return false;
+    // A DOM rectangle can lag behind scrolling or a new overlay. Check the current View hit.
+    let root: RenderObject = render;
+    while (root.parent) root = root.parent;
+    if (!(root instanceof RenderBox) || !root.hasSize || root.needsLayout) return false;
+    const hits: HitTestEntry[] = [];
+    root.hitTest(root.globalToLocal(global), hits);
+    return hits.some((hit) => hit.target === render) && this.prepareSecondarySelection(global);
   }
   private get selectionEnabled(): boolean {
     return this.widget.selectionEnabled;
@@ -2658,7 +2675,12 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       ? this.handleSelectionKey(event)
       : 'ignored';
   private readonly selectionMenuKey = (event: KeyEvent): KeyEventResult => {
-    if (!this.focus?.hasPrimaryFocus || !isContextMenuKey(event)) return 'ignored';
+    if (
+      !this.focus?.hasPrimaryFocus ||
+      this.binding?.nativeContextMenuEnabled ||
+      !isContextMenuKey(event)
+    )
+      return 'ignored';
     this.stopSelectionDrag();
     return this.showToolbar() ? 'handled' : 'ignored';
   };
@@ -3878,6 +3900,8 @@ export class EditableTextState extends State<EditableText> implements TextSelect
             connection === this.connection ? this.readRangeBounds(start, end, expected) : null,
           readTextPosition: (point, options, expected) =>
             connection === this.connection ? this.readTextPosition(point, options, expected) : null,
+          prepareContextMenu: (position) =>
+            connection === this.connection && this.prepareNativeContextMenu(position),
           configuration: this.boundConfiguration,
           onUndo: () =>
             connection === this.connection &&
@@ -3928,12 +3952,6 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         manager.removeEarlyKeyEventHandler(this.selectionMenuKey);
         manager.removeLateKeyEventHandler(this.defaultEditingKey);
       };
-      this.menuPolicyObservation = services.nativeSelectionContextMenu?.observeMenuPolicy?.(() => {
-        if (this.usesNativeMenu) {
-          this.stopSelectionDrag();
-          this.hideToolbar();
-        }
-      });
       controller.addListener(this.invalidated);
       this.focus.addListener(this.invalidated);
       this.blinkVisibility = maybeTickerScheduler(this.context)?.observeVisibility((visible) => {
@@ -3959,8 +3977,6 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     if (!preserveFocus) this.keyboardRequest = undefined;
     this.stopSelectionDrag();
     this.toolbarRemoved();
-    this.menuPolicyObservation?.dispose();
-    this.menuPolicyObservation = undefined;
     this.selectionOverlay?.dispose();
     this.selectionOverlay = undefined;
     this.overlayRequested = false;

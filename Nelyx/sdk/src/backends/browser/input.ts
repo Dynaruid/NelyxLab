@@ -2,8 +2,12 @@
 import type { ViewRuntime } from '@nelyx/core/hosting/runtime';
 import type { PointerEvent as FrameworkPointerEvent } from '@nelyx/core/ui/input';
 import { RawKeyEventDataWeb } from '@nelyx/core/services/raw-keyboard-web';
+import { getFrontendHost } from './platform.ts';
 export function isArrowKey(key: string): boolean {
   return key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight';
+}
+export function isContextMenuClick(event: MouseEvent, macOS: boolean): boolean {
+  return event.button === 2 || (macOS && event.button === 0 && event.ctrlKey);
 }
 /** Canvas captures its own streams; native overlays own their input. */
 export function bindCanvasInput(
@@ -15,10 +19,12 @@ export function bindCanvasInput(
     readonly ownsSemanticsTarget?: (target: EventTarget | null) => boolean;
     readonly ownsSemanticsAdjustmentTarget?: (target: EventTarget | null) => boolean;
     readonly ownsNativeSelectionTarget?: (target: EventTarget | null) => boolean;
-    readonly suppressEditingContextMenu?: () => boolean;
+    readonly usesNativeEditingMenu?: (target: EventTarget | null) => boolean;
   } = {},
 ): (replacing?: boolean) => void {
-  const { HTMLElement, HTMLInputElement, HTMLTextAreaElement } = canvas.ownerDocument.defaultView!;
+  const window = canvas.ownerDocument.defaultView!;
+  const { HTMLElement, HTMLInputElement, HTMLTextAreaElement } = window;
+  const macOS = getFrontendHost(window).os === 'macOS';
   let live = true;
   const pointers = new Set<number>(),
     keySurface = options.keySurface ?? canvas;
@@ -111,11 +117,22 @@ export function bindCanvasInput(
     )
       event.preventDefault();
   };
-  const editingContextMenu = (event: Event) => {
-    if (options.suppressEditingContextMenu?.() && options.ownsEditingTarget?.(event.target))
+  const contextMenu = (event: Event) => {
+    if (
+      !options.usesNativeEditingMenu?.(event.target) &&
+      (options.ownsEditingTarget?.(event.target) || options.ownsSemanticsTarget?.(event.target))
+    )
       event.preventDefault();
   };
   const nativePointer = (handler: (event: PointerEvent) => void) => (event: PointerEvent) => {
+    // A captured secondary click would send the contextmenu back to the canvas.
+    if (
+      event.pointerType === 'mouse' &&
+      !pointers.has(event.pointerId) &&
+      isContextMenuClick(event, macOS) &&
+      options.usesNativeEditingMenu?.(event.target)
+    )
+      return;
     if (
       options.ownsEditingTarget?.(event.target) ||
       options.ownsNativeSelectionTarget?.(event.target)
@@ -238,7 +255,7 @@ export function bindCanvasInput(
   keySurface.addEventListener('keydown', key, true);
   keySurface.addEventListener('keyup', key, true);
   keySurface.addEventListener('selectstart', selectStart, true);
-  keySurface.addEventListener('contextmenu', editingContextMenu, true);
+  keySurface.addEventListener('contextmenu', contextMenu, true);
   keySurface.addEventListener('pointerdown', nativeDown, true);
   keySurface.addEventListener('pointermove', nativeMove, true);
   keySurface.addEventListener('pointerup', nativeUp, true);
@@ -291,7 +308,7 @@ export function bindCanvasInput(
     keySurface.removeEventListener('keydown', key, true);
     keySurface.removeEventListener('keyup', key, true);
     keySurface.removeEventListener('selectstart', selectStart, true);
-    keySurface.removeEventListener('contextmenu', editingContextMenu, true);
+    keySurface.removeEventListener('contextmenu', contextMenu, true);
     for (const { property, value, priority } of previousSelectionStyles)
       keySurface.style.setProperty(property, value, priority);
     if (errors.length) throw new AggregateError(errors, 'Canvas input cleanup failed');

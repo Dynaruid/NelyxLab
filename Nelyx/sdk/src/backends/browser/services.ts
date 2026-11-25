@@ -12,7 +12,10 @@ import type { ResolvedAppAsset as AppAsset } from '../../runtime/config.ts';
 import { createDomInteraction } from './interaction.ts';
 import { BrowserFrameClock } from './frame-clock.ts';
 import { BrowserMouseCursor } from './mouse-cursor.ts';
-import { BrowserSelectionContextMenu } from './selection-context-menu.ts';
+import {
+  BrowserSelectionContextMenu,
+  supportsNativeBrowserContextMenu,
+} from './selection-context-menu.ts';
 import { sha256 } from './canvaskit.ts';
 import { isAppUrl } from './local-url.ts';
 import { bindCanvasInput } from './input.ts';
@@ -72,6 +75,7 @@ export function createWebServices(
   const document = canvas.ownerDocument,
     window = document.defaultView!,
     frameTimeOffset = window.performance.timeOrigin - performance.timeOrigin;
+  let nativeSelectionContextMenu: BrowserSelectionContextMenu | undefined;
   const cursor = new BrowserMouseCursor(canvas),
     interaction = createDomInteraction(
       input,
@@ -84,6 +88,9 @@ export function createWebServices(
         generation: viewport,
       }),
       definition.accessibilityEnabled !== false,
+      supportsNativeBrowserContextMenu(window)
+        ? () => nativeSelectionContextMenu?.nativeMenuEnabled === true
+        : undefined,
     ),
     cssFonts = new Set<FontFace>(),
     fontSet = document.fonts as FontFaceSet & {
@@ -97,7 +104,6 @@ export function createWebServices(
     surface = 1,
     context = 1;
   const environment = createBrowserEnvironment(() => canvas, safeArea);
-  let nativeSelectionContextMenu: BrowserSelectionContextMenu | undefined;
   try {
     const selectionContextMenu = new BrowserSelectionContextMenu(canvas, owner, cursor);
     nativeSelectionContextMenu = selectionContextMenu;
@@ -200,7 +206,7 @@ export function createWebServices(
         ownsSemanticsAdjustmentTarget: interaction.ownsSemanticsAdjustmentTarget,
         ownsEditingTarget: interaction.ownsEditingTarget,
         ownsNativeSelectionTarget: (target) => selectionContextMenu.ownsTarget(target),
-        suppressEditingContextMenu: () => !selectionContextMenu.nativeMenuEnabled,
+        usesNativeEditingMenu: interaction.usesNativeEditingMenu,
       });
       observer?.observe(canvas);
     }

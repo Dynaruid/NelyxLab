@@ -66,6 +66,8 @@ export interface EditingOptions {
   readonly configuration?: import('./editing-configuration.ts').EditingConfigurationOptions;
   readonly id: string;
   readonly focusChanged?: (focused: boolean) => void;
+  /** Prepare the Core selection before a native text menu. Null denotes a keyboard invocation. */
+  readonly prepareContextMenu?: (position: Offset | null) => boolean;
   readonly action?: TextInputAction;
   readonly onAction?: (value: TextEditingValue) => void;
   readonly onUndo?: () => boolean;
@@ -74,6 +76,8 @@ export interface EditingOptions {
 export interface EditingBinding extends Disposable {
   /** Composition activity may be observable even when its exact range is unavailable. */
   readonly isComposing?: boolean;
+  /** The focused DOM editor can handle the browser's context-menu key. */
+  readonly nativeContextMenuEnabled?: boolean;
   read(): TextEditingValue;
   replace(value: TextEditingValue, request?: number): void;
   /** Cancel native composition and replace its value atomically. The host must
@@ -145,7 +149,7 @@ export interface NativeSelectionContextMenuRegistration {
   readonly selectWord: (localOffset: { readonly x: number; readonly y: number }) => string | null;
 }
 export interface NativeSelectionContextMenuHost extends Disposable {
-  /** The DOM owner shares this decision with framework selection widgets. */
+  /** Whether a bound DOM selection region can show the browser's menu. */
   readonly nativeMenuEnabled?: boolean;
   observeMenuPolicy?(listener: () => void): Disposable;
   /** Synchronously reject new bindings and callbacks before asynchronous View drain. */
