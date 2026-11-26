@@ -10,12 +10,13 @@ import { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { Rect } from '@nelyx/core/ui/rect';
 import { TextPosition } from '@nelyx/core/ui/text-position';
 import type { WebSkiaLibrary } from '@nelyx/skia-web/library';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { WebApplication, WebRenderMode } from '@nelyx/sdk/frontend/dom/application';
-import { getFrontendHost } from '@nelyx/sdk/frontend/dom/environment';
+import { getFrontendHost, windowAcrylicFor } from '@nelyx/sdk/frontend/dom/environment';
 import { ApplicationSurface } from '@nelyx/sdk/frontend/dom/surface';
 import type { FrontendProps } from '@nelyx/vite/client';
 import { main } from './app.ts';
+import type { DemoWindowAcrylic, DemoWindowAcrylicState } from './settings-screen.ts';
 
 const modePreference = 'nelyx.demo.renderMode';
 
@@ -32,6 +33,30 @@ function initialMode(frontend: FrontendProps['options']): WebRenderMode {
   } catch {
     return defaultMode;
   }
+}
+
+function createDemoWindowAcrylic(): DemoWindowAcrylic | undefined {
+  const backdrop = windowAcrylicFor();
+  if (!backdrop) return undefined;
+  const state = new ValueNotifier<DemoWindowAcrylicState>({
+    enabled: backdrop.enabled,
+    pending: false,
+    failed: false,
+  });
+  return {
+    state,
+    async setEnabled(enabled) {
+      const previous = state.value;
+      if (previous.pending) return;
+      state.value = { ...previous, pending: true, failed: false };
+      try {
+        await backdrop.setEnabled(enabled);
+        state.value = { enabled, pending: false, failed: false };
+      } catch {
+        state.value = { ...previous, failed: true };
+      }
+    },
+  };
 }
 
 declare global {
@@ -136,6 +161,19 @@ export function App({
     showSettings: false,
   }));
   const [error, setError] = useState('');
+  const [windowAcrylic] = useState(createDemoWindowAcrylic);
+  useEffect(() => {
+    if (!windowAcrylic) return;
+    const root = document.documentElement;
+    const update = () =>
+      root.toggleAttribute('data-window-acrylic', windowAcrylic.state.value.enabled);
+    update();
+    windowAcrylic.state.addListener(update);
+    return () => {
+      windowAcrylic.state.removeListener(update);
+      root.removeAttribute('data-window-acrylic');
+    };
+  }, [windowAcrylic]);
   const options = useMemo(
     () => ({
       ...frontend,
@@ -155,6 +193,7 @@ export function App({
   );
   const definition = useMemo(() => {
     const { definition } = create(undefined, {
+      ...(windowAcrylic ? { windowAcrylic } : {}),
       renderSettings: {
         mode: request.mode,
         application: activeApplication,
@@ -176,7 +215,7 @@ export function App({
       // AssetImage resolves the bundled WebP through ImageService on demand.
       assets: definition.assets ?? options.manifest.filter(({ kind }) => kind === 'font'),
     };
-  }, [activeApplication, create, options.manifest, request]);
+  }, [activeApplication, create, options.manifest, request, windowAcrylic]);
   function ready(application: WebApplication) {
     attachFrameProbe(application);
     activeApplication.value = application;

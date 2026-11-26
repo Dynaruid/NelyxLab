@@ -2,12 +2,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { capture } from '../sdk/tooling/cli/src/commands.mjs';
-import { supplyRunner } from '../sdk/tooling/cli/src/supply-runner.mjs';
 import { withPublicationLock, removeDirectory } from '../sdk/tooling/cli/src/publication.mjs';
 import { readWebRuntime } from '../sdk/tooling/contracts/src/web-runtime.mjs';
 import { verifyPackageSourceInputs } from './package-source-inputs.mjs';
 import { checkRustPackages } from '../backend/eng/build-supply.mjs';
-import { readApp } from '../sdk/tooling/vite/src/runner.mjs';
 import { rustPackages } from '../sdk/tooling/cli/src/rust-supply.mjs';
 import { sha256 } from '../sdk/tooling/contracts/src/node-files.mjs';
 import {
@@ -167,6 +165,11 @@ export function prepareSample(app, install, buildSignal) {
   app = fs.realpathSync(app);
   return withSdkLock(async () => {
     if (buildSignal) await buildSdk(buildSignal);
+    // Both tooling modules load the SDK config validator from the current dist.
+    const [{ readApp }, { supplyRunner }] = await Promise.all([
+      import('../sdk/tooling/vite/src/runner.mjs'),
+      import('../sdk/tooling/cli/src/supply-runner.mjs'),
+    ]);
     return withPublicationLock(app, async () => {
       const manifestPath = path.join(app, 'package.json');
       const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));

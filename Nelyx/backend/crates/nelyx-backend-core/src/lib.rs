@@ -45,6 +45,8 @@ pub struct Description {
     pub device_services: &'static [&'static str],
     pub safe_area: bool,
     pub window_title: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub windows_acrylic: Option<bool>,
     pub title: Option<String>,
     pub frontend_build_id: Option<&'static str>,
 }
@@ -62,6 +64,7 @@ impl Identity {
             device_services: &[],
             safe_area: false,
             window_title: false,
+            windows_acrylic: None,
             title: None,
             frontend_build_id: None,
         }

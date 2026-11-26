@@ -4,7 +4,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { BrowserPlatformEnvironment } from '../frontend/dom/environment.ts';
 import { backendFailure, deviceFailure, validateBackend } from './backend-contract.ts';
-import type { BackendConnection, BackendIdentity } from './backend-contract.ts';
+import type { BackendConnection, BackendIdentity, WindowAcrylic } from './backend-contract.ts';
 import { createClipboard } from './browser/clipboard.ts';
 import type { ClipboardIO } from './browser/clipboard.ts';
 import type { HapticRequest } from './browser/haptics.ts';
@@ -123,6 +123,22 @@ export async function openTauriBackend(
     );
     return update;
   }
+  function createWindowAcrylic(enabled: boolean): WindowAcrylic {
+    let updates = Promise.resolve();
+    return {
+      get enabled() {
+        return enabled;
+      },
+      setEnabled(next) {
+        const update = updates.then(async () => {
+          await request(() => commands.setWindowAcrylic(next));
+          enabled = next;
+        });
+        updates = update.catch(() => {});
+        return update;
+      },
+    };
+  }
   const back = backend.androidBack
     ? createAndroidBack(
         view,
@@ -161,6 +177,9 @@ export async function openTauriBackend(
             set: scrollEdgeEffects,
           },
         }
+      : {}),
+    ...(typeof backend.windowsAcrylic === 'boolean'
+      ? { windowAcrylic: createWindowAcrylic(backend.windowsAcrylic) }
       : {}),
     devices: (owner, options) =>
       owner === view

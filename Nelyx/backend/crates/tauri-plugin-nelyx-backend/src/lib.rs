@@ -12,6 +12,8 @@ mod scroll_edge_effects;
 mod system_chrome;
 #[cfg(target_os = "ios")]
 mod system_chrome_ios;
+#[cfg(windows)]
+mod window_acrylic;
 
 use system_chrome::SystemChromeRequest;
 pub use scroll_edge_effects::{ScrollEdgeEffect, ScrollEdgeEffects};
@@ -27,6 +29,7 @@ pub struct WindowFeatures {
     pub device_services: &'static [&'static str],
     pub safe_area: bool,
     pub window_title: bool,
+    pub windows_acrylic: bool,
     pub commands: Option<&'static [&'static str]>,
 }
 
@@ -128,6 +131,10 @@ async fn describe<R: Runtime>(
     description.device_services = features.device_services;
     description.safe_area = cfg!(target_os = "android") && features.safe_area;
     description.window_title = features.window_title;
+    #[cfg(windows)]
+    if features.windows_acrylic && webview.window().label() == webview.label() {
+        description.windows_acrylic = window_acrylic::enabled(&webview.window());
+    }
     description.title = webview
         .config()
         .app
@@ -357,6 +364,30 @@ async fn scroll_edge_effects<R: Runtime>(
 }
 
 #[tauri::command]
+#[cfg_attr(feature = "generate-bindings", specta::specta)]
+async fn set_window_acrylic<R: Runtime>(
+    webview: Webview<R>,
+    backend: State<'_, Backend>,
+    enabled: bool,
+) -> Result<(), BackendError> {
+    let features = allowed(&backend, &webview)?;
+    let window = webview.window();
+    if !features.windows_acrylic || window.label() != webview.label() {
+        return Err(BackendError::new(
+            "permission-denied",
+            "Desktop Acrylic is disabled for this window",
+        ));
+    }
+    #[cfg(windows)]
+    return window_acrylic::set_enabled(&window, enabled);
+    #[cfg(not(windows))]
+    {
+        let _ = enabled;
+        Err(BackendError::new("unsupported", "Desktop Acrylic requires Windows 11"))
+    }
+}
+
+#[tauri::command]
 async fn device_file_name<R: Runtime>(
     webview: Webview<R>,
     backend: State<'_, Backend>,
@@ -447,6 +478,7 @@ pub fn init<R: Runtime>(
             dispatch_default_back,
             system_chrome,
             scroll_edge_effects,
+            set_window_acrylic,
             device_store,
             device_file_name
         ])
@@ -464,7 +496,8 @@ pub fn export_bindings(
         .plugin_name("nelyx-backend")
         .commands(collect_commands![
             describe::<MockRuntime>,
-            clipboard_policy::<MockRuntime>
+            clipboard_policy::<MockRuntime>,
+            set_window_acrylic::<MockRuntime>
         ])
         .error_handling(ErrorHandlingMode::Throw)
         .export(specta_typescript::Typescript::default(), path)?;

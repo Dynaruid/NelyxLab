@@ -104,7 +104,7 @@ class LocalizationScreenState extends State<LocalizationScreen> {
             id: 'localization-editor',
             controller: this.editor,
             decoration: new InputDecoration({ labelText: 'Sample text' }),
-            textStyle: new TextStyle({ fontFamilyFallback: ['NelyxArabic'] }),
+            style: new TextStyle({ fontFamilyFallback: ['NelyxArabic'] }),
           }),
           new InputDatePickerFormField({
             firstDate,

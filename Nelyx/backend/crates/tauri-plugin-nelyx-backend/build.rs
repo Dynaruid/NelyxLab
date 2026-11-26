@@ -9,6 +9,7 @@ fn main() {
         "dispatch_default_back",
         "system_chrome",
         "scroll_edge_effects",
+        "set_window_acrylic",
         "device_store",
         "device_file_name",
     ])

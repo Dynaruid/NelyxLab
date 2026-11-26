@@ -67,6 +67,7 @@ export class CupertinoComponentsScreen extends StatefulWidget {
     readonly initialText: string,
     readonly dark: boolean,
     readonly toggleBrightness: () => void,
+    readonly acrylic = false,
   ) {
     super();
   }
@@ -270,7 +271,9 @@ class CupertinoComponentsState extends State<CupertinoComponentsScreen> {
             cursorColor: theme.primaryColor,
             selectionColor: new Color(theme.primaryColor).withOpacity(0.2).toARGB32(),
             child: new CupertinoPageScaffold({
-              backgroundColor: CupertinoColors.systemGroupedBackground,
+              backgroundColor: this.widget.acrylic
+                ? new Color(0)
+                : CupertinoColors.systemGroupedBackground,
               navigationBar: new CupertinoNavigationBar({
                 middle: new Text('Cupertino'),
                 automaticallyImplyLeading: false,

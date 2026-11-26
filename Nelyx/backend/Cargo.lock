@@ -3393,6 +3393,7 @@ dependencies = [
  "tauri-plugin",
  "tauri-plugin-store",
  "tauri-specta",
+ "windows",
 ]
 
 [[package]]

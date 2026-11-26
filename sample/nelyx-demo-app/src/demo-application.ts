@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import { State, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type { Widget } from '@nelyx/core/framework/widgets/framework';
+import { FocusNode } from '@nelyx/core/framework/widgets/focus';
 import { Icon } from '@nelyx/core/framework/widgets/icon';
+import { ListenableBuilder } from '@nelyx/core/framework/widgets/listenable-builder';
 import { NavigatorController } from '@nelyx/core/framework/widgets/navigation';
 import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
 import { Color } from '@nelyx/core/ui/color';
@@ -16,7 +18,7 @@ import { ColorScheme } from '@nelyx/material/color-scheme';
 import { ComponentsScreen } from './components.ts';
 import { CupertinoComponentsScreen } from './cupertino-components.ts';
 import { settingsScreen } from './settings-screen.ts';
-import type { DemoRenderSettings } from './settings-screen.ts';
+import type { DemoRenderSettings, DemoWindowAcrylic } from './settings-screen.ts';
 import { localizationMessages } from './localization-screen.ts';
 import type { DemoLocale } from './localization-screen.ts';
 
@@ -47,6 +49,7 @@ export class DemoApplication extends StatefulWidget {
     readonly initialText: string,
     readonly calendarPreparation = false,
     readonly renderSettings?: DemoRenderSettings,
+    readonly windowAcrylic?: DemoWindowAcrylic,
   ) {
     super();
   }
@@ -63,6 +66,7 @@ class DemoApplicationState extends State<DemoApplication> {
     });
   };
   private readonly navigator = new NavigatorController();
+  private acrylicFocus: FocusNode | null = null;
   private readonly themes = new Map<boolean, ThemeData>();
   private readonly toggleBrightness = (): void => {
     this.setState(() => {
@@ -71,10 +75,19 @@ class DemoApplicationState extends State<DemoApplication> {
   };
 
   override dispose(): void {
+    this.acrylicFocus?.dispose();
     this.navigator.dispose();
     super.dispose();
   }
   build(): Widget {
+    const acrylic = this.widget.windowAcrylic;
+    return acrylic
+      ? new ListenableBuilder(acrylic.state, () =>
+          this.buildApplication(acrylic.state.value.enabled),
+        )
+      : this.buildApplication(false);
+  }
+  private buildApplication(acrylic: boolean): Widget {
     let theme = this.themes.get(this.dark);
     if (!theme) {
       theme = new ThemeData({
@@ -88,6 +101,7 @@ class DemoApplicationState extends State<DemoApplication> {
       this.themes.set(this.dark, theme);
     }
     const material = new Scaffold({
+      backgroundColor: acrylic ? new Color(0) : null,
       body: new SafeArea({
         bottom: false,
         child: new ComponentsScreen(
@@ -104,8 +118,10 @@ class DemoApplicationState extends State<DemoApplication> {
       this.widget.initialText,
       this.dark,
       this.toggleBrightness,
+      acrylic,
     );
     const colors = theme.colorScheme;
+    const surface = new Color(colors.surface);
     const settings = this.widget.renderSettings;
     return new MaterialApp({
       theme,
@@ -114,7 +130,7 @@ class DemoApplicationState extends State<DemoApplication> {
       messages: localizationMessages,
       navigatorController: this.navigator,
       home: new CupertinoTabScaffold({
-        backgroundColor: new Color(colors.surface),
+        backgroundColor: acrylic ? surface.withAlpha(0xb8) : surface,
         tabBar: new CupertinoTabBar({
           items: settings ? destinationsWithSettings : destinations,
           currentIndex: settings?.showOnStartup ? settingsIndex : 0,
@@ -124,7 +140,11 @@ class DemoApplicationState extends State<DemoApplication> {
           iconSize: 24,
         }),
         tabBuilder: (_, index) => {
-          if (index === settingsIndex && settings) return settingsScreen(settings);
+          if (index === settingsIndex && settings) {
+            const backdrop = this.widget.windowAcrylic;
+            if (backdrop) this.acrylicFocus ??= new FocusNode({ debugLabel: 'Acrylic window' });
+            return settingsScreen(settings, backdrop, this.acrylicFocus);
+          }
           return index === 0 ? material : cupertino;
         },
       }),

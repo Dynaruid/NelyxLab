@@ -4254,6 +4254,7 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "tauri-plugin-store",
+ "windows",
 ]
 
 [[package]]

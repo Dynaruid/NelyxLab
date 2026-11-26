@@ -77,7 +77,7 @@ export function inspectTauriBackend(value, options) {
   };
 }
 
-function windowFeatures(value, base) {
+function windowFeatures(value, base, platform) {
   const title = value.config.displayName ?? value.config.name;
   return (value.config.targets.tauri.windows ?? [{ label: 'main', safeArea: true }]).map(
     ({
@@ -89,20 +89,30 @@ function windowFeatures(value, base) {
       deviceServices = [],
       safeArea = false,
       windowTitle = true,
+      windowsAcrylic = false,
       commands,
       ...window
-    }) => ({
-      window: { ...base.app.windows[0], title: title + ' · Tauri', ...window },
-      clipboard,
-      haptics,
-      androidBack,
-      systemChrome,
-      scrollEdgeEffects,
-      deviceServices,
-      safeArea,
-      windowTitle,
-      commands,
-    }),
+    }) => {
+      const acrylic = platform === 'windows' && windowsAcrylic;
+      return {
+        window: {
+          ...base.app.windows[0],
+          title: title + ' · Tauri',
+          ...window,
+          ...(acrylic ? { transparent: true } : {}),
+        },
+        clipboard,
+        haptics,
+        androidBack,
+        systemChrome,
+        scrollEdgeEffects,
+        deviceServices,
+        safeArea,
+        windowTitle,
+        windowsAcrylic: acrylic,
+        commands,
+      };
+    },
   );
 }
 
@@ -172,6 +182,7 @@ function nativeSource(project, features, frontendBuildId, plugins) {
         deviceServices,
         safeArea,
         windowTitle,
+        windowsAcrylic,
         commands,
       }) => `
     WindowFeatures {
@@ -191,6 +202,7 @@ function nativeSource(project, features, frontendBuildId, plugins) {
         device_services: &${JSON.stringify(deviceServices)},
         safe_area: ${safeArea},
         window_title: ${windowTitle},
+        windows_acrylic: ${windowsAcrylic},
         commands: ${commands ? 'Some(&' + JSON.stringify(commands) + ')' : 'None'},
     },`,
     )
@@ -263,7 +275,7 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
   const base = readJson(localFile(template, 'tauri.conf.json'));
   const tauri = config.targets.tauri;
   const display = config.displayName ?? config.name;
-  const features = windowFeatures(value, base);
+  const features = windowFeatures(value, base, platform);
   const plugins = configuredDevicePlugins(features, tauriDependencies.haptics);
   const deviceServices = new Set(features.flatMap((window) => window.deviceServices));
   const capabilities = [];
@@ -276,6 +288,7 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
     deviceServices: windowDevices,
     safeArea,
     windowTitle,
+    windowsAcrylic,
     commands,
   } of features) {
     function capability(feature, permissions, platforms) {
@@ -304,6 +317,7 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
     if (haptics) capability('haptics', hapticsPermissions, ['android', 'iOS']);
     if (androidBack) capability('android-back', backPermissions, ['android']);
     if (systemChrome) capability('system-chrome', [plugin + 'system-chrome'], ['android', 'iOS']);
+    if (windowsAcrylic) capability('window-acrylic', [plugin + 'set-window-acrylic'], ['windows']);
     capability('scroll-edge-effects', [plugin + 'scroll-edge-effects'], ['iOS']);
     for (const device of windowDevices) {
       const label = device.replace(/[A-Z]/g, (character) => '-' + character.toLowerCase());

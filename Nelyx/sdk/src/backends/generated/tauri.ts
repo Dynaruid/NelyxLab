@@ -7,6 +7,7 @@ import type { InvokeOptions } from "@tauri-apps/api/core";
 export const commands = {
 	describe: (options?: InvokeOptions) => __TAURI_INVOKE<Description_Serialize>("plugin:nelyx-backend|describe", undefined, options),
 	clipboardPolicy: (input: ClipboardInput, options?: InvokeOptions) => __TAURI_INVOKE<ClipboardPolicy>("plugin:nelyx-backend|clipboard_policy", { input }, options),
+	setWindowAcrylic: (enabled: boolean, options?: InvokeOptions) => __TAURI_INVOKE<null>("plugin:nelyx-backend|set_window_acrylic", { enabled }, options),
 };
 
 /* Types */
@@ -50,6 +51,7 @@ export type Description_Deserialize = {
 	deviceServices: string[],
 	safeArea: boolean,
 	windowTitle: boolean,
+	windowsAcrylic?: boolean | null,
 	title?: string | null,
 	frontendBuildId?: string | null,
 } & Identity;
@@ -64,6 +66,7 @@ export type Description_Serialize = {
 	deviceServices: string[],
 	safeArea: boolean,
 	windowTitle: boolean,
+	windowsAcrylic?: boolean,
 	title: string | null,
 	frontendBuildId: string | null,
 } & Identity;

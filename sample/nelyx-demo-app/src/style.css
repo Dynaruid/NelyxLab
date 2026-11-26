@@ -6,6 +6,11 @@ body {
   background-color: #101827;
 }
 
+html[data-window-acrylic],
+html[data-window-acrylic] body {
+  background-color: transparent;
+}
+
 /* The canvas fills the viewport so Nelyx widgets can apply the safe area insets. */
 #app {
   box-sizing: border-box;

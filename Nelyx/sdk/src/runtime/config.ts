@@ -57,6 +57,8 @@ export interface TauriWindowConfig {
   readonly deviceServices?: readonly DeviceFeature[];
   readonly safeArea?: boolean;
   readonly windowTitle?: boolean;
+  /** Allow this window to use Desktop Acrylic on Windows 11. */
+  readonly windowsAcrylic?: boolean;
   readonly commands?: readonly string[];
 }
 export interface TauriTargetConfig {
@@ -362,6 +364,7 @@ function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
             'deviceServices',
             'safeArea',
             'windowTitle',
+            'windowsAcrylic',
             'commands',
           ].includes(key),
       ) ||
@@ -373,6 +376,7 @@ function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
         window.useHttpsScheme,
         window.safeArea,
         window.windowTitle,
+        window.windowsAcrylic,
         window.haptics,
         window.androidBack,
         window.systemChrome,

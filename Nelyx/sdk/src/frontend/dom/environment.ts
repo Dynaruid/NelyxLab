@@ -9,9 +9,10 @@ import type {
   BackendConnection,
   FrontendHost,
   WebViewScrollEdgeEffects,
+  WindowAcrylic,
 } from '../../backends/backend-contract.ts';
 
-export type { WebViewScrollEdgeEffects } from '../../backends/backend-contract.ts';
+export type { WebViewScrollEdgeEffects, WindowAcrylic } from '../../backends/backend-contract.ts';
 
 export interface BrowserPlatformNavigator {
   readonly platform: string;
@@ -87,6 +88,11 @@ export function webViewScrollEdgeEffectsFor(
   view: Window = window,
 ): WebViewScrollEdgeEffects | undefined {
   return backends.get(view)?.scrollEdgeEffects;
+}
+
+/** Desktop Acrylic for the current opted-in Windows Tauri window, when supported by DWM. */
+export function windowAcrylicFor(view: Window = window): WindowAcrylic | undefined {
+  return backends.get(view)?.windowAcrylic;
 }
 
 export async function invokeAppBackend(command: string, input?: unknown, view: Window = window) {

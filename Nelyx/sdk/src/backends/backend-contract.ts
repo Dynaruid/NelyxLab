@@ -28,6 +28,7 @@ export interface BackendDescription extends BackendIdentity {
   readonly deviceServices: readonly string[];
   readonly safeArea: boolean;
   readonly windowTitle: boolean;
+  readonly windowsAcrylic?: boolean | null;
   readonly title: string | null;
   readonly frontendBuildId: string | null;
 }
@@ -46,6 +47,7 @@ export interface BackendConnection {
   androidBack?(view: Window): AndroidBackSource | undefined;
   systemChrome?(view: Window): SystemChromeHost | undefined;
   readonly scrollEdgeEffects?: WebViewScrollEdgeEffects;
+  readonly windowAcrylic?: WindowAcrylic;
   devices?(view: Window, options: BrowserDeviceOptions): DeviceServices;
   safeArea?(view: Window): WebSafeAreaSource | undefined;
   setTitle?(title: string): Promise<void>;
@@ -55,6 +57,12 @@ export interface WebViewScrollEdgeEffects {
   get(): Promise<Required<TauriScrollEdgeEffects>>;
   /** Apply settings to the current WebView. Each omitted edge is hidden. */
   set(effects: TauriScrollEdgeEffects): Promise<Required<TauriScrollEdgeEffects>>;
+}
+
+export interface WindowAcrylic {
+  /** The last state confirmed by the native window. */
+  readonly enabled: boolean;
+  setEnabled(enabled: boolean): Promise<void>;
 }
 
 export interface AndroidBackSource {
@@ -77,6 +85,10 @@ export function validateBackend(expected: BackendIdentity, actual: BackendDescri
     (actual.haptics !== null && typeof actual.haptics !== 'boolean') ||
     (actual.androidBack !== null && typeof actual.androidBack !== 'boolean') ||
     (actual.systemChrome !== undefined && typeof actual.systemChrome !== 'boolean') ||
+    (actual.windowsAcrylic != null &&
+      (typeof actual.windowsAcrylic !== 'boolean' ||
+        actual.kind !== 'native' ||
+        actual.os !== 'windows')) ||
     !validDeviceFeatures(actual.deviceServices) ||
     (actual.haptics === true && actual.os !== 'android' && actual.os !== 'ios') ||
     (actual.androidBack === true && actual.os !== 'android') ||
