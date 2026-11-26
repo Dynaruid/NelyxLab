@@ -675,9 +675,13 @@ async function recovery() {
           }
           await page.waitForFunction((count) => window.workerFrames === count + 2, count);
         };
+        const clip = { x: 16, y: 16, width: 520, height: 112 };
+        const beforeResize = await page.screenshot({ clip, scale: 'device' });
         await holdTwo();
-        const resized = { width: view.width - 65, height: view.height - 35 };
+        const resized = { width: view.width - 215, height: view.height + 45 };
         await page.setViewportSize(resized);
+        const held = await page.screenshot({ clip, scale: 'device' });
+        assert.ok(held.equals(beforeResize), 'Displayed bitmap stretched during a blocked resize');
         const device = await page.context().newCDPSession(page);
         await device.send('Emulation.setDeviceMetricsOverride', {
           ...resized,
@@ -685,7 +689,6 @@ async function recovery() {
           mobile: false,
         });
         await page.waitForFunction(() => devicePixelRatio === 2);
-        await device.detach();
         await nextFrames(page, 3);
         await page.evaluate(() => {
           window.restoreVisibility = Object.getOwnPropertyDescriptor(document, 'hidden');
@@ -707,6 +710,17 @@ async function recovery() {
           (frames) => window.readNelyx().rendering.gpuRetired > frames,
           before.gpuRetired,
         );
+        await nextFrames(page, 3);
+        const finalSize = await canvas.evaluate((element) => ({
+          backing: [element.width, element.height],
+          viewport: [element.parentElement.clientWidth, element.parentElement.clientHeight],
+          scale: devicePixelRatio,
+        }));
+        assert.deepEqual(finalSize, {
+          backing: [resized.width * 2, resized.height * 2],
+          viewport: [resized.width, resized.height],
+          scale: 2,
+        });
         await canvas.focus();
         await holdTwo();
         const beforeLoss = await diag(page);
@@ -732,6 +746,7 @@ async function recovery() {
         assert.equal(after.resourceBytes, 0);
         assert.equal(await page.evaluate(() => window.renderWorkers.length), 0);
         reports.push({ case: 'recovery', rendering: after });
+        await device.detach();
       }),
     { policy: 'both', faults: true, coldRuntime: true },
   );
@@ -758,6 +773,64 @@ async function recovery() {
         reports.push({ case: 'close-with-two-frames', rendering });
       }),
     { faults: true },
+  );
+}
+
+async function embeddedResize() {
+  await serve(
+    values.demo,
+    (root) =>
+      tab(async (page) => {
+        await page.goto(modeUrl(root, 'direct'));
+        await firstFrame(page, 'direct');
+        await nextFrames(page);
+        const result = await page.evaluate(
+          () =>
+            new Promise((resolve) => {
+              const canvas = document.querySelector('[data-nelyx-render-path]');
+              const viewport = canvas.parentElement;
+              requestAnimationFrame(() => {
+                const accepted = window.readNelyx().rendering.accepted;
+                const backing = [canvas.width, canvas.height];
+                const width = viewport.clientWidth - 180;
+                const height = viewport.clientHeight - 120;
+                viewport.style.width = width + 'px';
+                viewport.style.height = height + 'px';
+                // An rAF scheduled by ResizeObserver would run after this callback.
+                requestAnimationFrame(() => {
+                  const bounds = canvas.getBoundingClientRect();
+                  resolve({
+                    accepted: window.readNelyx().rendering.accepted - accepted,
+                    document: [innerWidth, innerHeight],
+                    viewport: [width, height],
+                    display: [bounds.width, bounds.height],
+                    backing,
+                    nextBacking: [canvas.width, canvas.height],
+                    scale: devicePixelRatio,
+                    windows: navigator.platform.startsWith('Win'),
+                  });
+                });
+              });
+            }),
+        );
+        assert.ok(result.accepted > 0, 'Changing only the parent must submit before the next rAF');
+        assert.deepEqual(result.document, [view.width, view.height]);
+        for (let axis = 0; axis < 2; axis++) {
+          assert.ok(
+            Math.abs(result.display[axis] - result.viewport[axis]) < 0.1,
+            JSON.stringify(result),
+          );
+        }
+        assert.deepEqual(
+          result.nextBacking,
+          result.windows
+            ? result.backing
+            : result.viewport.map((size) => Math.round(size * result.scale)),
+        );
+        reports.push({ case: 'embedded-resize', ...result });
+        console.log(JSON.stringify({ case: 'embedded-resize', ...result }));
+      }),
+    { policy: 'both' },
   );
 }
 
@@ -1242,6 +1315,7 @@ try {
       if (values.testbed) await pwa(values.testbed, 'testbed', policy, expected);
     }
   }
+  if (engine === 'chrome' && suite('resize')) await embeddedResize();
   if (engine === 'chrome' && suite('touch')) await touchScroll();
   if (engine === 'chrome' && suite('popup')) await externalPopup();
   if (values.dev && suite('strict')) await strictModeRemount();

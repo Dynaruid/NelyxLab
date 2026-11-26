@@ -66,7 +66,12 @@ export function createWebServices(
   definition: ApplicationDefinition,
   files: Map<string, Uint8Array<ArrayBuffer>>,
   safeArea?: WebSafeAreaSource,
-  localeOptions?: { readonly localeBoundary?: HTMLElement; readonly ownsDocument?: boolean },
+  options?: {
+    readonly canvasViewport?: HTMLElement;
+    readonly maxRasterScale?: number;
+    readonly localeBoundary?: HTMLElement;
+    readonly ownsDocument?: boolean;
+  },
 ): {
   services: BackendServices;
   cursor: BrowserMouseCursor;
@@ -77,18 +82,23 @@ export function createWebServices(
   const document = canvas.ownerDocument,
     window = document.defaultView!,
     frameTimeOffset = window.performance.timeOrigin - performance.timeOrigin;
+  const canvasViewport = options?.canvasViewport;
+  const readViewport = () => canvasViewport ?? canvas;
   let nativeSelectionContextMenu: BrowserSelectionContextMenu | undefined;
   const cursor = new BrowserMouseCursor(canvas),
     interaction = createDomInteraction(
       input,
       button,
       cursor,
-      () => ({
-        bounds: canvas.getBoundingClientRect(),
-        width: canvas.clientWidth,
-        height: canvas.clientHeight,
-        generation: viewport,
-      }),
+      () => {
+        const element = readViewport();
+        return {
+          bounds: element.getBoundingClientRect(),
+          width: element.clientWidth,
+          height: element.clientHeight,
+          generation: viewport,
+        };
+      },
       definition.accessibilityEnabled !== false,
       supportsNativeBrowserContextMenu(window)
         ? () => nativeSelectionContextMenu?.nativeMenuEnabled === true
@@ -105,10 +115,15 @@ export function createWebServices(
     renderer = 1,
     surface = 1,
     context = 1;
-  const environment = createBrowserEnvironment(() => canvas, safeArea);
+  const environment = createBrowserEnvironment(readViewport, safeArea);
   let viewLocale: ReturnType<typeof bindViewLocale> | undefined;
   try {
-    const selectionContextMenu = new BrowserSelectionContextMenu(canvas, owner, cursor);
+    const selectionContextMenu = new BrowserSelectionContextMenu(
+      canvas,
+      owner,
+      cursor,
+      canvasViewport !== undefined,
+    );
     nativeSelectionContextMenu = selectionContextMenu;
     const frames = new BrowserFrameClock(
         window,
@@ -116,6 +131,8 @@ export function createWebServices(
           if (closed) return;
           try {
             display.pollCompletedFrames();
+            // Some hosts update DPR without a resize event for the layout box.
+            if (current.scale !== (window.devicePixelRatio || 1)) resize();
             if (!closed) callback();
           } finally {
             selectionContextMenu.refresh();
@@ -125,8 +142,9 @@ export function createWebServices(
       ),
       idleWork = new Set<number>();
     function metrics(): ViewMetrics {
-      const width = canvas.clientWidth,
-        height = canvas.clientHeight,
+      const element = readViewport(),
+        width = element.clientWidth,
+        height = element.clientHeight,
         scale = window.devicePixelRatio || 1;
       return Object.freeze({
         logicalWidth: width,
@@ -144,11 +162,27 @@ export function createWebServices(
     let current = metrics(),
       observer: ResizeObserver | undefined,
       media: MediaQueryList | undefined;
+    function fitCanvas(scale: number): void {
+      if (!canvasViewport) return;
+      const rasterScale = Math.min(scale, options?.maxRasterScale ?? Infinity);
+      const style = canvas.style;
+      style.position = 'absolute';
+      style.top = '0';
+      style.left = '0';
+      // The element fills the viewport after transforming. Its bitmap keeps its
+      // intrinsic size under the same transform, independent of viewport changes.
+      style.width = style.height = `${100 * rasterScale}%`;
+      style.objectFit = 'none';
+      style.objectPosition = 'left top';
+      style.transformOrigin = '0 0';
+      style.transform = rasterScale === 1 ? '' : `scale(${1 / rasterScale})`;
+    }
+    fitCanvas(current.scale);
     let attachedView: ViewRuntime | undefined;
     let stopInput: ReturnType<typeof bindCanvasInput> | undefined,
       stopSafeArea: (() => void) | undefined;
-    const resize = () => {
-      if (closed || !notify) return;
+    const resize = (): boolean => {
+      if (closed || !notify) return false;
       const next = metrics(),
         backingChanged =
           next.logicalWidth !== current.logicalWidth ||
@@ -158,20 +192,23 @@ export function createWebServices(
         !backingChanged &&
         JSON.stringify(next.environment) === JSON.stringify(current.environment)
       )
-        return;
-      viewport++;
-      if (backingChanged) surface++;
-      current = metrics();
+        return false;
+      if (next.scale !== current.scale) {
+        fitCanvas(next.scale);
+        watchDpi();
+      }
+      current = Object.freeze({
+        ...next,
+        viewportGeneration: ++viewport,
+        nativeSurfaceGeneration: backingChanged ? ++surface : surface,
+      });
       notify({ kind: 'metrics', metrics: current });
-    };
-    const dpi = () => {
-      resize();
-      watchDpi();
+      return backingChanged;
     };
     const watchDpi = () => {
-      media?.removeEventListener('change', dpi);
-      media = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-      media.addEventListener('change', dpi);
+      media?.removeEventListener('change', resize);
+      media = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+      media.addEventListener('change', resize);
     };
     const lost = (event: Event) => {
       event.preventDefault();
@@ -193,17 +230,21 @@ export function createWebServices(
       surface++;
       viewport++;
       current = metrics();
+      fitCanvas(current.scale);
       notify?.({ kind: 'metrics', metrics: current });
     }
     const visibility = () => {
-      display.setVisible(!document.hidden);
-      notify?.({ kind: 'visibility', visible: !document.hidden });
+      const visible = !document.hidden;
+      if (visible) resize();
+      display.setVisible(visible);
+      notify?.({ kind: 'visibility', visible });
     };
     function attachCanvas(view: ViewRuntime): void {
       let keySurface: HTMLElement | null = canvas.parentElement;
       while (keySurface && !keySurface.contains(input)) keySurface = keySurface.parentElement;
       if (!keySurface) throw new Error('Web controls require an attached common input surface');
       stopInput = bindCanvasInput(canvas, view, {
+        ...(canvasViewport ? { viewport: canvasViewport } : {}),
         keySurface,
         ownsSemanticsTarget: interaction.ownsSemanticsTarget,
         ownsSemanticsAdjustmentTarget: interaction.ownsSemanticsAdjustmentTarget,
@@ -211,7 +252,7 @@ export function createWebServices(
         ownsNativeSelectionTarget: (target) => selectionContextMenu.ownsTarget(target),
         usesNativeEditingMenu: interaction.usesNativeEditingMenu,
       });
-      observer?.observe(canvas);
+      observer?.observe(readViewport());
     }
     function listenForContext(): void {
       canvas.addEventListener('webglcontextlost', lost);
@@ -220,7 +261,7 @@ export function createWebServices(
     function detachCanvas(replacing = false): void {
       stopInput?.(replacing);
       stopInput = undefined;
-      observer?.unobserve(canvas);
+      observer?.unobserve(readViewport());
       canvas.removeEventListener('webglcontextlost', lost);
       canvas.removeEventListener('webglcontextrestored', restored);
     }
@@ -231,7 +272,7 @@ export function createWebServices(
       stopSafeArea = undefined;
       observer?.disconnect();
       observer = undefined;
-      media?.removeEventListener('change', dpi);
+      media?.removeEventListener('change', resize);
       media = undefined;
       window.removeEventListener('resize', resize);
       window.removeEventListener('scroll', resize, true);
@@ -257,6 +298,7 @@ export function createWebServices(
         )
           throw new Error('Invalid Web display canvas replacement');
         canvas = replacement;
+        fitCanvas(current.scale);
         cursor.replaceCanvas(canvas);
         selectionContextMenu.replaceCanvas(canvas);
         listenForContext();
@@ -319,8 +361,8 @@ export function createWebServices(
       sha256,
     );
     viewLocale = bindViewLocale(
-      () => localeOptions?.localeBoundary ?? canvas,
-      localeOptions?.ownsDocument === true,
+      () => options?.localeBoundary ?? canvas,
+      options?.ownsDocument === true,
     );
     const services: BackendServices = {
       identity,
@@ -405,7 +447,9 @@ export function createWebServices(
           if (closed || notify) throw new Error('Web surface closed/already attached');
           notify = callback;
           attachedView = view;
-          observer = new window.ResizeObserver(resize);
+          observer = new window.ResizeObserver(() => {
+            if (resize()) frames.offerResize();
+          });
           attachCanvas(view);
           window.addEventListener('resize', resize);
           window.addEventListener('scroll', resize, true);
@@ -414,7 +458,7 @@ export function createWebServices(
           document.addEventListener('visibilitychange', visibility);
           watchDpi();
           stopSafeArea = safeArea?.subscribe(resize);
-          if (safeArea) resize();
+          resize();
           let alive = true;
           return {
             dispose() {

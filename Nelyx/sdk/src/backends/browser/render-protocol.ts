@@ -35,6 +35,7 @@ export const sharedProbeReply = 0x4e4c5802;
 export const workerResourceBytes = 96 * 1024 * 1024;
 export const workerResourceCount = 8192;
 export const workerBackingBytes = 112 * 1024 * 1024;
+export const workerBackingPixelLimit = Math.floor(workerBackingBytes / 12);
 
 export interface RenderSession {
   readonly owner: ViewOwner;

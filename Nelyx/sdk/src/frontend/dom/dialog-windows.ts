@@ -119,6 +119,7 @@ export function webDialogWindows(
           },
           {
             canvas,
+            canvasViewport: container,
             localeBoundary: container,
             ownsDocument: true,
             signal: controller.signal,

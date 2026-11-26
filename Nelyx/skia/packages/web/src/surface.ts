@@ -15,6 +15,8 @@ export interface WebSkiaSurfaceOptions {
   readonly preserveDrawingBuffer?: boolean;
   /** Optional backing scale limit. Layout and input continue to use the View's metrics. */
   readonly maxRasterScale?: number;
+  /** Enables capacity reuse for a display that clips pixels to its independent viewport. */
+  readonly retainedBackingPixelLimit?: number;
 }
 
 export const webGpuResourceCacheBytes = 48 * 1024 * 1024;
@@ -37,6 +39,8 @@ export class WebSkiaSurface {
   private surface: Surface | undefined;
   private handle: WebGLContextHandle | undefined;
   private gl: WebGL2RenderingContext | undefined;
+  private backingScale: number | undefined;
+  private backingLimit: { width: number; height: number } | undefined;
 
   constructor(
     private readonly ck: CanvasKit,
@@ -61,6 +65,17 @@ export class WebSkiaSurface {
       context = this.ck.MakeWebGLContext(handle);
       if (!context) throw new Error('CanvasKit GPU context failed');
       context.setResourceCacheLimitBytes(webGpuResourceCacheBytes);
+      if (this.options.retainedBackingPixelLimit) {
+        const viewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array;
+        const limit = Math.min(
+          gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),
+          gl.getParameter(gl.MAX_TEXTURE_SIZE),
+        );
+        this.backingLimit = {
+          width: Math.min(limit, viewport[0]!),
+          height: Math.min(limit, viewport[1]!),
+        };
+      }
       this.gl = gl;
       this.handle = handle;
       this.context = context;
@@ -75,6 +90,29 @@ export class WebSkiaSurface {
     }
   }
 
+  private chooseBacking(width: number, height: number, scale: number) {
+    const limit = this.backingLimit;
+    if (!limit || !this.surface || this.backingScale !== scale) return { width, height };
+    const current = this.canvas;
+    // Give back an oversized buffer once the view needs less than half of it.
+    const budget = Math.min(this.options.retainedBackingPixelLimit!, width * height * 2);
+    if (width <= current.width && height <= current.height) {
+      return current.width * current.height <= budget
+        ? { width: current.width, height: current.height }
+        : { width, height };
+    }
+    // Reserve a little room on the growing axes to avoid an allocation per drag step.
+    const nextWidth =
+      width > current.width ? Math.max(width, Math.ceil(current.width * 1.25)) : width;
+    const nextHeight =
+      height > current.height ? Math.max(height, Math.ceil(current.height * 1.25)) : height;
+    return nextWidth <= limit.width &&
+      nextHeight <= limit.height &&
+      nextWidth * nextHeight <= budget
+      ? { width: nextWidth, height: nextHeight }
+      : { width, height };
+  }
+
   submit(
     frame: PaintFrame,
     replay: (canvas: Canvas, scale: number) => void,
@@ -84,24 +122,45 @@ export class WebSkiaSurface {
       frame.token.metrics,
       this.options.maxRasterScale,
     );
-    if (!this.surface || this.canvas.width !== width || this.canvas.height !== height) {
+    const backing = this.chooseBacking(width, height, scale);
+    if (
+      !this.surface ||
+      this.canvas.width !== backing.width ||
+      this.canvas.height !== backing.height
+    ) {
       // Resize clears the drawing buffer. Install and draw the new frame in one turn.
       this.surface?.delete();
       this.surface = undefined;
-      if (this.canvas.width !== width) this.canvas.width = width;
-      if (this.canvas.height !== height) this.canvas.height = height;
+      // Shrink first when the axes move in opposite directions.
+      if (backing.width < this.canvas.width) this.canvas.width = backing.width;
+      if (backing.height < this.canvas.height) this.canvas.height = backing.height;
+      if (this.canvas.width !== backing.width) this.canvas.width = backing.width;
+      if (this.canvas.height !== backing.height) this.canvas.height = backing.height;
       const surface = this.ck.MakeOnScreenGLSurface(
         this.prepare(),
-        width,
-        height,
+        backing.width,
+        backing.height,
         this.ck.ColorSpace.SRGB,
       );
       if (!surface) throw new Error('CanvasKit GPU surface failed');
       this.surface = surface;
     }
+    this.backingScale = scale;
     const gl = this.gl!;
     const replayStarted = diagnostics?.now();
-    replay(this.surface.getCanvas(), scale);
+    const canvas = this.surface.getCanvas();
+    if (backing.width === width && backing.height === height) {
+      replay(canvas, scale);
+    } else {
+      canvas.clear(this.ck.TRANSPARENT);
+      canvas.save();
+      try {
+        canvas.clipRect(this.ck.LTRBRect(0, 0, width, height), this.ck.ClipOp.Intersect, false);
+        replay(canvas, scale);
+      } finally {
+        canvas.restore();
+      }
+    }
     const flushStarted = diagnostics?.record(frame.token, 'native-replay', replayStarted!);
     this.surface.flush();
     const fenceStarted = diagnostics?.record(frame.token, 'native-submit', flushStarted!);
@@ -142,6 +201,8 @@ export class WebSkiaSurface {
       this.handle = undefined;
     }
     this.gl = undefined;
+    this.backingLimit = undefined;
+    this.backingScale = undefined;
     if (close && gl && !gl.isContextLost()) gl.getExtension('WEBGL_lose_context')?.loseContext();
   }
 }

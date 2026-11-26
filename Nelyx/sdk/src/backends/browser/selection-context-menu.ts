@@ -118,6 +118,7 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
     private canvas: HTMLCanvasElement,
     readonly owner: ViewOwner,
     private readonly cursor?: BrowserMouseCursor,
+    private readonly usesCanvasViewport = false,
   ) {
     this.doc = canvas.ownerDocument;
     this.desktopBrowser = supportsNativeBrowserContextMenu(this.doc.defaultView!);
@@ -187,6 +188,7 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
     root.setAttribute('aria-hidden', 'true');
     root.dataset.nelyxNativeSelection = '';
     root.style.cssText = 'position:absolute;pointer-events:none;overflow:hidden;';
+    if (this.usesCanvasViewport) root.style.inset = '0';
     try {
       this.parent.insertBefore(root, this.canvas.nextSibling);
     } catch (error) {
@@ -313,15 +315,16 @@ export class BrowserSelectionContextMenu implements NativeSelectionContextMenuHo
   /** Run after every framework frame, including reused retained paint subtrees. */
   refresh(): void {
     if (this.stopped || !this.root) return;
-    const root = this.root,
-      view = this.doc.defaultView,
-      style = view?.getComputedStyle(this.canvas);
-    root.style.left = this.canvas.offsetLeft + 'px';
-    root.style.top = this.canvas.offsetTop + 'px';
-    root.style.width = this.canvas.clientWidth + 'px';
-    root.style.height = this.canvas.clientHeight + 'px';
-    root.style.transform = style?.transform ?? 'none';
-    root.style.transformOrigin = style?.transformOrigin ?? '0 0';
+    const root = this.root;
+    if (!this.usesCanvasViewport) {
+      const style = this.doc.defaultView?.getComputedStyle(this.canvas);
+      root.style.left = this.canvas.offsetLeft + 'px';
+      root.style.top = this.canvas.offsetTop + 'px';
+      root.style.width = this.canvas.clientWidth + 'px';
+      root.style.height = this.canvas.clientHeight + 'px';
+      root.style.transform = style?.transform ?? 'none';
+      root.style.transformOrigin = style?.transformOrigin ?? '0 0';
+    }
     const snapshot = [...this.entries];
     for (const entry of snapshot) {
       entry.update();

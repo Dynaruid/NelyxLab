@@ -14,6 +14,7 @@ export function bindCanvasInput(
   canvas: HTMLCanvasElement,
   view: ViewRuntime,
   options: {
+    readonly viewport?: HTMLElement;
     readonly keySurface?: HTMLElement;
     readonly ownsEditingTarget?: (target: EventTarget | null) => boolean;
     readonly ownsSemanticsTarget?: (target: EventTarget | null) => boolean;
@@ -25,6 +26,7 @@ export function bindCanvasInput(
   const window = canvas.ownerDocument.defaultView!;
   const { HTMLElement, HTMLInputElement, HTMLTextAreaElement } = window;
   const macOS = getFrontendHost(window).os === 'macOS';
+  const viewport = options.viewport ?? canvas;
   let live = true;
   const pointers = new Set<number>(),
     keySurface = options.keySurface ?? canvas;
@@ -42,7 +44,7 @@ export function bindCanvasInput(
   canvas.style.setProperty('-webkit-tap-highlight-color', 'transparent');
   const pointer = (kind: FrameworkPointerEvent['kind']) => (event: PointerEvent) => {
     if (!live) return;
-    const rect = canvas.getBoundingClientRect(),
+    const rect = viewport.getBoundingClientRect(),
       metrics = view.currentMetrics;
     if (!rect.width || !rect.height) return;
     if (kind === 'down') {
@@ -146,7 +148,7 @@ export function bindCanvasInput(
     nativeLeave = nativePointer(leave);
   const wheel = (event: WheelEvent) => {
     if (!live) return;
-    const rect = canvas.getBoundingClientRect(),
+    const rect = viewport.getBoundingClientRect(),
       metrics = view.currentMetrics,
       unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? metrics.logicalHeight : 1;
     view.dispatchPointer({

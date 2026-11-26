@@ -24,6 +24,7 @@ import {
   sharedProbeReply,
   sharedProbeRequest,
   workerBackingBytes,
+  workerBackingPixelLimit,
   workerResourceBytes,
 } from './render-protocol.ts';
 import type { RenderFailureStage, WebRenderMode, WebRenderPath } from './render-protocol.ts';
@@ -34,6 +35,7 @@ import { WebRenderTelemetry } from './render-telemetry.ts';
 
 interface BrowserRenderOptions extends WebSkiaSurfaceOptions {
   readonly renderMode?: WebRenderMode;
+  readonly canvasViewport?: HTMLElement;
   readonly replaceCanvas?: (previous: HTMLCanvasElement) => HTMLCanvasElement;
   readonly assetsRoot: URL;
   readonly canvasKitRoot: URL;
@@ -102,6 +104,9 @@ export class BrowserRenderer implements Renderer {
       ...(options.preserveDrawingBuffer === undefined
         ? {}
         : { preserveDrawingBuffer: options.preserveDrawingBuffer }),
+      ...(options.retainedBackingPixelLimit === undefined
+        ? {}
+        : { retainedBackingPixelLimit: options.retainedBackingPixelLimit }),
     };
     this.directObservation = library.observe((event) => {
       if (event.kind === 'retired') {
@@ -146,20 +151,21 @@ export class BrowserRenderer implements Renderer {
 
   private reserveWorker(): boolean {
     const { canvas, window } = this;
+    const viewport = this.options.canvasViewport ?? canvas;
     const memory = (window.navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     const scale = window.devicePixelRatio || 1;
     const { width, height } = webBackingSize(
       {
         scale,
-        physicalWidth: Math.round(canvas.clientWidth * scale),
-        physicalHeight: Math.round(canvas.clientHeight * scale),
+        physicalWidth: Math.round(viewport.clientWidth * scale),
+        physicalHeight: Math.round(viewport.clientHeight * scale),
       },
       this.options.maxRasterScale,
     );
     if (
       workerReserved ||
       (memory !== undefined && memory < 4) ||
-      width * height * 12 > workerBackingBytes
+      width * height > workerBackingPixelLimit
     ) {
       this.telemetry.failure(
         'worker-budget',
@@ -394,7 +400,7 @@ export class BrowserRenderer implements Renderer {
     const worker = this.worker;
     if (!worker) return;
     const { width, height } = webBackingSize(metrics, this.options.maxRasterScale);
-    if (width * height * 12 > workerBackingBytes) {
+    if (width * height > workerBackingPixelLimit) {
       this.workerFailed(
         worker,
         new RenderWorkerError(

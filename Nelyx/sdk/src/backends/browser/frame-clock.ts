@@ -4,14 +4,14 @@ import type { FrameRequest, FrameTiming } from '@nelyx/core/foundation/clock';
 interface Request {
   callback(timing: FrameTiming): void;
   inputDriven: boolean;
-  inputPending: boolean;
+  earlyPending: boolean;
 }
 
-/** One display pulse per view. Touch can use the upcoming pulse's work early. */
+/** One display pulse per view. Touch and late viewport changes can use its work early. */
 export class BrowserFrameClock {
   private readonly pending = new Set<Request>();
   private pulse: number | undefined;
-  private usedInput = false;
+  private usedEarly = false;
   private closed = false;
 
   constructor(
@@ -22,25 +22,36 @@ export class BrowserFrameClock {
 
   request(callback: Request['callback'], inputDriven = false): FrameRequest {
     if (this.closed) throw new Error('Web clock closed');
-    const request: Request = { callback, inputDriven, inputPending: false };
+    const request: Request = { callback, inputDriven, earlyPending: false };
     this.pending.add(request);
     this.schedule();
     return {
-      afterInput: () => {
-        if (!inputDriven || request.inputPending || !this.pending.has(request)) return;
-        request.inputPending = true;
-        if (this.usedInput) return;
-        queueMicrotask(() => {
-          if (this.closed || this.usedInput || !this.pending.delete(request)) return;
-          this.usedInput = true;
-          this.run(request, performance.now());
-        });
-      },
+      afterInput: () => this.offerEarly(request),
       dispose: () => {
         this.pending.delete(request);
-        if (!this.pending.size && !this.usedInput) this.cancelPulse();
+        if (!this.pending.size && !this.usedEarly) this.cancelPulse();
       },
     };
+  }
+
+  /** ResizeObserver delivers after rAF. Offer its already scheduled view frame before paint. */
+  offerResize(): void {
+    for (const request of this.pending) {
+      if (!request.inputDriven) continue;
+      this.offerEarly(request);
+      break;
+    }
+  }
+
+  private offerEarly(request: Request): void {
+    if (!request.inputDriven || request.earlyPending || !this.pending.has(request)) return;
+    request.earlyPending = true;
+    if (this.usedEarly) return;
+    queueMicrotask(() => {
+      if (this.closed || this.usedEarly || !this.pending.delete(request)) return;
+      this.usedEarly = true;
+      this.run(request, performance.now());
+    });
   }
 
   private run(request: Request, tick: number): void {
@@ -59,12 +70,12 @@ export class BrowserFrameClock {
     if (this.pulse !== undefined) return;
     this.pulse = this.window.requestAnimationFrame((timestamp) => {
       this.pulse = undefined;
-      const usedInput = this.usedInput;
-      this.usedInput = false;
+      const usedEarly = this.usedEarly;
+      this.usedEarly = false;
       try {
         // oxlint-disable-next-line unicorn/no-useless-spread -- Requests created by callbacks belong to the next refresh.
         for (const request of [...this.pending]) {
-          if (usedInput && request.inputDriven && !request.inputPending) continue;
+          if (usedEarly && request.inputDriven && !request.earlyPending) continue;
           if (this.pending.delete(request)) this.run(request, timestamp + this.originOffset);
         }
       } finally {

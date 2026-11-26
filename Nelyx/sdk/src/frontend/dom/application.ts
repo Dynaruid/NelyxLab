@@ -21,7 +21,9 @@ import { browserDeviceServices } from '../../backends/browser/devices.ts';
 import { DeviceScope } from '../../runtime/device-scope.ts';
 import { BrowserRenderer } from '../../backends/browser/renderer.ts';
 import type { WebRenderMode } from '../../backends/browser/render-protocol.ts';
+import { workerBackingPixelLimit } from '../../backends/browser/render-protocol.ts';
 import type { WebRenderDiagnostics } from '../../backends/browser/render-telemetry.ts';
+import { getFrontendHost } from './environment.ts';
 
 export type { WebRenderMode, WebRenderPath } from '../../backends/browser/render-protocol.ts';
 export type { WebRenderDiagnostics } from '../../backends/browser/render-telemetry.ts';
@@ -206,7 +208,10 @@ export function ownWebSurface(element: HTMLElement): {
     },
   };
 }
-export interface WebApplicationOptions extends WebSkiaSurfaceOptions {
+export interface WebApplicationOptions extends Omit<
+  WebSkiaSurfaceOptions,
+  'retainedBackingPixelLimit'
+> {
   /** The SDK entry point owns the document when it hosts a single view. */
   readonly ownsDocument?: boolean;
   /** A DOM boundary owned solely by this view. Defaults to its canvas. */
@@ -220,6 +225,8 @@ export interface WebApplicationOptions extends WebSkiaSurfaceOptions {
   readonly deviceNamespace?: string;
   readonly safeArea?: WebSafeAreaSource;
   readonly canvas: HTMLCanvasElement;
+  /** A clipping parent whose content box controls the view and whose canvas styling is owned by the SDK. */
+  readonly canvasViewport?: HTMLElement;
   readonly input: HTMLInputElement;
   readonly button: HTMLButtonElement;
   readonly manifest: readonly AppAsset[];
@@ -290,6 +297,8 @@ async function openWebApplication(
   options.signal?.throwIfAborted();
   if (runtimeClosing || !view || view.closed || !options.canvas.isConnected)
     throw new Error('Web requires an open runtime and attached DOM canvas');
+  if (options.canvasViewport && options.canvas.parentElement !== options.canvasViewport)
+    throw new Error('The canvas viewport must be the display canvas parent');
   const selected = createProviderRegistry().select('web', options.profile, {
     os: 'browser',
     architecture: 'wasm32',
@@ -314,6 +323,10 @@ async function openWebApplication(
   options.signal?.throwIfAborted();
   if (runtimeClosing || view.closed || !options.canvas.isConnected)
     throw new Error('Web surface opening cancelled');
+  const renderOptions =
+    options.canvasViewport && getFrontendHost(view).os === 'windows'
+      ? { ...options, retainedBackingPixelLimit: workerBackingPixelLimit }
+      : options;
   const nonce = Array.from(crypto.getRandomValues(new Uint32Array(4)), (word) =>
       word.toString(16).padStart(8, '0'),
     ).join(''),
@@ -322,14 +335,20 @@ async function openWebApplication(
       ck,
       () => options.canvas.ownerDocument.createElement('canvas'),
       owner,
-      options,
+      renderOptions,
     );
   let renderer: BrowserRenderer | undefined;
   let canvas: HTMLCanvasElement;
   let binding: ReturnType<typeof createWebServices>;
   job.retained = { library };
   try {
-    renderer = new BrowserRenderer(library, options.canvas, owner, options, () => !runtimeClosing);
+    renderer = new BrowserRenderer(
+      library,
+      options.canvas,
+      owner,
+      renderOptions,
+      () => !runtimeClosing,
+    );
     job.retained = { library, renderer };
     canvas = await renderer.open();
     binding = createWebServices(

@@ -28,7 +28,7 @@ import {
   sharedProbeReply,
   sharedProbeRequest,
   sharedSlotBytes,
-  workerBackingBytes,
+  workerBackingPixelLimit,
 } from './render-protocol.ts';
 import type {
   RenderFailureStage,
@@ -234,7 +234,7 @@ function setMetrics(next: ViewMetrics): void {
   )
     throw new Error('Stale Web render metrics');
   const { width, height } = webBackingSize(captured, options.maxRasterScale);
-  if (width * height * 12 > workerBackingBytes) throw new Error('Web render backing memory budget');
+  if (width * height > workerBackingPixelLimit) throw new Error('Web render backing memory budget');
   metrics = captured;
   library!.updateMetrics(captured);
 }

@@ -9,7 +9,7 @@ export interface WebSurfaceProps {
   readonly definition: ApplicationDefinition;
   readonly options: Omit<
     WebApplicationOptions,
-    'canvas' | 'input' | 'button' | 'replaceCanvas' | 'signal' | 'localeBoundary'
+    'canvas' | 'canvasViewport' | 'input' | 'button' | 'replaceCanvas' | 'signal' | 'localeBoundary'
   >;
   readonly style?: CSSProperties;
   readonly onReady?: (application: WebApplication) => void;
@@ -39,6 +39,7 @@ export function ApplicationSurface(properties: WebSurfaceProps) {
       application = await openApplication(properties.definition, {
         ...properties.options,
         canvas: target,
+        canvasViewport: parent,
         localeBoundary: input.current!.parentElement!,
         signal: controller.signal,
         replaceCanvas(previous) {
@@ -95,7 +96,10 @@ export function ApplicationSurface(properties: WebSurfaceProps) {
         ...properties.style,
       }}
     >
-      <div ref={container} style={{ width: '100%', height: '100%' }} />
+      <div
+        ref={container}
+        style={{ width: '100%', height: '100%', position: 'relative', overflow: 'clip' }}
+      />
       <input
         ref={input}
         style={{ position: 'absolute', display: 'none', fontSize: 22, color: '#e8eef8' }}

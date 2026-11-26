@@ -53,6 +53,17 @@ assert.equal(calls.at(-1), 'move-1');
 refresh();
 assert.equal(calls.at(-1), 'move-2');
 
+request('resize');
+clock.offerResize();
+clock.offerResize();
+await Promise.resolve();
+assert.equal(calls.at(-1), 'resize');
+request('resize-then-touch').afterInput();
+await Promise.resolve();
+assert.equal(calls.at(-1), 'resize');
+refresh();
+assert.equal(calls.at(-1), 'resize-then-touch');
+
 const cancelled = request('cancelled');
 cancelled.afterInput();
 cancelled.dispose();
@@ -66,5 +77,5 @@ await Promise.resolve();
 assert.equal(pulses.size, 0);
 assert.ok(!calls.includes('closed'));
 console.log(
-  'PASS touch frame coalescing, display ticks, independent animation, cancellation and close',
+  'PASS touch and resize frame coalescing, independent animation, cancellation and close',
 );
