@@ -114,7 +114,8 @@ export function describeTransportSemantics(
   config.attributedLabel = new AttributedString(value.name, {
     attributes: value.nameAttributes ?? [],
   });
-  if (value.name || value.value) config.textDirection = 'ltr';
+  if (value.textDirection || value.name || value.value)
+    config.textDirection = value.textDirection ?? 'ltr';
   config.identifier = value.semanticsIdentifier ?? '';
   config.isButton = value.role === 'button';
   config.isTextField = value.role === 'text-field';
@@ -328,6 +329,8 @@ export class SemanticsTransportSnapshot {
       parentTransform: TransformMatrix,
       clip: Rect,
       depth: number,
+      parentDirection?: HostNode['textDirection'],
+      parentLocale?: string,
     ): HostNode[] => {
       invariant(
         ++count <= 2048 && depth <= 64,
@@ -335,6 +338,9 @@ export class SemanticsTransportSnapshot {
         'Source semantics exceeds the host snapshot budget',
       );
       const data = node.getSemanticsData();
+      const direction = data.textDirection ?? parentDirection;
+      const metadata = properties.get(node) ?? nodeProperties.get(node);
+      const locale = metadata?.locale ?? data.locale?.toLanguageTag() ?? parentLocale;
       if (node.isInvisible || data.flagsCollection.isHidden) return [];
       const matrix = node.transform
           ? multiply(parentTransform, capturePaintTransform(node.transform.storage))
@@ -366,9 +372,8 @@ export class SemanticsTransportSnapshot {
         ? []
         : node
             .debugListChildrenInOrder(DebugSemanticsDumpOrder.traversalOrder)
-            .flatMap((child) => visit(child, matrix, visibleClip, depth + 1));
-      const metadata = properties.get(node) ?? nodeProperties.get(node),
-        numericRange = ranges.get(node) ?? metadata?.numericRange,
+            .flatMap((child) => visit(child, matrix, visibleClip, depth + 1, direction, locale));
+      const numericRange = ranges.get(node) ?? metadata?.numericRange,
         flags = data.flagsCollection;
       const actions: Partial<Record<HostAction, () => void>> = {};
       let hasActions = false;
@@ -534,7 +539,8 @@ export class SemanticsTransportSnapshot {
       }
       if (geometry) result.textInputGeometry = geometry;
       if (flags.isSlider) result.isSlider = true;
-      if (data.textDirection) result.textDirection = data.textDirection;
+      if (locale) result.locale = locale;
+      if (direction) result.textDirection = direction;
       if (numericRange) result.numericRange = numericRange;
       const rangeAction = rangeActions.get(node) ?? metadata?.rangeActions;
       if (

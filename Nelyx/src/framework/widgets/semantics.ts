@@ -227,6 +227,12 @@ export class Semantics extends _SemanticsBase {
   static fromProperties(options: SemanticsFromPropertiesOptions): Semantics {
     return new Semantics(options);
   }
+  protected override getTextDirection(context?: BuildContext): 'ltr' | 'rtl' | null {
+    const host = this.hostOptions;
+    if (host?.textDirection) return host.textDirection;
+    if (context && (host?.name || host?.value)) return Directionality.maybeOf(context);
+    return super.getTextDirection(context);
+  }
   createRenderObject(context?: BuildContext): RenderSemanticsAnnotations {
     return new RenderSemantics(this, this.getTextDirection(context));
   }

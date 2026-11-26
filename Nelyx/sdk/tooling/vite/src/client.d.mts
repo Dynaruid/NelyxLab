@@ -4,7 +4,7 @@ import type { WebApplicationOptions } from '@nelyx/sdk/frontend/dom/application'
 export interface FrontendProps {
   readonly options: Omit<
     WebApplicationOptions,
-    'canvas' | 'input' | 'button' | 'replaceCanvas' | 'signal'
+    'canvas' | 'input' | 'button' | 'replaceCanvas' | 'signal' | 'localeBoundary'
   >;
 }
 export function startFrontend(component: ComponentType<FrontendProps>): void;

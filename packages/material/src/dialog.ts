@@ -15,6 +15,7 @@ import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
 import type { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import type { VerticalDirection } from '@nelyx/core/framework/painting/basic-types';
+import { localizedDirectionality } from '@nelyx/core/framework/widgets/app';
 import type { MainAxisAlignment } from '@nelyx/core/framework/rendering/boxes';
 import {
   AppTheme,
@@ -24,6 +25,7 @@ import {
   mediaFromView,
 } from '@nelyx/core/framework/widgets/app-data';
 import { allInsets } from '@nelyx/core/ui/geometry';
+import { Overlay, OverlayEntry } from '@nelyx/core/framework/widgets/overlay';
 import type { Offset } from '@nelyx/core/ui/offset';
 import { Color } from '@nelyx/core/ui/color';
 import { SemanticsHitTestBehavior, SemanticsRole } from '@nelyx/core/ui/semantics';
@@ -528,6 +530,8 @@ export interface ShowMaterialDialogOptions extends Omit<
 > {
   readonly routeSettings?: RouteSettings | null;
   readonly useRootNavigator?: boolean;
+  /** @internal Metadata for an independently hosted dialog with its own locale scope. */
+  readonly windowLocale?: { readonly locale?: string; readonly direction?: 'ltr' | 'rtl' };
 }
 
 class WindowDialog<T> extends StatefulWidget {
@@ -549,6 +553,10 @@ class WindowDialogState<T> extends State<WindowDialog<T>> {
     transitionDuration: 0,
     reverseTransitionDuration: 0,
   });
+  private readonly entry = new OverlayEntry({
+    builder: () => new Navigator(this.navigator, this.initialRoute),
+  });
+  private readonly overlay = new Overlay({ initialEntries: [this.entry] });
 
   override initState(): void {
     const { builder, routeSettings, requestFocus, traversalEdgeBehavior, fullscreenDialog } =
@@ -596,7 +604,7 @@ class WindowDialogState<T> extends State<WindowDialog<T>> {
     return new MediaQuery(
       mediaFromView(context),
       new AppFocus(
-        new Focus(new TapRegionSurface(new Navigator(this.navigator, this.initialRoute)), {
+        new Focus(new TapRegionSurface(this.overlay), {
           includeSemantics: false,
           canRequestFocus: false,
           onKeyEvent: (_node, event) => {
@@ -615,6 +623,7 @@ class WindowDialogState<T> extends State<WindowDialog<T>> {
   }
 
   override dispose(): void {
+    this.entry.dispose();
     this.navigator.dispose();
     super.dispose();
   }
@@ -632,12 +641,16 @@ function openWindowDialog<T>(
   const appTheme = context.maybeDependOn(AppTheme)?.data;
   const scrollBehavior = ScrollConfiguration.of(context);
   const direction = Directionality.maybeOf(context) ?? 'ltr';
+  const windowTag = options.windowLocale?.locale ?? locale?.locale;
+  const windowDirection = options.windowLocale?.direction ?? direction;
   const fontId = context.services.defaultFont?.id;
   const background = Theme.of(context).colorScheme.surface;
   const defaultFont = fontId && context.services.assets.has(fontId) ? fontId : undefined;
   return host.open<T>({
     title,
     requestFocus: options.requestFocus ?? true,
+    ...(windowTag ? { locale: windowTag } : {}),
+    textDirection: windowDirection,
     createApplication: (dismiss) =>
       widgetApplication({
         id: 'material-dialog',
@@ -646,10 +659,16 @@ function openWindowDialog<T>(
         createRoot: () => {
           let child: Widget = new WindowDialog(options, dismiss);
           child = new ScrollConfiguration({ behavior: scrollBehavior, child: themes.wrap(child) });
-          child = new Directionality(direction, child);
+          child = localizedDirectionality(locale?.locale ?? null, direction, child);
           if (appTheme) child = new AppTheme(appTheme, child);
           if (locale) child = locale.wrap(child);
-          return new Title({ title, child });
+          const root = new Title({ title, child });
+          return windowTag
+            ? new Builder((context) => {
+                context.services.setViewLocale?.(windowTag, windowDirection);
+                return root;
+              })
+            : root;
         },
       }),
   });
@@ -685,7 +704,12 @@ export function showDialog<T = unknown>(
       'inactive-dialog-context',
       'showDialog requires an active BuildContext',
     );
-  const { useRootNavigator = true, routeSettings = null, ...options } = optionsOrBuilder;
+  const {
+    useRootNavigator = true,
+    routeSettings = null,
+    windowLocale: _windowLocale,
+    ...options
+  } = optionsOrBuilder;
   const themes = InheritedTheme.capture(context);
   const window = openWindowDialog<T>(context, optionsOrBuilder, themes);
   if (window) return window;

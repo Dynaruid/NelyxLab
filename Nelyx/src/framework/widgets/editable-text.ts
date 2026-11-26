@@ -74,7 +74,7 @@ import { DirectionalFocusAction, DirectionalFocusIntent } from './focus-traversa
 import { TextFieldTapRegion } from './tap-region.ts';
 import type { TapRegionCallback, TapRegionUpCallback } from './tap-region.ts';
 import type { PointerDownEvent, PointerUpEvent } from '../gestures/events.ts';
-import { Localizations, MediaQuery } from './app-data.ts';
+import { Directionality, Localizations, MediaQuery } from './app-data.ts';
 import { Locale } from '../../ui/locale.ts';
 import { DefaultSpellCheckService } from '../../services/spell-check.ts';
 import type { SuggestionSpan } from '../../services/spell-check.ts';
@@ -3681,6 +3681,14 @@ export class EditableTextState extends State<EditableText> implements TextSelect
       'Input formatters require an editing host that observes composition activity',
     );
   }
+  private updateEditingMetadata(): void {
+    this.binding?.updateMetadata?.({
+      locale: this.context.maybeDependOn(Localizations)?.locale ?? null,
+      textDirection:
+        this.widget.inputOptions?.textDirection ?? Directionality.maybeOf(this.context),
+      label: this.widget.label,
+    });
+  }
   private connect(): void {
     const { services } = this.context,
       controller = this.widget.controller;
@@ -3946,6 +3954,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         },
       );
       this.checkFormatterSupport();
+      this.updateEditingMetadata();
       if (!this.focus) {
         this.focus = this.widget.focusNode ?? new FocusNode();
         this.ownFocus = !this.widget.focusNode;
@@ -4049,6 +4058,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
         this.pendingConfiguration = true;
       else this.reconnect();
     }
+    this.updateEditingMetadata();
   }
   override deactivate(): void {
     this.fontMetricsDirty = true;
@@ -4205,6 +4215,7 @@ export class EditableTextState extends State<EditableText> implements TextSelect
     } else this.pendingConfiguration = false;
     try {
       this.checkFormatterSupport();
+      this.updateEditingMetadata();
     } catch (error) {
       try {
         this.disconnect();

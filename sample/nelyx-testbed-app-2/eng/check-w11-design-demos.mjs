@@ -453,15 +453,21 @@ try {
 
   const extendRail = button('Extend navigation rail');
   await wheelIntoView(extendRail);
-  const recent = page.getByRole('tab', { name: 'Recent', exact: true });
+  const recent = page.getByRole('tab', { name: /^Recent\s+탭 3개 중 1번째$/ });
   await wheelIntoView(recent, 160);
   const narrowRailWidth = (await recent.boundingBox()).width;
+  const recentLabel = await recent.getAttribute('aria-label');
   await clickPointer(extendRail);
-  await page.waitForFunction((width) => {
-    const destination = document.querySelector('[role=tab][aria-label="Recent"]');
-    return destination && destination.getBoundingClientRect().width > width + 50;
-  }, narrowRailWidth);
-  const favorites = page.getByRole('tab', { name: 'Favorites', exact: true });
+  await page.waitForFunction(
+    ({ label, width }) =>
+      [...document.querySelectorAll('[role=tab]')].some(
+        (tab) =>
+          tab.getAttribute('aria-label') === label &&
+          tab.getBoundingClientRect().width > width + 50,
+      ),
+    { label: recentLabel, width: narrowRailWidth },
+  );
+  const favorites = page.getByRole('tab', { name: /^Favorites\s+탭 3개 중 2번째$/ });
   await clickPointer(favorites);
   await favorites.and(page.locator('[aria-selected="true"]')).waitFor();
   await page.getByRole('note', { name: /Rail destination: 1$/ }).waitFor();
@@ -559,7 +565,7 @@ try {
   await clickPointer(searchBar);
   const searchView = page.getByRole('dialog', { name: 'Find a collection', exact: true });
   const searchField = searchView.getByRole('textbox', { name: 'Find a collection', exact: true });
-  await clickPointer(searchField);
+  await searchField.focus();
   await page.keyboard.type('a');
   await page.keyboard.press('Control+a');
   await page.keyboard.type('or');
@@ -590,8 +596,30 @@ try {
   await wheelIntoView(chooseTime);
   await clickPointer(chooseTime);
   const timeDial = page.getByRole('dialog', { name: '시간 선택', exact: true });
-  await clickPointer(timeDial.getByRole('button', { name: '10', exact: true }));
-  await clickPointer(timeDial.getByRole('button', { name: '20', exact: true }));
+  const timeSummary = (time) =>
+    timeDial.getByRole('list', { name: '오전 ' + time, exact: true });
+  await center(timeDial);
+  await timeSummary('9:30').waitFor();
+  const dialBounds = await timeDial.boundingBox();
+  const helpBounds = await timeDial.getByRole('note', { name: '시간 선택' }).boundingBox();
+  const cancelBounds = await timeDial.getByRole('button', { name: '취소' }).boundingBox();
+  assert(dialBounds && helpBounds && cancelBounds);
+  // The landscape dial sits to the right of the 216px header and above the action row.
+  const dialLeft = dialBounds.x + 24 + 216 + 64;
+  const dialRight = dialBounds.x + dialBounds.width - 24;
+  const dialTop = helpBounds.y;
+  const dialBottom = cancelBounds.y - 8;
+  const dialX = (dialLeft + dialRight) / 2;
+  const dialY = (dialTop + dialBottom) / 2;
+  const radius = Math.min(dialRight - dialLeft, dialBottom - dialTop, 256) / 2 - 28;
+  const tapDial = (slot) => {
+    const angle = (slot * Math.PI) / 6;
+    return page.mouse.click(dialX + radius * Math.sin(angle), dialY - radius * Math.cos(angle));
+  };
+  await tapDial(10);
+  await timeSummary('10:30').waitFor();
+  await tapDial(4);
+  await timeSummary('10:20').waitFor();
   await clickPointer(timeDial.getByRole('button', { name: '확인', exact: true }));
   await page.getByRole('note', { name: /Time: 10:20$/ }).waitFor();
 
@@ -609,11 +637,11 @@ try {
   await setTimeField('시간', '99');
   await clickPointer(timeInput.getByRole('button', { name: '확인', exact: true }));
   await timeInput
-    .getByRole('note', { name: 'Enter a valid hour and minute', exact: true })
+    .getByRole('list', { name: /Enter a valid hour and minute/ })
     .waitFor();
   await setTimeField('시간', '11');
   await setTimeField('분', '45');
-  await clickPointer(timeInput.getByRole('button', { name: '오후', exact: true }));
+  await clickPointer(timeInput.getByRole('radio', { name: '오후', exact: true }));
   await clickPointer(timeInput.getByRole('button', { name: '확인', exact: true }));
   await page.getByRole('note', { name: /Time: 23:45$/ }).waitFor();
 
@@ -629,6 +657,8 @@ try {
   await clickPointer(menuItem('Export PDF'));
   await page.getByRole('note', { name: /Menu: PDF$/ }).waitFor();
   await menu.first().waitFor({ state: 'detached' });
+  // The menu leaves the accessibility tree at the start of its 150ms closing animation.
+  await page.waitForTimeout(200);
   await clickPointer(documentActions);
   await menuItem('Rename document').waitFor();
   await page.keyboard.press('Escape');

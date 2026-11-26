@@ -303,7 +303,9 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
       });
       messages.attach();
       if (services.devices)
-        services.devices.scope.own(bindDeviceServices(messages.binaryMessenger, services.devices.services));
+        services.devices.scope.own(
+          bindDeviceServices(messages.binaryMessenger, services.devices.services),
+        );
     }
     if (messages)
       platformViewRegistration = PlatformDispatcher.forMessenger(
@@ -413,6 +415,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
         clock: { now: () => performance.now() },
         editing: services.editing,
         semantics: services.semantics,
+        ...(services.setViewLocale ? { setViewLocale: services.setViewLocale } : {}),
         ...(services.dialogWindows ? { dialogWindows: services.dialogWindows } : {}),
         ...(services.inputGeometry ? { inputGeometry: services.inputGeometry } : {}),
         ...(services.sceneComposition ? { sceneComposition: services.sceneComposition } : {}),

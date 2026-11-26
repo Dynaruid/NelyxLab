@@ -29,6 +29,11 @@ export interface EditingInputState {
   readonly focusable: boolean;
   readonly label: string;
 }
+export interface EditingMetadata {
+  readonly locale: string | null;
+  readonly textDirection: 'ltr' | 'rtl' | null;
+  readonly label: string;
+}
 export type {
   EditingConfiguration,
   EditingConfigurationOptions,
@@ -93,6 +98,8 @@ export interface EditingBinding extends Disposable {
   blur(): void;
   readGeometry?(): EditingGeometry;
   revealCaret?(): void;
+  /** Changes the host editor's language and accessible name in the existing session. */
+  updateMetadata?(metadata: EditingMetadata): void;
   /** Core -> OS; null withdraws unavailable coordinates without acknowledging editing content. */
   updateGeometry?(geometry: TextInputGeometry | null): void;
   /** The host may read committed Core geometry on demand, including when its editor gains focus. */

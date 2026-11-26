@@ -97,6 +97,8 @@ export interface TextFieldOptions extends WidgetOptions {
   readonly onTapOutside?: EditableTextOptions['onTapOutside'];
   readonly onTapUpOutside?: EditableTextOptions['onTapUpOutside'];
   readonly decoration?: InputDecoration | null;
+  /** Accessible name when the visible label is supplied separately. */
+  readonly semanticsLabel?: string;
   readonly style?: TextStyle | null;
   readonly textAlign?: TextAlign;
   readonly textAlignVertical?: TextAlignVertical | null;
@@ -477,7 +479,7 @@ class TextFieldState extends RestorationMixin<TextField> {
       : new EditableText(
           o.id,
           this.controller,
-          decoration?.labelText ?? decoration?.hintText ?? '',
+          o.semanticsLabel ?? decoration?.labelText ?? decoration?.hintText ?? '',
           this.focus,
           0,
           this.editorKey,

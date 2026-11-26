@@ -6,6 +6,7 @@ import type {
   EditingBinding,
   SemanticsHost,
   EditingConfiguration,
+  EditingMetadata,
 } from '@nelyx/core/hosting/interaction';
 import type { SemanticsInputObserver } from '@nelyx/core/hosting/interaction';
 import type { SemanticsAction } from '@nelyx/core/ui/types';
@@ -24,6 +25,7 @@ interface Editor {
   element: HTMLElement;
   configuration?: EditingConfiguration;
   binding?: EditingBinding;
+  metadata?: EditingMetadata;
   value?: TextEditingValue;
   changed?: (value: TextEditingValue) => void;
   composing: boolean;
@@ -59,6 +61,8 @@ function sameContent(previous: SemanticsNode, node: SemanticsNode): boolean {
     previous === node ||
     (previous.role === node.role &&
       previous.name === node.name &&
+      previous.locale === node.locale &&
+      previous.textDirection === node.textDirection &&
       previous.tooltip === node.tooltip &&
       previous.semanticsIdentifier === node.semanticsIdentifier &&
       previous.sourceRole === node.sourceRole &&
@@ -81,6 +85,18 @@ function sameContent(previous: SemanticsNode, node: SemanticsNode): boolean {
         (attributes?.length === oldAttributes?.length &&
           attributes?.every((attribute, index) => attribute === oldAttributes?.[index]) === true)))
   );
+}
+function applyLanguage(
+  element: HTMLElement,
+  locale: string | null | undefined,
+  direction: 'ltr' | 'rtl' | null | undefined,
+): void {
+  if (locale) {
+    if (element.lang !== locale) element.lang = locale;
+  } else element.removeAttribute('lang');
+  if (direction) {
+    if (element.dir !== direction) element.dir = direction;
+  } else element.removeAttribute('dir');
 }
 const inputCarrierStyle = {
   pointerEvents: 'none',
@@ -309,6 +325,20 @@ export function createDomInteraction(
     }
     return editor;
   }
+  function applyEditingMetadata(editor: Editor, metadata: EditingMetadata): void {
+    editor.metadata = metadata;
+    const element = editor.element;
+    const node = currentNode(element);
+    applyLanguage(
+      element,
+      node?.locale ?? metadata.locale,
+      node?.textDirection ?? metadata.textDirection,
+    );
+    if (!node) {
+      if (metadata.label) element.setAttribute('aria-label', metadata.label);
+      else element.removeAttribute('aria-label');
+    }
+  }
   const editing: EditingHost = {
     focusedGeometryOnly: true,
     capabilities: {
@@ -373,12 +403,16 @@ export function createDomInteraction(
             replaceComposing: (value) => port.replaceComposing!(value),
             updateGeometry: (geometry) => port.updateGeometry!(geometry),
             updateGeometryFrom: (read) => port.updateGeometryFrom!(read),
+            updateMetadata(metadata) {
+              if (editor.binding === binding) applyEditingMetadata(editor, metadata);
+            },
             focus: () => port.focus(),
             blur: () => port.blur(),
             dispose() {
               if (editor.binding !== binding) return;
               port.dispose();
               delete editor.binding;
+              delete editor.metadata;
               delete editor.value;
               editor.composing = false;
             },
@@ -739,6 +773,9 @@ export function createDomInteraction(
           current();
           element.blur();
         },
+        updateMetadata(metadata) {
+          if (alive) applyEditingMetadata(editor, metadata);
+        },
         dispose() {
           if (!alive) return;
           alive = false;
@@ -749,6 +786,7 @@ export function createDomInteraction(
           nativeSelectionObservers.delete(element);
           nativeContextMenuTargets.delete(element);
           delete editor.binding;
+          delete editor.metadata;
           delete editor.value;
           delete editor.changed;
           editor.composing = false;
@@ -829,6 +867,12 @@ export function createDomInteraction(
               passiveDomRoles[node.role] ??
               'group'),
       );
+    const metadata = node.role === 'text-field' ? fields.get(node.id)?.metadata : undefined;
+    applyLanguage(
+      element,
+      node.locale ?? metadata?.locale,
+      node.textDirection ?? metadata?.textDirection,
+    );
     label(node, element);
     if (nativeEditor || element instanceof HTMLButtonElement) element.disabled = !node.enabled;
     if (editContext || nativeEditor) {

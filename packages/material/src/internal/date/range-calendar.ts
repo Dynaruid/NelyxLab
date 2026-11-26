@@ -138,10 +138,39 @@ class RangeCalendarState extends State<RangeCalendar> {
         context.owner.postFrame(() => {
           if (this.mounted && this.scroll.hasClients) this.scroll.jumpTo(0);
         });
-    } else if (current.localization !== old.options.localization) {
-      this.monthOffsets.clear();
-      this.monthOffsets.set(this.initialMonth, 0);
+    } else if (
+      current.localization.firstDayOfWeekIndex !== old.options.localization.firstDayOfWeekIndex
+    ) {
+      this.updateMonthOffsets(old.options);
     }
+  }
+
+  private updateMonthOffsets(old: RangeCalendarOptions): void {
+    const position = this.scroll.hasClients ? this.scroll.position : null;
+    let anchor: { month: number; within: number } | undefined;
+    if (position?.hasContentDimensions) {
+      let first = 0;
+      let last = old.calendar.monthDelta(old.first, old.last);
+      while (first < last) {
+        const midpoint = Math.ceil((first + last) / 2);
+        if (this.offsetForMonth(midpoint, old) <= position.pixels) first = midpoint;
+        else last = midpoint - 1;
+      }
+      anchor = { month: first, within: position.pixels - this.offsetForMonth(first, old) };
+    }
+    this.monthOffsets.clear();
+    this.monthOffsets.set(this.initialMonth, 0);
+    const context = this.context;
+    if (!anchor || !(context instanceof Element)) return;
+    const start = this.offsetForMonth(anchor.month);
+    const end = this.offsetForMonth(anchor.month + 1);
+    const offset = start + Math.max(0, Math.min(anchor.within, end - start - 1));
+    context.owner.postFrame(() => {
+      if (!this.mounted || !this.scroll.hasClients || this.scroll.position !== position) return;
+      this.scroll.jumpTo(
+        Math.max(position.minScrollExtent, Math.min(position.maxScrollExtent, offset)),
+      );
+    });
   }
 
   private resetCalendar(): void {
@@ -170,8 +199,8 @@ class RangeCalendarState extends State<RangeCalendar> {
       });
   };
 
-  private offsetForMonth(index: number): number {
-    const { calendar, first, localization } = this.widget.options;
+  private offsetForMonth(index: number, options = this.widget.options): number {
+    const { calendar, first, localization } = options;
     let nearest = this.initialMonth;
     for (const known of this.monthOffsets.keys()) {
       if (Math.abs(known - index) < Math.abs(nearest - index)) nearest = known;
@@ -370,6 +399,9 @@ class RangeCalendarState extends State<RangeCalendar> {
             new CustomScrollView({
               controller: this.scroll,
               center: this.center,
+              // Each month owns a paragraph per day. Keep the surrounding route's
+              // live paragraphs available while the dialog is on screen.
+              cacheExtent: 0,
               slivers: [
                 SliverList.builder({
                   itemCount: this.initialMonth,

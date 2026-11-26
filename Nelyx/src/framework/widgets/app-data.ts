@@ -13,6 +13,7 @@ import { EdgeInsets } from '../painting/edge-insets.ts';
 import { invariant } from '../../foundation/errors.ts';
 import type { Rect } from '../../ui/rect.ts';
 import type { Locale } from '../../ui/locale.ts';
+import { canonicalLocaleTag } from './app-locales.ts';
 const defaultGestureSettings = new DeviceGestureSettings();
 const mediaAspects = {
   safeArea: Symbol('MediaQuery.safeArea'),
@@ -607,16 +608,38 @@ export abstract class LocalizationsDelegate<T extends object = object> {
 }
 
 const emptyResources = new Map<LocalizationResource, object>();
+export type LocalizationMessages = Readonly<Record<string, Readonly<Record<string, string>>>>;
+
+function localizationMessage(
+  messages: LocalizationMessages,
+  tag: string,
+  original: string,
+  key: string,
+): string | undefined {
+  const direct = messages[original]?.[key] ?? messages[tag]?.[key];
+  if (direct !== undefined) return direct;
+  for (const candidate of Object.keys(messages)) {
+    if (!/^[a-z]{2,8}(?:[-_]|$)/i.test(candidate)) continue;
+    if (canonicalLocaleTag(candidate) === tag && messages[candidate]?.[key] !== undefined)
+      return messages[candidate]![key];
+  }
+  return undefined;
+}
 
 export class Localizations extends InheritedWidget {
+  readonly locale: string;
+  readonly fallback: string;
+
   constructor(
-    readonly locale: string,
-    readonly messages: Readonly<Record<string, Readonly<Record<string, string>>>>,
-    readonly fallback: string,
+    private readonly messageLocale: string,
+    readonly messages: LocalizationMessages,
+    private readonly fallbackMessageLocale: string,
     child: Widget,
     private readonly resources: ReadonlyMap<LocalizationResource, object> = emptyResources,
   ) {
     super(child);
+    this.locale = canonicalLocaleTag(messageLocale);
+    this.fallback = canonicalLocaleTag(fallbackMessageLocale);
   }
   static of(context: BuildContext): Localizations;
   static of<T extends object>(context: BuildContext, type: LocalizationResource<T>): T | null;
@@ -631,21 +654,30 @@ export class Localizations extends InheritedWidget {
     return (this.resources.get(type) as T | undefined) ?? null;
   }
   wrap(child: Widget): Localizations {
-    return new Localizations(this.locale, this.messages, this.fallback, child, this.resources);
+    return new Localizations(
+      this.messageLocale,
+      this.messages,
+      this.fallbackMessageLocale,
+      child,
+      this.resources,
+    );
   }
   text(key: string): string {
+    const language = this.locale.split('-')[0]!;
     return (
-      this.messages[this.locale]?.[key] ??
-      this.messages[this.locale.split('-')[0]!]?.[key] ??
-      this.messages[this.fallback]?.[key] ??
+      localizationMessage(this.messages, this.locale, this.messageLocale, key) ??
+      localizationMessage(this.messages, language, language, key) ??
+      localizationMessage(this.messages, this.fallback, this.fallbackMessageLocale, key) ??
       key
     );
   }
   updateShouldNotify(old: this): boolean {
     return (
       old.locale !== this.locale ||
+      old.messageLocale !== this.messageLocale ||
       old.messages !== this.messages ||
       old.fallback !== this.fallback ||
+      old.fallbackMessageLocale !== this.fallbackMessageLocale ||
       old.resources !== this.resources
     );
   }

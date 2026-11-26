@@ -9,7 +9,7 @@ export interface WebSurfaceProps {
   readonly definition: ApplicationDefinition;
   readonly options: Omit<
     WebApplicationOptions,
-    'canvas' | 'input' | 'button' | 'replaceCanvas' | 'signal'
+    'canvas' | 'input' | 'button' | 'replaceCanvas' | 'signal' | 'localeBoundary'
   >;
   readonly style?: CSSProperties;
   readonly onReady?: (application: WebApplication) => void;
@@ -39,6 +39,7 @@ export function ApplicationSurface(properties: WebSurfaceProps) {
       application = await openApplication(properties.definition, {
         ...properties.options,
         canvas: target,
+        localeBoundary: input.current!.parentElement!,
         signal: controller.signal,
         replaceCanvas(previous) {
           if (!alive || previous !== target) throw new Error('Web surface is closing');

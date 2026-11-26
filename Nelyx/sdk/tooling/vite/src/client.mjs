@@ -121,6 +121,7 @@ function start(loadComponent, prepareGraphics) {
       throw new Error('Unknown Web render mode');
     const options = {
       backend,
+      ownsDocument: true,
       manifest: defineAssetManifest(frontend.assets),
       assetsRoot: root,
       canvasKitRoot: runtime,

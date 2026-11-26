@@ -6,7 +6,7 @@ import { checkedInteger } from '@nelyx/core/internal/ui/value-math';
 import { invariant } from '@nelyx/core/foundation/errors';
 import { FoundationBuildMode } from '@nelyx/core/foundation/constants';
 import { dartMethodTearOff } from '@nelyx/core/internal/foundation/dart-method-tear-off';
-import { State } from '@nelyx/core/framework/widgets/framework';
+import { Element, State } from '@nelyx/core/framework/widgets/framework';
 import { Widget } from '@nelyx/core/framework/widgets/framework';
 import { Key } from '@nelyx/core/foundation/key';
 import { ScrollbarStatefulHost } from '@nelyx/core/internal/framework/widgets/scrollbar-raw-source-adapter';
@@ -205,6 +205,13 @@ export class _InputDatePickerFormFieldState extends State<InputDatePickerFormFie
   _dart_08de5281b9ede809_selectedDate: DateTime | null;
   _dart_08de5281b9ede809_inputText: string | null;
   _dart_08de5281b9ede809_autoSelected: boolean;
+  private readonly ownFocusNode = new FocusNode();
+  private localization!: MaterialLocalizations;
+  private inputLocalization: MaterialLocalizations | undefined;
+  private formatRefreshQueued = false;
+  private get dateFocus(): FocusNode {
+    return this.widget.focusNode ?? this.ownFocusNode;
+  }
   constructor() {
     const _initialField0 = new SourceDateEditingController({});
     const _initialField1 = false;
@@ -218,19 +225,34 @@ export class _InputDatePickerFormFieldState extends State<InputDatePickerFormFie
   override initState(): void {
     void super.initState();
     void (this._dart_08de5281b9ede809_selectedDate = this.widget.initialDate);
+    this.dateFocus.addListener(this.queueFormatRefresh);
+    this._dart_08de5281b9ede809_controller.core.addListener(this.queueFormatRefresh);
   }
   override dispose(): void {
+    this.dateFocus.removeListener(this.queueFormatRefresh);
+    this.ownFocusNode.dispose();
     void this._dart_08de5281b9ede809_controller.dispose();
     void super.dispose();
   }
   override didChangeDependencies(): void {
     void super.didChangeDependencies();
-    void this._dart_08de5281b9ede809_updateValueForSelectedDate();
+    this.localization = MaterialLocalizations.of(this.context);
+    if (!this.inputLocalization) {
+      this.inputLocalization = this.localization;
+      this._dart_08de5281b9ede809_updateValueForSelectedDate();
+    } else {
+      this.refreshInputFormat();
+    }
   }
   override didUpdateWidget(oldWidget: InputDatePickerFormField): void {
     if (!(oldWidget instanceof InputDatePickerFormField))
       throw new TypeError('Invalid covariant argument: oldWidget');
     void super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode !== this.widget.focusNode) {
+      (oldWidget.focusNode ?? this.ownFocusNode).removeListener(this.queueFormatRefresh);
+      this.dateFocus.addListener(this.queueFormatRefresh);
+      this.queueFormatRefresh();
+    }
     if (
       !(() => {
         const _dartTemporary7 = this.widget.initialDate;
@@ -245,6 +267,7 @@ export class _InputDatePickerFormFieldState extends State<InputDatePickerFormFie
         (_timeStamp: number): void => {
           void this.setState((): void => {
             void (this._dart_08de5281b9ede809_selectedDate = this.widget.initialDate);
+            this.inputLocalization = this.localization;
             void this._dart_08de5281b9ede809_updateValueForSelectedDate();
           });
         },
@@ -252,9 +275,39 @@ export class _InputDatePickerFormFieldState extends State<InputDatePickerFormFie
       );
     }
   }
+  private readonly queueFormatRefresh = (): void => {
+    if (this.dateFocus.hasFocus) return;
+    this.scheduleFormatRefresh(false);
+  };
+  private scheduleFormatRefresh(submitted: boolean): void {
+    if (
+      this.formatRefreshQueued || !this.inputLocalization || this.inputLocalization === this.localization ||
+      !(this.context instanceof Element) || !this.context.active
+    ) return;
+    this.formatRefreshQueued = true;
+    this.context.owner.postFrame(() => {
+      this.formatRefreshQueued = false;
+      if (this.mounted && (submitted || !this.dateFocus.hasFocus))
+        this.setState(() => this.refreshInputFormat(submitted));
+    });
+  }
+  private refreshInputFormat(submitted = false): void {
+    const controller = this._dart_08de5281b9ede809_controller.core;
+    if (this.inputLocalization === this.localization || controller.isComposing || (!submitted && this.dateFocus.hasFocus))
+      return;
+    if (controller.text !== this._dart_08de5281b9ede809_inputText) {
+      const parsed = this._dart_08de5281b9ede809_parseDate(controller.text);
+      if (!this._dart_08de5281b9ede809_isValidAcceptableDate(parsed)) {
+        if (!this.widget.acceptEmptyDate || controller.text !== '') return;
+      }
+      this._dart_08de5281b9ede809_selectedDate = parsed;
+    }
+    this.inputLocalization = this.localization;
+    this._dart_08de5281b9ede809_updateValueForSelectedDate();
+  }
   _dart_08de5281b9ede809_updateValueForSelectedDate(): void {
     if (this._dart_08de5281b9ede809_selectedDate !== null) {
-      const localizations: MaterialLocalizations = MaterialLocalizations.of(this.context);
+      const localizations = this.inputLocalization ?? this.localization;
       void (this._dart_08de5281b9ede809_inputText = this.widget.calendarDelegate.formatCompactDate(
         (() => {
           const _dartTemporary9 = this._dart_08de5281b9ede809_selectedDate;
@@ -302,7 +355,7 @@ export class _InputDatePickerFormFieldState extends State<InputDatePickerFormFie
     }
   }
   _dart_08de5281b9ede809_parseDate(text: string | null): DateTime | null {
-    const localizations: MaterialLocalizations = MaterialLocalizations.of(this.context);
+    const localizations = this.inputLocalization ?? this.localization;
     return this.widget.calendarDelegate.parseCompactDate(text, localizations);
   }
   _dart_08de5281b9ede809_isValidAcceptableDate(date: DateTime | null): boolean {
@@ -338,7 +391,7 @@ export class _InputDatePickerFormFieldState extends State<InputDatePickerFormFie
   _dart_08de5281b9ede809_updateDate(
     text: string | null,
     callback: ((_argument0: DateTime) => void) | null,
-  ): void {
+  ): boolean {
     const date: DateTime | null = this._dart_08de5281b9ede809_parseDate(text);
     if (this._dart_08de5281b9ede809_isValidAcceptableDate(date)) {
       void (this._dart_08de5281b9ede809_selectedDate = date);
@@ -355,13 +408,17 @@ export class _InputDatePickerFormFieldState extends State<InputDatePickerFormFie
           })(),
         );
       })();
+      return true;
     }
+    return false;
   }
   _dart_08de5281b9ede809_handleSaved(text: string | null): void {
-    void this._dart_08de5281b9ede809_updateDate(text, this.widget.onDateSaved);
+    if (this._dart_08de5281b9ede809_updateDate(text, this.widget.onDateSaved) && this.mounted)
+      this.scheduleFormatRefresh(true);
   }
   _dart_08de5281b9ede809_handleSubmitted(text: string): void {
-    void this._dart_08de5281b9ede809_updateDate(text, this.widget.onDateSubmitted);
+    if (this._dart_08de5281b9ede809_updateDate(text, this.widget.onDateSubmitted) && this.mounted)
+      this.scheduleFormatRefresh(true);
   }
   override build(context: BuildContext): Widget {
     const theme: SourceDateThemeData = SourceDateTheme.of(context);
@@ -383,7 +440,8 @@ export class _InputDatePickerFormFieldState extends State<InputDatePickerFormFie
       child: dateTextFormField({
         decoration: new InputDecoration({
           hintText:
-            this.widget.fieldHintText ?? this.widget.calendarDelegate.dateHelpText(localizations),
+            this.widget.fieldHintText ??
+            this.widget.calendarDelegate.dateHelpText(this.inputLocalization ?? localizations),
           labelText: this.widget.fieldLabelText ?? localizations.dateInputLabel,
         }).applyDefaults(
           inputTheme
@@ -396,7 +454,7 @@ export class _InputDatePickerFormFieldState extends State<InputDatePickerFormFie
         onFieldSubmitted: dartMethodTearOff(this, this._dart_08de5281b9ede809_handleSubmitted),
         autofocus: this.widget.autofocus,
         controller: this._dart_08de5281b9ede809_controller,
-        focusNode: this.widget.focusNode,
+        focusNode: this.dateFocus,
       }),
     });
   }

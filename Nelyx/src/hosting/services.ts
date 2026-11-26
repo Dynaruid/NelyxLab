@@ -35,6 +35,7 @@ export interface TextServiceFactory<TText extends TextLayoutService = TextLayout
   create(resources: ResourceRegistry): TText;
 }
 export interface BackendServices<TText extends TextLayoutService = TextLayoutService> {
+  readonly setViewLocale?: (locale: string, textDirection: 'ltr' | 'rtl') => void;
   readonly dialogWindows?: DialogWindowHost;
   readonly sceneComposition?: import('./scene-composition.ts').SceneCompositionService;
   readonly semanticsGeometry?: import('./semantics-geometry.ts').SemanticsGeometryService;

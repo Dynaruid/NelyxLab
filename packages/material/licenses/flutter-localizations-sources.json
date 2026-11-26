@@ -1,0 +1,729 @@
+{
+  "schema": "nelyx.flutter-localization-sources/v1",
+  "repository": "https://github.com/flutter/flutter",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "license": "BSD-3-Clause",
+  "notice": "Flutter-LICENSE.md",
+  "family": "material",
+  "inputs": [
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_af.arb",
+      "gitBlob": "56221110452f837e376f175432eef0354e070758",
+      "sha256": "5ac5a894dfae9a48cd98c1da0c9a406462c66cbdb63f6b1f820f190d7d02b608"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_am.arb",
+      "gitBlob": "615b8320a42908c33ed8e6d03a696653babdee72",
+      "sha256": "2048942dadd9481c1de3afe80b08226d0f1ef92920e250d2d30abe5b0e651f2c"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ar.arb",
+      "gitBlob": "b854f82724ce386695976646438ca80284afebad",
+      "sha256": "d2a819fc85166df7977230a3155cf754f446b6a40cebd6cf364b36b4d24551d6"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_as.arb",
+      "gitBlob": "9e98139a1d4456dd95dac74917ba344d6b755777",
+      "sha256": "990e3c6e94006f735dc7b37ab31691a8d9ef229e5a0f6f069e449fbb2e2e231e"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_az.arb",
+      "gitBlob": "5ca87107bd071ce0d00f7d04c33f1d1582f346e1",
+      "sha256": "518e414ce83777519e0c3707be05168bb6a61eaab1d6081261c02f41ef1ef5c8"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_be.arb",
+      "gitBlob": "240ee6e3ed1e8af835b609ae781fc1dc5cbb1c0b",
+      "sha256": "86961db297eaf3b0acb8e8c2d32b545e04a485a7c91e9e9ea01f8c357de61a29"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_bg.arb",
+      "gitBlob": "c528530ee6a74a8b36b41c84b654eee918bb1033",
+      "sha256": "18abdb5431e93bbff740a613306c16342842e086f25a5cc86f233caa796149a3"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_bn.arb",
+      "gitBlob": "cb8c9ad213f53dc93079e29a5da562f97f95b65e",
+      "sha256": "31d85b959c09f44156363a2d56978cdfbeb68530ed82cca9206cb1559dcb913e"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_bo.arb",
+      "gitBlob": "f37e7915f255bf0fb6f4b9578c60581299322f8e",
+      "sha256": "1d545c56b6fa2eb8a7ad65773ea0f7d327d3629d71ae51dee5de8f2b18b62b35"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_bs.arb",
+      "gitBlob": "5e693232070c0b66e2922b29975ab7da16cd1680",
+      "sha256": "733573ff8956b1556447667e656962db95cd9a0724d2a277e4280b3527ecb02d"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ca.arb",
+      "gitBlob": "3c28857ea1b94786d54f7b8cb600dcf4785941f9",
+      "sha256": "1235160a41542dff992bde735b3f85d08580265cb2476e2848192bea68f2c0ba"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_cs.arb",
+      "gitBlob": "fbb0a653bc88b52de28a3e9cad907ec73ace37a3",
+      "sha256": "bcd7ebb95910ec39e654f07784835d15926445faf49bc385bfe21272cc0ea042"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_cy.arb",
+      "gitBlob": "62a3f6514419c59d8673819f08d4d1f54d02cd06",
+      "sha256": "4831d49fecbd94da88bbe50fbcac42229fba6866f445868894c5510184b040cc"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_da.arb",
+      "gitBlob": "1c70dabf81cc3de81bc31e3d1e2353b256f0389a",
+      "sha256": "ea18c0dbe0b163fc89bf7ec42c853558e4156edf41cf39996092150267eb9157"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_de.arb",
+      "gitBlob": "2f013a8b7c73b07565df48017c3a9151084d03c8",
+      "sha256": "3eebe6fb1c331130453f1aaaad9b8b8566b8d0342031a78f17efa9cfe7a85161"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_de_CH.arb",
+      "gitBlob": "451ed4c7cc9da9aad708b6ce6c00ec4c5e102281",
+      "sha256": "15a61ac2a0f92e4ad3c37991f417c5147a394acad33f3b71b651242f02a48dea"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_el.arb",
+      "gitBlob": "b6000879257949c55a6b40ec0a422528888f2c9a",
+      "sha256": "1b6c03caeb2cf2b574d6f5e84ac75eb1ea5695c0e6569556c08a144b8cebf55e"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_en.arb",
+      "gitBlob": "ef2224f3e492d926082d546692a658bc4311031d",
+      "sha256": "64932fe11c62ffd379c3833ab4be7b34eb7705667b591101771ca68c28b904d8"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_en_AU.arb",
+      "gitBlob": "88f9649d58aff034fa43a4386279765f28bb6dce",
+      "sha256": "773c02fdeff4153b67a581e85dd7c03b7bd41facce2f2362ed8f78fe0f874d5a"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_en_CA.arb",
+      "gitBlob": "2f3dfb9fb821b3c240c8eff248f9f3b8e5620c78",
+      "sha256": "139ce7ed2fefe7640e8a246586e4893d20a38d4c91830d09ddfd3daca31a268d"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_en_GB.arb",
+      "gitBlob": "6ba0d3324ab54f668f6c975da703314f982ec919",
+      "sha256": "71cc93f0f2506e5d02e9d1d6ba2e0a13a6570857548c75deb97aa0e8676ffd48"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_en_IE.arb",
+      "gitBlob": "6ba0d3324ab54f668f6c975da703314f982ec919",
+      "sha256": "71cc93f0f2506e5d02e9d1d6ba2e0a13a6570857548c75deb97aa0e8676ffd48"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_en_IN.arb",
+      "gitBlob": "88f9649d58aff034fa43a4386279765f28bb6dce",
+      "sha256": "773c02fdeff4153b67a581e85dd7c03b7bd41facce2f2362ed8f78fe0f874d5a"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_en_NZ.arb",
+      "gitBlob": "8c226763ce500641394ff4807abf18fee7b2ad3b",
+      "sha256": "1bc7d553fd0fa6f3a53d579f777b30c6c7f771c9f321ca966a5b33624c92027f"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_en_SG.arb",
+      "gitBlob": "88f9649d58aff034fa43a4386279765f28bb6dce",
+      "sha256": "773c02fdeff4153b67a581e85dd7c03b7bd41facce2f2362ed8f78fe0f874d5a"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_en_ZA.arb",
+      "gitBlob": "6ba0d3324ab54f668f6c975da703314f982ec919",
+      "sha256": "71cc93f0f2506e5d02e9d1d6ba2e0a13a6570857548c75deb97aa0e8676ffd48"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es.arb",
+      "gitBlob": "7d9c9bc58ce329c76373524b1f7019c441c078b9",
+      "sha256": "41a9a363ab6601d84ee793b867593744d84c045c13b25b9cafb95ae0dc55f799"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_419.arb",
+      "gitBlob": "19abb0d2a3e4bda28fd843e6e959d18b1b77e332",
+      "sha256": "898b514dc796845e2d2a34b827783dff8cd8fe120de460627f90cd9893050deb"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_AR.arb",
+      "gitBlob": "19abb0d2a3e4bda28fd843e6e959d18b1b77e332",
+      "sha256": "898b514dc796845e2d2a34b827783dff8cd8fe120de460627f90cd9893050deb"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_BO.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_CL.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_CO.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_CR.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_DO.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_EC.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_GT.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_HN.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_MX.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_NI.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_PA.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_PE.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_PR.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_PY.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_SV.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_US.arb",
+      "gitBlob": "2d4e6cdbcc97816c10c479437984e75ca0724529",
+      "sha256": "27987d77bb53dd433ac76d706d3084996058396c6e8d895431d458a602685e5e"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_UY.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_es_VE.arb",
+      "gitBlob": "0c6297d0f7ca589e6884a3c5d10931517aa09fd4",
+      "sha256": "5ff6a648faeef248be382cb32852241e680acb4d4ee3a593514da828c9e25029"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_et.arb",
+      "gitBlob": "3a8db2c67973f27e596cd7cc55bc0630baa95444",
+      "sha256": "2a11edaa29d2b2c65ab6e8a39980fd733c394d03e9b9d460214e8a4f0fa621f4"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_eu.arb",
+      "gitBlob": "cdb0674c1893b072b9abb1a284cea984739681a7",
+      "sha256": "b6339c0045496e3ca80178ab45e393d300b04953bdf2166fdc815eafe0bb0fce"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_fa.arb",
+      "gitBlob": "23cf0a90560145d78aeb992afe564459a8f635d6",
+      "sha256": "9c63e6ccef4d685be15a4ba8cff019a6cd8f967109a5a140462c7be59e895ced"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_fi.arb",
+      "gitBlob": "6cfcfa23243e7e77be3d85dfd2bf9d837ace4339",
+      "sha256": "8a57ad6503b99cc77eed0f727abb206b355e4629f56531f24ba16f46db348603"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_fil.arb",
+      "gitBlob": "aae5c41f7dc9825afa8b4d2f7d8a4f5cf3a58055",
+      "sha256": "e8119aa3785f03d1dc788c3e9ecd545e9d0113525c970a166eaca1764697f71c"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_fr.arb",
+      "gitBlob": "e7b6c9e4ff6204d4572545418b5b25f51e9b4106",
+      "sha256": "c01851b1b243bf4074e84c605d677a7ac13d8dfc68462644bd4c1a00d1d89f33"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_fr_CA.arb",
+      "gitBlob": "c4ad601ae54f505a91fa7dff8142b52ff014cb27",
+      "sha256": "d447df3d144da8cabca400e8dad6705b60e185e63580437fdff2b0d1de904fb7"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ga.arb",
+      "gitBlob": "bc480e904561da11738c59c33d4021ab55c4bfe2",
+      "sha256": "0c687422379f824d4d407c1ac2fcf02a6fe54152e657a9975ae1b276ffc1b454"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_gl.arb",
+      "gitBlob": "a4d99cb53cbe71119fee1ac1a0bc05c6aa2317de",
+      "sha256": "fce47cf51dc17e6ff39c114527524798bd828208fc0651a7cadf80febb6a958e"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_gsw.arb",
+      "gitBlob": "2b329d6e87d7c6511b36d41133de1a0999df0b7b",
+      "sha256": "e4f68c6004f2666da1c7357e9276aeebae62000ee78f8f69a717becceb70d307"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_gu.arb",
+      "gitBlob": "775494f7b71cf865ceab4aa738973993a3f2aacd",
+      "sha256": "2d5038d76e84d9a24aecd62bcc1d180ebdffb663ed1e575636dce6f50c0eb1f5"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_he.arb",
+      "gitBlob": "55e78010d63df02c375e3468ae56d9d0e079f7ff",
+      "sha256": "7865b423311ecad2b67017e920aee25a89f0f25b6b91b24d6341fa8a30c6b701"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_hi.arb",
+      "gitBlob": "02597114a11d85480e5354fa1427f55769ad24a6",
+      "sha256": "1c66335e117a2c839ed70f603404a370dfb1215fb7d9561d7a7c698a10787d50"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_hr.arb",
+      "gitBlob": "c2e4dbccc8cf4b13d280cfd2d4f1da50d483f027",
+      "sha256": "0d261223125395af1192876edcb9c8941bf007831e3c8a0b92c4c6bf5becefd0"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_hu.arb",
+      "gitBlob": "9d15f4f83cbd6d21f43e8858dbb48ab87b1bf02c",
+      "sha256": "439b447700d63d5a6595e9e6951ca9090e2c70abb50ca160bb52dec460ef70f6"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_hy.arb",
+      "gitBlob": "a6c131c3d37c3c9f4500a1e069a32b53b63b324a",
+      "sha256": "7836ed42d3a308dcdd7a601a3ffad45445f7f073c2fb10a8cd26bfc726878235"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_id.arb",
+      "gitBlob": "314a667872e0dca1a9b2361b5f23255a58a0951d",
+      "sha256": "35b69e1afc10e7ef2a2f576e8ad2f5859112f861eb9742be521c5411a03aad01"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_is.arb",
+      "gitBlob": "eb7efcfcf7789cddaef0f92e2223f46c99fad6f6",
+      "sha256": "41539e4699a2102f7732dbf236da168782b9803417bf3da4c2ea2832a57a4b65"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_it.arb",
+      "gitBlob": "7f45ffd89cbbcc72805fd2efe56be32d5741b6d4",
+      "sha256": "40c3a68022920307e9f0e7e09178b7309776de62fce3a80a2a9936dba3e410da"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ja.arb",
+      "gitBlob": "014fb84d217fdaabd4c7936929e325be9b68abf0",
+      "sha256": "92c880c2388d1a5e8bd58566364599f67fceb277f7f7ee811e4a6465856e0457"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ka.arb",
+      "gitBlob": "66baad49b58e3f97a6fe1ea4418e81dd9de52239",
+      "sha256": "4613fb29c1d93cbdf4894c76f75088a0ea3ef1910e9f3acc920c9c7911f6bfe4"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_kk.arb",
+      "gitBlob": "acc8ba2b745537e4283b082dcde80c938c6749a2",
+      "sha256": "95915b8da010ec326e7587f47a2ccb3b9a11d979e4741a952182c9fc07749fe7"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_km.arb",
+      "gitBlob": "e7f85403bbc84cbf71deb2c7957872b2f2a80c7f",
+      "sha256": "86c789bdfa731d3a2d5a235e58f3ed43e469e7c97edcc646962850f6fde29050"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_kn.arb",
+      "gitBlob": "c25a906815f726a1d53f1eaa8a2880471059cf4a",
+      "sha256": "cff646bebeb5ab9e992448f0fb21c2bf2e711b739d2354d16a7827012f54d050"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ko.arb",
+      "gitBlob": "f03e7221cb29ed921d3649c3b3d5d26b50d4fc54",
+      "sha256": "b10b8efab16b3959b6845aea3da08ebde6d5f9e10d4b38ee0dc5bfd3dbc87925"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ky.arb",
+      "gitBlob": "43b23ae25b35d7c51f48107f6dd7addb324e033e",
+      "sha256": "4c2773b2a2bdee7621ac17d193ccbb1bfb7f4904f75f618239b86576a5b999e2"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_lo.arb",
+      "gitBlob": "aa0f9ab3a01a0d859208a3b43c4f085a515ab8c5",
+      "sha256": "0e7d16b50ca92422204a04ef325d6e16d2dfac8126c4edd3744246ae5c269356"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_lt.arb",
+      "gitBlob": "d37f88c171ae7cc799307a8f3619876c468852df",
+      "sha256": "98855d1b174c7f1515b14cb218670808d9d41b2ce48e37d1a3453db9c2564fad"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_lv.arb",
+      "gitBlob": "f10bf5df334e68e6733efeca9f85ad13a99bc56c",
+      "sha256": "ecc948013aff4f88a2b896dcdaac2ccf383bdf021c1572374e98a0b155f87158"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_mk.arb",
+      "gitBlob": "1a9f109137638d2986721e1aa963e80c618a1a8d",
+      "sha256": "dcb993cdb5984466c220582eb3b448253f9c013351a2f580f67b3d6b9c0b938a"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ml.arb",
+      "gitBlob": "bd504d0d073d99544b7138eac5c7bd8187519afd",
+      "sha256": "018e5a5cf5a8c0c322b6b6f516fa4b9d5add9ddf68dfdc15223ecaea46458f8c"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_mn.arb",
+      "gitBlob": "8f2ad9ddd59b3163ceb9bef326a49ef8d262256e",
+      "sha256": "0e904dee0a9ef6b95a459f05f5cefb661e53923e081abdcebdc000dc634be082"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_mr.arb",
+      "gitBlob": "cb49567e4c69bd4073e7bbcc4d1d3ccd8c1b9375",
+      "sha256": "601b302e8300248bf3b03515befd95edf6d8b3a85be592a1f043e9e10d3e9200"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ms.arb",
+      "gitBlob": "24bbadeed9522b2797d5df503bf522dce1743de1",
+      "sha256": "c3f83b46e3fe1d6970358348036749d7c532ce8429ea811ececa98cb6fa6a366"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_my.arb",
+      "gitBlob": "5c36d180265a8f5b279b7aba1700f3a1a7d2a646",
+      "sha256": "fa9d7f5293c159ba4b2c72312fb0f9f3ab8480f3896a49c97847cae6d8643a4e"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_nb.arb",
+      "gitBlob": "223eadd742f75e085975d0f1cdb067c23cdb9047",
+      "sha256": "88d88802700927abc8b5c7e2f06b49ca7b1e47eb571b9eca64e0ad886a804c05"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ne.arb",
+      "gitBlob": "d7135c310f1251be1c7529e33b509fac0dea3626",
+      "sha256": "f6080ce07737170638a4ec9a7c002d29458caf53eb881afb13e515f7ead250fe"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_nl.arb",
+      "gitBlob": "3f175dbb297d6ca0dade9732adeba1e6575019bd",
+      "sha256": "2df7eb844efaf109b77a9583130edcce957828eb283fed3f81a7bd1d650ff929"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_no.arb",
+      "gitBlob": "223eadd742f75e085975d0f1cdb067c23cdb9047",
+      "sha256": "88d88802700927abc8b5c7e2f06b49ca7b1e47eb571b9eca64e0ad886a804c05"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_or.arb",
+      "gitBlob": "9576cac66b90cdf02d82b4ec239716b9a80aa8d1",
+      "sha256": "e947a3fbc0fe19793b2072b3878e75957ce1be41fd1ec5db44aa2285465a1cdc"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_pa.arb",
+      "gitBlob": "07e541694afc7af6559197db6cf7e02d516be384",
+      "sha256": "32639000cfc4a2dca4674fc37fa3e665149e1e838d556d07a2c92ddd89799489"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_pl.arb",
+      "gitBlob": "67a2546cf22782d55b02620b4def51a94af07162",
+      "sha256": "fd8d0059ddf50e911f1e3c69ff0d1662c22e2b68f1606d7dbb2dd9facb27173b"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ps.arb",
+      "gitBlob": "c3e2c0db833f746e328378be307c0a74be1f1b9e",
+      "sha256": "1bb9f3df977a7a8d21df67c9518f0597fbbf71cb8c45bb5ff465d57d72077269",
+      "placeholderCorrections": {
+        "scrimOnTapHint": [
+          "Close $modalRouteName",
+          "Close $modalRouteContentName"
+        ]
+      }
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_pt.arb",
+      "gitBlob": "221dc140aeba270ebf480e28838461e33560c42b",
+      "sha256": "7499a9ec9b757c25b13ffb38652332704a44cf5f06ef92c422b1de69fd418ee6"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_pt_PT.arb",
+      "gitBlob": "600a803a661606f85f4a17bff374f29e1fc8164b",
+      "sha256": "6a5cdb4bffa96cd1cbbecf7a99f68217e32e2b6cf46bd530838a9f787b5317e3"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ro.arb",
+      "gitBlob": "bd01dd698919b238f68e56954b5bc612f7a8c822",
+      "sha256": "7a7917ef5810ad18941841afc82980b0b6ed5eea2ca6ff430ed6cfb0801dd3a7"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ru.arb",
+      "gitBlob": "70e0c25b8b52073e3e8912582f61d05fd7466417",
+      "sha256": "6a0866555027bd393f0972428cabb54723008bed961d313fdea21dcd9eeb0327"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_si.arb",
+      "gitBlob": "becf83bd5060b0a5499f4ed7005d9e197eaeb26d",
+      "sha256": "81fbd7f08c161a076984c90a84023236aef55808211480688272355876ff1e50"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_sk.arb",
+      "gitBlob": "d29a17df07020604d30b4ae59510701d791fed22",
+      "sha256": "8dd1ee00095ec1830d0384abeb0078fe448579cd84e68607873f104f452fd2b9"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_sl.arb",
+      "gitBlob": "89c5eb25a84a37c3114a357ed5097c7e6b9eae85",
+      "sha256": "64e398473007f9e622b2c32a8c431369ec74a53594ce447cce4a9a7de14be5cd"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_sq.arb",
+      "gitBlob": "aff28e1f4433fe7d5741733f609e58699d5d897b",
+      "sha256": "94af789d4c21cddaf61449c2dbd1505b76fc6951d5e810ab2f12bc50f7740b39"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_sr.arb",
+      "gitBlob": "124a92b10e948f0860a2c9af6b212a8f5026a5db",
+      "sha256": "f4d83014e75cd48be01607cc07b231eac23a9619c62e96bc2fc437aadd16cf3e"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_sr_Latn.arb",
+      "gitBlob": "3b0eee9712f0e6511603946fd3d629c848fbdae9",
+      "sha256": "1b20f01e2092c42bb8b034129384b8f84d8c91e29f822161a7bc8987213661e1"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_sv.arb",
+      "gitBlob": "8e0b641e165fd87efe66943795576de8e3ff781b",
+      "sha256": "aeb77b0430fecd0e10cafeda98fce767058f8b763f12adb35973d1f9f4ab265f"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_sw.arb",
+      "gitBlob": "d82d2f53f97cb56fb022aad3b881c5ce15d2a64e",
+      "sha256": "999bd3d3064b73d1ec01721ee354038fdc32092f0711c2fff68c98db3019db3c"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ta.arb",
+      "gitBlob": "095eac896e913960d80e215b34bdd8338635c212",
+      "sha256": "b1228cfaead8a1853fc1b21e9435829e9fb76f7b931065227041920cfb463d96"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_te.arb",
+      "gitBlob": "58773c2302652b48dc74ffd7e1d6320e3d97f1f7",
+      "sha256": "b4d5d11653b1cf0d04e3ceba3b30e7c1a3e91051b880f6963e037cebeafd21c7"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_th.arb",
+      "gitBlob": "bb22b222ef7114291389a818336402e5c424a3dc",
+      "sha256": "951d95da7a2ff4167156b2e805ae75a910b127f18b32d5649af70cefd76b254c"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_tl.arb",
+      "gitBlob": "aae5c41f7dc9825afa8b4d2f7d8a4f5cf3a58055",
+      "sha256": "e8119aa3785f03d1dc788c3e9ecd545e9d0113525c970a166eaca1764697f71c"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_tr.arb",
+      "gitBlob": "d2686b4214e4cbb1d899687b5457c84e3573bd7d",
+      "sha256": "2ea43f4241ebd124956ddb9b739c38f81852c038684110a8512d899e8bec0740"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ug.arb",
+      "gitBlob": "01bf87b4639490e770f36cc4180e3a85b34a191b",
+      "sha256": "956abc232e15bd64c3bb07d7127849ccca2dd2da22f42970e4f70d81066e817f",
+      "placeholderCorrections": {
+        "dateRangeStartDateSemanticLabel": [
+          "باشلىنىش ۋاقتى fullDate$",
+          "باشلىنىش ۋاقتى $fullDate"
+        ],
+        "dateRangeEndDateSemanticLabel": [
+          "ئاخىرلىشىش ۋاقتى fullDate$",
+          "ئاخىرلىشىش ۋاقتى $fullDate"
+        ]
+      }
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_uk.arb",
+      "gitBlob": "f99cba44a1ff3db20cf4e9f4fd1bb264d533a846",
+      "sha256": "5ed7d2a77467e79177c6eba6e28f290e1dabf6835f0814fb83e07c224378bb3d"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_ur.arb",
+      "gitBlob": "ed23101fdc5f0c669804dd675ec47c832e49cba6",
+      "sha256": "6f9fd488102269f82ec86854ffa7317eddf59fbf7311af1012a8699c85883b9b"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_uz.arb",
+      "gitBlob": "58ced55e4657bc18c1912098b2bb16090e1c75ce",
+      "sha256": "8fcc3098daa8946e99749853304ad95a14cd05afc11d234531786b76b6e35b22"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_vi.arb",
+      "gitBlob": "e393407bc2d90632e42eff8416e46fb8dad936da",
+      "sha256": "dc3c90e51b4e7b1a1808dc69681ded6e692e7f365db2268654b244b731388d6d"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_zh.arb",
+      "gitBlob": "0390d5e9bca218f1712b357483186d1d95e98bd0",
+      "sha256": "457aa1a9bf5a7aacdf69eb203e06b9d54cdd222c39f886e019e1192d2dbc9df2"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_zh_HK.arb",
+      "gitBlob": "17b0a698ce54243a05f6c611bad3249b623bd665",
+      "sha256": "91600f04367ad4cf622955b6b68601e741b58a48e6dade47fbf9e61a646d5b34"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_zh_TW.arb",
+      "gitBlob": "64caddbffd3ff9c7650548950baa835f12cdba96",
+      "sha256": "e57cc4ff1816f4abbcd1e44a0280586e6e32f2e9d12dca662ab06e1ae19121d4"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/material_zu.arb",
+      "gitBlob": "55d6b69e6220f348f739c979c8841f6b1f126fb0",
+      "sha256": "cfb7ae3aa019554c9f729c325c724dec6661208a2a345de03dac0b3472bbf96d"
+    }
+  ],
+  "locales": [
+    "af",
+    "am",
+    "ar",
+    "as",
+    "az",
+    "be",
+    "bg",
+    "bn",
+    "bo",
+    "bs",
+    "ca",
+    "cs",
+    "cy",
+    "da",
+    "de",
+    "de-CH",
+    "el",
+    "en",
+    "en-AU",
+    "en-CA",
+    "en-GB",
+    "en-IE",
+    "en-IN",
+    "en-NZ",
+    "en-SG",
+    "en-ZA",
+    "es",
+    "es-419",
+    "es-AR",
+    "es-BO",
+    "es-CL",
+    "es-CO",
+    "es-CR",
+    "es-DO",
+    "es-EC",
+    "es-GT",
+    "es-HN",
+    "es-MX",
+    "es-NI",
+    "es-PA",
+    "es-PE",
+    "es-PR",
+    "es-PY",
+    "es-SV",
+    "es-US",
+    "es-UY",
+    "es-VE",
+    "et",
+    "eu",
+    "fa",
+    "fi",
+    "fil",
+    "fr",
+    "fr-CA",
+    "ga",
+    "gl",
+    "gsw",
+    "gu",
+    "he",
+    "hi",
+    "hr",
+    "hu",
+    "hy",
+    "id",
+    "is",
+    "it",
+    "ja",
+    "ka",
+    "kk",
+    "km",
+    "kn",
+    "ko",
+    "ky",
+    "lo",
+    "lt",
+    "lv",
+    "mk",
+    "ml",
+    "mn",
+    "mr",
+    "ms",
+    "my",
+    "nb",
+    "ne",
+    "nl",
+    "no",
+    "or",
+    "pa",
+    "pl",
+    "ps",
+    "pt",
+    "pt-PT",
+    "ro",
+    "ru",
+    "si",
+    "sk",
+    "sl",
+    "sq",
+    "sr",
+    "sr-Cyrl",
+    "sr-Latn",
+    "sv",
+    "sw",
+    "ta",
+    "te",
+    "th",
+    "tl",
+    "tr",
+    "ug",
+    "uk",
+    "ur",
+    "uz",
+    "vi",
+    "zh",
+    "zh-HK",
+    "zh-Hans",
+    "zh-Hant",
+    "zh-Hant-HK",
+    "zh-Hant-TW",
+    "zh-TW",
+    "zu"
+  ]
+}

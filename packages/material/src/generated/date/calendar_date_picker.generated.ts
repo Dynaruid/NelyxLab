@@ -521,13 +521,14 @@ export class _CalendarDatePickerState extends State<CalendarDatePicker> {
         ? `, ${this._dart_e3418b5381fd4ff8_localizations.currentDateLabel}`
         : '';
       void this._dart_e3418b5381fd4ff8_announce(
-        `${this._dart_e3418b5381fd4ff8_localizations.formatFullDate(
+        `${this.widget.calendarDelegate.formatFullDate(
           (() => {
             const _dartTemporary9 = this._dart_e3418b5381fd4ff8_selectedDate;
             if (_dartTemporary9 === null)
               throw new TypeError('Null check operator used on a null value');
             return _dartTemporary9!;
           })(),
+          this._dart_e3418b5381fd4ff8_localizations,
         )}${semanticLabelSuffix}`,
       );
     }

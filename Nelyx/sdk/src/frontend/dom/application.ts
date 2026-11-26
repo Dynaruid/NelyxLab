@@ -207,6 +207,10 @@ export function ownWebSurface(element: HTMLElement): {
   };
 }
 export interface WebApplicationOptions extends WebSkiaSurfaceOptions {
+  /** The SDK entry point owns the document when it hosts a single view. */
+  readonly ownsDocument?: boolean;
+  /** A DOM boundary owned solely by this view. Defaults to its canvas. */
+  readonly localeBoundary?: HTMLElement;
   /** Enable separately owned dialog surfaces when the browser admits a popup. */
   readonly enableDialogWindows?: boolean;
   readonly initializePlatformServices?: boolean;
@@ -341,6 +345,7 @@ async function openWebApplication(
       definition,
       files,
       options.safeArea ?? options.backend?.safeArea?.(view),
+      options,
     );
   } catch (error) {
     try {

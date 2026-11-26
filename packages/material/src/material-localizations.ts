@@ -1,39 +1,21 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright 2014 The Flutter Authors. All rights reserved.
 // Flutter: packages/flutter/lib/src/material/material_localizations.dart @ 71e4717a61786faab4c7aa39825989305ed29e8a
-// Selection and time messages from the pinned localization tables.
 import { InheritedWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import { Localizations, LocalizationsDelegate } from '@nelyx/core/framework/widgets/app-data';
 import type { Locale } from '@nelyx/core/ui/locale';
-import { canonicalLocaleTag } from '@nelyx/core/framework/widgets/app';
-import { selectionMessages } from './generated/localizations/selection-localizations-data.ts';
-import { scriptCategories } from './generated/localizations/script-categories.ts';
+import { IntlProvider } from '@nelyx/core/framework/widgets/intl-provider';
+import { WidgetLocalizationCatalog } from '@nelyx/core/framework/widgets/widget-localization-catalog';
+import { checkedInteger } from '@nelyx/core/internal/ui/value-math';
 import { ScriptCategory } from './script-category.ts';
-import { expandIconLabels } from './internal/expand-icon-labels.ts';
-import { expansionTileLabels } from './internal/expansion-tile-labels.ts';
-import { aboutLabels } from './internal/about-localizations.ts';
-import { alertDialogLabels, modalLabels } from './internal/modal-labels.ts';
-import { rangeDateLabels } from './internal/date/range-labels.ts';
 import type { DateRangeLabel } from './internal/date/range-labels.ts';
-import { menuKeyboardLabels } from './internal/menu-keyboard-labels.ts';
 import type { MenuKeyboardLabel } from './internal/menu-keyboard-labels.ts';
-import { popupMenuLabels } from './internal/popup-menu-labels.ts';
-import { clearButtonTooltips, searchFieldLabels } from './internal/search-labels.ts';
-import { accountDrawerLabels } from './internal/account-drawer-labels.ts';
-import { stepperLabels } from './internal/stepper-labels.ts';
-import { refreshIndicatorLabels } from './generated/localizations/refresh-localizations-data.ts';
-import {
-  closeButtonTooltips,
-  drawerLabels,
-  openAppDrawerTooltips,
-  tabLabels,
-} from './generated/localizations/app-bar-localizations-data.generated.ts';
+import { IntlDateLocalizations } from './internal/date/date-localizations.ts';
+import type { DateTime } from './internal/date/date-time.ts';
 import { SourceDateLocalizations } from './generated/date/material_localizations.generated.ts';
-import {
-  timeDigits,
-  timeMessages,
-} from './generated/localizations/time-localizations-data.generated.ts';
+import { materialArb } from './generated/localizations/material-arb.generated.ts';
+import { timeDigits } from './generated/localizations/time-localizations-data.generated.ts';
 import { DayPeriod, HourFormat, TimeOfDayFormat, hourFormat } from './time.ts';
 import type { TimeOfDay } from './time.ts';
 function localeCandidates(locale: string): string[] {
@@ -50,167 +32,184 @@ function localeCandidates(locale: string): string[] {
     parts.join('_'),
   ];
 }
-function categoryFor(candidates: readonly string[]): ScriptCategory {
-  return ScriptCategory[
-    candidates.reduce<'englishLike' | 'dense' | 'tall'>(
-      (current, key) => scriptCategories[key] ?? current,
-      'englishLike',
-    )
-  ];
+function categoryFor(catalog: WidgetLocalizationCatalog): ScriptCategory {
+  const category = catalog.raw('scriptCategory');
+  if (category === 'dense') return ScriptCategory.dense;
+  return category === 'tall' ? ScriptCategory.tall : ScriptCategory.englishLike;
 }
-export class MaterialLocalizations extends SourceDateLocalizations {
-  private readonly messages: Readonly<Record<string, string>>;
-  private readonly licenseMessages: Readonly<Record<string, string>>;
-  private licensePluralRules: Intl.PluralRules | null | undefined;
-  private licenseCountFormat: Intl.NumberFormat | null | undefined;
-  private readonly category: ScriptCategory;
-  private timeData:
-    | { readonly labels: Readonly<Record<string, string>>; readonly digits: string }
-    | undefined;
 
-  private catalogLabel<Key extends string>(
-    catalog: Readonly<Record<string, Readonly<Partial<Record<Key, string>>>>>,
-    key: Key,
-  ): string {
-    const candidates = localeCandidates(this.locale);
-    for (let index = candidates.length - 1; index >= 0; --index) {
-      const value = catalog[candidates[index]!]?.[key];
-      if (value !== undefined) return value;
-    }
-    return catalog.en?.[key] ?? '';
-  }
+const timeFormats: Readonly<Record<string, keyof typeof TimeOfDayFormat>> = {
+  'H:mm': 'H_colon_mm',
+  'h:mm a': 'h_colon_mm_space_a',
+  'HH:mm': 'HH_colon_mm',
+  'HH:mm น.': 'HH_colon_mm',
+  'HH.mm': 'HH_dot_mm',
+  "HH 'h' mm": 'frenchCanadian',
+  'a h:mm': 'a_space_h_colon_mm',
+  'ah:mm': 'a_space_h_colon_mm',
+};
+const catalogLocales = Object.freeze(Object.keys(materialArb.locales));
+
+export class MaterialLocalizations extends SourceDateLocalizations {
+  private readonly intl: IntlProvider;
+  private readonly catalog: WidgetLocalizationCatalog;
+  private dateData: IntlDateLocalizations | null | undefined;
+  private numericTimeDigits: readonly string[] | undefined;
 
   keyboardKeyLabel(key: MenuKeyboardLabel): string {
-    return this.catalogLabel(menuKeyboardLabels, key);
+    return this.message(key);
   }
 
   dateRangeLabel(key: DateRangeLabel, fullDate?: string): string {
-    const result = this.catalogLabel(rangeDateLabels, key);
-    return fullDate === undefined ? result : result.replace(/\$\{?fullDate\}?/g, () => fullDate);
+    switch (key) {
+      case 'dateHelpText':
+      case 'calendarModeButtonLabel':
+      case 'cancelButtonLabel':
+      case 'closeButtonTooltip':
+      case 'currentDateLabel':
+      case 'dateOutOfRangeLabel':
+      case 'inputDateModeButtonLabel':
+      case 'invalidDateFormatLabel':
+      case 'okButtonLabel':
+        return this[key];
+      case 'dateRangeStartDateSemanticLabel':
+      case 'dateRangeEndDateSemanticLabel':
+        return fullDate === undefined ? this.message(key) : this.catalog.format(key, { fullDate });
+      default:
+        return this.message(key);
+    }
   }
-
   get menuDismissLabel(): string {
-    return this.catalogLabel(popupMenuLabels, 'menuDismissLabel');
+    return this.message('menuDismissLabel');
   }
   get popupMenuLabel(): string {
-    return this.catalogLabel(popupMenuLabels, 'popupMenuLabel');
+    return this.message('popupMenuLabel');
   }
   get showMenuTooltip(): string {
-    return this.catalogLabel(popupMenuLabels, 'showMenuTooltip');
+    return this.message('showMenuTooltip');
   }
   get collapsedHint(): string {
-    return this.catalogLabel(popupMenuLabels, 'collapsedHint');
+    return this.message('collapsedHint');
   }
   get expandedHint(): string {
-    return this.catalogLabel(popupMenuLabels, 'expandedHint');
+    return this.message('expandedHint');
   }
   get expansionTileExpandedTapHint(): string {
-    return this.catalogLabel(expansionTileLabels, 'expansionTileExpandedTapHint');
+    return this.message('expansionTileExpandedTapHint');
   }
   get expansionTileCollapsedTapHint(): string {
-    return this.catalogLabel(expansionTileLabels, 'expansionTileCollapsedTapHint');
+    return this.message('expansionTileCollapsedTapHint');
   }
   get expansionTileExpandedHint(): string {
-    return this.catalogLabel(expansionTileLabels, 'expansionTileExpandedHint');
+    return this.message('expansionTileExpandedHint');
   }
   get expansionTileCollapsedHint(): string {
-    return this.catalogLabel(expansionTileLabels, 'expansionTileCollapsedHint');
+    return this.message('expansionTileCollapsedHint');
   }
   get continueButtonLabel(): string {
-    return this.catalogLabel(stepperLabels, 'continueButtonLabel');
+    return this.message('continueButtonLabel');
   }
   get searchFieldLabel(): string {
-    return localeCandidates(this.locale).reduce(
-      (label, key) => searchFieldLabels[key] ?? label,
-      searchFieldLabels.en!,
-    );
+    return this.message('searchFieldLabel');
   }
   get clearButtonTooltip(): string {
-    return localeCandidates(this.locale).reduce(
-      (label, key) => clearButtonTooltips[key] ?? label,
-      clearButtonTooltips.en!,
-    );
+    return this.message('clearButtonTooltip');
   }
   get signedInLabel(): string {
-    return this.catalogLabel(accountDrawerLabels, 'signedInLabel');
+    return this.message('signedInLabel');
   }
   get showAccountsLabel(): string {
-    return this.catalogLabel(accountDrawerLabels, 'showAccountsLabel');
+    return this.message('showAccountsLabel');
   }
   get hideAccountsLabel(): string {
-    return this.catalogLabel(accountDrawerLabels, 'hideAccountsLabel');
+    return this.message('hideAccountsLabel');
   }
 
   constructor(readonly locale = 'en') {
     super();
-    const candidates = localeCandidates(locale);
-    const aboutCatalogs = candidates.flatMap((key) => (aboutLabels[key] ? [aboutLabels[key]] : []));
-    this.licenseMessages = Object.freeze(
-      Object.assign({}, ...(aboutCatalogs.length ? aboutCatalogs : [aboutLabels.en])),
-    );
-    this.messages = Object.freeze(
-      Object.assign(
-        {},
-        selectionMessages.en,
-        ...candidates.map((key) => selectionMessages[key] ?? {}),
-        aboutLabels.en,
-        ...aboutCatalogs,
-        {
-          refreshIndicatorSemanticLabel: candidates.reduce(
-            (label, key) => refreshIndicatorLabels[key] ?? label,
-            refreshIndicatorLabels.en!,
-          ),
-          closeButtonTooltip: candidates.reduce(
-            (label, key) => closeButtonTooltips[key] ?? label,
-            closeButtonTooltips.en!,
-          ),
-          drawerLabel: candidates.reduce(
-            (label, key) => drawerLabels[key] ?? label,
-            drawerLabels.en!,
-          ),
-          openAppDrawerTooltip: candidates.reduce(
-            (label, key) => openAppDrawerTooltips[key] ?? label,
-            openAppDrawerTooltips.en!,
-          ),
-          tabLabel: candidates.reduce((label, key) => tabLabels[key] ?? label, tabLabels.en!),
-          expandedIconTapHint: candidates.reduce(
-            (label, key) => expandIconLabels[key]?.[0] ?? label,
-            expandIconLabels.en![0]!,
-          ),
-          collapsedIconTapHint: candidates.reduce(
-            (label, key) => expandIconLabels[key]?.[1] ?? label,
-            expandIconLabels.en![1]!,
-          ),
-          dialogLabel: candidates.reduce(
-            (label, key) => modalLabels[key]?.[0] ?? label,
-            modalLabels.en![0]!,
-          ),
-          alertDialogLabel: candidates.reduce(
-            (label, key) => alertDialogLabels[key] ?? label,
-            alertDialogLabels.en!,
-          ),
-          scrimLabel: candidates.reduce(
-            (label, key) => modalLabels[key]?.[1] ?? label,
-            modalLabels.en![1]!,
-          ),
-          bottomSheetLabel: candidates.reduce(
-            (label, key) => modalLabels[key]?.[2] ?? label,
-            modalLabels.en![2]!,
-          ),
-          scrimOnTapHint: candidates.reduce(
-            (label, key) => modalLabels[key]?.[3] ?? label,
-            modalLabels.en![3]!,
-          ),
-        },
-      ),
-    );
-    this.category = categoryFor(candidates);
+    this.intl = IntlProvider.forLocale(locale);
+    this.catalog = new WidgetLocalizationCatalog(materialArb, this.intl);
   }
+
+  private get dates(): IntlDateLocalizations | null {
+    if (this.dateData === undefined) this.dateData = IntlDateLocalizations.forProvider(this.intl);
+    return this.dateData;
+  }
+  override formatCompactDate(date: DateTime): string {
+    return this.dates?.format('compact', date) ?? super.formatCompactDate(date);
+  }
+  override parseCompactDate(input: string | null): DateTime | null {
+    return this.dates ? this.dates.parse(input) : super.parseCompactDate(input);
+  }
+  override formatShortDate(date: DateTime): string {
+    return this.dates?.format('short', date) ?? super.formatShortDate(date);
+  }
+  override formatShortMonthDay(date: DateTime): string {
+    return this.dates?.format('shortDay', date) ?? super.formatShortMonthDay(date);
+  }
+  override formatMediumDate(date: DateTime): string {
+    return this.dates?.format('medium', date) ?? super.formatMediumDate(date);
+  }
+  override formatFullDate(date: DateTime): string {
+    return this.dates?.format('full', date) ?? super.formatFullDate(date);
+  }
+  override formatMonthYear(date: DateTime): string {
+    return this.dates?.format('month', date) ?? super.formatMonthYear(date);
+  }
+  override formatYear(date: DateTime): string {
+    return this.dates?.format('year', date) ?? super.formatYear(date);
+  }
+  override formatDecimal(value: number): string {
+    return this.dates?.decimal.format(checkedInteger(value)) ?? super.formatDecimal(value);
+  }
+  override get narrowWeekdays(): readonly string[] {
+    return this.dates?.narrowWeekdays ?? super.narrowWeekdays;
+  }
+  override get firstDayOfWeekIndex(): number {
+    return this.dates?.firstDayOfWeekIndex ?? super.firstDayOfWeekIndex;
+  }
+  override get dateHelpText(): string {
+    return this.dates?.dateHelpText ?? super.dateHelpText;
+  }
+  override get selectYearSemanticsLabel(): string {
+    return this.message('selectYearSemanticsLabel');
+  }
+  override get dateInputLabel(): string {
+    return this.message('dateInputLabel');
+  }
+  override get invalidDateFormatLabel(): string {
+    return this.message('invalidDateFormatLabel');
+  }
+  override get dateOutOfRangeLabel(): string {
+    return this.message('dateOutOfRangeLabel');
+  }
+  override get datePickerHelpText(): string {
+    return this.message('datePickerHelpText');
+  }
+  override get calendarModeButtonLabel(): string {
+    return this.message('calendarModeButtonLabel');
+  }
+  override get inputDateModeButtonLabel(): string {
+    return this.message('inputDateModeButtonLabel');
+  }
+  override get nextMonthTooltip(): string {
+    return this.message('nextMonthTooltip');
+  }
+  override get previousMonthTooltip(): string {
+    return this.message('previousMonthTooltip');
+  }
+  override get currentDateLabel(): string {
+    return this.message('currentDateLabel');
+  }
+  override get selectedDateLabel(): string {
+    return this.message('selectedDateLabel');
+  }
+
   get scriptCategory(): ScriptCategory {
-    return this.category;
+    return categoryFor(this.catalog);
   }
   aboutListTileTitle(applicationName: string): string {
-    return this.message('aboutListTileTitle').replace('$applicationName', () => applicationName);
+    return this.catalog.format('aboutListTileTitle', { applicationName });
   }
   get viewLicensesButtonLabel(): string {
     return this.message('viewLicensesButtonLabel');
@@ -222,31 +221,7 @@ export class MaterialLocalizations extends SourceDateLocalizations {
     return this.message('licensesPageTitle');
   }
   licensesPackageDetailText(licenseCount: number): string {
-    const exact =
-      licenseCount === 0 ? 'zero' : licenseCount === 1 ? 'one' : licenseCount === 2 ? 'two' : null;
-    const locale = canonicalLocaleTag(this.locale) || 'en';
-    if (this.licensePluralRules === undefined) {
-      this.licensePluralRules =
-        typeof Intl !== 'undefined' && typeof Intl.PluralRules === 'function'
-          ? new Intl.PluralRules(locale)
-          : null;
-    }
-    if (this.licenseCountFormat === undefined) {
-      this.licenseCountFormat =
-        typeof Intl !== 'undefined' && typeof Intl.NumberFormat === 'function'
-          ? new Intl.NumberFormat(locale)
-          : null;
-    }
-    const category = this.licensePluralRules?.select(licenseCount) ?? 'other';
-    const pattern =
-      (exact ? this.licenseMessages[exact] : undefined) ??
-      this.licenseMessages[category] ??
-      this.licenseMessages.other ??
-      aboutLabels.en!.other!;
-    return pattern.replace(
-      '$licenseCount',
-      () => this.licenseCountFormat?.format(licenseCount) ?? this.formatDecimal(licenseCount),
-    );
+    return this.catalog.format('licensesPackageDetailText', { licenseCount });
   }
   get refreshIndicatorSemanticLabel(): string {
     return this.message('refreshIndicatorSemanticLabel');
@@ -270,10 +245,7 @@ export class MaterialLocalizations extends SourceDateLocalizations {
     return this.message('bottomSheetLabel');
   }
   scrimOnTapHint(modalRouteContentName: string): string {
-    return this.message('scrimOnTapHint').replaceAll(
-      '$modalRouteContentName',
-      () => modalRouteContentName,
-    );
+    return this.catalog.format('scrimOnTapHint', { modalRouteContentName });
   }
   static of(context: BuildContext): MaterialLocalizations {
     const localizations = context.maybeDependOn(Localizations);
@@ -284,11 +256,11 @@ export class MaterialLocalizations extends SourceDateLocalizations {
     );
   }
   static get supportedLocales(): readonly string[] {
-    return Object.freeze(Object.keys(selectionMessages));
+    return catalogLocales;
   }
   protected message(key: string): string {
-    const value = this.messages[key];
-    if (value === undefined) throw new Error('Missing Material selection localization: ' + key);
+    const value = this.catalog.raw(key);
+    if (value === undefined) throw new Error('Missing Material localization: ' + key);
     return value;
   }
   get cutButtonLabel(): string {
@@ -340,37 +312,26 @@ export class MaterialLocalizations extends SourceDateLocalizations {
     readonly tabIndex: number;
     readonly tabCount: number;
   }): string {
-    return this.message('tabLabel')
-      .replace('$tabIndex', this.timePickerNumber(tabIndex))
-      .replace('$tabCount', this.timePickerNumber(tabCount));
+    return this.catalog.format('tabLabel', { tabIndex, tabCount });
   }
-  private timeLocalization() {
-    if (!this.timeData) {
-      const candidates = localeCandidates(this.locale);
-      this.timeData = {
-        labels: Object.freeze(
-          Object.assign({}, timeMessages.en, ...candidates.map((key) => timeMessages[key] ?? {})),
-        ),
-        digits: candidates.reduce((digits, key) => timeDigits[key] ?? digits, timeDigits.en!),
-      };
-    }
-    return this.timeData;
-  }
-  private timeLabel(key: string): string {
-    const value = this.timeLocalization().labels[key];
-    if (value === undefined) throw new Error('Missing Material time localization: ' + key);
-    return value;
+  private get timePickerDigits(): readonly string[] {
+    return (this.numericTimeDigits ??= Array.from(
+      localeCandidates(this.intl.locale).reduce(
+        (digits, key) => timeDigits[key] ?? digits,
+        timeDigits.en!,
+      ),
+    ));
   }
   /** @internal Localized numerals for the finite time picker input domain. */
   timePickerNumber(value: number, width = 1): string {
-    const digits = [...this.timeLocalization().digits];
+    const digits = this.timePickerDigits;
     return String(value)
       .padStart(width, '0')
       .replace(/\d/g, (digit) => digits[Number(digit)]!);
   }
   /** @internal Text entered into a picker can use local or ASCII digits. */
   parseTimePickerNumber(value: string): number | null {
-    const digits = [...this.timeLocalization().digits];
+    const digits = this.timePickerDigits;
     const input = [...value.trim()]
       .map((char) => {
         const digit = digits.indexOf(char);
@@ -382,7 +343,7 @@ export class MaterialLocalizations extends SourceDateLocalizations {
   timeOfDayFormat({
     alwaysUse24HourFormat = false,
   }: { readonly alwaysUse24HourFormat?: boolean } = {}): TimeOfDayFormat {
-    const format = this.timeLabel('timeOfDayFormat') as TimeOfDayFormat;
+    const format = TimeOfDayFormat[timeFormats[this.message('timeOfDayFormat')]!];
     return alwaysUse24HourFormat && hourFormat({ of: format }) === HourFormat.h
       ? TimeOfDayFormat.HH_colon_mm
       : format;
@@ -417,46 +378,46 @@ export class MaterialLocalizations extends SourceDateLocalizations {
     }
   }
   get anteMeridiemAbbreviation(): string {
-    return this.timeLabel('anteMeridiemAbbreviation');
+    return this.message('anteMeridiemAbbreviation');
   }
   get postMeridiemAbbreviation(): string {
-    return this.timeLabel('postMeridiemAbbreviation');
+    return this.message('postMeridiemAbbreviation');
   }
   get timePickerDialHelpText(): string {
-    return this.timeLabel('timePickerDialHelpText');
+    return this.message('timePickerDialHelpText');
   }
   get timePickerInputHelpText(): string {
-    return this.timeLabel('timePickerInputHelpText');
+    return this.message('timePickerInputHelpText');
   }
   get timePickerHourLabel(): string {
-    return this.timeLabel('timePickerHourLabel');
+    return this.message('timePickerHourLabel');
   }
   get timePickerMinuteLabel(): string {
-    return this.timeLabel('timePickerMinuteLabel');
+    return this.message('timePickerMinuteLabel');
   }
   get timePickerHourModeAnnouncement(): string {
-    return this.timeLabel('timePickerHourModeAnnouncement');
+    return this.message('timePickerHourModeAnnouncement');
   }
   get timePickerMinuteModeAnnouncement(): string {
-    return this.timeLabel('timePickerMinuteModeAnnouncement');
+    return this.message('timePickerMinuteModeAnnouncement');
   }
   get invalidTimeLabel(): string {
-    return this.timeLabel('invalidTimeLabel');
+    return this.message('invalidTimeLabel');
   }
   get dialModeButtonLabel(): string {
-    return this.timeLabel('dialModeButtonLabel');
+    return this.message('dialModeButtonLabel');
   }
   get inputTimeModeButtonLabel(): string {
-    return this.timeLabel('inputTimeModeButtonLabel');
+    return this.message('inputTimeModeButtonLabel');
   }
   get modalBarrierDismissLabel(): string {
-    return this.timeLabel('modalBarrierDismissLabel');
+    return this.message('modalBarrierDismissLabel');
   }
   override get cancelButtonLabel(): string {
-    return this.timeLabel('cancelButtonLabel');
+    return this.message('cancelButtonLabel');
   }
   override get okButtonLabel(): string {
-    return this.timeLabel('okButtonLabel');
+    return this.message('okButtonLabel');
   }
 }
 class MaterialLocalizationsDelegate extends LocalizationsDelegate<MaterialLocalizations> {
@@ -486,13 +447,31 @@ export class DefaultMaterialLocalizations extends MaterialLocalizations {
     super('en');
   }
 }
+const catalogResources = new WeakSet<MaterialLocalizations>();
 /** The app's bundled locale catalog supports region-specific formats. */
 export const materialCatalogDelegate: LocalizationsDelegate<MaterialLocalizations> = Object.freeze({
   type: MaterialLocalizations,
   isSupported: () => true,
-  load: (locale: Locale) => new MaterialLocalizations(locale.toLanguageTag()),
+  load(locale: Locale) {
+    const resource = new MaterialLocalizations(locale.toLanguageTag());
+    catalogResources.add(resource);
+    return resource;
+  },
   shouldReload: () => false,
 });
+
+/** @internal Explicit picker locales select a catalog unless the app provided its own resource. */
+export function materialPickerLocalizations(
+  context: BuildContext,
+  locale: string,
+): MaterialLocalizations {
+  const scope = context.maybeDependOn(MaterialLocalizationsScope);
+  const inherited = Localizations.of(context, MaterialLocalizations);
+  return (
+    scope?.data ??
+    (inherited && !catalogResources.has(inherited) ? inherited : new MaterialLocalizations(locale))
+  );
+}
 const defaultLocalizationsOf = MaterialLocalizations.of;
 let scriptLocale: string | undefined,
   cachedScriptCategory = ScriptCategory.englishLike;
@@ -510,7 +489,9 @@ export function materialScriptCategoryOf(context: BuildContext): ScriptCategory 
   // The generated category table and enum are frozen. Keep only one scalar
   // locale result; public localization objects and mutable messages stay fresh.
   if (locale !== scriptLocale) {
-    cachedScriptCategory = categoryFor(localeCandidates(locale));
+    cachedScriptCategory = categoryFor(
+      new WidgetLocalizationCatalog(materialArb, IntlProvider.forLocale(locale)),
+    );
     scriptLocale = locale;
   }
   return cachedScriptCategory;

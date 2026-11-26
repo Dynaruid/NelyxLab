@@ -24,6 +24,7 @@ import type { WebSafeAreaSource } from './environment.ts';
 import { getBrowserPlatformEnvironment } from './platform.ts';
 import { ImageService } from '@nelyx/core/hosting/images';
 import { readImageUrl, encodeImageAssetManifest } from '../../runtime/image-loading.ts';
+import { bindViewLocale } from './view-locale.ts';
 type ResolvedWebDefinition = {
   -readonly [Key in keyof ApplicationDefinition]: ApplicationDefinition[Key];
 } & { assets: readonly AssetRef[] };
@@ -65,6 +66,7 @@ export function createWebServices(
   definition: ApplicationDefinition,
   files: Map<string, Uint8Array<ArrayBuffer>>,
   safeArea?: WebSafeAreaSource,
+  localeOptions?: { readonly localeBoundary?: HTMLElement; readonly ownsDocument?: boolean },
 ): {
   services: BackendServices;
   cursor: BrowserMouseCursor;
@@ -104,6 +106,7 @@ export function createWebServices(
     surface = 1,
     context = 1;
   const environment = createBrowserEnvironment(() => canvas, safeArea);
+  let viewLocale: ReturnType<typeof bindViewLocale> | undefined;
   try {
     const selectionContextMenu = new BrowserSelectionContextMenu(canvas, owner, cursor);
     nativeSelectionContextMenu = selectionContextMenu;
@@ -315,8 +318,13 @@ export function createWebServices(
       },
       sha256,
     );
+    viewLocale = bindViewLocale(
+      () => localeOptions?.localeBoundary ?? canvas,
+      localeOptions?.ownsDocument === true,
+    );
     const services: BackendServices = {
       identity,
+      setViewLocale: viewLocale.update,
       foundationPlatform: getBrowserPlatformEnvironment(),
       clock: {
         ...(typeof window.requestIdleCallback === 'function' &&
@@ -419,6 +427,7 @@ export function createWebServices(
         async dispose() {
           if (closed) return;
           closed = true;
+          viewLocale?.dispose();
           stop();
           environment.dispose();
           frames.dispose();
@@ -448,6 +457,7 @@ export function createWebServices(
   } catch (error) {
     const errors = [error];
     for (const close of [
+      () => viewLocale?.dispose(),
       () => nativeSelectionContextMenu?.dispose(),
       () => environment.dispose(),
       () => interaction.dispose(),

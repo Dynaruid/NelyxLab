@@ -140,6 +140,9 @@ export function App({
     () => ({
       ...frontend,
       renderMode: request.mode,
+      ...(new URL(location.href).searchParams.get('dialogWindows') === '1'
+        ? { enableDialogWindows: true }
+        : {}),
       // The gallery clears and redraws the whole canvas on every submitted frame.
       preserveDrawingBuffer: false,
       ...(getFrontendHost().os === 'android' ? { maxRasterScale: 2 } : {}),

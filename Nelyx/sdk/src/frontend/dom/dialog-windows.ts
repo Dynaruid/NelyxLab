@@ -26,7 +26,13 @@ export function webDialogWindows(
   let wasInert = false;
 
   return {
-    open<T>({ title, requestFocus, createApplication }: DialogWindowOptions<T>) {
+    open<T>({
+      title,
+      requestFocus,
+      locale,
+      textDirection,
+      createApplication,
+    }: DialogWindowOptions<T>) {
       if (stopped || !surface?.isConnected || parent.closed) return null;
       const active = requests.size === 0 ? document.activeElement : null;
       let popup: Window | null;
@@ -38,7 +44,8 @@ export function webDialogWindows(
       if (!popup) return null;
       const child = popup.document;
       child.title = title;
-      child.documentElement.lang = document.documentElement.lang;
+      child.documentElement.lang = locale ?? document.documentElement.lang;
+      child.documentElement.dir = textDirection ?? document.documentElement.dir;
       child.body.style.cssText = 'margin:0;overflow:hidden';
       const container = child.createElement('div');
       container.style.cssText = 'position:relative;width:100vw;height:100dvh;overflow:hidden';
@@ -112,6 +119,8 @@ export function webDialogWindows(
           },
           {
             canvas,
+            localeBoundary: container,
+            ownsDocument: true,
             signal: controller.signal,
             replaceCanvas(previous) {
               if (closing || popup.closed || previous !== canvas)

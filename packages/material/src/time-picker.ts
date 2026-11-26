@@ -789,57 +789,53 @@ class TimePickerDialogState extends RestorationMixin<TimePickerDialog> {
           new SizedBox(
             undefined,
             72,
-            new Semantics({
-              label,
-              child: new TextField({
-                id: 'material-time-picker-' + part,
-                controller: this.fields[part],
-                focusNode: this.focus[part],
-                autofocus: this.autofocusPart.value === part,
-                decoration: decorationTheme
-                  ? decoration.applyDefaults(decorationTheme)
-                  : decoration.copyWith({
-                      contentPadding: EdgeInsets.zero,
-                      filled: true,
-                      enabledBorder: border(0, 1),
-                      errorBorder: border(colors.error, 2),
-                      focusedErrorBorder: border(colors.error, 2),
-                      focusedBorder: border(colors.primary, 2),
-                      hintStyle: style.copyWith({
-                        color: new Color(colors.onSurface).withOpacity(0.36).toARGB32(),
-                      }),
+            new TextField({
+              id: 'material-time-picker-' + part,
+              semanticsLabel: label,
+              controller: this.fields[part],
+              focusNode: this.focus[part],
+              autofocus: this.autofocusPart.value === part,
+              decoration: decorationTheme
+                ? decoration.applyDefaults(decorationTheme)
+                : decoration.copyWith({
+                    contentPadding: EdgeInsets.zero,
+                    filled: true,
+                    enabledBorder: border(0, 1),
+                    errorBorder: border(colors.error, 2),
+                    focusedErrorBorder: border(colors.error, 2),
+                    focusedBorder: border(colors.primary, 2),
+                    hintStyle: style.copyWith({
+                      color: new Color(colors.onSurface).withOpacity(0.36).toARGB32(),
                     }),
-                keyboardType: 'number',
-                textInputAction: hour ? 'next' : 'done',
-                textAlign: 'center',
-                textDirection: 'ltr',
-                textScaler: TextScaler.noScaling,
-                minLines: null,
-                maxLines: null,
-                expands: true,
-                maxLength: 2,
-                autocorrect: false,
-                enableSuggestions: false,
-                style,
-                onChanged: (text) => {
-                  this.setState(() => {
-                    (hour ? this.hourDraft : this.minuteDraft).value = text;
-                  });
-                  if (
-                    hour &&
-                    text.length === 2 &&
-                    this.parseDrafts(localization, use24Hours).hour !== null
-                  )
-                    this.focus.minute.requestFocus();
-                },
-                onSubmitted: () => {
-                  const next = this.parseDrafts(localization, use24Hours)[part];
-                  if (next === null) return;
-                  this.selectDial(this.selected.value.replacing({ [part]: next }), false);
-                  if (hour) this.focus.minute.requestFocus();
-                  else this.focus.minute.unfocus();
-                },
-              }),
+                  }),
+              keyboardType: 'number',
+              textInputAction: hour ? 'next' : 'done',
+              textAlign: 'center',
+              textDirection: 'ltr',
+              textScaler: TextScaler.noScaling,
+              maxLines: 1,
+              maxLength: 2,
+              autocorrect: false,
+              enableSuggestions: false,
+              style,
+              onChanged: (text) => {
+                this.setState(() => {
+                  (hour ? this.hourDraft : this.minuteDraft).value = text;
+                });
+                if (
+                  hour &&
+                  text.length === 2 &&
+                  this.parseDrafts(localization, use24Hours).hour !== null
+                )
+                  this.focus.minute.requestFocus();
+              },
+              onSubmitted: () => {
+                const next = this.parseDrafts(localization, use24Hours)[part];
+                if (next === null) return;
+                this.selectDial(this.selected.value.replacing({ [part]: next }), false);
+                if (hour) this.focus.minute.requestFocus();
+                else this.focus.minute.unfocus();
+              },
             }),
           ),
           new ExcludeSemantics(

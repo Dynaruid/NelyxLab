@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Application composition is per View; no process-global navigator, locale or restoration owner.
-import { Element, InheritedWidget, StatefulWidget, State } from './framework.ts';
+import { Element, ErrorWidget, InheritedWidget, StatefulWidget, State } from './framework.ts';
 import type { Widget, WidgetOptions, BuildContext } from './framework.ts';
 import {
   MediaQuery,
@@ -11,7 +11,12 @@ import {
   lightAppTheme,
   mediaFromView,
 } from './app-data.ts';
-import type { AppThemeData, LocalizationResource, LocalizationsDelegate } from './app-data.ts';
+import type {
+  AppThemeData,
+  LocalizationMessages,
+  LocalizationResource,
+  LocalizationsDelegate,
+} from './app-data.ts';
 import { NavigationNotification, Navigator, NavigatorController, Route } from './navigation.ts';
 import type {
   NavigatorObserver,
@@ -40,12 +45,17 @@ import {
 } from './basic.ts';
 import { GlobalKey } from './global-key.ts';
 import { IgnorePointer } from './pointer-blocking.ts';
-import { ExcludeSemantics } from './semantics.ts';
+import { ExcludeSemantics, Semantics } from './semantics.ts';
 import { ShortcutRegistrar } from './shortcuts.ts';
 import { TextStyle } from '../painting/text-style.ts';
 import { FontWeight } from '../../ui/typography.ts';
 
-import { localeFromTag, resolveAppLocale } from './app-locales.ts';
+import {
+  canonicalLocaleTag,
+  localeFromTag,
+  localeDirection,
+  resolveAppLocale,
+} from './app-locales.ts';
 export {
   resolveLocale,
   resolveAppLocale,
@@ -54,14 +64,32 @@ export {
 } from './app-locales.ts';
 export type { LocaleListResolutionCallback, LocaleResolutionCallback } from './app-locales.ts';
 import type { LocaleListResolutionCallback, LocaleResolutionCallback } from './app-locales.ts';
-import { localeDirection } from './app-locales.ts';
 import { defaultGenerateInitialRoutes } from './app-routes.ts';
 export { defaultGenerateInitialRoutes } from './app-routes.ts';
 import { Router, NavigatorRouterDelegate } from './router.ts';
 import type { RouterOptions } from './router.ts';
 import { AppDiagnostics } from './app-diagnostics.ts';
 import type { InspectorButtonBuilder } from './app-diagnostics.ts';
+import { WidgetsLocalizations } from './widgets-localizations.ts';
 export type { InspectorButtonBuilder, InspectorButtonOptions } from './app-diagnostics.ts';
+
+/** Applies locale and direction at the same widget and accessibility boundary. */
+export function localizedDirectionality(
+  locale: string | null,
+  direction: 'ltr' | 'rtl',
+  child: Widget,
+): Widget {
+  return new Directionality(
+    direction,
+    new Semantics({
+      container: true,
+      explicitChildNodes: true,
+      localeForSubtree: locale === null ? null : localeFromTag(locale),
+      textDirection: direction,
+      child,
+    }),
+  );
+}
 
 export interface WidgetsAppOptions extends WidgetOptions {
   readonly title?: string;
@@ -88,7 +116,7 @@ export interface WidgetsAppOptions extends WidgetOptions {
   readonly onGenerateInitialRoutes?: (name: string) => readonly Route[];
   readonly locale?: string;
   readonly supportedLocales?: readonly string[];
-  readonly messages?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  readonly messages?: LocalizationMessages;
   readonly localizationsDelegates?: readonly LocalizationsDelegate[];
   readonly theme?: AppThemeData;
   readonly builder?: (context: BuildContext, child: Widget) => Widget;
@@ -179,11 +207,75 @@ export function appNavigatorController(child: Widget): NavigatorController | nul
       ? child.options.routerDelegate.navigator
       : null;
 }
-const noLocalizationDelegates: readonly LocalizationsDelegate[] = Object.freeze([]);
-type LoadedLocalizations = {
+const defaultLocalizationDelegates: readonly LocalizationsDelegate[] = Object.freeze([
+  WidgetsLocalizations.delegate,
+]);
+type LocalizationResources = ReadonlyMap<LocalizationResource, object>;
+interface LocalizationRequest {
   readonly locale: string;
-  readonly resources: ReadonlyMap<LocalizationResource, object>;
-};
+  readonly delegates: readonly LocalizationsDelegate[];
+  messageLocale: string;
+  messages: LocalizationMessages;
+  fallback: string;
+  status: 'loading' | 'loaded' | 'failed';
+}
+interface LoadedLocalizations {
+  readonly locale: string;
+  readonly messageLocale: string;
+  readonly messages: LocalizationMessages;
+  readonly fallback: string;
+  readonly delegates: readonly LocalizationsDelegate[];
+  readonly resources: LocalizationResources;
+}
+
+function localizationDelegatesMatch(
+  current: readonly LocalizationsDelegate[],
+  previous: readonly LocalizationsDelegate[],
+): boolean {
+  return (
+    current.length === previous.length &&
+    current.every((delegate, index) => {
+      const old = previous[index]!;
+      return (
+        delegate === old ||
+        (delegate.constructor === old.constructor &&
+          delegate.type === old.type &&
+          !delegate.shouldReload(old))
+      );
+    })
+  );
+}
+
+function loadLocalizationResources(
+  locale: string,
+  delegates: readonly LocalizationsDelegate[],
+): Map<LocalizationResource, object> | Promise<LocalizationResources> {
+  const resources = new Map<LocalizationResource, object>();
+  const selected = new Set<LocalizationResource>();
+  const pending: Promise<void>[] = [];
+  const sourceLocale = localeFromTag(locale);
+  try {
+    for (const delegate of delegates) {
+      const { type } = delegate;
+      if (selected.has(type) || !delegate.isSupported(sourceLocale)) continue;
+      selected.add(type);
+      const loaded = delegate.load(sourceLocale);
+      if ('then' in loaded && typeof loaded.then === 'function') {
+        pending.push(
+          Promise.resolve(loaded).then((value) => {
+            resources.set(type, value);
+          }),
+        );
+      } else {
+        resources.set(type, loaded);
+      }
+    }
+  } catch (exception) {
+    void Promise.allSettled(pending);
+    throw exception;
+  }
+  return pending.length === 0 ? resources : Promise.all(pending).then(() => resources);
+}
 
 // CheckedModeBanner from widgets/banner.dart at Flutter
 // 71e4717a61786faab4c7aa39825989305ed29e8a, Copyright 2014 The Flutter Authors.
@@ -225,10 +317,8 @@ class WidgetsAppState extends State<WidgetsApp> {
   private ownedNavigator: NavigatorController | undefined;
   private readonly retiredNavigators = new Set<NavigatorController>();
   private observer: Disposable | undefined;
-  private requestedLocale: string | null = null;
-  private localizationsWidget: WidgetsApp | null = null;
-  private requestedDelegates: readonly LocalizationsDelegate[] = noLocalizationDelegates;
-  private localizationRevision = 0;
+  private localizationRequest: LocalizationRequest | null = null;
+  private localizationError: FlutterErrorDetails | null = null;
   private loadedLocalizations: LoadedLocalizations | null = null;
   private readonly entry = new OverlayEntry({ builder: (context) => this.content(context) });
   // The entry owns content invalidation. Metrics rebuild the ambient media, but
@@ -331,66 +421,113 @@ class WidgetsAppState extends State<WidgetsApp> {
     }
     this.overlay = new Overlay({ initialEntries: [this.entry] });
   }
-  private updateLocalizations(locale: string, delegates: readonly LocalizationsDelegate[]): void {
-    const previous = this.requestedDelegates;
-    if (this.requestedLocale === locale && this.localizationsWidget === this.widget) return;
-    this.localizationsWidget = this.widget;
-    if (
-      this.requestedLocale === locale &&
-      previous.length === delegates.length &&
-      delegates.every((delegate, index) => {
-        const old = previous[index]!;
-        return (
-          delegate.constructor === old.constructor &&
-          delegate.type === old.type &&
-          !delegate.shouldReload(old)
-        );
-      })
-    )
-      return;
-    this.requestedLocale = locale;
-    this.requestedDelegates = [...delegates];
-    const revision = ++this.localizationRevision;
-    const sourceLocale = localeFromTag(locale);
-    const selected = new Set<LocalizationResource>();
-    const resources = new Map<LocalizationResource, object>();
-    const pending: Promise<void>[] = [];
-    const report = (exception: unknown): void => {
-      const details = new FlutterErrorDetails({ exception, library: 'widgets localizations' });
-      const handler = this.context.services.reportError;
-      if (handler) handler(details);
-      else FlutterError.reportError(details);
+  private commitLocalizations(
+    request: LocalizationRequest,
+    locale: string,
+    messageLocale: string,
+    resources: LocalizationResources,
+  ): void {
+    request.status = 'loaded';
+    this.loadedLocalizations = {
+      locale,
+      messageLocale,
+      resources,
+      delegates: request.delegates,
+      messages: request.messages,
+      fallback: request.fallback,
     };
-    for (const delegate of delegates) {
-      if (selected.has(delegate.type) || !delegate.isSupported(sourceLocale)) continue;
-      selected.add(delegate.type);
-      try {
-        const loaded = delegate.load(sourceLocale);
-        if ('then' in loaded && typeof loaded.then === 'function') {
-          pending.push(
-            Promise.resolve(loaded).then((value) => {
-              resources.set(delegate.type, value);
-            }),
-          );
-        } else {
-          resources.set(delegate.type, loaded);
-        }
-      } catch (exception) {
-        report(exception);
+  }
+
+  private loadLocalizations(
+    request: LocalizationRequest,
+    messageLocale: string,
+    recovery = false,
+  ): void {
+    const locale = canonicalLocaleTag(messageLocale);
+    const failed = (exception: unknown): void => {
+      const details = new FlutterErrorDetails({ exception, library: 'widgets localizations' });
+      FlutterError.reportError(details);
+      if (
+        !this.loadedLocalizations &&
+        !recovery &&
+        canonicalLocaleTag(request.fallback) !== locale
+      ) {
+        this.loadLocalizations(request, request.fallback, true);
+      } else {
+        request.status = 'failed';
+        if (!this.loadedLocalizations) this.localizationError = details;
       }
-    }
-    if (pending.length === 0) {
-      this.loadedLocalizations = { locale, resources };
+    };
+    let resources: ReturnType<typeof loadLocalizationResources>;
+    try {
+      resources = loadLocalizationResources(locale, request.delegates);
+    } catch (exception) {
+      failed(exception);
       return;
     }
-    void Promise.allSettled(pending).then((results) => {
-      if (!this.mounted || this.localizationRevision !== revision) return;
-      for (const result of results) if (result.status === 'rejected') report(result.reason);
-      if (this.mounted && this.localizationRevision === revision)
-        this.setState(() => {
-          this.loadedLocalizations = { locale, resources };
-        });
-    });
+    const commit = (value: LocalizationResources): void => {
+      this.commitLocalizations(
+        request,
+        locale,
+        recovery ? messageLocale : request.messageLocale,
+        value,
+      );
+    };
+    if (resources instanceof Map) {
+      commit(resources);
+      return;
+    }
+    const current = (): boolean =>
+      this.mounted &&
+      this.localizationRequest === request &&
+      this.context.services.readStatus() === 'open';
+    void resources.then(
+      (value) => {
+        if (current()) this.setState(() => commit(value));
+      },
+      (exception: unknown) => {
+        if (current()) this.setState(() => failed(exception));
+      },
+    );
+  }
+
+  private updateLocalizations(
+    messageLocale: string,
+    delegates: readonly LocalizationsDelegate[],
+    messages: LocalizationMessages,
+    fallback: string,
+  ): void {
+    const locale = canonicalLocaleTag(messageLocale);
+    const previous = this.localizationRequest;
+    const loaded = this.loadedLocalizations;
+    if (previous?.locale === locale && localizationDelegatesMatch(delegates, previous.delegates)) {
+      previous.messageLocale = messageLocale;
+      previous.messages = messages;
+      previous.fallback = fallback;
+      if (loaded && previous.status === 'loaded') {
+        const messageTag = loaded.locale === locale ? messageLocale : loaded.messageLocale;
+        if (
+          loaded.messages !== messages ||
+          loaded.fallback !== fallback ||
+          loaded.messageLocale !== messageTag
+        )
+          this.commitLocalizations(previous, loaded.locale, messageTag, loaded.resources);
+      }
+      return;
+    }
+    const request: LocalizationRequest = {
+      locale,
+      delegates: [...delegates],
+      messageLocale,
+      messages,
+      fallback,
+      status: 'loading',
+    };
+    this.localizationRequest = request;
+    this.localizationError = null;
+    if (loaded?.locale === locale && localizationDelegatesMatch(delegates, loaded.delegates))
+      this.commitLocalizations(request, locale, messageLocale, loaded.resources);
+    else this.loadLocalizations(request, messageLocale);
   }
   build(): Widget {
     const o = this.widget.options,
@@ -404,11 +541,26 @@ class WidgetsAppState extends State<WidgetsApp> {
       ),
       theme =
         o.theme ?? (services?.environment?.brightness === 'light' ? lightAppTheme : darkAppTheme);
-    this.updateLocalizations(locale, o.localizationsDelegates ?? noLocalizationDelegates);
+    this.updateLocalizations(
+      locale,
+      o.localizationsDelegates
+        ? [...o.localizationsDelegates, WidgetsLocalizations.delegate]
+        : defaultLocalizationDelegates,
+      o.messages ?? this.emptyMessages,
+      supported[0]!,
+    );
     const localized = this.loadedLocalizations;
     if (localized === null)
-      return new MediaQuery(mediaFromView(this.context), new AppTheme(theme, new SizedBox()));
+      return new MediaQuery(
+        mediaFromView(this.context),
+        new AppTheme(
+          theme,
+          this.localizationError ? ErrorWidget.builder(this.localizationError) : new SizedBox(),
+        ),
+      );
     const direction = localeDirection(localized.locale);
+    if (this.context.maybeDependOn(Localizations) == null)
+      this.context.services.setViewLocale?.(localized.locale, direction);
     const showBanner =
       o.debugShowCheckedModeBanner !== false && this.context.services.defaultFont !== undefined;
     const child = new Builder((context) => {
@@ -443,17 +595,17 @@ class WidgetsAppState extends State<WidgetsApp> {
       new AppTheme(
         theme,
         new Localizations(
-          localized.locale,
-          o.messages ?? this.emptyMessages,
-          supported[0]!,
-          new Directionality(direction, child),
+          localized.messageLocale,
+          localized.messages,
+          localized.fallback,
+          localizedDirectionality(localized.locale, direction, child),
           localized.resources,
         ),
       ),
     );
   }
   override dispose(): void {
-    this.localizationRevision++;
+    this.localizationRequest = null;
     this.observer?.dispose();
     this.entry.dispose();
     this.ownedNavigator?.dispose();

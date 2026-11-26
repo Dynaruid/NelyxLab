@@ -92,7 +92,6 @@ import { minSourceDartNum } from '@nelyx/core/internal/foundation/dart-numeric-m
 import { sourceDartNumGreaterEqual } from '@nelyx/core/foundation/dart-numeric';
 import { dateListAt } from '../../internal/date/source-values.ts';
 import { dateLayoutBuilder } from '../../internal/date/source-host.ts';
-import { dateDirectionality } from '../../internal/date/source-host.ts';
 import { dateLocalizationsOverride } from '../../internal/date/source-host.ts';
 import { dateShowDialog } from '../../internal/date/source-host.ts';
 import { debugIsSerializableForRestoration } from '../../internal/date/source-host.ts';
@@ -1459,7 +1458,7 @@ export async function showDatePicker({
   readonly helpText?: string | null;
   readonly cancelText?: string | null;
   readonly confirmText?: string | null;
-  readonly locale?: Locale | null;
+  readonly locale?: Locale | string | null;
   readonly barrierDismissible?: boolean;
   readonly barrierColor?: Color | null;
   readonly barrierLabel?: string | null;
@@ -1536,28 +1535,12 @@ export async function showDatePicker({
     switchToCalendarEntryModeIcon: switchToCalendarEntryModeIcon,
     calendarDelegate: calendarDelegate,
   });
-  if (textDirection !== null) {
-    void (dialog = dateDirectionality({
-      textDirection: textDirection as ScrollbarTextDirection,
-      child: dialog,
-    }));
-  }
-  if (locale !== null) {
-    void (dialog = dateLocalizationsOverride({
-      context: context,
-      locale: locale as Locale,
-      child: dialog,
-    }));
-  } else {
-    const datePickerTheme: DatePickerThemeData = DatePickerTheme.of(context);
-    if (datePickerTheme.locale !== null) {
-      void (dialog = dateLocalizationsOverride({
-        context: context,
-        locale: datePickerTheme.locale,
-        child: dialog,
-      }));
-    }
-  }
+  dialog = dateLocalizationsOverride({
+    context,
+    locale: locale ?? DatePickerTheme.of(context).locale,
+    textDirection,
+    child: dialog,
+  });
   return dateShowDialog({
     context: context,
     barrierDismissible: barrierDismissible,

@@ -6,17 +6,10 @@ import { InheritedWidget } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext, Widget } from '@nelyx/core/framework/widgets/framework';
 import { Localizations, LocalizationsDelegate } from '@nelyx/core/framework/widgets/app-data';
 import type { Locale } from '@nelyx/core/ui/locale';
-import { selectionMessages } from './generated/localizations/selection-localizations-data.ts';
-import { clearButtonLabels } from './internal/input/clear-localizations.ts';
-import { dialogLabels } from './internal/dialog-labels.ts';
-import { contextMenuLabels } from './internal/context-menu-labels.ts';
-import { expansionTileLabels } from './internal/expansion-tile-labels.ts';
-import { noSpellCheckReplacementLabels } from './internal/spell-check-labels.ts';
-import { searchPlaceholderLabels } from './generated/localizations/search-localizations-data.generated.ts';
-import {
-  pickerFormats,
-  pickerMessages,
-} from './generated/localizations/picker-localizations-data.generated.ts';
+import { IntlProvider } from '@nelyx/core/framework/widgets/intl-provider';
+import { WidgetLocalizationCatalog } from '@nelyx/core/framework/widgets/widget-localization-catalog';
+import { cupertinoArb } from './generated/localizations/cupertino-arb.generated.ts';
+import { pickerFormats } from './generated/localizations/picker-localizations-data.generated.ts';
 import type { PickerFormats } from './generated/localizations/picker-localizations-data.generated.ts';
 
 export enum DatePickerDateOrder {
@@ -33,14 +26,19 @@ export enum DatePickerDateTimeOrder {
   dayPeriod_time_date = 'dayPeriod_time_date',
 }
 
+const catalogLocales = Object.freeze(Object.keys(cupertinoArb.locales));
+
 export class CupertinoLocalizations {
   private standaloneMonthFormat: Intl.DateTimeFormat | null | undefined;
-  private readonly messages: Readonly<Record<string, string>>;
+  private readonly intl: IntlProvider;
+  private readonly catalog: WidgetLocalizationCatalog;
   private readonly formats: PickerFormats;
   private readonly digits: readonly string[];
 
   constructor(readonly locale = 'en') {
-    const parts = locale.replaceAll('-', '_').split('_'),
+    this.intl = IntlProvider.forLocale(locale);
+    this.catalog = new WidgetLocalizationCatalog(cupertinoArb, this.intl);
+    const parts = this.intl.locale.replaceAll('-', '_').split('_'),
       language = parts[0]!,
       script = parts.find((value) => value.length === 4),
       region = parts.find(
@@ -55,46 +53,6 @@ export class CupertinoLocalizations {
     const pickerLocale = candidates.filter((key) => pickerFormats[key] !== undefined).at(-1);
     this.formats = pickerFormats[pickerLocale ?? 'en']!;
     this.digits = Array.from(this.formats.digits);
-    this.messages = Object.freeze(
-      Object.assign(
-        {
-          clearButtonLabel: clearButtonLabels.en,
-          searchTextFieldPlaceholderLabel: searchPlaceholderLabels.en,
-        },
-        selectionMessages.en,
-        pickerMessages.en,
-        expansionTileLabels.en,
-        ...candidates.map((key) => ({
-          ...selectionMessages[key],
-          ...pickerMessages[key],
-          ...expansionTileLabels[key],
-          ...(searchPlaceholderLabels[key] === undefined
-            ? {}
-            : { searchTextFieldPlaceholderLabel: searchPlaceholderLabels[key] }),
-          ...(clearButtonLabels[key] === undefined
-            ? {}
-            : { clearButtonLabel: clearButtonLabels[key] }),
-        })),
-        {
-          noSpellCheckReplacementsLabel: candidates.reduce(
-            (label, key) => noSpellCheckReplacementLabels[key] ?? label,
-            noSpellCheckReplacementLabels.en!,
-          ),
-          menuDismissLabel: candidates.reduce(
-            (label, key) => contextMenuLabels[key]?.menuDismissLabel ?? label,
-            contextMenuLabels.en!.menuDismissLabel!,
-          ),
-          modalBarrierDismissLabel: candidates.reduce(
-            (label, key) => dialogLabels[key]?.[0] ?? label,
-            dialogLabels.en![0]!,
-          ),
-          alertDialogLabel: candidates.reduce(
-            (label, key) => dialogLabels[key]?.[1] ?? label,
-            dialogLabels.en![1]!,
-          ),
-        },
-      ),
-    );
   }
   static of(context: BuildContext): CupertinoLocalizations {
     const localizations = context.maybeDependOn(Localizations);
@@ -105,10 +63,10 @@ export class CupertinoLocalizations {
     );
   }
   static get supportedLocales(): readonly string[] {
-    return Object.freeze(Object.keys(selectionMessages));
+    return catalogLocales;
   }
   protected message(key: string): string {
-    const value = this.messages[key];
+    const value = this.catalog.raw(key);
     if (value === undefined) throw new Error('Missing Cupertino localization: ' + key);
     return value;
   }
@@ -176,9 +134,7 @@ export class CupertinoLocalizations {
     readonly tabIndex: number;
     readonly tabCount: number;
   }): string {
-    return this.message('tabSemanticsLabel')
-      .replaceAll('$tabIndex', this.number(tabIndex))
-      .replaceAll('$tabCount', this.number(tabCount));
+    return this.catalog.format('tabSemanticsLabel', { tabIndex, tabCount });
   }
 
   get datePickerDateOrder(): DatePickerDateOrder {
@@ -223,15 +179,13 @@ export class CupertinoLocalizations {
   }
 
   datePickerStandaloneMonth(month: number): string {
-    const tag = this.locale.replaceAll('_', '-');
+    const tag = this.intl.locale;
     if (this.standaloneMonthFormat === undefined) {
-      try {
-        this.standaloneMonthFormat = Intl.DateTimeFormat.supportedLocalesOf([tag]).length
-          ? new Intl.DateTimeFormat(tag, { month: 'long', timeZone: 'UTC', calendar: 'gregory' })
-          : null;
-      } catch {
-        this.standaloneMonthFormat = null;
-      }
+      this.standaloneMonthFormat = this.intl.dateTimeFormat({
+        month: 'long',
+        timeZone: 'UTC',
+        calendar: 'gregory',
+      });
     }
     if (!this.standaloneMonthFormat || month < 1 || month > 12) return this.datePickerMonth(month);
     const [first, ...rest] = Array.from(
@@ -261,11 +215,15 @@ export class CupertinoLocalizations {
   }
 
   datePickerHourSemanticsLabel(hour: number): string {
-    return this.formats.hourSemantics[hour] ?? this.number(hour);
+    return this.formats.hourSemantics[hour] === undefined
+      ? this.number(hour)
+      : this.catalog.format('datePickerHourSemanticsLabel', { hour });
   }
 
   datePickerMinuteSemanticsLabel(minute: number): string {
-    return this.formats.minuteSemantics[minute] ?? this.number(minute);
+    return this.formats.minuteSemantics[minute] === undefined
+      ? this.number(minute)
+      : this.catalog.format('datePickerMinuteSemanticsLabel', { minute });
   }
 
   timerPickerHour(hour: number): string {
@@ -281,15 +239,21 @@ export class CupertinoLocalizations {
   }
 
   timerPickerHourLabel(hour: number): string {
-    return this.formats.timerHourLabels[hour] ?? '';
+    return this.formats.timerHourLabels[hour] === undefined
+      ? ''
+      : this.catalog.format('timerPickerHourLabel', { hour });
   }
 
   timerPickerMinuteLabel(minute: number): string {
-    return this.formats.timerMinuteLabels[minute] ?? '';
+    return this.formats.timerMinuteLabels[minute] === undefined
+      ? ''
+      : this.catalog.format('timerPickerMinuteLabel', { minute });
   }
 
   timerPickerSecondLabel(second: number): string {
-    return this.formats.timerSecondLabels[second] ?? '';
+    return this.formats.timerSecondLabels[second] === undefined
+      ? ''
+      : this.catalog.format('timerPickerSecondLabel', { second });
   }
 }
 class CupertinoLocalizationsDelegate extends LocalizationsDelegate<CupertinoLocalizations> {

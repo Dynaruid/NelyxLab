@@ -20,6 +20,11 @@ import { EdgeInsets, EdgeInsetsDirectional } from '@nelyx/core/framework/paintin
 import type { EdgeInsetsGeometry } from '@nelyx/core/framework/painting/edge-insets';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
 import { MediaQuery, Directionality, Localizations } from '@nelyx/core/framework/widgets/app-data';
+import {
+  canonicalLocaleTag,
+  localizedDirectionality,
+  localeDirection,
+} from '@nelyx/core/framework/widgets/app';
 import type {
   MediaQueryClampedTextScalingOptions,
   MediaQueryRemovePaddingOptions,
@@ -56,7 +61,11 @@ import type { FocusableActionDetectorOptions } from '@nelyx/core/framework/widge
 import { DartMap } from '@nelyx/core/internal/foundation/dart-collections';
 import type { DartKeyPolicy } from '@nelyx/core/internal/foundation/dart-collections';
 import type { Locale } from '@nelyx/core/ui/locale';
-import { MaterialLocalizations } from '../../material-localizations.ts';
+import {
+  MaterialLocalizations,
+  MaterialLocalizationsScope,
+  materialPickerLocalizations,
+} from '../../material-localizations.ts';
 import { Material } from '../../material.ts';
 import { DateTime, dateTimeType } from './date-time.ts';
 import { GregorianCalendarDelegate } from '../../generated/date/date.generated.ts';
@@ -147,27 +156,32 @@ export const dateShapeDecoration = ({
 }) => new ColorShapeDecoration(shape, color);
 export const dateClampedTextScaling = (options: MediaQueryClampedTextScalingOptions) =>
   MediaQuery.withClampedTextScaling(options);
-export const dateDirectionality = ({
-  textDirection,
-  child,
-}: WidgetOptions & { textDirection: 'ltr' | 'rtl'; child: Widget }) =>
-  new Directionality(textDirection, child);
 export function dateLocalizationsOverride({
   context,
   locale,
+  textDirection,
   child,
 }: {
   context: BuildContext;
-  locale: Locale | null;
+  locale: Locale | string | null;
+  textDirection: 'ltr' | 'rtl' | null;
   child: Widget;
 }): Widget {
-  const old = Localizations.of(context);
-  return new Localizations(
-    locale?.toLanguageTag() ?? old.locale,
-    old.messages,
-    old.fallback,
-    child,
+  if (locale === null) {
+    const scope = context.maybeDependOn(MaterialLocalizationsScope);
+    const directed = textDirection ? localizedDirectionality(null, textDirection, child) : child;
+    return scope ? new MaterialLocalizationsScope(scope.data, directed) : directed;
+  }
+  const tag = canonicalLocaleTag(typeof locale === 'string' ? locale : locale.toLanguageTag());
+  const old = context.maybeDependOn(Localizations);
+  const directed = localizedDirectionality(
+    tag,
+    textDirection ?? localeDirection(tag),
+    new MaterialLocalizationsScope(materialPickerLocalizations(context, tag), child),
   );
+  return old?.locale === tag
+    ? old.wrap(directed)
+    : new Localizations(tag, old?.messages ?? {}, old?.fallback ?? 'en', directed);
 }
 export function dateRemoveViewInsets({
   context,

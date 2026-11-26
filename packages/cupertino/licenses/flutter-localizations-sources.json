@@ -1,0 +1,717 @@
+{
+  "schema": "nelyx.flutter-localization-sources/v1",
+  "repository": "https://github.com/flutter/flutter",
+  "revision": "71e4717a61786faab4c7aa39825989305ed29e8a",
+  "license": "BSD-3-Clause",
+  "notice": "Flutter-LICENSE.md",
+  "family": "cupertino",
+  "inputs": [
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_af.arb",
+      "gitBlob": "4421c6426619f0df76f42a578446770c59fec277",
+      "sha256": "2f25d835363db09d176e4379461d4c9f9e6a1a9149e91997b90f0368644a9fcc"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_am.arb",
+      "gitBlob": "7026a2ff10e0935beca126026350f233ebfce801",
+      "sha256": "4a9380911a2a8e516c8b43f8c813651bf32b36c5296a270901fccb43cb02158f"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ar.arb",
+      "gitBlob": "9876585d0c8cd8ab693aacfe3a6b894e7a7a7194",
+      "sha256": "b16a20b2ff8cb86e1ed5cadf329ab6ff14e962b3f80ca6d2fdf9476593865048"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_as.arb",
+      "gitBlob": "593aa734d1bc30c001a4e91edbe2359824452b80",
+      "sha256": "4f66a7e033338fb50278b0e6708af740b98bf172132ec7df2b4e00e66f975954"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_az.arb",
+      "gitBlob": "caf130514806203fc418fbb0057c862e866acfd0",
+      "sha256": "7582ebf9e9d84b1616e766dfc38e17513ba529cbf2cac9c62bfa9bbb85468e1d"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_be.arb",
+      "gitBlob": "9b584c95950178a2498d662976d6cd977f5ed9ab",
+      "sha256": "1354a4dbc1ad5c66957da9e7ac13b40428c38320db32445e0bd5c225eb8a931d"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_bg.arb",
+      "gitBlob": "f58a2068383acf3157f7792703c718cd74786292",
+      "sha256": "ba089abae254c53a5660545895a352f54f5a870df9a97948d85b0ec5d61a6b1f"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_bn.arb",
+      "gitBlob": "ca5d3697ba07e643223685325ca9d008ab6cb764",
+      "sha256": "79b48f1485a945f9668cc049379af986fa702a71f6bf7c5791783eae8c98e2e1"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_bo.arb",
+      "gitBlob": "e67ffc35adfcc53b4292d17c615132725abf59d8",
+      "sha256": "de002bee771f03d203b06feeacf6428eb59ab2d20eb762055780dc2f157c8dd0"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_bs.arb",
+      "gitBlob": "907da01dca82f6f745f0d5e3fc86f65e4f8a2257",
+      "sha256": "dcbe5831e9dc7e8c10485c36a25957b958c1c4e41096adb7cc4fc6a8b605132f"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ca.arb",
+      "gitBlob": "0fb5a52c7d41f83459246f3878f86981dcd21d49",
+      "sha256": "1d484a79d15b16e84c17fcf436cdd412e4f5fbbdb2bba2aa977998f754589b8f"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_cs.arb",
+      "gitBlob": "a7ccd248b501189a922e9fc75b71b5e1776a3985",
+      "sha256": "52f960e2f474aa43cad27fa51bcc92e667eba5e883b3ba8dc221a4d84620d127"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_cy.arb",
+      "gitBlob": "a49d5d6c537a2002144ff6cf97cd4cd0bad34e46",
+      "sha256": "3ac09bcc8e698252fa0358c34d01988022c99add363d773606535ef9efcfafd7"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_da.arb",
+      "gitBlob": "6807ae5629bca758c531152c417d1f56c051043c",
+      "sha256": "66c23f54c49495b78887a8f702a21a815a71cc5c2d705915ac1dffb19c7e533c"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_de.arb",
+      "gitBlob": "35d88a0d39f9264d9591d18f26cd3daa4a6e0e70",
+      "sha256": "dbcd113b12a3b0f052b144c91c7c5a77df14a8848d29ec23c0a5ad6fe14a99b5"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_de_CH.arb",
+      "gitBlob": "f2acabd7bdff93fe90ba358ec3436fcbacd10d3b",
+      "sha256": "4760adc717c5a307d8859123e4293f1c192ba9c476e35ee448278162b8611bf7"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_el.arb",
+      "gitBlob": "ed7be3b5fda3f19c45db5a0bc31c155277f6fec7",
+      "sha256": "d3689459b79c77a9793a8472f514fbbdf2f061d4bd10e3c102cfa6215fea8d22"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_en.arb",
+      "gitBlob": "6a459d19a665916cae3201b1d590cc1ae8e85744",
+      "sha256": "baab708eaf9a1182b8719bdfd2bdb123522d9da2127922b7f58c2d77d0272af6"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_en_AU.arb",
+      "gitBlob": "b0cfccef37169fa958213256b6ac851e61e6e2c0",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_en_CA.arb",
+      "gitBlob": "f8ddf2243cae00c9089c6f0b58e145ca1b05d9ac",
+      "sha256": "92c3b126bf18d0e7bc8c0ee1da7bb96d0aa6e76dde16e760700ac7dcf6f2f67a"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_en_GB.arb",
+      "gitBlob": "b0cfccef37169fa958213256b6ac851e61e6e2c0",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_en_IE.arb",
+      "gitBlob": "b0cfccef37169fa958213256b6ac851e61e6e2c0",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_en_IN.arb",
+      "gitBlob": "b0cfccef37169fa958213256b6ac851e61e6e2c0",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_en_NZ.arb",
+      "gitBlob": "b0cfccef37169fa958213256b6ac851e61e6e2c0",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_en_SG.arb",
+      "gitBlob": "b0cfccef37169fa958213256b6ac851e61e6e2c0",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_en_ZA.arb",
+      "gitBlob": "b0cfccef37169fa958213256b6ac851e61e6e2c0",
+      "sha256": "470a685ea29d32aec651744a8fee8dd7fcf115b86a78b0173a03fc23c67af4a8"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es.arb",
+      "gitBlob": "d14e731098cccd68451e6cba73a0d454a1f9c3a6",
+      "sha256": "d30fd9d793a99b05ff4448a361687b209e5425feb7cf633bb437a83e51761541"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_419.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_AR.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_BO.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_CL.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_CO.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_CR.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_DO.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_EC.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_GT.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_HN.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_MX.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_NI.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_PA.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_PE.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_PR.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_PY.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_SV.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_US.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_UY.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_es_VE.arb",
+      "gitBlob": "5e222e923f215bb76858e76782ecbcd00571d670",
+      "sha256": "1836fe18f2fa7d9df96fb845199b7f08db93866a2c8e56d03dd9aa4124119189"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_et.arb",
+      "gitBlob": "e43a159c54bb17d355134c381a4f7b9bb869e383",
+      "sha256": "448c188f9ee75e54ba4c3d7c1e7422cf87071c4b81a86293106afaf7f85e8297"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_eu.arb",
+      "gitBlob": "4997bff7d604415ddeec470716a536992882bb63",
+      "sha256": "5d60226b0d1c36952b4f657eae5587d1b575ec30e47124062de80f20d3e4dcd9",
+      "placeholderCorrections": {
+        "datePickerHourSemanticsLabelOne": [
+          "Ordu$houra da",
+          "Ordu${hour}a da"
+        ],
+        "datePickerHourSemanticsLabelOther": [
+          "$hourak dira",
+          "${hour}ak dira"
+        ]
+      }
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_fa.arb",
+      "gitBlob": "04d201114047c0a8501a11a419ad61f86fe8a380",
+      "sha256": "a4b333a0d86a2c543fcf3c7c9faddbb26c647793b0efc9d0f9dade00fb4644cd"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_fi.arb",
+      "gitBlob": "042b0b524987fd738f1d5036ae224dcb369f1b89",
+      "sha256": "15f778aca4cdd6517b4d77802440f67d9f7be67b58cd7e2b4c0f26df5e208750"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_fil.arb",
+      "gitBlob": "9415c62c8ec2ee1c3a1efc3a268f901c7386d497",
+      "sha256": "689ffe6248af1d52e49d640b39cb4f3fa4f0bf3013e7a8e6f297fbf04ffaf772"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_fr.arb",
+      "gitBlob": "cb1a367975b384fb63f023d0c27e329302f36aa8",
+      "sha256": "1846021b32390fe170444edf5b62f5913a861d62fb0801192de476c6a98ce404"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_fr_CA.arb",
+      "gitBlob": "27c6a46c6fdd96854b3a0a98a420d134c5615e4d",
+      "sha256": "1dfd9410273f3cd09d2e4f247251dc554ad2378c9f1865334f419aaebce78fbe"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ga.arb",
+      "gitBlob": "80ffb72c6e183f84450ef1ed3160e67a00262979",
+      "sha256": "e590b66a8e75cb58c12367e07703e84d03ad2c01cdc3e41bd76bcd8ba514bb48"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_gl.arb",
+      "gitBlob": "6166c442926a4e5ac178c1848d7370219a2e02d7",
+      "sha256": "9875b9c3c2e0960d8869db934e25235819473ee393d110f27e1cc9d79c9ca066"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_gsw.arb",
+      "gitBlob": "68737efa2f9ccbb8edf088bef16926772583017a",
+      "sha256": "fdd8b7ab30c7ade19684a13a95e6926968bd1019e599022b4cec04783c10174e"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_gu.arb",
+      "gitBlob": "4be06fadbeccdbaf9f37ca9340ac58f3c0f9ac0b",
+      "sha256": "0eb2321f6499eec7fd0bef3e507de4bf089ea9a65cbaedd7e4f664920f3c864a"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_he.arb",
+      "gitBlob": "8db786c787050aadd71b3c95fc755d9ccafa2e65",
+      "sha256": "a3c1a29cfcae482485a53d551bc34882cfcd9967b4b336ed17164d22c336f61a"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_hi.arb",
+      "gitBlob": "431b743ef4b134c0c71e23649bc9580a6fab4563",
+      "sha256": "22622fafad6dce82ee8c560ba894146e4dd9ed911978f165efaa09a3d51dc594"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_hr.arb",
+      "gitBlob": "cdec4c98af81f9cce23b4f6cef6c375a5a3ed976",
+      "sha256": "d3d49aef6839f8e16666d1d9f9edac46c894083b5bd6cc84ff77f27c7d861e4b"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_hu.arb",
+      "gitBlob": "f8394d91cd713f06308eececd32d45a79dfd677a",
+      "sha256": "a755db02481826c38445ee38103cf1b161ead817d575b5d0a8f0b70ee4027cd9"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_hy.arb",
+      "gitBlob": "a0f0397e9e2c231faa9c45ddf8d0260da969d067",
+      "sha256": "9bb30e3c72c0d21506dba5035b4aedda57467e2e363ad645a6c343e4f8cb267c"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_id.arb",
+      "gitBlob": "021cc61544cf47311ffa2b1633f6bccddc332f26",
+      "sha256": "ab1abf8a4a785489d8634dca557a37620a50981a539a1ca2bee690deda38b564"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_is.arb",
+      "gitBlob": "9da2d57b53313741ca3f41685f4ec79637916940",
+      "sha256": "ddb575c84c348d51ed800a812f1bedbe9c460540bf2bb65759eae4e9d1384352"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_it.arb",
+      "gitBlob": "d2d90f3f903f737597f6c5bcbe230136cc0c7381",
+      "sha256": "dc972b3741fc74042a779e5cb05e1dc6bb1d59fc9db9e87b9318dc1825df43ac"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ja.arb",
+      "gitBlob": "750f96f77e0c3599e4feb94c1b01f0d53e3bf009",
+      "sha256": "5813938464d9b1f1bc7f2981a00d9ca9d933d3140f84ccf51e2ecb7765b54d1e"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ka.arb",
+      "gitBlob": "03ba29fe9ba7395ca5cec49bff514dbeb801d3a4",
+      "sha256": "fc539cf1b9c7aaf568caab61e213ada1d909a7ba9e2b7f82bca022065ecb4995"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_kk.arb",
+      "gitBlob": "521502e54e6042a3940b4b00c45e1c36beaf05cb",
+      "sha256": "87e8a12455e7338ad44be72dd41f094b49a81c30f431565c473a534d4bea8220"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_km.arb",
+      "gitBlob": "5a309d9f8496f90b319d2eca8e82e3e6b56ac459",
+      "sha256": "b2307f6a279f5324c4cd68c36fc0504a4247e92430b0f71e887a695bfb9601b3"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_kn.arb",
+      "gitBlob": "71d6c8ed9066d0de5f6adc1212d1c5fd9576b6aa",
+      "sha256": "581f53a335aabc119981d7d038450db00b21fb954c2f0886f5742a298892d224"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ko.arb",
+      "gitBlob": "26acce64fce3cb9397f3765592790c170b18e556",
+      "sha256": "5e7935f144d73babaee9e4f18ac94d1daa01a12e2071d5b2c1478625967859f5"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ky.arb",
+      "gitBlob": "a2f7f4c9fe89fe3b937cf69136c5ba2eb954a2af",
+      "sha256": "46fdf32eb7aa2e6a681abc7904c13524a1f6ce1d3f16a55c522064735100db7e"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_lo.arb",
+      "gitBlob": "43450bd436f17cf829e4cdc6fc44bfd07a5c372d",
+      "sha256": "e1c274b6580ba2bbc2abefe9d2d568196d8da2374a7226805660b47d0083da79"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_lt.arb",
+      "gitBlob": "5366cdb3adb9edfcfb2e7542f66f5bf355ced7d2",
+      "sha256": "afd988ef606eae59f03c8a983e56fc5c52c92630642d51be6e4c0c99e2a78e6c"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_lv.arb",
+      "gitBlob": "0ac8abb1327833df118fc356a5186f58cd05804a",
+      "sha256": "c2bef919bcdfb83c1971ac60a09e8456d6f130b382f7d3a2064154dc4d642107"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_mk.arb",
+      "gitBlob": "10ea394ca2560cddc65eaabec058ffe0d5ab0f9d",
+      "sha256": "835783f7297c22eb0ced820e1781f4a0bd9f3579e05abe47c7bbb82e89314983"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ml.arb",
+      "gitBlob": "9121a903b773c81fa473bc920b1f3fcd0b65ccfa",
+      "sha256": "90b2ea903fa5999123ff60b685e38e0206562aa7ed7c1330de51cc7471de30c9"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_mn.arb",
+      "gitBlob": "7167357b490d4c2f1ad8b1c21d74d0f935da26d0",
+      "sha256": "517394dfeff9b01eadec3f36ad3e88db73301102dacc47ef9037be5d7a0eb646"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_mr.arb",
+      "gitBlob": "e20a2d51315e2665fafc2438b22d58245de32bd9",
+      "sha256": "980506537657d968cf388b307999546a29850bed5c3d1b692e3476e3106a4b0c"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ms.arb",
+      "gitBlob": "7a96112ccaccc15ab9e02a58babc6dc610fc273c",
+      "sha256": "830936bd34cc237aee6d7b705cd06c3512b34a7984bc10daf9176c2dcc054de8"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_my.arb",
+      "gitBlob": "38f6276601444c148bc65c5dece31e9bec086137",
+      "sha256": "1c7fca22436fb4bb12b8bab62fc73b96f0191a5ecda7f2ef2e581af2ee0e4dfc"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_nb.arb",
+      "gitBlob": "7b412246bd9625905748a97d4db042e907ade975",
+      "sha256": "e6f290b5bb03f3194a4328ce9c643aaf1b2386c93ac43c75dd8b366916895e50"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ne.arb",
+      "gitBlob": "9f5f2e299ff1917d3e524cb92870867f48a0bb9a",
+      "sha256": "c5ffd6f288f2d15caa744d643ce8a4c1c8ada595f0a6abf375d1a60cee614187"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_nl.arb",
+      "gitBlob": "3e4ff68b978c30c7d6736e79c1f7c79b3f10e444",
+      "sha256": "b198ff12801fb0513683564236a6f6e69dbf08269fc78734785dc942b28ff591"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_no.arb",
+      "gitBlob": "7b412246bd9625905748a97d4db042e907ade975",
+      "sha256": "e6f290b5bb03f3194a4328ce9c643aaf1b2386c93ac43c75dd8b366916895e50"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_or.arb",
+      "gitBlob": "279e5078c2dd6acc54c5d4be02ff9fcdd361f434",
+      "sha256": "5027819a581fb72d01cef4fe70d27a18d4bd1d943383453c3a712b2cd5e3c6cd"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_pa.arb",
+      "gitBlob": "db84b970884f2b49a827a4821c33dc1ebe3c16fe",
+      "sha256": "499ca4330d14c7fb00742ff82e65ad9b6e96345a9599ba552a3cf7f3ae5dabdd"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_pl.arb",
+      "gitBlob": "c6431b0a69cc6dc64aafdb3bfa47e100fca1728f",
+      "sha256": "f23c9a86e972ed01ce3fe3993042bec6373d61606d9832894399d8ff5195f215"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_pt.arb",
+      "gitBlob": "37246440ef3ef491983da85905f2c48c299d710f",
+      "sha256": "95f9f8b41c7c735f7f9bad42258252220e12786579b6cefb11e194cbcd53ee9b"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_pt_PT.arb",
+      "gitBlob": "8f3f6d05b2a75f053aa31fe609ccdad231969a3b",
+      "sha256": "38f064f694e519ab47218a424ae5ada2e362138539c5cd50e035608f8e40cd07"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ro.arb",
+      "gitBlob": "af0bfc74377873fc07a6906d9702613787607cbe",
+      "sha256": "b8548a2d273d84b4bcbdb3edb38418f4279413032caac3208d8d88a9250508cd"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ru.arb",
+      "gitBlob": "814dcbd8b9428181af646f09e4faad1aa7cecc24",
+      "sha256": "f6b72b0cd112f06eb3a575b014157f502fac3bfe84c69f6ee4d01ef7cb547142"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_si.arb",
+      "gitBlob": "781b42e158422cd2d43cf8d4e9360dc6f180a333",
+      "sha256": "58777a46d092180170c2158686f40a466871244a717b02f73d6097f0a2f948e8"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_sk.arb",
+      "gitBlob": "564978b85c45bdbb7d8a5d9f415a40026b036307",
+      "sha256": "8873fbd7248586981532ebb81c38aac5c69fdfa809aa58797ea739d146e55797"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_sl.arb",
+      "gitBlob": "8438831ffcecd80485ebedfea9ff484b29a2089e",
+      "sha256": "facf854a9e30f722895eaf8c73c7dc05b1d1c8e9a31fb74035f13ae500973b0a"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_sq.arb",
+      "gitBlob": "a56105a6ad220dd8a232b625127c8c7cfd69b5da",
+      "sha256": "1fdc6d9acd1e24bba03bf534557f3708b21edc2369f577c42d95fdf1692b30ba"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_sr.arb",
+      "gitBlob": "91a85a857b5d62f97594588b3f1b663eb38bdd24",
+      "sha256": "76cd42010aaa392315c430fd822e62b99087b1f104aba2f884964cae6046348c"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_sr_Latn.arb",
+      "gitBlob": "bba449f6bb7fcec6dcaadc8ec4c18257b4dc2267",
+      "sha256": "2302a6a87f1c1e39f5e064b7adc5570be79926e4093d2c35ad7fd67943f90eec"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_sv.arb",
+      "gitBlob": "a7217082c81b73e20af23fdd4c3164197f040bc5",
+      "sha256": "b3723e15adba62a01fbee6473617c6773d72f22d26cb71ef4bd0da61f73e0798"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_sw.arb",
+      "gitBlob": "cdcd13fccc0c465e714992d869dbc0ac372670eb",
+      "sha256": "98bc3180388b51e3d113f71cd92bf942db6ac0adabc958b68d80d47e042fb2d4"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ta.arb",
+      "gitBlob": "cba1ecb1163c303a978f9cc87a000d343e53dbf3",
+      "sha256": "40d3661dd6f44d89eee49da25b15026f0d978c96d10ee57725e0aab8a348df45"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_te.arb",
+      "gitBlob": "691993c22736106a1b61baea11bae6a217fde637",
+      "sha256": "2d7931cc5501c4f3ad4a7dae0469f6f0ed2cd88542c77da737e402b7c5a30057"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_th.arb",
+      "gitBlob": "0317f94806aa7416ec6ade7dfe92c9433dc7aae4",
+      "sha256": "1545bdef78e399250c42e7b85ba06f2b85acff0d28b34d69c7815bcc6bad5e30"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_tl.arb",
+      "gitBlob": "9415c62c8ec2ee1c3a1efc3a268f901c7386d497",
+      "sha256": "689ffe6248af1d52e49d640b39cb4f3fa4f0bf3013e7a8e6f297fbf04ffaf772"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_tr.arb",
+      "gitBlob": "baca16af6580a07c7940488edb1305faaed69547",
+      "sha256": "9211687a74115893fb1f9a433f19c23fdd78da4593df6b0f1b837c833f8d224e"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ug.arb",
+      "gitBlob": "a1517e96af38fa92965d1fe7fde8944ba960eb03",
+      "sha256": "50711ac5946be032f14e23fa0f5aa13ee15fb17ea025afb878cf4b1e16729da1"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_uk.arb",
+      "gitBlob": "bd4a43d43bab3a26bdf9fdb39b62587492746dad",
+      "sha256": "5d9633a7ca2327172e83b3700a8b823f3bbb710597b257a5c5effbec2614984d"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_ur.arb",
+      "gitBlob": "603043dce794709238074a6cda4eca50e0dc8e7e",
+      "sha256": "8f9708fca4f5aad1ea820b872759f9d81cbfde468c4355cfe73be3ce27b874da"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_uz.arb",
+      "gitBlob": "da72d562971cc482024a71ac0aa6ed8923e3e524",
+      "sha256": "38cb74a4481376d535e66e5fdd3ccd87dc36104592ecb8755cdbc5a615d79208"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_vi.arb",
+      "gitBlob": "bf1d7bef9af020051722b7f17aeafc1ba8985cb3",
+      "sha256": "e85a967691d8446531ffe77e236a11c6d7a31000a4c3c874d83555ca20564923"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_zh.arb",
+      "gitBlob": "f4d0d3da6e4218cc4ee79ea28586cf7b7194c67b",
+      "sha256": "61b0abca3b7a474099bcc690f645d4d9c8fb9332fa6ade3042ae203a2f386957"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_zh_HK.arb",
+      "gitBlob": "cee2ca4a3d82259682a1d9b22b66a0c230592594",
+      "sha256": "8144b3317f61254e5c3e3850298818630bdcd53e0e14ad6fc6f385ec8f13ea91"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_zh_TW.arb",
+      "gitBlob": "2ccac7944664dbdb3dd400c6c9e1c9565eb09314",
+      "sha256": "530aaf6661ee9df3add89e40ec50bb0fd63e00e4a5ce8f4eeedfa1c379d25b23"
+    },
+    {
+      "path": "packages/flutter_localizations/lib/src/l10n/cupertino_zu.arb",
+      "gitBlob": "05c9506b387e9e844e3a086b0b1c94a9af6730fc",
+      "sha256": "1497d043d724846725a51a32904dfc7acfe5f424714ee5e2f564f728770a78b2"
+    }
+  ],
+  "locales": [
+    "af",
+    "am",
+    "ar",
+    "as",
+    "az",
+    "be",
+    "bg",
+    "bn",
+    "bo",
+    "bs",
+    "ca",
+    "cs",
+    "cy",
+    "da",
+    "de",
+    "de-CH",
+    "el",
+    "en",
+    "en-AU",
+    "en-CA",
+    "en-GB",
+    "en-IE",
+    "en-IN",
+    "en-NZ",
+    "en-SG",
+    "en-ZA",
+    "es",
+    "es-419",
+    "es-AR",
+    "es-BO",
+    "es-CL",
+    "es-CO",
+    "es-CR",
+    "es-DO",
+    "es-EC",
+    "es-GT",
+    "es-HN",
+    "es-MX",
+    "es-NI",
+    "es-PA",
+    "es-PE",
+    "es-PR",
+    "es-PY",
+    "es-SV",
+    "es-US",
+    "es-UY",
+    "es-VE",
+    "et",
+    "eu",
+    "fa",
+    "fi",
+    "fil",
+    "fr",
+    "fr-CA",
+    "ga",
+    "gl",
+    "gsw",
+    "gu",
+    "he",
+    "hi",
+    "hr",
+    "hu",
+    "hy",
+    "id",
+    "is",
+    "it",
+    "ja",
+    "ka",
+    "kk",
+    "km",
+    "kn",
+    "ko",
+    "ky",
+    "lo",
+    "lt",
+    "lv",
+    "mk",
+    "ml",
+    "mn",
+    "mr",
+    "ms",
+    "my",
+    "nb",
+    "ne",
+    "nl",
+    "no",
+    "or",
+    "pa",
+    "pl",
+    "pt",
+    "pt-PT",
+    "ro",
+    "ru",
+    "si",
+    "sk",
+    "sl",
+    "sq",
+    "sr",
+    "sr-Cyrl",
+    "sr-Latn",
+    "sv",
+    "sw",
+    "ta",
+    "te",
+    "th",
+    "tl",
+    "tr",
+    "ug",
+    "uk",
+    "ur",
+    "uz",
+    "vi",
+    "zh",
+    "zh-HK",
+    "zh-Hans",
+    "zh-Hant",
+    "zh-Hant-HK",
+    "zh-Hant-TW",
+    "zh-TW",
+    "zu"
+  ]
+}

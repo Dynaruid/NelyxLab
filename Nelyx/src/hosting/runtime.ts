@@ -87,6 +87,8 @@ export interface ApplicationDefinition {
 export interface DialogWindowOptions<T> {
   readonly title: string;
   readonly requestFocus: boolean;
+  readonly locale?: string;
+  readonly textDirection?: 'ltr' | 'rtl';
   readonly createApplication: (dismiss: (result?: T) => void) => ApplicationDefinition;
 }
 /** A host returns null synchronously when a separate window is unavailable. */
@@ -95,6 +97,7 @@ export interface DialogWindowHost extends Disposable {
   stop(): void;
 }
 export interface ViewServices {
+  readonly setViewLocale?: (locale: string, textDirection: 'ltr' | 'rtl') => void;
   readonly dialogWindows?: DialogWindowHost;
   readonly semanticsGeometry?: import('./semantics-geometry.ts').SemanticsGeometryService;
   readonly sceneComposition?: import('./scene-composition.ts').SceneCompositionService;

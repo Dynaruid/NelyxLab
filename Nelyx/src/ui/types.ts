@@ -445,8 +445,10 @@ export interface SemanticsNode {
   readonly sourceRole?: SemanticsRole;
   readonly minValue?: string;
   readonly maxValue?: string;
-  /** Original slider flag and explicit embedding range, independent of formatted source value text. */
+  /** Effective language and text direction of this accessible node. */
+  readonly locale?: string;
   readonly textDirection?: 'ltr' | 'rtl';
+  /** Original slider flag and explicit embedding range, independent of formatted source value text. */
   readonly isSlider?: boolean;
   readonly numericRange?: {
     readonly min: number;

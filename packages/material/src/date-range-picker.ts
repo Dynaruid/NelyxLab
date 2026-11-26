@@ -8,7 +8,8 @@ import { AlignmentDirectional } from '@nelyx/core/framework/painting/alignment';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { TextStyle } from '@nelyx/core/framework/painting/text-style';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
-import { Directionality, Localizations, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { Directionality, MediaQuery } from '@nelyx/core/framework/widgets/app-data';
+import { canonicalLocaleTag, localeDirection } from '@nelyx/core/framework/widgets/app';
 import {
   Align,
   Column,
@@ -21,7 +22,8 @@ import {
   Text,
 } from '@nelyx/core/framework/widgets/basic';
 import { TextEditingController } from '@nelyx/core/framework/widgets/editable-text';
-import { StatefulWidget } from '@nelyx/core/framework/widgets/framework';
+import { FocusNode } from '@nelyx/core/framework/widgets/focus';
+import { Element, StatefulWidget } from '@nelyx/core/framework/widgets/framework';
 import type {
   BuildContext,
   State,
@@ -72,12 +74,15 @@ import { InputDecoration } from './input-decoration.ts';
 import { InputDecorationTheme } from './input-decoration-theme.ts';
 import type { DateTime } from './internal/date/date-time.ts';
 import { RangeCalendar } from './internal/date/range-calendar.ts';
-import { dateRangeLocalizations } from './internal/date/range-localizations.ts';
 import { DateTimeRange } from './internal/date/range-value.ts';
 import type { SelectableDayForRangePredicate } from './internal/date/range-value.ts';
-import { RestorationMixin, dateOrientationOf } from './internal/date/source-host.ts';
+import {
+  RestorationMixin,
+  dateLocalizationsOverride,
+  dateOrientationOf,
+} from './internal/date/source-host.ts';
 import { SourceDateTheme } from './internal/date/source-theme.ts';
-import { MaterialLocalizations, MaterialLocalizationsScope } from './material-localizations.ts';
+import { MaterialLocalizations } from './material-localizations.ts';
 import { Scaffold } from './scaffold.ts';
 import { TextButton } from './text-button.ts';
 import { TextField } from './text-field.ts';
@@ -142,24 +147,26 @@ export async function showDateRangePicker({
   ...options
 }: ShowDateRangePickerOptions): Promise<DateTimeRange | null> {
   debugCheckHasMaterialLocalizations(context);
-  let content: Widget = new DateRangePickerDialog(options);
-  if (textDirection) content = new Directionality(textDirection, content);
-  if (locale) {
-    const tag = typeof locale === 'string' ? locale : locale.toLanguageTag();
-    const inherited = context.maybeDependOn(Localizations);
-    content = new Localizations(
-      tag,
-      inherited?.messages ?? {},
-      inherited?.fallback ?? 'en',
-      new MaterialLocalizationsScope(new MaterialLocalizations(tag), content),
-    );
-  }
+  const tag =
+    locale === null
+      ? null
+      : canonicalLocaleTag(typeof locale === 'string' ? locale : locale.toLanguageTag());
+  const content = dateLocalizationsOverride({
+    context,
+    locale: tag,
+    textDirection,
+    child: new DateRangePickerDialog(options),
+  });
   return (
     (await showDialog<DateTimeRange>(context, {
       barrierDismissible,
       barrierColor,
       barrierLabel,
       useRootNavigator,
+      windowLocale: {
+        ...(tag ? { locale: tag } : {}),
+        ...(textDirection || tag ? { direction: textDirection ?? localeDirection(tag!) } : {}),
+      },
       routeSettings,
       anchorPoint,
       useSafeArea: false,
@@ -256,6 +263,7 @@ function formatRangeEnd(
 }
 
 let nextRangeFieldId = 0;
+type RangeField = 'start' | 'end';
 
 class DateRangePickerState extends RestorationMixin<DateRangePickerDialog> {
   private entryMode!: _RestorableDatePickerEntryMode;
@@ -264,9 +272,11 @@ class DateRangePickerState extends RestorationMixin<DateRangePickerDialog> {
   private readonly autoValidate = new RestorableBool(false);
   private readonly startController = new TextEditingController();
   private readonly endController = new TextEditingController();
+  private readonly fieldFocus = { start: new FocusNode(), end: new FocusNode() };
   private readonly inputId = ++nextRangeFieldId;
   private fieldsNeedSync = true;
-  private fieldLocale = '';
+  private fieldFormats: Record<RangeField, MaterialLocalizations> | undefined;
+  private formatRefreshQueued = false;
   private localization!: MaterialLocalizations;
 
   override initState(): void {
@@ -274,6 +284,10 @@ class DateRangePickerState extends RestorationMixin<DateRangePickerDialog> {
     this.entryMode = new _RestorableDatePickerEntryMode(this.widget.initialEntryMode);
     this.selectedStart = new RestorableDateTimeN(this.widget.initialDateRange?.start ?? null);
     this.selectedEnd = new RestorableDateTimeN(this.widget.initialDateRange?.end ?? null);
+    for (const field of ['start', 'end'] as const) {
+      this.fieldFocus[field].addListener(this.queueFormatRefresh);
+      this.controllerFor(field).addListener(this.queueFormatRefresh);
+    }
   }
   override get restorationId(): string | null {
     return this.widget.options.restorationId ?? null;
@@ -288,12 +302,11 @@ class DateRangePickerState extends RestorationMixin<DateRangePickerDialog> {
 
   override didChangeDependencies(): void {
     super.didChangeDependencies();
-    this.localization = dateRangeLocalizations(MaterialLocalizations.of(this.context));
-    if (
-      isInput(this.entryMode.value) &&
-      (this.fieldsNeedSync || this.fieldLocale !== this.localization.locale)
-    )
-      this.syncFields();
+    this.localization = MaterialLocalizations.of(this.context);
+    if (isInput(this.entryMode.value)) {
+      if (this.fieldsNeedSync) this.syncFields();
+      else this.refreshFieldFormats();
+    }
   }
 
   private syncFields(): void {
@@ -304,8 +317,54 @@ class DateRangePickerState extends RestorationMixin<DateRangePickerDialog> {
     this.startController.text = startText;
     this.endController.text = end ? calendar.formatCompactDate(end, this.localization) : '';
     this.startController.selection = { anchor: 0, focus: startText.length };
-    this.fieldLocale = this.localization.locale;
+    this.fieldFormats = { start: this.localization, end: this.localization };
     this.fieldsNeedSync = false;
+  }
+
+  private controllerFor(field: RangeField): TextEditingController {
+    return field === 'start' ? this.startController : this.endController;
+  }
+  private readonly queueFormatRefresh = (): void => {
+    if (
+      this.formatRefreshQueued ||
+      !this.fieldFormats ||
+      !isInput(this.entryMode.value) ||
+      !(this.context instanceof Element) ||
+      !this.context.active ||
+      (this.fieldFormats.start === this.localization && this.fieldFormats.end === this.localization)
+    )
+      return;
+    this.formatRefreshQueued = true;
+    this.context.owner.postFrame(() => {
+      this.formatRefreshQueued = false;
+      if (this.mounted && isInput(this.entryMode.value))
+        this.setState(() => this.refreshFieldFormats());
+    });
+  };
+  private refreshFieldFormats(): void {
+    if (!this.fieldFormats) return;
+    for (const field of ['start', 'end'] as const) {
+      const controller = this.controllerFor(field);
+      if (
+        this.fieldFormats[field] === this.localization ||
+        this.fieldFocus[field].hasFocus ||
+        controller.isComposing
+      )
+        continue;
+      const date = field === 'start' ? this.selectedStart.value : this.selectedEnd.value;
+      if (!date && controller.text !== '') continue;
+      this.fieldFormats[field] = this.localization;
+      const text = date
+        ? this.widget.calendarDelegate.formatCompactDate(date, this.localization)
+        : '';
+      if (controller.text !== text) {
+        const { anchor, focus } = controller.selection;
+        controller.replace(text, {
+          anchor: Math.min(anchor, text.length),
+          focus: Math.min(focus, text.length),
+        });
+      }
+    }
   }
 
   private readonly isSelectable = (date: DateTime): boolean =>
@@ -400,9 +459,9 @@ class DateRangePickerState extends RestorationMixin<DateRangePickerDialog> {
     Navigator.of(this.context).pop();
   };
 
-  private edit(which: 'start' | 'end', text: string): void {
+  private edit(which: RangeField, text: string): void {
     const calendar = this.widget.calendarDelegate;
-    const parsed = calendar.parseCompactDate(text, this.localization);
+    const parsed = calendar.parseCompactDate(text, this.fieldFormats?.[which] ?? this.localization);
     this.setState(() => {
       const property = which === 'start' ? this.selectedStart : this.selectedEnd;
       property.value = parsed && calendar.dateOnly(parsed);
@@ -592,11 +651,12 @@ class DateRangePickerState extends RestorationMixin<DateRangePickerDialog> {
     const inputTheme = InputDecorationTheme.of(context);
     const border =
       inputTheme.border ?? (useMaterial3 ? new OutlineInputBorder() : new UnderlineInputBorder());
-    const field = (which: 'start' | 'end'): Widget => {
+    const field = (which: RangeField): Widget => {
       const isStart = which === 'start';
       return new TextField({
         id: 'date-range-' + this.inputId + '-' + which,
-        controller: isStart ? this.startController : this.endController,
+        controller: this.controllerFor(which),
+        focusNode: this.fieldFocus[which],
         autofocus: isStart,
         keyboardType: options.keyboardType ?? 'datetime',
         decoration: new InputDecoration({
@@ -604,7 +664,7 @@ class DateRangePickerState extends RestorationMixin<DateRangePickerDialog> {
           filled: inputTheme.filled,
           hintText:
             (isStart ? options.fieldStartHintText : options.fieldEndHintText) ??
-            calendarDelegate.dateHelpText(localization),
+            calendarDelegate.dateHelpText(this.fieldFormats?.[which] ?? localization),
           labelText:
             (isStart ? options.fieldStartLabelText : options.fieldEndLabelText) ??
             localization.dateRangeLabel(isStart ? 'dateRangeStartLabel' : 'dateRangeEndLabel'),
@@ -732,6 +792,11 @@ class DateRangePickerState extends RestorationMixin<DateRangePickerDialog> {
   }
 
   override dispose(): void {
+    for (const field of ['start', 'end'] as const) {
+      this.fieldFocus[field].removeListener(this.queueFormatRefresh);
+      this.controllerFor(field).removeListener(this.queueFormatRefresh);
+      this.fieldFocus[field].dispose();
+    }
     super.dispose();
     this.entryMode.dispose();
     this.selectedStart.dispose();

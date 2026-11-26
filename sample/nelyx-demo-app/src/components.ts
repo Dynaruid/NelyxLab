@@ -79,6 +79,8 @@ import { ImageDemo } from './image-demo.ts';
 import { column, flow, inset, icon } from './layout.ts';
 import { demoRangeTheme } from './range-demo-shapes.ts';
 import { TextSelectionScreen } from './text-selection-screen.ts';
+import { LocalizationScreen } from './localization-screen.ts';
+import type { DemoLocale } from './localization-screen.ts';
 
 const messageCurve = new Interval(0.1, 0.9, { curve: Curves.easeInOutCubicEmphasized });
 class MessageScrollCurve extends Curve {
@@ -147,6 +149,7 @@ export class ComponentsScreen extends StatefulWidget {
     readonly dark: boolean,
     readonly toggleBrightness: () => void,
     readonly calendarPreparation = false,
+    readonly changeLocale: (locale: DemoLocale) => void = () => {},
   ) {
     super();
   }
@@ -344,7 +347,14 @@ class ComponentsState extends State<ComponentsScreen> {
                     new Divider(),
                     new Expanded(
                       new ListView({
-                        children: ['All components', ...groups, 'Text selection', 'Device services', 'SystemChrome'].map(
+                        children: [
+                          'All components',
+                          'Language and dates',
+                          ...groups,
+                          'Text selection',
+                          'Device services',
+                          'SystemChrome',
+                        ].map(
                           (label, index) =>
                             new TextButton({
                               child: new Text(label),
@@ -367,6 +377,10 @@ class ComponentsState extends State<ComponentsScreen> {
     )
       .then((selected) => {
         if (!this.mounted || selected === undefined) return;
+        if (selected === 'Language and dates')
+          return navigator.push(
+            new Route(() => new LocalizationScreen(this.widget.changeLocale), '/localization'),
+          );
         if (selected === 'Text selection')
           return navigator.push(
             new Route(() => new TextSelectionScreen(navigator), '/text-selection'),

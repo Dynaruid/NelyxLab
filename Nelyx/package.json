@@ -20,6 +20,18 @@
     "upstream/flutter-coverage.json"
   ],
   "exports": {
+    "./framework/widgets/intl-provider": {
+      "types": "./dist/framework/widgets/intl-provider.d.ts",
+      "default": "./dist/framework/widgets/intl-provider.js"
+    },
+    "./framework/widgets/widget-localization-catalog": {
+      "types": "./dist/framework/widgets/widget-localization-catalog.d.ts",
+      "default": "./dist/framework/widgets/widget-localization-catalog.js"
+    },
+    "./framework/widgets/widgets-localizations": {
+      "types": "./dist/framework/widgets/widgets-localizations.d.ts",
+      "default": "./dist/framework/widgets/widgets-localizations.js"
+    },
     "./internal/framework/widgets/text-input": {
       "types": "./dist/framework/widgets/text-input.d.ts",
       "default": "./dist/framework/widgets/text-input.js"

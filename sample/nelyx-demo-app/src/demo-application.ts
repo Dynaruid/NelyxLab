@@ -17,6 +17,8 @@ import { ComponentsScreen } from './components.ts';
 import { CupertinoComponentsScreen } from './cupertino-components.ts';
 import { settingsScreen } from './settings-screen.ts';
 import type { DemoRenderSettings } from './settings-screen.ts';
+import { localizationMessages } from './localization-screen.ts';
+import type { DemoLocale } from './localization-screen.ts';
 
 const destinations = [
   new BottomNavigationBarItem({
@@ -54,6 +56,12 @@ export class DemoApplication extends StatefulWidget {
 }
 class DemoApplicationState extends State<DemoApplication> {
   private dark = false;
+  private locale: DemoLocale | 'en' = 'en';
+  private readonly changeLocale = (locale: DemoLocale): void => {
+    this.setState(() => {
+      this.locale = locale;
+    });
+  };
   private readonly navigator = new NavigatorController();
   private readonly themes = new Map<boolean, ThemeData>();
   private readonly toggleBrightness = (): void => {
@@ -88,6 +96,7 @@ class DemoApplicationState extends State<DemoApplication> {
           this.dark,
           this.toggleBrightness,
           this.widget.calendarPreparation,
+          this.changeLocale,
         ),
       }),
     });
@@ -100,8 +109,9 @@ class DemoApplicationState extends State<DemoApplication> {
     const settings = this.widget.renderSettings;
     return new MaterialApp({
       theme,
-      locale: 'en',
-      supportedLocales: ['en', 'ko-KR'],
+      ...(this.locale === undefined ? {} : { locale: this.locale }),
+      supportedLocales: ['en', 'en-US', 'ko-KR'],
+      messages: localizationMessages,
       navigatorController: this.navigator,
       home: new CupertinoTabScaffold({
         backgroundColor: new Color(colors.surface),

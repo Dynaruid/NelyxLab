@@ -10,7 +10,12 @@ import {
 } from '@nelyx/core/framework/widgets/framework';
 import type { BuildContext } from '@nelyx/core/framework/widgets/framework';
 import type { GlobalKey } from '@nelyx/core/framework/widgets/global-key';
-import { WidgetsApp, appNavigatorController } from '@nelyx/core/framework/widgets/app';
+import {
+  WidgetsApp,
+  appNavigatorController,
+  canonicalLocaleTag,
+  localizedDirectionality,
+} from '@nelyx/core/framework/widgets/app';
 import type { WidgetsAppOptions } from '@nelyx/core/framework/widgets/app';
 import type { InspectorButtonBuilder } from '@nelyx/core/framework/widgets/app';
 import { Icon } from '@nelyx/core/framework/widgets/icon';
@@ -34,7 +39,6 @@ import type { Size } from '@nelyx/core/ui/geometry';
 import { Paint } from '@nelyx/core/ui/paint';
 import {
   AppTheme,
-  Directionality,
   Localizations,
   MediaQuery,
   darkAppTheme,
@@ -306,13 +310,16 @@ export class MaterialApp extends StatelessWidget {
       },
     });
   }
-  build(): Widget {
+  build(context: BuildContext): Widget {
     if (this.options)
       return FoundationBuildMode.debug
         ? new CustomPaint(this.child, {
             foregroundPainter: this.options.debugShowMaterialGrid ? materialGrid : null,
           })
         : this.child;
+    const tag = canonicalLocaleTag(this.locale);
+    if (context.maybeDependOn(Localizations) == null)
+      context.services.setViewLocale?.(tag, this.direction);
     const colors = this.theme instanceof ThemeData ? palette(this.theme) : this.theme;
     const data =
       this.theme instanceof ThemeData
@@ -332,7 +339,8 @@ export class MaterialApp extends StatelessWidget {
           });
     return new ScrollConfiguration({
       behavior: this.scrollBehavior ?? defaultBehavior,
-      child: new Directionality(
+      child: localizedDirectionality(
+        tag,
         this.direction,
         new Localizations(
           this.locale,
