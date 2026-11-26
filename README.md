@@ -32,7 +32,7 @@ Compatible `build()` edits in app-owned TypeScript widgets reload in the current
 
 ### Sample deployment helper
 
-Run `npm.cmd run deploy` to choose Demo or Testbed and deploy to Web, Windows, Android, or iOS. Use `npm run deploy` on macOS and Linux. [Deployment options and prerequisites](helpers/deploy-helper/README.md)
+Run `npm.cmd run deploy` to choose Demo, Testbed, or Testbed3 and deploy to Web, Windows, Android, or iOS. Use `npm run deploy` on macOS and Linux. [Deployment options and prerequisites](helpers/deploy-helper/README.md)
 
 ### Run Demo on Android
 
@@ -48,7 +48,7 @@ Install the Android prerequisites. Use `--architecture x64` for an x86_64 emulat
 | [Nelyx/skia](Nelyx/skia/README.md) | Pinned CanvasKit supply and rendering |
 | [CLI](Nelyx/sdk/tooling/cli/README.md) | Starter, supply and platform commands |
 | [Material](packages/material/README.md) and [Cupertino](packages/cupertino/README.md) | Design packages |
-| [Demo](sample/nelyx-demo-app/README.md) and [Testbed](sample/nelyx-testbed-app-2/README.md) | Sample applications |
+| [Demo](sample/nelyx-demo-app/README.md), [Testbed 2](sample/nelyx-testbed-app-2/README.md), [Testbed 3](sample/nelyx-testbed-app-3/README.md) | Sample applications |
 | [Current work and verification](work.md) | Build changes and platform results |
 | [Development history](history/README.md) | Previous changes |
 

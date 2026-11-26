@@ -1,0 +1,12 @@
+{
+  "app": {
+    "security": {
+      "csp": {
+        "connect-src": "'self' blob: ipc: http://ipc.localhost https://ipc.localhost https://plus.unsplash.com"
+      },
+      "devCsp": {
+        "connect-src": "'self' blob: ipc: http://ipc.localhost https://ipc.localhost https://plus.unsplash.com"
+      }
+    }
+  }
+}

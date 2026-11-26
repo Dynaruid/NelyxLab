@@ -2,13 +2,14 @@
 
 **English** | [한국어](README.ko.md)
 
-Run `npm run deploy` from the repository root to choose a platform and the Demo or Testbed sample. The helper supplies the SDK and reuses valid app dependencies. It runs `npm install` when the app needs an installation or update. Use `npm.cmd` for npm commands in Windows PowerShell. [Repository setup](../../README.md#run-testbed-or-demo)
+Run `npm run deploy` from the repository root to choose a platform and one of Demo, Testbed, or Testbed3. The helper supplies the SDK and reuses valid app dependencies. It runs `npm install` when the app needs an installation or update. Use `npm.cmd` for npm commands in Windows PowerShell. [Repository setup](../../README.md#run-testbed-or-demo)
 
 ```sh
 npm run deploy
 npm run deploy -- --list
 npm run deploy -- --platform web --app Demo
 npm run deploy -- --platform windows --app Testbed --no-launch
+npm run deploy -- --platform web --app Testbed3
 npm run deploy -- --platform android --target emulator --list
 npm run deploy -- --platform ios --app Demo --target simulator
 ```

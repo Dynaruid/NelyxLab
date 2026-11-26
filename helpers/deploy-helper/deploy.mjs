@@ -17,7 +17,11 @@ import { androidTargets, iosTargets, iosSimulatorArchitecture } from './devices.
 
 const root = path.resolve(import.meta.dirname, '../..');
 const platforms = ['web', 'windows', 'android', 'ios'];
-const apps = { Demo: 'sample/nelyx-demo-app', Testbed: 'sample/nelyx-testbed-app-2' };
+const apps = {
+  Demo: 'sample/nelyx-demo-app',
+  Testbed: 'sample/nelyx-testbed-app-2',
+  Testbed3: 'sample/nelyx-testbed-app-3',
+};
 const targetKinds = { android: ['device', 'emulator'], ios: ['device', 'simulator'] };
 const cliOptions = {
   platform: { type: 'string' },
@@ -33,7 +37,7 @@ const cliOptions = {
   help: { type: 'boolean', short: 'h' },
 };
 
-const usage = `Usage: npm run deploy -- [--platform ${platforms.join('|')}] [--app Demo|Testbed]
+const usage = `Usage: npm run deploy -- [--platform ${platforms.join('|')}] [--app ${Object.keys(apps).join('|')}]
        node helpers/deploy-helper/deploy.mjs [options]
 
   --target auto|device|emulator|simulator  Filter Android or iOS destinations

@@ -32,7 +32,7 @@ npm.cmd run run:tauri -- --platform windows
 
 ### 샘플 배포 헬퍼
 
-`npm.cmd run deploy`에서 Demo 또는 Testbed를 골라 Web, Windows, Android, iOS에 배포할 수 있습니다. macOS와 Linux에서는 `npm run deploy`를 사용합니다. [배포 옵션과 준비 절차](helpers/deploy-helper/README.ko.md)
+`npm.cmd run deploy`에서 Demo, Testbed 또는 Testbed3를 골라 Web, Windows, Android, iOS에 배포할 수 있습니다. macOS와 Linux에서는 `npm run deploy`를 사용합니다. [배포 옵션과 준비 절차](helpers/deploy-helper/README.ko.md)
 
 ### Android에서 Demo 실행
 
@@ -47,7 +47,7 @@ Android 도구를 준비한 뒤 x86_64 에뮬레이터에는 `--architecture x64
 | [Rust 백엔드](Nelyx/backend/) | 공통 API, Wasm 어댑터와 Tauri 플러그인 |
 | [Skia](Nelyx/skia/README.ko.md) | CanvasKit 공급과 렌더링 |
 | [CLI](Nelyx/sdk/tooling/cli/README.ko.md) | 앱 생성, SDK 공급과 타깃별 명령 |
-| [Demo](sample/nelyx-demo-app/README.ko.md)와 [Testbed](sample/nelyx-testbed-app-2/README.ko.md) | 샘플 앱 |
+| [Demo](sample/nelyx-demo-app/README.ko.md), [Testbed 2](sample/nelyx-testbed-app-2/README.ko.md), [Testbed 3](sample/nelyx-testbed-app-3/README.ko.md) | 샘플 앱 |
 | [현재 작업과 검증](work.md) | 빌드 개편과 플랫폼 결과 |
 | [작업 이력](history/README.md) | 이전 작업 |
 

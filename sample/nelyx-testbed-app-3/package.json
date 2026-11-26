@@ -1,0 +1,185 @@
+{
+  "name": "@nelyx/testbed-3",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "doctor:web": "nelyx doctor --app . --target web",
+    "prepare:web": "nelyx prepare --app . --target web",
+    "dev:web": "nelyx dev --app . --target web",
+    "build:web": "nelyx build --app . --target web",
+    "run:web": "nelyx run --app . --target web",
+    "doctor:tauri": "nelyx doctor --app . --target tauri",
+    "prepare:tauri": "nelyx prepare --app . --target tauri",
+    "dev:tauri": "nelyx dev --app . --target tauri",
+    "build:tauri": "nelyx build --app . --target tauri",
+    "pack:tauri": "nelyx pack --app . --target tauri",
+    "run:tauri": "nelyx run --app . --target tauri",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-81e4fbc611889dc5a37f70cb9e922ee2b3f77223d3ecfae720b3aebfc939c8af.tgz",
+    "@nelyx/cupertino": "file:.nelyx/supply/nelyx-cupertino-0.2.0-7ff613dc916bccdfa1a7bacbcca18114eeab69602f1cd65f860885b1645525bd.tgz",
+    "@nelyx/material": "file:.nelyx/supply/nelyx-material-0.2.0-4153aa11dea66bcc8ea3fdb4f608bd93d8936f6e5c662061f2805378c48c9e5c.tgz",
+    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-a03ce5e2aefebb9cf73935665daad23ed20027328ddee72e51f21474f9264adb.tgz",
+    "@nelyx/skia-web": "file:.nelyx/supply/nelyx-skia-web-0.6.0-054e39c42bf082f4e94abbb1ff55a4d20ae6a4a9c1fc92d2cddc010eef7d0e7f.tgz",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "@nelyx/backend-rust": "file:.nelyx/supply/nelyx-backend-rust-0.1.0-d00f80ce0d9faf18ee8e5df2302fec505102244930da8849e43c34f842ace07d.tgz",
+    "@nelyx/backend-wasm": "file:.nelyx/supply/nelyx-backend-wasm-0.1.0-e1d4f2de2a7dbf51a7014e2cbda32632273525acc25feebd7e5ae67decc7d8a4.tgz",
+    "@nelyx/backend-tauri": "file:.nelyx/supply/nelyx-backend-tauri-0.1.0-c02deec369c882b389384b38b21718846db301c1a2ecfb42d2c74100cd9c21e9.tgz",
+    "@tauri-apps/api": "2.12.5"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.6",
+    "@nelyx/vite": "file:.nelyx/supply/nelyx-vite-0.1.0-a463d7c30f8fe64fd8dfdc5976d07e226a9fb4181a739d309cf4d6203aff07e2.tgz",
+    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-b2e6586e783da7452b3f51c83b4fac27a83f888a2168bdfb78b303f46289af5e.tgz",
+    "@nelyx/tooling-contracts": "file:.nelyx/supply/nelyx-tooling-contracts-0.1.0-1f3694744b75fb5587bb9d8e59ddff46c6f4a3603d28aec84c26c7b2d5b4da67.tgz",
+    "vite": "8.3.8",
+    "typescript": "7.0.2",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2"
+  },
+  "type": "module",
+  "nelyx": {
+    "schema": "nelyx.app/v4",
+    "name": "NelyxTestbed3",
+    "appEntry": "./src/index.ts",
+    "assets": [
+      {
+        "id": "roboto-regular",
+        "kind": "font",
+        "path": "./assets/fonts/Roboto-regular.ttf",
+        "fontFamily": "Roboto",
+        "notice": {
+          "path": "./assets/fonts/LICENSE.roboto.txt"
+        }
+      },
+      {
+        "id": "roboto-medium",
+        "kind": "font",
+        "path": "./assets/fonts/Roboto-medium.ttf",
+        "fontFamily": "Roboto",
+        "notice": {
+          "path": "./assets/fonts/LICENSE.roboto.txt"
+        }
+      },
+      {
+        "id": "roboto-bold",
+        "kind": "font",
+        "path": "./assets/fonts/Roboto-bold.ttf",
+        "fontFamily": "Roboto",
+        "notice": {
+          "path": "./assets/fonts/LICENSE.roboto.txt"
+        }
+      },
+      {
+        "id": "nelyx-material-icons",
+        "kind": "font",
+        "path": "./assets/nelyx/MaterialIcons.otf",
+        "fontFamily": "MaterialIcons",
+        "notice": {
+          "path": "./assets/nelyx/MaterialIcons-LICENSE.txt"
+        },
+        "packageSource": {
+          "package": "@nelyx/material",
+          "path": "./assets/MaterialIcons.otf",
+          "noticePath": "./licenses/MaterialIcons-LICENSE.txt"
+        }
+      },
+      {
+        "id": "component-image",
+        "kind": "image",
+        "path": "./assets/component-image.webp"
+      },
+      {
+        "id": "theme-image-1",
+        "kind": "image",
+        "path": "./assets/theme/scheme-1.png",
+        "notice": {
+          "path": "./assets/theme/LICENSE.txt"
+        }
+      },
+      {
+        "id": "theme-image-2",
+        "kind": "image",
+        "path": "./assets/theme/scheme-2.png",
+        "notice": {
+          "path": "./assets/theme/LICENSE.txt"
+        }
+      },
+      {
+        "id": "theme-image-3",
+        "kind": "image",
+        "path": "./assets/theme/scheme-3.png",
+        "notice": {
+          "path": "./assets/theme/LICENSE.txt"
+        }
+      },
+      {
+        "id": "theme-image-4",
+        "kind": "image",
+        "path": "./assets/theme/scheme-4.png",
+        "notice": {
+          "path": "./assets/theme/LICENSE.txt"
+        }
+      },
+      {
+        "id": "theme-image-5",
+        "kind": "image",
+        "path": "./assets/theme/scheme-5.png",
+        "notice": {
+          "path": "./assets/theme/LICENSE.txt"
+        }
+      },
+      {
+        "id": "theme-image-6",
+        "kind": "image",
+        "path": "./assets/theme/scheme-6.png",
+        "notice": {
+          "path": "./assets/theme/LICENSE.txt"
+        }
+      }
+    ],
+    "displayName": "Nelyx Testbed 3",
+    "targets": {
+      "web": {
+        "pwa": {
+          "id": "/apps/nelyx-testbed-3",
+          "shortName": "Testbed 3",
+          "themeColor": "#fffbfe",
+          "icons": [
+            {
+              "src": "./assets/pwa/icon-192.png",
+              "sizes": "192x192",
+              "type": "image/png"
+            },
+            {
+              "src": "./assets/pwa/icon-512.png",
+              "sizes": "512x512",
+              "type": "image/png"
+            }
+          ]
+        }
+      },
+      "tauri": {
+        "identifier": "dev.nelyx.nelyxtestbed3.tauri",
+        "productName": "Nelyx Testbed 3",
+        "windows": [
+          {
+            "label": "main",
+            "title": "Nelyx Testbed 3",
+            "useHttpsScheme": true,
+            "width": 1280,
+            "height": 900,
+            "clipboard": {
+              "read": true,
+              "write": true
+            },
+            "windowsAcrylic": true
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,222 @@
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fffbfe;
+  color-scheme: light dark;
+}
+
+html[data-window-acrylic],
+html[data-window-acrylic] body {
+  background: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-window-acrylic]),
+  html:not([data-window-acrylic]) body {
+    background: #141218;
+  }
+}
+
+#app {
+  box-sizing: border-box;
+  height: 100%;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+.testbed-surface {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.host-panel {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: auto;
+  padding: clamp(12px, 2.5vw, 24px);
+  background: var(--surface);
+  color: var(--text);
+  font:
+    15px/1.5 system-ui,
+    sans-serif;
+  overscroll-behavior: contain;
+}
+
+.host-panel h1 {
+  margin: 0 0 12px;
+  font-size: 1.75rem;
+  line-height: 1.25;
+  font-weight: 500;
+}
+.host-panel h2 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+.host-panel p {
+  margin: 8px 0 14px;
+}
+.host-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.host-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.host-panel button,
+.host-panel input,
+.host-panel textarea,
+.host-panel select {
+  font: inherit;
+}
+.host-panel button {
+  border: 1px solid var(--outline);
+  padding: 6px 14px;
+  min-height: 40px;
+  border-radius: 999px;
+  background: var(--container);
+  color: var(--text);
+  cursor: pointer;
+}
+.host-panel button[aria-pressed='true'] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.host-panel button:disabled {
+  opacity: 0.52;
+  cursor: default;
+}
+.host-panel :focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.host-panel input:not([type='range']),
+.host-panel textarea,
+.host-panel select {
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  padding: 7px 10px;
+  min-width: 0;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.platform-stage,
+.webview-stage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid var(--outline);
+  border-radius: 14px;
+  background: var(--container);
+}
+.platform-stage {
+  min-height: 230px;
+  margin-bottom: 14px;
+}
+.platform-button {
+  position: absolute;
+  inset: 18px auto auto 16px;
+  z-index: 1;
+}
+.platform-editor {
+  position: absolute;
+  inset: 76px 16px auto 16px;
+  max-width: 32rem;
+  z-index: 1;
+}
+.platform-cover {
+  position: absolute;
+  inset: 36px 10% 36px 25%;
+  display: grid;
+  place-items: center;
+  background: var(--primary);
+  color: var(--on-primary);
+  border-radius: 12px;
+  z-index: 2;
+}
+.platform-stage-2 .platform-cover {
+  inset: 6px;
+}
+.platform-stage-4 .platform-cover,
+.platform-stage-8 .platform-cover {
+  z-index: 0;
+}
+.platform-stage-5 .platform-editor {
+  z-index: 3;
+}
+.platform-stage-6 .platform-cover,
+.platform-stage-7 .platform-cover {
+  background: color-mix(in srgb, var(--primary) 60%, transparent);
+}
+.platform-stage-7 .platform-cover {
+  pointer-events: none;
+}
+.platform-stage-8 .platform-button {
+  z-index: 3;
+}
+.platform-stage-9 .platform-editor {
+  inset: 96px 16px auto 22%;
+}
+.host-dialog {
+  border: 1px solid var(--outline);
+  border-radius: 20px;
+  padding: 24px;
+  background: var(--surface);
+  color: var(--text);
+}
+.host-dialog::backdrop {
+  background: rgb(0 0 0 / 42%);
+}
+
+.webview-address {
+  align-items: end;
+}
+.webview-address .host-field {
+  flex: 1 1 14rem;
+}
+.webview-stage iframe {
+  border: 0;
+  display: block;
+  width: 100%;
+  height: clamp(320px, 60vh, 620px);
+}
+.webview-floating {
+  position: absolute;
+  box-sizing: border-box;
+  z-index: 1;
+  width: min(15rem, 88%);
+  border-radius: 12px;
+  border: 1px solid var(--outline);
+  padding: 12px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+.webview-floating header {
+  font-weight: 600;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  padding-bottom: 6px;
+}
+.webview-floating .host-field + .host-field {
+  margin-top: 6px;
+}
+.texture-preview {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--outline);
+  border-radius: 12px;
+  background: var(--container);
+}
