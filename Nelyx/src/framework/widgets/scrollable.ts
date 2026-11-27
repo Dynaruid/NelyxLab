@@ -643,10 +643,11 @@ export class ScrollableState extends TickerProviderStateMixin<Scrollable> implem
       result = new NotificationListener({
         notificationType: ScrollMetricsNotification,
         onNotification: (notification) => {
-          if (notification.depth === 0)
-            this.frameworkKeyContext(this.semanticsKey)
-              ?.findRenderObject()
-              ?.markNeedsSemanticsUpdate();
+          if (notification.depth === 0) {
+            const render = this.frameworkKeyContext(this.semanticsKey)?.findRenderObject();
+            if (render instanceof _RenderScrollSemantics) render.updateScrollMetricsSemantics();
+            else render?.markNeedsSemanticsUpdate();
+          }
           return false;
         },
         child: new _ScrollSemantics(

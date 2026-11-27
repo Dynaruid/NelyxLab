@@ -102,13 +102,21 @@ export class WebSkiaSurface {
         : { width, height };
     }
     // Reserve a little room on the growing axes to avoid an allocation per drag step.
-    const nextWidth =
-      width > current.width ? Math.max(width, Math.ceil(current.width * 1.25)) : width;
-    const nextHeight =
-      height > current.height ? Math.max(height, Math.ceil(current.height * 1.25)) : height;
-    return nextWidth <= limit.width &&
-      nextHeight <= limit.height &&
-      nextWidth * nextHeight <= budget
+    const growsWidth = width > current.width,
+      growsHeight = height > current.height;
+    const retainedWidth = growsWidth
+      ? Math.max(width, Math.ceil(current.width * 1.25))
+      : current.width;
+    const retainedHeight = growsHeight
+      ? Math.max(height, Math.ceil(current.height * 1.25))
+      : current.height;
+    const fits = (w: number, h: number) => w <= limit.width && h <= limit.height && w * h <= budget;
+    // A diagonal drag can shrink one axis just before growing it again.
+    if (fits(retainedWidth, retainedHeight))
+      return { width: retainedWidth, height: retainedHeight };
+    const nextWidth = growsWidth ? retainedWidth : width;
+    const nextHeight = growsHeight ? retainedHeight : height;
+    return fits(nextWidth, nextHeight)
       ? { width: nextWidth, height: nextHeight }
       : { width, height };
   }

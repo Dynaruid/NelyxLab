@@ -5,7 +5,6 @@ import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 import { createHash } from 'node:crypto';
 import { parse } from 'smol-toml';
-import { readApp } from '@nelyx/vite/runner';
 import {
   backendCrates,
   backendFiles,
@@ -405,6 +404,8 @@ export async function compileWasm(value, project, signal) {
         });
         files = verify(out);
       }
+      // The SDK supply build also imports this module before the app SDK is built.
+      const { readApp } = await import('@nelyx/vite/runner');
       const current = inspectBackend(readApp(app), 'web');
       if (backendHash(backendContract(current)) !== backendHash(backendContract(project)))
         throw new Error('App backend inputs changed during Wasm compilation');

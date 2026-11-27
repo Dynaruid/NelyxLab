@@ -4,7 +4,7 @@ import { RasterizationService } from '@nelyx/core/hosting/rasterization';
 import type { ApplicationDefinition, ViewRuntime } from '@nelyx/core/hosting/runtime';
 import type { BackendServices, SurfaceEvent } from '@nelyx/core/hosting/services';
 import type { BackendIdentity } from '@nelyx/core/hosting/platform';
-import type { ViewMetrics, ViewOwner } from '@nelyx/core/ui/types';
+import type { ViewOwner } from '@nelyx/core/ui/types';
 import type { WebSkiaLibrary } from '@nelyx/skia-web/library';
 import type { BrowserRenderer } from './renderer.ts';
 import { ManifestAssetService, selectManifestAssets } from '../../runtime/assets.ts';
@@ -141,7 +141,7 @@ export function createWebServices(
         frameTimeOffset,
       ),
       idleWork = new Set<number>();
-    function metrics(): ViewMetrics {
+    function metrics() {
       const element = readViewport(),
         width = element.clientWidth,
         height = element.clientHeight,
@@ -187,23 +187,25 @@ export function createWebServices(
         backingChanged =
           next.logicalWidth !== current.logicalWidth ||
           next.logicalHeight !== current.logicalHeight ||
-          next.scale !== current.scale;
-      if (
-        !backingChanged &&
-        JSON.stringify(next.environment) === JSON.stringify(current.environment)
-      )
-        return false;
+          next.scale !== current.scale,
+        environmentChanged =
+          JSON.stringify(next.environment) !== JSON.stringify(current.environment);
+      if (!backingChanged && !environmentChanged) return false;
       if (next.scale !== current.scale) {
         fitCanvas(next.scale);
         watchDpi();
       }
       current = Object.freeze({
         ...next,
+        environment: environmentChanged ? next.environment : current.environment,
         viewportGeneration: ++viewport,
         nativeSurfaceGeneration: backingChanged ? ++surface : surface,
       });
       notify({ kind: 'metrics', metrics: current });
       return backingChanged;
+    };
+    const resizeViewport = () => {
+      if (resize()) frames.offerResize();
     };
     const watchDpi = () => {
       media?.removeEventListener('change', resize);
@@ -274,9 +276,9 @@ export function createWebServices(
       observer = undefined;
       media?.removeEventListener('change', resize);
       media = undefined;
-      window.removeEventListener('resize', resize);
+      window.removeEventListener('resize', resizeViewport);
       window.removeEventListener('scroll', resize, true);
-      window.visualViewport?.removeEventListener('resize', resize);
+      window.visualViewport?.removeEventListener('resize', resizeViewport);
       window.visualViewport?.removeEventListener('scroll', resize);
       document.removeEventListener('visibilitychange', visibility);
       notify = undefined;
@@ -447,13 +449,11 @@ export function createWebServices(
           if (closed || notify) throw new Error('Web surface closed/already attached');
           notify = callback;
           attachedView = view;
-          observer = new window.ResizeObserver(() => {
-            if (resize()) frames.offerResize();
-          });
+          observer = new window.ResizeObserver(resizeViewport);
           attachCanvas(view);
-          window.addEventListener('resize', resize);
+          window.addEventListener('resize', resizeViewport);
           window.addEventListener('scroll', resize, true);
-          window.visualViewport?.addEventListener('resize', resize);
+          window.visualViewport?.addEventListener('resize', resizeViewport);
           window.visualViewport?.addEventListener('scroll', resize);
           document.addEventListener('visibilitychange', visibility);
           watchDpi();

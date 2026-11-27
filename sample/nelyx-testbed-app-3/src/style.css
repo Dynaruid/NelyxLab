@@ -33,13 +33,14 @@ html[data-window-acrylic] body {
   position: relative;
   height: 100%;
   overflow: hidden;
+  container-type: size;
 }
 
 .host-panel {
   position: absolute;
   box-sizing: border-box;
   overflow: auto;
-  padding: clamp(12px, 2.5vw, 24px);
+  padding: clamp(12px, 2.5cqw, 24px);
   background: var(--surface);
   color: var(--text);
   font:
@@ -179,6 +180,14 @@ html[data-window-acrylic] body {
 .host-dialog::backdrop {
   background: rgb(0 0 0 / 42%);
 }
+.host-dialog:modal {
+  inset: 50cqh auto auto calc(var(--nelyx-viewport-left, 0px) + 50cqw);
+  margin: 0;
+  transform: translate(-50%, -50%);
+  max-width: calc(100cqw - 3rem);
+  max-height: calc(100cqh - 3rem);
+  box-sizing: border-box;
+}
 
 .webview-address {
   align-items: end;
@@ -190,7 +199,7 @@ html[data-window-acrylic] body {
   border: 0;
   display: block;
   width: 100%;
-  height: clamp(320px, 60vh, 620px);
+  height: clamp(320px, 60cqh, 620px);
 }
 .webview-floating {
   position: absolute;

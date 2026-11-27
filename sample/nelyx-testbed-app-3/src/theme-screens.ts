@@ -187,46 +187,55 @@ export class ColorScreen extends StatelessWidget {
   ) {
     super();
   }
-  override build(): Widget {
-    return new LayoutBuilder((context, constraints) => {
-      const columns = constraints.maxWidth >= 920 ? 4 : constraints.maxWidth >= 500 ? 2 : 1;
-      const gutter = 10;
-      const width = (constraints.maxWidth - 2 * gutter - (columns - 1) * gutter) / columns;
-      const children = [this.light, this.dark].flatMap((scheme) => [
-        new Padding(
-          EdgeInsets.symmetric({ vertical: 14 }),
-          new Text(scheme.brightness === 'light' ? 'Light ColorScheme' : 'Dark ColorScheme', {
-            style: M.Theme.of(context).textTheme.titleLarge ?? undefined,
+  override build(context: BuildContext): Widget {
+    const gutter = 10;
+    const titleStyle = M.Theme.of(context).textTheme.titleLarge;
+    const sections = [this.light, this.dark].map((scheme) => ({
+      title: new Padding(
+        EdgeInsets.symmetric({ vertical: 14 }),
+        new Text(scheme.brightness === 'light' ? 'Light ColorScheme' : 'Dark ColorScheme', {
+          style: titleStyle ?? undefined,
+        }),
+      ),
+      cards: roleGroups.map(
+        (group) =>
+          new M.Card({
+            elevation: 0,
+            margin: EdgeInsets.zero,
+            clipBehavior: 'antiAlias',
+            child: new Column(
+              group.map(([role, on]) => swatch(context, scheme, role, on)),
+              {
+                mainSize: 'min',
+                crossAlign: 'stretch',
+              },
+            ),
           }),
-        ),
-        ...Array.from(
-          { length: Math.ceil(roleGroups.length / columns) },
-          (_, row) =>
+      ),
+    }));
+    let previous: { columns: number; list: Widget } | undefined;
+    return new LayoutBuilder((_, constraints) => {
+      const columns = constraints.maxWidth >= 920 ? 4 : constraints.maxWidth >= 500 ? 2 : 1;
+      if (previous?.columns === columns) return previous.list;
+      const children: Widget[] = [];
+      for (const { title, cards } of sections) {
+        children.push(title);
+        for (let row = 0; row < cards.length; row += columns) {
+          const cells = Array.from(
+            { length: columns },
+            (_, i) => new Expanded(cards[row + i] ?? SizedBox.shrink()),
+          );
+          children.push(
             new Padding(
               EdgeInsets.only({ bottom: gutter }),
-              new Row(
-                roleGroups.slice(row * columns, (row + 1) * columns).map(
-                  (group) =>
-                    new SizedBox(
-                      width,
-                      undefined,
-                      new M.Card({
-                        elevation: 0,
-                        margin: EdgeInsets.zero,
-                        clipBehavior: 'antiAlias',
-                        child: new Column(
-                          group.map(([role, on]) => swatch(context, scheme, role, on)),
-                          { mainSize: 'min', crossAlign: 'stretch' },
-                        ),
-                      }),
-                    ),
-                ),
-                { spacing: gutter, crossAlign: 'start' },
-              ),
+              new Row(cells, { spacing: gutter, crossAlign: 'start' }),
             ),
-        ),
-      ]);
-      return new ListView({ padding: EdgeInsets.all(gutter), children });
+          );
+        }
+      }
+      const list = new ListView({ padding: EdgeInsets.all(gutter), children });
+      previous = { columns, list };
+      return list;
     });
   }
 }
@@ -240,72 +249,77 @@ const elevationModes = [
 ];
 
 export class ElevationScreen extends StatelessWidget {
-  override build(): Widget {
-    return new LayoutBuilder((context, constraints) => {
-      const { colorScheme, textTheme } = M.Theme.of(context);
+  override build(context: BuildContext): Widget {
+    const { colorScheme, textTheme } = M.Theme.of(context);
+    const gutter = 16;
+    const sections = elevationModes.map(({ title, tint, shadow }) => ({
+      title: new Padding(
+        EdgeInsets.symmetric({ vertical: 10 }),
+        new Text(title, { style: textTheme.titleLarge ?? undefined }),
+      ),
+      tiles: elevations.map(
+        (elevation, index) =>
+          new M.Material({
+            type: M.MaterialType.card,
+            borderRadius: BorderRadius.circular(4),
+            elevation,
+            color: new Color(colorScheme.surface),
+            shadowColor: new Color(shadow ? colorScheme.shadow : 0x00000000),
+            surfaceTintColor: new Color(tint ? colorScheme.primary : 0x00000000),
+            child: new Padding(
+              EdgeInsets.all(8),
+              new Column(
+                [
+                  new Text(`Level ${index}`, {
+                    style: textTheme.labelMedium ?? undefined,
+                  }),
+                  new Text(`${elevation} dp`, {
+                    style: textTheme.labelMedium ?? undefined,
+                  }),
+                  ...(tint
+                    ? [
+                        new Expanded(
+                          new Align(
+                            new Text(`${overlays[index]}%`, {
+                              style: textTheme.bodySmall ?? undefined,
+                            }),
+                            {
+                              alignment: Alignment.bottomRight,
+                            },
+                          ),
+                        ),
+                      ]
+                    : []),
+                ],
+                { crossAlign: 'stretch' },
+              ),
+            ),
+          }),
+      ),
+    }));
+    let previous: { size: number; list: Widget } | undefined;
+    return new LayoutBuilder((_, constraints) => {
       const columns = constraints.maxWidth < 450 ? 3 : 6;
-      const gutter = 16;
-      const size = Math.floor(
-        (constraints.maxWidth - 2 * gutter - (columns - 1) * gutter) / columns,
+      const size = Math.max(
+        0,
+        Math.floor((constraints.maxWidth - 2 * gutter - (columns - 1) * gutter) / columns),
       );
-      return new ListView({
+      if (previous?.size === size) return previous.list;
+      const list = new ListView({
         padding: EdgeInsets.all(gutter),
-        children: elevationModes.flatMap(({ title, tint, shadow }) => [
-          new Padding(
-            EdgeInsets.symmetric({ vertical: 10 }),
-            new Text(title, { style: textTheme.titleLarge ?? undefined }),
-          ),
+        children: sections.flatMap(({ title, tiles }) => [
+          title,
           new Padding(
             EdgeInsets.only({ bottom: 14 }),
             new Wrap(
-              elevations.map(
-                (elevation, index) =>
-                  new SizedBox(
-                    size,
-                    Math.max(72, size),
-                    new M.Material({
-                      type: M.MaterialType.card,
-                      borderRadius: BorderRadius.circular(4),
-                      elevation,
-                      color: new Color(colorScheme.surface),
-                      shadowColor: new Color(shadow ? colorScheme.shadow : 0x00000000),
-                      surfaceTintColor: new Color(tint ? colorScheme.primary : 0x00000000),
-                      child: new Padding(
-                        EdgeInsets.all(8),
-                        new Column(
-                          [
-                            new Text(`Level ${index}`, {
-                              style: textTheme.labelMedium ?? undefined,
-                            }),
-                            new Text(`${elevation} dp`, {
-                              style: textTheme.labelMedium ?? undefined,
-                            }),
-                            ...(tint
-                              ? [
-                                  new Expanded(
-                                    new Align(
-                                      new Text(`${overlays[index]}%`, {
-                                        style: textTheme.bodySmall ?? undefined,
-                                      }),
-                                      {
-                                        alignment: Alignment.bottomRight,
-                                      },
-                                    ),
-                                  ),
-                                ]
-                              : []),
-                          ],
-                          { crossAlign: 'stretch' },
-                        ),
-                      ),
-                    }),
-                  ),
-              ),
+              tiles.map((tile) => new SizedBox(size, Math.max(72, size), tile)),
               { spacing: gutter, runSpacing: gutter },
             ),
           ),
         ]),
       });
+      previous = { size, list };
+      return list;
     });
   }
 }

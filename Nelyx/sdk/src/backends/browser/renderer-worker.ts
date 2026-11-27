@@ -58,6 +58,7 @@ let resources: RenderResourceReceiver | undefined;
 let canvas: OffscreenCanvas | undefined;
 let shared: SharedArrayBuffer | undefined;
 let metrics: ViewMetrics | undefined;
+let drawnSurface: ViewMetrics['nativeSurfaceGeneration'] | undefined;
 let visible = true;
 let lastSequence = 0;
 let queueTimer: ReturnType<typeof setTimeout> | undefined;
@@ -328,6 +329,7 @@ function draw(request: Extract<RenderRequest, { kind: 'frame' }>): void {
       lease.returnBy('caller');
       throw new Error('Worker rejected an admitted Web frame');
     }
+    drawnSurface = frame.token.metrics.nativeSurfaceGeneration;
     const sent = performance.now();
     submitted.set(sequence, sent);
     const samples = diagnostics.drain().samples;
@@ -369,15 +371,25 @@ function register(
 function enqueue(request: Extract<RenderRequest, { kind: 'frame' }>): void {
   lastSequence = request.sequence;
   queue.push(request);
-  queueTimer ??= setTimeout(() => {
-    queueTimer = undefined;
-    try {
-      while (queue.length && !failed && !stopping) draw(queue.shift()!);
-    } catch (error) {
-      const lost = (canvas?.getContext('webgl2') as WebGL2RenderingContext | null)?.isContextLost();
-      fault(lost ? 'worker-context-loss' : 'worker-frame', error);
-    }
-  }, 0);
+  if (
+    drawnSurface !== undefined &&
+    metrics?.viewportGeneration === request.viewport &&
+    metrics.nativeSurfaceGeneration !== drawnSurface
+  ) {
+    // Submit the current size in this message turn. Older queued frames
+    // still return their buffers and credits through the stale-frame check.
+    clearTimeout(queueTimer);
+    drawQueuedFrames();
+  } else queueTimer ??= setTimeout(drawQueuedFrames, 0);
+}
+function drawQueuedFrames(): void {
+  queueTimer = undefined;
+  try {
+    while (queue.length && !failed && !stopping) draw(queue.shift()!);
+  } catch (error) {
+    const lost = (canvas?.getContext('webgl2') as WebGL2RenderingContext | null)?.isContextLost();
+    fault(lost ? 'worker-context-loss' : 'worker-frame', error);
+  }
 }
 async function close(): Promise<void> {
   if (stopping) return;

@@ -721,6 +721,19 @@ async function recovery() {
           viewport: [resized.width, resized.height],
           scale: 2,
         });
+        // The latest resize can draw even while the normal worker timer is held.
+        await page.waitForFunction(() => {
+          const { accepted, gpuRetired, discarded } = window.readNelyx().rendering;
+          return accepted === gpuRetired + discarded;
+        });
+        const settled = await diag(page);
+        await page.evaluate(() => window.renderWorkers[0].postMessage({ kind: 'test-hold' }));
+        await page.setViewportSize({ width: resized.width + 12, height: resized.height });
+        await page.waitForFunction(
+          (frames) => window.readNelyx().rendering.gpuRetired > frames,
+          settled.gpuRetired,
+        );
+        await page.evaluate(() => window.renderWorkers[0].postMessage({ kind: 'test-resume' }));
         await canvas.focus();
         await holdTwo();
         const beforeLoss = await diag(page);
@@ -827,6 +840,45 @@ async function embeddedResize() {
             ? result.backing
             : result.viewport.map((size) => Math.round(size * result.scale)),
         );
+        if (result.windows) {
+          const canvas = appCanvas(page);
+          const backing = () => canvas.evaluate(({ width, height }) => [width, height]);
+          const resize = async (width, height) => {
+            const before = await canvas.evaluate(
+              (element, { width, height }) => {
+                const { accepted } = window.readNelyx().rendering;
+                element.parentElement.style.width = width + 'px';
+                element.parentElement.style.height = height + 'px';
+                return accepted;
+              },
+              { width, height },
+            );
+            await page.waitForFunction(
+              (accepted) => window.readNelyx().rendering.accepted > accepted,
+              before,
+            );
+            await nextFrames(page);
+            return backing();
+          };
+          // Shrink below half the initial allocation before exercising growth.
+          const initial = await resize(860, 480);
+          const grown = await resize(930, 450);
+          const reversed = await resize(880, 470);
+          assert.deepEqual(initial, [
+            Math.round(860 * result.scale),
+            Math.round(480 * result.scale),
+          ]);
+          assert.ok(grown[0] > initial[0], JSON.stringify({ initial, grown, reversed }));
+          assert.equal(grown[1], initial[1], 'Keep capacity on the axis that shrinks');
+          assert.deepEqual(reversed, grown, 'Reversing the drag must reuse the buffer');
+          const drawer = page.getByRole('button', { name: 'Show navigation drawer', exact: true });
+          await drawer.waitFor({ state: 'hidden' });
+          await page.evaluate(() => {
+            const viewport = document.querySelector('[data-nelyx-render-path]').parentElement;
+            viewport.style.width = '1100px';
+          });
+          await drawer.waitFor();
+        }
         reports.push({ case: 'embedded-resize', ...result });
         console.log(JSON.stringify({ case: 'embedded-resize', ...result }));
       }),

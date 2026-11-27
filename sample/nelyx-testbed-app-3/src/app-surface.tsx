@@ -14,6 +14,8 @@ export function App({ options }: FrontendProps) {
   const [error, setError] = useState('');
   const [acrylic] = useState(() => windowAcrylicFor());
   const [transparent, setTransparent] = useState(acrylic?.enabled ?? false);
+  // The framework clears and redraws the gallery on every frame.
+  const surfaceOptions = useMemo(() => ({ ...options, preserveDrawingBuffer: false }), [options]);
   useEffect(() => {
     document.documentElement.toggleAttribute('data-window-acrylic', transparent);
     return () => document.documentElement.removeAttribute('data-window-acrylic');
@@ -24,6 +26,8 @@ export function App({ options }: FrontendProps) {
         id: 'nelyx.testbed-3',
         defaultFont: 'roboto-regular',
         accessibilityEnabled: true,
+        // Geometry-only updates can share a snapshot while the window moves.
+        semanticsUpdateInterval: 100,
         ...(acrylic ? { background: 0 } : {}),
         createRoot: () => new Testbed(setPlacement, acrylic, setTransparent),
       }),
@@ -35,7 +39,7 @@ export function App({ options }: FrontendProps) {
       {error && <p role="alert">{error}</p>}
       <ApplicationSurface
         definition={definition}
-        options={options}
+        options={surfaceOptions}
         style={{ flex: 1, width: '100%', height: '100%' }}
         onError={(error) => {
           const message = describeError(error);

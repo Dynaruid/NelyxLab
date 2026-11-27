@@ -34,7 +34,7 @@ export class BrowserFrameClock {
     };
   }
 
-  /** ResizeObserver delivers after rAF. Offer its already scheduled view frame before paint. */
+  /** Use the shared early slot for resize work, including observations that arrive after rAF. */
   offerResize(): void {
     for (const request of this.pending) {
       if (!request.inputDriven) continue;

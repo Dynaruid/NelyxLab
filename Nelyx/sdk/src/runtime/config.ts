@@ -59,6 +59,8 @@ export interface TauriWindowConfig {
   readonly windowTitle?: boolean;
   /** Allow this window to use Desktop Acrylic on Windows 11. */
   readonly windowsAcrylic?: boolean;
+  /** Keep the Windows WebView2 surface larger than the visible app viewport during resizing. */
+  readonly windowsRetainedViewport?: boolean;
   readonly commands?: readonly string[];
 }
 export interface TauriTargetConfig {
@@ -365,6 +367,7 @@ function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
             'safeArea',
             'windowTitle',
             'windowsAcrylic',
+            'windowsRetainedViewport',
             'commands',
           ].includes(key),
       ) ||
@@ -377,6 +380,7 @@ function defineTauri(tauri: TauriTargetConfig): TauriTargetConfig {
         window.safeArea,
         window.windowTitle,
         window.windowsAcrylic,
+        window.windowsRetainedViewport,
         window.haptics,
         window.androidBack,
         window.systemChrome,

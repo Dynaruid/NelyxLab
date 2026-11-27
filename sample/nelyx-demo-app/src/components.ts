@@ -90,6 +90,9 @@ class MessageScrollCurve extends Curve {
 }
 const curvedMessageScroll = new MessageScrollCurve();
 const androidGalleryGestures = new DeviceGestureSettings({ touchSlop: 8 });
+const wideGalleryBreakpoint = 1000;
+const wideGallerySwitchMargin = 120;
+const wideGallerySwitchDelay = 150;
 
 const groups = [
   'Actions',
@@ -195,6 +198,8 @@ class ComponentsState extends State<ComponentsScreen> {
   private readonly secondScroll = new ScrollController({ debugLabel: 'demo-second' });
   private readonly firstExtents = new GallerySectionExtents();
   private readonly secondExtents = new GallerySectionExtents();
+  private wideGallery: boolean | undefined;
+  private wideGallerySwitch: ReturnType<typeof setTimeout> | undefined;
   // These wrappers capture only group identity and this State. Their builders
   // still read current theme/dependencies and values whenever they run.
   private readonly groupWidgets = new Map<Group, Widget>();
@@ -247,6 +252,7 @@ class ComponentsState extends State<ComponentsScreen> {
     };
   }
   override dispose(): void {
+    clearTimeout(this.wideGallerySwitch);
     ++this.messageAnimation;
     this.groupWidgets.clear();
     this.updates.dispose();
@@ -395,13 +401,55 @@ class ComponentsState extends State<ComponentsScreen> {
         if (this.mounted) this.record(String(error));
       });
   }
+  private useWideGallery(width: number): boolean {
+    const preferred = width > wideGalleryBreakpoint && this.group === null;
+    if (
+      this.wideGallery === undefined ||
+      this.group !== null ||
+      Math.abs(width - wideGalleryBreakpoint) >= wideGallerySwitchMargin
+    )
+      this.wideGallery = preferred;
+    if (this.wideGallery === preferred) {
+      clearTimeout(this.wideGallerySwitch);
+      this.wideGallerySwitch = undefined;
+    } else {
+      // Keep laying out the current lists while the pointer crosses the breakpoint.
+      // Repartition once the width has stayed on the other side long enough.
+      this.wideGallerySwitch ??= setTimeout(() => {
+        this.wideGallerySwitch = undefined;
+        if (this.mounted)
+          this.setState(() => {
+            this.wideGallery = preferred;
+          });
+      }, wideGallerySwitchDelay);
+    }
+    return this.wideGallery;
+  }
   build(): Widget {
+    let layout:
+      | {
+          theme: ReturnType<typeof Theme.of>;
+          media: ReturnType<typeof MediaQuery.of> | null;
+          compact: boolean;
+          twoColumns: boolean;
+          child: Widget;
+        }
+      | undefined;
     return new LayoutBuilder((context, constraints) => {
       const theme = Theme.of(context);
-      const colors = theme.colorScheme;
       const media = theme.platform === 'android' ? MediaQuery.of(context) : null;
-      const twoColumns = constraints.maxWidth > 1000 && this.group === null;
+      const twoColumns = this.useWideGallery(constraints.maxWidth);
       const compact = constraints.maxWidth < 600;
+      // The existing children still lay out at the new width and height.
+      // Build a new tree only when the responsive layout or its inputs change.
+      if (
+        layout?.theme === theme &&
+        layout.media === media &&
+        layout.compact === compact &&
+        layout.twoColumns === twoColumns
+      )
+        return layout.child;
+      const colors = theme.colorScheme;
       const visibleGroups = this.group === null ? groups : [this.group];
       const list = (
         listGroups: readonly Group[],
@@ -428,7 +476,7 @@ class ComponentsState extends State<ComponentsScreen> {
           ? new MediaQuery({ ...media, gestureSettings: androidGalleryGestures }, viewport)
           : viewport;
       };
-      return new Column(
+      const child = new Column(
         [
           new Padding(
             EdgeInsets.fromLTRB(compact ? 16 : 28, 12, compact ? 8 : 20, 12),
@@ -518,6 +566,8 @@ class ComponentsState extends State<ComponentsScreen> {
         ],
         { crossAlign: 'stretch', mainSize: 'max' },
       );
+      layout = { theme, media, compact, twoColumns, child };
+      return child;
     });
   }
   private groupWidget(group: Group): Widget {

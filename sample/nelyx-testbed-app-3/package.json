@@ -17,11 +17,11 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-81e4fbc611889dc5a37f70cb9e922ee2b3f77223d3ecfae720b3aebfc939c8af.tgz",
+    "@nelyx/core": "file:.nelyx/supply/nelyx-core-0.17.0-c683e52ce5268a365dc88b491823ff0234ac63b678bf6b5d6a0eff57fd7090ca.tgz",
     "@nelyx/cupertino": "file:.nelyx/supply/nelyx-cupertino-0.2.0-7ff613dc916bccdfa1a7bacbcca18114eeab69602f1cd65f860885b1645525bd.tgz",
     "@nelyx/material": "file:.nelyx/supply/nelyx-material-0.2.0-4153aa11dea66bcc8ea3fdb4f608bd93d8936f6e5c662061f2805378c48c9e5c.tgz",
-    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-a03ce5e2aefebb9cf73935665daad23ed20027328ddee72e51f21474f9264adb.tgz",
-    "@nelyx/skia-web": "file:.nelyx/supply/nelyx-skia-web-0.6.0-054e39c42bf082f4e94abbb1ff55a4d20ae6a4a9c1fc92d2cddc010eef7d0e7f.tgz",
+    "@nelyx/sdk": "file:.nelyx/supply/nelyx-sdk-0.21.0-47a68b934143c68d81f557ace53553de91ea3f8b43e5f122382743dfd7d79253.tgz",
+    "@nelyx/skia-web": "file:.nelyx/supply/nelyx-skia-web-0.6.0-2395ce38236ee10bbc9960f1ccf5db57e9d510d5a914441278a49a0b19f06f8a.tgz",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "@nelyx/backend-rust": "file:.nelyx/supply/nelyx-backend-rust-0.1.0-d00f80ce0d9faf18ee8e5df2302fec505102244930da8849e43c34f842ace07d.tgz",
@@ -32,7 +32,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "2.12.6",
     "@nelyx/vite": "file:.nelyx/supply/nelyx-vite-0.1.0-a463d7c30f8fe64fd8dfdc5976d07e226a9fb4181a739d309cf4d6203aff07e2.tgz",
-    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-b2e6586e783da7452b3f51c83b4fac27a83f888a2168bdfb78b303f46289af5e.tgz",
+    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-4c1835a64e44e55c1685673d3d4ffa470aed4326196cd132a14bb9c056345939.tgz",
     "@nelyx/tooling-contracts": "file:.nelyx/supply/nelyx-tooling-contracts-0.1.0-1f3694744b75fb5587bb9d8e59ddff46c6f4a3603d28aec84c26c7b2d5b4da67.tgz",
     "vite": "8.3.8",
     "typescript": "7.0.2",
@@ -176,7 +176,8 @@
               "read": true,
               "write": true
             },
-            "windowsAcrylic": true
+            "windowsAcrylic": true,
+            "windowsRetainedViewport": true
           }
         ]
       }

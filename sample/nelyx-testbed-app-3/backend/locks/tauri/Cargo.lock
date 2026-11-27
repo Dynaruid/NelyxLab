@@ -2138,6 +2138,8 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-nelyx-backend",
+ "webview2-com",
+ "windows",
 ]
 
 [[package]]

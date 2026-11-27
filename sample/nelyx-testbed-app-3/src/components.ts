@@ -6,6 +6,7 @@ import { BorderSide } from '@nelyx/core/framework/painting/borders';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import { RoundedRectangleBorder } from '@nelyx/core/framework/painting/rounded-rectangle-border';
 import { BoxConstraints } from '@nelyx/core/framework/rendering/constraints';
+import { AutomaticKeepAliveClientMixin } from '@nelyx/core/framework/widgets/automatic-keep-alive';
 import {
   Center,
   Column,
@@ -25,6 +26,7 @@ import {
 import { Icon } from '@nelyx/core/framework/widgets/icon';
 import { Navigator } from '@nelyx/core/framework/widgets/navigation';
 import { RadioGroup } from '@nelyx/core/framework/widgets/radio-group';
+import { RepaintBoundary } from '@nelyx/core/framework/widgets/repaint-boundary';
 import { SafeArea } from '@nelyx/core/framework/widgets/safe-area';
 import { ScrollController } from '@nelyx/core/framework/widgets/scroll-controller';
 import {
@@ -104,13 +106,18 @@ class GallerySection extends StatefulWidget {
   }
 }
 
-class SectionState extends State<GallerySection> {
+class SectionState extends AutomaticKeepAliveClientMixin<GallerySection> {
+  protected get wantKeepAlive(): boolean {
+    return true;
+  }
+
   private readonly updateExample: Update = (change) => {
     if (this.mounted) this.setState(change);
     else change();
   };
 
   override build(context: BuildContext): Widget {
+    super.build(context);
     const {
       group,
       demo: [label, build],
@@ -145,18 +152,20 @@ class SectionState extends State<GallerySection> {
                         new SizedBox(
                           450,
                           undefined,
-                          new M.Card({
-                            margin: EdgeInsets.zero,
-                            elevation: 0,
-                            shape: new RoundedRectangleBorder({
-                              borderRadius: BorderRadius.circular(12),
-                              side: new BorderSide({ color: colorScheme.outlineVariant }),
+                          new RepaintBoundary(
+                            new M.Card({
+                              margin: EdgeInsets.zero,
+                              elevation: 0,
+                              shape: new RoundedRectangleBorder({
+                                borderRadius: BorderRadius.circular(12),
+                                side: new BorderSide({ color: colorScheme.outlineVariant }),
+                              }),
+                              child: new Padding(
+                                EdgeInsets.symmetric({ horizontal: 8, vertical: 16 }),
+                                new Center(build(context, this.updateExample)),
+                              ),
                             }),
-                            child: new Padding(
-                              EdgeInsets.symmetric({ horizontal: 8, vertical: 16 }),
-                              new Center(build(context, this.updateExample)),
-                            ),
-                          }),
+                          ),
                         ),
                       ],
                       { mainSize: 'min', spacing: 8 },
@@ -332,7 +341,14 @@ class ComponentsState extends State<ComponentsScreen> {
   }
 
   private list(children: readonly Widget[], controller: ScrollController): Widget {
-    return new ListView({ children, controller, primary: false, padding: EdgeInsets.all(10) });
+    // Each column lays out visible examples and keeps the state of previously visited sections.
+    return new ListView({
+      children,
+      controller,
+      primary: false,
+      cacheExtent: 0,
+      padding: EdgeInsets.all(10),
+    });
   }
 
   override build(): Widget {

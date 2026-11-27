@@ -22,9 +22,11 @@ export class _RenderScrollSemantics extends RenderProxyBox {
   private implicitScrolling: boolean;
   private childCount: number | null;
   private innerNode: SourceSemanticsNode | null = null;
-  private describedExtents: { readonly min: number; readonly max: number } | undefined;
+  private describedMetrics:
+    | { readonly min: number; readonly max: number; readonly pixels: number }
+    | undefined;
   private readonly changed = () => {
-    const extents = this.describedExtents;
+    const extents = this.describedMetrics;
     if (
       extents &&
       this.position.haveDimensions &&
@@ -39,6 +41,26 @@ export class _RenderScrollSemantics extends RenderProxyBox {
       this.markNeedsSemanticsGeometryUpdate();
     else this.markNeedsSemanticsUpdate();
   };
+  /** A scroll metrics notification runs after layout's semantics pass. */
+  updateScrollMetricsSemantics(): void {
+    const position = this.position,
+      described = this.describedMetrics;
+    if (
+      described &&
+      position.haveDimensions &&
+      described.min === position.minScrollExtent &&
+      described.max === position.maxScrollExtent &&
+      described.pixels === position.pixels &&
+      this.describedScrollable === this.scrollable &&
+      this.hasStaticLayoutSemantics(
+        _RenderScrollSemantics.prototype,
+        _RenderScrollSemantics.prototype.describeSemanticsConfiguration,
+      ) &&
+      !Object.hasOwn(this, 'assembleSemanticsNode')
+    )
+      return;
+    this.markNeedsSemanticsUpdate();
+  }
   private readonly onScrollToOffset = (offset: Offset): void =>
     this.position.jumpTo(this.axis === Axis.horizontal ? offset.dx : offset.dy);
   private describedScrollable: boolean | undefined;
@@ -116,8 +138,12 @@ export class _RenderScrollSemantics extends RenderProxyBox {
     config.isSemanticBoundary = true;
     config.hasImplicitScrolling = this.allowImplicitScrolling;
     this.describedScrollable = this.scrollable;
-    this.describedExtents = this.position.haveDimensions
-      ? { min: this.position.minScrollExtent, max: this.position.maxScrollExtent }
+    this.describedMetrics = this.position.haveDimensions
+      ? {
+          min: this.position.minScrollExtent,
+          max: this.position.maxScrollExtent,
+          pixels: this.position.pixels,
+        }
       : undefined;
     if (this.position.haveDimensions) {
       config.scrollPosition = this.position.pixels;
@@ -168,6 +194,8 @@ export class _RenderScrollSemantics extends RenderProxyBox {
   override clearSemantics(): void {
     super.clearSemantics();
     this.innerNode = null;
+    this.describedMetrics = undefined;
+    this.describedScrollable = undefined;
   }
   override collectSemantics(output: SemanticsNode[], matrix?: TransformMatrix, clip?: Rect): void {
     this.semantics = this.semanticsTransport;

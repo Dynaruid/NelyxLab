@@ -78,6 +78,10 @@ npx.cmd --no-install nelyx run --app . --target tauri --platform windows
 
 `clipboard`를 생략하면 WebView 클립보드를 사용합니다. 읽기·쓰기에 명시한 `false`는 해당 작업을 끕니다. `haptics`를 생략하면 WebView 진동을 사용하고 `false`는 햅틱을 끕니다. `haptics: true`이면 Android·iOS에서 네이티브 플러그인을 사용하고 데스크톱 호출은 조용히 완료됩니다. Android는 뒤로 가기를 요청한 프레임워크 소유자가 있는 동안 시스템 리스너를 등록합니다. 생성한 권한은 지정된 WebView 라벨에만 적용됩니다. 플러그인을 도입할 때 `prepare --target tauri --platform <os> --update-lock`을 실행합니다.
 
+Nelyx 캔버스가 문서를 채우는 Windows 창에 `windowsRetainedViewport: true`를 지정할 수 있습니다. 호스트는 모니터 작업 영역을 담을 크기의 WebView2 표면을 유지하고 문서 루트를 현재 클라이언트 크기에 맞춥니다. 반응형 레이아웃에는 앱 컨테이너의 크기를 사용합니다. `window.innerWidth`, `window.innerHeight`, CSS 뷰포트 단위는 유지한 WebView2 표면 크기를 기준으로 합니다. 이 옵션을 변경하면 `prepare --target tauri --platform windows --update-lock`을 다시 실행합니다.
+
+왼쪽 테두리를 드래그하면 유지한 표면 안에서 클라이언트의 가로 위치가 바뀔 수 있습니다. 앱 컨테이너의 WebView 좌표는 `getBoundingClientRect()`로 읽습니다. 최상위 레이어 다이얼로그를 클라이언트 기준으로 배치할 때는 가로 오프셋 `var(--nelyx-viewport-left, 0px)`를 사용할 수 있습니다.
+
 `targets.tauri.windows[]`의 `deviceServices`에 `["location", "files", "store"]`처럼 기능을 지정합니다. CLI가 해당 WebView에 필요한 플러그인과 권한을 생성합니다. iOS용 `location`, `camera`·`barcode`, `nfc`, `biometrics`를 사용하면 `targets.tauri.deviceUsage`에 앱의 사용 목적을 작성합니다. 바코드는 `camera` 문구를 사용합니다. 링크를 수신하려면 창의 `deviceServices`에 `deepLinks`를 넣고 `targets.tauri.deepLinks.schemes`를 설정합니다. 선택적 `domains`는 `host`와 `pathPrefix`를 받습니다. HTTPS 연결에는 플랫폼 연결 파일과 서명 설정도 필요합니다. [Tauri 딥링크](https://v2.tauri.app/plugin/deep-linking/)
 
 앱 아이콘은 `platform/icons/`에 둡니다. Android와 Apple의 사용자 파일은 생성 프로젝트 기준 상대 경로로 각각 `platform/android/project/`와 `platform/ios/project/`에 둡니다. 선택적인 `platform/<os>/tauri.conf.json`은 번들 설정과 CSP를 받습니다. 서명 키는 플랫폼 도구나 빌드 환경에서 제공합니다.

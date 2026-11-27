@@ -68,6 +68,7 @@ const railDestinations = destinations.map(
     }),
 );
 const navigationItemWidth = 96;
+type NavigationLayout = 'scrollingBar' | 'bar' | 'rail' | 'extendedRail';
 const localThemeIndex = themeImages.length;
 
 function themes(seed: number, light = M.ColorScheme.fromSeed({ seedColor: seed })) {
@@ -446,8 +447,7 @@ class HomeState extends State<Home> {
     }
   }
 
-  private bottomNavigation(width: number): Widget {
-    const minimumWidth = destinations.length * navigationItemWidth;
+  private bottomNavigation(scrollable: boolean): Widget {
     const bar = new M.NavigationBar({
       destinations: barDestinations,
       selectedIndex: this.selected,
@@ -456,7 +456,7 @@ class HomeState extends State<Home> {
         ? { backgroundColor: new Color(0), surfaceTintColor: new Color(0) }
         : {}),
     });
-    if (width >= minimumWidth) return bar;
+    if (!scrollable) return bar;
     return new SizedBox(
       undefined,
       80,
@@ -468,106 +468,135 @@ class HomeState extends State<Home> {
           scrollDirection: Axis.horizontal,
           controller: this.bottomScroll,
           primary: false,
-          child: new SizedBox(minimumWidth, 80, bar),
+          child: new SizedBox(destinations.length * navigationItemWidth, 80, bar),
         }),
       }),
     );
   }
 
   override build(): Widget {
-    return new LayoutBuilder((context, constraints) => {
-      const { maxWidth: width, maxHeight: height } = constraints;
-      const wide = width > 1000;
-      const extended = width > 1500;
-      const narrow = !wide && width < destinations.length * navigationItemWidth;
+    let previous:
+      | { layout: NavigationLayout; trailingAtBottom: boolean; child: Widget }
+      | undefined;
+    return new LayoutBuilder((_, { maxWidth, maxHeight }) => {
+      const narrow = maxWidth < destinations.length * navigationItemWidth;
       if (this.narrow !== narrow) {
         this.narrow = narrow;
         if (narrow) this.revealDestination();
       }
-      const destination = destinations[this.selected]!;
-      const host = 'page' in destination ? destination.page : null;
-      const { acrylic, loading } = this.widget.options;
-      const background = acrylic
-        ? new Color(M.Theme.of(context).colorScheme.surface).withAlpha(96)
-        : null;
-      const content = this.body(wide, host);
-      return new M.Scaffold({
-        backgroundColor: background,
-        appBar: new M.AppBar({
-          title: new Text('Nelyx Material 3', { maxLines: 1, overflow: 'ellipsis' }),
-          actions: wide ? [] : this.actions(context),
-          ...(acrylic
-            ? {
-                backgroundColor: new Color(0),
-                surfaceTintColor: new Color(0),
-                scrolledUnderElevation: 0,
-              }
-            : {}),
-        }),
-        endDrawer:
-          host === null
-            ? new Builder(
-                (drawerContext) =>
-                  new M.NavigationDrawer({
-                    selectedIndex: this.selected,
-                    onDestinationSelected: (index) => {
-                      M.Scaffold.of(drawerContext).closeEndDrawer();
-                      this.select(index);
-                    },
-                    children: [
-                      new Padding(
-                        EdgeInsets.all(24),
-                        new Text('Nelyx Material 3', {
-                          style: M.Theme.of(drawerContext).textTheme.titleLarge ?? undefined,
+      const layout =
+        maxWidth > 1500
+          ? 'extendedRail'
+          : maxWidth > 1000
+            ? 'rail'
+            : narrow
+              ? 'scrollingBar'
+              : 'bar';
+      const trailingAtBottom =
+        (layout === 'rail' && maxHeight > 675) || (layout === 'extendedRail' && maxHeight > 850);
+      if (
+        !previous ||
+        previous.layout !== layout ||
+        previous.trailingAtBottom !== trailingAtBottom
+      ) {
+        // The render objects still receive every new extent. The Builder owns theme dependencies.
+        const child = new Builder((context) => this.scaffold(context, layout, trailingAtBottom));
+        previous = { layout, trailingAtBottom, child };
+      }
+      return previous.child;
+    });
+  }
+
+  private scaffold(
+    context: BuildContext,
+    layout: NavigationLayout,
+    trailingAtBottom: boolean,
+  ): Widget {
+    const extended = layout === 'extendedRail';
+    const wide = layout === 'rail' || extended;
+    const destination = destinations[this.selected]!;
+    const host = 'page' in destination ? destination.page : null;
+    const { acrylic, loading } = this.widget.options;
+    const background = acrylic
+      ? new Color(M.Theme.of(context).colorScheme.surface).withAlpha(96)
+      : null;
+    const content = this.body(wide, host);
+    return new M.Scaffold({
+      backgroundColor: background,
+      appBar: new M.AppBar({
+        title: new Text('Nelyx Material 3', { maxLines: 1, overflow: 'ellipsis' }),
+        actions: wide ? [] : this.actions(context),
+        ...(acrylic
+          ? {
+              backgroundColor: new Color(0),
+              surfaceTintColor: new Color(0),
+              scrolledUnderElevation: 0,
+            }
+          : {}),
+      }),
+      endDrawer:
+        host === null
+          ? new Builder(
+              (drawerContext) =>
+                new M.NavigationDrawer({
+                  selectedIndex: this.selected,
+                  onDestinationSelected: (index) => {
+                    M.Scaffold.of(drawerContext).closeEndDrawer();
+                    this.select(index);
+                  },
+                  children: [
+                    new Padding(
+                      EdgeInsets.all(24),
+                      new Text('Nelyx Material 3', {
+                        style: M.Theme.of(drawerContext).textTheme.titleLarge ?? undefined,
+                      }),
+                    ),
+                    ...destinations.map(
+                      ({ label, icon, selected }) =>
+                        new M.NavigationDrawerDestination({
+                          label: new Text(label),
+                          icon: new Icon(icon),
+                          selectedIcon: new Icon(selected),
                         }),
+                    ),
+                  ],
+                }),
+            )
+          : null,
+      body: new Column(
+        [
+          ...(loading
+            ? [new M.LinearProgressIndicator({ semanticsLabel: 'Loading image colors' })]
+            : []),
+          new Expanded(
+            new Row(
+              [
+                wide
+                  ? new M.NavigationRail({
+                      destinations: railDestinations,
+                      selectedIndex: this.selected,
+                      onDestinationSelected: this.select,
+                      extended,
+                      scrollable: true,
+                      backgroundColor: acrylic ? new Color(0) : null,
+                      trailingAtBottom,
+                      trailing: new Padding(
+                        EdgeInsets.all(8),
+                        extended
+                          ? this.settings(context)
+                          : new Column(this.actions(context), { mainSize: 'min' }),
                       ),
-                      ...destinations.map(
-                        ({ label, icon, selected }) =>
-                          new M.NavigationDrawerDestination({
-                            label: new Text(label),
-                            icon: new Icon(icon),
-                            selectedIcon: new Icon(selected),
-                          }),
-                      ),
-                    ],
-                  }),
-              )
-            : null,
-        body: new Column(
-          [
-            ...(loading
-              ? [new M.LinearProgressIndicator({ semanticsLabel: 'Loading image colors' })]
-              : []),
-            new Expanded(
-              new Row(
-                [
-                  wide
-                    ? new M.NavigationRail({
-                        destinations: railDestinations,
-                        selectedIndex: this.selected,
-                        onDestinationSelected: this.select,
-                        extended,
-                        scrollable: true,
-                        backgroundColor: acrylic ? new Color(0) : null,
-                        trailingAtBottom: height > (extended ? 850 : 675),
-                        trailing: new Padding(
-                          EdgeInsets.all(8),
-                          extended
-                            ? this.settings(context)
-                            : new Column(this.actions(context), { mainSize: 'min' }),
-                        ),
-                      })
-                    : SizedBox.shrink(),
-                  new Expanded(content),
-                ],
-                { crossAlign: 'stretch' },
-              ),
+                    })
+                  : SizedBox.shrink(),
+                new Expanded(content),
+              ],
+              { crossAlign: 'stretch' },
             ),
-          ],
-          { crossAlign: 'stretch' },
-        ),
-        bottomNavigationBar: wide ? null : this.bottomNavigation(width),
-      });
+          ),
+        ],
+        { crossAlign: 'stretch' },
+      ),
+      bottomNavigationBar: wide ? null : this.bottomNavigation(layout === 'scrollingBar'),
     });
   }
 }
