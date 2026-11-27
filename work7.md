@@ -2,7 +2,7 @@
 
 **IMPLEMENTED** · 2026-11-26 KST · Nelyx 기준 `14851cf0` · Doroti 비교 `35475819`
 
-**Testbed 3 후속 작업은 PAUSED / PARTIAL** · 2026-11-27 KST · 현재 실행 파일, 대각선 측정과 남은 검증은 §8에 기록했다.
+**Testbed 3 왼쪽 위 드래그의 래스터 순간 이동 수정** · 2026-11-27 KST · 수정한 Windows 패키지와 합성 화면 측정은 §10에 기록했다. 전체 크기 변경 성능의 이전 측정과 남은 범위는 §8에 있다.
 
 Windows Tauri Demo에서 테두리를 드래그할 때 글자, 원형 아이콘, 고정 높이 위젯의 비율을 유지하고 콘텐츠가 새 창 크기에 빠르게 따라오게 한다. 같은 DOM 경로를 사용하는 브라우저와 별도 다이얼로그도 확인한다.
 
@@ -101,7 +101,7 @@ Windows Demo는 작업 영역을 담을 크기의 WebView2 자식 표면을 만�
 
 ## 8. Testbed 3 대각선 드래그 중간 마무리 (2026-11-27 KST)
 
-**PAUSED / PARTIAL.** 사용자 요청으로 중단했다. 현재 Windows x64 실행 파일과 설치 패키지를 빌드했다. EXE의 SHA-256은 `9405468e663189be6ecf2ffdc0fde31e855b496b191c2e3e15497aa8b44888a9`이고, 실행 중인 프런트엔드와 Rust 호스트가 보고한 빌드 ID는 모두 `b674a1ede2c47bc6e32b502fc4b4f1aacf7b9d079eb720d92eb85025ae87763d`였다. [Testbed 3 EXE](sample/nelyx-testbed-app-3/.nelyx/tauri/windows-x64/nelyx-tauri.exe)
+**PAUSED / PARTIAL.** 사용자 요청으로 중단했다. 중단 시점의 Windows x64 EXE SHA-256은 `9405468e663189be6ecf2ffdc0fde31e855b496b191c2e3e15497aa8b44888a9`이고, 실행 중인 프런트엔드와 Rust 호스트가 보고한 빌드 ID는 모두 `b674a1ede2c47bc6e32b502fc4b4f1aacf7b9d079eb720d92eb85025ae87763d`였다. 현재 패키지는 §9에 기록했다.
 
 Doroti Windows는 최상위 HWND를 직접 만든다. Windows가 드래그로 제안한 사각형을 `WM_SIZING`에서 받아 프레임을 미리 준비한다. Composition 경로에서 왼쪽·위쪽을 끌 때는 원점과 프레임을 함께 식별하고, 실제 창 위치가 확정되는 시점에 준비한 프레임을 표시한다. 최상위 창에는 `WS_EX_NOREDIRECTIONBITMAP`을 설정한다. [Doroti 창 생성](../DorotiLab/packages/platforms/windowsappsdk/native/src/exports.cpp#L1557) · [크기 변경과 프레임 준비](../DorotiLab/packages/platforms/windowsappsdk/native/src/exports.cpp#L408) · [창 스타일](../DorotiLab/packages/platforms/windowsappsdk/native/src/exports.cpp#L1218)
 
@@ -140,3 +140,25 @@ AMD Radeon 780M, 2560 × 1600, 165 Hz, 200% 배율에서 실제 Testbed 3의 Com
 - 현재 빌드에서 타입 검사, 색상·높이 예제의 재배치, 갤러리 스크롤 왕복, 편집한 값 보존, 크기 조절 중 열린 모달의 중앙 정렬, iframe 높이 변경, Texture 탭, 새로고침을 확인했다. 창 이동·최대화·최소화·복원 후 Win32 클릭으로 **Filled** 버튼의 알림이 표시됐다.
 - 오른쪽 모서리의 가로 추종, 1열/2열 전환 시 표시 공백, 물리 마우스 체감은 남아 있다. 위쪽을 끌 때 아래쪽 탭 글자의 세로 위치를 추적한 별도 측정은 221장 중 153장에서만 글자를 식별해 결론을 보류했다. 느린 왕복 일부에서는 지정한 60 Hz 입력 수보다 창 경계 변화가 더 많아 최종 비교에서 제외했다.
 - 현재 공유 호스트로 Testbed 3와 Demo의 정식 `check-tauri-windows.mjs` 회귀 검사, Demo 재패키징, Testbed 3 웹 빌드와 `check-backend-web.mjs`는 중단 시점에 미실행이다. 앞 절의 통과 기록은 그 절에 명시된 빌드에 해당한다.
+
+## 9. Testbed 3 왼쪽 위 드래그의 순간 이동 재현
+
+**수정 전 재현.** Windows 11의 200% 배율에서 Testbed 3 Components를 열고, 시작 창 너비 1690px에서 60Hz 대각선 입력을 보냈다. DXGI 합성 화면에서 닫기 버튼의 가로 좌표가 2065px로 고정된 동안 앱 아이콘은 `2073 → 2090 → 2072px`로 움직였다. 같은 구간에서 WebView2 자식 창의 왼쪽 경계는 `13 → 31 → 13px`로 바뀌었다. 비교 빌드에서 캔버스 밖에 고정한 HTML 표식도 순간 이동했다.
+
+부모 창이 움직인 뒤 `WM_WINDOWPOSCHANGED`에서 자식 창의 상대 위치를 되돌리는 사이에 중간 좌표가 표시될 수 있다. 당시에는 캔버스 기준점 고정, 네이티브 보정 시점 변경, 자식 창 리디렉션과 픽셀 복사 설정을 각각 비교했다. 1690px·2300px 및 아크릴 조건을 함께 만족하지 못한 실험은 되돌렸다. [Win32 위치 변경 메시지](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-windowposchanged)
+
+비교에 사용한 기존 호스트 EXE의 SHA-256은 `5785ff3a24d4ede27fdf23cf03731f052f9dc7627c6b24647dc0948cf2db943d`이며, 실행 중인 프런트엔드와 Rust 호스트의 빌드 ID는 §8의 값과 일치했다.
+
+## 10. 왼쪽 위 드래그의 래스터 위치 고정
+
+왼쪽 테두리를 끌면 Windows 호스트가 `WM_NCCALCSIZE`에서 이전·새 클라이언트 영역의 겹치는 픽셀을 지정한다. Windows가 부모 창과 WebView2 자식 창의 가로 위치를 함께 바꾸고, 호스트가 마지막 물리 픽셀을 명시적으로 이동해 합성기에 자식 위치를 알린다. 가로 오프셋이 바뀌는 드래그에서는 `DwmFlush`로 직전 합성을 기다린다. [Windows 호스트](Nelyx/sdk/tooling/cli/templates/tauri/src/windows_viewport.rs#L72) · [WM_NCCALCSIZE](https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-nccalcsize) · [DwmFlush](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/nf-dwmapi-dwmflush)
+
+캔버스의 가로 원점은 WebView 안에서 고정하고, CanvasKit이 각 프레임을 그릴 때 그 프레임에 해당하는 가로 오프셋을 적용한다. 다음 창 크기가 먼저 도착해도 이미 표시된 그림은 제자리에 있다. 워커도 같은 크기 세대의 오프셋을 사용하며 버퍼 예산에 왼쪽 여백을 포함한다. [DOM 뷰포트](Nelyx/sdk/src/backends/browser/services.ts#L181) · [CanvasKit 그리기](Nelyx/skia/packages/web/src/surface.ts#L142)
+
+Windows 11, Radeon 780M, 2560 × 1600, 165Hz, 200% 배율에서 패키지 EXE로 Components 화면을 열었다. 시작 너비 1690·2024·2300px에서 60Hz Win32 입력으로 왼쪽 위 모서리를 11차례 드래그했다. 일반·아크릴 창, 느린 드래그, 수평에 가까운 드래그, 1열↔2열 전환, `direct`·`worker-shared`·`worker-transfer`를 포함했다. 전환 구간은 넓은 레이아웃과 좁은 레이아웃의 오른쪽 아이콘을 각각 식별했다.
+
+- 합성 화면 1,752장 모두에서 제목 표시줄 닫기 버튼과 앱 아이콘을 함께 식별했다. 정지 상태 대비 두 아이콘 사이 간격의 최대 오차는 가로 1px, 세로 0px였다. 닫기 버튼이 고정된 채 앱 아이콘만 가로로 3px 이상 움직인 횟수는 0회였다. 캔버스 밖의 고정 HTML 표식도 함께 측정한 1,072장에서는 표식의 가로 오차가 0px였다.
+- 두 시작 너비에서 네 모서리를 확인했다. 오른쪽 아래 드래그는 각 96개 입력 동안 창 경계가 초당 59.4회 바뀌었고 앱 아이콘의 움직임은 93회 관측됐다. 별도 본문 추적에서 왼쪽 위 드래그 중 표시 갱신은 1690px에서 초당 59.4회, 2300px에서 55.6회, 1열↔2열을 넘나들 때 49.9회였다. 전환 구간의 최대 표시 공백은 67.6ms였다. 측정 범위는 자동 마우스 입력과 Windows 합성 화면까지다.
+- 드래그 도중 Esc로 취소하면 창과 자식 창의 좌표, DOM 크기가 모두 복원됐다. 최대화·최소화·복원 후 네이티브 클릭, 갤러리 스크롤, 색상 예제의 열 배치, 모달의 중앙 정렬과 입력값 유지, iframe 리사이즈, 새로고침을 확인했다. Windows 패키지 검사에도 새 크기를 적용한 직후 이전 래스터의 위치를 확인하는 회귀 검사를 추가했다. Testbed 3의 타입 검사와 Web 빌드, 루트와 하위 경로의 Web 백엔드 검사를 통과했다. [Windows 패키지 검사](Nelyx/eng/check-tauri-windows.mjs#L144) · [Web 백엔드 검사](Nelyx/eng/check-backend-web.mjs)
+
+저장소 루트에서 `npm.cmd run deploy -- --platform windows --app Testbed3`로 빌드하고 실행한다. 실행 중인 프런트엔드·Rust 호스트의 빌드 ID는 `4377e8e4a09d2db533a218b31aa675afed0fa913325500defc7ebf68d1384bc3`다. 패키지와 대조한 SHA-256은 EXE `26143cb268edb7c97187dcef31557f6126ebcc75a17422347229c5c9d2da68e6`, NSIS `457663f07d62261ce3e7dc2f6d1238d5b435b26713150ab59ea2176717461629`다. [Testbed 3 EXE](sample/nelyx-testbed-app-3/.nelyx/tauri/windows-x64/nelyx-tauri.exe)

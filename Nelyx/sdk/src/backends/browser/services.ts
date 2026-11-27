@@ -5,7 +5,7 @@ import type { ApplicationDefinition, ViewRuntime } from '@nelyx/core/hosting/run
 import type { BackendServices, SurfaceEvent } from '@nelyx/core/hosting/services';
 import type { BackendIdentity } from '@nelyx/core/hosting/platform';
 import type { ViewOwner } from '@nelyx/core/ui/types';
-import type { WebSkiaLibrary } from '@nelyx/skia-web/library';
+import type { WebSkiaLibrary, WebSurfaceMetrics } from '@nelyx/skia-web/library';
 import type { BrowserRenderer } from './renderer.ts';
 import { ManifestAssetService, selectManifestAssets } from '../../runtime/assets.ts';
 import type { ResolvedAppAsset as AppAsset } from '../../runtime/config.ts';
@@ -19,7 +19,11 @@ import {
 import { sha256 } from './canvaskit.ts';
 import { isAppUrl } from './local-url.ts';
 import { bindCanvasInput } from './input.ts';
-import { createBrowserEnvironment } from './environment.ts';
+import {
+  createBrowserEnvironment,
+  readRetainedViewportLeft,
+  retainedViewportLeftProperty,
+} from './environment.ts';
 import type { WebSafeAreaSource } from './environment.ts';
 import { getBrowserPlatformEnvironment } from './platform.ts';
 import { ImageService } from '@nelyx/core/hosting/images';
@@ -83,6 +87,8 @@ export function createWebServices(
     window = document.defaultView!,
     frameTimeOffset = window.performance.timeOrigin - performance.timeOrigin;
   const canvasViewport = options?.canvasViewport;
+  const retainedViewport =
+    canvasViewport !== undefined && readRetainedViewportLeft(document) !== undefined;
   const readViewport = () => canvasViewport ?? canvas;
   let nativeSelectionContextMenu: BrowserSelectionContextMenu | undefined;
   const cursor = new BrowserMouseCursor(canvas),
@@ -151,13 +157,16 @@ export function createWebServices(
         logicalHeight: height,
         physicalWidth: Math.round(width * scale),
         physicalHeight: Math.round(height * scale),
+        ...(retainedViewport
+          ? { physicalRasterOffsetX: Math.round((readRetainedViewportLeft(document) ?? 0) * scale) }
+          : {}),
         scale,
         viewportGeneration: viewport,
         rendererGeneration: renderer,
         nativeContextGeneration: context,
         nativeSurfaceGeneration: surface,
         environment: environment.read(),
-      });
+      } satisfies WebSurfaceMetrics);
     }
     let current = metrics(),
       observer: ResizeObserver | undefined,
@@ -168,10 +177,16 @@ export function createWebServices(
       const style = canvas.style;
       style.position = 'absolute';
       style.top = '0';
-      style.left = '0';
+      // In the retained WebView the layout can move ahead of the displayed raster.
+      // Keep the bitmap fixed in WebView coordinates and paint the offset with each frame.
+      const left = `var(${retainedViewportLeftProperty}, 0px)`;
+      style.left = retainedViewport ? `calc(-1 * ${left})` : '0';
       // The element fills the viewport after transforming. Its bitmap keeps its
       // intrinsic size under the same transform, independent of viewport changes.
-      style.width = style.height = `${100 * rasterScale}%`;
+      style.width = retainedViewport
+        ? `calc((100% + ${left}) * ${rasterScale})`
+        : `${100 * rasterScale}%`;
+      style.height = `${100 * rasterScale}%`;
       style.objectFit = 'none';
       style.objectPosition = 'left top';
       style.transformOrigin = '0 0';
@@ -187,6 +202,7 @@ export function createWebServices(
         backingChanged =
           next.logicalWidth !== current.logicalWidth ||
           next.logicalHeight !== current.logicalHeight ||
+          next.physicalRasterOffsetX !== current.physicalRasterOffsetX ||
           next.scale !== current.scale,
         environmentChanged =
           JSON.stringify(next.environment) !== JSON.stringify(current.environment);

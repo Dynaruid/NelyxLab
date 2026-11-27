@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tauri::utils::config::WindowConfig;
@@ -8,10 +9,13 @@ use tauri::{App, PhysicalPosition, PhysicalSize, Wry};
 use webview2_com::{ExecuteScriptCompletedHandler, Microsoft::Web::WebView2::Win32::ICoreWebView2};
 use windows::core::HSTRING;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
+use windows::Win32::Graphics::Dwm::DwmFlush;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetParent, GetWindowInfo, IsIconic, SetWindowPos, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
-    WINDOWINFO, WM_DPICHANGED, WM_EXITSIZEMOVE, WM_NCDESTROY, WM_SIZING, WM_WINDOWPOSCHANGED,
+    GetParent, GetWindow, GetWindowInfo, IsIconic, SetWindowPos, GW_CHILD, GW_HWNDNEXT,
+    NCCALCSIZE_PARAMS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WINDOWINFO, WMSZ_BOTTOMLEFT,
+    WMSZ_LEFT, WMSZ_TOPLEFT, WM_DPICHANGED, WM_EXITSIZEMOVE, WM_NCCALCSIZE, WM_NCDESTROY,
+    WM_SIZING, WM_WINDOWPOSCHANGED, WVR_VALIDRECTS,
 };
 
 fn window_info(hwnd: HWND) -> windows::core::Result<WINDOWINFO> {
@@ -63,6 +67,36 @@ impl Viewport {
                 .clamp(0, self.capacity.width.saturating_sub(size.width) as i32)
         };
         Content { size, left }
+    }
+
+    fn valid_rects(&self, old: RECT, new: RECT) -> Option<(RECT, RECT)> {
+        if old != self.client || old.right != new.right || old.left == new.left {
+            return None;
+        }
+        let next = self.content_at(new);
+        if next.left == self.content.left || next.size.width > self.capacity.width {
+            return None;
+        }
+        // Map the same retained pixels in the old and new client. USER32 applies
+        // this displacement to the child HWND in the parent's resize transaction.
+        // Leave the last physical pixel to SetWindowPos so the compositor receives
+        // an explicit child position even when its desktop X would remain unchanged.
+        let aligned_left = next.left - (next.left - self.content.left).signum();
+        let shared_left = self.content.left.max(aligned_left);
+        let src_x = old.left + (shared_left - self.content.left);
+        let dst_x = new.left + (shared_left - aligned_left);
+        let width = (old.right - src_x).min(new.right - dst_x);
+        let height = (old.bottom - old.top).min(new.bottom - new.top);
+        if width <= 0 || height <= 0 {
+            return None;
+        }
+        let rect_at = |left, top| RECT {
+            left,
+            top,
+            right: left + width,
+            bottom: top + height,
+        };
+        Some((rect_at(dst_x, new.top), rect_at(src_x, old.top)))
     }
 }
 
@@ -122,6 +156,7 @@ struct ResizeHost {
     window: Window<Wry>,
     child: Webview<Wry>,
     viewport: Arc<Mutex<Viewport>>,
+    sizing_left: Cell<bool>,
 }
 
 impl ResizeHost {
@@ -139,8 +174,19 @@ impl ResizeHost {
         if client.right <= client.left || client.bottom <= client.top {
             return;
         }
-        let content = self.viewport.lock().unwrap().content_at(client);
+        let (content, align) = {
+            let state = self.viewport.lock().unwrap();
+            let next = state.content_at(client);
+            (
+                next,
+                self.sizing_left.get() && next.left != state.content.left,
+            )
+        };
         publish(&self.child, &self.viewport, content, false);
+        if align {
+            // Start the native move after the previous desktop composition has presented.
+            let _ = unsafe { DwmFlush() };
+        }
     }
 
     fn commit(&self, hwnd: HWND, dpi_changed: bool) {
@@ -226,7 +272,12 @@ unsafe extern "system" fn resize_proc(
 ) -> LRESULT {
     if !matches!(
         message,
-        WM_SIZING | WM_WINDOWPOSCHANGED | WM_DPICHANGED | WM_EXITSIZEMOVE | WM_NCDESTROY
+        WM_SIZING
+            | WM_NCCALCSIZE
+            | WM_WINDOWPOSCHANGED
+            | WM_DPICHANGED
+            | WM_EXITSIZEMOVE
+            | WM_NCDESTROY
     ) {
         return unsafe { DefSubclassProc(hwnd, message, wp, lp) };
     }
@@ -235,8 +286,38 @@ unsafe extern "system" fn resize_proc(
     unsafe { Rc::increment_strong_count(ptr) };
     let host = unsafe { Rc::from_raw(ptr) };
     match message {
-        WM_SIZING if lp.0 != 0 => host.prepare(hwnd, unsafe { *(lp.0 as *const RECT) }),
-        WM_WINDOWPOSCHANGED | WM_EXITSIZEMOVE => host.commit(hwnd, false),
+        WM_SIZING if lp.0 != 0 => {
+            host.sizing_left.set(matches!(
+                wp.0 as u32,
+                WMSZ_LEFT | WMSZ_TOPLEFT | WMSZ_BOTTOMLEFT
+            ));
+            host.prepare(hwnd, unsafe { *(lp.0 as *const RECT) });
+        }
+        WM_NCCALCSIZE if host.sizing_left.get() && wp.0 != 0 && lp.0 != 0 => {
+            let params = lp.0 as *mut NCCALCSIZE_PARAMS;
+            let old = unsafe { (*params).rgrc[2] };
+            let result = unsafe { DefSubclassProc(hwnd, message, wp, lp) };
+            let new = unsafe { (*params).rgrc[0] };
+            let valid = host.viewport.lock().unwrap().valid_rects(old, new);
+            if let Some((dest, src)) = valid {
+                // Valid-rect alignment would also reposition any native sibling.
+                if unsafe { GetWindow(hwnd, GW_CHILD) }
+                    .is_ok_and(|first| unsafe { GetWindow(first, GW_HWNDNEXT).is_err() })
+                {
+                    unsafe {
+                        (*params).rgrc[1] = dest;
+                        (*params).rgrc[2] = src;
+                    }
+                    return LRESULT(WVR_VALIDRECTS as isize);
+                }
+            }
+            return result;
+        }
+        WM_WINDOWPOSCHANGED => host.commit(hwnd, false),
+        WM_EXITSIZEMOVE => {
+            host.sizing_left.set(false);
+            host.commit(hwnd, false);
+        }
         WM_NCDESTROY => unsafe {
             let _ = RemoveWindowSubclass(hwnd, Some(resize_proc), id);
             drop(Rc::from_raw(ptr));
@@ -299,6 +380,7 @@ fn create_window(app: &App<Wry>, config: &WindowConfig) -> Result<(), Box<dyn st
         window: window.clone(),
         child,
         viewport,
+        sizing_left: Cell::new(false),
     }));
     if !unsafe { SetWindowSubclass(hwnd, Some(resize_proc), 1, host as usize) }.as_bool() {
         unsafe {

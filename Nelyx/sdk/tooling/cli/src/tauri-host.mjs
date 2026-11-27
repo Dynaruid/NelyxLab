@@ -140,7 +140,7 @@ function cargoManifest({ app, version, name }, directory, project, features, plu
     ? `[target.'cfg(windows)'.dependencies]
 tauri = { version = ${runtimeVersion}, features = ["unstable"] }
 webview2-com = "=${tauriDependencies.webview2}"
-windows = { version = "=${tauriDependencies.windows}", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "=${tauriDependencies.windows}", features = ["Win32_Graphics_Dwm", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 `
     : '';

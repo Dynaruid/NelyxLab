@@ -10,11 +10,14 @@ import type {
   PaintFrame,
   RendererNotification,
   SubmitResult,
-  ViewMetrics,
   ViewOwner,
 } from '@nelyx/core/ui/types';
 import { webBackingSize, webGpuResourceCacheBytes } from '@nelyx/skia-web/library';
-import type { WebSkiaLibrary, WebSkiaSurfaceOptions } from '@nelyx/skia-web/library';
+import type {
+  WebSkiaLibrary,
+  WebSkiaSurfaceOptions,
+  WebSurfaceMetrics,
+} from '@nelyx/skia-web/library';
 import type { CanvasKitManifest } from './canvaskit-manifest.ts';
 import { CanvasKitIntegrityError } from './canvaskit-loader.ts';
 import { prepareCanvasKit } from './canvaskit.ts';
@@ -32,6 +35,7 @@ import { sharedArrayBufferConstructor } from './render-shared-memory.ts';
 import { RenderWorkerPort, RenderWorkerError } from './render-worker-port.ts';
 import { RenderWorkerFrames } from './render-worker-frames.ts';
 import { WebRenderTelemetry } from './render-telemetry.ts';
+import { readRetainedViewportLeft } from './environment.ts';
 
 interface BrowserRenderOptions extends WebSkiaSurfaceOptions {
   readonly renderMode?: WebRenderMode;
@@ -69,7 +73,7 @@ export class BrowserRenderer implements Renderer {
   private recovery: Promise<void> | undefined;
   private displaySurface: DisplaySurface | undefined;
   private restartAvailable = true;
-  private metrics: ViewMetrics | undefined;
+  private metrics: WebSurfaceMetrics | undefined;
   private visible = true;
   private epoch = 0;
   private transferred = false;
@@ -159,6 +163,9 @@ export class BrowserRenderer implements Renderer {
         scale,
         physicalWidth: Math.round(viewport.clientWidth * scale),
         physicalHeight: Math.round(viewport.clientHeight * scale),
+        physicalRasterOffsetX: this.options.canvasViewport
+          ? Math.round((readRetainedViewportLeft(canvas.ownerDocument) ?? 0) * scale)
+          : 0,
       },
       this.options.maxRasterScale,
     );
@@ -394,7 +401,7 @@ export class BrowserRenderer implements Renderer {
     };
   }
 
-  updateMetrics(metrics: ViewMetrics): void {
+  updateMetrics(metrics: WebSurfaceMetrics): void {
     this.metrics = metrics;
     this.library.updateMetrics(metrics);
     const worker = this.worker;

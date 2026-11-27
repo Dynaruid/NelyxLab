@@ -16,7 +16,7 @@ import {
 } from '@nelyx/core/ui/web-frame-wire';
 import type { PaintFrame, ViewMetrics, ViewOwner } from '@nelyx/core/ui/types';
 import { WebSkiaLibrary, webBackingSize } from '@nelyx/skia-web/library';
-import type { WebSkiaSurfaceOptions } from '@nelyx/skia-web/library';
+import type { WebSkiaSurfaceOptions, WebSurfaceMetrics } from '@nelyx/skia-web/library';
 import { CanvasKitIntegrityError } from './canvaskit-loader.ts';
 import { loadWorkerCanvasKit } from './canvaskit-worker.ts';
 import {
@@ -57,7 +57,7 @@ let registry: ResourceRegistry | undefined;
 let resources: RenderResourceReceiver | undefined;
 let canvas: OffscreenCanvas | undefined;
 let shared: SharedArrayBuffer | undefined;
-let metrics: ViewMetrics | undefined;
+let metrics: WebSurfaceMetrics | undefined;
 let drawnSurface: ViewMetrics['nativeSurfaceGeneration'] | undefined;
 let visible = true;
 let lastSequence = 0;
@@ -225,8 +225,8 @@ function attach(request: Extract<RenderRequest, { kind: 'attach' }>): void {
   reply({ kind: 'attached' });
 }
 
-function setMetrics(next: ViewMetrics): void {
-  const captured = captureMetrics(next);
+function setMetrics(next: WebSurfaceMetrics): void {
+  const captured: WebSurfaceMetrics = captureMetrics(next);
   if (
     metrics &&
     (captured.viewportGeneration < metrics.viewportGeneration ||

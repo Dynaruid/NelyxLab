@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { NativeFrameResource } from '@nelyx/core/ui/frame-wire';
-import type { ResourceId, TextLayoutInput, ViewMetrics, ViewOwner } from '@nelyx/core/ui/types';
+import type { ResourceId, TextLayoutInput, ViewOwner } from '@nelyx/core/ui/types';
 import type { PaintSnapshot } from '@nelyx/core/ui/paint';
 import type { TextRunStyle } from '@nelyx/core/ui/text-styles';
-import type { WebSkiaSurfaceOptions } from '@nelyx/skia-web/library';
+import type { WebSkiaSurfaceOptions, WebSurfaceMetrics } from '@nelyx/skia-web/library';
 import type { CanvasKitManifest } from './canvaskit-manifest.ts';
 import type { PreparedCanvasKit } from './canvaskit-loader.ts';
 
@@ -24,7 +24,7 @@ export type RenderFailureStage =
   | 'worker-context-loss'
   | 'main-webgl2';
 
-export const renderProtocolVersion = 2;
+export const renderProtocolVersion = 3;
 export const renderCapacity = 2;
 export const sharedSlotBytes = 128 * 1024;
 export const sharedHeaderWords = renderCapacity * 2;
@@ -133,7 +133,7 @@ export type RenderRequest = RenderSession &
         readonly buffer: SharedArrayBuffer;
       }
     | { readonly kind: 'attach'; readonly canvas: OffscreenCanvas; readonly useShared: boolean }
-    | { readonly kind: 'metrics'; readonly metrics: ViewMetrics }
+    | { readonly kind: 'metrics'; readonly metrics: WebSurfaceMetrics }
     | { readonly kind: 'visibility'; readonly visible: boolean }
     | { readonly kind: 'register'; readonly resources: readonly RenderResource[] }
     | { readonly kind: 'release'; readonly resource: NativeFrameResource }

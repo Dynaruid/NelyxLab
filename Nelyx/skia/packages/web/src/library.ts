@@ -22,7 +22,6 @@ import type {
   RendererCapabilities,
   RendererNotification,
   SubmitResult,
-  ViewMetrics,
   ViewOwner,
   TextLayoutInput,
   TextLayout,
@@ -43,9 +42,9 @@ import { createRuntimeShaderCache } from './paint-effects.ts';
 import { WebSkiaReplay } from './replay.ts';
 import type { WebParagraphDrawing } from './replay.ts';
 import { WebSkiaSurface } from './surface.ts';
-import type { WebSkiaCanvas, WebSkiaSurfaceOptions } from './surface.ts';
+import type { WebSkiaCanvas, WebSkiaSurfaceOptions, WebSurfaceMetrics } from './surface.ts';
 export { webBackingSize, webGpuResourceCacheBytes } from './surface.ts';
-export type { WebSkiaSurfaceOptions } from './surface.ts';
+export type { WebSkiaSurfaceOptions, WebSurfaceMetrics } from './surface.ts';
 import { imageTargetSize } from '@nelyx/core/hosting/images';
 import type {
   ImageDecodeOptions,
@@ -235,7 +234,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   private paragraphs = new Map<string, Entry>();
   private pending = new Map<number, Pending>();
   private events: RendererEvents;
-  private metrics: ViewMetrics | undefined;
+  private metrics: WebSurfaceMetrics | undefined;
   private display: WebSkiaSurface | undefined;
   private auxiliary: { readonly surface: WebSkiaSurface; stop(): void; lost: boolean } | undefined;
   private registry: ResourceRegistry | undefined;
@@ -1362,7 +1361,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     textRange(layout, range.start, range.end);
     return Object.freeze({ start: range.start, end: range.end });
   }
-  updateMetrics(metrics: ViewMetrics): void {
+  updateMetrics(metrics: WebSurfaceMetrics): void {
     this.ensureOpen();
     this.metrics = metrics;
   }
@@ -1442,6 +1441,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       frame,
       (canvas, scale) => this.replay.draw(canvas, frame, scale),
       diagnostics,
+      this.metrics,
     );
     lease.transfer();
     this.pending.set(frame.token.sequence, { fence, lease, started: performance.now() });

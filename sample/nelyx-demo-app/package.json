@@ -32,7 +32,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "2.12.6",
     "@nelyx/vite": "file:.nelyx/supply/nelyx-vite-0.1.0-a463d7c30f8fe64fd8dfdc5976d07e226a9fb4181a739d309cf4d6203aff07e2.tgz",
-    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-45317b7247cf16d711daa3a918f8e22d1df65feffa8026ca6f354803b4f00d6d.tgz",
+    "@nelyx/cli": "file:.nelyx/supply/nelyx-cli-0.11.0-4c1835a64e44e55c1685673d3d4ffa470aed4326196cd132a14bb9c056345939.tgz",
     "@nelyx/tooling-contracts": "file:.nelyx/supply/nelyx-tooling-contracts-0.1.0-1f3694744b75fb5587bb9d8e59ddff46c6f4a3603d28aec84c26c7b2d5b4da67.tgz",
     "vite": "8.3.8",
     "typescript": "7.0.2",

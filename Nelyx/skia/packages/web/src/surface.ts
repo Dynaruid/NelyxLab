@@ -10,6 +10,10 @@ import type { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import type { PaintFrame, ViewMetrics } from '@nelyx/core/ui/types';
 
 export type WebSkiaCanvas = HTMLCanvasElement | OffscreenCanvas;
+export interface WebSurfaceMetrics extends ViewMetrics {
+  /** Physical pixels between the retained canvas origin and the view's left edge. */
+  readonly physicalRasterOffsetX?: number;
+}
 export interface WebSkiaSurfaceOptions {
   /** Set false for full-frame rendering without drawing-buffer reads after presentation. */
   readonly preserveDrawingBuffer?: boolean;
@@ -21,14 +25,22 @@ export interface WebSkiaSurfaceOptions {
 
 export const webGpuResourceCacheBytes = 48 * 1024 * 1024;
 export function webBackingSize(
-  metrics: Pick<ViewMetrics, 'scale' | 'physicalWidth' | 'physicalHeight'>,
+  metrics: Pick<
+    WebSurfaceMetrics,
+    'scale' | 'physicalWidth' | 'physicalHeight' | 'physicalRasterOffsetX'
+  >,
   maxRasterScale = Infinity,
 ) {
+  const offset = metrics.physicalRasterOffsetX ?? 0;
+  if (!Number.isSafeInteger(offset) || offset < 0)
+    throw new RangeError('Web raster offset must be a nonnegative physical pixel count');
   const scale = Math.min(metrics.scale, maxRasterScale),
-    ratio = scale / metrics.scale;
+    ratio = scale / metrics.scale,
+    left = Math.round(offset * ratio);
   return {
     scale,
-    width: Math.max(1, Math.round(metrics.physicalWidth * ratio)),
+    left,
+    width: left + Math.max(1, Math.round(metrics.physicalWidth * ratio)),
     height: Math.max(1, Math.round(metrics.physicalHeight * ratio)),
   };
 }
@@ -125,11 +137,9 @@ export class WebSkiaSurface {
     frame: PaintFrame,
     replay: (canvas: Canvas, scale: number) => void,
     diagnostics: FrameDiagnostics | undefined,
+    metrics: WebSurfaceMetrics = frame.token.metrics,
   ): WebGLSync {
-    const { width, height, scale } = webBackingSize(
-      frame.token.metrics,
-      this.options.maxRasterScale,
-    );
+    const { left, width, height, scale } = webBackingSize(metrics, this.options.maxRasterScale);
     const backing = this.chooseBacking(width, height, scale);
     if (
       !this.surface ||
@@ -157,13 +167,14 @@ export class WebSkiaSurface {
     const gl = this.gl!;
     const replayStarted = diagnostics?.now();
     const canvas = this.surface.getCanvas();
-    if (backing.width === width && backing.height === height) {
+    if (left === 0 && backing.width === width && backing.height === height) {
       replay(canvas, scale);
     } else {
       canvas.clear(this.ck.TRANSPARENT);
       canvas.save();
       try {
-        canvas.clipRect(this.ck.LTRBRect(0, 0, width, height), this.ck.ClipOp.Intersect, false);
+        canvas.clipRect(this.ck.LTRBRect(left, 0, width, height), this.ck.ClipOp.Intersect, false);
+        if (left) canvas.translate(left, 0);
         replay(canvas, scale);
       } finally {
         canvas.restore();

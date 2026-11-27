@@ -4,8 +4,8 @@ import type { RendererEvents } from '@nelyx/core/hosting/renderer-events';
 import type { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { encodeFrame } from '@nelyx/core/ui/frame-wire';
 import { maxWebFrameBytes } from '@nelyx/core/ui/web-frame-wire';
-import type { FrameBuildToken, PaintFrame, SubmitResult, ViewMetrics } from '@nelyx/core/ui/types';
-import type { WebSkiaLibrary } from '@nelyx/skia-web/library';
+import type { FrameBuildToken, PaintFrame, SubmitResult } from '@nelyx/core/ui/types';
+import type { WebSkiaLibrary, WebSurfaceMetrics } from '@nelyx/skia-web/library';
 import { renderCapacity, sharedHeaderWords, sharedSlotBytes } from './render-protocol.ts';
 import type { RenderPacket, RenderReply } from './render-protocol.ts';
 import { RenderResourceSender } from './render-resources.ts';
@@ -118,7 +118,7 @@ export class RenderWorkerFrames {
     return frame.token.sequence === this.preparingSequence && this.canBuildFrame();
   }
 
-  updateMetrics(metrics: ViewMetrics): void {
+  updateMetrics(metrics: WebSurfaceMetrics): void {
     try {
       this.port.post({ kind: 'metrics', metrics });
     } catch (error) {

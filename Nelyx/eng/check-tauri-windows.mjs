@@ -141,6 +141,32 @@ try {
     { timeout: 45_000 },
   );
   assert.equal(await page.locator('body').getAttribute('data-error'), null);
+  if (config.name === '@nelyx/testbed-3' && windows[0].windowsRetainedViewport) {
+    const movement = await page.evaluate(() => {
+      const root = document.documentElement;
+      const canvas = document.querySelector('canvas[data-nelyx-render-path]');
+      const dpi = devicePixelRatio;
+      const physical = (value) => Math.round(Number.parseFloat(value) * dpi);
+      const width = physical(root.style.width);
+      const height = physical(root.style.height);
+      const left = physical(root.style.left);
+      const before = canvas.getBoundingClientRect().left;
+      const view = canvas.parentElement.getBoundingClientRect();
+      try {
+        // Inspect the previous raster synchronously, before the new layout can paint.
+        window.__nelyxSetRetainedViewport(width - 32, height, left + 32);
+        const next = canvas.parentElement.getBoundingClientRect();
+        return [
+          next.left - view.left,
+          next.right - view.right,
+          canvas.getBoundingClientRect().left - before,
+        ].map((delta) => Math.round(delta * dpi));
+      } finally {
+        window.__nelyxSetRetainedViewport(width, height, left);
+      }
+    });
+    assert.deepEqual(movement, [32, 0, 0], 'The old raster moved with the left sizing edge');
+  }
   if (renderMode) {
     const canvas = page.locator('canvas').first();
     const png = await canvas.screenshot({ scale: 'css' });

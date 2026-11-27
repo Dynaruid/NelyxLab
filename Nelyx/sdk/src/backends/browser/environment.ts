@@ -2,6 +2,16 @@
 import type { ViewEnvironment } from '@nelyx/core/ui/types';
 import { freezeEnvironment } from '@nelyx/core/ui/frame';
 
+export const retainedViewportLeftProperty = '--nelyx-viewport-left';
+
+/** Set on the document by the Windows retained viewport host before app startup. */
+export function readRetainedViewportLeft(document: Document): number | undefined {
+  const left = Number.parseFloat(
+    document.documentElement.style.getPropertyValue(retainedViewportLeftProperty),
+  );
+  return Number.isFinite(left) && left >= 0 ? left : undefined;
+}
+
 export interface WebSafeAreaSource {
   /** Insets from the layout viewport edges, in CSS pixels. */
   read(): ViewEnvironment['safeArea'] | undefined;
