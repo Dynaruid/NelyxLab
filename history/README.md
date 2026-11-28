@@ -4,6 +4,24 @@
 
 이력의 PASS·PARTIAL·NO_ADOPTION·notVerified·공급 식별은 **당시 범위**이며 현재 제품의 재검증 결과가 아니다. 같은 `workN.md` 이름을 재사용한 문서도 날짜와 주제로 구분한다.
 
+## 2026-11-28 보관한 Rust 백엔드·렌더러·PlatformView 작업
+
+11월 23~27일에 작성한 루트 작업 문서 9개를 요약했다. W9는 11월 27일 첫 계획 날짜에 배치하고 28일의 실행·중간 마무리와 재개 지점을 기록했다.
+
+| 원문 | 작성일 (KST) | 요약 | 당시 판정 |
+| --- | --- | --- | --- |
+| `work.md` | 2026-11-23 | [Rust 백엔드와 Web·Tauri 빌드 개편](26/11/23/work-summary.md) | 구현·지정 플랫폼 로컬 검증, Apple·배포 서명 미검증 |
+| `work2.md` | 2026-11-24 | [디바이스 API와 호스트 바인딩](26/11/24/work2-summary.md) | 프로토콜 2·3 구현, Android ARM64·iOS 실기기 인수 대기 |
+| `work3.md` | 2026-11-24 | [COOP·COEP와 Web·WebView 렌더 경로](26/11/24/work3-summary.md) | 세 경로 구현·기본 direct, iPhone 비교 완료 |
+| `work4.md` | 2026-11-25 | [CanvasKit·Picture·프레임 제출](26/11/25/work4-summary.md) | 중복 작업 감소 확인·종단 성능 판정 보류 |
+| `work5.md` | 2026-11-25 | [위젯 핫 리로드와 빌드 재사용](26/11/25/work5-summary.md) | 상태 보존·반복 빌드 검증, Apple 미검증 |
+| `work6.md` | 2026-11-26 | [날짜 선택기와 앱 현지화](26/11/26/work6-summary.md) | 구현·지정 회귀 통과, OS 언어·기기 IME·발화 확인 대기 |
+| `work7.md` | 2026-11-26 | [Windows 창 크기 변경 추종과 래스터 위치](26/11/26/work7-summary.md) | 왼쪽 위 순간 이동 수정, 전체 표시 성능·물리 입력 확인 대기 |
+| `work8.md` | 2026-11-27 | [Windows Tauri 창 Acrylic](26/11/27/work8-summary.md) | Windows 실제 합성과 Demo 전환 검증 |
+| `work9.md` | 2026-11-27 | [PlatformView와 네이티브 Skia 전경 합성](26/11/27/work9-summary.md) | PAUSED / PARTIAL, Windows 동적 정렬·Apple·ARM64 후속 확인 남음 |
+
+원문은 Git 리비전 `92b34484`에서 조회할 수 있다. 보관 당시 확인한 범위는 문서, 링크와 원문 삭제다.
+
 ## 2026-11-23 보관한 Tauri·스크롤·텍스트 선택 작업
 
 | 원문 | 날짜 (KST) | 요약 | 당시 판정 |

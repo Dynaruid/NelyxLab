@@ -49,7 +49,7 @@ Install the Android prerequisites. Use `--architecture x64` for an x86_64 emulat
 | [CLI](Nelyx/sdk/tooling/cli/README.md) | Starter, supply and platform commands |
 | [Material](packages/material/README.md) and [Cupertino](packages/cupertino/README.md) | Design packages |
 | [Demo](sample/nelyx-demo-app/README.md), [Testbed 2](sample/nelyx-testbed-app-2/README.md), [Testbed 3](sample/nelyx-testbed-app-3/README.md) | Sample applications |
-| [Current work and verification](work.md) | Build changes and platform results |
+| [Web and Tauri build migration](history/26/11/23/work-summary.md) | Build changes and platform results |
 | [Development history](history/README.md) | Previous changes |
 
 Nelyx code uses BSD 3-Clause. Imported code retains its notices. [License](Nelyx/LICENSE.md) · [Skia notices](Nelyx/skia/THIRD_PARTY_NOTICES.md)

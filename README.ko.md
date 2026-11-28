@@ -48,7 +48,7 @@ Android 도구를 준비한 뒤 x86_64 에뮬레이터에는 `--architecture x64
 | [Skia](Nelyx/skia/README.ko.md) | CanvasKit 공급과 렌더링 |
 | [CLI](Nelyx/sdk/tooling/cli/README.ko.md) | 앱 생성, SDK 공급과 타깃별 명령 |
 | [Demo](sample/nelyx-demo-app/README.ko.md), [Testbed 2](sample/nelyx-testbed-app-2/README.ko.md), [Testbed 3](sample/nelyx-testbed-app-3/README.ko.md) | 샘플 앱 |
-| [현재 작업과 검증](work.md) | 빌드 개편과 플랫폼 결과 |
+| [Web·Tauri 빌드 개편](history/26/11/23/work-summary.md) | 빌드 개편과 플랫폼 결과 |
 | [작업 이력](history/README.md) | 이전 작업 |
 
 Nelyx 코드는 BSD 3-Clause를 사용합니다. 이식한 코드에는 각 원본의 라이선스가 적용됩니다. [라이선스](Nelyx/LICENSE.md) · [Skia 고지](Nelyx/skia/THIRD_PARTY_NOTICES.md)
