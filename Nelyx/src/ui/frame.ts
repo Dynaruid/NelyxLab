@@ -484,12 +484,16 @@ export class FrameRecording {
     private frame: PaintFrame | undefined,
     private token: FrameBuildToken | undefined,
   ) {}
-  static capture(token: FrameBuildToken, canvas: Canvas): FrameRecording {
+  static capture(
+    token: FrameBuildToken,
+    canvas: Canvas,
+    platformViews?: PaintFrame['platformViews'],
+  ): FrameRecording {
     invariant(!canvas.debugDisposed, 'closed-canvas', 'Cannot finish a closed Canvas');
     const errors: unknown[] = [];
     let frame: PaintFrame | undefined;
     try {
-      frame = captureFrame(token, canvas.commands, 'owned');
+      frame = captureFrame(token, canvas.commands, 'owned', platformViews);
     } catch (error) {
       errors.push(error);
     }
@@ -561,6 +565,7 @@ function captureFrame(
   token: FrameBuildToken,
   source: readonly PaintCommand[],
   ownership: 'copy' | 'borrowed' | 'owned',
+  platformViews?: PaintFrame['platformViews'],
 ): PaintFrame {
   const captured: PaintCommand[] = [],
     errors: unknown[] = [];
@@ -627,6 +632,39 @@ function captureFrame(
       commands: Object.freeze(captured),
       resources: Object.freeze([...admission.resources.values()]),
       estimatedBytes: admission.estimatedBytes,
+      ...(platformViews
+        ? {
+            platformViews: Object.freeze({
+              parts: Object.freeze(
+                platformViews.parts.map((part) =>
+                  Object.freeze(
+                    'draw' in part
+                      ? {
+                          draw: Object.freeze({
+                            ...part.draw,
+                            prefix: Object.freeze([...part.draw.prefix]),
+                          }),
+                        }
+                      : 'barrier' in part
+                        ? { barrier: Object.freeze({ ...part.barrier }) }
+                        : {
+                            view: Object.freeze({
+                              ...part.view,
+                              bounds: Object.freeze({ ...part.view.bounds }),
+                              clip: Object.freeze({ ...part.view.clip }),
+                            }),
+                          },
+                  ),
+                ),
+              ),
+              input: Object.freeze(
+                platformViews.input.map(({ instanceId, rect }) =>
+                  Object.freeze({ instanceId, rect: Object.freeze({ ...rect }) }),
+                ),
+              ),
+            }),
+          }
+        : {}),
     });
     captureFrameResourceList(result.resources);
     ownFrameResources(result.resources, captured);

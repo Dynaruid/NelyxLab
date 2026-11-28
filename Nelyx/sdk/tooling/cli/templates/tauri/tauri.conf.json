@@ -23,14 +23,14 @@
       "csp": {
         "default-src": "'self'",
         "script-src": "'self' blob: 'wasm-unsafe-eval'",
-        "connect-src": "'self' ipc: http://ipc.localhost https://ipc.localhost",
+        "connect-src": "'self' blob: ipc: http://ipc.localhost https://ipc.localhost",
         "img-src": "'self' data: blob:",
         "style-src": "'self' 'unsafe-inline'"
       },
       "devCsp": {
         "default-src": "'self'",
         "script-src": "'self' blob: 'wasm-unsafe-eval' 'unsafe-inline'",
-        "connect-src": "'self' ipc: http://ipc.localhost https://ipc.localhost",
+        "connect-src": "'self' blob: ipc: http://ipc.localhost https://ipc.localhost",
         "img-src": "'self' data: blob:",
         "style-src": "'self' 'unsafe-inline'"
       }

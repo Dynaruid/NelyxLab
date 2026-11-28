@@ -97,6 +97,7 @@ export interface DialogWindowHost extends Disposable {
   stop(): void;
 }
 export interface ViewServices {
+  readonly platformViews?: import('./platform-views.ts').PlatformViewRegistry;
   readonly setViewLocale?: (locale: string, textDirection: 'ltr' | 'rtl') => void;
   readonly dialogWindows?: DialogWindowHost;
   readonly semanticsGeometry?: import('./semantics-geometry.ts').SemanticsGeometryService;

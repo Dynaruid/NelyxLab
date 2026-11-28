@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+import { cleanSkiaOverrides, foregroundBuildEnv, foregroundSupply } from './native-skia-supply.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -97,16 +98,28 @@ async function tauriCommand(
     output = (output + line + '\n').slice(-8192);
     observe?.(line);
   }
+  const env = {
+    ...process.env,
+    CARGO_TARGET_DIR: cache,
+    TAURI_APP_PATH: host.directory,
+    TAURI_FRONTEND_PATH: app,
+    ...vars,
+  };
+  if (host.nativeForegroundTarget) {
+    cleanSkiaOverrides(env);
+    Object.assign(
+      env,
+      await foregroundBuildEnv(
+        path.join(path.dirname(cache), 'skia-supply'),
+        host.nativeForegroundTarget,
+        bounded,
+      ),
+    );
+  }
   const child = startOwnedCommand(process.execPath, [cli.entry, ...args], {
     cwd: app,
     signal: bounded,
-    env: {
-      ...process.env,
-      CARGO_TARGET_DIR: cache,
-      TAURI_APP_PATH: host.directory,
-      TAURI_FRONTEND_PATH: app,
-      ...vars,
-    },
+    env,
     onStderrLine: lineOutput,
     onStdoutLine: lineOutput,
   });
@@ -162,6 +175,14 @@ async function nativeHost(value, target, project, cli, signal, options = {}) {
   const { platform } = target;
   const created = !fs.existsSync(path.join(hostPath(app), 'Cargo.toml'));
   const host = generateTauriHost(value, project, platform, options.frontendBuildId);
+  if (
+    (host.windowsPlatformViews ||
+      host.androidPlatformViews ||
+      host.linuxPlatformViews ||
+      host.applePlatformViews) &&
+    foregroundSupply.targets[target.rust]
+  )
+    host.nativeForegroundTarget = target.rust;
   await useCargoLock(project, host.directory, app, signal, options);
   let initialized = false;
   if (mobile(platform)) {
@@ -388,6 +409,12 @@ async function pack(value, target, options, signal) {
   try {
     if (platform === 'android') {
       const project = requireMobileProject(host, platform);
+      if (!fs.existsSync(path.join(app, 'platform', 'android', 'project'))) {
+        // Incremental ZIP updates can leave large gaps after replacing the native library.
+        const debugApk = 'app/build/outputs/apk/universal/debug/app-universal-debug.apk';
+        if (fs.existsSync(path.join(project, debugApk)))
+          fs.unlinkSync(localFile(project, debugApk));
+      }
       const apkLog = await command(
         ['android', 'build', '--ci', '--debug', '--apk', ...buildArgs],
         'debug-apk',

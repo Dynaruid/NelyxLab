@@ -13,6 +13,7 @@ import { cargoDependency, cratePath, inspectBackend, sourceFile } from './backen
 import { ensureDirectory, ownedDirectory } from './publication.mjs';
 import { writeBuildState } from './build-cache.mjs';
 import { platforms } from './tauri-platforms.mjs';
+import { foregroundCrate } from './native-skia-supply.mjs';
 import {
   androidManifest,
   cargoPlugins,
@@ -32,6 +33,13 @@ export const mobileDirectory = (host, platform) =>
   path.join(host.directory, 'gen', platform === 'ios' ? 'apple' : platform);
 const plugin = 'nelyx-backend:allow-';
 const basePermissions = [plugin + 'describe', plugin + 'clipboard-policy'];
+const windowsViewCommands = ['windows_platform_view', 'windows_platform_view_frame'];
+const androidViewCommands = ['android_platform_view', 'android_platform_view_frame'];
+const linuxViewCommands = ['linux_platform_view', 'linux_platform_view_frame'];
+const appleViewCommands = ['apple_platform_view', 'apple_platform_view_frame'];
+const applePlatforms = ['ios', 'macos'];
+const androidPlatformViewsSource =
+  'app/src/main/java/dev/nelyx/platformviews/PlatformViewsPlugin.kt';
 const tauriDependencies = {
   build: '2.7.6',
   runtime: '2.12.7',
@@ -39,6 +47,7 @@ const tauriDependencies = {
   haptics: '2.4.2',
   webview2: '0.39.1',
   windows: '0.62.2',
+  gtk: '0.18.2',
 };
 const hapticsPermissions = [
   'haptics:allow-vibrate',
@@ -71,6 +80,7 @@ export function inspectTauriBackend(value, options) {
       generator: [
         sha256(import.meta.filename),
         sha256(path.join(import.meta.dirname, 'tauri-device-host.mjs')),
+        sha256(path.join(import.meta.dirname, 'native-skia-supply.mjs')),
       ],
       inputs,
       dependencies: tauriDependencies,
@@ -93,6 +103,10 @@ function windowFeatures(value, base, platform) {
       windowTitle = true,
       windowsAcrylic = false,
       windowsRetainedViewport = false,
+      windowsPlatformViews = [],
+      androidPlatformViews = false,
+      linuxPlatformViews = false,
+      applePlatformViews = false,
       commands,
       ...window
     }) => {
@@ -111,10 +125,14 @@ function windowFeatures(value, base, platform) {
         systemChrome,
         scrollEdgeEffects,
         deviceServices,
-        safeArea,
+        safeArea: safeArea || (platform === 'android' && androidPlatformViews),
         windowTitle,
         windowsAcrylic: acrylic,
         windowsRetainedViewport,
+        windowsPlatformViews,
+        androidPlatformViews,
+        linuxPlatformViews,
+        applePlatformViews,
         commands,
       };
     },
@@ -126,6 +144,10 @@ function cargoManifest({ app, version, name }, directory, project, features, plu
   const clipboard = features.some(({ clipboard }) => clipboard?.read || clipboard?.write);
   const storeEnabled = plugins.some(({ name }) => name === 'store');
   const scopedJson = plugins.some(({ name }) => name === 'opener' || name === 'deep-link');
+  const nativeViews = features.some(({ windowsPlatformViews }) => windowsPlatformViews.length);
+  const androidViews = features.some(({ androidPlatformViews }) => androidPlatformViews);
+  const linuxViews = features.some(({ linuxPlatformViews }) => linuxPlatformViews);
+  const appleViews = features.some(({ applePlatformViews }) => applePlatformViews);
   const packageName = 'nelyx-' + name.replace(/^@/, '').replace(/[^a-zA-Z0-9_-]+/g, '-') + '-host';
   // IPA distribution compresses the bundle. Serve its installed assets directly to WKWebView.
   const runtimeVersion = JSON.stringify('=' + tauriDependencies.runtime);
@@ -171,7 +193,70 @@ tauri = ${runtimeVersion}
 
 `
     : ''
-}${retainedViewportDependencies}[features]
+}${retainedViewportDependencies}${
+    nativeViews
+      ? `[target.'cfg(all(windows, target_arch = "x86_64"))'.dependencies]
+nelyx-skia-foreground = ${cargoDependency(directory, foregroundCrate)}
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+windows = { version = "=${tauriDependencies.windows}", features = ["Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging"] }
+
+`
+      : ''
+  }${
+    androidViews
+      ? `[target.'cfg(target_os = "android")'.dependencies]
+nelyx-skia-foreground = ${cargoDependency(directory, foregroundCrate)}
+jni = "=0.21.1"
+serde_json = "1"
+
+`
+      : ''
+  }${
+    linuxViews
+      ? `[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "=${tauriDependencies.gtk}"
+nelyx-skia-foreground = ${cargoDependency(directory, foregroundCrate)}
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+`
+      : ''
+  }${
+    appleViews
+      ? `[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+nelyx-skia-foreground = ${cargoDependency(directory, foregroundCrate)}
+objc2 = "=0.6.5"
+objc2-core-foundation = { version = "=0.3.2", default-features = false, features = ["std", "CFCGTypes"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = [
+  "std", "NSArray", "NSDictionary", "NSNotification", "NSObject", "NSOperation", "NSRange",
+  "NSSet", "NSString", "NSValue",
+] }
+objc2-quartz-core = { version = "=0.3.2", default-features = false, features = [
+  "std", "CALayer", "CAMetalLayer",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
+  "std", "NSEvent", "NSGraphics", "NSResponder", "NSScrollView", "NSText", "NSTextContainer",
+  "NSTextInputClient", "NSTextView", "NSTrackingArea", "NSView", "NSWindow",
+  "objc2-core-foundation", "objc2-quartz-core",
+] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+block2 = "=0.6.2"
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["block2"] }
+objc2-ui-kit = { version = "=0.3.2", default-features = false, features = [
+  "std", "UIAccessibility", "UIColor", "UICommand", "UIEvent", "UIFont", "UIGeometry",
+  "UIInterface", "UIKeyCommand", "UIResponder", "UIScreen", "UIScrollView", "UITextInput", "UITextInputTraits",
+  "UITextView", "UITouch", "UIView", "UIWindow", "objc2-core-foundation", "objc2-quartz-core",
+] }
+
+`
+      : ''
+  }[features]
 custom-protocol = ["tauri/custom-protocol"]
 `;
 }
@@ -179,6 +264,33 @@ custom-protocol = ["tauri/custom-protocol"]
 function nativeSource(project, features, frontendBuildId, plugins, platform) {
   const { identity, appCrate } = project;
   const clipboard = features.some(({ clipboard }) => clipboard?.read || clipboard?.write);
+  const nativeViews =
+    platform === 'windows'
+      ? features.filter(({ windowsPlatformViews }) => windowsPlatformViews.length)
+      : [];
+  const nativeViewGrants = nativeViews
+    .map(
+      ({ window, windowsPlatformViews }) =>
+        `    (${JSON.stringify(window.label)}, &${JSON.stringify(windowsPlatformViews)}),`,
+    )
+    .join('\n');
+  const androidViews =
+    platform === 'android'
+      ? features
+          .filter(({ androidPlatformViews }) => androidPlatformViews)
+          .map(({ window }) => window.label)
+      : [];
+  const linuxViews =
+    platform === 'linux'
+      ? features
+          .filter(({ linuxPlatformViews }) => linuxPlatformViews)
+          .map(({ window }) => window.label)
+      : [];
+  const appleViews = applePlatforms.includes(platform)
+    ? features
+        .filter(({ applePlatformViews }) => applePlatformViews)
+        .map(({ window }) => window.label)
+    : [];
   const retainedWindows =
     platform === 'windows'
       ? features
@@ -233,6 +345,49 @@ function nativeSource(project, features, frontendBuildId, plugins, platform) {
 use nelyx_backend_core::{BackendKind, Identity};
 use tauri_plugin_nelyx_backend::{ScrollEdgeEffect, ScrollEdgeEffects, WindowFeatures};
 ${retainedWindows.length ? '\n#[cfg(windows)]\nmod windows_viewport;\n' : ''}
+${
+  nativeViews.length
+    ? '#[cfg(all(windows, target_arch = "x86_64"))]\nmod desktop_platform_view_wire;'
+    : linuxViews.length
+      ? '#[cfg(target_os = "linux")]\nmod desktop_platform_view_wire;'
+      : appleViews.length
+        ? '#[cfg(any(target_os = "macos", target_os = "ios"))]\nmod desktop_platform_view_wire;'
+        : ''
+}
+${
+  nativeViews.length
+    ? `#[cfg(all(windows, target_arch = "x86_64"))]
+mod windows_platform_views;
+#[cfg(all(windows, target_arch = "x86_64"))]
+const WINDOWS_PLATFORM_VIEWS: &[(&str, &[&str])] = &[
+${nativeViewGrants}
+];`
+    : ''
+}
+${
+  androidViews.length
+    ? `#[cfg(target_os = "android")]
+mod android_platform_views;
+#[cfg(target_os = "android")]
+const ANDROID_PLATFORM_VIEWS: &[&str] = &${JSON.stringify(androidViews)};`
+    : ''
+}
+${
+  linuxViews.length
+    ? `#[cfg(target_os = "linux")]
+mod linux_platform_views;
+#[cfg(target_os = "linux")]
+const LINUX_PLATFORM_VIEWS: &[&str] = &${JSON.stringify(linuxViews)};`
+    : ''
+}
+${
+  appleViews.length
+    ? `#[cfg(any(target_os = "macos", target_os = "ios"))]
+mod apple_platform_views;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+const APPLE_PLATFORM_VIEWS: &[&str] = &${JSON.stringify(appleViews)};`
+    : ''
+}
 const WINDOWS: &[WindowFeatures] = &[${windows}
 ];
 
@@ -253,7 +408,45 @@ ${clipboard ? '        .plugin(tauri_plugin_clipboard_manager::init())' : ''};
 ${registerDevicePlugins(plugins, false)}${
     retainedWindows.length
       ? `    #[cfg(windows)]
-    let builder = builder.setup(|app| windows_viewport::create(app, &${JSON.stringify(retainedWindows)}));
+    let builder = builder.setup(|app| {
+${
+  nativeViews.length
+    ? `        #[cfg(target_arch = "x86_64")]
+        let native_layout = Some(windows_viewport::NativeViewResize {
+            layout: windows_platform_views::layout_retained_views,
+            can_align: windows_platform_views::can_align_retained_views,
+        });
+        #[cfg(not(target_arch = "x86_64"))]
+        let native_layout = None;
+`
+    : '        let native_layout = None;\n'
+}
+        windows_viewport::create(app, &${JSON.stringify(retainedWindows)}, native_layout)
+    });
+`
+      : ''
+  }${
+    nativeViews.length
+      ? `    #[cfg(all(windows, target_arch = "x86_64"))]
+    let builder = windows_platform_views::register(builder);
+`
+      : ''
+  }${
+    androidViews.length
+      ? `    #[cfg(target_os = "android")]
+    let builder = android_platform_views::register(builder);
+`
+      : ''
+  }${
+    linuxViews.length
+      ? `    #[cfg(target_os = "linux")]
+    let builder = linux_platform_views::register(builder);
+`
+      : ''
+  }${
+    appleViews.length
+      ? `    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    let builder = apple_platform_views::register(builder);
 `
       : ''
   }    builder.run(tauri::tauri_build_context!())
@@ -304,6 +497,16 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
   const tauri = config.targets.tauri;
   const display = config.displayName ?? config.name;
   const features = windowFeatures(value, base, platform);
+  const windowsViews =
+    platform === 'windows' &&
+    features.some(({ windowsPlatformViews }) => windowsPlatformViews.length);
+  const androidViews =
+    platform === 'android' && features.some(({ androidPlatformViews }) => androidPlatformViews);
+  const linuxViews =
+    platform === 'linux' && features.some(({ linuxPlatformViews }) => linuxPlatformViews);
+  const appleViews =
+    applePlatforms.includes(platform) &&
+    features.some(({ applePlatformViews }) => applePlatformViews);
   const plugins = configuredDevicePlugins(features, tauriDependencies.haptics);
   const deviceServices = new Set(features.flatMap((window) => window.deviceServices));
   const capabilities = [];
@@ -317,6 +520,10 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
     safeArea,
     windowTitle,
     windowsAcrylic,
+    windowsPlatformViews,
+    androidPlatformViews,
+    linuxPlatformViews,
+    applePlatformViews,
     commands,
   } of features) {
     function capability(feature, permissions, platforms) {
@@ -346,6 +553,34 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
     if (androidBack) capability('android-back', backPermissions, ['android']);
     if (systemChrome) capability('system-chrome', [plugin + 'system-chrome'], ['android', 'iOS']);
     if (windowsAcrylic) capability('window-acrylic', [plugin + 'set-window-acrylic'], ['windows']);
+    if (platform === 'windows' && windowsPlatformViews.length)
+      capability(
+        'native-platform-views',
+        windowsViewCommands.map((command) => 'allow-' + command.replaceAll('_', '-')),
+        ['windows'],
+      );
+    if (platform === 'android' && androidPlatformViews)
+      capability(
+        'native-platform-views',
+        [
+          ...androidViewCommands.map((command) => 'allow-' + command.replaceAll('_', '-')),
+          'core:event:allow-listen',
+          'core:event:allow-unlisten',
+        ],
+        ['android'],
+      );
+    if (platform === 'linux' && linuxPlatformViews)
+      capability(
+        'native-platform-views',
+        linuxViewCommands.map((command) => 'allow-' + command.replaceAll('_', '-')),
+        ['linux'],
+      );
+    if (applePlatforms.includes(platform) && applePlatformViews)
+      capability(
+        'native-platform-views',
+        appleViewCommands.map((command) => 'allow-' + command.replaceAll('_', '-')),
+        [platform === 'ios' ? 'iOS' : 'macOS'],
+      );
     capability('scroll-edge-effects', [plugin + 'scroll-edge-effects'], ['iOS']);
     for (const device of windowDevices) {
       const label = device.replace(/[A-Z]/g, (character) => '-' + character.toLowerCase());
@@ -386,13 +621,39 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
   }
   iconFiles(app, directory, native);
   for (const file of [
-    'build.rs',
     'src/main.rs',
     'src/windows_viewport.rs',
     'src/windows_viewport.js',
     'run-tauri.mjs',
+    ...(windowsViews || linuxViews || appleViews ? ['src/desktop_platform_view_wire.rs'] : []),
+    ...(windowsViews ? ['src/windows_platform_views.rs', 'windows-platform-views.manifest'] : []),
+    ...(androidViews ? ['src/android_platform_views.rs'] : []),
+    ...(linuxViews ? ['src/linux_platform_views.rs'] : []),
+    ...(appleViews
+      ? ['src/apple_platform_views.rs', `src/apple_platform_views_${platform}.rs`]
+      : []),
   ])
     sourceFile(directory, file, fs.readFileSync(localFile(template, file)));
+  const build = fs.readFileSync(localFile(template, 'build.rs'), 'utf8');
+  const viewCommands =
+    {
+      windows: windowsViews && windowsViewCommands,
+      android: androidViews && androidViewCommands,
+      linux: linuxViews && linuxViewCommands,
+      ios: appleViews && appleViewCommands,
+      macos: appleViews && appleViewCommands,
+    }[platform] || [];
+  const windowManifest = windowsViews
+    ? '.windows_attributes(tauri_build::WindowsAttributes::new().app_manifest(include_str!("windows-platform-views.manifest")))'
+    : '';
+  const commandManifest = viewCommands.length
+    ? `.app_manifest(tauri_build::AppManifest::new().commands(&${JSON.stringify(viewCommands)}))`
+    : '';
+  sourceFile(
+    directory,
+    'build.rs',
+    build.replace('Attributes::new()', 'Attributes::new()' + windowManifest + commandManifest),
+  );
   sourceFile(
     directory,
     'Cargo.toml',
@@ -406,6 +667,10 @@ export function generateTauriHost(value, project, platform, frontendBuildId) {
   writeDeviceIosInfo(directory, deviceServices, tauri.deviceUsage, platform);
   return {
     directory,
+    windowsPlatformViews: windowsViews,
+    androidPlatformViews: androidViews,
+    linuxPlatformViews: linuxViews,
+    applePlatformViews: appleViews,
     deviceServices,
     androidLinks: deviceLinks?.mobile,
     identifier: native.identifier,
@@ -420,6 +685,11 @@ export function applyMobileInputs(app, host, platform, marker, desired, previous
   const project = mobileDirectory(host, platform);
   const source = path.join(app, 'platform', platform, 'project');
   const overlays = new Map();
+  if (platform === 'android' && host.androidPlatformViews)
+    overlays.set(
+      androidPlatformViewsSource,
+      fs.readFileSync(localFile(template, 'android/PlatformViewsPlugin.kt')),
+    );
   let androidOverlay;
   if (fs.existsSync(source)) {
     ownedDirectory(source);

@@ -9,6 +9,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 import { capture, execute, startOwnedCommand } from '../sdk/tooling/cli/src/commands.mjs';
 import { publishDirectory, removeDirectory } from '../sdk/tooling/cli/src/publication.mjs';
+import { checkTestbedPlatformViews, clickCanvasControl } from './fixtures/testbed-platform-views.mjs';
+import { checkWin32PlatformViews } from './fixtures/testbed-win32-platform-views.mjs';
 
 async function removeProfile(directory) {
   for (let attempt = 0; ; attempt++) {
@@ -37,7 +39,8 @@ assert.ok(
     ['auto', 'direct', 'worker-transfer', 'worker-shared'].includes(renderMode),
 );
 const [appDirectory, backendExample = '21'] = args.filter(
-  (argument) => argument !== '--native-picker' && argument !== modeOption,
+  (argument) =>
+    !['--native-picker', '--platform-views', '--win32-platform-views', '--demo-controls', modeOption].includes(argument),
 );
 assert(appDirectory, 'Pass the app directory');
 const app = path.resolve(appDirectory);
@@ -322,6 +325,46 @@ try {
     console.log('Windows Testbed verified Material and Cupertino segmented controls');
   }
   if (windows.length > 1) await verifyWindowClipboard(pages, windows);
+  if (args.includes('--platform-views')) {
+    assert.equal(config.name, '@nelyx/testbed-3');
+    page.setDefaultTimeout(20_000);
+    await checkTestbedPlatformViews(page, { extended: false });
+    console.log('Packaged Testbed 3 DOM PlatformView verified in WebView2', renderMode);
+  }
+  if (args.includes('--win32-platform-views')) {
+    assert.equal(config.name, '@nelyx/testbed-3');
+    page.setDefaultTimeout(20_000);
+    await checkWin32PlatformViews(page, child.pid);
+  }
+  if (args.includes('--demo-controls')) {
+    page.setDefaultTimeout(16_000);
+    await clickCanvasControl(page, page.getByRole('tab', { name: /^Settings/ }));
+    const acrylic = page.getByLabel('Acrylic window', { exact: true });
+    const before = await page.evaluate(async () =>
+      (await window.__TAURI__.core.invoke('plugin:nelyx-backend|describe')).windowsAcrylic,
+    );
+    assert.equal(typeof before, 'boolean');
+    const expectAcrylic = (enabled) => page.waitForFunction(async (enabled) => {
+      const status = await window.__TAURI__.core.invoke('plugin:nelyx-backend|describe');
+      return status.windowsAcrylic === enabled;
+    }, enabled);
+    await clickCanvasControl(page, acrylic);
+    await expectAcrylic(!before);
+    await clickCanvasControl(page, acrylic);
+    await expectAcrylic(before);
+    console.log('Packaged Demo verified Acrylic toggling');
+    await clickCanvasControl(page, page.getByRole('tab', { name: /^Material/ }));
+    await clickCanvasControl(page, page.locator('[data-semantics-identifier="open-drawer"]'));
+    await clickCanvasControl(page, page.getByRole('button', { name: /^Text inputs$/ }));
+    await clickCanvasControl(page, page.getByRole('textbox', { name: /Write something/ }).first());
+    await page.keyboard.press('Control+a');
+    await page.keyboard.insertText('W9 한글');
+    await page.waitForFunction(() => {
+      const editor = document.activeElement;
+      return (editor?.editContext?.text ?? editor?.value) === 'W9 한글';
+    });
+    console.log('Packaged Demo verified Material text editing');
+  }
   assert.throws(() => publishDirectory(candidate, current), /Close any running copy/);
   assert.equal(fs.statSync(file).size, fs.statSync(path.join(pkg, name)).size);
   assert(

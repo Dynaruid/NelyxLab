@@ -24,7 +24,9 @@ export type RenderFailureStage =
   | 'worker-context-loss'
   | 'main-webgl2';
 
-export const renderProtocolVersion = 3;
+import type { PlatformViewDrawRange } from '@nelyx/core/hosting/platform-views';
+
+export const renderProtocolVersion = 4;
 export const renderCapacity = 2;
 export const sharedSlotBytes = 128 * 1024;
 export const sharedHeaderWords = renderCapacity * 2;
@@ -115,6 +117,10 @@ export function mapParagraphResources(
 export type RenderPacket =
   | { readonly transport: 'transfer'; readonly buffer: ArrayBuffer; readonly length: number }
   | { readonly transport: 'shared'; readonly slot: number; readonly ticket: number };
+export interface WorkerDisplayComposition {
+  readonly background: PlatformViewDrawRange;
+  readonly layers: readonly { id: number; range: PlatformViewDrawRange }[];
+}
 export type RenderRequest = RenderSession &
   (
     | {
@@ -133,6 +139,8 @@ export type RenderRequest = RenderSession &
         readonly buffer: SharedArrayBuffer;
       }
     | { readonly kind: 'attach'; readonly canvas: OffscreenCanvas; readonly useShared: boolean }
+    | { readonly kind: 'attach-layer'; readonly id: number; readonly canvas: OffscreenCanvas }
+    | { readonly kind: 'release-layer'; readonly id: number }
     | { readonly kind: 'metrics'; readonly metrics: WebSurfaceMetrics }
     | { readonly kind: 'visibility'; readonly visible: boolean }
     | { readonly kind: 'register'; readonly resources: readonly RenderResource[] }
@@ -143,6 +151,7 @@ export type RenderRequest = RenderSession &
         readonly viewport: number;
         readonly context: number | null;
         readonly resources?: readonly RenderResource[];
+        readonly composition?: WorkerDisplayComposition;
       })
     | { readonly kind: 'close' }
   );

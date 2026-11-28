@@ -18,21 +18,24 @@ export interface HitTestDispatcher {
 export interface HitTestTarget {
   handleEvent(event: PointerEvent, entry: HitTestEntry): void;
 }
-const nativeTargets = new WeakSet<object>();
+const nativeTargets = new WeakMap<object, () => boolean>();
 export type HitTestTargetConstructor = abstract new (...args: any[]) => object;
 /** The source marker mixin uses a private WeakSet, without inventing a native
  * platform-view provider. Its consumer must implement a concrete target. */
-export function NativeHitTestTarget<Base extends HitTestTargetConstructor>(Base: Base): Base {
+export function NativeHitTestTarget<Base extends HitTestTargetConstructor>(
+  Base: Base,
+  active: (target: object) => boolean = () => true,
+): Base {
   abstract class NativeTarget extends Base {
     constructor(...args: any[]) {
       super(...args);
-      nativeTargets.add(this);
+      nativeTargets.set(this, () => active(this));
     }
   }
   return NativeTarget as Base;
 }
 export function isNativeHitTestTarget(target: HitTestTarget): boolean {
-  return nativeTargets.has(target);
+  return nativeTargets.get(target)?.() === true;
 }
 type EntryTransform = TransformMatrix | MatrixTransformPart | DeferredTransform;
 function resolveTransform(value: EntryTransform): TransformMatrix {

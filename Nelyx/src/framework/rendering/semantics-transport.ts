@@ -111,6 +111,7 @@ export function describeTransportSemantics(
   showOnScreen: () => void,
 ): void {
   config.isSemanticBoundary = value.role !== 'text';
+  config.platformViewId = value.platformViewId ?? null;
   config.attributedLabel = new AttributedString(value.name, {
     attributes: value.nameAttributes ?? [],
   });
@@ -414,6 +415,7 @@ export class SemanticsTransportSnapshot {
         !data.label &&
         !data.value &&
         !data.tooltip &&
+        data.platformViewId === null &&
         !hasActions
       )
         return children;
@@ -446,6 +448,7 @@ export class SemanticsTransportSnapshot {
         enabled: flags.isEnabled !== Tristate.isFalse && (metadata?.enabled ?? true),
         bounds: rect,
       };
+      if (data.platformViewId !== null) result.platformViewId = data.platformViewId;
       if (navigation) result.textNavigation = navigation;
       if (paragraph) result.textParagraph = paragraph;
       if (role === 'text-field') {

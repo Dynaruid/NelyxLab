@@ -38,6 +38,11 @@ fn covering(a: PhysicalSize<u32>, b: PhysicalSize<u32>) -> PhysicalSize<u32> {
     PhysicalSize::new(a.width.max(b.width), a.height.max(b.height))
 }
 
+fn has_single_child(parent: HWND) -> bool {
+    unsafe { GetWindow(parent, GW_CHILD) }
+        .is_ok_and(|first| unsafe { GetWindow(first, GW_HWNDNEXT).is_err() })
+}
+
 #[derive(Clone, Copy, PartialEq)]
 struct Content {
     size: PhysicalSize<u32>,
@@ -152,11 +157,19 @@ fn publish(child: &Webview<Wry>, viewport: &Arc<Mutex<Viewport>>, content: Conte
     });
 }
 
+#[derive(Clone, Copy)]
+pub struct NativeViewResize {
+    pub layout: fn(&Webview<Wry>, HWND, PhysicalSize<u32>, Option<(HWND, RECT, bool)>) -> bool,
+    pub can_align: fn(&Webview<Wry>, HWND, HWND) -> bool,
+}
+
 struct ResizeHost {
     window: Window<Wry>,
     child: Webview<Wry>,
     viewport: Arc<Mutex<Viewport>>,
     sizing_left: Cell<bool>,
+    webview_window: Option<HWND>,
+    native_views: Option<NativeViewResize>,
 }
 
 impl ResizeHost {
@@ -182,6 +195,11 @@ impl ResizeHost {
                 self.sizing_left.get() && next.left != state.content.left,
             )
         };
+        // Valid rectangles can align the retained raster with the parent when
+        // WebView2 is alone. With siblings, publish after moving the layers.
+        if align && !has_single_child(hwnd) {
+            return;
+        }
         publish(&self.child, &self.viewport, content, false);
         if align {
             // Start the native move after the previous desktop composition has presented.
@@ -200,7 +218,7 @@ impl ResizeHost {
         if client.right <= client.left || client.bottom <= client.top {
             return;
         }
-        let (content, capacity, grew, moved, origin_changed) = {
+        let (content, capacity, grew, moved, resized, origin_changed) = {
             let mut state = self.viewport.lock().unwrap();
             let mut capacity = covering(state.capacity, extent(client));
             if capacity != state.capacity || dpi_changed {
@@ -212,14 +230,18 @@ impl ResizeHost {
             state.capacity = capacity;
             let content = state.content_at(client);
             let moved = content.left != state.content.left;
+            let resized = content.size != state.content.size;
             let origin_changed = client.top != state.client.top
                 || client.left - content.left != state.client.left - state.content.left;
             state.client = client;
             state.content = content;
-            (content, capacity, grew, moved, origin_changed)
+            (content, capacity, grew, moved, resized, origin_changed)
         };
-        if grew || moved || origin_changed || dpi_changed {
+        let move_webview = grew || moved || dpi_changed;
+        if move_webview || origin_changed {
             let parent = hwnd.0 as usize;
+            let child = self.child.clone();
+            let layout = self.native_views.map(|views| views.layout);
             let _ = self.child.with_webview(move |native| unsafe {
                 let controller = native.controller();
                 let mut container = HWND::default();
@@ -237,25 +259,46 @@ impl ResizeHost {
                     };
                     let _ = controller.SetBounds(bounds);
                 }
-                if grew || moved || dpi_changed {
-                    let mut flags = SWP_NOZORDER | SWP_NOACTIVATE;
-                    if !grew && !dpi_changed {
-                        flags |= SWP_NOSIZE;
+                if move_webview {
+                    let resize = grew || dpi_changed;
+                    let bounds = RECT {
+                        left: -content.left,
+                        top: 0,
+                        right: capacity.width as i32 - content.left,
+                        bottom: capacity.height as i32,
+                    };
+                    if !layout.is_some_and(|layout| {
+                        layout(
+                            &child,
+                            HWND(parent as _),
+                            content.size,
+                            Some((container, bounds, resize)),
+                        )
+                    }) {
+                        let mut flags = SWP_NOZORDER | SWP_NOACTIVATE;
+                        if !resize {
+                            flags |= SWP_NOSIZE;
+                        }
+                        let _ = SetWindowPos(
+                            container,
+                            None,
+                            bounds.left,
+                            bounds.top,
+                            capacity.width as i32,
+                            capacity.height as i32,
+                            flags,
+                        );
                     }
-                    let _ = SetWindowPos(
-                        container,
-                        None,
-                        -content.left,
-                        0,
-                        capacity.width as i32,
-                        capacity.height as i32,
-                        flags,
-                    );
                 }
                 if origin_changed || dpi_changed {
                     let _ = controller.NotifyParentWindowPositionChanged();
                 }
             });
+        }
+        if resized && !move_webview {
+            if let Some(views) = self.native_views {
+                (views.layout)(&self.child, hwnd, content.size, None);
+            }
         }
         // Also correct a rejected sizing proposal (including Escape or a DPI change).
         publish(&self.child, &self.viewport, content, dpi_changed);
@@ -300,9 +343,14 @@ unsafe extern "system" fn resize_proc(
             let new = unsafe { (*params).rgrc[0] };
             let valid = host.viewport.lock().unwrap().valid_rects(old, new);
             if let Some((dest, src)) = valid {
-                // Valid-rect alignment would also reposition any native sibling.
-                if unsafe { GetWindow(hwnd, GW_CHILD) }
-                    .is_ok_and(|first| unsafe { GetWindow(first, GW_HWNDNEXT).is_err() })
+                // USER32 shifts all children with the retained pixels. Include
+                // native siblings only when their offsets will be corrected in commit.
+                if has_single_child(hwnd)
+                    || host.native_views.zip(host.webview_window).is_some_and(
+                        |(views, webview_window)| {
+                            (views.can_align)(&host.child, hwnd, webview_window)
+                        },
+                    )
                 {
                     unsafe {
                         (*params).rgrc[1] = dest;
@@ -331,7 +379,11 @@ unsafe extern "system" fn resize_proc(
     result
 }
 
-fn create_window(app: &App<Wry>, config: &WindowConfig) -> Result<(), Box<dyn std::error::Error>> {
+fn create_window(
+    app: &App<Wry>,
+    config: &WindowConfig,
+    native_views: Option<NativeViewResize>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let window = WindowBuilder::from_config(app, config)?
         .no_redirection_bitmap(true)
         .visible(false)
@@ -376,11 +428,16 @@ fn create_window(app: &App<Wry>, config: &WindowConfig) -> Result<(), Box<dyn st
         PhysicalPosition::new(-left, 0),
         capacity,
     )?;
+    let webview_window = unsafe { GetWindow(hwnd, GW_CHILD) }
+        .ok()
+        .filter(|child| unsafe { GetWindow(*child, GW_HWNDNEXT).is_err() });
     let host = Rc::into_raw(Rc::new(ResizeHost {
         window: window.clone(),
         child,
         viewport,
         sizing_left: Cell::new(false),
+        webview_window,
+        native_views,
     }));
     if !unsafe { SetWindowSubclass(hwnd, Some(resize_proc), 1, host as usize) }.as_bool() {
         unsafe {
@@ -394,10 +451,14 @@ fn create_window(app: &App<Wry>, config: &WindowConfig) -> Result<(), Box<dyn st
     Ok(())
 }
 
-pub fn create(app: &App<Wry>, labels: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
+pub fn create(
+    app: &App<Wry>,
+    labels: &[&str],
+    native_views: Option<NativeViewResize>,
+) -> Result<(), Box<dyn std::error::Error>> {
     for config in &app.config().app.windows {
         if labels.contains(&config.label.as_str()) {
-            create_window(app, config)?;
+            create_window(app, config, native_views)?;
         }
     }
     Ok(())

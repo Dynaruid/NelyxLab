@@ -34,6 +34,8 @@ import type {
 import { isCurrent, resourceKey } from '@nelyx/core/ui/frame';
 import type { FrameDiagnostics } from '@nelyx/core/ui/frame';
 import { RendererEvents } from '@nelyx/core/hosting/renderer-events';
+import type { PlatformViewDrawRange } from '@nelyx/core/hosting/platform-views';
+import { platformViewDrawCommands } from '@nelyx/core/ui/platform-view-scene';
 import { freezeTextInput, freezeTextLayout, freezeTextRect, textRange } from '@nelyx/core/ui/text';
 import { Paint as UiPaint } from '@nelyx/core/ui/paint';
 import type { ImageByteFormat } from '@nelyx/core/ui/image';
@@ -127,9 +129,13 @@ interface Entry extends WebParagraphDrawing {
   paintResources: TextPaintResources;
 }
 interface Pending {
-  fence: WebGLSync;
+  fences: readonly { surface: WebSkiaSurface; fence: WebGLSync }[];
   lease: ResourceLease;
   started: number;
+}
+export interface WebDisplayComposition {
+  readonly background: PlatformViewDrawRange;
+  readonly layers: readonly { canvas: WebSkiaCanvas; range: PlatformViewDrawRange }[];
 }
 type ImageSource = {
   readonly kind: 'image';
@@ -236,6 +242,10 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   private events: RendererEvents;
   private metrics: WebSurfaceMetrics | undefined;
   private display: WebSkiaSurface | undefined;
+  private readonly platformDisplays = new Map<
+    WebSkiaCanvas,
+    { surface: WebSkiaSurface; retiring: boolean }
+  >();
   private auxiliary: { readonly surface: WebSkiaSurface; stop(): void; lost: boolean } | undefined;
   private registry: ResourceRegistry | undefined;
   private sequence = 0;
@@ -280,11 +290,10 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   readonly framePictureBackend: FramePictureBackend = {
     compile: (capture, descriptor, updateBytes) => {
       this.ensureOpen();
-      if (this.lost) throw new Error('Web picture context lost');
       const key = resourceKey(descriptor);
       if (this.framePictures.has(key)) throw new Error('Duplicate Web frame picture');
       const entry: FramePictureEntry = { capture, native: null, bytes: 0 };
-      if (!this.deferredFramePictures) this.materializeFramePicture(entry);
+      if (!this.deferredFramePictures && !this.lost) this.materializeFramePicture(entry);
       if (updateBytes) entry.updateBytes = updateBytes;
       this.framePictures.set(key, entry);
       let retired = false;
@@ -1379,6 +1388,25 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     if (!this.display) throw new Error('Web Skia display is absent');
     this.display.prepare();
   }
+  releaseDisplayCanvas(canvas: WebSkiaCanvas): void {
+    const entry = this.platformDisplays.get(canvas);
+    if (!entry) return;
+    entry.retiring = true;
+    this.releasePlatformDisplays();
+  }
+  private releasePlatformDisplays(): void {
+    for (const [canvas, entry] of this.platformDisplays) {
+      if (!entry.retiring) continue;
+      if (
+        [...this.pending.values()].some(({ fences }) =>
+          fences.some(({ surface }) => surface === entry.surface),
+        )
+      )
+        continue;
+      this.platformDisplays.delete(canvas);
+      entry.surface.reset(this.lost, true);
+    }
+  }
   private rasterContext() {
     if (this.display) return this.display.prepare();
     if (!this.auxiliary) {
@@ -1427,7 +1455,12 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       this.pending.size < 2
     );
   }
-  submit(frame: PaintFrame, lease: ResourceLease, diagnostics?: FrameDiagnostics): SubmitResult {
+  submit(
+    frame: PaintFrame,
+    lease: ResourceLease,
+    diagnostics?: FrameDiagnostics,
+    composition?: WebDisplayComposition,
+  ): SubmitResult {
     if (this.closed) return { status: 'rejected', reason: 'closed' };
     if (!this.metrics || !isCurrent(frame, this.owner, this.metrics))
       return { status: 'rejected', reason: 'stale' };
@@ -1437,14 +1470,46 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     if (!this.canBuildFrame() || this.pending.has(frame.token.sequence)) {
       return { status: 'rejected', reason: 'busy' };
     }
-    const fence = this.display!.submit(
-      frame,
-      (canvas, scale) => this.replay.draw(canvas, frame, scale),
-      diagnostics,
-      this.metrics,
-    );
+    const displays =
+      composition?.layers.map(({ canvas, range }) => {
+        const commands = platformViewDrawCommands(frame.commands, range);
+        let entry = this.platformDisplays.get(canvas);
+        if (!entry) {
+          const surface = new WebSkiaSurface(this.ck, canvas, this.options);
+          surface.prepare();
+          this.platformDisplays.set(canvas, (entry = { surface, retiring: false }));
+        }
+        if (entry.retiring) throw new Error('Platform view display canvas has retired');
+        return { surface: entry.surface, commands };
+      }) ?? [];
+    displays.push({
+      surface: this.display!,
+      commands: composition
+        ? platformViewDrawCommands(frame.commands, composition.background)
+        : frame.commands,
+    });
+    const fences: Pending['fences'][number][] = [];
+    try {
+      for (const { surface, commands } of displays) {
+        const fence = surface.submit(
+          frame,
+          (canvas, scale) => this.replay.draw(canvas, frame, scale, commands),
+          surface === this.display ? diagnostics : undefined,
+          this.metrics,
+        );
+        fences.push({ surface, fence });
+      }
+    } catch (error) {
+      if (composition) {
+        // Some surfaces may already have submitted. Complete their reads before
+        // the caller retries the unsplit frame with the same resource lease.
+        for (const { surface } of displays) surface.finish();
+        for (const { surface, fence } of fences) surface.release(fence);
+      }
+      throw error;
+    }
     lease.transfer();
-    this.pending.set(frame.token.sequence, { fence, lease, started: performance.now() });
+    this.pending.set(frame.token.sequence, { fences, lease, started: performance.now() });
     this.events.accepted(frame.token.sequence, frame.token);
     this.schedule();
     return { status: 'accepted', submission: frame.token.sequence };
@@ -1460,20 +1525,24 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   pollCompletedFrames(): void {
     if (this.closed || this.lost || this.failed || !this.pending.size) return;
     for (const [id, pending] of this.pending) {
-      const status = this.display!.poll(pending.fence, pending.started);
-      if (status === 'signaled') {
+      const statuses = pending.fences.map(({ surface, fence }) =>
+        surface.poll(fence, pending.started),
+      );
+      const failed = statuses.includes('failed');
+      if (statuses.every((status) => status === 'signaled')) {
         this.pending.delete(id);
-        this.display!.release(pending.fence);
+        for (const { surface, fence } of pending.fences) surface.release(fence);
         try {
           pending.lease.returnBy('renderer');
         } finally {
           this.events.retired(id, 'gpu-retired');
+          this.releasePlatformDisplays();
         }
-      } else if (status === 'failed' || status === 'timeout') {
+      } else if (failed || statuses.includes('timeout')) {
         this.failed = true;
         this.events.failed(
           id,
-          status === 'failed'
+          failed
             ? 'WebGL fence failed; lease retained until owned drain'
             : 'WebGL fence timeout; lease retained until owned drain',
         );
@@ -1492,8 +1561,13 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
     this.retirePictures();
     this.retireFrameNative();
     this.runtimePrograms.clear();
+    for (const { surface } of this.platformDisplays.values()) {
+      surface.finish();
+      surface.reset(true);
+    }
     this.display?.reset(true);
     this.releasePending('discarded');
+    this.releasePlatformDisplays();
   }
   restore() {
     this.ensureOpen();
@@ -1509,7 +1583,7 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
   private releasePending(result: 'discarded' | 'drained') {
     for (const [id, pending] of this.pending) {
       this.pending.delete(id);
-      if (!this.lost) this.display?.release(pending.fence);
+      if (!this.lost) for (const { surface, fence } of pending.fences) surface.release(fence);
       try {
         pending.lease.returnBy('renderer');
       } finally {
@@ -1538,10 +1612,13 @@ export class WebSkiaLibrary implements Renderer, TextLayoutService, PathQuerySer
       if (this.unconfirmedPicture) throw this.unconfirmedPicture;
       this.retirePictures();
       if (!this.lost) this.display?.finish();
+      if (!this.lost) for (const { surface } of this.platformDisplays.values()) surface.finish();
       this.releasePending('drained');
       this.retireFrameNative();
       this.runtimePrograms.dispose();
       this.display?.reset(this.lost, true);
+      for (const { surface } of this.platformDisplays.values()) surface.reset(this.lost, true);
+      this.platformDisplays.clear();
       this.closeAuxiliary();
       this.events.drain();
       resolve();

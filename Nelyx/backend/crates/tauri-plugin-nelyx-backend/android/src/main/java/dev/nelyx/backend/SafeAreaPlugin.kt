@@ -26,6 +26,7 @@ import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import com.fasterxml.jackson.databind.JsonNode
 import java.util.concurrent.Executors
+import org.json.JSONObject
 
 @InvokeArg
 class WatchSafeAreaArgs {
@@ -53,7 +54,8 @@ class SystemChromeArgs {
 
 @TauriPlugin
 class SafeAreaPlugin(private val activity: Activity) : Plugin(activity) {
-    private data class Subscription(val id: String, val channel: Channel, var last: Insets? = null)
+    private data class InsetsSnapshot(val safeArea: Insets, val keyboardTop: Int?)
+    private data class Subscription(val id: String, val channel: Channel, var last: InsetsSnapshot? = null)
     private data class SystemOverlays(
         val top: Boolean,
         val bottom: Boolean,
@@ -61,6 +63,11 @@ class SafeAreaPlugin(private val activity: Activity) : Plugin(activity) {
     )
     private val subscriptions = mutableMapOf<String, Subscription>()
     private var content: View? = null
+    private var webView: WebView? = null
+    private val webViewLocation = IntArray(2)
+    private val layoutListener = View.OnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+        ViewCompat.getRootWindowInsets(view)?.let { insets -> publishInsets(insets, view) }
+    }
     private var dispatchingBack = false
     private var systemOverlays = SystemOverlays(top = true, bottom = true)
     private val documentQueries = Executors.newSingleThreadExecutor()
@@ -68,10 +75,14 @@ class SafeAreaPlugin(private val activity: Activity) : Plugin(activity) {
     override fun load(webView: WebView) {
         // Listen on the host content so the WebView retains its own IME inset handling.
         val host = webView.parent as View
+        this.webView?.removeOnLayoutChangeListener(layoutListener)
+        if (content !== host) content?.let { ViewCompat.setOnApplyWindowInsetsListener(it, null) }
+        this.webView = webView
         content = host
+        webView.addOnLayoutChangeListener(layoutListener)
         ViewCompat.setOnApplyWindowInsetsListener(host) { view, insets ->
             val current = ViewCompat.getRootWindowInsets(view) ?: insets
-            subscriptions.values.forEach { publish(it, current) }
+            publishInsets(current, webView)
             ViewCompat.onApplyWindowInsets(view, insets)
         }
     }
@@ -81,13 +92,14 @@ class SafeAreaPlugin(private val activity: Activity) : Plugin(activity) {
         val args = invoke.parseArgs(WatchSafeAreaArgs::class.java)
         activity.runOnUiThread {
             val host = content
-            if (host == null) {
+            val view = webView
+            if (host == null || view == null) {
                 invoke.reject("WebView is not ready")
                 return@runOnUiThread
             }
             val subscription = Subscription(args.subscription, args.onChange)
             subscriptions[args.view] = subscription
-            ViewCompat.getRootWindowInsets(host)?.let { publish(subscription, it) }
+            ViewCompat.getRootWindowInsets(host)?.let { publishInsets(it, view) }
             ViewCompat.requestApplyInsets(host)
             invoke.resolve()
         }
@@ -271,19 +283,31 @@ class SafeAreaPlugin(private val activity: Activity) : Plugin(activity) {
         subscriptions.clear()
         content?.let { ViewCompat.setOnApplyWindowInsetsListener(it, null) }
         content = null
+        webView?.removeOnLayoutChangeListener(layoutListener)
+        webView = null
     }
 
-    private fun publish(subscription: Subscription, insets: WindowInsetsCompat) {
+    private fun publishInsets(insets: WindowInsetsCompat, view: View) {
+        if (subscriptions.isEmpty()) return
         val safeArea = insets.getInsetsIgnoringVisibility(
             WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
         )
-        if (safeArea == subscription.last) return
-        subscription.last = safeArea
-        subscription.channel.send(JSObject().apply {
-            put("top", safeArea.top)
-            put("right", safeArea.right)
-            put("bottom", safeArea.bottom)
-            put("left", safeArea.left)
-        })
+        val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+        val keyboardTop = if (keyboard > 0) {
+            view.getLocationInWindow(webViewLocation)
+            (activity.window.decorView.height - keyboard - webViewLocation[1]).coerceAtLeast(0)
+        } else null
+        val snapshot = InsetsSnapshot(safeArea, keyboardTop)
+        for (subscription in subscriptions.values) {
+            if (snapshot == subscription.last) continue
+            subscription.last = snapshot
+            subscription.channel.send(JSObject().apply {
+                put("top", safeArea.top)
+                put("right", safeArea.right)
+                put("bottom", safeArea.bottom)
+                put("left", safeArea.left)
+                put("keyboardTop", keyboardTop ?: JSONObject.NULL)
+            })
+        }
     }
 }

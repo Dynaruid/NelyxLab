@@ -22,6 +22,7 @@ import { AnimatedBuilder } from './transitions.ts';
 import { GestureDetector } from './gesture-detector.ts';
 import { ListenableBuilder } from './listenable-builder.ts';
 import { Semantics, BlockSemantics, ExcludeSemantics } from './semantics.ts';
+import { PlatformViewModalBarrier } from './platform-view.ts';
 import { Color } from '../../ui/color.ts';
 import { Curves } from '../animation/curves.ts';
 import { HitTestBehavior } from '../rendering/pointer-listener.ts';
@@ -445,11 +446,14 @@ export class NavigationTransitions {
             ),
           ])
         : semantics(hitTarget);
+    const barrierContent = new BlockSemantics({
+      child: new ExcludeSemantics({ excluding: !semanticsDismissible, child: content }),
+    });
     const barrier = new AnimatedBuilder({
       animation: motion.primary,
-      child: new BlockSemantics({
-        child: new ExcludeSemantics({ excluding: !semanticsDismissible, child: content }),
-      }),
+      child: context.services.platformViews
+        ? new PlatformViewModalBarrier(barrierContent)
+        : barrierContent,
       builder: (_context, child) =>
         new ColoredBox({
           color:

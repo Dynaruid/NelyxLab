@@ -7,6 +7,10 @@ import type { BackendIdentity } from '@nelyx/core/hosting/platform';
 import type { ViewOwner } from '@nelyx/core/ui/types';
 import type { WebSkiaLibrary, WebSurfaceMetrics } from '@nelyx/skia-web/library';
 import type { BrowserRenderer } from './renderer.ts';
+import { DomPlatformViews } from './platform-views.ts';
+import type { DomPlatformViewFactories } from './platform-views.ts';
+import type { BackendConnection } from '../backend-contract.ts';
+import type { NativePlatformViewType, WindowsPlatformViewType } from './native-platform-views.ts';
 import { ManifestAssetService, selectManifestAssets } from '../../runtime/assets.ts';
 import type { ResolvedAppAsset as AppAsset } from '../../runtime/config.ts';
 import { createDomInteraction } from './interaction.ts';
@@ -75,6 +79,13 @@ export function createWebServices(
     readonly maxRasterScale?: number;
     readonly localeBoundary?: HTMLElement;
     readonly ownsDocument?: boolean;
+    readonly platformViews?: DomPlatformViewFactories;
+    readonly windowsPlatformViews?: readonly WindowsPlatformViewType[];
+    readonly androidPlatformViews?: boolean;
+    readonly linuxPlatformViews?: boolean;
+    readonly applePlatformViews?: boolean;
+    readonly backend?: BackendConnection;
+    readonly onError?: (error: unknown) => void;
   },
 ): {
   services: BackendServices;
@@ -87,9 +98,25 @@ export function createWebServices(
     window = document.defaultView!,
     frameTimeOffset = window.performance.timeOrigin - performance.timeOrigin;
   const canvasViewport = options?.canvasViewport;
+  const isolation = canvasViewport?.style.isolation ?? '';
   const retainedViewport =
     canvasViewport !== undefined && readRetainedViewportLeft(document) !== undefined;
   const readViewport = () => canvasViewport ?? canvas;
+  const nativeTypes: NativePlatformViewType[] = [...(options?.windowsPlatformViews ?? [])];
+  if (options?.androidPlatformViews) nativeTypes.push('nelyx.android.edit');
+  if (options?.linuxPlatformViews) nativeTypes.push('nelyx.gtk.edit');
+  if (options?.applePlatformViews) nativeTypes.push('nelyx.apple.edit');
+  const platformViews =
+    canvasViewport && (options?.platformViews || nativeTypes.length)
+      ? new DomPlatformViews(
+          canvasViewport,
+          owner,
+          options?.platformViews ?? {},
+          options?.onError,
+          nativeTypes,
+          options?.backend?.nativePlatformViews?.(window),
+        )
+      : undefined;
   let nativeSelectionContextMenu: BrowserSelectionContextMenu | undefined;
   const cursor = new BrowserMouseCursor(canvas),
     interaction = createDomInteraction(
@@ -109,6 +136,7 @@ export function createWebServices(
       supportsNativeBrowserContextMenu(window)
         ? () => nativeSelectionContextMenu?.nativeMenuEnabled === true
         : undefined,
+      platformViews,
     ),
     cssFonts = new Set<FontFace>(),
     fontSet = document.fonts as FontFaceSet & {
@@ -171,10 +199,10 @@ export function createWebServices(
     let current = metrics(),
       observer: ResizeObserver | undefined,
       media: MediaQueryList | undefined;
-    function fitCanvas(scale: number): void {
+    function fitCanvas(scale: number, target = canvas): void {
       if (!canvasViewport) return;
       const rasterScale = Math.min(scale, options?.maxRasterScale ?? Infinity);
-      const style = canvas.style;
+      const style = target.style;
       style.position = 'absolute';
       style.top = '0';
       // In the retained WebView the layout can move ahead of the displayed raster.
@@ -207,16 +235,18 @@ export function createWebServices(
         environmentChanged =
           JSON.stringify(next.environment) !== JSON.stringify(current.environment);
       if (!backingChanged && !environmentChanged) return false;
-      if (next.scale !== current.scale) {
-        fitCanvas(next.scale);
-        watchDpi();
-      }
+      const scaleChanged = next.scale !== current.scale;
       current = Object.freeze({
         ...next,
         environment: environmentChanged ? next.environment : current.environment,
         viewportGeneration: ++viewport,
         nativeSurfaceGeneration: backingChanged ? ++surface : surface,
       });
+      if (scaleChanged) {
+        fitCanvas(next.scale);
+        platformViews?.refitCanvases();
+        watchDpi();
+      }
       notify({ kind: 'metrics', metrics: current });
       return backingChanged;
     };
@@ -228,18 +258,29 @@ export function createWebServices(
       media = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
       media.addEventListener('change', resize);
     };
+    const lostCanvases = new Set<EventTarget>();
+    const canDisplay = () => !document.hidden && !lostCanvases.size;
     const lost = (event: Event) => {
       event.preventDefault();
-      if (closed) return;
+      if (closed || !event.currentTarget || lostCanvases.has(event.currentTarget)) return;
+      lostCanvases.add(event.currentTarget);
+      if (lostCanvases.size !== 1) return;
       display.lose();
       display.setVisible(false);
+      notify?.({ kind: 'visibility', visible: false });
     };
-    const restored = () => {
-      if (closed) return;
+    const restored = (event: Event) => {
+      if (
+        closed ||
+        !event.currentTarget ||
+        !lostCanvases.delete(event.currentTarget) ||
+        lostCanvases.size
+      )
+        return;
       display.restore();
-      display.setVisible(!document.hidden);
+      display.setVisible(canDisplay());
       publishGeneration();
-      notify?.({ kind: 'visibility', visible: !document.hidden });
+      notify?.({ kind: 'visibility', visible: canDisplay() });
     };
     function publishGeneration(): void {
       if (closed) return;
@@ -252,7 +293,7 @@ export function createWebServices(
       notify?.({ kind: 'metrics', metrics: current });
     }
     const visibility = () => {
-      const visible = !document.hidden;
+      const visible = canDisplay();
       if (visible) resize();
       display.setVisible(visible);
       notify?.({ kind: 'visibility', visible });
@@ -269,6 +310,15 @@ export function createWebServices(
         ownsEditingTarget: interaction.ownsEditingTarget,
         ownsNativeSelectionTarget: (target) => selectionContextMenu.ownsTarget(target),
         usesNativeEditingMenu: interaction.usesNativeEditingMenu,
+        ...(platformViews
+          ? {
+              ownsPlatformViewHitTarget: platformViews.ownsHitTarget,
+              ownsPlatformViewNativeTarget: platformViews.ownsNativeTarget,
+              handlePlatformViewTab: platformViews.handleTab,
+              platformViewInputMatchesPresentation: platformViews.inputMatchesPresentation,
+              bindPlatformViewCancellation: (cancel) => platformViews.bindInputCancellation(cancel),
+            }
+          : {}),
       });
       observer?.observe(readViewport());
     }
@@ -327,6 +377,16 @@ export function createWebServices(
       publishGeneration,
       closeFailedView: () => notify?.({ kind: 'context-lost' }),
     });
+    if (platformViews) {
+      canvasViewport!.style.isolation = 'isolate';
+      platformViews.bindGraphics(
+        (target) => fitCanvas(current.scale, target),
+        (target) => display.releasePlatformViewCanvas(target),
+        lost,
+        restored,
+      );
+      display.bindPlatformViews(platformViews);
+    }
     const assets = new ManifestAssetService(
       manifest,
       {
@@ -384,6 +444,7 @@ export function createWebServices(
     );
     const services: BackendServices = {
       identity,
+      ...(platformViews ? { platformViews: platformViews.registry } : {}),
       setViewLocale: viewLocale.update,
       foundationPlatform: getBrowserPlatformEnvironment(),
       clock: {
@@ -437,8 +498,11 @@ export function createWebServices(
         },
       },
       pictures: {
-        create: (resources) =>
-          new FramePictureService(resources, library.framePictureBackend, owner),
+        create(resources) {
+          const pictures = new FramePictureService(resources, library.framePictureBackend, owner);
+          platformViews?.native?.bindPictures((resource) => pictures.commands(resource));
+          return pictures;
+        },
       },
       rasterization: {
         create: (resources) =>
@@ -465,6 +529,7 @@ export function createWebServices(
           if (closed || notify) throw new Error('Web surface closed/already attached');
           notify = callback;
           attachedView = view;
+          platformViews?.native?.attach(view);
           observer = new window.ResizeObserver(resizeViewport);
           attachCanvas(view);
           window.addEventListener('resize', resizeViewport);
@@ -487,6 +552,8 @@ export function createWebServices(
         async dispose() {
           if (closed) return;
           closed = true;
+          platformViews?.dispose();
+          if (platformViews) canvasViewport!.style.isolation = isolation;
           viewLocale?.dispose();
           stop();
           environment.dispose();
@@ -499,7 +566,11 @@ export function createWebServices(
           assets.dispose();
           for (const face of cssFonts) fontSet.delete(face);
           cssFonts.clear();
-          await display.dispose();
+          try {
+            await platformViews?.native?.dispose();
+          } finally {
+            await display.dispose();
+          }
         },
       },
     };
@@ -517,6 +588,10 @@ export function createWebServices(
   } catch (error) {
     const errors = [error];
     for (const close of [
+      () => {
+        platformViews?.dispose();
+        if (platformViews) canvasViewport!.style.isolation = isolation;
+      },
       () => viewLocale?.dispose(),
       () => nativeSelectionContextMenu?.dispose(),
       () => environment.dispose(),

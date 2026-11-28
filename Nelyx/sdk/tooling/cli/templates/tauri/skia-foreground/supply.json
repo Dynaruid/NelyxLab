@@ -1,0 +1,54 @@
+{
+  "schema": "nelyx.skia-foreground/v1",
+  "bindingVersion": "0.99.0",
+  "bindingRevision": "a25a0fdb7d90429aa2d1355eab3b910ced359f50",
+  "skiaRevision": "90af6f5c5a3ed8788b805fe6ca3fcdf28c2c2bc9",
+  "features": ["binary-cache", "no-compile", "pdf", "jpeg"],
+  "raster": "skia-cpu-bgra8888-premul-srgb",
+  "windowsComposition": "directcomposition-d3d11",
+  "linuxComposition": "webkitgtk-overlay-cairo",
+  "appleComposition": "cametallayer-bgra8888",
+  "license": { "skia": "BSD-3-Clause", "rust-skia": "MIT" },
+  "targets": {
+    "x86_64-pc-windows-msvc": {
+      "bytes": 5154197,
+      "sha256": "406865946e42aa7a3872f364981f031f615bf8f2e80fdccfc15f0d01bc144580"
+    },
+    "x86_64-linux-android": {
+      "bytes": 4586323,
+      "sha256": "dbcfe792daa2b4d3aefb10fd4baa6f2c96c4c58d2db9be796e42a5c4670b79a2"
+    },
+    "aarch64-linux-android": {
+      "bytes": 4506511,
+      "sha256": "b44e6f9217dbf1593e78f1bb9b288a2fa68c8939d0cc2b7d9931c8c47cc14e55"
+    },
+    "x86_64-unknown-linux-gnu": {
+      "bytes": 4252462,
+      "sha256": "5b776571b11194a9ed3a4c41824b7a4b35a83117aef99eb16a2ad3315db13b5d"
+    },
+    "aarch64-unknown-linux-gnu": {
+      "bytes": 4060072,
+      "sha256": "c25f70e5143e47d5141284b3806702d62cfed058e0f952b42f7555c5e2e7c5bf"
+    },
+    "aarch64-apple-darwin": {
+      "bytes": 3132080,
+      "sha256": "eac21122adf931687887ea6f4fb92791efd40671828af312fd73480c737c1ef6"
+    },
+    "x86_64-apple-darwin": {
+      "bytes": 3519225,
+      "sha256": "0d7c908220e8b635e71de59f71218c01f87ceea09507da3d9bc76281a3af4b5c"
+    },
+    "aarch64-apple-ios": {
+      "bytes": 3233453,
+      "sha256": "4f00ee0864ec1d34ff2c8583139d4ebdb87e100b096e799c1ba1983bcb4e870a"
+    },
+    "aarch64-apple-ios-sim": {
+      "bytes": 3242768,
+      "sha256": "466bee94c7cef63425cc6b1abe64dec1aee5ae6a4193bddc7cfbfb37fe4b5ff9"
+    },
+    "x86_64-apple-ios": {
+      "bytes": 3428517,
+      "sha256": "4af8b6e6b4356eea610e3dc41f87071a161ebbd4f76568206ec8f3e835bcaf5d"
+    }
+  }
+}

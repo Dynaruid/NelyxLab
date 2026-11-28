@@ -174,7 +174,8 @@ export function createBrowserPlatformMessages(
       }
     },
     readEnvironment() {
-      const locales = [...navigator.languages];
+      // WebKitGTK can expose the process's C locale as a browser language.
+      const locales = navigator.languages.filter((locale) => /^[a-z]{2,8}(?:[-_]|$)/i.test(locale));
       return {
         locales: locales.length ? locales : null,
         localeSource: locales.length ? 'native' : 'unavailable',

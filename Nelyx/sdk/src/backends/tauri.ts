@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 import type { ViewEnvironment } from '@nelyx/core/ui/types';
 import { Channel, invoke } from '@tauri-apps/api/core';
+import { openNativePlatformViewSession } from './native-platform-views.ts';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { BrowserPlatformEnvironment } from '../frontend/dom/environment.ts';
 import { backendFailure, deviceFailure, validateBackend } from './backend-contract.ts';
@@ -16,6 +17,7 @@ import type { SystemChromeHost } from '../runtime/os-services.ts';
 import type { TauriScrollEdgeEffects } from '../runtime/config.ts';
 
 type Insets = ViewEnvironment['safeArea'];
+type AndroidInsets = Insets & { readonly keyboardTop?: number | null };
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: { invoke: typeof invoke; unregisterCallback(id: number): void };
 };
@@ -147,6 +149,7 @@ export async function openTauriBackend(
         signal,
       )
     : undefined;
+  const platformViews = os === 'iOS' || os === 'macOS' ? 'apple' : os;
   return {
     host: { target: 'tauri', os, backend },
     invoke: (command, input = null) =>
@@ -181,6 +184,23 @@ export async function openTauriBackend(
     ...(typeof backend.windowsAcrylic === 'boolean'
       ? { windowAcrylic: createWindowAcrylic(backend.windowsAcrylic) }
       : {}),
+    ...(platformViews === 'windows' ||
+    platformViews === 'android' ||
+    platformViews === 'linux' ||
+    platformViews === 'apple'
+      ? {
+          nativePlatformViews: (owner: Window) =>
+            owner === view
+              ? (viewOwner, onPointer) =>
+                  openNativePlatformViewSession(
+                    platformViews,
+                    viewOwner,
+                    onPointer,
+                    releaseCallback,
+                  )
+              : undefined,
+        }
+      : {}),
     devices: (owner, options) =>
       owner === view
         ? tauriDeviceServices(owner, options, backend.os, backend.deviceServices, releaseCallback)
@@ -212,8 +232,8 @@ function createSafeArea(
   signal: AbortSignal,
 ): WebSafeAreaSource {
   const listeners = new Set<() => void>();
-  let active: { id: string; channel: Channel<Insets>; ready: Promise<void> } | undefined;
-  let physical: Insets | undefined;
+  let active: { id: string; channel: Channel<AndroidInsets>; ready: Promise<void> } | undefined;
+  let physical: AndroidInsets | undefined;
   function stop() {
     const previous = active;
     active = undefined;
@@ -235,11 +255,19 @@ function createSafeArea(
     read() {
       if (!physical) return;
       const scale = view.devicePixelRatio || 1;
+      const keyboard = physical.keyboardTop;
+      const keyboardTop =
+        typeof keyboard === 'number' && Number.isFinite(keyboard) && keyboard >= 0
+          ? keyboard / scale
+          : keyboard === null
+            ? null
+            : undefined;
       return {
         top: physical.top / scale,
         right: physical.right / scale,
         bottom: physical.bottom / scale,
         left: physical.left / scale,
+        ...(keyboardTop === undefined ? {} : { keyboardTop }),
       };
     },
     subscribe(listener) {
@@ -247,7 +275,7 @@ function createSafeArea(
       listeners.add(listener);
       if (!active) {
         const id = crypto.randomUUID();
-        const channel = new Channel<Insets>();
+        const channel = new Channel<AndroidInsets>();
         channel.onmessage = (value) => {
           if (active?.id !== id || signal.aborted) return;
           if (

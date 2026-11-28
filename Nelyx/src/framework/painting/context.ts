@@ -603,8 +603,8 @@ export class PaintingContext extends Canvas {
     bounds: Rect,
     pictures: PictureResourceProvider | null = null,
     composition?: import('../../hosting/scene-composition.ts').SceneCompositionTransaction,
-  ): void {
-    this.composeInto(root, bounds, pictures, true, composition);
+  ): readonly import('../../hosting/platform-views.ts').RecordedPlatformView[] | undefined {
+    return this.composeInto(root, bounds, pictures, true, composition);
   }
   private composeInto(
     root: ContainerLayer,
@@ -612,7 +612,7 @@ export class PaintingContext extends Canvas {
     pictures: PictureResourceProvider | null,
     exportScene: boolean,
     composition?: import('../../hosting/scene-composition.ts').SceneCompositionTransaction,
-  ): void {
+  ): readonly import('../../hosting/platform-views.ts').RecordedPlatformView[] | undefined {
     if (!(this.recordsLayers && !this.assembled && !this.debugDisposed))
       invariant(false, 'closed-layer-recording', 'Layer recording has ended');
     const cached = retainedCompositions.get(root),
@@ -727,7 +727,10 @@ export class PaintingContext extends Canvas {
         : this.finishLayer(bounds, cached?.pictures ?? [], cached?.body._depth ?? 0),
       errors: unknown[] = [];
     let appended = !!reuse,
-      next: RetainedComposition | null = null;
+      next: RetainedComposition | null = null,
+      platformViews:
+        | readonly import('../../hosting/platform-views.ts').RecordedPlatformView[]
+        | undefined;
     if (reuse) this.assembled = true;
     // The attached body owns its pictures/children before input holds retire.
     // Stream retained recordings directly into the destination frame; it takes
@@ -748,7 +751,7 @@ export class PaintingContext extends Canvas {
       if (exportScene) {
         this.exporting = true;
         try {
-          root._buildSceneInto(new SceneBuilder(pictures, composition), this);
+          platformViews = root._buildSceneInto(new SceneBuilder(pictures, composition), this);
         } finally {
           this.exporting = false;
         }
@@ -765,6 +768,7 @@ export class PaintingContext extends Canvas {
     if (errors.length === 1) throw errors[0];
     if (errors.length) throw new AggregateError(errors, 'Root composition and retirement failed');
     if (next) retainedCompositions.set(root, next);
+    return platformViews;
   }
   /** A batch already has Canvas values. Capture it directly instead of replaying
    * into another Canvas and capturing that temporary recording a second time. */

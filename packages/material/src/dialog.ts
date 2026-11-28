@@ -168,13 +168,18 @@ function dialogPadding(
   );
 }
 
-function routeNamedDialog(label: string | null, child: Widget): Widget {
-  return label === null
+function routeNamedDialog(
+  label: string | null,
+  child: Widget,
+  role: SemanticsRole = SemanticsRole.none,
+): Widget {
+  return label === null && role === SemanticsRole.none
     ? child
     : new Semantics({
-        scopesRoute: true,
-        namesRoute: true,
-        explicitChildNodes: true,
+        role,
+        scopesRoute: label !== null,
+        namesRoute: label !== null,
+        explicitChildNodes: label !== null,
         label,
         child,
       });
@@ -331,8 +336,12 @@ export class AlertDialog extends StatelessWidget {
     return new Dialog({
       ...options,
       key: null,
-      semanticsRole: SemanticsRole.alertDialog,
-      child: routeNamedDialog(label, new IntrinsicWidth(new Column(children, dialogColumn))),
+      semanticsRole: SemanticsRole.none,
+      child: routeNamedDialog(
+        label,
+        new IntrinsicWidth(new Column(children, dialogColumn)),
+        SemanticsRole.alertDialog,
+      ),
     });
   }
 

@@ -36,6 +36,7 @@ import { RenderWorkerPort, RenderWorkerError } from './render-worker-port.ts';
 import { RenderWorkerFrames } from './render-worker-frames.ts';
 import { WebRenderTelemetry } from './render-telemetry.ts';
 import { readRetainedViewportLeft } from './environment.ts';
+import type { DomPlatformViews } from './platform-views.ts';
 
 interface BrowserRenderOptions extends WebSkiaSurfaceOptions {
   readonly renderMode?: WebRenderMode;
@@ -72,6 +73,7 @@ export class BrowserRenderer implements Renderer {
   private workerReserved = false;
   private recovery: Promise<void> | undefined;
   private displaySurface: DisplaySurface | undefined;
+  private platformViews: DomPlatformViews | undefined;
   private restartAvailable = true;
   private metrics: WebSurfaceMetrics | undefined;
   private visible = true;
@@ -151,6 +153,15 @@ export class BrowserRenderer implements Renderer {
 
   bindSurface(surface: DisplaySurface): void {
     this.displaySurface = surface;
+  }
+
+  bindPlatformViews(platformViews: DomPlatformViews): void {
+    this.platformViews = platformViews;
+  }
+
+  releasePlatformViewCanvas(canvas: HTMLCanvasElement): void {
+    if (this.direct) this.library.releaseDisplayCanvas(canvas);
+    else this.worker?.releaseLayer(canvas);
   }
 
   private reserveWorker(): boolean {
@@ -363,6 +374,7 @@ export class BrowserRenderer implements Renderer {
 
   private workerFailed(worker: RenderWorkerFrames, error: RenderWorkerError): void {
     if (this.worker !== worker || this.closed) return;
+    this.platformViews?.invalidate(true);
     this.worker = undefined;
     this.telemetry.failure(error.stage, error);
     // Let an in-progress submit finish publishing its synchronous acceptance.
@@ -422,12 +434,14 @@ export class BrowserRenderer implements Renderer {
 
   setVisible(visible: boolean): void {
     this.visible = visible;
+    if (!visible) this.platformViews?.invalidate(false);
     this.library.setVisible(visible);
     this.worker?.setVisible(visible);
   }
 
   lose(): void {
     if (this.direct) {
+      this.platformViews?.invalidate(false);
       delete this.canvas.dataset.nelyxFrameReady;
       this.library.lose();
     }
@@ -459,9 +473,31 @@ export class BrowserRenderer implements Renderer {
     if (frame.estimatedBytes > paintFrameLimits.bytes)
       return { status: 'rejected', reason: 'oversize' };
     const started = performance.now();
-    const result = this.direct
-      ? this.library.submit(frame, lease, diagnostics)
-      : (this.worker?.submit(frame, lease, diagnostics) ?? { status: 'rejected', reason: 'busy' });
+    const platformViews = this.platformViews;
+    let prepared = platformViews?.prepare(frame);
+    const commit =
+      platformViews &&
+      (() => {
+        if (this.visible && this.metrics && isCurrent(frame, this.owner, this.metrics))
+          platformViews.commit(frame.token, prepared);
+      });
+    let result: SubmitResult;
+    if (this.direct) {
+      if (prepared?.layers.length) {
+        try {
+          result = this.library.submit(frame, lease, diagnostics, prepared);
+        } catch {
+          platformViews!.fail(frame, 'The foreground drawing surface could not submit the frame');
+          prepared = undefined;
+          result = this.library.submit(frame, lease, diagnostics);
+        }
+      } else result = this.library.submit(frame, lease, diagnostics);
+      if (result.status === 'accepted') commit?.();
+    } else
+      result = this.worker?.submit(frame, lease, diagnostics, prepared, commit) ?? {
+        status: 'rejected',
+        reason: 'busy',
+      };
     this.telemetry.sample('mainSubmit', performance.now() - started);
     if (this.direct && result.status === 'accepted') {
       this.telemetry.accepted++;

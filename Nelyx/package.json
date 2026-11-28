@@ -56,6 +56,14 @@
       "types": "./dist/hosting/scene-composition.d.ts",
       "default": "./dist/hosting/scene-composition.js"
     },
+    "./hosting/platform-views": {
+      "types": "./dist/hosting/platform-views.d.ts",
+      "default": "./dist/hosting/platform-views.js"
+    },
+    "./ui/platform-view-scene": {
+      "types": "./dist/ui/platform-view-scene.d.ts",
+      "default": "./dist/ui/platform-view-scene.js"
+    },
     "./services/text-editing": {
       "types": "./dist/services/text-editing.d.ts",
       "default": "./dist/services/text-editing.js"
@@ -219,6 +227,10 @@
     "./framework/widgets/framework": {
       "types": "./dist/framework/widgets/framework.d.ts",
       "default": "./dist/framework/widgets/framework.js"
+    },
+    "./framework/widgets/platform-view": {
+      "types": "./dist/framework/widgets/platform-view.d.ts",
+      "default": "./dist/framework/widgets/platform-view.js"
     },
     "./framework/widgets/basic": {
       "types": "./dist/framework/widgets/basic.d.ts",

@@ -3,7 +3,7 @@
 // Adapted from Flutter rendering/proxy_box.dart at the recorded pin.
 import type { SemanticsConfiguration } from '../semantics/semantics.ts';
 import { invariant } from '../../foundation/errors.ts';
-import { contains } from '../../ui/geometry.ts';
+import { contains, identity } from '../../ui/geometry.ts';
 import type { Offset, TransformMatrix } from '../../ui/geometry.ts';
 import type { SemanticsNode, Rect } from '../../ui/types.ts';
 import { RenderProxyBox } from './boxes.ts';
@@ -117,9 +117,10 @@ export class RenderAbsorbPointer extends RenderProxyBox {
     config.isBlockingUserActions = this.absorbing;
   }
   override hitTest(position: Offset, result: HitTestEntry[], toLocal?: TransformMatrix): boolean {
-    return this.absorbing
-      ? contains(this.paintBounds, position)
-      : super.hitTest(position, result, toLocal);
+    if (!this.absorbing) return super.hitTest(position, result, toLocal);
+    if (!contains(this.paintBounds, position)) return false;
+    result.push({ target: this, transform: toLocal ?? identity });
+    return true;
   }
   override collectSemantics(output: SemanticsNode[], matrix?: TransformMatrix, clip?: Rect): void {
     if (!this.absorbing) {

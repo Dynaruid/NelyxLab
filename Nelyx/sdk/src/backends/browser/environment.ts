@@ -13,8 +13,11 @@ export function readRetainedViewportLeft(document: Document): number | undefined
 }
 
 export interface WebSafeAreaSource {
-  /** Insets from the layout viewport edges, in CSS pixels. */
-  read(): ViewEnvironment['safeArea'] | undefined;
+  /**
+   * Insets from the layout viewport edges, in CSS pixels.
+   * keyboardTop is relative to the viewport origin and is null when the IME is hidden.
+   */
+  read(): (ViewEnvironment['safeArea'] & { readonly keyboardTop?: number | null }) | undefined;
   subscribe(listener: () => void): () => void;
 }
 
@@ -51,6 +54,7 @@ export function createBrowserEnvironment(
         left: clamp(value('left') - rect.left, rect.width) * x,
       };
       const viewport = window.visualViewport;
+      const keyboardTop = native?.keyboardTop;
       return freezeEnvironment({
         safeArea,
         safeAreaSource: native
@@ -58,10 +62,18 @@ export function createBrowserEnvironment(
           : window.CSS.supports('padding-top', 'env(safe-area-inset-top)')
             ? 'css'
             : 'application',
-        keyboardInset: viewport
-          ? clamp(rect.bottom - (viewport.offsetTop + viewport.height), rect.height) * y
-          : 0,
-        keyboardSource: viewport ? 'visual-viewport-occlusion' : 'unavailable',
+        keyboardInset:
+          typeof keyboardTop === 'number'
+            ? clamp(rect.bottom - keyboardTop, rect.height) * y
+            : keyboardTop === undefined && viewport
+              ? clamp(rect.bottom - (viewport.offsetTop + viewport.height), rect.height) * y
+              : 0,
+        keyboardSource:
+          keyboardTop !== undefined
+            ? 'native-ime'
+            : viewport
+              ? 'visual-viewport-occlusion'
+              : 'unavailable',
         textScale: 1,
         textScaleSource: 'application',
       });

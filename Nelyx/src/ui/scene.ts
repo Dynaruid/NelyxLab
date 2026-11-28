@@ -20,6 +20,7 @@ import type {
   SceneCompositionTransaction,
 } from '../hosting/scene-composition.ts';
 import { paintFrameLimits, validateCapturedPaintCommands, freezePaintCommand } from './frame.ts';
+import type { PlatformViewMarker, RecordedPlatformView } from '../hosting/platform-views.ts';
 const affineIdentity = [1, 0, 0, 1, 0, 0],
   identity44 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 const restoreCommands: readonly PaintCommand[] = Object.freeze([
@@ -51,6 +52,7 @@ function passesBackdropOpacity(command: PaintCommand): boolean {
 
 /** Retain child snapshots without copying their display lists into every ancestor. */
 class LayerRecording {
+  readonly containsPlatformViews: boolean;
   private compositionSource:
     | { owner: PictureResourceProvider | null; value: SceneCompositionSource }
     | undefined;
@@ -74,8 +76,12 @@ class LayerRecording {
     private readonly insertions: readonly LayerInsertion[],
     layer: EngineLayer | null = null,
     opacitySave?: number,
+    private readonly platformView?: PlatformViewMarker,
   ) {
     canvas.restoreToCount(1);
+    this.containsPlatformViews =
+      platformView !== undefined ||
+      insertions.some((entry) => entry.recording.containsPlatformViews);
     let depth = 0,
       changesState = false;
     for (const command of canvas.commands) {
@@ -210,7 +216,12 @@ class LayerRecording {
     this.compositionSource = { owner, value };
     return value;
   }
-  draw(canvas: Canvas, scoped = true, pictures: PictureResourceProvider | null = null): void {
+  draw(
+    canvas: Canvas,
+    scoped = true,
+    pictures: PictureResourceProvider | null = null,
+    platformViews?: RecordedPlatformView[],
+  ): void {
     if (!(this.references > 0))
       invariant(false, 'disposed-engine-recording', 'Engine recording has retired');
     const mark = canvas.commands.length;
@@ -233,6 +244,8 @@ class LayerRecording {
           record = frame.recording;
         if (!frame.entered) {
           if (frame.scoped) canvas.save();
+          if (record.platformView && platformViews)
+            platformViews.push({ ...record.platformView, index: canvas.commands.length });
           frame.entered = true;
         }
         const entry = record.insertions[frame.next++];
@@ -242,7 +255,12 @@ class LayerRecording {
           frame.start = entry.mark;
           const child = entry.recording;
           // Replay retained commands inline while passing this frame's opacity.
-          if (entry.retained && pictures && frame.childOpacity === 1)
+          if (
+            entry.retained &&
+            pictures &&
+            frame.childOpacity === 1 &&
+            !(platformViews && child.containsPlatformViews)
+          )
             child.drawNative(canvas, pictures);
           else
             stack.push({
@@ -771,6 +789,13 @@ export class SceneBuilder {
     for (const entry of subtree) this.used.add(entry);
     current.children.push(layer);
   }
+  addPlatformView(marker: PlatformViewMarker): void {
+    const current = this.current();
+    current.insertions.push({
+      mark: current.canvas.commands.length,
+      recording: new LayerRecording(new Canvas(), [], null, undefined, marker),
+    });
+  }
   pop(): void {
     this.current();
     if (this.stack.length === 1) return;
@@ -796,9 +821,10 @@ export class SceneBuilder {
     }
   }
   /** Internal frame composition consumes the scene without a temporary Picture/frame capture. */
-  _buildInto(canvas: Canvas): void {
+  _buildInto(canvas: Canvas): readonly RecordedPlatformView[] | undefined {
     this.current();
     const mark = canvas.commands.length;
+    let platformViews: RecordedPlatformView[] | undefined;
     try {
       while (this.stack.length > 1) this.pop();
       const root = this.stack.pop()!,
@@ -806,9 +832,13 @@ export class SceneBuilder {
       let snapshot: LayerRecording | undefined;
       try {
         snapshot = new LayerRecording(root.canvas, root.insertions);
-        const source = this.composition ? snapshot.source(this.pictures) : undefined;
+        const source =
+          this.composition && !snapshot.containsPlatformViews
+            ? snapshot.source(this.pictures)
+            : undefined;
         const plan = this.composition?.compose(source);
-        if (plan)
+        if (snapshot.containsPlatformViews) platformViews = [];
+        if (plan && !platformViews)
           for (const part of plan) {
             if ('scope' in part) {
               if (part.scope === 'save') canvas.save();
@@ -823,7 +853,7 @@ export class SceneBuilder {
               part.source.draw(canvas);
             } else canvas._addCommandRange(part.source.commands, part.begin, part.end);
           }
-        else snapshot.draw(canvas, false, this.pictures);
+        else snapshot.draw(canvas, false, this.pictures, platformViews);
         validateCapturedPaintCommands(canvas.commands, mark);
       } catch (error) {
         errors.push(error);
@@ -844,6 +874,7 @@ export class SceneBuilder {
         throw new AggregateError(errors, 'Scene streaming and retirement failed');
       }
       this.dead = true;
+      return platformViews;
     } catch (error) {
       try {
         this.dispose();

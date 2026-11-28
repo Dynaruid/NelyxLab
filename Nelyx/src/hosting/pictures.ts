@@ -2,9 +2,9 @@
 import { invariant } from '../foundation/errors.ts';
 import { RasterizationPendingError } from './rasterization.ts';
 import type { Picture, PictureCapture, PictureResourceProvider } from '../ui/picture.ts';
-import type { ResourceDescriptor, ResourceId, ViewOwner } from '../ui/types.ts';
+import type { PaintCommand, ResourceDescriptor, ResourceId, ViewOwner } from '../ui/types.ts';
 import type { ResourceRegistry, ResourceLease } from './resources.ts';
-import { paintFrameLimits } from '../ui/frame.ts';
+import { paintFrameLimits, resourceKey } from '../ui/frame.ts';
 
 export interface NativeFramePicture {
   readonly bytes: number;
@@ -37,6 +37,7 @@ const limits = Object.freeze({
 export class FramePictureService implements PictureResourceProvider {
   private readonly cache = new Map<Picture, Entry>();
   private readonly live = new Set<Entry>();
+  private readonly recordings = new Map<string, Entry>();
   private readonly failures: Entry[] = [];
   private readonly uncertain: Array<{
     capture: PictureCapture;
@@ -109,6 +110,7 @@ export class FramePictureService implements PictureResourceProvider {
       entry = next;
       admitted = true;
       this.live.add(entry);
+      this.recordings.set(resourceKey(resource), entry);
       this.bytes += bytes;
       this.cache.set(picture, entry);
       this.resources.bindResource(resource);
@@ -216,6 +218,7 @@ export class FramePictureService implements PictureResourceProvider {
       throw error;
     }
     this.live.delete(entry);
+    this.recordings.delete(resourceKey(entry.resource));
     this.bytes -= entry.bytes;
     const errors: unknown[] = [];
     for (const cleanup of [() => entry.input.returnBy('caller'), () => entry.capture.dispose()])
@@ -229,6 +232,10 @@ export class FramePictureService implements PictureResourceProvider {
   }
   get debugStats() {
     return Object.freeze({ cached: this.cache.size, live: this.live.size, bytes: this.bytes });
+  }
+  /** Borrow the CPU recipe while a scene recording owns its picture resource. */
+  commands(resource: ResourceId): readonly PaintCommand[] | undefined {
+    return this.recordings.get(resourceKey(resource))?.capture.frame.commands;
   }
   stop(): void {
     this.closed = true;

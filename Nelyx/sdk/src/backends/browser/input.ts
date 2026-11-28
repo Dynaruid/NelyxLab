@@ -21,14 +21,20 @@ export function bindCanvasInput(
     readonly ownsSemanticsAdjustmentTarget?: (target: EventTarget | null) => boolean;
     readonly ownsNativeSelectionTarget?: (target: EventTarget | null) => boolean;
     readonly usesNativeEditingMenu?: (target: EventTarget | null) => boolean;
+    readonly ownsPlatformViewHitTarget?: (target: EventTarget | null) => boolean;
+    readonly ownsPlatformViewNativeTarget?: (target: EventTarget | null) => boolean;
+    readonly handlePlatformViewTab?: (event: KeyboardEvent) => boolean;
+    readonly platformViewInputMatchesPresentation?: () => boolean;
+    readonly bindPlatformViewCancellation?: (cancel: (() => void) | undefined) => void;
   } = {},
 ): (replacing?: boolean) => void {
   const window = canvas.ownerDocument.defaultView!;
-  const { HTMLElement, HTMLInputElement, HTMLTextAreaElement } = window;
+  const { HTMLElement, HTMLButtonElement, HTMLInputElement, HTMLTextAreaElement } = window;
   const macOS = getFrontendHost(window).os === 'macOS';
   const viewport = options.viewport ?? canvas;
   let live = true;
   const pointers = new Set<number>(),
+    platformPointers = new Set<number>(),
     keySurface = options.keySurface ?? canvas;
   const selectionStyles = ['user-select', '-webkit-user-select', '-webkit-touch-callout'];
   const previousSelectionStyles = selectionStyles.map((property) => ({
@@ -93,6 +99,7 @@ export function bindCanvasInput(
     });
     if (kind === 'up' || kind === 'cancel') {
       pointers.delete(event.pointerId);
+      platformPointers.delete(event.pointerId);
       if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     }
   };
@@ -115,7 +122,8 @@ export function bindCanvasInput(
   const selectStart = (event: Event) => {
     if (
       !options.ownsEditingTarget?.(event.target) &&
-      !options.ownsNativeSelectionTarget?.(event.target)
+      !options.ownsNativeSelectionTarget?.(event.target) &&
+      !options.ownsPlatformViewNativeTarget?.(event.target)
     )
       event.preventDefault();
   };
@@ -127,6 +135,19 @@ export function bindCanvasInput(
       event.preventDefault();
   };
   const nativePointer = (handler: (event: PointerEvent) => void) => (event: PointerEvent) => {
+    if (options.ownsPlatformViewHitTarget?.(event.target)) {
+      if (handler === down) {
+        if (options.platformViewInputMatchesPresentation?.() === false) return;
+        platformPointers.add(event.pointerId);
+      }
+      if (
+        handler === down ||
+        pointers.has(event.pointerId) ||
+        (!event.buttons && (handler === move || handler === leave))
+      )
+        handler(event);
+      return;
+    }
     // A captured secondary click would send the contextmenu back to the canvas.
     if (
       event.pointerType === 'mouse' &&
@@ -137,7 +158,8 @@ export function bindCanvasInput(
       return;
     if (
       options.ownsEditingTarget?.(event.target) ||
-      options.ownsNativeSelectionTarget?.(event.target)
+      options.ownsNativeSelectionTarget?.(event.target) ||
+      options.ownsPlatformViewHitTarget?.(event.target)
     )
       handler(event);
   };
@@ -168,6 +190,10 @@ export function bindCanvasInput(
     });
   };
   const nativeWheel = (event: WheelEvent) => {
+    if (options.ownsPlatformViewHitTarget?.(event.target)) {
+      if (options.platformViewInputMatchesPresentation?.() !== false) wheel(event);
+      return;
+    }
     if (
       options.ownsEditingTarget?.(event.target) ||
       options.ownsNativeSelectionTarget?.(event.target)
@@ -175,6 +201,11 @@ export function bindCanvasInput(
       wheel(event);
   };
   const key = (event: KeyboardEvent) => {
+    if (live && options.handlePlatformViewTab?.(event)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     const target = event.target,
       editing = !!options.ownsEditingTarget?.(target);
     if (
@@ -236,7 +267,14 @@ export function bindCanvasInput(
           repeat: event.repeat,
         });
     /* oxlint-enable no-control-regex */
-    if (handled || (!editing && ['Tab', ' ', 'Enter'].includes(event.key))) event.preventDefault();
+    // A focused DOM semantics button has its own keyboard activation when
+    // there is no Core shortcut. Handled Core commands still suppress it.
+    const nativeActivation =
+      target instanceof HTMLButtonElement &&
+      options.ownsSemanticsTarget?.(target) &&
+      (event.key === ' ' || event.key === 'Enter');
+    if (handled || (!editing && !nativeActivation && ['Tab', ' ', 'Enter'].includes(event.key)))
+      event.preventDefault();
   };
   const focus = () => {
       if (live) view.dispatchKeyboardFocusGained();
@@ -244,6 +282,24 @@ export function bindCanvasInput(
     blur = () => {
       if (live) view.dispatchKeyboardFocusLost();
     };
+  const cancelPlatformPointers = () => {
+    for (const pointer of platformPointers) {
+      platformPointers.delete(pointer);
+      if (!pointers.delete(pointer)) continue;
+      view.dispatchPointer({
+        kind: 'cancel',
+        pointer,
+        device: 'unknown',
+        buttons: 0,
+        x: 0,
+        y: 0,
+        timestamp: window.performance.now(),
+        viewportGeneration: view.currentMetrics.viewportGeneration,
+      });
+      if (canvas.hasPointerCapture(pointer)) canvas.releasePointerCapture(pointer);
+    }
+  };
+  options.bindPlatformViewCancellation?.(cancelPlatformPointers);
   canvas.addEventListener('focus', focus);
   canvas.addEventListener('blur', blur);
   canvas.addEventListener('pointerdown', down);
@@ -267,6 +323,7 @@ export function bindCanvasInput(
   return (replacing = false) => {
     if (!live) return;
     live = false;
+    options.bindPlatformViewCancellation?.(undefined);
     const errors: unknown[] = [];
     try {
       if (!replacing) view.dispatchKeyboardFocusLost();

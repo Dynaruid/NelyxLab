@@ -118,6 +118,7 @@ export function debugPackageKey(
       ),
     ].filter((file) => fs.existsSync(file) && fs.statSync(file).isFile());
     return fingerprint([
+      'fresh-debug-apk-output',
       target,
       release.buildId,
       backend,

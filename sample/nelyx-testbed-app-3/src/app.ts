@@ -5,6 +5,7 @@ import { Axis } from '@nelyx/core/framework/painting/basic-types';
 import { EdgeInsets } from '@nelyx/core/framework/painting/edge-insets';
 import {
   Builder,
+  ClipRect,
   Column,
   Expanded,
   Padding,
@@ -28,6 +29,7 @@ import { ComponentsScreen } from './components.ts';
 import { HostSlot, type HostPage, type HostPlacement } from './host-slot.ts';
 import { imageScheme, sampleImage, themeImages, themeImageAsset } from './image-palette.ts';
 import { ColorScreen, ElevationScreen, TypographyScreen } from './theme-screens.ts';
+import { PlatformViewsScreen } from './platform-views.ts';
 
 const seeds = [
   ['M3 Baseline', 0xff6750a4],
@@ -54,6 +56,7 @@ const destinations = [
   },
   { label: 'WebView', icon: Icons.language, selected: Icons.language, page: 'webview' },
   { label: 'Texture', icon: Icons.image_outlined, selected: Icons.image, page: 'texture' },
+  { label: 'Composited views', icon: Icons.layers_outlined, selected: Icons.layers },
 ] as const;
 const barDestinations = destinations.map(
   ({ label, icon, selected }) =>
@@ -442,8 +445,10 @@ class HomeState extends State<Home> {
         return new ColorScreen(this.widget.options.light, this.widget.options.dark);
       case 2:
         return new TypographyScreen();
-      default:
+      case 3:
         return new ElevationScreen();
+      default:
+        return new PlatformViewsScreen();
     }
   }
 
@@ -456,7 +461,7 @@ class HomeState extends State<Home> {
         ? { backgroundColor: new Color(0), surfaceTintColor: new Color(0) }
         : {}),
     });
-    if (!scrollable) return bar;
+    if (!scrollable) return new ClipRect(bar);
     return new SizedBox(
       undefined,
       80,

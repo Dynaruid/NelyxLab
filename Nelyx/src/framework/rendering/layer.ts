@@ -456,6 +456,22 @@ export class PictureLayer extends Layer {
     failures(errors, 'PictureLayer retirement failed');
   }
 }
+export class PlatformViewLayer extends Layer {
+  constructor(
+    private readonly marker: import('../../hosting/platform-views.ts').PlatformViewMarker,
+  ) {
+    super();
+  }
+
+  override supportsRasterization(): boolean {
+    return 'barrier' in this.marker;
+  }
+
+  override addToScene(builder: SceneBuilder): void {
+    builder.addPlatformView(this.marker);
+  }
+}
+
 export class ContainerLayer extends Layer {
   private first: Layer | null = null;
   private last: Layer | null = null;
@@ -654,8 +670,8 @@ export class ContainerLayer extends Layer {
     return this.finishScene(builder, () => builder.build());
   }
   /** Internal frame target takes independent command/resource holds during the same composition. */
-  _buildSceneInto(builder: SceneBuilder, canvas: Canvas): void {
-    this.finishScene(builder, () => builder._buildInto(canvas));
+  _buildSceneInto(builder: SceneBuilder, canvas: Canvas) {
+    return this.finishScene(builder, () => builder._buildInto(canvas));
   }
   /** Returns the composed transform; immutable matrix storage replaces Dart's output argument. */
   applyTransform(child: Layer | null, transform: Matrix4Storage = matrix4Identity): Matrix4Storage {

@@ -38,6 +38,7 @@ import type {
 } from './render-protocol.ts';
 import { sharedArrayBufferConstructor } from './render-shared-memory.ts';
 import { RenderResourceReceiver } from './render-worker-resources.ts';
+import { maxPlatformViewForegrounds } from '@nelyx/core/hosting/platform-views';
 
 const scope = globalThis as unknown as {
   readonly isSecureContext: boolean;
@@ -64,6 +65,8 @@ let lastSequence = 0;
 let queueTimer: ReturnType<typeof setTimeout> | undefined;
 const queue: Extract<RenderRequest, { kind: 'frame' }>[] = [];
 const submitted = new Map<number, number>();
+const layers = new Map<number, OffscreenCanvas>();
+let lastLayer = 0;
 const diagnostics = new FrameDiagnostics(performance, 8);
 
 function reply(response: RenderResponse, transfer: Transferable[] = []): void {
@@ -324,9 +327,18 @@ function draw(request: Extract<RenderRequest, { kind: 'frame' }>): void {
   }
   const decoded = performance.now();
   const lease = registry!.acquire(frame.resources);
+  let accepted = false;
   try {
-    if (library!.submit(frame, lease, diagnostics).status !== 'accepted') {
-      lease.returnBy('caller');
+    const composition = request.composition && {
+      background: request.composition.background,
+      layers: request.composition.layers.map(({ id, range }) => {
+        const layer = layers.get(id);
+        if (!layer) throw new Error('Unknown Web display layer');
+        return { canvas: layer, range };
+      }),
+    };
+    accepted = library!.submit(frame, lease, diagnostics, composition).status === 'accepted';
+    if (!accepted) {
       throw new Error('Worker rejected an admitted Web frame');
     }
     drawnSurface = frame.token.metrics.nativeSurfaceGeneration;
@@ -343,6 +355,7 @@ function draw(request: Extract<RenderRequest, { kind: 'frame' }>): void {
       submittedAt: performance.timeOrigin + sent,
     });
   } finally {
+    if (!accepted) lease.returnBy('caller');
     disposeFrame(frame);
   }
 }
@@ -396,6 +409,8 @@ async function close(): Promise<void> {
   stopping = true;
   clearTimeout(queueTimer);
   queue.length = 0;
+  for (const layer of layers.values()) layer.removeEventListener('webglcontextlost', contextLost);
+  layers.clear();
   canvas?.removeEventListener('webglcontextlost', contextLost);
   try {
     await library?.dispose();
@@ -437,6 +452,30 @@ scope.onmessage = ({ data }) => {
     }
     if (!resources || !library) throw new Error('Web render canvas is not attached');
     switch (data.kind) {
+      case 'attach-layer':
+        if (
+          !Number.isSafeInteger(data.id) ||
+          data.id <= lastLayer ||
+          layers.size >= maxPlatformViewForegrounds ||
+          !(data.canvas instanceof OffscreenCanvas)
+        )
+          throw new Error('Invalid Web display layer attachment');
+        lastLayer = data.id;
+        layers.set(data.id, data.canvas);
+        data.canvas.addEventListener('webglcontextlost', contextLost);
+        break;
+      case 'release-layer': {
+        const layer = layers.get(data.id);
+        if (
+          !layer ||
+          queue.some((frame) => frame.composition?.layers.some(({ id }) => id === data.id))
+        )
+          throw new Error('Invalid Web display layer release');
+        layers.delete(data.id);
+        layer.removeEventListener('webglcontextlost', contextLost);
+        library.releaseDisplayCanvas(layer);
+        break;
+      }
       case 'metrics':
         setMetrics(data.metrics);
         break;
@@ -456,6 +495,16 @@ scope.onmessage = ({ data }) => {
         break;
       case 'frame': {
         checkFrame(data.sequence);
+        const composition = data.composition;
+        if (
+          composition &&
+          (composition.background.start !== 0 ||
+            composition.layers.length < 1 ||
+            composition.layers.length > maxPlatformViewForegrounds ||
+            new Set(composition.layers.map(({ id }) => id)).size !== composition.layers.length ||
+            composition.layers.some(({ id }) => !layers.has(id)))
+        )
+          throw new Error('Invalid Web display composition');
         if (data.resources === undefined) {
           enqueue(data);
           break;

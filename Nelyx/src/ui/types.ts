@@ -149,6 +149,7 @@ export type PaintCommand =
       readonly doAntiAlias: boolean;
     };
 export interface PaintFrame {
+  readonly platformViews?: import('../hosting/platform-views.ts').PlatformViewScene;
   readonly token: FrameBuildToken;
   readonly commands: readonly PaintCommand[];
   readonly resources: readonly ResourceId[];
@@ -416,6 +417,8 @@ export interface SemanticsTextParagraph {
   readonly paintOffset: Offset;
 }
 export interface SemanticsNode {
+  /** The host exposes the embedded control at this traversal position. */
+  readonly platformViewId?: number;
   /** Typed accessibility edits use the same Core delegate as other user edits. */
   readonly textActions?: SemanticsTextActions;
   /** Actual Core content changes, independent of selection and transport acks. */

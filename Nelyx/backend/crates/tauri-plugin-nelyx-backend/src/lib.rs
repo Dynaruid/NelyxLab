@@ -111,6 +111,11 @@ fn allowed<R: Runtime>(
     }
 }
 
+/// Validate the same embedded app page and window as the core backend commands.
+pub fn verify_app_webview<R: Runtime>(webview: &Webview<R>) -> Result<(), BackendError> {
+    allowed(&webview.state::<Backend>(), webview).map(|_| ())
+}
+
 #[tauri::command]
 #[cfg_attr(feature = "generate-bindings", specta::specta)]
 async fn describe<R: Runtime>(

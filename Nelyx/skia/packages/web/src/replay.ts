@@ -71,7 +71,12 @@ export class WebSkiaReplay {
       this.runtimePrograms,
     );
   }
-  draw(canvas: import('canvaskit-wasm').Canvas, frame: PaintFrame, scale = 1): void {
+  draw(
+    canvas: import('canvaskit-wasm').Canvas,
+    frame: PaintFrame,
+    scale = 1,
+    commands = frame.commands,
+  ): void {
     const saveCount = canvas.getSaveCount(),
       errors: unknown[] = [],
       paths: { delete(): void }[] = [];
@@ -89,7 +94,7 @@ export class WebSkiaReplay {
     try {
       // Scrolling usually replays retained pictures and transforms. Only
       // prepare temporary paints and lookup tables for commands that use them.
-      for (const command of frame.commands) {
+      for (const command of commands) {
         if (!paint && (command.op === 'rect' || command.op === 'rrect' || command.op === 'image')) {
           paint = new this.ck.Paint();
           paint.setAntiAlias(true);
@@ -104,7 +109,7 @@ export class WebSkiaReplay {
           (styles ??= new Map()).set(command, value);
         }
       }
-      for (const command of frame.commands)
+      for (const command of commands)
         if ('resource' in command) {
           if (command.op === 'drawPicture') {
             (pictureRefs ??= []).push(this.resources.picture(resourceKey(command.resource)));
@@ -121,7 +126,7 @@ export class WebSkiaReplay {
       canvas.save();
       if (scale !== 1) canvas.scale(scale, scale);
       let pictureIndex = 0;
-      for (const command of frame.commands) {
+      for (const command of commands) {
         const styled = ('paint' in command ? styles!.get(command) : undefined)!;
         switch (command.op) {
           case 'drawPicture':

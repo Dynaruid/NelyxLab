@@ -7,7 +7,8 @@ import { maxWebFrameBytes } from '@nelyx/core/ui/web-frame-wire';
 import type { FrameBuildToken, PaintFrame, SubmitResult } from '@nelyx/core/ui/types';
 import type { WebSkiaLibrary, WebSurfaceMetrics } from '@nelyx/skia-web/library';
 import { renderCapacity, sharedHeaderWords, sharedSlotBytes } from './render-protocol.ts';
-import type { RenderPacket, RenderReply } from './render-protocol.ts';
+import type { RenderPacket, RenderReply, WorkerDisplayComposition } from './render-protocol.ts';
+import type { DomViewFrame } from './platform-views.ts';
 import { RenderResourceSender } from './render-resources.ts';
 import type { RenderRegistration } from './render-resources.ts';
 import { RenderWorkerError } from './render-worker-port.ts';
@@ -21,6 +22,7 @@ interface PendingFrame {
   readonly diagnostics: FrameDiagnostics | undefined;
   readonly packet: RenderPacket;
   readonly bufferCapacity?: number;
+  readonly onSubmitted?: () => void;
   consumed: boolean;
   submitted: boolean;
 }
@@ -31,6 +33,8 @@ export class RenderWorkerFrames {
   private readonly slots = Array.from({ length: renderCapacity }, () => false);
   private readonly header: Int32Array | undefined;
   private readonly resources: RenderResourceSender;
+  private readonly layers = new Map<HTMLCanvasElement, number>();
+  private nextLayer = 0;
   private closing: Promise<void> | undefined;
   private watchdog: ReturnType<typeof setTimeout> | undefined;
   private watchdogDeadline = Infinity;
@@ -143,7 +147,40 @@ export class RenderWorkerFrames {
     }
   }
 
-  submit(frame: PaintFrame, lease: ResourceLease, diagnostics?: FrameDiagnostics): SubmitResult {
+  private attachLayers(prepared: DomViewFrame | undefined): WorkerDisplayComposition | undefined {
+    if (!prepared?.layers.length) return;
+    const layers = prepared.layers.map(({ canvas, range }) => {
+      let id = this.layers.get(canvas);
+      if (id === undefined) {
+        const transferred = canvas.transferControlToOffscreen();
+        id = ++this.nextLayer;
+        this.port.post({ kind: 'attach-layer', id, canvas: transferred }, [transferred]);
+        this.layers.set(canvas, id);
+      }
+      return { id, range };
+    });
+    return { background: prepared.background, layers };
+  }
+
+  releaseLayer(canvas: HTMLCanvasElement): void {
+    const id = this.layers.get(canvas);
+    if (id === undefined) return;
+    this.layers.delete(canvas);
+    if (this.failed || this.closing) return;
+    try {
+      this.port.post({ kind: 'release-layer', id });
+    } catch (error) {
+      this.fail(new RenderWorkerError('worker-frame', String(error)));
+    }
+  }
+
+  submit(
+    frame: PaintFrame,
+    lease: ResourceLease,
+    diagnostics?: FrameDiagnostics,
+    prepared?: DomViewFrame,
+    onSubmitted?: () => void,
+  ): SubmitResult {
     const token = frame.token,
       sequence = token.sequence;
     if (!this.canBuildFrame() || this.pending.has(sequence))
@@ -169,6 +206,7 @@ export class RenderWorkerFrames {
     let packet: RenderPacket | undefined;
     let transfer: ArrayBuffer[] = [];
     let length: number;
+    let composition: WorkerDisplayComposition | undefined;
     try {
       const bytes = encodeFrame(frame, batch?.resolve ?? this.resources.resolve, {
         format: 'web',
@@ -200,6 +238,7 @@ export class RenderWorkerFrames {
       if (!packet) throw new Error('Web frame packet allocator did not run');
       length = bytes.byteLength;
       if (batch) transfer.push(...batch.transfer);
+      composition = this.attachLayers(prepared);
     } catch (error) {
       this.fail(new RenderWorkerError('worker-frame', String(error)));
       return { status: 'rejected', reason: 'busy' };
@@ -216,6 +255,7 @@ export class RenderWorkerFrames {
       packet,
       consumed: false,
       submitted: false,
+      ...(onSubmitted ? { onSubmitted } : {}),
       ...(packet.transport === 'transfer' ? { bufferCapacity: packet.buffer.byteLength } : {}),
     });
     this.telemetry.maxPending = Math.max(this.telemetry.maxPending, this.pending.size);
@@ -235,6 +275,7 @@ export class RenderWorkerFrames {
           viewport: token.metrics.viewportGeneration,
           context: token.metrics.nativeContextGeneration,
           ...(batch ? { resources: batch.resources } : {}),
+          ...(composition ? { composition } : {}),
         },
         transfer,
       );
@@ -327,6 +368,7 @@ export class RenderWorkerFrames {
       diagnostics?.recordDuration(token, 'web-worker-decode', message.decodeMs);
       diagnostics?.recordDuration(token, 'web-worker-replay', message.replayMs);
       diagnostics?.recordDuration(token, 'web-worker-submit', message.submitMs);
+      frame.onSubmitted?.();
       return;
     }
     if (message.result === 'gpu-retired') {
@@ -363,6 +405,7 @@ export class RenderWorkerFrames {
           errors.push(error);
         }
       this.buffers.length = 0;
+      this.layers.clear();
       this.resources.clear();
       this.noteResourceBytes(0);
       if (errors.length)

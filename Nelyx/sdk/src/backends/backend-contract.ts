@@ -9,6 +9,7 @@ import { validDeviceFeatures } from '../runtime/config.ts';
 import type { TauriScrollEdgeEffects } from '../runtime/config.ts';
 import type { BrowserDeviceOptions } from './browser/devices.ts';
 import type { SystemChromeHost } from '../runtime/os-services.ts';
+import type { OpenNativePlatformViews } from './browser/native-platform-views.ts';
 
 const backendProtocol = 3;
 
@@ -48,6 +49,7 @@ export interface BackendConnection {
   systemChrome?(view: Window): SystemChromeHost | undefined;
   readonly scrollEdgeEffects?: WebViewScrollEdgeEffects;
   readonly windowAcrylic?: WindowAcrylic;
+  nativePlatformViews?(view: Window): OpenNativePlatformViews | undefined;
   devices?(view: Window, options: BrowserDeviceOptions): DeviceServices;
   safeArea?(view: Window): WebSafeAreaSource | undefined;
   setTitle?(title: string): Promise<void>;

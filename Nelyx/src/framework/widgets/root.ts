@@ -35,6 +35,9 @@ import type { Offset } from '../../ui/geometry.ts';
 import { PaintingContext } from '../painting/context.ts';
 import { FrameRecording, sameOwner } from '../../ui/frame.ts';
 import type { SceneFrameSource } from '../../ui/frame.ts';
+import type { PlatformViewScene } from '../../hosting/platform-views.ts';
+import { partitionPlatformViewScene } from '../../ui/platform-view-scene.ts';
+import { platformViewInput } from '../rendering/platform-view-input.ts';
 import { PaintingBinding } from '../painting/binding.ts';
 import { withRenderPaint, assertOutsideRenderPaint } from '../rendering/phase.ts';
 import { paintRenderObject } from '../rendering/retained-paint.ts';
@@ -629,6 +632,7 @@ export class FrameworkRoot implements ViewController {
       buildError: unknown,
       painting: PaintingContext | undefined,
       recording: FrameRecording | undefined,
+      platformViews: PlatformViewScene | undefined,
       geometryCommit: ReturnType<RenderObject['commitTextInputGeometries']> | undefined,
       sceneComposition:
         | import('../../hosting/scene-composition.ts').SceneCompositionTransaction
@@ -783,20 +787,33 @@ export class FrameworkRoot implements ViewController {
       this.recordPaint(render, painting);
       finishDiagnostic?.('paint');
       sceneComposition = this.context.sceneComposition?.begin(scene.token, diagnostics);
-      withRenderPaint(() =>
+      const viewport = {
+        x: 0,
+        y: 0,
+        width: scene.token.metrics.logicalWidth,
+        height: scene.token.metrics.logicalHeight,
+      };
+      const markers = withRenderPaint(() =>
         painting!.compose(
           this.layerRoot.layer!,
-          {
-            x: 0,
-            y: 0,
-            width: scene.token.metrics.logicalWidth,
-            height: scene.token.metrics.logicalHeight,
-          },
+          viewport,
           this.context.pictures ?? null,
           sceneComposition,
         ),
       );
       painting.commands.unshift({ op: 'clear', color: this.options.background ?? 0xff101827 });
+      if (markers?.length) {
+        const parts = partitionPlatformViewScene(
+          painting.commands,
+          markers.map((marker) => ({ ...marker, index: marker.index + 1 })),
+          viewport,
+          (resource) => this.context.pictures?.commands(resource),
+        );
+        platformViews = {
+          parts,
+          input: platformViewInput(render, parts, viewport, (point) => this.pointerHitTest(point)),
+        };
+      }
       finishDiagnostic?.('compose', painting.commands.length);
       if (measureAppFrame) appPaint = this.context.clock.now() - appPhaseStart;
       if (diagnostics && paintCounts) {
@@ -1203,7 +1220,8 @@ export class FrameworkRoot implements ViewController {
       if (!failed && !errors.length && this.isViewOpen() && !this.scheduler.disposed && painting) {
         captureAttempted = true;
         try {
-          recording = FrameRecording.capture(scene.token, painting);
+          recording = FrameRecording.capture(scene.token, painting, platformViews);
+          this.context.platformViews?.recordInput(platformViews?.input ?? []);
           finishDiagnostic?.('capture', recording.commands.length);
         } catch (error) {
           captureFailed = true;

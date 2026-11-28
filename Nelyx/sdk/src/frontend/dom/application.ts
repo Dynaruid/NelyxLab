@@ -22,6 +22,12 @@ import { DeviceScope } from '../../runtime/device-scope.ts';
 import { BrowserRenderer } from '../../backends/browser/renderer.ts';
 import type { WebRenderMode } from '../../backends/browser/render-protocol.ts';
 import { workerBackingPixelLimit } from '../../backends/browser/render-protocol.ts';
+import type { DomPlatformViewFactories } from '../../backends/browser/platform-views.ts';
+export type {
+  DomPlatformView,
+  DomPlatformViewFactory,
+  DomPlatformViewFactories,
+} from '../../backends/browser/platform-views.ts';
 import type { WebRenderDiagnostics } from '../../backends/browser/render-telemetry.ts';
 import { getFrontendHost } from './environment.ts';
 
@@ -227,6 +233,12 @@ export interface WebApplicationOptions extends Omit<
   readonly canvas: HTMLCanvasElement;
   /** A clipping parent whose content box controls the view and whose canvas styling is owned by the SDK. */
   readonly canvasViewport?: HTMLElement;
+  /** Registered DOM controls are scoped to this clipping viewport. */
+  readonly platformViews?: DomPlatformViewFactories;
+  readonly windowsPlatformViews?: readonly import('../../backends/browser/native-platform-views.ts').WindowsPlatformViewType[];
+  readonly androidPlatformViews?: boolean;
+  readonly linuxPlatformViews?: boolean;
+  readonly applePlatformViews?: boolean;
   readonly input: HTMLInputElement;
   readonly button: HTMLButtonElement;
   readonly manifest: readonly AppAsset[];

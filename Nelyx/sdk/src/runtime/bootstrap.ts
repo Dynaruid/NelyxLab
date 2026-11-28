@@ -141,6 +141,7 @@ export class ComposedApplication<
         () => this.services.dialogWindows?.stop(),
         () => this.platformViewRegistration?.dispose(),
         () => this.services.nativeSelectionContextMenu?.stop(),
+        () => this.services.platformViews?.dispose(),
         () => this.session.beginClose(),
         () => this.services.inputGeometry?.dispose(),
         () => this.services.sceneComposition?.dispose(),
@@ -373,6 +374,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
       semantics: services.semantics,
       ...(services.inputGeometry ? { inputGeometry: services.inputGeometry } : {}),
       ...(services.sceneComposition ? { sceneComposition: services.sceneComposition } : {}),
+      ...(services.platformViews ? { platformViews: services.platformViews } : {}),
       ...(services.semanticsGeometry ? { semanticsGeometry: services.semanticsGeometry } : {}),
       ...(services.nativeSelectionContextMenu
         ? { nativeSelectionContextMenu: services.nativeSelectionContextMenu }
@@ -419,6 +421,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
         ...(services.dialogWindows ? { dialogWindows: services.dialogWindows } : {}),
         ...(services.inputGeometry ? { inputGeometry: services.inputGeometry } : {}),
         ...(services.sceneComposition ? { sceneComposition: services.sceneComposition } : {}),
+        ...(services.platformViews ? { platformViews: services.platformViews } : {}),
         ...(services.semanticsGeometry ? { semanticsGeometry: services.semanticsGeometry } : {}),
         ...(services.nativeSelectionContextMenu
           ? { nativeSelectionContextMenu: services.nativeSelectionContextMenu }
@@ -474,6 +477,7 @@ export async function bootstrapApplication<TText extends TextLayoutService>(
       () => services.devices?.scope.stop(),
       () => services.dialogWindows?.stop(),
       () => services.nativeSelectionContextMenu?.stop(),
+      () => services.platformViews?.dispose(),
       () => session.beginClose(),
       () => imageOwner?.stop(),
       () => rasterOwner?.stop(),

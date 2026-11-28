@@ -33,6 +33,7 @@ interface Editor {
 }
 const sourceDomRoles = new Map<SemanticsRole, string>([
   [SemanticsRole.dialog, 'dialog'],
+  [SemanticsRole.alertDialog, 'alertdialog'],
   [SemanticsRole.progressBar, 'progressbar'],
   [SemanticsRole.loadingSpinner, 'progressbar'],
   [SemanticsRole.table, 'table'],
@@ -60,6 +61,7 @@ function sameContent(previous: SemanticsNode, node: SemanticsNode): boolean {
   return (
     previous === node ||
     (previous.role === node.role &&
+      previous.platformViewId === node.platformViewId &&
       previous.name === node.name &&
       previous.locale === node.locale &&
       previous.textDirection === node.textDirection &&
@@ -125,6 +127,7 @@ export function createDomInteraction(
   readViewport?: () => BrowserInputViewport,
   accessibilityEnabled = true,
   nativeContextMenuEnabled?: () => boolean,
+  platformViews?: import('./platform-views.ts').DomPlatformViews,
 ) {
   const document = input.ownerDocument;
   const window = document.defaultView!;
@@ -857,7 +860,11 @@ export function createDomInteraction(
   function applyContent(node: SemanticsNode, element: HTMLElement) {
     const editContext = element.dataset.nelyxEditContext === 'true',
       nativeEditor = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
-    if (node.role !== 'text-field' && node.role !== 'button')
+    if (node.platformViewId !== undefined) {
+      element.setAttribute('role', 'group');
+      element.removeAttribute('tabindex');
+      if (!platformViews) element.setAttribute('aria-hidden', 'true');
+    } else if (node.role !== 'text-field' && node.role !== 'button') {
       element.setAttribute(
         'role',
         node.isSlider
@@ -867,6 +874,10 @@ export function createDomInteraction(
               passiveDomRoles[node.role] ??
               'group'),
       );
+      element.tabIndex = node.focusable === true || node.role === 'list' ? 0 : -1;
+      element.removeAttribute('aria-owns');
+      element.removeAttribute('aria-hidden');
+    }
     const metadata = node.role === 'text-field' ? fields.get(node.id)?.metadata : undefined;
     applyLanguage(
       element,
@@ -912,8 +923,6 @@ export function createDomInteraction(
     if (node.isSlider && node.enabled && !node.actions?.focus)
       semanticsAdjustmentTargets.add(element);
     else semanticsAdjustmentTargets.delete(element);
-    if (node.role !== 'text-field' && node.role !== 'button')
-      element.tabIndex = node.focusable === true || node.role === 'list' ? 0 : -1;
   }
 
   function currentNode(element: HTMLElement): SemanticsNode | undefined {
@@ -1028,6 +1037,7 @@ export function createDomInteraction(
         buttons.delete(id);
       }
     const order = new Map<HTMLElement, HTMLElement[]>();
+    const tabOrder: { element: HTMLElement; platformViewId?: number }[] = [];
     const publishNode = (node: SemanticsNode, container: HTMLElement) => {
       let element: HTMLElement;
       if (node.role === 'text-field') element = field(node.id).element;
@@ -1055,6 +1065,12 @@ export function createDomInteraction(
         previous = retained ? previousNodes.get(node.id) : undefined;
       applyGeometry(node, element, retained);
       if (!previous || !sameContent(previous, node)) applyContent(node, element);
+      if (platformViews)
+        tabOrder.push(
+          node.platformViewId === undefined
+            ? { element }
+            : { element, platformViewId: node.platformViewId },
+        );
       if (!retained) {
         controlIds.set(element, node.id);
         if (node.role === 'button') element.onclick = click;
@@ -1093,7 +1109,14 @@ export function createDomInteraction(
       if (!publishedElements.has(element)) {
         cursor?.remove(element);
         element.onkeydown = null;
-        for (const attribute of ['role', 'aria-label', 'aria-description', 'tabindex'])
+        for (const attribute of [
+          'role',
+          'aria-label',
+          'aria-description',
+          'aria-owns',
+          'aria-hidden',
+          'tabindex',
+        ])
           element.removeAttribute(attribute);
         if (!containsComposition(element)) {
           element.remove();
@@ -1101,6 +1124,7 @@ export function createDomInteraction(
         }
       }
     if (!fields.size) publishedTree = roots;
+    platformViews?.syncSemantics(tabOrder);
   }
   const hide = () => {
     bound = false;
@@ -1109,6 +1133,7 @@ export function createDomInteraction(
     publishedNodes.clear();
     for (const element of publishedElements) cursor?.remove(element);
     publishedElements.clear();
+    platformViews?.syncSemantics([]);
     for (const editor of fields.values()) editor.element.style.display = 'none';
     for (const element of buttons.values()) element.style.display = 'none';
     for (const element of passive.values()) element.style.display = 'none';
