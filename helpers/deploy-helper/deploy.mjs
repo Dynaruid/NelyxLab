@@ -14,6 +14,7 @@ import {
   platformTarget,
 } from '../../Nelyx/sdk/tooling/cli/src/tauri-platforms.mjs';
 import { androidTargets, iosTargets, iosSimulatorArchitecture } from './devices.mjs';
+import { configuredIosDevelopmentTeam, iosSigningTeams } from './ios-signing.mjs';
 
 const root = path.resolve(import.meta.dirname, '../..');
 const platforms = ['web', 'windows', 'android', 'ios'];
@@ -23,11 +24,13 @@ const apps = {
   Testbed3: 'sample/nelyx-testbed-app-3',
 };
 const targetKinds = { android: ['device', 'emulator'], ios: ['device', 'simulator'] };
+const appleTeamId = /^[A-Z0-9]{10}$/i;
 const cliOptions = {
   platform: { type: 'string' },
   app: { type: 'string' },
   target: { type: 'string', default: 'auto' },
   device: { type: 'string' },
+  'development-team': { type: 'string' },
   architecture: { type: 'string' },
   port: { type: 'string' },
   base: { type: 'string' },
@@ -42,6 +45,7 @@ const usage = `Usage: npm run deploy -- [--platform ${platforms.join('|')}] [--a
 
   --target auto|device|emulator|simulator  Filter Android or iOS destinations
   --device <id>                          ADB serial, iOS device ID, or simulator UDID
+  --development-team <id>                Apple Team ID for physical iOS deployment
   --architecture <arch>                  Tauri architecture (Android matches the device ABI)
   --port <0..65535>                       Web preview port (0 selects a free port)
   --base </path/>                         Web preview path (default /)
@@ -93,6 +97,12 @@ function validateOptions(platform, options) {
     );
   if (options.device !== undefined && (!mobile(platform) || !options.device.trim()))
     throw new Error('--device requires a mobile platform and a device ID');
+  if (options['development-team'] !== undefined) {
+    if (platform !== 'ios' || options.target === 'simulator')
+      throw new Error('--development-team requires a physical iOS device');
+    if (!appleTeamId.test(options['development-team']))
+      throw new Error('--development-team requires a 10-character Apple Team ID');
+  }
   if (
     options.architecture !== undefined &&
     (!platform || platform === 'web' || !options.architecture)
@@ -176,9 +186,40 @@ async function deploy(platform, app, device, options, signal) {
   const buildOnly = platform === 'windows' && noLaunch;
 
   if (device) console.log(`Destination ${deviceLabel(device)}`);
+  let developmentTeam;
+  if (platform === 'ios' && !simulator) {
+    developmentTeam =
+      options['development-team']?.toUpperCase() ??
+      (process.env.APPLE_DEVELOPMENT_TEAM?.trim() ||
+        configuredIosDevelopmentTeam(path.join(root, app)));
+    const manualSigning =
+      process.env.IOS_MOBILE_PROVISION ||
+      (process.env.IOS_CERTIFICATE && process.env.IOS_CERTIFICATE_PASSWORD);
+    if (!developmentTeam && !manualSigning && !options['dry-run']) {
+      const teams = iosSigningTeams();
+      if (!teams.length)
+        console.warn(
+          'No Apple Development signing identities found in the Keychain. Set up signing in Xcode or pass --development-team.',
+        );
+      else {
+        const team = await select(
+          teams,
+          'iOS signing teams',
+          '--development-team',
+          signal,
+          ({ name, id }) => `${name} (${id})`,
+        );
+        developmentTeam = team.id;
+      }
+    }
+    if (developmentTeam) console.log(`iOS signing team ${developmentTeam}`);
+  }
   if (options['dry-run']) console.log(`Working directory ${root}`);
   console.log(`Output ${output}`);
-  console.log(`> node ${buildArgs.join(' ')}`);
+  const signing = appleTeamId.test(developmentTeam ?? '')
+    ? `APPLE_DEVELOPMENT_TEAM=${developmentTeam} `
+    : '';
+  console.log(`> ${signing}node ${buildArgs.join(' ')}`);
   if (options['dry-run']) {
     if (boot) console.log(`> xcrun ${boot.join(' ')}`);
     if (show) console.log(`> open ${show.join(' ')}`);
@@ -189,7 +230,10 @@ async function deploy(platform, app, device, options, signal) {
 
   const cwd = root;
   if (nativeTarget) inspectPlatform(nativeTarget);
-  await withPublicationLock(root, () => execute(process.execPath, buildArgs, { cwd, signal }));
+  const env = developmentTeam
+    ? { ...process.env, APPLE_DEVELOPMENT_TEAM: developmentTeam }
+    : undefined;
+  await withPublicationLock(root, () => execute(process.execPath, buildArgs, { cwd, signal, env }));
   if (buildOnly) return 0;
   if (boot) await execute('xcrun', boot, { cwd, signal, timeout: 180_000 });
   if (show) await execute('open', show, { cwd, signal });
@@ -227,6 +271,7 @@ async function main(signal) {
     (options.list ? undefined : await select(names, 'Apps', '--app', signal));
   options.target = options.target.toLowerCase();
   validateOptions(platform, options);
+  if (options['development-team']) options.target = 'device';
   const devices =
     platform === 'android'
       ? androidTargets(options.target)

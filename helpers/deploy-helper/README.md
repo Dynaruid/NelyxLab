@@ -11,6 +11,7 @@ npm run deploy -- --platform web --app Demo
 npm run deploy -- --platform windows --app Testbed --no-launch
 npm run deploy -- --platform web --app Testbed3
 npm run deploy -- --platform android --target emulator --list
+npm run deploy -- --platform ios --app Testbed3 --target device
 npm run deploy -- --platform ios --app Demo --target simulator
 ```
 
@@ -27,3 +28,11 @@ From another directory, run `node <path-to-NelyxLab>/helpers/deploy-helper/deplo
 - **Windows.** Install Visual Studio C++ x64 build tools, a Windows SDK, the Rust MSVC target, and WebView2. [Tauri platform setup](../../Nelyx/sdk/tooling/cli/README.md#build-and-run-tauri)
 - **Android.** Set `JAVA_HOME`, `ANDROID_HOME`, and `NDK_HOME` for packaging. `--list` uses `ANDROID_HOME` or `ANDROID_SDK_ROOT`, with `adb` on `PATH` as a fallback. The helper reads the device ABI to choose `arm64` or `x64`. Use `--target device` or `--target emulator` to filter the list. Use `build:tauri -- --platform android` to publish an APK and AAB for distribution. [Android setup](../../sample/nelyx-demo-app/README.md#run-on-android)
 - **iOS.** Install Xcode and the matching Rust target. Set up an iOS simulator runtime or configure development signing for the physical device. Use `--target simulator` or `--target device` to filter the list. The helper picks `arm64` for a device and `arm64-sim` or `x64-sim` for a simulator according to the Mac CPU. [Tauri platform setup](../../Nelyx/sdk/tooling/cli/README.md#build-and-run-tauri)
+
+## Signing for physical iOS devices
+
+After you pick a physical device, the helper checks the Mac Keychain for development signing teams. It shows each team's name and Team ID when several are available and automatically selects a single team. To skip the menu, specify `--development-team`, set `APPLE_DEVELOPMENT_TEAM`, or set `bundle.iOS.developmentTeam` in the app's `platform/ios/tauri.conf.json`. The helper looks for those settings in that order. [Tauri iOS signing setup](https://v2.tauri.app/distribute/sign/ios/)
+
+```sh
+npm run deploy -- --platform ios --app Testbed3 --target device --development-team ABCDE12345
+```

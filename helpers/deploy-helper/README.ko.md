@@ -14,6 +14,7 @@ npm.cmd run deploy -- --platform android --target emulator --list
 ```
 
 ```sh
+npm run deploy -- --platform ios --app Testbed3 --target device
 npm run deploy -- --platform ios --app Demo --target simulator
 ```
 
@@ -30,3 +31,11 @@ npm run deploy -- --platform ios --app Demo --target simulator
 - **Windows.** Visual Studio C++ x64 빌드 도구, Windows SDK, Rust MSVC 타깃과 WebView2를 준비합니다. [Tauri 준비](../../Nelyx/sdk/tooling/cli/README.ko.md#tauri-빌드와-실행)
 - **Android.** 패키징에 `JAVA_HOME`, `ANDROID_HOME`, `NDK_HOME`을 설정합니다. 목록 조회에는 `ANDROID_HOME` 또는 `ANDROID_SDK_ROOT`를 사용하고, 둘 다 비어 있으면 `PATH`에서 `adb`를 찾습니다. 기기 ABI를 읽어 `arm64` 또는 `x64`를 고릅니다. `--target device`나 `--target emulator`로 목록을 좁힐 수 있습니다. [Android 준비](../../sample/nelyx-demo-app/README.ko.md#android에서-실행)
 - **iOS.** Xcode와 해당 Rust 타깃을 준비합니다. 시뮬레이터에는 iOS 런타임이 필요하고 실기기는 개발 서명이 필요합니다. `--target simulator`나 `--target device`로 목록을 좁힐 수 있습니다. 실기기에는 `arm64`를 사용하고 시뮬레이터는 Mac CPU에 따라 `arm64-sim` 또는 `x64-sim`을 선택합니다. [Tauri 준비](../../Nelyx/sdk/tooling/cli/README.ko.md#tauri-빌드와-실행)
+
+## iOS 실기기 서명
+
+아이폰을 선택하면 Mac 키체인에서 사용할 수 있는 개발 서명 팀을 찾습니다. 팀이 여러 개면 이름과 Team ID를 보고 선택합니다. 한 팀만 있으면 자동으로 선택합니다. `--development-team`, `APPLE_DEVELOPMENT_TEAM`, 앱의 `platform/ios/tauri.conf.json`에 설정한 `bundle.iOS.developmentTeam`을 이 순서로 우선 사용합니다. [Tauri iOS 서명 설정](https://v2.tauri.app/distribute/sign/ios/)
+
+```sh
+npm run deploy -- --platform ios --app Testbed3 --target device --development-team ABCDE12345
+```
