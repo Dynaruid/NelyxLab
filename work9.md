@@ -330,6 +330,12 @@ WebView2 스크립트를 디버거에서 일시 정지하고 같은 드래그를
 
 두 배율의 정지 오차는 0px였다. 색상 키에서도 오른쪽 모서리의 `EDIT`–슬롯 오차 p95는 최대 14px였다. 알파 254 비교에서 `EDIT`–`+` 오차 p95는 200%의 왼쪽 14px·오른쪽 16px, 125%에서 15–16px였다. 좌상단 한 픽셀을 제외한 복합 창 영역도 200% 왼쪽 두 모서리의 오차 p95가 14px였다. `CLR_INVALID`를 키로 넘긴 별도 비교에서는 흰 편집기 픽셀 자리에 WebView 배경색이 나타났다. 키와 일치하는 픽셀은 표시와 히트 테스트에서 빠지므로 색상 키 비교는 계측에 한정했다. [계층형 창의 히트 테스트](https://learn.microsoft.com/en-us/windows/win32/winmsg/window-features#layered-windows)
 
+#### 스크롤바 분리와 공통 DirectComposition 대상
+
+Testbed 3 direct에서 125%·200% 배율의 각 모서리에 60Hz로 가로 ±98px와 세로 약 ±59px의 가상 마우스 드래그를 보냈다. `EDIT`의 세로 스크롤바만 별도 Win32 `SCROLLBAR` HWND로 옮겨 기존 전경과 함께 배치한 실험에서는 여덟 조합의 `EDIT`–`+` 가로 오차가 p95 14px, 최대 14–16px였다. 200% 왼쪽 위·아래의 p95는 기존과 같은 14px였다. 같은 프런트엔드의 기존 `EDIT`에서 자식 창 배치 직전 또는 DirectComposition 커밋 직후에 `DwmFlush`를 호출한 두 실험은 모두 p95 14–16px였다. 두 변경을 되돌린 Windows x64 패키지 `bcf4a74aab09`에서 direct 실제 클릭, 편집기 포커스와 Tab 왕복, UI Automation·MSAA 접근성, 모달 뒤 동일 HWND 복귀를 확인했다. [Win32 패키지 검사](Nelyx/eng/fixtures/testbed-win32-platform-views.mjs) · [DwmFlush](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/nf-dwmapi-dwmflush)
+
+별도 Win32 창에서는 200% 배율, 고정된 부모와 오른쪽 경계에서 `EDIT` 너비를 982px와 1038px 사이로 60Hz에서 26회 전환했다. 불투명한 배경을 둔 고정 크기 DirectComposition 대상에 `EDIT`와 전경 표식을 함께 올려도 기본 비클라이언트 스크롤바를 사용하면 본문 오른쪽 경계 오차가 p95/최대 35/35px였다. 같은 합성 대상에 테두리를 뺀 `EDIT`, 별도 `SCROLLBAR`, 전경 표식을 올리고 각 영역의 변환과 클립을 함께 적용하자 71개 DXGI 프레임에서 본문 경계와 전체 바깥 경계의 상대 오차가 모두 0/0px였다. 실제 `EDIT`의 불투명도를 1/255로 두었을 때도 투영은 불투명하게 표시됐으며 가상 마우스 클릭이 실제 `EDIT`에 포커스를 주었다. Testbed에 이 경로를 연결한 상태의 네 모서리 표시, 실제 스크롤바 입력, 캐럿·IME·접근성은 확인이 남았다. [계층형 HWND 투영](https://learn.microsoft.com/en-us/windows/win32/api/dcomp/nf-dcomp-idcompositiondevice-createsurfacefromhwnd)
+
 ### 확인 명령
 
 ```powershell
@@ -349,7 +355,7 @@ node Nelyx/eng/check-tauri-windows.mjs sample/nelyx-demo-app --render-mode=direc
 
 | 대상 | 남은 검증과 재개 위치 |
 | --- | --- |
-| Windows | Testbed `b449bdf77bbd` direct의 125%·200% 네 모서리 측정이 기준이다. 정지 시 편집기와 전경의 상대 오차는 0px였고 이동 중 불투명 알파 경로의 p95는 14–16px였다. `EDIT` 크기 적용과 Skia 전경 커밋 경로부터 비교하고, 같은 합성 프레임에서 슬롯·편집기·버튼 경계와 입력을 다시 확인한다. 배율이 다른 모니터 이동과 장시간 GPU 메모리 검증도 남았다. [측정 결과](#계층형-편집기의-표면과-접근성-좌표) · [편집기 배치](Nelyx/sdk/tooling/cli/templates/tauri/src/windows_platform_views.rs) · [전경 표시](Nelyx/sdk/tooling/cli/templates/tauri/skia-foreground/src/win32.rs) |
+| Windows | Testbed direct의 125%·200% 네 모서리에서 이동 중 불투명 알파 경로의 오차 p95는 14–16px다. 스크롤바와 실제 `EDIT`의 투영을 Skia 전경과 같은 고정 크기 DirectComposition 대상에 올린 단독 창의 결과를 제품 경로에서 재현하는 작업이 남았다. 같은 DXGI 프레임에서 슬롯·편집기·버튼 경계, 스크롤바 입력, 캐럿·IME와 접근성을 확인한다. 드래그 도중의 모니터 간 배율 전환과 장시간 GPU 메모리 검증도 남았다. [후속 실험](#스크롤바-분리와-공통-directcomposition-대상) · [편집기 배치](Nelyx/sdk/tooling/cli/templates/tauri/src/windows_platform_views.rs) · [전경 표시](Nelyx/sdk/tooling/cli/templates/tauri/skia-foreground/src/win32.rs) |
 | Android ARM64 | 갤럭시에서 TalkBack으로 `+`, 실제 편집기, 모달 열기·닫기를 확인했다. 전경 켬·끔의 입력 표시 지연은 편집기에 글자가 들어가는 입력에서 다시 계측한다. 직전 계측은 일부 입력에서 포커스가 WebView로 이동했고 유효한 지연 표본을 얻지 못했다. [실행 현황](#7-실행-현황) |
 | iOS·macOS | Windows 교차 타깃의 Rust 검사와 Apple Skia 공급 해시 확인까지 마쳤다. Apple Silicon Mac에서 §5의 명령으로 Xcode 링크·패키징·실행을 검증하고, UIKit·AppKit 편집기와 전경의 겹침·입력·VoiceOver를 확인한다. [Apple 작업 항목](#w9-07--후속-네이티브-포트와-패키지-회귀) · [실행 명령](#5-구현-후-실행할-검증-명령) |
 | Linux ARM64 | AArch64 ELF·DEB와 QEMU에서의 Testbed 창 시작을 확인했다. ARM64 실기기에서 패키지를 실행해 GTK 편집기와 전경 합성, 입력을 검증한다. [실행 현황](#7-실행-현황) |
