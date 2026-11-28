@@ -42,7 +42,7 @@ import { ComponentImage } from './component-image.ts';
 
 type Update = (change: () => void) => void;
 type Example = (context: BuildContext, update: Update) => Widget;
-type Demo = readonly [label: string, build: Example];
+type Demo = readonly [label: string, build: Example, keepAlive?: boolean];
 type InputState = 'normal' | 'error' | 'disabled';
 const { Icons } = M;
 const sectionRadius = Radius.circular(12);
@@ -108,7 +108,7 @@ class GallerySection extends StatefulWidget {
 
 class SectionState extends AutomaticKeepAliveClientMixin<GallerySection> {
   protected get wantKeepAlive(): boolean {
-    return true;
+    return this.widget.demo[2] ?? false;
   }
 
   private readonly updateExample: Update = (change) => {
@@ -219,6 +219,7 @@ class ComponentsState extends State<ComponentsScreen> {
   private switched = false;
   private iconSwitch = true;
 
+  // Keep sections attached when nested controls or a persistent sheet need their State.
   private readonly groups: readonly (readonly [string, readonly Demo[]])[] = [
     [
       'Actions',
@@ -243,9 +244,9 @@ class ComponentsState extends State<ComponentsScreen> {
     [
       'Containment',
       [
-        ['Bottom sheet', (context, update) => this.bottomSheet(context, update)],
+        ['Bottom sheet', (context, update) => this.bottomSheet(context, update), true],
         ['Cards', (context) => this.cards(context)],
-        ['Carousel', (context) => this.carousel(context)],
+        ['Carousel', (context) => this.carousel(context), true],
         ['Dialog', (context) => this.dialogs(context)],
         ['Dividers', () => new M.Divider()],
       ],
@@ -288,10 +289,11 @@ class ComponentsState extends State<ComponentsScreen> {
                   }),
               }),
             ),
+          true,
         ],
-        ['Tabs', () => this.tabs()],
-        ['Search', (_context, update) => this.search(update)],
-        ['Top app bars', (context) => this.topAppBars(context)],
+        ['Tabs', () => this.tabs(), true],
+        ['Search', (_context, update) => this.search(update), true],
+        ['Top app bars', (context) => this.topAppBars(context), true],
       ],
     ],
     [
@@ -313,14 +315,14 @@ class ComponentsState extends State<ComponentsScreen> {
               void this.pickTime(context, update);
             }),
         ],
-        ['Menus', (context) => this.menus(context)],
+        ['Menus', (context) => this.menus(context), true],
         ['Radio buttons', (_context, update) => this.radios(update)],
         ['Sliders', (_context, update) => this.sliders(update)],
         ['Switches', (_context, update) => this.switches(update)],
       ],
     ],
-    ['Text inputs', [['Text fields', () => this.textInputs()]]],
-    ['Image demo', [['Image demo', () => new ComponentImage()]]],
+    ['Text inputs', [['Text fields', () => this.textInputs(), true]]],
+    ['Image demo', [['Image demo', () => new ComponentImage(), true]]],
   ];
 
   private readonly sections = this.groups.map(([name, demos]) =>
@@ -341,7 +343,6 @@ class ComponentsState extends State<ComponentsScreen> {
   }
 
   private list(children: readonly Widget[], controller: ScrollController): Widget {
-    // Each column lays out visible examples and keeps the state of previously visited sections.
     return new ListView({
       children,
       controller,
@@ -875,7 +876,7 @@ class ComponentsState extends State<ComponentsScreen> {
     update(() => {
       this.date = date;
     });
-    notify(context, `Selected date: ${date.day}/${date.month}/${date.year}`);
+    notify(this.context, `Selected date: ${date.day}/${date.month}/${date.year}`);
   }
 
   private async pickTime(context: BuildContext, update: Update) {
@@ -884,7 +885,7 @@ class ComponentsState extends State<ComponentsScreen> {
     update(() => {
       this.time = time;
     });
-    if (context.mounted) notify(context, `Selected time: ${time.format(context)}`);
+    notify(this.context, `Selected time: ${time.format(this.context)}`);
   }
 
   private menu(context: BuildContext, icon: boolean): Widget {
